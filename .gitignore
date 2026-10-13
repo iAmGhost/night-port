@@ -1,0 +1,7 @@
+/NIGHT
+/scratch
+/.pi
+.DS_Store
+*.pyc
+/port/build
+/port/night

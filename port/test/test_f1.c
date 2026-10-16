@@ -1471,6 +1471,51 @@ static void test_config_value_ptr(void) {
     v = config_value_ptr("path");    check(v == 0, "NULL table -> 0");
 }
 
+static void test_time_parse(void) {
+    printf("parse_time_str (0x049a6e)\n");
+    char prefix[64];
+    uint32_t secs;
+    const char *ret;
+
+    memset(prefix, 0, sizeof prefix);
+    ret = parse_time_str("-12:34:56", prefix, &secs);
+    check(strcmp(prefix, "") == 0, "  -12:34:56 prefix empty");
+    check((int32_t)secs == -45296, "  -12:34:56 secs = -45296");
+    check(ret != NULL && *ret == 0, "  -12:34:56 returns end");
+
+    memset(prefix, 0, sizeof prefix);
+    ret = parse_time_str("12:34:56", prefix, &secs);
+    check((int32_t)secs == 9296, "  12:34:56 no-sign off-by-one -> 9296 (as 2:34:56)");
+    (void)ret;
+
+    memset(prefix, 0, sizeof prefix);
+    ret = parse_time_str("ab12", prefix, &secs);
+    check(strcmp(prefix, "ab") == 0, "  ab12 prefix = ab");
+    check(secs == 7200, "  ab12 secs = 7200 (only '2' hours)");
+    (void)ret;
+
+    memset(prefix, 0, sizeof prefix);
+    ret = parse_time_str("ab+5", prefix, &secs);
+    check(strcmp(prefix, "ab") == 0, "  ab+5 prefix = ab");
+    check(secs == 18000, "  ab+5 secs = 18000 (5 hours, sign +)");
+    (void)ret;
+
+    memset(prefix, 0, sizeof prefix);
+    ret = parse_time_str("ab5", prefix, &secs);
+    check(strcmp(prefix, "ab") == 0, "  ab5 prefix = ab");
+    check(ret != NULL && *ret == 0, "  ab5 no time (timepos at NUL)");
+
+    /* prefix longer than 30 is clamped to 30. */
+    memset(prefix, 0, sizeof prefix);
+    static char longpref[80];
+    for (int i = 0; i < 35; i++) longpref[i] = 'a';
+    longpref[35] = '1';
+    longpref[36] = 0;
+    ret = parse_time_str(longpref, prefix, &secs);
+    check(prefix[29] == 'a' && prefix[30] == 0, "  long prefix clamped to 30");
+    (void)ret;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1554,6 +1599,7 @@ int main(void) {
     test_itoa32s();
     test_tmp_filename();
     test_config_value_ptr();
+    test_time_parse();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

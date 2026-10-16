@@ -485,6 +485,16 @@ uint32_t fx_less(const struct fxnum *a, const struct fxnum *b);
 /* Parse leading ASCII decimal digits into *out (0 if no leading digit).
  *  orig: 0x049a48 */
 const char *parse_decimal(const char *s, uint32_t *out);
+
+/* ---- L1: time-string parser (0x049a6e) ----
+ * Parse "<prefix><opt sign><HH>[:<MM>[:<SS>]]". prefix_buf (>=31 bytes) gets the
+ * leading run of non-{digit/sign/comma/NUL} chars (clamped to 30), NUL-terminated.
+ * *secs_out = sec + min*60 + hour*3600 (negated if the break char was '-').
+ * Returns the position after the last parsed component, or break_pos+1 (with
+ * *secs_out left unchanged) when the char there is not a digit.
+ * LATENT BUG (replicated 1:1): the scan resumes at break_pos+1 unconditionally,
+ * so a pure "HH:MM:SS" with no leading sign skips its first digit. */
+const char *parse_time_str(const char *str, char *prefix_buf, uint32_t *secs_out);
 /* DOS protected-mode/real-mode disk+segment setup (INT 2Fh / INT 21h/0x30h).
  * No-op stub in the modern port (the OS provides this).  orig: 0x0490b0 */
 void dos_realmode_setup(void);

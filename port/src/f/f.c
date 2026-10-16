@@ -2017,6 +2017,45 @@ const char *parse_decimal(const char *s, uint32_t *out)   /* 0x49a48 */
     *out = v;
     return s;                                /* EAX = pointer past the digits */
 }
+
+/* 0x049a6e: time-string parser (see f.h for the contract). Register ABI:
+ * EAX=str, EDX=prefix_buf, EBX=secs_out; returns EAX (position after time).
+ * The segmented prefix copy (REP MOVSD/MOVSB ES:EDI, ESI) is a plain memcpy in
+ * the flat model; ESI (the copy source) is later repurposed as the negate flag. */
+const char *parse_time_str(const char *str, char *prefix_buf, uint32_t *secs_out)
+{
+    const char *p = str;
+    if (*p == ':') ++p;                       /* 0x49a7b skip leading ':' */
+    const char *start = p;                    /* 0x49a81 ESI = start */
+    uint8_t ch;
+    for (;;) {                                /* 0x49a83 find the break char */
+        ch = (uint8_t)*p;
+        if (ch == 0 || ch == ',' || ch == '-' || ch == '+') break;  /* 0x49a8a..f */
+        if (ch < '0') { ++p; continue; }      /* 0x49a99 JC (< '0') */
+        if (ch <= '9') break;                 /* 0x49a9e JBE (digit) */
+        ++p;                                  /* 0x49aa3 advance (char > '9') */
+    }
+    uint32_t offset = (uint32_t)(p - start);  /* 0x49aa8 */
+    if (offset > 0x1e) offset = 0x1e;         /* 0x49aae clamp to 30 */
+    memcpy(prefix_buf, start, offset);        /* 0x49ace/0x49ad5 */
+    prefix_buf[offset] = 0;                   /* 0x49ae2 NUL-terminate */
+    int negate = (ch == '-') ? 1 : 0;         /* 0x49ae8/0x49aed */
+    const char *timepos = p + 1;              /* 0x49ae5/0x49af9 break_pos+1 */
+    uint8_t next = (uint8_t)timepos[0];       /* 0x49afb AL=[EBP] (in-bounds: NUL-terminated) */
+    if (next < '0' || next > '9') return timepos;  /* 0x49afe/0x49b00/0x49b08 */
+    uint32_t c[3] = {0, 0, 0};                /* [ESP]=sec [ESP+4]=min [ESP+8]=hr */
+    const char *q = parse_decimal(timepos, &c[2]);   /* hours -> c[2] */
+    if (*q == ':') {                          /* 0x49b28 */
+        q = parse_decimal(q + 1, &c[1]);      /* minutes -> c[1] */
+        if (*q == ':') {                       /* 0x49b3d (CH==CL, both ':') */
+            q = parse_decimal(q + 1, &c[0]);   /* seconds -> c[0] */
+        }
+    }
+    uint32_t total = c[0] + c[1] * 60u + c[2] * 3600u;  /* 0x49b4b..0x49b6c */
+    if (negate) total = (uint32_t)(-(int32_t)total);    /* 0x49b74/0x49b76 */
+    *secs_out = total;
+    return q;                                  /* 0x49b7a EAX = EBP */
+}
 void dos_realmode_setup(void) { sys_dos_realmode_setup(); }  /* 0x490b0 */
 uint16_t fpu_init(void) { return sys_fpu_control_word(); }   /* 0x4910a */
 

@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 116 / 528 done
+TOTALS: 118 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 5 | 0 | 0 | 42 |
+| L1 | 47 | 7 | 0 | 0 | 40 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -228,7 +228,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x041c31 | 93 | heap_free_host | heap | heap.md; port+test PASS (batch 7-8) |
 | [x] | 0x041e9f | 35 | prng_next | runtime | port+test PASS (LCG state=state*0x41c64e6d+0x3039; ret (state>>16)&0x7fff; 9-diff vs Python) |
 | [x] | 0x041ec3 | 15 | prng_seed | runtime | port+test PASS (sets *rng_state_ptr()=seed; no-op if NULL) |
-| [ ] | 0x041f42 | 26 | FUN_00041f42 | | |
+| [x] | 0x041f42 | 26 | itoa32s | string | port+test PASS (signed itoa via itoa32; '-' only for base==10; returns buf start; INT_MIN NEG-wraps) |
 | [ ] | 0x0422d5 | 58 | FUN_000422d5 | | |
 | [ ] | 0x0423cf | 21 | FUN_000423cf | | |
 | [ ] | 0x0427f3 | 104 | FUN_000427f3 | | |
@@ -261,7 +261,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x048f4c | 81 | FUN_00048f4c | | |
 | [ ] | 0x048fe6 | 201 | FUN_00048fe6 | | |
 | [ ] | 0x0492d0 | 84 | FUN_000492d0 | | |
-| [ ] | 0x0494a2 | 26 | FUN_000494a2 | | |
+| [x] | 0x0494a2 | 26 | itoa32s_tbl | string | port+test PASS (signed itoa via itoa32_tbl 0x49459; identical to itoa32s) |
 | [ ] | 0x049506 | 228 | FUN_00049506 | | |
 | [ ] | 0x0498f6 | 276 | FUN_000498f6 | | |
 | [ ] | 0x049a6e | 277 | FUN_00049a6e | | |

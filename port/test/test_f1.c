@@ -1397,6 +1397,28 @@ static void test_prng(void)
     check(prng_next() == 0x2704, "seed 0 s3 ret=0x2704");
 }
 
+static void test_itoa32s(void)
+{
+    printf("L1: itoa32s / itoa32s_tbl (0x041f42 / 0x0494a2)\n");
+    char b[40]; char *r;
+    r = itoa32s(-42, b, 10);
+    check(r == b && strcmp(b, "-42") == 0, "-42 dec -> '-42', returns buf start");
+    r = itoa32s(42, b, 10);
+    check(r == b && strcmp(b, "42") == 0, "42 dec -> '42'");
+    r = itoa32s(0, b, 10);
+    check(r == b && strcmp(b, "0") == 0, "0 dec -> '0'");
+    r = itoa32s(-255, b, 16);
+    check(r == b && strcmp(b, "ffffff01") == 0, "-255 hex -> 'ffffff01' (no sign for base!=10)");
+    r = itoa32s(255, b, 16);
+    check(r == b && strcmp(b, "ff") == 0, "255 hex -> 'ff'");
+    r = itoa32s((int32_t)0x80000000, b, 10);
+    check(r == b && strcmp(b, "-2147483648") == 0, "INT_MIN dec -> '-2147483648' (NEG wraps)");
+    r = itoa32s_tbl(-1234, b, 10);
+    check(r == b && strcmp(b, "-1234") == 0, "tbl -1234 dec -> '-1234'");
+    r = itoa32s_tbl(5, b, 2);
+    check(r == b && strcmp(b, "101") == 0, "tbl 5 bin -> '101'");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1476,6 +1498,7 @@ int main(void) {
     test_string_upper();
     test_hex_digit_value();
     test_prng();
+    test_itoa32s();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -1218,6 +1218,26 @@ void prng_seed(uint32_t seed) {
     uint32_t *s = rng_state_ptr();
     if (s != (uint32_t *)0) *s = seed;
 }
+
+/* 0x041f42: signed itoa. Faithful: EAX=value(signed), EDX=buf, EBX=base.
+ * if (base==10 && value<0) { value=-value; buf[0]='-'; buf++; } itoa32(value,buf,base);
+ * returns the ORIGINAL buf start (ECX held it across the itoa32 call). */
+char *itoa32s(int32_t value, char *buf, uint32_t base) {
+    char *p = buf;
+    uint32_t u = (uint32_t)value;      /* NEG EAX wraps mod 2^32 (INT_MIN -> INT_MIN) */
+    if (base == 10 && value < 0) { u = -u; *buf = '-'; buf++; }
+    itoa32(u, buf, base);
+    return p;
+}
+
+/* 0x0494a2: identical to itoa32s but calls itoa32_tbl (0x49459, delegates to itoa32). */
+char *itoa32s_tbl(int32_t value, char *buf, uint32_t base) {
+    char *p = buf;
+    uint32_t u = (uint32_t)value;
+    if (base == 10 && value < 0) { u = -u; *buf = '-'; buf++; }
+    itoa32_tbl(u, buf, base);
+    return p;
+}
 uint32_t *g_arr_53730 = NULL;                /* DAT_00053730 */
 void store_arr53730(uint32_t index, uint32_t value)   /* 0x49325 */
 {

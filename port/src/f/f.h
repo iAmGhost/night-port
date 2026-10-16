@@ -432,6 +432,11 @@ int      hex_digit_value(int c);
 uint32_t prng_next(void);
 /* 0x041ec3: seed the PRNG state word (no-op if uninitialized). */
 void     prng_seed(uint32_t seed);
+/* 0x041f42: signed itoa (via itoa32): if base==10 && value<0 write '-' and
+ * negate; returns the ORIGINAL buffer start (not the end pointer). */
+char    *itoa32s(int32_t value, char *buf, uint32_t base);
+/* 0x0494a2: same as itoa32s but calls itoa32_tbl (0x49459) instead of itoa32. */
+char    *itoa32s_tbl(int32_t value, char *buf, uint32_t base);
 /* Store value|0x40000 into g_arr_53730[index] (sets bit 22 as a "set" flag).
  *  orig: 0x049325 (store [0x53730 + index*4] = value | 0x40000) */
 extern uint32_t *g_arr_53730;

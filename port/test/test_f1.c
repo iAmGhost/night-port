@@ -1648,6 +1648,32 @@ static void test_044ea4(void) {
           "  *w neg: width=42, sign flag set");
 }
 
+static void test_049b84(void) {
+    printf("fn_049b84 (0x049b84)\n");
+    uint32_t out[9];
+    const char *r;
+    memset(out, 0xAA, sizeof out);
+    r = fn_049b84("M12.34.56/07:08:09", out);
+    check(out[8]==0 && out[4]==11 && out[3]==34 && out[6]==56 && out[7]==0 &&
+          out[2]==7 && out[1]==8 && out[0]==9 && *r==0,
+          "  M12.34.56/07:08:09: era=0,[10]=11,[0c]=34,[18]=56,[1c]=0,m=7,min=8,sec=9");
+    check(out[5]==0xAAAAAAAA, "  M case: [14] untouched (sentinel)");
+    memset(out, 0xAA, sizeof out);
+    r = fn_049b84("J123/05:06:07", out);
+    check(out[8]==1 && out[7]==123 && out[2]==5 && out[1]==6 && out[0]==7 && *r==0,
+          "  J123/05:06:07: era=1,[1c]=123,m=5,min=6,sec=7");
+    check(out[3]==0xAAAAAAAA && out[4]==0xAAAAAAAA && out[6]==0xAAAAAAAA,
+          "  J case: [0c]/[10]/[18] untouched (sentinel)");
+    memset(out, 0xAA, sizeof out);
+    r = fn_049b84("1234", out);
+    check(out[8]==0xffffffff && out[7]==1234 && out[2]==2 && out[1]==0 && out[0]==0 && *r==0,
+          "  1234: era=-1,[1c]=1234,default m=2,min=sec=0");
+    memset(out, 0xAA, sizeof out);
+    r = fn_049b84("J9/01:02", out);
+    check(out[8]==1 && out[7]==9 && out[2]==1 && out[1]==2 && out[0]==0,
+          "  J9/01:02: m=1,min=2,sec=0 (no 2nd ':')");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1738,6 +1764,7 @@ int main(void) {
     test_047d24();
     test_044bb4();
     test_044ea4();
+    test_049b84();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

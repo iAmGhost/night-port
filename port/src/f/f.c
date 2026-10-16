@@ -1295,6 +1295,54 @@ uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec) {
     return (uint8_t *)after;
 }
 
+/* 0x049b84: parse a [J|M]N[.N[.N]][/month:minute:second] date/time string.
+ * Output struct (uint32_t*, byte offsets):
+ *   [0x20] era (1='J', 0='M', -1=neither)
+ *   [0x1c] (J/neither) first number; (M) 0
+ *   [0x10] (M) first number - 1
+ *   [0x0c] (M, after 1st '.') second number
+ *   [0x18] (M, after 2nd '.') third number
+ *   [0x08] month (from /part, default 2)
+ *   [0x04] minute (from /part)
+ *   [0x00] second (from /part)
+ * Untouched fields are left as-is. Returns position after the parsed string. */
+const char *fn_049b84(const char *s, uint32_t *out) {
+    uint32_t era = 0xffffffff;                        /* ESI = -1 (neither J nor M) */
+    if (*s == 'J') { era = 1; s = s + 1; }           /* 0x49b95 */
+    if (*s == 'M') { s = s + 1; era = 0; }           /* 0x49ba1 */
+    out[0x20 / 4] = era;                             /* [ECX+0x20] = era */
+    uint32_t val;
+    const char *p = parse_decimal(s, &val);          /* first number */
+    if (era == 0) {                                  /* 'M' case (ESI==0) */
+        out[0x10 / 4] = val - 1;                     /* [ECX+0x10] = first - 1 */
+        if (*p == '.') {
+            p = parse_decimal(p + 1, &val);          /* 2nd number */
+            out[0x0c / 4] = val;                     /* [ECX+0x0c] */
+            if (*p == '.') {
+                p = parse_decimal(p + 1, &val);      /* 3rd number */
+                out[0x18 / 4] = val;                 /* [ECX+0x18] */
+            }
+        }
+        out[0x1c / 4] = 0;                           /* [ECX+0x1c] = 0 */
+    } else {                                         /* 'J' or neither */
+        out[0x1c / 4] = val;                         /* [ECX+0x1c] = first */
+    }
+    uint32_t second = 0, minute = 0, month = 2;      /* [ESP+0]=0 [ESP+4]=0 [ESP+8]=2 */
+    if (*p == '/') {
+        p = parse_decimal(p + 1, &month);            /* [ESP+8] = month */
+        if (*p == ':') {
+            p = parse_decimal(p + 1, &minute);       /* [ESP+4] = minute */
+            if (*p == ':') {
+                p = parse_decimal(p + 1, &second);   /* [ESP+0] = second */
+            }
+        }
+    }
+    out[0] = second;                                 /* [ECX+0x00] */
+    out[1] = minute;                                 /* [ECX+0x04] */
+    out[2] = month;                                  /* [ECX+0x08] */
+    return p;                                        /* position after parsed string */
+}
+
 uint8_t g_debug_break = 0;               /* DAT_00053624 */
 uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
 {

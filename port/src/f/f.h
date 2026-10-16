@@ -412,6 +412,9 @@ void node_deactivate(uint32_t rec_off);
 const uint8_t *parse_mod_prefix(const uint8_t *s, uint8_t *out);
 /* 0x044ea4: parse a numeric conversion specifier (width / precision / suffix). */
 uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec);
+/* 0x049b84: parse a [J|M]N[.N[.N]][/month:minute:second] date/time string into
+ * a 9-dword struct; returns the position after the parsed string. */
+const char *fn_049b84(const char *s, uint32_t *out);
 /* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
  * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.
  *  orig: 0x045a44 */

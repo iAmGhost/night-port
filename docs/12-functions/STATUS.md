@@ -34,34 +34,11 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 0 / 528 done
+TOTALS: 0 / 0 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
-| L0 | 112 | 0 | 0 | 0 | 112 |
-| L1 | 47 | 0 | 0 | 0 | 47 |
-| L2 | 32 | 0 | 0 | 0 | 32 |
-| L3 | 21 | 0 | 0 | 0 | 21 |
-| L4 | 13 | 0 | 0 | 0 | 13 |
-| L5 | 10 | 0 | 0 | 0 | 10 |
-| L6 | 10 | 0 | 0 | 0 | 10 |
-| L7 | 8 | 0 | 0 | 0 | 8 |
-| L8 | 7 | 0 | 0 | 0 | 7 |
-| L9 | 2 | 0 | 0 | 0 | 2 |
-| L10 | 81 | 0 | 0 | 0 | 81 |
-| L11 | 77 | 0 | 0 | 0 | 77 |
-| L12 | 58 | 0 | 0 | 0 | 58 |
-| L13 | 16 | 0 | 0 | 0 | 16 |
-| L14 | 7 | 0 | 0 | 0 | 7 |
-| L15 | 5 | 0 | 0 | 0 | 5 |
-| L16 | 8 | 0 | 0 | 0 | 8 |
-| L17 | 6 | 0 | 0 | 0 | 6 |
-| L18 | 1 | 0 | 0 | 0 | 1 |
-| L19 | 1 | 0 | 0 | 0 | 1 |
-| L20 | 1 | 0 | 0 | 0 | 1 |
-| L21 | 1 | 0 | 0 | 0 | 1 |
-| L22 | 1 | 0 | 0 | 0 | 1 |
-| L23 | 3 | 0 | 0 | 0 | 3 |
+
 
 ## Work queue (current batch)
 
@@ -73,27 +50,28 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|
 | 2026-07-08 | Vertical-slice port discarded; function-to-function approach adopted | docs/12-function-map.md |
 | 2026-07-08 | 115 unreferenced functions recovered via code-gap scan; 12 bogus mid-code entries deleted | analysis/rank.tsv |
+| 2026-07-08 | canary pair (0x418ee/0x41901, L8/L9) ported in batch 1 ahead of L1-L7: self-contained stack guard; sole callee 0x429ea (printer) replaced by sys_fatal (sys layer), fatal fall-through = process death | primitives.md |
 
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x040024 | 29 | FUN_00040024 | | |
-| [ ] | 0x040042 | 30 | FUN_00040042 | | |
-| [ ] | 0x040061 | 32 | FUN_00040061 | | |
-| [ ] | 0x040475 | 27 | FUN_00040475 | | |
-| [ ] | 0x040491 | 52 | FUN_00040491 | | |
-| [ ] | 0x0404c6 | 20 | FUN_000404c6 | | |
-| [ ] | 0x0404db | 42 | FUN_000404db | | |
-| [ ] | 0x040506 | 37 | FUN_00040506 | | |
-| [ ] | 0x04052c | 65 | FUN_0004052c | | |
-| [ ] | 0x0418e6 | 0 | FUN_000418e6 | | |
+| [x] | 0x040024 | 29 | put_px | video | primitives.md; test_f1 PASS |
+| [x] | 0x040042 | 30 | board_out | io-board | primitives.md; test_f1 PASS |
+| [x] | 0x040061 | 32 | board_in | io-board | primitives.md; test_f1 PASS |
+| [x] | 0x040475 | 27 | cpy_back | video | primitives.md; test_f1 PASS |
+| [x] | 0x040491 | 52 | blt_rows | video | primitives.md; test_f1 PASS |
+| [x] | 0x0404c6 | 20 | cpy_dw | video | primitives.md; test_f1 PASS |
+| [x] | 0x0404db | 42 | hline_set | video | primitives.md; test_f1 PASS |
+| [x] | 0x040506 | 37 | vline_set | video | primitives.md; test_f1 PASS |
+| [x] | 0x04052c | 65 | rect_fill | video | primitives.md; test_f1 PASS |
+| [x] | 0x0418e6 | 0 | canary_ss_save | runtime | primitives.md; test_f1 PASS |
 | [ ] | 0x041df2 | 39 | FUN_00041df2 | | |
 | [ ] | 0x041e6c | 36 | FUN_00041e6c | | |
 | [ ] | 0x041e99 | 5 | FUN_00041e99 | | |
 | [ ] | 0x041ef8 | 73 | FUN_00041ef8 | | |
 | [ ] | 0x041f5d | 24 | FUN_00041f5d | | |
-| [ ] | 0x041f76 | 6 | FUN_00041f76 | | |
+| [x] | 0x041f76 | 6 | abs32 | runtime | primitives.md; test_f1 PASS |
 | [ ] | 0x041f7e | 28 | FUN_00041f7e | | |
 | [ ] | 0x042310 | 8 | FUN_00042310 | | |
 | [ ] | 0x04231b | 1 | FUN_0004231b | | |
@@ -363,7 +341,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x041901 | 44 | FUN_00041901 | | |
+| [x] | 0x041901 | 44 | canary_check | runtime | primitives.md; test_f1 PASS; 0x429ea->sys_fatal (sys) |
 | [ ] | 0x04192e | 457 | FUN_0004192e | | |
 | [ ] | 0x041d18 | 46 | FUN_00041d18 | | |
 | [ ] | 0x042394 | 33 | FUN_00042394 | | |
@@ -374,7 +352,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x0418ee | 15 | FUN_000418ee | | |
+| [x] | 0x0418ee | 15 | canary_id | runtime | primitives.md; test_f1 PASS |
 | [ ] | 0x041c8f | 136 | FUN_00041c8f | | |
 ## L10 (81)
 

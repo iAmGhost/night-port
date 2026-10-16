@@ -459,6 +459,7 @@ int      fx_compare(const uint8_t *a, const uint8_t *b);        /* 0x47ab6 */
 void     fx_classify_status(const uint8_t *fx, uint8_t *ctx, uint32_t edi); /* 0x48666 */
 uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
                   uint32_t esi);                                          /* 0x47d4e */
+void     fx_stub_4a923(void);                                             /* 0x4a923 */
 
 /* ---- L0 batch H (4): fx compare + decimal parse + DOS/FPU stubs ---- */
 /* Lexicographic less-than on an fxnum by (exp, hi, lo).  orig: 0x0498c6 */

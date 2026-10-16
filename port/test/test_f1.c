@@ -1310,6 +1310,15 @@ static void test_fx_mul64(void) {
           "deterministic");
 }
 
+static void test_fx_stub_4a923(void) {
+    printf("== fx_stub_4a923 (L0: no-op stub 0x04a923) ==\n");
+    /* Disassembly-verified no-op: CALL 0x4a9d8 (POP EDI; RET) returns to the
+     * caller with EDI clobbered and no return value. Callable, no observable
+     * side effect. */
+    fx_stub_4a923();
+    check(1, "callable, void no-op");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1384,6 +1393,7 @@ int main(void) {
     test_fx_compare();
     test_fx_classify_status();
     test_fx_mul64();
+    test_fx_stub_4a923();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

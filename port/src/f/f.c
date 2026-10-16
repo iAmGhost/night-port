@@ -1767,6 +1767,19 @@ uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
     return 0x8000000000000000ULL;                        /* overflow -> inf */
 }
 
+/* ---- 0x4a923: no-op stub ----
+ * Disassembly-verified no-op. Body is a single `CALL 0x4a9d8` followed by
+ * zero-filler (0x0000 pairs). 0x4a9d8 is not a Ghidra function; its two bytes
+ * are `POP EDI; RET`. So calling 0x4a923: (1) CALL pushes 0x4a928 and jumps
+ * to 0x4a9d8, (2) POP EDI loads 0x4a928 into EDI (clobber), (3) RET pops the
+ * caller's return address and jumps back to 0x4a923's caller. Net effect:
+ * return void to the caller with EDI clobbered to 0x4a928 and no return
+ * value; any stack args pushed by the caller are left in place (caller-cleans).
+ * No observable state change -> empty function. Called from 0x4a814. */
+void fx_stub_4a923(void)                                                /* 0x4a923 */
+{
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

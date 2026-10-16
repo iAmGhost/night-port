@@ -115,12 +115,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x04295d | 28 | get_key | input | primitives.md; test_f1 PASS |
 | [x] | 0x0429a8 | 29 | mem_cmp | input | primitives.md; test_f1 PASS |
 | [x] | 0x042a07 | 0 | cb_noop2 | input | primitives.md; test_f1 PASS |
-| [~] | 0x042ada | 162 | heap_alloc | heap | heap.md; port pending |
-| [~] | 0x042b7d | 4 | (free trampoline) | heap | heap.md; folds into free |
-| [~] | 0x042b82 | 266 | heap_free | heap | heap.md; port pending |
+| [x] | 0x042ada | 162 | heap_alloc | heap | heap.md; port+test PASS (batch 7-8) |
+| [x] | 0x042b7d | 4 | (free epilogue) | heap | heap.md; early-exit JZ->JMP 0x42c88, folded into heap_free returns; PASS |
+| [x] | 0x042b82 | 266 | heap_free | heap | heap.md; port+test PASS (batch 7-8) |
 | [x] | 0x042c8d | 62 | heap_unlink | heap | heap.md; test_f1 PASS (batch 7) |
-| [~] | 0x042e2d | 115 | heap_insert_init | heap | heap.md; port pending |
-| [~] | 0x042ea1 | 77 | heap_top_check | heap | heap.md; port pending |
+| [x] | 0x042e2d | 115 | heap_insert_init | heap | heap.md; port+test PASS (batch 7-8) |
+| [x] | 0x042ea1 | 77 | heap_top_check | heap | heap.md; port+test PASS (batch 7-8) |
 | [x] | 0x04322c | 2 | heap_grow | heap | primitives.md; test_f1 PASS |
 | [x] | 0x043263 | 28 | get_key_echo | input | primitives.md; test_f1 PASS |
 | [x] | 0x0432b7 | 107 | memsetw | mem | primitives.md; test_f1 PASS |
@@ -202,7 +202,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03ee88 | 160 | FUN_0003ee88 | | |
 | [ ] | 0x041439 | 76 | FUN_00041439 | | |
 | [ ] | 0x041c28 | 8 | FUN_00041c28 | | |
-| [ ] | 0x041c31 | 93 | FUN_00041c31 | | |
+| [x] | 0x041c31 | 93 | heap_free_host | heap | heap.md; port+test PASS (batch 7-8) |
 | [ ] | 0x041e9f | 35 | FUN_00041e9f | | |
 | [ ] | 0x041ec3 | 15 | FUN_00041ec3 | | |
 | [ ] | 0x041f42 | 26 | FUN_00041f42 | | |
@@ -328,7 +328,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x041af8 | 226 | FUN_00041af8 | | |
+| [x] | 0x041af8 | 226 | heap_malloc | heap | heap.md; port+test PASS (batch 7-8) |
 | [ ] | 0x04247a | 251 | FUN_0004247a | | |
 | [ ] | 0x0428f8 | 47 | FUN_000428f8 | | |
 | [ ] | 0x042928 | 47 | FUN_00042928 | | |

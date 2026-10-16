@@ -5,6 +5,7 @@
 #include "f.h"
 #include "../sys/sys.h"
 #include <math.h>
+#include <string.h>
 
 /* ---- globals (mirrored BSS) ---- */
 int32_t  g_video_stride = 0;
@@ -498,18 +499,339 @@ uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n) {
     return dst + n;
 }
 
-/* ---- Heap: all-blocks (region) chain head / cursor (DAT_00053350 / 0x53354). */
-struct heap_node *g_heap_head = 0;
-struct heap_node *g_heap_cursor = 0;
+/* =================================================================== */
+/* Heap (two-level DPMI allocator) — batches 7-8                        */
+/* =================================================================== */
+/*
+ * See f.h for the representation. Every heap pointer is a uint32 offset from
+ * g_heap_base. hw(o) = word at offset o. Block fields: size@0 (bit 0 =
+ * allocated), prev@4, next@8, user data@4. Region fields: total@0, root@0x0c,
+ * largest@0x10, high_water@0x14, alloc_count@0x18, free_count@0x1c, sentinel
+ * at +0x20 (size/prev/next). The original is 32-bit; the port keeps the exact
+ * byte layout and uses offsets as the faithful 32->64-bit pointer adaptation.
+ */
 
-/* Unlink a node from the all-blocks chain. Disasm (0x042c8d):
- *   if (n == cursor) cursor = n->next;
- *   if (n == head)    head   = n->next;
- *   prev = n->prev; next = n->next;
- *   if (prev) prev->next = next;      -- and it never touches next->prev */
-void heap_unlink(struct heap_node *n) {
-    if (g_heap_cursor == n) g_heap_cursor = n->next;
-    if (g_heap_head == n)    g_heap_head   = n->next;
-    if (n->prev) n->prev->next = n->next;
-    /* the original does NOT update n->next->prev (decompiler was wrong). */
+#define NIGHT_HEAP_ARENA (1u << 20)   /* 1 MiB static arena */
+static uint8_t s_heap_arena[NIGHT_HEAP_ARENA];
+
+uintptr_t g_heap_base      = 0;
+uint32_t  g_heap_head      = 0;   /* DAT_00053350 */
+uint32_t  g_heap_cursor    = 0;   /* DAT_00053354 */
+uint32_t  g_heap_highwater = 0;   /* DAT_00053358 */
+uint32_t  g_heap_seg_limit = 0;   /* DAT_00053384 */
+uint8_t   g_heap_cfg_b2    = 0;   /* DAT_000533b2 */
+uint8_t   g_heap_cfg_b4    = 0;   /* DAT_000533b4 */
+uint8_t   g_heap_flag      = 0;   /* DAT_00063fbd (wrappers zero; never read) */
+uint32_t  g_ds_segment     = 0;   /* DPMI DS (flat model: 0) */
+static uint32_t s_arena_used = 0; /* next free offset in the arena */
+/* NOTE: the arena reserves offset 0 as a NULL guard. Region/block offsets
+ * are 32-bit values stored in 4-byte fields (to keep the 12/44-byte layout),
+ * and the region chain is NULL-terminated with 0. A region at offset 0 would
+ * be indistinguishable from "empty", so no heap pointer may be 0. The DPMI
+ * original never has this issue (its region pointers are real, non-null
+ * addresses); reserving the first 64 bytes of the static arena gives the same
+ * guarantee. */
+
+static inline uint32_t *hw(uint32_t off) { return (uint32_t *)(g_heap_base + off); }
+/* block fields */
+#define B_SIZE(o) hw(o)[0]   /* +0x00 */
+#define B_PREV(o) hw(o)[1]   /* +0x04 */
+#define B_NEXT(o) hw(o)[2]   /* +0x08 */
+/* region fields */
+#define R_ROOT(r)    hw(r)[3]   /* +0x0c */
+#define R_LARGEST(r) hw(r)[4]   /* +0x10 */
+#define R_HWM(r)     hw(r)[5]   /* +0x14 */
+#define R_ALLOC(r)   hw(r)[6]   /* +0x18 */
+#define R_FREE(r)    hw(r)[7]   /* +0x1c */
+#define R_SENT(r)    ((r) + 0x20)
+#define R_SENT_PREV(r) hw(r)[9]   /* +0x24 */
+#define R_SENT_NEXT(r) hw(r)[10]  /* +0x28 */
+
+void heap_arena_init(void) {
+    g_heap_base      = (uintptr_t)s_heap_arena;
+    g_heap_head      = 0;
+    g_heap_cursor    = 0;
+    g_heap_highwater = 0;
+    g_heap_seg_limit = 0;
+    g_heap_cfg_b2    = 0;
+    g_heap_cfg_b4    = 0;
+    g_heap_flag      = 0;
+    g_ds_segment     = 0;
+    s_arena_used     = 0x40;  /* reserve offset 0 (NULL guard) */
+}
+
+/* Place a `size`-byte region (64-byte aligned) in the arena; 0 if no room.
+ * The slot is zeroed to replicate DPMI's zeroed fresh pages (the original's
+ * insert_init leaves high_water unset, relying on that zeroing). */
+uint32_t heap_arena_alloc(uint32_t size) {
+    uint32_t a   = (size + 0x3f) & ~0x3fu;
+    uint32_t off = s_arena_used;
+    if (off + a > NIGHT_HEAP_ARENA) return 0;
+    s_arena_used = off + a;
+    memset(s_heap_arena + off, 0, a);
+    return off;
+}
+
+/* Unlink a region from the all-blocks chain. Disasm (0x042c8d): advance
+ * cursor and head if they are the node, then prev->next = next and
+ * next->prev = prev, each NULL-guarded (full double unlink). */
+void heap_unlink(uint32_t node) {                                  /* orig: 0x042c8d */
+    if (g_heap_cursor == node) g_heap_cursor = B_NEXT(node);
+    if (g_heap_head   == node) g_heap_head   = B_NEXT(node);
+    uint32_t prev = B_PREV(node);                                  /* 0x042cb5 */
+    uint32_t next = B_NEXT(node);                                  /* 0x042cb8 */
+    if (prev) B_NEXT(prev) = next;                                 /* 0x042cbd/cbf */
+    if (next) B_PREV(next) = prev;                                 /* 0x042cc2/cc6 */
+}
+
+/* Best-fit allocation within one region.  orig: 0x042ada */
+uint32_t heap_alloc(uint32_t region, uint32_t size) {
+    uint32_t eax, esi, edi, edx, ecx;
+    if (size == 0) return 0;                                   /* 0x42ae0/42ae2 */
+    if ((uint64_t)size + 7 > 0xFFFFFFFFu) return 0;            /* 0x42ae4 ADD,7; 0x42ae7 JC */
+    { uint32_t t = size + 7;                                    /* 0x42ae4 */
+      eax = (t & 0xFFFFFF00u) | ((t & 0xFFu) & 0xFCu); }        /* 0x42ae9 AND AL,0xfc (LOW byte only) */
+    if (eax < 0xc) eax = 0xc;                                  /* 0x42aeb-42af7 max(eax,0xc) */
+    if (eax > R_HWM(region)) return 0;                         /* 0x42af9 CMP; 0x42afc JA */
+    esi = R_ROOT(region);                                      /* 0x42afe */
+    edi = R_LARGEST(region);                                   /* 0x42b01 */
+    if (eax <= edi) { esi = R_SENT_NEXT(region); edi = 0; }    /* 0x42b04/06,08,0b */
+    for (;;) {
+        edx = B_SIZE(esi);                                     /* 0x42b0d */
+        if (eax <= edx) {                                      /* 0x42b0f CMP; 0x42b11 JBE */
+            uint32_t rem = edx - eax;                          /* 0x42b2d SUB EDX,EAX */
+            R_LARGEST(region) = edi;                           /* 0x42b2f */
+            R_ALLOC(region)++;                                 /* 0x42b32 */
+            ecx = B_NEXT(esi);                                 /* 0x42b35 next */
+            if (rem < 0xc) {                                   /* 0x42b38 CMP; 0x42b3b JC (no-split) */
+                R_FREE(region)--;                              /* 0x42b5b */
+                uint32_t prev = B_PREV(esi);                   /* 0x42b62 */
+                B_NEXT(prev) = ecx;                            /* 0x42b65 prev.next = next */
+                B_PREV(ecx) = prev;                            /* 0x42b68 next.prev = prev */
+                R_ROOT(region) = prev;                         /* 0x42b6b root = prev */
+            } else {                                           /* split (0x42b3d) */
+                uint32_t rb   = esi + eax;                     /* 0x42b3f rem_block */
+                uint32_t prev = B_PREV(esi);                   /* 0x42b48 */
+                R_ROOT(region) = rb;                           /* 0x42b41 root = rb */
+                B_SIZE(rb)   = rem;                            /* 0x42b44 rb.size = remainder */
+                B_SIZE(esi)  = eax;                            /* 0x42b46 block.size = aligned */
+                B_PREV(rb)   = prev;                           /* 0x42b4b rb.prev = prev */
+                B_NEXT(rb)   = ecx;                            /* 0x42b4e rb.next = next */
+                B_NEXT(prev) = rb;                             /* 0x42b51 prev.next = rb */
+                B_PREV(ecx)  = rb;                             /* 0x42b56 next.prev = rb */
+            }
+            B_SIZE(esi) |= 1;                                  /* 0x42b70 mark allocated */
+            return esi + 4;                                    /* 0x42b73/42b75 */
+        }
+        if (edx > edi) edi = edx;                              /* 0x42b13-42b1a max(edi,edx) */
+        esi = B_NEXT(esi);                                     /* 0x42b1f */
+        if (esi == R_SENT(region)) {                           /* 0x42b22 CMP; 0x42b24 JNZ */
+            R_HWM(region) = edi;                               /* 0x42b26 */
+            return 0;                                          /* 0x42b29 */
+        }
+    }
+}
+
+/* Free a data offset within a region.  orig: 0x042b82 */
+void heap_free(uint32_t region, uint32_t data) {
+    if (data == 0) return;                              /* 0x42b88 OR; 0x42b8a JZ */
+    uint32_t block = data - 4;                            /* 0x42b8c/42b8e */
+    uint32_t sz    = B_SIZE(block);                      /* 0x42b91 */
+    if ((sz & 1) == 0) return;                           /* 0x42b93 TEST AL,1; 0x42b95 JZ */
+    sz &= 0xFFFFFFFEu;                                   /* 0x42b97 AND AL,0xfe */
+    uint32_t next = block + sz;                          /* 0x42b99/42b9b */
+    uint32_t insert_before;                              /* EDI at FINALIZE */
+
+    if (B_SIZE(next) & 1) {                              /* 0x42b9d/42ba3 JNZ (next ALLOCATED) */
+        B_SIZE(block) = sz;                              /* 0x42bc4 */
+        if (block >= R_ROOT(region)) {                   /* 0x42bc9/42bcb JNC */
+            uint32_t it = B_NEXT(R_ROOT(region));        /* 0x42bdb root.next */
+            if (block < it) { insert_before = it; goto finalize; }         /* 0x42bde/0x42be0 */
+            if (block > R_SENT_PREV(region)) { insert_before = R_SENT(region); goto finalize; } /* 0x42be2/04/08 */
+        } else {                                          /* block < root (0x42bcd) */
+            if (block > B_PREV(R_ROOT(region))) { insert_before = R_ROOT(region); goto finalize; } /* 0x42bcd/0x42bd0 */
+            if (block < R_SENT_NEXT(region)) { insert_before = R_SENT_NEXT(region); goto finalize; } /* 0x42bd2/0x42bd7 */
+        }
+    } else {                                              /* next FREE -> forward coalesce */
+        if (next == R_ROOT(region)) R_ROOT(region) = block; /* 0x42ba5/42baa */
+        sz += B_SIZE(next);                               /* 0x42bad */
+        B_SIZE(block) = sz;                               /* 0x42baf */
+        uint32_t p = B_PREV(next);                        /* 0x42bb2 next.prev */
+        uint32_t r = B_NEXT(next);                        /* 0x42bb5 next.next */
+        B_NEXT(p) = r;                                    /* 0x42bb8 */
+        B_PREV(r) = p;                                    /* 0x42bbb */
+        R_FREE(region)--;                                 /* 0x42bbf */
+        insert_before = r;                                /* EDI = next.next */
+        goto finalize;                                    /* 0x42bc2 */
+    }
+
+    /* fragmentation "rebalance" walk.  orig: 0x042bea */
+    {
+        uint32_t alloc_c = R_ALLOC(region);               /* 0x42bec */
+        uint32_t fc      = R_FREE(region);                /* 0x42bef */
+        uint32_t q       = alloc_c / (fc + 1);            /* 0x42bf2/42bf3 DIV (fc+1>=1) */
+        if (q >= fc) goto insert;                         /* 0x42bf6/42bf8 JNC */
+        uint32_t diff = alloc_c - fc;                     /* 0x42bfa/42bfd */
+        uint32_t cnt  = (diff > fc) ? (q * 2) : 0;        /* 0x42bff-42c05 */
+        uint32_t cur  = block + B_SIZE(block);            /* 0x42c07/42c09 */
+        while (cnt) {
+            uint32_t csz = B_SIZE(cur);                   /* 0x42c0b */
+            if ((csz & 1) == 0) { insert_before = cur; goto finalize; }  /* 0x42c0d/42c10 JZ */
+            if (csz == 0xFFFFFFFFu) goto insert;          /* 0x42c12/42c15 JZ */
+            cur += csz & 0xFFFFFFFEu;                     /* 0x42c17/42c1a */
+            cnt--;                                        /* 0x42c1c */
+        }
+    }
+
+insert:   /* address-sorted insert point.  orig: 0x042c1f */
+    {
+        uint32_t it = R_ROOT(region);                     /* 0x42c1f */
+        if (block < it) it = R_SENT_NEXT(region);         /* 0x42c22/24/26 */
+        for (;;) {
+            if (block < it) break;                        /* 0x42c29/42c2b JC */
+            it = B_NEXT(it);                              /* 0x42c2d */
+        }
+        insert_before = it;
+    }
+
+finalize: /*  orig: 0x042c40 */
+    {
+        uint32_t r    = insert_before;                    /* EDI at entry */
+        uint32_t p    = B_PREV(r);                        /* 0x42c40 */
+        uint32_t bs   = B_SIZE(block);                    /* 0x42c43 */
+        uint32_t p_end = p + B_SIZE(p);                   /* 0x42c47/42c49 */
+        if (p_end == block) {                             /* 0x42c4b/42c4d JNZ (back coalesce) */
+            bs += B_SIZE(p);                              /* 0x42c4f */
+            B_SIZE(p) = bs;                               /* 0x42c51 */
+            if (block == R_ROOT(region)) R_ROOT(region) = p; /* 0x42c53/42c58 */
+            block = p;                                    /* 0x42c5b ESI = P */
+        } else {                                          /* normal insert */
+            R_FREE(region)++;                             /* 0x42c5f */
+            B_NEXT(block) = r;                            /* 0x42c62 */
+            B_PREV(block) = p;                            /* 0x42c65 */
+            B_NEXT(p) = block;                            /* 0x42c68 */
+            B_PREV(r) = block;                            /* 0x42c6b/42c6d */
+        }
+        R_ALLOC(region)--;                                /* 0x42c70 */
+        if (block < R_ROOT(region) && bs > R_LARGEST(region)) R_LARGEST(region) = bs; /* 0x42c73-7d */
+        if (bs > R_HWM(region)) R_HWM(region) = bs;       /* 0x42c80/42c85 */
+    }
+}
+
+/* Top check.  orig: 0x042ea1 */
+uint32_t heap_top_check(void) {
+    uint32_t region = g_heap_head;                        /* 0x42ea3 */
+    if (region == 0) return 0;                            /* 0x42ea9/42eab */
+    uint32_t last = R_SENT_PREV(region);                  /* 0x42ead [head+0x24] */
+    uint32_t size = B_SIZE(last);                         /* 0x42eb0 */
+    uint32_t end  = last + size + 4;                      /* 0x42eb2/42eba */
+    if (g_heap_cfg_b2 >= 2 && g_heap_cfg_b2 <= 8 && g_heap_cfg_b4 == 0) { /* 0x42ebd-ec7 */
+        g_heap_seg_limit = (g_ds_segment + 1) * 0x10000u; /* 0x42ed0-42ed8 */
+    }
+    if (end != g_heap_seg_limit) return 0;                /* 0x42edd/42ee3 */
+    return size;                                          /* 0x42ee5 */
+}
+
+/* Insert+init a region into the all-blocks chain.  orig: 0x042e2d */
+uint32_t heap_insert_init(uint32_t region) {
+    uint32_t cur  = g_heap_head;                          /* 0x42e31 EAX */
+    uint32_t prev = 0;                                    /* 0x42e36 EBX */
+    while (cur) {                                         /* 0x42e43/42e45 */
+        if (region < cur) break;                          /* 0x42e3a/42e3c JC */
+        prev = cur;                                       /* 0x42e3e */
+        cur  = B_NEXT(cur);                               /* 0x42e40 */
+    }
+    B_PREV(region) = prev;                                /* 0x42e47 */
+    B_NEXT(region) = cur;                                 /* 0x42e4a */
+    if (prev) B_NEXT(prev) = region; else g_heap_head = region; /* 0x42e4f/51/56 */
+    if (cur)  B_PREV(cur)  = region;                      /* 0x42e5c/5e/60 */
+    uint32_t sentinel = R_SENT(region);                   /* 0x42e63 LEA EBX,[EDX+0x20] */
+    uint32_t total    = hw(region)[0];                    /* 0x42e66 preset total_size */
+    R_LARGEST(region) = 0;                                /* 0x42e72 */
+    R_ALLOC(region)   = 0;                                /* 0x42e79 */
+    R_FREE(region)    = 0;                                /* 0x42e80 (free_count, NOT high_water) */
+    hw(region)[8]     = 0;                                /* 0x42e6b sentinel.size */
+    /* NOTE: the original does NOT initialize high_water (+0x14); a fresh DPMI
+     * region is zeroed-page memory, so it starts at 0. The arena zeroes each
+     * slot (heap_arena_alloc) to replicate that. The acquire path then sets
+     * high_water = 0xffffffff explicitly. */
+    R_SENT_PREV(region) = sentinel;                       /* 0x42e87 */
+    R_SENT_NEXT(region) = sentinel;                       /* 0x42e8a */
+    R_ROOT(region) = sentinel;                            /* 0x42e90 */
+    uint32_t block0size = total - 0x2c;                   /* 0x42e8d */
+    hw(region + 0x2c)[0] = block0size;                    /* 0x42e93 */
+    hw(region + total)[0] = 0xFFFFFFFFu;                  /* 0x42e95 end marker */
+    return region + 0x2c;                                 /* 0x42e9c */
+}
+
+/* Create one usable region (the original's creation pattern). Replaces the
+ * DPMI acquirer FUN_00043071 (DPMI -> arena) for the port. */
+uint32_t heap_acquire_region(uint32_t size) {
+    uint32_t data_area = (size + 3) & 0xFFFFFFFCu;        /* round up to 4 */
+    if (data_area < 0xc) data_area = 0xc;
+    uint32_t total  = 0x2c + data_area;                   /* header + data area */
+    uint32_t region = heap_arena_alloc(total);            /* arena slot */
+    if (region == 0) return 0;                            /* no room */
+    hw(region)[0] = total;                                /* preset total_size */
+    heap_insert_init(region);                             /* insert + init */
+    hw(region + 0x2c)[0] |= 1;                            /* mark big block ALLOCATED */
+    R_ALLOC(region)++;                                    /* alloc_count++ */
+    R_HWM(region) = 0xFFFFFFFFu;                          /* high_water = 0xffffffff */
+    uint32_t data = region + 0x2c + 4;                    /* data pointer */
+    heap_free_host(data);                                 /* free it (links into free list) */
+    return data;
+}
+
+/* malloc wrapper over the whole all-blocks chain.  orig: 0x041af8 */
+uint32_t heap_malloc(uint32_t size) {
+    if (size == 0) return 0;                              /* 0x41b08/41b0a */
+    if (size > 0xFFFFFFD4u) return 0;                     /* 0x41b0c/41b0f */
+    uint8_t tried_grow = 0;                               /* [ESP] flag */
+    for (;;) {                                            /* 0x41b2b top */
+        uint32_t aligned = (size + 3) & 0xFFFFFFFCu;      /* 0x41b1d/41b27 */
+        if (aligned < 0xc) aligned = 0xc;                 /* 0x41b2d/41b32 */
+        uint32_t start;
+        if (aligned <= g_heap_highwater) {                /* 0x41b37/41b3d JBE */
+            g_heap_highwater = 0;                         /* 0x41b49 */
+            start = g_heap_head;                          /* 0x41b4f */
+        } else {                                          /* aligned > high_water */
+            start = g_heap_cursor;                        /* 0x41b3f */
+            if (start == 0) { g_heap_highwater = 0; start = g_heap_head; } /* 0x41b47/49/4f */
+        }
+        uint32_t result = 0;
+        uint32_t region = start;
+        for (;;) {                                        /* 0x41b8f */
+            if (region == 0) break;                       /* 0x41b8f TEST; 41b91 JNZ */
+            g_heap_cursor = region;                       /* 0x41b5f */
+            result = heap_alloc(region, size);            /* 0x41b6f */
+            if (result) return result;                    /* 0x41b74/76/78 */
+            if (R_HWM(region) > g_heap_highwater)         /* 0x41b7a/7f/82/84 */
+                g_heap_highwater = R_HWM(region);         /* 0x41b86 */
+            region = B_NEXT(region);                      /* 0x41b8c */
+        }
+        if (tried_grow == 0) {                            /* 0x41b93/41b97 */
+            if (heap_acquire_region(size)) { tried_grow = 1; continue; } /* 0x41b99/9b/a0 -> bb9 */
+        }
+        if (heap_grow(size)) { tried_grow = 0; continue; } /* 0x41ba4/a6/ab -> bb4 */
+        return result;                                    /* 0x41bc2/41bc4 */
+    }
+}
+
+/* free wrapper: find the region containing `data`, free it.  orig: 0x041c31 */
+void heap_free_host(uint32_t data) {
+    if (data == 0) { g_heap_flag = 0; return; }           /* port safety net */
+    uint32_t region = g_heap_head;                        /* 0x41c37 */
+    for (;;) {
+        uint32_t next = B_NEXT(region);                   /* 0x41c4a */
+        if (next == 0) break;                             /* last region (fallback) */
+        if (region > data) { region = next; continue; }   /* 0x41c3f/41c41 JA */
+        if (data < next) break;                           /* 0x41c43/41c45 JC -> found */
+        region = next; continue;                          /* 0x41c47 */
+    }
+    heap_free(region, data);                              /* 0x41c5e/41c60/41c62 */
+    if (region != g_heap_cursor) {                        /* 0x41c67/41c6d */
+        if (R_HWM(region) > g_heap_highwater)             /* 0x41c6f/75/78/7a */
+            g_heap_highwater = R_HWM(region);             /* 0x41c7c */
+    }
+    g_heap_flag = 0;                                      /* 0x41c82/41c84 */
 }

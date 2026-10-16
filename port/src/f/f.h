@@ -173,22 +173,75 @@ void     cb_noop2(void);
 
 /* ---- batch 6: heap-grow stub, echo input, dword fill ---- */
 
-/* Heap node (region or free block). The original is 32-bit (size@0, prev@4,
- * next@8, user data @4); the port uses 64-bit pointers, so prev/next become
- * struct fields (algorithm-identical, layout adapted). See heap.md. */
-struct heap_node {
-    uint32_t size;             /* offset 0; bit 0 = allocated flag */
-    struct heap_node *prev;    /* was offset 4 (32-bit) */
-    struct heap_node *next;    /* was offset 8 (32-bit) */
-};
-/* All-blocks (region) chain: head / cursor. DAT_00053350 / DAT_00053354. */
-extern struct heap_node *g_heap_head;
-extern struct heap_node *g_heap_cursor;
-/* Unlink a node from the all-blocks chain: advance head/cursor if it is the
- * removed node, and set prev->next = next. The original does NOT update
- * next->prev (verified in disasm; the decompiler added a phantom write).
- * orig: 0x042c8d */
-void heap_unlink(struct heap_node *n);
+/* ---- heap (two-level DPMI allocator), batches 7-8 ------------------
+ * Every heap pointer is a uint32 OFFSET from g_heap_base (the arena). This
+ * preserves the original's exact byte layout (12-byte free blocks: size@0,
+ * prev@4, next@8, user data @4; 44-byte region header) and the block+size
+ * stride / 0xc minimum / size arithmetic byte-for-byte; only the pointer
+ * VALUES are base-relative offsets (faithful 32->64-bit adaptation).
+ * See docs/12-functions/heap.md.
+ *
+ * Region chain: linear NULL-terminated doubly-linked list (prev@4, next@8),
+ *   sorted by offset, head = g_heap_head, cursor = g_heap_cursor.
+ * Per-region free list: circular, sentinel at region+0x20, blocks at
+ *   region+0x2c..region+total, 0xffffffff end-marker at region+total,
+ *   traversal via next@8, size@0 with bit 0 = the allocated flag. */
+extern uintptr_t g_heap_base;      /* base address of the heap arena */
+extern uint32_t  g_heap_head;      /* DAT_00053350: all-blocks chain head */
+extern uint32_t  g_heap_cursor;    /* DAT_00053354: malloc search cursor */
+extern uint32_t  g_heap_highwater; /* DAT_00053358: global size high-water */
+extern uint32_t  g_heap_seg_limit; /* DAT_00053384: DPMI segment limit */
+extern uint8_t   g_heap_cfg_b2;    /* DAT_000533b2: top-check mode byte */
+extern uint8_t   g_heap_cfg_b4;    /* DAT_000533b4: top-check flag */
+extern uint8_t   g_heap_flag;      /* DAT_00063fbd: wrappers zero it, never read */
+extern uint32_t  g_ds_segment;     /* DPMI DS selector (flat model: 0) */
+
+/* Arena support (the original grows via DPMI; the port uses a static arena). */
+void     heap_arena_init(void);    /* set up the static arena + globals */
+uint32_t heap_arena_alloc(uint32_t size); /* 64-byte-aligned region slot, or 0 */
+
+/* Unlink a region from the all-blocks chain: advance head/cursor if it is the
+ * node, then prev->next = next AND next->prev = prev, each NULL-guarded
+ * (full double unlink, verified in disasm 0x042c8d).  orig: 0x042c8d */
+void heap_unlink(uint32_t node);
+
+/* Best-fit allocation within one region: walk the free list, split a block if
+ * its remainder is >= 0xc else take the whole block, mark bit 0 (allocated);
+ * returns the data offset (block+4), or 0.  orig: 0x042ada */
+uint32_t heap_alloc(uint32_t region, uint32_t size);
+
+/* Free a data offset within a region: forward-coalesce with the next block if
+ * it is free, else re-insert address-sorted; run the fragmentation "rebalance"
+ * walk; backward-coalesce if the predecessor is immediately adjacent; update
+ * alloc/free counters + largest + high_water.  orig: 0x042b82 */
+void heap_free(uint32_t region, uint32_t data);
+
+/* Top check: if the first region's last free block ends exactly at the DPMI
+ * segment limit, return its size (recomputing the limit from DS when
+ * 2<=b2<=8 && b4==0); else 0.  orig: 0x042ea1 */
+uint32_t heap_top_check(void);
+
+/* Insert+init a freshly-placed region into the all-blocks chain (sorted by
+ * offset) and set up its header, sentinel, one big free block for the whole
+ * data area, and the end-marker. Returns the data offset (region+0x2c).
+ * The caller must preset total_size at region+0x00.  orig: 0x042e2d */
+uint32_t heap_insert_init(uint32_t region);
+
+/* Create one usable region holding at least `size` bytes of data: arena slot +
+ * preset total_size + insert_init + mark-big-block-allocated + alloc_count++ +
+ * high_water=0xffffffff + free the whole block (the original's region-creation
+ * pattern, which links the block into the free list). Port replacement for the
+ * DPMI acquirer FUN_00043071 (DPMI -> arena). Returns the data offset
+ * (region+0x2c+4), or 0 if the arena is full. */
+uint32_t heap_acquire_region(uint32_t size);
+
+/* malloc/free entry points (the wrappers), operating over the whole
+ * all-blocks chain.  orig: 0x041af8 / 0x041c31 */
+uint32_t heap_malloc(uint32_t size);
+void     heap_free_host(uint32_t data);
+
+/* Outer memory-acquire stub: always fails (XOR EAX,EAX; RET).  orig: 0x04322c */
+uint32_t heap_grow(uint32_t size);
 
 /* DOS INT 21h AH=01 (cooked character input, with echo), sharing the same
  * 1-char cache g_keybuf as get_key (AH=08, no echo): returns the buffered key

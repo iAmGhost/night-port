@@ -423,27 +423,213 @@ static void test_memsetw(void) {
           "single dword fill");
 }
 
+/* ---- heap reference model (batches 7-8) ---------------------------
+ * Independent invariant checker: walk the region's data area AND the free
+ * list separately, then cross-check that they describe the same set of blocks
+ * and that the counters agree. Catches any pointer/size corruption.
+ * what==NULL => quiet on success (used by the stress loop). */
+static inline uint32_t *hw(uint32_t off) { return (uint32_t *)(g_heap_base + off); }
+static int heap_verify(uint32_t region, const char *what) {
+    uint32_t total = hw(region)[0];
+    uint32_t data0 = region + 0x2c;
+    uint32_t sent  = region + 0x20;
+    /* pass 1: walk the data area block by block */
+    uint32_t cur = data0, count = 0, sum = 0, nfree = 0, nalloc = 0;
+    uint32_t free_off[512]; int fi = 0;
+    while (cur != region + total) {
+        uint32_t sz   = hw(cur)[0];
+        uint32_t real = sz & 0xFFFFFFFEu;
+        if (cur + real > region + total) { printf("  !! block overrun @%x\n", cur); return 1; }
+        if (sz & 1) nalloc++; else { if (fi < 512) free_off[fi++] = cur; nfree++; }
+        sum += real; cur += real; count++;
+        if (count > 8192) { printf("  !! too many blocks\n"); return 1; }
+    }
+    if (hw(region + total)[0] != 0xFFFFFFFFu) { printf("  !! end marker missing\n"); return 1; }
+    if (sum != total - 0x2c) { printf("  !! size sum %x != %x\n", sum, total - 0x2c); return 1; }
+    /* pass 2: walk the free list from sentinel.next, back to sentinel */
+    int flc = 0, si = 0; uint32_t flseen[512];
+    uint32_t p = hw(sent)[2];
+    while (p != sent) {
+        uint32_t sz = hw(p)[0];
+        if (sz & 1) { printf("  !! allocated block in free list %x\n", p); return 1; }
+        if (si < 512) flseen[si++] = p;
+        flc++;
+        if (flc > 8192) { printf("  !! free list not circular\n"); return 1; }
+        p = hw(p)[2];
+    }
+    if (flc != (int)nfree) { printf("  !! free-list count %d != %u\n", flc, nfree); return 1; }
+    for (int i = 0; i < si; i++) {
+        int found = 0;
+        for (int j = 0; j < fi; j++) if (free_off[j] == flseen[i]) { found = 1; break; }
+        if (!found) { printf("  !! free-list block %x not in data walk\n", flseen[i]); return 1; }
+    }
+    if (hw(region)[6] != nalloc) { printf("  !! alloc_count %u != %u\n", hw(region)[6], nalloc); return 1; }
+    if (hw(region)[7] != nfree)  { printf("  !! free_count %u != %u\n", hw(region)[7], nfree); return 1; }
+    if (what) printf("  ok: %s (blocks=%u free=%u alloc=%u)\n", what, count, nfree, nalloc);
+    return 0;
+}
+
+static void test_heap_arena(void) {
+    printf("heap arena + acquire (FUN_00043071 replacement)\n");
+    heap_arena_init();
+    check(g_heap_head == 0, "no regions after init");
+    uint32_t r1 = heap_arena_alloc(0x200);
+    uint32_t r2 = heap_arena_alloc(0x300);
+    check(r1 == 0x40,   "first slot at offset 0x40 (offset 0 reserved as NULL guard)");
+    check(r2 == 0x240,  "second slot right after (64-aligned)");
+    check(heap_arena_alloc(0x800000) == 0, "oversize slot -> 0 (arena full)");
+    heap_arena_init();
+    uint32_t data = heap_acquire_region(0x1000);
+    check(data != 0, "acquire_region returns a data pointer");
+    uint32_t region = data - 0x30;   /* data = region + 0x2c + 4 */
+    check(g_heap_head == region, "created region is the chain head");
+    check(hw(region)[0] == 0x102c, "total_size = 0x2c + data_area");
+    check(hw(region + 0x2c)[0] == 0x1000 && !(hw(region + 0x2c)[0] & 1),
+          "whole data area is one free block");
+    heap_verify(region, "fresh region (1 free block)");
+}
+
+static void test_heap_insert_init(void) {
+    printf("heap_insert_init (0x042e2d)\n");
+    heap_arena_init();
+    uint32_t A = heap_arena_alloc(0x100);  /* 0 */
+    uint32_t B = heap_arena_alloc(0x100);  /* 0x100 */
+    uint32_t C = heap_arena_alloc(0x100);  /* 0x200 */
+    hw(B)[0] = 0x100; heap_insert_init(B);              /* first -> head */
+    check(g_heap_head == B, "first insert is head");
+    check(hw(B + 0x100)[0] == 0xFFFFFFFFu, "end marker at region+total"); /* before adjacent region clobbers it */
+    hw(A)[0] = 0x100; heap_insert_init(A);              /* A < B -> head */
+    check(g_heap_head == A, "smaller offset becomes head");
+    hw(C)[0] = 0x100; heap_insert_init(C);              /* C > B -> tail */
+    check(hw(A)[2] == B && hw(B)[2] == C && hw(C)[2] == 0, "chain sorted A->B->C (NULL tail)");
+    check(hw(B)[1] == A && hw(C)[1] == B && hw(A)[1] == 0, "prev links NULL<-A<-B<-C");
+    check(hw(B + 0x2c)[0] == 0x100 - 0x2c, "block0.size = total-0x2c");
+    check(hw(B)[3] == B + 0x20 && hw(B)[8] == 0, "root = sentinel, sentinel.size = 0");
+}
+
 static void test_heap_unlink(void) {
     printf("heap_unlink (0x042c8d)\n");
-    static struct heap_node A, B, C;
-    A.size = B.size = C.size = 16;
-    A.prev = 0;  A.next = &B;
-    B.prev = &A; B.next = &C;
-    C.prev = &B; C.next = 0;
-    g_heap_head = &A;
-    g_heap_cursor = &B;
-
-    heap_unlink(&B);   /* remove middle node */
-    check(g_heap_cursor == &C, "cursor advances past removed node");
-    check(g_heap_head == &A,   "head unchanged when removing non-head");
-    check(A.next == &C,        "prev->next bypasses removed node");
-    check(C.prev == &B,        "next->prev NOT updated (stale) -- disasm-verified");
-
-    heap_unlink(&A);   /* remove head */
-    check(g_heap_head == &C, "head advances past removed head");
-
-    heap_unlink(&C);   /* remove last */
+    heap_arena_init();
+    uint32_t A = heap_arena_alloc(0x100);  /* 0 */
+    uint32_t B = heap_arena_alloc(0x100);  /* 0x100 */
+    uint32_t C = heap_arena_alloc(0x100);  /* 0x200 */
+    hw(A)[0] = hw(B)[0] = hw(C)[0] = 0x100;
+    heap_insert_init(A); heap_insert_init(B); heap_insert_init(C);
+    g_heap_cursor = B;
+    heap_unlink(B);   /* remove middle node */
+    check(g_heap_cursor == C, "cursor advances past removed node");
+    check(g_heap_head == A,   "head unchanged when removing non-head");
+    check(hw(A)[2] == C,      "prev->next bypasses removed node");
+    check(hw(C)[1] == A,      "next->prev updated (full double unlink, disasm-verified)");
+    heap_unlink(A);   /* remove head */
+    check(g_heap_head == C, "head advances past removed head");
+    check(hw(C)[1] == 0, "C.prev becomes NULL after head removed");
+    heap_unlink(C);   /* remove last */
     check(g_heap_head == 0, "head becomes 0 after removing last");
+}
+
+/* Mirror the original's alignment exactly (disasm 0x42ae4-42af7):
+ *   t = size + 7; t = (t & 0xFFFFFF00) | ((t & 0xFF) & 0xFC); return max(t, 0xc).
+ * The 0xfc mask is on the LOW byte only, so high bytes are preserved. */
+static uint32_t orig_aligned(uint32_t size) {
+    uint32_t t = size + 7;
+    t = (t & 0xFFFFFF00u) | ((t & 0xFFu) & 0xFCu);
+    return (t >= 0xc) ? t : 0xc;
+}
+
+static void test_heap_alloc_free(void) {
+    printf("heap_alloc + heap_free (0x042ada / 0x042b82)\n");
+    /* alignment unit checks (low-byte 0xfc mask) */
+    check(orig_aligned(0x40) == 0x44, "align(0x40) = 0x44 (low-byte mask)");
+    check(orig_aligned(0x100) == 0x104, "align(0x100) = 0x104 (0x07&0xfc=0x04)");
+    check(orig_aligned(0x101) == 0x108, "align(0x101) = 0x108");
+    check(orig_aligned(0xff8) == 0xffc, "align(0xff8) = 0xffc (no-split candidate)");
+    check(orig_aligned(0x1) == 0xc && orig_aligned(0x8) == 0xc, "min align = 0xc");
+    heap_arena_init();
+    g_heap_seg_limit = 0;
+    uint32_t data   = heap_acquire_region(0x1000);
+    uint32_t region = data - 0x30;
+    heap_verify(region, "start");
+
+    uint32_t p1 = heap_alloc(region, 0x100);
+    uint32_t p2 = heap_alloc(region, 0x100);
+    uint32_t p3 = heap_alloc(region, 0x100);
+    check(p1 && p2 && p3, "3 allocations succeed");
+    check(p2 - p1 == 0x104 && p3 - p2 == 0x104, "0x100 allocs are 0x104-strided (align)");
+    heap_verify(region, "after 3 allocs");
+
+    heap_free(region, p2);
+    heap_verify(region, "after freeing p2");
+    uint32_t p4 = heap_alloc(region, 0x100);
+    check(p4 == p2, "freed slot reused for same size");
+    heap_verify(region, "after reuse");
+
+    heap_free(region, p1);
+    heap_free(region, p4);
+    heap_free(region, p3);
+    heap_verify(region, "after freeing all (fully coalesced)");
+    check(hw(region + 0x2c)[0] == 0x1000 && !(hw(region + 0x2c)[0] & 1),
+          "coalesced back to a single 0x1000 free block");
+    check(hw(region)[7] == 1, "free_count == 1 after full coalesce");
+
+    /* two adjacent 0x40 allocs (0x44 aligned stride); free both -> coalesce */
+    uint32_t q1 = heap_alloc(region, 0x40);
+    uint32_t q2 = heap_alloc(region, 0x40);
+    check(q2 - q1 == orig_aligned(0x40), "q1/q2 adjacent with 0x44 aligned stride");
+    heap_free(region, q2);
+    heap_free(region, q1);
+    heap_verify(region, "after forward coalesce of q1,q2");
+
+    /* no-split path: aligned leaves remainder < 0xc, so the whole free block is
+     * taken and its size is preserved (not shrunk to the aligned size). */
+    uint32_t big = heap_alloc(region, 0xff8);  /* aligned 0xffc; rem 0x4 < 0xc */
+    check(big != 0, "no-split allocation succeeds");
+    check((hw(region + 0x2c)[0] & 1) && (hw(region + 0x2c)[0] & ~1u) == 0x1000,
+          "no-split keeps whole free-block size (0x1000) marked allocated");
+    heap_verify(region, "after no-split whole-block alloc");
+    heap_free(region, big);
+    heap_verify(region, "after freeing no-split alloc");
+}
+
+static void test_heap_top_check(void) {
+    printf("heap_top_check (0x042ea1)\n");
+    heap_arena_init();
+    check(heap_top_check() == 0, "no regions -> 0");
+    uint32_t data   = heap_acquire_region(0x1000);
+    uint32_t region = data - 0x30;
+    uint32_t last = hw(region + 0x20)[1];  /* sentinel.prev = last free block */
+    uint32_t size = hw(last)[0];
+    uint32_t end  = last + size + 4;
+    g_heap_seg_limit = end;
+    check(heap_top_check() == size, "top block at limit -> its size");
+    g_heap_seg_limit = end + 4;
+    check(heap_top_check() == 0, "top block past limit -> 0");
+    g_heap_cfg_b2 = 4; g_heap_cfg_b4 = 0; g_ds_segment = 0;  /* recompute path */
+    check(heap_top_check() == 0, "recompute: end != (0+1)*0x10000 -> 0");
+}
+
+static void test_heap_stress(void) {
+    printf("heap stress (2000 random alloc/free + invariants)\n");
+    heap_arena_init();
+    uint32_t data   = heap_acquire_region(0x4000);  /* 16 KiB */
+    uint32_t region = data - 0x30;
+    uint32_t live[256]; int nlive = 0;
+    unsigned int seed = 12345;
+    for (int iter = 0; iter < 2000; iter++) {
+        seed = seed * 1103515245u + 12345u;
+        if (nlive < 48 && (seed & 3) != 0) {
+            uint32_t sz = 4 + ((seed >> 8) & 0xFF);
+            uint32_t p  = heap_alloc(region, sz);
+            if (p && nlive < 256) live[nlive++] = p;
+        } else if (nlive > 0) {
+            seed = seed * 1103515245u + 12345u;
+            int idx = (int)((seed >> 12) % (unsigned)nlive);
+            heap_free(region, live[idx]);
+            live[idx] = live[--nlive];
+        }
+        if (heap_verify(region, NULL)) { check(0, "invariant broken during stress"); return; }
+    }
+    check(1, "2000 random ops, invariants hold throughout");
 }
 
 int main(void) {
@@ -480,7 +666,13 @@ int main(void) {
     test_get_key_echo();
     test_heap_grow();
     test_memsetw();
+    printf("== batch 7-8 (two-level heap) ==\n");
+    test_heap_arena();
+    test_heap_insert_init();
     test_heap_unlink();
+    test_heap_alloc_free();
+    test_heap_top_check();
+    test_heap_stress();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

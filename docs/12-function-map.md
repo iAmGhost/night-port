@@ -68,9 +68,10 @@ For **each** original function (in `rank.tsv` order, L0 → L19):
 4. **Name** — once semantics are confirmed, rename the function in Ghidra
    (`mcp rename_function`), so Ghidra, docs, and port code share one name.
 
-Status is tracked in `docs/12-functions/STATUS.md`
-(`[x]` ported+verified / `[~]` analyzed / `[ ]` pending), seeded from
-`analysis/rank.tsv`.
+Status is tracked in `docs/12-functions/STATUS.md` (per-function table,
+protocol, work queue, decisions log) and can be queried any time with
+`uv run scripts/status_report.py [next_count]` (totals, per-level counts,
+next pending in work order, ordering violations).
 
 ## 4. Target layout
 

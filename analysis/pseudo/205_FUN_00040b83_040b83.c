@@ -1,0 +1,39 @@
+// func #205  FUN_00040b83  00040b83  size=390
+
+
+void FUN_00040b83(void)
+
+{
+  DAT_00063fa8 = FUN_000418ee();
+  if (DAT_00063f94 < 0x10000) {
+    DAT_00063f98 = DAT_00063f94;
+    FUN_00041e20(DAT_00063fb4,0x80,0xffff);
+  }
+  else {
+    DAT_00063f98 = 0xffff;
+  }
+  FUN_00041e6c(DAT_00063fb4,DAT_00063fa8,DAT_00063f98);
+  DAT_00063f94 = DAT_00063f94 - DAT_00063f98;
+  DAT_00063fa8 = DAT_00063fa8 + DAT_00063f98;
+  DAT_00063f98 = DAT_00063f98 - 1;
+  FUN_0004231d(10,5);
+  FUN_0004231d(0xc,0);
+  FUN_0004231d(0xb,0x49);
+  FUN_0004231d(2,DAT_00063fac & 0xff);
+  FUN_0004231d(2,(int)DAT_00063fac >> 8 & 0xff);
+  FUN_0004231d(0x83,(int)DAT_00063fac >> 0x10 & 0xff);
+  FUN_0004231d(3,DAT_00063f98 & 0xff);
+  FUN_0004231d(3,(int)DAT_00063f98 >> 8 & 0xff);
+  FUN_0004231d(10,1);
+  if (DAT_00063f9c == 0x14) {
+    FUN_00041340(0x14);
+  }
+  else {
+    FUN_00041340(DAT_00063f9c + -1);
+  }
+  FUN_00041340(DAT_00063f98 & 0xff);
+  FUN_00041340((int)DAT_00063f98 >> 8 & 0xff);
+  return;
+}
+
+

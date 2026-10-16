@@ -1,19 +1,31 @@
-# Analyzation
-- [x] Executable format & toolchain (MZ+LE 32-bit, Watcom C/C++, DOS/4G) → `docs/01-executable.md`
-- [x] Container: `NIGHT.RES` format cracked, 444 assets extracted → `docs/02-container.md`, `scripts/extract_res.py`
-- [x] Graphics & data formats decoded byte-exact: `.pcx` `.spr` `.act` `.stg` `.wal` `.chr` `.key` → `docs/03-formats.md`
-- [x] Sound: Creative-VOC-style 8-bit mono samples, SB16 DMA ch1 playback, sample→event map → `docs/04-sound.md`, `scripts/parse_voc.py` (100/100 verified)
-- [x] CD-DA music: MSCDEX INT 0x2E (play/TOC/identity check), 14 tracks extracted to WAV → `docs/06-cdda.md`, `scripts/cdda2wav.py`
-- [x] Game Logic (startup/`main`, game loop, combat, EXP/근성치) + all `docs/03-formats.md` §10 open items resolved → `docs/05-logic.md`
+# Plan
 
-# Porting
-- [x] SDL3 + C skeleton (window, 640×480 ARGB framebuffer, input, selftest) → `port/`, `docs/06-port.md`
-- [x] Audio backend: VOC SFX (1.voc on punch/kick) + CD-DA WAV music (tracks 1/9/10)
-- [x] Asset pipeline: `NIGHT.RES` container decoded in C (444 entries), `.pcx`/`.spr`/`.act`/`.stg`/`.wal`/`.key`/`.voc`/`.fli` decoders, selftest byte-exact
-- [x] Opening animation (`opening.fli`, custom 128B-header FLI, 1168 frames) + menu (scrolling `title1.pcx`) → screenshot evidence `scratch/shots/`
-- [x] Stage 1 vertical slice: `stage1.pcx` background, `.stg`/`.act`/`.spr` entities, keyboard input, VOC SFX, CD track 10 → evidence `scratch/shots/stage1_f0100.png` + `stage1_demo.log`
-- [x] Full playable game (all 9 episodes): pre-stage `%ds%d.pcx` slides, wave system (`.stg` tag-2 drip-feed, max 2 active), enemy AI (approach/attack/hitstun), player punch/kick combat + depth-lane hits, EXP/근성 bar + damage boost, per-episode boss (boss1..7) + CD track 12, STAGE CLEAR → next episode, GAME OVER → menu, victory screen → `port/src/stage.c` + `stage.h`, evidence `scratch/shots/full/01..05` + `game_demo.log` (see `docs/06-port.md` "Full stage engine")
-- [x] `.wal` floor rendering + horizontal camera scroll: multi-node composite (x-offset `p0/2`, 1px/cell, `b=0` under `b=1`, index 0 transparent, `world_w`=max node extent) → one `world_w×200` ARGB buffer, 320-px camera window, 2× upscale to screen rows 80..479; replaces the wrong `stage%d.pcx` (EPISODE card) background; fixed dangling `.wal` grid pointer in `wal_decode` (now owns grid+marks). All 9 streets render (world_w 1600–6600 px) → `docs/07-floor-camera.md`, evidence `scratch/shots/final_*.png` + `s2_*.png` + `s9_*.png`
-- [x] Position-based enemy placement (replaces the wave/tag-2 system): every foe sits at its authored `.stg` `tag1` (x,y) and wakes left→right when the player is within `AHEAD_ACT` world-px; `placed N foes (x A..B)` matches an independent Python `tag1` parse for all 9 episodes; `MAX_ENTS` 200; ep1 shows the subway group (x~50-763) then the street group → `docs/07-floor-camera.md` §7, evidence `scratch/shots/placed_*.png`
-- [x] Full animation set (player + enemies): `gun.act` record→action mapping verified by Python decode + sheet render (idle=0, walk=41, punch=52, kick=66, jump=57, hit=10); enemy walk/atk/hit chosen by heuristic (substantial cycle / widest upright limb / fallen pose); `Ent.action` + `anim_rec_for`/`anim_frame` drive `draw_sprite`; jump (`K_JUMP`) added; `--log` prints the action + frame index; `--animtest` renders the six poses as a sheet → `docs/08-animation.md`, evidence `scratch/shots/animtest.png` + `anim_live_f0680.png`
-- [x] Gameplay parity pass (task-7/8): measured original mechanics implemented in `stage.c` — per-type HP/armor from `night*.chr` (armor-first damage), EXP = damage dealt with `exptab.dat` col-0 thresholds + 6-digit EXP readout, max-active-3 spawn cap, tag-6 exit-zone clear (boss-gated) / kill-clear for ep4/5/8/9, dead-zone + 1/3-px camera follow, 4-frame speed oscillation, top-right 2-bar enemy panel, bottom-left BOSS blue bar, starburst hit FX; enemy S_ATK freeze bug fixed; verified vs DOSBox captures + `--log` + selftest → `docs/10-gameplay.md` §17, evidence `scratch/shots/pair_*`, `t7_*`, `t8*`
+Approach: **function-to-function** — every function in `NIGHT.EXE` is
+analyzed, ported 1:1, and verified individually. Method, layout, and
+verification policy: `docs/12-function-map.md` §3.
+
+# Analysis (format & asset level — done before the pivot, still valid)
+- [x] Executable format & toolchain (MZ+LE 32-bit, Watcom C/C++, DOS/4G) → `docs/01-executable.md`
+- [x] Container: `NIGHT.RES` format, 444 assets → `docs/02-container.md`, `scripts/extract_res.py`
+- [x] Graphics & data formats decoded byte-exact (`.pcx` `.spr` `.act` `.stg` `.wal` `.chr` `.key`) → `docs/03-formats.md`
+- [x] Sound: VOC-style 8-bit mono samples, SB16 DMA ch1, sample→event map → `docs/04-sound.md`
+- [x] CD-DA: MSCDEX INT 0x2E, 14 tracks → `docs/06-cdda.md`, `scripts/cdda2wav.py`
+- [x] Behavior notes from playtesting (boot/menu/stage/controls) → `docs/05-logic.md` (superseded by function-level analysis where they conflict)
+
+# Phase 0 — Inventory
+- [x] Full inventory: 418 functions decompiled to `analysis/pseudo/`, `functions.tsv`, `callgraph.tsv` (3,478 edges), `rank.tsv` (bottom-up levels) → `ghidra_scripts/DumpAll.java`
+- [x] Function map + zones + porting discipline → `docs/12-function-map.md`
+
+# Phase 1 — Naming & subsystem partition
+- [ ] Identify the 20 uniform large functions (0x18e88–0x2fe1e)
+- [ ] Identify the isolated 39-fn cluster (0x461cc hub) and its invocation path
+- [ ] Global-variable map per subsystem (Ghidra audit)
+- [ ] Find indirect dispatch/function-pointer tables invisible to the direct call graph
+- [ ] Seed `docs/12-functions/STATUS.md` from `analysis/rank.tsv`
+
+# Phase 2 — Per-function port (in rank order, L0 → L19)
+See `docs/12-functions/STATUS.md` for per-function status.
+
+# Phase 3 — Integration verification
+- [ ] Deterministic input script + per-frame framebuffer capture
+- [ ] Pixel diff vs DOSBox-staging runs until zero (or documented diffs)

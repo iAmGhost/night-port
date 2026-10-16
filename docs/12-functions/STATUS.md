@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 125 / 528 done
+TOTALS: 129 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 14 | 0 | 0 | 33 |
+| L1 | 47 | 18 | 0 | 0 | 29 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -109,6 +109,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **parse_time_str (0x049a6e, 277B) PORTED**: time-string parser (see 0x049a6e analysis row above). Faithful 1:1: skip optional leading ':'; find break char (first {digit,sign,comma,NUL}), clamp prefix to 30, copy it (segmented REP MOVSD/MOVSB → memcpy), NUL-term; break char '-' sets a negate flag (ESI repurposed from the copy source); parse H/M/S via three parse_decimal calls → *secs_out = sec + min*60 + hour*3600 (negated if '-'); return position after the last parsed component. **OFF-BY-ONE LATENT BUG replicated 1:1:** scan resumes at break_pos+1 unconditionally, so a pure "HH:MM:SS" with no sign skips its first digit ("12:34:56" → 9296 = "2:34:56"); the sign form is intended and correct ("-12:34:56" → -45296). Verified by 11 hand-traced differential tests (prefix copy/clamp, sign negate, H:M:S split, no-time early-return, long-prefix clamp). L1 11→12, TOTALS 122→123. | STATUS.md L1 |
 | 2026-07-08 | **heap_size_adjust (0x0431b5, 119B) PORTED**: heap block size-adjuster (was deferred pending 0x42ea1, now ported as heap_top_check). 10-step algorithm: a = align_up(*p,4) [(*p+3)&~3]; a==0→0; (cfg_b2==1&&cfg_b3==0)||cfg_b2==9 ? a+=8 : a-=heap_top_check(); *p=a; t=a+0x3c (overflow→0); if t<limit(g_dat_53640) t=limit&~1; *p=t; u=t+0xfff (overflow→0); u=align_up(u,0x1000) [u&~0xfff]; *p=u; return u!=0. Low-bit masks are byte ops (AND DL,0xfc / AND DL,0xfe / AND DH,0xf0+XOR DL) but the affected bits all lie in the low/second byte, so &~3/&~1/&~0xfff are exact (earlier "low-byte-only mask quirk" note was a misread). Added g_heap_cfg_b3 (byte 0x533b3); g_heap_cfg_b2 + g_dat_53640 already existed. 6 tests (empty→0, limit clamp, no-clamp page-up, +8 branch, large page-up, overflow→0). L1 12→13, TOTALS 123→124. | STATUS.md L1 |
 | 2026-07-08 | **fn_0423cf (0x0423cf, 21B) PORTED**: registered-callback dispatcher. PUSH EDX; EDX=EAX; CALL [g_dat_53370]; CALL [g_dat_53374]; EAX=EDX; JMP 0x422d3 (shared epilogue POP EDX;RET). Modelled g_dat_53370/g_dat_53374 as `u32_cb_fn` (uint32_t(*)(uint32_t)) slots; the fn calls g_dat_53370(input), then g_dat_53374(first's return), and returns the ORIGINAL input. Both slots are called unconditionally (the original requires them set; a NULL slot faults, replicated). 3 tests (mock callbacks: return-original, cb1 gets input, cb2 gets cb1's return). L1 13→14, TOTALS 124→125. | STATUS.md L1 |
+| 2026-07-08 | **0x42a08 family (4 fns) PORTED**: 0x42a08/0x42a0d/0x42a30/0x42a3c. 0x42a0d(x) = PUSH EDX;MOV EDX,EAX;CALL const_64008;MOV [EAX],EDX → g_dat_64008=x. 0x42a08 = MOV EAX,0xd falling into 0x42a0d body → g_dat_64008=13 (param ignored). 0x42a30(x) = same shape via const_64004 → g_dat_64004=x. 0x42a3c(x) = CALL [g_dat_533bd];RET → returns g_dat_533bd(x). Added globals g_dat_64008, g_dat_64004, g_dat_533bd. Note: the earlier "blocked on unported 0x45a6a/0x45a70" was wrong — those are const_64008/const_64004 (already ported constant address-returners). 4 tests PASS. L1 14→18, TOTALS 125→129. | STATUS.md L1 |
 
 ## L0 (112)
 
@@ -241,10 +242,10 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0423cf | 21 | fn_0423cf | dispatch | 3 tests PASS; calls g_dat_53370(input) then g_dat_53374(ret), returns original input |
 | [x] | 0x0427f3 | 104 | tmp_filename | string | port+test PASS (register ABI EAX=buf,EDX=index; counter=get_dat_53390(); "t<4-hex(counter&0xffff)>_<2-hex(index&0xff)>.tmp" via digit_chr; high bits discarded; 6 cases) |
 | [x] | 0x042958 | 4 | thunk→delay_units | thunk | JMP 0x4564f (delay_units, ported f.c:1151); call-site alias, no separate C fn |
-| [ ] | 0x042a08 | 4 | FUN_00042a08 | | |
-| [ ] | 0x042a0d | 11 | FUN_00042a0d | | |
-| [ ] | 0x042a30 | 11 | FUN_00042a30 | | |
-| [ ] | 0x042a3c | 6 | FUN_00042a3c | | |
+| [x] | 0x042a08 | 4 | fn_042a08 | data | sets g_dat_64008=13; test PASS |
+| [x] | 0x042a0d | 11 | fn_042a0d | data | writes EAX to [0x64008]; test PASS |
+| [x] | 0x042a30 | 11 | fn_042a30 | data | writes EAX to [0x64004]; test PASS |
+| [x] | 0x042a3c | 6 | fn_042a3c | dispatch | CALL [g_dat_533bd]; test PASS |
 | [ ] | 0x042ccc | 93 | FUN_00042ccc | | |
 | [x] | 0x0431b5 | 118 | heap_size_adjust | heap | 6 tests PASS; align_up/±8-or-topcheck/+0x3c/limit-clamp/page-up; overflow→0 |
 | [ ] | 0x043280 | 48 | FUN_00043280 | | |

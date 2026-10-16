@@ -1135,6 +1135,19 @@ size_t word_nlen(const uint16_t *src, size_t limit) {   /* 0x45056 */
 uint32_t const_64008(void) { return 0x64008; }         /* 0x45a6a */
 uint32_t const_64004(void) { return 0x64004; }         /* 0x45a70 */
 
+/* ---- 0x42a08 family: writers into the DAT_64008/64004 globals ---- */
+uint32_t g_dat_64008 = 0;      /* DAT_00064008 */
+uint32_t g_dat_64004 = 0;      /* DAT_00064004 */
+u32_cb_fn  g_dat_533bd = NULL; /* DAT_000533bd */
+/* 0x042a08: MOV EAX,0xd; fall through the 0x042a0d body -> g_dat_64008 = 13. */
+void fn_042a08(void) { g_dat_64008 = 0xd; }
+/* 0x042a0d: PUSH EDX; MOV EDX,EAX; CALL const_64008; MOV [EAX],EDX; POP EDX; RET. */
+void fn_042a0d(uint32_t x) { g_dat_64008 = x; }
+/* 0x042a30: same shape, but CALL const_64004 -> writes [0x64004]. */
+void fn_042a30(uint32_t x) { g_dat_64004 = x; }
+/* 0x042a3c: CALL [0x533bd]; RET. */
+uint32_t fn_042a3c(uint32_t x) { return g_dat_533bd(x); }
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

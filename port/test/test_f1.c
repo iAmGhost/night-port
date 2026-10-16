@@ -1558,6 +1558,25 @@ static void test_fn_0423cf(void) {
     g_dat_53370 = NULL; g_dat_53374 = NULL;
 }
 
+static uint32_t g_test533bd_arg;
+static uint32_t test533bd_cb(uint32_t a) { g_test533bd_arg = a; return a * 2; }
+static void test_042a08_family(void) {
+    printf("0x42a08 family (0x42a08/0d/30/3c)\n");
+    uint32_t b8 = g_dat_64008, b4 = g_dat_64004;
+    fn_042a08();
+    check(g_dat_64008 == 0xd, "  fn_042a08 sets g_dat_64008 = 13");
+    fn_042a0d(0xdeadbeef);
+    check(g_dat_64008 == 0xdeadbeef, "  fn_042a0d(x) sets g_dat_64008 = x");
+    fn_042a30(0x12345678);
+    check(g_dat_64004 == 0x12345678, "  fn_042a30(x) sets g_dat_64004 = x");
+    g_test533bd_arg = 0;
+    g_dat_533bd = test533bd_cb;
+    uint32_t r = fn_042a3c(21);
+    check(r == 42 && g_test533bd_arg == 21, "  fn_042a3c(x) calls g_dat_533bd(x), returns result");
+    g_dat_533bd = NULL;
+    g_dat_64008 = b8; g_dat_64004 = b4;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1644,6 +1663,7 @@ int main(void) {
     test_time_parse();
     test_heap_size_adjust();
     test_fn_0423cf();
+    test_042a08_family();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

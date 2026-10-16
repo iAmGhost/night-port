@@ -372,6 +372,14 @@ size_t word_nlen(const uint16_t *src, size_t limit);
  * 1:1).  orig: 0x045a6a / 0x045a70 */
 uint32_t const_64008(void);
 uint32_t const_64004(void);
+/* globals written by the 0x42a08/0x42a0d/0x42a30 family */
+extern uint32_t g_dat_64008;    /* DAT_00064008 */
+extern uint32_t g_dat_64004;    /* DAT_00064004 */
+extern u32_cb_fn  g_dat_533bd;  /* DAT_000533bd: callback slot (0x042a3c) */
+void     fn_042a08(void);       /* 0x042a08: g_dat_64008 = 13 */
+void     fn_042a0d(uint32_t x); /* 0x042a0d: g_dat_64008 = x */
+void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
+uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

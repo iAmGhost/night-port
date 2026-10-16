@@ -1509,6 +1509,53 @@ int32_t fx_extract(const uint8_t *p, int32_t mode)   /* 0x47ea4 */
     return (int32_t)eax;
 }
 
+/* ---- 0x47fd4: fixed-point mantissa normalizer ----
+ * p -> { u32 lo; u32 hi; u16 exp; }. M = (hi + 0x100) & 0xffffff00 (or
+ * 0x80000000 if hi+0x100 overflows, in which case exp is +1). If the (hi==0x80,
+ * lo==0) underflow edge hits, the mask is 0. cx = (exp + carry) & 0x7fff:
+ *   cx==0 -> M; cx==0x7fff -> ((M<<1)>>8 | 0xff000000) << 1;
+ *   else cx2=(cx+0xc080)&0xffff: cx2>=0x8000 -> 0; cx2>=0xff -> 0xff000000<<1;
+ *   else (cx2<0xff) -> ((M<<1)<<8 | (hi<<25)>>24) << 1.
+ * (EBX=hi<<25 so BX==0, hence every RCR EAX,1 is a plain <<1.) Instruction-
+ * faithful with explicit CF. */
+int32_t fx_norm32(const uint8_t *p)   /* 0x47fd4 */
+{
+    uint32_t lo  = *(const uint32_t*)(p + 0);
+    uint32_t hi  = *(const uint32_t*)(p + 4);
+    uint16_t exp = *(const uint16_t*)(p + 8);
+
+    uint32_t edx = 0xffffff00;
+    uint32_t ecx = hi << 0x19;           /* SHL ECX,0x19 */
+    uint32_t cf  = (hi >> 7) & 1;        /* CF = bit7(hi) */
+    uint16_t cx  = exp;
+    if (cf && ecx == 0 && lo == 0) edx = 0;  /* ADD EDX,EDX (underflow edge) */
+
+    uint32_t eax = hi + 0x100;           /* ADD EAX,0x100 */
+    if (eax < 0x100) { eax = 0x80000000; cx++; }  /* JNC / MOV / INC */
+    eax &= edx;                          /* AND EAX,EDX */
+    cx &= 0x7fff;                        /* AND CX,0x7fff */
+
+    if (cx == 0) return (int32_t)eax;    /* JZ 0x4804f */
+    if (cx == 0x7fff) {                  /* 0x48015 special */
+        eax = (eax << 1) >> 8;           /* ADD EAX,EAX; SHR EAX,8 */
+        eax |= 0xff000000;               /* OR EAX,0xff000000 */
+        eax = (eax << 1);                /* RCR EAX,1 (CF=0) */
+        return (int32_t)eax;
+    }
+    uint16_t cx2 = (uint16_t)(cx + 0xc080); /* ADD CX,0xc080 */
+    if (cx2 & 0x8000) return 0;          /* JNS fail -> SUB EAX,EAX */
+    if (cx2 >= 0xff) {                   /* CMP CX,0xff; JL fail */
+        eax = 0xff000000;
+        eax = (eax << 1);                /* RCR EAX,1 (CF=0) */
+        return (int32_t)eax;
+    }
+    /* 0x48044: cx2 < 0xff */
+    eax = (eax << 1);                    /* ADD EAX,EAX */
+    eax = (eax << 8) | (ecx >> 24);      /* SHRD EAX,ECX,8 */
+    eax = (eax << 1);                    /* RCR EAX,1 (CF=0) */
+    return (int32_t)eax;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

@@ -1180,6 +1180,29 @@ static void test_fx_extract(void) {
     check(fx_extract(s,0x1f) == 0x80000000, "H: mode0x1f cl=0x20>blm -> overflow");
 }
 
+static void test_fx_norm32(void) {
+    printf("== fx_norm32 (L0: fixed-point mantissa normalizer 0x047fd4) ==\n");
+    uint8_t s[12];
+    // T1: exp=0 hi=0x123400 lo=0 -> cx=0 -> M=(hi+0x100)&0xffffff00 = 0x123500
+    memset(s,0,12); *(uint32_t*)(s+4)=0x123400; *(uint16_t*)(s+8)=0;
+    check(fx_norm32(s) == 0x123500, "T1: cx=0 -> M");
+    // T2: exp=1 hi=0x123400 -> cx=1 -> cx2=0xc081 -> 0
+    *(uint16_t*)(s+8)=1;
+    check(fx_norm32(s) == 0, "T2: cx small -> 0");
+    // T3: exp=0x7fff hi=0x123400 -> special -> ((0x123500<<1)>>8|0xff000000)<<1 = 0xfe0048d4
+    *(uint16_t*)(s+8)=0x7fff;
+    check(fx_norm32(s) == 0xfe0048d4, "T3: cx=0x7fff special");
+    // T4: exp=0x407f -> cx2=0xff -> 0xff000000<<1 = 0xfe000000
+    *(uint16_t*)(s+8)=0x407f;
+    check(fx_norm32(s) == 0xfe000000, "T4: cx2>=0xff -> 0xfe000000");
+    // T5: exp=0x3f80 -> cx2=0 -> SHRD -> ((0x123500<<1)<<8|0)<<1 = 0x48d40000
+    *(uint16_t*)(s+8)=0x3f80;
+    check(fx_norm32(s) == 0x48d40000, "T5: cx2<0xff SHRD path");
+    // T6: hi=0xffffff00 exp=5 -> carry -> eax=0x80000000 cx=6 -> 0
+    memset(s,0,12); *(uint32_t*)(s+4)=0xffffff00; *(uint16_t*)(s+8)=5;
+    check(fx_norm32(s) == 0, "T6: overflow carry -> 0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1247,6 +1270,7 @@ int main(void) {
     test_fmt_decimal();
     test_fmt_int_signed();
     test_fx_extract();
+    test_fx_norm32();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

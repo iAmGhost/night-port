@@ -1209,7 +1209,7 @@ void node_deactivate(uint32_t rec_off)   /* 0x44b5d */
     }
 }
 
-void parse_mod_prefix(const uint8_t *s, uint8_t *out)   /* 0x44fd7 */
+const uint8_t *parse_mod_prefix(const uint8_t *s, uint8_t *out)   /* 0x44fd7 */
 {
     out[0x14] = 0;                                 /* 0x44fd9 init flags */
     for (;;) {
@@ -1219,8 +1219,80 @@ void parse_mod_prefix(const uint8_t *s, uint8_t *out)   /* 0x44fd7 */
         if (c == 0x2b) { out[0x14] = (out[0x14] | 0x4) & ~0x2; continue; } /* '+' 0x44ff5 */
         if (c == 0x20) { if (out[0x14] & 0x4) continue; out[0x14] |= 0x2; continue; } /* ' ' 0x4500d */
         if (c == 0x30) { out[0x16] = c; continue; }           /* '0' 0x45024 */
-        break;                                         /* 0x45027/4502f exit */
+        return s - 1;                                     /* 0x4502f: EAX = break char pos */
     }
+}
+
+/* 0x044ea4: parse a numeric conversion specifier following the flags (from
+ * parse_mod_prefix). param_1 = format position, param_2 = vararg cursor (pointer
+ * to a pointer to the current int vararg), param_3 = spec struct (byte offsets):
+ *   [4] width (int), [8] precision (int, -1 default), [0x14] flags, [0x16] width-fill
+ *   (default ' ', '0' if '0' flag), [0x17] (cleared at start).
+ * Returns the position after the parsed suffix (or at an unrecognized suffix char). */
+uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec) {
+    spec[0x17] = 0;                                   /* init */
+    spec[0x16] = 0x20;                                /* default width-fill ' ' */
+    const uint8_t *p = parse_mod_prefix(s, spec);
+    *(uint32_t *)(spec + 4) = 0;                      /* width = 0 */
+    if (*p < 0x30 || *p > 0x39) {                     /* not a digit */
+        if (*p == 0x2a) {                             /* '*' width from vararg */
+            uint32_t *arg = (uint32_t *)(*va);        /* P = *va */
+            *va = arg + 1;
+            int32_t v = (int32_t)*arg;
+            *(uint32_t *)(spec + 4) = (uint32_t)v;
+            if (v < 0) { *(uint32_t *)(spec + 4) = (uint32_t)(-v); spec[0x14] |= 8; }
+            p = p + 1;                                /* consume '*' */
+        }
+    } else {
+        do {                                           /* parse decimal width */
+            uint8_t c = *p;
+            p = p + 1;
+            *(uint32_t *)(spec + 4) = *(uint32_t *)(spec + 4) * 10 + (c - 0x30);
+        } while (*p >= 0x30 && *p <= 0x39);
+    }
+    *(uint32_t *)(spec + 8) = 0xffffffff;             /* precision = -1 (default) */
+    const uint8_t *q = p;
+    if (*p == 0x2e) {                                 /* '.' precision */
+        q = p + 1;
+        *(uint32_t *)(spec + 8) = 0;
+        if (*q == 0x2a) {                             /* '.' '*' from vararg */
+            uint32_t *arg = (uint32_t *)(*va);
+            *va = arg + 1;
+            int32_t v = (int32_t)*arg;
+            *(uint32_t *)(spec + 8) = (uint32_t)v;
+            if (v < 0) *(uint32_t *)(spec + 8) = 0xffffffff;
+            q = p + 2;                                /* consume '.' '*' */
+        } else {
+            while (*q > 0x2f && *q < 0x3a) {          /* '.' digits */
+                *(uint32_t *)(spec + 8) = *(uint32_t *)(spec + 8) * 10 + (*q - 0x30);
+                q = q + 1;
+            }
+        }
+    }
+    uint8_t sc = *q;                                  /* suffix char */
+    const uint8_t *after = q + 1;
+    if (sc < 0x4e) {                                  /* < 'N' */
+        if (sc > 0x45) {                              /* > 'E' */
+            if (sc < 0x47) spec[0x14] |= 0x80;        /* 'F' */
+            else {
+                if (sc != 0x4c) return (uint8_t *)q;  /* 'G'..'M' except 'L': at char */
+                spec[0x14] |= 0x40;                   /* 'L' */
+            }
+            return (uint8_t *)after;                  /* 'F' or 'L': consumed */
+        }
+        return (uint8_t *)q;                          /* <= 'E': at char */
+    }
+    if (sc > 0x4e) {                                  /* > 'N' */
+        if (sc < 0x6c) {                              /* < 'l' */
+            if (sc == 0x68) { spec[0x14] |= 0x10; return (uint8_t *)after; } /* 'h' */
+            return (uint8_t *)q;
+        }
+        if (sc > 0x6c && sc != 0x77) return (uint8_t *)q;  /* > 'l' and != 'w' */
+        spec[0x14] |= 0x20;                           /* 'l' or 'w' */
+        return (uint8_t *)(q + 1);
+    }
+    spec[0x14] |= 0x40;                               /* 'N' */
+    return (uint8_t *)after;
 }
 
 uint8_t g_debug_break = 0;               /* DAT_00053624 */

@@ -1616,6 +1616,38 @@ static void test_044bb4(void) {
     sys_ioctl_dx = sdx; sys_ioctl_cf = scf;
 }
 
+static void test_044ea4(void) {
+    printf("fn_044ea4 (0x044ea4)\n");
+    uint8_t spec[0x20];
+    uint32_t va[4];
+    uint32_t *cur;
+    uint8_t *r;
+    memset(spec,0,sizeof spec); va[0]=0; cur=va;
+    r = fn_044ea4((const uint8_t*)"5w", &cur, spec);
+    check(*(uint32_t*)(spec+4)==5 && *(uint32_t*)(spec+8)==0xffffffff && (spec[0x14]&0x20) && r[0]==0,
+          "  5w: width=5, prec=-1, w flag, return at end");
+    memset(spec,0,sizeof spec); cur=va;
+    r = fn_044ea4((const uint8_t*)"12F", &cur, spec);
+    check(*(uint32_t*)(spec+4)==12 && (spec[0x14]&0x80) && r==(uint8_t*)"12F"+3,
+          "  12F: width=12, F flag, return after F");
+    memset(spec,0,sizeof spec); cur=va;
+    r = fn_044ea4((const uint8_t*)"3.7l", &cur, spec);
+    check(*(uint32_t*)(spec+4)==3 && *(uint32_t*)(spec+8)==7 && (spec[0x14]&0x20) && r==(uint8_t*)"3.7l"+4,
+          "  3.7l: width=3, prec=7, l flag");
+    memset(spec,0,sizeof spec); va[0]=42; va[1]=99; cur=va;
+    r = fn_044ea4((const uint8_t*)"*w", &cur, spec);
+    check(*(uint32_t*)(spec+4)==42 && (spec[0x14]&0x20) && cur==(va+1) && r==(uint8_t*)"*w"+2,
+          "  *w: width from vararg=42, cursor advanced");
+    memset(spec,0,sizeof spec); cur=va;
+    r = fn_044ea4((const uint8_t*)"05N", &cur, spec);
+    check(spec[0x16]==0x30 && *(uint32_t*)(spec+4)==5 && (spec[0x14]&0x40) && r==(uint8_t*)"05N"+3,
+          "  05N: '0' fill, width=5, N flag");
+    memset(spec,0,sizeof spec); va[0]=(uint32_t)(int32_t)-42; cur=va;
+    r = fn_044ea4((const uint8_t*)"*w", &cur, spec);
+    check(*(uint32_t*)(spec+4)==42 && (spec[0x14]&0x8) && (spec[0x14]&0x20),
+          "  *w neg: width=42, sign flag set");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1705,6 +1737,7 @@ int main(void) {
     test_042a08_family();
     test_047d24();
     test_044bb4();
+    test_044ea4();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -409,7 +409,9 @@ void node_deactivate(uint32_t rec_off);
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),
  * '0' -> out+0x16 = '0'. Stops at the first other character.  orig: 0x044fd7 */
-void parse_mod_prefix(const uint8_t *s, uint8_t *out);
+const uint8_t *parse_mod_prefix(const uint8_t *s, uint8_t *out);
+/* 0x044ea4: parse a numeric conversion specifier (width / precision / suffix). */
+uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec);
 /* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
  * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.
  *  orig: 0x045a44 */

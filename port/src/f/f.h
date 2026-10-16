@@ -427,6 +427,11 @@ uint32_t to_upper(uint32_t c);
 void     string_upper(char *s);
 /* 0x04457f: hex-digit value: '0'-'9'->0-9, 'a'-'f' (via to_lower)->10-15, else 16. */
 int      hex_digit_value(int c);
+/* 0x041e9f: LCG PRNG step. state = state*0x41c64e6d + 0x3039 (mod 2^32);
+ * returns (state>>16)&0x7fff (15-bit), or 0 if the PRNG is uninitialized. */
+uint32_t prng_next(void);
+/* 0x041ec3: seed the PRNG state word (no-op if uninitialized). */
+void     prng_seed(uint32_t seed);
 /* Store value|0x40000 into g_arr_53730[index] (sets bit 22 as a "set" flag).
  *  orig: 0x049325 (store [0x53730 + index*4] = value | 0x40000) */
 extern uint32_t *g_arr_53730;

@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 114 / 528 done
+TOTALS: 116 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 3 | 0 | 0 | 44 |
+| L1 | 47 | 5 | 0 | 0 | 42 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -226,8 +226,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x041439 | 76 | FUN_00041439 | | |
 | [ ] | 0x041c28 | 8 | FUN_00041c28 | | |
 | [x] | 0x041c31 | 93 | heap_free_host | heap | heap.md; port+test PASS (batch 7-8) |
-| [ ] | 0x041e9f | 35 | FUN_00041e9f | | |
-| [ ] | 0x041ec3 | 15 | FUN_00041ec3 | | |
+| [x] | 0x041e9f | 35 | prng_next | runtime | port+test PASS (LCG state=state*0x41c64e6d+0x3039; ret (state>>16)&0x7fff; 9-diff vs Python) |
+| [x] | 0x041ec3 | 15 | prng_seed | runtime | port+test PASS (sets *rng_state_ptr()=seed; no-op if NULL) |
 | [ ] | 0x041f42 | 26 | FUN_00041f42 | | |
 | [ ] | 0x0422d5 | 58 | FUN_000422d5 | | |
 | [ ] | 0x0423cf | 21 | FUN_000423cf | | |

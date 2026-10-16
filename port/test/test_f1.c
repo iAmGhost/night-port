@@ -1380,6 +1380,23 @@ static void test_hex_digit_value(void)
     check(hex_digit_value('/') == 0x10 && hex_digit_value(':') == 0x10, "out-of-range -> 16");
 }
 
+static void test_prng(void)
+{
+    printf("L1: prng_next/prng_seed (0x041e9f/0x041ec3)\n");
+    prng_seed(0x1234);
+    check(prng_next() == 0x4dcb, "seed 0x1234 s1 ret=0x4dcb");
+    check(prng_next() == 0x4bbe, "seed 0x1234 s2 ret=0x4bbe");
+    check(prng_next() == 0x17d3, "seed 0x1234 s3 ret=0x17d3");
+    prng_seed(0xdeadbeef);
+    check(prng_next() == 0x1c01, "seed 0xdeadbeef s1 ret=0x1c01");
+    check(prng_next() == 0x1f39, "seed 0xdeadbeef s2 ret=0x1f39");
+    check(prng_next() == 0x6ac6, "seed 0xdeadbeef s3 ret=0x6ac6");
+    prng_seed(0);
+    check(prng_next() == 0x0000, "seed 0 s1 ret=0x0000");
+    check(prng_next() == 0x53dc, "seed 0 s2 ret=0x53dc");
+    check(prng_next() == 0x2704, "seed 0 s3 ret=0x2704");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1458,6 +1475,7 @@ int main(void) {
     test_fx_round_down();
     test_string_upper();
     test_hex_digit_value();
+    test_prng();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

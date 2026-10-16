@@ -1199,6 +1199,25 @@ int hex_digit_value(int c) {
     if (c >= 0x61 && c <= 0x66) return c - 0x57;
     return 0x10;
 }
+
+/* 0x041e9f: LCG PRNG step. Faithful to the disasm: EAX = rng_state_ptr();
+ * if (!EAX) return 0; EDX = *EAX * 0x41c64e6d + 0x3039 (IMUL low32, mod 2^32);
+ * *EAX = EDX; return (EDX >> 16) & 0x7fff. The NULL guard is dead in the port
+ * (rng_state_ptr always returns &g_rng_state) but kept for fidelity. */
+uint32_t prng_next(void) {
+    uint32_t *s = rng_state_ptr();
+    if (s == (uint32_t *)0) return 0;
+    uint32_t v = *s * 0x41c64e6d + 0x3039;
+    *s = v;
+    return (v >> 16) & 0x7fff;
+}
+
+/* 0x041ec3: seed the PRNG. Faithful: EDX = seed (EAX in); EAX = rng_state_ptr();
+ * if (EAX) *EAX = EDX. */
+void prng_seed(uint32_t seed) {
+    uint32_t *s = rng_state_ptr();
+    if (s != (uint32_t *)0) *s = seed;
+}
 uint32_t *g_arr_53730 = NULL;                /* DAT_00053730 */
 void store_arr53730(uint32_t index, uint32_t value)   /* 0x49325 */
 {

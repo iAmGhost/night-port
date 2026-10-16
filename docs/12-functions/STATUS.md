@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 119 / 528 done
+TOTALS: 120 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 8 | 0 | 0 | 39 |
+| L1 | 47 | 9 | 0 | 0 | 38 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -233,7 +233,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x041f42 | 26 | itoa32s | string | port+test PASS (signed itoa via itoa32; '-' only for base==10; returns buf start; INT_MIN NEG-wraps) |
 | [ ] | 0x0422d5 | 58 | FUN_000422d5 | | |
 | [ ] | 0x0423cf | 21 | FUN_000423cf | | |
-| [ ] | 0x0427f3 | 104 | FUN_000427f3 | | |
+| [x] | 0x0427f3 | 104 | tmp_filename | string | port+test PASS (register ABI EAX=buf,EDX=index; counter=get_dat_53390(); "t<4-hex(counter&0xffff)>_<2-hex(index&0xff)>.tmp" via digit_chr; high bits discarded; 6 cases) |
 | [ ] | 0x042958 | 4 | thunk_FUN_0004564f | | |
 | [ ] | 0x042a08 | 4 | FUN_00042a08 | | |
 | [ ] | 0x042a0d | 11 | FUN_00042a0d | | |

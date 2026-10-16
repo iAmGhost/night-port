@@ -160,6 +160,7 @@ int      res_consume(res_reader *r, int amount);
 /* Digit value (0..35) -> ASCII char: 0-9 -> '0'-'9', 10-35 -> 'a'-'z'.
  * orig: 0x0427e7 */
 int      digit_chr(int d);
+void     tmp_filename(char *out, uint32_t index);   // 0x427f3 L1: "t<ticks4>_<idx2>.tmp"
 /* Byte-sink callback for the streaming printf: store `byte` at st->pos,
  * advance st->pos, increment st->count.  orig: 0x0428e5 */
 void     fmt_emit(fmt_state *st, uint8_t byte);

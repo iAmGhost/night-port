@@ -1439,6 +1439,18 @@ static void test_heap_free_guard(void) {
     heap_verify(region, "cleanup");
 }
 
+static void test_tmp_filename(void) {
+    printf("tmp_filename (0x0427f3)\n");
+    char buf[16];
+    g_dat_53390 = 0x1234;     tmp_filename(buf, 0x5a); check(strcmp(buf, "t1234_5a.tmp") == 0, "0x1234/0x5a -> t1234_5a.tmp");
+    g_dat_53390 = 0x000000ab; tmp_filename(buf, 0x05); check(strcmp(buf, "t00ab_05.tmp") == 0, "0x00ab/0x05 -> t00ab_05.tmp");
+    g_dat_53390 = 0xdeadbeef; tmp_filename(buf, 0xff); check(strcmp(buf, "tbeef_ff.tmp") == 0, "0xdeadbeef(low16=beef)/0xff -> tbeef_ff.tmp");
+    g_dat_53390 = 0;          tmp_filename(buf, 0);    check(strcmp(buf, "t0000_00.tmp") == 0, "0/0 -> t0000_00.tmp");
+    g_dat_53390 = 0x0000a1b2; tmp_filename(buf, 0x00); check(strcmp(buf, "ta1b2_00.tmp") == 0, "0xa1b2/0 -> ta1b2_00.tmp (lowercase hex)");
+    g_dat_53390 = 0x000000ff; tmp_filename(buf, 0x0f); check(strcmp(buf, "t00ff_0f.tmp") == 0, "0xff/0x0f -> t00ff_0f.tmp");
+    g_dat_53390 = 0;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1520,6 +1532,7 @@ int main(void) {
     test_hex_digit_value();
     test_prng();
     test_itoa32s();
+    test_tmp_filename();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

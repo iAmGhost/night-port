@@ -1194,6 +1194,34 @@ void string_upper(char *s) {
     }
 }
 
+/* 0x0427f3 (L1, 104 bytes): build a temp filename from the tick counter and
+ * a small index. Register ABI: EAX = output buffer (>=13 bytes),
+ * EDX = index (low 8 bits used). counter = get_dat_53390() (0x44be6).
+ *
+ * out[0]='t'; out[1..4]=4 lowercase hex digits of counter&0xffff (big-endian:
+ *   out[1]=bits12-15 ... out[4]=bits0-3); out[5]='_'; out[6..7]=2 hex digits
+ *   of index&0xff; out[8]='.'; out[9..11]="tmp"; out[12]=0.
+ *   e.g. counter=0x0000a1b2, index=0x5a -> "ta1b2_5a.tmp"
+ * Nibble->char via digit_chr (0x427e7, ported). The high 16 bits of the
+ * 32-bit counter and the high 24 bits of index are discarded.
+ */
+void tmp_filename(char *out, uint32_t index) {
+    uint32_t c = (uint32_t)get_dat_53390();   // 0x44be6
+    out[0] = 't';
+    for (int pos = 4; pos >= 1; pos--) {      // right-to-left nibbles (out[4..1])
+        out[pos] = (char)digit_chr(c & 0xf);
+        c >>= 4;
+    }
+    out[5] = '_';
+    out[6] = (char)digit_chr((index >> 4) & 0xf);
+    out[7] = (char)digit_chr(index & 0xf);
+    out[8] = '.';
+    out[9]  = 't';
+    out[10] = 'm';
+    out[11] = 'p';
+    out[12] = 0;
+}
+
 /* 0x04457f: hex-digit value. Faithful to the disasm: if '0'-'9' return c-'0';
  * else to_lower(c) (0x44859, ported), if 'a'-'f' return c-0x57 (10-15); else 0x10.
  * The 0x445a0 tail (MOV EAX,0x10;RET) is the shared "not a digit" return. */

@@ -34,11 +34,11 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 108 / 528 done
+TOTALS: 109 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
-| L0 | 112 | 104 | 0 | 0 | 8 |
+| L0 | 112 | 105 | 0 | 0 | 7 |
 | L1 | 47 | 1 | 0 | 0 | 46 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
@@ -83,6 +83,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | 0x04a923 has GARBAGE disasm (no prologue: starts `CALL`; `SLDT`,`CALLF 0x0:0x23b`,`IN AL,0xb`,`POP SS`,`MOV AL,[0x5af34e72]`) yet is called from 0x4a814 and sits right after 0x4a8b9 (ends 0x4a922) — likely mis-boundary or a data block; NOT marked spurious pending deeper investigation | STATUS.md L0 |
 | 2026-07-08 | 0x04811a decoded (raw-byte) = IEEE-754 float32→fxnum constructor `fx_from_f32`: expfield=(int32)v>>23 & 0xff (bits 23..30). expfield==0→passthrough {lo=0,hi=v,exp=0}; expfield==0xff→NaN/Inf marker exp=0xffff; else exp=expfield+0x3f80 (=unbiassed+0x3fff). hi=(v<<8 & 0x7fffffff)\|((v<<8&0x7fffffff)?0x40000000:0)\|0x80000000. The ambiguous `JZ 0x48149` is at 0x48142 and skips only `OR EAX,0x40000000` (merge point, not a loop). The trailing `ADD ECX,ECX;RCR CX,1` is NOT pure identity: with bit31 set (CF=1) it flips exp's top bit, so the carry is computed explicitly. Distinct from the BSR-normalizing fx_from_u32/s32 (0x47f1f/0x47f0e). 6 differential tests PASS | STATUS.md L0 |
 | 2026-07-08 | Remaining L0 (16) are all fixed-point/FPU/bit-chain, need register traces. Surveyed: 0x047fd4 = fixed-point struct normalizer (reads 4-field struct at [EAX]: [0]/[4]/[8]; RCR CH / SHLD / SHRD / ADD 0x100 / 0x80000000 clamp / ADD CX,0xc080 bias) - normalizes a {lo,hi,exp} fx value to 16-bit-mantissa form. 0x0485eb = fixed-point SUBTRACT (ESI:EDI - 15-bit; then normalizes EDX:EAX by left-shift until top bit, with a 0x7fff mask + sign-restore) - returns EDX:EAX normalized difference + a 0x8000 sign bit. 0x047ea4 = the RCR/SHLD exp-conversion (BL-mode variants 0x47e4a/0x47e9f). 0x04a9da = FPU double (FSTP QWORD - return via memory). 0x04a923 = garbage disasm (no prologue, SLDT/CALLF/IN/POP SS) yet xref'd from 0x4a814 - mis-boundary or data block, investigate. Port these ONE AT A TIME with a full register trace + reference (no-op is unsafe - real logic) | STATUS.md L0 |
+| 2026-07-08 | 0x048666 = fixed-point value classifier `fx_classify_status(const uint8_t *fx, uint8_t *ctx, uint32_t edi)`. Register ABI (EAX=fx ptr {u32 lo,u32 hi,u16 exp@8}, EBP=ctx ptr [status@+4, flags@+8], EDI=class byte-offset). If (mask22&flags)==mask22: status=0x41. Else clear mask22 and classify by mag=exp&0x7fff: mag0 -> (hi|lo)!=0?0x44:(flags|=mask1c,0x40); mag==0x7fff -> flags|=mask20, (lo==0&&hi==0x80000000)?0x05:0x01; else -> (hi&0x80000000)?0x04:(flags|=mask20,0x44). Status high byte=(code|sign) where sign=2 if (short)exp<0; low byte + bits 9,10 preserved via &0xb8ff. Masks from the 8-word table at 0x45e1c (mask1c=tbl[edi/2], mask20=tbl[edi/2+2], mask22=tbl[edi/2+3]). 8 differential checks PASS. Ghidra renamed fx_classify_status | STATUS.md L0 |
 | 2026-07-08 | 0x047ab6 = fixed-point lexicographic UNSIGNED compare `fx_compare(const uint8_t *a, const uint8_t *b)` on {u32 lo, u32 hi, u16 exp} (exp at [8]). A value with exp==0x7fff and nonzero (hi<<1)|lo is "special" and the compare returns 2. Otherwise it is a lexicographic compare of (exp, hi, lo): the first differing field sets the sign via the unsigned borrow (CF). Returns -1 (a<b) / 0 (==) / +1 (a>b). The original's RCR EAX/XOR ESI/ADD ESI at 0x47b10-0x47b14 is dead (EAX is overwritten by EDI at 0x47b1c). 10 differential checks PASS incl. the hi=0x80000000 lo=0 overflow edge (not special). Ghidra renamed fx_compare | STATUS.md L0 |
 | 2026-07-08 | 0x04a2a7 = double NaN/Inf inline-string writer `fx_double_naninf(double d, char *out)`. If (hi>>20)&0xff==0xff (low 8 exponent bits all 1): write inline "inf" (mantissa 0) or "nan" (mantissa !=0) at 0x51844/0x51848, with a leading '-' if the sign bit is set, return 1; else return 0 leaving out untouched. Latent original bug: only 8 of the 11 exponent bits are checked, so 1.0 (exp 0x3ff, low8=0xff, mantissa 0) is classified "inf". 7 differential checks PASS (Inf/-Inf/NaN/-NaN/1.0/3.0/0.0). Ghidra renamed fx_double_naninf | STATUS.md L0 |
 | 2026-07-08 | 0x045687 = DOS date/time packer `datetime_pack(struct datetime_pack *out)`. Reads INT 21h 2Ch/2Ah via new sys_getdate/sys_gettime backends. local0=(month<<24)|day<<16, local1=(hour<<24)|low8(minute*256+second-0x76c)<<16. The SHL ECX,16 zeroes the low byte of each packed local, so ESI (built from local0's low byte) is always 0 and the day-change branch (CMP local1.byte0 vs local2.byte0, both 0) is always equal -> dead. Returns 0 always; writes f4=day f8=month f14=low8(time) f20=0xffffffff f0=fc=0 f10=0xffffffff; f18 untouched. 10 differential checks PASS. Ghidra renamed datetime_pack | STATUS.md L0 |
@@ -188,7 +189,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0481df | 306 | FUN_000481df | | |
 | [x] | 0x048312 | 64 | (spurious) | data | disassembled data (huge offsets, no prologue, only DATA xref; documented) |
 | [ ] | 0x0485eb | 122 | FUN_000485eb | | |
-| [ ] | 0x048666 | 166 | FUN_00048666 | | |
+| [x] | 0x048666 | 166 | fx_classify_status | fixed-point value classifier (register ABI EAX=fx ptr, EBP=ctx ptr, EDI=class offset). If (mask22&flags)==mask22 -> status 0x41. Else clear mask22, classify by mag=exp&0x7fff: mag0->(hi|lo)!=0?0x44:(flags|=mask1c,0x40); mag==0x7fff->flags|=mask20,(lo==0&&hi==0x80000000)?0x05:0x01; else->(hi sign)?0x04:(flags|=mask20,0x44). status high byte=(code|signflag) via &0xb8ff. Masks from 0x45e1c table | fx_classify_status (f.c) |
 | [ ] | 0x048e60 | 203 | FUN_00048e60 | | |
 | [x] | 0x0490b0 | 88 | dos_realmode_setup | sys | port+test PASS (batch H, INT2F/21-30 stubbed) |
 | [x] | 0x049109 | 0 | noop_9109 | sys | port+test PASS (batch F, single RET) |

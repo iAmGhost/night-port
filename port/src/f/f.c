@@ -1639,6 +1639,55 @@ int fx_compare(const uint8_t *a, const uint8_t *b)   /* 0x47ab6 */
     return 0;
 }
 
+/* ---- 0x48666: fixed-point value classifier ----
+ * Register ABI (original): EAX = fx value ptr {u32 lo@0, u32 hi@4, u16 exp@8},
+ * EBP = context struct ptr (status word at [EBP+4], flags word at [EBP+8]),
+ * EDI = class byte-offset (0/2/4) selecting masks from the 8-word table at
+ * 0x45e1c. If (mask22 & flags) == mask22 the value is already flagged: status=
+ * 0x41. Otherwise mask22 is cleared from flags and the value is classified by
+ * its exponent magnitude mag = exp & 0x7fff:
+ *   mag==0     : (hi|lo)!=0 -> 0x44, else flags|=mask1c, 0x40
+ *   mag==0x7fff: flags|=mask20; (lo==0 && hi==0x80000000) ? 0x05 : 0x01
+ *   else       : (hi&0x80000000) ? 0x04 : (flags|=mask20, 0x44)
+ * The high byte of the status word is then set to (code | sign) where sign is
+ * 2 if (short)exp<0; low byte and bits 9,10 (0x600) of status are preserved per
+ * the 0xb8ff mask. */
+static const uint16_t g_fxmask_tbl[8] =
+    {0x0001,0x0000,0x0002,0x0003,0xfff3,0x0004,0x0000,0x0008};   /* 0x45e1c */
+void fx_classify_status(const uint8_t *fx, uint8_t *ctx, uint32_t edi)   /* 0x48666 */
+{
+    uint16_t *flags = (uint16_t *)(ctx + 8);
+    uint16_t *status = (uint16_t *)(ctx + 4);
+    uint16_t mask1c = g_fxmask_tbl[edi / 2 + 0];   /* 0x45e1c + EDI */
+    uint16_t mask20 = g_fxmask_tbl[edi / 2 + 2];   /* 0x45e20 + EDI */
+    uint16_t mask22 = g_fxmask_tbl[edi / 2 + 3];   /* 0x45e22 + EDI */
+    uint32_t lo = *(const uint32_t *)fx;
+    uint32_t hi = *(const uint32_t *)(fx + 4);
+    uint16_t exp = *(const uint16_t *)(fx + 8);
+    uint8_t al;
+    uint8_t dh = (exp & 0x8000) ? 0x02 : 0x00;     /* (short)exp<0 -> 2 */
+    if ((mask22 & *flags) == mask22) { al = 0x41; goto store; }
+    *flags &= (uint16_t)~mask22;
+    uint16_t mag = exp & 0x7fff;
+    if (mag == 0) {
+        if ((hi | lo) != 0) { al = 0x44; goto store; }
+        *flags |= mask1c;
+        al = 0x40;
+        goto store;
+    }
+    if (mag == 0x7fff) {
+        *flags |= mask20;
+        al = 0x01;
+        if (lo == 0 && hi == 0x80000000u) al = 0x05;
+        goto store;
+    }
+    if (hi & 0x80000000u) { al = 0x04; goto store; }
+    *flags |= mask20;
+    al = 0x44;
+store:
+    *status = (*status & 0xb8ff) | (uint16_t)(((uint8_t)al | dh) << 8);
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

@@ -1269,6 +1269,31 @@ static void test_fx_compare(void) {
     set_fx(&a,0,0x80000000,0x7fff); set_fx(&b,0,0x80000000,0x7fff); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==0, "hi=0x80000000 lo=0 not special (hi<<1 overflows to 0), equal -> 0");
 }
 
+struct fxcl { uint32_t lo, hi; uint16_t exp; };
+static void test_fx_classify_status(void) {
+    printf("== fx_classify_status (L0: fx classifier 0x048666) ==\n");
+    struct fxcl v;
+    uint8_t ctx[16];
+    uint16_t *st = (uint16_t*)ctx + 2;  /* ctx+4 */
+    uint16_t *fl = (uint16_t*)ctx + 4;  /* ctx+8 */
+    v.lo=0; v.hi=0; v.exp=0; memset(ctx,0,sizeof ctx); *fl=0; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x4000 && *fl==0x0001, "zero, not flagged -> 0x40, flags|=mask1c");
+    v.lo=0; v.hi=0; v.exp=0; memset(ctx,0,sizeof ctx); *fl=0x0003; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x4100 && *fl==0x0003, "zero, already flagged(mask22) -> 0x41");
+    v.lo=1; v.hi=0; v.exp=0; memset(ctx,0,sizeof ctx); *fl=0; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x4400 && *fl==0x0000, "mag0, hi|lo!=0 -> 0x44");
+    v.lo=0; v.hi=0; v.exp=0x7fff; memset(ctx,0,sizeof ctx); *fl=0; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x0100 && *fl==0x0002, "special lo0 hi0 -> 0x01, flags|=mask20");
+    v.lo=0; v.hi=0x80000000; v.exp=0x7fff; memset(ctx,0,sizeof ctx); *fl=0; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x0500 && *fl==0x0002, "special lo0 hi=0x80000000 -> 0x05");
+    v.lo=0; v.hi=0x80000000; v.exp=0x4000; memset(ctx,0,sizeof ctx); *fl=0; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x0400 && *fl==0x0000, "normal, hi sign set -> 0x04");
+    v.lo=0; v.hi=0x00000001; v.exp=0x4000; memset(ctx,0,sizeof ctx); *fl=0; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x4400 && *fl==0x0002, "normal, hi sign clear -> 0x44, flags|=mask20");
+    v.lo=0; v.hi=0x00000001; v.exp=0x8000; memset(ctx,0,sizeof ctx); *fl=0; *st=0; fx_classify_status((uint8_t*)&v, ctx, 0);
+    check(*st==0x4600 && *fl==0x0000, "mag0, hi sign set: 0x44|0x02 -> 0x46");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1341,6 +1366,7 @@ int main(void) {
     test_datetime_pack();
     test_fx_double_naninf();
     test_fx_compare();
+    test_fx_classify_status();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

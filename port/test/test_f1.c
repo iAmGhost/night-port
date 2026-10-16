@@ -160,6 +160,96 @@ static void test_abs(void) {
 static const char *g_fatal_msg;
 static void fatal_hook(const char *m) { g_fatal_msg = m; }
 
+/* ---------- batch 2: segment / memory / string / FPU primitives ---------- */
+
+static void test_seg_save(void) {
+    printf("seg_save (0x041df2)\n");
+    uint16_t got[6] = {0};
+    uint16_t want[6];
+    sys_get_segments(want);
+    seg_save(got);
+    check(memcmp(got, want, sizeof got) == 0,
+          "captures 6 segments in ES,CS,SS,DS,FS,GS order (== sys table)");
+    check(got[0] == 0 && got[1] == 0x23 && got[2] == 0x2b && got[3] == 0,
+          "flat-model values (ES=0 CS=0x23 SS=0x2b DS=0)");
+    check(got[2] == sys_ss(), "SS matches sys_ss");
+}
+
+static void test_mem_copy(void) {
+    printf("mem_copy (0x041e6c)\n");
+    int ok_ret = 1;
+    for (int n = 0; n <= 36; n++) {        /* spans the dword+tail boundary */
+        uint8_t a[80], r[80], src[40];
+        for (int i = 0; i < 80; i++) { a[i] = (uint8_t)(0x80 ^ i); r[i] = a[i]; }
+        for (int i = 0; i < 40; i++) src[i] = (uint8_t)(i * 7 + n);
+        int base = 20 + (n & 1);           /* odd + even dst alignment */
+        uint8_t *ret = mem_copy(a + base, src, (uint32_t)n);
+        if (ret != a + base) ok_ret = 0;
+        memcpy(r + base, src, (size_t)n);
+        if (memcmp(a, r, sizeof a)) { check(0, "byte-identical to memcpy (n sweep)"); return; }
+    }
+    check(ok_ret, "returns the original dst pointer");
+    check(1, "byte-identical to memcpy (n=0..36, odd/even dst align)");
+}
+
+static void test_rng_state_ptr(void) {
+    printf("rng_state_ptr (0x041e99)\n");
+    uint32_t *p = rng_state_ptr();
+    check(p == &g_rng_state, "returns &g_rng_state");
+    g_rng_state = 0;
+    *p = 0x12345678;
+    check(g_rng_state == 0x12345678, "write through pointer updates global");
+}
+
+static void ref_itoa(uint32_t v, char *out, uint32_t base) {
+    static const char d[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+    char tmp[33]; int n = 0, i = 0;
+    do { tmp[n++] = d[v % base]; v /= base; } while (v != 0);
+    while (n > 0) out[i++] = tmp[--n];
+    out[i] = 0;
+}
+
+static void test_itoa32(void) {
+    printf("itoa32 (0x041ef8)\n");
+    int ok = 1;
+    for (uint32_t base = 2; base <= 36; base++) {
+        uint32_t vals[4] = {0, 1, base - 1, 0xffffffffu};
+        for (int k = 0; k < 4; k++) {
+            char a[40], r[40];
+            memset(a, 0xEE, sizeof a);
+            char *ret = itoa32(vals[k], a, base);
+            ref_itoa(vals[k], r, base);
+            if (ret != a || strcmp(a, r) != 0) { ok = 0; }
+        }
+    }
+    check(ok, "matches reference for base 2..36 (0,1,base-1,max) + returns out");
+    char b[8];
+    itoa32(255, b, 16);
+    check(strcmp(b, "ff") == 0, "255 in base 16 == \"ff\" (lowercase a-z)");
+}
+
+static void test_str_len(void) {
+    printf("str_len (0x041f5d)\n");
+    const char *strs[] = {"", "a", "hello", "NIGHT PORT 320x200"};
+    int ok = 1;
+    for (int i = 0; i < 4; i++)
+        if (str_len(strs[i]) != strlen(strs[i])) ok = 0;
+    check(ok, "matches strlen for empty + non-empty");
+}
+
+static void test_fpu_rndint(void) {
+    printf("fpu_rndint (0x041f7e)\n");
+    /* x87 FRNDINT, RM=11 = round-to-nearest-even (half-to-even). */
+    check(fpu_rndint(2.5) == 2.0 && fpu_rndint(3.5) == 4.0,
+          "half-to-even: 2.5->2, 3.5->4");
+    check(fpu_rndint(0.5) == 0.0 && fpu_rndint(1.5) == 2.0,
+          "half-to-even: 0.5->0, 1.5->2");
+    check(fpu_rndint(2.4) == 2.0 && fpu_rndint(2.6) == 3.0,
+          "non-ties round to nearest");
+    check(fpu_rndint(5.0) == 5.0 && fpu_rndint(-2.5) == -2.0,
+          "integers unchanged; -2.5->-2 (even)");
+}
+
 static void test_canary(void) {
     printf("canary (0x0418e6 / 0x0418ee / 0x041901)\n");
     canary_ss_save();
@@ -195,6 +285,13 @@ int main(void) {
     test_board();
     test_abs();
     test_canary();
+    printf("== batch 2 (L0 seg/mem/str/fpu) ==\n");
+    test_seg_save();
+    test_mem_copy();
+    test_rng_state_ptr();
+    test_itoa32();
+    test_str_len();
+    test_fpu_rndint();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

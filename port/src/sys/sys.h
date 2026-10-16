@@ -17,6 +17,12 @@ int  sys_hist(void *buf, int max);              /* 0x3C9 write history (tests) *
  * model has a single address space, so SS is a constant. */
 uint16_t sys_ss(void);
 
+/* Segment snapshot for DPMI real-mode transition bookkeeping (the original
+ * reads the six x86 segment registers). The modern flat model has no
+ * meaningful per-register values, so this returns a fixed table in the order
+ * ES, CS, SS, DS, FS, GS. */
+void sys_get_segments(uint16_t out[6]);
+
 /* Fatal path stand-in for the original 0x429ea ("Stack Overflow!" printer)
  * and the fall-through into the next function (process death). The hook
  * lets tests observe the fatal path instead of aborting. */

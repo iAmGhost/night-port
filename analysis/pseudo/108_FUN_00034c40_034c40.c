@@ -1,1 +1,49 @@
-{"name":"FUN_00034c40","address":"00034c40","decompiled":"\nundefined8 FUN_00034c40(void)\n\n{\n  uint uVar1;\n  undefined1 *puVar2;\n  byte in_AF;\n  byte in_TF;\n  byte in_IF;\n  byte bVar3;\n  byte in_NT;\n  byte in_AC;\n  byte in_VIF;\n  byte in_VIP;\n  byte in_ID;\n  undefined1 auStack_38 [4];\n  uint uStack_34;\n  undefined1 auStack_30 [16];\n  \n  puVar2 = auStack_30;\n  bVar3 = 0;\n  uStack_34 = 0x34c55;\n  FUN_00042310();\n  uStack_34 = 0x34c5a;\n  FUN_0004231b();\n  uStack_34 = 0x34c5f;\n  FUN_00034e3c();\n  DAT_0006330c = DAT_0006330c + 1;\n  uVar1 = DAT_0006332c - 0x10000;\n  if (0xffff < (int)DAT_0006332c) {\n    uStack_34 = (uint)(in_NT & 1) * 0x4000 | (uint)SBORROW4(DAT_0006332c,0x10000) * 0x800 |\n                (uint)(bVar3 & 1) * 0x400 | (uint)(in_IF & 1) * 0x200 | (uint)(in_TF & 1) * 0x100 |\n                (uint)((int)uVar1 < 0) * 0x80 | (uint)(uVar1 == 0) * 0x40 | (uint)(in_AF & 1) * 0x10\n                | (uint)((POPCOUNT(uVar1 & 0xff) & 1U) == 0) * 4 | (uint)(DAT_0006332c < 0x10000) |\n                (uint)(in_ID & 1) * 0x200000 | (uint)(in_VIP & 1) * 0x100000 |\n                (uint)(in_VIF & 1) * 0x80000 | (uint)(in_AC & 1) * 0x40000;\n    puVar2 = auStack_38;\n    (*(code *)&SUB_00063334)();\n    DAT_0006332c = DAT_0006332c - 0x10000;\n  }\n  DAT_0006332c = DAT_0006332c + DAT_00063318;\n  *(undefined4 *)(puVar2 + -4) = 0x34c9c;\n  FUN_0004231d(0x20,0x20);\n  *(undefined4 *)(puVar2 + -4) = 0x34ca1;\n  FUN_0004232b();\n  return CONCAT44(*(undefined4 *)(puVar2 + 0x24),*(undefined4 *)(puVar2 + 0x2c));\n}\n\n"}
+// func #?  FUN_00034c40  034c40  (recovered)
+
+undefined8 FUN_00034c40(void)
+
+{
+  uint uVar1;
+  undefined1 *puVar2;
+  byte in_AF;
+  byte in_TF;
+  byte in_IF;
+  byte bVar3;
+  byte in_NT;
+  byte in_AC;
+  byte in_VIF;
+  byte in_VIP;
+  byte in_ID;
+  undefined1 auStack_38 [4];
+  uint uStack_34;
+  undefined1 auStack_30 [16];
+  
+  puVar2 = auStack_30;
+  bVar3 = 0;
+  uStack_34 = 0x34c55;
+  FUN_00042310();
+  uStack_34 = 0x34c5a;
+  FUN_0004231b();
+  uStack_34 = 0x34c5f;
+  FUN_00034e3c();
+  DAT_0006330c = DAT_0006330c + 1;
+  uVar1 = DAT_0006332c - 0x10000;
+  if (0xffff < (int)DAT_0006332c) {
+    uStack_34 = (uint)(in_NT & 1) * 0x4000 | (uint)SBORROW4(DAT_0006332c,0x10000) * 0x800 |
+                (uint)(bVar3 & 1) * 0x400 | (uint)(in_IF & 1) * 0x200 | (uint)(in_TF & 1) * 0x100 |
+                (uint)((int)uVar1 < 0) * 0x80 | (uint)(uVar1 == 0) * 0x40 | (uint)(in_AF & 1) * 0x10
+                | (uint)((POPCOUNT(uVar1 & 0xff) & 1U) == 0) * 4 | (uint)(DAT_0006332c < 0x10000) |
+                (uint)(in_ID & 1) * 0x200000 | (uint)(in_VIP & 1) * 0x100000 |
+                (uint)(in_VIF & 1) * 0x80000 | (uint)(in_AC & 1) * 0x40000;
+    puVar2 = auStack_38;
+    (*(code *)&SUB_00063334)();
+    DAT_0006332c = DAT_0006332c - 0x10000;
+  }
+  DAT_0006332c = DAT_0006332c + DAT_00063318;
+  *(undefined4 *)(puVar2 + -4) = 0x34c9c;
+  FUN_0004231d(0x20,0x20);
+  *(undefined4 *)(puVar2 + -4) = 0x34ca1;
+  FUN_0004232b();
+  return CONCAT44(*(undefined4 *)(puVar2 + 0x24),*(undefined4 *)(puVar2 + 0x2c));
+}
+

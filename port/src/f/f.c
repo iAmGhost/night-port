@@ -4,11 +4,13 @@
  * Semantics: docs/12-functions/primitives.md */
 #include "f.h"
 #include "../sys/sys.h"
+#include <math.h>
 
 /* ---- globals (mirrored BSS) ---- */
 int32_t  g_video_stride = 0;
 uint16_t g_ss_saved = 0;
 int32_t  g_stack_bound = 0;
+uint32_t g_rng_state = 0;      /* DAT_0005335c: PRNG state (LCG in 0x41e9f) */
 
 /* put_px  orig: 0x040024
  *   base[c * DAT_00040010 + b] = d
@@ -212,4 +214,102 @@ uintptr_t canary_check(uint32_t frame_size) {
 uintptr_t canary_id(uintptr_t eax, uint32_t frame_size) {
     canary_check(frame_size);
     return eax;
+}
+
+/* seg_save  orig: 0x041df2
+ *   out[0]=ES; out[1]=CS; out[2]=SS; out[3]=DS; out[4]=FS; out[5]=GS
+ * (arg in EAX). DPMI real-mode transition: caller saves segments before a
+ * DPMI call so it can restore them after (see 0x103e0 -> 0x41e38(0x31,...)).
+ * Port: the flat model has fixed segment values (sys_get_segments).
+ */
+void seg_save(uint16_t *a) {
+    sys_get_segments(a);
+}
+
+/* mem_copy  orig: 0x041e6c
+ *   REP MOVSD (c>>2 dwords) then REP MOVSB (c&3 bytes); returns dst.
+ * (args in registers: EAX=dst, EDX=src, EBX=n.) Byte-identical to memcpy;
+ * kept explicit for 1:1 fidelity. dst is PUSHed/POP'd so the return value
+ * is the ORIGINAL dst, not the advanced pointer.
+ */
+uint8_t *mem_copy(uint8_t *a, const uint8_t *b, uint32_t c) {
+    uint8_t *dst0 = a;
+    uint32_t n = c >> 2;
+    uint32_t *d = (uint32_t *)(uintptr_t)a;
+    const uint32_t *s = (const uint32_t *)(uintptr_t)b;
+    while (n != 0) {
+        n = n - 1;
+        *d = *s;
+        d = d + 1;
+        s = s + 1;
+    }
+    a = (uint8_t *)(uintptr_t)d;
+    b = (const uint8_t *)(uintptr_t)s;
+    while ((c & 3) != 0) {
+        c = c - 1;
+        *a = *b;
+        a = a + 1;
+        b = b + 1;
+    }
+    return dst0;
+}
+
+/* rng_state_ptr  orig: 0x041e99
+ *   return &DAT_0005335c   (the 32-bit PRNG state word)
+ */
+uint32_t *rng_state_ptr(void) {
+    return &g_rng_state;
+}
+
+/* itoa32  orig: 0x041ef8
+ *   Unsigned itoa: writes the base-c representation of a into b, reversed
+ *   via a local digit buffer, NUL-terminated; returns the original b.
+ * (args in registers: EAX=value, EDX=out, EBX=base; base 2..36.)
+ * Original idiom: buffer[0]=0 sentinel, digits at buffer[1..k], then copy
+ * buffer[k..0] into out (the sentinel 0 becomes the NUL terminator).
+ */
+char *itoa32(uint32_t a, char *b, uint32_t c) {
+    static const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+    char buf[33];
+    int n = 0;
+    do {
+        uint32_t q = a / c;
+        buf[n] = digits[a % c];
+        n = n + 1;
+        a = q;
+    } while (a != 0);
+    char *o = b;
+    for (int i = n - 1; i >= 0; i = i - 1)
+        *b++ = buf[i];
+    *b = '\0';
+    return o;
+}
+
+/* str_len  orig: 0x041f5d
+ *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
+ *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).
+ *   Returns ~counter - 1 == exact length for valid strings.
+ */
+uint32_t str_len(const char *a) {
+    uint32_t c = 0xffffffffu;
+    char ch;
+    do {
+        if (c == 0) break;
+        c = c - 1;
+        ch = *a;
+        a = a + 1;
+    } while (ch != '\0');
+    return ~c - 1;
+}
+
+/* fpu_rndint  orig: 0x041f7e
+ *   x87 FRNDINT on the top of the FPU stack: save CW, set RM=round-to-
+ *   nearest-even (CW=0x1f), FRNDINT, restore CW. So it rounds the FPU-top
+ *   value to an integer, half-to-even. Always called between FLD and FISTP
+ *   (128 call sites), i.e. `int v = (int)round_nearest_even(float_val)`.
+ * Port: the x87 stack has no C analogue; callers pass the value as an arg.
+ * rint() matches x87 round-to-nearest-even under the default FE_TONEAREST.
+ */
+double fpu_rndint(double a) {
+    return rint(a);
 }

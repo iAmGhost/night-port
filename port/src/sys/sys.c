@@ -46,6 +46,18 @@ void sys_port_set(uint16_t port, uint8_t v) {
 /* ---- SS / fatal ---- */
 uint16_t sys_ss(void) { return 0x2b; } /* flat model: constant segment */
 
+void sys_get_segments(uint16_t out[6]) {
+    /* order: ES, CS, SS, DS, FS, GS (matches the original's read order).
+     * Flat long-mode model: data segments are 0, CS/SS are the canonical
+     * selectors; FS/GS base regs are 0 in this process. */
+    out[0] = 0x0000; /* ES */
+    out[1] = 0x0023; /* CS */
+    out[2] = 0x002b; /* SS (== sys_ss) */
+    out[3] = 0x0000; /* DS */
+    out[4] = 0x0000; /* FS */
+    out[5] = 0x0000; /* GS */
+}
+
 static void (*fatal_hook)(const char *) = 0;
 
 void sys_set_fatal_handler(void (*fn)(const char *msg)) { fatal_hook = fn; }

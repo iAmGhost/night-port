@@ -1,1 +1,23 @@
-{"name":"FUN_0004910a","address":"0004910a","decompiled":"\nushort FUN_0004910a(void)\n\n{\n  byte bVar2;\n  ushort uVar1;\n  float10 fVar3;\n  float10 fVar4;\n  \n  fVar4 = (float10)1 / (float10)0;\n  fVar3 = -fVar4;\n  bVar2 = fVar3 < fVar4 | (byte)((ushort)((ushort)(NAN(fVar3) || NAN(fVar4)) << 10) >> 8) |\n          (byte)((ushort)((ushort)(fVar3 == fVar4) << 0xe) >> 8);\n  uVar1 = CONCAT11(bVar2,2);\n  if ((uVar1 & 0x4000) == 0) {\n    uVar1 = CONCAT11(bVar2,3);\n  }\n  LOCK();\n  UNLOCK();\n  return uVar1;\n}\n\n"}
+// func #?  FUN_0004910a  04910a  (recovered)
+
+ushort FUN_0004910a(void)
+
+{
+  byte bVar2;
+  ushort uVar1;
+  float10 fVar3;
+  float10 fVar4;
+  
+  fVar4 = (float10)1 / (float10)0;
+  fVar3 = -fVar4;
+  bVar2 = fVar3 < fVar4 | (byte)((ushort)((ushort)(NAN(fVar3) || NAN(fVar4)) << 10) >> 8) |
+          (byte)((ushort)((ushort)(fVar3 == fVar4) << 0xe) >> 8);
+  uVar1 = CONCAT11(bVar2,2);
+  if ((uVar1 & 0x4000) == 0) {
+    uVar1 = CONCAT11(bVar2,3);
+  }
+  LOCK();
+  UNLOCK();
+  return uVar1;
+}
+

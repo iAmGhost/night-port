@@ -1,1 +1,15 @@
-{"name":"FUN_00040024","address":"00040024","decompiled":"\nvoid FUN_00040024(void)\n\n{\n  int in_stack_00000004;\n  int in_stack_00000008;\n  int in_stack_0000000c;\n  undefined1 in_stack_00000010;\n  \n  *(undefined1 *)(in_stack_00000004 + in_stack_0000000c * DAT_00040010 + in_stack_00000008) =\n       in_stack_00000010;\n  return;\n}\n\n"}
+// func #?  FUN_00040024  040024  (recovered)
+
+void FUN_00040024(void)
+
+{
+  int in_stack_00000004;
+  int in_stack_00000008;
+  int in_stack_0000000c;
+  undefined1 in_stack_00000010;
+  
+  *(undefined1 *)(in_stack_00000004 + in_stack_0000000c * DAT_00040010 + in_stack_00000008) =
+       in_stack_00000010;
+  return;
+}
+

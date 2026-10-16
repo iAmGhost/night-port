@@ -55,4 +55,29 @@ void     canary_ss_save(void);     /* g_ss_saved = SS          orig: 0x0418e6 */
 uintptr_t canary_check(uint32_t frame_size); /* stack guard  orig: 0x041901 */
 uintptr_t canary_id(uintptr_t eax, uint32_t frame_size); /* check; return eax  orig: 0x0418ee */
 
+/* ---- segment / memory / string / FPU primitives (batch 2) ----
+ * NOTE: several of these take their args in registers in the original
+ * (EAX/EDX/EBX), not on the stack; a/b/c below follow param_1/2/3 order. */
+
+/* out[6] = {ES, CS, SS, DS, FS, GS}  (DPMI real-mode seg save)  orig: 0x041df2 */
+void seg_save(uint16_t *a);
+
+/* REP MOVSD (c>>2) + REP MOVSB (c&3); returns the original dst  orig: 0x041e6c */
+uint8_t *mem_copy(uint8_t *a, const uint8_t *b, uint32_t c);
+
+/* returns &g_rng_state  (PRNG state word, DAT_0005335c)  orig: 0x041e99 */
+extern uint32_t g_rng_state;
+uint32_t *rng_state_ptr(void);
+
+/* Unsigned itoa: base-c representation of a into b, NUL-terminated;
+ * digit table 0-9a-z; returns the original b  orig: 0x041ef8 */
+char *itoa32(uint32_t a, char *b, uint32_t c);
+
+/* strlen with a 2^32 underflow guard  orig: 0x041f5d */
+uint32_t str_len(const char *a);
+
+/* x87 FRNDINT (round-to-int, round-to-nearest-even) on the FPU top;
+ * always called between FLD and FISTP. Modern: rint().  orig: 0x041f7e */
+double fpu_rndint(double a);
+
 #endif

@@ -40,6 +40,7 @@ TOTALS: 0 / 0 done
 |---|---|---|---|---|---|
 
 
+
 ## Work queue (current batch)
 
 _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives + LPT I/O stubs._
@@ -66,13 +67,13 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x040506 | 37 | vline_set | video | primitives.md; test_f1 PASS |
 | [x] | 0x04052c | 65 | rect_fill | video | primitives.md; test_f1 PASS |
 | [x] | 0x0418e6 | 0 | canary_ss_save | runtime | primitives.md; test_f1 PASS |
-| [ ] | 0x041df2 | 39 | FUN_00041df2 | | |
-| [ ] | 0x041e6c | 36 | FUN_00041e6c | | |
-| [ ] | 0x041e99 | 5 | FUN_00041e99 | | |
-| [ ] | 0x041ef8 | 73 | FUN_00041ef8 | | |
-| [ ] | 0x041f5d | 24 | FUN_00041f5d | | |
+| [x] | 0x041df2 | 39 | seg_save | runtime | primitives.md; test_f1 PASS |
+| [x] | 0x041e6c | 36 | mem_copy | runtime | primitives.md; test_f1 PASS |
+| [x] | 0x041e99 | 5 | rng_state_ptr | runtime | primitives.md; test_f1 PASS |
+| [x] | 0x041ef8 | 73 | itoa32 | runtime | primitives.md; test_f1 PASS |
+| [x] | 0x041f5d | 24 | str_len | runtime | primitives.md; test_f1 PASS |
 | [x] | 0x041f76 | 6 | abs32 | runtime | primitives.md; test_f1 PASS |
-| [ ] | 0x041f7e | 28 | FUN_00041f7e | | |
+| [x] | 0x041f7e | 28 | fpu_rndint | fpu | primitives.md; test_f1 PASS (FRNDINT, not a no-op) |
 | [ ] | 0x042310 | 8 | FUN_00042310 | | |
 | [ ] | 0x04231b | 1 | FUN_0004231b | | |
 | [ ] | 0x04231d | 13 | FUN_0004231d | | |

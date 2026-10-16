@@ -40,10 +40,10 @@ typedef struct {
     uint8_t       a, b;
     uint32_t      p0, p1, p2, p3, p4, p5;
     size_t        grid_n;
-    const uint8_t *grid;   /* u8 tile indices */
+    uint8_t       *grid;    /* u8 tile indices (owned copy) */
     uint8_t       pal[768];
     uint32_t      nmark;
-    const uint16_t *marks;
+    uint16_t      *marks;   /* owned copy */
 } WalNode;
 
 typedef struct {

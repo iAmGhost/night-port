@@ -74,10 +74,13 @@ call site (15 sites):
 | 10 (CD 11) | 0x3b2cb | `FUN_0003af18` — stage gameplay |
 | 11 (CD 12) | 0x3b089, 0x391fb, 0x39a4c | `FUN_0003af18`, `FUN_00038f3d` — combat |
 | 12 (CD 13) | 0x3b20a, 0x3b479, 0x38637, 0x38877 | `FUN_0003af18`, `FUN_00038445` — combat/boss variant |
-| table-driven | 0x3a878, 0x10db9, 0x39e8c, 0x3d3d7 | `FUN_0003a829`, `FUN_00010d47`, `FUN_00039c03`, `FUN_0003d244` — episode music; index computed `mov eax,[eax+0x40]; shl eax,2; adc eax,edx; mov eax,[eax+0x2da4]` (music field in the episode data structure → table at 0x2da4) |
+| table-driven | 0x3a878, 0x10db9, 0x39e8c, 0x3d3d7 | `FUN_0003a829`, `FUN_00010d47`, `FUN_00039c03`, `FUN_0003d244` — episode music; `*(RAM 0x52da4 + epData[0x40]*4 + (episode-1)*0x28)` (table at RAM 0x52da4 = **file 0x4b7a4**, 9 rows × 10 wave-slots of u32) |
 
-So: tracks 3–9 (CD 4–10) and 13–14 (CD 14–15) are selected per-episode via the
-data table; tracks 1, 9, 10, 11, 12 (CD 2, 10, 11, 12, 13) are fixed by state.
+So: the **per-episode base track** (dominant value of each row) is
+**ep1..9 → 2,3,9,4,5,6,7,8,2** (CD 3,4,10,5,6,7,8,9,3), read directly from the
+table at file 0x4b7a4; a single wave-slot in most rows overrides to track 8
+(see `docs/09` §1). Tracks 1, 9, 10, 11, 12 (CD 2, 10, 11, 12, 13) are fixed by
+state.
 
 ## 4. Port implications
 

@@ -5,7 +5,8 @@
  *   opening  FUN_00038ae0  — opening.fli @ ~28 fps + CD track 1 (track02.wav)
  *   menu     FUN_0003a224  — scrolling title1.pcx + CD track 9 (track10.wav)
  *                            keys: 1=exit, 3=replay opening, else=play
- *   stage1   FUN_00037b03+ — stub for the port-stage1 task
+ *   stage1   FUN_00037b03+ — playable stage engine (stage.c: waves, combat,
+ *                            AI, HP/EXP, boss, stage progression)
  *
  * CLI:
  *   --res PATH        NIGHT.RES (default ../NIGHT/NIGHT.RES)
@@ -19,7 +20,7 @@
  */
 #include "res.h"
 #include "data.h"
-#include "stage1.h"
+#include "stage.h"
 #include <SDL3/SDL.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -61,7 +62,11 @@ typedef struct {
 
     int   state;
     int   frame;
-    Stage1 *stage;
+    Stage *stage;
+    int   stage_music;     /* last music track the stage requested */
+    int   demo;            /* --demo: scripted stage input for headless runs */
+    int   animtest;        /* --animtest: render the player animation sheet */
+    int   start_episode;   /* --episode N: stage to open when --state stage1 */
     uint8_t kdown, kpress;
     int   max_frames;
     const char *shot_path;
@@ -165,18 +170,28 @@ static void present_fli(Game *g) {
 }
 
 static void present_menu(Game *g) {
-    /* menu: vertical marquee, row y shows title row (y+t) % 480
-     * (FUN_00041e6c offset (0x1df - i)*0x280 = scrolling up). */
+    /* The original menu (FUN_0003a224) settles on the full-screen title1.pcx,
+     * whose bottom half bakes in "START GAME" / "EXIT TO DOS" + the 1997 credit.
+     * menu_t = remaining upward offset of the image: it slides DOWN into place
+     * once and STOPS at 0 (bounded, not the old infinite vertical marquee).
+     * Rows outside the image fill black. */
     uint32_t *o = g->vpx;
+    int mt = g->menu_t;
     for (int y = 0; y < VH; y++) {
-        const uint8_t *r = g->title.idx + (size_t)((y + g->menu_t) % VH) * VW;
         uint32_t *od = o + (size_t)y * VW;
+        int iy = y + mt;
+        if (iy < 0 || iy >= VH) { for (int x = 0; x < VW; x++) od[x] = 0; continue; }
+        const uint8_t *r = g->title.idx + (size_t)iy * VW;
         for (int x = 0; x < VW; x++) {
             const uint8_t *c = g->title.pal + r[x] * 3;
             /* palette stored RGB; vpx is ARGB8888 (alpha=FF) */
             od[x] = 0xFF000000u | (uint32_t)c[0] << 16 | (uint32_t)c[1] << 8 | (uint32_t)c[2];
         }
     }
+    /* "START GAME" / "EXIT TO DOS": the original draws these over the title
+     * (not baked into title1.pcx). Restored with the 5x7 font (docs/09). */
+    draw_text(o, 310, 230, "START GAME", 0xFFFFE8C0u, 3);
+    draw_text(o, 310, 274, "EXIT TO DOS", 0xFFB0A090u, 3);
 }
 
 
@@ -221,18 +236,20 @@ static void to_menu(Game *g) {
     if (g->title.w != VW || g->title.h != VH)
         fprintf(stderr, "menu: title1.pcx is %dx%d, expected 640x480\n", g->title.w, g->title.h);
     g->state = ST_MENU;
-    g->menu_t = 0;
+    g->menu_t = 100;            /* image starts shifted up; settles down to 0 */
     play_music(g, 9);           /* CD track 9 */
     glog(g, "enter menu (keys: 1=exit 3=replay else=play)");
 }
 
-static void to_stage1(Game *g) {
-    if (g->stage) { stage1_close(g->stage); g->stage = NULL; }
+static void to_stage(Game *g, int episode) {
+    if (g->stage) { stage_close(g->stage); g->stage = NULL; }
     g->state = ST_STAGE1;
-    g->stage = stage1_open(&g->res, 1, g->logf);
-    if (!g->stage) { fprintf(stderr, "stage1_open failed\n"); return; }
-    play_music(g, 10);          /* CD track 10 = stage music */
-    glog(g, "enter stage1");
+    g->stage = stage_open(&g->res, episode, g->demo, g->logf);
+    if (!g->stage) { fprintf(stderr, "stage_open(%d) failed\n", episode); return; }
+    g->stage_music = 0;
+    int intro_mt = stage_music_track(g->stage);
+    play_music(g, intro_mt);
+    glog(g, "enter stage%d (intro+stage music cd track %d; boss -> 12)", episode, intro_mt);
 }
 
 int game_run(int argc, char **argv) {
@@ -251,6 +268,9 @@ int game_run(int argc, char **argv) {
             else g.state = ST_OPENING;
         }
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) g.max_frames = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--demo")) g.demo = 1;
+        else if (!strcmp(argv[i], "--animtest")) g.animtest = 1;
+        else if (!strcmp(argv[i], "--episode") && i + 1 < argc) g.start_episode = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot") && i + 1 < argc) g.shot_path = argv[++i];
         else if (!strcmp(argv[i], "--shot-every") && i + 1 < argc) {
             g.shot_every = atoi(argv[++i]);
@@ -282,8 +302,9 @@ int game_run(int argc, char **argv) {
         fprintf(stderr, "window: %s (headless mode)\n", SDL_GetError());
     }
 
+    int ep = g.start_episode > 0 ? g.start_episode : 1;
     if (g.state == ST_MENU) to_menu(&g);
-    else if (g.state == ST_STAGE1) to_stage1(&g);
+    else if (g.state == ST_STAGE1) to_stage(&g, ep);
     else to_opening(&g);
 
     int running = 1;
@@ -294,6 +315,8 @@ int game_run(int argc, char **argv) {
             else if (e.type == SDL_EVENT_KEY_DOWN) {
                 if (e.key.scancode == SDL_SCANCODE_LEFT)   g.kpress |= K_LEFT;
                 else if (e.key.scancode == SDL_SCANCODE_RIGHT) g.kpress |= K_RIGHT;
+                else if (e.key.scancode == SDL_SCANCODE_UP) g.kpress |= K_UP;
+                else if (e.key.scancode == SDL_SCANCODE_DOWN) g.kpress |= K_DOWN;
                 else if (e.key.scancode == SDL_SCANCODE_LSHIFT || e.key.scancode == SDL_SCANCODE_RSHIFT) g.kpress |= K_JUMP;
                 else if (e.key.scancode == SDL_SCANCODE_LCTRL || e.key.scancode == SDL_SCANCODE_RCTRL || e.key.scancode == SDL_SCANCODE_Z) g.kpress |= K_PUNCH;
                 else if (e.key.scancode == SDL_SCANCODE_LALT || e.key.scancode == SDL_SCANCODE_RALT || e.key.scancode == SDL_SCANCODE_X) g.kpress |= K_KICK;
@@ -302,21 +325,34 @@ int game_run(int argc, char **argv) {
                 if (g.state == ST_MENU) {
                     if (e.key.scancode == SDL_SCANCODE_1) { glog(&g, "key 1 -> exit"); running = 0; }
                     else if (e.key.scancode == SDL_SCANCODE_3) to_opening(&g);
-                    else { glog(&g, "key -> play"); to_stage1(&g); }
+                    else { glog(&g, "key -> play"); to_stage(&g, 1); }
+                } else if (g.state == ST_OPENING) {
+                    /* original FUN_0003a224 breaks the opening/title loop on any
+                     * key (key flags DAT_00063ea5/DAT_00063ec0) -> skip to menu. */
+                    glog(&g, "opening: key -> skip to menu");
+                    to_menu(&g);
                 } else if (g.state == ST_STAGE1 && e.key.scancode == SDL_SCANCODE_ESCAPE) {
-                    stage1_close(g.stage); g.stage = NULL; g.kdown = 0;
+                    stage_close(g.stage); g.stage = NULL; g.kdown = 0;
                     to_menu(&g);
                 }
             }
             else if (e.type == SDL_EVENT_KEY_UP) {
                 if (e.key.scancode == SDL_SCANCODE_LEFT)   g.kdown &= ~K_LEFT;
                 else if (e.key.scancode == SDL_SCANCODE_RIGHT) g.kdown &= ~K_RIGHT;
+                else if (e.key.scancode == SDL_SCANCODE_UP) g.kdown &= ~K_UP;
+                else if (e.key.scancode == SDL_SCANCODE_DOWN) g.kdown &= ~K_DOWN;
                 else if (e.key.scancode == SDL_SCANCODE_LSHIFT || e.key.scancode == SDL_SCANCODE_RSHIFT) g.kdown &= ~K_JUMP;
                 else if (e.key.scancode == SDL_SCANCODE_LCTRL || e.key.scancode == SDL_SCANCODE_RCTRL || e.key.scancode == SDL_SCANCODE_Z) g.kdown &= ~K_PUNCH;
                 else if (e.key.scancode == SDL_SCANCODE_LALT || e.key.scancode == SDL_SCANCODE_RALT || e.key.scancode == SDL_SCANCODE_X) g.kdown &= ~K_KICK;
             }
         }
 
+        /* --animtest: render the player animation sheet once, capture, exit */
+        if (g.animtest && g.state == ST_STAGE1 && g.stage) {
+            stage_animtest(g.stage, g.vpx);
+            take_shot(&g, g.shot_path ? g.shot_path : "scratch/shots/animtest.png");
+            running = 0;
+        }
         /* step */
         if (g.state == ST_OPENING) {
             if ((uint32_t)g.fli_done < g.fli.frame_count) {
@@ -327,15 +363,23 @@ int game_run(int argc, char **argv) {
                 to_menu(&g);
             }
         } else if (g.state == ST_MENU) {
-            g.menu_t = (g.menu_t + 1) % VH;
+            if (g.menu_t > 0) g.menu_t -= 2;   /* bounded settle: stops at 0 */
         }
 
         /* render */
         if (g.state == ST_OPENING) present_fli(&g);
         else if (g.state == ST_MENU) present_menu(&g);
         else if (g.stage) {
-            stage1_frame(g.stage, g.vpx, g.kdown, g.kpress);
+            int st = stage_frame(g.stage, g.vpx, g.kdown, g.kpress, g.kpress != 0);
+            int mt = stage_music_track(g.stage);
+            if (mt != g.stage_music) { g.stage_music = mt; play_music(&g, mt); glog(&g, "music -> game track %d", mt); }
             g.kpress = 0;
+            if (st == STG_ADVANCE) to_stage(&g, stage_episode(g.stage) + 1);
+            else if (st == STG_GAMEOVER || st == STG_VICTORY) {
+                glog(&g, st == STG_GAMEOVER ? "game over -> menu" : "victory -> menu");
+                stage_close(g.stage); g.stage = NULL; g.kdown = 0;
+                to_menu(&g);
+            }
         }
         if (g.ren) {
             SDL_UpdateTexture(g.tex, NULL, g.vpx, (size_t)VW * 4);
@@ -362,6 +406,7 @@ int game_run(int argc, char **argv) {
 
     glog(&g, "exit");
     if (g.logf) fclose(g.logf);
+    if (g.stage) stage_close(g.stage);
     stop_music(&g);
     if (g.audio) SDL_CloseAudioDevice(g.audio);
     free(g.vpx);

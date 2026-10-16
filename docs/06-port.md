@@ -72,10 +72,10 @@ EOF and matches an independent Python reference per pixel.
 |-------|-----------------|-----------|-------|
 | `ST_OPENING` | `FUN_00038ae0` | `opening.fli` 320×200, 2× nearest → 640×400 | CD track 1 = `track02.wav` |
 | `ST_MENU` | `FUN_0003a224` | `title1.pcx` vertical scroll | CD track 9 = `track10.wav` |
-| `ST_STAGE1` | `FUN_00037b03` | stub text (port-stage1 task) | CD track 10 = `track11.wav` (pending) |
+| `ST_STAGE1` | `FUN_00037b03` | full stage engine (`stage.c`): pre-stage slides, waves, combat, boss, clear/next-episode, game over | CD tracks 10/11/12 = `track11/12/13.wav` (stage/combat/boss, switched live) |
 
 Menu keys (matches original `FUN_0003a224`): `1` = quit, `3` = replay
-opening, any other key = play (stage 1).
+opening, any other key = play (starts the full game at episode 1).
 
 ## Verified against the original
 
@@ -97,38 +97,86 @@ opening, any other key = play (stage 1).
   game does the same offscreen→VESA compositing (see
   `docs/05-logic.md` § compositing).
 
-## Stage 1 (`stage1.c` + `stage1.h`)
+## Full stage engine (`stage.c` + `stage.h`)
 
-Implemented (see `docs/05-logic.md` §3, `docs/03-formats.md` §4-5):
+The vertical-slice stage 1 was extended into a complete playable beat-em-up
+covering all 9 episodes. Everything data-driven comes from `NIGHT.RES`;
+combat tuning is a documented playable approximation (the original's
+authoritative combat lives in `FUN_0003a829`, `docs/05-logic.md` §4).
 
-- **Background**: `stage1.pcx` (640×480) drawn full-screen, raw 8-bit palette
-  (= display DAC bytes). Episode 1's pre-stage slides (`%ds%d.pcx`) are a
-  cutscene step not included in the slice.
-- **Entities**: `stage1.stg` tag-1 records → entity id → name tables dumped
-  from the EXE (VA `0x51d88` .spr / `0x52198` .act, 119 entries; in
-  `SPR_NAMES[]` in `stage1.c`). tag1 payload: `p[0]`=entity id,
-  `p[1]`=flag, `p[2]`=x half-pixels, `p[3]`=y half-pixels. 10 unique entities
-  spawn in stage 1 (gun, boss1, mboss1-1, ena-1, enb-1, enc-1, end-1, ...).
-- **Player**: entity 0 (`gun.spr`/`gun.act`, 266 frames / 192 act records),
-  spawned at the first tag-5 anchor (1656.5, 199.5).
-- **Animation**: each entity loops `.act` record 0 (idle) at 1 beat per
-  3 frames; punch plays record 1. (Record semantics beyond idle/attack are
-  not yet mapped to the binary's technique system — slice scope.)
-- **Screen mapping** (assumption, documented): the 320×200 offscreen game
-  space is 2× upscaled to 640×480; the 200-px walk band maps to screen rows
-  80..480; world x scales 640/2048 across the screen (no camera scroll in
-  the slice; the original scrolls the VESA window per `docs/05-logic.md`
-  §10.6). Sprites are 2× nearest-neighbor scaled, feet-anchored.
-- **Input**: arrows=move (2.2 px/frame), SHIFT=jump (placeholder),
-  CTRL/Z=punch, ALT/X=kick — per README. `--demo` (default when
-  `--state stage1`) runs a deterministic input script for headless evidence.
-- **SFX**: punch/kick fire `1.voc` (VOCs are event-numbered 1..100; the
-  full event→voc table is in the binary, `docs/04-sound.md` — out of slice).
-  Played 22050 Hz mono S16 via its own SDL3 audio device/stream.
-- **Music**: CD track 10 (`track11.wav`) on stage entry.
-- **Evidence**: `scratch/shots/stage1_f0100.png` (background + 10 animated
-  sprites) and `scratch/shots/stage1_demo.log` (entity load list, punch SFX
-  fire, music start).
+- **Flow** (per episode 1..9): pre-stage slides (`%ds%d.pcx`, 60 frames each,
+  any key skips; e.g. ep1 has 3, ep3 has 6) → wave combat → boss →
+  `STAGE CLEAR` (150 frames) → next episode. After episode 9:
+  `THANK YOU FOR PLAYING NIGHT` (the binary's actual game-over string) →
+  menu. Player death: `GAME OVER` (150 frames) → menu. `ESC` returns to menu
+  any time.
+- **Enemy placement (position-based)** (`.stg` tag-1): every tag-1 spawn is a
+  placed foe at its authored world `(x, y)` = `(payload[2]/2, payload[3]/2)`,
+  sorted left→right (`place_enemies`). No pre-spawned wave clumps: each foe
+  wakes (`activate_enemies`) the moment the player comes within `AHEAD_ACT`
+  (240 world px) to its left, then its AI carries it toward the player — the
+  classic beat-em-up "walk in as you advance" rhythm. This replaces the
+  earlier 4-band wave/queue model. The stage clears once the player walks past
+  the rightmost foe (`level_end_x`), which handles every episode (ep5's boss
+  sits at the *start*; the rest put the boss near the end). Sentinel tag-1
+  records (`payload[2] >= 0x00FFFFFF`, seen in ep6/ep7) are skipped.
+  `MAX_ENTS` is 200 (ep9 places 132 foes). **Verified**: for all 9 stages the
+  port's placed count + x-span equal an independent Python tag-1 parse (e.g.
+  ep1 38 foes x 67..2070, ep9 132 foes x 45..6132); ep1 per-enemy spawn log
+  matches tag-1 (x exact, y ±1). Evidence: `scratch/shots/ep1_subway.png`,
+  `ep1_s1street.png` (BOSS indicator).
+- **Boss**: `boss_id_for(episode)` = id 1..9 (boss1..boss7 sprites), itself a
+  placed tag-1 foe (stage 1 boss1 at (2030, 184)). It wakes like any other
+  foe but with boss HP/speed/hitbox, and lights the `BOSS` HUD indicator +
+  CD track 12 while it is in the fray. Mini-bosses (ids 11..17, mboss*) are
+  placed at their own tag-1 spots with normal-foe HP.
+- **Combat model** (tuning constants at the top of `stage.c`): player
+  150 HP; punch 14 dmg / 70 range / 12-frame anim; kick 22 dmg / 95 range /
+  16-frame anim; enemies 30 HP (5 dmg attacks), bosses 130 HP (12 dmg);
+  depth-lane hit rule (`|dy| < 30` world px, i.e. beat-em-up front/back
+  lanes); 55-frame player i-frames; kill rewards +20 EXP (+100 boss) into
+  the 근성치 (jinseong) bar — full bar grants +25% damage for the stage.
+- **Enemy AI**: walk toward the player (x + slow y lane-matching), face the
+  player, attack in range with per-enemy cooldowns (55f normal / 80f boss),
+  hitstun + knockback + white flash when damaged, flicker-out death.
+- **Rendering**: `stage%d.pcx` background (raw 8-bit palette), depth-sorted
+  (painter's) sprite pass, 2× nearest-neighbour, feet-anchored at
+  `80 + y*2` on a 1600×200 world rendered whole into 640×480 (no camera
+  scroll). HUD: `STAGE n`, HP bar, EXP/근성 bar, `FOE n` / `BOSS`.
+- **Input** (README): arrows = move (left/right + up/down depth),
+  SHIFT = jump (reserved), CTRL/Z = punch, ALT/X = kick, SPACE = crouch
+  (reserved), ESC = menu.
+- **`--demo`**: deterministic chase-the-nearest-enemy bot (faster than the
+  player for headless evidence). Without it the stage is fully human-playable.
+- **SFX / music**: punch/kick/hit fire `1.voc` (22050 Hz mono, own audio
+  device); music switches live 10 (pre-stage/clear) → 11 (waves) → 12
+  (boss), logged in `--log`.
+- **Evidence** (`scratch/shots/full/`, from one deterministic 7200-frame
+  `--demo` run, log in `scratch/shots/game_demo.log`):
+  `01_wave_combat.png` (wave 1 vs 4-enemy cap), `02_boss_fight.png`
+  (BOSS indicator + track 12), `03_stage_clear.png` (STAGE CLEAR banner),
+  `04_stage2_start.png` (EPISODE-2 background, wave 1), `05_game_over.png`
+  (GAME OVER in stage 2 wave 4). Log shows: slides, waves 1-4, jinseong
+  full (+25%), `BOSS boss1.spr`, `boss defeated`, `STAGE 1 CLEAR`,
+  stage 2 open (44-enemy wave 1 queue), `player dead -> GAME OVER`,
+  `game over -> menu`.
+
+## Remaining (full game)
+
+- `.wal` floor rendering (the 320000-tile root grid + node palette) —
+  loaded/parsed but not drawn (the background PCX carries the street
+  artwork).
+- Walkmap collision from the `.wal` grid (movement currently unconstrained
+  inside the 1600×200 band), camera/VESA-window scrolling for worlds wider
+  than the screen.
+- `.key` technique-matching combo combat (the original's 60+ techniques),
+  dedicated attack sprites per technique (the port reuses `.act` record 1),
+  per-event VOC SFX table (the port uses `1.voc` for all hit events),
+  crouch/jump mechanics, EXP level-ups and the original EXP/근성치 formulas
+  (`exptab.dat`), episode select, pause screen (`pause.spr`).
+- Original combat constants (damage, AI, hitboxes) from `FUN_0003a829` —
+  the port's values are a playable approximation, not measured from the
+  binary.
 
 ## Remaining (full game)
 
@@ -139,3 +187,15 @@ Implemented (see `docs/05-logic.md` §3, `docs/03-formats.md` §4-5):
 - Walkmap collision (grid tile walkability), camera/window scrolling,
   `.key` technique-matching combat, EXP/근성치 HUD, CD track 11/12
   combat/boss switches, enemy AI.
+
+## Status update (2026-02-06, task-7/8 gameplay parity pass)
+
+The "Remaining (full game)" lists above are partially stale. Implemented since:
+`.wal` floor rendering + camera scroll (docs/07), full 9-episode playable
+game (this file, "Full stage engine"), full animation set (docs/08), and the
+measured-mechanics pass documented in `docs/10-gameplay.md` §17 (per-type
+HP/armor, damage-dealt EXP + exptab thresholds + 6-digit EXP readout,
+max-active-3 spawn cap, tag-6 exit-zone / kill-clear stage clearing,
+dead-zone camera follow, speed oscillation, enemy panel + boss bar HUD,
+starburst hit FX). Remaining: exact 6-slot hitbox combat, full 101-type AI
+state machines, `.key` combo matcher.

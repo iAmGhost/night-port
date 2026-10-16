@@ -86,7 +86,8 @@ int wal_decode(const uint8_t *d, size_t n, Wal *w) {
         size_t gw = (nd->p1 & 1) ? (nd->p3 - nd->p1) * 320 : (nd->p2 - nd->p0) * 200;
         if (off + gw > n) return -1;
         nd->grid_n = gw;
-        nd->grid = d + off;
+        nd->grid = malloc(gw ? gw : 1);
+        memcpy(nd->grid, d + off, gw);
         off += gw;
         if (off + 768 > n) return -1;
         memcpy(nd->pal, d + off, 768);
@@ -95,14 +96,18 @@ int wal_decode(const uint8_t *d, size_t n, Wal *w) {
         nd->nmark = rd32(d + off);
         off += 4;
         if (off + (size_t)nd->nmark * 2 > n) return -1;
-        nd->marks = (const uint16_t *)(d + off);
+        nd->marks = malloc(nd->nmark ? (size_t)nd->nmark * 2 : 1);
+        memcpy(nd->marks, d + off, (size_t)nd->nmark * 2);
         off += (size_t)nd->nmark * 2;
     }
     if (off != n) return -1;
     return 0;
 }
 
-void wal_free(Wal *w) { free(w->nodes); w->nodes = NULL; }
+void wal_free(Wal *w) {
+    for (int i = 0; i < w->count; i++) { free(w->nodes[i].grid); free(w->nodes[i].marks); }
+    free(w->nodes); w->nodes = NULL;
+}
 
 /* ---------- .key (docs/03-formats.md §7): ASCII CRLF text ----------
  * line 1: frame count; blank line(s); key-token line (space separated);

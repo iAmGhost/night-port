@@ -78,6 +78,11 @@ char *itoa32(uint32_t a, char *b, uint32_t c);
  * delegation to itoa32. */
 char *itoa32_tbl(uint32_t a, char *b, uint32_t c);
 
+/* 0x0494cb: Gregorian leap-year test. Returns (ctx << 32) | is_leap, where
+ * is_leap = 1 iff (year%4==0 && (year%100!=0 || year%400==0)). Low 32 bits carry
+ * the 0/1 flag; high 32 bits echo ctx (param_2, the caller's preserved EDX). */
+uint64_t is_leap(uint32_t year, uint32_t ctx);
+
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);
 

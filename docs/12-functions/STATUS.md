@@ -184,7 +184,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x049325 | 20 | store_arr53730 | data-struct | port+test PASS (batch F) |
 | [x] | 0x049459 | 72 | itoa32_tbl | string | port+test PASS (batch J; table-based itoa, byte-identical to itoa32 0x41ef8; delegates) |
 | [x] | 0x0494bd | 13 | to_upper | string | port+test PASS (batch F) |
-| [ ] | 0x0494cb | 58 | FUN_000494cb | | |
+| [x] | 0x0494cb | 58 | is_leap | date | port+test PASS (batch J3; Gregorian leap-year, IDIV 100/400, returns (ctx<<32)\|flag) |
 | [x] | 0x0498c6 | 47 | fx_less | math | port+test PASS (batch H, fxnum (exp,hi,lo) compare) |
 | [x] | 0x049a48 | 37 | parse_decimal | string | port+test PASS (batch H) |
 | [ ] | 0x049d0b | 166 | FUN_00049d0b | | |

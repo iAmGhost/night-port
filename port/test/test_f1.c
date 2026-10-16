@@ -1014,6 +1014,13 @@ static void test_batchJ(void) {
     check(strcmp(itoa32_tbl(0, nb, 10), "0") == 0, "tbl 0 base10 = 0");
     check(strcmp(itoa32_tbl(123456, nb, 10), "123456") == 0, "tbl 123456 base10");
     check(strcmp(itoa32_tbl(0x1000000, nb, 16), "1000000") == 0, "tbl 16M base16");
+    /* is_leap (0x0494cb) - Gregorian leap-year, returns (ctx<<32)|flag */
+    check(is_leap(2000, 0) == 1, "2000 leap");
+    check(is_leap(1900, 0) == 0, "1900 not leap");
+    check(is_leap(2024, 0) == 1, "2024 leap");
+    check(is_leap(2023, 0) == 0, "2023 not leap");
+    check(is_leap(2000, 0xabcd) == 0xabcd00000001ULL, "ctx echoed high32");
+    check(is_leap(1583, 0) == 0, "1583 not leap");
 }
 
 int main(void) {

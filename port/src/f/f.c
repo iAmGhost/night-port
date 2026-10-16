@@ -294,6 +294,18 @@ char *itoa32(uint32_t a, char *b, uint32_t c) {
  *   sentinel. Delegated to itoa32. */
 char *itoa32_tbl(uint32_t a, char *b, uint32_t c) { return itoa32(a, b, c); }
 
+/* is_leap  orig: 0x0494cb
+ *   Gregorian leap-year test: (year%4==0 && (year%100!=0 || year%400==0)).
+ *   Returns (ctx << 32) | is_leap. The original does the two remainder checks
+ *   with signed IDIV (SAR EDX,0x1f; IDIV), so a positive year behaves like an
+ *   unsigned mod; EBX/ECX/EDX are preserved so the caller's EDX (ctx) is
+ *   returned in the high 32 bits and the 0/1 flag in EAX. */
+uint64_t is_leap(uint32_t year, uint32_t ctx) {
+    int y = (int)year;
+    int leap = ((year & 3u) == 0) && ((y % 100 != 0) || (y % 400 == 0));
+    return ((uint64_t)ctx << 32) | (uint32_t)leap;
+}
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).

@@ -1,0 +1,1 @@
+{"name":"FUN_0003510b","address":"0003510b","decompiled":"\nundefined4 FUN_0003510b(void)\n\n{\n  undefined1 *puVar1;\n  \n  puVar1 = (undefined1 *)FUN_000418ee();\n  return CONCAT31(CONCAT21(CONCAT11(*puVar1,puVar1[1]),puVar1[2]),puVar1[3]);\n}\n\n"}

@@ -1,0 +1,1 @@
+{"name":"FUN_000428e5","address":"000428e5","decompiled":"\nvoid FUN_000428e5(int *param_1,undefined1 param_2)\n\n{\n  undefined1 *puVar1;\n  \n  puVar1 = (undefined1 *)*param_1;\n  *param_1 = (int)(puVar1 + 1);\n  *puVar1 = param_2;\n  param_1[4] = param_1[4] + 1;\n  return;\n}\n\n"}

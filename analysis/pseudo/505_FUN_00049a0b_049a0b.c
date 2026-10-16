@@ -1,0 +1,1 @@
+{"name":"FUN_00049a0b","address":"00049a0b","decompiled":"\nvoid FUN_00049a0b(undefined4 *param_1,int param_2,undefined4 param_3,undefined4 param_4)\n\n{\n  *(undefined4 *)(param_2 + 0x20) = 0;\n  FUN_000498f6(0x63df,*param_1,0,param_2,param_4,param_3);\n  return;\n}\n\n"}

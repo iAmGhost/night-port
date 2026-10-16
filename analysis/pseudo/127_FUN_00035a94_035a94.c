@@ -1,0 +1,1 @@
+{"name":"FUN_00035a94","address":"00035a94","decompiled":"\nundefined8 FUN_00035a94(void)\n\n{\n  undefined4 uVar1;\n  undefined4 extraout_EDX;\n  \n  FUN_000418ee();\n  uVar1 = FUN_000359c1();\n  return CONCAT44(extraout_EDX,uVar1);\n}\n\n"}

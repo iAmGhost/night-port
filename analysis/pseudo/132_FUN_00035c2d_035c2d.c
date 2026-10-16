@@ -1,0 +1,1 @@
+{"name":"FUN_00035c2d","address":"00035c2d","decompiled":"\nvoid FUN_00035c2d(void)\n\n{\n  undefined1 uVar1;\n  \n  uVar1 = FUN_000418ee();\n  FUN_000358c7(uVar1);\n  return;\n}\n\n"}

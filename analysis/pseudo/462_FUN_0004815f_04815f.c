@@ -1,0 +1,1 @@
+{"name":"FUN_0004815f","address":"0004815f","decompiled":"\n/* WARNING: Control flow encountered bad instruction data */\n\nvoid FUN_0004815f(void)\n\n{\n                    /* WARNING: Bad instruction - Truncating control flow here */\n  halt_baddata();\n}\n\n"}

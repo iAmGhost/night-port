@@ -1,0 +1,1 @@
+{"name":"FUN_0004a7fa","address":"0004a7fa","decompiled":"\nundefined4 FUN_0004a7fa(undefined4 param_1)\n\n{\n  float10 fVar1;\n  double in_stack_00000004;\n  double *in_stack_0000000c;\n  \n  fVar1 = (float10)in_stack_00000004;\n  FUN_00041f7e();\n  *in_stack_0000000c = (double)fVar1;\n  return param_1;\n}\n\n"}

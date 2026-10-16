@@ -1,0 +1,1 @@
+{"name":"FUN_00045dad","address":"00045dad","decompiled":"\nvoid FUN_00045dad(void)\n\n{\n  FUN_000429ea(\"Floating-point support not loaded\\r\\n\",1);\n  return;\n}\n\n"}

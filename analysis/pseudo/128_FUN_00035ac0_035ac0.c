@@ -1,0 +1,1 @@
+{"name":"FUN_00035ac0","address":"00035ac0","decompiled":"\nint FUN_00035ac0(void)\n\n{\n  int iVar1;\n  int local_20;\n  \n  iVar1 = FUN_000418ee();\n  for (local_20 = 0; local_20 < 0x10; local_20 = local_20 + 1) {\n    FUN_00035a19(local_20 + 0xb0,0x78,0);\n    iVar1 = local_20;\n  }\n  return iVar1;\n}\n\n"}

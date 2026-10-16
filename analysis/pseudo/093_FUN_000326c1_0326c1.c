@@ -1,0 +1,1 @@
+{"name":"FUN_000326c1","address":"000326c1","decompiled":"\nint * FUN_000326c1(void)\n\n{\n  int *piVar1;\n  int local_24;\n  \n  piVar1 = (int *)FUN_000418ee();\n  for (local_24 = 0; local_24 < *piVar1; local_24 = local_24 + 1) {\n    FUN_00041c31(piVar1[local_24 + 0x1a]);\n    FUN_00041c31(piVar1[local_24 + 0x7e]);\n  }\n  return piVar1;\n}\n\n"}

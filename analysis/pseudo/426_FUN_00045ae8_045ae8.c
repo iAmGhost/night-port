@@ -1,0 +1,1 @@
+{"name":"FUN_00045ae8","address":"00045ae8","decompiled":"\nundefined8 FUN_00045ae8(undefined4 param_1,undefined4 param_2)\n\n{\n  undefined4 uVar1;\n  \n  uVar1 = DAT_0005363c;\n  DAT_0005363c = param_1;\n  return CONCAT44(param_2,uVar1);\n}\n\n"}

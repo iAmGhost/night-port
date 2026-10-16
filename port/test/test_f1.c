@@ -1419,6 +1419,26 @@ static void test_itoa32s(void)
     check(r == b && strcmp(b, "101") == 0, "tbl 5 bin -> '101'");
 }
 
+static void test_heap_free_guard(void) {
+    printf("heap_free_guard (0x041c28)\n");
+    heap_arena_init();
+    g_heap_seg_limit = 0;
+    uint32_t data   = heap_acquire_region(0x1000);
+    uint32_t region = data - 0x30;
+    uint32_t p = heap_alloc(region, 0x100);
+    check(p != 0, "allocation succeeds");
+    heap_verify(region, "after alloc");
+    heap_free_guard(0);                       /* no-op: must not crash or free */
+    heap_verify(region, "guard(0) is a no-op, heap intact");
+    heap_free_guard(p);                       /* frees p (== heap_free_host(p)) */
+    heap_verify(region, "guard(p) frees the block");
+    uint32_t p2 = heap_alloc(region, 0x100);
+    check(p2 == p, "freed slot reused for same size");
+    heap_verify(region, "after reuse");
+    heap_free(region, p2);
+    heap_verify(region, "cleanup");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1460,6 +1480,7 @@ int main(void) {
     test_heap_alloc_free();
     test_heap_top_check();
     test_heap_stress();
+    test_heap_free_guard();
     printf("== batch 9 (L0 real-mode/DOS + cmdline parser) ==\n");
     test_rm_stubs();
     test_cmdline_parse();

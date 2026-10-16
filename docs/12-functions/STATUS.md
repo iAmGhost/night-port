@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 118 / 528 done
+TOTALS: 119 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 7 | 0 | 0 | 40 |
+| L1 | 47 | 8 | 0 | 0 | 39 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -226,7 +226,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|---|---|---|
 | [ ] | 0x03ee88 | 160 | FUN_0003ee88 | | |
 | [ ] | 0x041439 | 76 | FUN_00041439 | | |
-| [ ] | 0x041c28 | 8 | FUN_00041c28 | | |
+| [x] | 0x041c28 | 8 | heap_free_guard | heap | port+test PASS (TEST EAX,EAX; JNZ heap_free_host(0x41c31); RET = NULL-tolerant free; guard(0)=pure no-op (RET, no g_heap_flag), guard(p) tail-frees; 6 checks) |
 | [x] | 0x041c31 | 93 | heap_free_host | heap | heap.md; port+test PASS (batch 7-8) |
 | [x] | 0x041e9f | 35 | prng_next | runtime | port+test PASS (LCG state=state*0x41c64e6d+0x3039; ret (state>>16)&0x7fff; 9-diff vs Python) |
 | [x] | 0x041ec3 | 15 | prng_seed | runtime | port+test PASS (sets *rng_state_ptr()=seed; no-op if NULL) |

@@ -249,6 +249,7 @@ uint32_t heap_acquire_region(uint32_t size);
  * all-blocks chain.  orig: 0x041af8 / 0x041c31 */
 uint32_t heap_malloc(uint32_t size);
 void     heap_free_host(uint32_t data);
+void     heap_free_guard(uint32_t data);   // 0x41c28 L1: NULL-tolerant free (free if nonzero)
 
 /* Outer memory-acquire stub: always fails (XOR EAX,EAX; RET).  orig: 0x04322c */
 uint32_t heap_grow(uint32_t size);

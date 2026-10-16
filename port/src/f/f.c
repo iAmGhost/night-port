@@ -1180,6 +1180,10 @@ uint32_t g_dat_53640 = 0;                    /* DAT_00053640 */
 void set_53640(void) { g_dat_53640 = 0x8000; }              /* 0x49187 */
 uint32_t to_upper(uint32_t c) { return (c>=0x61 && c<=0x7a) ? c-0x20 : c; } /* 0x494bd */
 
+/* 0x041c28 (L1, 9 bytes): NULL-tolerant free. TEST EAX,EAX; JNZ heap_free_host
+ * (0x41c31); RET. Tail-call: frees `data` only when nonzero, else returns. */
+void heap_free_guard(uint32_t data) { if (data) heap_free_host(data); }
+
 /* 0x045605: upper-case a NUL-terminated string in place. Faithful to the
  * disasm: for each byte until NUL, EAX = zero-extended byte, EAX = to_upper(EAX),
  * store low byte back, advance. Uses the already-ported to_upper (0x494bd). */

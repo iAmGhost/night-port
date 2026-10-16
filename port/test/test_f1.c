@@ -1451,6 +1451,25 @@ static void test_tmp_filename(void) {
     g_dat_53390 = 0;
 }
 
+static void test_config_value_ptr(void) {
+    printf("config_value_ptr (0x04a24d)\n");
+    static const char *table[] = {
+        "path=C:\\games", "size=100", "name=Night", "verbose=off", 0
+    };
+    g_dat_537d4 = (char **)table;
+    char *v;
+    v = config_value_ptr("path");    check(v && strcmp(v, "C:\\games") == 0, "path -> C:\\games");
+    v = config_value_ptr("SIZE");    check(v && strcmp(v, "100") == 0, "SIZE (case-insensitive) -> 100");
+    v = config_value_ptr("name");    check(v && strcmp(v, "Night") == 0, "name -> Night");
+    v = config_value_ptr("verbose"); check(v && strcmp(v, "off") == 0, "verbose -> off");
+    v = config_value_ptr("missing"); check(v == 0, "missing -> 0");
+    v = config_value_ptr("pa");      check(v == 0, "pa (no '=' at pos 2) -> 0");
+    v = config_value_ptr("");        check(v == 0, "empty key -> 0");
+    v = config_value_ptr(NULL);      check(v == 0, "NULL key -> 0");
+    g_dat_537d4 = NULL;
+    v = config_value_ptr("path");    check(v == 0, "NULL table -> 0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1533,6 +1552,7 @@ int main(void) {
     test_prng();
     test_itoa32s();
     test_tmp_filename();
+    test_config_value_ptr();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

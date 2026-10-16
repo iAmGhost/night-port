@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 120 / 528 done
+TOTALS: 121 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 9 | 0 | 0 | 38 |
+| L1 | 47 | 10 | 0 | 0 | 37 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -268,7 +268,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0498f6 | 276 | FUN_000498f6 | | |
 | [ ] | 0x049a6e | 277 | FUN_00049a6e | | |
 | [ ] | 0x049b84 | 241 | FUN_00049b84 | | |
-| [ ] | 0x04a24d | 89 | FUN_0004a24d | | |
+| [x] | 0x04a24d | 89 | config_value_ptr | string | port+test PASS (register ABI EAX=key; DAT_000537d4 = array of "key=value" char* NUL-terminated; strn_casecmp(prefix)+entry[len]=='=' -> ptr past '=' else 0; 9 cases) |
 | [ ] | 0x04a7fa | 24 | FUN_0004a7fa | | |
 | [ ] | 0x04a814 | 57 | FUN_0004a814 | | |
 ## L2 (32)

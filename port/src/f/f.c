@@ -1086,6 +1086,7 @@ uint32_t const_64004(void) { return 0x64004; }         /* 0x45a70 */
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */
+char **g_dat_537d4 = NULL;                                /* DAT_000537d4: config table */
 uint32_t cb_indirect_53644(void) { return g_cb_53644 ? g_cb_53644() : 0; } /* 0x451b5 */
 
 /* ---- L0 batch D (9): node list, modifier-prefix parser, debug hook ---- */
@@ -1220,6 +1221,29 @@ void tmp_filename(char *out, uint32_t index) {
     out[10] = 'm';
     out[11] = 'p';
     out[12] = 0;
+}
+
+/* 0x04a24d (L1, 89 bytes): config key=value table lookup.
+ * g_dat_537d4 (DAT_000537d4) is a NUL-terminated array of "key=value" char*.
+ * Register ABI: EAX = key string; EDX is a preserved scratch register (returned
+ * in the high word, unused). Returns a pointer to the char immediately after the
+ * first '=' of the matching entry, or 0 if none. A match requires BOTH:
+ *   strn_casecmp(entry, key, strlen(key)) == 0   (case-insensitive prefix)
+ *   AND entry[strlen(key)] == '='                ('=' right after the key)
+ * Length is computed exactly as the original (SCASB over the key). strn_casecmp
+ * is 0x4a7a2 (ported, batch I).
+ */
+char *config_value_ptr(const char *key) {
+    char **table = g_dat_537d4;
+    if (table == 0 || key == 0) return 0;
+    uint32_t len = (uint32_t)strlen(key);
+    for (char **e = table; *e != 0; e++) {
+        if (strn_casecmp((const uint8_t *)(*e), (const uint8_t *)key, len) == 0
+            && (*e)[len] == '=') {
+            return *e + len + 1;   /* pointer just past '=' */
+        }
+    }
+    return 0;
 }
 
 /* 0x04457f: hex-digit value. Faithful to the disasm: if '0'-'9' return c-'0';

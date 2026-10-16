@@ -364,6 +364,7 @@ uint32_t const_64004(void);
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;
 int get_dat_53390(void);   /* orig: 0x044be6 */
+extern char **g_dat_537d4;   /* DAT_000537d4: array of "key=value" char*, NUL-terminated */
 /* Indirect-call thunk through callback slot DAT_00053644. Port guards against
  * NULL (the original calls unconditionally).  orig: 0x0451b5 */
 extern uint32_t (*g_cb_53644)(void);
@@ -497,6 +498,7 @@ uint16_t fpu_init(void);
  * (0x048312 in the same address range is spurious disassembled data - only a DATA
  *  xref, no CALL.) */
 int32_t strn_casecmp(const uint8_t *a, const uint8_t *b, uint32_t n);
+char *config_value_ptr(const char *key);   // 0x4a24d L1: ptr after '=' in matching "key=value" entry, or 0
 
 /* ---- L0 batch J (1 real) ---- */
 /* In-place tokenizer (orig: 0x04595b): splits s on space/tab; unescapes \\" in

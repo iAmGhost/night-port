@@ -802,6 +802,54 @@ static void test_batchC(void) {
     check(cb_indirect_53644()==0, "cb_indirect NULL-guarded -> 0");
 }
 
+static void test_batchD(void) {
+    printf("== batch D (L0 node/prefix/debug) ==\n");
+    printf("batch D: node_deactivate (0x044b5d)\n");
+    static uint8_t pool[0x60];
+    g_ndpool = pool; memset(pool, 0, sizeof pool);
+    /* offset 0 is reserved as NULL (the original's DPMI node addresses are never
+     * 0, so 0 == empty). Nodes (8B) at offsets 8/16/24; records at 40/48/56. */
+    uint32_t *p = (uint32_t *)pool;
+    p[2]  = 16; p[3]  = 40;   /* node0 @8:  next=16, rec=40 */
+    p[4]  = 24; p[5]  = 48;   /* node1 @16: next=24, rec=48 */
+    p[6]  = 0;  p[7]  = 56;   /* node2 @24: next=0,  rec=56 */
+    pool[48 + 0xc] = 0x10;    /* rec1 (node1's record) flags */
+    g_node_list_active = 8;   /* head = node0 (offset 8) */
+    g_node_list_done = 0;
+    node_deactivate(48);      /* target rec1 = node1 (2nd in list) */
+    check(pool[48+0xc] == 0x13, "rec1 flags |= 0x3");
+    check(g_node_list_done == 16, "node1 moved to done head");
+    check(g_node_list_active == 8, "active head unchanged (node0)");
+    check(p[2] == 24, "node0.next -> node2 (node1 unlinked)");
+    check(p[4] == 0, "node1.next -> old done head (0)");
+    g_node_list_active = 8; g_node_list_done = 0;
+    node_deactivate(1234);    /* not in list */
+    check(g_node_list_done == 0 && g_node_list_active == 8, "not-found: no-op");
+
+    printf("batch D: parse_mod_prefix (0x044fd7)\n");
+    uint8_t out[0x20];
+    memset(out,0,sizeof out);
+    parse_mod_prefix((const uint8_t*)"-#+ x", out);
+    check(out[0x14] == 0x0d, "'-#+' -> flags 0x0d, space skipped");
+    check(out[0x16] == 0, "no '0' stored");
+    memset(out,0,sizeof out);
+    parse_mod_prefix((const uint8_t*)"0a", out);
+    check(out[0x16] == 0x30 && out[0x14] == 0, "'0' stored, no flags");
+    memset(out,0,sizeof out);
+    parse_mod_prefix((const uint8_t*)"+ a", out);
+    check(out[0x14] == 0x04, "'+ ' -> 0x04 (space ignored after +)");
+    memset(out,0,sizeof out);
+    parse_mod_prefix((const uint8_t*)" a", out);
+    check(out[0x14] == 0x02, "' a' -> 0x02 (space sets 0x2)");
+
+    printf("batch D: debug_break_hook (0x045a44)\n");
+    g_debug_break = 0;
+    check(debug_break_hook(0x123456, 0xabc) == 0, "flag clear -> 0");
+    g_debug_break = 1;
+    check(debug_break_hook(0x123456, 0xabc) == 0, "flag set -> 0 (INT3 stubbed)");
+    g_debug_break = 0;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -853,6 +901,7 @@ int main(void) {
     test_emit_step();
     test_dispatch();
     test_batchC();
+    test_batchD();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

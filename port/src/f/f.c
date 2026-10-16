@@ -1067,3 +1067,51 @@ int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */
 uint32_t cb_indirect_53644(void) { return g_cb_53644 ? g_cb_53644() : 0; } /* 0x451b5 */
+
+/* ---- L0 batch D (9): node list, modifier-prefix parser, debug hook ---- */
+uint8_t  *g_ndpool = NULL;
+uint32_t  g_node_list_active = 0;    /* DAT_00063ffc */
+uint32_t  g_node_list_done = 0;      /* DAT_00063ff8 */
+
+void node_deactivate(uint32_t rec_off)   /* 0x44b5d */
+{
+    /* Note: the original's node/record addresses are DPMI linear addresses and
+     * never 0, so a 0 list head == empty. The offset pool mirrors this by
+     * reserving offset 0 as the NULL sentinel (real nodes live at offset > 0). */
+    uint8_t *base = g_ndpool;
+    uint32_t *prev_next = &g_node_list_active;   /* 0x44b62 EDX=0x63ffc */
+    uint32_t cur_off = g_node_list_active;        /* 0x44b67 EAX=[active] */
+    while (cur_off != 0) {
+        struct nd_node *cur = (struct nd_node *)(base + cur_off);
+        if (cur->rec == rec_off) {                /* 0x44b70/44b72 found */
+            base[rec_off + 0xc] |= 0x3;           /* 0x44b78-44b7e rec->flags |= 3 */
+            *prev_next = cur->next;               /* 0x44b83 [prev]=next (unlink) */
+            cur->next = g_node_list_done;         /* 0x44b90 found->next = done */
+            g_node_list_done = cur_off;           /* 0x44b8b done = found */
+            return;
+        }
+        prev_next = &cur->next;                   /* 0x44b74 EDX=cur (prev) */
+        cur_off = cur->next;                      /* 0x44b76 EAX=cur->next */
+    }
+}
+
+void parse_mod_prefix(const uint8_t *s, uint8_t *out)   /* 0x44fd7 */
+{
+    out[0x14] = 0;                                 /* 0x44fd9 init flags */
+    for (;;) {
+        uint8_t c = *s++;                          /* 0x44fdd BL=[EAX] */
+        if (c == 0x2d) { out[0x14] |= 0x8; continue; }        /* '-' 0x44fdf */
+        if (c == 0x23) { out[0x14] |= 0x1; continue; }        /* '#' 0x44fea */
+        if (c == 0x2b) { out[0x14] = (out[0x14] | 0x4) & ~0x2; continue; } /* '+' 0x44ff5 */
+        if (c == 0x20) { if (out[0x14] & 0x4) continue; out[0x14] |= 0x2; continue; } /* ' ' 0x4500d */
+        if (c == 0x30) { out[0x16] = c; continue; }           /* '0' 0x45024 */
+        break;                                         /* 0x45027/4502f exit */
+    }
+}
+
+uint8_t g_debug_break = 0;               /* DAT_00053624 */
+uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
+{
+    if (g_debug_break) sys_breakpoint(eax, (uint16_t)edx);   /* 0x45a4d-45a55 INT3 */
+    return 0;                                         /* 0x45a67 XOR EAX; RET */
+}

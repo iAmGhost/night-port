@@ -136,9 +136,9 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x044618 | 74 | dispatch_a | emit | port+test PASS (batch B) |
 | [x] | 0x044663 | 78 | dispatch_b | emit | port+test PASS (batch B) |
 | [x] | 0x044859 | 13 | to_lower | string | port+test PASS (batch C) |
-| [ ] | 0x044b5d | 56 | FUN_00044b5d | | |
+| [x] | 0x044b5d | 56 | node_deactivate | data-struct | port+test PASS (batch D) |
 | [x] | 0x044be6 | 5 | get_dat_53390 | string | port+test PASS (batch C) |
-| [ ] | 0x044fd7 | 90 | FUN_00044fd7 | | |
+| [x] | 0x044fd7 | 90 | parse_mod_prefix | string | port+test PASS (batch D) |
 | [x] | 0x045032 | 35 | strn_len | string | port+test PASS (batch C) |
 | [x] | 0x045056 | 34 | word_nlen | string | port+test PASS (batch C) |
 | [x] | 0x0451b5 | 6 | cb_indirect_53644 | string | port+test PASS (batch C, NULL-guarded) |
@@ -146,7 +146,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04564f | 55 | FUN_0004564f | | |
 | [ ] | 0x045687 | 194 | FUN_00045687 | | |
 | [ ] | 0x04595b | 232 | FUN_0004595b | | |
-| [ ] | 0x045a44 | 37 | FUN_00045a44 | | |
+| [x] | 0x045a44 | 37 | debug_break_hook | sys | port+test PASS (batch D, INT3 stubbed) |
 | [x] | 0x045a6a | 5 | const_64008 | string | port+test PASS (batch C) |
 | [x] | 0x045a70 | 5 | const_64004 | string | port+test PASS (batch C) |
 | [ ] | 0x045ae8 | 15 | FUN_00045ae8 | | |

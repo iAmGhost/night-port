@@ -357,4 +357,27 @@ int get_dat_53390(void);   /* orig: 0x044be6 */
 extern uint32_t (*g_cb_53644)(void);
 uint32_t cb_indirect_53644(void);
 
+/* ---- L0 batch D (9): node list, modifier-prefix parser, debug hook ---- */
+/* Node for the active/done node lists (8-byte original layout): next @+0, record
+ * offset @+4. Records carry flags at offset +0xc. Both nodes and records live in
+ * the node pool referenced by g_ndpool (offsets, 0 = null).  orig layout: node
+ * {next,rec}, list heads DAT_00063ff8 (done) / DAT_00063ffc (active). */
+struct nd_node { uint32_t next; uint32_t rec; };
+extern uint8_t  *g_ndpool;         /* base of the node/record pool */
+extern uint32_t  g_node_list_active; /* DAT_00063ffc: head offset */
+extern uint32_t  g_node_list_done;   /* DAT_00063ff8: head offset */
+/* Find the active-list node whose record == rec_off, mark that record's flags
+ * |= 0x3, unlink the node from the active list, and push it onto the front of
+ * the done list. No-op if not found.  orig: 0x044b5d */
+void node_deactivate(uint32_t rec_off);
+/* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
+ * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),
+ * '0' -> out+0x16 = '0'. Stops at the first other character.  orig: 0x044fd7 */
+void parse_mod_prefix(const uint8_t *s, uint8_t *out);
+/* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
+ * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.
+ *  orig: 0x045a44 */
+extern uint8_t g_debug_break;
+uint32_t debug_break_hook(uint32_t eax, uint32_t edx);
+
 #endif

@@ -42,4 +42,8 @@ uint8_t sys_getkey(void);
 /* Key input, cooked/echo (DOS INT 21h AH=01h). Stub like sys_getkey. */
 uint8_t sys_getkey_echo(void);
 
+/* Breakpoint hook for the original INT3 debug gate (0x45a44). No-op unless a
+ * debugger is attached (the original INT3 stops under a debugger). */
+void sys_breakpoint(uint32_t eax, uint16_t edx);
+
 #endif

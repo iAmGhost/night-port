@@ -988,6 +988,28 @@ static void test_batchI(void) {
     check(strn_casecmp("ab\0cd", "ab\0ef", 6) == 0, "NUL stop -> 0");
 }
 
+static void test_batchJ(void) {
+    printf("== batch J (L0: tokenize 0x04595b) ==\n");
+    char *end;
+    check(tokenize("abc", NULL, &end) == 1, "abc -> 1");
+    check(tokenize("ab cd", NULL, &end) == 2, "ab cd -> 2");
+    check(tokenize("a b c", NULL, &end) == 3, "a b c -> 3");
+    check(tokenize("  ab  cd  ", NULL, &end) == 2, "spaced -> 2");
+    check(tokenize("", NULL, &end) == 0, "empty -> 0");
+    check(tokenize("   ", NULL, &end) == 0, "spaces -> 0");
+    check(tokenize("\"hi\" world", NULL, &end) == 2, "quoted+bare -> 2");
+    check(tokenize("\"hi\"", NULL, &end) == 1, "quoted -> 1");
+    char s[] = "ab cd";
+    char *out[4] = {0};
+    check(tokenize(s, out, &end) == 2, "in-place count 2");
+    check(out[0] && out[0][0]=='a' && out[0][1]=='b' && out[0][2]=='\0', "out[0]='ab'");
+    check(out[1] && out[1][0]=='c' && out[1][1]=='d' && out[1][2]=='\0', "out[1]='cd'");
+    char q[] = "\"hi\"";
+    char *qout[2] = {0};
+    check(tokenize(q, qout, &end) == 1, "quoted in-place 1");
+    check(qout[0] && qout[0][0]=='h' && qout[0][1]=='i' && qout[0][2]=='\0', "quoted -> 'hi'");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1046,6 +1068,7 @@ int main(void) {
     test_batchG();
     test_batchH();
     test_batchI();
+    test_batchJ();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

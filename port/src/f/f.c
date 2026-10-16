@@ -1234,3 +1234,53 @@ int32_t strn_casecmp(const uint8_t *a, const uint8_t *b, uint32_t n)   /* 0x4a7a
     }
     return 0;
 }
+
+/* ---- L0 batch J (1 real) ---- */
+uint32_t tokenize(char *s, char **out, char **end_out)          /* 0x4595b */
+{
+    uint32_t count = 0;      /* iVar4 */
+    char *pc3 = s;           /* pcVar3: final scan position */
+    uint32_t ret = 0;        /* iVar5: return count */
+    for (;;) {
+        while (*s == ' ' || *s == '\t') s++;   /* skip leading space/tab */
+        pc3 = s;
+        ret = count;
+        if (*s == '\0') { *end_out = pc3; return ret; }   /* 0x45a34 */
+        char *pc6 = s;        /* in-place write pointer */
+        char *tok;            /* local_18: token start to store */
+        if (*s == '"') {        /* quoted token (0x4598c) */
+            char *p = s + 1;
+            pc6 = s + 1;
+            while (*p != '"' && *p != '\0') {
+                char *q = p;
+                if (*p == '\\' && (p[1] == '"' || p[1] == '\\')) q = p + 1;
+                p = q + 1;
+                if (out) { *pc6 = *q; pc6++; }
+            }
+            pc3 = p; tok = s + 1;
+        } else {                /* bare token (0x459c5) */
+            char *p = s;
+            tok = s;
+            while (*p != '\0' && *p != ' ' && *p != '\t') {
+                char *q = p;
+                if (*p == '\\' && p[1] == '"') q = p + 1;
+                p = q + 1;
+                if (out) { *pc6 = *q; pc6++; }
+            }
+            pc3 = p;
+        }
+        s = pc3 + 1;
+        ret = count + 1;
+        if (out) {
+            out[count] = tok;                        /* store token start */
+            if (*pc3 == '\0') { *pc6 = '\0'; *end_out = pc3; return ret; }
+            *pc6 = '\0';                              /* NUL-terminate token */
+            count = ret;
+        } else {
+            count = ret;
+            if (*pc3 == '\0') break;
+        }
+    }
+    *end_out = pc3;
+    return ret;
+}

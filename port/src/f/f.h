@@ -453,4 +453,13 @@ uint16_t fpu_init(void);
  *  xref, no CALL.) */
 int32_t strn_casecmp(const uint8_t *a, const uint8_t *b, uint32_t n);
 
+/* ---- L0 batch J (1 real) ---- */
+/* In-place tokenizer (orig: 0x04595b): splits s on space/tab; unescapes \\" in
+ * any token and \\\\ inside quoted tokens; quoted tokens ("...") have their
+ * quotes stripped. If out != NULL, out[i] = pointer to token i's start (in the
+ * compacted s) and each token is NUL-terminated in place; if out == NULL it only
+ * counts (s left unmodified). *end_out receives the final scan position.
+ * Returns the token count. */
+uint32_t tokenize(char *s, char **out, char **end_out);
+
 #endif

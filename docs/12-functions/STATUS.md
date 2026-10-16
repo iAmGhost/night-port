@@ -146,7 +146,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x04561d | 49 | calibrate_clock | timing | port+test PASS (batch D2, sys rate) |
 | [x] | 0x04564f | 55 | delay_units | timing | port+test PASS (batch D2, sys clock) |
 | [ ] | 0x045687 | 194 | FUN_00045687 | | |
-| [ ] | 0x04595b | 232 | FUN_0004595b | | |
+| [x] | 0x04595b | 232 | tokenize | string | port+test PASS (batch J; in-place tokenizer, unescape/quote-strip, ptr-array) |
 | [x] | 0x045a44 | 37 | debug_break_hook | sys | port+test PASS (batch D, INT3 stubbed) |
 | [x] | 0x045a6a | 5 | const_64008 | string | port+test PASS (batch C) |
 | [x] | 0x045a70 | 5 | const_64004 | string | port+test PASS (batch C) |

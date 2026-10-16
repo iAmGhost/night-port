@@ -1115,3 +1115,23 @@ uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
     if (g_debug_break) sys_breakpoint(eax, (uint16_t)edx);   /* 0x45a4d-45a55 INT3 */
     return 0;                                         /* 0x45a67 XOR EAX; RET */
 }
+
+/* ---- L0 batch D2 (2): DOS clock calibration + delay ---- */
+uint32_t g_clock_ticks = 0;                    /* DAT_00064000 */
+
+void calibrate_clock(void)   /* 0x4561d */
+{
+    /* Original: wait for the DOS second to roll over, then count INT 21h/0x2Ch
+     * ticks until the second changes again; store the count (≈18). Port: take
+     * the rate from the sys layer (default 18). */
+    g_clock_ticks = sys_clock_ticks_per_sec();
+}
+
+void delay_units(uint32_t arg)   /* 0x4564f */
+{
+    if (arg == 0) return;                             /* 0x45653/45655 */
+    uint32_t v = arg * g_clock_ticks + 0x1f4;         /* 0x45657/45663 */
+    uint32_t es_i = v / 0x3e8;                        /* 0x4566a DIV 1000 */
+    if (es_i == 0) es_i = 1;                          /* 0x4566e-45672 */
+    while (es_i-- > 0) sys_clock_read();              /* 0x45679-45680 */
+}

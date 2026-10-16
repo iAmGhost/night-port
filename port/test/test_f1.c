@@ -850,6 +850,35 @@ static void test_batchD(void) {
     g_debug_break = 0;
 }
 
+static void test_batchD2(void) {
+    printf("== batch D2 (L0 DOS clock) ==\n");
+    printf("batch D2: calibrate_clock (0x04561d)\n");
+    sys_clock_tps = 1000;
+    calibrate_clock();
+    check(g_clock_ticks == 1000, "g_clock_ticks = sys rate");
+    printf("batch D2: delay_units (0x04564f)\n");
+    sys_clock_tps = 1000; calibrate_clock();   /* g_clock_ticks = 1000 */
+    sys_clock_read_count = 0;
+    delay_units(2);   /* (2*1000+500)/1000 = 2 */
+    check(sys_clock_read_count == 2, "delay_units(2): 2 reads");
+    sys_clock_read_count = 0;
+    delay_units(0);   /* no-op */
+    check(sys_clock_read_count == 0, "delay_units(0): no reads");
+    sys_clock_read_count = 0;
+    delay_units(1);   /* (1*1000+500)/1000 = 1 */
+    check(sys_clock_read_count == 1, "delay_units(1): 1 read");
+    /* rounding: tick_rate 18, arg 55 -> (55*18+500)/1000 = 1 */
+    sys_clock_tps = 18; calibrate_clock();
+    sys_clock_read_count = 0;
+    delay_units(55);
+    check(sys_clock_read_count == 1, "tick_rate 18, arg 55 -> 1 read");
+    /* floor-to-1: (0*18+500)/1000 = 0 -> max(1) = 1 (arg>0) */
+    sys_clock_read_count = 0;
+    delay_units(1);   /* (18+500)/1000 = 0 -> 1 */
+    check(sys_clock_read_count == 1, "floor to 1 when quotient 0");
+    sys_clock_tps = 18;   /* restore default */
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -902,6 +931,7 @@ int main(void) {
     test_dispatch();
     test_batchC();
     test_batchD();
+    test_batchD2();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

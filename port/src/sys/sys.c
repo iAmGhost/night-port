@@ -102,3 +102,8 @@ uint8_t sys_getkey_echo(void) { return 0; }
 /* Breakpoint hook for the INT3 debug gate. No-op (the original INT3 only stops
  * under an attached debugger). Kept as a hook so a debugger could attach. */
 void sys_breakpoint(uint32_t eax, uint16_t edx) { (void)eax; (void)edx; }
+
+uint32_t sys_clock_tps = 18;   /* DOS 18.2 Hz tick rate (default) */
+uint32_t sys_clock_ticks_per_sec(void) { return sys_clock_tps; }
+uint32_t sys_clock_read_count = 0;
+void sys_clock_read(void) { sys_clock_read_count++; }

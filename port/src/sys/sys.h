@@ -46,4 +46,12 @@ uint8_t sys_getkey_echo(void);
  * debugger is attached (the original INT3 stops under a debugger). */
 void sys_breakpoint(uint32_t eax, uint16_t edx);
 
+/* DOS clock (INT 21h/0x2Ch) stand-ins. sys_clock_ticks_per_sec returns the
+ * tick rate (default 18, the DOS 18.2 Hz rate); tests may override it.
+ * sys_clock_read performs one clock read (a counting stub). */
+extern uint32_t sys_clock_tps;
+uint32_t sys_clock_ticks_per_sec(void);
+extern uint32_t sys_clock_read_count;
+void sys_clock_read(void);
+
 #endif

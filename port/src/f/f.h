@@ -380,4 +380,17 @@ void parse_mod_prefix(const uint8_t *s, uint8_t *out);
 extern uint8_t g_debug_break;
 uint32_t debug_break_hook(uint32_t eax, uint32_t edx);
 
+/* ---- L0 batch D2 (2): DOS clock calibration + delay (INT 21h/0x2Ch) ---- */
+/* Tick rate measured by calibrate_clock (DAT_00064000). The original counts
+ * INT 21h/0x2Ch calls per real second (~18.2 Hz); the port takes the value from
+ * the sys layer. */
+extern uint32_t g_clock_ticks;
+/* Measure the clock tick rate into g_clock_ticks (orig counts INT 21h/0x2Ch
+ * ticks over one real second).  orig: 0x04561d */
+void calibrate_clock(void);
+/* Delay: compute n = max(1, (arg*g_clock_ticks + 500) / 1000) and perform n
+ * clock reads (the original's busy-wait of INT 21h/0x2Ch). No-op if arg == 0.
+ *  orig: 0x04564f */
+void delay_units(uint32_t arg);
+
 #endif

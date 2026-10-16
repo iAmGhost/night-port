@@ -1441,6 +1441,74 @@ int32_t fmt_int_signed(uint8_t *out, int32_t width, int32_t maxw, int32_t val)
     return ebp;                                     /* 0x49da9 */
 }
 
+/* ---- 0x47ea4 (+thunks 0x47e4a mode 0xa0, 0x47e9f mode 0x1f): fixed-point
+ * exp-based mantissa extractor ----
+ * p -> { u32 lo; u32 hi; u16 exp; } (exp at [8], byte [9] = hi byte of exp).
+ * cl = (exp & 0x7fff) - 0x3ffe (bias 0x3ffe). cl<0 -> 0; cl>0x20 -> 0x80000000;
+ * cl > (mode & 0x3f) -> 0x80000000. Else the top `cl` bits of hi are extracted
+ * (or all of hi when cl==0x20), and a mode/exp-driven bit chain
+ * (RCR CH,1 / SHLD / ADD / ADC / NEG) sets the sign and a +1 carry. lo only
+ * affects the result through bit31(lo) -> RCH CH,1. Faithful instruction-by-
+ * instruction replication with explicit CF tracking. */
+int32_t fx_extract(const uint8_t *p, int32_t mode)   /* 0x47ea4 */
+{
+    uint32_t lo  = *(const uint32_t*)(p + 0);
+    uint32_t hi  = *(const uint32_t*)(p + 4);
+    uint16_t exp = *(const uint16_t*)(p + 8);
+
+    uint8_t bl = (uint8_t)mode;
+    uint8_t bh = (uint8_t)(exp >> 8);      /* MOV BH,[p+9] */
+    bh >>= 1;                              /* SHR BH,1 */
+    bh |= bl;                              /* OR BH,BL */
+
+    uint16_t cx = exp & 0x7fff;            /* AND CX,0x7fff */
+    int16_t  sx = (int16_t)(cx - 0x3ffe);  /* SUB CX,0x3ffe */
+    if (sx < 0)      return 0;             /* JL 0x47f09 */
+    if (sx > 0x20)   return 0x80000000;    /* JG 0x47f01 */
+
+    uint8_t blm = (uint8_t)(mode & 0x3f);  /* AND BL,0x3f */
+    uint8_t cl  = (uint8_t)(cx - 0x3ffe);  /* CL */
+    if (cl > blm)  return 0x80000000;      /* CMP CL,BL; JG */
+
+    uint8_t  ch  = bh;                     /* MOV CH,BH */
+    uint32_t ebx = lo;                     /* MOV EBX,[p] */
+    uint32_t eax = hi;                     /* MOV EAX,[p+4] */
+    uint32_t cf  = (lo >> 31) & 1;         /* ADD EBX,EBX */
+    ebx = lo << 1;
+    uint8_t ch_r = (uint8_t)((ch << 1) | cf); /* RCR CH,1 */
+    cf = (ch >> 7) & 1;
+    ch = ch_r;
+
+    if (cl == 0x20) {                      /* CL==0x20 path */
+        cf = (ch >> 7) & 1;                /* ADD CH,CH */
+        ch = (uint8_t)(ch << 1);
+        /* eax stays hi */
+    } else {                               /* CL!=0x20 (SHLD) path */
+        ebx = 0;                           /* SUB EBX,EBX */
+        cf = 0;                            /* SHLD cf = bit(32-cl) of 0 */
+        uint32_t eax0 = eax;
+        if (cl > 0) {
+            ebx = eax0 >> (32 - cl);       /* SHLD EBX,EAX,cl */
+            eax  = eax0 << cl;             /* SHL EAX,cl */
+            cf   = (eax0 >> (32 - cl)) & 1;/* SHL cf */
+        }
+        cf = (ch >> 7) & 1;                /* ADD CH,CH */
+        ch = (uint8_t)(ch << 1);
+        cf = (eax >> 31) & 1;              /* ADD EAX,EAX */
+        eax <<= 1;
+        eax = ebx;                         /* MOV EAX,EBX */
+    }
+    /* tail 0x47eed */
+    uint8_t cl2 = (uint8_t)(0xfe | cf);    /* MOV CL,0xff; RCR CL,1 */
+    ch = (uint8_t)(ch & cl2);              /* AND CH,CL */
+    uint32_t cf1 = (ch >> 7) & 1;          /* ADD CH,CH */
+    ch = (uint8_t)(ch << 1);
+    eax += cf1;                            /* ADC EAX,0 */
+    uint32_t cf2 = (ch >> 7) & 1;          /* ADD CH,CH */
+    if (cf2) eax = (uint32_t)(-(int32_t)eax); /* NEG EAX (JNC guard) */
+    return (int32_t)eax;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

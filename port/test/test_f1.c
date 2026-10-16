@@ -1160,6 +1160,26 @@ static void test_fmt_int_signed(void) {
     check(ret == 3 && strncmp((char*)buf, "-01", 3) == 0, "-01 (1-digit neg)");
 }
 
+static void test_fx_extract(void) {
+    printf("== fx_extract (L0: fixed-point exp mantissa extractor 0x047ea4) ==\n");
+    uint8_t s[12];
+    memset(s,0,12); *(uint16_t*)(s+8)=0x3ffe;
+    check(fx_extract(s,0x20) == -1, "A: exp@bias lo=hi=0 mode0x20 -> -1");
+    *(uint16_t*)(s+8)=0x3ffd;
+    check(fx_extract(s,0x20) == 0, "B: exp<bias underflow -> 0");
+    *(uint16_t*)(s+8)=0x401f;
+    check(fx_extract(s,0x20) == 0x80000000, "C: exp overflow -> 0x80000000");
+    memset(s,0,12); *(uint32_t*)(s+4)=0x80000000; *(uint16_t*)(s+8)=0x3ffe;
+    check(fx_extract(s,0x20) == -1, "D: hi=0x80000000 exp@bias -> -1");
+    memset(s,0,12); *(uint32_t*)(s+4)=0x12345678; *(uint16_t*)(s+8)=0x401e;
+    check(fx_extract(s,0x20) == 0x12345679, "E: cl=0x20 hi=0x12345678 -> hi+1");
+    memset(s,0,12); *(uint16_t*)(s+8)=0x3ffe;
+    check(fx_extract(s,0x1f) == 0, "F: mode0x1f exp@bias lo=hi=0 -> 0");
+    check(fx_extract(s,0xa0) == -1, "G: mode0xa0 exp@bias lo=hi=0 -> -1");
+    *(uint16_t*)(s+8)=0x401e;
+    check(fx_extract(s,0x1f) == 0x80000000, "H: mode0x1f cl=0x20>blm -> overflow");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1226,6 +1246,7 @@ int main(void) {
     test_fx64_to_f32();
     test_fmt_decimal();
     test_fmt_int_signed();
+    test_fx_extract();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

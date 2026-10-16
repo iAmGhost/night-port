@@ -34,11 +34,11 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 100 / 528 done
+TOTALS: 103 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
-| L0 | 112 | 96 | 0 | 0 | 16 |
+| L0 | 112 | 99 | 0 | 0 | 13 |
 | L1 | 47 | 1 | 0 | 0 | 46 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
@@ -83,6 +83,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | 0x04a923 has GARBAGE disasm (no prologue: starts `CALL`; `SLDT`,`CALLF 0x0:0x23b`,`IN AL,0xb`,`POP SS`,`MOV AL,[0x5af34e72]`) yet is called from 0x4a814 and sits right after 0x4a8b9 (ends 0x4a922) — likely mis-boundary or a data block; NOT marked spurious pending deeper investigation | STATUS.md L0 |
 | 2026-07-08 | 0x04811a decoded (raw-byte) = IEEE-754 float32→fxnum constructor `fx_from_f32`: expfield=(int32)v>>23 & 0xff (bits 23..30). expfield==0→passthrough {lo=0,hi=v,exp=0}; expfield==0xff→NaN/Inf marker exp=0xffff; else exp=expfield+0x3f80 (=unbiassed+0x3fff). hi=(v<<8 & 0x7fffffff)\|((v<<8&0x7fffffff)?0x40000000:0)\|0x80000000. The ambiguous `JZ 0x48149` is at 0x48142 and skips only `OR EAX,0x40000000` (merge point, not a loop). The trailing `ADD ECX,ECX;RCR CX,1` is NOT pure identity: with bit31 set (CF=1) it flips exp's top bit, so the carry is computed explicitly. Distinct from the BSR-normalizing fx_from_u32/s32 (0x47f1f/0x47f0e). 6 differential tests PASS | STATUS.md L0 |
 | 2026-07-08 | Remaining L0 (16) are all fixed-point/FPU/bit-chain, need register traces. Surveyed: 0x047fd4 = fixed-point struct normalizer (reads 4-field struct at [EAX]: [0]/[4]/[8]; RCR CH / SHLD / SHRD / ADD 0x100 / 0x80000000 clamp / ADD CX,0xc080 bias) - normalizes a {lo,hi,exp} fx value to 16-bit-mantissa form. 0x0485eb = fixed-point SUBTRACT (ESI:EDI - 15-bit; then normalizes EDX:EAX by left-shift until top bit, with a 0x7fff mask + sign-restore) - returns EDX:EAX normalized difference + a 0x8000 sign bit. 0x047ea4 = the RCR/SHLD exp-conversion (BL-mode variants 0x47e4a/0x47e9f). 0x04a9da = FPU double (FSTP QWORD - return via memory). 0x04a923 = garbage disasm (no prologue, SLDT/CALLF/IN/POP SS) yet xref'd from 0x4a814 - mis-boundary or data block, investigate. Port these ONE AT A TIME with a full register trace + reference (no-op is unsafe - real logic) | STATUS.md L0 |
+| 2026-07-08 | 0x047ea4 (body) + 0x047e4a (mode 0xa0) + 0x047e9f (mode 0x1f) = fixed-point exp-based mantissa extractor `fx_extract(const uint8_t *p, int32_t mode)`. p->{u32 lo,u32 hi,u16 exp} (exp at [8]). cl=(exp&0x7fff)-0x3ffe; cl<0->0, cl>0x20->0x80000000, cl>(mode&0x3f)->0x80000000. Else extract top cl bits of hi (or all hi when cl==0x20), then RCR CH,1/SHLD/ADD/ADC/NEG bit-chain (explicit CF tracked) sets the sign + a +1 carry. lo influences only via bit31(lo)->RCR CH,1. Three Ghidra fns fold into one C fn with a mode param (default 0x20). Ported instruction-by-instruction; 8 hand-traced differential cases PASS (bias, underflow, both overflow paths, cl=0x20 hi+1, mode 0x1f/0xa0 distinctions) | STATUS.md L0 |
 | 2026-07-08 | 0x049d0b = fixed-width signed integer formatter `fmt_int_signed(uint8_t *out, int32_t width, int32_t maxw, int32_t val)` (EAX/EBX/ECX/EDX). base = 100/10/1 by magnitude (3/2/1 digits); sign '+'/'-'; default width = 2 (3 for 3-digit magnitudes) when width param==0; leading-'0' pad to width; IDIV digit extraction (ESI/EBX quotient, ESI%EBX remainder, EBX/=10). Returns the field count (width+1 or digits+1); two no-output cutoffs: width+1>maxw (0x49da9) and digits>width (0x49da6). Sibling of fmt_decimal (0x49db2) - together they format a signed decimal number (integer + fractional part), and both share the 0x49db0 (POP ESI;RET) epilogue. INT_MIN abs overflows (NEG wraps) - latent, not tested. 7 differential tests PASS | STATUS.md L0 |
 | 2026-07-08 | 0x049db2 = decimal number formatter `fmt_decimal(uint8_t *out, int32_t intlen, int32_t fractlen, const uint8_t *src)` (EAX/EBX/ECX/EDX). Writes intlen digit chars from src (until NUL, then '0' pad), then '.', then the fractional part via shared ESI/ECX flow: loop A (while fractlen!=0 && esi!=0: esi++;'0';fractlen--) fires only in the negative-intlen edge case; loop B copies fractlen chars from src (until NUL) then '0' pad. Returns the advanced out pointer (EAX). IMPORTANT: 0x49db2 is a real standalone function that reuses the shared epilogue at 0x49db0 (POP ESI;RET) - the tail of the PREVIOUS function 0x49d0b (ends 0x49db1 RET). Not a spurious split; the two are adjacent and share the final POP/RET. 5 differential tests PASS (normal, src-short pad, 0., fractlen==0, negative-intlen) | STATUS.md L0 |
 | 2026-07-08 | 0x049132 = 64-bit -> IEEE-754 float32 converter `fx64_to_f32(uint32_t lo, uint32_t hi)` (input EDX:EAX). If hi&0x7ff00000==0 (top 12 bits of hi clear) -> underflow -> 0. Else: shift the 64-bit value left 1 (top bit captured into EBX as the f32 sign 0x80000000), add the 0x20000000 mantissa bias, then clamp/normalize: hi==0 or hi>=0x8fe00000 (unsigned) -> 0x7f800000|sign (max-finite clamp); hi<0x70200000 -> 0; else hi-=0x70000000, shift left 2, OR in the sign, return the high word as the f32. The thresholds (0x7f800000/0x8fe00000/0x70200000/0x70000000) are f32 bit patterns. Ported as an exact register-op replication with uint64. Note: the `hi==0 after bias` JZ clamp is unreachable (hi>=0x100000 survives the initial test) but is replicated faithfully. 6 differential tests PASS | STATUS.md L0 |
@@ -171,9 +172,9 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04794a | 363 | FUN_0004794a | | |
 | [ ] | 0x047ab6 | 152 | FUN_00047ab6 | | |
 | [ ] | 0x047d4e | 251 | FUN_00047d4e | | |
-| [ ] | 0x047e4a | 4 | FUN_00047e4a | | |
-| [ ] | 0x047e9f | 4 | FUN_00047e9f | | |
-| [ ] | 0x047ea4 | 105 | FUN_00047ea4 | | |
+| [x] | 0x047e4a | 4 | fx_extract_a0 | thunk: PUSH EBX; MOV BL,0xa0; JMP 0x47ea7 (mode 0xa0 variant of fx_extract). Folds into fx_extract(p,0xa0) | fx_extract (f.c) |
+| [x] | 0x047e9f | 4 | fx_extract_1f | thunk: PUSH EBX; MOV BL,0x1f; JMP 0x47ea7 (mode 0x1f variant). Folds into fx_extract(p,0x1f) | fx_extract (f.c) |
+| [x] | 0x047ea4 | 105 | fx_extract | fixed-point exp-based mantissa extractor (bias 0x3ffe); top-cl bits of hi (or all hi if cl==0x20), then RCR/SHLD/ADC/NEG bit-chain sets sign + carry. lo only via bit31. 3 modes (0x20/0xa0/0x1f) folded into one C fn | fx_extract (f.c) |
 | [x] | 0x047f0e | 16 | fx_from_s32 | math | port+test PASS (batch G, fixed-point ctor sign thunk) |
 | [x] | 0x047f1f | 52 | fx_from_u32 | math | port+test PASS (batch G, fixed-point ctor unsigned) |
 | [ ] | 0x047fd4 | 126 | FUN_00047fd4 | | |

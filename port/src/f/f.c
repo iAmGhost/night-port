@@ -474,3 +474,26 @@ int mem_cmp(const void *a, const void *b, int n) {
 
 /* 1-byte RET no-op default handler. */
 void cb_noop2(void) { /* RET only */ }
+
+/* =================================================================== */
+/* batch 6: heap-grow stub, echo input, dword fill                       */
+/* =================================================================== */
+
+/* DOS INT 21h AH=01 (cooked/echo char input), sharing g_keybuf with get_key. */
+uint8_t get_key_echo(void) {
+    uint32_t c = g_keybuf;
+    g_keybuf = 0;
+    if (c != 0) return (uint8_t)c;
+    return sys_getkey_echo();
+}
+
+/* Outer heap memory-acquire. Stub: always fails (returns 0, no growth). */
+uint32_t heap_grow(uint32_t size) { (void)size; return 0; }
+
+/* Fill `n` 32-bit words at `dst` with `value`; returns `dst + n`. The
+ * original's 32-byte alignment / 8-dword unrolling is an optimization that
+ * does not change the observable bytes. */
+uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n) {
+    for (uint32_t i = 0; i < n; i++) dst[i] = value;
+    return dst + n;
+}

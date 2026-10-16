@@ -392,6 +392,37 @@ static void test_cb_noop2(void) {
     check(1, "calls without crash");
 }
 
+static void test_get_key_echo(void) {
+    printf("get_key_echo (0x043263)\n");
+    g_keybuf = 'B';
+    check(get_key_echo() == 'B' && g_keybuf == 0, "returns buffered key and clears it");
+    g_keybuf = 0;
+    check(get_key_echo() == 0, "no buffer -> sys_getkey_echo stub returns 0");
+}
+
+static void test_heap_grow(void) {
+    printf("heap_grow (0x04322c)\n");
+    check(heap_grow(0x100) == 0, "stub always returns 0 (no growth)");
+    check(heap_grow(0) == 0, "size 0 also returns 0");
+}
+
+static void test_memsetw(void) {
+    printf("memsetw (0x0432b7)\n");
+    uint32_t buf[24];
+    int all_ok = 1;
+    for (int n = 0; n <= 10; n++) {
+        for (int i = 0; i < 24; i++) buf[i] = 0xEEEE;
+        uint32_t *r = memsetw(buf, 0xA5A5, (uint32_t)n);
+        if (r != buf + n) { all_ok = 0; }
+        for (int i = 0; i < n; i++) if (buf[i] != 0xA5A5) all_ok = 0;
+        for (int i = n; i < 24; i++) if (buf[i] != 0xEEEE) all_ok = 0;
+    }
+    check(all_ok, "fills exactly n dwords for n=0..10, leaves rest, returns dst+n");
+    uint32_t one[1] = {0};
+    check(memsetw(one, 0xDEADBEEF, 1) == one + 1 && one[0] == 0xDEADBEEF,
+          "single dword fill");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -423,6 +454,9 @@ int main(void) {
     test_get_key();
     test_mem_cmp();
     test_cb_noop2();
+    test_get_key_echo();
+    test_heap_grow();
+    test_memsetw();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

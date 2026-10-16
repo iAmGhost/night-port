@@ -171,4 +171,19 @@ int      mem_cmp(const void *a, const void *b, int n);
  * 0x00042a3c / 0x000463dc.  orig: 0x042a07 */
 void     cb_noop2(void);
 
+/* ---- batch 6: heap-grow stub, echo input, dword fill ---- */
+
+/* DOS INT 21h AH=01 (cooked character input, with echo), sharing the same
+ * 1-char cache g_keybuf as get_key (AH=08, no echo): returns the buffered key
+ * if present, else a read from the echo input backend.  orig: 0x043263 */
+uint8_t  get_key_echo(void);
+/* Try to grow/acquire more heap memory of `size`; returns non-zero on success,
+ * 0 on failure. Currently a stub that always returns 0 (heap never grows).
+ * Sole caller: the malloc wrapper FUN_00041af8 (the outer memory-acquire step).
+ * orig: 0x04322c */
+uint32_t heap_grow(uint32_t size);
+/* memsetw: fill `n` 32-bit words at `dst` with `value`; returns `dst + n`.
+ * (dst is dword-aligned in practice; callers align first.)  orig: 0x0432b7 */
+uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n);
+
 #endif

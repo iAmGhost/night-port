@@ -39,5 +39,7 @@ void sys_set_fatal_handler(void (*fn)(const char *msg));  /* NULL = default abor
  * (DOS ASCII/scan), or 0 if no key is available. Stub for now; wired to the
  * SDL keyboard when the input subsystem is ported. */
 uint8_t sys_getkey(void);
+/* Key input, cooked/echo (DOS INT 21h AH=01h). Stub like sys_getkey. */
+uint8_t sys_getkey_echo(void);
 
 #endif

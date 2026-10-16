@@ -1,4 +1,4 @@
-# L0 primitives (batches 1–5) — semantics
+# L0 primitives (batches 1–6) — semantics
 
 Ported: `port/src/f/f.c` · Verified: `port/test/test_f1.c` (differential, all PASS)
 
@@ -280,3 +280,33 @@ Ported as an empty function so both no-ops remain distinct C symbols for
 ## Global: DAT_000533a4
 Pending-key buffer (uint32). Input pollers store a key here; `get_key()`
 returns and clears it. Mirrored as `g_keybuf`.
+
+## 0x043263 `get_key_echo()`
+DOS INT 21h AH=01 (cooked character input, **with echo**) — the echo
+counterpart to `get_key` (AH=08, no echo). Disassembly:
+```
+EAX = DAT_000533a4 ; DAT_000533a4 = 0
+if (EAX != 0) return EAX & 0xff
+AH = 0x01 ; INT 0x21              ; cooked char read (echo) -> AL
+return EAX & 0xff
+```
+Shares the same 1-char cache `g_keybuf` as `get_key` — the two are input modes
+(no-echo / echo) over one buffer. Sole caller: `FUN_00041d47`. Port mirrors the
+logic with a distinct backend stub `sys_getkey_echo()` (echo read, wired to SDL
+later).
+
+## 0x04322c `heap_grow(size)` — stub, returns 0
+`XOR EAX,EAX; RET` — always returns 0. The **outer memory-acquire** step of the
+malloc wrapper `FUN_00041af8`: called when the inner free-list search is
+exhausted; the wrapper does `if (heap_grow(size) == 0) break;` (give up). As a
+stub it means the heap can never grow (no more memory). Faithfully ported as a
+`return 0` stub. See `heap.md`.
+
+## 0x0432b7 `memsetw(dst, value, n)` → returns `dst + n`
+Dword fill: writes `value` to `n` consecutive 32-bit words starting at `dst`
+(count in **dwords**), returns the pointer past the last word. The original
+aligns `dst` up to a 32-byte boundary (mask `0x1f`) then fills 8 dwords (32
+bytes) per unrolled iteration, with a `count & 3` byte tail — an optimization
+that does not change the observable bytes (exactly `n` dwords filled). The
+byte-pattern variant `0x043280` (memsetw of a byte value, count in bytes)
+calls this with `count/4` dwords. Ported as a straight dword loop.

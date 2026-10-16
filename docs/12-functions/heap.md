@@ -98,6 +98,59 @@ splits `0x042b7d` as a "function" and leaves `0x042c88` as a bare label
 (decompile fails on it). In the port this trampoline collapses into the free
 routine — it is **not** a separate logical function.
 
+### 0x042c8d — `heap_unlink(block)` (free-list / all-blocks unlink)
+Unlinks a block from the doubly-linked list (via offsets 4=prev, 8=next):
+```
+if (block == DAT_00053354) DAT_00053354 = *(block+8);  // advance cursor if needed
+if (block == DAT_00053350) DAT_00053350 = *(block+8);  // advance head if needed
+prev = *(block+4); next = *(block+8);
+if (prev) *(prev+8) = next;   // prev->next = next
+if (next) *(next+4) = prev;   // next->prev = prev
+```
+Uses the same `DAT_00053350` (head) / `DAT_00053354` (cursor) globals. The
+offset-8 field is used here as BOTH the free-list next and the all-blocks next
+(`prev->next = next`), confirming the dual-use of offset 8 noted above.
+
+### 0x042e2d — `heap_insert_init(block)` (sorted insert + block init)
+Inserts a block into the all-blocks chain (sorted by address, via offsets
+4=prev, 8=next, head = `DAT_00053350`), then initializes the block's internal
+metadata. **Block layout here differs from malloc/free**: a **44-byte (0x2c)
+header** with self-pointers:
+```
+off 0 : size (word)          off 4 : prev   off 8 : next
+off 12: -> off 32            off 32: 0      off 36: -> off 32
+off 40: -> off 32            off 44: size - 0x2c
+and *(block + size) = 0xffffffff   (end sentinel)
+```
+Returns the init pointer (`block + 0x2c`). This looks like a **separate
+pool/arena** (44-byte-header blocks) from the 4-byte-header malloc/free heap —
+open question for the sub-batch: does `0x042e2d` manage the same `DAT_00053350`
+chain as malloc/free, or a distinct one?
+
+### 0x042ea1 — `heap_top_check()` (top-of-heap / segment-limit query)
+```
+if (DAT_00053350 != 0) {
+    int *p = *(int**)(DAT_00053350 + 0x24);   // head's field at off 36
+    if (1 < DAT_000533b2 && DAT_000533b2 < 9 && DAT_000533b4 == 0) {
+        u = SegmentLimit(in_DS);               // DPMI SegmentLimit
+        DAT_00053384 = (ushort)u + 1;
+    }
+    if ((int)p + *p + 4 == DAT_00053384) return *p;   // returns a size
+}
+return 0;
+```
+Computes the address of the last byte of a block (`p + *p + 4`) and compares it
+to `DAT_00053384` (a DPMI segment limit, cached). Returns the block size when
+the block ends exactly at the segment limit (i.e. "is this the top-of-heap
+block?"), else 0. Uses `DAT_00053350` (head), `DAT_000533b2`/`b4` (DPMI state),
+`DAT_00053384` (segment limit).
+
+### 0x04322c — `heap_grow(size)` — **ported (stub, returns 0)**
+`XOR EAX,EAX; RET`. The outer memory-acquire of the malloc wrapper
+`FUN_00041af8` (called when the free list is exhausted; `if (heap_grow(size)==0)
+break;`). As a stub the heap never grows. Ported in batch 6 as a faithful
+`return 0`; see `primitives.md`.
+
 ## Porting plan (next sub-batch)
 
 1. Disassemble `0x042ada`, `0x042b82` fully; confirm block/field offsets and

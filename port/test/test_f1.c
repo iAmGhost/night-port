@@ -1252,6 +1252,23 @@ static void test_fx_double_naninf(void) {
     check(r==0 && out[0]=='x', "0.0 -> not nan/inf");
 }
 
+struct fx3 { uint32_t lo, hi; uint16_t exp; };
+static void set_fx(struct fx3 *f, uint32_t lo, uint32_t hi, uint16_t e) { f->lo=lo; f->hi=hi; f->exp=e; }
+static void test_fx_compare(void) {
+    printf("== fx_compare (L0: fx lexicographic compare 0x047ab6) ==\n");
+    struct fx3 a, b;
+    set_fx(&a,0,0,0x3ffe); set_fx(&b,0,0,0x3ffe); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==0, "equal -> 0");
+    set_fx(&a,0,0,0x3000); set_fx(&b,0,0,0x4000); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==-1, "a.exp<b.exp -> -1");
+    set_fx(&a,0,0,0x4000); set_fx(&b,0,0,0x3000); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==1, "a.exp>b.exp -> 1");
+    set_fx(&a,0,1,0x3ffe); set_fx(&b,0,2,0x3ffe); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==-1, "a.hi<b.hi -> -1");
+    set_fx(&a,5,1,0x3ffe); set_fx(&b,3,1,0x3ffe); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==1, "a.lo>b.lo -> 1");
+    set_fx(&a,1,1,0x7fff); set_fx(&b,0,0,0x3ffe); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==2, "a special -> 2");
+    set_fx(&a,0,0,0x3ffe); set_fx(&b,1,1,0x7fff); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==2, "b special -> 2");
+    set_fx(&a,0,0,0x7fff); set_fx(&b,0,0,0x3ffe); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==1, "a zero vs b normal: a.exp 0x7fff>b.exp -> 1");
+    set_fx(&a,0,0,0x7fff); set_fx(&b,0,0,0x7fff); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==0, "both zero -> 0");
+    set_fx(&a,0,0x80000000,0x7fff); set_fx(&b,0,0x80000000,0x7fff); check(fx_compare((uint8_t*)&a,(uint8_t*)&b)==0, "hi=0x80000000 lo=0 not special (hi<<1 overflows to 0), equal -> 0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1323,6 +1340,7 @@ int main(void) {
     test_fx_double_exp();
     test_datetime_pack();
     test_fx_double_naninf();
+    test_fx_compare();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -1616,6 +1616,29 @@ int fx_double_naninf(double d, char *out)   /* 0x4a2a7 */
     return 1;
 }
 
+/* ---- 0x47ab6: fixed-point lexicographic compare ----
+ * a/b point to {u32 lo, u32 hi, u16 exp} (exp at [8]). A value with exp==0x7fff
+ * and nonzero (hi<<1)|lo is "special" and the compare returns 2. Otherwise it
+ * is a lexicographic UNSIGNED compare of (exp, hi, lo): the first differing
+ * field sets the sign (CF = a<b unsigned). Returns -1 (a<b), 0 (a==b), +1 (a>b).
+ * The original's RCR EAX/XOR ESI/ADD ESI at 0x47b10-0x47b14 is dead (EAX is
+ * overwritten by EDI at 0x47b1c). */
+int fx_compare(const uint8_t *a, const uint8_t *b)   /* 0x47ab6 */
+{
+    uint32_t alo = *(const uint32_t *)a;
+    uint32_t ahi = *(const uint32_t *)(a + 4);
+    uint16_t aexp = *(const uint16_t *)(a + 8);
+    uint32_t blo = *(const uint32_t *)b;
+    uint32_t bhi = *(const uint32_t *)(b + 4);
+    uint16_t bexp = *(const uint16_t *)(b + 8);
+    if (aexp == 0x7fff && (uint32_t)((ahi << 1) | alo) != 0) return 2;
+    if (bexp == 0x7fff && (uint32_t)((bhi << 1) | blo) != 0) return 2;
+    if (aexp != bexp) return (aexp < bexp) ? -1 : 1;
+    if (ahi != bhi)   return (ahi < bhi) ? -1 : 1;
+    if (alo != blo)   return (alo < blo) ? -1 : 1;
+    return 0;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

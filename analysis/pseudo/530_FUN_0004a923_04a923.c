@@ -1,0 +1,118 @@
+// func #530  FUN_0004a923  0004a923  size=166
+
+/* WARNING: Control flow encountered bad instruction data */
+/* WARNING: Instruction at (ram,0x0004a96c) overlaps instruction at (ram,0x0004a96b)
+    */
+
+void FUN_0004a923(undefined4 param_1,undefined4 param_2,undefined4 param_3)
+
+{
+  short sVar1;
+  byte bVar2;
+  byte bVar3;
+  char cVar4;
+  byte *pbVar5;
+  undefined3 uVar10;
+  int *piVar6;
+  undefined4 uVar7;
+  char *pcVar8;
+  uint *puVar9;
+  int extraout_ECX;
+  int iVar11;
+  ushort *extraout_ECX_00;
+  byte extraout_DL;
+  char extraout_DL_00;
+  char cVar12;
+  undefined4 *unaff_ESI;
+  undefined4 *unaff_EDI;
+  int in_FS_OFFSET;
+  byte in_AF;
+  byte bVar13;
+  
+  cVar12 = (char)((uint)param_3 >> 8);
+  bVar13 = 0;
+  pbVar5 = (byte *)FUN_0004a9d8();
+  bVar2 = (byte)pbVar5;
+  *pbVar5 = *pbVar5 + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  *(byte **)pbVar5 = pbVar5 + *(int *)pbVar5;
+  *pbVar5 = *pbVar5 + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  uVar10 = (undefined3)((uint)pbVar5 >> 8);
+  bVar2 = bVar2 | *pbVar5;
+  pcVar8 = (char *)CONCAT31(uVar10,bVar2);
+  *pcVar8 = *pcVar8 + bVar2;
+  *pcVar8 = *pcVar8 + bVar2;
+  *pcVar8 = *pcVar8 + bVar2;
+  pcVar8[in_FS_OFFSET] = pcVar8[in_FS_OFFSET] + bVar2;
+  *pcVar8 = *pcVar8 + bVar2;
+  *pcVar8 = *pcVar8 + bVar2;
+  piVar6 = (int *)CONCAT31(uVar10,bVar2 + (char)((uint)extraout_ECX >> 8));
+  pbVar5 = (byte *)((int)piVar6 + *piVar6);
+  bVar3 = (byte)pbVar5;
+  *pbVar5 = *pbVar5 + bVar3;
+  *pbVar5 = *pbVar5 + bVar3;
+  bVar2 = *pbVar5;
+  *pbVar5 = *pbVar5 + extraout_DL;
+  uVar10 = (undefined3)((uint)pbVar5 >> 8);
+  cVar4 = bVar3 + (9 < (bVar3 & 0xf) | in_AF) * '\x06' +
+          (0x99 < bVar3 || CARRY1(bVar2,extraout_DL)) * '`';
+  pcVar8 = (char *)CONCAT31(uVar10,cVar4);
+  *pcVar8 = *pcVar8 + cVar4;
+  *pcVar8 = *pcVar8 + cVar4;
+  *pcVar8 = *pcVar8 + cVar4;
+  bVar2 = DAT_00000186;
+  pbVar5 = (byte *)CONCAT31(uVar10,DAT_00000186);
+  *pbVar5 = *pbVar5 + DAT_00000186;
+  pbVar5[0x42] = pbVar5[0x42] + bVar2;
+  uVar7 = LocalDescriptorTableRegister();
+  *(undefined4 *)pbVar5 = uVar7;
+  *pbVar5 = *pbVar5 + bVar2;
+  pbVar5[0x9896] = pbVar5[0x9896] + bVar2;
+  *pbVar5 = *pbVar5 + bVar2;
+  iVar11 = extraout_ECX;
+  while( true ) {
+    bVar3 = *pbVar5;
+    *pbVar5 = *pbVar5 + bVar2;
+    iVar11 = iVar11 + -1;
+    if (iVar11 == 0 || *pbVar5 != 0) break;
+    *(char *)(unaff_ESI + 0x26) = *(char *)(unaff_ESI + 0x26) + CARRY1(bVar3,bVar2);
+  }
+  uVar7 = func_0x0000023b(pbVar5,extraout_DL + (char)iVar11);
+  cVar4 = in(0xb);
+  pcVar8 = (char *)CONCAT31((int3)((uint)uVar7 >> 8),cVar4);
+  *pcVar8 = *pcVar8 + cVar4;
+  *pcVar8 = *pcVar8 + cVar4;
+  pcVar8 = (char *)func_0x00ecf208();
+  bVar2 = (byte)pcVar8;
+  *pcVar8 = *pcVar8 + bVar2;
+  *pcVar8 = *pcVar8 + extraout_DL_00;
+  *unaff_EDI = *unaff_ESI;
+  uVar10 = (undefined3)(CONCAT22((short)((uint)pcVar8 >> 0x10),CONCAT11(bVar2 / 0x18,bVar2)) >> 8);
+  puVar9 = (uint *)CONCAT31(uVar10,bVar2 % 0x18);
+  *puVar9 = *puVar9 | (uint)puVar9;
+  *(byte *)puVar9 = (char)*puVar9 + bVar2 % 0x18;
+  bVar3 = DAT_5af34e72;
+  piVar6 = (int *)CONCAT31(uVar10,DAT_5af34e72);
+  *(byte *)piVar6 = (char)*piVar6 + DAT_5af34e72;
+  pbVar5 = (byte *)((int)piVar6 + 0x7a);
+  bVar2 = *pbVar5;
+  *pbVar5 = *pbVar5 + bVar3;
+  pcVar8 = (char *)((int)unaff_ESI + (uint)bVar13 * -8 + -0x6f);
+  *pcVar8 = *pcVar8 + cVar12 + CARRY1(bVar2,bVar3);
+  puVar9 = (uint *)((int)piVar6 + *piVar6);
+  *(char *)((int)puVar9 + -0x790d5b3a) = *(char *)((int)puVar9 + -0x790d5b3a) + (char)puVar9;
+  pcVar8 = (char *)((uint)puVar9 & *puVar9);
+  *pcVar8 = *pcVar8 + (char)pcVar8;
+  unaff_EDI[(uint)bVar13 * -2 + 0x1f] = (uint)unaff_EDI[(uint)bVar13 * -2 + 0x1f] >> 5;
+  sVar1 = ((ushort)pcVar8 & 3) - (*extraout_ECX_00 & 3);
+  *extraout_ECX_00 = *extraout_ECX_00 + (ushort)(0 < sVar1) * sVar1;
+  *pcVar8 = *pcVar8 + (char)pcVar8;
+                    /* WARNING: Bad instruction - Truncating control flow here */
+  halt_baddata();
+}

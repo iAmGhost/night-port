@@ -36,15 +36,18 @@ levels are a lower bound and some "roots" are actually called indirectly.
 
 | Zone | Notes |
 |---|---|
-| 0x00010010–0x00014fff | Data/asset layer: `0x10efc` builds player state; `0x1194c`, `0x1441e` large loaders; resource fetch helpers `0x1519f` (x433 calls), `0x151d5` (x275) — both read a global base from `0x418ee` and subtract `DAT_000639dc` |
-| 0x0001545e | Called x89, 1 KB — likely a central dispatch/handler |
-| 0x00018e88–0x0002fe1e | **20 large functions, 3.9–7.3 KB each, suspiciously uniform** — leading hypothesis: per-asset/per-episode decode or draw routines (or one huge switch split by the analyzer). Identify in Phase 1 before porting anything that calls them |
-| 0x00031a8e–0x0003628e | Frame pipeline: `0x3203d` entloop, `0x3209c` pipe, `0x322f5` keypoll, `0x347e3` keypoll2, `0x38098` render, `0x3d4e4` stgev (per earlier batch dumps) |
+| 0x00010010–0x00014fff | Data/asset layer: `0x10efc` builds player state; `0x1194c`, `0x1441e` large loaders; resource fetch helpers `0x1519f` (x433 calls), `0x151d5` (x275) — both read a global base from `0x418ee` and subtract `DAT_000639dc` (entity x/y getters) |
+| 0x0001545e | Called x89, 1 KB — collision/clamp helper: box test against `DAT_0005c8c0` table (stride 0x14), reads entity field `+0xd/+9/+1/+0x17` |
+| 0x00017f13–0x0002fe1e | **Per-enemy-type AI/update handlers (20 fns, 3.8–7.3 KB).** All are the case arms of one `switch(*(int *)(&DAT_00053eac + type*0x88))` inside `0x31a8e` (case 0→`0x17f13`, 1→`0x18e88`, … 19→`0x2fe1e`). `0x31a8e` first runs the shared entity state machine (field `+0x17` = state, `+0x6b` = timer, `+0x103/107/10b` = last-known pos, `+0x11` = anim/action, `+0xd` = type id) then dispatches. Type table: `DAT_00053eac`, 0x88 bytes/entry. Player entity base: `DAT_00053c7c` |
+| 0x00031a8e | Entity update dispatcher (state machine + per-type switch) |
+| 0x0003203d–0x0003628e | Frame pipeline: `0x3203d` entloop, `0x3209c` pipe, `0x322f5` keypoll, `0x347e3` keypoll2, `0x38098` render, `0x3d4e4` stgev (per earlier batch dumps) |
 | 0x0003690b–0x0003cfff | Stage/combat core: `0x3690b` (2.5 KB), `0x37b03` stage load, `0x38f3d` (3.2 KB), `0x3af18` **main**, `0x3a224` menu |
 | 0x0003cb38–0x0003cc6b | trig a/b/c — inline-trig ASM helpers |
-| 0x0004185e–0x00041fff | Runtime helpers: `0x418ee` LOCK/UNLOCK stub, `0x41f76` `abs()`, `0x41e9f` (x223), `0x4192e` (x71), `0x41bdc` (x57, resource alloc) |
-| 0x000420bc | Program entry |
-| 0x000461cc–0x00048f9e | Isolated 39-fn cluster, `0x461cc` (3 KB) is its hub — not referenced by the main component in the direct-call graph; find its indirect callers (entry-point table? interrupt vector? function pointer) |
+| 0x00040042 | LPT1 (port 0x3c8/0x3c9) status-poll write loop — printer/DA output? caller TBD |
+| 0x00040475–0x0004052c | Memory helpers: byte/word/dword copy, fill, strided fill (row pitch via `DAT_00040010`) — video buffer primitives |
+| 0x0004185e–0x00041fff | Runtime helpers: `0x418ee` LOCK/UNLOCK stub (returns global base ptr), `0x41f76` `abs()`, `0x41e9f` (x223), `0x4192e` (x71), `0x41bdc` (x57, resource alloc); `0x418e6` saves SS; `0x41c28` **heap insert** into the free list rooted at `DAT_00053350` (node stride 8, size 0x14, high-water `DAT_00053358`) |
+| 0x000420bc | Program entry (DOS4GW tail, raw segment regs) |
+| 0x000461cc–0x00048f9e | **CD/MSCDEX drive library (isolated 39-fn cluster).** Hub `0x461cc` scans device strings for drive letters (`d/e/f/g`, `&`, `.`, `>`, `6`) and runs an 8-slot ring state machine (`DAT_00053668`, slot stride 10, masks at `0x45dcc/0x45e1a/0x45e22`, callback `DAT_000536c2`). Invoked only via function pointers — consistent with the MSCDEX INT 0x2E usage in `docs/06-cdda.md`. Porting plan: analyze for observable behavior, then mark `[-]` replaced by `sys/cd.c` |
 | 0x000490b0–0x0004a7a2 | Tail: `0x49613` (691 B), `0x4a24d`, `0x4a7a2` — small, probably CRT/DOS4GW bookkeeping |
 
 ## 3. Porting discipline (function-to-function)
@@ -94,11 +97,9 @@ replaces, and expose a 1:1 signature so callers read like the original.
 
 ## 5. Open questions (Phase 1)
 
-1. Identity of the 20 uniform 4–7 KB functions (0x18e88–0x2fe1e).
-2. What the isolated 39-fn cluster (0x461cc hub) is and how it's invoked.
-3. Full global-variable map: audit globals per subsystem
-   (Ghidra `audit_globals_in_function`) before porting its functions.
-4. Exact switch tables / function-pointer tables the direct-call graph
-   cannot see (candidate: `0x1545e` dispatch).
-5. Confirm entry chain 0x420bc → 0x3af18 and where the DOS4GW→game handoff
-   happens (0x420bc uses raw segment registers — DOS4GW startup tail).
+1. ~~Identity of the 20 uniform 4–7 KB functions~~ **RESOLVED**: per-enemy-type AI handlers (switch in `0x31a8e`, §2).
+2. ~~Isolated 39-fn cluster~~ **RESOLVED (hypothesis high)**: CD/MSCDEX drive library, function-pointer invocation (§2). Confirm entry into the cluster from the CD-init call sites in Phase 2.
+3. Global-variable map per subsystem (Ghidra audit) — do per subsystem just before porting it.
+4. ~~Indirect dispatch tables~~ **PARTIAL**: entity-type switch found (`0x31a8e`); still need: any other function-pointer tables (e.g. `DAT_000536c2` CD callback, `PTR_LAB_*` jump tables in the CD cluster).
+5. Confirm entry chain 0x420bc → 0x3af18 and the DOS4GW→game handoff.
+6. What is LPT1 output `0x40042` for (printer? DIP input board?) — trace its caller.

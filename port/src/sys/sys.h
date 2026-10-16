@@ -35,4 +35,9 @@ void sys_get_segments(uint16_t out[6]);
 void sys_fatal(const char *msg);
 void sys_set_fatal_handler(void (*fn)(const char *msg));  /* NULL = default abort */
 
+/* Key input (DOS INT 21h AH=08h, direct character input). Returns the key byte
+ * (DOS ASCII/scan), or 0 if no key is available. Stub for now; wired to the
+ * SDL keyboard when the input subsystem is ported. */
+uint8_t sys_getkey(void);
+
 #endif

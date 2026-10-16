@@ -91,3 +91,7 @@ void sys_fatal(const char *msg) {
     fflush(stderr);
     abort();
 }
+
+/* Key input (DOS INT 21h AH=08h). Stub: the real keyboard backend is wired in
+ * when the input subsystem is ported. Returns 0 (no key) for now. */
+uint8_t sys_getkey(void) { return 0; }

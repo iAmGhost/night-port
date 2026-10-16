@@ -154,4 +154,21 @@ int      digit_chr(int d);
  * advance st->pos, increment st->count.  orig: 0x0428e5 */
 void     fmt_emit(fmt_state *st, uint8_t byte);
 
+/* ---- input + compare + no-op (batch 5) ---- */
+
+/* DAT_000533a4: a 1-char pending-key buffer. Input pollers store a key here;
+ * get_key() returns it (and clears it) before falling back to a read. */
+extern uint32_t g_keybuf;
+/* DOS INT 21h AH=08 (direct character input) with a 1-char cache: returns the
+ * buffered key from g_keybuf if present, else a read from the input backend
+ * (blocking in the original).  orig: 0x04295d */
+uint8_t  get_key(void);
+/* Bounded memcmp: compares the first `n` bytes; returns -1 if a<b, 0 if
+ * equal, +1 if a>b, decided at the first differing byte.  orig: 0x0429a8 */
+int      mem_cmp(const void *a, const void *b, int n);
+/* 1-byte RET: a second no-op default handler (distinct from cb_noop at
+ * 0x0423b6), referenced by the data table at DAT_000533bd and the wrappers
+ * 0x00042a3c / 0x000463dc.  orig: 0x042a07 */
+void     cb_noop2(void);
+
 #endif

@@ -365,6 +365,33 @@ static void test_canary(void) {    printf("canary (0x0418e6 / 0x0418ee / 0x04190
     sys_set_fatal_handler(0);
 }
 
+static void test_get_key(void) {
+    printf("get_key (0x04295d)\n");
+    g_keybuf = 'A';
+    check(get_key() == 'A' && g_keybuf == 0, "returns buffered key and clears it");
+    g_keybuf = 0;
+    check(get_key() == 0, "no buffer -> sys_getkey stub returns 0");
+    g_keybuf = 0x2A;
+    check(get_key() == 0x2A, "returns arbitrary buffered byte");
+}
+
+static void test_mem_cmp(void) {
+    printf("mem_cmp (0x0429a8)\n");
+    check(mem_cmp("abc", "abc", 3) == 0, "equal -> 0");
+    check(mem_cmp("abc", "abd", 3) == -1, "a<b -> -1");
+    check(mem_cmp("abd", "abc", 3) == 1, "a>b -> +1");
+    check(mem_cmp("abx", "abx", 2) == 0, "n limits the compare");
+    check(mem_cmp("abc", "ab", 2) == 0, "mismatch beyond n ignored");
+    check(mem_cmp("abc", "abd", 0) == 0, "n=0 -> 0");
+    check(mem_cmp("abc", "abd", 3) == -1, "first-diff decides (not last)");
+}
+
+static void test_cb_noop2(void) {
+    printf("cb_noop2 (0x042a07)\n");
+    cb_noop2();
+    check(1, "calls without crash");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -393,6 +420,9 @@ int main(void) {
     test_res_consume();
     test_digit_chr();
     test_fmt_emit();
+    test_get_key();
+    test_mem_cmp();
+    test_cb_noop2();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

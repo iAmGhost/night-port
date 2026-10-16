@@ -34,11 +34,11 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 31 / 528 done
+TOTALS: 34 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
-| L0 | 112 | 29 | 0 | 0 | 83 |
+| L0 | 112 | 32 | 3 | 0 | 77 |
 | L1 | 47 | 0 | 0 | 0 | 47 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
@@ -112,12 +112,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x042438 | 65 | res_consume | resource | primitives.md; test_f1 PASS (res_reader consume) |
 | [x] | 0x0427e7 | 11 | digit_chr | str | primitives.md; test_f1 PASS (digit->char) |
 | [x] | 0x0428e5 | 18 | fmt_emit | str | primitives.md; test_f1 PASS (printf byte-sink) |
-| [ ] | 0x04295d | 28 | FUN_0004295d | | |
-| [ ] | 0x0429a8 | 29 | FUN_000429a8 | | |
-| [ ] | 0x042a07 | 0 | FUN_00042a07 | | |
-| [ ] | 0x042ada | 162 | FUN_00042ada | | |
-| [ ] | 0x042b7d | 4 | FUN_00042b7d | | |
-| [ ] | 0x042b82 | 266 | FUN_00042b82 | | |
+| [x] | 0x04295d | 28 | get_key | input | primitives.md; test_f1 PASS |
+| [x] | 0x0429a8 | 29 | mem_cmp | input | primitives.md; test_f1 PASS |
+| [x] | 0x042a07 | 0 | cb_noop2 | input | primitives.md; test_f1 PASS |
+| [~] | 0x042ada | 162 | heap_alloc | heap | heap.md; port pending |
+| [~] | 0x042b7d | 4 | (free trampoline) | heap | heap.md; folds into free |
+| [~] | 0x042b82 | 266 | heap_free | heap | heap.md; port pending |
 | [ ] | 0x042c8d | 62 | FUN_00042c8d | | |
 | [ ] | 0x042e2d | 115 | FUN_00042e2d | | |
 | [ ] | 0x042ea1 | 77 | FUN_00042ea1 | | |

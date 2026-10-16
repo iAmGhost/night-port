@@ -1,4 +1,4 @@
-# L0 primitives (batches 1–4) — semantics
+# L0 primitives (batches 1–5) — semantics
 
 Ported: `port/src/f/f.c` · Verified: `port/test/test_f1.c` (differential, all PASS)
 
@@ -247,3 +247,36 @@ stubs.
 ## Global: DAT_00040010
 Frame pitch, int32 at 0x40010. Written by video init (not yet ported);
 read by put_px / rect_fill. Mirrored as `g_video_stride`.
+
+## 0x04295d `get_key()`
+DOS INT 21h AH=08 (direct character input, no echo) with a 1-char cache.
+Disassembly:
+```
+EAX = DAT_000533a4 ; DAT_000533a4 = 0
+if (EAX != 0) return EAX & 0xff     ; return the buffered key
+AH = 0x08 ; INT 0x21                 ; blocking char read -> AL
+return EAX & 0xff
+```
+Sole caller: `FUN_0003ae8e` (game init). Port mirrors the exact logic:
+return the cached key from `g_keybuf` (clearing it), else a read from the
+input backend. `sys_getkey()` is the modern backend (INT 21h/08h
+substitute) — currently a stub returning 0, to be wired to SDL keyboard
+polling when the input subsystem is ported. Note: the original INT 21h/08h is
+blocking; the modern backend is polled, a deliberate sys-layer adaptation.
+
+## 0x0429a8 `mem_cmp(a, b, n)`
+Bounded memcmp. Compares the first `n` bytes; at the first differing byte
+returns `-1` if `a < b`, `+1` if `a > b` (NOT the raw byte difference);
+`0` if all `n` bytes are equal. Decided at the first difference, not the
+last. Ported as a straight loop with a clamped return.
+
+## 0x042a07 `cb_noop2(void)` — no-op callback default
+1-byte `RET`. A second no-op default handler, distinct from `cb_noop`
+(0x0423b6). Referenced by the data table at DAT_000533bd and by the
+one-line wrappers `FUN_00042a3c` (calls it, returns) and `FUN_000463dc`.
+Ported as an empty function so both no-ops remain distinct C symbols for
+1:1 traceability.
+
+## Global: DAT_000533a4
+Pending-key buffer (uint32). Input pollers store a key here; `get_key()`
+returns and clears it. Mirrored as `g_keybuf`.

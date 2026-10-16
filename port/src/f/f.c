@@ -446,3 +446,31 @@ void fmt_emit(fmt_state *st, uint8_t byte) {
     *p = byte;
     st->count++;
 }
+
+/* =================================================================== */
+/* input + compare + no-op primitives (0x4295d, 0x429a8, 0x42a07)       */
+/* =================================================================== */
+
+uint32_t g_keybuf;   /* DAT_000533a4: pending-key buffer */
+
+/* DOS INT 21h AH=08 with a 1-char cache: return the buffered key if present
+ * (clearing it), else a (blocking in the original) read from the input
+ * backend. */
+uint8_t get_key(void) {
+    uint32_t c = g_keybuf;
+    g_keybuf = 0;
+    if (c != 0) return (uint8_t)c;
+    return sys_getkey();
+}
+
+/* Bounded memcmp returning -1 / 0 / +1 at the first differing byte. */
+int mem_cmp(const void *a, const void *b, int n) {
+    const uint8_t *pa = a, *pb = b;
+    for (; n != 0; n--, pa++, pb++) {
+        if (*pa != *pb) return *pa < *pb ? -1 : 1;
+    }
+    return 0;
+}
+
+/* 1-byte RET no-op default handler. */
+void cb_noop2(void) { /* RET only */ }

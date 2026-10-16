@@ -1319,6 +1319,42 @@ static void test_fx_stub_4a923(void) {
     check(1, "callable, void no-op");
 }
 
+static void test_fx_round_down(void) {
+    printf("== fx_round_down (L0: fx round-down 0x0481df) ==\n");
+    /* v = {u32 lo, u32 hi, u16 exp}. exp in v[2] low 16 bits. */
+    struct { uint32_t lo, hi, exp, mode; } c[6] = {
+        /*1*/ {0xffffffffu, 0x00000000u, 0x401f, 0x400},
+        /*2*/ {0x00001234u, 0x00005678u, 0x3000, 0x400},
+        /*3*/ {0x40000000u, 0x00000000u, 0x401f, 0x0000},
+        /*4*/ {0x7fffffffu, 0x00000000u, 0x401f, 0x0000},
+        /*5*/ {0x00000000u, 0x7fffffffu, 0x3fff, 0x0000},
+        /*6*/ {0x00000001u, 0x80000000u, 0x3ffe, 0x0000},
+    };
+    struct { uint32_t lo, hi, exp; } want[6] = {
+        /*1*/ {0x80000000u, 0x00000000u, 0x401f},  /* truncate, clears top bit */
+        /*2*/ {0x00000000u, 0x00000000u, 0x0000},  /* underflow, mode 0x400 -> 0 */
+        /*3*/ {0x00000000u, 0x00000000u, 0x401f},  /* round-half, equal->TEST fail */
+        /*4*/ {0x80000000u, 0x00000000u, 0x401f},  /* round-half, add mask+1 */
+        /*5*/ {0x00000000u, 0x80000000u, 0x3fff},  /* tableB on hi, add mask+1 */
+        /*6*/ {0x00000000u, 0x80000000u, 0x3fff},  /* underflow -> +inf */
+    };
+    for (int i = 0; i < 6; i++) {
+        uint32_t v[3] = { c[i].lo, c[i].hi, c[i].exp };
+        fx_round_down(v, (uint16_t)c[i].mode);
+        char m[96];
+        snprintf(m, sizeof m, "case%d lo=0x%08x (want 0x%08x)", i + 1, v[0], want[i].lo);
+        check(v[0] == want[i].lo, m);
+        snprintf(m, sizeof m, "case%d hi=0x%08x (want 0x%08x)", i + 1, v[1], want[i].hi);
+        check(v[1] == want[i].hi, m);
+        snprintf(m, sizeof m, "case%d exp=0x%04x (want 0x%04x)", i + 1, (unsigned)v[2] & 0xffff, want[i].exp);
+        check((uint16_t)v[2] == want[i].exp, m);
+    }
+    /* determinism */
+    uint32_t a[3] = {0x7fffffffu, 0, 0x401f}, b[3] = {0x7fffffffu, 0, 0x401f};
+    fx_round_down(a, 0); fx_round_down(b, 0);
+    check(a[0] == b[0] && a[1] == b[1] && a[2] == b[2], "deterministic");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1394,6 +1430,7 @@ int main(void) {
     test_fx_classify_status();
     test_fx_mul64();
     test_fx_stub_4a923();
+    test_fx_round_down();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

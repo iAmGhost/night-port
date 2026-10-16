@@ -1780,6 +1780,104 @@ void fx_stub_4a923(void)                                                /* 0x4a9
 {
 }
 
+/* 0x4815f: 32-entry mask table for fx_round_down (0x481df). Each entry clears
+ * the top (i+1) bits of a 32-bit mantissa word (0x7fffffff ... 0x00000000). */
+static const uint32_t g_fx_round_tbl[32] = {
+    0x7fffffffu, 0x3fffffffu, 0x1fffffffu, 0x0fffffffu,
+    0x07ffffffu, 0x03ffffffu, 0x01ffffffu, 0x00ffffffu,
+    0x00ffff7fu, 0x00ffff3fu, 0x00ffff1fu, 0x00ffff0fu,
+    0x00ffff07u, 0x00ffff03u, 0x00ffff01u, 0x00ffff00u,
+    0x00ff7f00u, 0x00ff3f00u, 0x00ff1f00u, 0x00ff0f00u,
+    0x00ff0700u, 0x00ff0300u, 0x00ff0100u, 0x00ff0000u,
+    0x007f0000u, 0x003f0000u, 0x001f0000u, 0x000f0000u,
+    0x00070000u, 0x00030000u, 0x00010000u, 0x00000000u,
+};
+
+/* 0x481df: round a fixed-point value v = {u32 lo, u32 hi, u16 exp} (exp at
+ * offset 8) toward zero, down to a target precision, with optional
+ * round-half (mode 0) and underflow to +inf/zero. Faithful to the disassembly
+ * 0x481df..0x4830f. Register trace (EBX=magnitude-cursor, ECX/ESI=mantissa,
+ * EAX=mask+1) is mirrored literally below. mode: 0=round-half, 0x400=truncate,
+ * other nonzero=truncate. */
+void fx_round_down(uint32_t *v, uint16_t mode)                                 /* 0x481df */
+{
+    uint16_t bx;
+    uint32_t ecx, esi, eax, cf;
+    const uint16_t e = (uint16_t)v[2];
+
+    bx = (uint16_t)(e & 0x7fff);                                              /* AND BX,0x7fff */
+    if ((mode == 0x400 || mode == 0x800) && ((int16_t)e < 0)) mode ^= 0xc00;  /* 0x481e8 */
+    if (mode == 0xc00) mode = 0x400;                                          /* 0x481ff */
+
+    bx = (uint16_t)(bx - 0x403f);                                             /* SUB BX,0x403f */
+    if (bx < 0x8000) return;                                                  /* JL: (int16)bx>=0 (mag>=0x403f) -> no-op */
+    ecx = v[0];                                                               /* MOV ECX,[EDI] */
+    bx = (uint16_t)(bx + 0x20);                                               /* ADD BX,0x20 (mag-0x401f) */
+    if (bx < 0x8000) goto tableA;                                             /* JL 0x4826e: (int16)bx>=0 -> tableA */
+
+    /* underflow: mag < 0x401f (0x4826e) */
+    v[0] = 0;                                                                 /* lo = 0 */
+    esi = v[1];                                                               /* ESI = hi */
+    bx = (uint16_t)(bx + 0x20);                                               /* ADD BX,0x20 (mag-0x3fff) */
+    if (bx < 0x8000) goto tableB;                                            /* JL 0x482d1: (int16)bx>=0 -> tableB */
+
+    /* zero/inf: mag < 0x3fff (0x482d1) */
+    if (mode == 0x400) { v[1] = 0; v[2] = 0; return; }                        /* 0x48306 */
+    if (mode != 0) { v[1] = 0x80000000u; v[2] = (uint16_t)(e | 0x3fff); return; } /* 0x482f6 */
+    bx = (uint16_t)(bx + 1);                                                  /* INC BX (mag-0x3ffe) */
+    if (bx != 0) { v[1] = 0; v[2] = 0; return; }                              /* mag != 0x3ffe -> 0 */
+    if (esi != 0x80000000u) { v[1] = 0x80000000u; v[2] = (uint16_t)(e | 0x3fff); return; }
+    if (ecx == 0) { v[1] = 0; v[2] = 0; return; }                             /* ecx = original lo */
+    v[1] = 0x80000000u; v[2] = (uint16_t)(e | 0x3fff); return;                /* +inf */
+
+tableA:                                                                        /* 0x48220, bx=mag-0x401f (0..31), on lo */
+    eax = g_fx_round_tbl[bx];                                                  /* MOV EAX,[EBX*4+0x4815f] */
+    ecx &= eax;                                                                /* AND ECX,EAX */
+    v[0] ^= ecx;                                                               /* XOR [EDI],ECX */
+    eax++;                                                                     /* INC EAX (mask+1) */
+    if (mode == 0x400) return;                                                 /* JZ 0x4826c */
+    if (mode != 0) goto Aadd;                                                  /* JNZ 0x48259 */
+    ecx += ecx;                                                                /* ADD ECX,ECX */
+    if (eax > ecx) return;                                                     /* CMP; JA 0x4826c */
+    if (eax != ecx) goto Aadd;                                                 /* JNZ 0x48259 */
+    cf = eax >> 31;                                                            /* ROL EAX,1 */
+    eax = (eax << 1) | cf;
+    if (cf) { if ((v[1] & eax) == 0) return; }                                 /* TEST hi */
+    else      { if ((v[0] & eax) == 0) return; }                               /* TEST lo */
+    eax = (eax >> 1) | (cf ? 0x80000000u : 0);                                 /* ROR EAX,1 (restore) */
+Aadd:
+    if (ecx == 0) return;                                                      /* OR ECX,ECX; JZ */
+    { uint64_t s  = (uint64_t)v[0] + eax; v[0] = (uint32_t)s;
+      uint32_t c1 = (uint32_t)(s >> 32);
+      uint64_t s2 = (uint64_t)v[1] + c1; v[1] = (uint32_t)s2;                  /* ADD/ADC */
+      if (s2 >> 32) { v[1] = (v[1] >> 1) | 0x80000000u; v[2]++; } }            /* RCR; INC exp */
+    return;
+
+tableB:                                                                        /* 0x4827e, bx=mag-0x3fff (0..31), on hi */
+    eax = g_fx_round_tbl[bx];                                                  /* MOV EAX,[EBX*4+0x4815f] */
+    esi &= eax;                                                                /* AND ESI,EAX */
+    v[1] ^= esi;                                                               /* XOR [EDI+4],ESI */
+    eax++;                                                                     /* INC EAX (mask+1) */
+    if (mode == 0x400) return;                                                 /* JZ 0x482ce */
+    if (mode != 0) { if ((ecx | esi) == 0) return; goto Bc2; }                 /* 0x482be w/ unmodified ecx/esi */
+    cf = ecx >> 31;                                                            /* ROL ECX,1 (ecx=lo) */
+    {
+        uint32_t lo1 = (ecx << 1) | cf;
+        esi = esi + esi + cf;                                                  /* ADC ESI,ESI */
+        if (eax > esi) return;                                                 /* CMP; JA 0x482ce */
+        if (eax != esi) { if ((lo1 | esi) == 0) return; goto Bc2; }            /* JNZ 0x482be */
+        if (lo1 != 0) goto Bc2;                                                /* JNZ 0x482c2 (skip JZ) */
+        { uint32_t d = eax; uint32_t cf2 = d >> 31; d = (d << 1) | cf2;        /* ADD EAX,EAX */
+          if (!cf2) { if ((v[1] & d) == 0) return; }                           /* JC skip; TEST hi; JZ */
+          eax = d >> 1; }                                                      /* SHR EAX,1 */
+        if ((lo1 | esi) == 0) return;                                          /* 0x482be: OR ECX,ESI; JZ */
+    }
+Bc2:
+    { uint64_t s = (uint64_t)v[1] + eax; v[1] = (uint32_t)s;
+      if (s >> 32) { v[1] = (v[1] >> 1) | 0x80000000u; v[2]++; } }             /* ADD; RCR; INC exp */
+    return;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

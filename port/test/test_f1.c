@@ -1674,6 +1674,28 @@ static void test_049b84(void) {
           "  J9/01:02: m=1,min=2,sec=0 (no 2nd ':')");
 }
 
+static void test_0492d0(void) {
+    printf("fn_0492d0 (0x0492d0)\n");
+    uint32_t nodes[8] = {0,0,0,0,0,0,0,0};
+    g_dat_53730 = nodes; g_dat_536dc = 8;
+    uint64_t r;
+    r = fn_0492d0(8, 0xEE);
+    check(r == (0xEEull << 32), "  out-of-range (index>=bound): (ctx,0)");
+    nodes[1] = 0x00010203; sys_ioctl_dx = 0x80; sys_ioctl_cf = 0;
+    r = fn_0492d0(1, 0xAA);
+    check(r == (0xAAull << 32) | 0x00016203, "  init, ioctl=1: flags 0x60 set (0x02|0x60=0x62)");
+    nodes[2] = 0x00004000; sys_ioctl_dx = 0x80;
+    r = fn_0492d0(2, 0xCC);
+    check(r == (0xCCull << 32) | 0x00004000, "  flag already set: skip ioctl, unchanged");
+    nodes[3] = 0; sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    r = fn_0492d0(3, 0xBB);
+    check(r == (0xBBull << 32) | 0x00004000, "  init, ioctl=0: only 0x40 set");
+    nodes[7] = 0x11223344;
+    r = fn_0492d0(7, 0xDD);
+    check(r == (0xDDull << 32) | 0x11223344, "  index>=6: no init, return node value");
+    g_dat_53730 = NULL;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1765,6 +1787,7 @@ int main(void) {
     test_044bb4();
     test_044ea4();
     test_049b84();
+    test_0492d0();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

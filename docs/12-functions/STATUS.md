@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 133 / 528 done
+TOTALS: 134 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 22 | 0 | 0 | 25 |
+| L1 | 47 | 23 | 0 | 0 | 24 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -114,6 +114,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **0x44bb4 fn_044bb4 PORTED**: node flag-setter (param_1=EAX=node ptr). if (node[0x0d]&0x20) return; if (ioctl_device(node[0x10])==0) return; node[0x0d]|=0x20; if ((node[0x0d]&7)==0) node[0x0d]|=0x2. The original tests BL=b\|0x20 for the low-3-bit check (0x20 doesn't affect bits 0-2), so the 2nd store yields b\|0x22 only when b&7==0. Modelled node as uint8_t* (64-bit port). ioctl_device (0x492b2) controllable in tests via sys_ioctl_dx/cf (dx=0x80,cf=0 → 1; dx=0,cf=0 → 0). 4 tests PASS (early-return, ioctl=0 no-op, →0x22, →b\|0x20). L1 19→20, TOTALS 130→131. | STATUS.md L1 |
 | 2026-07-08 | **0x44ea4 fn_044ea4 PORTED** (+ parse_mod_prefix refinement): 307B numeric conversion-specifier parser. Calls refined parse_mod_prefix (now returns const uint8_t* = position of the first non-flag char, matching 0x44fd7's EAX-at-RET; the void port only dropped the return like parse_decimal did). Then: width from digits or '*' (vararg via cursor-to-cursor `uint32_t **va`, `P=*va; v=*P; *va=P+1`), precision default -1 or '.' digits or '.*' vararg (neg precision kept -1), then suffix: 'F'→0x80, 'L'/'N'→0x40, 'h'→0x10, 'l'/'w'→0x20 (all consumed), other chars return at the char (not consumed). Spec struct byte offsets [4]=width,[8]=precision,[0x14]=flags,[0x16]=width-fill(def ' ', '0' if '0' flag),[0x17]=0. 6 tests PASS. L1 20→21, TOTALS 131→132. | STATUS.md L1 |
 | 2026-07-08 | **0x49b84 fn_049b84 PORTED**: 241B [J\|M]N[.N[.N]][/month:minute:second] date/time-string parser. Fully disassembled (Ghidra's extraout_ECX register-ABI juggling decoded into concrete param_2 dword offsets). era=1('J')/0('M')/-1(neither)→[0x20]; M case: first-1→[0x10], '.2nd'→[0x0c], '.3rd'→[0x18], [0x1c]=0; J/neither: first→[0x1c]. Then optional '/m'→[0x08](def 2), ':min'→[0x04], ':sec'→[0x00]. Untouched fields left as-is (verified via 0xAA sentinel). Callee parse_decimal (0x49a48, just refined). 5 tests PASS. L1 21→22, TOTALS 132→133. | STATUS.md L1 |
+| 2026-07-08 | **0x492d0 fn_0492d0 PORTED**: node/device-table accessor (84B). Register ABI EAX=index, EDX=ctx. g_dat_53730 (DAT_00053730) = pointer to uint32 node array (4B/node; byte1=flags 0x40 init/0x20 open). if index>=g_dat_536dc → return (ctx<<32)|0. if index<6: if !(node[1]&0x40){ node[1]|=0x40; if ioctl_device(index)!=0 node[1]|=0x20 }. return (ctx<<32)|g_dat_53730[index]. Only callee ioctl_device (0x492b2, ported). 5 tests PASS. L1 22→23, TOTALS 133→134. **Also analyzed 0x0498f6 (276B date-converter)**: EAX=base-days, EDX=time-sec, EBX=offset, ECX=out struct [sec,min,hour,day,month,year,dow,day-of-year]; year-norm via uVar2=days/366, uVar4=days-uVar2*365-(uVar2-1)/4, loop consuming year-_lengths (is_leap+365); month table read as `*(int*)(tab+m*2)>>0x10` (HIGH word) for compare but `*(short*)(tab+m*2)` (LOW word) for day — two different 16-bit slots; tab=DAT_00051960(common)/0x5197a(leap). DEFERRED until table bytes + original run confirm intent. | STATUS.md L1 |
 
 ## L0 (112)
 
@@ -273,7 +274,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x048585 | 101 | FUN_00048585 | | |
 | [ ] | 0x048f4c | 81 | FUN_00048f4c | | |
 | [ ] | 0x048fe6 | 201 | FUN_00048fe6 | | |
-| [ ] | 0x0492d0 | 84 | FUN_000492d0 | | |
+| [x] | 0x0492d0 | 84 | fn_0492d0 | node/device-table accessor: g_dat_53730 (uint32/node; byte1=flags 0x40 init/0x20 open); returns (ctx<<32)|node_value, 0 low if index>=bound g_dat_536dc; lazy-init index<6 via ioctl_device | port+test PASS (5) |
 | [x] | 0x0494a2 | 26 | itoa32s_tbl | string | port+test PASS (signed itoa via itoa32_tbl 0x49459; identical to itoa32s) |
 | [ ] | 0x049506 | 228 | FUN_00049506 | | |
 | [ ] | 0x0498f6 | 276 | FUN_000498f6 | | |

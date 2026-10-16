@@ -1343,6 +1343,26 @@ const char *fn_049b84(const char *s, uint32_t *out) {
     return p;                                        /* position after parsed string */
 }
 
+uint32_t g_dat_536dc = 0;                 /* DAT_000536dc: node index bound */
+uint32_t *g_dat_53730 = NULL;            /* DAT_00053730: node table */
+
+/* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
+ * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
+ * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.
+ * Lazily initializes index<6 nodes (set 0x40, call ioctl_device, set 0x20 on success).
+ * Returns (ctx<<32)|node_value (0 low dword if index >= bound). */
+uint64_t fn_0492d0(uint32_t index, uint32_t ctx) {
+    if (index >= g_dat_536dc) return ((uint64_t)ctx) << 32;     /* 0x492dd */
+    if (index < 6) {                                            /* 0x492e6 */
+        uint8_t *node = (uint8_t *)(g_dat_53730 + index);      /* base + index*4 */
+        if ((node[1] & 0x40) == 0) {                           /* 0x492f7 */
+            node[1] |= 0x40;                                   /* 0x49301 */
+            if (ioctl_device(index) != 0) node[1] |= 0x20;     /* 0x49306/314 */
+        }
+    }
+    return (((uint64_t)ctx) << 32) | g_dat_53730[index];       /* 0x4931e */
+}
+
 uint8_t g_debug_break = 0;               /* DAT_00053624 */
 uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
 {

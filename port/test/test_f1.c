@@ -351,7 +351,7 @@ static void test_canary(void) {    printf("canary (0x0418e6 / 0x0418ee / 0x04190
     r = canary_check(0x7c);
     check(r > (uintptr_t)g_stack_bound, "normal frame returns distance > bound");
     /* overflow (no room below bound) with foreign SS: returns SS, no death */
-    g_stack_bound = (int32_t)-1;              /* d > bound never true */
+    g_stack_bound = (uintptr_t)-1;              /* d > bound never true */
     g_ss_saved = (uint16_t)(sys_ss() + 1);
     check(canary_check(0x7c) == (uintptr_t)sys_ss(),
           "overflow + SS mismatch returns SS (no death)");
@@ -893,6 +893,40 @@ static void test_batchE(void) {
     check(case_field_0x28((uintptr_t)buf) == 0xaabbccdd, "returns [s+0x28]");
 }
 
+static void test_batchF(void) {
+    printf("== batch F (L0 misc primitives) ==\n");
+    printf("batch F: stack_depth (0x04917e)\n");
+    {
+        int anchor;
+        uintptr_t here = (uintptr_t)&anchor;
+        /* Differential: &local is fixed across the two calls, so lowering the
+         * bound by 8 must raise the depth by exactly 8 (mod 2^32). */
+        g_stack_bound = here;
+        uint32_t d1 = stack_depth();
+        g_stack_bound = here - 8;
+        uint32_t d2 = stack_depth();
+        check((uint32_t)(d2 - d1) == 8, "lowering bound by 8 -> depth +8");
+    }
+    g_stack_bound = 0;
+    printf("batch F: set_53640 (0x049187)\n");
+    g_dat_53640 = 0; set_53640();
+    check(g_dat_53640 == 0x8000, "g_53640 = 0x8000");
+    printf("batch F: to_upper (0x0494bd)\n");
+    check(to_upper('a')=='A' && to_upper('z')=='Z', "a-z -> A-Z");
+    check(to_upper('A')=='A' && to_upper('5')=='5' && to_upper(0x7e)==0x7e, "else unchanged");
+    printf("batch F: store_arr53730 (0x049325)\n");
+    static uint32_t arr[8]; g_arr_53730 = arr;
+    store_arr53730(2, 0x1234);
+    check(arr[2] == (0x1234|0x40000), "stored value | 0x40000");
+    printf("batch F: noop_9109 (0x049109)\n");
+    noop_9109(); check(1, "noop returns");
+    printf("batch F: ioctl_device (0x0492b2)\n");
+    sys_ioctl_cf = 0;
+    sys_ioctl_dx = 0x10; check(ioctl_device(0)==0, "dx=0x10 -> bit7 clear");
+    sys_ioctl_dx = 0x80; check(ioctl_device(0)==1, "dx=0x80 -> bit7 set");
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -947,6 +981,7 @@ int main(void) {
     test_batchD();
     test_batchD2();
     test_batchE();
+    test_batchF();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -10,7 +10,7 @@
 /* ---- globals (mirrored BSS) ---- */
 int32_t  g_video_stride = 0;
 uint16_t g_ss_saved = 0;
-int32_t  g_stack_bound = 0;
+uintptr_t  g_stack_bound = 0;
 uint32_t g_rng_state = 0;      /* DAT_0005335c: PRNG state (LCG in 0x41e9f) */
 
 /* put_px  orig: 0x040024
@@ -1148,4 +1148,28 @@ uint32_t swap_dat_5363c(uint32_t v)   /* 0x45ae8 */
 uint32_t case_field_0x28(uintptr_t s)   /* 0x4642a */
 {
     return *(uint32_t *)(s + 0x28);        /* 0x4642b ADD EBX,[EBP+0x28] */
+}
+
+/* ---- L0 batch F (6): misc primitives ---- */
+uint32_t stack_depth(void)   /* 0x4917e */
+{
+    int local;
+    return (uint32_t)((uintptr_t)&local - g_stack_bound);
+}
+uint32_t g_dat_53640 = 0;                    /* DAT_00053640 */
+void set_53640(void) { g_dat_53640 = 0x8000; }              /* 0x49187 */
+uint32_t to_upper(uint32_t c) { return (c>=0x61 && c<=0x7a) ? c-0x20 : c; } /* 0x494bd */
+uint32_t *g_arr_53730 = NULL;                /* DAT_00053730 */
+void store_arr53730(uint32_t index, uint32_t value)   /* 0x49325 */
+{
+    g_arr_53730[index] = value | 0x40000;    /* OR DH,0x40 sets bit22 */
+}
+void noop_9109(void) {}                          /* 0x49109: RET */
+uint32_t ioctl_device(uint32_t handle)   /* 0x492b2 */
+{
+    uint32_t dx, cf;
+    sys_dos_ioctl(handle, &dx, &cf);             /* AL=0 AH=0x44 INT 21 (stub) */
+    uint32_t rcl = (dx << 1) | cf;               /* RCL EDX,1 */
+    uint32_t ror = (rcl >> 1) | (rcl << 31);     /* ROR EDX,1 */
+    return (ror & 0x80) ? 1 : 0;                 /* TEST DL,0x80; SETNZ AL */
 }

@@ -107,3 +107,8 @@ uint32_t sys_clock_tps = 18;   /* DOS 18.2 Hz tick rate (default) */
 uint32_t sys_clock_ticks_per_sec(void) { return sys_clock_tps; }
 uint32_t sys_clock_read_count = 0;
 void sys_clock_read(void) { sys_clock_read_count++; }
+
+uint32_t sys_ioctl_dx = 0, sys_ioctl_cf = 0;
+void sys_dos_ioctl(uint32_t handle, uint32_t *out_dx, uint32_t *out_cf) {
+    (void)handle; *out_dx = sys_ioctl_dx; *out_cf = sys_ioctl_cf;
+}

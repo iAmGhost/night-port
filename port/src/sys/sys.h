@@ -54,4 +54,9 @@ uint32_t sys_clock_ticks_per_sec(void);
 extern uint32_t sys_clock_read_count;
 void sys_clock_read(void);
 
+/* DOS IOCTL (INT 21h/0x44h/AL=0) stand-in. Returns a controllable (dx, cf) for
+ * tests; default 0. The real device backend is not wired yet. */
+extern uint32_t sys_ioctl_dx, sys_ioctl_cf;
+void sys_dos_ioctl(uint32_t handle, uint32_t *out_dx, uint32_t *out_cf);
+
 #endif

@@ -167,22 +167,22 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x047f1f | 52 | FUN_00047f1f | | |
 | [ ] | 0x047fd4 | 126 | FUN_00047fd4 | | |
 | [ ] | 0x04811a | 68 | FUN_0004811a | | |
-| [ ] | 0x04815f | 0 | FUN_0004815f | | |
+| [x] | 0x04815f | 0 | (spurious) | misc | 0-size entry, no code (documented) |
 | [ ] | 0x0481df | 306 | FUN_000481df | | |
 | [ ] | 0x048312 | 64 | FUN_00048312 | | |
 | [ ] | 0x0485eb | 122 | FUN_000485eb | | |
 | [ ] | 0x048666 | 166 | FUN_00048666 | | |
 | [ ] | 0x048e60 | 203 | FUN_00048e60 | | |
 | [ ] | 0x0490b0 | 88 | FUN_000490b0 | | |
-| [ ] | 0x049109 | 0 | FUN_00049109 | | |
+| [x] | 0x049109 | 0 | noop_9109 | sys | port+test PASS (batch F, single RET) |
 | [ ] | 0x04910a | 38 | FUN_0004910a | | |
 | [ ] | 0x049132 | 75 | FUN_00049132 | | |
-| [ ] | 0x04917e | 8 | FUN_0004917e | | |
-| [ ] | 0x049187 | 10 | FUN_00049187 | | |
-| [ ] | 0x0492b2 | 29 | FUN_000492b2 | | |
-| [ ] | 0x049325 | 20 | FUN_00049325 | | |
+| [x] | 0x04917e | 8 | stack_depth | timing | port+test PASS (batch F, ESP-bound; uintptr bound) |
+| [x] | 0x049187 | 10 | set_53640 | sys | port+test PASS (batch F) |
+| [x] | 0x0492b2 | 29 | ioctl_device | sys | port+test PASS (batch F, INT21/44 stubbed) |
+| [x] | 0x049325 | 20 | store_arr53730 | data-struct | port+test PASS (batch F) |
 | [ ] | 0x049459 | 72 | FUN_00049459 | | |
-| [ ] | 0x0494bd | 13 | FUN_000494bd | | |
+| [x] | 0x0494bd | 13 | to_upper | string | port+test PASS (batch F) |
 | [ ] | 0x0494cb | 58 | FUN_000494cb | | |
 | [ ] | 0x0498c6 | 47 | FUN_000498c6 | | |
 | [ ] | 0x049a48 | 37 | FUN_00049a48 | | |

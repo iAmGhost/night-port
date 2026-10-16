@@ -12,7 +12,7 @@
 /* ---- globals mirrored from original BSS (see docs/12-functions/globals.md) ---- */
 extern int32_t  g_video_stride;  /* DAT_00040010: frame pitch (320 for 320x200) */
 extern uint16_t g_ss_saved;      /* DAT_0005333c: SS snapshot (canary) */
-extern int32_t  g_stack_bound;   /* DAT_00053394: canary stack bound */
+extern uintptr_t  g_stack_bound;   /* DAT_00053394: canary stack bound */
 
 /* ---- video frame buffer primitives ---- */
 
@@ -401,5 +401,27 @@ uint32_t swap_dat_5363c(uint32_t v);
 /* Jump-table case: return the dword at offset 0x28 of the struct the
  * dispatcher places in EBP.  orig: 0x04642a (body: XOR EBX,EBX; ADD EBX,[EBP+0x28]; RET) */
 uint32_t case_field_0x28(uintptr_t s);
+
+/* ---- L0 batch F (6): misc primitives + spurious ---- */
+/* Return the current stack depth: ESP - g_stack_bound. Port approximates ESP
+ * with the address of a local (a few bytes off true ESP, same semantic).
+ *  orig: 0x04917e (MOV EAX,ESP; SUB EAX,[0x53394]; RET) */
+uint32_t stack_depth(void);
+/* Set global DAT_00053640 = 0x8000.  orig: 0x049187 */
+extern uint32_t g_dat_53640;
+void set_53640(void);
+/* Uppercase a lowercase ASCII letter: a-z (0x61-0x7a) -> A-Z, else unchanged.
+ * (Mirror of to_lower, which is the reverse direction.)  orig: 0x0494bd */
+uint32_t to_upper(uint32_t c);
+/* Store value|0x40000 into g_arr_53730[index] (sets bit 22 as a "set" flag).
+ *  orig: 0x049325 (store [0x53730 + index*4] = value | 0x40000) */
+extern uint32_t *g_arr_53730;
+void store_arr53730(uint32_t index, uint32_t value);
+/* No-op (single RET).  orig: 0x049109 */
+void noop_9109(void);
+/* DOS IOCTL (INT 21h/0x44h/AL=0) on a device handle; returns bit7 of the
+ * rotated result. Port stubs the INT via sys_dos_ioctl then applies the exact
+ * RCL/ROR bit ops.  orig: 0x0492b2 */
+uint32_t ioctl_device(uint32_t handle);
 
 #endif

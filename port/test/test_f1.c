@@ -423,6 +423,29 @@ static void test_memsetw(void) {
           "single dword fill");
 }
 
+static void test_heap_unlink(void) {
+    printf("heap_unlink (0x042c8d)\n");
+    static struct heap_node A, B, C;
+    A.size = B.size = C.size = 16;
+    A.prev = 0;  A.next = &B;
+    B.prev = &A; B.next = &C;
+    C.prev = &B; C.next = 0;
+    g_heap_head = &A;
+    g_heap_cursor = &B;
+
+    heap_unlink(&B);   /* remove middle node */
+    check(g_heap_cursor == &C, "cursor advances past removed node");
+    check(g_heap_head == &A,   "head unchanged when removing non-head");
+    check(A.next == &C,        "prev->next bypasses removed node");
+    check(C.prev == &B,        "next->prev NOT updated (stale) -- disasm-verified");
+
+    heap_unlink(&A);   /* remove head */
+    check(g_heap_head == &C, "head advances past removed head");
+
+    heap_unlink(&C);   /* remove last */
+    check(g_heap_head == 0, "head becomes 0 after removing last");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -457,6 +480,7 @@ int main(void) {
     test_get_key_echo();
     test_heap_grow();
     test_memsetw();
+    test_heap_unlink();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

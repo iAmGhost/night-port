@@ -173,6 +173,23 @@ void     cb_noop2(void);
 
 /* ---- batch 6: heap-grow stub, echo input, dword fill ---- */
 
+/* Heap node (region or free block). The original is 32-bit (size@0, prev@4,
+ * next@8, user data @4); the port uses 64-bit pointers, so prev/next become
+ * struct fields (algorithm-identical, layout adapted). See heap.md. */
+struct heap_node {
+    uint32_t size;             /* offset 0; bit 0 = allocated flag */
+    struct heap_node *prev;    /* was offset 4 (32-bit) */
+    struct heap_node *next;    /* was offset 8 (32-bit) */
+};
+/* All-blocks (region) chain: head / cursor. DAT_00053350 / DAT_00053354. */
+extern struct heap_node *g_heap_head;
+extern struct heap_node *g_heap_cursor;
+/* Unlink a node from the all-blocks chain: advance head/cursor if it is the
+ * removed node, and set prev->next = next. The original does NOT update
+ * next->prev (verified in disasm; the decompiler added a phantom write).
+ * orig: 0x042c8d */
+void heap_unlink(struct heap_node *n);
+
 /* DOS INT 21h AH=01 (cooked character input, with echo), sharing the same
  * 1-char cache g_keybuf as get_key (AH=08, no echo): returns the buffered key
  * if present, else a read from the echo input backend.  orig: 0x043263 */

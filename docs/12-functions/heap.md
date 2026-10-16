@@ -1,166 +1,234 @@
-# Heap allocator (0x042ada / 0x042b82 / 0x042b7d) — analysis
+# Heap allocator (two-level) — analysis
 
-Status: **analyzed, not yet ported.** This is the game's own memory allocator
-(DPMI-era malloc/free), reached from the public wrappers `FUN_00041af8`
-(malloc) and `FUN_00041c31` (free). It is a core subsystem, so it gets a
+Status: **`heap_unlink` ported (batch 7); `heap_alloc` / `heap_free` / the
+public wrappers analyzed but not yet ported.** This is the game's own
+DPMI-era memory allocator, reached from the public wrappers `FUN_00041af8`
+(malloc) and `FUN_00041c31` (free). It is a core subsystem and gets a
 focused, disassembly-verified port as its own sub-batch.
 
-> **Caveat — decompiler unreliability on the wrappers.** Ghidra's decompilation
-> of `FUN_00041af8`/`FUN_00041c31` is muddled by DPMI register-passing
-> artifacts (`extraout_ECX`, `in_DS`) and conflates the heap-struct pointer with
-> the block pointer. The internal allocator (`0x042ada`/`0x042b82`)
-> decompiles reasonably, but the split/coalesce logic must be confirmed
-> against the raw disassembly before porting. Do not port the wrappers from
-> the decompiler text.
+> **Decompiler caveats (verified against disassembly).**
+> 1. The wrappers (`FUN_00041af8`/`FUN_00041c31`) decompile to nonsense
+>    (DPMI register-passing artifacts: `extraout_ECX`, `in_DS`). Do NOT port
+>    them from the decompiler — use the raw disassembly in this doc.
+> 2. `heap_unlink` decompile added a **phantom `next->prev = prev` write** that
+>    is NOT in the disassembly (it only writes `prev->next = next`).
+> 3. `heap_alloc`'s **split path has a latent heap-corruption bug**: it
+>    clobbers the region pointer (EBX) and the tail then updates the wrong
+>    object. See "heap_alloc split-path bug" below.
 
-## Block layout
+## Two-level structure
 
-Each memory block begins with a 4-byte header word:
+There are **two linked lists using the same offset-4/8 (prev/next) fields on
+different kinds of nodes**:
+
+1. **All-blocks chain (regions):** a doubly-linked list of *regions* (sub-heaps).
+   Head = `DAT_00053350`, cursor = `DAT_00053354` (globals). Nodes linked via
+   offset 8 (next) / offset 4 (prev). `heap_unlink` (0x042c8d) and the public
+   wrappers operate on this chain.
+2. **Internal free list (per region):** each region holds a free list of small
+   *free blocks*. Root = `region[0x0c]`, nodes linked via offset 8/4, walked
+   until `next == &region[0x20]` (the **sentinel**, a one-past-end marker
+   embedded in the region header). `heap_alloc`/`heap_free` operate on this.
+
+A **region** therefore looks like a large node whose header (offsets 0..0x28)
+holds the free-list metadata, and whose data area holds the free blocks.
+
+## Node layouts
+
+Both a *region* and a *free block* begin with the same 12-byte header shape:
 
 ```
-offset  0:  size | ALLOC_FLAG        (low bit = allocated flag)
-offset  4:  prev free block (uint*)  [valid while the block is FREE]
-offset  8:  next free block (uint*)  [valid while the block is FREE]
-offset 12+: user data ...
+offset 0:  size  (bit 0 = allocated flag for free blocks)
+offset 4:  prev  (uint ptr)
+offset 8:  next  (uint ptr)
 ```
 
-- **Alloc flag (low bit):** `1` = allocated (live, can be freed); `0` = free
-  (sits on the free list). `0x042b82` (free) bails out with `if ((*hdr & 1) == 0)
-  return;`; `0x042ada` (malloc) sets `*block |= 1` after carving a block out.
-- **Data pointer:** `malloc` returns `block + 4` (first byte of user data);
-  `free` recovers the header as `ptr - 4`.
-- **Free-list pointers live in the first 8 data bytes**, so they are valid only
-  while the block is free. Minimum block = 4 (header) + 8 (prev/next) = `0xc`
-  bytes — matching the `size < 0xc → size = 0xc` clamp in the wrapper.
+### Free block (the allocatable unit)
+- **Alloc flag (low bit of offset 0):** `1` = allocated; `0` = free (on the
+  free list). `free` bails if `(*hdr & 1) == 0`; `alloc` sets `*block |= 1`.
+- **Data pointer:** `alloc` returns `block + 4`; `free` recovers `ptr - 4`.
+- **prev/next (offset 4/8) live in the first 8 data bytes** — valid only while
+  free. Minimum block = 4 (size) + 8 (prev/next) = `0xc`, matching the
+  `size < 0xc → 0xc` clamp and the split threshold `remainder >= 0xc`.
 
-## Free list
+### Region (heap struct, = EBX inside alloc/free)
 
-A circular, doubly-linked list of **free** blocks (low bit 0), ordered by
-address. Sentinel node at `heap+0x20` terminates the walk. Each free block's
-data bytes hold `prev` (offset 4) and `next` (offset 8).
+| offset | meaning                                      |
+|--------|----------------------------------------------|
+| 0x04   | prev region (all-blocks chain)                |
+| 0x08   | next region (all-blocks chain)                |
+| 0x0c   | root free block (internal free list)          |
+| 0x10   | largest free-block size (cache)               |
+| 0x14   | high-water / max allocatable size (limit)     |
+| 0x18   | live (allocated) block count                  |
+| 0x1c   | free block count                              |
+| 0x20   | free-list sentinel (walk stops when next==this)|
+| 0x24   | sentinel value (compared in free's rebalance) |
+| 0x28   | last free block (best-fit start hint)         |
 
-## Heap-struct fields (the `param_3` pointer in malloc/free)
+### Globals
 
-| offset | type   | meaning                              |
-|--------|--------|--------------------------------------|
-| 0x0c   | uint*  | root / first free block               |
-| 0x10   | uint   | largest free-block size (cache)       |
-| 0x14   | uint   | high-water / largest-seen size        |
-| 0x18   | int    | live (allocated) block count          |
-| 0x1c   | int    | free block count                      |
-| 0x20   | node   | circular free-list sentinel           |
-| 0x24   | uint*  | sentinel value                        |
-| 0x28   | uint*  | last free block (best-fit start hint) |
-
-Fields 0x00–0x0b are other allocator state (to be pinned down from the
-disassembly / the wrapper's setup).
-
-## Globals (allocator runtime state)
-
-| address      | role                                             |
-|--------------|--------------------------------------------------|
-| DAT_00053350 | head of the block chain (first block / anchor)    |
-| DAT_00053354 | "last block tried" cursor (malloc retry path)     |
-| DAT_00053358 | high-water size, reset each malloc attempt        |
-
-The public wrappers walk the block chain from DAT_00053350 via field [8]
-(next), so **all blocks (free and used) are also linked through offset 8** —
-the free list and the all-blocks chain share the same `next` slot. This
-dual use must be confirmed from the disassembly; it is the trickiest part to
-port faithfully.
+| address      | role                                            |
+|--------------|-------------------------------------------------|
+| DAT_00053350 | all-blocks chain **head** (port: `g_heap_head`) |
+| DAT_00053354 | all-blocks chain **cursor** (port: `g_heap_cursor`) |
+| DAT_00053358 | high-water size, reset each malloc attempt      |
 
 ## Functions
 
-### 0x042ada — `heap_alloc(size, ds, heap)` (internal malloc)
-First-fit search of the free list for a block with `size >= aligned`
-(aligned = 4-byte-rounded size, min 0xc). On a hit it either:
-- **uses the whole block** when `size - aligned < 0xc` (not enough left to
-  split), unlinking it from the free list; or
-- **splits**: the low part becomes the allocated block, the high remainder
-  (`aligned` bytes in, rest carved) is inserted into the free list in place.
-Sets the alloc flag (`*block |= 1`) and returns `block + 4`. Returns `NULL`
-on failure.
+### 0x042c8d — `heap_unlink(node)` — **PORTED (batch 7)**
+Unlinks a node from the **all-blocks (region) chain**:
+```c
+void heap_unlink(struct heap_node *n) {
+    if (g_heap_cursor == n) g_heap_cursor = n->next;
+    if (g_heap_head   == n) g_heap_head   = n->next;
+    if (n->prev) n->prev->next = n->next;   // does NOT touch n->next->prev
+}
+```
+Verified: the disassembly writes only `prev->next = next` (offset 8); the
+decompiler's `next->prev = prev` is a phantom. Test: `test_f1.c` → PASS.
 
-### 0x042b82 — `heap_free(ptr, ds, heap)` (internal free)
-Recovers the header (`ptr - 4`), checks the alloc flag, clears it, then
-**coalesces** with the adjacent block(s) that are free and inserts the merged
-block into the free list at the correct sorted position. Updates the free
-count, block count, largest-size, and high-water fields. Contains an internal
-rebalance (walk the free list while `live_count/(free_count+1) < free_count`
-and `live_count - free_count <= free_count`, walking up to `2*that` free
-blocks) — a classic fragmentation heuristic.
+### 0x042ada — `heap_alloc(region, size)` (internal malloc)
+Disassembly-verified (EAX = size, EBX = region):
+1. `aligned = max(0xc, (size+7) & 0xfc-lowbyte)`; if `size == 0` or `size+7`
+   overflows → return 0.
+2. If `aligned > region[0x14]` (high-water) → return 0.
+3. Start the free-list walk at `region[0xc]` (root); if `aligned <=
+   region[0x10]` (largest) instead start at `region[0x28]` (last free) and
+   reset the largest-tracking to 0.
+4. Walk via `next` (offset 8), tracking the **largest** block seen (`EDI`);
+   stop when `next == &region[0x20]` (sentinel). If a block's `size >=
+   aligned`, it fits → go to (5). If the walk ends with no fit:
+   `region[0x14] = largest; return 0`.
+5. **Fit:** `remainder = block.size - aligned`; `region[0x10] = largest`
+   (max of the *other* blocks — the fitted block's size is not tracked);
+   `region[0x18]++` (alloc count); `next = block.next`.
+   - **No split** (`remainder < 0xc`): fall to (6) with the whole block.
+   - **Split** (`remainder >= 0xc`): `remainder_block = block + aligned`;
+     `region[0xc] = remainder_block` (root = remainder); `remainder_block.size
+     = remainder`; `block.size = aligned`; then (BUG, see below) link the
+     remainder into the free list in place of `block`.
+6. **Common tail** (EBX = region on the no-split path): `region[0x1c]--`
+   (free count); unlink `block` from the free list
+   (`prev->next = next`, `next->prev = prev`, `region[0xc] = prev`);
+   `block.size |= 1` (allocated); **return `block + 4`**.
+
+#### heap_alloc split-path bug (original latent bug)
+In the split path, `0x42b48` does `EBX = block.prev` — **clobbering the region
+pointer**. The common tail then runs with `EBX = prev` (a free block), so:
+- `DEC [EBX+0x1c]` → decrements `prev[0x1c]` (a free block's data), not
+  `region[0x1c]` (free count).
+- `prev->next = next` (0x42b65) **overwrites** the `prev->next = remainder`
+  set at 0x42b51 — the remainder block is orphaned from the free list (only
+  reachable via the stale `region[0xc]`).
+- `MOV [EBX+0xc], ESI` → writes `prev[0xc] = prev` (corrupts `prev`'s data),
+  not `region[0xc]`.
+This is only "benign" if the split block is the free-list root whose `prev` is
+the sentinel (`region+0x20`), in which case the writes land on region fields.
+The walk does not guarantee that, so this is a **real heap-corruption bug** in
+the original. A faithful port must replicate it 1:1 (and we can offer a
+"fixed" variant separately). **This is the main risk for the `heap_alloc`
+port and needs a hand-traced reference test.**
+
+### 0x042b82 — `heap_free(region, ptr)` (internal free)
+Disassembly-verified (EAX = data ptr, EBX = region):
+1. `block = ptr - 4`; if `block.size & 1` is 0 (already free) → bail.
+2. Clear the alloc flag; `nxt = block + block.size`.
+3. If `nxt` is free (or is the region's last block / at `region[0x24]`),
+   **coalesce forward**: `block.size += nxt.size`; unlink `nxt`.
+4. Otherwise **insert `block` into the free list** at its sorted (address)
+   position, updating prev/next and the counts.
+5. **Rebalance heuristic:** while the free list is fragmented
+   (`live_count/(free_count+1) < free_count` and `live_count - free_count <=
+   free_count`), walk up to `2*(that)` free blocks looking for further
+   coalescing.
+6. Update `region[0x18]` (live count, DEC), `region[0x10]` (largest), and
+   `region[0x14]` (high-water). Contains a 2-byte trampoline `0x42b7d`
+   (`JMP 0x42c88`) that folds into this routine (see trampoline note).
 
 ### 0x042b7d — trampoline
-`JMP 0x00042c88`. A 2-byte tail-jump called from two points inside
-`0x042b82` (free) at 0x042b8a / 0x042b95. `0x00042c88` is a label near the end
-of the free routine (also reached by a conditional jump at 0x042c83). Ghidra
-splits `0x042b7d` as a "function" and leaves `0x042c88` as a bare label
-(decompile fails on it). In the port this trampoline collapses into the free
-routine — it is **not** a separate logical function.
+`JMP 0x00042c88` — a 2-byte tail-jump reached from two points inside
+`0x042b82` (free). `0x00042c88` is the end-of-free label. Folds into free;
+**not** a separate logical function.
 
-### 0x042c8d — `heap_unlink(block)` (free-list / all-blocks unlink)
-Unlinks a block from the doubly-linked list (via offsets 4=prev, 8=next):
+### 0x042e2d — `heap_insert_init(block)` (sorted insert + 44-byte init)
+Inserts a node into the all-blocks chain (head `DAT_00053350`, sorted by
+address, offset 4/8) and initializes a **44-byte (0x2c) header**:
 ```
-if (block == DAT_00053354) DAT_00053354 = *(block+8);  // advance cursor if needed
-if (block == DAT_00053350) DAT_00053350 = *(block+8);  // advance head if needed
-prev = *(block+4); next = *(block+8);
-if (prev) *(prev+8) = next;   // prev->next = next
-if (next) *(next+4) = prev;   // next->prev = prev
+node[0] = total size      node[4] = prev     node[8] = next
+node[12] = node+32        node[16] = 0       node[24] = 0
+node[28] = 0              node[32] = 0       node[36] = node+32
+node[40] = node+32        node[44] = total - 0x2c   (data size)
+node[total] = 0xffffffff  (end sentinel just past the node)
 ```
-Uses the same `DAT_00053350` (head) / `DAT_00053354` (cursor) globals. The
-offset-8 field is used here as BOTH the free-list next and the all-blocks next
-(`prev->next = next`), confirming the dual-use of offset 8 noted above.
-
-### 0x042e2d — `heap_insert_init(block)` (sorted insert + block init)
-Inserts a block into the all-blocks chain (sorted by address, via offsets
-4=prev, 8=next, head = `DAT_00053350`), then initializes the block's internal
-metadata. **Block layout here differs from malloc/free**: a **44-byte (0x2c)
-header** with self-pointers:
-```
-off 0 : size (word)          off 4 : prev   off 8 : next
-off 12: -> off 32            off 32: 0      off 36: -> off 32
-off 40: -> off 32            off 44: size - 0x2c
-and *(block + size) = 0xffffffff   (end sentinel)
-```
-Returns the init pointer (`block + 0x2c`). This looks like a **separate
-pool/arena** (44-byte-header blocks) from the 4-byte-header malloc/free heap —
-open question for the sub-batch: does `0x042e2d` manage the same `DAT_00053350`
-chain as malloc/free, or a distinct one?
+Returns `block + 0x2c` (the data start). **Open question:** this 44-byte-header
+layout differs from the 12-byte free-block header, so `0x042e2d` may manage a
+*separate pool/arena* (not the malloc/free regions) even though it shares the
+`DAT_00053350` head. Needs caller xrefs + the region-creation code to confirm.
 
 ### 0x042ea1 — `heap_top_check()` (top-of-heap / segment-limit query)
-```
+```c
 if (DAT_00053350 != 0) {
-    int *p = *(int**)(DAT_00053350 + 0x24);   // head's field at off 36
+    p = *(uint**)(DAT_00053350 + 0x24);       // head's field at off 36
     if (1 < DAT_000533b2 && DAT_000533b2 < 9 && DAT_000533b4 == 0) {
         u = SegmentLimit(in_DS);               // DPMI SegmentLimit
         DAT_00053384 = (ushort)u + 1;
     }
-    if ((int)p + *p + 4 == DAT_00053384) return *p;   // returns a size
+    if ((int)p + *p + 4 == DAT_00053384) return *p;  // block ends at limit
 }
 return 0;
 ```
-Computes the address of the last byte of a block (`p + *p + 4`) and compares it
-to `DAT_00053384` (a DPMI segment limit, cached). Returns the block size when
-the block ends exactly at the segment limit (i.e. "is this the top-of-heap
-block?"), else 0. Uses `DAT_00053350` (head), `DAT_000533b2`/`b4` (DPMI state),
-`DAT_00053384` (segment limit).
+Returns a block's size when it ends exactly at the cached DPMI segment limit
+(`DAT_00053384`), i.e. "is this the top-of-heap block?"; else 0. Uses
+`DAT_00053350` (head), `DAT_000533b2`/`b4` (DPMI state), `DAT_00053384`
+(segment limit). `LSL EAX,EAX` on the `0x533b2==2..8 && 0x533b4==0` branch
+computes the DS segment limit (DPMI real-segment size).
 
-### 0x04322c — `heap_grow(size)` — **ported (stub, returns 0)**
+### 0x04322c — `heap_grow(size)` — **PORTED (batch 6, stub → 0)**
 `XOR EAX,EAX; RET`. The outer memory-acquire of the malloc wrapper
-`FUN_00041af8` (called when the free list is exhausted; `if (heap_grow(size)==0)
-break;`). As a stub the heap never grows. Ported in batch 6 as a faithful
-`return 0`; see `primitives.md`.
+`FUN_00041af8` (`if (heap_grow(size)==0) break;`). As a stub the heap never
+grows. See `primitives.md`.
+
+## Public wrappers (deferred — port from disassembly, NOT the decompiler)
+
+**`FUN_00041af8` (malloc, EAX = size):**
+1. Reject `size == 0` and `size >= 0xffffffd4`.
+2. `rounded = max(0xc, (size+3) & 0xfffc-lowbyte)`; compare to
+   `DAT_00053358` (high-water): if `rounded <= high-water`, start the region
+   walk at the head; else start at the cursor (`DAT_00053354`, falling back to
+   head if 0).
+3. For each region `r` in the all-blocks chain (via offset 8): set
+   `DAT_00053354 = r`; call `heap_alloc(r, size)`. On success, return.
+   On failure, update `DAT_00053358 = max(DAT_00053358, r[0x14])` and advance.
+4. When the chain is exhausted: call `FUN_00043071(size)` (inner acquire,
+   once); then `heap_grow(size)` (stub → 0). If either returns non-zero,
+   restart the walk; else return 0.
+
+**`FUN_00041c31` (free, EAX = data ptr):**
+1. Walk the all-blocks chain (from head, via offset 8) to find the region
+   `r` that CONTAINS `ptr` (`head <= ptr <= r[?]`) — i.e. locate the owning
+   region.
+2. Call `heap_free(r, ptr)`.
+3. If `r == DAT_00053354` (cursor), update `DAT_00053358 = max(DAT_00053358,
+   r[0x14])`.
+
+## Port layout decision (32-bit → 64-bit)
+The original stores 32-bit addresses at fixed offsets (prev@4, next@8, data@4).
+On a 64-bit host, pointers are 8 bytes. The port uses **`struct heap_node`
+with 64-bit `prev`/`next` fields** (see `f.h`) — algorithm-identical, but the
+byte layout and the `0xc` minimum / data-offset constants are adapted to the
+struct. This is a sys-layer adaptation (address width), logged here so the
+`heap_alloc`/`heap_free` port keeps the same representation.
 
 ## Porting plan (next sub-batch)
-
-1. Disassemble `0x042ada`, `0x042b82` fully; confirm block/field offsets and
-   the shared offset-8 (free-list next == all-blocks next) question.
-2. Define `typedef struct heap { ... } heap_t;` and `typedef struct heap_block`
-   with the layout above; mirror globals as `g_heap_*`.
-3. Port `heap_alloc` and `heap_free` 1:1 (the trampoline folds into free).
-4. Differential test: build a small heap, run alloc/free sequences, and check
-   block placement, coalescing, free-list order, and the counters against a
-   reference model of the exact semantics (NOT libc malloc).
-5. Port the public wrappers `FUN_00041af8`/`FUN_00041c31` only after the
-   internals are verified, using disassembly (not the decompiler) for the
-   retry / grow (`FUN_00043071`/`FUN_0004322c`) path.
+1. Hand-trace `heap_alloc` (both paths) and `heap_free` (coalesce + rebalance)
+   on concrete inputs; build a **reference model of the exact original
+   semantics** (including the split-path bug), NOT libc malloc.
+2. Port `heap_alloc`/`heap_free` 1:1 (trampoline folds into free); port
+   `heap_top_check` (map the DPMI SegmentLimit to a `sys_` hook returning the
+   DS limit).
+3. Decide `0x042e2d` (separate pool vs. same chain) from caller xrefs.
+4. Port the wrappers `FUN_00041af8`/`FUN_00041c31` last (region search / grow).
+5. Differential test: small region + free blocks, alloc/free sequences, check
+   block placement, coalescing, free-list order, counters, and the
+   split-path behavior against the reference model.

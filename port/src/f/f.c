@@ -497,3 +497,19 @@ uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n) {
     for (uint32_t i = 0; i < n; i++) dst[i] = value;
     return dst + n;
 }
+
+/* ---- Heap: all-blocks (region) chain head / cursor (DAT_00053350 / 0x53354). */
+struct heap_node *g_heap_head = 0;
+struct heap_node *g_heap_cursor = 0;
+
+/* Unlink a node from the all-blocks chain. Disasm (0x042c8d):
+ *   if (n == cursor) cursor = n->next;
+ *   if (n == head)    head   = n->next;
+ *   prev = n->prev; next = n->next;
+ *   if (prev) prev->next = next;      -- and it never touches next->prev */
+void heap_unlink(struct heap_node *n) {
+    if (g_heap_cursor == n) g_heap_cursor = n->next;
+    if (g_heap_head == n)    g_heap_head   = n->next;
+    if (n->prev) n->prev->next = n->next;
+    /* the original does NOT update n->next->prev (decompiler was wrong). */
+}

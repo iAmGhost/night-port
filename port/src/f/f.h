@@ -393,4 +393,13 @@ void calibrate_clock(void);
  *  orig: 0x04564f */
 void delay_units(uint32_t arg);
 
+/* ---- L0 batch E (2): swap-global + jump-table field accessor ---- */
+/* Swap an argument with global DAT_0005363c, returning the old global value.
+ * (A state save/restore thunk used indirectly.)  orig: 0x045ae8 */
+extern uint32_t g_dat_5363c;
+uint32_t swap_dat_5363c(uint32_t v);
+/* Jump-table case: return the dword at offset 0x28 of the struct the
+ * dispatcher places in EBP.  orig: 0x04642a (body: XOR EBX,EBX; ADD EBX,[EBP+0x28]; RET) */
+uint32_t case_field_0x28(uintptr_t s);
+
 #endif

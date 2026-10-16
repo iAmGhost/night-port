@@ -149,13 +149,13 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x045a44 | 37 | debug_break_hook | sys | port+test PASS (batch D, INT3 stubbed) |
 | [x] | 0x045a6a | 5 | const_64008 | string | port+test PASS (batch C) |
 | [x] | 0x045a70 | 5 | const_64004 | string | port+test PASS (batch C) |
-| [ ] | 0x045ae8 | 15 | FUN_00045ae8 | | |
-| [ ] | 0x045bb1 | 5 | FUN_00045bb1 | | |
+| [x] | 0x045ae8 | 15 | swap_dat_5363c | sys | port+test PASS (batch E) |
+| [x] | 0x045bb1 | 5 | (spurious epilogue) | misc | 5×POP+RET tail, no distinct logic; folds into 0x45bb7 shared epilogue (no separate C fn) |
 | [ ] | 0x045d56 | 71 | FUN_00045d56 | | |
 | [ ] | 0x04636e | 81 | FUN_0004636e | | |
 | [ ] | 0x0463c0 | 27 | FUN_000463c0 | | |
 | [ ] | 0x0463dc | 77 | FUN_000463dc | | |
-| [ ] | 0x04642a | 5 | FUN_0004642a | | |
+| [x] | 0x04642a | 5 | case_field_0x28 | data-struct | port+test PASS (batch E) |
 | [ ] | 0x046d05 | 44 | caseD_11 | | |
 | [ ] | 0x04794a | 363 | FUN_0004794a | | |
 | [ ] | 0x047ab6 | 152 | FUN_00047ab6 | | |

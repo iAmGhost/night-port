@@ -1135,3 +1135,17 @@ void delay_units(uint32_t arg)   /* 0x4564f */
     if (es_i == 0) es_i = 1;                          /* 0x4566e-45672 */
     while (es_i-- > 0) sys_clock_read();              /* 0x45679-45680 */
 }
+
+/* ---- L0 batch E (2): swap-global + jump-table field accessor ---- */
+uint32_t g_dat_5363c = 0;                       /* DAT_0005363c */
+uint32_t swap_dat_5363c(uint32_t v)   /* 0x45ae8 */
+{
+    uint32_t old = g_dat_5363c;              /* 0x45aef EAX=[0x5363c] */
+    g_dat_5363c = v;                         /* 0x45af3 [0x5363c]=EAX */
+    return old;
+}
+
+uint32_t case_field_0x28(uintptr_t s)   /* 0x4642a */
+{
+    return *(uint32_t *)(s + 0x28);        /* 0x4642b ADD EBX,[EBP+0x28] */
+}

@@ -879,6 +879,20 @@ static void test_batchD2(void) {
     sys_clock_tps = 18;   /* restore default */
 }
 
+static void test_batchE(void) {
+    printf("== batch E (L0 swap/accessor) ==\n");
+    printf("batch E: swap_dat_5363c (0x045ae8)\n");
+    g_dat_5363c = 0x1111;
+    uint32_t old = swap_dat_5363c(0x2222);
+    check(old == 0x1111, "returns old global");
+    check(g_dat_5363c == 0x2222, "global now has arg");
+    g_dat_5363c = 0;
+    printf("batch E: case_field_0x28 (0x04642a)\n");
+    uint8_t buf[0x30] = {0};
+    *(uint32_t *)(buf + 0x28) = 0xaabbccdd;
+    check(case_field_0x28((uintptr_t)buf) == 0xaabbccdd, "returns [s+0x28]");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -932,6 +946,7 @@ int main(void) {
     test_batchC();
     test_batchD();
     test_batchD2();
+    test_batchE();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -203,6 +203,7 @@ extern uint32_t  g_heap_cursor;    /* DAT_00053354: malloc search cursor */
 extern uint32_t  g_heap_highwater; /* DAT_00053358: global size high-water */
 extern uint32_t  g_heap_seg_limit; /* DAT_00053384: DPMI segment limit */
 extern uint8_t   g_heap_cfg_b2;    /* DAT_000533b2: top-check mode byte */
+extern uint8_t   g_heap_cfg_b3;    /* DAT_000533b3: top-check mode byte (0x0431b5) */
 extern uint8_t   g_heap_cfg_b4;    /* DAT_000533b4: top-check flag */
 extern uint8_t   g_heap_flag;      /* DAT_00063fbd: wrappers zero it, never read */
 extern uint32_t  g_ds_segment;     /* DPMI DS selector (flat model: 0) */
@@ -231,6 +232,8 @@ void heap_free(uint32_t region, uint32_t data);
  * segment limit, return its size (recomputing the limit from DS when
  * 2<=b2<=8 && b4==0); else 0.  orig: 0x042ea1 */
 uint32_t heap_top_check(void);
+/* 0x0431b5: heap size-adjuster (see f.c for the full 10-step algorithm). */
+uint32_t heap_size_adjust(uint32_t *p);
 
 /* Insert+init a freshly-placed region into the all-blocks chain (sorted by
  * offset) and set up its header, sentinel, one big free block for the whole

@@ -540,6 +540,7 @@ uint32_t  g_heap_cursor    = 0;   /* DAT_00053354 */
 uint32_t  g_heap_highwater = 0;   /* DAT_00053358 */
 uint32_t  g_heap_seg_limit = 0;   /* DAT_00053384 */
 uint8_t   g_heap_cfg_b2    = 0;   /* DAT_000533b2 */
+uint8_t   g_heap_cfg_b3    = 0;   /* DAT_000533b3 */
 uint8_t   g_heap_cfg_b4    = 0;   /* DAT_000533b4 */
 uint8_t   g_heap_flag      = 0;   /* DAT_00063fbd (wrappers zero; never read) */
 uint32_t  g_ds_segment     = 0;   /* DPMI DS (flat model: 0) */
@@ -574,6 +575,7 @@ void heap_arena_init(void) {
     g_heap_highwater = 0;
     g_heap_seg_limit = 0;
     g_heap_cfg_b2    = 0;
+    g_heap_cfg_b3    = 0;
     g_heap_cfg_b4    = 0;
     g_heap_flag      = 0;
     g_ds_segment     = 0;
@@ -750,6 +752,43 @@ uint32_t heap_top_check(void) {
     }
     if (end != g_heap_seg_limit) return 0;                /* 0x42edd/42ee3 */
     return size;                                          /* 0x42ee5 */
+}
+
+/* 0x0431b5: heap size-adjuster. Adjusts the u32 size field of a heap block *p
+ * and returns 1 on success, 0 if the block is empty (aligns to 0) or the size
+ * arithmetic overflows. Register ABI: EAX=p; returns EAX (0/1).
+ *   1. a = align_up(*p, 4)   = (*p+3) &~ 3                  (0x431bc-431bf, AND DL,0xfc)
+ *   2. if a==0 -> 0
+ *   3. (cfg_b2==1 && cfg_b3==0) || cfg_b2==9 ? a+=8 : a-=heap_top_check()
+ *   4. *p = a
+ *   5. t = a+0x3c; if t<a (unsigned wrap) -> 0
+ *   6. if t < g_dat_53640 (limit): t = limit &~ 1           (0x43208, AND DL,0xfe)
+ *   7. *p = t
+ *   8. u = t+0xfff; if u<t (unsigned wrap) -> 0
+ *   9. u = align_up(u, 0x1000) = u &~ 0xfff                 (0x43217 AND DH,0xf0 + 0x4321a XOR DL)
+ *  10. *p = u; return u!=0
+ * The original applies the low-bit masks via byte ops (AND DL/.., AND DH,..) that
+ * touch only the low/second byte, but every affected bit lies within those bytes,
+ * so &~ 3 / &~ 1 / &~ 0xfff are exact. */
+uint32_t heap_size_adjust(uint32_t *p)
+{
+    uint32_t a = (*p + 3u) & ~3u;                        /* 0x431bc-431bf */
+    if (a == 0) return 0;                                /* 0x431c2-431cb */
+    if ((g_heap_cfg_b2 == 1 && g_heap_cfg_b3 == 0) || g_heap_cfg_b2 == 9) {
+        a += 8u;                                         /* 0x431e7 */
+    } else {
+        a -= heap_top_check();                           /* 0x431ec-431f1 */
+    }
+    *p = a;                                              /* 0x431f3 */
+    uint32_t t = a + 0x3cu;                              /* 0x431f5 */
+    if (t < a) return 0;                                 /* 0x431f8-431fa */
+    if (t < g_dat_53640) t = g_dat_53640 & ~1u;          /* 0x43202-43208 */
+    *p = t;                                              /* 0x4320b */
+    uint32_t u = t + 0xFFFu;                             /* 0x4320d */
+    if (u < t) return 0;                                 /* 0x43213-43215 */
+    u &= ~0xFFFu;                                        /* 0x43217/0x4321a align_up(u,0x1000) */
+    *p = u;                                              /* 0x4321c */
+    return (u != 0) ? 1u : 0u;                           /* 0x4321e-43220 */
 }
 
 /* Insert+init a region into the all-blocks chain.  orig: 0x042e2d */

@@ -1516,6 +1516,34 @@ static void test_time_parse(void) {
     (void)ret;
 }
 
+static void test_heap_size_adjust(void) {
+    printf("heap_size_adjust (0x0431b5)\n");
+    uint32_t block, r;
+    g_heap_head = 0;                 /* heap_top_check() -> 0 */
+    g_heap_cfg_b2 = 0; g_heap_cfg_b3 = 0;
+    set_53640();                      /* g_dat_53640 = 0x8000 (limit) */
+
+    block = 0;         r = heap_size_adjust(&block);
+    check(r == 0 && block == 0, "  empty block -> 0, unchanged");
+
+    block = 0x40;      r = heap_size_adjust(&block);
+    check(r == 1 && block == 0x8000, "  0x40 (clamped to limit) -> 0x8000, ret 1");
+
+    block = 0x7fc8;    r = heap_size_adjust(&block);
+    check(r == 1 && block == 0x9000, "  0x7fc8 (a+0x3c=0x8004 >= limit) -> 0x9000 page-up");
+
+    block = 0x10000;   r = heap_size_adjust(&block);
+    check(r == 1 && block == 0x11000, "  0x10000 (+0x3c, page-up) -> 0x11000");
+
+    g_heap_cfg_b2 = 1; g_heap_cfg_b3 = 0;   /* +8 branch */
+    block = 0x40;      r = heap_size_adjust(&block);
+    check(r == 1 && block == 0x8000, "  cfg_b2=1,cfg_b3=0 0x40 (+8 then clamp) -> 0x8000");
+
+    g_heap_cfg_b2 = 0; g_heap_cfg_b3 = 0;
+    block = 0xfffffffb; r = heap_size_adjust(&block);
+    check(r == 0 && block == 0xfffffffc, "  0xfffffffb -> align 0xfffffffc, +0x3c wrap -> ret 0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1600,6 +1628,7 @@ int main(void) {
     test_tmp_filename();
     test_config_value_ptr();
     test_time_parse();
+    test_heap_size_adjust();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

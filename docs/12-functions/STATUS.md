@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 123 / 528 done
+TOTALS: 124 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 12 | 0 | 0 | 35 |
+| L1 | 47 | 13 | 0 | 0 | 34 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -107,6 +107,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **0x049a6e (277B) = time-string parser** (0x049a48 done as parse_decimal). 0x049a6e register ABI: EAX=input string, EDX=prefix-output buffer, EBX=total-seconds output ptr; returns EAX=position after the parsed time. Structure: (1) skip an optional leading ':'; (2) locate the offset of the first {digit, ',', '-', '+', NUL} char (skipping other chars), clamp to 30; (3) copy that prefix to EDX (REP MOVSD/MOVSB — plain memcpy in flat model) + NUL-terminate; (4) if the break char was '-' set a negate flag, '+' clears it; (5) parse the time via **three calls to 0x049a48** into [ESP]/[ESP+4]/[ESP+8] (hours/minutes/seconds, ':'-delimited), then `*EBX = c0 + c1*60 + c2*3600` (negated if '-'). 0x049a48 = parse_decimal (DONE, batch H + this turn): decimal parser WITH a scan loop, `v = v*10 + (*s-'0')`, returns `const char*` ptr past digits. **0x049a6e OFF-BY-ONE EDGE CASE:** after the break, EBP = break_pos+1 unconditionally — correct for a sign break char ('-'/'+') but for a pure "HH:MM:SS" (break char = first digit) it skips the leading digit, so the function seems to assume a sign is present — **PORTED as parse_time_str this turn (quirk replicated 1:1, documented as a latent bug; verified by 11 hand-traced tests). | STATUS.md L1 |
 | 2026-07-08 | **parse_decimal (0x049a48) completed + 0x042958 thunk resolved**: parse_decimal (batch H) returned void (dropped EAX = pointer-past-digits); completed the 1:1 contract → now returns `const char*` (first non-digit), used by 0x049a6e as its new scan position; added a return-position test. 0x042958 (4B) = `JMP 0x4564f` (delay_units, ported f.c:1151) — a call-site alias, no separate C fn. L1 10→11, TOTALS 121→122. | STATUS.md L1 |
 | 2026-07-08 | **parse_time_str (0x049a6e, 277B) PORTED**: time-string parser (see 0x049a6e analysis row above). Faithful 1:1: skip optional leading ':'; find break char (first {digit,sign,comma,NUL}), clamp prefix to 30, copy it (segmented REP MOVSD/MOVSB → memcpy), NUL-term; break char '-' sets a negate flag (ESI repurposed from the copy source); parse H/M/S via three parse_decimal calls → *secs_out = sec + min*60 + hour*3600 (negated if '-'); return position after the last parsed component. **OFF-BY-ONE LATENT BUG replicated 1:1:** scan resumes at break_pos+1 unconditionally, so a pure "HH:MM:SS" with no sign skips its first digit ("12:34:56" → 9296 = "2:34:56"); the sign form is intended and correct ("-12:34:56" → -45296). Verified by 11 hand-traced differential tests (prefix copy/clamp, sign negate, H:M:S split, no-time early-return, long-prefix clamp). L1 11→12, TOTALS 122→123. | STATUS.md L1 |
+| 2026-07-08 | **heap_size_adjust (0x0431b5, 119B) PORTED**: heap block size-adjuster (was deferred pending 0x42ea1, now ported as heap_top_check). 10-step algorithm: a = align_up(*p,4) [(*p+3)&~3]; a==0→0; (cfg_b2==1&&cfg_b3==0)||cfg_b2==9 ? a+=8 : a-=heap_top_check(); *p=a; t=a+0x3c (overflow→0); if t<limit(g_dat_53640) t=limit&~1; *p=t; u=t+0xfff (overflow→0); u=align_up(u,0x1000) [u&~0xfff]; *p=u; return u!=0. Low-bit masks are byte ops (AND DL,0xfc / AND DL,0xfe / AND DH,0xf0+XOR DL) but the affected bits all lie in the low/second byte, so &~3/&~1/&~0xfff are exact (earlier "low-byte-only mask quirk" note was a misread). Added g_heap_cfg_b3 (byte 0x533b3); g_heap_cfg_b2 + g_dat_53640 already existed. 6 tests (empty→0, limit clamp, no-clamp page-up, +8 branch, large page-up, overflow→0). L1 12→13, TOTALS 123→124. | STATUS.md L1 |
 
 ## L0 (112)
 
@@ -244,7 +245,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x042a30 | 11 | FUN_00042a30 | | |
 | [ ] | 0x042a3c | 6 | FUN_00042a3c | | |
 | [ ] | 0x042ccc | 93 | FUN_00042ccc | | |
-| [ ] | 0x0431b5 | 118 | FUN_000431b5 | | |
+| [x] | 0x0431b5 | 118 | heap_size_adjust | heap | 6 tests PASS; align_up/±8-or-topcheck/+0x3c/limit-clamp/page-up; overflow→0 |
 | [ ] | 0x043280 | 48 | FUN_00043280 | | |
 | [ ] | 0x043324 | 55 | FUN_00043324 | | |
 | [ ] | 0x043381 | 76 | FUN_00043381 | | |

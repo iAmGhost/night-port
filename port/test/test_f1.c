@@ -1593,6 +1593,29 @@ static void test_047d24(void) {
     check(oz[0] == (uint32_t)rz && oz[1] == (uint32_t)(rz >> 32) && oz[2] == 0, "  zero-A matches fx_mul64, out[8]=0");
 }
 
+static void test_044bb4(void) {
+    printf("fn_044bb4 (0x044bb4)\n");
+    uint8_t node[0x20];
+    uint32_t sdx = sys_ioctl_dx, scf = sys_ioctl_cf;
+    memset(node, 0, sizeof node);
+    node[0x10] = 0x55;   /* handle */
+    /* ioctl_device: dx=0,cf=0 -> 0 ; dx=0x80,cf=0 -> 1 */
+    sys_ioctl_dx = 0x80; sys_ioctl_cf = 0;
+    node[0x0d] = 0x20;
+    fn_044bb4(node);
+    check(node[0x0d] == 0x20, "  early-return if node[0x0d]&0x20");
+    node[0x0d] = 0; sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    fn_044bb4(node);
+    check(node[0x0d] == 0, "  no change when ioctl_device returns 0");
+    node[0x0d] = 0; sys_ioctl_dx = 0x80; sys_ioctl_cf = 0;
+    fn_044bb4(node);
+    check(node[0x0d] == 0x22, "  ioctl!=0 & (b&7)==0 -> 0x22");
+    node[0x0d] = 0x3; sys_ioctl_dx = 0x80; sys_ioctl_cf = 0;
+    fn_044bb4(node);
+    check(node[0x0d] == (0x3 | 0x20), "  ioctl!=0 & (b&7)!=0 -> b|0x20");
+    sys_ioctl_dx = sdx; sys_ioctl_cf = scf;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1681,6 +1704,7 @@ int main(void) {
     test_fn_0423cf();
     test_042a08_family();
     test_047d24();
+    test_044bb4();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

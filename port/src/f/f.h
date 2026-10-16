@@ -382,6 +382,7 @@ void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
 uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 /* 0x047d24: register-ABI wrapper around fx_mul64 (a=EAX, b=EDX, out=EBX). */
 void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out);
+void fn_044bb4(uint8_t *node);   /* 0x044bb4: ioctl node flag-setter */
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

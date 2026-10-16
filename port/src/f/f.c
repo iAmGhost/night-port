@@ -1162,6 +1162,20 @@ void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out) {
     *(uint16_t *)(out + 2) = a8;                        /* 0x47d47 MOV word[EBX+8],SI */
 }
 
+/* 0x044bb4: node flag-setter. param_1 (EAX) = node ptr.
+ * if (node[0x0d] & 0x20) return;
+ * if (ioctl_device(node[0x10]) == 0) return;   ; node[0x10] = handle
+ * node[0x0d] |= 0x20;
+ * if ((node[0x0d] & 7) == 0) node[0x0d] |= 0x2;
+ * (The original tests BL = b|0x20 for the low-3-bit check; 0x20 doesn't affect bits
+ * 0-2, so the second store yields b|0x22 only when b&7==0.) */
+void fn_044bb4(uint8_t *node) {
+    if (node[0x0d] & 0x20) return;                                /* 0x044bb9 */
+    if (ioctl_device(*(uint32_t *)(node + 0x10)) == 0) return;    /* 0x044bbf/0x044bc2 */
+    node[0x0d] |= 0x20;                                           /* 0x044bcb/bce/bd1 */
+    if ((node[0x0d] & 7) == 0) node[0x0d] |= 0x2;                 /* 0x044bd4/bd9/bdb/bde */
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

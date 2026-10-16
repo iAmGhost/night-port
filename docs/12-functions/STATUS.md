@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 130 / 528 done
+TOTALS: 131 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 19 | 0 | 0 | 28 |
+| L1 | 47 | 20 | 0 | 0 | 27 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -111,6 +111,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_0423cf (0x0423cf, 21B) PORTED**: registered-callback dispatcher. PUSH EDX; EDX=EAX; CALL [g_dat_53370]; CALL [g_dat_53374]; EAX=EDX; JMP 0x422d3 (shared epilogue POP EDX;RET). Modelled g_dat_53370/g_dat_53374 as `u32_cb_fn` (uint32_t(*)(uint32_t)) slots; the fn calls g_dat_53370(input), then g_dat_53374(first's return), and returns the ORIGINAL input. Both slots are called unconditionally (the original requires them set; a NULL slot faults, replicated). 3 tests (mock callbacks: return-original, cb1 gets input, cb2 gets cb1's return). L1 13→14, TOTALS 124→125. | STATUS.md L1 |
 | 2026-07-08 | **0x42a08 family (4 fns) PORTED**: 0x42a08/0x42a0d/0x42a30/0x42a3c. 0x42a0d(x) = PUSH EDX;MOV EDX,EAX;CALL const_64008;MOV [EAX],EDX → g_dat_64008=x. 0x42a08 = MOV EAX,0xd falling into 0x42a0d body → g_dat_64008=13 (param ignored). 0x42a30(x) = same shape via const_64004 → g_dat_64004=x. 0x42a3c(x) = CALL [g_dat_533bd];RET → returns g_dat_533bd(x). Added globals g_dat_64008, g_dat_64004, g_dat_533bd. Note: the earlier "blocked on unported 0x45a6a/0x45a70" was wrong — those are const_64008/const_64004 (already ported constant address-returners). 4 tests PASS. L1 14→18, TOTALS 125→129. | STATUS.md L1 |
 | 2026-07-08 | **0x47d24 fx_mul64 wrapper PORTED**: register-ABI wrapper around fx_mul64 (0x47d4e). Entry a=EAX, b=EDX, out=EBX. esi=(B[8]<<16)|A[8]. The "POP-EBX trick" resolved: EBX (the out ptr) is PUSHed, reused to hold B[0] (b_lo arg), then POPped back before writing out[0]=rlo/out[4]=rhi/out[8](word)=A[8]. Register->arg map verified from 0x47d4e entry (a_lo=EAX,a_hi=EDX,b_lo=EBX,b_hi=ECX,esi=ESI). 3 differential tests PASS (incl. zero-A). L1 18→19, TOTALS 129→130. | STATUS.md L1 |
+| 2026-07-08 | **0x44bb4 fn_044bb4 PORTED**: node flag-setter (param_1=EAX=node ptr). if (node[0x0d]&0x20) return; if (ioctl_device(node[0x10])==0) return; node[0x0d]|=0x20; if ((node[0x0d]&7)==0) node[0x0d]|=0x2. The original tests BL=b\|0x20 for the low-3-bit check (0x20 doesn't affect bits 0-2), so the 2nd store yields b\|0x22 only when b&7==0. Modelled node as uint8_t* (64-bit port). ioctl_device (0x492b2) controllable in tests via sys_ioctl_dx/cf (dx=0x80,cf=0 → 1; dx=0,cf=0 → 0). 4 tests PASS (early-return, ioctl=0 no-op, →0x22, →b\|0x20). L1 19→20, TOTALS 130→131. | STATUS.md L1 |
 
 ## L0 (112)
 
@@ -256,7 +257,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x043e34 | 237 | FUN_00043e34 | | |
 | [ ] | 0x0440a9 | 733 | FUN_000440a9 | | |
 | [x] | 0x04457f | 38 | hex_digit_value | string | port+test PASS (hex digit: 0-9, a-f->10-15, else 16; via to_lower 0x44859) |
-| [ ] | 0x044bb4 | 48 | FUN_00044bb4 | | |
+| [x] | 0x044bb4 | 48 | fn_044bb4 | sys | ioctl node flag-setter; 4 tests PASS |
 | [ ] | 0x044ea4 | 306 | FUN_00044ea4 | | |
 | [x] | 0x045605 | 23 | string_upper | string | port+test PASS (in-place upper-case via to_upper 0x494bd) |
 | [ ] | 0x045bb7 | 193 | FUN_00045bb7 | | |

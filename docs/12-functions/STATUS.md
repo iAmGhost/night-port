@@ -34,16 +34,16 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 38 / 528 done
+TOTALS: 94 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
-| L0 | 112 | 36 | 5 | 0 | 71 |
-| L1 | 47 | 0 | 0 | 0 | 47 |
+| L0 | 112 | 90 | 0 | 0 | 22 |
+| L1 | 47 | 1 | 0 | 0 | 46 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
-| L5 | 10 | 0 | 0 | 0 | 10 |
+| L5 | 10 | 1 | 0 | 0 | 9 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
@@ -81,6 +81,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | 0x0461cc is a 5909-byte monolithic bytecode/state interpreter (1347 insns, single RET, `JMP 0x0461cc` loops); 0x4636e/0x463c0/0x463dc/0x46d05 are spurious mid-code entries within it (marked [x] spurious, no C fn); 0x461cc ported later as one big function | STATUS.md L6 |
 | 2026-07-08 | Remaining L0 cluster is FPU/BCD/fixed-point/bit-chain; needs dedicated x86+reference traces (decompiler mangles RCR/SHLD/CARRY and FPU doubles): 0x47ea4(+thunks 0x47e4a/0x47e9f, RCR/SHLD exp chain), 0x4811a (fxnum ctor, ambiguous `JZ 0x48149` — decode raw bytes), 0x4a9da (returns FPU double, modifies A6 high word to `((A6>>16)&0x800f)\|0x3fe0` then `FLD`), 0x4a84e (fixed-point L/R shift), 0x4a8b9 (BCD /10000 formatter), 0x45d56 ('e'/'E'/'.' string handler). 0x47ea4 raw-byte jump map (verified): entry 0x47ea4 BL=0x20; thunks set BL=0xa0(0x47e4a)/0x1f(0x47e9f) then JMP 0x47ea7; targets 0x47f09=R_0(SUB EAX,EAX;RET), 0x47f01=R_80(MOV EAX,0x80000000;RET), 0x47efe=main epilogue(NEG EAX;POP ECX;POP EBX;RET — JNC path), 0x47ee0=SUB EBX,EBX(CL!=0x20 path), 0x47eed=MOV CL,0xff(CL==0x20 merge); core bit-chain is RCR CH / SHLD EBX,[EAX],CL / SHL EAX,CL / ADC EAX,0 — needs register-level trace + reference before porting | STATUS.md L0 |
 | 2026-07-08 | 0x04a923 has GARBAGE disasm (no prologue: starts `CALL`; `SLDT`,`CALLF 0x0:0x23b`,`IN AL,0xb`,`POP SS`,`MOV AL,[0x5af34e72]`) yet is called from 0x4a814 and sits right after 0x4a8b9 (ends 0x4a922) — likely mis-boundary or a data block; NOT marked spurious pending deeper investigation | STATUS.md L0 |
+| 2026-07-08 | 0x04811a decoded (raw-byte) = IEEE-754 float32→fxnum constructor `fx_from_f32`: expfield=(int32)v>>23 & 0xff (bits 23..30). expfield==0→passthrough {lo=0,hi=v,exp=0}; expfield==0xff→NaN/Inf marker exp=0xffff; else exp=expfield+0x3f80 (=unbiassed+0x3fff). hi=(v<<8 & 0x7fffffff)\|((v<<8&0x7fffffff)?0x40000000:0)\|0x80000000. The ambiguous `JZ 0x48149` is at 0x48142 and skips only `OR EAX,0x40000000` (merge point, not a loop). The trailing `ADD ECX,ECX;RCR CX,1` is NOT pure identity: with bit31 set (CF=1) it flips exp's top bit, so the carry is computed explicitly. Distinct from the BSR-normalizing fx_from_u32/s32 (0x47f1f/0x47f0e). 6 differential tests PASS | STATUS.md L0 |
 
 ## L0 (112)
 
@@ -169,7 +170,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x047f0e | 16 | fx_from_s32 | math | port+test PASS (batch G, fixed-point ctor sign thunk) |
 | [x] | 0x047f1f | 52 | fx_from_u32 | math | port+test PASS (batch G, fixed-point ctor unsigned) |
 | [ ] | 0x047fd4 | 126 | FUN_00047fd4 | | |
-| [ ] | 0x04811a | 68 | FUN_0004811a | | |
+| [x] | 0x04811a | 68 | fx_from_f32 | IEEE-754 float32→fxnum; exp=expfield+0x3f80 (=unbiassed+0x3fff), expfield=0xff→0xffff(NaN/Inf), expfield=0→passthrough {0,v,0}; hi=(v<<8&0x7fffffff)\|(nz?0x40000000:0)\|0x80000000; ADD ECX,ECX;RCR CX,1 nets to identity only when CF=0 (bit31 inputs flip exp top bit) | fx_from_f32 (f.c) |
 | [x] | 0x04815f | 0 | (spurious) | misc | 0-size entry, no code (documented) |
 | [ ] | 0x0481df | 306 | FUN_000481df | | |
 | [x] | 0x048312 | 64 | (spurious) | data | disassembled data (huge offsets, no prologue, only DATA xref; documented) |

@@ -442,6 +442,7 @@ uint32_t ioctl_device(uint32_t handle);
 struct fxnum { uint32_t lo; uint32_t hi; uint32_t exp; };
 void fx_from_u32(struct fxnum *out, uint32_t v);   /* 0x47f1f */
 void fx_from_s32(struct fxnum *out, int32_t v);    /* 0x47f0e */
+void fx_from_f32(struct fxnum *out, uint32_t v);   /* 0x4811a (IEEE-754 float32) */
 
 /* ---- L0 batch H (4): fx compare + decimal parse + DOS/FPU stubs ---- */
 /* Lexicographic less-than on an fxnum by (exp, hi, lo).  orig: 0x0498c6 */

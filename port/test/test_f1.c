@@ -1023,6 +1023,23 @@ static void test_batchJ(void) {
     check(is_leap(1583, 0) == 0, "1583 not leap");
 }
 
+static void test_fx_from_f32(void) {
+    printf("== fx_from_f32 (L0: IEEE-754 float32 -> fxnum 0x04811a) ==\n");
+    struct fxnum n;
+    fx_from_f32(&n, 0x00000000u); /* +0.0: exponent field 0 */
+    check(n.lo==0 && n.hi==0x00000000u && n.exp==0, "+0.0 -> passthrough {0,0,0}");
+    fx_from_f32(&n, 0x3f800000u); /* 1.0: unbiassed 0, expfield 0x7f */
+    check(n.lo==0 && n.hi==0x80000000u && n.exp==0x3fff, "1.0 -> hi 0x80000000 exp 0x3fff");
+    fx_from_f32(&n, 0x40000000u); /* 2.0: unbiassed 1, expfield 0x80 */
+    check(n.lo==0 && n.hi==0x80000000u && n.exp==0x4000, "2.0 -> exp 0x4000");
+    fx_from_f32(&n, 0x40490fdbu); /* pi: unbiassed 1, mantissa set */
+    check(n.lo==0 && n.hi==0xc90fdb00u && n.exp==0x4000, "pi -> hi 0xc90fdb00 exp 0x4000");
+    fx_from_f32(&n, 0xff800000u); /* -inf: exponent field 0xff */
+    check(n.lo==0 && n.hi==0x80000000u && n.exp==0xffff, "-inf -> exp 0xffff");
+    fx_from_f32(&n, 0x80000000u); /* -0.0: exponent field 0 (zero) */
+    check(n.lo==0 && n.hi==0x80000000u && n.exp==0, "-0.0 -> passthrough exp 0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1082,6 +1099,7 @@ int main(void) {
     test_batchH();
     test_batchI();
     test_batchJ();
+    test_fx_from_f32();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

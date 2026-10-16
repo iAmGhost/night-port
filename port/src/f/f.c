@@ -1217,6 +1217,47 @@ void fx_from_s32(struct fxnum *out, int32_t v)    /* 0x47f0e (sign thunk) */
     else        fx_normalize(out, 0u - (uint32_t)v, 0xbfff); /* NEG EAX, base|0x8000 */
 }
 
+/* IEEE-754 float32 -> fxnum.  orig: 0x04811a
+ * top = (int32)v>>23;  byte = top & 0xff (the IEEE exponent field, bits 23..30).
+ *   byte==0    -> { lo=0, hi=v,        exp=0 }      (zero/subnormal passthrough)
+ *   byte==0xff -> { lo=0, hi=<below>,  exp=0xffff } (NaN/Inf marker)
+ *   else       -> { lo=0, hi=<below>,  exp=byte+0x3f80 }   (= unbiassed + 0x3fff)
+ * hi = (v<<8 & 0x7fffffff) | ((v<<8 & 0x7fffffff)!=0 ? 0x40000000 : 0) | 0x80000000.
+ * The trailing `ADD ECX,ECX; RCR CX,1` nets to identity only when CF=0 (pre-double
+ * value < 0x80000000); for inputs with bit31 set CF=1 flips exp's top bit, so the
+ * carry is computed explicitly (mirrors the hardware). */
+void fx_from_f32(struct fxnum *out, uint32_t v)   /* 0x4811a */
+{
+    uint32_t eax = v;
+    uint32_t edx = 0;                              /* SUB EDX,EDX */
+    uint32_t ecx = (uint32_t)((int32_t)v >> 23);   /* SAR ECX,0x17 */
+    ecx = (ecx & 0xffff0000u) | (ecx & 0xffu);     /* AND CX,0xff (CH:=0) */
+    if ((ecx & 0xffffu) == 0) {                    /* JZ 0x48153 */
+        out->lo = edx;                              /* 0 */
+        out->hi = eax;                              /* v (unchanged) */
+        out->exp = (uint16_t)ecx;                   /* 0 */
+        return;
+    }
+    eax = v << 8;                                   /* SHL EAX,8 */
+    uint8_t cl = (uint8_t)ecx;                      /* byte = (v>>23)&0xff */
+    if (cl == 0xff) {
+        ecx = (ecx & 0xffff0000u) | 0xffffu;        /* MOV CH,0xff */
+    } else {
+        ecx = (ecx & 0xffff0000u) | ((uint16_t)ecx + 0x3f80u); /* ADD CX,0x3f80 */
+    }
+    eax &= 0x7fffffffu;                             /* AND EAX,0x7fffffff */
+    if (eax != 0) eax |= 0x40000000u;               /* JZ skip; OR EAX,0x40000000 */
+    uint32_t cf = (ecx >> 31) & 1u;                 /* carry of ADD ECX,ECX */
+    ecx = ecx + ecx;                                 /* ADD ECX,ECX */
+    uint16_t cx = (uint16_t)ecx;
+    cx = (uint16_t)(((cf) << 15) | (cx >> 1));      /* RCR CX,1 */
+    ecx = (ecx & 0xffff0000u) | cx;
+    eax |= 0x80000000u;                              /* OR EAX,0x80000000 */
+    out->lo = edx;                                   /* 0 */
+    out->hi = eax;
+    out->exp = (uint16_t)ecx;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

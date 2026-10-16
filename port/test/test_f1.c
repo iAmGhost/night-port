@@ -1232,6 +1232,26 @@ static void test_datetime_pack(void) {
     check(p.f18 == 0xababababu, "f18 untouched");
 }
 
+static double dbl(uint64_t b) { double d; memcpy(&d, &b, 8); return d; }
+static void test_fx_double_naninf(void) {
+    printf("== fx_double_naninf (L0: double NaN/Inf inline-string 0x04a2a7) ==\n");
+    char out[16]; int r;
+    memset(out,'x',sizeof out); r = fx_double_naninf(dbl(0x7ff0000000000000ULL), out);
+    check(r==1 && memcmp(out,"inf\0",4)==0, "Inf -> inf");
+    memset(out,'x',sizeof out); r = fx_double_naninf(dbl(0xfff0000000000000ULL), out);
+    check(r==1 && memcmp(out,"-inf\0",5)==0, "-Inf -> -inf");
+    memset(out,'x',sizeof out); r = fx_double_naninf(dbl(0x7ff8000000000000ULL), out);
+    check(r==1 && memcmp(out,"nan\0",4)==0, "NaN -> nan");
+    memset(out,'x',sizeof out); r = fx_double_naninf(dbl(0xfff8000000000000ULL), out);
+    check(r==1 && memcmp(out,"-nan\0",5)==0, "-NaN -> -nan");
+    memset(out,'x',sizeof out); r = fx_double_naninf(1.0, out);
+    check(r==1 && memcmp(out,"inf\0",4)==0, "1.0 -> inf (latent exp-low8 bug)");
+    memset(out,'x',sizeof out); r = fx_double_naninf(3.0, out);
+    check(r==0 && out[0]=='x', "3.0 -> not nan/inf");
+    memset(out,'x',sizeof out); r = fx_double_naninf(0.0, out);
+    check(r==0 && out[0]=='x', "0.0 -> not nan/inf");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1302,6 +1322,7 @@ int main(void) {
     test_fx_norm32();
     test_fx_double_exp();
     test_datetime_pack();
+    test_fx_double_naninf();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

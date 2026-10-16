@@ -1597,6 +1597,25 @@ uint32_t datetime_pack(struct datetime_pack *out)   /* 0x45687 */
     return 0;
 }
 
+/* ---- 0x4a2a7: double NaN/Inf inline-string writer ----
+ * If the double's low 8 exponent bits are all 1s ((hi>>20)&0xff==0xff), writes an
+ * inline string into out: "inf" (mantissa 0) or "nan" (mantissa nonzero), with a
+ * leading '-' if the sign bit is set, and returns 1; else returns 0 leaving out
+ * untouched. The check tests only 8 of the 11 exponent bits (latent original bug):
+ * e.g. 1.0 (exp 0x3ff, mantissa 0) is classified "inf". */
+int fx_double_naninf(double d, char *out)   /* 0x4a2a7 */
+{
+    union { double dd; uint64_t u; } cv; cv.dd = d;
+    uint32_t lo = (uint32_t)cv.u;
+    uint32_t hi = (uint32_t)(cv.u >> 32);
+    if (((hi >> 20) & 0xff) != 0xff) return 0;
+    uint32_t mantissa = lo | (hi & 0xfffff);
+    const char *s = (mantissa != 0) ? "nan" : "inf";   /* 0x51848 : 0x51844 */
+    if (hi & 0x80000000) { out[0] = '-'; memcpy(out + 1, s, 4); }
+    else { memcpy(out, s, 4); }
+    return 1;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

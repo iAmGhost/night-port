@@ -124,12 +124,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x04322c | 2 | heap_grow | heap | primitives.md; test_f1 PASS |
 | [x] | 0x043263 | 28 | get_key_echo | input | primitives.md; test_f1 PASS |
 | [x] | 0x0432b7 | 107 | memsetw | mem | primitives.md; test_f1 PASS |
-| [ ] | 0x04335c | 36 | FUN_0004335c | | |
-| [ ] | 0x0433ce | 51 | FUN_000433ce | | |
-| [ ] | 0x043958 | 32 | FUN_00043958 | | |
-| [ ] | 0x043979 | 4 | FUN_00043979 | | |
-| [ ] | 0x043ca0 | 216 | FUN_00043ca0 | | |
-| [ ] | 0x043d79 | 52 | FUN_00043d79 | | |
+| [x] | 0x04335c | 36 | rm_switch_a | io | DPMI real-mode trampoline → no-op stub (batch 9) |
+| [x] | 0x0433ce | 51 | rm_switch_b | io | DPMI real-mode trampoline → no-op stub (batch 9) |
+| [x] | 0x043958 | 32 | dos_install_timer_int | io | DOS INT21h/0x25h → sys stub (batch 9) |
+| [x] | 0x043979 | 4 | fpu_state_save | io | FSAVE → no-op in flat model (batch 9) |
+| [x] | 0x043ca0 | 216 | cmdline_parse | cmdline | port+test PASS (batch 9) |
+| [x] | 0x043d79 | 52 | cmdline_count | cmdline | port+test PASS (batch 9) |
 | [ ] | 0x043dae | 133 | FUN_00043dae | | |
 | [ ] | 0x043f22 | 93 | FUN_00043f22 | | |
 | [ ] | 0x0445a6 | 34 | FUN_000445a6 | | |

@@ -256,4 +256,46 @@ uint32_t heap_grow(uint32_t size);
  * (dst is dword-aligned in practice; callers align first.)  orig: 0x0432b7 */
 uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n);
 
+/* ---- L0 batch A (9): real-mode/DOS stubs + command-line parser ----
+ * The original builds real-mode register contexts and far-calls thunks
+ * (3*idx + 0x43402) or issues DOS INT 21h to reach real-mode drivers (CD,
+ * keyboard, 8253 timer). The modern flat port never switches to real mode and
+ * provides that I/O through the sys backend, so these trampoline/DOS functions
+ * are faithful no-op stand-ins (their observable protected-mode behaviour is
+ * "do not transition"), and their I/O effect lives in sys. */
+/* DPMI real-mode trampoline A: thunk = 3*thunk_idx + 0x43402, 8-byte register
+ * context from `saved_ctx`.  orig: 0x04335c */
+void rm_switch_a(uint32_t thunk_idx, const uint32_t *saved_ctx);
+/* DPMI real-mode trampoline B: thunk keyed by `key`, 32-byte register context
+ * from `saved_ctx`.  orig: 0x0433ce */
+void rm_switch_b(uint32_t key, const uint32_t *saved_ctx);
+/* FSAVE [dst]; WAIT: real-mode FPU context save. No-op in the flat model.
+ *  orig: 0x043979 */
+void fpu_state_save(uintptr_t dst);
+/* DOS INT 21h AH=25h: install the int 0x35 (8253 soft-timer) handler. The
+ * modern port installs its timer via SDL; faithful sys stub.  orig: 0x043958 */
+void dos_install_timer_int(void);
+
+/* Command-line parser context. The original passes a struct with a next-char
+ * callback at +0x00, an emit callback at +0x04, a parsed number at +0x0c, and
+ * a flags byte at +0x10. */
+struct cmd_ctx {
+    uint16_t (*next)(struct cmd_ctx *);        /* +0x00 */
+    void (*emit)(uint16_t, struct cmd_ctx *);  /* +0x04 */
+    uint32_t _pad;                             /* +0x08 */
+    uint32_t num;                              /* +0x0c */
+    uint8_t  flags;                            /* +0x10 */
+};
+/* Parse a DOS command line: an optional leading '*', an optional decimal
+ * number, then a run of switches (N=0x08, F=0x04, L=0x40, h=0x10, l/w=0x20).
+ * ctx->flags starts as (init & 3) | 1 (bit 0 cleared if leading '*');
+ * ctx->num is the parsed number or 0xffffffff. Returns the position just past
+ * the last consumed char.  orig: 0x043ca0 */
+const char *cmdline_parse(const char *line, struct cmd_ctx *ctx);
+/* Count successive chars returned by ctx->next() whose *next* char-class
+ * (class[(c+1)&0xff]) has bit 0x02 (whitespace) set; unless ctx->flags & 0x2,
+ * call ctx->emit(last_char, ctx) once with the final char. Returns the count.
+ *  orig: 0x043d79 */
+uint32_t cmdline_count(struct cmd_ctx *ctx);
+
 #endif

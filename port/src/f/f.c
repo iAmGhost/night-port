@@ -835,3 +835,110 @@ void heap_free_host(uint32_t data) {
     }
     g_heap_flag = 0;                                      /* 0x41c82/41c84 */
 }
+
+/* ---- L0 batch A (9): real-mode/DOS stubs + command-line parser ---- */
+
+/* DPMI real-mode callback trampoline A. The original sets ES/BP from [EBX],
+ * loads a register context, and far-calls thunk 3*idx+0x43402 to run a
+ * real-mode driver. The modern flat port never leaves protected mode; the CD /
+ * keyboard I/O is served by the sys backend, so this is a faithful no-op.  orig: 0x04335c */
+void rm_switch_a(uint32_t thunk_idx, const uint32_t *saved_ctx)
+{ (void)thunk_idx; (void)saved_ctx; }
+
+/* DPMI real-mode trampoline B: 32-byte register context.  orig: 0x0433ce */
+void rm_switch_b(uint32_t key, const uint32_t *saved_ctx)
+{ (void)key; (void)saved_ctx; }
+
+/* FSAVE [dst]; WAIT: real-mode FPU state save. No-op in the flat model.  orig: 0x043979 */
+void fpu_state_save(uintptr_t dst)
+{ (void)dst; }
+
+/* DOS INT 21h AH=25h: install the int 0x35 soft-timer handler. The modern port
+ * installs its timer via SDL.  orig: 0x043958 */
+void dos_install_timer_int(void) { /* no-op: timer handled by sys backend */ }
+
+/* Character-classification table (DAT_0005185c): indexed by char, bitmask.
+ * bit 0x01 control, 0x02 whitespace, 0x04 symbol, 0x08 printable-word,
+ * 0x10 (a-k / A-K / digit class), 0x20 digit, 0x40 uppercase, 0x80 lowercase.
+ * Used by the command-line parser and the token scanner. */
+static const uint8_t kCharClass[256] = {
+  0, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 3, 3, 3, 3, 3, 1,
+  1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 1, 1, 1, 1, 1, 1,
+  1, 10, 12, 12, 12, 12, 12, 12,
+  12, 12, 12, 12, 12, 12, 12, 12,
+  12, 56, 56, 56, 56, 56, 56, 56,
+  56, 56, 56, 12, 12, 12, 12, 12,
+  12, 12, 88, 88, 88, 88, 88, 88,
+  72, 72, 72, 72, 72, 72, 72, 72,
+  72, 72, 72, 72, 72, 72, 72, 72,
+  72, 72, 72, 72, 12, 12, 12, 12,
+  12, 12, 152, 152, 152, 152, 152, 152,
+  136, 136, 136, 136, 136, 136, 136, 136,
+  136, 136, 136, 136, 136, 136, 136, 136,
+  136, 136, 136, 136, 12, 12, 12, 12,
+  1, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0
+};
+
+/* DOS command-line switch parser.  orig: 0x043ca0 */
+const char *cmdline_parse(const char *line, struct cmd_ctx *ctx)
+{
+    uint8_t f = ctx->flags;
+    ctx->num = 0xffffffffu;                /* 0x43cae: [ctx+0xc] = -1 */
+    f = (f & 3) | 1;                       /* 0x43cab/43cb7/43cba: (f&3)|1 */
+    if (*line == '*') { line++; f &= 0xfe; } /* 0x43cc0-43ccb: '*' clears bit 0 */
+    uint8_t c = (uint8_t)*line;            /* 0x43cd0 */
+    if (kCharClass[(c + 1) & 0xff] & 0x20) {   /* 0x43ce1: next-class is digit */
+        uint32_t n = 0;                    /* 0x43cea: ECX = 0 */
+        for (;;) {
+            n = n * 10u + (uint32_t)((int32_t)c - 0x30);  /* 0x43cec/43cf2/43cf6 */
+            line++;                       /* 0x43cf5 */
+            c = (uint8_t)*line;           /* 0x43cf8 */
+            if (!(kCharClass[(c + 1) & 0xff] & 0x20)) break; /* 0x43d06 */
+        }
+        ctx->num = n;                     /* 0x43d0f */
+    }
+    if (*line == 'N') { f |= 8; line++; }           /* 0x43d32/43d34/43d36 */
+    else if (*line == 'F') { f |= 4; line++; }      /* 0x43d3d/43d3f/43d41 */
+    c = (uint8_t)*line;
+    if (c < 0x68) {                              /* 0x43d30 */
+        if (c == 'L') { f |= 0x40; line++; }      /* 0x43d47/43d49/43d4b */
+    } else if (c < 0x69) {                       /* c == 0x68 'h' */
+        f |= 0x10; line++;                       /* 0x43d4e/43d50/43d52 */
+    } else if (c > 0x6b && (c < 0x6d || c == 0x77)) { /* 0x43d39/43d42/43d44: 'l' or 'w' */
+        f |= 0x20; line++;                       /* 0x43d5b/43d5d/43d5f */
+    }
+    ctx->flags = f;
+    return line;
+}
+
+/* Token scanner: count chars from ctx->next() whose next class is whitespace;
+ * emit the last char unless flags&0x2.  orig: 0x043d79 */
+uint32_t cmdline_count(struct cmd_ctx *ctx)
+{
+    uint32_t count = 0;                 /* ECX */
+    uint16_t last;
+    for (;;) {                          /* 0x43d81 */
+        last = ctx->next(ctx);          /* CALL [ctx+0] with EAX=ctx */
+        if (!(kCharClass[((uint8_t)last + 1) & 0xff] & 0x2)) break; /* 0x43d8e */
+        count++;                        /* 0x43d97 */
+    }
+    if (!(ctx->flags & 0x2)) ctx->emit(last, ctx);  /* 0x43d9a-43da4 */
+    return count;
+}

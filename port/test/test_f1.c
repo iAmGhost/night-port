@@ -632,6 +632,65 @@ static void test_heap_stress(void) {
     check(1, "2000 random ops, invariants hold throughout");
 }
 
+/* ---- L0 batch A: real-mode/DOS stubs + command-line parser ---- */
+static void test_rm_stubs(void) {
+    printf("batch A: DPMI/DOS real-mode stubs (no-op in flat model)\n");
+    uint32_t ctx[8] = {1,2,3,4,5,6,7,8};
+    rm_switch_a(0, ctx);                 /* 0x04335c */
+    rm_switch_b(0x4e, ctx);              /* 0x0433ce */
+    fpu_state_save((uintptr_t)&ctx[0]);  /* 0x043979 */
+    dos_install_timer_int();             /* 0x043958 */
+    check(1, "real-mode/DOS trampoline stubs are safe no-ops");
+}
+
+static void test_cmdline_parse(void) {
+    printf("batch A: cmdline_parse (0x043ca0)\n");
+    struct cmd_ctx c;
+    /* "42N" -> number 42, flags = 1|8 = 9, cursor past 'N' */
+    c.flags = 0; c.num = 0;
+    const char *p = cmdline_parse("42N", &c);
+    check(c.num == 42 && c.flags == 9, "'42N' -> num=42 flags=0x9");
+    check(*p == 0, "'42N' cursor at NUL");
+    /* "*42" -> leading '*' clears bit0 -> flags=0, num=42 */
+    c.flags = 0; c.num = 0;
+    cmdline_parse("*42", &c);
+    check(c.num == 42 && c.flags == 0, "'*42' -> num=42 flags=0");
+    /* "L" -> flags = 1|0x40 = 0x41, num = 0xffffffff (absent) */
+    c.flags = 0; c.num = 0;
+    cmdline_parse("L", &c);
+    check(c.num == 0xffffffff && c.flags == 0x41, "'L' -> num=absent flags=0x41");
+    /* "hwl" -> 1|0x10|0x20|0x20 = 0x31 (h then w then l; l/w share 0x20) */
+    c.flags = 0; c.num = 0;
+    cmdline_parse("h", &c);
+    check(c.flags == 0x11, "'h' -> flags=0x11");
+    /* init flags masked: (0x15 & 3)|1 = 1|1 = 1 */
+    c.flags = 0x15; c.num = 0;
+    cmdline_parse("x", &c);   /* 'x' is not a switch; not a digit either */
+    check((c.flags & 3) == 1, "init flags masked to low 2 bits | 1");
+}
+
+/* mock char source for cmdline_count */
+static const uint8_t g_mockseq[] = { 'a','b','\t','\n','x','c', 0x00 };
+static int g_mocki, g_emitted;
+static uint16_t mock_next(struct cmd_ctx *ctx) { (void)ctx; return g_mockseq[g_mocki++]; }
+static void mock_emit(uint16_t ch, struct cmd_ctx *ctx) { (void)ctx; g_emitted = (int)ch; }
+
+static void test_cmdline_count(void) {
+    printf("batch A: cmdline_count (0x043d79)\n");
+    struct cmd_ctx c = { .next = mock_next, .emit = mock_emit, .flags = 0 };
+    /* start at 'a'(idx0): next-class of 'a' is class['b']=152, &0x2=0 -> count 0, last 'a' */
+    g_mocki = 0; g_emitted = -1;
+    uint32_t n = cmdline_count(&c);
+    check(n == 0, "'a' (next 'b' not ws) -> count 0");
+    check(g_emitted == 'a', "emit called with last char 'a' (flags&2 clear)");
+    /* start at '\t'(idx2): '\t'->class['\n']=3 (ws) count1; '\n'->class[0x0b]=3 (ws) count2;
+     * 'x'(idx4)->class['y']=136 &0x2=0 -> stop. count=2, last='x' */
+    g_mocki = 2; g_emitted = -1;
+    n = cmdline_count(&c);
+    check(n == 2, "'\\t','\\n' -> 2 whitespace-class chars");
+    check(g_emitted == 'x', "last char emitted is 'x'");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -673,6 +732,10 @@ int main(void) {
     test_heap_alloc_free();
     test_heap_top_check();
     test_heap_stress();
+    printf("== batch 9 (L0 real-mode/DOS + cmdline parser) ==\n");
+    test_rm_stubs();
+    test_cmdline_parse();
+    test_cmdline_count();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

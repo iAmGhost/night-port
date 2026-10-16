@@ -1406,6 +1406,41 @@ uint8_t *fmt_decimal(uint8_t *out, int32_t intlen, int32_t fractlen,
     return o;
 }
 
+/* ---- 0x49d0b: fixed-width signed integer formatter (integer part) ----
+ * out=EAX, width=EBX (0 -> default 2, or 3 for 3-digit magnitudes), maxw=ECX
+ * (a cutoff: if width+1>maxw or digits>width, write nothing and return the
+ * count), val=EDX (signed). Writes the sign ('+'/'-'), leading '0' padding to
+ * reach `width`, then the absolute value as 1/2/3 digits (base 100/10/1 chosen
+ * by magnitude, IDIV extraction). Returns the field count (width+1 or
+ * digits+1). Sibling of fmt_decimal (0x49db2); both share the 0x49db0 epilogue. */
+int32_t fmt_int_signed(uint8_t *out, int32_t width, int32_t maxw, int32_t val)
+                                                       /* 0x49d0b */
+{
+    uint8_t sign = (val < 0) ? '-' : '+';
+    int32_t esi  = (val < 0) ? -val : val;   /* abs (NEG wraps on INT_MIN) */
+    int32_t base, digits;
+    if      (esi >= 100) { base = 100; digits = 3; }
+    else if (esi >= 10)  { base = 10;  digits = 2; }
+    else                 { base = 1;   digits = 1; }
+    int32_t eax = width;
+    if (eax == 0) { eax = 2; if (digits == 3) eax = 3; }
+    int32_t ebp = eax + 1;                          /* LEA EBP,[EAX+1] */
+    if (ebp > maxw)      return ebp;                /* CMP EBP,ECX; JG */
+    if (digits > eax)    { ebp = digits + 1; return ebp; }  /* 0x49da6 */
+    uint8_t *o = out;
+    *o++ = sign;                                    /* 0x49d66 */
+    while (eax > digits) { eax--; *o++ = '0'; }     /* leading '0' pad */
+    while (1) {
+        int32_t q = esi / base;                     /* IDIV EBX */
+        *o++ = (uint8_t)(q + '0');
+        esi = esi % base;
+        int32_t nb = base / 10;                     /* EBX = EBX/10 */
+        if (nb == 0) break;                         /* TEST EAX; JNZ */
+        base = nb;
+    }
+    return ebp;                                     /* 0x49da9 */
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

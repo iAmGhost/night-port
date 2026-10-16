@@ -449,6 +449,8 @@ void fx_mantissa_scale(uint32_t *out, const uint32_t *in);     /* 0x4a84e */
 uint32_t fx64_to_f32(uint32_t lo, uint32_t hi);                /* 0x49132 */
 uint8_t *fmt_decimal(uint8_t *out, int32_t intlen, int32_t fractlen,
                      const uint8_t *src);                       /* 0x49db2 */
+int32_t  fmt_int_signed(uint8_t *out, int32_t width, int32_t maxw,
+                        int32_t val);                           /* 0x49d0b */
 
 /* ---- L0 batch H (4): fx compare + decimal parse + DOS/FPU stubs ---- */
 /* Lexicographic less-than on an fxnum by (exp, hi, lo).  orig: 0x0498c6 */

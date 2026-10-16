@@ -1139,6 +1139,27 @@ static void test_fmt_decimal(void) {
     check(r - buf == 4 && strncmp((char*)buf, ".045", 4) == 0, ".045 (negative intlen)");
 }
 
+static void test_fmt_int_signed(void) {
+    printf("== fmt_int_signed (L0: signed integer formatter 0x049d0b) ==\n");
+    uint8_t buf[64]; int32_t ret;
+    ret = fmt_int_signed(buf, 0, 10, 456);
+    check(ret == 4 && strncmp((char*)buf, "+456", 4) == 0, "+456 (3-digit)");
+    ret = fmt_int_signed(buf, 0, 10, -45);
+    check(ret == 3 && strncmp((char*)buf, "-45", 3) == 0, "-45 (2-digit)");
+    ret = fmt_int_signed(buf, 3, 10, 7);
+    check(ret == 4 && strncmp((char*)buf, "+007", 4) == 0, "+007 (width pad)");
+    ret = fmt_int_signed(buf, 0, 10, 7);
+    check(ret == 3 && strncmp((char*)buf, "+07", 3) == 0, "+07 (default width 2)");
+    memset(buf, 0xaa, sizeof buf);
+    ret = fmt_int_signed(buf, 2, 10, 123);
+    check(ret == 4 && buf[0] == 0xaa, "no output (digits>width)");
+    memset(buf, 0xaa, sizeof buf);
+    ret = fmt_int_signed(buf, 0, 3, 456);
+    check(ret == 4 && buf[0] == 0xaa, "no output (width+1>maxw)");
+    ret = fmt_int_signed(buf, 0, 10, -1);
+    check(ret == 3 && strncmp((char*)buf, "-01", 3) == 0, "-01 (1-digit neg)");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1204,6 +1225,7 @@ int main(void) {
     test_fx_mantissa_scale();
     test_fx64_to_f32();
     test_fmt_decimal();
+    test_fmt_int_signed();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

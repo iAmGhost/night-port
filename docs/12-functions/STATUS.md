@@ -78,6 +78,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | Vertical-slice port discarded; function-to-function approach adopted | docs/12-function-map.md |
 | 2026-07-08 | 115 unreferenced functions recovered via code-gap scan; 12 bogus mid-code entries deleted | analysis/rank.tsv |
 | 2026-07-08 | canary pair (0x418ee/0x41901, L8/L9) ported in batch 1 ahead of L1-L7: self-contained stack guard; sole callee 0x429ea (printer) replaced by sys_fatal (sys layer), fatal fall-through = process death | primitives.md |
+| 2026-07-08 | 0x0461cc is a 5909-byte monolithic bytecode/state interpreter (1347 insns, single RET, `JMP 0x0461cc` loops); 0x4636e/0x463c0/0x463dc/0x46d05 are spurious mid-code entries within it (marked [x] spurious, no C fn); 0x461cc ported later as one big function | STATUS.md L6 |
 
 ## L0 (112)
 
@@ -152,11 +153,11 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x045ae8 | 15 | swap_dat_5363c | sys | port+test PASS (batch E) |
 | [x] | 0x045bb1 | 5 | (spurious epilogue) | misc | 5×POP+RET tail, no distinct logic; folds into 0x45bb7 shared epilogue (no separate C fn) |
 | [ ] | 0x045d56 | 71 | FUN_00045d56 | | |
-| [ ] | 0x04636e | 81 | FUN_0004636e | | |
-| [ ] | 0x0463c0 | 27 | FUN_000463c0 | | |
-| [ ] | 0x0463dc | 77 | FUN_000463dc | | |
+| [x] | 0x04636e | 81 | (spurious) | data | mid-code entry inside 0x0461cc interpreter; just `JMP 0x0461cc`; no distinct logic |
+| [x] | 0x0463c0 | 27 | (spurious) | data | mid-code entry inside 0x0461cc interpreter; just `JMP 0x0461cc`; no distinct logic |
+| [x] | 0x0463dc | 77 | (spurious) | data | mid-code entry inside 0x0461cc interpreter; part of its loop body; no distinct logic |
 | [x] | 0x04642a | 5 | case_field_0x28 | data-struct | port+test PASS (batch E) |
-| [ ] | 0x046d05 | 44 | caseD_11 | | |
+| [x] | 0x046d05 | 44 | (spurious) | data | mid-code entry inside 0x0461cc interpreter (was misnamed caseD_11); no distinct logic |
 | [ ] | 0x04794a | 363 | FUN_0004794a | | |
 | [ ] | 0x047ab6 | 152 | FUN_00047ab6 | | |
 | [ ] | 0x047d4e | 251 | FUN_00047d4e | | |

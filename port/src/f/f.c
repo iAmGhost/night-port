@@ -942,3 +942,105 @@ uint32_t cmdline_count(struct cmd_ctx *ctx)
     if (!(ctx->flags & 0x2)) ctx->emit(last, ctx);  /* 0x43d9a-43da4 */
     return count;
 }
+
+/* ---- L0 batch B (9): buffered emit + event dispatch ---- */
+
+/* Event table (DAT_000537dc). Keys/flags from the original; fn pointers are
+ * wired to the ported handlers once they land (NULL = not yet ported; the
+ * dispatch skips NULL fns, matching `OR EAX,EAX; JZ exit`). */
+struct ev_entry g_evtab[10] = {
+    { 0, 0x20, NULL },  /* 0x537dc: 0x418e6 */
+    { 0, 0x20, NULL },  /* 0x537e2: 0x43702 */
+    { 0, 0x01, NULL },  /* 0x537e8: 0x41f9c */
+    { 0, 0x02, NULL },  /* 0x537ee: 0x439bd */
+    { 0, 0x20, NULL },  /* 0x537f4: 0x4561d */
+    { 0, 0x20, NULL },  /* 0x537fa: 0x4589e */
+    { 0, 0x20, NULL },  /* 0x53800: 0x4933a */
+    { 0, 0x20, NULL },  /* 0x53806: 0x4aa49 */
+    { 0, 0x01, NULL },  /* 0x5380c: 0x41fa1 */
+    { 0, 0x20, NULL },  /* 0x53812: 0x493b2 */
+};
+
+uint32_t emit_chars(struct emit_ctx *ctx, uintptr_t **pos)
+{
+    uint8_t fl = ctx->flags;
+    uintptr_t dest = 0;
+    if (fl & 0x1) {                                   /* 0x43db5 */
+        if (fl & 0x4) { dest = *(*pos + 1); *pos += 2; } /* 0x43dc3/43dca far */
+        else          { dest = **pos;     *pos += 1; } /* 0x43dd4/43de4 near */
+    }
+    uint32_t count = ctx->count;                       /* 0x43df2 */
+    uint32_t written = 0;                              /* 0x43df5 ESI=0 */
+    if (count == 0xffffffffu) count = 1;               /* 0x43df7/43dfc */
+    while (count > 0) {                                /* 0x43e01/43e03 */
+        uint16_t c = ctx->next(ctx);                   /* 0x43e05/43e07 CALL [ctx] */
+        if (fl & 0x2) break;                           /* 0x43e09/43e0d peek */
+        written++;                                     /* 0x43e0f */
+        count--;                                       /* 0x43e10 */
+        if (!(fl & 0x1)) continue;                     /* 0x43e11/43e15 skip mode */
+        if (fl & 0x20) { *(uint16_t *)dest = c; dest += 2; } /* 0x43e17/43e1d word */
+        else           { *(uint8_t *)dest = (uint8_t)c; dest += 1; } /* 0x43e26 byte */
+    }
+    return written;                                    /* 0x43e2c */
+}
+
+void emit_value(struct emit_ctx *ctx, uintptr_t **pos, uint32_t value)
+{
+    uint8_t fl = ctx->flags;
+    if (!(fl & 0x1)) return;                           /* 0x43f29/43f2c */
+    uintptr_t dest;
+    if (fl & 0x4) { dest = *(*pos + 1); *pos += 2; }   /* 0x43f33 far */
+    else          { dest = **pos;     *pos += 1; }     /* 0x43f44/43f54 near */
+    if (fl & 0x10) *(uint16_t *)dest = (uint16_t)value; /* 0x43f67/43f6c word */
+    else           *(uint32_t *)dest = value;           /* 0x43f78 dword */
+}
+
+uint32_t emit_step(struct emit_ctx *ctx)
+{
+    uint32_t value = ctx->count;                       /* 0x445aa */
+    ctx->count = value - 1;                            /* 0x445b0 */
+    if (value == 0) return 0xffffffffu;                /* 0x445b3/445b5 */
+    uint16_t r = ctx->next(ctx);                       /* 0x445b7/445b9 */
+    if (ctx->flags & 0x2) return 0xffffffffu;          /* 0x445bb/445bf/445c1 */
+    return r;                                          /* 0x445c6 */
+}
+
+void dispatch_a(uint32_t key)
+{
+    for (;;) {                                          /* 0x4461f outer */
+        uint8_t al = (uint8_t)key;                     /* 0x4462d AL=DL */
+        int best = -1;
+        for (int i = 0; i < 8; i++) {                  /* 0x4462f scan 8 entries */
+            if (g_evtab[i].flag == 2) continue;        /* 0x44633 */
+            if (g_evtab[i].key > al) continue;         /* 0x44638 JA */
+            best = i; al = g_evtab[i].key;             /* 0x4463d/4463f */
+        }
+        if (best < 0) break;                           /* 0x44647/44649 EBX==EDI */
+        void (*fn)(void) = g_evtab[best].fn;
+        if (!fn) break;                                /* 0x44650 OR/JZ */
+        fn();                                          /* 0x44655 */
+        g_evtab[best].flag = 2;                        /* 0x44658 */
+        /* 0x4465b JMP loop: re-init, re-scan */
+    }
+}
+
+void dispatch_b(uint32_t eax_arg, uint32_t edx_arg)
+{
+    uint8_t dh = (uint8_t)edx_arg;                     /* 0x44667 DH=DL */
+    for (;;) {                                          /* 0x4466b outer */
+        uint8_t al = (uint8_t)eax_arg;                 /* 0x44679 AL=DL(=AL) */
+        int best = -1;
+        for (int i = 8; i < 10; i++) {                 /* 0x4467b scan 2 entries */
+            if (g_evtab[i].flag == 2) continue;        /* 0x4467f */
+            if (al > g_evtab[i].key) continue;         /* 0x44684 JA (al > key) */
+            best = i; al = g_evtab[i].key;             /* 0x44689/4468b */
+        }
+        if (best < 0) break;                           /* 0x44693/44695 */
+        if (!(al > dh)) {                              /* 0x44697/44699 */
+            void (*fn)(void) = g_evtab[best].fn;
+            if (fn) fn();                              /* 0x4469b-446a7 */
+        }
+        g_evtab[best].flag = 2;                        /* 0x446a8 */
+        /* 0x446ab JMP loop: re-scan */
+    }
+}

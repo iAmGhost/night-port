@@ -130,11 +130,11 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x043979 | 4 | fpu_state_save | io | FSAVE → no-op in flat model (batch 9) |
 | [x] | 0x043ca0 | 216 | cmdline_parse | cmdline | port+test PASS (batch 9) |
 | [x] | 0x043d79 | 52 | cmdline_count | cmdline | port+test PASS (batch 9) |
-| [ ] | 0x043dae | 133 | FUN_00043dae | | |
-| [ ] | 0x043f22 | 93 | FUN_00043f22 | | |
-| [ ] | 0x0445a6 | 34 | FUN_000445a6 | | |
-| [ ] | 0x044618 | 74 | FUN_00044618 | | |
-| [ ] | 0x044663 | 78 | FUN_00044663 | | |
+| [x] | 0x043dae | 133 | emit_chars | emit | port+test PASS (batch B) |
+| [x] | 0x043f22 | 93 | emit_value | emit | port+test PASS (batch B) |
+| [x] | 0x0445a6 | 34 | emit_step | emit | port+test PASS (batch B) |
+| [x] | 0x044618 | 74 | dispatch_a | emit | port+test PASS (batch B) |
+| [x] | 0x044663 | 78 | dispatch_b | emit | port+test PASS (batch B) |
 | [ ] | 0x044859 | 13 | FUN_00044859 | | |
 | [ ] | 0x044b5d | 56 | FUN_00044b5d | | |
 | [ ] | 0x044be6 | 5 | FUN_00044be6 | | |

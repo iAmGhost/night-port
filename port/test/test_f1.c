@@ -691,6 +691,93 @@ static void test_cmdline_count(void) {
     check(g_emitted == 'x', "last char emitted is 'x'");
 }
 
+/* ---- L0 batch B: emit + dispatch ---- */
+static const uint8_t g_esrc[] = {'A','B','C','D'};
+static int g_esrci;
+static uint16_t esrc_next(struct emit_ctx *ctx) { (void)ctx; return g_esrc[g_esrci++]; }
+
+static void test_emit_chars(void) {
+    printf("batch B: emit_chars (0x043dae)\n");
+    uint8_t buf[16] = {0};
+    uintptr_t stream[1] = { (uintptr_t)buf }; uintptr_t *cur = stream;
+    struct emit_ctx c = { .next = esrc_next, .count = 3, .flags = 0x1 };
+    g_esrci = 0;
+    check(emit_chars(&c, &cur) == 3, "byte mode: wrote 3");
+    check(buf[0]=='A'&&buf[1]=='B'&&buf[2]=='C', "byte mode: ABC");
+    check(cur == stream + 1, "near dest: pos advanced 1 entry");
+    uint16_t wbuf[8] = {0};
+    uintptr_t wstream[1] = { (uintptr_t)wbuf }; uintptr_t *wcur = wstream;
+    struct emit_ctx c2 = { .next = esrc_next, .count = 2, .flags = 0x21 };
+    g_esrci = 0;
+    check(emit_chars(&c2, &wcur) == 2, "word mode: wrote 2");
+    check(wbuf[0]==0x0041 && wbuf[1]==0x0042, "word mode: writes full 16-bit values");
+    uint8_t pbuf[8] = {0x55,0x55,0x55};
+    uintptr_t pstream[1] = { (uintptr_t)pbuf }; uintptr_t *pcur = pstream;
+    struct emit_ctx c3 = { .next = esrc_next, .count = 3, .flags = 0x3 };
+    g_esrci = 0;
+    check(emit_chars(&c3, &pcur) == 0, "peek mode: wrote 0");
+    check(pbuf[0]==0x55 && g_esrci==1, "peek mode: buffer untouched, read 1 char");
+}
+
+static void test_emit_value(void) {
+    printf("batch B: emit_value (0x043f22)\n");
+    uint32_t dbuf[4] = {0};
+    uintptr_t dstream[1] = { (uintptr_t)dbuf }; uintptr_t *dcur = dstream;
+    struct emit_ctx c = { .flags = 0x1 };
+    emit_value(&c, &dcur, 0x11223344);
+    check(dbuf[0] == 0x11223344, "dword write");
+    uint32_t wbuf[4] = {0};
+    uintptr_t wstream[1] = { (uintptr_t)wbuf }; uintptr_t *wcur = wstream;
+    struct emit_ctx c2 = { .flags = 0x11 };   /* 0x10 = word */
+    emit_value(&c2, &wcur, 0xaabbccdd);
+    check(((uint16_t *)wbuf)[0] == 0xccdd, "word write (low word)");
+}
+
+static void test_emit_step(void) {
+    printf("batch B: emit_step (0x0445a6)\n");
+    struct emit_ctx c = { .next = esrc_next, .count = 5, .flags = 0 };
+    g_esrci = 0;
+    check(emit_step(&c) == 'A' && c.count == 4, "count 5->4, returns next()='A'");
+    struct emit_ctx c2 = { .next = esrc_next, .count = 0, .flags = 0 };
+    g_esrci = 0;
+    check(emit_step(&c2) == 0xffffffff && g_esrci == 0, "count 0 -> 0xffffffff, no callback");
+    struct emit_ctx c3 = { .next = esrc_next, .count = 3, .flags = 0x2 };
+    g_esrci = 0;
+    check(emit_step(&c3) == 0xffffffff && g_esrci == 1, "flags&2 -> 0xffffffff (callback ran)");
+}
+
+static int g_order[16], g_order_n;
+static void hfn0(void){ g_order[g_order_n++]=0; }
+static void hfn1(void){ g_order[g_order_n++]=1; }
+static void hfn2(void){ g_order[g_order_n++]=2; }
+static void hfn8(void){ g_order[g_order_n++]=8; }
+static void hfn9(void){ g_order[g_order_n++]=9; }
+
+static void test_dispatch(void) {
+    printf("batch B: dispatch_a/b (0x044618/0x044663)\n");
+    struct ev_entry save[10]; memcpy(save, g_evtab, sizeof save);
+    /* dispatch_a (entries 0..7): keys 0x10,0x05,0x20; rest done. key=0x15 fires
+     * 0x05 (idx1) then 0x10 (idx0); 0x20 (idx2) never fires (key > threshold). */
+    g_order_n = 0;
+    g_evtab[0] = (struct ev_entry){0,0x10,hfn0};
+    g_evtab[1] = (struct ev_entry){0,0x05,hfn1};
+    g_evtab[2] = (struct ev_entry){0,0x20,hfn2};
+    for (int i = 3; i < 10; i++) g_evtab[i] = (struct ev_entry){2, 0, NULL};
+    dispatch_a(0x15);
+    check(g_order_n == 2 && g_order[0]==1 && g_order[1]==0, "dispatch_a(0x15): order 0x05 then 0x10");
+    check(g_evtab[0].flag==2 && g_evtab[1].flag==2 && g_evtab[2].flag==0, "dispatch_a: fired marked done, 0x20 left");
+    /* dispatch_b (entries 8..9): keys 0x05(hfn8),0x10(hfn9). eax=0x10, edx=0x20 ->
+     * matches key<=AL rolling; fire gated by al<=dh. */
+    g_order_n = 0;
+    for (int i = 0; i < 8; i++) g_evtab[i] = (struct ev_entry){2, 0, NULL};
+    g_evtab[8] = (struct ev_entry){0,0x05,hfn8};
+    g_evtab[9] = (struct ev_entry){0,0x10,hfn9};
+    dispatch_b(0x05, 0x20);
+    check(g_order_n == 2, "dispatch_b: both entries fire");
+    check(g_order[0]==9 && g_order[1]==8, "dispatch_b: order idx9 (key 0x10) then idx8 (key 0x05)");
+    memcpy(g_evtab, save, sizeof g_evtab);
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -736,6 +823,11 @@ int main(void) {
     test_rm_stubs();
     test_cmdline_parse();
     test_cmdline_count();
+    printf("== batch B (L0 emit + dispatch) ==\n");
+    test_emit_chars();
+    test_emit_value();
+    test_emit_step();
+    test_dispatch();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -298,4 +298,43 @@ const char *cmdline_parse(const char *line, struct cmd_ctx *ctx);
  *  orig: 0x043d79 */
 uint32_t cmdline_count(struct cmd_ctx *ctx);
 
+/* ---- L0 batch B (9): buffered emit + event dispatch ---- */
+/* Context for the emit_* family: a next-char callback at +0x00, a count at
+ * +0x0c, and a flags byte at +0x10 (the original's emit context struct). */
+struct emit_ctx {
+    uint16_t (*next)(struct emit_ctx *);   /* +0x00 */
+    uint32_t _r1;                          /* +0x04 */
+    uint32_t _r2;                          /* +0x08 */
+    uint32_t count;                        /* +0x0c */
+    uint8_t  flags;                        /* +0x10 */
+};
+/* Buffered char emit: read a destination address from the position stream at
+ * *pos (near: dest = **pos, advance 1 slot; far 0x4: dest = second slot of an
+ * 8-byte {seg,addr} pair, advance 2) when flags&0x1, then write up to
+ * ctx->count chars from ctx->next() to it. Flags: 0x1 write, 0x4 far,
+ * 0x8/else near, 0x2 peek (stop after the first read), 0x20 word (2-byte
+ * writes). Returns chars processed.  orig: 0x043dae */
+uint32_t emit_chars(struct emit_ctx *ctx, uintptr_t **pos);
+/* Emit a single value to the destination read from *pos (same 0x1/0x4/0x8
+ * dest convention); a word when flags&0x10, a dword otherwise.  orig: 0x043f22 */
+void emit_value(struct emit_ctx *ctx, uintptr_t **pos, uint32_t value);
+/* Decrement ctx->count; if the previous count != 0, call ctx->next() once and
+ * return its result, else return 0xffffffff (also returned when flags&0x2).  orig: 0x0445a6 */
+uint32_t emit_step(struct emit_ctx *ctx);
+
+/* Event-dispatch table (DAT_000537dc): 10 entries of {flag(2=done), key, fn}.
+ * fn pointers reference game handlers (wired when those are ported; NULL until
+ * then). Original targets: 0x418e6,0x43702,0x41f9c,0x439bd,0x4561d,0x4589e,
+ * 0x4933a,0x4aa49,0x41fa1,0x493b2. */
+struct ev_entry { uint8_t flag; uint8_t key; void (*fn)(void); };
+extern struct ev_entry g_evtab[10];
+/* Dispatch over entries 0..7: each pass selects the last not-done entry whose
+ * key is <= the rolling threshold (starts at `key`, drops to each match's key),
+ * fires it, marks it done, and re-scans until none match.  orig: 0x044618 */
+void dispatch_a(uint32_t key);
+/* Dispatch over entries 8..9: reversed comparison (entry.key >= rolling AL) and
+ * a DH threshold (edx low byte) gating the fire; always marks the selected
+ * entry done.  orig: 0x044663 */
+void dispatch_b(uint32_t eax_arg, uint32_t edx_arg);
+
 #endif

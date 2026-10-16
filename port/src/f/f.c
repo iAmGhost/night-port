@@ -1179,6 +1179,16 @@ uint32_t stack_depth(void)   /* 0x4917e */
 uint32_t g_dat_53640 = 0;                    /* DAT_00053640 */
 void set_53640(void) { g_dat_53640 = 0x8000; }              /* 0x49187 */
 uint32_t to_upper(uint32_t c) { return (c>=0x61 && c<=0x7a) ? c-0x20 : c; } /* 0x494bd */
+
+/* 0x045605: upper-case a NUL-terminated string in place. Faithful to the
+ * disasm: for each byte until NUL, EAX = zero-extended byte, EAX = to_upper(EAX),
+ * store low byte back, advance. Uses the already-ported to_upper (0x494bd). */
+void string_upper(char *s) {
+    while (*s != '\0') {
+        *s = (char)to_upper((uint8_t)(unsigned char)*s);
+        s++;
+    }
+}
 uint32_t *g_arr_53730 = NULL;                /* DAT_00053730 */
 void store_arr53730(uint32_t index, uint32_t value)   /* 0x49325 */
 {

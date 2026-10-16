@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 109 / 528 done
+TOTALS: 113 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 1 | 0 | 0 | 46 |
+| L1 | 47 | 2 | 0 | 0 | 45 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -100,6 +100,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | 0x04a84e = fixed-point 53-bit mantissa scaler `fx_mantissa_scale(uint32_t *out, const uint32_t *in)`: exp = hi's bits 31:20 (bias 0x433); mantissa = (hi & 0xfffff)\|0x100000 (bit20 forced = implicit leading 1) + lo (53 bits). Shifts the mantissa left (exp>0x433) or right (exp<0x433) by exp-0x433; the original's per-bit SHR/RCR loop with EAX/ESI tracking the shifted-out bits is exactly round-to-nearest-even (top discarded bit = EAX bit31 -> CMP 0x80000000; lower discarded = EAX low bits / ESI; tie -> TEST ECX,1 = round-to-even). Port uses uint64 shift + explicit RNE (sa>=64 -> 0). 7 differential tests PASS (passthrough, left, tie-even both ways, sticky round-up, large shift, low-mantissa) | STATUS.md L0 |
 | 2026-07-08 | 0x04a8b9 = 64-bit unsigned -> fixed-width right-justified ASCII field `fmt_u64_fixed(const uint64_t *val, char *buf, int width)`: writes buf[width]=0 sentinel, then loops extracting v%10000 (a 4-digit group) — the original splits this into two 32-bit DIVs (hi/10000, then (hi%10000):lo/10000), provably equal to 64-bit v/10000 and v%10000 — converts the group to 4 ASCII digits (AAM BCD in orig, direct /10 %10 in port), stores right-to-left (ones at highest index), v/=10000, and pads '0' groups until width slots are filled. EBP(physical, -=4/group) and EBX(counter, -=1/digit) stay in sync; the per-digit JZ stops partial-group stores so non-multiple-of-4 widths never write OOB. 6 differential tests PASS (incl. full 20-digit 0xdeadbeefcafebabe) | STATUS.md L0 |
 | 2026-07-08 | 0x045d56 = in-place sci-notation float-string cleanup `float_str_sci(char *s, const uint8_t *rec)`: rec[0x14]&1→no-op; else find 'e'/'E' (or NUL), step back one, if rec[0x15] is 'g'/'G' strip trailing '0's, if the stepped-back char is '.' overwrite it (drop the dot), then copy from the 'e' position leftward (NUL-terminating) removing the stripped zeros/adjacent dot. Faithfully replicates the unguarded zero-strip (all-zero input would underflow past position 0, as in the original). 6 differential tests PASS | STATUS.md L0 |
+| 2026-07-08 | **L1 started** — 0x045605 = in-place NUL-terminated string upper-caser `string_upper(char *s)` (per-char `to_upper` 0x494bd, already ported L0). 5 tests PASS. **PIVOT:** the 4 remaining L0 (0x4794a 363B/8-caller, 0x485eb subtract, 0x48e60 divide, 0x4a3a8 FPU) are all high-risk for hand-verified ports and are being deferred for dedicated passes. **0x485eb analysis (for the dedicated pass):** register ABI a=EDX:EAX (hi:lo), b=ECX:EBX (hi:lo), exp_a=ESI, exp_b=EDI; out r_lo=EAX, r_hi=EDX, r_exp=ESI, r_sign=EDI (0 or -1). Ghidra decompile DROPS the epilogue (0x4864e-0x48665: computes returned exp ESI, sets EDI sign via `XOR BX,CX;JNS;NEG EDI`), so it must be ported from the disassembly. Body: (1) mag_a<mag_b → return a unchanged, ESI=mag_a; (2) else a=a-b when b<=a (STC) else a unchanged, EDI=(did-subtract); (3) two left-shift normalization loops (align by mag_a-mag_b, then normalize to top-bit-set); (4) OPEN QUESTION: the second loop's 64-bit shift `ADC EAX,EAX;ADC EDX,EDX` carries bit30(EAX) (not bit31) into EDX — either a latent off-by-one or a 63-bit mantissa format; unresolved without running the original binary. Callers: 0x48585, 0x48a48. | STATUS.md L1 |
 
 ## L0 (112)
 
@@ -247,7 +248,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04457f | 38 | FUN_0004457f | | |
 | [ ] | 0x044bb4 | 48 | FUN_00044bb4 | | |
 | [ ] | 0x044ea4 | 306 | FUN_00044ea4 | | |
-| [ ] | 0x045605 | 23 | FUN_00045605 | | |
+| [x] | 0x045605 | 23 | string_upper | string | port+test PASS (in-place upper-case via to_upper 0x494bd) |
 | [ ] | 0x045bb7 | 193 | FUN_00045bb7 | | |
 | [ ] | 0x0478e2 | 13 | FUN_000478e2 | | |
 | [ ] | 0x0478f0 | 41 | FUN_000478f0 | | |

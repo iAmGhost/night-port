@@ -1355,6 +1355,21 @@ static void test_fx_round_down(void) {
     check(a[0] == b[0] && a[1] == b[1] && a[2] == b[2], "deterministic");
 }
 
+static void test_string_upper(void)
+{
+    printf("L1: string_upper (0x045605)\n");
+    char s1[] = "abc"; string_upper(s1);
+    check(strcmp(s1, "ABC") == 0, "abc -> ABC");
+    char s2[] = "aBc1d"; string_upper(s2);
+    check(strcmp(s2, "ABC1D") == 0, "aBc1d -> ABC1D (upper+digit preserved)");
+    char s3[] = "123!@#"; string_upper(s3);
+    check(strcmp(s3, "123!@#") == 0, "digits/symbols unchanged");
+    char s4[] = ""; string_upper(s4);
+    check(s4[0] == '\0', "empty stays empty");
+    char s5[] = "hello world"; string_upper(s5);
+    check(strcmp(s5, "HELLO WORLD") == 0, "hello world -> HELLO WORLD (space preserved)");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1431,6 +1446,7 @@ int main(void) {
     test_fx_mul64();
     test_fx_stub_4a923();
     test_fx_round_down();
+    test_string_upper();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

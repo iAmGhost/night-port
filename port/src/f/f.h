@@ -423,6 +423,8 @@ void set_53640(void);
 /* Uppercase a lowercase ASCII letter: a-z (0x61-0x7a) -> A-Z, else unchanged.
  * (Mirror of to_lower, which is the reverse direction.)  orig: 0x0494bd */
 uint32_t to_upper(uint32_t c);
+/* 0x045605: upper-case a NUL-terminated string in place (per-char to_upper). */
+void     string_upper(char *s);
 /* Store value|0x40000 into g_arr_53730[index] (sets bit 22 as a "set" flag).
  *  orig: 0x049325 (store [0x53730 + index*4] = value | 0x40000) */
 extern uint32_t *g_arr_53730;

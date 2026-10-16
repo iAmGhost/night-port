@@ -1378,6 +1378,28 @@ void fn_044b96(void) {
     }
 }
 
+/* 0x045079: format value as hex (itoa32s, base 16) then right-justify + zero-pad
+ * into buf to exactly `width` chars, null-terminated at buf[width]. ABI: value=EAX,
+ * buf=EDX, width=EBX. (The original computes strlen via a SCASB countdown and pads
+ * the leading part with '0'.) */
+void fn_045079(uint32_t value, char *buf, int width) {
+    itoa32s((int32_t)value, buf, 0x10);                /* 0x4508c */
+    int len = 0;
+    while (buf[len] != 0) len++;                       /* 0x45091-0x450a0 strlen */
+    int pad = width - 1;                               /* 0x450a8 EAX = width-1 */
+    int src = len;                                     /* 0x450ac EDX = buf+len */
+    int dst = width - 1;                               /* 0x450af EBX = buf+width-1 */
+    while (src != 0) {                                 /* 0x450b9: EDX != buf */
+        src--;                                         /* 0x450b1 */
+        pad--;                                         /* 0x450b5 EAX-- */
+        buf[dst] = buf[src];                           /* 0x450b3/b6 */
+        dst--;                                         /* 0x450b8 */
+    }
+    for (int i = pad; i > -1; i--)                     /* 0x450bd+ fill '0' */
+        buf[i] = '0';
+    buf[width] = 0;
+}
+
 uint8_t g_debug_break = 0;               /* DAT_00053624 */
 uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
 {

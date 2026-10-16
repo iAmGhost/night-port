@@ -421,6 +421,7 @@ extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; b
 uint64_t fn_0492d0(uint32_t index, uint32_t ctx);
 void     fn_042a19(void);       /* 0x042a19: g_dat_64008 = 0xe (tail-jump fn_042a0d) */
 void     fn_044b96(void);       /* 0x044b96: drain g_node_list_done via heap_free_host */
+void     fn_045079(uint32_t value, char *buf, int width); /* 0x045079: zero-pad + right-justify hex */
 /* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
  * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.
  *  orig: 0x045a44 */

@@ -1719,6 +1719,26 @@ static void test_044b96(void) {
     check(g_node_list_done == 0, "  already empty: no-op");
 }
 
+static void test_045079(void) {
+    printf("fn_045079 (0x045079) zero-pad + right-justify hex\n");
+    char buf[16], ref[16], exp[16];
+    int L, pad;
+    itoa32s(0x1a2b, ref, 16); L = 0; while (ref[L]) L++;
+    pad = 6 - L; for (int i=0;i<pad;i++) exp[i]='0'; memcpy(exp+pad, ref, L+1);
+    memset(buf, 0, sizeof buf); fn_045079(0x1a2b, buf, 6);
+    check(memcmp(buf, exp, 6)==0 && buf[6]==0, "  0x1a2b width6 zero-padded");
+    memset(buf, 0, sizeof buf); fn_045079(0x1a2b, buf, L);
+    check(memcmp(buf, ref, L)==0 && buf[L]==0, "  width==len: no pad");
+    itoa32s(0xff, ref, 16); L = 0; while (ref[L]) L++;
+    pad = 8 - L; for (int i=0;i<pad;i++) exp[i]='0'; memcpy(exp+pad, ref, L+1);
+    memset(buf, 0, sizeof buf); fn_045079(0xff, buf, 8);
+    check(memcmp(buf, exp, 8)==0 && buf[8]==0, "  0xff width8");
+    itoa32s(0, ref, 16); L = 0; while (ref[L]) L++;
+    pad = 4 - L; for (int i=0;i<pad;i++) exp[i]='0'; memcpy(exp+pad, ref, L+1);
+    memset(buf, 0, sizeof buf); fn_045079(0, buf, 4);
+    check(memcmp(buf, exp, 4)==0 && buf[4]==0, "  0 width4");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1813,6 +1833,7 @@ int main(void) {
     test_0492d0();
     test_042a19();
     test_044b96();
+    test_045079();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

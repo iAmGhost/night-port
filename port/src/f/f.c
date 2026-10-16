@@ -1688,6 +1688,85 @@ store:
     *status = (*status & 0xb8ff) | (uint16_t)(((uint8_t)al | dh) << 8);
 }
 
+/* ---- 0x47d4e: fixed-point 64x64 -> normalized 64-bit multiply ----
+ * Register ABI: A = EDX:EAX (a_hi:a_lo), B = ECX:EBX (b_hi:b_lo), ESI =
+ * (exp_hi:16 | exp_lo:16). Returns the normalized 64-bit product (EDX:EAX);
+ * 0x8000000000000000 (fx infinity) on overflow. Literal port of the Ghidra
+ * decompile: 64-bit schoolbook product, exponent (u9 = (esh&0x80007fff)+
+ * (esl&0x80007fff)) overflow test, left-normalize (shift + carry-in from the
+ * middle word u11) with round-to-nearest, then a final right-shift when
+ * (short)u8 < 1. x86 SHL count is masked to 5 bits, so a (32 - sh) shift with
+ * sh==0 shifts by 0 (hi folded into lo), which we replicate. */
+uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
+                  uint32_t esi)                                                /* 0x47d4e */
+{
+    uint16_t esl = esi & 0xffff, esh = (esi >> 16) & 0xffff;
+    if (a_lo == 0 && a_hi == 0) {                       /* A == 0 */
+        if ((uint16_t)(esl * 2u) == 0) return 0;
+        uint32_t c2 = (esl + esl) >> 16;                /* CARRY2(esl,esl) */
+        esl = (uint16_t)((((c2 << 16) | ((esl * 2u) & 0xffff)) >> 1) & 0xffff);
+        esi = ((uint32_t)esh << 16) | esl;
+    }
+    if (b_lo == 0 && b_hi == 0 && ((esi & 0x7fff0000) == 0)) return 0;  /* B == 0 */
+    esl = esi & 0xffff; esh = (esi >> 16) & 0xffff;
+    uint16_t u9 = (uint16_t)((esh & 0x80007fff) + (esl & 0x80007fff));
+    uint16_t u8 = (uint16_t)(u9 + 0xc002);
+    if (u9 < 0x3ffe || u8 < 0x7fff) {
+        /* uVar2 / uVar11: schoolbook split of the 128-bit product, NOT A*B. */
+        uint32_t u12 = (uint32_t)(((uint64_t)a_lo * b_lo) >> 32);   /* hi32(a_lo*b_lo) */
+        uint64_t l1 = (uint64_t)b_hi * a_lo;                        /* b_hi*a_lo */
+        uint64_t l3 = l1 + u12;
+        uint32_t u10 = (uint32_t)l3, u14 = (uint32_t)(l3 >> 32);
+        uint64_t x2 = (uint64_t)b_lo * a_hi;
+        uint32_t u13 = (uint32_t)(x2 >> 32), u6lo = (uint32_t)x2;
+        uint32_t u11 = u10 + u6lo;                                   /* uVar11 (guard) */
+        uint32_t c10 = ((uint64_t)u10 + u6lo) >> 32;
+        uint32_t u10b = u14 + u13;
+        uint32_t c1 = (uint32_t)(l1 >> 32);
+        uint32_t c2 = ((uint64_t)u12 + (uint32_t)l1) >> 32;
+        uint32_t c3 = ((uint64_t)u14 + u13) >> 32;
+        uint32_t c4 = ((uint64_t)u10b + c10) >> 32;
+        uint32_t cs = c1 + c2 + (c3 | c4);                          /* carrystuff */
+        uint64_t u2 = (uint64_t)(a_hi * b_hi) + ((uint64_t)cs << 32) +
+                      (uint64_t)((u10b + c10) & 0xffffffff);
+        if (u2 < 0x8000000000000000ULL) {               /* -1 < (ll)uVar2 */
+            uint32_t b15 = ((uint64_t)u11 + u11) >> 32;           /* CARRY4(u11,u11) */
+            u11 = u11 * 2u;
+            u2 = (u2 << 1) | b15;                       /* left-normalize */
+            u8 = (uint16_t)(u9 + 0xc001);
+        }
+        uint32_t u5 = (uint32_t)(u2 >> 32), u6b = (uint32_t)u2;
+        if (((uint64_t)u11 + u11) >> 32) {                        /* round-to-nearest */
+            int b15 = 1;
+            if ((u11 & 0x7fffffff) == 0) {
+                b15 = ((uint32_t)((uint64_t)a_lo * b_lo) != 0);
+                if (!b15) b15 = (u2 & 1) != 0;
+            }
+            uint32_t add = (uint32_t)b15;
+            uint64_t u4 = u2 + add;
+            u2 = u2 + add;
+            uint32_t cLo = ((uint64_t)u6b + add) >> 32, cHi = ((uint64_t)u5 + cLo) >> 32;
+            if (cHi) {                                  /* overflow bit63 */
+                uint32_t hi = (uint32_t)(u4 >> 32), lo = (uint32_t)u4;
+                u2 = ((uint64_t)((hi >> 1) | 0x80000000u) << 32) |
+                     ((uint64_t)((hi & 1u) << 31) | (lo >> 1));
+                u8 = (uint16_t)(u8 + 1);
+                if (u8 == 0x7fff) return 0x8000000000000000ULL;
+            }
+        }
+        uint32_t hi = (uint32_t)(u2 >> 32), lo = (uint32_t)u2;
+        if ((short)u8 < 1) {
+            uint8_t b7 = (u8 == 0) ? 1 : (uint8_t)(-(char)u8);
+            uint32_t sh = b7 & 0x1f;
+            uint32_t rhi = hi >> sh;                    /* (0 << (32-sh)) == 0 */
+            uint32_t rlo = (lo >> sh) | (sh == 0 ? hi : (hi << (32 - sh)));
+            u2 = ((uint64_t)rhi << 32) | rlo;
+        }
+        return u2;
+    }
+    return 0x8000000000000000ULL;                        /* overflow -> inf */
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

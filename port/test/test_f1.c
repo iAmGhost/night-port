@@ -1294,6 +1294,22 @@ static void test_fx_classify_status(void) {
     check(*st==0x4600 && *fl==0x0000, "mag0, hi sign set: 0x44|0x02 -> 0x46");
 }
 
+static void test_fx_mul64(void) {
+    printf("== fx_mul64 (L0: fx 64x64 multiply 0x047d4e) ==\n");
+    check(fx_mul64(0,0,5,1, 0) == 0, "A==0 & esl*2==0 -> 0");
+    check(fx_mul64(1,0,0,0, 0) == 0, "B==0 & esi hi==0 -> 0");
+    check(fx_mul64(0,0,0,0, (0x3fffu<<16)) == 0, "A==0,B==0 -> 0");
+    check(fx_mul64(1,0,1,0, (0x7fffu<<16)|0x3fff) == 0x8000000000000000ULL,
+          "overflow -> 0x8000000000000000");
+    check(fx_mul64(1,0,1,0, (0x3fffu<<16)) == 0, "1*1 @ 0x3fff underflows -> 0");
+    check(fx_mul64(0,1,0,1, (0x3fffu<<16)) == 1, "2^32*2^32 @ 0x3fff -> 1");
+    /* A = 0x1ffffffff (a_hi=1,a_lo=0xffffffff), B = 1 : cross term exercised */
+    check(fx_mul64(0xffffffff,1, 1,0, (0x3fffu<<16)) == 0, "(2^33-1)*1 @ 0x3fff -> 0");
+    /* determinism */
+    check(fx_mul64(7,3,11,2, (0x3fffu<<16)|0x10) == fx_mul64(7,3,11,2, (0x3fffu<<16)|0x10),
+          "deterministic");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1367,6 +1383,7 @@ int main(void) {
     test_fx_double_naninf();
     test_fx_compare();
     test_fx_classify_status();
+    test_fx_mul64();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

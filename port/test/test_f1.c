@@ -1067,6 +1067,27 @@ static void test_float_str_sci(void) {
     check(strcmp(s6, "7.0e3") == 0, "flag set -> unchanged");
 }
 
+static void test_fmt_u64_fixed(void) {
+    printf("== fmt_u64_fixed (L0: 64-bit fixed-width ASCII 0x04a8b9) ==\n");
+    uint64_t v; char buf[40];
+    v = 1234567; memset(buf, 0xff, sizeof buf);
+    fmt_u64_fixed(&v, buf, 8);
+    check(strcmp(buf, "01234567") == 0, "1234567 w=8 -> 01234567");
+    check(buf[8] == '\0', "NUL sentinel at buf[width]");
+    v = 0; memset(buf, 0xff, sizeof buf);
+    fmt_u64_fixed(&v, buf, 8);
+    check(strcmp(buf, "00000000") == 0, "0 w=8 -> 00000000 (zero pad)");
+    v = 99999999; memset(buf, 0xff, sizeof buf);
+    fmt_u64_fixed(&v, buf, 8);
+    check(strcmp(buf, "99999999") == 0, "99999999 w=8 -> 99999999");
+    v = 4294967296ull; memset(buf, 0xff, sizeof buf);
+    fmt_u64_fixed(&v, buf, 10);
+    check(strcmp(buf, "4294967296") == 0, "2^32 w=10 -> 4294967296 (hi dword)");
+    v = 0xdeadbeefcafebabeull; memset(buf, 0xff, sizeof buf);
+    fmt_u64_fixed(&v, buf, 20);
+    check(strcmp(buf, "16045690984503098046") == 0, "0xdeadbeefcafebabe w=20 (full 64-bit)");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1128,6 +1149,7 @@ int main(void) {
     test_batchJ();
     test_fx_from_f32();
     test_float_str_sci();
+    test_fmt_u64_fixed();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -34,11 +34,11 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 95 / 528 done
+TOTALS: 96 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
-| L0 | 112 | 91 | 0 | 0 | 21 |
+| L0 | 112 | 92 | 0 | 0 | 20 |
 | L1 | 47 | 1 | 0 | 0 | 46 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
@@ -82,6 +82,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | Remaining L0 cluster is FPU/BCD/fixed-point/bit-chain; needs dedicated x86+reference traces (decompiler mangles RCR/SHLD/CARRY and FPU doubles): 0x47ea4(+thunks 0x47e4a/0x47e9f, RCR/SHLD exp chain), 0x4811a (fxnum ctor, ambiguous `JZ 0x48149` — decode raw bytes), 0x4a9da (returns FPU double, modifies A6 high word to `((A6>>16)&0x800f)\|0x3fe0` then `FLD`), 0x4a84e (fixed-point L/R shift), 0x4a8b9 (BCD /10000 formatter), 0x45d56 ('e'/'E'/'.' string handler). 0x47ea4 raw-byte jump map (verified): entry 0x47ea4 BL=0x20; thunks set BL=0xa0(0x47e4a)/0x1f(0x47e9f) then JMP 0x47ea7; targets 0x47f09=R_0(SUB EAX,EAX;RET), 0x47f01=R_80(MOV EAX,0x80000000;RET), 0x47efe=main epilogue(NEG EAX;POP ECX;POP EBX;RET — JNC path), 0x47ee0=SUB EBX,EBX(CL!=0x20 path), 0x47eed=MOV CL,0xff(CL==0x20 merge); core bit-chain is RCR CH / SHLD EBX,[EAX],CL / SHL EAX,CL / ADC EAX,0 — needs register-level trace + reference before porting | STATUS.md L0 |
 | 2026-07-08 | 0x04a923 has GARBAGE disasm (no prologue: starts `CALL`; `SLDT`,`CALLF 0x0:0x23b`,`IN AL,0xb`,`POP SS`,`MOV AL,[0x5af34e72]`) yet is called from 0x4a814 and sits right after 0x4a8b9 (ends 0x4a922) — likely mis-boundary or a data block; NOT marked spurious pending deeper investigation | STATUS.md L0 |
 | 2026-07-08 | 0x04811a decoded (raw-byte) = IEEE-754 float32→fxnum constructor `fx_from_f32`: expfield=(int32)v>>23 & 0xff (bits 23..30). expfield==0→passthrough {lo=0,hi=v,exp=0}; expfield==0xff→NaN/Inf marker exp=0xffff; else exp=expfield+0x3f80 (=unbiassed+0x3fff). hi=(v<<8 & 0x7fffffff)\|((v<<8&0x7fffffff)?0x40000000:0)\|0x80000000. The ambiguous `JZ 0x48149` is at 0x48142 and skips only `OR EAX,0x40000000` (merge point, not a loop). The trailing `ADD ECX,ECX;RCR CX,1` is NOT pure identity: with bit31 set (CF=1) it flips exp's top bit, so the carry is computed explicitly. Distinct from the BSR-normalizing fx_from_u32/s32 (0x47f1f/0x47f0e). 6 differential tests PASS | STATUS.md L0 |
+| 2026-07-08 | 0x04a8b9 = 64-bit unsigned -> fixed-width right-justified ASCII field `fmt_u64_fixed(const uint64_t *val, char *buf, int width)`: writes buf[width]=0 sentinel, then loops extracting v%10000 (a 4-digit group) — the original splits this into two 32-bit DIVs (hi/10000, then (hi%10000):lo/10000), provably equal to 64-bit v/10000 and v%10000 — converts the group to 4 ASCII digits (AAM BCD in orig, direct /10 %10 in port), stores right-to-left (ones at highest index), v/=10000, and pads '0' groups until width slots are filled. EBP(physical, -=4/group) and EBX(counter, -=1/digit) stay in sync; the per-digit JZ stops partial-group stores so non-multiple-of-4 widths never write OOB. 6 differential tests PASS (incl. full 20-digit 0xdeadbeefcafebabe) | STATUS.md L0 |
 | 2026-07-08 | 0x045d56 = in-place sci-notation float-string cleanup `float_str_sci(char *s, const uint8_t *rec)`: rec[0x14]&1→no-op; else find 'e'/'E' (or NUL), step back one, if rec[0x15] is 'g'/'G' strip trailing '0's, if the stepped-back char is '.' overwrite it (drop the dot), then copy from the 'e' position leftward (NUL-terminating) removing the stripped zeros/adjacent dot. Faithfully replicates the unguarded zero-strip (all-zero input would underflow past position 0, as in the original). 6 differential tests PASS | STATUS.md L0 |
 
 ## L0 (112)
@@ -197,7 +198,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04a3a8 | 230 | FUN_0004a3a8 | | |
 | [x] | 0x04a7a2 | 86 | strn_casecmp | string | port+test PASS (batch I) |
 | [ ] | 0x04a84e | 106 | FUN_0004a84e | | |
-| [ ] | 0x04a8b9 | 105 | FUN_0004a8b9 | | |
+| [x] | 0x04a8b9 | 105 | fmt_u64_fixed | 64-bit unsigned -> fixed-width right-justified ASCII field: buf[width]=0 sentinel, then repeatedly extract v%10000 (4-digit group via two 32-bit DIVs == 64-bit div), convert to 4 ASCII digits (AAM in orig), store right-to-left at buf[pos+3..pos], v/=10000, pad '0' groups until width slots filled | fmt_u64_fixed (f.c) |
 | [ ] | 0x04a923 | 166 | FUN_0004a923 | | |
 | [ ] | 0x04a9da | 110 | FUN_0004a9da | | |
 ## L1 (47)

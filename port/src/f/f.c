@@ -1283,6 +1283,36 @@ void float_str_sci(char *s, const uint8_t *rec)   /* 0x45d56 */
     }
 }
 
+/* ---- 0x4a8b9: 64-bit unsigned -> fixed-width right-justified ASCII ----
+ * param_1 = const uint64_t *val (lo=[0], hi=[4]); param_2 = char *buf; param_3
+ * = int width (digit slots; also the field offset within buf). Writes
+ * buf[0..width-1] (right-justified, leading-zero padded) and a NUL at
+ * buf[width]. Repeatedly extracts val%10000 (a 4-digit group) — the original
+ * splits this into two 32-bit DIVs (hi/10000, then (hi%10000):lo/10000), which
+ * is exactly val/10000 and val%10000 — converts the group to 4 ASCII digits
+ * (via AAM in the original), and shifts left, padding '0' groups until width
+ * slots are filled. */
+void fmt_u64_fixed(const uint64_t *val, char *buf, int width)   /* 0x4a8b9 */
+{
+    uint64_t v = *val;
+    int pos = width;                        /* EBP offset (EBP = buf + pos) */
+    int cnt = width;                        /* EBX (digit counter) */
+    buf[pos] = '\0';                         /* MOV [EBP],0 sentinel */
+    for (;;) {
+        uint32_t g = (uint32_t)(v % 10000u); /* 4-digit group (V%10000) */
+        char d0 = '0' + (char)(g % 10u);          /* ones    */
+        char d1 = '0' + (char)((g / 10u) % 10u);  /* tens    */
+        char d2 = '0' + (char)((g / 100u) % 10u); /* hundreds*/
+        char d3 = '0' + (char)((g / 1000u) % 10u);/* thousands*/
+        v /= 10000u;                           /* V /= 10000 */
+        pos -= 4;                              /* SUB EBP,4 */
+        buf[pos + 3] = d0; if (--cnt == 0) break;   /* [EBP+3]=AL */
+        buf[pos + 2] = d1; if (--cnt == 0) break;   /* [EBP+2]=AH */
+        buf[pos + 1] = d2; if (--cnt == 0) break;   /* [EBP+1]=DL */
+        buf[pos]     = d3; if (--cnt != 0) continue; else break; /* [EBP]=DH */
+    }
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

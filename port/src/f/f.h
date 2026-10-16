@@ -444,6 +444,7 @@ void fx_from_u32(struct fxnum *out, uint32_t v);   /* 0x47f1f */
 void fx_from_s32(struct fxnum *out, int32_t v);    /* 0x47f0e */
 void fx_from_f32(struct fxnum *out, uint32_t v);   /* 0x4811a (IEEE-754 float32) */
 void float_str_sci(char *s, const uint8_t *rec);   /* 0x45d56 sci-notation cleanup */
+void fmt_u64_fixed(const uint64_t *val, char *buf, int width); /* 0x4a8b9 */
 
 /* ---- L0 batch H (4): fx compare + decimal parse + DOS/FPU stubs ---- */
 /* Lexicographic less-than on an fxnum by (exp, hi, lo).  orig: 0x0498c6 */

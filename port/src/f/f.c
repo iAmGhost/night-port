@@ -1313,6 +1313,43 @@ void fmt_u64_fixed(const uint64_t *val, char *buf, int width)   /* 0x4a8b9 */
     }
 }
 
+/* ---- 0x4a84e: fixed-point mantissa scaler/normalizer ----
+ * in = 64-bit value [lo,hi]; hi's top 12 bits (bits 20-31) are a biased
+ * exponent (bias 0x433); the mantissa is hi's low 20 bits (bit 20 forced to 1,
+ * the implicit leading 1) + lo (53 bits total). Shifts the 53-bit mantissa
+ * left (exp>0x433) or right (exp<0x433) by exp-0x433, round-to-nearest-even on
+ * right-shift, and stores the 64-bit result to out. The original uses a per-bit
+ * SHR/RCR loop with EAX/ESI tracking the shifted-out bits for the RNE decision
+ * (top discarded bit = EAX bit31, lower discarded = EAX low bits / ESI). */
+void fx_mantissa_scale(uint32_t *out, const uint32_t *in)   /* 0x4a84e */
+{
+    uint32_t hi = in[1];
+    uint32_t lo = in[0];
+    uint32_t mant_hi = (hi & 0x000fffff) | 0x100000;   /* bit 20 = implicit 1 */
+    int32_t shift = ((hi >> 20) & 0xfff) - 0x433;
+    uint64_t v = ((uint64_t)mant_hi << 32) | lo;
+    uint64_t r;
+    if (shift == 0) {
+        r = v;
+    } else if (shift > 0) {
+        r = (shift >= 64) ? 0 : (v << shift);
+    } else {
+        int32_t sa = -shift;
+        if (sa >= 64) {
+            r = 0;
+        } else {
+            uint64_t q = v >> sa;
+            int rnd    = (int)((v >> (sa - 1)) & 1);
+            int sticky = (v & (((uint64_t)1 << (sa - 1)) - 1)) != 0;  /* bits 0..sa-2 */
+            if (rnd && sticky)          r = q + 1;  /* round up */
+            else if (rnd && (q & 1))    r = q + 1;  /* tie -> even */
+            else                        r = q;      /* truncate */
+        }
+    }
+    out[0] = (uint32_t)r;
+    out[1] = (uint32_t)(r >> 32);
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

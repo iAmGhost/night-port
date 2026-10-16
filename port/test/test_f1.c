@@ -1088,6 +1088,32 @@ static void test_fmt_u64_fixed(void) {
     check(strcmp(buf, "16045690984503098046") == 0, "0xdeadbeefcafebabe w=20 (full 64-bit)");
 }
 
+static void test_fx_mantissa_scale(void) {
+    printf("== fx_mantissa_scale (L0: 53-bit mantissa scaler 0x04a84e) ==\n");
+    uint32_t in[2], out[2];
+    in[1] = 0x433u<<20; in[0] = 0x12345678;
+    fx_mantissa_scale(out, in);
+    check(out[1]==0x00100000 && out[0]==0x12345678, "shift=0 passthrough");
+    in[1] = 0x434u<<20; in[0] = 0x1;
+    fx_mantissa_scale(out, in);
+    check(out[1]==0x00200000 && out[0]==0x2, "shift=+1 left (hi+lo shift)");
+    in[1] = 0x432u<<20; in[0] = 0x1;
+    fx_mantissa_scale(out, in);
+    check(out[1]==0x00080000 && out[0]==0x0, "shift=-1 tie q-even no round");
+    in[1] = 0x432u<<20; in[0] = 0x3;
+    fx_mantissa_scale(out, in);
+    check(out[1]==0x00080000 && out[0]==0x2, "shift=-1 tie q-odd round up");
+    in[1] = 0x431u<<20; in[0] = 0x7;
+    fx_mantissa_scale(out, in);
+    check(out[1]==0x00040000 && out[0]==0x2, "shift=-2 sticky round up");
+    in[1] = (0x433u-0x64u)<<20; in[0] = 0xffffffff;
+    fx_mantissa_scale(out, in);
+    check(out[1]==0 && out[0]==0, "shift=-100 (sa>=64) -> 0");
+    in[1] = (0x433u<<20) | 0x00012345; in[0] = 0;
+    fx_mantissa_scale(out, in);
+    check(out[1]==0x00112345 && out[0]==0, "shift=0 low-mantissa kept");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1150,6 +1176,7 @@ int main(void) {
     test_fx_from_f32();
     test_float_str_sci();
     test_fmt_u64_fixed();
+    test_fx_mantissa_scale();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

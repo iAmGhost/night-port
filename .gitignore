@@ -5,3 +5,6 @@
 *.pyc
 /port/build
 /port/night
+/port/test/test_f1
+/port/test/selftest
+/port/test/*.dSYM/

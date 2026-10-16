@@ -969,6 +969,7 @@ static void test_batchH(void) {
     parse_decimal("abc", &d);    check(d == 0,   "abc -> 0");
     parse_decimal("42", &d);     check(d == 42,  "42 -> 42");
     parse_decimal("9999x", &d);  check(d == 9999, "9999x -> 9999");
+    check((int)parse_decimal("123abc", &d)[0] == 'a', "123abc -> return points at 'a'");
     printf("batch H: dos_realmode_setup (0x0490b0, stub)\n");
     dos_realmode_setup(); check(1, "stub returns");
     printf("batch H: fpu_init (0x04910a, stub)\n");

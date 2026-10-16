@@ -1148,7 +1148,7 @@ void calibrate_clock(void)   /* 0x4561d */
     g_clock_ticks = sys_clock_ticks_per_sec();
 }
 
-void delay_units(uint32_t arg)   /* 0x4564f */
+void delay_units(uint32_t arg)   /* 0x4564f (also thunk 0x042958) */
 {
     if (arg == 0) return;                             /* 0x45653/45655 */
     uint32_t v = arg * g_clock_ticks + 0x1f4;         /* 0x45657/45663 */
@@ -2004,8 +2004,10 @@ uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */
     if (a->lo < b->lo)   return 1;          /* 0x498e5 CMP EAX,[EDX]; JGE */
     return 0;
 }
-/* Parse leading decimal digits (v = v*10 + digit) until a non-digit. */
-void parse_decimal(const char *s, uint32_t *out)   /* 0x49a48 */
+/* Parse leading decimal digits (v = v*10 + digit) until a non-digit. Returns a
+ * pointer to the first non-digit char (0x49a48 returns EAX = ptr past the
+ * digits); the caller (0x049a6e) uses it as the new scan position. */
+const char *parse_decimal(const char *s, uint32_t *out)   /* 0x49a48 */
 {
     uint32_t v = 0;
     while (*s >= '0' && *s <= '9') {         /* 0x49a4e CMP JC/JA */
@@ -2013,6 +2015,7 @@ void parse_decimal(const char *s, uint32_t *out)   /* 0x49a48 */
         s++;
     }
     *out = v;
+    return s;                                /* EAX = pointer past the digits */
 }
 void dos_realmode_setup(void) { sys_dos_realmode_setup(); }  /* 0x490b0 */
 uint16_t fpu_init(void) { return sys_fpu_control_word(); }   /* 0x4910a */

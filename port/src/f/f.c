@@ -1350,6 +1350,31 @@ void fx_mantissa_scale(uint32_t *out, const uint32_t *in)   /* 0x4a84e */
     out[1] = (uint32_t)(r >> 32);
 }
 
+/* ---- 0x49132: 64-bit -> IEEE-754 float32 converter ----
+ * Input 64-bit value in EDX:EAX (hi,lo). If hi's top 12 bits (0x7ff00000) are
+ * 0 -> underflow -> 0. Else: shift the 64-bit value left 1 (capturing the top
+ * bit into EBX as the f32 sign 0x80000000), add the 0x20000000 mantissa bias,
+ * then clamp/normalize: hi==0 or hi>=0x8fe00000 -> 0x7f800000|sign (max);
+ * hi<0x70200000 -> 0; else hi-=0x70000000, shift left 2, OR the sign, return
+ * the high word as the float32. Ported as an exact register-op replication. */
+uint32_t fx64_to_f32(uint32_t lo, uint32_t hi)   /* 0x49132 */
+{
+    uint64_t v = ((uint64_t)hi << 32) | lo;
+    if ((hi & 0x7ff00000u) == 0) return 0;        /* TEST EDX,0x7ff00000; JZ */
+    uint32_t ebx = ((v >> 63) & 1) ? 0x80000000u : 0u;  /* RCR EBX,1 (top bit) */
+    v = (v << 1);                                   /* ADD EAX,EAX; ADC EDX,EDX */
+    v += 0x20000000ull;                             /* ADD EAX,0x20000000; ADC EDX,0 */
+    uint32_t h = (uint32_t)(v >> 32);
+    if (h == 0)                  return 0x7f800000u | ebx;  /* JZ 0x49171 */
+    if (h >= 0x8fe00000u)        return 0x7f800000u | ebx;  /* CMP;JNC 0x49171 */
+    if (h < 0x70200000u)         return 0;         /* CMP;JC 0x4917a */
+    v = (v & 0xffffffffull) | ((uint64_t)(h - 0x70000000u) << 32); /* SUB EDX,0x70000000 */
+    v = (v << 2);                                   /* ADD EAX,EAX;ADC x2 */
+    h = (uint32_t)(v >> 32);
+    h |= ebx;                                       /* OR EDX,EBX */
+    return h;                                       /* MOV EAX,EDX */
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

@@ -1114,6 +1114,16 @@ static void test_fx_mantissa_scale(void) {
     check(out[1]==0x00112345 && out[0]==0, "shift=0 low-mantissa kept");
 }
 
+static void test_fx64_to_f32(void) {
+    printf("== fx64_to_f32 (L0: 64-bit -> float32 0x049132) ==\n");
+    check(fx64_to_f32(0, 0) == 0, "underflow (hi top12=0) -> 0");
+    check(fx64_to_f32(0, 0x80000000) == 0, "bit31-only (hi&mask=0) -> 0");
+    check(fx64_to_f32(0, 0x78000000) == 0x7f800000, "pos overflow clamp -> 0x7f800000");
+    check(fx64_to_f32(0, 0x40000000) == 0x40000000, "normal -> 0x40000000 (2.0f)");
+    check(fx64_to_f32(0, 0x40400000) == 0x42000000, "normal mantissa -> 0x42000000");
+    check(fx64_to_f32(0, 0xc0000000) == 0xc0000000, "normal neg -> 0xc0000000 (-2.0f)");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1177,6 +1187,7 @@ int main(void) {
     test_float_str_sci();
     test_fmt_u64_fixed();
     test_fx_mantissa_scale();
+    test_fx64_to_f32();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

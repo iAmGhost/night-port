@@ -447,6 +447,8 @@ void float_str_sci(char *s, const uint8_t *rec);   /* 0x45d56 sci-notation clean
 void fmt_u64_fixed(const uint64_t *val, char *buf, int width); /* 0x4a8b9 */
 void fx_mantissa_scale(uint32_t *out, const uint32_t *in);     /* 0x4a84e */
 uint32_t fx64_to_f32(uint32_t lo, uint32_t hi);                /* 0x49132 */
+uint8_t *fmt_decimal(uint8_t *out, int32_t intlen, int32_t fractlen,
+                     const uint8_t *src);                       /* 0x49db2 */
 
 /* ---- L0 batch H (4): fx compare + decimal parse + DOS/FPU stubs ---- */
 /* Lexicographic less-than on an fxnum by (exp, hi, lo).  orig: 0x0498c6 */

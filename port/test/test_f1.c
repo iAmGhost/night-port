@@ -1124,6 +1124,21 @@ static void test_fx64_to_f32(void) {
     check(fx64_to_f32(0, 0xc0000000) == 0xc0000000, "normal neg -> 0xc0000000 (-2.0f)");
 }
 
+static void test_fmt_decimal(void) {
+    printf("== fmt_decimal (L0: decimal formatter 0x049db2) ==\n");
+    uint8_t buf[64]; uint8_t *r;
+    r = fmt_decimal(buf, 3, 2, (const uint8_t*)"12345");
+    check(r - buf == 6 && strncmp((char*)buf, "123.45", 6) == 0, "123.45 (normal)");
+    r = fmt_decimal(buf, 3, 2, (const uint8_t*)"12");
+    check(r - buf == 6 && strncmp((char*)buf, "120.00", 6) == 0, "120.00 (src short, pad)");
+    r = fmt_decimal(buf, 0, 0, (const uint8_t*)"");
+    check(r - buf == 2 && strncmp((char*)buf, "0.", 2) == 0, "0. (intlen<=0 fractlen==0)");
+    r = fmt_decimal(buf, 2, 0, (const uint8_t*)"12");
+    check(r - buf == 3 && strncmp((char*)buf, "12.", 3) == 0, "12. (fractlen==0)");
+    r = fmt_decimal(buf, -1, 3, (const uint8_t*)"45");
+    check(r - buf == 4 && strncmp((char*)buf, ".045", 4) == 0, ".045 (negative intlen)");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1188,6 +1203,7 @@ int main(void) {
     test_fmt_u64_fixed();
     test_fx_mantissa_scale();
     test_fx64_to_f32();
+    test_fmt_decimal();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

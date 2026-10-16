@@ -1375,6 +1375,37 @@ uint32_t fx64_to_f32(uint32_t lo, uint32_t hi)   /* 0x49132 */
     return h;                                       /* MOV EAX,EDX */
 }
 
+/* ---- 0x49db2: decimal number formatter (integer '.' fractional) ----
+ * out=EAX (advances, returned as new position), intlen=EBX (signed),
+ * fractlen=ECX (signed), src=EDX (digit chars, advances). If fractlen==0 &&
+ * intlen<=0 -> write "0.". Else write intlen digit chars (from src until NUL,
+ * then '0' pad), then '.', then the fractional part via a shared ESI/ECX
+ * control flow: loop A (while fractlen!=0 && esi!=0: esi++;'0';fractlen--) -
+ * which fires only for the negative-intlen edge case - then loop B (copy
+ * fractlen chars from src until NUL) then '0' padding. The original shares its
+ * exit with 0x49db0 (POP ESI;RET, the tail of the previous function). */
+uint8_t *fmt_decimal(uint8_t *out, int32_t intlen, int32_t fractlen,
+                     const uint8_t *src)   /* 0x49db2 */
+{
+    int32_t esi = intlen;
+    uint8_t *o = out;
+    const uint8_t *s = src;
+    if (fractlen != 0 || intlen > 0) {
+        while (esi > 0 && *s != 0) { *o++ = *s++; esi--; }   /* part1 copy */
+        while (esi > 0)                { esi--;  *o++ = '0'; } /* part1 pad */
+        *o++ = '.';                                            /* decimal pt */
+        while (fractlen != 0 && esi != 0) { esi++; *o++ = '0'; fractlen--; } /* loop A */
+        if (fractlen <= 0) return o;                           /* 0x49df9 */
+        while (fractlen != 0 && *s != 0) { *o++ = *s++; fractlen--; }        /* loop B */
+        if (fractlen == 0) return o;                           /* 0x49e0a */
+        while (fractlen != 0) { fractlen--; *o++ = '0'; }      /* loop B pad */
+        return o;                                              /* 0x49e0c */
+    }
+    *o++ = '0';
+    *o++ = '.';
+    return o;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

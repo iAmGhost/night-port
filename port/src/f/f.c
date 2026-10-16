@@ -1189,6 +1189,16 @@ void string_upper(char *s) {
         s++;
     }
 }
+
+/* 0x04457f: hex-digit value. Faithful to the disasm: if '0'-'9' return c-'0';
+ * else to_lower(c) (0x44859, ported), if 'a'-'f' return c-0x57 (10-15); else 0x10.
+ * The 0x445a0 tail (MOV EAX,0x10;RET) is the shared "not a digit" return. */
+int hex_digit_value(int c) {
+    if (c >= 0x30 && c <= 0x39) return c - 0x30;
+    c = to_lower(c);
+    if (c >= 0x61 && c <= 0x66) return c - 0x57;
+    return 0x10;
+}
 uint32_t *g_arr_53730 = NULL;                /* DAT_00053730 */
 void store_arr53730(uint32_t index, uint32_t value)   /* 0x49325 */
 {

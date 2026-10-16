@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 113 / 528 done
+TOTALS: 114 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 2 | 0 | 0 | 45 |
+| L1 | 47 | 3 | 0 | 0 | 44 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -245,7 +245,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04391d | 58 | FUN_0004391d | | |
 | [ ] | 0x043e34 | 237 | FUN_00043e34 | | |
 | [ ] | 0x0440a9 | 733 | FUN_000440a9 | | |
-| [ ] | 0x04457f | 38 | FUN_0004457f | | |
+| [x] | 0x04457f | 38 | hex_digit_value | string | port+test PASS (hex digit: 0-9, a-f->10-15, else 16; via to_lower 0x44859) |
 | [ ] | 0x044bb4 | 48 | FUN_00044bb4 | | |
 | [ ] | 0x044ea4 | 306 | FUN_00044ea4 | | |
 | [x] | 0x045605 | 23 | string_upper | string | port+test PASS (in-place upper-case via to_upper 0x494bd) |

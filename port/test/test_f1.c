@@ -1370,6 +1370,16 @@ static void test_string_upper(void)
     check(strcmp(s5, "HELLO WORLD") == 0, "hello world -> HELLO WORLD (space preserved)");
 }
 
+static void test_hex_digit_value(void)
+{
+    printf("L1: hex_digit_value (0x04457f)\n");
+    check(hex_digit_value('0') == 0 && hex_digit_value('9') == 9, "digits 0-9");
+    check(hex_digit_value('a') == 10 && hex_digit_value('f') == 15, "lower a-f -> 10-15");
+    check(hex_digit_value('A') == 10 && hex_digit_value('F') == 15, "upper A-F -> 10-15 (to_lower)");
+    check(hex_digit_value('g') == 0x10 && hex_digit_value('G') == 0x10, "g/G -> 16 (not a digit)");
+    check(hex_digit_value('/') == 0x10 && hex_digit_value(':') == 0x10, "out-of-range -> 16");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1447,6 +1457,7 @@ int main(void) {
     test_fx_stub_4a923();
     test_fx_round_down();
     test_string_upper();
+    test_hex_digit_value();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

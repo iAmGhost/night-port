@@ -4,8 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* ---- virtual port map (0x3C0-0x3CF, LPT1/DIP board region) ---- */
-static uint8_t port_val[0x10];
+/* ---- virtual port map (low I/O ports 0x0-0x3ff) ----
+ * Covers the ports the game actually touches: 8259 PIC (0x20-0x21), 8253 PIT
+ * (0x40-0x43), the DIP input board (0x3C7-0x3C9), and CD-audio/DMA ranges.
+ * Routed through a virtual array so tests can replay the I/O the original
+ * hardware would have seen; a real backend can replace this. */
+#define PORT_MAX 0x400
+static uint8_t port_val[PORT_MAX];
 /* write history for 0x3C9 (board data port) — lets tests replay the
  * OUTSB stream the original hardware would have seen */
 #define HIST_MAX 256
@@ -24,8 +29,8 @@ int sys_hist(void *buf, int max) {            /* returns history length */
 }
 
 void sys_outb(uint16_t port, uint8_t v) {
-    if (port >= 0x3c0 && port < 0x3d0) {
-        port_val[port - 0x3c0] = v;
+    if (port < PORT_MAX) {
+        port_val[port] = v;
         if (port == 0x3c9 && hist_n < HIST_MAX)
             hist[hist_n++] = v;
     }
@@ -33,14 +38,29 @@ void sys_outb(uint16_t port, uint8_t v) {
 }
 
 uint8_t sys_inb(uint16_t port) {
-    if (port >= 0x3c0 && port < 0x3d0)
-        return port_val[port - 0x3c0];
+    if (port < PORT_MAX)
+        return port_val[port];
     return 0;
 }
 
 void sys_port_set(uint16_t port, uint8_t v) {
-    if (port >= 0x3c0 && port < 0x3d0)
-        port_val[port - 0x3c0] = v;
+    if (port < PORT_MAX)
+        port_val[port] = v;
+}
+
+/* ---- interrupt-vector service (INT 0x21h get/set) ----
+ * The original hooks the PIT via INT 0x1C and programs the 8259/8253
+ * directly. A flat SDL process has no real interrupt vectors, so these are
+ * stubs; the timer subsystem (batch: 0x0003ee88/0x0003ef29) will build a
+ * tick driver on top of sys_isr_set. */
+uint64_t sys_isr_get(uint8_t vector) {
+    (void)vector;
+    return 0;                 /* no real OS vector to read */
+}
+
+void sys_isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg) {
+    (void)vector; (void)handler_off; (void)handler_seg;
+    /* no-op now: installing a real tick handler is the timer subsystem's job */
 }
 
 /* ---- SS / fatal ---- */

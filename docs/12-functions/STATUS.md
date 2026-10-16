@@ -41,6 +41,7 @@ TOTALS: 0 / 0 done
 
 
 
+
 ## Work queue (current batch)
 
 _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives + LPT I/O stubs._
@@ -74,12 +75,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x041f5d | 24 | str_len | runtime | primitives.md; test_f1 PASS |
 | [x] | 0x041f76 | 6 | abs32 | runtime | primitives.md; test_f1 PASS |
 | [x] | 0x041f7e | 28 | fpu_rndint | fpu | primitives.md; test_f1 PASS (FRNDINT, not a no-op) |
-| [ ] | 0x042310 | 8 | FUN_00042310 | | |
-| [ ] | 0x04231b | 1 | FUN_0004231b | | |
-| [ ] | 0x04231d | 13 | FUN_0004231d | | |
-| [ ] | 0x04232b | 1 | FUN_0004232b | | |
-| [ ] | 0x04232d | 51 | FUN_0004232d | | |
-| [ ] | 0x042361 | 42 | FUN_00042361 | | |
+| [x] | 0x042310 | 8 | seg_ds_load | runtime | primitives.md; no-op (flat DS) |
+| [x] | 0x04231b | 1 | irq_cli | runtime | primitives.md; no-op (no INT flag) |
+| [x] | 0x04231d | 13 | outb | io-board | primitives.md; test_f1 PASS (-> sys_outb) |
+| [x] | 0x04232b | 1 | irq_sti | runtime | primitives.md; no-op (no INT flag) |
+| [x] | 0x04232d | 51 | isr_get | os-int | primitives.md; test_f1 PASS (sys stub, INT21h get-vec) |
+| [x] | 0x042361 | 42 | isr_set | os-int | primitives.md; test_f1 PASS (sys stub, INT21h set-vec) |
 | [ ] | 0x04238c | 7 | FUN_0004238c | | |
 | [ ] | 0x0423b6 | 0 | FUN_000423b6 | | |
 | [ ] | 0x0423e5 | 82 | FUN_000423e5 | | |

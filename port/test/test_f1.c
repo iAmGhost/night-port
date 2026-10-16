@@ -250,8 +250,37 @@ static void test_fpu_rndint(void) {
           "integers unchanged; -2.5->-2 (even)");
 }
 
-static void test_canary(void) {
-    printf("canary (0x0418e6 / 0x0418ee / 0x041901)\n");
+/* ---------- batch 3: low-level I/O + interrupt-vector primitives ---------- */
+
+static void test_outb(void) {
+    printf("outb (0x04231d)\n");
+    sys_ports_reset();
+    outb(0x40, 0x12);   /* PIT channel 0 */
+    check(sys_inb(0x40) == 0x12, "PIT port 0x40 recorded");
+    outb(0x43, 0x36);   /* PIT control */
+    check(sys_inb(0x43) == 0x36, "PIT control port 0x43 recorded");
+    outb(0x20, 0x20);   /* 8259 EOI */
+    check(sys_inb(0x20) == 0x20, "PIC EOI port 0x20 recorded");
+    outb(0x3c9, 0xAB);  /* board data port still in history */
+    uint8_t h[1];
+    check(sys_hist(h, 1) == 1 && h[0] == 0xAB, "board 0x3C9 still in write history");
+}
+
+static void test_irq_nops(void) {
+    printf("seg_ds_load (0x042310) / irq_cli (0x04231b) / irq_sti (0x04232b)\n");
+    seg_ds_load(); irq_cli(); irq_sti();   /* must not crash */
+    check(1, "privileged no-ops run without fault");
+}
+
+static void test_isr(void) {
+    printf("isr_get (0x04232d) / isr_set (0x042361)\n");
+    check(isr_get(0x1c) == 0 && isr_get(0xa) == 0,
+          "isr_get returns 0 (no real OS vector)");
+    isr_set(0x1c, 0x1234, 0x2b);           /* must not crash */
+    check(1, "isr_set no-op runs without fault");
+}
+
+static void test_canary(void) {    printf("canary (0x0418e6 / 0x0418ee / 0x041901)\n");
     canary_ss_save();
     check(g_ss_saved == sys_ss(), "ss_save stores SS snapshot");
     g_stack_bound = 0x4000;
@@ -292,6 +321,10 @@ int main(void) {
     test_itoa32();
     test_str_len();
     test_fpu_rndint();
+    printf("== batch 3 (L0 I/O + interrupt-vector) ==\n");
+    test_outb();
+    test_irq_nops();
+    test_isr();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

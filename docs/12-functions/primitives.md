@@ -1,4 +1,4 @@
-# L0 primitives (batches 1–2) — semantics
+# L0 primitives (batches 1–3) — semantics
 
 Ported: `port/src/f/f.c` · Verified: `port/test/test_f1.c` (differential, all PASS)
 
@@ -138,6 +138,55 @@ always called between `FLD` and `FISTP` (128 sites), i.e.
 C analogue; callers pass the value as an argument and `fpu_rndint` returns
 `rint(a)` (matches x87 round-to-nearest-even under the default FE_TONEAREST
 rounding mode, which is the mode the game always runs in).
+
+## 0x042310 `seg_ds_load(void)` — no-op
+`MOV DS, word ptr CS:[0x42319]; RET`. Loads the real-mode DS from a
+linker-provided global (DAT_00042319) before a DPMI/DOS service call so the
+real-mode code uses the right segment. The flat long-mode model has a constant
+DS (effectively 0, and ignored), so this is a **documented no-op**. (The
+decompiler showed it as a bare `return` — it is a segment load, not a no-op,
+in the original.)
+
+## 0x04231b `irq_cli(void)` — no-op
+`CLI; RET`. Disables maskable interrupts; used around raw port I/O (PIT/PIC)
+to keep the sequence atomic. The flat model has no interrupt flag → no-op.
+
+## 0x04231d `outb(port, val)`
+`OUT DX, AL` — a single-byte port write (EAX=port, EDX=val, both
+register-passed). 40 call sites across the timer (8259 EOI at 0x20, 8253 PIT
+at 0x40/0x43) and CD-audio/DMA code. The original PUSH/POP's EBX/ECX around
+the OUT to preserve them. Routed to the sys virtual port map (`sys_outb`).
+**Note:** the port map was extended from 0x3C0–0x3CF to 0x0–0x3FF so PIT/PIC/
+CD ports are now recorded too (the 0x3C9 board write-history is unchanged).
+
+## 0x04232b `irq_sti(void)` — no-op
+`STI; RET`. Re-enables maskable interrupts (pairs with `irq_cli`). No-op in
+the flat model.
+
+## 0x04232d `isr_get(vector)` → packed far pointer
+INT 0x21h **get-interrupt-vector**: returns the current handler for `vector`
+(passed in EAX) as a far pointer (EAX=offset, EDX=segment). Callers (e.g.
+0x0003ef29, the timer init) save it to globals so they can restore the
+original handler later. The flat model has no real OS vectors, so it returns
+**0** and the later “restore” is likewise a no-op. Backed by `sys_isr_get`.
+
+## 0x042361 `isr_set(vector, handler_off, handler_seg)` — no-op (for now)
+INT 0x21h **set-interrupt-vector**: installs `handler_seg:handler_off` as the
+handler for `vector`. Used to hook INT 0x1C (the 18.2 Hz tick) to the game's
+timing ISR. The original passes the vector in two registers (EAX and EDX) for
+the DPMI real-mode frame; that is collapsed to one arg here. **No-op now** —
+the timer subsystem (batch 0x0003ee88 / 0x0003ef29) will register a real tick
+driver through `sys_isr_set`.
+
+## Global: DAT_00042319
+Word holding the real-mode DS, loaded by `seg_ds_load`. Vestigial in the flat
+port (no-op). Not mirrored as a global since the load is a no-op.
+
+## Global: DAT_000533b2
+Byte read by `isr_get`/`isr_set` to select the DOS INT 0x21h sub-function
+(range 2..8 takes one path, outside it another). Part of the DOS
+interrupt-vector service; not mirrored since both wrappers are sys-backed
+stubs.
 
 ## Global: DAT_0005335c
 32-bit PRNG state word, read/written via `rng_state_ptr()`. Mirrored as

@@ -80,4 +80,28 @@ uint32_t str_len(const char *a);
  * always called between FLD and FISTP. Modern: rint().  orig: 0x041f7e */
 double fpu_rndint(double a);
 
+/* ---- low-level I/O + interrupt-vector primitives (timer / PIT / INT 0x1C
+ * subsystem). The decompiler masked several privileged x86 instructions as
+ * no-ops; the disassembly shows the real opcodes. In the flat model the
+ * privileged ones (DS load, CLI, STI) have no effect and are ported as
+ * documented no-ops; real port I/O and the OS interrupt-vector service go
+ * through the sys layer. */
+
+/* DS = DAT_00042319 (real-mode DS). No-op: flat model, DS is constant. */
+void     seg_ds_load(void);              /* orig: 0x042310 */
+/* CLI (disable interrupts). No-op: no interrupt flag in the flat model. */
+void     irq_cli(void);                  /* orig: 0x04231b */
+/* OUT port, AL — single-byte port write (40 sites: PIC EOI, PIT, CD audio).
+ * Args register-passed in the original (EAX=port, EDX=val). */
+void     outb(uint16_t port, uint8_t val); /* orig: 0x04231d */
+/* STI (enable interrupts). No-op. */
+void     irq_sti(void);                  /* orig: 0x04232b */
+/* INT 0x21h get-interrupt-vector: returns the current handler as a packed
+ * far pointer (offset in low 32, segment in bits 32..47). 0 in the port. */
+uint64_t isr_get(uint8_t vector);        /* orig: 0x04232d */
+/* INT 0x21h set-interrupt-vector: install handler_seg:handler_off for
+ * `vector`. No-op now; the timer subsystem registers its tick handler here.
+ * (The original passes the vector in two registers; collapsed to one arg.) */
+void     isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg); /* orig: 0x042361 */
+
 #endif

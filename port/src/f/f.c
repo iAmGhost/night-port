@@ -313,3 +313,58 @@ uint32_t str_len(const char *a) {
 double fpu_rndint(double a) {
     return rint(a);
 }
+
+/* seg_ds_load  orig: 0x042310
+ *   MOV DS, word ptr CS:[0x42319]; RET
+ * Loads the real-mode DS from a linker-provided global (DAT_00042319) before
+ * a DPMI/DOS service call so the real-mode code uses the right segment. In
+ * the flat long-mode model DS is a constant (effectively 0) and is ignored,
+ * so this is a documented no-op.
+ */
+void seg_ds_load(void) { /* no-op: flat model, DS is constant */ }
+
+/* irq_cli  orig: 0x04231b
+ *   CLI; RET
+ * Disables maskable interrupts. Used around raw port I/O (PIT/PIC) to keep
+ * the sequence atomic. The flat model has no interrupt flag, so no-op.
+ */
+void irq_cli(void) { /* no-op: no interrupt flag in the flat model */ }
+
+/* outb  orig: 0x04231d
+ *   MOV EDX, EAX; MOV AL, CL; OUT DX, AL
+ * Single-byte port write: OUT `port` (EAX/DX), `val` (EDX/AL & 0xff).
+ * Register-passed (EAX=port, EDX=val). The original PUSH/POP's EBX/ECX
+ * around the OUT to preserve them. Routed to the sys virtual port map.
+ */
+void outb(uint16_t port, uint8_t val) {
+    sys_outb(port, val);
+}
+
+/* irq_sti  orig: 0x04232b
+ *   STI; RET
+ * Re-enables maskable interrupts (pairs with irq_cli). No-op in flat model.
+ */
+void irq_sti(void) { /* no-op: no interrupt flag in the flat model */ }
+
+/* isr_get  orig: 0x04232d
+ *   INT 0x21h get-interrupt-vector: returns the current handler for `vector`
+ *   (EAX) as a far pointer — EAX=offset, EDX=segment. Callers (e.g.
+ *   0x0003ef29) save this to globals so they can restore the original
+ *   handler later. The flat model has no real OS vectors, so it returns 0
+ *   and the later restore is likewise a no-op.
+ */
+uint64_t isr_get(uint8_t vector) {
+    return sys_isr_get(vector);
+}
+
+/* isr_set  orig: 0x042361
+ *   INT 0x21h set-interrupt-vector: installs handler_seg:handler_off as the
+ *   handler for `vector`. Used to hook INT 0x1C (the 18.2 Hz tick) to the
+ *   game's timing ISR. The original passes the vector in two registers
+ *   (EAX and EDX) for the DPMI real-mode frame; collapsed to one arg here.
+ *   No-op now — the timer subsystem (0x0003ee88/0x0003ef29) will register a
+ *   real tick driver through sys_isr_set.
+ */
+void isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg) {
+    sys_isr_set(vector, handler_off, handler_seg);
+}

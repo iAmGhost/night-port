@@ -5,13 +5,19 @@
 
 #include <stdint.h>
 
-/* x86 I/O ports (input board on 0x3C7-0x3C9). Routed through a virtual
- * port map so tests can drive them; a real backend can replace this. */
+/* x86 I/O ports (0x0-0x3ff: 8259 PIC, 8253 PIT, DIP board 0x3C7-0x3C9, CD
+ * audio). Routed through a virtual port map so tests can drive them; a real
+ * backend can replace this. */
 void sys_outb(uint16_t port, uint8_t v);
 uint8_t sys_inb(uint16_t port);
 void sys_ports_reset(void);
 void sys_port_set(uint16_t port, uint8_t v);   /* seed for tests (inb side) */
 int  sys_hist(void *buf, int max);              /* 0x3C9 write history (tests) */
+
+/* Interrupt-vector service (INT 0x21h get/set). No real vectors in a flat
+ * process; the timer subsystem builds a tick driver on sys_isr_set. */
+uint64_t sys_isr_get(uint8_t vector);
+void     sys_isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg);
 
 /* SS segment: original canary compared the SS register; the modern flat
  * model has a single address space, so SS is a constant. */

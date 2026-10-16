@@ -1203,6 +1203,17 @@ static void test_fx_norm32(void) {
     check(fx_norm32(s) == 0, "T6: overflow carry -> 0");
 }
 
+static void test_fx_double_exp(void) {
+    printf("== fx_double_exp (L0: double->fixed exp 0x04a9da) ==\n");
+    uint32_t o = 0xdeadbeef;
+    fx_double_exp(0.0, &o);          check(o == 0, "1.0: +0.0 -> 0");
+    fx_double_exp(-0.0, &o);         check(o == 0, "-0.0 -> 0");
+    fx_double_exp(1.0, &o);          check(o == 0xfffffd01u, "1.0 (hi=0x3ff00000) -> 255-0x3fe");
+    fx_double_exp(-1.0, &o);         check(o == 0xfffffd01u, "-1.0 (hi=0xbff00000) -> same");
+    fx_double_exp(2.0, &o);          check(o == 0xfffffc02u, "2.0 (hi=0x40000000, low8=0) -> -0x3fe");
+    fx_double_exp(5e-324, &o);       check(o == 0xfffffc02u, "smallest subnormal (hi=0,lo=1) -> -0x3fe");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1271,6 +1282,7 @@ int main(void) {
     test_fmt_int_signed();
     test_fx_extract();
     test_fx_norm32();
+    test_fx_double_exp();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

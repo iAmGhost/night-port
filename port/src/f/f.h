@@ -453,6 +453,7 @@ int32_t  fmt_int_signed(uint8_t *out, int32_t width, int32_t maxw,
                         int32_t val);                           /* 0x49d0b */
 int32_t  fx_extract(const uint8_t *p, int32_t mode);            /* 0x47ea4 */
 int32_t  fx_norm32(const uint8_t *p);                           /* 0x47fd4 */
+void     fx_double_exp(double d, uint32_t *out);                /* 0x4a9da */
 
 /* ---- L0 batch H (4): fx compare + decimal parse + DOS/FPU stubs ---- */
 /* Lexicographic less-than on an fxnum by (exp, hi, lo).  orig: 0x0498c6 */

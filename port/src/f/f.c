@@ -1556,6 +1556,25 @@ int32_t fx_norm32(const uint8_t *p)   /* 0x47fd4 */
     return (int32_t)eax;
 }
 
+/* ---- 0x4a9da: IEEE-754 double -> 32-bit fixed-point exp ----
+ * *out = EDX. hi = bits 32-63 of the double. If the double is exactly +/-0
+ * (hi & 0x7fffffff == 0 && lo == 0) then *out = 0; otherwise
+ * *out = (int32)(((hi >> 20) & 0xff) - 0x3fe)  (the low 8 bits of the biased
+ * exponent, minus bias 0x3fe). The original also rewrites [ESP+6] and does
+ * FLD double, but the FPU value is never stored so it does not affect EDX;
+ * those are omitted as no-ops. */
+void fx_double_exp(double d, uint32_t *out)   /* 0x4a9da */
+{
+    union { double dd; uint64_t u; } cv; cv.dd = d;
+    uint32_t lo = (uint32_t)cv.u;
+    uint32_t hi = (uint32_t)(cv.u >> 32);
+    uint32_t edx = 0;
+    if ((hi & 0x7fffffff) != 0 || lo != 0) {      /* JNZ / TEST lo / JZ */
+        edx = (uint32_t)((int32_t)((hi >> 20) & 0xff) - 0x3fe);
+    }
+    *out = edx;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

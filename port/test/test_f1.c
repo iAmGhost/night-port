@@ -1577,6 +1577,22 @@ static void test_042a08_family(void) {
     g_dat_64008 = b8; g_dat_64004 = b4;
 }
 
+static void test_047d24(void) {
+    printf("fn_047d24 (0x047d24)\n");
+    uint32_t a[3] = { 0x11111111, 0x22222222, 0x0012 };
+    uint32_t b[3] = { 0x33333333, 0x44444444, 0x0034 };
+    uint32_t out[3] = {0,0,0};
+    fn_047d24(a, b, out);
+    uint32_t esi = ((uint32_t)(uint16_t)b[2] << 16) | (uint16_t)a[2];
+    uint64_t r = fx_mul64(a[0], a[1], b[0], b[1], esi);
+    check(out[0] == (uint32_t)r && out[1] == (uint32_t)(r >> 32), "  out[0..4] = fx_mul64 lo/hi");
+    check(out[2] == 0x0012, "  out[8] (word) = A[8]");
+    uint32_t az[3] = {0,0,0}; uint32_t oz[3] = {9,9,9};
+    fn_047d24(az, b, oz);
+    uint64_t rz = fx_mul64(0, 0, b[0], b[1], ((uint32_t)(uint16_t)b[2] << 16));
+    check(oz[0] == (uint32_t)rz && oz[1] == (uint32_t)(rz >> 32) && oz[2] == 0, "  zero-A matches fx_mul64, out[8]=0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1664,6 +1680,7 @@ int main(void) {
     test_heap_size_adjust();
     test_fn_0423cf();
     test_042a08_family();
+    test_047d24();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

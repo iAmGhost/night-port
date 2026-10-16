@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 129 / 528 done
+TOTALS: 130 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 18 | 0 | 0 | 29 |
+| L1 | 47 | 19 | 0 | 0 | 28 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -110,6 +110,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **heap_size_adjust (0x0431b5, 119B) PORTED**: heap block size-adjuster (was deferred pending 0x42ea1, now ported as heap_top_check). 10-step algorithm: a = align_up(*p,4) [(*p+3)&~3]; a==0→0; (cfg_b2==1&&cfg_b3==0)||cfg_b2==9 ? a+=8 : a-=heap_top_check(); *p=a; t=a+0x3c (overflow→0); if t<limit(g_dat_53640) t=limit&~1; *p=t; u=t+0xfff (overflow→0); u=align_up(u,0x1000) [u&~0xfff]; *p=u; return u!=0. Low-bit masks are byte ops (AND DL,0xfc / AND DL,0xfe / AND DH,0xf0+XOR DL) but the affected bits all lie in the low/second byte, so &~3/&~1/&~0xfff are exact (earlier "low-byte-only mask quirk" note was a misread). Added g_heap_cfg_b3 (byte 0x533b3); g_heap_cfg_b2 + g_dat_53640 already existed. 6 tests (empty→0, limit clamp, no-clamp page-up, +8 branch, large page-up, overflow→0). L1 12→13, TOTALS 123→124. | STATUS.md L1 |
 | 2026-07-08 | **fn_0423cf (0x0423cf, 21B) PORTED**: registered-callback dispatcher. PUSH EDX; EDX=EAX; CALL [g_dat_53370]; CALL [g_dat_53374]; EAX=EDX; JMP 0x422d3 (shared epilogue POP EDX;RET). Modelled g_dat_53370/g_dat_53374 as `u32_cb_fn` (uint32_t(*)(uint32_t)) slots; the fn calls g_dat_53370(input), then g_dat_53374(first's return), and returns the ORIGINAL input. Both slots are called unconditionally (the original requires them set; a NULL slot faults, replicated). 3 tests (mock callbacks: return-original, cb1 gets input, cb2 gets cb1's return). L1 13→14, TOTALS 124→125. | STATUS.md L1 |
 | 2026-07-08 | **0x42a08 family (4 fns) PORTED**: 0x42a08/0x42a0d/0x42a30/0x42a3c. 0x42a0d(x) = PUSH EDX;MOV EDX,EAX;CALL const_64008;MOV [EAX],EDX → g_dat_64008=x. 0x42a08 = MOV EAX,0xd falling into 0x42a0d body → g_dat_64008=13 (param ignored). 0x42a30(x) = same shape via const_64004 → g_dat_64004=x. 0x42a3c(x) = CALL [g_dat_533bd];RET → returns g_dat_533bd(x). Added globals g_dat_64008, g_dat_64004, g_dat_533bd. Note: the earlier "blocked on unported 0x45a6a/0x45a70" was wrong — those are const_64008/const_64004 (already ported constant address-returners). 4 tests PASS. L1 14→18, TOTALS 125→129. | STATUS.md L1 |
+| 2026-07-08 | **0x47d24 fx_mul64 wrapper PORTED**: register-ABI wrapper around fx_mul64 (0x47d4e). Entry a=EAX, b=EDX, out=EBX. esi=(B[8]<<16)|A[8]. The "POP-EBX trick" resolved: EBX (the out ptr) is PUSHed, reused to hold B[0] (b_lo arg), then POPped back before writing out[0]=rlo/out[4]=rhi/out[8](word)=A[8]. Register->arg map verified from 0x47d4e entry (a_lo=EAX,a_hi=EDX,b_lo=EBX,b_hi=ECX,esi=ESI). 3 differential tests PASS (incl. zero-A). L1 18→19, TOTALS 129→130. | STATUS.md L1 |
 
 ## L0 (112)
 
@@ -263,7 +264,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0478f0 | 41 | FUN_000478f0 | | |
 | [ ] | 0x04791a | 47 | FUN_0004791a | | |
 | [ ] | 0x047b79 | 426 | FUN_00047b79 | | |
-| [ ] | 0x047d24 | 41 | FUN_00047d24 | | |
+| [x] | 0x047d24 | 41 | fn_047d24 | fx | register-ABI fx_mul64 wrapper; differential test PASS |
 | [ ] | 0x047f54 | 127 | FUN_00047f54 | | |
 | [ ] | 0x048053 | 198 | FUN_00048053 | | |
 | [ ] | 0x048585 | 101 | FUN_00048585 | | |

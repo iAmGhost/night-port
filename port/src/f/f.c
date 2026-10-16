@@ -1148,6 +1148,20 @@ void fn_042a30(uint32_t x) { g_dat_64004 = x; }
 /* 0x042a3c: CALL [0x533bd]; RET. */
 uint32_t fn_042a3c(uint32_t x) { return g_dat_533bd(x); }
 
+/* 0x047d24: register-ABI wrapper around fx_mul64 (0x47d4e). Entry: a=EAX, b=EDX,
+ * out=EBX. esi = (B[8]<<16) | A[8]. The POP-EBX idiom: EBX (the out ptr) is
+ * pushed, temporarily reused to hold B[0] (the b_lo arg to fx_mul64), then POPped
+ * back before writing the result. Writes out[0]=rlo, out[4]=rhi, out[8](word)=A[8]. */
+void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out) {
+    uint16_t a8 = *(uint16_t *)(a + 2);                 /* 0x47d33 A[8] */
+    uint16_t b8 = *(uint16_t *)(b + 2);                 /* 0x47d27 B[8] */
+    uint32_t esi = ((uint32_t)b8 << 16) | a8;           /* 0x47d30/47d33 */
+    uint64_t r = fx_mul64(a[0], a[1], b[0], b[1], esi); /* 0x47d3c CALL 0x47d4e */
+    out[0] = (uint32_t)(r & 0xffffffff);                /* 0x47d42 MOV [EBX],EAX */
+    out[1] = (uint32_t)(r >> 32);                       /* 0x47d44 MOV [EBX+4],EDX */
+    *(uint16_t *)(out + 2) = a8;                        /* 0x47d47 MOV word[EBX+8],SI */
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

@@ -380,6 +380,8 @@ void     fn_042a08(void);       /* 0x042a08: g_dat_64008 = 13 */
 void     fn_042a0d(uint32_t x); /* 0x042a0d: g_dat_64008 = x */
 void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
 uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
+/* 0x047d24: register-ABI wrapper around fx_mul64 (a=EAX, b=EDX, out=EBX). */
+void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out);
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

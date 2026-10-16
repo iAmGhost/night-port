@@ -1220,3 +1220,17 @@ void parse_decimal(const char *s, uint32_t *out)   /* 0x49a48 */
 }
 void dos_realmode_setup(void) { sys_dos_realmode_setup(); }  /* 0x490b0 */
 uint16_t fpu_init(void) { return sys_fpu_control_word(); }   /* 0x4910a */
+
+/* ---- L0 batch I (1 real + 1 spurious) ---- */
+int32_t strn_casecmp(const uint8_t *a, const uint8_t *b, uint32_t n)   /* 0x4a7a2 */
+{
+    while (n) {
+        uint8_t ca = *a, cb = *b;
+        if (ca >= 0x41 && ca <= 0x5a) ca += 0x20;      /* 0x4a7c5: lowercase a */
+        if (cb >= 0x41 && cb <= 0x5a) cb += 0x20;      /* 0x4a7d8: lowercase b */
+        if (ca != cb) return (int32_t)ca - (int32_t)cb; /* 0x4a7e0: return a-b */
+        if (cb == 0) return 0;                          /* 0x4a7aa: NUL stop */
+        a++; b++; n--;
+    }
+    return 0;
+}

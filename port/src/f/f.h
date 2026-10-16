@@ -446,4 +446,11 @@ void dos_realmode_setup(void);
  * x87 FPU; the original detected it at runtime).  orig: 0x04910a */
 uint16_t fpu_init(void);
 
+/* ---- L0 batch I (1 real + 1 spurious) ---- */
+/* Case-insensitive compare of up to n bytes: lowercases A-Z in both, returns
+ * (a-b) at the first mismatch or 0. Stops early at a NUL byte in b.  orig: 0x04a7a2.
+ * (0x048312 in the same address range is spurious disassembled data - only a DATA
+ *  xref, no CALL.) */
+int32_t strn_casecmp(const uint8_t *a, const uint8_t *b, uint32_t n);
+
 #endif

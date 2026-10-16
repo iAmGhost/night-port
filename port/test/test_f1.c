@@ -975,6 +975,19 @@ static void test_batchH(void) {
     check(fpu_init() == 0x037f, "standard control word 0x37f");
 }
 
+static void test_batchI(void) {
+    printf("== batch I (L0: strn_casecmp + spurious 0x48312) ==\n");
+    printf("batch I: strn_casecmp (0x04a7a2)\n");
+    check(strn_casecmp("abc", "abc", 3) == 0, "equal -> 0");
+    check(strn_casecmp("abc", "ABC", 3) == 0, "case-insensitive equal -> 0");
+    check(strn_casecmp("abc", "abC", 3) == 0, "mixed case equal -> 0");
+    check(strn_casecmp("abc", "abd", 3) == -1, "c-d -> -1");
+    check(strn_casecmp("abd", "abc", 3) == 1,  "d-c -> 1");
+    check(strn_casecmp("a", "b", 5) == -1, "first-char mismatch -> -1");
+    check(strn_casecmp("", "", 0) == 0, "n=0 -> 0");
+    check(strn_casecmp("ab\0cd", "ab\0ef", 6) == 0, "NUL stop -> 0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1032,6 +1045,7 @@ int main(void) {
     test_batchF();
     test_batchG();
     test_batchH();
+    test_batchI();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

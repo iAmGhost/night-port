@@ -169,7 +169,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04811a | 68 | FUN_0004811a | | |
 | [x] | 0x04815f | 0 | (spurious) | misc | 0-size entry, no code (documented) |
 | [ ] | 0x0481df | 306 | FUN_000481df | | |
-| [ ] | 0x048312 | 64 | FUN_00048312 | | |
+| [x] | 0x048312 | 64 | (spurious) | data | disassembled data (huge offsets, no prologue, only DATA xref; documented) |
 | [ ] | 0x0485eb | 122 | FUN_000485eb | | |
 | [ ] | 0x048666 | 166 | FUN_00048666 | | |
 | [ ] | 0x048e60 | 203 | FUN_00048e60 | | |
@@ -190,7 +190,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x049db2 | 98 | FUN_00049db2 | | |
 | [ ] | 0x04a2a7 | 131 | FUN_0004a2a7 | | |
 | [ ] | 0x04a3a8 | 230 | FUN_0004a3a8 | | |
-| [ ] | 0x04a7a2 | 86 | FUN_0004a7a2 | | |
+| [x] | 0x04a7a2 | 86 | strn_casecmp | string | port+test PASS (batch I) |
 | [ ] | 0x04a84e | 106 | FUN_0004a84e | | |
 | [ ] | 0x04a8b9 | 105 | FUN_0004a8b9 | | |
 | [ ] | 0x04a923 | 166 | FUN_0004a923 | | |

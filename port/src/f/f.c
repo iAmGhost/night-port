@@ -1363,6 +1363,21 @@ uint64_t fn_0492d0(uint32_t index, uint32_t ctx) {
     return (((uint64_t)ctx) << 32) | g_dat_53730[index];       /* 0x4931e */
 }
 
+/* 0x042a19: MOV EAX,0xe; JMP 0x042a0d -> g_dat_64008 = 0xe. */
+void fn_042a19(void) { g_dat_64008 = 0xe; }
+
+/* 0x044b96: drain the done-node list. Each node (8B at g_ndpool+off: {next,rec})
+ * is freed via heap_free_host and the head advances to node->next until empty.
+ * (The original passes EDX=node->next to heap_free_host, but that fn only uses EAX.) */
+void fn_044b96(void) {
+    while (g_node_list_done != 0) {                    /* 0x44b97/b9d/b9f */
+        uint32_t node_off = g_node_list_done;          /* 0x44ba1 */
+        struct nd_node *node = (struct nd_node *)(g_ndpool + node_off);
+        g_node_list_done = node->next;                 /* 0x44ba3/baa */
+        heap_free_host(node_off);                      /* 0x44ba5 */
+    }
+}
+
 uint8_t g_debug_break = 0;               /* DAT_00053624 */
 uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
 {

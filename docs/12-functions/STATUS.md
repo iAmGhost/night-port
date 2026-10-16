@@ -34,13 +34,13 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 134 / 528 done
+TOTALS: 136 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 23 | 0 | 0 | 24 |
-| L2 | 32 | 0 | 0 | 0 | 32 |
+| L2 | 32 | 2 | 0 | 0 | 30 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
@@ -115,6 +115,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **0x44ea4 fn_044ea4 PORTED** (+ parse_mod_prefix refinement): 307B numeric conversion-specifier parser. Calls refined parse_mod_prefix (now returns const uint8_t* = position of the first non-flag char, matching 0x44fd7's EAX-at-RET; the void port only dropped the return like parse_decimal did). Then: width from digits or '*' (vararg via cursor-to-cursor `uint32_t **va`, `P=*va; v=*P; *va=P+1`), precision default -1 or '.' digits or '.*' vararg (neg precision kept -1), then suffix: 'F'→0x80, 'L'/'N'→0x40, 'h'→0x10, 'l'/'w'→0x20 (all consumed), other chars return at the char (not consumed). Spec struct byte offsets [4]=width,[8]=precision,[0x14]=flags,[0x16]=width-fill(def ' ', '0' if '0' flag),[0x17]=0. 6 tests PASS. L1 20→21, TOTALS 131→132. | STATUS.md L1 |
 | 2026-07-08 | **0x49b84 fn_049b84 PORTED**: 241B [J\|M]N[.N[.N]][/month:minute:second] date/time-string parser. Fully disassembled (Ghidra's extraout_ECX register-ABI juggling decoded into concrete param_2 dword offsets). era=1('J')/0('M')/-1(neither)→[0x20]; M case: first-1→[0x10], '.2nd'→[0x0c], '.3rd'→[0x18], [0x1c]=0; J/neither: first→[0x1c]. Then optional '/m'→[0x08](def 2), ':min'→[0x04], ':sec'→[0x00]. Untouched fields left as-is (verified via 0xAA sentinel). Callee parse_decimal (0x49a48, just refined). 5 tests PASS. L1 21→22, TOTALS 132→133. | STATUS.md L1 |
 | 2026-07-08 | **0x492d0 fn_0492d0 PORTED**: node/device-table accessor (84B). Register ABI EAX=index, EDX=ctx. g_dat_53730 (DAT_00053730) = pointer to uint32 node array (4B/node; byte1=flags 0x40 init/0x20 open). if index>=g_dat_536dc → return (ctx<<32)|0. if index<6: if !(node[1]&0x40){ node[1]|=0x40; if ioctl_device(index)!=0 node[1]|=0x20 }. return (ctx<<32)|g_dat_53730[index]. Only callee ioctl_device (0x492b2, ported). 5 tests PASS. L1 22→23, TOTALS 133→134. **Also analyzed 0x0498f6 (276B date-converter)**: EAX=base-days, EDX=time-sec, EBX=offset, ECX=out struct [sec,min,hour,day,month,year,dow,day-of-year]; year-norm via uVar2=days/366, uVar4=days-uVar2*365-(uVar2-1)/4, loop consuming year-_lengths (is_leap+365); month table read as `*(int*)(tab+m*2)>>0x10` (HIGH word) for compare but `*(short*)(tab+m*2)` (LOW word) for day — two different 16-bit slots; tab=DAT_00051960(common)/0x5197a(leap). DEFERRED until table bytes + original run confirm intent. | STATUS.md L1 |
+| 2026-07-08 | **L1 clean wins exhausted; L2 trivial wrappers ported** | Surveyed remaining L1: 0x4794a/0x485eb/0x48e60/0x4a3a8 are the 4 hard FPU/fixed-point core (dedicated passes); 0x4a7fa/0x48053/0x48585/0x47f54/0x4711d/0x4a814 are FPU wrappers (garbled, unaff registers); 0x422d5/0x42ccc/0x4391d/0x43381/0x43324/0x440a9 are DOS INT/DPMI (non-portable without DPMI layer); 0x498f6/0x49506 are date (need table bytes); 0x41439/0x431b5/0x48f4c blocked on unported/deferred callees. So L1 has no more self-contained verifiable wins. Pivoted to L2: ported 0x042a19 (6B, g_dat_64008=0xe) + 0x044b96 (29B, drain g_node_list_done via heap_free_host; node=g_ndpool+off {next,rec}). Both PASS. L2 0→2, TOTALS 134→136. | STATUS.md L2 |
 
 ## L0 (112)
 
@@ -295,11 +296,11 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0429c8 | 28 | FUN_000429c8 | | |
 | [ ] | 0x0429e5 | 4 | thunk_FUN_000422d5 | | |
 | [ ] | 0x0429ea | 28 | FUN_000429ea | | |
-| [ ] | 0x042a19 | 6 | FUN_00042a19 | | |
+| [x] | 0x042a19 | 6 | fn_042a19 | trivial wrapper: g_dat_64008 = 0xe (MOV EAX,0xe; JMP fn_042a0d) | port+test PASS |
 | [ ] | 0x042d2a | 258 | FUN_00042d2a | | |
 | [ ] | 0x042eef | 210 | FUN_00042eef | | |
 | [ ] | 0x044387 | 503 | FUN_00044387 | | |
-| [ ] | 0x044b96 | 29 | FUN_00044b96 | | |
+| [x] | 0x044b96 | 29 | fn_044b96 | drain g_node_list_done: while(head){ node=g_ndpool+head; head=node->next; heap_free_host(node) } | port+test PASS |
 | [ ] | 0x044bec | 49 | FUN_00044bec | | |
 | [ ] | 0x045079 | 96 | FUN_00045079 | | |
 | [ ] | 0x0450da | 218 | FUN_000450da | | |

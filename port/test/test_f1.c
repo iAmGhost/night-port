@@ -1696,6 +1696,29 @@ static void test_0492d0(void) {
     g_dat_53730 = NULL;
 }
 
+static void test_042a19(void) {
+    printf("fn_042a19 (0x042a19)\n");
+    g_dat_64008 = 0;
+    fn_042a19();
+    check(g_dat_64008 == 0xe, "  sets g_dat_64008 = 0xe");
+}
+
+static void test_044b96(void) {
+    printf("fn_044b96 (0x044b96) node-list drain\n");
+    heap_arena_init();
+    static uint8_t pool[0x40];
+    g_ndpool = pool; memset(pool, 0, sizeof pool);
+    uint32_t *p = (uint32_t *)pool;
+    p[2] = 16; p[3] = 40;   /* node0 @8:  next=16, rec=40 */
+    p[4] = 24; p[5] = 48;   /* node1 @16: next=24, rec=48 */
+    p[6] = 0;  p[7] = 56;   /* node2 @24: next=0,  rec=56 */
+    g_node_list_done = 8;   /* head = node0 */
+    fn_044b96();
+    check(g_node_list_done == 0, "  drained: done list empty");
+    fn_044b96();
+    check(g_node_list_done == 0, "  already empty: no-op");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1788,6 +1811,8 @@ int main(void) {
     test_044ea4();
     test_049b84();
     test_0492d0();
+    test_042a19();
+    test_044b96();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

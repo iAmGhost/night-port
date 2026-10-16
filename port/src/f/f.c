@@ -1575,6 +1575,28 @@ void fx_double_exp(double d, uint32_t *out)   /* 0x4a9da */
     *out = edx;
 }
 
+/* ---- 0x45687: DOS date/time packer ----
+ * Reads the DOS clock (INT 21h 2Ch get date, 2Ah get time) via sys_getdate /
+ * sys_gettime and packs it. local0 = (month<<24)|(day<<16); local1 =
+ * (hour<<24)|(low8(minute*256+second-0x76c)<<16). The SHL ECX,16 zeroes the low
+ * byte of each local, so ESI (built from local0's low byte) is always 0 and the
+ * "day-change" branch (CMP local1.byte0 vs local2.byte0, both 0) is always
+ * equal -> dead. Hence this always returns 0 and writes the struct below. */
+uint32_t datetime_pack(struct datetime_pack *out)   /* 0x45687 */
+{
+    struct dos_date d = sys_getdate();
+    struct dos_time t = sys_gettime();
+    uint16_t timeval = (uint16_t)((uint16_t)t.minute * 256 + t.second - 0x76c);
+    out->f0  = 0;                    /* local0 byte1 = 0 */
+    out->f4  = d.day;                /* local0 byte2 = day */
+    out->f8  = d.month;              /* local0 byte3 = month */
+    out->fc  = 0;                    /* local1 byte0 = 0 */
+    out->f10 = (uint32_t)(0 - 1);    /* local1 byte1 (0) - 1 */
+    out->f14 = (uint8_t)timeval;     /* local1 byte2 = low8(timeval) */
+    out->f20 = 0xffffffff;           /* constant */
+    return 0;
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

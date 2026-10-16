@@ -34,11 +34,11 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 105 / 528 done
+TOTALS: 106 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
-| L0 | 112 | 101 | 0 | 0 | 11 |
+| L0 | 112 | 102 | 0 | 0 | 10 |
 | L1 | 47 | 1 | 0 | 0 | 46 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
@@ -83,6 +83,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | 0x04a923 has GARBAGE disasm (no prologue: starts `CALL`; `SLDT`,`CALLF 0x0:0x23b`,`IN AL,0xb`,`POP SS`,`MOV AL,[0x5af34e72]`) yet is called from 0x4a814 and sits right after 0x4a8b9 (ends 0x4a922) — likely mis-boundary or a data block; NOT marked spurious pending deeper investigation | STATUS.md L0 |
 | 2026-07-08 | 0x04811a decoded (raw-byte) = IEEE-754 float32→fxnum constructor `fx_from_f32`: expfield=(int32)v>>23 & 0xff (bits 23..30). expfield==0→passthrough {lo=0,hi=v,exp=0}; expfield==0xff→NaN/Inf marker exp=0xffff; else exp=expfield+0x3f80 (=unbiassed+0x3fff). hi=(v<<8 & 0x7fffffff)\|((v<<8&0x7fffffff)?0x40000000:0)\|0x80000000. The ambiguous `JZ 0x48149` is at 0x48142 and skips only `OR EAX,0x40000000` (merge point, not a loop). The trailing `ADD ECX,ECX;RCR CX,1` is NOT pure identity: with bit31 set (CF=1) it flips exp's top bit, so the carry is computed explicitly. Distinct from the BSR-normalizing fx_from_u32/s32 (0x47f1f/0x47f0e). 6 differential tests PASS | STATUS.md L0 |
 | 2026-07-08 | Remaining L0 (16) are all fixed-point/FPU/bit-chain, need register traces. Surveyed: 0x047fd4 = fixed-point struct normalizer (reads 4-field struct at [EAX]: [0]/[4]/[8]; RCR CH / SHLD / SHRD / ADD 0x100 / 0x80000000 clamp / ADD CX,0xc080 bias) - normalizes a {lo,hi,exp} fx value to 16-bit-mantissa form. 0x0485eb = fixed-point SUBTRACT (ESI:EDI - 15-bit; then normalizes EDX:EAX by left-shift until top bit, with a 0x7fff mask + sign-restore) - returns EDX:EAX normalized difference + a 0x8000 sign bit. 0x047ea4 = the RCR/SHLD exp-conversion (BL-mode variants 0x47e4a/0x47e9f). 0x04a9da = FPU double (FSTP QWORD - return via memory). 0x04a923 = garbage disasm (no prologue, SLDT/CALLF/IN/POP SS) yet xref'd from 0x4a814 - mis-boundary or data block, investigate. Port these ONE AT A TIME with a full register trace + reference (no-op is unsafe - real logic) | STATUS.md L0 |
+| 2026-07-08 | 0x045687 = DOS date/time packer `datetime_pack(struct datetime_pack *out)`. Reads INT 21h 2Ch/2Ah via new sys_getdate/sys_gettime backends. local0=(month<<24)|day<<16, local1=(hour<<24)|low8(minute*256+second-0x76c)<<16. The SHL ECX,16 zeroes the low byte of each packed local, so ESI (built from local0's low byte) is always 0 and the day-change branch (CMP local1.byte0 vs local2.byte0, both 0) is always equal -> dead. Returns 0 always; writes f4=day f8=month f14=low8(time) f20=0xffffffff f0=fc=0 f10=0xffffffff; f18 untouched. 10 differential checks PASS. Ghidra renamed datetime_pack | STATUS.md L0 |
 | 2026-07-08 | 0x04a9da = IEEE-754 double -> 32-bit fixed-point exp `fx_double_exp(double d, uint32_t *out)`. hi=bits 32-63. If exactly +/-0 (hi&0x7fffffff==0 && lo==0) -> *out=0; else *out=(int32)(((hi>>20)&0xff)-0x3fe) (low 8 bits of the biased exponent minus bias 0x3fe). The original rewrites [ESP+6] and does FLD double, but the FPU value is never stored so it does not affect the returned EDX; those are omitted as no-ops. 6 differential cases PASS (±0, ±1.0, 2.0, smallest subnormal). Ghidra renamed fx_double_exp | STATUS.md L0 |
 | 2026-07-08 | 0x047fd4 = fixed-point mantissa normalizer `fx_norm32(const uint8_t *p)` (renamed from fx_normalize to avoid collision with the batch-G static constructor helper of the same name). Reads {u32 lo,u32 hi,u16 exp}. M=(hi+0x100)&0xffffff00 (or 0x80000000 + exp+1 on hi+0x100 overflow; mask->0 on the hi==0x80/lo==0 underflow edge). cx=(exp+carry)&0x7fff, piecewise: cx==0->M; cx==0x7fff->((M<<1)>>8|0xff000000)<<1; else cx2=(cx+0xc080)&0xffff: cx2>=0x8000->0, cx2>=0xff->0xff000000<<1, else ((M<<1)<<8|(hi<<25)>>24)<<1. Key: EBX=hi<<25 so BX(low16)==0, making every RCR EAX,1 a plain <<1 (CF=0). Instruction-faithful; 6 hand-traced cases PASS (cx=0 M, small->0, 0x7fff special, 0xff path, SHRD path, overflow carry->0) | STATUS.md L0 |
 | 2026-07-08 | 0x047ea4 (body) + 0x047e4a (mode 0xa0) + 0x047e9f (mode 0x1f) = fixed-point exp-based mantissa extractor `fx_extract(const uint8_t *p, int32_t mode)`. p->{u32 lo,u32 hi,u16 exp} (exp at [8]). cl=(exp&0x7fff)-0x3ffe; cl<0->0, cl>0x20->0x80000000, cl>(mode&0x3f)->0x80000000. Else extract top cl bits of hi (or all hi when cl==0x20), then RCR CH,1/SHLD/ADD/ADC/NEG bit-chain (explicit CF tracked) sets the sign + a +1 carry. lo influences only via bit31(lo)->RCR CH,1. Three Ghidra fns fold into one C fn with a mode param (default 0x20). Ported instruction-by-instruction; 8 hand-traced differential cases PASS (bias, underflow, both overflow paths, cl=0x20 hi+1, mode 0x1f/0xa0 distinctions) | STATUS.md L0 |
@@ -158,7 +159,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0451b5 | 6 | cb_indirect_53644 | string | port+test PASS (batch C, NULL-guarded) |
 | [x] | 0x04561d | 49 | calibrate_clock | timing | port+test PASS (batch D2, sys rate) |
 | [x] | 0x04564f | 55 | delay_units | timing | port+test PASS (batch D2, sys clock) |
-| [ ] | 0x045687 | 194 | FUN_00045687 | | |
+| [x] | 0x045687 | 194 | datetime_pack | DOS date/time packer via sys_getdate/sys_gettime. local0=(month<<24\|day<<16), local1=(hour<<24\|low8(min*256+sec-0x76c)<<16). SHL ECX,16 zeroes each local's low byte so the DOW-based return and day-change branch (CMP local1.byte0 vs local2.byte0, both 0) are dead -> always returns 0, writes f4=day f8=month f14=low8(time) f20=-1 f0=fc=0 f10=-1 | datetime_pack (f.c) |
 | [x] | 0x04595b | 232 | tokenize | string | port+test PASS (batch J; in-place tokenizer, unescape/quote-strip, ptr-array) |
 | [x] | 0x045a44 | 37 | debug_break_hook | sys | port+test PASS (batch D, INT3 stubbed) |
 | [x] | 0x045a6a | 5 | const_64008 | string | port+test PASS (batch C) |

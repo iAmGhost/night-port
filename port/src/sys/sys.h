@@ -66,4 +66,14 @@ void sys_dos_realmode_setup(void);
  * exceptions masked) = 0x037F. */
 uint16_t sys_fpu_control_word(void);
 
+/* DOS date/time (INT 21h/0x2Ah get time, INT 21h/0x2Ch get date). Controllable
+ * via extern globals so tests can drive fixed values; a real backend can fill
+ * these from the host clock. */
+struct dos_date { uint8_t year, month, day, dow; };
+struct dos_time { uint8_t hour, minute, second, centisec; };
+extern struct dos_date sys_date;
+extern struct dos_time sys_time;
+struct dos_date sys_getdate(void);
+struct dos_time sys_gettime(void);
+
 #endif

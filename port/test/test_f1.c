@@ -1214,6 +1214,24 @@ static void test_fx_double_exp(void) {
     fx_double_exp(5e-324, &o);       check(o == 0xfffffc02u, "smallest subnormal (hi=0,lo=1) -> -0x3fe");
 }
 
+static void test_datetime_pack(void) {
+    printf("== datetime_pack (L0: DOS date/time packer 0x045687) ==\n");
+    sys_date = (struct dos_date){40, 5, 15, 6};
+    sys_time = (struct dos_time){10, 30, 45, 0};
+    struct datetime_pack p; memset(&p, 0xab, sizeof p);
+    uint32_t r = datetime_pack(&p);
+    check(r == 0, "return always 0 (DOW dead)");
+    check(p.f0 == 0, "f0=0");
+    check(p.f4 == 15, "f4=day=15");
+    check(p.f8 == 5, "f8=month=5");
+    check(p.fc == 0, "fc=0");
+    check(p.f10 == 0xffffffffu, "f10=-1");
+    check(p.f14 == (uint8_t)(30*256+45-0x76c), "f14=low8(min*256+sec-0x76c)");
+    check(p.f14 == 0xc1, "f14 concrete = 0xc1");
+    check(p.f20 == 0xffffffffu, "f20=-1");
+    check(p.f18 == 0xababababu, "f18 untouched");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1283,6 +1301,7 @@ int main(void) {
     test_fx_extract();
     test_fx_norm32();
     test_fx_double_exp();
+    test_datetime_pack();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

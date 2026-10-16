@@ -114,3 +114,8 @@ void sys_dos_ioctl(uint32_t handle, uint32_t *out_dx, uint32_t *out_cf) {
 }
 void sys_dos_realmode_setup(void) { /* OS handles disk/segment management */ }
 uint16_t sys_fpu_control_word(void) { return 0x037f; }
+
+struct dos_date sys_date = { 40, 1, 1, 1 };
+struct dos_time sys_time = { 0, 0, 0, 0 };
+struct dos_date sys_getdate(void) { return sys_date; }
+struct dos_time sys_gettime(void) { return sys_time; }

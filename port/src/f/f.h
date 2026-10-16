@@ -484,4 +484,14 @@ int32_t strn_casecmp(const uint8_t *a, const uint8_t *b, uint32_t n);
  * Returns the token count. */
 uint32_t tokenize(char *s, char **out, char **end_out);
 
+/* ---- L0 batch K ---- */
+/* DOS date/time packer (orig: 0x045687). Fills a struct from the DOS clock:
+ * f4=day, f8=month, f14=low8(minute*256+second-0x76c), f20=0xffffffff, f0=fc=0,
+ * f10=0xffffffff. The SHL ECX,16 zeroes the low byte of each packed local, so
+ * the DOW-based return and the "day-change" branch are dead and it returns 0. */
+struct datetime_pack {
+    uint32_t f0, f4, f8, fc, f10, f14, f18, f20;
+};
+uint32_t datetime_pack(struct datetime_pack *out);
+
 #endif

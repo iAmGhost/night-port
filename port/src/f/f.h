@@ -104,4 +104,54 @@ uint64_t isr_get(uint8_t vector);        /* orig: 0x04232d */
  * (The original passes the vector in two registers; collapsed to one arg.) */
 void     isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg); /* orig: 0x042361 */
 
+/* ---- streaming-printf / resource-reader state (batches 4) ----
+ * These structs mirror the original's data structures as seen by their
+ * L0 callback/leaf functions; they are fully realized when the higher-level
+ * functions that own them (the printf FUN_00044c23, the reader 0x0004247a)
+ * are ported. Field offsets are fixed to the original layout. */
+
+/* Chunked resource reader (CD data stream). pos/end are pointers into the
+ * current block, remaining the bytes still to read, id a resource handle.
+ * flags bit 0x10 is a state bit cleared on each consume. */
+typedef struct {
+    uint8_t  *pos;      /* 0x0: current read position        */
+    uint32_t  remaining;/* 0x4: bytes remaining in resource  */
+    uint8_t  *end;      /* 0x8: end of current block         */
+    uint8_t   flags;    /* 0xc: state flags (bit 0x10)       */
+    uint32_t  id;       /* 0x10: resource id / handle        */
+} res_reader;
+
+/* Internal state of the callback-based streaming printf (FUN_00044c23), as
+ * seen by its byte-sink callback. pos is at offset 0x0, count at 0x10. */
+typedef struct {
+    uint8_t *pos;   /* 0x0: write position         */
+    int32_t  width; /* 0x4: field width            */
+    int32_t  slen;  /* 0x8: field/string length    */
+    int32_t  zeros; /* 0xc: leading-zero count     */
+    int32_t  count; /* 0x10: bytes emitted (the printf's return value) */
+} fmt_state;
+
+/* IN AL, DX — single-byte port read (companion to outb).  orig: 0x04238c */
+uint8_t  inb(uint16_t port);
+/* 1-byte RET: the default no-op for the 3-slot callback table
+ * (DAT_0005336c/70/74), invoked by dispatchers 0x000423b7/0x000423cf and
+ * replaced at runtime once real handlers are installed.  orig: 0x0423b6 */
+void     cb_noop(void);
+/* Bounded case-insensitive string compare: returns 0 if the first `n` bytes
+ * of a and b are equal ignoring case, else the signed difference of the
+ * first differing (lowercased) bytes. Register-passed (EAX=a, EDX=b, EBX=n).
+ * orig: 0x0423e5 */
+int      str_icmp(const char *a, const char *b, int n);
+/* Consume `amount` bytes from a resource reader (res_reader). Success needs
+ * (end-pos) <= amount <= remaining: pos += amount, remaining -= amount,
+ * return 0. Otherwise pos = end, remaining = 0, return 1. Clears flag 0x10.
+ * orig: 0x042438 */
+int      res_consume(res_reader *r, int amount);
+/* Digit value (0..35) -> ASCII char: 0-9 -> '0'-'9', 10-35 -> 'a'-'z'.
+ * orig: 0x0427e7 */
+int      digit_chr(int d);
+/* Byte-sink callback for the streaming printf: store `byte` at st->pos,
+ * advance st->pos, increment st->count.  orig: 0x0428e5 */
+void     fmt_emit(fmt_state *st, uint8_t byte);
+
 #endif

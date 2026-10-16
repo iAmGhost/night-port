@@ -34,10 +34,35 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 0 / 0 done
+TOTALS: 31 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
+| L0 | 112 | 29 | 0 | 0 | 83 |
+| L1 | 47 | 0 | 0 | 0 | 47 |
+| L2 | 32 | 0 | 0 | 0 | 32 |
+| L3 | 21 | 0 | 0 | 0 | 21 |
+| L4 | 13 | 0 | 0 | 0 | 13 |
+| L5 | 10 | 0 | 0 | 0 | 10 |
+| L6 | 10 | 0 | 0 | 0 | 10 |
+| L7 | 8 | 0 | 0 | 0 | 8 |
+| L8 | 7 | 1 | 0 | 0 | 6 |
+| L9 | 2 | 1 | 0 | 0 | 1 |
+| L10 | 81 | 0 | 0 | 0 | 81 |
+| L11 | 77 | 0 | 0 | 0 | 77 |
+| L12 | 58 | 0 | 0 | 0 | 58 |
+| L13 | 16 | 0 | 0 | 0 | 16 |
+| L14 | 7 | 0 | 0 | 0 | 7 |
+| L15 | 5 | 0 | 0 | 0 | 5 |
+| L16 | 8 | 0 | 0 | 0 | 8 |
+| L17 | 6 | 0 | 0 | 0 | 6 |
+| L18 | 1 | 0 | 0 | 0 | 1 |
+| L19 | 1 | 0 | 0 | 0 | 1 |
+| L20 | 1 | 0 | 0 | 0 | 1 |
+| L21 | 1 | 0 | 0 | 0 | 1 |
+| L22 | 1 | 0 | 0 | 0 | 1 |
+| L23 | 3 | 0 | 0 | 0 | 3 |
+
 
 
 
@@ -81,12 +106,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x04232b | 1 | irq_sti | runtime | primitives.md; no-op (no INT flag) |
 | [x] | 0x04232d | 51 | isr_get | os-int | primitives.md; test_f1 PASS (sys stub, INT21h get-vec) |
 | [x] | 0x042361 | 42 | isr_set | os-int | primitives.md; test_f1 PASS (sys stub, INT21h set-vec) |
-| [ ] | 0x04238c | 7 | FUN_0004238c | | |
-| [ ] | 0x0423b6 | 0 | FUN_000423b6 | | |
-| [ ] | 0x0423e5 | 82 | FUN_000423e5 | | |
-| [ ] | 0x042438 | 65 | FUN_00042438 | | |
-| [ ] | 0x0427e7 | 11 | FUN_000427e7 | | |
-| [ ] | 0x0428e5 | 18 | FUN_000428e5 | | |
+| [x] | 0x04238c | 7 | inb | io-board | primitives.md; test_f1 PASS (-> sys_inb) |
+| [x] | 0x0423b6 | 0 | cb_noop | runtime | primitives.md; test_f1 PASS (no-op cb default) |
+| [x] | 0x0423e5 | 82 | str_icmp | str | primitives.md; test_f1 PASS (bounded case-insens cmp) |
+| [x] | 0x042438 | 65 | res_consume | resource | primitives.md; test_f1 PASS (res_reader consume) |
+| [x] | 0x0427e7 | 11 | digit_chr | str | primitives.md; test_f1 PASS (digit->char) |
+| [x] | 0x0428e5 | 18 | fmt_emit | str | primitives.md; test_f1 PASS (printf byte-sink) |
 | [ ] | 0x04295d | 28 | FUN_0004295d | | |
 | [ ] | 0x0429a8 | 29 | FUN_000429a8 | | |
 | [ ] | 0x042a07 | 0 | FUN_00042a07 | | |

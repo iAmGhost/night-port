@@ -1,4 +1,4 @@
-# L0 primitives (batches 1–3) — semantics
+# L0 primitives (batches 1–4) — semantics
 
 Ported: `port/src/f/f.c` · Verified: `port/test/test_f1.c` (differential, all PASS)
 
@@ -181,6 +181,58 @@ driver through `sys_isr_set`.
 ## Global: DAT_00042319
 Word holding the real-mode DS, loaded by `seg_ds_load`. Vestigial in the flat
 port (no-op). Not mirrored as a global since the load is a no-op.
+
+## 0x04238c `inb(port)`
+`IN AL, DX` — a single-byte port read (companion to `outb`), port in EAX/DX.
+The original PUSH/POP's EDX to preserve it. Routed to the sys virtual port
+map (`sys_inb`). Used by the timer/DIP/CD-audio code to read device status
+and input.
+
+## 0x0423b6 `cb_noop(void)` — no-op callback default
+A single-byte `RET`. It is the **default (no-op) handler** for the 3-slot
+callback table at DAT_0005336c/70/74 (three consecutive 4-byte function
+pointers, all initialized to this address). The dispatchers 0x000423b7 and
+0x000423cf `CALL` each slot in sequence, passing EAX/EDX through; at boot all
+three slots point here and the game installs real handlers later. (The
+decompiler mis-parses this tiny wrapper cluster and shows spurious calls
+from the dispatchers to this RET — the raw disassembly confirms it is a
+standalone `RET` between `0x00042394`'s epilogue and `0x000423b7`.)
+
+## 0x0423e5 `str_icmp(a, b, n)`
+Bounded **case-insensitive** string compare of up to `n` bytes. Each byte is
+lowered if it is in 'A'..'Z' (0x41..0x5a), then compared. Returns 0 if all
+`n` bytes match (or `n == 0`), else the signed difference of the first
+differing (lowercased) pair. Register-passed (EAX=a, EDX=b, EBX=n). NUL is
+compared as an ordinary byte (0x00), so a trailing-NUL mismatch yields the
+other byte's value.
+
+## 0x042438 `res_consume(r, amount)`
+Consume `amount` bytes from a chunked resource reader (`res_reader`). Clears
+flag bit 0x10 on entry. **Success** requires `(end - pos) <= amount <=
+remaining`: `pos += amount`, `remaining -= amount`, return 0. **Failure**:
+the reader is exhausted (`pos = end`, `remaining = 0`) and 1 is returned. The
+full meaning of the fields emerges when the reader 0x0004247a (and the resource
+loader) are ported; the field layout is fixed here to the original offsets.
+
+## 0x0427e7 `digit_chr(d)`
+`ADD EAX,0x30; if (EAX > 0x39) EAX += 0x27` — maps a digit value 0..35 to its
+ASCII char: 0–9 → '0'–'9', 10–35 → 'a'–'z'. This is the arithmetic form of
+the `itoa32` digit table, used by `0x000427f3` to hex-format a number into a
+temp filename.
+
+## 0x0428e5 `fmt_emit(st, byte)`
+The **byte-sink callback** for the callback-based streaming printf
+(`FUN_00044c23`), which emits its output by calling this per byte as
+`cb(&state, byte)`. For each byte it stores it at `st->pos`, advances
+`st->pos`, and increments `st->count` (the printf's return value = bytes
+emitted). `fmt_state` mirrors the printf's internal state as seen by the
+sink (pos at offset 0, count at offset 0x10).
+
+## Structs (batch 4)
+- `res_reader` — chunked resource reader: `{uint8_t *pos; uint32_t remaining;
+  uint8_t *end; uint8_t flags; uint32_t id;}` (offsets 0x0/0x4/0x8/0xc/0x10).
+- `fmt_state` — streaming-printf state: `{uint8_t *pos; int32_t width; int32_t
+  slen; int32_t zeros; int32_t count;}` (pos @0x0, count @0x10).
 
 ## Global: DAT_000533b2
 Byte read by `isr_get`/`isr_set` to select the DOS INT 0x21h sub-function

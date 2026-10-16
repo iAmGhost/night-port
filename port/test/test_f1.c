@@ -280,6 +280,67 @@ static void test_isr(void) {
     check(1, "isr_set no-op runs without fault");
 }
 
+/* ---------- batch 4: I/O read, no-op cb, str_icmp, res_reader, digit, fmt ---------- */
+
+static void test_inb(void) {
+    printf("inb (0x04238c)\n");
+    sys_ports_reset();
+    sys_port_set(0x40, 0x77);
+    check(inb(0x40) == 0x77, "inb reads a seeded port");
+    check(inb(0x20) == 0, "unset port -> 0");
+}
+
+static void test_cb_noop(void) {
+    printf("cb_noop (0x0423b6)\n");
+    cb_noop();                       /* must not crash */
+    check(1, "cb_noop runs without fault");
+}
+
+static void test_str_icmp(void) {
+    printf("str_icmp (0x0423e5)\n");
+    check(str_icmp("ABC", "abc", 3) == 0, "case-insensitive equal");
+    check(str_icmp("AbC", "aBc", 3) == 0, "mixed case equal");
+    check(str_icmp("abc", "abd", 3) == ('c' - 'd'), "differs negative");
+    check(str_icmp("abd", "abc", 3) == ('d' - 'c'), "differs positive");
+    check(str_icmp("abX", "abY", 2) == 0, "n limits before mismatch");
+    check(str_icmp("hello", "hello", 0) == 0, "n=0 -> 0");
+    check(str_icmp("abc", "ab", 3) == ('c' - 0), "mismatch vs NUL");
+}
+
+static void test_res_consume(void) {
+    printf("res_consume (0x042438)\n");
+    uint8_t buf[16] = {0};
+    res_reader r = { .pos = buf, .remaining = 10, .end = buf + 4, .flags = 0x10, .id = 0 };
+    int rc = res_consume(&r, 4);        /* end-pos=4 <= 4 <= remaining=10 -> ok */
+    check(rc == 0, "success rc==0");
+    check(r.pos == buf + 4, "pos advanced by amount");
+    check(r.remaining == 6, "remaining decremented");
+    check(r.flags == 0, "flag bit 0x10 cleared");
+    res_reader r2 = { .pos = buf, .remaining = 10, .end = buf + 8, .flags = 0, .id = 0 };
+    rc = res_consume(&r2, 3);           /* 3 < end-pos=8 -> fail */
+    check(rc == 1, "fail rc==1");
+    check(r2.pos == buf + 8, "pos = end on fail");
+    check(r2.remaining == 0, "remaining = 0 on fail");
+}
+
+static void test_digit_chr(void) {
+    printf("digit_chr (0x0427e7)\n");
+    check(digit_chr(0) == '0' && digit_chr(9) == '9', "0-9 -> '0'-'9'");
+    check(digit_chr(10) == 'a' && digit_chr(35) == 'z', "10-35 -> 'a'-'z'");
+    check(digit_chr(15) == 'f', "15 -> 'f'");
+}
+
+static void test_fmt_emit(void) {
+    printf("fmt_emit (0x0428e5)\n");
+    uint8_t dst[32] = {0};
+    fmt_state st = { .pos = dst, .width = 0, .slen = 0, .zeros = 0, .count = 0 };
+    fmt_emit(&st, 'H');
+    fmt_emit(&st, 'i');
+    check(dst[0] == 'H' && dst[1] == 'i', "bytes written in order");
+    check(st.pos == dst + 2, "pos advanced");
+    check(st.count == 2, "count == 2");
+}
+
 static void test_canary(void) {    printf("canary (0x0418e6 / 0x0418ee / 0x041901)\n");
     canary_ss_save();
     check(g_ss_saved == sys_ss(), "ss_save stores SS snapshot");
@@ -325,6 +386,13 @@ int main(void) {
     test_outb();
     test_irq_nops();
     test_isr();
+    printf("== batch 4 (L0 I/O read / str / reader / fmt) ==\n");
+    test_inb();
+    test_cb_noop();
+    test_str_icmp();
+    test_res_consume();
+    test_digit_chr();
+    test_fmt_emit();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

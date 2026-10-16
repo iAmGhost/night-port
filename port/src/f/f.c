@@ -368,3 +368,81 @@ uint64_t isr_get(uint8_t vector) {
 void isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg) {
     sys_isr_set(vector, handler_off, handler_seg);
 }
+
+/* inb  orig: 0x04238c
+ *   MOV EDX, EAX; SUB EAX, EAX; IN AL, DX
+ * Single-byte port read: AL = IN(port) with port in EAX/DX. The original
+ * PUSH/POP's EDX to preserve it. Routed to the sys virtual port map
+ * (companion to outb).
+ */
+uint8_t inb(uint16_t port) {
+    return sys_inb(port);
+}
+
+/* cb_noop  orig: 0x0423b6
+ *   RET
+ * A single-byte RET: the default (no-op) handler for the 3-slot callback
+ * table at DAT_0005336c/70/74. The dispatchers 0x000423b7/0x000423cf invoke
+ * each slot; at boot all three point here, and the game installs real
+ * handlers later. Does nothing regardless of the args the dispatchers pass.
+ */
+void cb_noop(void) { /* RET only — does nothing */ }
+
+/* str_icmp  orig: 0x0423e5
+ * Bounded case-insensitive compare of up to `n` bytes. Each byte is lowered
+ * if it is 'A'..'Z' (0x41..0x5a), then compared. Returns 0 if all `n` bytes
+ * match (or n==0), else the signed difference of the first differing pair.
+ * Register-passed (EAX=a, EDX=b, EBX=n).
+ */
+int str_icmp(const char *a, const char *b, int n) {
+    for (; n != 0; n--, a++, b++) {
+        int ca = (uint8_t)*a, cb = (uint8_t)*b;
+        if (ca >= 0x41 && ca <= 0x5a) ca += 0x20;
+        if (cb >= 0x41 && cb <= 0x5a) cb += 0x20;
+        if (ca != cb) return ca - cb;
+    }
+    return 0;
+}
+
+/* res_consume  orig: 0x042438
+ * Consume `amount` bytes from a chunked resource reader. Clears flag bit
+ * 0x10 on entry. Success requires (end - pos) <= amount <= remaining:
+ * pos += amount, remaining -= amount, return 0. Otherwise the reader is
+ * exhausted (pos = end, remaining = 0) and 1 is returned.
+ */
+int res_consume(res_reader *r, int amount) {
+    r->flags &= 0xef;                            /* clear bit 0x10 */
+    if (amount <= (int)r->remaining &&
+        amount >= (int)(r->end - r->pos)) {
+        r->pos += amount;
+        r->remaining -= (uint32_t)amount;
+        return 0;
+    }
+    r->pos = r->end;
+    r->remaining = 0;
+    return 1;
+}
+
+/* digit_chr  orig: 0x0427e7
+ *   ADD EAX, 0x30; if (EAX > 0x39) EAX += 0x27
+ * Maps a digit value 0..35 to its ASCII char: 0-9 -> '0'-'9', 10-35 ->
+ * 'a'-'z'. This is the arithmetic form of the itoa32 digit table.
+ */
+int digit_chr(int d) {
+    int r = d + 0x30;
+    if (0x39 < r) r += 0x27;
+    return r;
+}
+
+/* fmt_emit  orig: 0x0428e5
+ *   pos = st->pos; st->pos = pos + 1; *pos = byte; st->count++
+ * The byte-sink callback used by the streaming printf (FUN_00044c23): for
+ * each output byte it stores it at the current write position, advances the
+ * position, and increments the byte count (the printf's return value).
+ */
+void fmt_emit(fmt_state *st, uint8_t byte) {
+    uint8_t *p = st->pos;
+    st->pos = p + 1;
+    *p = byte;
+    st->count++;
+}

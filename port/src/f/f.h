@@ -235,6 +235,15 @@ uint32_t heap_top_check(void);
 /* 0x0431b5: heap size-adjuster (see f.c for the full 10-step algorithm). */
 uint32_t heap_size_adjust(uint32_t *p);
 
+/* ---- L1: registered-callback dispatcher (0x0423cf) ---- */
+typedef uint32_t (*u32_cb_fn)(uint32_t);
+extern u32_cb_fn g_dat_53370;   /* DAT_00053370: registered callback */
+extern u32_cb_fn g_dat_53374;   /* DAT_00053374: registered callback */
+/* 0x0423cf: call g_dat_53370(input), call g_dat_53374(first callback's return),
+ * then return the original input. The original calls both slots unconditionally
+ * (a NULL slot faults, exactly as in the original). */
+uint32_t fn_0423cf(uint32_t input);
+
 /* Insert+init a freshly-placed region into the all-blocks chain (sorted by
  * offset) and set up its header, sentinel, one big free block for the whole
  * data area, and the end-marker. Returns the data offset (region+0x2c).

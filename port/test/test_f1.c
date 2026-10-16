@@ -1544,6 +1544,20 @@ static void test_heap_size_adjust(void) {
     check(r == 0 && block == 0xfffffffc, "  0xfffffffb -> align 0xfffffffc, +0x3c wrap -> ret 0");
 }
 
+static uint32_t g_mock_cb1_arg, g_mock_cb2_arg;
+static uint32_t mock_cb1(uint32_t x) { g_mock_cb1_arg = x; return x + 100; }
+static uint32_t mock_cb2(uint32_t x) { g_mock_cb2_arg = x; return 0; }
+static void test_fn_0423cf(void) {
+    printf("fn_0423cf (0x0423cf)\n");
+    g_mock_cb1_arg = g_mock_cb2_arg = 0;
+    g_dat_53370 = mock_cb1; g_dat_53374 = mock_cb2;
+    uint32_t r = fn_0423cf(42);
+    check(r == 42, "  returns original input");
+    check(g_mock_cb1_arg == 42, "  cb1 got original input");
+    check(g_mock_cb2_arg == 142, "  cb2 got cb1's return (42+100)");
+    g_dat_53370 = NULL; g_dat_53374 = NULL;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1629,6 +1643,7 @@ int main(void) {
     test_config_value_ptr();
     test_time_parse();
     test_heap_size_adjust();
+    test_fn_0423cf();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -791,6 +791,19 @@ uint32_t heap_size_adjust(uint32_t *p)
     return (u != 0) ? 1u : 0u;                           /* 0x4321e-43220 */
 }
 
+/* 0x0423cf: registered-callback dispatcher. PUSH EDX; EDX=EAX; CALL [g_dat_53370];
+ * CALL [g_dat_53374]; EAX=EDX; JMP 0x422d3 (shared epilogue: POP EDX; RET).
+ * Calls g_dat_53370(input), then g_dat_53374(first's return), returns original.
+ * Both slots are called unconditionally (the original requires them set; a NULL
+ * slot faults, as in the original). */
+u32_cb_fn g_dat_53370 = NULL;   /* DAT_00053370 */
+u32_cb_fn g_dat_53374 = NULL;   /* DAT_00053374 */
+uint32_t fn_0423cf(uint32_t input) {
+    uint32_t r = g_dat_53370(input);   /* 0x423d2 CALL [0x53370] */
+    (void)g_dat_53374(r);              /* 0x423d8 CALL [0x53374] */
+    return input;                        /* 0x423de EAX=EDX (original input) */
+}
+
 /* Insert+init a region into the all-blocks chain.  orig: 0x042e2d */
 uint32_t heap_insert_init(uint32_t region) {
     uint32_t cur  = g_heap_head;                          /* 0x42e31 EAX */

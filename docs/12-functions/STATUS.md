@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 124 / 528 done
+TOTALS: 125 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 13 | 0 | 0 | 34 |
+| L1 | 47 | 14 | 0 | 0 | 33 |
 | L2 | 32 | 0 | 0 | 0 | 32 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -108,6 +108,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **parse_decimal (0x049a48) completed + 0x042958 thunk resolved**: parse_decimal (batch H) returned void (dropped EAX = pointer-past-digits); completed the 1:1 contract → now returns `const char*` (first non-digit), used by 0x049a6e as its new scan position; added a return-position test. 0x042958 (4B) = `JMP 0x4564f` (delay_units, ported f.c:1151) — a call-site alias, no separate C fn. L1 10→11, TOTALS 121→122. | STATUS.md L1 |
 | 2026-07-08 | **parse_time_str (0x049a6e, 277B) PORTED**: time-string parser (see 0x049a6e analysis row above). Faithful 1:1: skip optional leading ':'; find break char (first {digit,sign,comma,NUL}), clamp prefix to 30, copy it (segmented REP MOVSD/MOVSB → memcpy), NUL-term; break char '-' sets a negate flag (ESI repurposed from the copy source); parse H/M/S via three parse_decimal calls → *secs_out = sec + min*60 + hour*3600 (negated if '-'); return position after the last parsed component. **OFF-BY-ONE LATENT BUG replicated 1:1:** scan resumes at break_pos+1 unconditionally, so a pure "HH:MM:SS" with no sign skips its first digit ("12:34:56" → 9296 = "2:34:56"); the sign form is intended and correct ("-12:34:56" → -45296). Verified by 11 hand-traced differential tests (prefix copy/clamp, sign negate, H:M:S split, no-time early-return, long-prefix clamp). L1 11→12, TOTALS 122→123. | STATUS.md L1 |
 | 2026-07-08 | **heap_size_adjust (0x0431b5, 119B) PORTED**: heap block size-adjuster (was deferred pending 0x42ea1, now ported as heap_top_check). 10-step algorithm: a = align_up(*p,4) [(*p+3)&~3]; a==0→0; (cfg_b2==1&&cfg_b3==0)||cfg_b2==9 ? a+=8 : a-=heap_top_check(); *p=a; t=a+0x3c (overflow→0); if t<limit(g_dat_53640) t=limit&~1; *p=t; u=t+0xfff (overflow→0); u=align_up(u,0x1000) [u&~0xfff]; *p=u; return u!=0. Low-bit masks are byte ops (AND DL,0xfc / AND DL,0xfe / AND DH,0xf0+XOR DL) but the affected bits all lie in the low/second byte, so &~3/&~1/&~0xfff are exact (earlier "low-byte-only mask quirk" note was a misread). Added g_heap_cfg_b3 (byte 0x533b3); g_heap_cfg_b2 + g_dat_53640 already existed. 6 tests (empty→0, limit clamp, no-clamp page-up, +8 branch, large page-up, overflow→0). L1 12→13, TOTALS 123→124. | STATUS.md L1 |
+| 2026-07-08 | **fn_0423cf (0x0423cf, 21B) PORTED**: registered-callback dispatcher. PUSH EDX; EDX=EAX; CALL [g_dat_53370]; CALL [g_dat_53374]; EAX=EDX; JMP 0x422d3 (shared epilogue POP EDX;RET). Modelled g_dat_53370/g_dat_53374 as `u32_cb_fn` (uint32_t(*)(uint32_t)) slots; the fn calls g_dat_53370(input), then g_dat_53374(first's return), and returns the ORIGINAL input. Both slots are called unconditionally (the original requires them set; a NULL slot faults, replicated). 3 tests (mock callbacks: return-original, cb1 gets input, cb2 gets cb1's return). L1 13→14, TOTALS 124→125. | STATUS.md L1 |
 
 ## L0 (112)
 
@@ -237,7 +238,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x041ec3 | 15 | prng_seed | runtime | port+test PASS (sets *rng_state_ptr()=seed; no-op if NULL) |
 | [x] | 0x041f42 | 26 | itoa32s | string | port+test PASS (signed itoa via itoa32; '-' only for base==10; returns buf start; INT_MIN NEG-wraps) |
 | [ ] | 0x0422d5 | 58 | FUN_000422d5 | | |
-| [ ] | 0x0423cf | 21 | FUN_000423cf | | |
+| [x] | 0x0423cf | 21 | fn_0423cf | dispatch | 3 tests PASS; calls g_dat_53370(input) then g_dat_53374(ret), returns original input |
 | [x] | 0x0427f3 | 104 | tmp_filename | string | port+test PASS (register ABI EAX=buf,EDX=index; counter=get_dat_53390(); "t<4-hex(counter&0xffff)>_<2-hex(index&0xff)>.tmp" via digit_chr; high bits discarded; 6 cases) |
 | [x] | 0x042958 | 4 | thunk→delay_units | thunk | JMP 0x4564f (delay_units, ported f.c:1151); call-site alias, no separate C fn |
 | [ ] | 0x042a08 | 4 | FUN_00042a08 | | |

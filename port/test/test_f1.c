@@ -1040,6 +1040,33 @@ static void test_fx_from_f32(void) {
     check(n.lo==0 && n.hi==0x80000000u && n.exp==0, "-0.0 -> passthrough exp 0");
 }
 
+static void test_float_str_sci(void) {
+    printf("== float_str_sci (L0: sci-notation cleanup 0x045d56) ==\n");
+    uint8_t rec[32];
+    memset(rec, 0, sizeof rec);         /* flag=0, char=0 */
+    char s1[] = "12.5e3";
+    float_str_sci(s1, rec);
+    check(strcmp(s1, "12.5e3") == 0, "12.5e3 (dot not adjacent) -> unchanged");
+    char s2[] = "12.e5";
+    float_str_sci(s2, rec);
+    check(strcmp(s2, "12e5") == 0, "12.e5 -> 12e5 (adjacent dot dropped)");
+    memset(rec, 0, sizeof rec); rec[0x15] = 'g';   /* g-mode: strip trailing zeros */
+    char s3[] = "1234500e6";
+    float_str_sci(s3, rec);
+    check(strcmp(s3, "12345e6") == 0, "1234500e6 (g) -> 12345e6 (zeros stripped)");
+    memset(rec, 0, sizeof rec);
+    char s4[] = "100.5e3";
+    float_str_sci(s4, rec);
+    check(strcmp(s4, "100.5e3") == 0, "100.5e3 (mid dot) -> unchanged");
+    char s5[] = "123.";
+    float_str_sci(s5, rec);
+    check(strcmp(s5, "123") == 0, "123. -> 123 (trailing dot dropped)");
+    char s6[] = "7.0e3";
+    memset(rec, 0, sizeof rec); rec[0x14] = 1;      /* flag set -> no change */
+    float_str_sci(s6, rec);
+    check(strcmp(s6, "7.0e3") == 0, "flag set -> unchanged");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1100,6 +1127,7 @@ int main(void) {
     test_batchI();
     test_batchJ();
     test_fx_from_f32();
+    test_float_str_sci();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

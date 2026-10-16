@@ -1258,6 +1258,31 @@ void fx_from_f32(struct fxnum *out, uint32_t v)   /* 0x4811a */
     out->exp = (uint16_t)ecx;
 }
 
+/* ---- 0x45d56: in-place scientific-notation float-string cleanup ----
+ * param_1 = char *s (the float string, e.g. "123.450e6", modified in place);
+ * param_2 = a record: byte[0x14] = skip-flag (bit0), byte[0x15] = format char.
+ * If rec[0x14] & 1: do nothing. Otherwise:
+ *   advance to 'e'/'E' (or NUL); step back one; if rec[0x15] is 'g'/'G' strip
+ *   trailing '0's; if the stepped-back char is '.' overwrite it (drop the dot);
+ *   copy from the 'e' position leftward to the stepped-back position, NUL
+ *   terminating — removes the stripped zeros and/or the adjacent dot. */
+void float_str_sci(char *s, const uint8_t *rec)   /* 0x45d56 */
+{
+    if (rec[0x14] & 1) return;                        /* TEST [EDX+0x14],1; JNZ */
+    char *e = s;
+    while (*e && *e != 'e' && *e != 'E') e++;         /* find 'e'/'E' or end */
+    char *src = e;                                    /* EDX = EAX */
+    char *dst = e - 1;                                /* DEC EAX */
+    if (rec[0x15] == 'g' || rec[0x15] == 'G')         /* CL==0x67/0x47 */
+        while (*dst == '0') dst--;                    /* strip trailing '0's */
+    if (*dst != '.') dst++;                           /* CMP [EAX],0x2e; JZ skip INC */
+    for (;;) {                                        /* copy until NUL */
+        char c = *src++;
+        *dst++ = c;
+        if (c == '\0') break;
+    }
+}
+
 /* ---- L0 batch H (4) ---- */
 /* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
 uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */

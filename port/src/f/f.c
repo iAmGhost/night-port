@@ -1173,3 +1173,26 @@ uint32_t ioctl_device(uint32_t handle)   /* 0x492b2 */
     uint32_t ror = (rcl >> 1) | (rcl << 31);     /* ROR EDX,1 */
     return (ror & 0x80) ? 1 : 0;                 /* TEST DL,0x80; SETNZ AL */
 }
+
+/* ---- L0 batch G (2): fixed-point number constructor ---- */
+/* Shared normalize: BSR to find MSB bitpos, shift so bit31 is set, store the
+ * normalized value in BOTH lo and hi (the assembly writes EAX to [out] and EDX
+ * (=EAX) to [out+4]); exp = bitpos + expbase. v==0 -> all-zero. */
+static void fx_normalize(struct fxnum *out, uint32_t v, uint16_t expbase)
+{
+    if (v == 0) { out->lo = 0; out->hi = 0; out->exp = 0; return; }   /* JZ 0x47f42 */
+    int p = 31 - __builtin_clz(v);            /* BSR ECX,EAX */
+    uint32_t norm = v << (31 - p);            /* SHL EAX, 31-bitpos */
+    out->lo = norm;                           /* MOV [out],EAX */
+    out->hi = norm;                           /* MOV [out+4],EDX (EDX=EAX) */
+    out->exp = (uint16_t)(p + expbase);       /* exp = bitpos + base, low16 */
+}
+void fx_from_u32(struct fxnum *out, uint32_t v)   /* 0x47f1f (base 0x3fff) */
+{
+    fx_normalize(out, v, 0x3fff);
+}
+void fx_from_s32(struct fxnum *out, int32_t v)    /* 0x47f0e (sign thunk) */
+{
+    if (v >= 0) fx_normalize(out, (uint32_t)v, 0x3fff);   /* JNS: positive */
+    else        fx_normalize(out, 0u - (uint32_t)v, 0xbfff); /* NEG EAX, base|0x8000 */
+}

@@ -424,4 +424,13 @@ void noop_9109(void);
  * RCL/ROR bit ops.  orig: 0x0492b2 */
 uint32_t ioctl_device(uint32_t handle);
 
+/* ---- L0 batch G (2): fixed-point number constructor ---- */
+/* Fixed-point number (10 bytes, 4-aligned): 64-bit normalized mantissa {hi,lo}
+ * + 16-bit exponent. The mantissa's MSB is placed at bit 31; exp =
+ * (MSB-bitpos) + 0x3fff, with bit 0x8000 set for negatives. Built from a 32-bit
+ * int.  orig: 0x047f1f (unsigned), 0x047f0e (signed entry / sign thunk). */
+struct fxnum { uint32_t lo; uint32_t hi; uint16_t exp; };
+void fx_from_u32(struct fxnum *out, uint32_t v);   /* 0x47f1f */
+void fx_from_s32(struct fxnum *out, int32_t v);    /* 0x47f0e */
+
 #endif

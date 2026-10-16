@@ -927,6 +927,29 @@ static void test_batchF(void) {
     sys_ioctl_dx = 0; sys_ioctl_cf = 0;
 }
 
+static void test_batchG(void) {
+    printf("== batch G (L0 fixed-point constructor) ==\n");
+    struct fxnum n;
+    printf("batch G: fx_from_u32 (0x047f1f)\n");
+    fx_from_u32(&n, 0);
+    check(n.lo==0 && n.hi==0 && n.exp==0, "0 -> all zero");
+    fx_from_u32(&n, 1);
+    check(n.lo==0x80000000u && n.hi==0x80000000u && n.exp==0x3fff, "1 -> norm 0x80000000 exp 0x3fff");
+    fx_from_u32(&n, 0x80000000u);
+    check(n.lo==0x80000000u && n.hi==0x80000000u && n.exp==0x401e, "0x80000000 -> exp 0x401e");
+    fx_from_u32(&n, 0x10000);
+    check(n.lo==0x80000000u && n.hi==0x80000000u && n.exp==0x400f, "0x10000 -> norm 0x80000000 exp 0x400f");
+    fx_from_u32(&n, 0xffffffffu);
+    check(n.lo==0xffffffffu && n.hi==0xffffffffu && n.exp==0x401e, "0xffffffff -> norm 0xffffffff exp 0x401e");
+    printf("batch G: fx_from_s32 (0x047f0e)\n");
+    fx_from_s32(&n, 5);
+    check(n.lo==0xa0000000u && n.hi==0xa0000000u && n.exp==0x4001, "5 -> norm 0xa0000000 exp 0x4001");
+    fx_from_s32(&n, -5);
+    check(n.lo==0xa0000000u && n.hi==0xa0000000u && n.exp==0xc001, "-5 -> norm 0xa0000000 exp 0xc001 (sign bit)");
+    fx_from_s32(&n, -1);
+    check(n.lo==0x80000000u && n.hi==0x80000000u && n.exp==0xbfff, "-1 -> norm 0x80000000 exp 0xbfff");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -982,6 +1005,7 @@ int main(void) {
     test_batchD2();
     test_batchE();
     test_batchF();
+    test_batchG();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

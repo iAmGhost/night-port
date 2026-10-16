@@ -163,8 +163,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x047e4a | 4 | FUN_00047e4a | | |
 | [ ] | 0x047e9f | 4 | FUN_00047e9f | | |
 | [ ] | 0x047ea4 | 105 | FUN_00047ea4 | | |
-| [ ] | 0x047f0e | 16 | FUN_00047f0e | | |
-| [ ] | 0x047f1f | 52 | FUN_00047f1f | | |
+| [x] | 0x047f0e | 16 | fx_from_s32 | math | port+test PASS (batch G, fixed-point ctor sign thunk) |
+| [x] | 0x047f1f | 52 | fx_from_u32 | math | port+test PASS (batch G, fixed-point ctor unsigned) |
 | [ ] | 0x047fd4 | 126 | FUN_00047fd4 | | |
 | [ ] | 0x04811a | 68 | FUN_0004811a | | |
 | [x] | 0x04815f | 0 | (spurious) | misc | 0-size entry, no code (documented) |

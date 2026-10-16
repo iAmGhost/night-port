@@ -73,6 +73,11 @@ uint32_t *rng_state_ptr(void);
  * digit table 0-9a-z; returns the original b  orig: 0x041ef8 */
 char *itoa32(uint32_t a, char *b, uint32_t c);
 
+/* 0x049459: table-based base-c itoa (runtime digit table at 0x049434); its
+ * observable output is byte-identical to itoa32 (0x041ef8). Ported as a thin
+ * delegation to itoa32. */
+char *itoa32_tbl(uint32_t a, char *b, uint32_t c);
+
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);
 

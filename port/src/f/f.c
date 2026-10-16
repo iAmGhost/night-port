@@ -286,6 +286,14 @@ char *itoa32(uint32_t a, char *b, uint32_t c) {
     return o;
 }
 
+/* itoa32_tbl  orig: 0x049459
+ *   Table-based base-c itoa using the runtime digit table at 0x049434
+ *   ("0123456789abcdefghijklmnopqrstuvwxyz"). Observable output is byte-identical
+ *   to itoa32 (0x041ef8); the original is a separate function that computes the
+ *   same reversed-digit string via a local scratch buffer and a fixed NUL
+ *   sentinel. Delegated to itoa32. */
+char *itoa32_tbl(uint32_t a, char *b, uint32_t c) { return itoa32(a, b, c); }
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).

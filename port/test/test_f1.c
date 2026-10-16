@@ -1008,6 +1008,12 @@ static void test_batchJ(void) {
     char *qout[2] = {0};
     check(tokenize(q, qout, &end) == 1, "quoted in-place 1");
     check(qout[0] && qout[0][0]=='h' && qout[0][1]=='i' && qout[0][2]=='\0', "quoted -> 'hi'");
+    /* itoa32_tbl (0x049459) - table-based itoa, byte-identical to itoa32 */
+    char nb[40];
+    check(strcmp(itoa32_tbl(255, nb, 16), "ff") == 0, "tbl 255 base16 = ff");
+    check(strcmp(itoa32_tbl(0, nb, 10), "0") == 0, "tbl 0 base10 = 0");
+    check(strcmp(itoa32_tbl(123456, nb, 10), "123456") == 0, "tbl 123456 base10");
+    check(strcmp(itoa32_tbl(0x1000000, nb, 16), "1000000") == 0, "tbl 16M base16");
 }
 
 int main(void) {

@@ -182,7 +182,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x049187 | 10 | set_53640 | sys | port+test PASS (batch F) |
 | [x] | 0x0492b2 | 29 | ioctl_device | sys | port+test PASS (batch F, INT21/44 stubbed) |
 | [x] | 0x049325 | 20 | store_arr53730 | data-struct | port+test PASS (batch F) |
-| [ ] | 0x049459 | 72 | FUN_00049459 | | |
+| [x] | 0x049459 | 72 | itoa32_tbl | string | port+test PASS (batch J; table-based itoa, byte-identical to itoa32 0x41ef8; delegates) |
 | [x] | 0x0494bd | 13 | to_upper | string | port+test PASS (batch F) |
 | [ ] | 0x0494cb | 58 | FUN_000494cb | | |
 | [x] | 0x0498c6 | 47 | fx_less | math | port+test PASS (batch H, fxnum (exp,hi,lo) compare) |

@@ -79,6 +79,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | 115 unreferenced functions recovered via code-gap scan; 12 bogus mid-code entries deleted | analysis/rank.tsv |
 | 2026-07-08 | canary pair (0x418ee/0x41901, L8/L9) ported in batch 1 ahead of L1-L7: self-contained stack guard; sole callee 0x429ea (printer) replaced by sys_fatal (sys layer), fatal fall-through = process death | primitives.md |
 | 2026-07-08 | 0x0461cc is a 5909-byte monolithic bytecode/state interpreter (1347 insns, single RET, `JMP 0x0461cc` loops); 0x4636e/0x463c0/0x463dc/0x46d05 are spurious mid-code entries within it (marked [x] spurious, no C fn); 0x461cc ported later as one big function | STATUS.md L6 |
+| 2026-07-08 | Remaining L0 cluster is FPU/BCD/fixed-point/bit-chain; needs dedicated x86+reference traces (decompiler mangles RCR/SHLD/CARRY and FPU doubles): 0x47ea4(+thunks 0x47e4a/0x47e9f, RCR/SHLD exp chain), 0x4811a (fxnum ctor, ambiguous `JZ 0x48149` — decode raw bytes), 0x4a9da (returns FPU double, modifies A6 high word to `((A6>>16)&0x800f)\|0x3fe0` then `FLD`), 0x4a84e (fixed-point L/R shift), 0x4a8b9 (BCD /10000 formatter), 0x45d56 ('e'/'E'/'.' string handler) | STATUS.md L0 |
+| 2026-07-08 | 0x04a923 has GARBAGE disasm (no prologue: starts `CALL`; `SLDT`,`CALLF 0x0:0x23b`,`IN AL,0xb`,`POP SS`,`MOV AL,[0x5af34e72]`) yet is called from 0x4a814 and sits right after 0x4a8b9 (ends 0x4a922) — likely mis-boundary or a data block; NOT marked spurious pending deeper investigation | STATUS.md L0 |
 
 ## L0 (112)
 

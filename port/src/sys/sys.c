@@ -112,3 +112,5 @@ uint32_t sys_ioctl_dx = 0, sys_ioctl_cf = 0;
 void sys_dos_ioctl(uint32_t handle, uint32_t *out_dx, uint32_t *out_cf) {
     (void)handle; *out_dx = sys_ioctl_dx; *out_cf = sys_ioctl_cf;
 }
+void sys_dos_realmode_setup(void) { /* OS handles disk/segment management */ }
+uint16_t sys_fpu_control_word(void) { return 0x037f; }

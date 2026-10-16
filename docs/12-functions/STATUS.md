@@ -173,9 +173,9 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0485eb | 122 | FUN_000485eb | | |
 | [ ] | 0x048666 | 166 | FUN_00048666 | | |
 | [ ] | 0x048e60 | 203 | FUN_00048e60 | | |
-| [ ] | 0x0490b0 | 88 | FUN_000490b0 | | |
+| [x] | 0x0490b0 | 88 | dos_realmode_setup | sys | port+test PASS (batch H, INT2F/21-30 stubbed) |
 | [x] | 0x049109 | 0 | noop_9109 | sys | port+test PASS (batch F, single RET) |
-| [ ] | 0x04910a | 38 | FUN_0004910a | | |
+| [x] | 0x04910a | 38 | fpu_init | sys | port+test PASS (batch H, x87 control-word stub) |
 | [ ] | 0x049132 | 75 | FUN_00049132 | | |
 | [x] | 0x04917e | 8 | stack_depth | timing | port+test PASS (batch F, ESP-bound; uintptr bound) |
 | [x] | 0x049187 | 10 | set_53640 | sys | port+test PASS (batch F) |
@@ -184,8 +184,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x049459 | 72 | FUN_00049459 | | |
 | [x] | 0x0494bd | 13 | to_upper | string | port+test PASS (batch F) |
 | [ ] | 0x0494cb | 58 | FUN_000494cb | | |
-| [ ] | 0x0498c6 | 47 | FUN_000498c6 | | |
-| [ ] | 0x049a48 | 37 | FUN_00049a48 | | |
+| [x] | 0x0498c6 | 47 | fx_less | math | port+test PASS (batch H, fxnum (exp,hi,lo) compare) |
+| [x] | 0x049a48 | 37 | parse_decimal | string | port+test PASS (batch H) |
 | [ ] | 0x049d0b | 166 | FUN_00049d0b | | |
 | [ ] | 0x049db2 | 98 | FUN_00049db2 | | |
 | [ ] | 0x04a2a7 | 131 | FUN_0004a2a7 | | |

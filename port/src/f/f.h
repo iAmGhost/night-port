@@ -429,8 +429,21 @@ uint32_t ioctl_device(uint32_t handle);
  * + 16-bit exponent. The mantissa's MSB is placed at bit 31; exp =
  * (MSB-bitpos) + 0x3fff, with bit 0x8000 set for negatives. Built from a 32-bit
  * int.  orig: 0x047f1f (unsigned), 0x047f0e (signed entry / sign thunk). */
-struct fxnum { uint32_t lo; uint32_t hi; uint16_t exp; };
+struct fxnum { uint32_t lo; uint32_t hi; uint32_t exp; };
 void fx_from_u32(struct fxnum *out, uint32_t v);   /* 0x47f1f */
 void fx_from_s32(struct fxnum *out, int32_t v);    /* 0x47f0e */
+
+/* ---- L0 batch H (4): fx compare + decimal parse + DOS/FPU stubs ---- */
+/* Lexicographic less-than on an fxnum by (exp, hi, lo).  orig: 0x0498c6 */
+uint32_t fx_less(const struct fxnum *a, const struct fxnum *b);
+/* Parse leading ASCII decimal digits into *out (0 if no leading digit).
+ *  orig: 0x049a48 */
+void parse_decimal(const char *s, uint32_t *out);
+/* DOS protected-mode/real-mode disk+segment setup (INT 2Fh / INT 21h/0x30h).
+ * No-op stub in the modern port (the OS provides this).  orig: 0x0490b0 */
+void dos_realmode_setup(void);
+/* FPU init: return a standard x87 control word (modern build always has an
+ * x87 FPU; the original detected it at runtime).  orig: 0x04910a */
+uint16_t fpu_init(void);
 
 #endif

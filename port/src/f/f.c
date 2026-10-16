@@ -1196,3 +1196,27 @@ void fx_from_s32(struct fxnum *out, int32_t v)    /* 0x47f0e (sign thunk) */
     if (v >= 0) fx_normalize(out, (uint32_t)v, 0x3fff);   /* JNS: positive */
     else        fx_normalize(out, 0u - (uint32_t)v, 0xbfff); /* NEG EAX, base|0x8000 */
 }
+
+/* ---- L0 batch H (4) ---- */
+/* Compare two fxnum by (exp, hi, lo); 1 if a < b lexicographically. */
+uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)   /* 0x498c6 */
+{
+    if (a->exp < b->exp) return 1;          /* 0x498d5 CMP ECX,ESI; JL */
+    if (a->exp > b->exp) return 0;          /* 0x498d8 JNZ -> 0 */
+    if (a->hi < b->hi)   return 1;          /* 0x498dd */
+    if (a->hi > b->hi)   return 0;          /* 0x498e0 */
+    if (a->lo < b->lo)   return 1;          /* 0x498e5 CMP EAX,[EDX]; JGE */
+    return 0;
+}
+/* Parse leading decimal digits (v = v*10 + digit) until a non-digit. */
+void parse_decimal(const char *s, uint32_t *out)   /* 0x49a48 */
+{
+    uint32_t v = 0;
+    while (*s >= '0' && *s <= '9') {         /* 0x49a4e CMP JC/JA */
+        v = v * 10u + (uint32_t)(*s - '0');  /* IMUL EDX,EDX,0xa; ...; SUB 0x30 */
+        s++;
+    }
+    *out = v;
+}
+void dos_realmode_setup(void) { sys_dos_realmode_setup(); }  /* 0x490b0 */
+uint16_t fpu_init(void) { return sys_fpu_control_word(); }   /* 0x4910a */

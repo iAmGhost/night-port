@@ -950,6 +950,31 @@ static void test_batchG(void) {
     check(n.lo==0x80000000u && n.hi==0x80000000u && n.exp==0xbfff, "-1 -> norm 0x80000000 exp 0xbfff");
 }
 
+static void test_batchH(void) {
+    printf("== batch H (L0: fx compare, decimal parse, stubs) ==\n");
+    struct fxnum a, b;
+    printf("batch H: fx_less (0x0498c6)\n");
+    fx_from_u32(&a, 5);   /* exp 0x4001, norm 0xa0000000 */
+    fx_from_u32(&b, 7);   /* exp 0x4001, norm 0xe0000000 */
+    check(fx_less(&a, &b) == 1, "5 < 7");
+    check(fx_less(&b, &a) == 0, "7 < 5 false");
+    fx_from_u32(&a, 3);   /* exp 0x3fff */
+    fx_from_u32(&b, 5);   /* exp 0x4001 */
+    check(fx_less(&a, &b) == 1, "3 < 5 (exp)");
+    check(fx_less(&b, &a) == 0, "5 < 3 false");
+    printf("batch H: parse_decimal (0x049a48)\n");
+    uint32_t d;
+    parse_decimal("123abc", &d); check(d == 123, "123abc -> 123");
+    parse_decimal("0", &d);      check(d == 0,   "0 -> 0");
+    parse_decimal("abc", &d);    check(d == 0,   "abc -> 0");
+    parse_decimal("42", &d);     check(d == 42,  "42 -> 42");
+    parse_decimal("9999x", &d);  check(d == 9999, "9999x -> 9999");
+    printf("batch H: dos_realmode_setup (0x0490b0, stub)\n");
+    dos_realmode_setup(); check(1, "stub returns");
+    printf("batch H: fpu_init (0x04910a, stub)\n");
+    check(fpu_init() == 0x037f, "standard control word 0x37f");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1006,6 +1031,7 @@ int main(void) {
     test_batchE();
     test_batchF();
     test_batchG();
+    test_batchH();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

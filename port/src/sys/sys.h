@@ -59,4 +59,11 @@ void sys_clock_read(void);
 extern uint32_t sys_ioctl_dx, sys_ioctl_cf;
 void sys_dos_ioctl(uint32_t handle, uint32_t *out_dx, uint32_t *out_cf);
 
+/* DOS PM/real-mode disk+segment setup (INT 2Fh / INT 21h/0x30h). No-op in the
+ * modern port (the OS provides disk/segment management). */
+void sys_dos_realmode_setup(void);
+/* Standard x87 FPU control word (round-to-nearest, extended precision, all
+ * exceptions masked) = 0x037F. */
+uint16_t sys_fpu_control_word(void);
+
 #endif

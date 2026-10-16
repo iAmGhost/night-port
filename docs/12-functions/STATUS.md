@@ -135,20 +135,20 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0445a6 | 34 | emit_step | emit | port+test PASS (batch B) |
 | [x] | 0x044618 | 74 | dispatch_a | emit | port+test PASS (batch B) |
 | [x] | 0x044663 | 78 | dispatch_b | emit | port+test PASS (batch B) |
-| [ ] | 0x044859 | 13 | FUN_00044859 | | |
+| [x] | 0x044859 | 13 | to_lower | string | port+test PASS (batch C) |
 | [ ] | 0x044b5d | 56 | FUN_00044b5d | | |
-| [ ] | 0x044be6 | 5 | FUN_00044be6 | | |
+| [x] | 0x044be6 | 5 | get_dat_53390 | string | port+test PASS (batch C) |
 | [ ] | 0x044fd7 | 90 | FUN_00044fd7 | | |
-| [ ] | 0x045032 | 35 | FUN_00045032 | | |
-| [ ] | 0x045056 | 34 | FUN_00045056 | | |
-| [ ] | 0x0451b5 | 6 | FUN_000451b5 | | |
+| [x] | 0x045032 | 35 | strn_len | string | port+test PASS (batch C) |
+| [x] | 0x045056 | 34 | word_nlen | string | port+test PASS (batch C) |
+| [x] | 0x0451b5 | 6 | cb_indirect_53644 | string | port+test PASS (batch C, NULL-guarded) |
 | [ ] | 0x04561d | 49 | FUN_0004561d | | |
 | [ ] | 0x04564f | 55 | FUN_0004564f | | |
 | [ ] | 0x045687 | 194 | FUN_00045687 | | |
 | [ ] | 0x04595b | 232 | FUN_0004595b | | |
 | [ ] | 0x045a44 | 37 | FUN_00045a44 | | |
-| [ ] | 0x045a6a | 5 | FUN_00045a6a | | |
-| [ ] | 0x045a70 | 5 | FUN_00045a70 | | |
+| [x] | 0x045a6a | 5 | const_64008 | string | port+test PASS (batch C) |
+| [x] | 0x045a70 | 5 | const_64004 | string | port+test PASS (batch C) |
 | [ ] | 0x045ae8 | 15 | FUN_00045ae8 | | |
 | [ ] | 0x045bb1 | 5 | FUN_00045bb1 | | |
 | [ ] | 0x045d56 | 71 | FUN_00045d56 | | |

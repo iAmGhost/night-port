@@ -337,4 +337,24 @@ void dispatch_a(uint32_t key);
  * entry done.  orig: 0x044663 */
 void dispatch_b(uint32_t eax_arg, uint32_t edx_arg);
 
+/* ---- L0 batch C (9): char/string/count primitives + DPMI constants ---- */
+/* Uppercase ASCII letter (0x41-0x5a) -> lowercase (+0x20); else unchanged.  orig: 0x044859 */
+int to_lower(int c);
+/* Count non-NUL bytes in `src`, capped at `limit` (strnlen).  orig: 0x045032 */
+size_t strn_len(const uint8_t *src, size_t limit);
+/* Count non-zero 16-bit words in `src`, capped at `limit` words.  orig: 0x045056 */
+size_t word_nlen(const uint16_t *src, size_t limit);
+/* DPMI host linear-base constants (no meaning in the flat model, preserved for
+ * 1:1).  orig: 0x045a6a / 0x045a70 */
+uint32_t const_64008(void);
+uint32_t const_64004(void);
+/* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
+ * get_dat_53390.  orig: DAT_00053390 */
+extern int g_dat_53390;
+int get_dat_53390(void);   /* orig: 0x044be6 */
+/* Indirect-call thunk through callback slot DAT_00053644. Port guards against
+ * NULL (the original calls unconditionally).  orig: 0x0451b5 */
+extern uint32_t (*g_cb_53644)(void);
+uint32_t cb_indirect_53644(void);
+
 #endif

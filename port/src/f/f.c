@@ -1044,3 +1044,26 @@ void dispatch_b(uint32_t eax_arg, uint32_t edx_arg)
         /* 0x446ab JMP loop: re-scan */
     }
 }
+
+/* ---- L0 batch C (9): char/string/count primitives + DPMI constants ---- */
+int to_lower(int c) { return (c >= 0x41 && c <= 0x5a) ? c + 0x20 : c; }
+
+size_t strn_len(const uint8_t *src, size_t limit) {     /* 0x45032 */
+    size_t n = 0;
+    while (n < limit && src[n] != 0) n++;
+    return n;
+}
+
+size_t word_nlen(const uint16_t *src, size_t limit) {   /* 0x45056 */
+    size_t n = 0;
+    while (n < limit && src[n] != 0) n++;
+    return n;
+}
+
+uint32_t const_64008(void) { return 0x64008; }         /* 0x45a6a */
+uint32_t const_64004(void) { return 0x64004; }         /* 0x45a70 */
+
+int g_dat_53390 = 0;                                    /* DAT_00053390 */
+uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
+int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */
+uint32_t cb_indirect_53644(void) { return g_cb_53644 ? g_cb_53644() : 0; } /* 0x451b5 */

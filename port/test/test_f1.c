@@ -778,6 +778,30 @@ static void test_dispatch(void) {
     memcpy(g_evtab, save, sizeof g_evtab);
 }
 
+static void test_batchC(void) {
+    printf("== batch C (L0 char/string/count) ==\n");
+    printf("batch C: to_lower (0x044859)\n");
+    check(to_lower('A')==0x61 && to_lower('Z')==0x7a, "A-Z -> lowercase");
+    check(to_lower('a')=='a' && to_lower('0')=='0' && to_lower(0x5b)==0x5b, "non-upper unchanged");
+    printf("batch C: strn_len (0x045032)\n");
+    const uint8_t s[] = {'h','i','x','\0','x'};
+    check(strn_len(s, 10) == 3, "strn_len: 3 before NUL");
+    check(strn_len(s, 2) == 2, "strn_len: capped at limit");
+    check(strn_len(s, 0) == 0, "strn_len: limit 0");
+    const uint8_t nn[] = {'a','b','c'};
+    check(strn_len(nn, 3) == 3, "strn_len: all non-NUL within limit");
+    printf("batch C: word_nlen (0x045056)\n");
+    const uint16_t w[] = {0x1, 0x2, 0, 0x5};
+    check(word_nlen(w, 10) == 2, "word_nlen: 2 before zero word");
+    check(word_nlen(w, 1) == 1, "word_nlen: capped at limit");
+    printf("batch C: DPMI constants + accessors\n");
+    check(const_64008()==0x64008 && const_64004()==0x64004, "constants");
+    g_dat_53390 = 0x1234;
+    check(get_dat_53390()==0x1234, "get_dat_53390 returns global");
+    g_cb_53644 = NULL;
+    check(cb_indirect_53644()==0, "cb_indirect NULL-guarded -> 0");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -828,6 +852,7 @@ int main(void) {
     test_emit_value();
     test_emit_step();
     test_dispatch();
+    test_batchC();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

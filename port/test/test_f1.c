@@ -2026,6 +2026,24 @@ static void test_l10_accessors(void) {
       prng_seed(0x1234); check(fn_01603e(s2) == 1, "  near-twin fn_01603e '+' -> 1D ret1");
       prng_seed(0x1234); check(fn_0161f9(s2) == 1, "  near-twin fn_0161f9 '+' -> 1D ret1");
       prng_seed(0x1234); check(fn_0163b4(s2) == 0, "  near-twin fn_0163b4 ',' -> 2D Y-fail ret0");
+      // 0x015d16: X-gate first, then char-selects-Y-limit ('+'->40, else->10).
+      uint8_t sd[0x200] = {0}; sd[1] = 5; sd[0xd] = 2;   // sX-tX=2, idx in-bounds
+      *(uint32_t *)(sd+0x17) = 0x1f; int32_t rd = fn_015d16(sd);
+      check(rd == 0 && g_dat_53c6c == 1, "  fn_015d16 0x1f -> ret0");
+      prng_seed(0x1234); *(uint32_t *)(sd+0x17) = 0xb; rd = fn_015d16(sd);
+      check(rd == 2 && sd[0x117] == 1, "  fn_015d16 [0xb,0x14] -> ret2");
+      *(uint32_t *)(sd+0x17) = 0x5; *(uint32_t *)(sd+0x1f) = 0; *(int32_t *)(sd+0x113) = 0;
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); rd = fn_015d16(sd);
+      check(rd == 0, "  fn_015d16 s[0x1f]!=4 -> ret0");
+      *(uint32_t *)(sd+0x17) = 0x5; *(uint32_t *)(sd+0x1f) = 4; *(uint32_t *)(sd+0x83) = 0; sd[9] = 33;   // sY-tY=30
+      memset(g_dat_53eb8, 0x2b, sizeof(g_dat_53eb8)); prng_seed(0x1234); rd = fn_015d16(sd);
+      check(rd == 1, "  fn_015d16 '+' Y-limit=40 (30<40) -> ret1");
+      *(uint32_t *)(sd+0x1f) = 4; *(uint32_t *)(sd+0x83) = 0; sd[9] = 23;   // sY-tY=20
+      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); prng_seed(0x1234); rd = fn_015d16(sd);
+      check(rd == 0, "  fn_015d16 non-'+' Y-limit=10 (20>=10) -> ret0");
+      sd[9] = 5; memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); prng_seed(0x1234); rd = fn_015d16(sd);
+      check(rd == 0, "  fn_015d16 X-gate (2>=1) -> ret0");
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
     }

@@ -1617,6 +1617,15 @@ int32_t fn_017637(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0176
     }
 }
 
+int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0174a2: clamp-check to [0,0x140); adjust out if out of range */
+    *(int32_t *)(s + 0x17) = 2;
+    int32_t F = (int32_t)fn_01519f(s);
+    if (F >= 0 && F < 0x140) return 1;
+    if ((int32_t)fn_01519f(s) < 0) *out += param2;
+    if ((int32_t)fn_01519f(s) > 0x13f) *out -= param2;
+    return 0;
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

@@ -1946,6 +1946,13 @@ static void test_l10_accessors(void) {
       check(out == 0 && r == 1, "  fn_017637 B reached: *out=0 (corrected), ret=1");
       *(uint32_t*)(s+9) = 30; *(int32_t*)(s+0xc3) = 50; *(int32_t*)(s+0xab) = 5; out = -999; r = fn_017637(s, 10, &out);
       check(out == 10 && r == 0 && (*(int32_t*)(s+0xab)) == 4, "  fn_017637 B +step: out=+step dec ret=0"); }
+    { g_dat_639dc = 0; uint8_t s[0x20] = {0}; int32_t out = 0; int32_t r;
+      *(uint32_t*)(s+1) = 100; r = fn_0174a2(s, 5, &out);
+      check(r == 1 && out == 0, "  fn_0174a2 in [0,0x140): ret=1 out=0");
+      g_dat_639dc = 200; out = 10; r = fn_0174a2(s, 5, &out);   // F=-100 <0
+      check(r == 0 && out == 15, "  fn_0174a2 F<0: out+=param2 ret=0");
+      g_dat_639dc = 0; *(uint32_t*)(s+1) = 400; out = 10; r = fn_0174a2(s, 5, &out);  // F=400>0x13f
+      check(r == 0 && out == 5, "  fn_0174a2 F>0x13f: out-=param2 ret=0"); }
 }
 
 int main(void) {

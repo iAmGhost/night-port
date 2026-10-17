@@ -537,7 +537,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x016b8f | 1116 | FUN_00016b8f | | |
 | [ ] | 0x016fec | 555 | FUN_00016fec | | |
 | [ ] | 0x01730b | 406 | FUN_0001730b | | |
-| [ ] | 0x0174a2 | 141 | FUN_000174a2 | | |
+| [x] | 0x0174a2 | 141 | fn_0174a2 | clamp-check F=fn_01519f(s) to [0,0x140); if out of range adjust *out by ±param2 | 1:1 (disasm; 3 checks) |
 | [x] | 0x017530 | 262 | fn_017530 | twin of fn_016959 (alias; byte-identical disasm, callee fn_01519f) | 1:1 (disasm-verified twin) |
 | [x] | 0x017637 | 311 | fn_017637 | variant of fn_016a60 (corrected: B-reached writes *out=0) | 1:1 (disasm; 2 checks) |
 | [ ] | 0x01776f | 439 | FUN_0001776f | | |

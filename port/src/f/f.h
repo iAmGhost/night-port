@@ -450,6 +450,7 @@ int32_t fn_016959(uint8_t *s, int32_t param2, int32_t *param3); /* 0x016959: mov
 int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3); /* 0x017530: twin of fn_016959 */
 int32_t fn_016a60(uint8_t *s, int32_t param2, int32_t *out);   /* 0x016a60: clamped move-toward-target */
 int32_t fn_017637(uint8_t *s, int32_t param2, int32_t *out);   /* 0x017637: clamped move-toward-target (corrected B-reached) */
+int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out);   /* 0x0174a2: clamp to [0,0x140); adjust out */
 extern uint8_t g_dat_63354[0x20];   /* clamp-bounds struct: [0x12],[0x16] int32 */
 extern uint8_t  g_dat_639e4;      /* DAT_000639e4 (byte) */
 extern uint8_t  g_dat_63f1e[16];  /* DAT_00063f1e (byte slots) */

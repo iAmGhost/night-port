@@ -2311,6 +2311,33 @@ static void test_fn_0003b5c0(void) {
     check(g_dat_639cc==a && g_dat_639d0==a && g_dat_639c8==1 && NEXT(a)==NULL,
         "  remove tail (of 2) -> a sole, a->next=0");
     RESET();
+    #undef NEXT
+    #undef PREV
+    #undef RESET
+}
+
+static void test_fn_00035c5c(void) {
+    printf("fn_00035c5c (0x00035c5c, entity-list init pass)\n");
+    uint8_t A[0x148], B[0x148], C[0x148];
+    fn_041e20(A,0,0x148); fn_041e20(B,0,0x148); fn_041e20(C,0,0x148);
+    /* A (flag=1, idx=0, next=B), B (flag=1, idx=1, next=C), C (flag=0, next=NULL) */
+    A[0]=1; *(uint32_t*)(A+0xd)=0; *(uint8_t**)(A+0x13f)=B;
+    B[0]=1; *(uint32_t*)(B+0xd)=1; *(uint8_t**)(B+0x13f)=C;
+    C[0]=0; *(uint8_t**)(C+0x13f)=NULL;
+    g_dat_53c70=A;
+    g_dat_53ea8[0]=0xaa; g_dat_53ea8[0x88]=0xbb;
+    fn_00035c5c();
+    check(A[0x30]==1 && *(uint32_t*)(A+0x17)==0x15 && *(uint32_t*)(A+0x11)==0 && *(uint32_t*)(A+0x32)==0xaa,
+        "  A (flag=1 idx=0): [0x30]=1, [0x17]=0x15, [0x11]=0, [0x32]=table[0]=0xaa");
+    check(B[0x30]==1 && *(uint32_t*)(B+0x32)==0xbb, "  B (flag=1 idx=1): [0x32]=table[1]=0xbb");
+    check(C[0x30]==0 && *(uint32_t*)(C+0x32)==0, "  C (flag=0): untouched");
+    /* Idempotent: running again must not re-run the body ([0x30] already 1). */
+    fn_00035c5c();
+    check(A[0x30]==1 && B[0x30]==1 && C[0x30]==0, "  second pass is a no-op (already flagged)");
+    /* Empty list -> no-op. */
+    g_dat_53c70=NULL;
+    fn_00035c5c();
+    check(g_dat_53c78==NULL, "  empty list (head=NULL) -> no-op");
 }
 
 static void test_fn_048e60(void) {
@@ -3167,6 +3194,7 @@ int main(void) {
     test_fn_000356ba();
     test_fn_0003c7d7();
     test_fn_0003b5c0();
+    test_fn_00035c5c();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

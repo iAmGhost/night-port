@@ -131,6 +131,10 @@ uint8_t *fn_0003b67e(uint8_t *node);            /* 0x0003b67e: linked-list remov
 extern uint8_t *g_dat_639cc;                    /* DAT_000639cc: list head */
 extern uint8_t *g_dat_639d0;                    /* DAT_000639d0: list tail */
 extern int32_t  g_dat_639c8;                    /* DAT_000639c8: list count */
+void fn_00035c5c(void);                         /* 0x00035c5c: entity-list init pass (walk + set fields) */
+extern uint8_t *g_dat_53c70;                    /* DAT_00053c70: entity list head */
+extern uint8_t *g_dat_53c78;                    /* DAT_00053c78: entity list cursor */
+extern uint8_t  g_dat_53ea8[];                  /* DAT_00053ea8: 0x88-byte entry table */
 void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (divisor in EAX) */
 void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */

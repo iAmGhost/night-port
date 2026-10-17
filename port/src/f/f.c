@@ -670,6 +670,32 @@ uint8_t *fn_0003b67e(uint8_t *node) {
     return node;
 }
 
+uint8_t *g_dat_53c78 = NULL;  /* DAT_00053c78: entity linked-list cursor */
+uint8_t  g_dat_53ea8[0x88 * 4]; /* DAT_00053ea8: 0x88-byte entry table (idx -> first dword copied to node+0x32) */
+
+/* fn_00035c5c  orig: 0x00035c5c (L10, 178B)
+ *   Entity-list init pass. Walks the entity linked list (head=DAT_00053c70,
+ *   cursor=DAT_00053c78, next@+0x13f). For each node whose flag at +0 is 1 and
+ *   whose flag at +0x30 is not yet 1: set +0x30 = 1, +0x17 = 0x15 (21), +0x11 =
+ *   0, and +0x32 = *(DAT_00053ea8 + *(node+0xd) * 0x88) (first dword of the
+ *   0x88-byte table entry selected by the node's index field). No-op when the
+ *   list is empty (the flat model's state before data load).
+ *   POINTER-WIDTH ADAPTATION: next@+0x13f widened to an 8-byte read. */
+void fn_00035c5c(void) {
+    g_dat_53c78 = g_dat_53c70;
+    while (g_dat_53c78 != NULL) {
+        uint8_t *next = *(uint8_t **)(g_dat_53c78 + 0x13f);
+        if (g_dat_53c78[0] == 1 && g_dat_53c78[0x30] != 1) {
+            g_dat_53c78[0x30] = 1;
+            *(uint32_t *)(g_dat_53c78 + 0x17) = 0x15;
+            *(uint32_t *)(g_dat_53c78 + 0x11) = 0;
+            uint32_t idx = *(uint32_t *)(g_dat_53c78 + 0xd);
+            *(uint32_t *)(g_dat_53c78 + 0x32) = *(uint32_t *)(g_dat_53ea8 + idx * 0x88);
+        }
+        g_dat_53c78 = next;
+    }
+}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

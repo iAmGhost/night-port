@@ -1939,6 +1939,13 @@ static void test_l10_accessors(void) {
       check(out == 777 && r == 1, "  fn_016a60 B reached: no *out (latent), ret=1");
       *(uint32_t*)(s+9) = 30; *(int32_t*)(s+0xc3) = 50; *(int32_t*)(s+0xab) = 5; out = -999; r = fn_016a60(s, 10, &out);
       check(out == 10 && r == 0 && (*(int32_t*)(s+0xab)) == 4, "  fn_016a60 B +step: out=+step dec ret=0"); }
+    { g_dat_639e0 = 0;
+      *(uint32_t*)(g_dat_63354+0x12) = 1000; *(uint32_t*)(g_dat_63354+0x16) = 1000;
+      uint8_t s[0xd0] = {0}; int32_t out; int32_t r;
+      *(uint32_t*)(s+9) = 40; *(int32_t*)(s+0xc3) = 50; out = 777; r = fn_017637(s, 10, &out);
+      check(out == 0 && r == 1, "  fn_017637 B reached: *out=0 (corrected), ret=1");
+      *(uint32_t*)(s+9) = 30; *(int32_t*)(s+0xc3) = 50; *(int32_t*)(s+0xab) = 5; out = -999; r = fn_017637(s, 10, &out);
+      check(out == 10 && r == 0 && (*(int32_t*)(s+0xab)) == 4, "  fn_017637 B +step: out=+step dec ret=0"); }
 }
 
 int main(void) {

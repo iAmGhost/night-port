@@ -2217,6 +2217,18 @@ static void test_l10_accessors(void) {
       *(int32_t *)(fs+1) = 100; *(int32_t *)(fs+9) = 100; *(int32_t *)(fs+0xab) = 3;
       *(int32_t *)(fp+0x17) = 0x84; prng_seed(12345);
       rr = fn_016fec(fs, 100);                               // yref=100, abs(Y-yref)=0<6
+      // fn_043280: byte-pattern fill, aligned, count=8 -> DD CC BB AA DD CC BB AA
+      uint8_t fb[16] = {0};
+      fn_043280(fb, 0xAABBCCDD, 8);
+      check(fb[0]==0xDD && fb[1]==0xCC && fb[2]==0xBB && fb[3]==0xAA && fb[4]==0xDD && fb[5]==0xCC && fb[6]==0xBB && fb[7]==0xAA, "  fn_043280 aligned count=8");
+      // fn_043280: aligned, count=3 -> remainder phase: DD CC DD (latent bug: byte2=DL not EH)
+      uint8_t fb3[8] = {0};
+      fn_043280(fb3, 0xAABBCCDD, 3);
+      check(fb3[0]==0xDD && fb3[1]==0xCC && fb3[2]==0xDD, "  fn_043280 aligned count=3");
+      // fn_043280: count=0 -> no write
+      uint8_t fb0[8] = {0x77,0x77,0x77,0x77};
+      fn_043280(fb0, 0xAABBCCDD, 0);
+      check(fb0[0]==0x77 && fb0[3]==0x77, "  fn_043280 count=0 no-write");
       check(g_dat_53c90 == 1 && (rr == 3 || rr == 0), "  fn_016fec player-event gate entered");
       check(rr == 0 && a1 == 5 && b1 == 5 && *(int32_t *)(sc+0xfb) == 4, "  fn_017ca6 Y-dom secondary");
       check(rr == 0 && x1 == 5 && y1 == 999 && *(int32_t *)(sn+0xaf) == 2, "  fn_01730b Y clamped by g16 bound");

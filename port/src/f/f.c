@@ -1480,6 +1480,32 @@ uint64_t fn_042576(const char *s, uint32_t param_2) {
 /* ---- L10 trivial accessors (the canary prologue PUSH 0x20;CALL 0x418ee is not replicated) ---- */
 uint32_t g_dat_53c60 = 0;
 uint32_t g_dat_40010 = 0;
+void fn_043280(uint8_t *dest, uint32_t pattern, uint32_t count) {      /* 0x043280: byte-pattern fill (EBX param unused) */
+    if (count == 0) return;
+    while (count != 0 && ((uintptr_t)dest & 3) != 0) {                 /* align dest to 4 bytes */
+        *dest = (uint8_t)pattern;
+        dest++;
+        pattern = (pattern >> 8) | (pattern << 24);                    /* ROR EDX,8 */
+        count--;
+    }
+    uint32_t words = count / 4;
+    if (words != 0) {
+        dest = (uint8_t *)(uintptr_t)memsetw((uint32_t *)(uintptr_t)dest, pattern, words);
+    }
+    count &= 3;
+    if (count != 0) {
+        *dest = (uint8_t)pattern;                                      /* DL */
+        dest++; count--;
+        if (count != 0) {
+            *dest = (uint8_t)(pattern >> 8);                           /* DH */
+            dest++; count--;
+            if (count != 0) {
+                *dest = (uint8_t)pattern;                              /* DL (latent bug: should be pattern>>16) */
+            }
+        }
+    }
+}
+
 uint32_t g_dat_62d64 = 0;
 
 uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */

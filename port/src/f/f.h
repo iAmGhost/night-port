@@ -429,6 +429,7 @@ uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode pars
 /* ---- L10 trivial accessors (canary prologue not replicated) ---- */
 extern uint32_t g_dat_53c60;    /* DAT_00053c60 */
 extern uint32_t g_dat_40010;    /* DAT_00040010 */
+void     fn_043280(uint8_t *dest, uint32_t pattern, uint32_t count);   /* 0x043280: byte-pattern fill */
 extern uint32_t g_dat_62d64;    /* DAT_00062d64 */
 uint32_t fn_010e15(void);                /* 0x010e15: return g_dat_53c60 */
 uint32_t fn_040631(uint32_t param);      /* 0x040631: g_dat_40010 = low16(param); return low16 */

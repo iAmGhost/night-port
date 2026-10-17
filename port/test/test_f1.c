@@ -2019,6 +2019,28 @@ static void test_fn_041439(void) {
     check(g_dat_63f84 == 2, "  sets DAT_00063f84 = 2 (only observable effect)");
 }
 
+static void test_fn_03ee88(void) {
+    printf("fn_03ee88 (0x03ee88, IRQ tick)\n");
+    g_dat_63e28 = 7; g_dat_63f08 = 0; g_dat_63e24 = 0;
+    g_dat_63e3c = 0x11; g_dat_63e40 = 0; g_dat_63e38 = 0;
+    g_dat_63e30 = 0xffff; g_dat_63e2c = 1; g_dat_63e34 = 0;
+    fn_03ee88();
+    check(g_dat_63e28 == 1,  "  63e28 wraps 8->1");
+    check(g_dat_63f08 == 1,  "  63f08 increments on 63e28 wrap");
+    check(g_dat_63e24 == 1,  "  63e24 per-tick");
+    check(g_dat_63e3c == 1,  "  63e3c wraps 18->1");
+    check(g_dat_63e40 == 1,  "  63e40 increments on 63e3c wrap");
+    check(g_dat_63e38 == 1,  "  63e38 per-tick");
+    check(g_dat_63e30 == 1,  "  63e30 wraps 0x10000->1");
+    check(g_dat_63e34 == 1,  "  63e34 increments on 63e30 wrap");
+}
+
+static void test_fn_043381(void) {
+    printf("fn_043381 (0x043381, DPMI real-mode return)\n");
+    fn_043381();
+    check(1, "  no-op smoke");
+}
+
 static void test_fn_043324(void) {
     printf("fn_043324 (DPMI real-mode transition, save side)\n");
     static uint32_t ctx[8] = {0x1,0x2,0x3,0x4,0x5,0x6,0x7,0x8};
@@ -2843,6 +2865,8 @@ int main(void) {
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();
+    test_fn_03ee88();
+    test_fn_043381();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

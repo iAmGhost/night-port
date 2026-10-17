@@ -147,6 +147,16 @@ uint8_t  inb(uint16_t port);
 extern uint32_t g_dat_63f84;               /* DAT_00063f84: IRQ/device state (0x041439 sets 2) */
 extern uint32_t g_dat_53334;               /* DAT_00053334: device port base */
 void     fn_041439(void);                   /* 0x041439: IRQ handler (PIC EOI, sets DAT_00063f84=2) */
+extern uint32_t g_dat_63e28;               /* DAT_00063e28: tick counter (wraps at 8) */
+extern uint32_t g_dat_63e24;               /* DAT_00063e24: per-tick counter */
+extern uint32_t g_dat_63e3c;               /* DAT_00063e3c: tick counter (wraps at 18) */
+extern uint32_t g_dat_63e38;               /* DAT_00063e38: per-tick counter */
+extern uint32_t g_dat_63e40;               /* DAT_00063e40: coarse counter (every 18) */
+extern uint32_t g_dat_63e30;               /* DAT_00063e30: frame/time counter (18-bit) */
+extern uint32_t g_dat_63e2c;               /* DAT_00063e2c: tick rate increment */
+extern uint32_t g_dat_63e34;               /* DAT_00063e34: high frame counter */
+void     fn_03ee88(void);                   /* 0x03ee88: timer/IRQ tick handler (counter wraps) */
+void     fn_043381(void);                   /* 0x043381: DPMI real-mode return (flat no-op) */
 /* 1-byte RET: the default no-op for the 3-slot callback table
  * (DAT_0005336c/70/74), invoked by dispatchers 0x000423b7/0x000423cf and
  * replaced at runtime once real handlers are installed.  orig: 0x0423b6 */

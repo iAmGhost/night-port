@@ -422,6 +422,52 @@ void fn_041439(void)
     /* IRETD: not represented in the flat C model (handler returns). */
 }
 
+/* 0x03ee88: timer/IRQ tick handler (38 ins, ends IRETD). On each tick it advances
+ * several global counters with wrap logic, then acks the PIC. All callees
+ * (seg_ds_load/irq_cli/irq_sti/outb) are ported flat-model no-op sys stubs; IRETD
+ * has no C equivalent (the handler returns).
+ *   63e28++ ; if >7   : 63f08++, 63e28-=7     (8-tick coarse counter)
+ *   63e24++                                                  (per-tick)
+ *   63e3c++ ; if >0x11: 63e40++, 63e3c-=0x11  (18-tick coarse counter)
+ *   63e38++                                                  (per-tick)
+ *   63e30 += 63e2c ; if >0xffff: 63e30-=0xffff, 63e34++ (frame/time, 18-bit wrap)
+ *   irq_sti(); outb(0x20,0x20) (PIC EOI) */
+uint32_t g_dat_63e28 = 0;   /* DAT_00063e28: tick counter (wraps at 8) */
+uint32_t g_dat_63e24 = 0;   /* DAT_00063e24: per-tick counter */
+uint32_t g_dat_63e3c = 0;   /* DAT_00063e3c: tick counter (wraps at 18) */
+uint32_t g_dat_63e38 = 0;   /* DAT_00063e38: per-tick counter */
+uint32_t g_dat_63e40 = 0;   /* DAT_00063e40: coarse counter (every 18) */
+uint32_t g_dat_63e30 = 0;   /* DAT_00063e30: frame/time counter (18-bit) */
+uint32_t g_dat_63e2c = 0;   /* DAT_00063e2c: tick rate increment */
+uint32_t g_dat_63e34 = 0;   /* DAT_00063e34: high frame counter (63e30 wraps) */
+void fn_03ee88(void)
+{
+    seg_ds_load();                          /* 0x3ee98 */
+    irq_cli();                              /* 0x3ee9d */
+    g_dat_63e28++;                          /* 0x3eea2 */
+    if (g_dat_63e28 > 7) { g_dat_63f08++; g_dat_63e28 -= 7; }  /* 0x3eea8-eeb7 */
+    g_dat_63e24++;                          /* 0x3eebe */
+    g_dat_63e3c++;                          /* 0x3eec4 */
+    g_dat_63e38++;                          /* 0x3eeca */
+    if (g_dat_63e3c > 0x11) { g_dat_63e40++; g_dat_63e3c -= 0x11; }  /* 0x3eed0-eedf */
+    g_dat_63e30 += g_dat_63e2c;            /* 0x3eee6-eeb */
+    if (g_dat_63e30 > 0xffff) { g_dat_63e30 -= 0xffff; g_dat_63e34++; }  /* 0x3eef1-ef07 */
+    irq_sti();                              /* 0x3ef0d */
+    outb(0x20, 0x20);                       /* 0x3ef12-ef1c (PIC EOI) */
+    /* IRETD: not represented (handler returns). */
+}
+
+/* 0x043381: DPMI real-mode-return handler (34 ins). Calls rm_switch_b (0x433ce),
+ * then saves the full register/flag state (EAX, flags, ECX, EDX, EBP, ESI, EDI,
+ * DS, ES, FS, GS) into a saved_ctx struct. In the flat model rm_switch_b is a
+ * no-op (no real mode) and the register/flag state is register-ABI (cannot be
+ * captured in C), so there is no observable effect. The decompile's param_1/param_3
+ * are register passthroughs; param_2 is the saved_ctx (unused here). */
+void fn_043381(void)
+{
+    /* no-op: DPMI real-mode return + register/flag save; flat-model no effect */
+}
+
 /* cb_noop  orig: 0x0423b6
  *   RET
  * A single-byte RET: the default (no-op) handler for the 3-slot callback

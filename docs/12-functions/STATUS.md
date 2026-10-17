@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 206 / 528 done
+TOTALS: 208 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 27 | 0 | 0 | 20 |
+| L1 | 47 | 29 | 0 | 0 | 18 |
 | L2 | 32 | 11 | 0 | 0 | 21 |
 | L3 | 21 | 9 | 0 | 0 | 12 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -160,6 +160,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_042aba/fn_044807/fn_049415 (DOS INT 21h file ops) ported** — routed to new sys stubs. Since the INT 21h no-op leaves the result registers unset (a pure no-op would return AH-contaminated garbage), these route to `sys_file_read`(AH=3f)/`sys_file_lseek`(AH=42)/`sys_file_delete`(AH=41) in sys.h/sys.c, which return documented no-op defaults (0) until the TG_NIGHT.IMG/.CUE backend is wired (mid-subsystems). Args traced from register setup: 0x042aba(handle=EAX,buffer=EDX,count=EBX); 0x044807(handle=EAX,offset=EDX,whence=EBX, returns 32-bit pos w/ RCL/ROR/TEST sign-gate to -1 on error); 0x049415(name=EAX->EDX). The 0x045a82 error path is dead in the no-op (always success). **Remaining L3 (12) are all callee-gated**: 0x044a50(lock)+0x049236(seek/close) need unported 0x492d0 (FPU); 0x042fc2/0x04488b/0x049613 need unported callees; 0x0418c6/0x045dad/0x048754 are thunks to unported targets; 0x04876d(FPU) needs 0x47d24/0x47d4e; 0x041e51 is a fragile DPMI thunk (returns caller's *EBX); 0x048422/0x048a48/0x04a48f unchecked. 5 checks. L3 6->9, TOTALS 201->204, suite 715 PASS 0 FAIL. | STATUS.md L3 |
 | 2026-07-08 | **fn_043324 (0x043324, 55B) ported** — DPMI real-mode transition save-side (register-ABI: reads caller EDI=context, EBX=rm_ptr). Saves 7-word reg context + [EBX]=ES/[EBX+6]=AX, then calls rm_switch_a (0x04335c). In the flat model rm_switch_a is a no-op and no real-mode code runs between save/restore, so the context write is never read back and the register-ABI save can't be reproduced in C -> faithful no-op standin. **Discovered 0x04335c is already rm_switch_a (L0 batch A) and 0x0433ce is rm_switch_b — my initial fn_04335c was a duplicate, removed; 0x043324 (the save-side) is the distinct unported fn.** 1 check. L1 25->26, TOTALS 204->205, suite 716 PASS 0 FAIL. | STATUS.md L1 |
 | 2026-07-08 | **fn_041439 (0x041439, 24 ins) ported** — IRQ handler (PUSHAD+segs; CLD; seg_ds_load; irq_cli; DAT_00063f84=2; inb(DAT_00053334+0xe); outb(0x20,0x20)=8259 PIC EOI; irq_sti; IRETD). All callees (seg_ds_load/irq_cli/inb/outb/irq_sti) already ported as flat-model no-op sys stubs; IRETD has no C equivalent (handler returns). Only observable effect = DAT_00063f84=2. Added globals g_dat_63f84 + g_dat_53334. Note: the L1 deferral note's "deps 0x469d9+DAT_00063f84+DAT_00053334 unported" was STALE (those deps are ported/now-added). 1 check. L1 26->27, TOTALS 205->206, suite 717 PASS 0 FAIL. | STATUS.md L1 |
+| 2026-07-08 | **fn_03ee88 + fn_043381 ported** — (1) fn_03ee88 (0x03ee88, 38 ins) timer/IRQ tick handler: advances 63e28 (wrap@8 -> 63f08++), 63e24, 63e3c (wrap@18 -> 63e40++), 63e38, 63e30 (+= 63e2c, wrap@0xffff -> 63e34++), then irq_sti + outb(0x20,0x20) PIC EOI; IRETD not portable. All 4 I/O callees ported. Added 8 globals (63e28/24/3c/38/40/30/2c/34; 63f08 existed). 8 checks. (2) fn_043381 (0x043381, 34 ins) DPMI real-mode return: calls rm_switch_b + saves reg/flag state to ctx (register-ABI, no flat-model effect) -> no-op standin. Note: the stale L1 deferral note still lists 0x043381/0x043324/0x0431b5/0x041439 as pending but they are all now [x]. L1 27->29, TOTALS 206->208, suite 726 PASS 0 FAIL. | STATUS.md L1 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -280,7 +281,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x03ee88 | 160 | FUN_0003ee88 | | |
+| [x] | 0x03ee88 | 160 | fn_03ee88 | | IRQ tick; counter wraps (63e28/63e3c/63e30) + PIC EOI |
 | [x] | 0x041439 | 76 | fn_041439 | | IRQ handler; flat-model no-op (PIC EOI/IRET) + DAT_00063f84=2 |
 | [x] | 0x041c28 | 8 | heap_free_guard | heap | port+test PASS (TEST EAX,EAX; JNZ heap_free_host(0x41c31); RET = NULL-tolerant free; guard(0)=pure no-op (RET, no g_heap_flag), guard(p) tail-frees; 6 checks) |
 | [x] | 0x041c31 | 93 | heap_free_host | heap | heap.md; port+test PASS (batch 7-8) |
@@ -299,7 +300,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0431b5 | 118 | heap_size_adjust | heap | 6 tests PASS; align_up/±8-or-topcheck/+0x3c/limit-clamp/page-up; overflow→0 |
 | [x] | 0x043280 | 48 | fn_043280 | byte-pattern fill | 1:1 (disasm; 3 checks) |
 | [x] | 0x043324 | 55 | fn_043324 | | DPMI real-mode save-side; no-op standin |
-| [ ] | 0x043381 | 76 | FUN_00043381 | | |
+| [x] | 0x043381 | 76 | fn_043381 | | DPMI real-mode return; flat no-op (reg/flag save) |
 | [ ] | 0x04391d | 58 | FUN_0004391d | | |
 | [ ] | 0x043e34 | 237 | FUN_00043e34 | | |
 | [ ] | 0x0440a9 | 733 | FUN_000440a9 | | |

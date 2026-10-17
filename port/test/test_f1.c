@@ -2012,6 +2012,13 @@ static void test_fn_0405de(void) {
     check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
 }
 
+static void test_fn_043324(void) {
+    printf("fn_043324 (DPMI real-mode transition, save side)\n");
+    static uint32_t ctx[8] = {0x1,0x2,0x3,0x4,0x5,0x6,0x7,0x8};
+    fn_043324((uintptr_t)ctx, 0);
+    check(ctx[0]==0x1 && ctx[7]==0x8, "  no-op standin leaves context untouched");
+}
+
 static void test_fn_042aba(void) {
     printf("fn_042aba (0x042aba)\n");
     static uint8_t buf[16];
@@ -2827,6 +2834,7 @@ int main(void) {
     test_fn_042aba();
     test_fn_044807();
     test_fn_049415();
+    test_fn_043324();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

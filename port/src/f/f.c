@@ -2463,6 +2463,22 @@ uint32_t fn_041e38(uint32_t a, uint32_t b, uintptr_t ctx, uint32_t d) {
     return *(uint32_t *)ctx;
 }
 
+/* 0x043324: DPMI real-mode transition, protected-mode (save) side (55B).
+ *
+ * Original reads EDI (context ptr) and EBX (real-mode far ptr: [EBX]=ES, [EBX+6]=BP)
+ * from the caller's registers (register-ABI), saves EAX/EBX/ECX/EDX/ESI/(popped)/CF
+ * into the 7-word context, sets [EBX]=ES and [EBX+6]=AX, then CALLs rm_switch_a
+ * (0x04335c) to run the real-mode thunk. In the flat model rm_switch_a is a no-op and
+ * no real-mode code runs between save and restore, so the context write is never read
+ * back — the whole transition is a no-op. The register-ABI save cannot be reproduced
+ * in C (it writes the caller's live registers), so this is a faithful no-op standin.
+ */
+void fn_043324(uintptr_t context, uintptr_t rm_ptr) {
+    (void)context; (void)rm_ptr;   /* flat port never switches to real mode */
+}
+/* 0x04335c: DPMI real-mode callback trampoline A (restore side) — ported as
+ * rm_switch_a (L0 batch A); see that stub. No separate fn_04335c. */
+
 /* 0x03f084: DPMI INT 31h register-context wrapper (218B).
  *
  * Reads 5 16-bit words from `arg2` and one from `arg4` into a local register

@@ -2127,6 +2127,33 @@ static void test_l10_accessors(void) {
       *(int32_t *)(sm+0xc3) = 10; *(int32_t *)(sm+0xcf) = 30; *(int32_t *)(sm+0xcb) = 200;
       *(int32_t *)(sm+9) = 25;   // F-p=20>10
       rr = fn_01776f(sm, 5, &o1, &o2);
+      // fn_01730b: 2-phase X-then-Y move-toward-target (s[0xaf] 2-bit done counter).
+      g_dat_639dc = 0; g_dat_639e0 = 0;
+      *(int32_t *)(g_dat_63354 + 0x12) = 0; *(int32_t *)(g_dat_63354 + 0x16) = 1000;
+      uint8_t sn[0x200] = {0}; int32_t x1, y1;
+      // 1: both moving -> out1=+5, out2=+5, s[0xaf]=0, ret0
+      *(int32_t *)(sn+1) = 10; *(int32_t *)(sn+9) = 10;   // X=10, Y=10
+      *(int32_t *)(sn+0xb3) = 20; *(int32_t *)(sn+0xb7) = 20; *(int32_t *)(sn+0xaf) = 0;
+      x1 = y1 = 999; rr = fn_01730b(sn, 5, &x1, &y1);
+      check(rr == 0 && x1 == 5 && y1 == 5 && *(int32_t *)(sn+0xaf) == 0, "  fn_01730b both moving");
+      // 2: both reached -> s[0xaf]=3, ret1 (out1/out2 untouched)
+      *(int32_t *)(sn+1) = 20; *(int32_t *)(sn+9) = 20; *(int32_t *)(sn+0xaf) = 0;
+      x1 = y1 = 999; rr = fn_01730b(sn, 5, &x1, &y1);
+      check(rr == 1 && x1 == 999 && y1 == 999 && *(int32_t *)(sn+0xaf) == 3, "  fn_01730b both reached -> ret1");
+      // 3: X reached, Y moving -> out2=+5, s[0xaf]=1, ret0
+      *(int32_t *)(sn+1) = 20; *(int32_t *)(sn+9) = 10; *(int32_t *)(sn+0xaf) = 0;
+      x1 = y1 = 999; rr = fn_01730b(sn, 5, &x1, &y1);
+      check(rr == 0 && x1 == 999 && y1 == 5 && *(int32_t *)(sn+0xaf) == 1, "  fn_01730b X reached, Y moving");
+      // 4: X moving, Y reached -> out1=+5, s[0xaf]=2, ret0
+      *(int32_t *)(sn+1) = 10; *(int32_t *)(sn+9) = 20; *(int32_t *)(sn+0xaf) = 0;
+      x1 = y1 = 999; rr = fn_01730b(sn, 5, &x1, &y1);
+      check(rr == 0 && x1 == 5 && y1 == 999 && *(int32_t *)(sn+0xaf) == 2, "  fn_01730b X moving, Y reached");
+      // 5: Y clamped by g16 bound (Y+step=15>=g16=15) -> out2 untouched, s[0xaf]=2, ret0
+      *(int32_t *)(g_dat_63354 + 0x16) = 15;
+      *(int32_t *)(sn+1) = 5; *(int32_t *)(sn+9) = 10; *(int32_t *)(sn+0xaf) = 0;   // X=5 moving, Y=10
+      x1 = y1 = 999; rr = fn_01730b(sn, 5, &x1, &y1);
+      check(rr == 0 && x1 == 5 && y1 == 999 && *(int32_t *)(sn+0xaf) == 2, "  fn_01730b Y clamped by g16 bound");
+      *(int32_t *)(g_dat_63354 + 0x16) = 1000;
       check(rr == 0 && o1 == -5 && o2 == -5, "  fn_01776f F>mid cb>=0xa0 no-arrival");
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
     }

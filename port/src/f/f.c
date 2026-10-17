@@ -1744,6 +1744,40 @@ int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma, 1); }
 int32_t fn_01656f(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma_dash, 2); }
 int32_t fn_016750(uint8_t *s) { return fn_015b5b_core(s, fn_mg_14dot, 3); }
 
+int32_t fn_01730b(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   /* 0x01730b: 2-phase X-then-Y move-toward-target */
+    *(int32_t *)(s + 0x17) = 2;
+    int32_t X = (int32_t)fn_01519f(s);
+    int32_t Y = (int32_t)fn_0151d5(s);
+    int32_t step = param2;
+    int32_t st = *(int32_t *)(s + 0xaf);   // 2-bit done counter (bit0=X, bit1=Y)
+    if (st != 1) {                                          // phase 1: X toward s[0xb3]
+        if (X < *(int32_t *)(s + 0xb3)) {
+            if (X + step < *(int32_t *)(s + 0xb3)) *out1 = step;
+            else st++;
+        } else if (X > *(int32_t *)(s + 0xb3)) {
+            if (X - step > *(int32_t *)(s + 0xb3)) *out1 = -step;
+            else st++;
+        } else {
+            st++;
+        }
+    }
+    if (st != 2) {                                          // phase 2: Y toward s[0xb7] (g_dat_63354 bounds)
+        int32_t g12 = *(int32_t *)(g_dat_63354 + 0x12);
+        int32_t g16 = *(int32_t *)(g_dat_63354 + 0x16);
+        if (Y < *(int32_t *)(s + 0xb7)) {
+            if (Y + step < *(int32_t *)(s + 0xb7) && Y + step < g16) *out2 = step;
+            else st += 2;
+        } else if (Y > *(int32_t *)(s + 0xb7)) {
+            if (Y - step > *(int32_t *)(s + 0xb7) && Y - step > g12) *out2 = -step;
+            else st += 2;
+        } else {
+            st += 2;
+        }
+    }
+    *(int32_t *)(s + 0xaf) = st;
+    return st >= 3;
+}
+
 int32_t fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   /* 0x01776f: 2D movement delta computer */
     *(int32_t *)(s + 0x17) = 2;
     int32_t target = *(int32_t *)(s + 0xc3);

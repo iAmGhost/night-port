@@ -447,6 +447,7 @@ void fn_010376(uint8_t *s, uint32_t unused); /* 0x010376: free struct fields @0x
 uint32_t fn_03518a(const uint8_t *p);          /* 0x03518a: BE 16-bit read (p[0]<<8)|p[1] */
 void fn_04a7fa(double a, double *out);          /* 0x04a7fa: *out = a - fpu_rndint(a) */
 int32_t fn_016959(uint8_t *s, int32_t param2, int32_t *param3); /* 0x016959: move-toward-target clamped step + countdown */
+int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3); /* 0x017530: twin of fn_016959 */
 extern uint8_t  g_dat_639e4;      /* DAT_000639e4 (byte) */
 extern uint8_t  g_dat_63f1e[16];  /* DAT_00063f1e (byte slots) */
 extern uint32_t g_dat_63f0c;      /* DAT_00063f0c (slot base) */

@@ -537,7 +537,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x016fec | 555 | FUN_00016fec | | |
 | [ ] | 0x01730b | 406 | FUN_0001730b | | |
 | [ ] | 0x0174a2 | 141 | FUN_000174a2 | | |
-| [ ] | 0x017530 | 262 | FUN_00017530 | | |
+| [x] | 0x017530 | 262 | fn_017530 | twin of fn_016959 (alias; byte-identical disasm, callee fn_01519f) | 1:1 (disasm-verified twin) |
 | [ ] | 0x017637 | 311 | FUN_00017637 | | |
 | [ ] | 0x01776f | 439 | FUN_0001776f | | |
 | [ ] | 0x017927 | 894 | FUN_00017927 | | |

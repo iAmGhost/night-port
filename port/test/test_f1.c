@@ -1919,6 +1919,12 @@ static void test_l10_accessors(void) {
       check(out == 10 && r == 0 && (*(int32_t*)(s+0xab)) == 4, "  fn_016959 F<X-step: out=+step, dec, ret=0");
       *(uint32_t*)(s+1) = 30; *(int32_t*)(s+0xbf) = 50; *(int32_t*)(s+0xab) = -1; r = fn_016959(s, 10, &out);
       check(out == 10 && r == 1 && (*(int32_t*)(s+0xab)) == -1, "  fn_016959 F<X-step, cnt<0: ret=1, no dec"); }
+    { g_dat_639dc = 0; uint8_t s[0xd0] = {0}; int32_t out;
+      *(uint32_t*)(s+1) = 100; *(int32_t*)(s+0xbf) = 50; *(int32_t*)(s+0xab) = 5;
+      int32_t r = fn_017530(s, 10, &out);
+      check(out == -10 && r == 0 && (*(int32_t*)(s+0xab)) == 4, "  fn_017530 twin: F>X+step out=-step dec ret=0");
+      *(uint32_t*)(s+1) = 50; *(int32_t*)(s+0xbf) = 50; r = fn_017530(s, 10, &out);
+      check(out == 0 && r == 1, "  fn_017530 twin: F==X out=0 ret=1"); }
 }
 
 int main(void) {

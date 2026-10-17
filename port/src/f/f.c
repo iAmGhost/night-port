@@ -1565,6 +1565,10 @@ int32_t fn_016959(uint8_t *s, int32_t param2, int32_t *param3) {    /* 0x016959 
     return ret;
 }
 
+int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3) { /* 0x017530: byte-identical twin of 0x016959 (verified: same instr mix, REL offsets, callee fn_01519f) */
+    return fn_016959(s, param2, param3);
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

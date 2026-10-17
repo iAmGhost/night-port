@@ -2226,6 +2226,19 @@ static void test_cd_dpmi_noops(void) {
         "  0x40788 DPMI mem-alloc returns 0 (no DPMI)");
     fn_000104c7(); fn_0003f645(); fn_00010dde();
     check(1, "  0x10dde/0x3fcbd/0x104c7/0x3f645 run as no-ops");
+    fn_00035ec2();
+    check(1, "  0x35ec2 VGA 0x3DA ready-wait runs as no-op (no infinite spin)");
+}
+
+static void test_fn_00041bdc(void) {
+    printf("fn_00041bdc (0x00041bdc, heap_malloc wrapper)\n");
+    /* size 0 clamped to 1; else pass-through to heap_malloc. */
+    uint32_t p0 = fn_00041bdc(0);
+    uint32_t p1 = fn_00041bdc(1);
+    uint32_t p64 = fn_00041bdc(64);
+    check(p0 != 0 && p1 != 0 && p64 != 0, "  returns non-null pointers (0->1 clamp, 1, 64)");
+    /* distinct calls allocate distinct blocks; just confirm each is usable. */
+    check(p0 != p1 && p1 != p64, "  distinct allocations are distinct pointers");
 }
 
 static void test_fn_048e60(void) {
@@ -3078,6 +3091,7 @@ int main(void) {
     test_fn_03ef29();
     test_fn_03feb8();
     test_cd_dpmi_noops();
+    test_fn_00041bdc();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

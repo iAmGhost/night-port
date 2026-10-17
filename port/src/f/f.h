@@ -115,6 +115,8 @@ void fn_0003fcbd(uint32_t p1, uint32_t p2, uint32_t p3); /* 0x0003fcbd: DPMI rea
 int   fn_00040788(void);                        /* 0x00040788: DPMI mem alloc INT31h 0x100 (no-op, returns 0) */
 void fn_000104c7(void);                         /* 0x000104c7: DPMI mem alloc + DAT_00053c58/5c setup (no-op) */
 void fn_0003f645(void);                         /* 0x0003f645: VGA palette + A0000 memset loop (no-op) */
+void fn_00035ec2(void);                         /* 0x00035ec2: VGA 0x3DA sequencer ready-wait (no-op, degenerate spin) */
+uint32_t fn_00041bdc(uint32_t size);            /* 0x00041bdc: heap_malloc wrapper (size 0->1) */
 void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (divisor in EAX) */
 void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */

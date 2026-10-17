@@ -534,6 +534,19 @@ void fn_000104c7(void) {}
  *   loop is a no-op. */
 void fn_0003f645(void) {}
 
+/* fn_00035ec2  orig: 0x00035ec2 (L10, 88B)
+ *   VGA 0x3DA sequencer ready-wait: do inb(0x3da) until (b&9)!=9, then until
+ *   (b&9)==9. In the flat model inb(0x3da) is a port stub returning a constant
+ *   (default 0), so the second spin (wait for the ready bit) would never see
+ *   it and would loop forever. No-op standin (documented degenerate case). */
+void fn_00035ec2(void) {}
+
+/* fn_00041bdc  orig: 0x00041bdc (L6, 74B)
+ *   heap_malloc wrapper: if (size == 0) size = 1; return heap_malloc(size).
+ *   The original returns a 64-bit (EDX:EAX); EDX (param_2) is the caller's
+ *   register (register-ABI), so the meaningful result is the 32-bit pointer. */
+uint32_t fn_00041bdc(uint32_t size) { if (size == 0) size = 1; return heap_malloc(size); }
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

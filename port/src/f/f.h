@@ -748,6 +748,9 @@ void fn_048f2c(fx128 *a, const fx128 *arr, uint32_t count);               /* 0x0
 /* 0x048f9e: register-ABI in-place. a = (048f4c(a*a, count, arr, a->exp)) * a;
  * a->exp unchanged. EAX=a (in/out), EBX=count, EDX=arr. */
 void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr);               /* 0x048f9e */
+/* 0x048754: register-ABI in-place. a = fn_04791a(a, a, 0, 0x80000000, 0x3fff).
+ * EAX=a (in/out). Sign/normalize op (b=0x80000000_00000000, exp_hi=0x3fff). */
+void fn_048754(fx128 *a);                                                  /* 0x048754 */
 void     fx_stub_4a923(void);                                             /* 0x4a923 */
 void     fx_round_down(uint32_t *v, uint16_t mode);                       /* 0x481df */
 

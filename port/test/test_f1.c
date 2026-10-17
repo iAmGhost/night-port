@@ -2472,6 +2472,18 @@ static void test_fn_048f2c_048f9e(void) {
     check(fail == 0, "  in-place 048f2c/048f9e match hand-sequenced calls, exp preserved");
 }
 
+/* fn_048754 (L3): in-place a = fn_04791a(a, a, 0, 0x80000000, 0x3fff). Verify
+ * against the (verified) fn_04791a applied identically to an equal copy. */
+static void test_fn_048754(void) {
+    fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
+    fx128 a = a0, exp = a0;
+    fn_048754(&a);
+    fn_04791a(&exp, &exp, 0u, 0x80000000u, 0x3fffu);
+    int ok = (a.lo == exp.lo && a.hi == exp.hi && a.exp == exp.exp);
+    printf("fn_048754 (0x048754, fn_04791a in-place): %s\n", ok ? "PASS" : "FAIL");
+    check(ok, "  a == fn_04791a(a,a,0,0x80000000,0x3fff) in place");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3332,6 +3344,7 @@ int main(void) {
     test_fn_0478f0_cluster();
     test_fn_048f4c();
     test_fn_048f2c_048f9e();
+    test_fn_048754();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

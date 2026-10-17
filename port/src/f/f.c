@@ -4546,3 +4546,10 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr)
     a->lo = (uint32_t)t;
     a->hi = (uint32_t)(t >> 32);
 }
+
+/* 0x048754: register-ABI in-place wrapper. a = fn_04791a(a, a, 0, 0x80000000,
+ * 0x3fff). EAX = a (used as both input struct and out pointer; the 3 stack args
+ * are constants b_lo=0, b_hi=0x80000000, exp_hi=0x3fff). Faithful mirror of the
+ * 24-byte disasm. */
+void fn_048754(fx128 *a)
+{ fn_04791a(a, a, 0u, 0x80000000u, 0x3fffu); }

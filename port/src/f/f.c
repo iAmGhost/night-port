@@ -547,6 +547,30 @@ void fn_00035ec2(void) {}
  *   register (register-ABI), so the meaningful result is the 32-bit pointer. */
 uint32_t fn_00041bdc(uint32_t size) { if (size == 0) size = 1; return heap_malloc(size); }
 
+/* fn_00035d0f  orig: 0x00035d0f (L10, 77B)
+ *   DMA channel busy-wait: three memory-poll spin loops on DAT_00063e88[AL]
+ *   (wait ==0, then !=0, then ==0 -- the classic DMA busy/idle handshake). In
+ *   the flat model that byte is a static global (init 0), so the "wait for
+ *   !=0" spin never sees it change and would loop forever. No-op standin
+ *   (documented degenerate case). No flat-model observable effect. */
+void fn_00035d0f(void) {}
+
+int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) */
+uint32_t g_dat_63330 = 0;  /* DAT_00063330: last timer tick value (written by fn_0356ba) */
+
+/* fn_000356ba  orig: 0x000356ba (L11, 76B)
+ *   Timer rate setup (register-ABI, input ticks in EAX). Stores
+ *   DAT_00063330 = ticks, computes the PIT ch0 divisor = (ticks*DAT_000530b4)/100
+ *   (32-bit signed IMUL, then sign-extended 64-bit IDIV 100), and calls
+ *   fn_03575d(divisor) to program the PIT. The IDIV remainder (EDX) is
+ *   clobbered by the CALL and is unused. fn_03575d writes PIT port stubs. */
+void fn_000356ba(uint32_t ticks) {
+    g_dat_63330 = ticks;
+    int32_t prod = (int32_t)ticks * g_dat_530b4;          /* IMUL (32-bit) */
+    int32_t q    = (int32_t)((int64_t)prod / 100);        /* IDIV 100 (signed) */
+    fn_03575d((uint32_t)q);
+}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

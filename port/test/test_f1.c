@@ -2241,6 +2241,20 @@ static void test_fn_00041bdc(void) {
     check(p0 != p1 && p1 != p64, "  distinct allocations are distinct pointers");
 }
 
+static void test_fn_000356ba(void) {
+    printf("fn_000356ba (0x000356ba, PIT ch0 rate setup) + fn_00035d0f (0x00035d0f DMA wait)\n");
+    fn_00035d0f();  /* no-op smoke (degenerate DMA spin) */
+    g_dat_530b4 = 100;
+    fn_000356ba(250);   /* prod=250*100=25000, q=25000/100=250 */
+    check(g_dat_63330 == 250, "  DAT_00063330 = ticks (250)");
+    g_dat_530b4 = 200;
+    fn_000356ba(150);   /* prod=150*200=30000, q=300 */
+    check(g_dat_63330 == 150, "  DAT_00063330 = ticks (150)");
+    g_dat_530b4 = 300;
+    fn_000356ba(0);     /* prod=0, q=0 -> fn_03575d(0) */
+    check(g_dat_63330 == 0, "  DAT_00063330 = 0 (ticks=0)");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3092,6 +3106,7 @@ int main(void) {
     test_fn_03feb8();
     test_cd_dpmi_noops();
     test_fn_00041bdc();
+    test_fn_000356ba();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

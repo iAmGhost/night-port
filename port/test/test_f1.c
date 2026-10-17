@@ -2012,6 +2012,26 @@ static void test_fn_0405de(void) {
     check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
 }
 
+static void test_fn_042aba(void) {
+    printf("fn_042aba (0x042aba)\n");
+    static uint8_t buf[16];
+    memset(buf, 0xab, 16);
+    int32_t n = fn_042aba(5, buf, 16);
+    check(n == 0, "  no-op read returns 0 bytes");
+    check(buf[0] == 0xab && buf[15] == 0xab, "  buffer untouched");
+}
+
+static void test_fn_044807(void) {
+    printf("fn_044807 (0x044807)\n");
+    check(fn_044807(3, 100, 0) == 0, "  no-op lseek (whence=0) returns pos 0");
+    check(fn_044807(3, -5, 1) == 0, "  no-op lseek (whence=1) returns pos 0");
+}
+
+static void test_fn_049415(void) {
+    printf("fn_049415 (0x049415)\n");
+    check(fn_049415("FILE") == 0, "  no-op delete returns 0");
+}
+
 static void test_fn_041e38(void) {
     printf("fn_041e38 (0x041e38)\n");
     static uint32_t ctx[8] = {0x12345678, 0x99, 0x99, 0x99, 0,0,0,0};
@@ -2804,6 +2824,9 @@ int main(void) {
     test_fn_049e15();
     test_fn_041e38();
     test_fn_03f084();
+    test_fn_042aba();
+    test_fn_044807();
+    test_fn_049415();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

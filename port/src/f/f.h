@@ -534,6 +534,9 @@ const uint8_t *fn_043f80(const uint8_t *src, uint8_t *dest); /* 0x043f80: 8-bit 
 void fn_049e15(char *dest, int count2, int count3); /* 0x049e15: in-buffer range shift + fixup + fill */
 uint32_t fn_041e38(uint32_t a, uint32_t b, uintptr_t ctx, uint32_t d); /* 0x041e38: DPMI real-mode trampoline B */
 uint32_t fn_03f084(const uint16_t *arg1, const uint16_t *arg2, uint16_t *arg3, const uint16_t *arg4); /* 0x03f084: DPMI INT 31h ctx wrapper */
+int32_t fn_042aba(uint32_t handle, void *buf, uint32_t count); /* 0x042aba: DOS AH=3f read */
+int32_t fn_044807(uint32_t handle, int32_t offset, int32_t whence); /* 0x044807: DOS AH=42 lseek */
+int32_t fn_049415(const char *name); /* 0x049415: DOS AH=41 delete */
 /* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
  * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.
  *  orig: 0x045a44 */

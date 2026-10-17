@@ -2421,6 +2421,34 @@ void fn_049e15(char *dest, int count2, int count3) {
     }
 }
 
+/* 0x042aba: DOS AH=3fh file read (30B). handle=EAX, buffer=EDX, count=EBX(16-bit).
+ * Original sets EBX=handle, ECX=count, AH=3f, INT 21, then RCL/ROR/TEST/JGE: on a
+ * negative (error) result it does AND EAX,0xffff and calls 0x045a82 (error handler);
+ * otherwise returns the byte count in AX. Routed to sys_file_read; the no-op backend
+ * returns 0 bytes so the (dead) error path never fires.
+ */
+int32_t fn_042aba(uint32_t handle, void *buf, uint32_t count) {
+    return sys_file_read(handle, buf, count);
+}
+
+/* 0x044807: DOS AH=42h lseek (64B). handle=EAX, whence=EBX(16-bit), offset=EDX
+ * (DX low : (offset>>16) high, CX). Builds a 2-word local (AX:DX = new position),
+ * RCL/ROR/TEST/JGE; on error AND EAX,0xffff + call 0x045a82 and return -1, else
+ * return the 32-bit new position. Routed to sys_file_lseek (no-op: pos 0).
+ */
+int32_t fn_044807(uint32_t handle, int32_t offset, int32_t whence) {
+    int32_t pos = sys_file_lseek(handle, offset, whence);
+    return pos < 0 ? -1 : pos;   /* mirrors the RCL/ROR/TEST/JGE sign gate */
+}
+
+/* 0x049415: DOS AH=41h file delete (30B). name=EAX (moved to EDX for the INT).
+ * INT 21, RCL/ROR/TEST/JGE: success -> XOR EAX,EAX (return 0); error -> AND EAX,0xffff
+ * + call 0x045a82. Routed to sys_file_delete (no-op: 0 = success).
+ */
+int32_t fn_049415(const char *name) {
+    return sys_file_delete(name);
+}
+
 /* 0x041e38: DPMI real-mode trampoline B (24B).
  *
  * Shuffles its four register args into the 32-byte register context at `ctx`

@@ -76,4 +76,11 @@ extern struct dos_time sys_time;
 struct dos_date sys_getdate(void);
 struct dos_time sys_gettime(void);
 
+/* DOS INT 21h file operations (handle-based). No CD/file backend is wired yet,
+ * so each returns a documented no-op default; the real TG_NIGHT.IMG/.CUE backend
+ * will override these in the mid-subsystems task. */
+int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count);      /* AH=3f: bytes read, default 0 */
+int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence); /* AH=42: new pos, default 0 */
+int32_t sys_file_delete(const char *name);                             /* AH=41: 0 on success, default 0 */
+
 #endif

@@ -113,6 +113,14 @@ void sys_dos_ioctl(uint32_t handle, uint32_t *out_dx, uint32_t *out_cf) {
     (void)handle; *out_dx = sys_ioctl_dx; *out_cf = sys_ioctl_cf;
 }
 void sys_dos_realmode_setup(void) { /* OS handles disk/segment management */ }
+
+int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
+    (void)handle; (void)buf; (void)count; return 0;   /* no CD backend: 0 bytes */
+}
+int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence) {
+    (void)handle; (void)offset; (void)whence; return 0;   /* no CD backend: pos 0 */
+}
+int32_t sys_file_delete(const char *name) { (void)name; return 0; }
 uint16_t sys_fpu_control_word(void) { return 0x037f; }
 
 struct dos_date sys_date = { 40, 1, 1, 1 };

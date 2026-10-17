@@ -1976,6 +1976,22 @@ static void test_fn_03a594(void) {
     fn_03a594(keep, allff, 4);
     check(keep[0]==0xAA && keep[3]==0xDD, "  all-0xff src: dest fully unchanged");
 }
+static void set_tab_val(size_t i, int32_t v) { memcpy(g_tab_5d884 + i*21 + 13, &v, 4); }
+static void test_fn_036626(void) {
+    printf("fn_036626 (0x036626)\n");
+    memset(g_tab_5d884, 0, sizeof g_tab_5d884);
+    memcpy(g_tab_5d884 + 0*21, "RED", 3);    set_tab_val(0, 1);
+    memcpy(g_tab_5d884 + 1*21, "blue", 4);   set_tab_val(1, 2);
+    memcpy(g_tab_5d884 + 2*21, "Green", 5);  set_tab_val(2, 3);
+    g_dat_633a0 = 3;
+    check(fn_036626("RED") == 1, "  exact match -> 1");
+    check(fn_036626("red") == 1, "  case-insensitive (query lower)");
+    check(fn_036626("BLUE") == 2, "  case-insensitive (query upper)");
+    check(fn_036626("green") == 3, "  case-insensitive (entry upper)");
+    check(fn_036626("yellow") == 0, "  no match -> 0");
+    g_dat_633a0 = 0;
+    memset(g_tab_5d884, 0, sizeof g_tab_5d884);
+}
 static void test_fn_03442e(void) {
     printf("fn_03442e (0x03442e)\n");
 
@@ -2605,6 +2621,7 @@ int main(void) {
     test_fn_03ba2c();
     test_fn_03ba86();
     test_fn_03a594();
+    test_fn_036626();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

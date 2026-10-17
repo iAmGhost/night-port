@@ -442,6 +442,9 @@ void     fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const ui
 void     fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count);  /* 0x03a594: copy bytes != 0xff */
 void     fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag);  /* 0x034aba */
 extern uint32_t g_dat_639dc;    /* DAT_000639dc */
+extern uint32_t g_dat_633a0;    /* DAT_000633a0: # entries in the 0x5d884 string table */
+extern uint8_t  g_tab_5d884[128 * 21];  /* RODATA string->value table @0x5d884, 21-byte entries */
+int32_t fn_036626(const char *s);  /* 0x036626: case-insensitive string->value table lookup */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
 uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */
 uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_dat_639e0 */

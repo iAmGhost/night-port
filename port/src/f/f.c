@@ -424,6 +424,25 @@ int str_icmp(const char *a, const char *b, int n) {
     }
     return 0;
 }
+/* 0x5d884: RODATA string->value table, 21-byte entries {char str[13]; int32 value@13; pad[4]}.
+ * 0x633a0 bounds the walk (runtime count). Sized generously for the real table. */
+uint32_t g_dat_633a0 = 0;
+uint8_t  g_tab_5d884[128 * 21];
+/* 0x036626: case-insensitive lookup of s in the 0x5d884 table (bound g_dat_633a0),
+ * returning the matched entry's int32 value (offset 13) or 0. s=EAX. The match
+ * compares str_len(s) bytes via str_icmp (0x423e5); a shorter query that is a
+ * prefix of a table string still matches (faithful to the original). */
+int32_t fn_036626(const char *s) {
+    int32_t result = 0;
+    uint32_t len = str_len(s);
+    for (uint32_t i = 0; i < g_dat_633a0; i++) {
+        const uint8_t *e = g_tab_5d884 + i * 21;
+        if (str_icmp((const char *)e, s, (int)len) == 0) {
+            int32_t v; memcpy(&v, e + 13, 4); result = v;
+        }
+    }
+    return result;
+}
 
 /* res_consume  orig: 0x042438
  * Consume `amount` bytes from a chunked resource reader. Clears flag bit

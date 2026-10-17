@@ -439,6 +439,7 @@ extern uintptr_t g_node_arena_base;    /* node-arena base (s_node_arena) */
 extern uint32_t  g_dat_62d68[200];      /* DAT_00062d68: head-node offset per list idx (200 lists) */
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */
 void     fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p);  /* 0x03ba86: nested-list builder from byte stream */
+void     fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count);  /* 0x03a594: copy bytes != 0xff */
 void     fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag);  /* 0x034aba */
 extern uint32_t g_dat_639dc;    /* DAT_000639dc */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */

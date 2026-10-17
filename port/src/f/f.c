@@ -1601,6 +1601,14 @@ void fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_
         }
     }
 }
+/* 0x03a594: filtered byte copy. ABI dest=EAX, src=EDX, count=EBX.
+ * for i in 0..count-1: if (src[i] != 0xff) dest[i] = src[i]. Bytes equal to
+ * 0xff are NOT copied (dest[i] is left unchanged). */
+void fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count) {
+    for (uint32_t i = 0; i < count; i++) {
+        if (src[i] != 0xff) dest[i] = src[i];
+    }
+}
 uint32_t g_dat_639dc = 0;
 uint32_t g_dat_639e0 = 0;
 uint32_t fn_01519f(const uint8_t *p) { return *(const uint32_t *)(p + 1) - g_dat_639dc; }  /* 0x01519f */

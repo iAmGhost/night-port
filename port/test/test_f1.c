@@ -1965,6 +1965,17 @@ static void test_fn_03ba86(void) {
     check(nflag(11) == 0x38, "  first carved node carries flag 0x38");
     memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
 }
+static void test_fn_03a594(void) {
+    printf("fn_03a594 (0x03a594)\n");
+    uint8_t src[8] = {0x10, 0xff, 0x20, 0xff, 0x30, 0x40, 0xff, 0x50};
+    uint8_t dest[8] = {0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE, 0xEE};
+    fn_03a594(dest, src, 8);
+    check(dest[0]==0x10 && dest[1]==0xEE && dest[2]==0x20 && dest[3]==0xEE, "  non-0xff copied, 0xff slots left unchanged (1)");
+    check(dest[4]==0x30 && dest[5]==0x40 && dest[6]==0xEE && dest[7]==0x50, "  non-0xff copied, 0xff slots left unchanged (2)");
+    uint8_t allff[4] = {0xff,0xff,0xff,0xff}, keep[4] = {0xAA,0xBB,0xCC,0xDD};
+    fn_03a594(keep, allff, 4);
+    check(keep[0]==0xAA && keep[3]==0xDD, "  all-0xff src: dest fully unchanged");
+}
 static void test_fn_03442e(void) {
     printf("fn_03442e (0x03442e)\n");
 
@@ -2593,6 +2604,7 @@ int main(void) {
     test_fn_034aba();
     test_fn_03ba2c();
     test_fn_03ba86();
+    test_fn_03a594();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

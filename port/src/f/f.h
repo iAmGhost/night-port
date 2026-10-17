@@ -465,6 +465,8 @@ extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
 extern uint8_t *g_dat_53c7c;   /* DAT_00053c7c (kb config ptr; [0x1b] int32) */
 extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
 extern uint8_t *g_dat_53c70;   /* DAT_00053c70 (entity list head; next at +0x13f) */
+extern int32_t  g_dat_51c98;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
+extern int32_t  g_dat_53c90;   /* DAT_00053c90 (player-event latch) */
 extern int32_t  g_dat_53c68;   /* DAT_00053c68 (entity count) */
 #define FN_015A1F_TBL 0x2000
 extern uint8_t  g_dat_53eb8[FN_015A1F_TBL]; /* DAT_00053eb8 (zeroed runtime table) */
@@ -477,6 +479,7 @@ int32_t  fn_0161f9(uint8_t *s);        /* 0x0161f9: family core, magic '+' */
 int32_t  fn_0163b4(uint8_t *s);        /* 0x0163b4: family core, magic ',' */
 int32_t  fn_01656f(uint8_t *s);        /* 0x01656f: family core, magic {',' '-'} */
 int32_t  fn_016750(uint8_t *s);        /* 0x016750: family core, magic {'1' '4' '.'} */
+int32_t  fn_016fec(uint8_t *s, int32_t yref);   /* 0x016fec: grid-collision detector */
 int32_t  fn_017ca6(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x017ca6: Bresenham diagonal stepper */
 int32_t  fn_01730b(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01730b: 2-phase X-then-Y move-toward-target */
 int32_t  fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01776f: 2D movement delta computer */

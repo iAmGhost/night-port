@@ -1501,6 +1501,8 @@ uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
 uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
+int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
+int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
 uint8_t  g_dat_53eb8[0x2000] = {0}; /* 0x53eb8: zeroed runtime table */
 
@@ -1743,6 +1745,48 @@ int32_t fn_0161f9(uint8_t *s) { return fn_015b5b_core(s, fn_mg_plus, 1); }
 int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma, 1); }
 int32_t fn_01656f(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma_dash, 2); }
 int32_t fn_016750(uint8_t *s) { return fn_015b5b_core(s, fn_mg_14dot, 3); }
+
+int32_t fn_016fec(uint8_t *s, int32_t yref) {                                /* 0x016fec: grid-collision detector */
+    if (g_dat_51c98 == 1) {                                            /* reinit step */
+        g_dat_51c98 = 2;
+        g_dat_53c90 = 0;
+        return 0;
+    }
+    *(int32_t *)(s + 0x17) = 1;
+    int32_t Xg = (int32_t)fn_01519f(s) / 0x14;                          /* X / 20 (signed) */
+    int32_t Yg = (int32_t)fn_0151d5(s) / 0xc;                           /* Y / 12 (signed) */
+    uint8_t *node = g_dat_53c70;
+    for (int32_t i = 0; i < g_dat_53c68; i++) {
+        if (node != g_dat_53c7c && node != s &&
+            (int32_t)(*(uint32_t *)(node + 0x1f)) == 4) {
+            int32_t nXg = (int32_t)fn_01519f(node) / 0x14;
+            int32_t nYg = (int32_t)fn_0151d5(node) / 0xc;
+            if (nXg == Xg && nYg == Yg) {
+                *(int32_t *)(s + 0xbb) = (int32_t)prng_next() % 4;
+                g_dat_51c98 = 1;
+                return 2;
+            }
+        }
+        node = *(uint8_t **)(node + 0x13f);
+    }
+    if (g_dat_53c90 == 0 &&
+        0x83u <= *(uint32_t *)(g_dat_53c7c + 0x17) && *(uint32_t *)(g_dat_53c7c + 0x17) <= 0x85u) {
+        if (abs32((int32_t)fn_0151d5(s) - yref) < 6) {
+            if ((int32_t)prng_next() % 100 < 0x32) {
+                g_dat_51c98 = 1;
+                g_dat_53c90 = 1;
+                return 3;
+            }
+            g_dat_53c90 = 1;
+        }
+    }
+    if ((int32_t)(*(uint32_t *)(s + 0xab)) < 0) {
+        g_dat_51c98 = 1;
+        return 1;
+    }
+    *(int32_t *)(s + 0xab) -= 1;
+    return 0;
+}
 
 int32_t fn_017ca6(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   /* 0x017ca6: Bresenham diagonal stepper (primary axis = larger |velocity|) */
     *(int32_t *)(s + 0x17) = 2;

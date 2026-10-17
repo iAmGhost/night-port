@@ -2187,6 +2187,37 @@ static void test_l10_accessors(void) {
       *(int32_t *)(sc+9) = 50; *(int32_t *)(sc+0xc3) = 100; *(int32_t *)(sc+0xef) = 10;
       *(int32_t *)(sc+0xf3) = 9; *(int32_t *)(sc+0xf7) = 10; *(int32_t *)(sc+0xfb) = 5;
       a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      // fn_016fec: grid-collision detector (entity list, grid cell X/20 Y/12).
+      g_dat_639dc = 0; g_dat_639e0 = 0;
+      uint8_t fs[0x200] = {0}, fe[0x200] = {0}, fp[0x200] = {0};
+      g_dat_53c70 = fe; g_dat_53c68 = 0; g_dat_53c7c = fp;
+      // 1: reinit (g_dat_51c98==1) -> ret0, mode=2, latch=0
+      g_dat_51c98 = 1; g_dat_53c90 = 0;
+      rr = fn_016fec(fs, 0);
+      check(rr == 0 && g_dat_51c98 == 2 && g_dat_53c90 == 0, "  fn_016fec reinit");
+      // 2: collision (entity in same grid cell, [0x1f]==4) -> ret2, reinit flag, s[0xbb] in [0,4)
+      g_dat_51c98 = 2; g_dat_53c90 = 0;
+      *(int32_t *)(fs+1) = 100; *(int32_t *)(fs+9) = 100;      // s: Xg=5, Yg=8
+      *(int32_t *)(fe+1) = 110; *(int32_t *)(fe+9) = 100;      // e: Xg=5, Yg=8 (same cell)
+      *(int32_t *)(fe+0x1f) = 4; g_dat_53c68 = 1;
+      rr = fn_016fec(fs, 0);
+      check(rr == 2 && g_dat_51c98 == 1 && *(int32_t *)(fs+0xbb) >= 0 && *(int32_t *)(fs+0xbb) < 4, "  fn_016fec collision ret2");
+      // 3: no collision (count=0), countdown s[0xab]=5 -> ret0, s[0xab]=4
+      g_dat_51c98 = 2; g_dat_53c90 = 0; g_dat_53c68 = 0;
+      *(int32_t *)(fs+1) = 100; *(int32_t *)(fs+9) = 100; *(int32_t *)(fs+0xab) = 5;
+      *(int32_t *)(fp+0x17) = 0;                              // player state gate off
+      rr = fn_016fec(fs, 0);
+      check(rr == 0 && *(int32_t *)(fs+0xab) == 4, "  fn_016fec countdown ret0");
+      // 4: countdown negative s[0xab]=-1 -> ret1, reinit flag
+      g_dat_51c98 = 2; g_dat_53c68 = 0; *(int32_t *)(fs+0xab) = -1; *(int32_t *)(fp+0x17) = 0;
+      rr = fn_016fec(fs, 0);
+      check(rr == 1 && g_dat_51c98 == 1, "  fn_016fec countdown<0 ret1");
+      // 5: player-event gate (latch=0, player[0x17]=0x84, abs(Y-yref)<6) -> latch set
+      g_dat_51c98 = 2; g_dat_53c90 = 0; g_dat_53c68 = 0;
+      *(int32_t *)(fs+1) = 100; *(int32_t *)(fs+9) = 100; *(int32_t *)(fs+0xab) = 3;
+      *(int32_t *)(fp+0x17) = 0x84; prng_seed(12345);
+      rr = fn_016fec(fs, 100);                               // yref=100, abs(Y-yref)=0<6
+      check(g_dat_53c90 == 1 && (rr == 3 || rr == 0), "  fn_016fec player-event gate entered");
       check(rr == 0 && a1 == 5 && b1 == 5 && *(int32_t *)(sc+0xfb) == 4, "  fn_017ca6 Y-dom secondary");
       check(rr == 0 && x1 == 5 && y1 == 999 && *(int32_t *)(sn+0xaf) == 2, "  fn_01730b Y clamped by g16 bound");
       *(int32_t *)(g_dat_63354 + 0x16) = 1000;

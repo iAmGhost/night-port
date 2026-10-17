@@ -1546,13 +1546,23 @@ uint32_t fn_03518a(const uint8_t *p) { return ((uint32_t)p[0] << 8) | (uint32_t)
 
 void fn_04a7fa(double a, double *out) { *out = a - fpu_rndint(a); }  /* 0x04a7fa */
 
-bool fn_016959(const uint8_t *s, int32_t param2) {                /* 0x016959 */
+int32_t fn_016959(uint8_t *s, int32_t param2, int32_t *param3) {    /* 0x016959 */
+    *(int32_t *)(s + 0x17) = 2;
     int32_t F = (int32_t)fn_01519f(s);
-    int32_t X = *(const int32_t *)(s + 0xbf);
-    int32_t Z = *(const int32_t *)(s + 0xab);
-    if (X < F) { if (F - param2 <= X) return true; }
-    else { if (X <= F) return true; if (X <= param2 + F) return true; }
-    return (Z < 0);
+    int32_t X = *(int32_t *)(s + 0xbf);
+    int32_t ret;
+    int32_t cnt = *(int32_t *)(s + 0xab);
+    if (F > X) {
+        if (F - param2 > X) { *param3 = -param2; if (cnt < 0) ret = 1; else { *(int32_t*)(s+0xab) = cnt - 1; ret = 0; } }
+        else { *param3 = 0; ret = 1; }
+    } else {
+        if (F >= X) { *param3 = 0; ret = 1; }
+        else {
+            if (param2 + F < X) { *param3 = param2; if (cnt < 0) ret = 1; else { *(int32_t*)(s+0xab) = cnt - 1; ret = 0; } }
+            else { *param3 = 0; ret = 1; }
+        }
+    }
+    return ret;
 }
 
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array

@@ -1964,6 +1964,24 @@ static void test_l10_accessors(void) {
       fn_034635(0x4b); check(g_dat_62c58[0x4b]==0, "  fn_034635 st4 K a94!=0 cnt=0: st=0");
       memset(g_dat_62c58,0,128); memset(g_dat_62cd8,0,128); g_dat_62c58[7]=4; g_dat_62cd8[7]=2; g_dat_62a94=0;
       fn_034635(7); check(g_dat_62c58[7]==1 && g_dat_62cd8[7]==1, "  fn_034635 st4 other: st=1 cnt--"); }
+    { heap_arena_init(); g_heap_seg_limit = 0; heap_acquire_region(0x280);
+      uint32_t s0 = heap_malloc(0x80), s1 = heap_malloc(0x80);
+      check(s0 && s1, "  fn_0100d9: 2 structs");
+      uint8_t *b0 = (uint8_t*)(g_heap_base+s0), *b1 = (uint8_t*)(g_heap_base+s1);
+      b0[0x6d]=b0[0x6e]=b0[0x6f]=b0[0x71]=b0[0x72]=b0[0x73]=b0[0x75]=b0[0x76]=b0[0x77]=0;
+      b1[0x6d]=b1[0x6e]=b1[0x6f]=b1[0x71]=b1[0x72]=b1[0x73]=b1[0x75]=b1[0x76]=b1[0x77]=0;
+      uint32_t arr = heap_malloc(8); uint32_t *ap = (uint32_t*)(g_heap_base+arr); ap[0]=s0; ap[1]=s1;
+      // fill the region until full (so frees are required for reuse)
+      uint32_t fill[16]; int nf = 0;
+      for (int i = 0; i < 16; i++) { uint32_t t = heap_malloc(0x18); if (!t) break; fill[nf++] = t; }
+      check(heap_malloc(0x80) == 0, "  fn_0100d9: region full before free");
+      uint32_t cont[2] = { 2, arr };
+      uint32_t r = fn_0100d9(cont);
+      check(r == (uint32_t)cont, "  fn_0100d9 returns s");
+      uint32_t n0 = heap_malloc(0x80);
+      check(n0 != 0, "  fn_0100d9: freed s0/s1/array -> 0x80 reusable");
+      if (n0) heap_free_host(n0);
+      for (int i = 0; i < nf; i++) heap_free_host(fill[i]); }
 }
 
 int main(void) {

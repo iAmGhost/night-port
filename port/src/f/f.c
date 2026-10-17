@@ -1646,6 +1646,23 @@ void fn_034635(uint8_t key) {                                  /* 0x034635: keyb
     }
 }
 
+uint32_t fn_0100d9(uint32_t *s) {                                   /* 0x0100d9: free container {count, array} */
+    uint32_t count = s[0];
+    uint32_t array_off = s[1];
+    if (array_off != 0) {
+        uint32_t *array = (uint32_t *)(g_heap_base + array_off);
+        for (uint32_t i = 0; i < count; i++) {
+            uint32_t off = array[i];
+            if (off != 0) {
+                fn_010376((uint8_t *)(g_heap_base + off), 0);   /* destroy struct fields */
+                heap_free_guard(off);                            /* free the struct */
+            }
+        }
+        heap_free_host(array_off);                               /* free the array */
+    }
+    return (uint32_t)s;
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

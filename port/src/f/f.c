@@ -2521,6 +2521,20 @@ int32_t fn_044807(uint32_t handle, int32_t offset, int32_t whence) {
     return pos < 0 ? -1 : pos;   /* mirrors the RCL/ROR/TEST/JGE sign gate */
 }
 
+/* 0x044bec: DOS AH=3Eh close-file (23 ins). INT 21h AH=0x3e closes the handle;
+ * the RCL/ROR preserves the INT's error flag (CF). On success (CF clear) it marks
+ * the handle's slot free via store_arr53730(handle,0) and returns 0; on error it
+ * calls fn_042a0d(4) and returns -1. The DOS close maps to sys_file_close. */
+int32_t fn_044bec(uint32_t handle)
+{
+    if (sys_file_close(handle) == 0) {          /* 0x44bf4-44bf8: INT 21h AH=0x3e, CF clear */
+        store_arr53730(handle, 0);              /* 0x44c02: mark slot free */
+        return 0;                                /* 0x44c07 */
+    }
+    fn_042a0d(4);                               /* 0x44c11 */
+    return -1;                                   /* 0x44c16 */
+}
+
 /* 0x049415: DOS AH=41h file delete (30B). name=EAX (moved to EDX for the INT).
  * INT 21, RCL/ROR/TEST/JGE: success -> XOR EAX,EAX (return 0); error -> AND EAX,0xffff
  * + call 0x045a82. Routed to sys_file_delete (no-op: 0 = success).

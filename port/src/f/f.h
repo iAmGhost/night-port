@@ -552,6 +552,7 @@ void fn_043324(uintptr_t context, uintptr_t rm_ptr); /* 0x043324: DPMI real-mode
 uint32_t fn_03f084(const uint16_t *arg1, const uint16_t *arg2, uint16_t *arg3, const uint16_t *arg4); /* 0x03f084: DPMI INT 31h ctx wrapper */
 int32_t fn_042aba(uint32_t handle, void *buf, uint32_t count); /* 0x042aba: DOS AH=3f read */
 int32_t fn_044807(uint32_t handle, int32_t offset, int32_t whence); /* 0x044807: DOS AH=42 lseek */
+int32_t fn_044bec(uint32_t handle);                              /* 0x044bec: DOS AH=3e close-file */
 int32_t fn_049415(const char *name); /* 0x049415: DOS AH=41 delete */
 /* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
  * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.

@@ -2074,6 +2074,11 @@ static void test_fn_044807(void) {
     check(fn_044807(3, -5, 1) == 0, "  no-op lseek (whence=1) returns pos 0");
 }
 
+static void test_fn_044bec(void) {
+    printf("fn_044bec (0x044bec)\n");
+    check(fn_044bec(7) == 0, "  close success (sys stub) -> returns 0");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -2873,6 +2878,7 @@ int main(void) {
     test_fn_03f084();
     test_fn_042aba();
     test_fn_044807();
+    test_fn_044bec();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

@@ -126,6 +126,11 @@ void fn_0003f592(void);                         /* 0x0003f592: VGA vline to A000
 void fn_0003c7d7(uint8_t *s);                   /* 0x0003c7d7: zero 6 struct fields + memset DAT_0005d08c/5d0a0 */
 extern uint8_t g_dat_5d08c[0x14];               /* DAT_0005d08c */
 extern uint8_t g_dat_5d0a0[0x14];               /* DAT_0005d0a0 */
+uint8_t *fn_0003b5c0(uint8_t *node, uint8_t flag, uint32_t d_ecx, uint32_t d_edx, uint32_t d_ebx); /* 0x0003b5c0: linked-list insert (reg-ABI) */
+uint8_t *fn_0003b67e(uint8_t *node);            /* 0x0003b67e: linked-list remove (reg-ABI) */
+extern uint8_t *g_dat_639cc;                    /* DAT_000639cc: list head */
+extern uint8_t *g_dat_639d0;                    /* DAT_000639d0: list tail */
+extern int32_t  g_dat_639c8;                    /* DAT_000639c8: list count */
 void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (divisor in EAX) */
 void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */

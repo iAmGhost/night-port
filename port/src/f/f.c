@@ -606,6 +606,70 @@ void fn_0003c7d7(uint8_t *s) {
     fn_041e20(g_dat_5d08c, 0, 0x14);
 }
 
+uint8_t *g_dat_639cc = NULL;  /* DAT_000639cc: doubly-linked list head */
+uint8_t *g_dat_639d0 = NULL;  /* DAT_000639d0: doubly-linked list tail */
+int32_t  g_dat_639c8 = 0;     /* DAT_000639c8: list node count */
+
+/* fn_0003b5c0  orig: 0x0003b5c0 (L10, 189B)
+ *   Linked-list INSERT (register-ABI). The node is caller-allocated and passed
+ *   in EAX; its payload fields come from the other live registers/stack:
+ *   node+0 = flag (stack byte), node+1 = ECX, node+5 = 0, node+9 = EDX,
+ *   node+0xd = EBX. Then the node is appended: if the list is empty it becomes
+ *   both head and tail (next=prev=0), else tail->next = node, node->prev =
+ *   tail, node->next = 0, tail = node. DAT_000639c8 (count) is incremented.
+ *   Returns the node.
+ *   POINTER-WIDTH ADAPTATION: the original node is 24 bytes with 4-byte
+ *   next@+0x11 / prev@+0x15 (32-bit pointers). The flat port is 64-bit, so the
+ *   next/prev fields are widened to 8 bytes (next@+0x11, prev@+0x19) -- a
+ *   necessary 32->64-bit adaptation; the payload fields keep their offsets. */
+uint8_t *fn_0003b5c0(uint8_t *node, uint8_t flag, uint32_t d_ecx, uint32_t d_edx, uint32_t d_ebx) {
+    node[0] = flag;
+    *(uint32_t *)(node + 0x1) = d_ecx;
+    *(uint32_t *)(node + 0x5) = 0;
+    *(uint32_t *)(node + 0x9) = d_edx;
+    *(uint32_t *)(node + 0xd) = d_ebx;
+    if (g_dat_639cc == NULL) {
+        g_dat_639cc = node;
+        g_dat_639d0 = node;
+        *(uint8_t **)(node + 0x19) = NULL;
+        *(uint8_t **)(node + 0x11) = NULL;
+    } else {
+        *(uint8_t **)(g_dat_639d0 + 0x11) = node;
+        *(uint8_t **)(node + 0x19) = g_dat_639d0;
+        *(uint8_t **)(node + 0x11) = NULL;
+        g_dat_639d0 = node;
+    }
+    g_dat_639c8++;
+    return node;
+}
+
+/* fn_0003b67e  orig: 0x0003b67e (L10, 153B)
+ *   Linked-list REMOVE (register-ABI, node in EAX). If node is head, head =
+ *   node->next and node->next->prev = 0; if node is tail, tail = node->prev and
+ *   node->prev->next = 0; else splice (prev->next = next, next->prev = prev).
+ *   DAT_000639c8 is decremented. Returns the node. next@+0x11, prev@+0x19
+ *   (widened to 8 bytes, see fn_0003b5c0).
+ *   LATENT BUG (faithfully reproduced): the head/tail branches do not NULL-check
+ *   the successor/predecessor, so removing the last remaining node null-derefs
+ *   (writes next->prev through next==0, or prev->next through prev==0). The game
+ *   presumably never removes the final node via this path. */
+uint8_t *fn_0003b67e(uint8_t *node) {
+    uint8_t *next = *(uint8_t **)(node + 0x11);
+    uint8_t *prev = *(uint8_t **)(node + 0x19);
+    if (g_dat_639cc == node) {
+        g_dat_639cc = next;
+        *(uint8_t **)(next + 0x19) = NULL;   /* latent null-deref if next == NULL */
+    } else if (g_dat_639d0 == node) {
+        g_dat_639d0 = prev;
+        *(uint8_t **)(prev + 0x11) = NULL;   /* latent null-deref if prev == NULL */
+    } else {
+        *(uint8_t **)(prev + 0x11) = next;
+        *(uint8_t **)(next + 0x19) = prev;
+    }
+    g_dat_639c8--;
+    return node;
+}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

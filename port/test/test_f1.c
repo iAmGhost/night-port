@@ -2271,6 +2271,48 @@ static void test_fn_0003c7d7(void) {
         "  memsets DAT_0005d08c + DAT_0005d0a0 to 0");
 }
 
+static void test_fn_0003b5c0(void) {
+    printf("fn_0003b5c0/0003b67e (0x0003b5c0/0x0003b67e, linked-list insert/remove)\n");
+    uint8_t a[0x28], b[0x28], c[0x28];
+    #define NEXT(p) (*(uint8_t**)((p)+0x11))
+    #define PREV(p) (*(uint8_t**)((p)+0x19))
+    #define RESET() do { g_dat_639cc=g_dat_639d0=NULL; g_dat_639c8=0; } while(0)
+
+    RESET();
+    fn_0003b5c0(a, 1, 11, 12, 13);
+    check(g_dat_639cc==a && g_dat_639d0==a && g_dat_639c8==1,
+        "  insert into empty list -> head=tail=a, count=1");
+    check(a[0]==1 && *(uint32_t*)(a+1)==11 && *(uint32_t*)(a+9)==12 && *(uint32_t*)(a+0xd)==13 && *(uint32_t*)(a+5)==0,
+        "  node payload fields (flag/ECX/EDX/EBX/0) set");
+    fn_0003b5c0(b, 2, 21, 22, 23);
+    check(g_dat_639cc==a && g_dat_639d0==b && g_dat_639c8==2,
+        "  append -> tail=b, count=2");
+    check(NEXT(a)==b && PREV(b)==a && NEXT(b)==NULL && PREV(a)==NULL,
+        "  a->next=b, b->prev=a, b->next=0");
+    fn_0003b5c0(c, 3, 31, 32, 33);
+    check(g_dat_639cc==a && g_dat_639d0==c && g_dat_639c8==3,
+        "  append -> tail=c, count=3 (a->b->c)");
+
+    fn_0003b67e(b);   /* remove the middle node */
+    check(g_dat_639cc==a && g_dat_639d0==c && g_dat_639c8==2,
+        "  remove middle -> count=2, head=a, tail=c");
+    check(NEXT(a)==c && PREV(c)==a && NEXT(c)==NULL,
+        "  middle splice: a->next=c, c->prev=a");
+
+    fn_0003b67e(a);   /* remove head (a), c remains */
+    check(g_dat_639cc==c && g_dat_639d0==c && g_dat_639c8==1,
+        "  remove head -> head=c, count=1");
+    check(PREV(c)==NULL && NEXT(c)==NULL, "  head remove: c->prev=0 (c now sole node)");
+    /* Do NOT remove the sole node c here -- that is the latent null-deref. */
+    RESET();
+    fn_0003b5c0(a, 1, 0, 0, 0);
+    fn_0003b5c0(b, 2, 0, 0, 0);
+    fn_0003b67e(b);   /* remove tail (b); a remains, a->next should be 0 */
+    check(g_dat_639cc==a && g_dat_639d0==a && g_dat_639c8==1 && NEXT(a)==NULL,
+        "  remove tail (of 2) -> a sole, a->next=0");
+    RESET();
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3124,6 +3166,7 @@ int main(void) {
     test_fn_00041bdc();
     test_fn_000356ba();
     test_fn_0003c7d7();
+    test_fn_0003b5c0();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

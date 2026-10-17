@@ -531,6 +531,7 @@ void     fn_045079(uint32_t value, char *buf, int width); /* 0x045079: zero-pad 
 void     fn_0450da(char *out, int32_t value, int *spec);  /* 0x0450da: 16.16 fixed -> decimal string */
 uint8_t *fn_0451bc(uint8_t *out, uint8_t **cur, uint8_t *st, uint8_t *alt); /* 0x0451bc: typed field formatter */
 const uint8_t *fn_043f80(const uint8_t *src, uint8_t *dest); /* 0x043f80: 8-bit presence bitmap */
+void fn_049e15(char *dest, int count2, int count3); /* 0x049e15: in-buffer range shift + fixup + fill */
 /* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
  * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.
  *  orig: 0x045a44 */

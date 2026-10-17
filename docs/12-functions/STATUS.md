@@ -34,14 +34,14 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 197 / 528 done
+TOTALS: 198 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 25 | 0 | 0 | 22 |
 | L2 | 32 | 11 | 0 | 0 | 21 |
-| L3 | 21 | 2 | 0 | 0 | 19 |
+| L3 | 21 | 3 | 0 | 0 | 18 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
@@ -155,6 +155,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_0405de (0x0405de, 82B) ported** — store 4 16-bit values. ABI p1=EAX, p2=EDX, p3=EBX, p4=ECX. Full disasm showed the Ghidra decomp's `& 0xffff0000ffff` mask was misleading — it is actually 4 separate 16-bit stores: `XOR EAX,EAX; MOV AX,reg; MOV [0x40014/18/1c/20],EAX`, i.e. g_dat_40014=low16(p1), g_dat_40018=low16(p2), g_dat_4001c=low16(p3), g_dat_40020=low16(p4) (each zero-extended to a 4-byte global). Added 4 globals g_dat_40014/18/1c/20 (consecutive after the already-ported g_dat_40010 frame-pitch at 0x40010). 5 checks (each low16 stored to the right slot + high16 dropped/zero-extended). L10 20->21, TOTALS 194->195, suite 681 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **fn_0451bc (0x0451bc, 1096B) ported** — typed field formatter/deserializer (the big L3 win, first of 21 L3 fns). Fully traced from raw disasm (354 instructions; Ghidra's 338-line decomp was a register-ABI maze). ABI out=EAX, cur=EDX (ptr to stream read-ptr), st=EBX (state), alt=ECX (null-string fallback). **Type dispatch** (st[0x15]): E/G/e/g->cb_indirect_53644 (return its ptr, len=strn_len); F/f->(flag 0x10 ? fn_0450da fixed-point : cb); P/p->date/time (flag 0x80: 8-hex date + ':' + 4-hex secs, else 8-hex; 'P' uppercased; size init 13/8); S/s->string (flag 0x80 reads 8-byte {ptr,len} header, else 4-byte ptr; ptr==0->alt; 'S' reads len word/byte, 's' computes via word_nlen/strn_len); X/x->hex (itoa32_tbl base16, 'X' upper); c->single char (reads 1 byte, advances 4); d/i->signed decimal (flag 0x20 dword / 0x10 word / else itoa32s); o->octal (itoa32s_tbl base8, flag 0x01 writes '0' at out[0] + format at out+1); u->unsigned decimal (itoa32_tbl base10); default->write type char, len 1. **Pre-pass**: {X,o,u,x} read val (flag 0x10: 16-bit read but **still advances *cur by 4** — faithful quirk), clear flag 0x2/0x4; {d,i} set st[0x16]=0x20. **Epilogue** (0x4556a): negative '-' moves to prefix (st[0x17]) + ret advances past it; flags 0x02/0x04 set prefix ' '/'+'; st[0x16]=='*' clears prefix; length clamp; st+0x04 (size) -= (prefix_len + length + remainder). 9 callees all pre-ported (fn_0450da, cb_indirect_53644, itoa32s/_tbl, itoa32_tbl, strn_len, word_nlen, string_upper, fn_045079). 13 checks (c char, d 42, i -5 prefix, u 100+size-dec, x/X hex, o octal + flag01 '0'-prefix, u flag10 word-read + cursor-quirk, default char). L3 0->1, TOTALS 195->196, suite 695 PASS 0 FAIL. | STATUS.md L3 |
 | 2026-07-08 | **fn_043f80 (0x043f80, 66B) ported** — 8-bit presence-bitmap builder. ABI src=EAX, dest=EDX. fn_041e20(dest,0,32) clears a 32-byte bitmap, then for each byte b in src (from byte 0) sets `dest[b>>3] |= 1<<(b&7)` (table @0x51854 = {1,2,4,8,16,32,64,128}). Scan stops at first 0 or 0x5d (']') byte; that byte is NOT processed. Returns the source cursor at exit (EAX=ECX). Faithful quirks verified in disasm: (1) byte 0 is processed even if it is 0x5d (the 0x5d check only applies from byte 1 on); (2) the exit cursor is the zero byte's address when stopped by 0, but the address PAST the 0x5d byte when stopped by 0x5d. Depends on ported fn_041e20 (memset). 6 checks (single 0x41->dest[8]=2 + zero cursor, ']'-skip, 0x05/0x07->dest[0]=160, leading-zero no-op, byte0=0x5d quirk). L3 1->2, TOTALS 196->197, suite 701 PASS 0 FAIL. | STATUS.md L3 |
+| 2026-07-08 | **fn_049e15 (0x049e15, 106B) ported** — within-buffer string range-shift + sign/zero fixup + space-fill. Confirmed via decomp + single caller (FUN_00049e80): param_1=char buffer, param_2/param_3 are small COUNTS (not pointers — so `dest+count` is portable pointer arithmetic, no 32-bit-pointer-as-field issue). If count2!=count3: a backward do-while copies dest[0..count2-1] to end at dest[count3-1] (dest[count3-count2+k]=dest[k], high-to-low, count2 iterations including dest[0]); then fixup on dest[0]: '.' -> dest[iVar5-2]='0'; '+'/'-' with dest[1]=='.' -> dest[iVar5-1]='0', dest[iVar5-2]=dest[0]; finally fn_041e20(dest,' ',cur3) space-fills the front. Register model preserved: iVar5=count3-(count2-1), cur3=count3-count2 at exit. Depends on ported fn_041e20. 4 hand-traced differential tests (plain copy+fill, '.' fixup, sign fixup, equal-counts no-op). L3 2->3, TOTALS 197->198, suite 705 PASS 0 FAIL. | STATUS.md L3 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -381,7 +382,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x049236 | 123 | FUN_00049236 | | |
 | [ ] | 0x049415 | 30 | FUN_00049415 | | |
 | [ ] | 0x049613 | 690 | FUN_00049613 | | |
-| [ ] | 0x049e15 | 106 | FUN_00049e15 | | |
+| [x] | 0x049e15 | 106 | fn_049e15 | | |
 | [ ] | 0x04a48f | 485 | FUN_0004a48f | | |
 ## L4 (13)
 

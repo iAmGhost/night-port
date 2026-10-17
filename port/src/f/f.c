@@ -2387,6 +2387,40 @@ const uint8_t *fn_043f80(const uint8_t *src, uint8_t *dest) {
     return src;
 }
 
+/* 0x049e15: within-buffer string range shift + sign/zero fixup + space-fill (106B).
+ *
+ * param_1 = char buffer (dest), param_2 (count2) and param_3 (count3) are small counts.
+ * If count2 != count3: a backward in-buffer copy moves dest[0..count2-1] to end at
+ * dest[count3-1] (i.e. dest[count3-count2+k] = dest[k], done high-to-low); then a fixup
+ * based on dest[0]: '.' -> dest[iVar5-2]='0'; '+'/'-' with dest[1]=='.' -> dest[iVar5-1]
+ * ='0', dest[iVar5-2]=dest[0]; finally fn_041e20(dest,' ',cur3) space-fills the front.
+ * iVar5 = count3-(count2-1), cur3 = count3-count2 at loop exit (faithful register model).
+ * Depends on fn_041e20. The backward copy reads/writes dest[0] too (count2 iterations).
+ */
+void fn_049e15(char *dest, int count2, int count3) {
+    if (count2 != count3) {
+        char c1 = dest[1];
+        char *s = dest + count2;
+        char *d = dest + count3;
+        int cur3 = count3;
+        int iVar5;
+        do {
+            iVar5 = cur3;
+            s--; d--;
+            *d = *s;
+            cur3 = iVar5 - 1;
+        } while (s != dest);
+        char c2 = dest[0];
+        if (c2 == '.') {
+            dest[iVar5 - 2] = '0';
+        } else if ((c2 == '+' || c2 == '-') && c1 == '.') {
+            dest[iVar5 - 1] = '0';
+            dest[iVar5 - 2] = c2;
+        }
+        fn_041e20((uint8_t *)dest, 0x20, (uint32_t)cur3);
+    }
+}
+
 /* 0x0451bc: typed field formatter/deserializer (1096 bytes, ~354 instructions, L3).
  *
  * Reads a field described by a state struct `st` (type code st[0x15] + flags st[0x14])

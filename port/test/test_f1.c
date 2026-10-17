@@ -2012,6 +2012,33 @@ static void test_fn_0405de(void) {
     check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
 }
 
+static void test_fn_049e15(void) {
+    printf("fn_049e15 (0x049e15)\n");
+    static char buf[16];
+
+    /* A: "abcde" count2=3 count3=5 -> copy [0..2] to [2..4] (backward) -> "ababc";
+       no fixup (dest[0]='a'); fill 2 -> "  abc" */
+    memcpy(buf, "abcde\0", 6);
+    fn_049e15(buf, 3, 5);
+    check(buf[0]==' ' && buf[1]==' ' && buf[2]=='a' && buf[3]=='b' && buf[4]=='c',
+          "  A copy+fill -> '  abc'");
+
+    /* B: ".bde" count2=2 count3=4 -> "abab"-> ".b.b"; '.' fixup dest[1]='0'; fill 2 -> "  .b" */
+    memcpy(buf, ".bde\0\0", 6);
+    fn_049e15(buf, 2, 4);
+    check(buf[0]==' ' && buf[1]==' ' && buf[2]=='.' && buf[3]=='b', "  B '.' fixup -> '  .b'");
+
+    /* C: "+.de" count2=2 count3=4 -> "+.+."; sign fixup dest[2]='0',dest[1]='+'; fill 2 -> "  0." */
+    memcpy(buf, "+.de\0\0", 6);
+    fn_049e15(buf, 2, 4);
+    check(buf[0]==' ' && buf[1]==' ' && buf[2]=='0' && buf[3]=='.', "  C sign fixup -> '  0.'");
+
+    /* D: count2==count3 -> no-op */
+    memcpy(buf, "xyz\0\0\0", 6);
+    fn_049e15(buf, 2, 2);
+    check(buf[0]=='x' && buf[1]=='y' && buf[2]=='z', "  D equal counts no-op");
+}
+
 static void test_fn_043f80(void) {
     printf("fn_043f80 (0x043f80)\n");
     static uint8_t dest[32], src[16];
@@ -2754,6 +2781,7 @@ int main(void) {
     test_fn_0405de();
     test_fn_0451bc();
     test_fn_043f80();
+    test_fn_049e15();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

@@ -531,6 +531,81 @@ void fn_03feb8(void)
     g_dat_00417 &= 0xdf;                             /* clear bit 0x20 of 0x417 */
 }
 
+/* fn_048e60  orig: 0x048e60
+ * 128-bit fixed-point normalize + Newton-Raphson reciprocal division (L0 leaf, pure).
+ * Input via p (uint32_t*): p[0]=low mantissa, p[1]=high mantissa (top byte = status flags),
+ * p[2] low16 = exponent field. On the compute path it normalizes the 64-bit mantissa
+ * (tracking bits shifted out into a 128-bit low half), divides by the reciprocal estimate
+ * via a Newton iteration, and writes back p[0]/p[1] (64-bit result) + p[2] (exponent).
+ * Guard/overflow paths zero the value and OR 0xc0 into the status byte (offset 7 = top byte of p[1]).
+ * P-code CARRY4/CONCAT44/CONCAT14 translated to 64-bit integer ops; u2 wraps as a 16-bit field.
+ * Verified differentially against an independent reference (scratch/fp_048e60.py). */
+void fn_048e60(uint32_t *p)
+{
+    uint16_t u2 = (uint16_t)p[2];      /* exponent field (low16 of p[2]) */
+    uint32_t u5 = p[0];                 /* low mantissa */
+    uint32_t u3 = 0, u4 = 0, u7 = 0, u1 = 0, b8 = 0;
+    int32_t  i6 = 0;
+
+    if (u5 == 0) {
+        if (p[1] != 0) {
+            if (u2 == 0x7fff) return;
+            /* else: fall into MAIN */
+        } else {
+            if ((u2 & 0x7fff) == 0) return;
+            goto fallthrough;
+        }
+    }
+    /* MAIN */
+    if (((u2 & 0x7fff) == 0x7fff) || ((u2 >> 15) & 1)) goto ovp;   /* check1: overflow */
+    if (((u2 & 0x7fff) == 0) || ((p[1] >> 31) & 1)) {              /* check2 */
+        u3 = p[1]; u7 = 0;
+        u2 = (uint16_t)((u2 & 0x7fff) + 0xc001);
+        u4 = u5;
+        if ((u2 & 1) == 0) {                                        /* divide mantissa by 2 */
+            u7 = u3 & 1;
+            u3 = u3 >> 1;
+            u4 = (uint32_t)(((((uint64_t)(u7 != 0)) << 32) | u5) >> 1);
+            u7 = (uint32_t)((uint64_t)((u5 & 1) != 0) << 0x1f);
+        }
+        p[2] = (p[2] & 0xffff0000u) | (uint16_t)(((int16_t)u2 >> 1) + 0x3fff);
+        u5 = (uint32_t)(((((uint64_t)u3) | 0x100000000ull) >> 1));
+        if (u3 == 0xffffffffu) {                                     /* denom == -1 special case */
+            i6 = -1;
+            if (u4 == 0xffffffffu) goto done;
+            u3 = (uint32_t)(((((uint64_t)u4) << 32) | u7) / 0xffffffffull);
+            u5 = 0xffffffffu;
+        } else {                                                     /* Newton-Raphson reciprocal */
+            for (;;) {
+                u1 = (uint32_t)(((((uint64_t)u3) << 32) | u4) / (uint64_t)u5);
+                if ((u5 - 1u) <= u1) break;
+                { uint32_t s = u5 + u1, c = (s < u5) ? 1u : 0u;
+                  u5 = (uint32_t)(((((uint64_t)c) << 32) | s) >> 1); }
+            }
+            { uint64_t r = ((((uint64_t)u3) << 32) | u4) % (uint64_t)u5;
+              u3 = (uint32_t)((((r << 0x20) | (uint64_t)u7) / (uint64_t)u5)); }
+            u5 = u5 + u1;
+        }
+        i6 = (int32_t)(((uint64_t)u5 | 0x100000000ull) >> 1);
+        u4 = (uint32_t)(((((uint64_t)((u5 & 1) != 0)) << 32) | u3) >> 1);
+        u5 = (uint32_t)((u3 & 1) != 0);
+        b8 = (((uint64_t)u4 + u5) >= 0x100000000ull) ? 1u : 0u;
+        u4 = u4 + u5;
+done:
+        p[0] = u4;
+        p[1] = (uint32_t)i6 + b8;
+        return;
+    }
+    goto fallthrough;
+fallthrough:
+    p[2] = (p[2] & 0xffff0000u) | 0xffffu;
+    p[1] = 0;
+    p[0] = 0;
+ovp:
+    p[1] |= 0xc0000000u;                  /* status byte (offset 7) |= 0xc0 */
+    return;
+}
+
 /* ---- CD/DPMI real-mode I/O cluster (fn_103e0 / fn_10570 + dependents) ----
  * These perform DPMI INT 0x31h real-mode CD/DOS I/O (via the no-op trampoline
  * fn_041e38) with register-ABI arguments. Their observable outputs depend on

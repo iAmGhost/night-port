@@ -114,6 +114,7 @@ uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+c
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
 void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */
 void     fn_10b1d(void);                        /* 0x010b1d: CD track/TOC read (no-op) */
+void     fn_048e60(uint32_t *p);                /* 0x048e60: 128-bit fixed-point normalize + Newton reciprocal divide */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);

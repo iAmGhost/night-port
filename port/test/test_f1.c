@@ -2219,6 +2219,31 @@ static void test_cd_dpmi_noops(void) {
     check(1, "  all six run as no-ops (no flat-model effect)");
 }
 
+static void test_fn_048e60(void) {
+    printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
+    /* Differential vs independent reference (scratch/fp_048e60.py). */
+    struct { uint32_t in[3], exp[3]; const char *name; } cases[] = {
+        {{0x12345678,0x80000001,0x00000000},{0xbbc2b2f8,0xb504f334,0x00001fff},"Newton exp=0"},
+        {{0x00000001,0x80000002,0x00000001},{0x00000000,0x80000001,0x00002000},"Newton div2"},
+        {{0x00000000,0x00000005,0x00000000},{0xf373325a,0x80023c6e,0x00001fff},"u5=0 p1!=0 exp=0"},
+        {{0x00000000,0x00000000,0x00000000},{0x00000000,0x00000000,0x00000000},"zero early-return"},
+        {{0x00000000,0x00000000,0x00000005},{0x00000000,0xc0000000,0x0000ffff},"fallthrough zero+ovp"},
+        {{0x00000000,0x00000001,0x00007fff},{0x00000000,0x00000001,0x00007fff},"exp=0x7fff early-return"},
+        {{0x12345678,0x12345678,0x00008000},{0x12345678,0xd2345678,0x00008000},"bit15 exp -> ovp"},
+        {{0x12345678,0x12345678,0x00007fff},{0x12345678,0xd2345678,0x00007fff},"exp=0x7fff -> ovp"},
+        {{0x0000abcd,0x80000001,0x00003fff},{0x800055e7,0x80000000,0x00003fff},"p1 bit31 Newton"},
+        {{0x00000000,0xffffffff,0x00000000},{0x80000000,0xffffffff,0x00001fff},"denom -1 special"},
+    };
+    for (unsigned i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        uint32_t p[3] = { cases[i].in[0], cases[i].in[1], cases[i].in[2] };
+        char msg[96];
+        snprintf(msg, sizeof msg, "  0x48e60 [%-13s] exp p0=%08x p1=%08x p2=%08x",
+                 cases[i].name, cases[i].exp[0], cases[i].exp[1], cases[i].exp[2]);
+        fn_048e60(p);
+        check(p[0]==cases[i].exp[0] && p[1]==cases[i].exp[1] && p[2]==cases[i].exp[2], msg);
+    }
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -3031,6 +3056,7 @@ int main(void) {
     test_fn_03ef29();
     test_fn_03feb8();
     test_cd_dpmi_noops();
+    test_fn_048e60();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

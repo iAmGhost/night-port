@@ -1739,6 +1739,27 @@ static void test_045079(void) {
     check(memcmp(buf, exp, 4)==0 && buf[4]==0, "  0 width4");
 }
 
+static void test_0450da(void) {
+    printf("fn_0450da (0x0450da) 16.16 fixed -> decimal string\n");
+    char buf[24]; int spec[3];
+    spec[0]=spec[1]=0; spec[2]=4;
+    memset(buf,'?',23); fn_0450da(buf, 98304, spec);   /* 1.5 */
+    check(strcmp(buf,"1.5000")==0, "  1.5 -> 1.5000");
+    memset(buf,'?',23); fn_0450da(buf, -98304, spec);  /* -1.5 */
+    check(strcmp(buf,"-1.5000")==0, "  -1.5 -> -1.5000");
+    spec[2]=2; memset(buf,'?',23); fn_0450da(buf, 32768, spec);  /* 0.5 */
+    check(strcmp(buf,"0.50")==0, "  0.5 -> 0.50");
+    spec[2]=0; memset(buf,'?',23); fn_0450da(buf, 131072, spec); /* 2.0 */
+    check(strcmp(buf,"2")==0, "  2.0 (0 places) -> 2");
+    spec[2]=1; memset(buf,'?',23); fn_0450da(buf, 6553, spec);   /* ~0.1 */
+    check(strcmp(buf,"0.1")==0, "  0.1 -> 0.1");
+    spec[2]=3; memset(buf,'?',23); fn_0450da(buf, 0, spec);      /* 0.0 */
+    check(strcmp(buf,"0.000")==0, "  0.0 -> 0.000");
+    /* rounding: 2.5 with 0 places -> 3 */
+    spec[2]=0; memset(buf,'?',23); fn_0450da(buf, 163840, spec); /* 2.5 */
+    check(strcmp(buf,"3")==0, "  2.5 (0 places) -> 3 (round)");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1834,6 +1855,7 @@ int main(void) {
     test_042a19();
     test_044b96();
     test_045079();
+    test_0450da();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

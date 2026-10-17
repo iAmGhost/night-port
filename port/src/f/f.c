@@ -1400,6 +1400,59 @@ void fn_045079(uint32_t value, char *buf, int width) {
     buf[width] = 0;
 }
 
+/* 0x0450da: 16.16 fixed-point value -> decimal string. value = signed 16.16;
+ * spec[2] = decimal places (default -1 -> 4). Writes to out, leading '-' if
+ * negative. Integer part via itoa32s(value>>16); fractional digits extracted by
+ * repeated frac*10 / 65536. Rounds up (with carry) when the discarded fractional
+ * remainder has bit 15 set. */
+void fn_0450da(char *out, int32_t value, int *spec) {
+    char *num_start = out;
+    uint32_t local_10;
+    if (value < 0) {
+        local_10 = (uint32_t)(0u - (uint32_t)value);   /* magnitude (INT_MIN wrap-safe) */
+        num_start = out + 1;
+        out[0] = '-';                                  /* 0x2d */
+    } else {
+        local_10 = (uint32_t)value;
+    }
+    if (spec[2] == -1) spec[2] = 4;                    /* default 4 places */
+    itoa32s((int32_t)(local_10 >> 16), num_start, 10); /* integer part */
+    char *pc = num_start;
+    while (*pc) pc++;                                  /* pc = end of integer part */
+    if (spec[2] != 0) {
+        *pc = '.';
+        char *p = pc + 1;
+        for (int i = 0; i < spec[2]; i++) {
+            local_10 &= 0xffff;
+            uint32_t uVar5 = local_10 * 10u;
+            *p++ = (char)((uVar5 >> 16) & 0xffff) + '0';
+            local_10 = uVar5;
+        }
+        *p = 0;
+        pc = p;
+    }
+    if ((local_10 & 0x8000) != 0) {                    /* round up (carry) */
+        char *pcVar3 = pc;
+        char *pcVar4;
+        while (pcVar3 != num_start) {
+            pcVar4 = pcVar3 - 1;
+            if (*pcVar4 == '.') pcVar4 = pcVar3 - 2;
+            if (*pcVar4 != '9') { *pcVar4 = (char)(*pcVar4 + 1); return; }
+            *pcVar4 = '0';
+            pcVar3 = pcVar4;
+        }
+        *num_start = '1';                              /* all 9s: prepend 1 */
+        char *q = num_start + 1;
+        do { pcVar3 = q; q = q + 1; } while (*pcVar3 == '0');
+        if (*pcVar3 == '.') {
+            *pcVar3 = '0'; pcVar3[1] = '.';
+            for (pcVar3 = pcVar3 + 2; *pcVar3 == '0'; pcVar3++);
+        }
+        *pcVar3 = '0';
+        pcVar3[1] = 0;
+    }
+}
+
 uint8_t g_debug_break = 0;               /* DAT_00053624 */
 uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
 {

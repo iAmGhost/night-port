@@ -34,13 +34,13 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 137 / 528 done
+TOTALS: 138 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 23 | 0 | 0 | 24 |
-| L2 | 32 | 3 | 0 | 0 | 29 |
+| L2 | 32 | 4 | 0 | 0 | 28 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
@@ -303,7 +303,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x044b96 | 29 | fn_044b96 | drain g_node_list_done: while(head){ node=g_ndpool+head; head=node->next; heap_free_host(node) } | port+test PASS |
 | [ ] | 0x044bec | 49 | FUN_00044bec | | |
 | [x] | 0x045079 | 96 | fn_045079 | format value as hex (itoa32s base16), right-justify + zero-pad to `width` chars, null@buf[width]. ABI: value=EAX, buf=EDX, width=EBX | port+test PASS |
-| [ ] | 0x0450da | 218 | FUN_000450da | | |
+| [x] | 0x0450da | 218 | fn_0450da | 16.16 fixed-point -> decimal string: itoa32s(int), frac digits via frac*10/65536, round-up(carry) when discarded remnant bit15 set. spec[2]=places (def 4) | port+test PASS |
 | [ ] | 0x045a76 | 11 | FUN_00045a76 | | |
 | [ ] | 0x045a82 | 101 | FUN_00045a82 | | |
 | [ ] | 0x046d32 | 20 | caseD_0 | | |

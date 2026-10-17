@@ -94,8 +94,12 @@ struct dec_datetime {
     int32_t year;   /* +0x14 */
     int32_t dow;    /* +0x18 */
     int32_t doy;    /* +0x1c */
+    int32_t mode;   /* +0x20: set by caller 0x049a0b, read by 0x049506 */
 };
 struct dec_datetime *fn_0498f6(int32_t base_day, uint32_t seconds, int32_t delta, struct dec_datetime *out);
+int32_t fn_04322f(void);                                            /* 0x04322f: return -1 */
+int32_t fn_044848(uint32_t handle, uint32_t a2, uint32_t a3, uint32_t a4); /* 0x044848: lseek(h,0,SEEK_SET) */
+void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_t p4); /* 0x049a0b: unix-time decode */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);

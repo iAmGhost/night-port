@@ -2103,6 +2103,29 @@ static void test_fn_0498f6(void) {
     check(d.doy==59 && d.dow==1, "  v4 doy=59 dow=1");
 }
 
+static void test_fn_04322f(void) {
+    printf("fn_04322f (0x04322f)\n");
+    check(fn_04322f() == -1, "  returns -1");
+}
+
+static void test_fn_044848(void) {
+    printf("fn_044848 (0x044848, lseek wrapper)\n");
+    // delegates to fn_044807(handle, 0, 1)
+    check(fn_044848(7, 999, 999, 999) == fn_044807(7, 0, 1), "  == fn_044807(h,0,SEEK_SET)");
+}
+
+static void test_fn_049a0b(void) {
+    printf("fn_049a0b (0x049a0b, unix-time decode)\n");
+    struct dec_datetime d;
+    uint32_t t = 0;
+    memset(&d, 0xff, sizeof d);
+    fn_049a0b(&t, &d, 0, 0);
+    check(d.mode == 0, "  mode cleared (+0x20)");
+    check(d.year==70 && d.month==0 && d.day==1, "  t=0 -> Jan 1 1970 (year=70 rel)");
+    check(d.doy==0 && d.dow==4, "  doy=0 dow=4 (Thu)");
+    check(d.hour==0 && d.min==0 && d.sec==0, "  time 00:00:00");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -2904,6 +2927,9 @@ int main(void) {
     test_fn_044807();
     test_fn_044bec();
     test_fn_0498f6();
+    test_fn_04322f();
+    test_fn_044848();
+    test_fn_049a0b();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

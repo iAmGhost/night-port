@@ -366,6 +366,33 @@ struct dec_datetime *fn_0498f6(int32_t base_day, uint32_t seconds, int32_t delta
     return out;
 }
 
+/* fn_04322f  orig: 0x04322f
+ *   4-byte constant function: `mov eax, -1; ret`. Returns -1 (0xffffffff). */
+int32_t fn_04322f(void) {
+    return -1;
+}
+
+/* fn_044848  orig: 0x044848
+ *   lseek wrapper (8 ins). Sets EBX=1 (whence), EDX=0 (offset), then
+ *   fn_044807(EAX=handle, EDX=0, EBX=1) = absolute seek to 0 (SEEK_SET). The
+ *   caller's param_2/param_3 (EDX/EBX) are clobbered and param_4 (ECX) unused,
+ *   so only the handle is observable. Returns fn_044807's result. */
+int32_t fn_044848(uint32_t handle, uint32_t a2, uint32_t a3, uint32_t a4) {
+    (void)a2; (void)a3; (void)a4;
+    return fn_044807(handle, 0, 1);
+}
+
+/* fn_049a0b  orig: 0x049a0b
+ *   unix-time decoder wrapper (11 ins). Writes out->mode=0 (+0x20) then
+ *   fn_0498f6(0x63df, *seconds, 0, out): base_day=0x63df (25567 = the 1900->1970
+ *   epoch offset in days), seconds=*[param_1], delta=0. param_3/param_4 (ECX /
+ *   extra register) are passed through and unused. */
+void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_t p4) {
+    (void)p3; (void)p4;
+    out->mode = 0;                                                /* 0x49a0f */
+    fn_0498f6(0x63df, *seconds, 0, out);                         /* 0x49a1f */
+}
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).

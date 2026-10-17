@@ -34,15 +34,15 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 211 / 528 done
+TOTALS: 214 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 31 | 0 | 0 | 16 |
-| L2 | 32 | 12 | 0 | 0 | 20 |
+| L2 | 32 | 13 | 0 | 0 | 19 |
 | L3 | 21 | 9 | 0 | 0 | 12 |
-| L4 | 13 | 0 | 0 | 0 | 13 |
+| L4 | 13 | 2 | 0 | 0 | 11 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
 | L7 | 8 | 0 | 0 | 0 | 8 |
@@ -104,6 +104,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **0x485eb refined trace** (full 53-instruction disasm 0x485eb..0x48664 read). Corrects the earlier "two normalization loops" reading: it is a SINGLE shift-and-clamped-subtract loop with feedback edges. After `D=(exp_a&0x7fff)-(exp_b&0x7fff)`, if D<0 jump to L_other (0x4864a). Else one compare/subtract: `sub` (A=A-B, STC) reached iff A>=B (unsigned 64-bit); `skip` (A unchanged, CF=0) iff B>A. Then 0x48612: EDI+=CF (EDI=did-subtract), DEC ESI (D--), `JL 0x48627` if D<0. The loop body shifts A(EDX:EAX) left by 1 (ADD EAX,EAX;ADC EDX,EDX), then `JC 0x4860d` (A_hi overflow -> re-subtract B) or `JS 0x485ff` (A_hi top bit set -> re-compare B vs A) or back to 0x48612. So it shifts A left up to (mag_a-mag_b) times, clamped-subtracting B whenever A grows to >=B, counting subtractions in EDI — i.e. a division-like / fixed-point alignment, NOT a plain subtract. Epilogue 0x4864e-0x48665: `AND EBX,0x8000; OR ESI,EBX` (exp gets a sign bit), then `XOR BX,CX; JNS; NEG EDI` (EDI=sign 0/-1). HIGH RISK to hand-verify (no reference); defer for a dedicated pass with an original-binary trace. | STATUS.md L0 |
 | 2026-07-08 | **0x0498f6 (276B) = Unix-timestamp→calendar-date converter** (caller 0x049a0b: EAX=0x63df=25567 days [1900→1970 offset], EDX=unix_secs from global 0x64098, EBX=0(adjust), ECX=out). Output struct u32[]: [0]=sec [4]=min [8]=hr [0xc]=day(1-idx) [0x10]=month(0-idx) [0x14]=year(rel, actual=+1900) [0x18]=dow ((total_days+1)%7) [0x1c]=doy(0-idx) [0x20]=0(caller). Year loop: `excess = total_days - (total_days/366)*365 - (total_days/366-1)/4`; while `excess >= 365+is_leap(year+1900)` subtract year_len, year++. **KEY LATENT-BUG FINDING:** the month/day step loads `ESI = DAT_00051960`(non-leap)/`0x5197a`(leap) = the **END**-of-month cumulative tables {31,59,90,…} (raw bytes `be 60 19 05 00`/`be 7a 19 05 00` confirmed), and computes `day = doy - tbl[month] + 1` (month = doy/31, +1 if doy >= tbl[m0+1] via a high-u16-of-dword read quirk). But that formula only yields correct calendar days when tbl is **START**-of-month {0,31,59,…} = DAT_0005195e/0x51978 (exactly 2 bytes earlier). A faithful disasm replication (ESI=0x51960) gives day=-30 for 1970-01-01; the start-of-month table gives correct dates for every tested timestamp (verified vs Python `datetime`). So the original either has a 2-byte table-base bug or date output is used in a tolerant context. **DEFER the port to a dedicated pass: RUN THE ORIGINAL first** to confirm actual date output, then port faithfully. Companion 0x049506 (228B) uses both DAT_0005195e and DAT_00051960 + is_leap (likely "add days to a date") — also deferred. | STATUS.md L1 |
 | 2026-07-08 | **fn_0498f6 (0x0498f6, 108 ins) PORTED — supersedes the earlier deferral (L105/L117 notes)**: those misread DAT_00051960 as end-of-month {31,59,…} and deferred pending an original run. Direct read_memory confirms the tables are START-of-month cumulative: non-leap DAT_00051960={0,31,59,90,120,151,181,212,243,273,304,334}, leap DAT_0005197a={0,31,60,91,121,152,182,213,244,274,305,335}. The month step: m=day_in_year/31; if tbl[m+1]<=day_in_year m++ (straddle reads the NEXT u16 via a dword load); day=day_in_year-tbl[m]+1. Year: year_est=days/365, day_in_year=days-year_est*365-(year_est>0?(year_est-1)/4:0), then is_leap(year_est+1900, ctx=year_est) returns (ctx<<32)|leap so the echoed ctx = running year and the CONSTANT year_len=leap+365 is subtracted in a countdown. **LATENT BUG (preserved 1:1):** the m==11 (Dec) straddle reads the byte PAST the table (0x51978=365 non-leap, 0x51998=0 leap); the leap OOB=0 makes month become 12 for Dec 7-31 of leap years. I gave the C tables a 13th element = the actual next-memory value to replicate the OOB read. 4-vector differential test (Jan 1 1900 / Jan 1 1901 / Dec 31 1900 / Feb 29 1904) all match hand-computed Gregorian dates (10 checks). L1 30->31, TOTALS 210->211, suite 739 PASS 0 FAIL. | STATUS.md L1 |
+| 2026-07-08 | **Three clean wrapper/constant wins** (callee sweep of the 30 smallest unported fns): (1) **fn_04322f** (0x04322f, 4B) = `mov eax,-1; ret`, returns -1. (2) **fn_044848** (0x044848, 16B) = lseek wrapper: sets EBX=1/EDX=0 then fn_044807(handle,0,SEEK_SET); caller param_2/3 clobbered, only handle observable. (3) **fn_049a0b** (0x049a0b, 27B) = unix-time decoder: writes out->mode=0 (+0x20) then fn_0498f6(0x63df=25567 days [1900->1970 epoch], *seconds, 0, out). Extended struct dec_datetime with a `mode` field at +0x20 (set by 0x49a0b, read by 0x49506). 6 checks (fn_049a0b(0)=Jan 1 1970 verified). L2 12->13, L4 0->2, TOTALS 211->214, suite 745 PASS 0 FAIL. **Note the date subsystem chain**: 0x49506->0x4574a->(0x49a35,0x49613) still gated; JMP-thunks (0x41fa1/0x42044/0x41e94/0x429e5/0x44c1e/0x46d00) depend on unported targets; 0x46d47/0x478e2 are vtable/tail-merges (deferred). | STATUS.md L2/L4 |
 | 2026-07-08 | **Remaining L1 deferrals (need dedicated passes)**: (a) **0x04a814 (57B table / larger decomp)** fx_mul wrapper — calls ported `fx_mul64` + `0x4a923` no-op; decompile garbles output (POP EBX via return-address) — needs disasm. (b) **0x047d24 (73B)** fx_mul64 wrapper — output via `POP EBX` (return-address trick); register ABI vs `fx_mul64` unconfirmed. (c) **0x047f54 (167B)** fx mul — schoolbook-split uVar2 + FPU load/rewrite + POP-EBX output. (d) **0x04711d (84B)** fx — FPU load/rewrite + garbled decompile. (e) **0x0422d5 (405B)** DOS I/O — INT 13h+disk. (f) **0x04391d (250B)** DOS I/O — INT 13h read. (g) **0x043381 (39B)** DOS I/O. (h) **0x0440a9 (49B)** DPMI real-mode far-call wrapper. (i) **0x043324 (64B)** DPMI 2.0 init. (j) **0x0431b5** heap size-adjuster (longer than the 18B boundary — runs to ~0x431f7): param_1=p; aligned=([p]+3) with low byte & 0xfc (low-byte-only mask quirk); if aligned==0 return 0; else if `(DAT_000533b2==1 && DAT_000533b3==0) || DAT_000533b2==9` → aligned+=8, else aligned-=FUN_00042ea1(); then *[p]=aligned. DEPENDS on unported FUN_00042ea1 + new globals DAT_000533b2/0x533b3 — not self-contained. (k) **0x0492d0 (71B)** FPU + 0x498f6 + 0x4a923. (l) **0x041439 (291B)** I/O ack — deps 0x469d9+DAT_00063f84+DAT_00053334 unported. All real; deferred. | STATUS.md L1 |
 | 2026-07-08 | **0x049a6e (277B) = time-string parser** (0x049a48 done as parse_decimal). 0x049a6e register ABI: EAX=input string, EDX=prefix-output buffer, EBX=total-seconds output ptr; returns EAX=position after the parsed time. Structure: (1) skip an optional leading ':'; (2) locate the offset of the first {digit, ',', '-', '+', NUL} char (skipping other chars), clamp to 30; (3) copy that prefix to EDX (REP MOVSD/MOVSB — plain memcpy in flat model) + NUL-terminate; (4) if the break char was '-' set a negate flag, '+' clears it; (5) parse the time via **three calls to 0x049a48** into [ESP]/[ESP+4]/[ESP+8] (hours/minutes/seconds, ':'-delimited), then `*EBX = c0 + c1*60 + c2*3600` (negated if '-'). 0x049a48 = parse_decimal (DONE, batch H + this turn): decimal parser WITH a scan loop, `v = v*10 + (*s-'0')`, returns `const char*` ptr past digits. **0x049a6e OFF-BY-ONE EDGE CASE:** after the break, EBP = break_pos+1 unconditionally — correct for a sign break char ('-'/'+') but for a pure "HH:MM:SS" (break char = first digit) it skips the leading digit, so the function seems to assume a sign is present — **PORTED as parse_time_str this turn (quirk replicated 1:1, documented as a latent bug; verified by 11 hand-traced tests). | STATUS.md L1 |
 | 2026-07-08 | **parse_decimal (0x049a48) completed + 0x042958 thunk resolved**: parse_decimal (batch H) returned void (dropped EAX = pointer-past-digits); completed the 1:1 contract → now returns `const char*` (first non-digit), used by 0x049a6e as its new scan position; added a return-position test. 0x042958 (4B) = `JMP 0x4564f` (delay_units, ported f.c:1151) — a call-site alias, no separate C fn. L1 10→11, TOTALS 121→122. | STATUS.md L1 |
@@ -362,7 +363,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x048f2c | 31 | FUN_00048f2c | | |
 | [ ] | 0x048f9e | 71 | FUN_00048f9e | | |
 | [ ] | 0x0495eb | 39 | FUN_000495eb | | |
-| [ ] | 0x049a0b | 27 | FUN_00049a0b | | |
+| [x] | 0x049a0b | 27 | fn_049a0b | | unix-time decode: mode=0 + fn_0498f6(0x63df,*secs,0,out) |
 | [x] | 0x049a35 | 719 | fn_049a35 | TZ config parser: config_value_ptr("TZ"), parse_time_str x2, fills g_dat_53780/84/88/a7/7c/34/58; params unused (callback sig). Added 7 TZ globals | port+test PASS |
 | [x] | 0x049c76 | 142 | fn_049c76 | TZ range parser (fn_049a35 variant, direct string): parse_time_str x2, initial offset 0x3840, 53780=18000-secs; p2/p3/p4 unused | port+test PASS |
 | [ ] | 0x04a32b | 59 | FUN_0004a32b | | |
@@ -399,7 +400,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x043071 | 323 | FUN_00043071 | | |
 | [ ] | 0x043fc3 | 229 | FUN_00043fc3 | | |
 | [ ] | 0x044748 | 190 | FUN_00044748 | | |
-| [ ] | 0x044848 | 16 | FUN_00044848 | | |
+| [x] | 0x044848 | 16 | fn_044848 | | lseek wrapper -> fn_044807(h,0,SEEK_SET) |
 | [ ] | 0x044867 | 35 | FUN_00044867 | | |
 | [ ] | 0x044c1e | 4 | thunk_FUN_00049415 | | |
 | [ ] | 0x044c23 | 640 | FUN_00044c23 | | |
@@ -418,7 +419,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0428f8 | 47 | FUN_000428f8 | | |
 | [ ] | 0x042928 | 47 | FUN_00042928 | | |
 | [ ] | 0x04297a | 44 | FUN_0004297a | | |
-| [ ] | 0x04322f | 4 | FUN_0004322f | | |
+| [x] | 0x04322f | 4 | fn_04322f | | mov eax,-1; ret |
 | [ ] | 0x043234 | 46 | FUN_00043234 | | |
 | [ ] | 0x043a7f | 544 | FUN_00043a7f | | |
 | [ ] | 0x045c79 | 220 | FUN_00045c79 | | |

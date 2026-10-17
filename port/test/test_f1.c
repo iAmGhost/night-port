@@ -2149,6 +2149,31 @@ static void test_fn_03ffab(void) {
     check(g_dat_00417 == 0xab, "  IRQ-9 source mirrored to low-mem 0x417");
 }
 
+static void test_fn_03575d(void) {
+    printf("fn_03575d (0x03575d, PIT ch0 rate setup)\n");
+    g_dat_6332c = 7; g_dat_63318 = 0;
+    fn_03575d(0);              // 0 -> clamp to 0x10000
+    check(g_dat_63318 == 0x10000, "  divisor=0 -> 0x10000");
+    check(g_dat_6332c == 0, "  status cleared");
+    fn_03575d(0x20000);        // 131072 > 0x10000 -> clamp
+    check(g_dat_63318 == 0x10000, "  divisor>0x10000 -> 0x10000");
+    fn_03575d(200);            // normal
+    check(g_dat_63318 == 200, "  divisor=200 kept");
+}
+
+static void test_fn_03f3be(void) {
+    printf("fn_03f3be / fn_03f410 (0x03f3be/0x03f410, VGA palette)\n");
+    memset(g_dat_63e50, 0, sizeof g_dat_63e50);
+    g_dat_63e4c = 8; g_dat_63e5c = 0; g_dat_63e58 = 1;
+    fn_03f3be(0xab);           // color 0xab << 8 = 0xab00 -> cache[0]
+    check(g_dat_63e50[0] == 0xab00, "  0x3f3be: color<<shift -> cache[idx 63e5c]");
+    uint32_t before = g_dat_63e50[0];
+    fn_03f3be(0xab);           // same value -> no re-issue (cache unchanged)
+    check(g_dat_63e50[0] == before, "  0x3f3be: unchanged value is a no-op");
+    fn_03f410(0x12);           // twin, index 63e58=1 -> cache[1]=0x1200
+    check(g_dat_63e50[1] == 0x1200, "  0x3f410: uses 63e58 index");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -2955,6 +2980,8 @@ int main(void) {
     test_fn_049a0b();
     test_fn_03eff2();
     test_fn_03ffab();
+    test_fn_03575d();
+    test_fn_03f3be();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

@@ -102,6 +102,9 @@ int32_t fn_044848(uint32_t handle, uint32_t a2, uint32_t a3, uint32_t a4); /* 0x
 void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_t p4); /* 0x049a0b: unix-time decode */
 void fn_03eff2(void);                          /* 0x03eff2: install IRQ 0x1c (FPU) handler (flag-guarded) */
 void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handler (flag-guarded) */
+void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (divisor in EAX) */
+void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */
+void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);
@@ -182,6 +185,12 @@ extern uint32_t g_dat_63e80;               /* DAT_00063e80: IRQ 9 handler offset
 extern uint16_t g_dat_63e84;               /* DAT_00063e84: IRQ 9 handler segment */
 extern uint8_t  g_dat_63f51;               /* DAT_00063f51: IRQ 9 source byte */
 extern uint8_t  g_dat_00417;               /* DAT_00000417: real-mode low-memory flag */
+extern uint32_t g_dat_6332c;               /* DAT_0006332c: PIT ch0 status */
+extern uint32_t g_dat_63318;               /* DAT_00063318: PIT ch0 divisor */
+extern uint32_t g_dat_63e50[256];          /* DAT_00063e50: per-register palette cache */
+extern uint32_t g_dat_63e5c;               /* DAT_00063e5c: palette index (fn_03f3be) */
+extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03f410) */
+extern uint8_t  g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
 void     fn_03ee88(void);                   /* 0x03ee88: timer/IRQ tick handler (counter wraps) */
 void     fn_043381(void);                   /* 0x043381: DPMI real-mode return (flat no-op) */
 void     fn_04391d(void);                   /* 0x04391d: DOS/DPMI timer-vector setup (flat no-op) */

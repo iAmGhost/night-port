@@ -425,6 +425,46 @@ void fn_03ffab(void)
     }
 }
 
+/* fn_03575d  orig: 0x03575d
+ *   PIT channel-0 rate setup. The divisor is passed in EAX (register-ABI; the
+ *   original's `PUSH 0x20; CALL 0x418ee` canary prologue preserves it). Stores
+ *   the (clamped) divisor in g_dat_63318, clears g_dat_6332c, then writes PIT
+ *   mode 0x34 (ch0, rate interval, lo/hi, binary) and the 16-bit divisor via
+ *   outb (no-op standin in the flat model). Clamp: 0 -> 0x10000; >0x10000 ->
+ *   0x10000 stored but 0 written to the hardware (divisor 0 = stop). */
+void fn_03575d(uint32_t divisor)
+{
+    g_dat_6332c = 0;                          /* 0x35778 */
+    g_dat_63318 = divisor;                    /* 0x35782-85 */
+    if (divisor == 0) g_dat_63318 = 0x10000;  /* 0x3578a-90 */
+    if (0x10000 < (int32_t)g_dat_63318) {     /* 0x3579a-a4 */
+        g_dat_63318 = 0x10000;
+        divisor = 0;
+    }
+    outb(0x43, 0x34);                         /* 0x357b7-c1 (PIT ch0 mode) */
+    outb(0x40, (uint8_t)divisor);             /* 0x357c6-d4 (ch0 lo) */
+    outb(0x40, (uint8_t)(divisor >> 8));      /* 0x357d9-e4 (ch0 hi) */
+}
+
+/* fn_03f3be  orig: 0x03f3be  (and twin fn_03f410, index at 0x63e58)
+ *   VGA palette-register setter (INT 10h, AX=0x4f05 "Set Palette Register").
+ *   `color` is passed in EAX (register-ABI). value = color << (g_dat_63e4c&0x1f);
+ *   if value != g_dat_63e50[index], store it and issue the INT 10h call
+ *   (no-op standin in the flat model). Only the palette cache update is
+ *   observable here. The two twins differ solely in which index global they use
+ *   (fn_03f3be -> g_dat_63e5c, fn_03f410 -> g_dat_63e58). */
+static void palette_set(uint32_t index, uint32_t color)
+{
+    uint32_t v = color << (g_dat_63e4c & 0x1f);          /* 0x3f3f8 */
+    if (v != g_dat_63e50[index]) {                       /* 0x3f3fa-fc */
+        g_dat_63e50[index] = v;                          /* 0x3f3fe */
+        /* INT 0x10 AX=0x4f05 (EBX=index, EDX=v): VGA set-palette-register. */
+        /* No-op in the flat model (no VGA); only the cache update is real. */
+    }
+}
+void fn_03f3be(uint32_t color) { palette_set(g_dat_63e5c, color); }
+void fn_03f410(uint32_t color) { palette_set(g_dat_63e58, color); }
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).
@@ -569,6 +609,14 @@ uint32_t g_dat_63e80 = 0;   /* DAT_00063e80: IRQ 9 handler offset */
 uint16_t g_dat_63e84 = 0;   /* DAT_00063e84: IRQ 9 handler segment */
 uint8_t  g_dat_63f51 = 0;   /* DAT_00063f51: IRQ 9 source byte (copied to low-mem 0x417) */
 uint8_t  g_dat_00417 = 0;   /* DAT_00000417: real-mode low-memory flag (IRQ 9 source) */
+
+/* ---- PIT ch0 / VGA palette state (fn_03575d / fn_03f3be / fn_03f410) ---- */
+uint32_t g_dat_6332c = 0;   /* DAT_0006332c: PIT ch0 status (cleared on set) */
+uint32_t g_dat_63318 = 0;   /* DAT_00063318: PIT ch0 divisor (clamped to [1,0x10000]) */
+uint32_t g_dat_63e50[256];  /* DAT_00063e50: per-register palette cache (color<<shift) */
+uint32_t g_dat_63e5c = 0;   /* DAT_00063e5c: palette index (fn_03f3be) */
+uint32_t g_dat_63e58 = 0;   /* DAT_00063e58: palette index (fn_03f410) */
+uint8_t  g_dat_63e4c = 0;   /* DAT_00063e4c: palette color shift amount */
 void fn_03ee88(void)
 {
     seg_ds_load();                          /* 0x3ee98 */

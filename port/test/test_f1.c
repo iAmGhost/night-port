@@ -1930,6 +1930,41 @@ static void test_fn_03ba2c(void) {
     /* restore clean arena for any later node tests */
     memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
 }
+static void init_arena_03ba86(void) {
+    memset(nar(), 0, 0x1000);
+    setnode(0, 0, 0, 0x140, 0);   /* node@0 covers [0,0x140) so non-zero-a walks terminate */
+    g_dat_62d64 = 11;             /* cursor just past node@0 */
+    memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+}
+static void test_fn_03ba86(void) {
+    printf("fn_03ba86 (0x03ba86)\n");
+    /* byte stream: row0: count=2 [(off5,len3,AA BB CC),(off2,len4,DD EE FF 11)];
+     *              row1: count=1 [(off7,len2,22 33)] */
+    static uint8_t stream[] = {
+        2, 5, 3, 0xAA, 0xBB, 0xCC, 2, 4, 0xDD, 0xEE, 0xFF, 0x11,
+        1, 7, 2, 0x22, 0x33
+    };
+    uint8_t s1[0x1000], s2[0x1000];
+    init_arena_03ba86();
+    fn_03ba86(0x100, 0, 2, stream);
+    memcpy(s1, nar(), 0x1000); uint32_t c1 = g_dat_62d64;
+    init_arena_03ba86();
+    const uint8_t *p = stream;
+    for (int32_t row = 0; row < 2; row++) {
+        uint32_t count = *p++;
+        int32_t acc = 0;
+        for (uint32_t i = 0; i < count; i++) {
+            acc += *p++;
+            uint32_t len = *p++;
+            fn_034aba(0x100 + acc, row, (int32_t)len, (int32_t)p, 0x38);
+            p += len; acc += (int32_t)len;
+        }
+    }
+    memcpy(s2, nar(), 0x1000);
+    check(memcmp(s1, s2, 0x1000) == 0 && c1 == g_dat_62d64, "  fn_03ba86 == manual nested fn_034aba loop");
+    check(nflag(11) == 0x38, "  first carved node carries flag 0x38");
+    memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+}
 static void test_fn_03442e(void) {
     printf("fn_03442e (0x03442e)\n");
 
@@ -2557,6 +2592,7 @@ int main(void) {
     test_l10_accessors();
     test_fn_034aba();
     test_fn_03ba2c();
+    test_fn_03ba86();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

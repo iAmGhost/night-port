@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 190 / 528 done
+TOTALS: 191 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -50,7 +50,7 @@ TOTALS: 190 / 528 done
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 17 | 0 | 0 | 64 |
 | L11 | 77 | 24 | 0 | 0 | 53 |
-| L12 | 58 | 2 | 0 | 0 | 56 |
+| L12 | 58 | 3 | 0 | 0 | 55 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -148,6 +148,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_03510b (0x03510b, 126B) + fn_0408c5 (0x0408c5, 130B) ported** — the two sibling byte-read loads deferred from the fn_0351dc pass, now fully disassembled. fn_03510b = **big-endian 32-bit read** `(p[0]<<24)|(p[1]<<16)|(p[2]<<8)|p[3]` (returns uint32); the `[EBP-4]` INCs in the disasm are a local pointer copy, NOT a caller side-effect (decompiler mislabelled it). fn_0408c5 = **little-endian 24-bit (3-byte) read** `p[0]|(p[1]<<8)|(p[2]<<16` (pre-shifts each byte then ORs; returns uint64 zero-extended). Both register-ABI (pointer in EAX), pure (no side effects). 2 differential checks. L10 14->16, TOTALS 185->187, suite 651 PASS 0 FAIL. (0x03518a at 0x03518a is the 16-bit BE read, already ported as fn_03518a.) | STATUS.md L10 |
 | 2026-07-08 | **fn_041e20 (0x041e20, 23B) + fn_0350aa (0x0350aa, 96B) ported** — two clean register-ABI wins. fn_041e20 = memset-style: replicates the fill byte (DL) into a 32-bit pattern 0xNNNNNNNN (the `MOV DH,DL; SHL; MOV DL,DH` idiom), calls fn_043280(dest, pattern, count), returns dest (EAX preserved via PUSH/POP). ABI dest=EAX,byte=DL,count=EBX. Since all 4 pattern bytes are equal, fn_043280's latent remainder-byte bug does not manifest. fn_0350aa = 4-byte prefix compare (a=EAX,b=EDX): compares a[0..3] vs b[0..3], returns 1 if all equal else -1. **NOTE: 0x0350aa was previously misclassified as a "spin-wait loop" deferral** (see the L10-trivial-accessor note); full disasm shows it is a trivial bounded 4-iteration compare. L2 10->11, L10 16->17, TOTALS 187->189, suite 656 PASS 0 FAIL. | STATUS.md L2/L10 |
 | 2026-07-08 | **fn_03ba2c (0x03ba2c, 89B) ported + g_dat_62d68 resized [128]->[200]** — the 200-iteration interval-list builder deferred from the fn_034735 pass. Register-ABI c_init=EAX, inc=EDX (confirmed by full disasm): `for i in 0..199: fn_034aba(a=0, idx=i, b=0x140, c=c_init+i*inc, flag=0)`. **LATENT BUG FIXED: g_dat_62d68 was declared [128] but fn_03ba2c (and its consumer fn_03c65b) index [0..199]** — resized to [200] (no other declared global in 0x62dc8..0x62e30, so the resize is safe). Key subtlety: with a=0 (>=0) and zero-initialized lists, fn_034aba's walk never sets g_dat_62d68[i] — it links each new node after node@0 (the arena base), so g_dat_62d68[] stays 0 and the observable output is the arena nodes at offset 11*i (start=c_init+i*inc, len=0x140). The consumer fn_03c65b flattens these back. 6 checks: reference (cursor=2200, node@0 start/next/len, node@11 & node@2189 starts, heads still 0) + a full differential (fn_03ba2c vs a manual 200x fn_034aba loop, arena region 0..0x1000 + cursor byte-for-byte identical). L12 1->2, TOTALS 189->190, suite 662 PASS 0 FAIL. (fn_03ba86 remains the last L12 candidate.) | STATUS.md L12 |
+| 2026-07-08 | **fn_03ba86 (0x03ba86, 187B) ported — L12 COMPLETE (3/3)** — the last L12 candidate, a nested-loop interval-list builder reading a variable-length byte stream. Full disasm confirmed ABI a_base=EAX, idx_base=EDX, row_count=EBX, p=ECX. For each row: count=*p++; then count times: acc+=*p++; len=*p++; fn_034aba(a_base+acc, idx_base+row, len, p, flag); p+=len; acc+=len. The flag (5th arg) is `MOV AL,[EBP+0x10]; PUSH EAX` — [EBP+0x10] is the pushed 0x38 canary in the prologue's stack layout, so the flag is the constant 0x38. Key subtlety: with non-zero a, an EMPTY node@0 (len 0) makes fn_034aba's containing-walk infinite-loop, so the arena must be pre-initialized (node@0 covering [0,0x140), cursor=11) before the call — replicated in the test. 2 checks: a full differential (fn_03ba86 vs a manual nested fn_034aba loop over a synthetic 2-row stream; arena region + cursor byte-for-byte identical) + a flag-0x38 assertion. L12 2->3 (COMPLETE), TOTALS 190->191, suite 664 PASS 0 FAIL. | STATUS.md L12 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -664,7 +665,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03ae8e | 137 | FUN_0003ae8e | | |
 | [ ] | 0x03b953 | 99 | FUN_0003b953 | | |
 | [x] | 0x03ba2c | 89 | FUN_0003ba2c | | |
-| [ ] | 0x03ba86 | 187 | FUN_0003ba86 | | |
+| [x] | 0x03ba86 | 187 | FUN_0003ba86 | | |
 | [ ] | 0x03c853 | 639 | FUN_0003c853 | | |
 | [ ] | 0x03d4e4 | 289 | FUN_0003d4e4 | | |
 | [ ] | 0x03d9cf | 749 | FUN_0003d9cf | | |

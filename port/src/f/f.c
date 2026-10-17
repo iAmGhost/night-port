@@ -1581,6 +1581,26 @@ void fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag) {
 void fn_03ba2c(uint32_t c_init, uint32_t inc) {
     for (uint32_t i = 0; i < 200; i++) { fn_034aba(0, (int32_t)i, 0x140, (int32_t)c_init, 0); c_init += inc; }
 }
+/* 0x03ba86: nested-loop interval-list builder reading a variable-length byte
+ * stream. ABI a_base=EAX, idx_base=EDX, row_count=EBX, p=ECX. For each row:
+ * count=*p++; then count times: acc+=*p++; len=*p++; fn_034aba(a_base+acc,
+ * idx_base+row, len, p, flag); p+=len; acc+=len. The flag (5th arg) is read
+ * from [EBP+0x10] — the pushed 0x38 canary in the prologue's stack layout —
+ * so it is the constant 0x38. Assumes the lists are pre-initialized (non-zero
+ * a would otherwise infinite-loop on an empty node@0). */
+void fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p) {
+    for (int32_t row = 0; row < row_count; row++) {
+        uint32_t count = *p++;
+        int32_t acc = 0;
+        for (uint32_t i = 0; i < count; i++) {
+            acc += *p++;
+            uint32_t len = *p++;
+            fn_034aba(a_base + acc, idx_base + row, (int32_t)len, (int32_t)p, 0x38);
+            p += len;
+            acc += (int32_t)len;
+        }
+    }
+}
 uint32_t g_dat_639dc = 0;
 uint32_t g_dat_639e0 = 0;
 uint32_t fn_01519f(const uint8_t *p) { return *(const uint32_t *)(p + 1) - g_dat_639dc; }  /* 0x01519f */

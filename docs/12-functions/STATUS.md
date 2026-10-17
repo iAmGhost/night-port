@@ -533,9 +533,9 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x015b5b | 442 | fn_015b5b | family variant (s[0x83] gate + table[idx+1] '.' check) | 1:1 (disasm; 6 checks) |
 | [ ] | 0x015d16 | 442 | FUN_00015d16 | | |
 | [ ] | 0x015ed1 | 364 | FUN_00015ed1 | | |
-| [ ] | 0x01603e | 442 | FUN_0001603e | | |
-| [ ] | 0x0161f9 | 442 | FUN_000161f9 | | |
-| [ ] | 0x0163b4 | 442 | FUN_000163b4 | | |
+| [x] | 0x01603e | 442 | fn_01603e | family core, magic '+' (near-twin) | 1:1 (REL-fp; 1 check) |
+| [x] | 0x0161f9 | 442 | fn_0161f9 | family core, magic '+' (near-twin) | 1:1 (REL-fp; 1 check) |
+| [x] | 0x0163b4 | 442 | fn_0163b4 | family core, magic ',' (near-twin) | 1:1 (REL-fp; 1 check) |
 | [ ] | 0x01656f | 480 | FUN_0001656f | | |
 | [ ] | 0x016750 | 520 | FUN_00016750 | | |
 | [x] | 0x016959 | 262 | fn_016959 | move-toward-target: *out=±step or 0, countdown s[0xab] | 1:1 (disasm-verified; Ghidra decomp WRONG) |

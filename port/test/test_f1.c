@@ -2417,6 +2417,18 @@ int main(void) {
       check(fn_03510b(be4)==0x12345678, "  fn_03510b BE32: 12 34 56 78 -> 0x12345678");
       uint8_t le3[] = {0x78,0x56,0x34,0x00};
       check(fn_0408c5(le3)==0x345678ULL, "  fn_0408c5 LE24: 78 56 34 -> 0x345678"); }
+    /* --- fn_041e20 (memset) + fn_0350aa (4-byte prefix compare) --- */
+    { uint8_t m[16]; memset(m, 0, sizeof m);
+      fn_041e20(m, 0xAB, 8);
+      uint8_t exp[8] = {0xAB,0xAB,0xAB,0xAB,0xAB,0xAB,0xAB,0xAB};
+      check(memcmp(m, exp, 8)==0 && m[8]==0 && m[15]==0, "  fn_041e20 memset 8x AB, rest untouched");
+      fn_041e20(m, 0x00, 16);
+      check(m[0]==0 && m[15]==0, "  fn_041e20 memset 16x 00");
+      uint8_t a[4]={0x41,0x42,0x43,0x44};
+      uint8_t b1[4]={0x41,0x42,0x43,0x44}, b2[4]={0x41,0x42,0x43,0x45}, b3[4]={0x58,0x58,0x43,0x44};
+      check(fn_0350aa(a,b1)==1,  "  fn_0350aa 4 equal -> 1");
+      check(fn_0350aa(a,b2)==-1, "  fn_0350aa 4th diff -> -1");
+      check(fn_0350aa(a,b3)==-1, "  fn_0350aa 1st diff -> -1"); }
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
     test_cpy_back();

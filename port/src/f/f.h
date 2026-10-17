@@ -449,6 +449,8 @@ void fn_03442e(uint8_t x);                  /* 0x03442e: rotating 10-slot event 
 void fn_034735(uint8_t idx);                /* 0x034735: per-key state machine (62c58/62cd8) */
 uint32_t fn_0351dc(uint8_t **cursor);       /* 0x0351dc: unsigned LEB128 (base-128) decoder */
 uint32_t fn_03510b(const uint8_t *p);       /* 0x03510b: big-endian 32-bit read */
+uint8_t *fn_041e20(uint8_t *dest, uint8_t byte, uint32_t count);  /* 0x041e20: memset via fn_043280 */
+int32_t  fn_0350aa(const uint8_t *a, const uint8_t *b);           /* 0x0350aa: 4-byte prefix equal? 1/-1 */
 uint64_t fn_0408c5(const uint8_t *p);       /* 0x0408c5: little-endian 24-bit (3-byte) read */
 void fn_03cad3(const uint8_t *p);           /* 0x03cad3: struct -> g_dat_639dc/e0/e4 */
 void fn_034353(uint8_t a, uint32_t b);      /* 0x034353: slot update (g_dat_63f1e/63f0c) */

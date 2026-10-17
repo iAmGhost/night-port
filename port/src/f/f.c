@@ -1619,6 +1619,16 @@ void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
  * when a branch fires (z==1) it records delta=g_dat_63f08-g_dat_63f0c into the
  * current slot, advances the slot (wrap 9->0), then calls fn_0343d1(x) plus
  * fn_0343d1(y)/fn_0343d1(0x36) depending on y. */
+uint8_t *fn_041e20(uint8_t *dest, uint8_t byte, uint32_t count) {  /* 0x041e20: memset via fn_043280 (dest=EAX,byte=DL,count=EBX) */
+    uint32_t p = ((uint32_t)byte<<24)|((uint32_t)byte<<16)|((uint32_t)byte<<8)|(uint32_t)byte;
+    fn_043280(dest, p, count);
+    return dest;
+}
+int32_t fn_0350aa(const uint8_t *a, const uint8_t *b) {            /* 0x0350aa: 4-byte prefix equal? (a=EAX,b=EDX) -> 1/-1 */
+    for (int i = 0; i < 4; i++) { if (a[i] != b[i]) return -1; }
+    return 1;
+}
+
 uint32_t fn_03510b(const uint8_t *p) {                       /* 0x03510b: big-endian 32-bit read */
     return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|(uint32_t)p[3];
 }

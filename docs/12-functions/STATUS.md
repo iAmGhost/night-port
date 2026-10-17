@@ -34,13 +34,13 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 187 / 528 done
+TOTALS: 189 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 25 | 0 | 0 | 22 |
-| L2 | 32 | 10 | 0 | 0 | 22 |
+| L2 | 32 | 11 | 0 | 0 | 21 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
@@ -48,7 +48,7 @@ TOTALS: 187 / 528 done
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 16 | 0 | 0 | 65 |
+| L10 | 81 | 17 | 0 | 0 | 64 |
 | L11 | 77 | 24 | 0 | 0 | 53 |
 | L12 | 58 | 1 | 0 | 0 | 57 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -146,6 +146,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_034735 (0x034735, 141B) ported** — per-key state machine on the g_dat_62c58 (flags) / g_dat_62cd8 (counters) byte tables. Register-ABI: index in AL (low byte of EAX), preserved through the `PUSH 0x24; CALL 0x418ee` stack-guard (Ghidra decomp mislabelled it as `bVar1 = FUN_000418ee()`). Logic: if g_dat_62c58[idx]==4 { fn_034353(idx, g_dat_63f08); if g_dat_62cd8[idx]!=0 {62c58=1; 62cd8--} else 62c58=0 } else if g_dat_62c58[idx]<4 {62c58++; fn_03442e(idx)}. 5 checks (62cd8>0 dec, 62cd8==0 zero, <4 inc+dispatch, ==5 no-op). All callees (fn_034353/fn_03442e/tables) already ported. L12 0->1, TOTALS 183->184. NOTE: the other 2 L12 clean candidates — 0x03ba2c (89B, 200x fn_034aba loop, idx 0..199) and 0x03ba86 (187B, nested-loop data-table fn_034aba caller) — are deferred: 0x03ba2c exposes a latent g_dat_62d68[128] undersize (needs >=200) + needs a 200-call arena-diff test. | STATUS.md L12 |
 | 2026-07-08 | **fn_0351dc (0x0351dc, 134B) ported** — unsigned base-128 integer decoder (register-ABI, cursor pointer in EAX). Reads *cursor as the data position, accumulates 7 bits per byte while the continuation bit (0x80) is set, advances *cursor past the last byte, returns the value. KEY: the encoding is **MSB-first** (first byte = most-significant group) — `val = byte0; while(byte&0x80){ val=(val<<7)|(next&0x7f) }`, NOT standard little-endian LEB128. 3 differential checks (1-byte 05->5, 2-byte 85 02->642, 3-byte ff ff 01->2097025). L10 13->14, TOTALS 184->185, suite 649 PASS 0 FAIL. NOTE: sibling loads 0x03510b/0x0408c5 deferred (pointer-advance side-effect semantics ambiguous without full disasm tail). | STATUS.md L10 |
 | 2026-07-08 | **fn_03510b (0x03510b, 126B) + fn_0408c5 (0x0408c5, 130B) ported** — the two sibling byte-read loads deferred from the fn_0351dc pass, now fully disassembled. fn_03510b = **big-endian 32-bit read** `(p[0]<<24)|(p[1]<<16)|(p[2]<<8)|p[3]` (returns uint32); the `[EBP-4]` INCs in the disasm are a local pointer copy, NOT a caller side-effect (decompiler mislabelled it). fn_0408c5 = **little-endian 24-bit (3-byte) read** `p[0]|(p[1]<<8)|(p[2]<<16` (pre-shifts each byte then ORs; returns uint64 zero-extended). Both register-ABI (pointer in EAX), pure (no side effects). 2 differential checks. L10 14->16, TOTALS 185->187, suite 651 PASS 0 FAIL. (0x03518a at 0x03518a is the 16-bit BE read, already ported as fn_03518a.) | STATUS.md L10 |
+| 2026-07-08 | **fn_041e20 (0x041e20, 23B) + fn_0350aa (0x0350aa, 96B) ported** — two clean register-ABI wins. fn_041e20 = memset-style: replicates the fill byte (DL) into a 32-bit pattern 0xNNNNNNNN (the `MOV DH,DL; SHL; MOV DL,DH` idiom), calls fn_043280(dest, pattern, count), returns dest (EAX preserved via PUSH/POP). ABI dest=EAX,byte=DL,count=EBX. Since all 4 pattern bytes are equal, fn_043280's latent remainder-byte bug does not manifest. fn_0350aa = 4-byte prefix compare (a=EAX,b=EDX): compares a[0..3] vs b[0..3], returns 1 if all equal else -1. **NOTE: 0x0350aa was previously misclassified as a "spin-wait loop" deferral** (see the L10-trivial-accessor note); full disasm shows it is a trivial bounded 4-iteration compare. L2 10->11, L10 16->17, TOTALS 187->189, suite 656 PASS 0 FAIL. | STATUS.md L2/L10 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -317,7 +318,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x041e20 | 23 | FUN_00041e20 | | |
+| [x] | 0x041e20 | 23 | FUN_00041e20 | | |
 | [ ] | 0x041e38 | 24 | FUN_00041e38 | | |
 | [ ] | 0x041fa1 | 0 | FUN_00041fa1 | | |
 | [x] | 0x0423b7 | 23 | fn_0423b7 | callback chain: g_dat_5336c(param_1)->r1; g_dat_53370(r1) [reused from 0423cf]; fn_0423cf(param_1); added g_dat_5336c | port+test PASS |
@@ -476,7 +477,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0348e2 | 91 | fn_0348e2 | slot-alloc (g_dat_63f50 wrap@9) | 1:1 |
 | [ ] | 0x03493e | 72 | FUN_0003493e | | |
 | [x] | 0x034a87 | 50 | fn_034a87 | v=g_dat_62d64; +=11; return v | 1:1 |
-| [ ] | 0x0350aa | 96 | FUN_000350aa | | |
+| [x] | 0x0350aa | 96 | FUN_000350aa | | |
 | [x] | 0x03510b | 126 | FUN_0003510b | | |
 | [x] | 0x03518a | 81 | fn_03518a | BE 16-bit read (p[0]<<8)|p[1] | 1:1 |
 | [x] | 0x0351dc | 134 | FUN_000351dc | | |

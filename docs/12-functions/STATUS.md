@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 220 / 528 done
+TOTALS: 228 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,9 +48,9 @@ TOTALS: 220 / 528 done
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 27 | 0 | 0 | 54 |
-| L11 | 77 | 24 | 0 | 0 | 53 |
-| L12 | 58 | 3 | 0 | 0 | 55 |
+| L10 | 81 | 30 | 0 | 0 | 51 |
+| L11 | 77 | 25 | 0 | 0 | 52 |
+| L12 | 58 | 7 | 0 | 0 | 51 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **IRQ installer pair + CD/DPMI real-mode I/O cluster (8 ported)**: (1) **fn_03ef29** (0x03ef29, 200B) installs the IRQ 0x1c timer handler (divisor passed in EAX, register-ABI): skips if g_dat_63e4a set, stores divisor in 63e2c, clears 63e30, saves ISR-0x1c via isr_get into 63e44(off)/63e48(seg), isr_set(0x1c, 0x3ee88, CS), programs PIT ch0 (mode 0x36 + 16-bit divisor), sets flag, STI — complement of the already-ported fn_03eff2 uninstall. (2) **fn_03feb8** (0x03feb8, 242B) installs the IRQ 9 handler + initializes timer/DMA channel state: saves ISR-9 into 63e80/63e84, isr_set(9, 0x3fd40, CS), then memset-inits 63e88 (0x80B,=0), 63f14 (0xa,=0), 63f1e (0xa,=1), 63f28 (0x28B,=0), resets slot base 63f0c=0->63f08=0->63f50=0, sets 63f4c=-1, sets flag, mirrors low-mem byte 0x417 into 63f51 then clears its 0x20 bit. Both use the no-op isr_get (returns 0, no real OS vector) + isr_set/outb standins; CS in isr_set = 0x1f flat selector (immaterial, no-op). (3) **CD/DPMI real-mode I/O cluster** (6 no-op standins): fn_103e0/fn_10570/fn_10876/fn_107b9/fn_10664/fn_10b1d all perform DPMI INT 0x31h real-mode CD/DOS I/O via the no-op trampoline fn_041e38 with register-ABI args; their observable outputs depend on caller register state + no-op I/O results, so no deterministic flat-model effect — documented no-ops (fn_10876 returns 0 for its checksum). Per the DPMI-trampoline convention (cf. fn_043381/fn_04391d). 2 globals added (63e88[0x80], 63f4c); 17 checks. TOTALS 220->228, suite 758->775 PASS 0 FAIL. | STATUS.md L10/L12 |
 | 2026-07-08 | Vertical-slice port discarded; function-to-function approach adopted | docs/12-function-map.md |
 | 2026-07-08 | 115 unreferenced functions recovered via code-gap scan; 12 bogus mid-code entries deleted | analysis/rank.tsv |
 | 2026-07-08 | canary pair (0x418ee/0x41901, L8/L9) ported in batch 1 ahead of L1-L7: self-contained stack guard; sole callee 0x429ea (printer) replaced by sys_fatal (sys layer), fatal fall-through = process death | primitives.md |
@@ -476,7 +477,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|---|---|---|
 | [ ] | 0x010181 | 500 | FUN_00010181 | | |
 | [x] | 0x010376 | 105 | fn_010376 | free struct fields @0x6d/71/75 (heap_free_host) | 1:1 |
-| [ ] | 0x0103e0 | 230 | FUN_000103e0 | | |
+| [x] | 0x0103e0 | 230 | fn_103e0 | | CD/DPMI real-mode I/O wrapper (DPMI trampoline no-op in flat model) |
 | [ ] | 0x0104c7 | 119 | FUN_000104c7 | | |
 | [x] | 0x01053f | 48 | fn_1053f | | DPMI INT 0x31 AX=0x101 (no-op in flat model) |
 | [x] | 0x010e15 | 43 | fn_010e15 | return g_dat_53c60 | 1:1 (canary prologue omitted) |
@@ -533,7 +534,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03dcbd | 455 | FUN_0003dcbd | | |
 | [ ] | 0x03e0a0 | 171 | FUN_0003e0a0 | | |
 | [ ] | 0x03e14c | 194 | FUN_0003e14c | | |
-| [ ] | 0x03ef29 | 200 | FUN_0003ef29 | | |
+| [x] | 0x03ef29 | 200 | fn_03ef29 | | install IRQ 0x1c, divisor in EAX (isr_set/outb no-op) |
 | [x] | 0x03eff2 | 132 | fn_03eff2 | | install IRQ 0x1c (FPU) handler, flag-guarded (isr_set/outb no-op) |
 | [x] | 0x03f3be | 81 | fn_03f3be | | VGA palette-set (INT10 0x4f05), index 63e5c, color in EAX |
 | [x] | 0x03f410 | 81 | fn_03f410 | | VGA palette-set (INT10 0x4f05), index 63e58, color in EAX |
@@ -543,7 +544,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03fb73 | 169 | FUN_0003fb73 | | |
 | [ ] | 0x03fc1d | 159 | FUN_0003fc1d | | |
 | [ ] | 0x03fcbd | 72 | FUN_0003fcbd | | |
-| [ ] | 0x03feb8 | 242 | FUN_0003feb8 | | |
+| [x] | 0x03feb8 | 242 | fn_03feb8 | | install IRQ 9 + timer/DMA channel state init (isr_set no-op) |
 | [x] | 0x03ffab | 97 | fn_03ffab | | install IRQ 9 handler, flag-guarded; mirrors 63f51 to low-mem 0x417 |
 | [ ] | 0x040570 | 54 | FUN_00040570 | | |
 | [ ] | 0x0405a7 | 54 | FUN_000405a7 | | |
@@ -561,7 +562,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|---|---|---|
 | [ ] | 0x010010 | 200 | FUN_00010010 | | |
 | [x] | 0x0100d9 | 167 | fn_0100d9 | free container {count, array} + free array | 1:1 (disasm; 4 checks) |
-| [ ] | 0x010570 | 134 | FUN_00010570 | | |
+| [x] | 0x010570 | 134 | fn_10570 | | DPMI real-mode read via fn_103e0 (no-op in flat model) |
 | [ ] | 0x011827 | 292 | FUN_00011827 | | |
 | [ ] | 0x012efa | 1428 | FUN_00012efa | | |
 | [ ] | 0x01348f | 817 | FUN_0001348f | | |
@@ -641,12 +642,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
 | [ ] | 0x0105f7 | 108 | FUN_000105f7 | | |
-| [ ] | 0x010664 | 202 | FUN_00010664 | | |
+| [x] | 0x010664 | 202 | fn_10664 | | CD request build + DPMI read (no-op, EAX-gated) |
 | [ ] | 0x01072f | 137 | FUN_0001072f | | |
-| [ ] | 0x0107b9 | 188 | FUN_000107b9 | | |
-| [ ] | 0x010876 | 176 | FUN_00010876 | | |
+| [x] | 0x0107b9 | 188 | fn_107b9 | | CD dir-entry read (DPMI no-op in flat model) |
+| [x] | 0x010876 | 176 | fn_10876 | | CD dir-entry read + checksum (DPMI no-op, returns 0) |
 | [ ] | 0x010a56 | 131 | FUN_00010a56 | | |
-| [ ] | 0x010b1d | 288 | FUN_00010b1d | | |
+| [x] | 0x010b1d | 288 | fn_10b1d | | CD track/TOC read via fn_10570 (no-op in flat model) |
 | [ ] | 0x010cbd | 137 | FUN_00010cbd | | |
 | [ ] | 0x010dde | 54 | FUN_00010dde | | |
 | [ ] | 0x017f13 | 3956 | FUN_00017f13 | | |

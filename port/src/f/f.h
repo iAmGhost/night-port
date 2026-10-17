@@ -106,6 +106,14 @@ void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (
 void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
+void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (divisor in EAX) */
+void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
+void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */
+void     fn_10570(void);                        /* 0x010570: DPMI real-mode read via 0x103e0 (no-op) */
+uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+checksum (no-op -> 0) */
+void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
+void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */
+void     fn_10b1d(void);                        /* 0x010b1d: CD track/TOC read (no-op) */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);
@@ -193,6 +201,8 @@ extern uint32_t g_dat_63e5c;               /* DAT_00063e5c: palette index (fn_03
 extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03f410) */
 extern uint8_t  g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
 extern uintptr_t g_dat_53c5c;               /* DAT_00053c5c: DPMI far-pointer (debug-reg) */
+extern uint8_t  g_dat_63e88[0x80];          /* DAT_00063e88: DMA/channel status (IRQ9 install) */
+extern uint32_t g_dat_63f4c;               /* DAT_00063f4c: -1 sentinel (IRQ9 install) */
 void     fn_03ee88(void);                   /* 0x03ee88: timer/IRQ tick handler (counter wraps) */
 void     fn_043381(void);                   /* 0x043381: DPMI real-mode return (flat no-op) */
 void     fn_04391d(void);                   /* 0x04391d: DOS/DPMI timer-vector setup (flat no-op) */

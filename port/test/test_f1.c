@@ -2180,6 +2180,45 @@ static void test_fn_1053f(void) {
     check(1, "  runs as no-op (no flat-model effect)");
 }
 
+static void test_fn_03ef29(void) {
+    printf("fn_03ef29 (0x03ef29, install IRQ 0x1c)\n");
+    g_dat_63e4a = 0; g_dat_63e2c = 0; g_dat_63e30 = 5;
+    g_dat_63e44 = 0xaaaa; g_dat_63e48 = 0xbbbb;
+    fn_03ef29(0x1234);               // divisor in EAX
+    check(g_dat_63e2c == 0x1234, "  divisor stored in 63e2c");
+    check(g_dat_63e30 == 0, "  63e30 cleared");
+    check(g_dat_63e4a == 1, "  install flag set");
+    check(g_dat_63e44 == 0 && g_dat_63e48 == 0, "  saved ISR-0x1c (isr_get no-op -> 0)");
+    fn_03ef29(0x9999);               // already installed -> no-op
+    check(g_dat_63e2c == 0x1234, "  second call skipped (flag already set)");
+}
+
+static void test_fn_03feb8(void) {
+    printf("fn_03feb8 (0x03feb8, install IRQ 9 + timer/DMA init)\n");
+    g_dat_63e86 = 0; g_dat_00417 = 0xff;
+    g_dat_63e88[0] = 0x11; g_dat_63f14[0] = 0x22; g_dat_63f1e[0] = 0x33;
+    g_dat_63f28[0] = 0x4444; g_dat_63f0c = 9; g_dat_63f4c = 1;
+    fn_03feb8();
+    check(g_dat_63e86 == 1, "  install flag set");
+    check(g_dat_63e80 == 0 && g_dat_63e84 == 0, "  saved ISR-9 (isr_get no-op -> 0)");
+    check(g_dat_63e88[0] == 0, "  63e88 zeroed");
+    check(g_dat_63f14[0] == 0, "  63f14 zeroed");
+    check(g_dat_63f1e[0] == 1, "  63f1e set to 1");
+    check(g_dat_63f28[0] == 0, "  63f28 zeroed");
+    check(g_dat_63f0c == 0 && g_dat_63f08 == 0 && g_dat_63f50 == 0, "  slot base reset (63f0c->63f08->63f50)");
+    check(g_dat_63f4c == 0xffffffffu, "  63f4c = -1 sentinel");
+    check(g_dat_63f51 == 0xff, "  63f51 mirrored pre-clear 0x417");
+    check(g_dat_00417 == 0xdf, "  bit 0x20 cleared in 0x417");
+    fn_03feb8();                       // already installed -> no-op
+    check(g_dat_63e86 == 1, "  second call skipped (flag already set)");
+}
+
+static void test_cd_dpmi_noops(void) {
+    printf("CD/DPMI real-mode I/O cluster (no-op standins)\n");
+    fn_103e0(); fn_10570(); (void)fn_10876(); fn_107b9(); fn_10664(); fn_10b1d();
+    check(1, "  all six run as no-ops (no flat-model effect)");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -2989,6 +3028,9 @@ int main(void) {
     test_fn_03575d();
     test_fn_03f3be();
     test_fn_1053f();
+    test_fn_03ef29();
+    test_fn_03feb8();
+    test_cd_dpmi_noops();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

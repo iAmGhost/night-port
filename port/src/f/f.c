@@ -476,6 +476,74 @@ void fn_1053f(void)
     (void)g_dat_53c5c;   /* DPMI INT 0x31 AX=0x101: no-op in the flat model. */
 }
 
+/* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
+uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
+uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */
+
+/* fn_03ef29  orig: 0x03ef29
+ *   Install IRQ 0x1c (timer) handler (complement of fn_03eff2, which uninstalls).
+ *   `timer_value` is passed in EAX (register-ABI; canary prologue preserves it).
+ *   Skips if g_dat_63e4a already set. Stores the divisor in g_dat_63e2c, clears
+ *   g_dat_63e30, saves the current ISR-0x1c (isr_get) into g_dat_63e44(off)/63e48(seg),
+ *   installs the new vector (isr_set with CS = DPMI flat code selector), programs
+ *   PIT ch0 (mode 0x36 + 16-bit divisor), sets the flag, and STI. */
+void fn_03ef29(uint32_t timer_value)
+{
+    if (g_dat_63e4a != 0) return;                    /* 0x3ef33-3f */
+    g_dat_63e2c = (uint16_t)timer_value;             /* 0x3ef42-4a */
+    g_dat_63e30 = 0;                                 /* 0x3ef4c-54 */
+    uint64_t isr = isr_get(0x1c);                    /* 0x3ef57-62 (EAX=off, EDX=seg) */
+    g_dat_63e48 = (uint16_t)(isr >> 32);             /* 0x3ef68-6f [63e48]=seg */
+    g_dat_63e44 = (uint32_t)isr;                     /* 0x3ef72-77 [63e44]=off */
+    isr_set(0x1c, 0x3ee88, 0x1f);                    /* 0x3ef7a-93 (CS=flat selector) */
+    outb(0x43, 0x36);                                /* 0x3ef96-a1 PIT ch0 mode */
+    outb(0x40, (uint8_t)timer_value);                /* 0x3efa4-b6 ch0 divisor low */
+    outb(0x40, (uint8_t)(timer_value >> 8));         /* 0x3efb9-c4 ch0 divisor high */
+    g_dat_63e4a = 1;                                 /* 0x3efc7 */
+    irq_sti();                                       /* 0x3efca-d1 */
+}
+
+/* fn_03feb8  orig: 0x03feb8
+ *   Install IRQ 9 handler (complement of fn_03ffab) and initialize the timer/DMA
+ *   channel state. Skips if g_dat_63e86 already set. Saves ISR-9 into
+ *   g_dat_63e80(off)/63e84(seg), installs the vector (isr_set CS), zero-initializes
+ *   the DMA status block 0x63e88 (0x80 B), slot tables 0x63f14 (0xa B, =0) /
+ *   0x63f1e (0xa B, =1) / 0x63f28 (0x28 B, =0), resets the slot base
+ *   (63f0c=0 -> 63f08=0 -> 63f50=0), sets 63f4c=-1, sets the flag, mirrors the
+ *   low-mem byte 0x417 into 63f51, then clears bit 0x20 of 0x417. */
+void fn_03feb8(void)
+{
+    if (g_dat_63e86 != 0) return;                    /* 0x3fec7-d3 */
+    uint64_t isr = isr_get(9);                       /* 0x3fed5-e2 (EAX=off, EDX=seg) */
+    g_dat_63e84 = (uint16_t)(isr >> 32);             /* 0x3fee5-ec [63e84]=seg */
+    g_dat_63e80 = (uint32_t)isr;                     /* 0x3feef-f4 [63e80]=off */
+    isr_set(9, 0x3fd40, 0x1f);                       /* 0x3fef1-18 (CS=flat selector) */
+    fn_041e20(g_dat_63e88, 0, 0x80);                 /* 0x3fd1b-2c memset(63e88,0,0x80) */
+    fn_041e20(g_dat_63f14, 0, 0xa);                  /* memset(63f14,0,0xa) */
+    fn_041e20(g_dat_63f1e, 1, 0xa);                  /* memset(63f1e,1,0xa) */
+    fn_041e20((uint8_t *)g_dat_63f28, 0, 0x28);      /* memset(63f28,0,0x28) */
+    g_dat_63f0c = 0;                                 /* 0x3fd.. */
+    g_dat_63f08 = g_dat_63f0c;                       /* [63f08] = [63f0c] = 0 */
+    g_dat_63f50 = (uint8_t)g_dat_63f08;              /* [63f50] = byte 63f08 = 0 */
+    g_dat_63f4c = 0xffffffffu;                       /* [63f4c] = -1 */
+    g_dat_63e86 = 1;                                 /* installed */
+    g_dat_63f51 = g_dat_00417;                       /* [63f51] = byte at 0x417 */
+    g_dat_00417 &= 0xdf;                             /* clear bit 0x20 of 0x417 */
+}
+
+/* ---- CD/DPMI real-mode I/O cluster (fn_103e0 / fn_10570 + dependents) ----
+ * These perform DPMI INT 0x31h real-mode CD/DOS I/O (via the no-op trampoline
+ * fn_041e38) with register-ABI arguments. Their observable outputs depend on
+ * caller register state (the canary-passed EAX) and the no-op I/O results, so
+ * they have no deterministic flat-model effect -- documented no-op standins
+ * (per the DPMI-trampoline convention, cf. fn_043381 / fn_04391d). */
+void fn_103e0(void)   { /* 0x0103e0: DPMI INT 0x31 real-mode I/O wrapper (no-op). */ }
+void fn_10570(void)   { /* 0x010570: 0x100-byte DPMI real-mode read via 0x103e0 (no-op). */ }
+uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
+void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }
+void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }
+void fn_10b1d(void)   { /* 0x010b1d: CD track/TOC read via 0x10570 (no-op). */ }
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).

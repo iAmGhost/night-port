@@ -1744,6 +1744,28 @@ int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma, 1); }
 int32_t fn_01656f(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma_dash, 2); }
 int32_t fn_016750(uint8_t *s) { return fn_015b5b_core(s, fn_mg_14dot, 3); }
 
+int32_t fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   /* 0x01776f: 2D movement delta computer */
+    *(int32_t *)(s + 0x17) = 2;
+    int32_t target = *(int32_t *)(s + 0xc3);
+    int32_t end    = *(int32_t *)(s + 0xcf);
+    int32_t F      = (int32_t)fn_0151d5(s);
+    int32_t mid    = (target + end) / 2;
+    if (F > mid) {
+        *out1 = (*(int32_t *)(s + 0xcb) < 0xa0) ? param2 : -param2;
+    } else {
+        *out1 = (*(int32_t *)(s + 0xcb) < 0xa0) ? -param2 : param2;
+    }
+    F = (int32_t)fn_0151d5(s);
+    if (target < end) {
+        if (F - param2 <= target) { *out2 = 0; *out1 = 0; return 1; }
+        *out2 = -param2;
+    } else {
+        if (F + param2 >= target) { *out2 = 0; *out1 = 0; return 1; }
+        *out2 = param2;
+    }
+    return 0;
+}
+
 void fn_032158(void) {                                            /* 0x032158: set entity targets to player + prng jitter */
     if (g_dat_53c6c != 1) return;
     uint8_t *node = g_dat_53c70;

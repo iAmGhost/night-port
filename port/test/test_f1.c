@@ -2102,6 +2102,32 @@ static void test_l10_accessors(void) {
       check(r1 == 1, "  fn_016750 '1' -> 1D -> ret1");
       prng_seed(0x1234); g_dat_53eb8[0x111] = ','; r1 = fn_016750(s1);
       check(r1 == 0, "  fn_016750 ',' -> 2D: Y=20>=10 -> ret0");
+      // fn_01776f: 2D movement delta computer (target<end vs target>=end, arrival check).
+      g_dat_639e0 = 0;   // fn_0151d5(s) = s[9..12]
+      uint8_t sm[0x200] = {0}; int32_t o1, o2;
+      // 1: target<end, F>mid, cb<0xa0 -> out1=+p; F-p>target -> out2=-p, ret0
+      *(int32_t *)(sm+0xc3) = 10; *(int32_t *)(sm+0xcf) = 30; *(int32_t *)(sm+0xcb) = 10;
+      *(int32_t *)(sm+9) = 25;   // F=25, mid=20, F>mid; F-p=20>10
+      int32_t rr = fn_01776f(sm, 5, &o1, &o2);
+      check(rr == 0 && o1 == 5 && o2 == -5, "  fn_01776f F>mid cb<0xa0 no-arrival");
+      // 2: target<end, arrival (F-p<=target) -> out1=out2=0, ret1
+      *(int32_t *)(sm+9) = 12;   // F=12<=20, F-p=7<=10
+      rr = fn_01776f(sm, 5, &o1, &o2);
+      check(rr == 1 && o1 == 0 && o2 == 0, "  fn_01776f target<end arrival");
+      // 3: target>=end, F>mid, cb<0xa0, arrival (F+p>=target) -> ret1
+      *(int32_t *)(sm+0xc3) = 30; *(int32_t *)(sm+0xcf) = 10; *(int32_t *)(sm+0xcb) = 10;
+      *(int32_t *)(sm+9) = 25;   // F=25, mid=20, F+p=30>=30
+      rr = fn_01776f(sm, 5, &o1, &o2);
+      check(rr == 1 && o1 == 0 && o2 == 0, "  fn_01776f target>=end arrival");
+      // 4: target>=end, F<=mid, cb>=0xa0, no-arrival -> out1=+p, out2=+p, ret0
+      *(int32_t *)(sm+0xcb) = 200; *(int32_t *)(sm+9) = 10;   // F=10<=20, F+p=15<30
+      rr = fn_01776f(sm, 5, &o1, &o2);
+      check(rr == 0 && o1 == 5 && o2 == 5, "  fn_01776f F<=mid cb>=0xa0 no-arrival");
+      // 5: target<end, F>mid, cb>=0xa0 -> out1=-p, out2=-p, ret0
+      *(int32_t *)(sm+0xc3) = 10; *(int32_t *)(sm+0xcf) = 30; *(int32_t *)(sm+0xcb) = 200;
+      *(int32_t *)(sm+9) = 25;   // F-p=20>10
+      rr = fn_01776f(sm, 5, &o1, &o2);
+      check(rr == 0 && o1 == -5 && o2 == -5, "  fn_01776f F>mid cb>=0xa0 no-arrival");
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
     }
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));

@@ -133,6 +133,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_015ed1 (0x015ed1, 364B) ported** — another data-table family variant. Same s[0x17] dispatch + s[0x83] gate as the 0x015b5b family, but NO char check: abs32(sX-tX)<table[idx] && abs32(sY-tY)<10 -> ret1 (Y limit 10, like the 2D case of 0x015b5b, unlike fn_015a1f which uses 6). Decomp had CONCAT44 artifact; traced from disasm. 6 checks. NOTE: the family is large + heterogeneous (at least 7 variants so far: 015a1f/015b5b/015d16/015ed1 + 3 near-twins). | STATUS.md L11 |
 | 2026-07-08 | **fn_032158 (0x032158, 412B) ported** — entity-list target setter. If g_dat_53c6c==1, walk the list (g_dat_53c70 head, next@+0x13f, count g_dat_53c68); for each entity != player (g_dat_53c7c) with s[0x117]==0, s[0x1f]==4, s[0xaf]!=6: set target (s[0xb3],s[0xb7]) to the player position, then offset by ±0x2d/-5 + prng%10 jitter (sign depends on player[0x1b]); mark s[0xaf]=0, s[0x1f]=6. Clear g_dat_53c6c. New globals g_dat_53c70 (head), g_dat_53c68 (count). Decomp was clean (no CONCAT). 6 checks. | STATUS.md L11 |
 | 2026-07-08 | **fn_01656f + fn_016750 ported (multi-char family members)** — generalized fn_015b5b_core to take a magic-char SET (pointer + count). fn_01656f: magic {'''-'''}, fn_016750: magic {'1'''4''''.'''}. Both verified char sets + 1D-vs-2D tail from disasm. The data-table family is now: 015a1f (Y=6, no gate), 015b5b/01603e/0161f9/0163b4/01656f/016750 (char-set 1D/2D), 015d16 (X-gate + char-Y-limit), 015ed1 (no char, Y=10). 6 checks. NOTE: fn_03442e decomp is a FALSE stub (full of "unreachable block" warnings) — NOT a trivial stub; needs disasm trace. | STATUS.md L11 |
+| 2026-07-08 | **fn_01776f (0x01776f, 439B) ported** — 2D movement delta computer. Signature (s, param2=step, *out1, *out2) [s in EAX, param2 in EDX, out1/out2 stack args, RET 0x8]. Sets s[0x17]=2. F=fn_0151d5(s), mid=(s[0xc3]+s[0xcf])/2. out1 = F>mid ? (s[0xcb]<0xa0 ? +p : -p) : (s[0xcb]<0xa0 ? -p : +p) [SAME both branches]. Then: target<end -> if F-p<=target {out1=out2=0,ret1} else out2=-p; target>=end -> if F+p>=target {out1=out2=0,ret1} else out2=+p. Traced full disasm (CONCAT-heavy decomp unreliable). 5 checks. | STATUS.md L11 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -550,7 +551,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0174a2 | 141 | fn_0174a2 | clamp-check F=fn_01519f(s) to [0,0x140); if out of range adjust *out by ±param2 | 1:1 (disasm; 3 checks) |
 | [x] | 0x017530 | 262 | fn_017530 | twin of fn_016959 (alias; byte-identical disasm, callee fn_01519f) | 1:1 (disasm-verified twin) |
 | [x] | 0x017637 | 311 | fn_017637 | variant of fn_016a60 (corrected: B-reached writes *out=0) | 1:1 (disasm; 2 checks) |
-| [ ] | 0x01776f | 439 | FUN_0001776f | | |
+| [x] | 0x01776f | 439 | fn_01776f | 2D movement delta computer (target<end/>=end) | 1:1 (disasm; 5 checks) |
 | [ ] | 0x017927 | 894 | FUN_00017927 | | |
 | [ ] | 0x017ca6 | 620 | FUN_00017ca6 | | |
 | [x] | 0x032158 | 412 | fn_032158 | entity list: set targets to player + prng jitter | 1:1 (disasm; 6 checks) |

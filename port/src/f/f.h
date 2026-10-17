@@ -475,6 +475,8 @@ int32_t  fn_015b5b(uint8_t *s);        /* 0x015b5b: family core, magic '.' */
 int32_t  fn_01603e(uint8_t *s);        /* 0x01603e: family core, magic '+' */
 int32_t  fn_0161f9(uint8_t *s);        /* 0x0161f9: family core, magic '+' */
 int32_t  fn_0163b4(uint8_t *s);        /* 0x0163b4: family core, magic ',' */
+int32_t  fn_01656f(uint8_t *s);        /* 0x01656f: family core, magic {',' '-'} */
+int32_t  fn_016750(uint8_t *s);        /* 0x016750: family core, magic {'1' '4' '.'} */
 void     fn_032158(void);              /* 0x032158: entity list -> set targets to player + prng jitter */
 int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */

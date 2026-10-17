@@ -2081,6 +2081,28 @@ static void test_l10_accessors(void) {
       b3 = *(int32_t *)(e0+0xb3);
       check(b3 >= 136 && b3 <= 145, "  fn_032158 [0x1b]!=0 target-x = 100+45-prng%10 in [136,145]");
       g_dat_53c6c = 0;
+      // fn_01656f (magic {',' '-'}) + fn_016750 (magic {'1' '4' '.'}).
+      // sX-tX=2, sY-tY=20, tbl0=5 (X passes, Y fails).
+      g_dat_639dc = 0; g_dat_639e0 = 0;
+      uint8_t p1[0x200] = {0}; *(uint32_t *)(p1+1) = 3; *(uint32_t *)(p1+9) = 3; g_dat_53c7c = p1;
+      uint8_t s1[0x200] = {0}; *(uint32_t *)(s1+1) = 5; *(uint32_t *)(s1+9) = 23;
+      *(uint32_t *)(s1+0x17) = 0x5; *(uint32_t *)(s1+0x1f) = 4; *(uint32_t *)(s1+0x83) = 1;   // skip prng overwrite so s[0x113]=0 holds
+      *(int32_t *)(s1+0x113) = 0; s1[0xd] = 2;
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); g_dat_53eb8[0x110] = 5;   // idx=2*0x88=0x110, tbl0=5
+      int32_t r1;
+      prng_seed(0x1234); g_dat_53eb8[0x111] = ','; r1 = fn_01656f(s1);
+      check(r1 == 1, "  fn_01656f ',' -> 1D: X<5 -> ret1 (Y ignored)");
+      prng_seed(0x1234); g_dat_53eb8[0x111] = '-'; r1 = fn_01656f(s1);
+      check(r1 == 1, "  fn_01656f '-' -> 1D -> ret1");
+      prng_seed(0x1234); g_dat_53eb8[0x111] = '.'; r1 = fn_01656f(s1);
+      check(r1 == 0, "  fn_01656f '.' -> 2D: X<5 but Y=20>=10 -> ret0");
+      prng_seed(0x1234); g_dat_53eb8[0x111] = '.'; r1 = fn_016750(s1);
+      check(r1 == 1, "  fn_016750 '.' -> 1D -> ret1");
+      prng_seed(0x1234); g_dat_53eb8[0x111] = '1'; r1 = fn_016750(s1);
+      check(r1 == 1, "  fn_016750 '1' -> 1D -> ret1");
+      prng_seed(0x1234); g_dat_53eb8[0x111] = ','; r1 = fn_016750(s1);
+      check(r1 == 0, "  fn_016750 ',' -> 2D: Y=20>=10 -> ret0");
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
     }
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));

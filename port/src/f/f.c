@@ -1693,7 +1693,7 @@ int32_t fn_015a1f(uint8_t *s) {                                      /* 0x015a1f
     return 0;
 }
 
-static int32_t fn_015b5b_core(uint8_t *s, int32_t magic) {          /* 0x015b5b/01603e/0161f9/0163b4: family core (magic-char param) */
+static int32_t fn_015b5b_core(uint8_t *s, const uint8_t *magics, int32_t nmagics) {   /* 0x015b5b family core (magic-char SET) */
     int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
     int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
     if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {
@@ -1719,7 +1719,9 @@ static int32_t fn_015b5b_core(uint8_t *s, int32_t magic) {          /* 0x015b5b/
     int32_t tbl0 = (int32_t)g_dat_53eb8[idx];
     if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
         int32_t tbl1 = (int32_t)g_dat_53eb8[idx + 1];
-        if (tbl1 == magic) {
+        int32_t is_magic = 0;
+        for (int32_t i = 0; i < nmagics; i++) if ((uint32_t)tbl1 == magics[i]) { is_magic = 1; break; }
+        if (is_magic) {
             if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) return 1;
         } else {
             if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) {
@@ -1730,10 +1732,17 @@ static int32_t fn_015b5b_core(uint8_t *s, int32_t magic) {          /* 0x015b5b/
     return 0;
 }
 
-int32_t fn_015b5b(uint8_t *s) { return fn_015b5b_core(s, 0x2e); }   /* '.' */
-int32_t fn_01603e(uint8_t *s) { return fn_015b5b_core(s, 0x2b); }   /* '+' */
-int32_t fn_0161f9(uint8_t *s) { return fn_015b5b_core(s, 0x2b); }   /* '+' */
-int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, 0x2c); }   /* ',' */
+static const uint8_t fn_mg_dot[1]      = {0x2e};
+static const uint8_t fn_mg_plus[1]     = {0x2b};
+static const uint8_t fn_mg_comma[1]    = {0x2c};
+static const uint8_t fn_mg_comma_dash[2] = {0x2c, 0x2d};   /* ',' '-' */
+static const uint8_t fn_mg_14dot[3]    = {0x31, 0x34, 0x2e}; /* '1' '4' '.' */
+int32_t fn_015b5b(uint8_t *s) { return fn_015b5b_core(s, fn_mg_dot, 1); }
+int32_t fn_01603e(uint8_t *s) { return fn_015b5b_core(s, fn_mg_plus, 1); }
+int32_t fn_0161f9(uint8_t *s) { return fn_015b5b_core(s, fn_mg_plus, 1); }
+int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma, 1); }
+int32_t fn_01656f(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma_dash, 2); }
+int32_t fn_016750(uint8_t *s) { return fn_015b5b_core(s, fn_mg_14dot, 3); }
 
 void fn_032158(void) {                                            /* 0x032158: set entity targets to player + prng jitter */
     if (g_dat_53c6c != 1) return;

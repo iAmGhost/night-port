@@ -2357,6 +2357,42 @@ static void test_l10_accessors(void) {
 }
 
 int main(void) {
+    static uint8_t s_t_bounds[0x20];
+    g_dat_63354 = s_t_bounds;
+    /* --- fn_017927: 2D move/AI (double-deref bounds via g_dat_63354) --- */
+    { g_dat_639dc = 0; g_dat_639e0 = 0;
+      *(int32_t *)(g_dat_63354+0x12) = 0; *(int32_t *)(g_dat_63354+0x16) = 1000;  /* mid=500 */
+      uint8_t s[0x200]; int32_t o1, o2; int32_t r;
+      /* T reached: bf<cb, cf<mid, (Y-val)<=c3 -> r=1, out=0 */
+      memset(s,0,sizeof s); *(int32_t*)(s+0xbf)=20; *(int32_t*)(s+0xcb)=100; *(int32_t*)(s+0xcf)=10; *(int32_t*)(s+0xc3)=200;
+      *(uint32_t*)(s+1)=0; *(uint32_t*)(s+9)=0; o1=777; o2=888;
+      r = fn_017927(s, 0, &o1, &o2);
+      check(r==1 && o1==0 && o2==0 && s[0x17]==2 && (*(int32_t*)(s+0x67))==-190, "  fn_017927 T reached r=1 out=0");
+      /* T1: bf<cb, X>target, cf<mid, (cb-X)%3==0, not reached -> o1=+val o2=-val */
+      memset(s,0,sizeof s); *(int32_t*)(s+0xbf)=20; *(int32_t*)(s+0xcb)=100; *(int32_t*)(s+0xcf)=10; *(int32_t*)(s+0xc3)=5;
+      *(uint32_t*)(s+1)=70; o1=0; o2=0;
+      r = fn_017927(s, 10, &o1, &o2);
+      check(r==0 && o1==10 && o2==-10 && (*(int32_t*)(s+0x67))==5, "  fn_017927 T1 X>t cf<mid mod3: o1=+v o2=-v");
+      /* T2: bf<cb, X<=target, cf<mid, (cb-X)%3==0, not reached -> o1=-val o2=-val */
+      memset(s,0,sizeof s); *(int32_t*)(s+0xbf)=20; *(int32_t*)(s+0xcb)=100; *(int32_t*)(s+0xcf)=10; *(int32_t*)(s+0xc3)=-100;
+      *(uint32_t*)(s+1)=-200; o1=0; o2=0;
+      r = fn_017927(s, 10, &o1, &o2);
+      check(r==0 && o1==-10 && o2==-10 && (*(int32_t*)(s+0x67))==110, "  fn_017927 T2 X<=t cf<mid mod3: o1=-v o2=-v");
+      /* E reached: bf>=cb, cf>=mid, (val+Y)>=c3 -> r=1 */
+      memset(s,0,sizeof s); *(int32_t*)(s+0xbf)=100; *(int32_t*)(s+0xcb)=20; *(int32_t*)(s+0xcf)=600; *(int32_t*)(s+0xc3)=5;
+      *(uint32_t*)(s+1)=80; *(uint32_t*)(s+9)=10; o1=777; o2=888;
+      r = fn_017927(s, 0, &o1, &o2);
+      check(r==1 && o1==0 && o2==0 && (*(int32_t*)(s+0x67))==595, "  fn_017927 E reached r=1 out=0");
+      /* E no-mod3 not-reached -> o1 unchanged, o2=+val */
+      memset(s,0,sizeof s); *(int32_t*)(s+0xbf)=100; *(int32_t*)(s+0xcb)=20; *(int32_t*)(s+0xcf)=600; *(int32_t*)(s+0xc3)=100;
+      *(uint32_t*)(s+1)=0; o1=888; o2=0;
+      r = fn_017927(s, 5, &o1, &o2);
+      check(r==0 && o1==888 && o2==5 && (*(int32_t*)(s+0x67))==500, "  fn_017927 E no-mod3 no-reach: o1 unchanged o2=+v");
+      /* E1: bf>=cb, X>target, cf>mid, (X-cb)%3==0, not reached -> o1=+val o2=+val */
+      memset(s,0,sizeof s); *(int32_t*)(s+0xbf)=100; *(int32_t*)(s+0xcb)=20; *(int32_t*)(s+0xcf)=600; *(int32_t*)(s+0xc3)=100;
+      *(uint32_t*)(s+1)=581; o1=0; o2=0;
+      r = fn_017927(s, 7, &o1, &o2);
+      check(r==0 && o1==7 && o2==7 && (*(int32_t*)(s+0x67))==500, "  fn_017927 E1 X>t cf>mid mod3: o1=+v o2=+v"); }
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
     test_cpy_back();

@@ -456,7 +456,7 @@ int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3); /* 0x017530: twi
 int32_t fn_016a60(uint8_t *s, int32_t param2, int32_t *out);   /* 0x016a60: clamped move-toward-target */
 int32_t fn_017637(uint8_t *s, int32_t param2, int32_t *out);   /* 0x017637: clamped move-toward-target (corrected B-reached) */
 int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out);   /* 0x0174a2: clamp to [0,0x140); adjust out */
-extern uint8_t g_dat_63354[0x20];   /* clamp-bounds struct: [0x12],[0x16] int32 */
+extern uint8_t *g_dat_63354;   /* pointer to clamp-bounds struct: lo=P+0x12, hi=P+0x16 (double-deref) */
 extern uint8_t  g_dat_639e4;      /* DAT_000639e4 (byte) */
 extern uint8_t  g_dat_63f1e[16];  /* DAT_00063f1e (byte slots) */
 extern uint32_t g_dat_63f0c;      /* DAT_00063f0c (slot base) */
@@ -492,6 +492,7 @@ int32_t  fn_016fec(uint8_t *s, int32_t yref);   /* 0x016fec: grid-collision dete
 int32_t  fn_017ca6(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x017ca6: Bresenham diagonal stepper */
 int32_t  fn_01730b(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01730b: 2-phase X-then-Y move-toward-target */
 int32_t  fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01776f: 2D movement delta computer */
+int32_t  fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2);      /* 0x017927: 2D move/AI (double-deref bounds) */
 void     fn_032158(void);              /* 0x032158: entity list -> set targets to player + prng jitter */
 int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */

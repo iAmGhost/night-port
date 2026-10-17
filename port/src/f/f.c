@@ -1698,7 +1698,7 @@ int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3) { /* 0x017530: by
     return fn_016959(s, param2, param3);
 }
 
-uint8_t g_dat_63354[0x20];   /* 0x63354 clamp-bounds struct */
+uint8_t *g_dat_63354 = NULL;   /* 0x63354: POINTER to clamp-bounds struct; lo=P+0x12, hi=P+0x16 (double-deref) */
 
 int32_t fn_016a60(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x016a60: clamped move-toward-target */
     *(int32_t *)(s + 0x17) = 2;
@@ -1976,6 +1976,46 @@ int32_t fn_01730b(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   
     }
     *(int32_t *)(s + 0xaf) = st;
     return st >= 3;
+}
+
+int32_t fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2) {   /* 0x017927: 2D move/AI (double-deref bounds) */
+    *(int32_t *)(s + 0x17) = 2;
+    int32_t lo   = *(int32_t *)(g_dat_63354 + 0x12);
+    int32_t hi   = *(int32_t *)(g_dat_63354 + 0x16);
+    int32_t mid  = lo + ((hi - lo) >> 1);
+    int32_t s67  = *(int32_t *)(s + 0xcf) - *(int32_t *)(s + 0xc3);
+    *(int32_t *)(s + 0x67) = s67;
+    int32_t bf = *(int32_t *)(s + 0xbf);
+    int32_t cb = *(int32_t *)(s + 0xcb);
+    int32_t c3 = *(int32_t *)(s + 0xc3);
+    int32_t cf = *(int32_t *)(s + 0xcf);
+    int32_t target = ((bf + cb) >> 1) + s67;
+    int32_t X = (int32_t)fn_01519f(s);
+    if (bf < cb) {
+        int32_t d = cb - X;
+        if ((d % 3) == 0) {
+            if (X > target) { if (cf < mid) *out1 = val; else *out1 = -val; }   /* T1 */
+            else            { if (cf < mid) *out1 = -val; else *out1 = val; }    /* T2 */
+        }
+        if ((X - val) <= (bf + 0x1e)) {
+            int32_t Y = (int32_t)fn_0151d5(s);
+            if (cf < mid) { if ((Y - val) <= c3) { *out1 = 0; *out2 = 0; return 1; } }
+            else          { if ((val + Y) >= c3) { *out1 = 0; *out2 = 0; return 1; } }
+        }
+    } else {
+        int32_t d = X - cb;
+        if ((d % 3) == 0) {
+            if (X > target) { if (cf > mid) *out1 = val; else *out1 = -val; }   /* E1 */
+            else            { if (cf > mid) *out1 = -val; else *out1 = val; }    /* E2 */
+        }
+        if ((val + X) >= (bf - 0x1e)) {
+            int32_t Y = (int32_t)fn_0151d5(s);
+            if (cf < mid) { if ((Y - val) <= c3) { *out1 = 0; *out2 = 0; return 1; } }
+            else          { if ((val + Y) >= c3) { *out1 = 0; *out2 = 0; return 1; } }
+        }
+    }
+    if (bf < cb) *out2 = -val; else *out2 = val;   /* common tail (0x017c69) */
+    return 0;
 }
 
 int32_t fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   /* 0x01776f: 2D movement delta computer */

@@ -2388,6 +2388,43 @@ static void test_fn_04794a(void) {
     check(fail == 0, "  all vectors match ground-truth emulator (scratch/fp_04794a_ref.py)");
 }
 
+/* fn_0478f0/0478e2/04791a (0x0478xx): fn_04794a wrappers. Verified
+ * structurally against the differentially-verified fn_04794a: check the struct
+ * load (EAX=a, EDX=b or 3 stack scalars), the ESI composition
+ * ((b_exp_hi<<16)|a->exp), and the OUT store ({r_lo,r_hi,a->exp}). */
+static void test_fn_0478f0_cluster(void) {
+    int fail = 0;
+    fx128 a  = {0x12345678u, 0x80000001u, 0x4321};
+    fx128 b  = {0x9abcdef0u, 0x00000002u, 0x5678};
+    fx128 out;
+    uint32_t esi; uint64_t r;
+
+    fn_0478f0(&a, &out, &b);
+    esi = ((uint32_t)b.exp << 16) | (uint32_t)a.exp;
+    r   = fn_04794a(a.lo, a.hi, b.lo, b.hi, esi);
+    if (!(out.lo == (uint32_t)r && out.hi == (uint32_t)(r >> 32) && out.exp == a.exp)) { fail++; printf("  0478f0 mismatch\n"); }
+
+    fn_0478e2(&a, &out, &b);
+    esi = (((uint32_t)b.exp ^ 0x8000u) << 16) | (uint32_t)a.exp;
+    r   = fn_04794a(a.lo, a.hi, b.lo, b.hi, esi);
+    if (!(out.lo == (uint32_t)r && out.hi == (uint32_t)(r >> 32) && out.exp == a.exp)) { fail++; printf("  0478e2 mismatch\n"); }
+
+    { uint32_t blo=0x11111111u, bhi=0x22222222u, ehi=0x7777u;
+      fn_04791a(&a, &out, blo, bhi, ehi);
+      esi = (ehi << 16) | (uint32_t)a.exp;
+      r   = fn_04794a(a.lo, a.hi, blo, bhi, esi);
+      if (!(out.lo == (uint32_t)r && out.hi == (uint32_t)(r >> 32) && out.exp == a.exp)) { fail++; printf("  04791a mismatch\n"); } }
+
+    fx128 a2 = {0, 0, 0x20001}, b2 = {1, 1, 0}, out2;
+    fn_0478f0(&a2, &out2, &b2);
+    esi = ((uint32_t)b2.exp << 16) | (uint32_t)a2.exp;
+    r   = fn_04794a(a2.lo, a2.hi, b2.lo, b2.hi, esi);
+    if (!(out2.lo == (uint32_t)r && out2.hi == (uint32_t)(r >> 32) && out2.exp == a2.exp)) { fail++; printf("  0478f0 b mismatch\n"); }
+
+    printf("fn_0478f0/0478e2/04791a (0x0478xx fn_04794a wrappers): %s\n", fail ? "FAIL" : "PASS");
+    check(fail == 0, "  3 fn_04794a wrappers match struct load / ESI compose / OUT store");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3245,6 +3282,7 @@ int main(void) {
     test_fn_00035c5c();
     test_fn_047f54();
     test_fn_04794a();
+    test_fn_0478f0_cluster();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

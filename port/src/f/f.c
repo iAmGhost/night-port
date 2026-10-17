@@ -4468,3 +4468,29 @@ uint32_t tokenize(char *s, char **out, char **end_out)          /* 0x4595b */
     *end_out = pc3;
     return ret;
 }
+
+/* ---- 0x047xxx fn_04794a wrappers (register-ABI) ----
+ * All three load input A (EAX) and B (EDX struct for 0x0478f0/0x0478e2, or 3
+ * stack scalars for 0x04791a), compose ESI=(b_exp_hi<<16)|a->exp, call
+ * fn_04794a, and store the 64-bit result + a->exp into the OUT struct (the
+ * original EBX register: pushed at entry, overwritten as a temp, popped, then
+ * written to). 0x0478e2 additionally flips bit15 of b->exp before composing.
+ * Verified structurally against the differentially-verified fn_04794a. */
+static void fx4794a_store(fx128 *out, uint32_t a_lo, uint32_t a_hi, uint16_t a_exp,
+                          uint32_t b_lo, uint32_t b_hi, uint32_t exp_hi)
+{
+    uint32_t esi = ((exp_hi & 0xffffu) << 16) | (a_exp & 0xffffu);
+    uint64_t r = fn_04794a(a_lo, a_hi, b_lo, b_hi, esi);
+    out->lo = (uint32_t)(r & 0xffffffffu);
+    out->hi = (uint32_t)(r >> 32);
+    out->exp = a_exp;
+}
+
+void fn_0478f0(fx128 *a, fx128 *out, const fx128 *b)
+{ fx4794a_store(out, a->lo, a->hi, a->exp, b->lo, b->hi, (uint32_t)b->exp); }
+
+void fn_0478e2(fx128 *a, fx128 *out, const fx128 *b)
+{ fx4794a_store(out, a->lo, a->hi, a->exp, b->lo, b->hi, (uint32_t)(b->exp ^ 0x8000u)); }
+
+void fn_04791a(fx128 *a, fx128 *out, uint32_t b_lo, uint32_t b_hi, uint32_t exp_hi)
+{ fx4794a_store(out, a->lo, a->hi, a->exp, b_lo, b_hi, exp_hi); }

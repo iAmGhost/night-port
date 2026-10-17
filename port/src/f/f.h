@@ -146,6 +146,11 @@ void     fn_10b1d(void);                        /* 0x010b1d: CD track/TOC read (
 void     fn_048e60(uint32_t *p);                /* 0x048e60: 128-bit fixed-point normalize + Newton reciprocal divide */
 void     fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out); /* 0x047f54: fixed-point normalize (EAX:EDX in, EBX out) */
 uint64_t fn_04794a(uint32_t eax, uint32_t edx, uint32_t ebx, uint32_t ecx, uint32_t esi); /* 0x04794a: complex fixed-point normalize, register-ABI, returns (EDX<<32)|EAX */
+/* 0x047xxx FPU cluster value: 64-bit mantissa (lo:hi) + 16-bit exponent (lo@0,hi@4,exp@8). */
+typedef struct { uint32_t lo; uint32_t hi; uint16_t exp; } fx128;
+void fn_0478f0(fx128 *a, fx128 *out, const fx128 *b); /* 0x0478f0: fn_04794a wrapper (EAX=a,EBX=out,EDX=b); out={r_lo,r_hi,a->exp} */
+void fn_0478e2(fx128 *a, fx128 *out, const fx128 *b); /* 0x0478e2: as 0x0478f0 but b->exp bit15 flipped before compose */
+void fn_04791a(fx128 *a, fx128 *out, uint32_t b_lo, uint32_t b_hi, uint32_t exp_hi); /* 0x04791a: fn_04794a wrapper w/ scalar b (stack args; exp_hi low16) */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);

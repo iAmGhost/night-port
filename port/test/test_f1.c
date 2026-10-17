@@ -1893,6 +1893,15 @@ static void test_l10_accessors(void) {
       check(g_dat_639dc == 0x1c0, "  fn_03cad3 flag1 -> c-0x140"); }
     g_dat_63f50 = 2; g_dat_63f0c = 0x100; fn_034353(0xAB, 0x200);
     check(g_dat_63f14[2] == 0xAB && g_dat_63f28[2] == 0x100 && g_dat_63f0c == 0x200 && g_dat_63f50 == 3, "  fn_034353 slot update");
+    uint8_t zb[0x80] = {0}; fn_010376(zb, 0); /* zero fields -> no-op, no crash */
+    uint32_t a = heap_malloc(8), b = heap_malloc(8), c = heap_malloc(8);
+    check(a && b && c, "  fn_010376: allocated 3 blocks");
+    uint8_t sb[0x80] = {0};
+    *(uint32_t *)(sb + 0x6d) = a; *(uint32_t *)(sb + 0x71) = b; *(uint32_t *)(sb + 0x75) = c;
+    fn_010376(sb, 0);
+    uint32_t d = heap_malloc(8);
+    check(d != 0, "  fn_010376: freed 3 blocks, heap reusable");
+    heap_free_host(d);
 }
 
 int main(void) {

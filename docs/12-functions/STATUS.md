@@ -427,7 +427,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
 | [ ] | 0x010181 | 500 | FUN_00010181 | | |
-| [ ] | 0x010376 | 105 | FUN_00010376 | | |
+| [x] | 0x010376 | 105 | fn_010376 | free struct fields @0x6d/71/75 (heap_free_host) | 1:1 |
 | [ ] | 0x0103e0 | 230 | FUN_000103e0 | | |
 | [ ] | 0x0104c7 | 119 | FUN_000104c7 | | |
 | [ ] | 0x01053f | 48 | FUN_0001053f | | |

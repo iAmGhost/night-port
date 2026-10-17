@@ -1534,6 +1534,14 @@ void fn_034353(uint8_t a, uint32_t b) {                            /* 0x034353 *
     if (g_dat_63f50 > 9) g_dat_63f50 = 0;
 }
 
+void fn_010376(uint8_t *s, uint32_t unused) {                        /* 0x010376 */
+    (void)unused;
+    uint32_t f;
+    f = *(uint32_t *)(s + 0x6d); if (f) heap_free_host(f);
+    f = *(uint32_t *)(s + 0x71); if (f) heap_free_host(f);
+    f = *(uint32_t *)(s + 0x75); if (f) heap_free_host(f);
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

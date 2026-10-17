@@ -1495,8 +1495,10 @@ uint8_t  g_dat_63f14[16] = {0};
 uint32_t g_dat_63f28[16] = {0};
 uint8_t  g_dat_63f50 = 0;
 uint32_t g_dat_63f08 = 0;
-uint8_t  g_dat_62cd8[16] = {0};
-uint8_t  g_dat_62c58[16] = {0};
+uint8_t  g_dat_62cd8[128] = {0};
+uint8_t  g_dat_62c58[128] = {0};
+uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
+uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
 
 void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */
     uint8_t c = p[0x31];
@@ -1624,6 +1626,24 @@ int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0174
     if ((int32_t)fn_01519f(s) < 0) *out += param2;
     if ((int32_t)fn_01519f(s) > 0x13f) *out -= param2;
     return 0;
+}
+
+void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state machine */
+    key = key & 0xff;
+    uint8_t state = g_dat_62c58[key];
+    if (state == 4) {
+        if (key == 0x4d || key == 0x4b) {
+            if (g_dat_62a94 == 0) fn_034353((uint8_t)(0xb1 - key), g_dat_63f08);
+            else                   fn_034353((uint8_t)(key + 0x19), g_dat_63f08);
+        } else {
+            fn_034353(key, g_dat_63f08);
+        }
+        if (g_dat_62cd8[key] != 0) { g_dat_62c58[key] = 1; g_dat_62cd8[key]--; }
+        else                       { g_dat_62c58[key] = 0; }
+    } else {
+        if (state == 1) g_dat_62a94 = *(int32_t *)(g_dat_53c7c + 0x1b);
+        g_dat_62c58[key]++;
+    }
 }
 
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array

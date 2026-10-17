@@ -1953,6 +1953,17 @@ static void test_l10_accessors(void) {
       check(r == 0 && out == 15, "  fn_0174a2 F<0: out+=param2 ret=0");
       g_dat_639dc = 0; *(uint32_t*)(s+1) = 400; out = 10; r = fn_0174a2(s, 5, &out);  // F=400>0x13f
       check(r == 0 && out == 5, "  fn_0174a2 F>0x13f: out-=param2 ret=0"); }
+    { memset(g_dat_62c58, 0, 128); memset(g_dat_62cd8, 0, 128);
+      uint8_t cfg[0x20] = {0}; g_dat_53c7c = cfg; *(int32_t*)(cfg+0x1b) = 0x1234; g_dat_62a94 = 0;
+      fn_034635(5); check(g_dat_62c58[5] == 1, "  fn_034635 state=0: ++");
+      g_dat_62a94 = 0; fn_034635(5);
+      check(g_dat_62a94 == 0x1234 && g_dat_62c58[5] == 2, "  fn_034635 state=1: cfg[0x1b]+++");
+      memset(g_dat_62c58,0,128); memset(g_dat_62cd8,0,128); g_dat_62c58[0x4d]=4; g_dat_62cd8[0x4d]=3; g_dat_62a94=0;
+      fn_034635(0x4d); check(g_dat_62c58[0x4d]==1 && g_dat_62cd8[0x4d]==2, "  fn_034635 st4 M a94=0: st=1 cnt--");
+      memset(g_dat_62c58,0,128); memset(g_dat_62cd8,0,128); g_dat_62c58[0x4b]=4; g_dat_62cd8[0x4b]=0; g_dat_62a94=99;
+      fn_034635(0x4b); check(g_dat_62c58[0x4b]==0, "  fn_034635 st4 K a94!=0 cnt=0: st=0");
+      memset(g_dat_62c58,0,128); memset(g_dat_62cd8,0,128); g_dat_62c58[7]=4; g_dat_62cd8[7]=2; g_dat_62a94=0;
+      fn_034635(7); check(g_dat_62c58[7]==1 && g_dat_62cd8[7]==1, "  fn_034635 st4 other: st=1 cnt--"); }
 }
 
 int main(void) {

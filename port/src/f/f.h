@@ -459,8 +459,11 @@ extern uint8_t  g_dat_63f14[16];  /* DAT_00063f14 (byte slots) */
 extern uint32_t g_dat_63f28[16];  /* DAT_00063f28 (dword slots) */
 extern uint8_t  g_dat_63f50;      /* DAT_00063f50 (slot index) */
 extern uint32_t g_dat_63f08;      /* DAT_00063f08 (slot fill value) */
-extern uint8_t  g_dat_62cd8[16];  /* DAT_00062cd8 (counters) */
-extern uint8_t  g_dat_62c58[16];  /* DAT_00062c58 (flags) */
+extern uint8_t  g_dat_62cd8[128]; /* DAT_00062cd8 (counters, per-key) */
+extern uint8_t  g_dat_62c58[128]; /* DAT_00062c58 (flags, per-key) */
+extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
+extern uint8_t *g_dat_53c7c;   /* DAT_00053c7c (kb config ptr; [0x1b] int32) */
+void fn_034635(uint8_t key);            /* 0x034635: keyboard input state machine */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */

@@ -123,6 +123,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **CRITICAL: Ghidra decomp is UNRELIABLE for complex state machines**. fn_016959 (0x016959) decomp dropped the `s[0x17]=2` write + the 3rd param (output ptr at [EBP+0x10]) + misread the logic as a bool "containment check" returning `Z<0`. The disassembly shows a move-toward-target clamped-step function: `s[0x17]=2`; `F=fn_01519f(s)` (position), `X=s[0xbf]` (target); if F>X+step: `*out=-step`; if X-step<=F<=X+step (incl F==X): `*out=0`; if F<X-step: `*out=+step`; reached cases return 1; the ±step cases then (if `s[0xab]<0` return 1) else (`s[0xab]--` return 0). Corrected + 7 checks. RULE: for functions with side-effects / multiple params / branches, verify against the DISASSEMBLY, not just the Ghidra decomp. Simple single-expression accessors (the L10 batch) are safe from decomp. 0x017530 is a BYTE-IDENTICAL TWIN of 0x016959 (verified: same instruction mix, same REL branch offsets shifted by base 0xBE7, both call fn_01519f) — ported as an alias. (Earlier '0x015187 variant' note was a REL-normalization error.) | STATUS.md decisions |
 
 | 2026-07-08 | **L11 fn_016a60 (0x016a60, 302B) ported** — clamped move-toward-target: s[0x17]=2; F=fn_0151d5(s)=s[9]-g_dat_639e0, X=s[0xc3]; Branch A (F>X): if (F-param2<=X)||(F-param2<=g_dat_63354[0x12]) {out=0,ret=1} else {out=-param2; if s[0xab]<0 ret=1 else (s[0xab]--,ret=0)}. Branch B (F<=X): if F>=X {out=0,ret=1} else if (param2+F>=X)||(param2+F>=g_dat_63354[0x16]) {ret=1, NO *out write — LATENT BUG, replicated} else {out=+param2; countdown}. Uses new global g_dat_63354[0x20]. 5 checks. 0x017637 (302B) is likely its twin (same instruction mix from batch analysis) — verify via disasm next context. Remaining L11: 0x015a1f, 0x034635, 0x0174a2. | STATUS.md L11 |
+| 2026-07-08 | **L11 state-machines complete (5 ported this session)**: fn_016959 (move-toward-target, disasm-verified), fn_017530 (twin alias), fn_016a60 (clamped move-toward-target + global bounds g_dat_63354, latent B-reached no-*out), fn_017637 (corrected variant), fn_0174a2 (clamp-check [0,0x140) + out adjust), fn_034635 (keyboard input state machine: g_dat_62c58[key] state, g_dat_62cd8[key] count, calls fn_034353; new globals g_dat_62a94/g_dat_53c7c). EXPANDED g_dat_62c58/g_dat_62cd8 from [16] to [128] (the kb handler indexes by full key byte; 0x62c58/0x62cd8 are 0x80 apart in the original data layout). L11 is now clean-candidates-exhausted. | STATUS.md L11 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -550,7 +551,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x034295 | 105 | FUN_00034295 | | |
 | [ ] | 0x0342ff | 83 | FUN_000342ff | | |
 | [ ] | 0x03442e | 518 | FUN_0003442e | | |
-| [ ] | 0x034635 | 255 | FUN_00034635 | | |
+| [x] | 0x034635 | 255 | fn_034635 | keyboard input state machine (g_dat_62c58[key] state; calls fn_034353) | 1:1 (disasm; 5 checks) |
 | [ ] | 0x034990 | 126 | FUN_00034990 | | |
 | [ ] | 0x034aba | 387 | FUN_00034aba | | |
 | [ ] | 0x034f31 | 376 | FUN_00034f31 | | |

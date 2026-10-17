@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 194 / 528 done
+TOTALS: 195 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 194 / 528 done
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 20 | 0 | 0 | 61 |
+| L10 | 81 | 21 | 0 | 0 | 60 |
 | L11 | 77 | 24 | 0 | 0 | 53 |
 | L12 | 58 | 3 | 0 | 0 | 55 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -152,6 +152,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_03a594 (0x03a594, 98B) ported** — filtered byte copy. Full disasm confirmed ABI dest=EAX, src=EDX, count=EBX: `for i in 0..count-1: if (src[i] != 0xff) dest[i] = src[i]`. Bytes equal to 0xff are NOT copied (dest[i] left unchanged) — a masked/conditional copy, no globals or external deps (one of the rare fully-portable L10 candidates). 3 checks: mixed 0xff pattern (copied + skipped slots verified byte-by-byte) + all-0xff src (dest fully unchanged). L10 17->18, TOTALS 191->192, suite 667 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **fn_036626 (0x036626, 125B) ported** — case-insensitive string->value table lookup. Full disasm (the Ghidra decomp mislabelled the loop bound as `< 0`) confirmed: `for i in 0..g_dat_633a0: if (str_icmp(&g_tab_5d884[i*21], s, str_len(s)) == 0) result = *(i32*)&g_tab_5d884[i*21+13]`; returns result (or 0). s=EAX. The table @0x5d884 is 21-byte RODATA entries {str[13]; int32 value@13; pad[4]}; bound by global g_dat_633a0 (added). Added g_dat_633a0 + g_tab_5d884[128*21] globals. Value read uses memcpy (offset 13 is unaligned). Depends on str_len (0x41f5d) + str_icmp (0x423e5), both already ported. Note: a shorter query that is a prefix of a table string still matches (faithful — the compare length is str_len(query), not the table entry's). 5 checks (exact, query-lower, query-upper, entry-upper, no-match->0) against a synthetic 3-entry table. L10 18->19, TOTALS 192->193, suite 672 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **fn_03493e (0x03493e, 72B) ported** — slot-byte read. No args, returns AL. The slot index is g_dat_63f50 (wraps 0..9, already ported). Full disasm (Ghidra decomp said the index==0 case returns 0 — WRONG) confirmed: if g_dat_63f50==0 return the byte at 0x63f1d else the byte at 0x63f13+g_dat_63f50. Key layout fact: 0x63f13 is a standalone byte, and g_dat_63f14[16] (already ported) starts at 0x63f14, so 0x63f1d == g_dat_63f14[9] and 0x63f13+k == g_dat_63f14[k-1] for k>=1. The 0x63f13 byte itself is never read (index 0 special-cased to 0x63f1d). So fn_03493e reuses the existing g_dat_63f14 — no new table needed: `(g_dat_63f50==0) ? g_dat_63f14[9] : g_dat_63f14[g_dat_63f50-1]`. 4 checks (index 0->[9], 1->[0], 5->[4], 9->[8]) against a known g_dat_63f14 fill. L10 19->20, TOTALS 193->194, suite 676 PASS 0 FAIL. | STATUS.md L10 |
+| 2026-07-08 | **fn_0405de (0x0405de, 82B) ported** — store 4 16-bit values. ABI p1=EAX, p2=EDX, p3=EBX, p4=ECX. Full disasm showed the Ghidra decomp's `& 0xffff0000ffff` mask was misleading — it is actually 4 separate 16-bit stores: `XOR EAX,EAX; MOV AX,reg; MOV [0x40014/18/1c/20],EAX`, i.e. g_dat_40014=low16(p1), g_dat_40018=low16(p2), g_dat_4001c=low16(p3), g_dat_40020=low16(p4) (each zero-extended to a 4-byte global). Added 4 globals g_dat_40014/18/1c/20 (consecutive after the already-ported g_dat_40010 frame-pitch at 0x40010). 5 checks (each low16 stored to the right slot + high16 dropped/zero-extended). L10 20->21, TOTALS 194->195, suite 681 PASS 0 FAIL. | STATUS.md L10 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -531,7 +532,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03ffab | 97 | FUN_0003ffab | | |
 | [ ] | 0x040570 | 54 | FUN_00040570 | | |
 | [ ] | 0x0405a7 | 54 | FUN_000405a7 | | |
-| [ ] | 0x0405de | 82 | FUN_000405de | | |
+| [x] | 0x0405de | 82 | FUN_000405de | | |
 | [x] | 0x040631 | 46 | fn_040631 | g_dat_40010=low16(p); return low16 | 1:1 |
 | [ ] | 0x040788 | 111 | FUN_00040788 | | |
 | [ ] | 0x0407f8 | 64 | FUN_000407f8 | | |

@@ -433,6 +433,11 @@ void     fn_043280(uint8_t *dest, uint32_t pattern, uint32_t count);   /* 0x0432
 extern uint32_t g_dat_62d64;    /* DAT_00062d64 */
 uint32_t fn_010e15(void);                /* 0x010e15: return g_dat_53c60 */
 uint32_t fn_040631(uint32_t param);      /* 0x040631: g_dat_40010 = low16(param); return low16 */
+extern uint32_t g_dat_40014;   /* DAT_00040014 (low16 slot) */
+extern uint32_t g_dat_40018;   /* DAT_00040018 (low16 slot) */
+extern uint32_t g_dat_4001c;   /* DAT_0004001c (low16 slot) */
+extern uint32_t g_dat_40020;   /* DAT_00040020 (low16 slot) */
+void fn_0405de(uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4);  /* 0x0405de: store 4 low16 to 0x40014..0x40020 */
 uint32_t fn_01520b(const uint8_t *p);    /* 0x01520b: return *(uint32*)(p+5) */
 uint32_t fn_034a87(void);                /* 0x034a87: v=g_dat_62d64; g_dat_62d64+=11; return v */
 extern uintptr_t g_node_arena_base;    /* node-arena base (s_node_arena) */

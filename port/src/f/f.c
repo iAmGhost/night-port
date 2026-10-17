@@ -1549,6 +1549,18 @@ static inline void     node_flag_set(uint32_t o, uint8_t v){ s_node_arena[o+10]=
 
 uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */
 uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
+uint32_t g_dat_40014 = 0, g_dat_40018 = 0, g_dat_4001c = 0, g_dat_40020 = 0;
+/* 0x0405de: store 4 16-bit values. ABI p1=EAX, p2=EDX, p3=EBX, p4=ECX. Each is
+ * zero-extended (XOR EAX,EAX; MOV AX,reg) and stored to consecutive globals:
+ * g_dat_40014=low16(p1), g_dat_40018=low16(p2), g_dat_4001c=low16(p3),
+ * g_dat_40020=low16(p4). Ghidra's 0xffff0000ffff mask is 4 separate 16-bit
+ * stores, not a bit-pack. */
+void fn_0405de(uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4) {
+    g_dat_40014 = p1 & 0xffff;
+    g_dat_40018 = p2 & 0xffff;
+    g_dat_4001c = p3 & 0xffff;
+    g_dat_40020 = p4 & 0xffff;
+}
 uint32_t fn_01520b(const uint8_t *p) { return *(const uint32_t *)(p + 5); }  /* 0x01520b */
 uint32_t fn_034a87(void) { uint32_t v = g_dat_62d64; g_dat_62d64 += 11; return v; }  /* 0x034a87 */
 

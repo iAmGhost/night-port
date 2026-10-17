@@ -2001,6 +2001,16 @@ static void test_fn_03493e(void) {
     g_dat_63f50 = 9; check(fn_03493e() == g_dat_63f14[8], "  index 9 -> g_dat_63f14[8]");
     g_dat_63f50 = 0;
 }
+static void test_fn_0405de(void) {
+    printf("fn_0405de (0x0405de)\n");
+    fn_0405de(0x12345678, 0xAABBCCDD, 0x00FF00FF, 0xCAFEBABE);
+    check(g_dat_40014 == 0x5678, "  g_dat_40014 = low16(p1)");
+    check(g_dat_40018 == 0xCCDD, "  g_dat_40018 = low16(p2)");
+    check(g_dat_4001c == 0x00FF, "  g_dat_4001c = low16(p3)");
+    check(g_dat_40020 == 0xBABE, "  g_dat_40020 = low16(p4)");
+    fn_0405de(0xFFFF0001, 0, 0, 0);
+    check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
+}
 static void test_fn_03442e(void) {
     printf("fn_03442e (0x03442e)\n");
 
@@ -2632,6 +2642,7 @@ int main(void) {
     test_fn_03a594();
     test_fn_036626();
     test_fn_03493e();
+    test_fn_0405de();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

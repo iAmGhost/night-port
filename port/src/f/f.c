@@ -468,6 +468,18 @@ void fn_043381(void)
     /* no-op: DPMI real-mode return + register/flag save; flat-model no effect */
 }
 
+/* 0x04391d: DOS/DPMI timer-vector setup (17 ins). swi(0x21) AH=0x25 AL=0x04:
+ * Set Interrupt Vector 4 (18.2 Hz timer) = DAT_00053408:DAT_00053404. If
+ * DAT_000533b2 >= 3: dos_install_timer_int(); else manipulate CR0.ET (real-mode
+ * FPU trap bit). All of it is DPMI/DOS/CR0-specific with no flat-model effect, and
+ * dos_install_timer_int is already a ported no-op, so this is a no-op standin. */
+void fn_04391d(void)
+{
+    /* swi(0x21) AH=0x25 AL=0x04: set int vector 4 = [0x53408]:[0x53404] (no flat effect) */
+    if (g_heap_cfg_b2 >= 3) dos_install_timer_int();   /* 0x43934-4393d */
+    /* else: CR0.ET bit set/clear (0x43944-43954) -- DPMI-specific, no flat effect. */
+}
+
 /* cb_noop  orig: 0x0423b6
  *   RET
  * A single-byte RET: the default (no-op) handler for the 3-slot callback

@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 208 / 528 done
+TOTALS: 209 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 29 | 0 | 0 | 18 |
+| L1 | 47 | 30 | 0 | 0 | 17 |
 | L2 | 32 | 11 | 0 | 0 | 21 |
 | L3 | 21 | 9 | 0 | 0 | 12 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -161,6 +161,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_043324 (0x043324, 55B) ported** — DPMI real-mode transition save-side (register-ABI: reads caller EDI=context, EBX=rm_ptr). Saves 7-word reg context + [EBX]=ES/[EBX+6]=AX, then calls rm_switch_a (0x04335c). In the flat model rm_switch_a is a no-op and no real-mode code runs between save/restore, so the context write is never read back and the register-ABI save can't be reproduced in C -> faithful no-op standin. **Discovered 0x04335c is already rm_switch_a (L0 batch A) and 0x0433ce is rm_switch_b — my initial fn_04335c was a duplicate, removed; 0x043324 (the save-side) is the distinct unported fn.** 1 check. L1 25->26, TOTALS 204->205, suite 716 PASS 0 FAIL. | STATUS.md L1 |
 | 2026-07-08 | **fn_041439 (0x041439, 24 ins) ported** — IRQ handler (PUSHAD+segs; CLD; seg_ds_load; irq_cli; DAT_00063f84=2; inb(DAT_00053334+0xe); outb(0x20,0x20)=8259 PIC EOI; irq_sti; IRETD). All callees (seg_ds_load/irq_cli/inb/outb/irq_sti) already ported as flat-model no-op sys stubs; IRETD has no C equivalent (handler returns). Only observable effect = DAT_00063f84=2. Added globals g_dat_63f84 + g_dat_53334. Note: the L1 deferral note's "deps 0x469d9+DAT_00063f84+DAT_00053334 unported" was STALE (those deps are ported/now-added). 1 check. L1 26->27, TOTALS 205->206, suite 717 PASS 0 FAIL. | STATUS.md L1 |
 | 2026-07-08 | **fn_03ee88 + fn_043381 ported** — (1) fn_03ee88 (0x03ee88, 38 ins) timer/IRQ tick handler: advances 63e28 (wrap@8 -> 63f08++), 63e24, 63e3c (wrap@18 -> 63e40++), 63e38, 63e30 (+= 63e2c, wrap@0xffff -> 63e34++), then irq_sti + outb(0x20,0x20) PIC EOI; IRETD not portable. All 4 I/O callees ported. Added 8 globals (63e28/24/3c/38/40/30/2c/34; 63f08 existed). 8 checks. (2) fn_043381 (0x043381, 34 ins) DPMI real-mode return: calls rm_switch_b + saves reg/flag state to ctx (register-ABI, no flat-model effect) -> no-op standin. Note: the stale L1 deferral note still lists 0x043381/0x043324/0x0431b5/0x041439 as pending but they are all now [x]. L1 27->29, TOTALS 206->208, suite 726 PASS 0 FAIL. | STATUS.md L1 |
+| 2026-07-08 | **fn_04391d (0x04391d, 17 ins) ported** — DOS/DPMI timer-vector setup: swi(0x21) AH=0x25 AL=0x04 (set int vector 4 = DAT_00053408:DAT_00053404), then if DAT_000533b2>=3 dos_install_timer_int() else CR0.ET bit op. All DPMI/DOS/CR0-specific, no flat-model effect; dos_install_timer_int is a ported no-op -> no-op standin (2 smoke checks). Also deferred 0x042ccc (41 ins, DPMI heap free-all shutdown: walks g_heap_head chain + heap_unlink + INT 31h AH=502/INT 21h AH=49 frees; g_heap_head IS used by the flat heap so the unlink loop has real effect but it is a shutdown-only DPMI cleanup, deferred) and 0x043e34 (93 ins field-descriptor read w/ ES-seg far pointers + data-driven callbacks) + 0x047b79 (177-ins 64-bit FPU) as complex. L1 29->30, TOTALS 208->209, suite 728 PASS 0 FAIL. | STATUS.md L1 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -301,7 +302,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x043280 | 48 | fn_043280 | byte-pattern fill | 1:1 (disasm; 3 checks) |
 | [x] | 0x043324 | 55 | fn_043324 | | DPMI real-mode save-side; no-op standin |
 | [x] | 0x043381 | 76 | fn_043381 | | DPMI real-mode return; flat no-op (reg/flag save) |
-| [ ] | 0x04391d | 58 | FUN_0004391d | | |
+| [x] | 0x04391d | 58 | fn_04391d | | DOS timer-vector setup; flat no-op (int-vec4/CR0.ET) |
 | [ ] | 0x043e34 | 237 | FUN_00043e34 | | |
 | [ ] | 0x0440a9 | 733 | FUN_000440a9 | | |
 | [x] | 0x04457f | 38 | hex_digit_value | string | port+test PASS (hex digit: 0-9, a-f->10-15, else 16; via to_lower 0x44859) |

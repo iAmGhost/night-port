@@ -2041,6 +2041,17 @@ static void test_fn_043381(void) {
     check(1, "  no-op smoke");
 }
 
+static void test_fn_04391d(void) {
+    printf("fn_04391d (0x04391d, DOS timer-vector setup)\n");
+    g_heap_cfg_b2 = 5;   // >= 3 -> dos_install_timer_int (no-op)
+    fn_04391d();
+    check(1, "  no-op smoke (install-timer path)");
+    g_heap_cfg_b2 = 0;   // < 3 -> CR0.ET path (no-op)
+    fn_04391d();
+    check(1, "  no-op smoke (CR0.ET path)");
+    g_heap_cfg_b2 = 0;
+}
+
 static void test_fn_043324(void) {
     printf("fn_043324 (DPMI real-mode transition, save side)\n");
     static uint32_t ctx[8] = {0x1,0x2,0x3,0x4,0x5,0x6,0x7,0x8};
@@ -2867,6 +2878,7 @@ int main(void) {
     test_fn_041439();
     test_fn_03ee88();
     test_fn_043381();
+    test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

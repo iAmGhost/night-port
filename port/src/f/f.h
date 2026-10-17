@@ -157,6 +157,7 @@ extern uint32_t g_dat_63e2c;               /* DAT_00063e2c: tick rate increment 
 extern uint32_t g_dat_63e34;               /* DAT_00063e34: high frame counter */
 void     fn_03ee88(void);                   /* 0x03ee88: timer/IRQ tick handler (counter wraps) */
 void     fn_043381(void);                   /* 0x043381: DPMI real-mode return (flat no-op) */
+void     fn_04391d(void);                   /* 0x04391d: DOS/DPMI timer-vector setup (flat no-op) */
 /* 1-byte RET: the default no-op for the 3-slot callback table
  * (DAT_0005336c/70/74), invoked by dispatchers 0x000423b7/0x000423cf and
  * replaced at runtime once real handlers are installed.  orig: 0x0423b6 */

@@ -34,21 +34,21 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 219 / 528 done
+TOTALS: 220 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 31 | 0 | 0 | 16 |
-| L2 | 32 | 13 | 0 | 0 | 19 |
-| L3 | 21 | 9 | 0 | 0 | 12 |
-| L4 | 13 | 2 | 0 | 0 | 11 |
-| L5 | 10 | 1 | 0 | 0 | 9 |
+| L2 | 32 | 14 | 0 | 0 | 18 |
+| L3 | 21 | 8 | 0 | 0 | 13 |
+| L4 | 13 | 1 | 0 | 0 | 12 |
+| L5 | 10 | 2 | 0 | 0 | 8 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 26 | 0 | 0 | 55 |
+| L10 | 81 | 27 | 0 | 0 | 54 |
 | L11 | 77 | 24 | 0 | 0 | 53 |
 | L12 | 58 | 3 | 0 | 0 | 55 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -107,6 +107,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **Three clean wrapper/constant wins** (callee sweep of the 30 smallest unported fns): (1) **fn_04322f** (0x04322f, 4B) = `mov eax,-1; ret`, returns -1. (2) **fn_044848** (0x044848, 16B) = lseek wrapper: sets EBX=1/EDX=0 then fn_044807(handle,0,SEEK_SET); caller param_2/3 clobbered, only handle observable. (3) **fn_049a0b** (0x049a0b, 27B) = unix-time decoder: writes out->mode=0 (+0x20) then fn_0498f6(0x63df=25567 days [1900->1970 epoch], *seconds, 0, out). Extended struct dec_datetime with a `mode` field at +0x20 (set by 0x49a0b, read by 0x49506). 6 checks (fn_049a0b(0)=Jan 1 1970 verified). L2 12->13, L4 0->2, TOTALS 211->214, suite 745 PASS 0 FAIL. **Note the date subsystem chain**: 0x49506->0x4574a->(0x49a35,0x49613) still gated; JMP-thunks (0x41fa1/0x42044/0x41e94/0x429e5/0x44c1e/0x46d00) depend on unported targets; 0x46d47/0x478e2 are vtable/tail-merges (deferred). | STATUS.md L2/L4 |
 | 2026-07-08 | **Two flag-guarded IRQ-installer wins (L10)**: (1) **fn_03eff2** (0x03eff2, 132B) installs the IRQ 0x1c (FPU) handler when g_dat_63e4a==1: isr_set(0x1c,off,seg) + PIT ch0 mode 0x36/0xff/0xff, then clears the flag; wrapped in irq_cli/irq_sti (no-op standins). (2) **fn_03ffab** (0x03ffab, 97B) installs the IRQ 9 handler when g_dat_63e86==1: isr_set(9,off,seg), clears the flag, mirrors the IRQ-9 source byte g_dat_63f51 into the real-mode low-memory flag g_dat_00417 (DAT_00000417). Both are **no-arg in effect** (Ghidra's inferred ECX/param_3 stack params are never read — verified by disasm). Supersedes the L10 deferral note (line 124) that held 0x03ffab as "FUN_00042361-dependent" — isr_set (0x42361) is now ported. The canary prologue (PUSH 0xNN; CALL 0x418ee) is the compiler stack-overflow check, NOT real logic — omitted per established convention (canary_id has exactly 1 self-ref in f.c). 9 globals added (63e4a/44/48, 63e86/80/84, 63f51, 00417). 5 checks. L10 21->23, TOTALS 214->216, suite 750 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **Three register-ABI (EAX-param) hardware wins (L10)**: (1) **fn_03575d** (0x03575d, 148B) = PIT channel-0 rate setup. Divisor passed in EAX (canary prologue preserves it); stores clamped divisor in g_dat_63318 (0->0x10000; >0x10000->0x10000 stored + 0 written), clears g_dat_6332c, writes PIT mode 0x34 + 16-bit divisor via outb (no-op). (2/3) **fn_03f3be / fn_03f410** (0x03f3be/0x03f410, 81B each) = VGA palette-register setters (INT 10h AX=0x4f05 "Set Palette Register"). `color` in EAX; value=color<<(g_dat_63e4c&0x1f); if value!=g_dat_63e50[index] store + issue INT10 (no-op standin). The two twins differ only in index global (0x3f3be->g_dat_63e5c, 0x3f410->g_dat_63e58) -- factored to a shared `palette_set(index,color)` helper. **Register-ABI assumption** (documented): the input EAX is passed as a C param; the `PUSH 0x20; CALL 0x418ee` canary prologue is a compiler stack-overflow check, omitted. INT 10h (VGA) is a no-op in the flat model -- only the palette cache update is observable. 6 new globals (6332c,63318,63e50[256],63e5c,63e58,63e4c). 7 checks (PIT clamp + palette cache). L10 23->26, TOTALS 216->219, suite 757 PASS 0 FAIL. | STATUS.md L10 |
+| 2026-07-08 | **fn_1053f (0x01053f, 48B) = DPMI INT 0x31h AX=0x101 (Set Debug Registers)**: DX = word at (DAT_00053c5c - 2). No DPMI in the flat model -> documented no-op standin; the DAT_00053c5c-2 read only feeds the no-op DPMI arg so it is not dereferenced (g_dat_53c5c tracked for fidelity). 1 global, 1 smoke check. Supersedes the line-126 deferral that listed 0x01053f/0x03f3be/0x03f410 as "DOS INT 21h/31h" -- the 0x03f3be/0x03f410 pair were actually VGA INT 10h palette setters (ported this turn), and 0x01053f is a DPMI INT 0x31h no-op (ported now). L10 26->27, TOTALS 219->220, suite 758 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **Remaining L1 deferrals (need dedicated passes)**: (a) **0x04a814 (57B table / larger decomp)** fx_mul wrapper — calls ported `fx_mul64` + `0x4a923` no-op; decompile garbles output (POP EBX via return-address) — needs disasm. (b) **0x047d24 (73B)** fx_mul64 wrapper — output via `POP EBX` (return-address trick); register ABI vs `fx_mul64` unconfirmed. (c) **0x047f54 (167B)** fx mul — schoolbook-split uVar2 + FPU load/rewrite + POP-EBX output. (d) **0x04711d (84B)** fx — FPU load/rewrite + garbled decompile. (e) **0x0422d5 (405B)** DOS I/O — INT 13h+disk. (f) **0x04391d (250B)** DOS I/O — INT 13h read. (g) **0x043381 (39B)** DOS I/O. (h) **0x0440a9 (49B)** DPMI real-mode far-call wrapper. (i) **0x043324 (64B)** DPMI 2.0 init. (j) **0x0431b5** heap size-adjuster (longer than the 18B boundary — runs to ~0x431f7): param_1=p; aligned=([p]+3) with low byte & 0xfc (low-byte-only mask quirk); if aligned==0 return 0; else if `(DAT_000533b2==1 && DAT_000533b3==0) || DAT_000533b2==9` → aligned+=8, else aligned-=FUN_00042ea1(); then *[p]=aligned. DEPENDS on unported FUN_00042ea1 + new globals DAT_000533b2/0x533b3 — not self-contained. (k) **0x0492d0 (71B)** FPU + 0x498f6 + 0x4a923. (l) **0x041439 (291B)** I/O ack — deps 0x469d9+DAT_00063f84+DAT_00053334 unported. All real; deferred. | STATUS.md L1 |
 | 2026-07-08 | **0x049a6e (277B) = time-string parser** (0x049a48 done as parse_decimal). 0x049a6e register ABI: EAX=input string, EDX=prefix-output buffer, EBX=total-seconds output ptr; returns EAX=position after the parsed time. Structure: (1) skip an optional leading ':'; (2) locate the offset of the first {digit, ',', '-', '+', NUL} char (skipping other chars), clamp to 30; (3) copy that prefix to EDX (REP MOVSD/MOVSB — plain memcpy in flat model) + NUL-terminate; (4) if the break char was '-' set a negate flag, '+' clears it; (5) parse the time via **three calls to 0x049a48** into [ESP]/[ESP+4]/[ESP+8] (hours/minutes/seconds, ':'-delimited), then `*EBX = c0 + c1*60 + c2*3600` (negated if '-'). 0x049a48 = parse_decimal (DONE, batch H + this turn): decimal parser WITH a scan loop, `v = v*10 + (*s-'0')`, returns `const char*` ptr past digits. **0x049a6e OFF-BY-ONE EDGE CASE:** after the break, EBP = break_pos+1 unconditionally — correct for a sign break char ('-'/'+') but for a pure "HH:MM:SS" (break char = first digit) it skips the leading digit, so the function seems to assume a sign is present — **PORTED as parse_time_str this turn (quirk replicated 1:1, documented as a latent bug; verified by 11 hand-traced tests). | STATUS.md L1 |
 | 2026-07-08 | **parse_decimal (0x049a48) completed + 0x042958 thunk resolved**: parse_decimal (batch H) returned void (dropped EAX = pointer-past-digits); completed the 1:1 contract → now returns `const char*` (first non-digit), used by 0x049a6e as its new scan position; added a return-position test. 0x042958 (4B) = `JMP 0x4564f` (delay_units, ported f.c:1151) — a call-site alias, no separate C fn. L1 10→11, TOTALS 121→122. | STATUS.md L1 |
@@ -477,7 +478,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x010376 | 105 | fn_010376 | free struct fields @0x6d/71/75 (heap_free_host) | 1:1 |
 | [ ] | 0x0103e0 | 230 | FUN_000103e0 | | |
 | [ ] | 0x0104c7 | 119 | FUN_000104c7 | | |
-| [ ] | 0x01053f | 48 | FUN_0001053f | | |
+| [x] | 0x01053f | 48 | fn_1053f | | DPMI INT 0x31 AX=0x101 (no-op in flat model) |
 | [x] | 0x010e15 | 43 | fn_010e15 | return g_dat_53c60 | 1:1 (canary prologue omitted) |
 | [ ] | 0x010efc | 1024 | FUN_00010efc | | |
 | [ ] | 0x0112fd | 233 | FUN_000112fd | | |

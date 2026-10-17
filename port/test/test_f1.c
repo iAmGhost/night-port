@@ -2174,6 +2174,12 @@ static void test_fn_03f3be(void) {
     check(g_dat_63e50[1] == 0x1200, "  0x3f410: uses 63e58 index");
 }
 
+static void test_fn_1053f(void) {
+    printf("fn_1053f (0x01053f, DPMI INT 0x31 no-op)\n");
+    fn_1053f();                       // DPMI no-op: must not crash
+    check(1, "  runs as no-op (no flat-model effect)");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -2982,6 +2988,7 @@ int main(void) {
     test_fn_03ffab();
     test_fn_03575d();
     test_fn_03f3be();
+    test_fn_1053f();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

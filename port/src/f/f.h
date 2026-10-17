@@ -105,6 +105,7 @@ void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handle
 void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (divisor in EAX) */
 void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
+void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);
@@ -191,6 +192,7 @@ extern uint32_t g_dat_63e50[256];          /* DAT_00063e50: per-register palette
 extern uint32_t g_dat_63e5c;               /* DAT_00063e5c: palette index (fn_03f3be) */
 extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03f410) */
 extern uint8_t  g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
+extern uintptr_t g_dat_53c5c;               /* DAT_00053c5c: DPMI far-pointer (debug-reg) */
 void     fn_03ee88(void);                   /* 0x03ee88: timer/IRQ tick handler (counter wraps) */
 void     fn_043381(void);                   /* 0x043381: DPMI real-mode return (flat no-op) */
 void     fn_04391d(void);                   /* 0x04391d: DOS/DPMI timer-vector setup (flat no-op) */

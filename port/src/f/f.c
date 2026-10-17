@@ -465,6 +465,17 @@ static void palette_set(uint32_t index, uint32_t color)
 void fn_03f3be(uint32_t color) { palette_set(g_dat_63e5c, color); }
 void fn_03f410(uint32_t color) { palette_set(g_dat_63e58, color); }
 
+/* fn_1053f  orig: 0x01053f
+ *   DPMI INT 0x31h AX=0x101 (Set Debug Registers): DX = word at (DAT_00053c5c - 2).
+ *   No DPMI in the flat model -> no-op. The DAT_00053c5c-2 read only feeds the
+ *   DPMI argument and has no observable flat-model effect, so it is not
+ *   dereferenced; the global is tracked for fidelity. */
+uintptr_t g_dat_53c5c = 0;   /* DAT_00053c5c: DPMI far-pointer (debug-reg source) */
+void fn_1053f(void)
+{
+    (void)g_dat_53c5c;   /* DPMI INT 0x31 AX=0x101: no-op in the flat model. */
+}
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).

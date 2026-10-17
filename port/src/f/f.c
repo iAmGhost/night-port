@@ -696,6 +696,62 @@ void fn_00035c5c(void) {
     }
 }
 
+/*
+ * 0x00047f54: fixed-point normalize (register-ABI). Inputs EAX:EDX = 64-bit
+ * fixed-point value (EAX=low, EDX=high); EBX = 12-byte output pointer
+ * { uint32 lo, uint32 hi, uint16 field }. Returns void.
+ *
+ * Disasm trace:
+ *   ecx=EDX; (EDX:EAX)<<=11 (shld edx,eax,11 + shl eax,11); ecx=(int32)EDX>>20 (sar);
+ *   cx=ecx&0x7ff (11-bit exponent candidate). Branches:
+ *     cx==0x7ff: cx=0x7fff; if value nonzero -> (spurious 0x0463dc call, EAX
+ *                saved+restored -> no-op) edx|=0x40000000; edx|=0x80000000.
+ *     0<cx<0x7ff: cx+=0x3c00 (bias); edx|=0x80000000.
+ *     cx==0 & value==0: ecx=0 (zero result).
+ *     cx==0 & value!=0 (subnormal): cx=0x3c01; if edx==0 { xchg eax,edx; cx-=0x20 };
+ *        then left-shift (edx:eax) by 1 (with carry) until edx bit31 set, cx-- each.
+ *   out[0]=eax; out[1]=edx; cf=(ecx>>31)&1 (add ecx,ecx); out[2]=(cx<<1)|cf (rcr cx,1).
+ * All cx values stay < 0x8000 so cf is always 0. The 0x0463dc call is spurious data
+ * in the 0x0461cc interpreter region -- its EAX return is popped/discarded, so it is
+ * a no-op standin here (documented approximation of the spurious call).
+ * Verified differential against scratch/fp_047f54_ref.py (2009 vectors).
+ */
+void fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out)
+{
+    uint32_t ecx = hi_in;                             /* mov ecx,edx */
+    uint64_t v = ((uint64_t)hi_in << 32) | lo_in;
+    v <<= 11;                                         /* shld edx,eax,11; shl eax,11 */
+    uint32_t eax = (uint32_t)v;
+    uint32_t edx = (uint32_t)(v >> 32);
+    ecx = (uint32_t)((int32_t)ecx >> 20);             /* sar ecx,20 */
+    uint16_t cx = (uint16_t)(ecx & 0x7ff);            /* and cx,0x7ff */
+    if (cx == 0x7ff) {
+        cx = 0x7fff;
+        if (edx != 0 || eax != 0) {
+            edx |= 0x40000000;                         /* 0x0463dc call no-op'd (EAX restored) */
+        }
+        edx |= 0x80000000;
+    } else if (cx != 0) {
+        cx = (uint16_t)(cx + 0x3c00);
+        edx |= 0x80000000;
+    } else if (edx != 0 || eax != 0) {
+        cx = 0x3c01;
+        if (edx == 0) { uint32_t t = eax; eax = edx; edx = t; cx = (uint16_t)(cx - 0x20); }
+        while (!(edx & 0x80000000)) {
+            uint32_t cf = (eax >> 31) & 1;
+            eax = (eax << 1) & 0xffffffff;
+            edx = ((edx << 1) + cf) & 0xffffffff;
+            cx = (uint16_t)(cx - 1);
+        }
+    } else {
+        ecx = 0;                                        /* sub ecx,ecx (zero result) */
+    }
+    out[0] = eax;
+    out[1] = edx;
+    uint32_t cf = (ecx >> 31) & 1;
+    out[2] = (uint16_t)(((cx << 1) | cf) & 0xffff);
+}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

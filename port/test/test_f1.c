@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include "../../scratch/fp_047f54_vectors.h"
 
 static int failures = 0;
 static void check(int ok, const char *what) {
@@ -2340,6 +2341,27 @@ static void test_fn_00035c5c(void) {
     check(g_dat_53c78==NULL, "  empty list (head=NULL) -> no-op");
 }
 
+static void test_fn_047f54(void) {
+    printf("fn_047f54 (0x047f54, fixed-point normalize)\n");
+    size_t n = sizeof(fp_047f54_vectors)/sizeof(fp_047f54_vectors[0]);
+    size_t firstbad = (size_t)-1;
+    int ok = 1;
+    for (size_t i=0;i<n;i++) {
+        const fp_047f54_vec_t *v = &fp_047f54_vectors[i];
+        uint32_t got[3] = {0,0,0};
+        fn_047f54(v->in_lo, v->in_hi, got);
+        if (got[0]!=v->exp.lo || got[1]!=v->exp.hi || (uint16_t)got[2]!=v->exp.field) {
+            if (firstbad==(size_t)-1) {
+                printf("    first mismatch at vector %zu: in={0x%08x,0x%08x}\n", i, v->in_lo, v->in_hi);
+                firstbad = i;
+            }
+            ok = 0;
+            break;
+        }
+    }
+    check(ok, "  all 2009 differential vectors match reference (scratch/fp_047f54_ref.py)");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3195,6 +3217,7 @@ int main(void) {
     test_fn_0003c7d7();
     test_fn_0003b5c0();
     test_fn_00035c5c();
+    test_fn_047f54();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

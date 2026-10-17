@@ -2255,6 +2255,22 @@ static void test_fn_000356ba(void) {
     check(g_dat_63330 == 0, "  DAT_00063330 = 0 (ticks=0)");
 }
 
+static void test_fn_0003c7d7(void) {
+    printf("fn_0003c7d7 (0x0003c7d7, struct reset) + 0x10a56/0x3f592 no-ops\n");
+    fn_00010a56(); fn_0003f592();
+    check(1, "  0x10a56/0x3f592 run as no-ops");
+    uint8_t s[0x40];
+    for (int i = 0; i < 0x40; i++) s[i] = 0xff;
+    g_dat_5d08c[0] = 1; g_dat_5d0a0[0x13] = 2;
+    fn_0003c7d7(s);
+    check(*(uint32_t*)(s+0x2a)==0 && *(uint32_t*)(s+0x2e)==0 && *(uint32_t*)(s+0x32)==0
+        && *(uint32_t*)(s+0x36)==0 && s[0x3a]==0 && s[0x3b]==0,
+        "  zeroes the 6 struct fields (+0x2a..+0x3b)");
+    check(s[0x29] == 0xff && s[0x3c] == 0xff, "  leaves neighboring fields untouched");
+    check(g_dat_5d08c[0]==0 && g_dat_5d08c[0x13]==0 && g_dat_5d0a0[0x13]==0,
+        "  memsets DAT_0005d08c + DAT_0005d0a0 to 0");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3107,6 +3123,7 @@ int main(void) {
     test_cd_dpmi_noops();
     test_fn_00041bdc();
     test_fn_000356ba();
+    test_fn_0003c7d7();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

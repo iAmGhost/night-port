@@ -121,6 +121,11 @@ void fn_00035d0f(void);                         /* 0x00035d0f: DMA channel busy-
 void fn_000356ba(uint32_t ticks);               /* 0x000356ba: PIT ch0 rate setup from ticks (reg-ABI) */
 extern int32_t  g_dat_530b4;                    /* DAT_000530b4: timer rate multiplier */
 extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick value */
+void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
+void fn_0003f592(void);                         /* 0x0003f592: VGA vline to A0000 + palette (no-op, unmodeled buffer) */
+void fn_0003c7d7(uint8_t *s);                   /* 0x0003c7d7: zero 6 struct fields + memset DAT_0005d08c/5d0a0 */
+extern uint8_t g_dat_5d08c[0x14];               /* DAT_0005d08c */
+extern uint8_t g_dat_5d0a0[0x14];               /* DAT_0005d0a0 */
 void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (divisor in EAX) */
 void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */

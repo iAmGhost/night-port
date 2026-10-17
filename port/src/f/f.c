@@ -571,6 +571,41 @@ void fn_000356ba(uint32_t ticks) {
     fn_03575d((uint32_t)q);
 }
 
+/* fn_00010a56  orig: 0x00010a56 (L12, 131B)
+ *   CD track-entry submit (register-ABI, index in EAX): if (index <
+ *   DAT_00053c60) copy a 5-dword entry from DAT_00051af0 into a stack struct,
+ *   compute an offset from DAT_00053c64[index*5], then fn_00010570(&struct,0)
+ *   -- a flat-model no-op trampoline. The only observable effect (the trampoline
+ *   call) is a no-op, so the whole function is a no-op. The register-ABI index
+ *   only feeds the no-op. */
+void fn_00010a56(void) {}
+
+/* fn_0003f592  orig: 0x0003f592 (L11, 178B)
+ *   VGA vertical-line plotter (register-ABI: pixel in CL, width/stride from
+ *   DAT_00063e64): computes a start offset, issues fn_03f3be (VGA palette,
+ *   no-op) and writes param_3 strided pixels into the A0000 video buffer
+ *   (&DAT_000a0000). DAT_000a0000 is not modeled in the flat port and fn_03f3be
+ *   is a no-op, so every body effect is a no-op. No-op standin. */
+void fn_0003f592(void) {}
+
+uint8_t g_dat_5d08c[0x14];  /* DAT_0005d08c: 20-byte state buffer (zeroed by fn_0003c7d7) */
+uint8_t g_dat_5d0a0[0x14];  /* DAT_0005d0a0: 20-byte state buffer (zeroed by fn_0003c7d7) */
+
+/* fn_0003c7d7  orig: 0x0003c7d7 (L10, 123B)
+ *   Struct-field reset (register-ABI, struct pointer in EAX). Zeroes six fields
+ *   of *s (dwords at +0x2a/+0x2e/+0x32/+0x36, bytes at +0x3a/+0x3b) and memsets
+ *   the two 20-byte buffers DAT_0005d08c / DAT_0005d0a0 (fn_041e20). */
+void fn_0003c7d7(uint8_t *s) {
+    *(uint32_t *)(s + 0x2a) = 0;
+    *(uint32_t *)(s + 0x2e) = 0;
+    *(uint32_t *)(s + 0x32) = 0;
+    *(uint32_t *)(s + 0x36) = 0;
+    s[0x3a] = 0;
+    s[0x3b] = 0;
+    fn_041e20(g_dat_5d0a0, 0, 0x14);
+    fn_041e20(g_dat_5d08c, 0, 0x14);
+}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 183 / 528 done
+TOTALS: 184 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -50,7 +50,7 @@ TOTALS: 183 / 528 done
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 13 | 0 | 0 | 68 |
 | L11 | 77 | 24 | 0 | 0 | 53 |
-| L12 | 58 | 0 | 0 | 0 | 58 |
+| L12 | 58 | 1 | 0 | 0 | 57 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -143,6 +143,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_034aba (0x034aba, 387B) ported + node-arena model fixed** — 3-way interval-list splitter, fully traced from raw disasm (Ghidra decomp garbled the register ABI). Signature (a, idx, b, c, flag) [a=EAX, idx=EDX, b=EBX, c=ECX, flag=stack]. Node (11 B): [0]=start(int32) [4]=next [8]=len(int16) [10]=flag(byte); 11-byte nodes from fn_034a87 bump-allocator; head array g_dat_62d68[idx]. Logic: if a<0 {c-=a;b+=a;a=0;head=newnode1}; if a+b>=0x140 {b=0x140-a} (clamp, NOTE 0x140==320 not 352); end=a+b; walk list to node containing a (acc+=len until acc>=a); set newnode1 {len=b,start=c,flag}; svar2=head->len-(acc-a); if end>=0x140 (2-way): head->len=svar2, head->next=newnode1; else (3-way): walk to node containing end, newnode2 {len=acc-end, start=head->start+head->len-(acc-end), next=head->next, flag=head->flag}, pivar1->len=svar2, pivar1->next=newnode1, newnode1->next=newnode2. **ARENA MODEL FIX:** g_dat_62d64 (bump cursor) is a base-relative uint32 offset into a new 64KB static s_node_arena; g_dat_62d68[idx] + node->next store offsets (not pointers) — same offset pattern as the heap. **ALIGNMENT FIX:** node fields land on unaligned byte offsets (11-byte stride -> int16 at odd addr), so all field access is byte-wise (direct int16/int32 casts corrupt on arm64). 7 checks (3-way split, 2-way split). L11 21->22, TOTALS 180->181. Remaining L11 complex: 0x03442e, 0x017927, 0x016b8f. | STATUS.md L11 |
 | 2026-07-08 | **fn_03442e (0x03442e, 518B) ported** — rotating 10-slot event buffer. Param x in AL; the `PUSH 0x38; CALL 0x418ee` prologue is a stack-guard wrapper that XCHG-saves/restores EAX (so x survives it). Ghidra decomp was a FALSE stub (unreachable-block warnings) — fully traced from raw disasm. Dispatch on x (byte): 0x1d / 0x38 / (0x2a|0x36) / else. Each fires at most one branch, gated by the byte-flag globals g_dat_62c75/62c82/62c8e/62c90, stamping a marker ('g'=0x67/'h'=0x68/'i'=0x69) into g_dat_63f14[g_dat_63f50] and picking y in {0x1d,0x2a,0x38}. If a branch fired (z==1): g_dat_63f1e[slot]=0; g_dat_63f28[slot]=g_dat_63f08-g_dat_63f0c (int32 delta); advance slot (wrap 9->0); CALL fn_0343d1(x); then CALL fn_0343d1(0x1d) [y=0x1d], fn_0343d1(0x2a)+fn_0343d1(0x36) [y=0x2a], or fn_0343d1(0x38) [y=0x38]. Slot layout: 0x63f14[10] marker bytes, 0x63f1e[10] zero flags, 0x63f28[10] int32 deltas, 0x63f50 current slot. fn_0343d1(i) decrements g_dat_62cd8[i] + sets g_dat_62c58[i]. New globals g_dat_62c75/62c82/62c8e/62c90. 12 checks (all 4 x-branches, y-dispatch, slot advance + 9->0 wrap, no-match no-ops). L11 22->23, TOTALS 181->182. Remaining L11 complex: 0x017927, 0x016b8f. | STATUS.md L11 |
 | 2026-07-08 | **fn_017927 (0x017927, 894B) ported + g_dat_63354 pointer-model fix** — 2D move/AI handler (20 call sites, one per enemy-AI type). Signature (s, val, *out1, *out2) [s=EAX, val=EDX, EBX/ECX unused, out1/out2 = 2 stack args]. Fully traced from raw disasm (Ghidra decomp CONCAT-polluted + register-ABI misparse). **KEY FIX: g_dat_63354 is a POINTER, not a direct array.** Both fn_017927 AND fn_016a60 disasm show the double-deref (`MOV EAX,[0x63354]; CMP ...[EAX+0x12/0x16]`) — 0x63354 holds pointer P, bounds at P+0x12 (lo)/P+0x16 (hi). The 4 already-committed fns (fn_016a60/017637/017ca6/01730b) had modelled it as a direct array (one deref short) — a latent bug. Fix = change `uint8_t g_dat_63354[0x20]` -> `uint8_t *g_dat_63354` (the existing `*(int32_t*)(g_dat_63354+0x12)` accesses then correctly deref P); test main() points it at a static bounds buffer. All 4 fns' tests still pass (values read identical). Logic: s[0x17]=2 (dword); mid=lo+((hi-lo)>>1); s[0x67]=s[0xcf]-s[0xc3]; target=((s[0xbf]+s[0xcb])>>1)+s[0x67]; X=fn_01519f(s)=s[1]-g639dc. Branch on s[0xbf] < s[0xcb] (T) vs >= (E). T: if (cb-X)%3==0 {T1 X>target: out1=cf<mid?+val:-val; T2 else: out1=cf<mid?-val:+val}; reached if (X-val)<=(s[0xbf]+0x1e) {cf<mid: (Y-val)<=s[0xc3]->ret1; else: (val+Y)>=s[0xc3]->ret1} (out1=out2=0). E: if (X-cb)%3==0 {E1 X>target: out1=cf>mid?+val:-val; E2 else: out1=cf>mid?-val:+val}; reached if (val+X)>=(s[0xbf]-0x1e) {cf<mid: (Y-val)<=s[0xc3]; else: (val+Y)>=s[0xc3]->ret1}. Common tail (0x017c69): out2 = s[0xbf]<s[0xcb]?-val:+val; ret 0 (unless reached). Y=fn_0151d5(s)=s[9]-g639e0. out1=[EBP+0x14]=1st-stack-arg (mod-3 branches); out2=[EBP+0x10]=2nd-stack-arg (fall/tail). 6 checks (T/E reached, T1/T2/E1 mod-3, E no-mod3). L11 23->24, TOTALS 182->183. Remaining L11 complex: 0x016b8f (1116B). | STATUS.md L11 |
+| 2026-07-08 | **fn_034735 (0x034735, 141B) ported** — per-key state machine on the g_dat_62c58 (flags) / g_dat_62cd8 (counters) byte tables. Register-ABI: index in AL (low byte of EAX), preserved through the `PUSH 0x24; CALL 0x418ee` stack-guard (Ghidra decomp mislabelled it as `bVar1 = FUN_000418ee()`). Logic: if g_dat_62c58[idx]==4 { fn_034353(idx, g_dat_63f08); if g_dat_62cd8[idx]!=0 {62c58=1; 62cd8--} else 62c58=0 } else if g_dat_62c58[idx]<4 {62c58++; fn_03442e(idx)}. 5 checks (62cd8>0 dec, 62cd8==0 zero, <4 inc+dispatch, ==5 no-op). All callees (fn_034353/fn_03442e/tables) already ported. L12 0->1, TOTALS 183->184. NOTE: the other 2 L12 clean candidates — 0x03ba2c (89B, 200x fn_034aba loop, idx 0..199) and 0x03ba86 (187B, nested-loop data-table fn_034aba caller) — are deferred: 0x03ba2c exposes a latent g_dat_62d68[128] undersize (needs >=200) + needs a 200-call arena-diff test. | STATUS.md L12 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -646,7 +647,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x02fe1e | 7279 | FUN_0002fe1e | | |
 | [ ] | 0x03203d | 94 | FUN_0003203d | | |
 | [ ] | 0x03272f | 7013 | FUN_0003272f | | |
-| [ ] | 0x034735 | 173 | FUN_00034735 | | |
+| [x] | 0x034735 | 173 | FUN_00034735 | | |
 | [ ] | 0x03565a | 95 | FUN_0003565a | | |
 | [ ] | 0x0359c1 | 87 | FUN_000359c1 | | |
 | [ ] | 0x035ac0 | 75 | FUN_00035ac0 | | |

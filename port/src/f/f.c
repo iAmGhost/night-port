@@ -1619,6 +1619,17 @@ void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
  * when a branch fires (z==1) it records delta=g_dat_63f08-g_dat_63f0c into the
  * current slot, advances the slot (wrap 9->0), then calls fn_0343d1(x) plus
  * fn_0343d1(y)/fn_0343d1(0x36) depending on y. */
+void fn_034735(uint8_t idx) {                                    /* 0x034735: per-key state machine (62c58/62cd8) */
+    if (g_dat_62c58[idx] == 4) {
+        fn_034353(idx, g_dat_63f08);
+        if (g_dat_62cd8[idx] != 0) { g_dat_62c58[idx] = 1; g_dat_62cd8[idx]--; }
+        else                       { g_dat_62c58[idx] = 0; }
+    } else if (g_dat_62c58[idx] < 4) {
+        g_dat_62c58[idx]++;
+        fn_03442e(idx);
+    }
+}
+
 void fn_03442e(uint8_t x) {                                      /* 0x03442e */
     uint8_t y = 0;
     uint8_t z = 0;

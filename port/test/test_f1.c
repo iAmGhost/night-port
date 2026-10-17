@@ -2393,6 +2393,18 @@ int main(void) {
       *(uint32_t*)(s+1)=581; o1=0; o2=0;
       r = fn_017927(s, 7, &o1, &o2);
       check(r==0 && o1==7 && o2==7 && (*(int32_t*)(s+0x67))==500, "  fn_017927 E1 X>t cf>mid mod3: o1=+v o2=+v"); }
+    /* --- fn_034735: per-key state machine (62c58/62cd8) --- */
+    { uint8_t idx = 7;
+      g_dat_62c58[idx]=4; g_dat_62cd8[idx]=5; fn_034735(idx);
+      check(g_dat_62c58[idx]==1 && g_dat_62cd8[idx]==4, "  fn_034735 A: 62c58==4,62cd8>0 ->1 dec");
+      g_dat_62c58[idx]=4; g_dat_62cd8[idx]=0; fn_034735(idx);
+      check(g_dat_62c58[idx]==0 && g_dat_62cd8[idx]==0, "  fn_034735 B: 62c58==4,62cd8==0 ->0");
+      g_dat_62c58[idx]=2; g_dat_62cd8[idx]=0; fn_034735(idx);
+      check(g_dat_62c58[idx]==3, "  fn_034735 C: 62c58==2 ->3 (+03442e)");
+      g_dat_62c58[idx]=3; fn_034735(idx);
+      check(g_dat_62c58[idx]==4, "  fn_034735 E: 62c58==3 ->4 (+03442e)");
+      g_dat_62c58[idx]=5; g_dat_62cd8[idx]=9; fn_034735(idx);
+      check(g_dat_62c58[idx]==5 && g_dat_62cd8[idx]==9, "  fn_034735 D: 62c58==5 -> no-op"); }
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
     test_cpy_back();

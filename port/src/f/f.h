@@ -446,6 +446,7 @@ void fn_031f10(uint8_t *p, uint32_t val);  /* 0x031f10: ring push (count@0x31, b
 void fn_0348e2(void);                       /* 0x0348e2: slot-alloc (g_dat_63f50, wrap @9) */
 void fn_0343d1(uint8_t i);                  /* 0x0343d1: idx flag/counter (g_dat_62cd8/62c58) */
 void fn_03442e(uint8_t x);                  /* 0x03442e: rotating 10-slot event buffer */
+void fn_034735(uint8_t idx);                /* 0x034735: per-key state machine (62c58/62cd8) */
 void fn_03cad3(const uint8_t *p);           /* 0x03cad3: struct -> g_dat_639dc/e0/e4 */
 void fn_034353(uint8_t a, uint32_t b);      /* 0x034353: slot update (g_dat_63f1e/63f0c) */
 void fn_010376(uint8_t *s, uint32_t unused); /* 0x010376: free struct fields @0x6d/0x71/0x75 */

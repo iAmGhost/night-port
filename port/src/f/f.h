@@ -742,6 +742,12 @@ uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
  * EDX=mant_hi, EBX=count, ECX=arr, ESI=exp_base (low16). */
 uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
                    const fx128 *arr, uint32_t exp_base);                  /* 0x048f4c */
+/* 0x048f2c: register-ABI in-place. a = 048f4c(a, arr, count, exp=a->exp); a->exp
+ * unchanged. EAX=a (in/out {lo,hi,exp}), EDX=arr, EBX=count. */
+void fn_048f2c(fx128 *a, const fx128 *arr, uint32_t count);               /* 0x048f2c */
+/* 0x048f9e: register-ABI in-place. a = (048f4c(a*a, count, arr, a->exp)) * a;
+ * a->exp unchanged. EAX=a (in/out), EBX=count, EDX=arr. */
+void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr);               /* 0x048f9e */
 void     fx_stub_4a923(void);                                             /* 0x4a923 */
 void     fx_round_down(uint32_t *v, uint16_t mode);                       /* 0x481df */
 

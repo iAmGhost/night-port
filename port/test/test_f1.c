@@ -2447,6 +2447,31 @@ static void test_fn_048f4c(void) {
     check(fail == 0, "  count=1,2 match hand-sequenced fx_mul64/fn_04794a with literal ESI");
 }
 
+/* fn_048f2c / fn_048f9e (L2): in-place 048f4c wrappers. Structural test against
+ * hand-sequenced calls of the (verified) primitives; a->exp must be preserved. */
+static void test_fn_048f2c_048f9e(void) {
+    int fail = 0;
+    fx128 a0 = {0x00000003u, 0x00000004u, 0x2222};
+    fx128 arr[3] = { {0x1u,0x2u,0x1111}, {0x5u,0x6u,0x3333}, {0x7u,0x8u,0x4444} };
+    uint32_t count = 2;
+
+    fx128 a = a0;
+    uint64_t r = fn_048f4c(a0.lo, a0.hi, count, arr, a0.exp);
+    fn_048f2c(&a, arr, count);
+    if (a.lo != (uint32_t)r || a.hi != (uint32_t)(r >> 32) || a.exp != a0.exp) { fail++; printf("  048f2c mismatch\n"); }
+
+    fx128 b = a0;
+    uint32_t esi = ((uint32_t)a0.exp << 16) | (uint32_t)a0.exp;
+    uint64_t r2 = fx_mul64(a0.lo, a0.hi, a0.lo, a0.hi, esi);
+    uint64_t s  = fn_048f4c((uint32_t)r2, (uint32_t)(r2 >> 32), count, arr, a0.exp);
+    uint64_t t  = fx_mul64((uint32_t)s, (uint32_t)(s >> 32), a0.lo, a0.hi, esi);
+    fn_048f9e(&b, count, arr);
+    if (b.lo != (uint32_t)t || b.hi != (uint32_t)(t >> 32) || b.exp != a0.exp) { fail++; printf("  048f9e mismatch\n"); }
+
+    printf("fn_048f2c/048f9e (0x048f2c/0x048f9e, 048f4c wrappers): %s\n", fail ? "FAIL" : "PASS");
+    check(fail == 0, "  in-place 048f2c/048f9e match hand-sequenced calls, exp preserved");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3306,6 +3331,7 @@ int main(void) {
     test_fn_04794a();
     test_fn_0478f0_cluster();
     test_fn_048f4c();
+    test_fn_048f2c_048f9e();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

@@ -4521,3 +4521,28 @@ uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
     }
     return ((uint64_t)EDX << 32) | EAX;
 }
+
+/* 0x048f2c: register-ABI in-place wrapper around 0x048f4c. Loads a (EAX:
+ * {lo,hi,exp}), arr=EDX, count=EBX, calls 048f4c(a->lo,a->hi,count,arr,a->exp),
+ * stores the 64-bit result back into a (lo,hi); a->exp is preserved (the loaded
+ * SI is written back verbatim). */
+void fn_048f2c(fx128 *a, const fx128 *arr, uint32_t count)
+{
+    uint64_t r = fn_048f4c(a->lo, a->hi, count, arr, (uint32_t)a->exp);
+    a->lo = (uint32_t)r;
+    a->hi = (uint32_t)(r >> 32);
+}
+
+/* 0x048f9e: register-ABI in-place. Computes a = (048f4c(a*a, count, arr, a->exp))
+ * * a. ESI for both fx_mul64 calls = (a->exp<<16)|a->exp (the 16-bit half is
+ * replicated). a->exp preserved. Sequence: R=a*a (fx_mul64); S=048f4c(R,count,
+ * arr,a->exp); a = S*a (fx_mul64). Faithful mirror of the 30-instruction disasm. */
+void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr)
+{
+    uint32_t esi = ((uint32_t)a->exp << 16) | (uint32_t)a->exp;
+    uint64_t r = fx_mul64(a->lo, a->hi, a->lo, a->hi, esi);        /* R = a^2 */
+    uint64_t s = fn_048f4c((uint32_t)r, (uint32_t)(r >> 32), count, arr, (uint32_t)a->exp);
+    uint64_t t = fx_mul64((uint32_t)s, (uint32_t)(s >> 32), a->lo, a->hi, esi); /* t = s * a */
+    a->lo = (uint32_t)t;
+    a->hi = (uint32_t)(t >> 32);
+}

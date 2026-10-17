@@ -2012,6 +2012,13 @@ static void test_fn_0405de(void) {
     check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
 }
 
+static void test_fn_041439(void) {
+    printf("fn_041439 (0x041439, IRQ handler)\n");
+    g_dat_63f84 = 0; g_dat_53334 = 0x300;
+    fn_041439();
+    check(g_dat_63f84 == 2, "  sets DAT_00063f84 = 2 (only observable effect)");
+}
+
 static void test_fn_043324(void) {
     printf("fn_043324 (DPMI real-mode transition, save side)\n");
     static uint32_t ctx[8] = {0x1,0x2,0x3,0x4,0x5,0x6,0x7,0x8};
@@ -2835,6 +2842,7 @@ int main(void) {
     test_fn_044807();
     test_fn_049415();
     test_fn_043324();
+    test_fn_041439();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

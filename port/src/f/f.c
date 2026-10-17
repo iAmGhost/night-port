@@ -400,6 +400,28 @@ uint8_t inb(uint16_t port) {
     return sys_inb(port);
 }
 
+/* 0x041439: IRQ handler (24 ins, ends IRETD). Saves all regs (PUSHAD + 4 segs),
+ * CLD, then seg_ds_load(); irq_cli(); DAT_00063f84 = 2; inb(DAT_00053334 + 0xe);
+ * outb(0x20, 0x20) (8259 PIC EOI); irq_sti(); restores regs; IRETD.
+ *
+ * In the flat model the device I/O and the interrupt context are handled by the
+ * OS/SDL: seg_ds_load / irq_cli / irq_sti / inb / outb are no-op sys stubs and the
+ * IRETD has no C equivalent (the handler just returns to its caller). So the only
+ * observable effect is DAT_00063f84 = 2. The decompile's param_1/param_2 are the
+ * interrupt-entry registers (EAX:EDX), not real parameters. */
+uint32_t g_dat_63f84 = 0;              /* DAT_00063f84: IRQ/device state (0x041439 sets 2) */
+uint32_t g_dat_53334 = 0;              /* DAT_00053334: device port base */
+void fn_041439(void)
+{
+    seg_ds_load();                                /* 0x41449 */
+    irq_cli();                                    /* 0x4144e */
+    g_dat_63f84 = 2;                              /* 0x41453 */
+    (void)inb((uint16_t)(g_dat_53334 + 0xe));     /* 0x4145d-41465 */
+    outb(0x20, 0x20);                             /* 0x4146a-41474 (PIC EOI) */
+    irq_sti();                                    /* 0x41479 */
+    /* IRETD: not represented in the flat C model (handler returns). */
+}
+
 /* cb_noop  orig: 0x0423b6
  *   RET
  * A single-byte RET: the default (no-op) handler for the 3-slot callback

@@ -144,6 +144,9 @@ typedef struct {
 
 /* IN AL, DX — single-byte port read (companion to outb).  orig: 0x04238c */
 uint8_t  inb(uint16_t port);
+extern uint32_t g_dat_63f84;               /* DAT_00063f84: IRQ/device state (0x041439 sets 2) */
+extern uint32_t g_dat_53334;               /* DAT_00053334: device port base */
+void     fn_041439(void);                   /* 0x041439: IRQ handler (PIC EOI, sets DAT_00063f84=2) */
 /* 1-byte RET: the default no-op for the 3-slot callback table
  * (DAT_0005336c/70/74), invoked by dispatchers 0x000423b7/0x000423cf and
  * replaced at runtime once real handlers are installed.  orig: 0x0423b6 */

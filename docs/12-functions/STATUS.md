@@ -34,12 +34,12 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 205 / 528 done
+TOTALS: 206 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
-| L1 | 47 | 26 | 0 | 0 | 21 |
+| L1 | 47 | 27 | 0 | 0 | 20 |
 | L2 | 32 | 11 | 0 | 0 | 21 |
 | L3 | 21 | 9 | 0 | 0 | 12 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
@@ -159,6 +159,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_041e38 (0x041e38, 24B) + fn_03f084 (0x03f084, 218B) ported** — DPMI real-mode trampolines (flat-model no-op standins). 0x041e38 is trampoline B: shuffles 4 register args (EAX/EDX/EBX/ECX) into the 32-byte context at EBX and calls 0x043324 (DPMI INT 31h); in the flat model that call is a no-op, so it returns *EBX (first dword of the unchanged context). 0x03f084 reads 5 words from arg2 + 1 from arg4 into a local DPMI context, calls 0x041e38 with key 0x31; the no-op DPMI call never transforms the locals, so the observable effect is copying 4 of the 5 words (arg2 byte-offsets 0,4,8,0xc -> arg3[0,2,4,6]; the 5th, arg2[0x14], is dropped — faithful quirk) and returning arg2[0xc] zero-extended. 0x045dac (0B) documented as a 1-byte disassembly artifact (Ghidra boundary split; the coherent function is 0x045dad) — no C counterpart. 6 checks. L3 3->6, TOTALS 198->201, suite 710 PASS 0 FAIL. | STATUS.md L3 |
 | 2026-07-08 | **fn_042aba/fn_044807/fn_049415 (DOS INT 21h file ops) ported** — routed to new sys stubs. Since the INT 21h no-op leaves the result registers unset (a pure no-op would return AH-contaminated garbage), these route to `sys_file_read`(AH=3f)/`sys_file_lseek`(AH=42)/`sys_file_delete`(AH=41) in sys.h/sys.c, which return documented no-op defaults (0) until the TG_NIGHT.IMG/.CUE backend is wired (mid-subsystems). Args traced from register setup: 0x042aba(handle=EAX,buffer=EDX,count=EBX); 0x044807(handle=EAX,offset=EDX,whence=EBX, returns 32-bit pos w/ RCL/ROR/TEST sign-gate to -1 on error); 0x049415(name=EAX->EDX). The 0x045a82 error path is dead in the no-op (always success). **Remaining L3 (12) are all callee-gated**: 0x044a50(lock)+0x049236(seek/close) need unported 0x492d0 (FPU); 0x042fc2/0x04488b/0x049613 need unported callees; 0x0418c6/0x045dad/0x048754 are thunks to unported targets; 0x04876d(FPU) needs 0x47d24/0x47d4e; 0x041e51 is a fragile DPMI thunk (returns caller's *EBX); 0x048422/0x048a48/0x04a48f unchecked. 5 checks. L3 6->9, TOTALS 201->204, suite 715 PASS 0 FAIL. | STATUS.md L3 |
 | 2026-07-08 | **fn_043324 (0x043324, 55B) ported** — DPMI real-mode transition save-side (register-ABI: reads caller EDI=context, EBX=rm_ptr). Saves 7-word reg context + [EBX]=ES/[EBX+6]=AX, then calls rm_switch_a (0x04335c). In the flat model rm_switch_a is a no-op and no real-mode code runs between save/restore, so the context write is never read back and the register-ABI save can't be reproduced in C -> faithful no-op standin. **Discovered 0x04335c is already rm_switch_a (L0 batch A) and 0x0433ce is rm_switch_b — my initial fn_04335c was a duplicate, removed; 0x043324 (the save-side) is the distinct unported fn.** 1 check. L1 25->26, TOTALS 204->205, suite 716 PASS 0 FAIL. | STATUS.md L1 |
+| 2026-07-08 | **fn_041439 (0x041439, 24 ins) ported** — IRQ handler (PUSHAD+segs; CLD; seg_ds_load; irq_cli; DAT_00063f84=2; inb(DAT_00053334+0xe); outb(0x20,0x20)=8259 PIC EOI; irq_sti; IRETD). All callees (seg_ds_load/irq_cli/inb/outb/irq_sti) already ported as flat-model no-op sys stubs; IRETD has no C equivalent (handler returns). Only observable effect = DAT_00063f84=2. Added globals g_dat_63f84 + g_dat_53334. Note: the L1 deferral note's "deps 0x469d9+DAT_00063f84+DAT_00053334 unported" was STALE (those deps are ported/now-added). 1 check. L1 26->27, TOTALS 205->206, suite 717 PASS 0 FAIL. | STATUS.md L1 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -280,7 +281,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
 | [ ] | 0x03ee88 | 160 | FUN_0003ee88 | | |
-| [ ] | 0x041439 | 76 | FUN_00041439 | | |
+| [x] | 0x041439 | 76 | fn_041439 | | IRQ handler; flat-model no-op (PIC EOI/IRET) + DAT_00063f84=2 |
 | [x] | 0x041c28 | 8 | heap_free_guard | heap | port+test PASS (TEST EAX,EAX; JNZ heap_free_host(0x41c31); RET = NULL-tolerant free; guard(0)=pure no-op (RET, no g_heap_flag), guard(p) tail-frees; 6 checks) |
 | [x] | 0x041c31 | 93 | heap_free_host | heap | heap.md; port+test PASS (batch 7-8) |
 | [x] | 0x041e9f | 35 | prng_next | runtime | port+test PASS (LCG state=state*0x41c64e6d+0x3039; ret (state>>16)&0x7fff; 9-diff vs Python) |

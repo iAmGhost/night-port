@@ -285,7 +285,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x049a6e | 277 | parse_time_str | string/fmt | 11 tests PASS; off-by-one latent bug replicated (no-sign skips 1st digit); segmented copy = memcpy |
 | [x] | 0x049b84 | 241 | fn_049b84 | string | [J\|M]N[.N[.N]][/m:mi:s] datetime parser; 5 tests PASS |
 | [x] | 0x04a24d | 89 | config_value_ptr | string | port+test PASS (register ABI EAX=key; DAT_000537d4 = array of "key=value" char* NUL-terminated; strn_casecmp(prefix)+entry[len]=='=' -> ptr past '=' else 0; 9 cases) |
-| [ ] | 0x04a7fa | 24 | FUN_0004a7fa | | |
+| [x] | 0x04a7fa | 24 | fn_04a7fa | *out = a - fpu_rndint(a) (dist to nearest int) | 1:1 FPU |
 | [ ] | 0x04a814 | 57 | FUN_0004a814 | | |
 ## L2 (32)
 

@@ -1544,6 +1544,8 @@ void fn_010376(uint8_t *s, uint32_t unused) {                        /* 0x010376
 
 uint32_t fn_03518a(const uint8_t *p) { return ((uint32_t)p[0] << 8) | (uint32_t)p[1]; }  /* 0x03518a */
 
+void fn_04a7fa(double a, double *out) { *out = a - fpu_rndint(a); }  /* 0x04a7fa */
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

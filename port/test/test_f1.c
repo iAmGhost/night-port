@@ -1903,6 +1903,7 @@ static void test_l10_accessors(void) {
     check(d != 0, "  fn_010376: freed 3 blocks, heap reusable");
     heap_free_host(d);
     uint8_t q[2] = {0x12, 0x34}; check(fn_03518a(q) == 0x1234, "  fn_03518a BE16 read");
+    { double out; fn_04a7fa(5.0, &out); check(out == 0.0, "  fn_04a7fa integer -> 0"); fn_04a7fa(2.3, &out); check(out == 2.3 - fpu_rndint(2.3), "  fn_04a7fa = a - rndint"); }
 }
 
 int main(void) {

@@ -444,6 +444,7 @@ void fn_03cad3(const uint8_t *p);           /* 0x03cad3: struct -> g_dat_639dc/e
 void fn_034353(uint8_t a, uint32_t b);      /* 0x034353: slot update (g_dat_63f1e/63f0c) */
 void fn_010376(uint8_t *s, uint32_t unused); /* 0x010376: free struct fields @0x6d/0x71/0x75 */
 uint32_t fn_03518a(const uint8_t *p);          /* 0x03518a: BE 16-bit read (p[0]<<8)|p[1] */
+void fn_04a7fa(double a, double *out);          /* 0x04a7fa: *out = a - fpu_rndint(a) */
 extern uint8_t  g_dat_639e4;      /* DAT_000639e4 (byte) */
 extern uint8_t  g_dat_63f1e[16];  /* DAT_00063f1e (byte slots) */
 extern uint32_t g_dat_63f0c;      /* DAT_00063f0c (slot base) */

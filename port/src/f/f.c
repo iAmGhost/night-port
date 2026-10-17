@@ -2357,6 +2357,208 @@ void fn_0450da(char *out, int32_t value, int *spec) {
     }
 }
 
+/* 0x0451bc: typed field formatter/deserializer (1096 bytes, ~354 instructions, L3).
+ *
+ * Reads a field described by a state struct `st` (type code st[0x15] + flags st[0x14])
+ * from the byte stream at `*cur` (a read pointer, advanced by element size), formats the
+ * value into `out`, updates st's length/size/remainder fields, and returns the output
+ * pointer (the original `out` for numeric fields, the resolved source pointer for string
+ * fields, or the callback result for E/G/e/g fields).
+ *
+ * ABI: out=EAX, cur=EDX (pointer to the stream read pointer), st=EBX (state), alt=ECX
+ * (fallback pointer for null string sources).
+ *
+ * State fields: st+0x15 type; st+0x14 flags (0x01/02/04/10/20/40/80); st+0x16 char ('*'
+ * sentinel); st+0x17..19 3-byte prefix; st+0x04 size; st+0x08 length; st+0x0c remainder.
+ *
+ * Faithful quirks (verified in full disasm):
+ *  - Pre-pass value read: the word (flags&0x10) case still advances *cur by 4, not 2.
+ *  - 'o' prefix: writes '0' at out[0] and formats at out+1; leading-zero suppression writes
+ *    null at out[0] when st+0x08==0 and the formatted digit is '0'.
+ *  - The epilogue subtracts (prefix_len + length + remainder) from st+0x04 (size).
+ *  - 'S' (upper) reads a length/count word and returns the pointer past it; 's' (lower)
+ *    computes the string length and returns the string start.
+ */
+uint8_t *fn_0451bc(uint8_t *out, uint8_t **cur, uint8_t *st, uint8_t *alt) {
+    uint32_t val = 0;                 /* EBP: value read in the pre-pass */
+    int32_t outlen = 10;              /* EBX default base / uVar8 */
+    int has_prefix = 1;               /* bVar7 */
+    uint8_t *ret = out;               /* returned pointer (ECX) */
+    uint8_t type = st[0x15];
+    int32_t *plen = (int32_t *)(st + 0x0c);   /* remainder */
+    int32_t *pglen = (int32_t *)(st + 0x08);  /* length */
+    int32_t *psize = (int32_t *)(st + 0x04);  /* size */
+    *plen = 0;                        /* st+0x0c = 0 */
+
+    /* --- pre-pass: read `val` for {X,o,u,x}; set st[0x16]=0x20 for {d,i} and after reads --- */
+    {
+        int do_read = 0, do_st16 = 0;
+        if (type < 0x69) {
+            if (type == 0x58) do_read = 1;        /* 'X' */
+            else if (type == 0x64) do_st16 = 1;   /* 'd' */
+        } else if (type == 0x69) {
+            do_st16 = 1;                          /* 'i' */
+        } else if (type < 0x75) {
+            if (type == 0x6f) do_read = 1;        /* 'o' */
+        } else if (type == 0x75 || type == 0x78) {
+            do_read = 1;                          /* 'u', 'x' */
+        }
+        if (do_read) {
+            if (st[0x14] & 0x10) {
+                val = *(uint16_t *)(*cur);        /* word, zero-extended */
+                *cur += 4;                        /* faithful: still advance by 4 */
+            } else {
+                val = *(uint32_t *)(*cur);        /* dword */
+                *cur += 4;
+            }
+            st[0x14] &= 0xf9;
+            do_st16 = 1;
+        }
+        if (do_st16 && (int32_t)*pglen != -1) {
+            st[0x16] = 0x20;
+        }
+    }
+
+    /* --- main switch (0x45247) --- */
+    switch (type) {
+    case 0x45: case 0x47: case 0x65: case 0x67:   /* E G e g -> callback */
+        ret = (uint8_t *)(uintptr_t)cb_indirect_53644();
+        outlen = (int32_t)strn_len(ret, (size_t)-1);
+        break;
+    case 0x46: case 0x66:                          /* F f */
+        if (st[0x14] & 0x10) {
+            val = *(uint32_t *)(*cur); *cur += 4;
+            fn_0450da((char *)out, (int32_t)val, (int *)st);
+            outlen = (int32_t)strn_len(out, (size_t)-1);
+        } else {
+            ret = (uint8_t *)(uintptr_t)cb_indirect_53644();
+            outlen = (int32_t)strn_len(ret, (size_t)-1);
+        }
+        break;
+    case 0x50: case 0x70:                          /* P p (date/time) */
+        if ((int32_t)*psize == 0) *psize = (st[0x14] & 0x80) ? 13 : 8;
+        st[0x14] &= 0xf9;
+        {
+            uint32_t ts = *(uint32_t *)(*cur); *cur += 4;
+            if (st[0x14] & 0x80) {
+                uint32_t secs = *(uint32_t *)(*cur); *cur += 4;
+                fn_045079(secs & 0xffff, (char *)out, 4);
+                out[4] = ':';
+                fn_045079(ts, (char *)out + 5, 8);
+            } else {
+                fn_045079(ts, (char *)out, 8);
+            }
+            if (type == 0x50) string_upper((char *)out);
+        }
+        outlen = (int32_t)strn_len(out, (size_t)-1);
+        break;
+    case 0x53: case 0x73:                          /* S s (string) */
+        {
+            uint8_t *src;
+            uint8_t f = st[0x14];
+            if (f & 0x80) {
+                uint8_t *p = *cur; *cur = p + 8;
+                uint32_t ptr = *(uint32_t *)p;
+                uint16_t len = *(uint16_t *)(p + 4);
+                src = (ptr == 0 && len == 0) ? alt : (uint8_t *)(uintptr_t)ptr;
+            } else {
+                uint8_t *p = *cur; *cur = p + 4;
+                uint32_t ptr = *(uint32_t *)p;
+                src = (ptr == 0) ? alt : (uint8_t *)(uintptr_t)ptr;
+            }
+            st[0x14] &= 0xf9;
+            has_prefix = 0;
+            if (type == 0x53) {                    /* 'S': read a length/count word */
+                if (f & 0x20) { outlen = (int32_t)*(uint16_t *)src; src += 2; }
+                else { outlen = (int32_t)*(uint8_t *)src; src += 1; }
+            } else {                                /* 's': compute the string length */
+                if (f & 0x20) outlen = (int32_t)word_nlen((const uint16_t *)src, (size_t)(int32_t)*pglen);
+                else outlen = (int32_t)strn_len(src, (size_t)-1);
+            }
+            ret = src;
+        }
+        break;
+    case 0x58: case 0x78:                          /* X x (hex) */
+        if (st[0x14] & 0x01 && val != 0) {
+            st[0x17] = '0'; st[0x18] = type; st[0x19] = 0;
+        }
+        itoa32_tbl(val, (char *)out, 16);
+        if (type == 0x58) string_upper((char *)out);
+        if ((int32_t)*pglen == 0 && out[0] == '0') out[0] = 0;
+        outlen = (int32_t)strn_len(out, (size_t)-1);
+        break;
+    case 0x63:                                      /* c (single char) */
+        {
+            uint8_t b = **cur; *cur += 4;
+            out[0] = b; out[1] = 0;
+            *pglen = 1; outlen = 1; has_prefix = 0;
+            st[0x14] &= 0xf9;
+        }
+        break;
+    case 0x64: case 0x69:                          /* d i (decimal signed) */
+        {
+            uint32_t f = st[0x14];
+            if (f & 0x20) {
+                val = *(uint32_t *)(*cur); *cur += 4;
+                itoa32s_tbl((int32_t)val, (char *)out, 10);
+            } else if (f & 0x10) {
+                int16_t w = *(int16_t *)(*cur); *cur += 4;
+                itoa32s_tbl((int32_t)w, (char *)out, 10);
+            } else {
+                val = *(uint32_t *)(*cur); *cur += 4;
+                itoa32s((int32_t)val, (char *)out, 10);
+            }
+        }
+        if ((int32_t)*pglen == 0 && out[0] == '0') out[0] = 0;
+        outlen = (int32_t)strn_len(out, (size_t)-1);
+        break;
+    case 0x6f:                                      /* o (octal) */
+        {
+            uint8_t f = st[0x14];
+            uint8_t *wp;
+            if (f & 0x01) { out[0] = '0'; wp = out + 1; itoa32s_tbl((int32_t)val, (char *)wp, 8); }
+            else { wp = out; itoa32s_tbl((int32_t)val, (char *)out, 8); }
+            if ((int32_t)*pglen == 0 && wp[0] == '0') out[0] = 0;
+        }
+        outlen = (int32_t)strn_len(out, (size_t)-1);
+        break;
+    case 0x75:                                      /* u (unsigned decimal) */
+        itoa32_tbl(val, (char *)out, 10);
+        if ((int32_t)*pglen == 0 && out[0] == '0') out[0] = 0;
+        outlen = (int32_t)strn_len(out, (size_t)-1);
+        break;
+    default:                                        /* all other type codes */
+        out[0] = type; out[1] = 0;
+        *pglen = 1; *psize = 0;
+        outlen = 1; has_prefix = 0;
+        st[0x14] &= 0xf9;
+        break;
+    }
+
+    /* --- epilogue (0x4556a) --- */
+    if (has_prefix) {
+        if (ret[0] == '-') {
+            ret++;
+            st[0x18] = 0;
+            outlen--;
+            st[0x17] = '-';
+        } else {
+            if (st[0x14] & 0x02) st[0x17] = ' ';
+            if (st[0x14] & 0x04) st[0x17] = '+';
+            st[0x18] = 0;
+        }
+    }
+    if (outlen > (int32_t)*pglen) *pglen = outlen;
+    else *plen = (int32_t)*pglen - outlen;
+    if (st[0x16] == '*') { st[0x17] = 0; st[0x14] &= 0xf9; }
+    if ((int32_t)*pglen != -1 && outlen < (int32_t)*pglen && type != 0x63) *pglen = outlen;
+    {
+        int32_t prefix_len = (int32_t)strn_len(st + 0x17, (size_t)-1);
+        *psize -= (prefix_len + (int32_t)*pglen + (int32_t)*plen);
+    }
+    return ret;
+}
+
 uint8_t g_debug_break = 0;               /* DAT_00053624 */
 uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
 {

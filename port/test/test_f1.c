@@ -2011,6 +2011,83 @@ static void test_fn_0405de(void) {
     fn_0405de(0xFFFF0001, 0, 0, 0);
     check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
 }
+
+static uint8_t *run_0451bc(uint8_t *out, uint8_t *stream, uint8_t *st, uint8_t *alt,
+                           uint8_t type, uint8_t flags, int32_t size, int32_t length,
+                           uint8_t **p_sp) {
+    memset(st, 0, 0x40);
+    st[0x15] = type;
+    st[0x14] = flags;
+    *(int32_t *)(st + 0x04) = size;
+    *(int32_t *)(st + 0x08) = length;
+    uint8_t *sp = stream;
+    uint8_t *r = fn_0451bc(out, &sp, st, alt);
+    if (p_sp) *p_sp = sp;
+    return r;
+}
+
+static void test_fn_0451bc(void) {
+    printf("fn_0451bc (0x0451bc)\n");
+    static uint8_t st[0x40], out[64], stream[32], alt[4];
+    uint8_t *sp = NULL, *r;
+
+    /* 'c' single char */
+    memset(stream, 0, sizeof stream); stream[0] = 0x41;
+    r = run_0451bc(out, stream, st, alt, 0x63, 0, 0, 0, &sp);
+    check(r == out && out[0] == 0x41 && out[1] == 0 && *(int32_t *)(st + 0x08) == 1,
+          "  'c' writes char, len=1");
+    check(sp == stream + 4, "  'c' advances cursor by 4");
+
+    /* 'd' signed decimal, no flag -> itoa32s */
+    memset(stream, 0, sizeof stream); stream[0] = 0x2a;
+    r = run_0451bc(out, stream, st, alt, 0x64, 0, 0, 0, NULL);
+    check(r == out && out[0]=='4' && out[1]=='2' && out[2]==0, "  'd' itoa32s 42");
+
+    /* 'i' signed, flag 0x20 -> itoa32s_tbl; negative -> '-' moves to prefix, ret past '-' */
+    memset(stream, 0, sizeof stream); stream[0]=0xfb; stream[1]=0xff; stream[2]=0xff; stream[3]=0xff;
+    r = run_0451bc(out, stream, st, alt, 0x69, 0x20, 0, 0, NULL);
+    check(out[0]=='-' && out[1]=='5' && r == out + 1 && st[0x17]=='-',
+          "  'i' negative -5, '-' -> prefix, ret past '-'");
+
+    /* 'u' unsigned decimal (pre-pass dword read) + size decrement */
+    memset(stream, 0, sizeof stream); stream[0]=0x64;
+    r = run_0451bc(out, stream, st, alt, 0x75, 0, 10, 0, NULL);
+    check(r == out && out[0]=='1'&&out[1]=='0'&&out[2]=='0'&&out[3]==0, "  'u' 100 decimal");
+    check(*(int32_t *)(st + 0x04) == 7, "  'u' size 10-(0+3+0)=7");
+
+    /* 'x' hex lowercase */
+    memset(stream, 0, sizeof stream); stream[0]=0x0a;
+    r = run_0451bc(out, stream, st, alt, 0x78, 0, 0, 0, NULL);
+    check(r == out && out[0]=='a' && out[1]==0, "  'x' 10 -> 'a'");
+
+    /* 'X' hex uppercase (string_upper) */
+    memset(stream, 0, sizeof stream); stream[0]=0x0a;
+    r = run_0451bc(out, stream, st, alt, 0x58, 0, 0, 0, NULL);
+    check(r == out && out[0]=='A' && out[1]==0, "  'X' 10 -> 'A' (upper)");
+
+    /* 'o' octal */
+    memset(stream, 0, sizeof stream); stream[0]=0x09;
+    r = run_0451bc(out, stream, st, alt, 0x6f, 0, 0, 0, NULL);
+    check(r == out && out[0]=='1'&&out[1]=='1'&&out[2]==0, "  'o' 9 -> octal '11'");
+
+    /* 'o' with flag 0x01 -> '0' prefix at out[0] */
+    memset(stream, 0, sizeof stream); stream[0]=0x09;
+    r = run_0451bc(out, stream, st, alt, 0x6f, 0x01, 0, 0, NULL);
+    check(r == out && out[0]=='0'&&out[1]=='1'&&out[2]=='1', "  'o' flag1 '0' prefix -> '011'");
+
+    /* word-read quirk: 'u' flag 0x10 reads 16-bit but advances cursor by 4 */
+    memset(stream, 0, sizeof stream); stream[0]=0x0a; stream[1]=0; stream[2]=0xff; stream[3]=0xff;
+    r = run_0451bc(out, stream, st, alt, 0x75, 0x10, 0, 0, &sp);
+    check(r == out && out[0]=='1'&&out[1]=='0'&&out[2]==0, "  'u' flag10 word-read 10 -> '10'");
+    check(sp == stream + 4, "  'u' flag10 advances cursor by 4 (quirk)");
+
+    /* default: unknown type writes the type char, len=1 */
+    memset(stream, 0, sizeof stream);
+    r = run_0451bc(out, stream, st, alt, 0x41, 0, 0, 0, NULL);
+    check(r == out && out[0]==0x41 && out[1]==0 && *(int32_t *)(st + 0x08) == 1,
+          "  default writes type char, len=1");
+}
+
 static void test_fn_03442e(void) {
     printf("fn_03442e (0x03442e)\n");
 
@@ -2643,6 +2720,7 @@ int main(void) {
     test_fn_036626();
     test_fn_03493e();
     test_fn_0405de();
+    test_fn_0451bc();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

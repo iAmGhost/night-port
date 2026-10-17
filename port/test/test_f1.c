@@ -2043,6 +2043,23 @@ static void test_l10_accessors(void) {
       check(rd == 0, "  fn_015d16 non-'+' Y-limit=10 (20>=10) -> ret0");
       sd[9] = 5; memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); prng_seed(0x1234); rd = fn_015d16(sd);
       check(rd == 0, "  fn_015d16 X-gate (2>=1) -> ret0");
+      // fn_015ed1: s[0x83] gate, no char check, Y-limit 10.
+      uint8_t se[0x200] = {0}; se[1] = 5; se[9] = 5; se[0xd] = 2;   // sX-tX=2, sY-tY=2
+      *(uint32_t *)(se+0x17) = 0x1f; int32_t re = fn_015ed1(se);
+      check(re == 0 && g_dat_53c6c == 1, "  fn_015ed1 0x1f -> ret0");
+      prng_seed(0x1234); *(uint32_t *)(se+0x17) = 0xb; re = fn_015ed1(se);
+      check(re == 2 && se[0x117] == 1, "  fn_015ed1 [0xb,0x14] -> ret2");
+      *(uint32_t *)(se+0x17) = 0x5; *(uint32_t *)(se+0x1f) = 0; *(int32_t *)(se+0x113) = 0;
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); re = fn_015ed1(se);
+      check(re == 0, "  fn_015ed1 s[0x1f]!=4 -> ret0");
+      *(uint32_t *)(se+0x17) = 0x5; *(uint32_t *)(se+0x1f) = 4; *(uint32_t *)(se+0x83) = 0;
+      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); prng_seed(0x1234); re = fn_015ed1(se);
+      check(re == 1, "  fn_015ed1 X<tbl0 Y<10 -> ret1");
+      se[9] = 23; *(uint32_t *)(se+0x83) = 0; prng_seed(0x1234); re = fn_015ed1(se);   // sY-tY=20
+      check(re == 0, "  fn_015ed1 Y>=10 -> ret0");
+      se[9] = 5; *(uint32_t *)(se+0x83) = 0; memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); prng_seed(0x1234); re = fn_015ed1(se);
+      check(re == 0, "  fn_015ed1 X>=tbl0 -> ret0");
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));

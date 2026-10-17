@@ -130,6 +130,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_015b5b (0x015b5b, 442B) ported** — data-table family variant. Same s[0x17] state dispatch as fn_015a1f (0x1f->[flag,ret0]; [0xb,0x14]->[s[0x117]=1,flag,prng%10,ret2]; else). Else-branch: s[0x117]=0; if s[0x1f]==4 && s[0x83]==0: s[0x83]=1,s[0x113]=prng%10; elif s[0x1f]!=4: s[0x83]=0. Then tbl0=g_dat_53eb8[idx]; if s[0x1f]==4: tbl1=g_dat_53eb8[idx+1]; if tbl1=='.'(0x2e): abs32(sX-tX)<tbl0->ret1; else abs32(sX-tX)<tbl0 && abs32(sY-tY)<10->ret1. The 5x442B (0x015b5b/015d16/01603e/0161f9/0163b4) are VARIANTS (12-31 instr diffs), NOT twins. | STATUS.md L11 |
 | 2026-07-08 | **fn_01603e/0161f9/0163b4 (3x442B) ported as near-twins of fn_015b5b** — REL-fingerprint + callee-set comparison confirmed all three are identical to fn_015b5b EXCEPT the magic char at the table[idx+1] check: 0x015b5b='.'(0x2e), 0x01603e=0161f9=+'(0x2b), 0x0163b4=,'(0x2c). Refactored fn_015b5b into fn_015b5b_core(s, magic) + 4 thin wrappers. All 5 call the same 5 fns (fn_01519f/d5, canary, prng_next, abs32). Test distinguishes the magic: whole table=0x2b + sY-tY=10 (2D Y-check fails) -> '+' (1D) ret1, '.'/,' (2D) ret0. 4 near-twin checks. REMAINING family member: 0x015d16 (real variant, different abs32 ordering + chars 0x2b/0x28) — needs its own trace. | STATUS.md L11 |
 | 2026-07-08 | **fn_015d16 (0x015d16, 442B) ported** — last member of the data-table family. Same s[0x17] state dispatch + s[0x83] gate + idx/tbl0 as the 0x015b5b family, but a DIFFERENT tail: the X-check abs32(sX-tX)<tbl0 is a GATE first, then the char (table[idx+1]) selects the Y-limit: '+'(0x2b)->0x28(40), else->10. (In the 0x015b5b family the char selected 1D-vs-2D, not the limit.) Traced from disasm. 6 checks. The whole 6-fn family (0x015a1f + 5x442B: 015b5b/015d16/01603e/0161f9/0163b4) is now [x]. | STATUS.md L11 |
+| 2026-07-08 | **fn_015ed1 (0x015ed1, 364B) ported** — another data-table family variant. Same s[0x17] dispatch + s[0x83] gate as the 0x015b5b family, but NO char check: abs32(sX-tX)<table[idx] && abs32(sY-tY)<10 -> ret1 (Y limit 10, like the 2D case of 0x015b5b, unlike fn_015a1f which uses 6). Decomp had CONCAT44 artifact; traced from disasm. 6 checks. NOTE: the family is large + heterogeneous (at least 7 variants so far: 015a1f/015b5b/015d16/015ed1 + 3 near-twins). | STATUS.md L11 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -533,7 +534,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x015a1f | 315 | fn_015a1f | state machine, data-table distance check | 1:1 (disasm; 5 checks) |
 | [x] | 0x015b5b | 442 | fn_015b5b | family variant (s[0x83] gate + table[idx+1] '.' check) | 1:1 (disasm; 6 checks) |
 | [x] | 0x015d16 | 442 | fn_015d16 | family variant (X-gate + char-selects-Y-limit) | 1:1 (disasm; 6 checks) |
-| [ ] | 0x015ed1 | 364 | FUN_00015ed1 | | |
+| [x] | 0x015ed1 | 364 | fn_015ed1 | family variant (s[0x83] gate, no char, Y-limit 10) | 1:1 (disasm; 6 checks) |
 | [x] | 0x01603e | 442 | fn_01603e | family core, magic '+' (near-twin) | 1:1 (REL-fp; 1 check) |
 | [x] | 0x0161f9 | 442 | fn_0161f9 | family core, magic '+' (near-twin) | 1:1 (REL-fp; 1 check) |
 | [x] | 0x0163b4 | 442 | fn_0163b4 | family core, magic ',' (near-twin) | 1:1 (REL-fp; 1 check) |

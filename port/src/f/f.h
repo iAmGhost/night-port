@@ -473,6 +473,7 @@ int32_t  fn_015b5b(uint8_t *s);        /* 0x015b5b: family core, magic '.' */
 int32_t  fn_01603e(uint8_t *s);        /* 0x01603e: family core, magic '+' */
 int32_t  fn_0161f9(uint8_t *s);        /* 0x0161f9: family core, magic '+' */
 int32_t  fn_0163b4(uint8_t *s);        /* 0x0163b4: family core, magic ',' */
+int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */

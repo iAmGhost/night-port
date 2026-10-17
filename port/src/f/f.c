@@ -1569,6 +1569,31 @@ int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3) { /* 0x017530: by
     return fn_016959(s, param2, param3);
 }
 
+uint8_t g_dat_63354[0x20];   /* 0x63354 clamp-bounds struct */
+
+int32_t fn_016a60(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x016a60: clamped move-toward-target */
+    *(int32_t *)(s + 0x17) = 2;
+    int32_t F = (int32_t)fn_0151d5(s);
+    int32_t X = *(int32_t *)(s + 0xc3);
+    int32_t g12 = *(int32_t *)(g_dat_63354 + 0x12);
+    int32_t g16 = *(int32_t *)(g_dat_63354 + 0x16);
+    int32_t cnt = *(int32_t *)(s + 0xab);
+    if (F > X) {
+        if (F - param2 <= X) { *out = 0; return 1; }
+        if (F - param2 <= g12) { *out = 0; return 1; }
+        *out = -param2;
+        if (cnt < 0) return 1;
+        *(int32_t *)(s + 0xab) = cnt - 1; return 0;
+    } else {
+        if (F >= X) { *out = 0; return 1; }
+        if (param2 + F >= X) return 1;      /* latent: no *out write */
+        if (param2 + F >= g16) return 1;    /* latent: no *out write */
+        *out = param2;
+        if (cnt < 0) return 1;
+        *(int32_t *)(s + 0xab) = cnt - 1; return 0;
+    }
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

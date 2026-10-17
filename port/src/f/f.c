@@ -501,6 +501,39 @@ void fn_000405a7(void) {}
  *   calls fn_041e51(0x31, &struct, &struct). Flat-model no-op. */
 void fn_000407f8(void) {}
 
+/* fn_00010dde  orig: 0x00010dde (L12, 54B)
+ *   Builds a ~2KB stack request struct (seeded from DAT_00051b54/51b58,
+ *   dword@+0xf=0x85000d) and calls fn_00010570(&struct, 0) — a flat-model no-op
+ *   trampoline. The struct is stack-local; no observable effect. */
+void fn_00010dde(void) {}
+
+/* fn_0003fcbd  orig: 0x0003fcbd (L10, 72B)
+ *   DPMI real-mode request: builds a stack struct (dword0=0x1012, +param_3) and
+ *   calls fn_041e51(0x10, &struct, &struct) — the no-op trampoline. No-op. */
+void fn_0003fcbd(uint32_t p1, uint32_t p2, uint32_t p3) { (void)p1;(void)p2;(void)p3; }
+
+/* fn_00040788  orig: 0x00040788 (L10, 111B)
+ *   DPMI memory allocation (INT 31h AX=0x100 via the fn_041e51 trampoline) with
+ *   request size 0x100. Returns the allocated linear address (segment<<4) on
+ *   success or 0 on failure. No DPMI in the flat model -> the allocation never
+ *   happens; return 0. */
+int fn_00040788(void) { return 0; }
+
+/* fn_000104c7  orig: 0x000104c7 (L10, 119B)
+ *   DPMI memory allocation + setup: builds a request struct (word0=0x1500),
+ *   calls the fn_041e51 (INT 31h) trampoline, then writes the returned segment
+ *   into DAT_00053c58/DAT_00053c5c. No DPMI in the flat model -> the allocation
+ *   and the writes to the fake segment do not happen. No-op. */
+void fn_000104c7(void) {}
+
+/* fn_0003f645  orig: 0x0003f645 (L11, 118B)
+ *   VGA palette + frame-buffer init loop: fn_03f3be(0), then while
+ *   (offset <= DAT_00063e64*DAT_00063e68): fn_041e20(&DAT_000a0000, canary,
+ *   DAT_000531f4) (memset the A0000 region, not modeled) + fn_03f3be(i) (VGA
+ *   palette, no-op). Every body effect is a flat-model no-op, so the whole
+ *   loop is a no-op. */
+void fn_0003f645(void) {}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

@@ -2221,6 +2221,11 @@ static void test_cd_dpmi_noops(void) {
      * region + 3 real-mode requests via the no-op fn_041e51 trampoline. */
     fn_0003fade(); fn_00040570(); fn_000405a7(); fn_000407f8();
     check(1, "  0x3fade/0x40570/0x405a7/0x407f8 run as no-ops");
+    /* Second batch: DPMI mem-alloc (returns 0), real-mode calls, palette loop. */
+    fn_00010dde(); fn_0003fcbd(1,2,3); check(fn_00040788() == 0,
+        "  0x40788 DPMI mem-alloc returns 0 (no DPMI)");
+    fn_000104c7(); fn_0003f645(); fn_00010dde();
+    check(1, "  0x10dde/0x3fcbd/0x104c7/0x3f645 run as no-ops");
 }
 
 static void test_fn_048e60(void) {

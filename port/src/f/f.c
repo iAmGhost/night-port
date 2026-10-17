@@ -393,6 +393,38 @@ void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_
     fn_0498f6(0x63df, *seconds, 0, out);                         /* 0x49a1f */
 }
 
+/* fn_03eff2  orig: 0x03eff2
+ *   Install the IRQ 0x1c (FPU) handler, guarded by the pending-install flag
+ *   DAT_00063e4a. Runs with interrupts disabled (irq_cli/irq_sti, both no-op
+ *   standins in the flat model); isr_set/outb are the port's BIOS wrappers.
+ *   Effective no-op when the flag is not 1. No stack params are read. */
+void fn_03eff2(void)
+{
+    irq_cli();                                              /* 0x3f00a */
+    if (g_dat_63e4a == 1) {                                /* 0x3f011-19 */
+        isr_set(0x1c, g_dat_63e44, g_dat_63e48);           /* 0x3f027-032 */
+        outb(0x43, 0x36);                                  /* 0x3f037-41 (PIT ch0 mode) */
+        outb(0x40, 0xff);                                  /* 0x3f046-50 (ch0 low) */
+        outb(0x40, 0xff);                                  /* 0x3f055-5f (ch0 high) */
+        g_dat_63e4a = 0;                                   /* 0x3f064 */
+    }
+    irq_sti();                                              /* 0x3f06b */
+}
+
+/* fn_03ffab  orig: 0x03ffab
+ *   Install the IRQ 9 handler, guarded by the pending-install flag DAT_00063e86.
+ *   On install: isr_set(9, off, seg), clear the flag, and mirror the IRQ-9 source
+ *   byte (DAT_00063f51) into the real-mode low-memory flag DAT_00000417. The
+ *   original's stack params (ECX/param_3) are not read. No-arg in effect. */
+void fn_03ffab(void)
+{
+    if (g_dat_63e86 == 1) {                                /* 0x3ffc5-cd */
+        isr_set(9, g_dat_63e80, g_dat_63e84);              /* 0x3ffcf-ff6 */
+        g_dat_63e86 = 0;                                   /* 0x3ffeb */
+        g_dat_00417 = g_dat_63f51;                         /* 0x3fff2-4002 */
+    }
+}
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).
@@ -527,6 +559,16 @@ uint32_t g_dat_63e40 = 0;   /* DAT_00063e40: coarse counter (every 18) */
 uint32_t g_dat_63e30 = 0;   /* DAT_00063e30: frame/time counter (18-bit) */
 uint32_t g_dat_63e2c = 0;   /* DAT_00063e2c: tick rate increment */
 uint32_t g_dat_63e34 = 0;   /* DAT_00063e34: high frame counter (63e30 wraps) */
+
+/* ---- IRQ-handler install state (fn_03eff2 / fn_03ffab) ---- */
+uint8_t  g_dat_63e4a = 0;   /* DAT_00063e4a: IRQ 0x1c (FPU) pending-install flag (1=install) */
+uint32_t g_dat_63e44 = 0;   /* DAT_00063e44: IRQ 0x1c handler offset */
+uint16_t g_dat_63e48 = 0;   /* DAT_00063e48: IRQ 0x1c handler segment */
+uint8_t  g_dat_63e86 = 0;   /* DAT_00063e86: IRQ 9 pending-install flag (1=install) */
+uint32_t g_dat_63e80 = 0;   /* DAT_00063e80: IRQ 9 handler offset */
+uint16_t g_dat_63e84 = 0;   /* DAT_00063e84: IRQ 9 handler segment */
+uint8_t  g_dat_63f51 = 0;   /* DAT_00063f51: IRQ 9 source byte (copied to low-mem 0x417) */
+uint8_t  g_dat_00417 = 0;   /* DAT_00000417: real-mode low-memory flag (IRQ 9 source) */
 void fn_03ee88(void)
 {
     seg_ds_load();                          /* 0x3ee98 */

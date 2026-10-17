@@ -100,6 +100,8 @@ struct dec_datetime *fn_0498f6(int32_t base_day, uint32_t seconds, int32_t delta
 int32_t fn_04322f(void);                                            /* 0x04322f: return -1 */
 int32_t fn_044848(uint32_t handle, uint32_t a2, uint32_t a3, uint32_t a4); /* 0x044848: lseek(h,0,SEEK_SET) */
 void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_t p4); /* 0x049a0b: unix-time decode */
+void fn_03eff2(void);                          /* 0x03eff2: install IRQ 0x1c (FPU) handler (flag-guarded) */
+void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handler (flag-guarded) */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);
@@ -172,6 +174,14 @@ extern uint32_t g_dat_63e40;               /* DAT_00063e40: coarse counter (ever
 extern uint32_t g_dat_63e30;               /* DAT_00063e30: frame/time counter (18-bit) */
 extern uint32_t g_dat_63e2c;               /* DAT_00063e2c: tick rate increment */
 extern uint32_t g_dat_63e34;               /* DAT_00063e34: high frame counter */
+extern uint8_t  g_dat_63e4a;               /* DAT_00063e4a: IRQ 0x1c pending-install flag */
+extern uint32_t g_dat_63e44;               /* DAT_00063e44: IRQ 0x1c handler offset */
+extern uint16_t g_dat_63e48;               /* DAT_00063e48: IRQ 0x1c handler segment */
+extern uint8_t  g_dat_63e86;               /* DAT_00063e86: IRQ 9 pending-install flag */
+extern uint32_t g_dat_63e80;               /* DAT_00063e80: IRQ 9 handler offset */
+extern uint16_t g_dat_63e84;               /* DAT_00063e84: IRQ 9 handler segment */
+extern uint8_t  g_dat_63f51;               /* DAT_00063f51: IRQ 9 source byte */
+extern uint8_t  g_dat_00417;               /* DAT_00000417: real-mode low-memory flag */
 void     fn_03ee88(void);                   /* 0x03ee88: timer/IRQ tick handler (counter wraps) */
 void     fn_043381(void);                   /* 0x043381: DPMI real-mode return (flat no-op) */
 void     fn_04391d(void);                   /* 0x04391d: DOS/DPMI timer-vector setup (flat no-op) */

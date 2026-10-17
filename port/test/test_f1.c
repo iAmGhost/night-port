@@ -2126,6 +2126,29 @@ static void test_fn_049a0b(void) {
     check(d.hour==0 && d.min==0 && d.sec==0, "  time 00:00:00");
 }
 
+static void test_fn_03eff2(void) {
+    printf("fn_03eff2 (0x03eff2, IRQ 0x1c install)\n");
+    // flag not set -> no-op
+    g_dat_63e4a = 0;
+    fn_03eff2();
+    check(g_dat_63e4a == 0, "  flag=0: no-op, stays 0");
+    // flag set -> cleared (isr_set/outb are no-op standins)
+    g_dat_63e44 = 0x12345678; g_dat_63e48 = 0x0fa0; g_dat_63e4a = 1;
+    fn_03eff2();
+    check(g_dat_63e4a == 0, "  flag=1: cleared after install");
+}
+
+static void test_fn_03ffab(void) {
+    printf("fn_03ffab (0x03ffab, IRQ 9 install)\n");
+    g_dat_63e86 = 0; g_dat_00417 = 0;
+    fn_03ffab();
+    check(g_dat_63e86 == 0 && g_dat_00417 == 0, "  flag=0: no-op");
+    g_dat_63e80 = 0xdeadbeef; g_dat_63e84 = 0x0fa0; g_dat_63f51 = 0xab; g_dat_63e86 = 1;
+    fn_03ffab();
+    check(g_dat_63e86 == 0, "  flag=1: cleared after install");
+    check(g_dat_00417 == 0xab, "  IRQ-9 source mirrored to low-mem 0x417");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -2930,6 +2953,8 @@ int main(void) {
     test_fn_04322f();
     test_fn_044848();
     test_fn_049a0b();
+    test_fn_03eff2();
+    test_fn_03ffab();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

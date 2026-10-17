@@ -445,7 +445,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x031f10 | 78 | fn_031f10 | ring push (count@0x31,cap5) | 1:1 (reg-ABI) |
 | [ ] | 0x031f5f | 221 | FUN_00031f5f | | |
 | [ ] | 0x0326c1 | 109 | FUN_000326c1 | | |
-| [ ] | 0x034353 | 125 | FUN_00034353 | | |
+| [x] | 0x034353 | 125 | fn_034353 | slot update (63f1e/63f0c) | 1:1 (reg-ABI) |
 | [x] | 0x0343d1 | 92 | fn_0343d1 | idx flag/counter (62cd8/62c58) | 1:1 |
 | [x] | 0x0348e2 | 91 | fn_0348e2 | slot-alloc (g_dat_63f50 wrap@9) | 1:1 |
 | [ ] | 0x03493e | 72 | FUN_0003493e | | |
@@ -477,7 +477,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03c65b | 143 | FUN_0003c65b | | |
 | [ ] | 0x03c72b | 171 | FUN_0003c72b | | |
 | [ ] | 0x03c7d7 | 123 | FUN_0003c7d7 | | |
-| [ ] | 0x03cad3 | 100 | FUN_0003cad3 | | |
+| [x] | 0x03cad3 | 100 | fn_03cad3 | struct -> g_dat_639dc/e0/e4 | 1:1 |
 | [ ] | 0x03cc6b | 415 | FUN_0003cc6b | | |
 | [ ] | 0x03ce0b | 692 | FUN_0003ce0b | | |
 | [ ] | 0x03d67c | 223 | FUN_0003d67c | | |

@@ -1886,6 +1886,13 @@ static void test_l10_accessors(void) {
     check(g_dat_62c58[3] == 1 && g_dat_62cd8[3] == 1, "  fn_0343d1 decrement flag");
     g_dat_62cd8[5] = 0; g_dat_62c58[5] = 0xAA; fn_0343d1(5);
     check(g_dat_62c58[5] == 0, "  fn_0343d1 zero counter -> flag0");
+    { uint8_t s[24] = {0}; *(uint32_t*)s = 0x100; *(uint32_t*)(s+4) = 0x200; *(uint32_t*)(s+8) = 0x300; s[16] = 0x77; s[17] = 0;
+      fn_03cad3(s);
+      check(g_dat_639dc == 0x100 && g_dat_639e0 == 0x200 && g_dat_639e4 == 0x77, "  fn_03cad3 flag0 -> a");
+      s[17] = 1; fn_03cad3(s);
+      check(g_dat_639dc == 0x1c0, "  fn_03cad3 flag1 -> c-0x140"); }
+    g_dat_63f50 = 2; g_dat_63f0c = 0x100; fn_034353(0xAB, 0x200);
+    check(g_dat_63f14[2] == 0xAB && g_dat_63f28[2] == 0x100 && g_dat_63f0c == 0x200 && g_dat_63f50 == 3, "  fn_034353 slot update");
 }
 
 int main(void) {

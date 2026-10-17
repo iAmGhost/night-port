@@ -1513,6 +1513,27 @@ void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
     else { g_dat_62c58[i] = 1; g_dat_62cd8[i]--; }
 }
 
+uint8_t  g_dat_639e4 = 0;
+uint8_t  g_dat_63f1e[16] = {0};
+uint32_t g_dat_63f0c = 0;
+
+void fn_03cad3(const uint8_t *p) {                                /* 0x03cad3 */
+    uint32_t a = *(const uint32_t *)p;
+    uint32_t b = *(const uint32_t *)(p + 4);
+    uint32_t c = *(const uint32_t *)(p + 8);
+    if (p[17] == 0) g_dat_639dc = a; else g_dat_639dc = c - 0x140;
+    g_dat_639e0 = b;
+    g_dat_639e4 = p[16];
+}
+void fn_034353(uint8_t a, uint32_t b) {                            /* 0x034353 */
+    g_dat_63f14[g_dat_63f50] = a;
+    g_dat_63f28[g_dat_63f50] = b - g_dat_63f0c;
+    g_dat_63f1e[g_dat_63f50] = 0;
+    g_dat_63f0c = b;
+    g_dat_63f50++;
+    if (g_dat_63f50 > 9) g_dat_63f50 = 0;
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

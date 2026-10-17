@@ -440,6 +440,11 @@ uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_da
 void fn_031f10(uint8_t *p, uint32_t val);  /* 0x031f10: ring push (count@0x31, buf@0x32, cap 5) */
 void fn_0348e2(void);                       /* 0x0348e2: slot-alloc (g_dat_63f50, wrap @9) */
 void fn_0343d1(uint8_t i);                  /* 0x0343d1: idx flag/counter (g_dat_62cd8/62c58) */
+void fn_03cad3(const uint8_t *p);           /* 0x03cad3: struct -> g_dat_639dc/e0/e4 */
+void fn_034353(uint8_t a, uint32_t b);      /* 0x034353: slot update (g_dat_63f1e/63f0c) */
+extern uint8_t  g_dat_639e4;      /* DAT_000639e4 (byte) */
+extern uint8_t  g_dat_63f1e[16];  /* DAT_00063f1e (byte slots) */
+extern uint32_t g_dat_63f0c;      /* DAT_00063f0c (slot base) */
 extern uint8_t  g_dat_63f14[16];  /* DAT_00063f14 (byte slots) */
 extern uint32_t g_dat_63f28[16];  /* DAT_00063f28 (dword slots) */
 extern uint8_t  g_dat_63f50;      /* DAT_00063f50 (slot index) */

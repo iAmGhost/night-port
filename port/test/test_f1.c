@@ -1861,6 +1861,41 @@ static void test_042576(void) {
     check((uint32_t)fn_042576("wt  ", 0) == 2, "  'wt  ' -> 2");
 }
 
+/* fn_034aba node-arena helpers (test-only) */
+static uint8_t *nar(void) { return (uint8_t *)g_node_arena_base; }
+static void setnode(uint32_t o, int32_t start, uint32_t next, int16_t len, uint8_t flag) {
+    uint8_t *n = nar() + o;
+    uint32_t s=(uint32_t)start, nx=next; uint16_t ln=(uint16_t)len;
+    n[0]=(uint8_t)s; n[1]=(uint8_t)(s>>8); n[2]=(uint8_t)(s>>16); n[3]=(uint8_t)(s>>24);
+    n[4]=(uint8_t)nx; n[5]=(uint8_t)(nx>>8); n[6]=(uint8_t)(nx>>16); n[7]=(uint8_t)(nx>>24);
+    n[8]=(uint8_t)ln; n[9]=(uint8_t)(ln>>8); n[10]=flag;
+}
+static int32_t  nstart(uint32_t o) { const uint8_t*p=nar()+o;   return (int32_t)((uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24)); }
+static uint32_t nnext(uint32_t o)  { const uint8_t*p=nar()+o+4; return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24); }
+static int16_t  nlen(uint32_t o)   { const uint8_t*p=nar()+o+8; return (int16_t)((uint16_t)p[0]|((uint16_t)p[1]<<8)); }
+static uint8_t  nflag(uint32_t o)  { return *(nar() + o + 10); }
+
+static void test_fn_034aba(void) {
+    printf("fn_034aba (0x034aba)\n");
+    // 3-way split (branch 2)
+    memset(nar(), 0, 0x1000);
+    g_dat_62d64 = 11; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+    setnode(0, 0, 0, 200, 0x55); g_dat_62d68[0] = 0;
+    fn_034aba(100, 0, 50, 999, 0xAB);
+    check(nlen(0)==100 && nstart(0)==0 && nnext(0)==11 && nflag(0)==0x55, "  fn_034aba node0");
+    check(nstart(11)==999 && nlen(11)==50 && nnext(11)==22 && nflag(11)==0xAB, "  fn_034aba node11");
+    check(nstart(22)==150 && nlen(22)==50 && nnext(22)==0 && nflag(22)==0x55, "  fn_034aba node22");
+    check(g_dat_62d64==33 && g_dat_62d68[0]==0, "  fn_034aba cursor+head");
+    // 2-way split (branch 1, end reaches 0x140)
+    memset(nar(), 0, 0x1000);
+    g_dat_62d64 = 11; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+    setnode(0, 0, 0, 0x140, 0x77); g_dat_62d68[1] = 0;
+    fn_034aba(300, 1, 52, 12345, 0xCD);
+    check(nlen(0)==300 && nstart(0)==0 && nnext(0)==11 && nflag(0)==0x77, "  fn_034aba b1 node0");
+    check(nstart(11)==12345 && nlen(11)==20 && nflag(11)==0xCD, "  fn_034aba b1 node11");
+    check(g_dat_62d64==22 && g_dat_62d68[1]==0, "  fn_034aba b1 cursor+head");
+}
+
 static void test_l10_accessors(void) {
     printf("L10 trivial accessors\n");
     g_dat_53c60 = 0x12345678;
@@ -2347,6 +2382,7 @@ int main(void) {
     test_0423b7();
     test_042576();
     test_l10_accessors();
+    test_fn_034aba();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

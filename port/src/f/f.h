@@ -435,6 +435,9 @@ uint32_t fn_010e15(void);                /* 0x010e15: return g_dat_53c60 */
 uint32_t fn_040631(uint32_t param);      /* 0x040631: g_dat_40010 = low16(param); return low16 */
 uint32_t fn_01520b(const uint8_t *p);    /* 0x01520b: return *(uint32*)(p+5) */
 uint32_t fn_034a87(void);                /* 0x034a87: v=g_dat_62d64; g_dat_62d64+=11; return v */
+extern uintptr_t g_node_arena_base;    /* node-arena base (s_node_arena) */
+extern uint32_t  g_dat_62d68[128];      /* DAT_00062d68: head-node offset per list idx */
+void     fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag);  /* 0x034aba */
 extern uint32_t g_dat_639dc;    /* DAT_000639dc */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
 uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */

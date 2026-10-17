@@ -1506,12 +1506,74 @@ void fn_043280(uint8_t *dest, uint32_t pattern, uint32_t count) {      /* 0x0432
     }
 }
 
-uint32_t g_dat_62d64 = 0;
+uint32_t g_dat_62d64 = 0;   /* node-arena bump cursor (offset into s_node_arena) */
+
+/* Node arena — 32->64 pointer adaptation. The original stores full 32-bit node
+ * addresses; the port stores base-relative uint32 offsets into s_node_arena and
+ * translates via nd(). Node (11 bytes): [0]=start(int32) [4]=next(uint32 offset)
+ * [8]=len(int16) [10]=flag(byte). g_dat_62d68[idx] = head-node offset per list. */
+#define NIGHT_NODE_ARENA (1u << 16)
+static uint8_t s_node_arena[NIGHT_NODE_ARENA];
+uintptr_t g_node_arena_base = (uintptr_t)s_node_arena;
+uint32_t  g_dat_62d68[128] = {0};   /* DAT_00062d68: head-node offset per list idx */
+static inline uint8_t *nd(uint32_t off) { return s_node_arena + off; }
+/* byte-wise node field accessors (alignment-safe: nodes are 11 bytes, so int16/int32
+ * fields land on unaligned byte offsets — direct casts fault/corrupt on arm64). */
+static inline int32_t  node_start_get(uint32_t o){ const uint8_t*p=s_node_arena+o;   return (int32_t)((uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24)); }
+static inline void     node_start_set(uint32_t o, int32_t v){ uint8_t*p=s_node_arena+o;   uint32_t u=(uint32_t)v; p[0]=(uint8_t)u; p[1]=(uint8_t)(u>>8); p[2]=(uint8_t)(u>>16); p[3]=(uint8_t)(u>>24); }
+static inline uint32_t node_next_get(uint32_t o){  const uint8_t*p=s_node_arena+o+4; return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24); }
+static inline void     node_next_set(uint32_t o, uint32_t v){ uint8_t*p=s_node_arena+o+4; p[0]=(uint8_t)v; p[1]=(uint8_t)(v>>8); p[2]=(uint8_t)(v>>16); p[3]=(uint8_t)(v>>24); }
+static inline int16_t  node_len_get(uint32_t o){   const uint8_t*p=s_node_arena+o+8; return (int16_t)((uint16_t)p[0]|((uint16_t)p[1]<<8)); }
+static inline void     node_len_set(uint32_t o, int16_t v){ uint8_t*p=s_node_arena+o+8; uint16_t u=(uint16_t)v; p[0]=(uint8_t)u; p[1]=(uint8_t)(u>>8); }
+static inline uint8_t  node_flag_get(uint32_t o){  return s_node_arena[o+10]; }
+static inline void     node_flag_set(uint32_t o, uint8_t v){ s_node_arena[o+10]=v; }
 
 uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */
 uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
 uint32_t fn_01520b(const uint8_t *p) { return *(const uint32_t *)(p + 5); }  /* 0x01520b */
 uint32_t fn_034a87(void) { uint32_t v = g_dat_62d64; g_dat_62d64 += 11; return v; }  /* 0x034a87 */
+
+/* 0x034aba: 3-way interval-list splitter. Splits the interval containing `a`
+ * (within list g_dat_62d68[idx]) to carve out [a, a+b) as a new node (start=c,
+ * flag=flag), clamping a+b to 0x140. Returns void. */
+void fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag) {
+    uint32_t head = g_dat_62d68[idx];
+    uint32_t newnode1 = fn_034a87();
+    int32_t acc = 0;
+    if (a < 0) { c -= a; b += a; a = 0; g_dat_62d68[idx] = newnode1; }
+    if (a + b >= 0x140) b = 0x140 - a;
+    int32_t end = a + b;
+    for (;;) {                                    /* walk to node containing a */
+        acc += node_len_get(head);
+        if (acc >= a) break;
+        head = node_next_get(head);
+    }
+    node_len_set(newnode1, (int16_t)b);
+    node_start_set(newnode1, c);
+    node_flag_set(newnode1, (uint8_t)flag);
+    int16_t svar2 = (int16_t)(node_len_get(head) - (acc - a));
+    if (end >= 0x140) {                           /* interval reaches 0x140: 2-way */
+        node_len_set(head, svar2);
+        node_next_set(head, newnode1);
+    } else {                                      /* 3-way split */
+        uint32_t pivar1 = head;
+        for (;;) {                                /* walk to node containing end */
+            if (acc > end) break;
+            head = node_next_get(head);
+            acc += node_len_get(head);
+        }
+        uint32_t newnode2 = fn_034a87();
+        node_len_set(newnode2, (int16_t)(acc - end));
+        int32_t ns2 = node_start_get(head) + (int32_t)node_len_get(head)
+                    - (int32_t)node_len_get(newnode2);
+        node_start_set(newnode2, ns2);
+        node_next_set(newnode2, node_next_get(head));
+        node_flag_set(newnode2, node_flag_get(head));
+        node_len_set(pivar1, svar2);
+        node_next_set(pivar1, newnode1);
+        node_next_set(newnode1, newnode2);
+    }
+}
 uint32_t g_dat_639dc = 0;
 uint32_t g_dat_639e0 = 0;
 uint32_t fn_01519f(const uint8_t *p) { return *(const uint32_t *)(p + 1) - g_dat_639dc; }  /* 0x01519f */

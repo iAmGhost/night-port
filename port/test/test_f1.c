@@ -2425,6 +2425,28 @@ static void test_fn_0478f0_cluster(void) {
     check(fail == 0, "  3 fn_04794a wrappers match struct load / ESI compose / OUT store");
 }
 
+/* fn_048f4c (0x048f4c): register-ABI loop calling the (independently
+ * diff-verified) fx_mul64 and fn_04794a. Structural test: hand-sequence the
+ * same primitive calls with LITERAL ESI values from the traced dance and
+ * compare to fn_048f4c. This catches loop/ESI/accumulator transcription bugs. */
+static void test_fn_048f4c(void) {
+    int fail = 0;
+    fx128 arr[3] = { {0x1u,0x2u,0x1111}, {0x3u,0x4u,0x2222}, {0x5u,0x6u,0x3333} };
+    uint32_t mant_lo=0x7u, mant_hi=0x8u, exp_base=0x4444;
+    uint32_t A0=arr[0].exp, A1=arr[1].exp, A2=arr[2].exp, E0=exp_base&0xffffu;
+
+    uint64_t R0 = fx_mul64(arr[0].lo, arr[0].hi, mant_lo, mant_hi, (E0<<16)|A0);
+    uint64_t S0 = fn_04794a((uint32_t)R0, (uint32_t)(R0>>32), arr[1].lo, arr[1].hi, (A1<<16)|A0);
+    if (fn_048f4c(mant_lo, mant_hi, 1, arr, exp_base) != S0) { fail++; printf("  count=1 mismatch\n"); }
+
+    uint64_t R1 = fx_mul64((uint32_t)S0, (uint32_t)(S0>>32), mant_lo, mant_hi, (E0<<16)|A0);
+    uint64_t S1 = fn_04794a((uint32_t)R1, (uint32_t)(R1>>32), arr[2].lo, arr[2].hi, (A2<<16)|A0);
+    if (fn_048f4c(mant_lo, mant_hi, 2, arr, exp_base) != S1) { fail++; printf("  count=2 mismatch\n"); }
+
+    printf("fn_048f4c (0x048f4c, fx_mul64+fn_04794a loop): %s\n", fail ? "FAIL" : "PASS");
+    check(fail == 0, "  count=1,2 match hand-sequenced fx_mul64/fn_04794a with literal ESI");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3283,6 +3305,7 @@ int main(void) {
     test_fn_047f54();
     test_fn_04794a();
     test_fn_0478f0_cluster();
+    test_fn_048f4c();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

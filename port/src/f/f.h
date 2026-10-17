@@ -736,6 +736,12 @@ int      fx_compare(const uint8_t *a, const uint8_t *b);        /* 0x47ab6 */
 void     fx_classify_status(const uint8_t *fx, uint8_t *ctx, uint32_t edi); /* 0x48666 */
 uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
                   uint32_t esi);                                          /* 0x47d4e */
+/* 0x048f4c: register-ABI. acc=arr[0] (lo:hi); loop `count` times: acc =
+ * fn_04794a(fx_mul64(acc, mant, (exp_base<<16)|arr[0].exp), arr[i+1],
+ * (arr[i+1].exp<<16)|arr[0].exp). Returns final (EDX<<32)|EAX. Reg-ABI: EAX=mant_lo,
+ * EDX=mant_hi, EBX=count, ECX=arr, ESI=exp_base (low16). */
+uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
+                   const fx128 *arr, uint32_t exp_base);                  /* 0x048f4c */
 void     fx_stub_4a923(void);                                             /* 0x4a923 */
 void     fx_round_down(uint32_t *v, uint16_t mode);                       /* 0x481df */
 

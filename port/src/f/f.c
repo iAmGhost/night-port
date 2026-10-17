@@ -4494,3 +4494,30 @@ void fn_0478e2(fx128 *a, fx128 *out, const fx128 *b)
 
 void fn_04791a(fx128 *a, fx128 *out, uint32_t b_lo, uint32_t b_hi, uint32_t exp_hi)
 { fx4794a_store(out, a->lo, a->hi, a->exp, b_lo, b_hi, exp_hi); }
+
+/* 0x048f4c: register-ABI loop over an array of fx128 (see f.h for the call
+ * pattern). ESI is tracked literally: ROL ESI,16 = swap the two 16-bit halves;
+ * MOV SI,x = set low16, preserve high16. acc=EAX:EDX starts at arr[0] and is
+ * re-threaded through each fn_04794a result; each iteration reads arr[i+1].
+ * Faithful mirror of the 32-instruction disasm (verified ESI trace matches
+ * fx_mul64<-ESI=(E0<<16)|arr[0].exp every iter, fn_04794a<-ESI=(arr[i+1].exp<<16)|arr[0].exp). */
+uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
+                   const fx128 *arr, uint32_t exp_base)
+{
+    uint32_t EAX = arr[0].lo, EDX = arr[0].hi;
+    uint32_t ESI = (uint32_t)arr[0].exp;      /* 048f5e: MOV SI,[arr[0]+8], high16=0 */
+    uint32_t E0 = exp_base & 0xffffu;         /* [EBP+8] = orig ESI low16 */
+    for (uint32_t i = 0; i < count; i++) {
+        ESI = (ESI << 16) | (ESI >> 16);      /* 048f63 ROL ESI,16 */
+        ESI = (ESI & 0xffff0000u) | E0;       /* 048f66 MOV SI,[EBP+8] */
+        ESI = (ESI << 16) | (ESI >> 16);      /* 048f6a ROL ESI,16 */
+        uint64_t r = fx_mul64(EAX, EDX, mant_lo, mant_hi, ESI); /* 048f73 */
+        EAX = (uint32_t)r; EDX = (uint32_t)(r >> 32);
+        ESI = (ESI << 16) | (ESI >> 16);      /* 048f82 ROL ESI,16 */
+        ESI = (ESI & 0xffff0000u) | (arr[i+1].exp & 0xffffu);   /* 048f85 MOV SI,[arr[i+1]+8] */
+        ESI = (ESI << 16) | (ESI >> 16);      /* 048f8a ROL ESI,16 */
+        r = fn_04794a(EAX, EDX, arr[i+1].lo, arr[i+1].hi, ESI); /* 048f8d */
+        EAX = (uint32_t)r; EDX = (uint32_t)(r >> 32);
+    }
+    return ((uint64_t)EDX << 32) | EAX;
+}

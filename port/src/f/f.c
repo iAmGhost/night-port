@@ -1585,6 +1585,10 @@ uint8_t  g_dat_63f50 = 0;
 uint32_t g_dat_63f08 = 0;
 uint8_t  g_dat_62cd8[128] = {0};
 uint8_t  g_dat_62c58[128] = {0};
+uint8_t  g_dat_62c75 = 0;   /* 0x62c75 */
+uint8_t  g_dat_62c82 = 0;   /* 0x62c82 */
+uint8_t  g_dat_62c8e = 0;   /* 0x62c8e */
+uint8_t  g_dat_62c90 = 0;   /* 0x62c90 */
 uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
 uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
@@ -1607,6 +1611,35 @@ void fn_0348e2(void) {                                          /* 0x0348e2 */
 void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
     if (g_dat_62cd8[i] == 0) g_dat_62c58[i] = 0;
     else { g_dat_62c58[i] = 1; g_dat_62cd8[i]--; }
+}
+
+/* 0x03442e: rotating 10-slot event buffer.
+ * Param x in AL (EAX preserved by the 0x418ee stack-guard prologue).
+ * Dispatches on x to stamp a marker into g_dat_63f14[g_dat_63f50] and pick y;
+ * when a branch fires (z==1) it records delta=g_dat_63f08-g_dat_63f0c into the
+ * current slot, advances the slot (wrap 9->0), then calls fn_0343d1(x) plus
+ * fn_0343d1(y)/fn_0343d1(0x36) depending on y. */
+void fn_03442e(uint8_t x) {                                      /* 0x03442e */
+    uint8_t y = 0;
+    uint8_t z = 0;
+    if (x == 0x1d) {
+        if (g_dat_62c90 != 0) { g_dat_63f14[g_dat_63f50] = 0x67; y = 0x38; z = 1; }
+        else if (g_dat_62c82 != 0 || g_dat_62c8e != 0) { g_dat_63f14[g_dat_63f50] = 0x68; y = 0x2a; z = 1; }
+    } else if (x == 0x38) {
+        if (g_dat_62c75 != 0) { g_dat_63f14[g_dat_63f50] = 0x67; y = 0x1d; z = 1; }
+        else if (g_dat_62c82 != 0 || g_dat_62c8e != 0) { g_dat_63f14[g_dat_63f50] = 0x69; y = 0x2a; z = 1; }
+    } else if (x == 0x2a || x == 0x36) {
+        if (g_dat_62c75 != 0) { g_dat_63f14[g_dat_63f50] = 0x68; y = 0x1d; z = 1; }
+        else if (g_dat_62c90 != 0) { g_dat_63f14[g_dat_63f50] = 0x69; y = 0x38; z = 1; }
+    }
+    if (z != 1) return;
+    g_dat_63f1e[g_dat_63f50] = 0;
+    g_dat_63f28[g_dat_63f50] = g_dat_63f08 - g_dat_63f0c;
+    if (g_dat_63f50 == 9) g_dat_63f50 = 0; else g_dat_63f50++;
+    fn_0343d1(x);
+    if (y == 0x1d) { fn_0343d1(0x1d); }
+    else if (y == 0x2a) { fn_0343d1(0x2a); fn_0343d1(0x36); }
+    else if (y == 0x38) { fn_0343d1(0x38); }
 }
 
 uint8_t  g_dat_639e4 = 0;

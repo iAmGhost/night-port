@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 181 / 528 done
+TOTALS: 182 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 181 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 13 | 0 | 0 | 68 |
-| L11 | 77 | 22 | 0 | 0 | 55 |
+| L11 | 77 | 23 | 0 | 0 | 54 |
 | L12 | 58 | 0 | 0 | 0 | 58 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -141,6 +141,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_01730b (0x01730b, 406B) ported** — 2-phase X-then-Y move-toward-target. Signature (s, step, *out1=X-delta, *out2=Y-delta). s[0xaf] is a 2-bit done-counter: phase1 (X toward s[0xb3]) skips if s[0xaf]==1, sets bit0 (+1) when X reached, else *out1=±step; phase2 (Y toward s[0xb7], clamped by g_dat_63354 [0x12] lower/[0x16] upper) skips if s[0xaf]==2, sets bit1 (+2) when Y reached, else *out2=±step. Return s[0xaf]>=3 (both done). Traced full disasm (CONCAT decomp unreliable). 5 checks (sentinels detect out writes). | STATUS.md L11 |
 | 2026-07-08 | **L11 frontier: 7 candidates remain, all complex** — 0x01730b (406B, 2-phase X-then-Y move-toward-target, s[0xaf] state 1/2/3, CONCAT), 0x017ca6 (620B, X-axis 2D movement mirror of fn_01776f, s[0xf3]/0xf7 velocity), 0x017927 (894B, large movement/AI w/ g_dat_63354 bounds), 0x016fec (555B, grid-collision, new globals g_dat_51c98/g_dat_53c90), 0x034aba (387B, linked-list split w/ CONCAT), 0x03442e (518B, FALSE "stub" decomp w/ unreachable-block warnings — needs disasm), 0x016b8f (1116B, FALSE decomp + 5 params). All need dedicated disasm tracing (Ghidra decomp unreliable for these CONCAT-heavy state machines). NEXT: continue with 0x01730b / 0x017ca6 (movement family) or 0x016fec (grid-collision). | STATUS.md L11 |
 | 2026-07-08 | **fn_034aba (0x034aba, 387B) ported + node-arena model fixed** — 3-way interval-list splitter, fully traced from raw disasm (Ghidra decomp garbled the register ABI). Signature (a, idx, b, c, flag) [a=EAX, idx=EDX, b=EBX, c=ECX, flag=stack]. Node (11 B): [0]=start(int32) [4]=next [8]=len(int16) [10]=flag(byte); 11-byte nodes from fn_034a87 bump-allocator; head array g_dat_62d68[idx]. Logic: if a<0 {c-=a;b+=a;a=0;head=newnode1}; if a+b>=0x140 {b=0x140-a} (clamp, NOTE 0x140==320 not 352); end=a+b; walk list to node containing a (acc+=len until acc>=a); set newnode1 {len=b,start=c,flag}; svar2=head->len-(acc-a); if end>=0x140 (2-way): head->len=svar2, head->next=newnode1; else (3-way): walk to node containing end, newnode2 {len=acc-end, start=head->start+head->len-(acc-end), next=head->next, flag=head->flag}, pivar1->len=svar2, pivar1->next=newnode1, newnode1->next=newnode2. **ARENA MODEL FIX:** g_dat_62d64 (bump cursor) is a base-relative uint32 offset into a new 64KB static s_node_arena; g_dat_62d68[idx] + node->next store offsets (not pointers) — same offset pattern as the heap. **ALIGNMENT FIX:** node fields land on unaligned byte offsets (11-byte stride -> int16 at odd addr), so all field access is byte-wise (direct int16/int32 casts corrupt on arm64). 7 checks (3-way split, 2-way split). L11 21->22, TOTALS 180->181. Remaining L11 complex: 0x03442e, 0x017927, 0x016b8f. | STATUS.md L11 |
+| 2026-07-08 | **fn_03442e (0x03442e, 518B) ported** — rotating 10-slot event buffer. Param x in AL; the `PUSH 0x38; CALL 0x418ee` prologue is a stack-guard wrapper that XCHG-saves/restores EAX (so x survives it). Ghidra decomp was a FALSE stub (unreachable-block warnings) — fully traced from raw disasm. Dispatch on x (byte): 0x1d / 0x38 / (0x2a|0x36) / else. Each fires at most one branch, gated by the byte-flag globals g_dat_62c75/62c82/62c8e/62c90, stamping a marker ('g'=0x67/'h'=0x68/'i'=0x69) into g_dat_63f14[g_dat_63f50] and picking y in {0x1d,0x2a,0x38}. If a branch fired (z==1): g_dat_63f1e[slot]=0; g_dat_63f28[slot]=g_dat_63f08-g_dat_63f0c (int32 delta); advance slot (wrap 9->0); CALL fn_0343d1(x); then CALL fn_0343d1(0x1d) [y=0x1d], fn_0343d1(0x2a)+fn_0343d1(0x36) [y=0x2a], or fn_0343d1(0x38) [y=0x38]. Slot layout: 0x63f14[10] marker bytes, 0x63f1e[10] zero flags, 0x63f28[10] int32 deltas, 0x63f50 current slot. fn_0343d1(i) decrements g_dat_62cd8[i] + sets g_dat_62c58[i]. New globals g_dat_62c75/62c82/62c8e/62c90. 12 checks (all 4 x-branches, y-dispatch, slot advance + 9->0 wrap, no-match no-ops). L11 22->23, TOTALS 181->182. Remaining L11 complex: 0x017927, 0x016b8f. | STATUS.md L11 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -567,7 +568,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x032464 | 604 | FUN_00032464 | | |
 | [ ] | 0x034295 | 105 | FUN_00034295 | | |
 | [ ] | 0x0342ff | 83 | FUN_000342ff | | |
-| [ ] | 0x03442e | 518 | FUN_0003442e | | |
+| [x] | 0x03442e | 518 | fn_03442e | rotating 10-slot event buffer | 12 tests |
 | [x] | 0x034635 | 255 | fn_034635 | keyboard input state machine (g_dat_62c58[key] state; calls fn_034353) | 1:1 (disasm; 5 checks) |
 | [ ] | 0x034990 | 126 | FUN_00034990 | | |
 | [x] | 0x034aba | 387 | fn_034aba | 3-way interval-list splitter (node arena) | 7 tests |

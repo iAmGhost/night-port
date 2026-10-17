@@ -1896,6 +1896,83 @@ static void test_fn_034aba(void) {
     check(g_dat_62d64==22 && g_dat_62d68[1]==0, "  fn_034aba b1 cursor+head");
 }
 
+static void reset_03442e(void) {
+    memset(g_dat_62cd8, 0, sizeof g_dat_62cd8);
+    memset(g_dat_62c58, 0, sizeof g_dat_62c58);
+    memset(g_dat_63f14, 0, sizeof g_dat_63f14);
+    memset(g_dat_63f1e, 0, sizeof g_dat_63f1e);
+    memset(g_dat_63f28, 0, sizeof g_dat_63f28);
+    g_dat_62c75 = g_dat_62c82 = g_dat_62c8e = g_dat_62c90 = 0;
+    g_dat_63f50 = 0; g_dat_63f08 = 0; g_dat_63f0c = 0;
+}
+
+static void test_fn_03442e(void) {
+    printf("fn_03442e (0x03442e)\n");
+
+    /* A: x=0, all flags 0 -> no branch, nothing recorded */
+    reset_03442e();
+    fn_03442e(0x00);
+    check(g_dat_63f50==0 && g_dat_63f28[0]==0 && g_dat_63f14[0]==0 && g_dat_62cd8[0]==0,
+          "  fn_03442e A no-match no-op");
+
+    /* B: x=0x1d, 62c90 set -> marker 0x67, y=0x38, slot 2->3, delta 600 */
+    reset_03442e();
+    g_dat_63f50=2; g_dat_62c90=1; g_dat_63f08=1000; g_dat_63f0c=400;
+    g_dat_62cd8[0x1d]=5; g_dat_62cd8[0x38]=7;
+    fn_03442e(0x1d);
+    check(g_dat_63f14[2]==0x67 && g_dat_63f1e[2]==0 && g_dat_63f28[2]==600 && g_dat_63f50==3,
+          "  fn_03442e B x1d/62c90 slot");
+    check(g_dat_62cd8[0x1d]==4 && g_dat_62c58[0x1d]==1 && g_dat_62cd8[0x38]==6 && g_dat_62c58[0x38]==1,
+          "  fn_03442e B calls 0x1d,0x38");
+
+    /* C: x=0x1d, 62c90=0, 62c82 set -> marker 0x68, y=0x2a, calls 0x1d,0x2a,0x36 */
+    reset_03442e();
+    g_dat_63f50=4; g_dat_62c82=1; g_dat_63f08=50; g_dat_63f0c=20;
+    g_dat_62cd8[0x1d]=2; g_dat_62cd8[0x2a]=3; g_dat_62cd8[0x36]=4;
+    fn_03442e(0x1d);
+    check(g_dat_63f14[4]==0x68 && g_dat_63f28[4]==30 && g_dat_63f50==5,
+          "  fn_03442e C x1d/62c82 slot");
+    check(g_dat_62cd8[0x1d]==1 && g_dat_62cd8[0x2a]==2 && g_dat_62cd8[0x36]==3,
+          "  fn_03442e C calls 0x1d,0x2a,0x36");
+
+    /* D: x=0x38, 62c75 set -> marker 0x67, y=0x1d, calls 0x38,0x1d */
+    reset_03442e();
+    g_dat_63f50=0; g_dat_62c75=1; g_dat_63f08=100; g_dat_63f0c=10;
+    g_dat_62cd8[0x38]=9; g_dat_62cd8[0x1d]=1;
+    fn_03442e(0x38);
+    check(g_dat_63f14[0]==0x67 && g_dat_63f28[0]==90 && g_dat_63f50==1,
+          "  fn_03442e D x38/62c75 slot");
+    check(g_dat_62cd8[0x38]==8 && g_dat_62c58[0x38]==1 && g_dat_62cd8[0x1d]==0 && g_dat_62c58[0x1d]==1,
+          "  fn_03442e D calls 0x38,0x1d");
+
+    /* E: x=0x2a, 62c75=0, 62c90 set -> marker 0x69, y=0x38, slot 9->0 wrap */
+    reset_03442e();
+    g_dat_63f50=9; g_dat_62c90=1; g_dat_63f08=7; g_dat_63f0c=3;
+    g_dat_62cd8[0x2a]=2; g_dat_62cd8[0x38]=3;
+    fn_03442e(0x2a);
+    check(g_dat_63f14[9]==0x69 && g_dat_63f28[9]==4 && g_dat_63f50==0,
+          "  fn_03442e E x2a/62c90 wrap");
+    check(g_dat_62cd8[0x2a]==1 && g_dat_62cd8[0x38]==2,
+          "  fn_03442e E calls 0x2a,0x38");
+
+    /* F: x=0x36, 62c75 set -> marker 0x68, y=0x1d (same branch as x=0x2a) */
+    reset_03442e();
+    g_dat_63f50=1; g_dat_62c75=1; g_dat_63f08=1000; g_dat_63f0c=0;
+    g_dat_62cd8[0x36]=3; g_dat_62cd8[0x1d]=2;
+    fn_03442e(0x36);
+    check(g_dat_63f14[1]==0x68 && g_dat_63f28[1]==1000 && g_dat_63f50==2,
+          "  fn_03442e F x36/62c75 slot");
+    check(g_dat_62cd8[0x36]==2 && g_dat_62cd8[0x1d]==1,
+          "  fn_03442e F calls 0x36,0x1d");
+
+    /* G: x=0x38, all flags 0 -> no branch, no-op */
+    reset_03442e();
+    g_dat_63f50=3;
+    fn_03442e(0x38);
+    check(g_dat_63f50==3 && g_dat_63f14[3]==0 && g_dat_62cd8[0x38]==0,
+          "  fn_03442e G x38 no-flag no-op");
+}
+
 static void test_l10_accessors(void) {
     printf("L10 trivial accessors\n");
     g_dat_53c60 = 0x12345678;
@@ -2383,6 +2460,7 @@ int main(void) {
     test_042576();
     test_l10_accessors();
     test_fn_034aba();
+    test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

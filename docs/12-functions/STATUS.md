@@ -34,13 +34,13 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 143 / 528 done
+TOTALS: 144 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 23 | 0 | 0 | 24 |
-| L2 | 32 | 9 | 0 | 0 | 23 |
+| L2 | 32 | 10 | 0 | 0 | 22 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
@@ -292,7 +292,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x041e38 | 24 | FUN_00041e38 | | |
 | [ ] | 0x041fa1 | 0 | FUN_00041fa1 | | |
 | [x] | 0x0423b7 | 23 | fn_0423b7 | callback chain: g_dat_5336c(param_1)->r1; g_dat_53370(r1) [reused from 0423cf]; fn_0423cf(param_1); added g_dat_5336c | port+test PASS |
-| [ ] | 0x042576 | 179 | FUN_00042576 | | |
+| [x] | 0x042576 | 179 | fn_042576 | file-mode parser: to_lower(s[0]) in r/w/a else fn_042a0d(9); +/-/b/t modifiers -> 0x43/0x40/3; w|2/a|0x82/r|1; g_dat_53619==0x200 default-binary; ret (p2<<32)|flags | port+test PASS |
 | [ ] | 0x0429c8 | 28 | FUN_000429c8 | | |
 | [ ] | 0x0429e5 | 4 | thunk_FUN_000422d5 | | |
 | [ ] | 0x0429ea | 28 | FUN_000429ea | | |

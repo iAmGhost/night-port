@@ -1845,6 +1845,22 @@ static void test_0423b7(void) {
     g_dat_5336c = NULL; g_dat_53370 = NULL; g_dat_53374 = NULL;
 }
 
+static void test_042576(void) {
+    printf("fn_042576 (0x042576) file-mode parser\n");
+    g_dat_53619 = 0x200;
+    check((uint32_t)fn_042576("r++", 0) == 0x43, "  'r++' -> 0x43");
+    check((uint32_t)fn_042576("w+ ", 0) == 0x43, "  'w+ ' -> 0x43");
+    check((uint32_t)fn_042576("ab ", 0) == 0xc2, "  'ab ' -> 0xc2");
+    check((uint32_t)fn_042576("rbt", 0) == 0x41, "  'rbt' -> 0x41");
+    check((uint32_t)fn_042576("wt+", 0) == 3, "  'wt+' -> 3");
+    check((uint32_t)fn_042576("rb+", 0) == 0x43, "  'rb+' -> 0x43");
+    check((uint32_t)fn_042576("x  ", 0) == 0, "  'x  ' -> 0 (invalid)");
+    g_dat_53619 = 0;
+    check((uint32_t)fn_042576("r+ ", 0) == 3, "  'r+ ' (53619=0) -> 3");
+    g_dat_53619 = 0x200;
+    check((uint32_t)fn_042576("wt  ", 0) == 2, "  'wt  ' -> 2");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1946,6 +1962,7 @@ int main(void) {
     test_045a82();
     test_045a76();
     test_0423b7();
+    test_042576();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

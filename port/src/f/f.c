@@ -1364,6 +1364,7 @@ uint32_t g_dat_5377c = 0;                /* DAT_0005377c: TZ seconds */
 uint32_t g_dat_53734 = 0;                /* DAT_00053734: TZ count */
 uint32_t g_dat_53758 = 0;                /* DAT_00053758: TZ index */
 uint8_t  g_dat_533bb = 0;                /* DAT_000533bb: classify-enable threshold */
+uint32_t g_dat_53619 = 0;                /* DAT_00053619: 0x200 => default binary */
 
 /* 0x049a35: timezone ("TZ") config parser. Reads the "TZ" config value (a
  * time-range string), parses it via parse_time_str, and fills the g_dat_537xx
@@ -1444,6 +1445,36 @@ uint64_t fn_045a82(uint32_t param_1, uint32_t param_2) {
 uint64_t fn_045a76(uint32_t param_1, uint32_t param_2) {
     if (param_2 == 0) return 0;
     return fn_045a82(param_1, param_2);
+}
+
+/* 0x042576: file-mode parser. c = to_lower(s[0]) must be r/w/a (else fn_042a0d(9), 0).
+ * Builds flags from s[1]/s[2] modifiers: +/b/t; 0x40=binary, 3=R/W, then w|2 / a|0x82 / r|1.
+ * Returns (param_2<<32) | flags. g_dat_53619==0x200 selects the default-binary path. */
+uint64_t fn_042576(const char *s, uint32_t param_2) {
+    char c = to_lower((uint8_t)s[0]);
+    uint32_t ebx = 0;
+    if (c != 'r' && c != 'w' && c != 'a') {
+        fn_042a0d(9);                              /* invalid mode */
+        return ((uint64_t)param_2 << 32);          /* ebx = 0 */
+    }
+    uint8_t m1 = (uint8_t)s[1], m2 = (uint8_t)s[2];
+    if (m1 == '+') {
+        ebx = 3;
+        if (m2 == 'b' || (m2 != 't' && g_dat_53619 == 0x200)) ebx = 0x43;
+    } else {
+        if (m1 == 'b') {
+            ebx = 0x40;
+            if (m2 == '+') ebx = 0x43;
+        } else if (m1 == 't') {
+            if (m2 == '+') ebx = 3;
+        } else if (g_dat_53619 == 0x200) {
+            ebx = 0x40;
+        }
+    }
+    if (c == 'w') ebx |= 2;
+    else if (c == 'a') ebx |= 0x82;
+    else ebx |= 1;
+    return ((uint64_t)param_2 << 32) | ebx;
 }
 
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array

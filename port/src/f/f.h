@@ -376,6 +376,7 @@ uint32_t const_64008(void);
 uint32_t const_64004(void);
 /* globals written by the 0x42a08/0x42a0d/0x42a30 family */
 extern uint32_t g_dat_64008;    /* DAT_00064008 */
+extern uint32_t g_dat_53619;    /* DAT_00053619: 0x200 => default binary file mode */
 extern uint32_t g_dat_64004;    /* DAT_00064004 */
 extern uint8_t  g_dat_533bb;    /* DAT_000533bb: classify-enable threshold (>2) */
 extern u32_cb_fn  g_dat_533bd;  /* DAT_000533bd: callback slot (0x042a3c) */
@@ -422,6 +423,7 @@ void     fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3); /* 0x049a35: TZ confi
 void     fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4); /* 0x049c76: TZ range parser (direct string) */
 uint64_t fn_045a82(uint32_t param_1, uint32_t param_2); /* 0x045a82: byte classifier (g_dat_64004/64008) */
 uint64_t fn_045a76(uint32_t param_1, uint32_t param_2); /* 0x045a76: fn_045a82 thunk (param_2==0 -> 0) */
+uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode parser (r/w/a + +/-/b/t) */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */

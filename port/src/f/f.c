@@ -1691,6 +1691,43 @@ int32_t fn_015a1f(uint8_t *s) {                                      /* 0x015a1f
     return 0;
 }
 
+int32_t fn_015b5b(uint8_t *s) {                                      /* 0x015b5b: family variant (s[0x83] gate + '.' check) */
+    int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
+    int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
+    if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {
+        g_dat_53c6c = 1;
+        return 0;
+    }
+    if ((*(uint32_t *)(s + 0x17)) >= 0xb && (*(uint32_t *)(s + 0x17)) <= 0x14) {
+        *(uint32_t *)(s + 0x117) = 1;
+        g_dat_53c6c = 1;
+        *(int32_t *)(s + 0x113) = (int32_t)prng_next() % 10;
+        return 2;
+    }
+    *(uint32_t *)(s + 0x117) = 0;
+    if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
+        if ((int32_t)(*(uint32_t *)(s + 0x83)) == 0) {
+            *(uint32_t *)(s + 0x83) = 1;
+            *(int32_t *)(s + 0x113) = (int32_t)prng_next() % 10;
+        }
+    } else {
+        *(uint32_t *)(s + 0x83) = 0;
+    }
+    int32_t idx = (int32_t)(*(int32_t *)(s + 0x113)) * 10 + (int32_t)(*(int32_t *)(s + 0xd)) * 0x88;
+    int32_t tbl0 = (int32_t)g_dat_53eb8[idx];
+    if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
+        int32_t tbl1 = (int32_t)g_dat_53eb8[idx + 1];
+        if (tbl1 == 0x2e) {                                          /* '.' */
+            if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) return 1;
+        } else {
+            if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) {
+                if (abs32((int32_t)fn_0151d5(s) - tY) < 10) return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

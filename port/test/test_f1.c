@@ -1999,6 +1999,27 @@ static void test_l10_accessors(void) {
       prng_seed(0x1234); memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); r = fn_015a1f(s);
       check(r == 0, "  fn_015a1f table=0 -> ret0");
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
+    {
+      uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_dat_53c7c = tgt; g_dat_53c6c = 0;
+      uint8_t s[0x200] = {0}; s[1] = 5; s[9] = 5; s[0xd] = 2;   // sX-tX=2, sY-tY=2, idx in-bounds
+      *(uint32_t *)(s+0x17) = 0x1f; int32_t r = fn_015b5b(s);
+      check(r == 0 && g_dat_53c6c == 1, "  fn_015b5b state 0x1f -> ret0 + flag");
+      prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0xb; r = fn_015b5b(s);
+      check(r == 2 && s[0x117] == 1 && g_dat_53c6c == 1, "  fn_015b5b [0xb,0x14] -> ret2");
+      *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 0; *(int32_t *)(s+0x113) = 0;
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      check(r == 0 && s[0x117] == 0 && s[0x83] == 0, "  fn_015b5b out-of-range s[0x1f]!=4 -> ret0, s[0x83]=0");
+      prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; *(uint32_t *)(s+0x83) = 0;
+      memset(g_dat_53eb8, 0x2e, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      check(r == 1 && s[0x83] == 1, "  fn_015b5b tbl1='.' close -> ret1, s[0x83]=1");
+      prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; *(uint32_t *)(s+0x83) = 0;
+      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      check(r == 1, "  fn_015b5b tbl1!='.' both-close -> ret1");
+      prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; *(uint32_t *)(s+0x83) = 0;
+      memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      check(r == 0, "  fn_015b5b tbl0=1 too-far -> ret0");
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
+    }
     }
 }
 

@@ -468,7 +468,8 @@ extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
 extern uint8_t  g_dat_53eb8[FN_015A1F_TBL]; /* DAT_00053eb8 (zeroed runtime table) */
 void fn_034635(uint8_t key);
 uint32_t fn_0100d9(uint32_t *s);      /* 0x0100d9: free container {count, array} + free array */
-int32_t  fn_015a1f(uint8_t *s);        /* 0x015a1f: state machine, data-table distance check */            /* 0x034635: keyboard input state machine */
+int32_t  fn_015a1f(uint8_t *s);        /* 0x015a1f: state machine, data-table distance check */
+int32_t  fn_015b5b(uint8_t *s);        /* 0x015b5b: family variant (s[0x83] gate + table[idx+1] '.' check) */            /* 0x034635: keyboard input state machine */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */

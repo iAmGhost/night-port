@@ -1992,6 +1992,15 @@ static void test_fn_036626(void) {
     g_dat_633a0 = 0;
     memset(g_tab_5d884, 0, sizeof g_tab_5d884);
 }
+static void test_fn_03493e(void) {
+    printf("fn_03493e (0x03493e)\n");
+    for (int i = 0; i < 16; i++) g_dat_63f14[i] = (uint8_t)(0x80 + i);
+    g_dat_63f50 = 0; check(fn_03493e() == g_dat_63f14[9], "  index 0 -> g_dat_63f14[9]");
+    g_dat_63f50 = 1; check(fn_03493e() == g_dat_63f14[0], "  index 1 -> g_dat_63f14[0]");
+    g_dat_63f50 = 5; check(fn_03493e() == g_dat_63f14[4], "  index 5 -> g_dat_63f14[4]");
+    g_dat_63f50 = 9; check(fn_03493e() == g_dat_63f14[8], "  index 9 -> g_dat_63f14[8]");
+    g_dat_63f50 = 0;
+}
 static void test_fn_03442e(void) {
     printf("fn_03442e (0x03442e)\n");
 
@@ -2622,6 +2631,7 @@ int main(void) {
     test_fn_03ba86();
     test_fn_03a594();
     test_fn_036626();
+    test_fn_03493e();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

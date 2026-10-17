@@ -1662,6 +1662,14 @@ void fn_0348e2(void) {                                          /* 0x0348e2 */
     g_dat_63f50++;
     if (g_dat_63f50 > 9) g_dat_63f50 = 0;
 }
+/* 0x03493e: read a slot byte. No args; returns AL. The slot index is g_dat_63f50
+ * (wraps 0..9). if g_dat_63f50==0: return the byte at 0x63f1d = g_dat_63f14[9]
+ * (a default). else: return the byte at 0x63f13+g_dat_63f50 = g_dat_63f14[g_dat_63f50-1]
+ * (valid for 1..9). The standalone byte at 0x63f13 is never read (index 0 is
+ * special-cased to 0x63f1d). */
+uint8_t fn_03493e(void) {
+    return (g_dat_63f50 == 0) ? g_dat_63f14[9] : g_dat_63f14[g_dat_63f50 - 1];
+}
 void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
     if (g_dat_62cd8[i] == 0) g_dat_62c58[i] = 0;
     else { g_dat_62c58[i] = 1; g_dat_62cd8[i]--; }

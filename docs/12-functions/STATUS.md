@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 193 / 528 done
+TOTALS: 194 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 193 / 528 done
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 19 | 0 | 0 | 62 |
+| L10 | 81 | 20 | 0 | 0 | 61 |
 | L11 | 77 | 24 | 0 | 0 | 53 |
 | L12 | 58 | 3 | 0 | 0 | 55 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -151,6 +151,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_03ba86 (0x03ba86, 187B) ported — L12 COMPLETE (3/3)** — the last L12 candidate, a nested-loop interval-list builder reading a variable-length byte stream. Full disasm confirmed ABI a_base=EAX, idx_base=EDX, row_count=EBX, p=ECX. For each row: count=*p++; then count times: acc+=*p++; len=*p++; fn_034aba(a_base+acc, idx_base+row, len, p, flag); p+=len; acc+=len. The flag (5th arg) is `MOV AL,[EBP+0x10]; PUSH EAX` — [EBP+0x10] is the pushed 0x38 canary in the prologue's stack layout, so the flag is the constant 0x38. Key subtlety: with non-zero a, an EMPTY node@0 (len 0) makes fn_034aba's containing-walk infinite-loop, so the arena must be pre-initialized (node@0 covering [0,0x140), cursor=11) before the call — replicated in the test. 2 checks: a full differential (fn_03ba86 vs a manual nested fn_034aba loop over a synthetic 2-row stream; arena region + cursor byte-for-byte identical) + a flag-0x38 assertion. L12 2->3 (COMPLETE), TOTALS 190->191, suite 664 PASS 0 FAIL. | STATUS.md L12 |
 | 2026-07-08 | **fn_03a594 (0x03a594, 98B) ported** — filtered byte copy. Full disasm confirmed ABI dest=EAX, src=EDX, count=EBX: `for i in 0..count-1: if (src[i] != 0xff) dest[i] = src[i]`. Bytes equal to 0xff are NOT copied (dest[i] left unchanged) — a masked/conditional copy, no globals or external deps (one of the rare fully-portable L10 candidates). 3 checks: mixed 0xff pattern (copied + skipped slots verified byte-by-byte) + all-0xff src (dest fully unchanged). L10 17->18, TOTALS 191->192, suite 667 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **fn_036626 (0x036626, 125B) ported** — case-insensitive string->value table lookup. Full disasm (the Ghidra decomp mislabelled the loop bound as `< 0`) confirmed: `for i in 0..g_dat_633a0: if (str_icmp(&g_tab_5d884[i*21], s, str_len(s)) == 0) result = *(i32*)&g_tab_5d884[i*21+13]`; returns result (or 0). s=EAX. The table @0x5d884 is 21-byte RODATA entries {str[13]; int32 value@13; pad[4]}; bound by global g_dat_633a0 (added). Added g_dat_633a0 + g_tab_5d884[128*21] globals. Value read uses memcpy (offset 13 is unaligned). Depends on str_len (0x41f5d) + str_icmp (0x423e5), both already ported. Note: a shorter query that is a prefix of a table string still matches (faithful — the compare length is str_len(query), not the table entry's). 5 checks (exact, query-lower, query-upper, entry-upper, no-match->0) against a synthetic 3-entry table. L10 18->19, TOTALS 192->193, suite 672 PASS 0 FAIL. | STATUS.md L10 |
+| 2026-07-08 | **fn_03493e (0x03493e, 72B) ported** — slot-byte read. No args, returns AL. The slot index is g_dat_63f50 (wraps 0..9, already ported). Full disasm (Ghidra decomp said the index==0 case returns 0 — WRONG) confirmed: if g_dat_63f50==0 return the byte at 0x63f1d else the byte at 0x63f13+g_dat_63f50. Key layout fact: 0x63f13 is a standalone byte, and g_dat_63f14[16] (already ported) starts at 0x63f14, so 0x63f1d == g_dat_63f14[9] and 0x63f13+k == g_dat_63f14[k-1] for k>=1. The 0x63f13 byte itself is never read (index 0 special-cased to 0x63f1d). So fn_03493e reuses the existing g_dat_63f14 — no new table needed: `(g_dat_63f50==0) ? g_dat_63f14[9] : g_dat_63f14[g_dat_63f50-1]`. 4 checks (index 0->[9], 1->[0], 5->[4], 9->[8]) against a known g_dat_63f14 fill. L10 19->20, TOTALS 193->194, suite 676 PASS 0 FAIL. | STATUS.md L10 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -479,7 +480,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x034353 | 125 | fn_034353 | slot update (63f1e/63f0c) | 1:1 (reg-ABI) |
 | [x] | 0x0343d1 | 92 | fn_0343d1 | idx flag/counter (62cd8/62c58) | 1:1 |
 | [x] | 0x0348e2 | 91 | fn_0348e2 | slot-alloc (g_dat_63f50 wrap@9) | 1:1 |
-| [ ] | 0x03493e | 72 | FUN_0003493e | | |
+| [x] | 0x03493e | 72 | FUN_0003493e | | |
 | [x] | 0x034a87 | 50 | fn_034a87 | v=g_dat_62d64; +=11; return v | 1:1 |
 | [x] | 0x0350aa | 96 | FUN_000350aa | | |
 | [x] | 0x03510b | 126 | FUN_0003510b | | |

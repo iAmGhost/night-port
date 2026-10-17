@@ -450,6 +450,7 @@ uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_da
 uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_dat_639e0 */
 void fn_031f10(uint8_t *p, uint32_t val);  /* 0x031f10: ring push (count@0x31, buf@0x32, cap 5) */
 void fn_0348e2(void);                       /* 0x0348e2: slot-alloc (g_dat_63f50, wrap @9) */
+uint8_t fn_03493e(void);                     /* 0x03493e: read g_dat_63f14 slot byte via g_dat_63f50 */
 void fn_0343d1(uint8_t i);                  /* 0x0343d1: idx flag/counter (g_dat_62cd8/62c58) */
 void fn_03442e(uint8_t x);                  /* 0x03442e: rotating 10-slot event buffer */
 void fn_034735(uint8_t idx);                /* 0x034735: per-key state machine (62c58/62cd8) */

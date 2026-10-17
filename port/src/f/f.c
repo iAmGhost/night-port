@@ -476,6 +476,31 @@ void fn_1053f(void)
     (void)g_dat_53c5c;   /* DPMI INT 0x31 AX=0x101: no-op in the flat model. */
 }
 
+/* ---- DPMI memory-region / real-mode-call initializers (fn_0003fade, 0x40570,
+ *        0x405a7, 0x407f8) ---- */
+/* fn_0003fade  orig: 0x0003fade (L10, 47B)
+ *   DPMI memory-region initializer: fn_041e20(&DAT_000a0000, 0, 64000) = zero
+ *   64000 bytes at the high-memory / DPMI region DAT_000a0000. DAT_000a0000 is
+ *   not modeled in the flat port (no other reference), so the zeroing is a
+ *   no-op. canary prologue omitted. */
+void fn_0003fade(void) {}
+
+/* fn_00040570  orig: 0x00040570 (L10, 54B)
+ *   DPMI real-mode request: builds a 14-word stack struct (word0=3) and calls
+ *   fn_041e51(0x10, &struct, &struct) — the DPMI INT 31h real-mode trampoline
+ *   (a flat-model no-op). The struct is stack-local and the trampoline does
+ *   nothing observable, so the whole function is a no-op. canary omitted. */
+void fn_00040570(void) {}
+
+/* fn_000405a7  orig: 0x000405a7 (L10, 54B)
+ *   Same as fn_00040570 but the request struct word0=0x13. Flat-model no-op. */
+void fn_000405a7(void) {}
+
+/* fn_000407f8  orig: 0x000407f8 (L10, 64B)
+ *   DPMI real-mode request: builds a stack struct (dword0=0x101, +canary) and
+ *   calls fn_041e51(0x31, &struct, &struct). Flat-model no-op. */
+void fn_000407f8(void) {}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

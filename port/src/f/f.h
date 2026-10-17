@@ -106,6 +106,10 @@ void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (
 void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
+void fn_0003fade(void);                         /* 0x0003fade: zero DAT_000a0000[64000] (DPMI region, no-op) */
+void fn_00040570(void);                         /* 0x00040570: DPMI real-mode call {3} via fn_041e51 (no-op) */
+void fn_000405a7(void);                         /* 0x000405a7: DPMI real-mode call {0x13} via fn_041e51 (no-op) */
+void fn_000407f8(void);                         /* 0x000407f8: DPMI real-mode call {0x101} via fn_041e51 (no-op) */
 void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (divisor in EAX) */
 void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */

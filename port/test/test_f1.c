@@ -2217,6 +2217,10 @@ static void test_cd_dpmi_noops(void) {
     printf("CD/DPMI real-mode I/O cluster (no-op standins)\n");
     fn_103e0(); fn_10570(); (void)fn_10876(); fn_107b9(); fn_10664(); fn_10b1d();
     check(1, "  all six run as no-ops (no flat-model effect)");
+    /* DPMI memory-region / real-mode-call initializers (L10): zero DAT_000a0000
+     * region + 3 real-mode requests via the no-op fn_041e51 trampoline. */
+    fn_0003fade(); fn_00040570(); fn_000405a7(); fn_000407f8();
+    check(1, "  0x3fade/0x40570/0x405a7/0x407f8 run as no-ops");
 }
 
 static void test_fn_048e60(void) {

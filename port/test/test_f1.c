@@ -2059,6 +2059,29 @@ static void test_l10_accessors(void) {
       check(re == 0, "  fn_015ed1 Y>=10 -> ret0");
       se[9] = 5; *(uint32_t *)(se+0x83) = 0; memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); prng_seed(0x1234); re = fn_015ed1(se);
       check(re == 0, "  fn_015ed1 X>=tbl0 -> ret0");
+    // fn_032158: entity list -> set targets to player + prng jitter.
+    {
+      uint8_t player[0x200] = {0}; *(uint32_t *)(player+1) = 100; *(uint32_t *)(player+9) = 50;
+      player[0x1b] = 0; *(uint32_t *)(player+0x1f) = 4;   // player is itself in the list (must be skipped)
+      uint8_t e0[0x200] = {0}; *(uint32_t *)(e0+0x117) = 0; *(uint32_t *)(e0+0x1f) = 4; *(uint32_t *)(e0+0xaf) = 0;
+      g_dat_639dc = 0; g_dat_639e0 = 0;   // so fn_01519f/fn_0151d5 = raw offset
+      g_dat_53c7c = player; g_dat_53c70 = e0; g_dat_53c68 = 2;
+      *(uint8_t **)(e0+0x13f) = player; *(uint8_t **)(player+0x13f) = 0;   // e0 -> player
+      g_dat_53c6c = 0; fn_032158();
+      check(e0[0x1f] == 4 && g_dat_53c6c == 0, "  fn_032158 flag=0 -> no-op");
+      g_dat_53c6c = 1; prng_seed(0x1234); fn_032158();
+      int32_t b3 = *(int32_t *)(e0+0xb3); int32_t b7 = *(int32_t *)(e0+0xb7);
+      check(b3 >= 55 && b3 <= 64, "  fn_032158 target-x = 100-45+prng%10 in [55,64]");
+      check(b7 >= 45 && b7 <= 54, "  fn_032158 target-y = 50-5+prng%10 in [45,54]");
+      check(e0[0x1f] == 6 && e0[0xaf] == 0 && g_dat_53c6c == 0, "  fn_032158 e0 marked active(0x1f=6), flag cleared");
+      check(player[0x1f] == 4, "  fn_032158 player skipped (not modified)");
+      // [0x1b]!=0 branch: target-x = 100+45-prng%10 in [136,145]
+      player[0x1b] = 1; *(uint32_t *)(e0+0x117) = 0; *(uint32_t *)(e0+0x1f) = 4; *(uint32_t *)(e0+0xaf) = 0;
+      g_dat_53c6c = 1; prng_seed(0x1234); fn_032158();
+      b3 = *(int32_t *)(e0+0xb3);
+      check(b3 >= 136 && b3 <= 145, "  fn_032158 [0x1b]!=0 target-x = 100+45-prng%10 in [136,145]");
+      g_dat_53c6c = 0;
+    }
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));

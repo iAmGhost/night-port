@@ -1500,6 +1500,8 @@ uint8_t  g_dat_62c58[128] = {0};
 uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
 uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
+uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
+int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
 uint8_t  g_dat_53eb8[0x2000] = {0}; /* 0x53eb8: zeroed runtime table */
 
 void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */
@@ -1732,6 +1734,37 @@ int32_t fn_015b5b(uint8_t *s) { return fn_015b5b_core(s, 0x2e); }   /* '.' */
 int32_t fn_01603e(uint8_t *s) { return fn_015b5b_core(s, 0x2b); }   /* '+' */
 int32_t fn_0161f9(uint8_t *s) { return fn_015b5b_core(s, 0x2b); }   /* '+' */
 int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, 0x2c); }   /* ',' */
+
+void fn_032158(void) {                                            /* 0x032158: set entity targets to player + prng jitter */
+    if (g_dat_53c6c != 1) return;
+    uint8_t *node = g_dat_53c70;
+    for (int32_t i = 0; i < g_dat_53c68; i++) {
+        if (node != g_dat_53c7c &&
+            (int32_t)(*(uint32_t *)(node + 0x117)) == 0 &&
+            (int32_t)(*(uint32_t *)(node + 0x1f)) == 4 &&
+            (int32_t)(*(uint32_t *)(node + 0xaf)) != 6) {
+            int32_t tx = (int32_t)fn_01519f(g_dat_53c7c);
+            int32_t ty = (int32_t)fn_0151d5(g_dat_53c7c);
+            *(int32_t *)(node + 0xb3) = tx;
+            *(int32_t *)(node + 0xb7) = ty;
+            if ((int32_t)(*(uint32_t *)(g_dat_53c7c + 0x1b)) == 0) {
+                *(int32_t *)(node + 0xb3) -= 0x2d;
+                *(int32_t *)(node + 0xb7) -= 5;
+                *(int32_t *)(node + 0xb3) += (int32_t)prng_next() % 10;
+                *(int32_t *)(node + 0xb7) += (int32_t)prng_next() % 10;
+            } else {
+                *(int32_t *)(node + 0xb3) += 0x2d;
+                *(int32_t *)(node + 0xb7) -= 5;
+                *(int32_t *)(node + 0xb3) -= (int32_t)prng_next() % 10;
+                *(int32_t *)(node + 0xb7) += (int32_t)prng_next() % 10;
+            }
+            *(uint32_t *)(node + 0xaf) = 0;
+            *(uint32_t *)(node + 0x1f) = 6;
+        }
+        node = *(uint8_t **)(node + 0x13f);
+    }
+    g_dat_53c6c = 0;
+}
 
 int32_t fn_015ed1(uint8_t *s) {                                      /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
     int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);

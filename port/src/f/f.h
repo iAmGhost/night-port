@@ -464,6 +464,8 @@ extern uint8_t  g_dat_62c58[128]; /* DAT_00062c58 (flags, per-key) */
 extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
 extern uint8_t *g_dat_53c7c;   /* DAT_00053c7c (kb config ptr; [0x1b] int32) */
 extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
+extern uint8_t *g_dat_53c70;   /* DAT_00053c70 (entity list head; next at +0x13f) */
+extern int32_t  g_dat_53c68;   /* DAT_00053c68 (entity count) */
 #define FN_015A1F_TBL 0x2000
 extern uint8_t  g_dat_53eb8[FN_015A1F_TBL]; /* DAT_00053eb8 (zeroed runtime table) */
 void fn_034635(uint8_t key);
@@ -473,6 +475,7 @@ int32_t  fn_015b5b(uint8_t *s);        /* 0x015b5b: family core, magic '.' */
 int32_t  fn_01603e(uint8_t *s);        /* 0x01603e: family core, magic '+' */
 int32_t  fn_0161f9(uint8_t *s);        /* 0x0161f9: family core, magic '+' */
 int32_t  fn_0163b4(uint8_t *s);        /* 0x0163b4: family core, magic ',' */
+void     fn_032158(void);              /* 0x032158: entity list -> set targets to player + prng jitter */
 int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */
 /* 0x0492d0: node/device-table accessor. */

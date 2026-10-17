@@ -2018,6 +2018,15 @@ static void test_l10_accessors(void) {
       prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; *(uint32_t *)(s+0x83) = 0;
       memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
       check(r == 0, "  fn_015b5b tbl0=1 too-far -> ret0");
+      // near-twin magic-char check: whole table = '+'(0x2b), sX-tX=2, sY-tY=10 (2D Y-check fails).
+      uint8_t s2[0x200] = {0}; s2[1] = 5; s2[9] = 13; s2[0xd] = 2;   // sX-tX=2, sY-tY=10
+      *(uint32_t *)(s2+0x17) = 0x5; *(uint32_t *)(s2+0x1f) = 4; *(uint32_t *)(s2+0x83) = 0;
+      memset(g_dat_53eb8, 0x2b, sizeof(g_dat_53eb8));
+      prng_seed(0x1234); check(fn_015b5b(s2) == 0, "  near-twin fn_015b5b '.' -> 2D Y-fail ret0");
+      prng_seed(0x1234); check(fn_01603e(s2) == 1, "  near-twin fn_01603e '+' -> 1D ret1");
+      prng_seed(0x1234); check(fn_0161f9(s2) == 1, "  near-twin fn_0161f9 '+' -> 1D ret1");
+      prng_seed(0x1234); check(fn_0163b4(s2) == 0, "  near-twin fn_0163b4 ',' -> 2D Y-fail ret0");
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
     }
     }

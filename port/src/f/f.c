@@ -1691,7 +1691,7 @@ int32_t fn_015a1f(uint8_t *s) {                                      /* 0x015a1f
     return 0;
 }
 
-int32_t fn_015b5b(uint8_t *s) {                                      /* 0x015b5b: family variant (s[0x83] gate + '.' check) */
+static int32_t fn_015b5b_core(uint8_t *s, int32_t magic) {          /* 0x015b5b/01603e/0161f9/0163b4: family core (magic-char param) */
     int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
     int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
     if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {
@@ -1717,7 +1717,7 @@ int32_t fn_015b5b(uint8_t *s) {                                      /* 0x015b5b
     int32_t tbl0 = (int32_t)g_dat_53eb8[idx];
     if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
         int32_t tbl1 = (int32_t)g_dat_53eb8[idx + 1];
-        if (tbl1 == 0x2e) {                                          /* '.' */
+        if (tbl1 == magic) {
             if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) return 1;
         } else {
             if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) {
@@ -1727,6 +1727,11 @@ int32_t fn_015b5b(uint8_t *s) {                                      /* 0x015b5b
     }
     return 0;
 }
+
+int32_t fn_015b5b(uint8_t *s) { return fn_015b5b_core(s, 0x2e); }   /* '.' */
+int32_t fn_01603e(uint8_t *s) { return fn_015b5b_core(s, 0x2b); }   /* '+' */
+int32_t fn_0161f9(uint8_t *s) { return fn_015b5b_core(s, 0x2b); }   /* '+' */
+int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, 0x2c); }   /* ',' */
 
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.

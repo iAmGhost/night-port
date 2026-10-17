@@ -1619,6 +1619,14 @@ void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
  * when a branch fires (z==1) it records delta=g_dat_63f08-g_dat_63f0c into the
  * current slot, advances the slot (wrap 9->0), then calls fn_0343d1(x) plus
  * fn_0343d1(y)/fn_0343d1(0x36) depending on y. */
+uint32_t fn_0351dc(uint8_t **cursor) {                     /* 0x0351dc: unsigned LEB128 (base-128, 7-bit) decoder */
+    uint8_t *p = *cursor;
+    uint32_t val = (uint32_t)(*p & 0x7f);
+    while ((*p & 0x80) != 0) { p++; val = (val << 7) | (uint32_t)(*p & 0x7f); }
+    *cursor = p + 1;
+    return val;
+}
+
 void fn_034735(uint8_t idx) {                                    /* 0x034735: per-key state machine (62c58/62cd8) */
     if (g_dat_62c58[idx] == 4) {
         fn_034353(idx, g_dat_63f08);

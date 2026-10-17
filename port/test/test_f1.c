@@ -2405,6 +2405,13 @@ int main(void) {
       check(g_dat_62c58[idx]==4, "  fn_034735 E: 62c58==3 ->4 (+03442e)");
       g_dat_62c58[idx]=5; g_dat_62cd8[idx]=9; fn_034735(idx);
       check(g_dat_62c58[idx]==5 && g_dat_62cd8[idx]==9, "  fn_034735 D: 62c58==5 -> no-op"); }
+    /* --- fn_0351dc: unsigned LEB128 decoder --- */
+    { uint8_t b1[] = {0x05}; uint8_t *c = b1; uint32_t v = fn_0351dc(&c);
+      check(v==5 && (c-b1)==1, "  fn_0351dc 1-byte 05 -> 5, cursor+1");
+      uint8_t b2[] = {0x85,0x02}; c=b2; v=fn_0351dc(&c);
+      check(v==642 && (c-b2)==2, "  fn_0351dc 2-byte 85 02 -> 642, cursor+2");
+      uint8_t b3[] = {0xff,0xff,0x01}; c=b3; v=fn_0351dc(&c);
+      check(v==2097025 && (c-b3)==3, "  fn_0351dc 3-byte ff ff 01 -> 2097025 (MSB-first), cursor+3"); }
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
     test_cpy_back();

@@ -1378,6 +1378,29 @@ void fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3) {
     }
 }
 
+/* 0x049c76: timezone range parser (variant of fn_049a35) taking the string
+ * directly. Parses a second time with an initial offset of 0x3840 (14400); the
+ * range diff is 18000 - <second secs>. p2/p3/p4 are a callback signature (unused). */
+void fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4) {
+    (void)p2; (void)p3; (void)p4;
+    g_dat_53784 = 0;
+    char *pcVar1 = parse_time_str(s, (char *)&g_dat_53788, &g_dat_5377c);
+    if (*pcVar1 == 0) {
+        g_dat_537a7 = 0;
+    } else {
+        g_dat_53784 = 1;
+        uint32_t local_10 = 0x3840;                    /* 14400 (4h) */
+        pcVar1 = parse_time_str(pcVar1, (char *)&g_dat_537a7, &local_10);
+        g_dat_53780 = 18000u - local_10;               /* 5h - second secs */
+        if (*pcVar1 == ',') {
+            pcVar1 = (char *)fn_049b84(pcVar1 + 1, &g_dat_53734);
+        }
+        if (*pcVar1 == ',') {
+            fn_049b84(pcVar1 + 1, &g_dat_53758);
+        }
+    }
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

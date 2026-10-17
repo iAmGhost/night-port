@@ -1780,6 +1780,19 @@ static void test_049a35(void) {
     g_dat_537d4 = NULL;
 }
 
+static void test_049c76(void) {
+    printf("fn_049c76 (0x049c76) TZ range parser (direct string)\n");
+    g_dat_53784 = 0xdead; g_dat_537a7 = 0xdead; g_dat_5377c = 0xdead;
+    fn_049c76("-05:00:00", 0, 0, 0);
+    check(g_dat_53784 == 0, "  -05:00:00 -> 53784=0");
+    check(g_dat_537a7 == 0, "  -05:00:00 -> 537a7=0");
+    check((int32_t)g_dat_5377c == -18000, "  -05:00:00 -> 5377c=-18000");
+    g_dat_53784 = 0; g_dat_53780 = 0xdead;
+    fn_049c76("-05:00:00 -07:00:00", 0, 0, 0);
+    check(g_dat_53784 == 1, "  two times -> 53784=1");
+    check(g_dat_53780 == 18000u - (uint32_t)(int32_t)(-25200), "  two times -> 53780=18000-(-25200)");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1877,6 +1890,7 @@ int main(void) {
     test_045079();
     test_0450da();
     test_049a35();
+    test_049c76();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

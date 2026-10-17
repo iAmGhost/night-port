@@ -416,6 +416,7 @@ uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec);
  * a 9-dword struct; returns the position after the parsed string. */
 const char *fn_049b84(const char *s, uint32_t *out);
 void     fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3); /* 0x049a35: TZ config parser (params unused) */
+void     fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4); /* 0x049c76: TZ range parser (direct string) */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */

@@ -1477,6 +1477,20 @@ uint64_t fn_042576(const char *s, uint32_t param_2) {
     return ((uint64_t)param_2 << 32) | ebx;
 }
 
+/* ---- L10 trivial accessors (the canary prologue PUSH 0x20;CALL 0x418ee is not replicated) ---- */
+uint32_t g_dat_53c60 = 0;
+uint32_t g_dat_40010 = 0;
+uint32_t g_dat_62d64 = 0;
+
+uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */
+uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
+uint32_t fn_01520b(const uint8_t *p) { return *(const uint32_t *)(p + 5); }  /* 0x01520b */
+uint32_t fn_034a87(void) { uint32_t v = g_dat_62d64; g_dat_62d64 += 11; return v; }  /* 0x034a87 */
+uint32_t g_dat_639dc = 0;
+uint32_t g_dat_639e0 = 0;
+uint32_t fn_01519f(const uint8_t *p) { return *(const uint32_t *)(p + 1) - g_dat_639dc; }  /* 0x01519f */
+uint32_t fn_0151d5(const uint8_t *p) { return *(const uint32_t *)(p + 9) - g_dat_639e0; }  /* 0x0151d5 */
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

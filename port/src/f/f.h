@@ -424,6 +424,19 @@ void     fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4); /* 0x0
 uint64_t fn_045a82(uint32_t param_1, uint32_t param_2); /* 0x045a82: byte classifier (g_dat_64004/64008) */
 uint64_t fn_045a76(uint32_t param_1, uint32_t param_2); /* 0x045a76: fn_045a82 thunk (param_2==0 -> 0) */
 uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode parser (r/w/a + +/-/b/t) */
+
+/* ---- L10 trivial accessors (canary prologue not replicated) ---- */
+extern uint32_t g_dat_53c60;    /* DAT_00053c60 */
+extern uint32_t g_dat_40010;    /* DAT_00040010 */
+extern uint32_t g_dat_62d64;    /* DAT_00062d64 */
+uint32_t fn_010e15(void);                /* 0x010e15: return g_dat_53c60 */
+uint32_t fn_040631(uint32_t param);      /* 0x040631: g_dat_40010 = low16(param); return low16 */
+uint32_t fn_01520b(const uint8_t *p);    /* 0x01520b: return *(uint32*)(p+5) */
+uint32_t fn_034a87(void);                /* 0x034a87: v=g_dat_62d64; g_dat_62d64+=11; return v */
+extern uint32_t g_dat_639dc;    /* DAT_000639dc */
+extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
+uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */
+uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_dat_639e0 */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */

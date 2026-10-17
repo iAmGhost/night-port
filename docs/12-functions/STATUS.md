@@ -118,6 +118,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **L1 clean wins exhausted; L2 trivial wrappers ported** | Surveyed remaining L1: 0x4794a/0x485eb/0x48e60/0x4a3a8 are the 4 hard FPU/fixed-point core (dedicated passes); 0x4a7fa/0x48053/0x48585/0x47f54/0x4711d/0x4a814 are FPU wrappers (garbled, unaff registers); 0x422d5/0x42ccc/0x4391d/0x43381/0x43324/0x440a9 are DOS INT/DPMI (non-portable without DPMI layer); 0x498f6/0x49506 are date (need table bytes); 0x41439/0x431b5/0x48f4c blocked on unported/deferred callees. So L1 has no more self-contained verifiable wins. Pivoted to L2: ported 0x042a19 (6B, g_dat_64008=0xe) + 0x044b96 (29B, drain g_node_list_done via heap_free_host; node=g_ndpool+off {next,rec}). Both PASS. L2 0→2, TOTALS 134→136. | STATUS.md L2 |
 | 2026-07-08 | **L2 batch ported (8 fns, 136→144)**: 0x045079 (96B zero-pad/right-justify hex: SCASB-countdown strlen, pad '0' to width, right-justify hex digits); 0x0450da (218B 16.16 fixed-point→decimal string: itoa32s(int part), frac digits via frac*10/65536, round-up when discarded-remnant bit15 set, spec[2]=places def 4); 0x049a35 (719B TZ config parser: config_value_ptr("TZ") + parse_time_str x2, fills g_dat_53780/84/88/a7/7c/34/58, params unused = callback sig; added 7 TZ globals); 0x049c76 (142B TZ range parser = 0x049a35 direct-string variant, initial offset 0x3840, 53780=18000-secs); 0x045a82 (101B byte classifier: fn_042a30/042a0d write g_dat_64004/64008; 'P'→0xe, [0x20,0x22)→5, >=0x22→0x13 when g_dat_533bb>2; tbl[bl]=byte@0x53625+(bl+3); ret (p2<<32)|0xffffffff); 0x045a76 (11B thunk: param_2(EDX)==0→0 else tail-jump 0x045a82, preserves EAX/EDX); 0x0423b7 (23B callback chain: g_dat_5336c(p1)→r1, g_dat_53370(r1), fn_0423cf(p1); added g_dat_5336c); 0x042576 (179B file-mode parser: to_lower(s[0]) in r/w/a else fn_042a0d(9); +/-/b/t modifiers→0x43/0x40/3 flags; w|2/a|0x82/r|1; g_dat_53619==0x200 default-binary; ret (p2<<32)|flags). All hand-traced differential tests PASS. L2 2→10, TOTALS 136→144. | STATUS.md L2 |
 | 2026-07-08 | **L2 lexer pair DEFERRED (32→64 struct layout)**: 0x0445a6 (35B lexer read-char) + 0x044387 (503B number parser) share a lexer-ctx struct: method ptrs at param_1[0]/[1] + counter at param_1[3]. In 32-bit these are 4-byte slots (offsets 0/4/12); in 64-bit function pointers are 8 bytes so the layout shifts and cannot be replicated with raw 4-byte indexing. Needs a coordinated 64-bit struct design (method0@0, method1@8, method2@16, counter@24) ported across both fns + callers together, validated against the full lexer — not an isolated win. 0x044bec (49B) also remains (DOS INT 21h, non-portable). L2 clean wins exhausted (10/32); the rest need unported callees / DPMI / a 64-bit struct redesign. | STATUS.md L2 |
+| 2026-07-08 | **L10 trivial-accessor frontier (6 ported)**: L3/L6 clean wins are blocked (L3 all DOS except the 1096B 0x0451bc; L6 depend on heap_malloc's ambiguous 64-bit return + unset callbacks). The real frontier is **L10: 59 clean candidates**, all canary-prologue accessors (the `PUSH 0x20; CALL 0x418ee` prologue is not replicated). Ported 6: 0x010e15 (return g_dat_53c60), 0x040631 (g_dat_40010=low16(p)), 0x01520b (return *(u32*)(p+5)), 0x034a87 (g_dat_62d64+=11, return old), 0x01519f (return *(u32*)(p+1)-g_dat_639dc), 0x0151d5 (return *(u32*)(p+9)-g_dat_639e0). 0x03493e (needs data table @0x63f13) + 0x035d0f (spin-wait) deferred. | STATUS.md L10 |
 
 ## L0 (112)
 
@@ -430,14 +431,14 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0103e0 | 230 | FUN_000103e0 | | |
 | [ ] | 0x0104c7 | 119 | FUN_000104c7 | | |
 | [ ] | 0x01053f | 48 | FUN_0001053f | | |
-| [ ] | 0x010e15 | 43 | FUN_00010e15 | | |
+| [x] | 0x010e15 | 43 | fn_010e15 | return g_dat_53c60 | 1:1 (canary prologue omitted) |
 | [ ] | 0x010efc | 1024 | FUN_00010efc | | |
 | [ ] | 0x0112fd | 233 | FUN_000112fd | | |
 | [ ] | 0x013aad | 415 | FUN_00013aad | | |
 | [ ] | 0x01435f | 190 | FUN_0001435f | | |
-| [ ] | 0x01519f | 53 | FUN_0001519f | | |
-| [ ] | 0x0151d5 | 53 | FUN_000151d5 | | |
-| [ ] | 0x01520b | 47 | FUN_0001520b | | |
+| [x] | 0x01519f | 53 | fn_01519f | return *(u32*)(p+1)-g_dat_639dc | 1:1 |
+| [x] | 0x0151d5 | 53 | fn_0151d5 | return *(u32*)(p+9)-g_dat_639e0 | 1:1 |
+| [x] | 0x01520b | 47 | fn_01520b | return *(u32*)(p+5) | 1:1 |
 | [ ] | 0x01545e | 1036 | FUN_0001545e | | |
 | [ ] | 0x01586b | 435 | FUN_0001586b | | |
 | [ ] | 0x017218 | 242 | FUN_00017218 | | |
@@ -448,7 +449,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0343d1 | 92 | FUN_000343d1 | | |
 | [ ] | 0x0348e2 | 91 | FUN_000348e2 | | |
 | [ ] | 0x03493e | 72 | FUN_0003493e | | |
-| [ ] | 0x034a87 | 50 | FUN_00034a87 | | |
+| [x] | 0x034a87 | 50 | fn_034a87 | v=g_dat_62d64; +=11; return v | 1:1 |
 | [ ] | 0x0350aa | 96 | FUN_000350aa | | |
 | [ ] | 0x03510b | 126 | FUN_0003510b | | |
 | [ ] | 0x03518a | 81 | FUN_0003518a | | |
@@ -499,7 +500,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x040570 | 54 | FUN_00040570 | | |
 | [ ] | 0x0405a7 | 54 | FUN_000405a7 | | |
 | [ ] | 0x0405de | 82 | FUN_000405de | | |
-| [ ] | 0x040631 | 46 | FUN_00040631 | | |
+| [x] | 0x040631 | 46 | fn_040631 | g_dat_40010=low16(p); return low16 | 1:1 |
 | [ ] | 0x040788 | 111 | FUN_00040788 | | |
 | [ ] | 0x0407f8 | 64 | FUN_000407f8 | | |
 | [ ] | 0x0408c5 | 130 | FUN_000408c5 | | |

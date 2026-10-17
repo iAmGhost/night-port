@@ -1861,6 +1861,25 @@ static void test_042576(void) {
     check((uint32_t)fn_042576("wt  ", 0) == 2, "  'wt  ' -> 2");
 }
 
+static void test_l10_accessors(void) {
+    printf("L10 trivial accessors\n");
+    g_dat_53c60 = 0x12345678;
+    check(fn_010e15() == 0x12345678, "  fn_010e15 -> g_dat_53c60");
+    uint32_t r = fn_040631(0xabcd1234);
+    check(r == 0x1234, "  fn_040631 returns low16");
+    check(g_dat_40010 == 0x1234, "  fn_040631 sets g_dat_40010");
+    uint8_t buf[12] = {0,1,2,3,4, 0x78,0x56,0x34,0x12, 0,0,0};
+    check(fn_01520b(buf) == 0x12345678, "  fn_01520b -> *(p+5)");
+    g_dat_62d64 = 0x100;
+    uint32_t v = fn_034a87();
+    check(v == 0x100, "  fn_034a87 returns old value");
+    check(g_dat_62d64 == 0x10b, "  fn_034a87 increments by 11");
+    uint8_t b1[16] = {0}; b1[1] = 0x10; g_dat_639dc = 0x8;
+    check(fn_01519f(b1) == 0x8, "  fn_01519f = *(p+1) - base");
+    uint8_t b2[20] = {0}; b2[9] = 0x20; g_dat_639e0 = 0x10;
+    check(fn_0151d5(b2) == 0x10, "  fn_0151d5 = *(p+9) - base");
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1963,6 +1982,7 @@ int main(void) {
     test_045a76();
     test_0423b7();
     test_042576();
+    test_l10_accessors();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

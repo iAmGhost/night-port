@@ -1345,6 +1345,38 @@ const char *fn_049b84(const char *s, uint32_t *out) {
 
 uint32_t g_dat_536dc = 0;                 /* DAT_000536dc: node index bound */
 uint32_t *g_dat_53730 = NULL;            /* DAT_00053730: node table */
+uint32_t g_dat_53780 = 0;                /* DAT_00053780: TZ range diff */
+uint32_t g_dat_53784 = 0;                /* DAT_00053784: TZ has-second-part flag */
+uint32_t g_dat_53788 = 0;                /* DAT_00053788: TZ time prefix buf (4B) */
+uint32_t g_dat_537a7 = 0;                /* DAT_000537a7: TZ time2 prefix buf (4B) */
+uint32_t g_dat_5377c = 0;                /* DAT_0005377c: TZ seconds */
+uint32_t g_dat_53734 = 0;                /* DAT_00053734: TZ count */
+uint32_t g_dat_53758 = 0;                /* DAT_00053758: TZ index */
+
+/* 0x049a35: timezone ("TZ") config parser. Reads the "TZ" config value (a
+ * time-range string), parses it via parse_time_str, and fills the g_dat_537xx
+ * TZ globals. The 3 params are part of a callback signature and unused. */
+void fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3) {
+    (void)p1; (void)p2; (void)p3;
+    const char *val = config_value_ptr("TZ");   /* DAT_00051840 = "TZ" */
+    if (!val) return;                             /* no TZ config -> early return */
+    g_dat_53784 = 0;
+    char *pcVar1 = parse_time_str(val, (char *)&g_dat_53788, &g_dat_5377c);
+    if (*pcVar1 == 0) {
+        g_dat_537a7 = 0;
+    } else {
+        g_dat_53784 = 1;
+        uint32_t local_10 = g_dat_5377c - 0xe10;  /* 0xe10 = 3599 */
+        pcVar1 = parse_time_str(pcVar1, (char *)&g_dat_537a7, &local_10);
+        g_dat_53780 = g_dat_5377c - local_10;
+        if (*pcVar1 == ',') {
+            pcVar1 = (char *)fn_049b84(pcVar1 + 1, &g_dat_53734);
+        }
+        if (*pcVar1 == ',') {
+            fn_049b84(pcVar1 + 1, &g_dat_53758);
+        }
+    }
+}
 
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.

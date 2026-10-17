@@ -415,9 +415,17 @@ uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec);
 /* 0x049b84: parse a [J|M]N[.N[.N]][/month:minute:second] date/time string into
  * a 9-dword struct; returns the position after the parsed string. */
 const char *fn_049b84(const char *s, uint32_t *out);
+void     fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3); /* 0x049a35: TZ config parser (params unused) */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */
+extern uint32_t g_dat_53780;             /* DAT_00053780: TZ range diff */
+extern uint32_t g_dat_53784;             /* DAT_00053784: TZ has-second-part flag (0/1) */
+extern uint32_t g_dat_53788;             /* DAT_00053788: TZ time prefix buf (4B) */
+extern uint32_t g_dat_537a7;             /* DAT_000537a7: TZ time2 prefix buf (4B) */
+extern uint32_t g_dat_5377c;             /* DAT_0005377c: TZ seconds */
+extern uint32_t g_dat_53734;             /* DAT_00053734: TZ count */
+extern uint32_t g_dat_53758;             /* DAT_00053758: TZ index */
 uint64_t fn_0492d0(uint32_t index, uint32_t ctx);
 void     fn_042a19(void);       /* 0x042a19: g_dat_64008 = 0xe (tail-jump fn_042a0d) */
 void     fn_044b96(void);       /* 0x044b96: drain g_node_list_done via heap_free_host */

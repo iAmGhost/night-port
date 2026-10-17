@@ -34,13 +34,13 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 138 / 528 done
+TOTALS: 139 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 23 | 0 | 0 | 24 |
-| L2 | 32 | 4 | 0 | 0 | 28 |
+| L2 | 32 | 5 | 0 | 0 | 27 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
@@ -316,7 +316,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x048f9e | 71 | FUN_00048f9e | | |
 | [ ] | 0x0495eb | 39 | FUN_000495eb | | |
 | [ ] | 0x049a0b | 27 | FUN_00049a0b | | |
-| [ ] | 0x049a35 | 719 | FUN_00049a35 | | |
+| [x] | 0x049a35 | 719 | fn_049a35 | TZ config parser: config_value_ptr("TZ"), parse_time_str x2, fills g_dat_53780/84/88/a7/7c/34/58; params unused (callback sig). Added 7 TZ globals | port+test PASS |
 | [ ] | 0x049c76 | 142 | FUN_00049c76 | | |
 | [ ] | 0x04a32b | 59 | FUN_0004a32b | | |
 | [ ] | 0x04a367 | 64 | FUN_0004a367 | | |

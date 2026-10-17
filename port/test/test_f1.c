@@ -1760,6 +1760,26 @@ static void test_0450da(void) {
     check(strcmp(buf,"3")==0, "  2.5 (0 places) -> 3 (round)");
 }
 
+static void test_049a35(void) {
+    printf("fn_049a35 (0x049a35) TZ config parser\n");
+    g_dat_53784 = 0xdead; g_dat_537d4 = NULL;
+    fn_049a35(0,0,0);
+    check(g_dat_53784 == 0xdead, "  no TZ -> early return (53784 unchanged)");
+    static const char *t1[] = {"TZ=-05:00:00", 0};
+    g_dat_537d4 = (char**)t1;
+    g_dat_53784 = 0xdead; g_dat_537a7 = 0xdead; g_dat_5377c = 0xdead;
+    fn_049a35(0,0,0);
+    check(g_dat_53784 == 0, "  -05:00:00 -> 53784=0");
+    check(g_dat_537a7 == 0, "  -05:00:00 -> 537a7=0");
+    check((int32_t)g_dat_5377c == -18000, "  -05:00:00 -> 5377c=-18000");
+    static const char *t2[] = {"TZ=-05:00:00 -07:00:00", 0};
+    g_dat_537d4 = (char**)t2;
+    g_dat_53784 = 0; g_dat_53780 = 0xdead;
+    fn_049a35(0,0,0);
+    check(g_dat_53784 == 1, "  two times -> 53784=1");
+    g_dat_537d4 = NULL;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1856,6 +1876,7 @@ int main(void) {
     test_044b96();
     test_045079();
     test_0450da();
+    test_049a35();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

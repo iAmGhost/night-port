@@ -1817,6 +1817,19 @@ static void test_045a82(void) {
     g_dat_533bb = 3;
 }
 
+static void test_045a76(void) {
+    printf("fn_045a76 (0x045a76) fn_045a82 thunk\n");
+    g_dat_64004 = 0; g_dat_64008 = 0;
+    check(fn_045a76(0x50, 0) == 0, "  param_2=0 -> 0");
+    check(g_dat_64004 == 0, "  param_2=0 -> 64004 unchanged");
+    g_dat_533bb = 3;
+    uint64_t r = fn_045a76(0x50, 0xabcd);   // tail-jump to fn_045a82
+    check(r == 0xabcdffffffffULL, "  'P' tail-jump ret");
+    check(g_dat_64004 == 0x50, "  'P' 64004=0x50");
+    check(g_dat_64008 == 7, "  'P' 64008=7");
+    g_dat_533bb = 0;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1916,6 +1929,7 @@ int main(void) {
     test_049a35();
     test_049c76();
     test_045a82();
+    test_045a76();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

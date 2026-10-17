@@ -1428,6 +1428,13 @@ uint64_t fn_045a82(uint32_t param_1, uint32_t param_2) {
     return ((uint64_t)param_2 << 32) | 0xffffffff;
 }
 
+/* 0x045a76: thunk to fn_045a82. If param_2 (EDX) == 0, return 0; else tail-jump
+ * into fn_045a82 with the same EAX/EDX. */
+uint64_t fn_045a76(uint32_t param_1, uint32_t param_2) {
+    if (param_2 == 0) return 0;
+    return fn_045a82(param_1, param_2);
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

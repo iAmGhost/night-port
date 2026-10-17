@@ -1904,6 +1904,14 @@ static void test_l10_accessors(void) {
     heap_free_host(d);
     uint8_t q[2] = {0x12, 0x34}; check(fn_03518a(q) == 0x1234, "  fn_03518a BE16 read");
     { double out; fn_04a7fa(5.0, &out); check(out == 0.0, "  fn_04a7fa integer -> 0"); fn_04a7fa(2.3, &out); check(out == 2.3 - fpu_rndint(2.3), "  fn_04a7fa = a - rndint"); }
+    { g_dat_639dc = 0; uint8_t s[0xd0] = {0}; *(uint32_t*)(s+1) = 100;
+      *(int32_t*)(s+0xbf) = 50; *(int32_t*)(s+0xab) = 5;
+      check(!fn_016959(s, 10), "  fn_016959 below OOR Z>=0 -> false");
+      *(int32_t*)(s+0xab) = -5; check(fn_016959(s, 10), "  fn_016959 below OOR Z<0 -> true");
+      *(int32_t*)(s+0xbf) = 100; check(fn_016959(s, 10), "  fn_016959 X==F -> true");
+      *(int32_t*)(s+0xbf) = 105; check(fn_016959(s, 10), "  fn_016959 X<=F+param2 -> true");
+      *(int32_t*)(s+0xbf) = 115; *(int32_t*)(s+0xab) = 5; check(!fn_016959(s, 10), "  fn_016959 above OOR Z>=0 -> false");
+      *(int32_t*)(s+0xab) = -1; check(fn_016959(s, 10), "  fn_016959 above OOR Z<0 -> true"); }
 }
 
 int main(void) {

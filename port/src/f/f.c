@@ -2909,6 +2909,21 @@ uint32_t fn_041e51(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
     return 0;
 }
 
+/* 0x0422d5: DOS file open + seek + terminate wrapper (58B).
+ *
+ * Original: INT 21h AH=03h/AL=01 open file 0x420b8 (handle in AX); compute
+ * strlen(param_2); INT 21h AH=40 seek to that offset; dispatch_b(0, 0xff);
+ * INT 21h AH=4c terminate with status param_5. Every INT 21h call is a
+ * flat-model no-op stub (swi(0x21)) and the AH=4c terminate is a no-op, so the
+ * strlen only feeds the no-op seek and the sole observable effect is the real
+ * event dispatch dispatch_b(0, 0xff). Returns the terminate result (0 from the
+ * no-op stub). Params model the original stack args (b = the path string). */
+uint32_t fn_0422d5(uint32_t a, const char *b, uint32_t c, uint32_t d, uint8_t e) {
+    (void)a; (void)b; (void)c; (void)d; (void)e;
+    dispatch_b(0, 0xff);
+    return 0;
+}
+
 /* 0x043324: DPMI real-mode transition, protected-mode (save) side (55B).
  *
  * Original reads EDI (context ptr) and EBX (real-mode far ptr: [EBX]=ES, [EBX+6]=BP)

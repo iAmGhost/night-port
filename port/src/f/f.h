@@ -597,6 +597,7 @@ const uint8_t *fn_043f80(const uint8_t *src, uint8_t *dest); /* 0x043f80: 8-bit 
 void fn_049e15(char *dest, int count2, int count3); /* 0x049e15: in-buffer range shift + fixup + fill */
 uint32_t fn_041e38(uint32_t a, uint32_t b, uintptr_t ctx, uint32_t d); /* 0x041e38: DPMI real-mode trampoline B */
 uint32_t fn_041e51(uint32_t a, uint32_t b, uint32_t c, uint32_t d); /* 0x041e51: seg-save + DPMI real-mode call (no-op, returns 0) */
+uint32_t fn_0422d5(uint32_t a, const char *b, uint32_t c, uint32_t d, uint8_t e); /* 0x0422d5: DOS open/seek/term wrapper (dispatch_b only) */
 void fn_043324(uintptr_t context, uintptr_t rm_ptr); /* 0x043324: DPMI real-mode transition (save) */
 /* 0x04335c is rm_switch_a (L0 batch A). */
 uint32_t fn_03f084(const uint16_t *arg1, const uint16_t *arg2, uint16_t *arg3, const uint16_t *arg4); /* 0x03f084: DPMI INT 31h ctx wrapper */

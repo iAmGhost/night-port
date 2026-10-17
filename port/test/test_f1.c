@@ -2253,6 +2253,7 @@ static void test_fn_044c1e_fn_041e51(void) {
     printf("fn_044c1e (0x044c1e) / fn_041e51 (0x041e51)\n");
     check(fn_044c1e("FILE") == 0, "  thunk -> fn_049415 (no-op delete) returns 0");
     check(fn_041e51(0x11, 0x22, 0x33, 0x44) == 0, "  fn_041e51 (seg-save + DPMI real-mode) no-op returns 0");
+    check(fn_0422d5(0, "PATH", 0, 0, 0) == 0, "  fn_0422d5 (DOS open/seek/term wrapper) no-op returns 0");
 }
 
 static void test_fn_041e38(void) {

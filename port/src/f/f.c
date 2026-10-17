@@ -306,6 +306,66 @@ uint64_t is_leap(uint32_t year, uint32_t ctx) {
     return ((uint64_t)ctx << 32) | (uint32_t)leap;
 }
 
+/* fn_0498f6  orig: 0x0498f6
+ *   Date/time decoder (108 ins). Decodes an absolute day count (param_1, adjusted
+ *   by param_3 delta-days per a sub-noon borrow rule) + seconds (param_2) into
+ *   hour/min/sec + year/month/day + day-of-week + day-of-year. Year is a count
+ *   from a 1900 epoch (is_leap is queried with year+1900); day 0 = Jan 1 1900.
+ *   Month is a /31 guess + cumulative-day-table compare. The m==11 (December)
+ *   slot reads the byte PAST the table (0x51978=365 non-leap / 0x51998=0 leap);
+ *   the 13th table element below replicates that read so the leap-year December
+ *   latent bug (month becomes 12) is preserved 1:1. is_leap(year,ctx) returns
+ *   (ctx<<32)|leap; the ctx register (year_est) is echoed back and reused as the
+ *   running year (register-ABI), and the year-length is a CONSTANT (365/366 from
+ *   the estimated year's leap status) subtracted in the countdown loop. */
+struct dec_datetime *fn_0498f6(int32_t base_day, uint32_t seconds, int32_t delta, struct dec_datetime *out)
+{
+    /* 13th slot = the original's out-of-table 16-bit read (0x51978=365 / 0x51998=0) */
+    static const int16_t nonleap_tbl[13] = { 0,31,59,90,120,151,181,212,243,273,304,334,365 }; /* DAT_00051960 */
+    static const int16_t leap_tbl[13]    = { 0,31,60,91,121,152,182,213,244,274,305,335,0   }; /* DAT_0005197a */
+
+    uint32_t sec;
+    int32_t day_total;
+    if ((seconds < 0xa8c0u) && (delta > 0)) {                    /* 0x499ff-49909 */
+        sec = seconds + 0x15180u - (uint32_t)delta;               /* 0x4990b-49911 */
+        day_total = base_day + (int32_t)(sec / 0x15180u) - 1;     /* 0x49915-49920 */
+    } else {
+        sec = seconds - (uint32_t)delta;                          /* 0x49928 */
+        day_total = base_day + (int32_t)(sec / 0x15180u);         /* 0x4992c-49930 */
+    }
+
+    uint32_t s = sec % 0x15180u;                                  /* 0x49932-4993d */
+    out->hour = (int32_t)(s / 0xe10u);                            /* 0x4994c */
+    uint32_t rem = s % 0xe10u;
+    out->min  = (int32_t)(rem / 0x3cu);                           /* 0x49962 */
+    out->sec  = (int32_t)(rem % 0x3cu);                           /* 0x49970 */
+
+    int32_t year_est = day_total / 365;                            /* 0x49974 */
+    int32_t day_in_year = day_total - year_est * 365;              /* 0x49989-4998b */
+    if (year_est != 0)
+        day_in_year -= (year_est - 1) / 4;                         /* 0x49991-49997 */
+    uint64_t r1 = is_leap((uint32_t)(year_est + 0x76c), (uint32_t)year_est); /* 0x4999f */
+    int32_t year_len = (int32_t)(r1 & 0xffffffffu) + 0x16d;        /* 0x499a4: 365 or 366 */
+    int32_t year = (int32_t)(r1 >> 32);                            /* echoed ctx = year_est */
+    while (day_in_year >= year_len) {                              /* 0x499a9-499b0 */
+        day_in_year -= year_len;
+        year++;
+    }
+    out->doy  = day_in_year;                                       /* 0x499b7 */
+    out->year = year;                                              /* 0x499c0 */
+
+    uint64_t r2 = is_leap((uint32_t)(year + 0x76c), 0);            /* 0x499c3 */
+    const int16_t *tbl = (r2 & 0xffffffffu) ? leap_tbl : nonleap_tbl;
+    int32_t m = day_in_year / 0x1f;                                /* 0x499da */
+    if ((uint16_t)tbl[m + 1] <= (uint16_t)day_in_year)             /* 0x499de-499e8 straddle */
+        m++;
+    out->month = m;                                                /* 0x499e9 */
+    out->day   = day_in_year - (int32_t)tbl[m] + 1;                /* 0x499f0-499f8 */
+
+    out->dow = (day_total + 1) % 7;                                /* 0x499f5-49a04 */
+    return out;
+}
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).

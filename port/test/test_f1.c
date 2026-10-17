@@ -2079,6 +2079,30 @@ static void test_fn_044bec(void) {
     check(fn_044bec(7) == 0, "  close success (sys stub) -> returns 0");
 }
 
+static void test_fn_0498f6(void) {
+    printf("fn_0498f6 (0x0498f6, date decoder)\n");
+    struct dec_datetime d;
+    // Jan 1 1900, 01:01:01
+    memset(&d, 0xff, sizeof d);
+    fn_0498f6(0, 3661, 0, &d);
+    check(d.hour==1 && d.min==1 && d.sec==1, "  v1 time 01:01:01");
+    check(d.year==0 && d.month==0 && d.day==1, "  v1 date Jan 1 1900");
+    check(d.doy==0 && d.dow==1, "  v1 doy=0 dow=1");
+    // Jan 1 1901
+    fn_0498f6(365, 0, 0, &d);
+    check(d.hour==0 && d.min==0 && d.sec==0, "  v2 time 00:00:00");
+    check(d.year==1 && d.month==0 && d.day==1 && d.doy==0, "  v2 date Jan 1 1901");
+    check(d.dow==2, "  v2 dow=2");
+    // Dec 31 1900 (exercises m==11 non-leap OOB slot = 365)
+    fn_0498f6(364, 0, 0, &d);
+    check(d.year==0 && d.month==11 && d.day==31, "  v3 date Dec 31 1900");
+    check(d.doy==364 && d.dow==1, "  v3 doy=364 dow=1");
+    // Feb 29 1904 (exercises the leap table)
+    fn_0498f6(1519, 0, 0, &d);
+    check(d.year==4 && d.month==1 && d.day==29, "  v4 date Feb 29 1904 (leap)");
+    check(d.doy==59 && d.dow==1, "  v4 doy=59 dow=1");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -2879,6 +2903,7 @@ int main(void) {
     test_fn_042aba();
     test_fn_044807();
     test_fn_044bec();
+    test_fn_0498f6();
     test_fn_049415();
     test_fn_043324();
     test_fn_041439();

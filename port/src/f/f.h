@@ -84,6 +84,19 @@ char *itoa32_tbl(uint32_t a, char *b, uint32_t c);
  * the 0/1 flag; high 32 bits echo ctx (param_2, the caller's preserved EDX). */
 uint64_t is_leap(uint32_t year, uint32_t ctx);
 
+/* 0x0498f6: date/time decoder (108 ins). Fields in 4-byte order, +0x00..+0x1c. */
+struct dec_datetime {
+    int32_t sec;    /* +0x00 */
+    int32_t min;    /* +0x04 */
+    int32_t hour;   /* +0x08 */
+    int32_t day;    /* +0x0c */
+    int32_t month;  /* +0x10 */
+    int32_t year;   /* +0x14 */
+    int32_t dow;    /* +0x18 */
+    int32_t doy;    /* +0x1c */
+};
+struct dec_datetime *fn_0498f6(int32_t base_day, uint32_t seconds, int32_t delta, struct dec_datetime *out);
+
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);
 

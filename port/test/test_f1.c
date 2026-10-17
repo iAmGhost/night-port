@@ -1902,6 +1902,7 @@ static void test_l10_accessors(void) {
     uint32_t d = heap_malloc(8);
     check(d != 0, "  fn_010376: freed 3 blocks, heap reusable");
     heap_free_host(d);
+    uint8_t q[2] = {0x12, 0x34}; check(fn_03518a(q) == 0x1234, "  fn_03518a BE16 read");
 }
 
 int main(void) {

@@ -452,7 +452,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x034a87 | 50 | fn_034a87 | v=g_dat_62d64; +=11; return v | 1:1 |
 | [ ] | 0x0350aa | 96 | FUN_000350aa | | |
 | [ ] | 0x03510b | 126 | FUN_0003510b | | |
-| [ ] | 0x03518a | 81 | FUN_0003518a | | |
+| [x] | 0x03518a | 81 | fn_03518a | BE 16-bit read (p[0]<<8)|p[1] | 1:1 |
 | [ ] | 0x0351dc | 134 | FUN_000351dc | | |
 | [ ] | 0x035329 | 166 | FUN_00035329 | | |
 | [ ] | 0x03575d | 148 | FUN_0003575d | | |

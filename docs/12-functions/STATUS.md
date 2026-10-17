@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 185 / 528 done
+TOTALS: 187 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 185 / 528 done
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 14 | 0 | 0 | 67 |
+| L10 | 81 | 16 | 0 | 0 | 65 |
 | L11 | 77 | 24 | 0 | 0 | 53 |
 | L12 | 58 | 1 | 0 | 0 | 57 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -145,6 +145,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_017927 (0x017927, 894B) ported + g_dat_63354 pointer-model fix** — 2D move/AI handler (20 call sites, one per enemy-AI type). Signature (s, val, *out1, *out2) [s=EAX, val=EDX, EBX/ECX unused, out1/out2 = 2 stack args]. Fully traced from raw disasm (Ghidra decomp CONCAT-polluted + register-ABI misparse). **KEY FIX: g_dat_63354 is a POINTER, not a direct array.** Both fn_017927 AND fn_016a60 disasm show the double-deref (`MOV EAX,[0x63354]; CMP ...[EAX+0x12/0x16]`) — 0x63354 holds pointer P, bounds at P+0x12 (lo)/P+0x16 (hi). The 4 already-committed fns (fn_016a60/017637/017ca6/01730b) had modelled it as a direct array (one deref short) — a latent bug. Fix = change `uint8_t g_dat_63354[0x20]` -> `uint8_t *g_dat_63354` (the existing `*(int32_t*)(g_dat_63354+0x12)` accesses then correctly deref P); test main() points it at a static bounds buffer. All 4 fns' tests still pass (values read identical). Logic: s[0x17]=2 (dword); mid=lo+((hi-lo)>>1); s[0x67]=s[0xcf]-s[0xc3]; target=((s[0xbf]+s[0xcb])>>1)+s[0x67]; X=fn_01519f(s)=s[1]-g639dc. Branch on s[0xbf] < s[0xcb] (T) vs >= (E). T: if (cb-X)%3==0 {T1 X>target: out1=cf<mid?+val:-val; T2 else: out1=cf<mid?-val:+val}; reached if (X-val)<=(s[0xbf]+0x1e) {cf<mid: (Y-val)<=s[0xc3]->ret1; else: (val+Y)>=s[0xc3]->ret1} (out1=out2=0). E: if (X-cb)%3==0 {E1 X>target: out1=cf>mid?+val:-val; E2 else: out1=cf>mid?-val:+val}; reached if (val+X)>=(s[0xbf]-0x1e) {cf<mid: (Y-val)<=s[0xc3]; else: (val+Y)>=s[0xc3]->ret1}. Common tail (0x017c69): out2 = s[0xbf]<s[0xcb]?-val:+val; ret 0 (unless reached). Y=fn_0151d5(s)=s[9]-g639e0. out1=[EBP+0x14]=1st-stack-arg (mod-3 branches); out2=[EBP+0x10]=2nd-stack-arg (fall/tail). 6 checks (T/E reached, T1/T2/E1 mod-3, E no-mod3). L11 23->24, TOTALS 182->183. Remaining L11 complex: 0x016b8f (1116B). | STATUS.md L11 |
 | 2026-07-08 | **fn_034735 (0x034735, 141B) ported** — per-key state machine on the g_dat_62c58 (flags) / g_dat_62cd8 (counters) byte tables. Register-ABI: index in AL (low byte of EAX), preserved through the `PUSH 0x24; CALL 0x418ee` stack-guard (Ghidra decomp mislabelled it as `bVar1 = FUN_000418ee()`). Logic: if g_dat_62c58[idx]==4 { fn_034353(idx, g_dat_63f08); if g_dat_62cd8[idx]!=0 {62c58=1; 62cd8--} else 62c58=0 } else if g_dat_62c58[idx]<4 {62c58++; fn_03442e(idx)}. 5 checks (62cd8>0 dec, 62cd8==0 zero, <4 inc+dispatch, ==5 no-op). All callees (fn_034353/fn_03442e/tables) already ported. L12 0->1, TOTALS 183->184. NOTE: the other 2 L12 clean candidates — 0x03ba2c (89B, 200x fn_034aba loop, idx 0..199) and 0x03ba86 (187B, nested-loop data-table fn_034aba caller) — are deferred: 0x03ba2c exposes a latent g_dat_62d68[128] undersize (needs >=200) + needs a 200-call arena-diff test. | STATUS.md L12 |
 | 2026-07-08 | **fn_0351dc (0x0351dc, 134B) ported** — unsigned base-128 integer decoder (register-ABI, cursor pointer in EAX). Reads *cursor as the data position, accumulates 7 bits per byte while the continuation bit (0x80) is set, advances *cursor past the last byte, returns the value. KEY: the encoding is **MSB-first** (first byte = most-significant group) — `val = byte0; while(byte&0x80){ val=(val<<7)|(next&0x7f) }`, NOT standard little-endian LEB128. 3 differential checks (1-byte 05->5, 2-byte 85 02->642, 3-byte ff ff 01->2097025). L10 13->14, TOTALS 184->185, suite 649 PASS 0 FAIL. NOTE: sibling loads 0x03510b/0x0408c5 deferred (pointer-advance side-effect semantics ambiguous without full disasm tail). | STATUS.md L10 |
+| 2026-07-08 | **fn_03510b (0x03510b, 126B) + fn_0408c5 (0x0408c5, 130B) ported** — the two sibling byte-read loads deferred from the fn_0351dc pass, now fully disassembled. fn_03510b = **big-endian 32-bit read** `(p[0]<<24)|(p[1]<<16)|(p[2]<<8)|p[3]` (returns uint32); the `[EBP-4]` INCs in the disasm are a local pointer copy, NOT a caller side-effect (decompiler mislabelled it). fn_0408c5 = **little-endian 24-bit (3-byte) read** `p[0]|(p[1]<<8)|(p[2]<<16` (pre-shifts each byte then ORs; returns uint64 zero-extended). Both register-ABI (pointer in EAX), pure (no side effects). 2 differential checks. L10 14->16, TOTALS 185->187, suite 651 PASS 0 FAIL. (0x03518a at 0x03518a is the 16-bit BE read, already ported as fn_03518a.) | STATUS.md L10 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -476,7 +477,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03493e | 72 | FUN_0003493e | | |
 | [x] | 0x034a87 | 50 | fn_034a87 | v=g_dat_62d64; +=11; return v | 1:1 |
 | [ ] | 0x0350aa | 96 | FUN_000350aa | | |
-| [ ] | 0x03510b | 126 | FUN_0003510b | | |
+| [x] | 0x03510b | 126 | FUN_0003510b | | |
 | [x] | 0x03518a | 81 | fn_03518a | BE 16-bit read (p[0]<<8)|p[1] | 1:1 |
 | [x] | 0x0351dc | 134 | FUN_000351dc | | |
 | [ ] | 0x035329 | 166 | FUN_00035329 | | |
@@ -528,7 +529,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x040631 | 46 | fn_040631 | g_dat_40010=low16(p); return low16 | 1:1 |
 | [ ] | 0x040788 | 111 | FUN_00040788 | | |
 | [ ] | 0x0407f8 | 64 | FUN_000407f8 | | |
-| [ ] | 0x0408c5 | 130 | FUN_000408c5 | | |
+| [x] | 0x0408c5 | 130 | FUN_000408c5 | | |
 | [ ] | 0x04123d | 101 | FUN_0004123d | | |
 | [ ] | 0x0412e9 | 86 | FUN_000412e9 | | |
 | [ ] | 0x041390 | 86 | FUN_00041390 | | |

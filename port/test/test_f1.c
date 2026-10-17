@@ -2412,6 +2412,11 @@ int main(void) {
       check(v==642 && (c-b2)==2, "  fn_0351dc 2-byte 85 02 -> 642, cursor+2");
       uint8_t b3[] = {0xff,0xff,0x01}; c=b3; v=fn_0351dc(&c);
       check(v==2097025 && (c-b3)==3, "  fn_0351dc 3-byte ff ff 01 -> 2097025 (MSB-first), cursor+3"); }
+    /* --- fn_03510b (BE32) + fn_0408c5 (LE24) --- */
+    { uint8_t be4[] = {0x12,0x34,0x56,0x78};
+      check(fn_03510b(be4)==0x12345678, "  fn_03510b BE32: 12 34 56 78 -> 0x12345678");
+      uint8_t le3[] = {0x78,0x56,0x34,0x00};
+      check(fn_0408c5(le3)==0x345678ULL, "  fn_0408c5 LE24: 78 56 34 -> 0x345678"); }
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
     test_cpy_back();

@@ -1619,6 +1619,13 @@ void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
  * when a branch fires (z==1) it records delta=g_dat_63f08-g_dat_63f0c into the
  * current slot, advances the slot (wrap 9->0), then calls fn_0343d1(x) plus
  * fn_0343d1(y)/fn_0343d1(0x36) depending on y. */
+uint32_t fn_03510b(const uint8_t *p) {                       /* 0x03510b: big-endian 32-bit read */
+    return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|(uint32_t)p[3];
+}
+uint64_t fn_0408c5(const uint8_t *p) {                       /* 0x0408c5: little-endian 24-bit (3-byte) read */
+    return (uint64_t)p[0]|((uint64_t)p[1]<<8)|((uint64_t)p[2]<<16);
+}
+
 uint32_t fn_0351dc(uint8_t **cursor) {                     /* 0x0351dc: unsigned LEB128 (base-128, 7-bit) decoder */
     uint8_t *p = *cursor;
     uint32_t val = (uint32_t)(*p & 0x7f);

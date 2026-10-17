@@ -448,6 +448,8 @@ void fn_0343d1(uint8_t i);                  /* 0x0343d1: idx flag/counter (g_dat
 void fn_03442e(uint8_t x);                  /* 0x03442e: rotating 10-slot event buffer */
 void fn_034735(uint8_t idx);                /* 0x034735: per-key state machine (62c58/62cd8) */
 uint32_t fn_0351dc(uint8_t **cursor);       /* 0x0351dc: unsigned LEB128 (base-128) decoder */
+uint32_t fn_03510b(const uint8_t *p);       /* 0x03510b: big-endian 32-bit read */
+uint64_t fn_0408c5(const uint8_t *p);       /* 0x0408c5: little-endian 24-bit (3-byte) read */
 void fn_03cad3(const uint8_t *p);           /* 0x03cad3: struct -> g_dat_639dc/e0/e4 */
 void fn_034353(uint8_t a, uint32_t b);      /* 0x034353: slot update (g_dat_63f1e/63f0c) */
 void fn_010376(uint8_t *s, uint32_t unused); /* 0x010376: free struct fields @0x6d/0x71/0x75 */

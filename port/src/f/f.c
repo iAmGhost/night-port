@@ -2421,6 +2421,40 @@ void fn_049e15(char *dest, int count2, int count3) {
     }
 }
 
+/* 0x041e38: DPMI real-mode trampoline B (24B).
+ *
+ * Shuffles its four register args into the 32-byte register context at `ctx`
+ * (EBX) and calls 0x043324, the DPMI INT 31h dispatcher. In the flat model that
+ * call is a no-op (no real-mode transition — see the L0 batch A convention), so the
+ * context is left untouched. The function returns the first dword of the context
+ * (MOV EAX,[EBP] where EBP=EBX=ctx), which for the no-op is simply *ctx.
+ * Arg mapping (original): a=EAX, b=EDX, ctx=EBX, d=ECX.
+ */
+uint32_t fn_041e38(uint32_t a, uint32_t b, uintptr_t ctx, uint32_t d) {
+    (void)a; (void)b; (void)d;
+    return *(uint32_t *)ctx;
+}
+
+/* 0x03f084: DPMI INT 31h register-context wrapper (218B).
+ *
+ * Reads 5 16-bit words from `arg2` and one from `arg4` into a local register
+ * context, builds the DPMI frame, and calls fn_041e38 (the real-mode trampoline B)
+ * with key 0x31. In the flat model seg_save (0x41df2), fn_041e20 (memset), and the
+ * DPMI call are no-ops, so the local words are never transformed. The observable
+ * protected-mode effect is therefore: copy 4 of the 5 words (byte offsets 0,4,8,0xc)
+ * from arg2 to arg3 (the 5th, arg2[0x14], is read into the DPMI offset but NOT written
+ * back — a faithful quirk), and return arg2[0xc] zero-extended. arg1/arg4 only feed the
+ * (no-op) DPMI context.
+ */
+uint32_t fn_03f084(const uint16_t *arg1, const uint16_t *arg2, uint16_t *arg3, const uint16_t *arg4) {
+    (void)arg1; (void)arg4;
+    arg3[0] = arg2[0];
+    arg3[2] = arg2[2];
+    arg3[4] = arg2[4];
+    arg3[6] = arg2[6];   /* arg2[7] (offset 0x14) dropped */
+    return (uint32_t)arg2[6];
+}
+
 /* 0x0451bc: typed field formatter/deserializer (1096 bytes, ~354 instructions, L3).
  *
  * Reads a field described by a state struct `st` (type code st[0x15] + flags st[0x14])

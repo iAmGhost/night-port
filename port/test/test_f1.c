@@ -2012,6 +2012,26 @@ static void test_fn_0405de(void) {
     check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
 }
 
+static void test_fn_041e38(void) {
+    printf("fn_041e38 (0x041e38)\n");
+    static uint32_t ctx[8] = {0x12345678, 0x99, 0x99, 0x99, 0,0,0,0};
+    check(fn_041e38(1, 2, (uintptr_t)ctx, 4) == 0x12345678, "  returns *ctx (no-op DPMI)");
+    check(ctx[1] == 0x99 && ctx[7] == 0, "  context untouched");
+}
+
+static void test_fn_03f084(void) {
+    printf("fn_03f084 (0x03f084)\n");
+    static uint16_t arg2[8] = {0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x88};
+    static uint16_t arg3[8];
+    static const uint16_t arg1[2] = {0,0}, arg4[2] = {0,0};
+    memset(arg3, 0xee, sizeof arg3);
+    uint32_t r = fn_03f084(arg1, arg2, arg3, arg4);
+    check(arg3[0]==0x11 && arg3[2]==0x33 && arg3[4]==0x55 && arg3[6]==0x77,
+          "  copies words 0,4,8,0xc (arg2[0,2,4,6]) to arg3[0,2,4,6]");
+    check(arg3[1]==0xeeee && arg3[3]==0xeeee && arg3[5]==0xeeee, "  odd words untouched");
+    check(r == 0x77, "  returns arg2[0xc] (arg2[6]) zero-extended");
+}
+
 static void test_fn_049e15(void) {
     printf("fn_049e15 (0x049e15)\n");
     static char buf[16];
@@ -2782,6 +2802,8 @@ int main(void) {
     test_fn_0451bc();
     test_fn_043f80();
     test_fn_049e15();
+    test_fn_041e38();
+    test_fn_03f084();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

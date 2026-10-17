@@ -34,14 +34,14 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 198 / 528 done
+TOTALS: 201 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 25 | 0 | 0 | 22 |
 | L2 | 32 | 11 | 0 | 0 | 21 |
-| L3 | 21 | 3 | 0 | 0 | 18 |
+| L3 | 21 | 6 | 0 | 0 | 15 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
@@ -156,6 +156,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_0451bc (0x0451bc, 1096B) ported** — typed field formatter/deserializer (the big L3 win, first of 21 L3 fns). Fully traced from raw disasm (354 instructions; Ghidra's 338-line decomp was a register-ABI maze). ABI out=EAX, cur=EDX (ptr to stream read-ptr), st=EBX (state), alt=ECX (null-string fallback). **Type dispatch** (st[0x15]): E/G/e/g->cb_indirect_53644 (return its ptr, len=strn_len); F/f->(flag 0x10 ? fn_0450da fixed-point : cb); P/p->date/time (flag 0x80: 8-hex date + ':' + 4-hex secs, else 8-hex; 'P' uppercased; size init 13/8); S/s->string (flag 0x80 reads 8-byte {ptr,len} header, else 4-byte ptr; ptr==0->alt; 'S' reads len word/byte, 's' computes via word_nlen/strn_len); X/x->hex (itoa32_tbl base16, 'X' upper); c->single char (reads 1 byte, advances 4); d/i->signed decimal (flag 0x20 dword / 0x10 word / else itoa32s); o->octal (itoa32s_tbl base8, flag 0x01 writes '0' at out[0] + format at out+1); u->unsigned decimal (itoa32_tbl base10); default->write type char, len 1. **Pre-pass**: {X,o,u,x} read val (flag 0x10: 16-bit read but **still advances *cur by 4** — faithful quirk), clear flag 0x2/0x4; {d,i} set st[0x16]=0x20. **Epilogue** (0x4556a): negative '-' moves to prefix (st[0x17]) + ret advances past it; flags 0x02/0x04 set prefix ' '/'+'; st[0x16]=='*' clears prefix; length clamp; st+0x04 (size) -= (prefix_len + length + remainder). 9 callees all pre-ported (fn_0450da, cb_indirect_53644, itoa32s/_tbl, itoa32_tbl, strn_len, word_nlen, string_upper, fn_045079). 13 checks (c char, d 42, i -5 prefix, u 100+size-dec, x/X hex, o octal + flag01 '0'-prefix, u flag10 word-read + cursor-quirk, default char). L3 0->1, TOTALS 195->196, suite 695 PASS 0 FAIL. | STATUS.md L3 |
 | 2026-07-08 | **fn_043f80 (0x043f80, 66B) ported** — 8-bit presence-bitmap builder. ABI src=EAX, dest=EDX. fn_041e20(dest,0,32) clears a 32-byte bitmap, then for each byte b in src (from byte 0) sets `dest[b>>3] |= 1<<(b&7)` (table @0x51854 = {1,2,4,8,16,32,64,128}). Scan stops at first 0 or 0x5d (']') byte; that byte is NOT processed. Returns the source cursor at exit (EAX=ECX). Faithful quirks verified in disasm: (1) byte 0 is processed even if it is 0x5d (the 0x5d check only applies from byte 1 on); (2) the exit cursor is the zero byte's address when stopped by 0, but the address PAST the 0x5d byte when stopped by 0x5d. Depends on ported fn_041e20 (memset). 6 checks (single 0x41->dest[8]=2 + zero cursor, ']'-skip, 0x05/0x07->dest[0]=160, leading-zero no-op, byte0=0x5d quirk). L3 1->2, TOTALS 196->197, suite 701 PASS 0 FAIL. | STATUS.md L3 |
 | 2026-07-08 | **fn_049e15 (0x049e15, 106B) ported** — within-buffer string range-shift + sign/zero fixup + space-fill. Confirmed via decomp + single caller (FUN_00049e80): param_1=char buffer, param_2/param_3 are small COUNTS (not pointers — so `dest+count` is portable pointer arithmetic, no 32-bit-pointer-as-field issue). If count2!=count3: a backward do-while copies dest[0..count2-1] to end at dest[count3-1] (dest[count3-count2+k]=dest[k], high-to-low, count2 iterations including dest[0]); then fixup on dest[0]: '.' -> dest[iVar5-2]='0'; '+'/'-' with dest[1]=='.' -> dest[iVar5-1]='0', dest[iVar5-2]=dest[0]; finally fn_041e20(dest,' ',cur3) space-fills the front. Register model preserved: iVar5=count3-(count2-1), cur3=count3-count2 at exit. Depends on ported fn_041e20. 4 hand-traced differential tests (plain copy+fill, '.' fixup, sign fixup, equal-counts no-op). L3 2->3, TOTALS 197->198, suite 705 PASS 0 FAIL. | STATUS.md L3 |
+| 2026-07-08 | **fn_041e38 (0x041e38, 24B) + fn_03f084 (0x03f084, 218B) ported** — DPMI real-mode trampolines (flat-model no-op standins). 0x041e38 is trampoline B: shuffles 4 register args (EAX/EDX/EBX/ECX) into the 32-byte context at EBX and calls 0x043324 (DPMI INT 31h); in the flat model that call is a no-op, so it returns *EBX (first dword of the unchanged context). 0x03f084 reads 5 words from arg2 + 1 from arg4 into a local DPMI context, calls 0x041e38 with key 0x31; the no-op DPMI call never transforms the locals, so the observable effect is copying 4 of the 5 words (arg2 byte-offsets 0,4,8,0xc -> arg3[0,2,4,6]; the 5th, arg2[0x14], is dropped — faithful quirk) and returning arg2[0xc] zero-extended. 0x045dac (0B) documented as a 1-byte disassembly artifact (Ghidra boundary split; the coherent function is 0x045dad) — no C counterpart. 6 checks. L3 3->6, TOTALS 198->201, suite 710 PASS 0 FAIL. | STATUS.md L3 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -328,7 +329,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
 | [x] | 0x041e20 | 23 | FUN_00041e20 | | |
-| [ ] | 0x041e38 | 24 | FUN_00041e38 | | |
+| [x] | 0x041e38 | 24 | fn_041e38 | | |
 | [ ] | 0x041fa1 | 0 | FUN_00041fa1 | | |
 | [x] | 0x0423b7 | 23 | fn_0423b7 | callback chain: g_dat_5336c(param_1)->r1; g_dat_53370(r1) [reused from 0423cf]; fn_0423cf(param_1); added g_dat_5336c | port+test PASS |
 | [x] | 0x042576 | 179 | fn_042576 | file-mode parser: to_lower(s[0]) in r/w/a else fn_042a0d(9); +/-/b/t modifiers -> 0x43/0x40/3; w|2/a|0x82/r|1; g_dat_53619==0x200 default-binary; ret (p2<<32)|flags | port+test PASS |
@@ -363,7 +364,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x03f084 | 218 | FUN_0003f084 | | |
+| [x] | 0x03f084 | 218 | fn_03f084 | | |
 | [ ] | 0x0418c6 | 11 | FUN_000418c6 | | |
 | [ ] | 0x041e51 | 26 | FUN_00041e51 | | |
 | [ ] | 0x042aba | 30 | FUN_00042aba | | |
@@ -373,7 +374,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04488b | 452 | FUN_0004488b | | |
 | [ ] | 0x044a50 | 100 | FUN_00044a50 | | |
 | [x] | 0x0451bc | 1096 | fn_0451bc | | |
-| [ ] | 0x045dac | 0 | FUN_00045dac | | |
+| [x] | 0x045dac | 0 | (artifact) | 1-byte disasm fragment | |
 | [ ] | 0x045dad | 16 | FUN_00045dad | | |
 | [ ] | 0x048422 | 354 | FUN_00048422 | | |
 | [ ] | 0x048754 | 24 | FUN_00048754 | | |

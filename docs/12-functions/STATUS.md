@@ -34,13 +34,13 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 140 / 528 done
+TOTALS: 141 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 23 | 0 | 0 | 24 |
-| L2 | 32 | 6 | 0 | 0 | 26 |
+| L2 | 32 | 7 | 0 | 0 | 25 |
 | L3 | 21 | 0 | 0 | 0 | 21 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
@@ -305,7 +305,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x045079 | 96 | fn_045079 | format value as hex (itoa32s base16), right-justify + zero-pad to `width` chars, null@buf[width]. ABI: value=EAX, buf=EDX, width=EBX | port+test PASS |
 | [x] | 0x0450da | 218 | fn_0450da | 16.16 fixed-point -> decimal string: itoa32s(int), frac digits via frac*10/65536, round-up(carry) when discarded remnant bit15 set. spec[2]=places (def 4) | port+test PASS |
 | [ ] | 0x045a76 | 11 | FUN_00045a76 | | |
-| [ ] | 0x045a82 | 101 | FUN_00045a82 | | |
+| [x] | 0x045a82 | 101 | fn_045a82 | byte classifier: fn_042a30/042a0d write g_dat_64004/64008; 'P'->0xe/[0x20,0x22)->5/>=0x22->0x13 when g_dat_533bb>2; tbl[bl]=byte@0x53625+(bl+3); ret (p2<<32)|0xffffffff | port+test PASS |
 | [ ] | 0x046d32 | 20 | caseD_0 | | |
 | [ ] | 0x046d47 | 20 | caseD_8 | | |
 | [ ] | 0x0473e5 | 20 | caseD_4 | | |

@@ -1793,6 +1793,30 @@ static void test_049c76(void) {
     check(g_dat_53780 == 18000u - (uint32_t)(int32_t)(-25200), "  two times -> 53780=18000-(-25200)");
 }
 
+static void test_045a82(void) {
+    printf("fn_045a82 (0x045a82) byte classifier\n");
+    g_dat_64004 = 0; g_dat_64008 = 0; g_dat_533bb = 3;
+    uint64_t r = fn_045a82(0x50, 0xabcd);   // 'P'
+    check(g_dat_64004 == 0x50, "  'P' 64004=0x50");
+    check(g_dat_64008 == 7, "  'P' 64008=7 (tbl[0xe])");
+    check(r == 0xabcdffffffffULL, "  'P' ret high=0xabcd low=0xffffffff");
+    g_dat_64004 = 0; g_dat_64008 = 0;
+    fn_045a82(0x1f, 0);   // 31 < 0x20, clamps to 0x13
+    check(g_dat_64004 == 0x1f, "  0x1f 64004=0x1f");
+    check(g_dat_64008 == 0xff, "  0x1f 64008=0xff (clamped tbl[0x13])");
+    g_dat_64004 = 0; g_dat_64008 = 0;
+    fn_045a82(0x20, 0);   // 0x20 in [0x20,0x22) -> 5
+    check(g_dat_64008 == 6, "  0x20 64008=6 (tbl[5])");
+    g_dat_64004 = 0; g_dat_64008 = 0;
+    fn_045a82(0x1234, 0); // >= 0x100 -> (param>>8)&0xff
+    check(g_dat_64004 == 0x34, "  0x1234 64004=0x34");
+    check(g_dat_64008 == 0x12, "  0x1234 64008=0x12");
+    g_dat_533bb = 2; g_dat_64004 = 0; g_dat_64008 = 0;
+    fn_045a82(0x50, 0);   // threshold not met -> no classify, clamps to 0x13
+    check(g_dat_64008 == 0xff, "  'P' no-classify 64008=0xff (clamped)");
+    g_dat_533bb = 3;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1891,6 +1915,7 @@ int main(void) {
     test_0450da();
     test_049a35();
     test_049c76();
+    test_045a82();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

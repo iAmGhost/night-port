@@ -1352,6 +1352,7 @@ uint32_t g_dat_537a7 = 0;                /* DAT_000537a7: TZ time2 prefix buf (4
 uint32_t g_dat_5377c = 0;                /* DAT_0005377c: TZ seconds */
 uint32_t g_dat_53734 = 0;                /* DAT_00053734: TZ count */
 uint32_t g_dat_53758 = 0;                /* DAT_00053758: TZ index */
+uint8_t  g_dat_533bb = 0;                /* DAT_000533bb: classify-enable threshold */
 
 /* 0x049a35: timezone ("TZ") config parser. Reads the "TZ" config value (a
  * time-range string), parses it via parse_time_str, and fills the g_dat_537xx
@@ -1399,6 +1400,32 @@ void fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4) {
             fn_049b84(pcVar1 + 1, &g_dat_53758);
         }
     }
+}
+
+/* 0x045a82: byte classifier. Sets g_dat_64004 = param_1 (low byte) via fn_042a30,
+ * then classifies: if param_1 < 0x100, (when g_dat_533bb > 2) map 'P'->0xe, [0x20,0x22)->5,
+ * >=0x22->0x13; clamp to <=0x13; g_dat_64008 = tbl[bl]. Else g_dat_64008 = (param_1>>8)&0xff.
+ * Returns (param_2 << 32) | 0xffffffff. tbl = byte at 0x53625+(bl+3). */
+uint64_t fn_045a82(uint32_t param_1, uint32_t param_2) {
+    static const uint8_t tbl[20] =
+        {0,9,1,1,11,6,4,5,5,5, 2,3,0xff,0xff,7,8, 6,8,1,0xff};
+    uint8_t bl = (uint8_t)(param_1 & 0xff);
+    fn_042a30(bl);                              /* g_dat_64004 = bl */
+    uint32_t uVar1;
+    if (param_1 < 0x100) {
+        if (g_dat_533bb > 2) {
+            uint8_t b = (uint8_t)(param_1 & 0xff);
+            if (b == 0x50) bl = 0xe;
+            else if (b < 0x22) { if (b >= 0x20) bl = 5; }
+            else bl = 0x13;
+        }
+        if (bl > 0x13) bl = 0x13;
+        uVar1 = tbl[bl];
+    } else {
+        uVar1 = (param_1 >> 8) & 0xff;
+    }
+    fn_042a0d(uVar1 & 0xff);                    /* g_dat_64008 = uVar1 & 0xff */
+    return ((uint64_t)param_2 << 32) | 0xffffffff;
 }
 
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array

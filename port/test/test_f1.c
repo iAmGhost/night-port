@@ -2249,6 +2249,12 @@ static void test_fn_049415(void) {
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
 }
 
+static void test_fn_044c1e_fn_041e51(void) {
+    printf("fn_044c1e (0x044c1e) / fn_041e51 (0x041e51)\n");
+    check(fn_044c1e("FILE") == 0, "  thunk -> fn_049415 (no-op delete) returns 0");
+    check(fn_041e51(0x11, 0x22, 0x33, 0x44) == 0, "  fn_041e51 (seg-save + DPMI real-mode) no-op returns 0");
+}
+
 static void test_fn_041e38(void) {
     printf("fn_041e38 (0x041e38)\n");
     static uint32_t ctx[8] = {0x12345678, 0x99, 0x99, 0x99, 0,0,0,0};
@@ -3058,6 +3064,7 @@ int main(void) {
     test_cd_dpmi_noops();
     test_fn_048e60();
     test_fn_049415();
+    test_fn_044c1e_fn_041e51();
     test_fn_043324();
     test_fn_041439();
     test_fn_03ee88();

@@ -596,6 +596,7 @@ uint8_t *fn_0451bc(uint8_t *out, uint8_t **cur, uint8_t *st, uint8_t *alt); /* 0
 const uint8_t *fn_043f80(const uint8_t *src, uint8_t *dest); /* 0x043f80: 8-bit presence bitmap */
 void fn_049e15(char *dest, int count2, int count3); /* 0x049e15: in-buffer range shift + fixup + fill */
 uint32_t fn_041e38(uint32_t a, uint32_t b, uintptr_t ctx, uint32_t d); /* 0x041e38: DPMI real-mode trampoline B */
+uint32_t fn_041e51(uint32_t a, uint32_t b, uint32_t c, uint32_t d); /* 0x041e51: seg-save + DPMI real-mode call (no-op, returns 0) */
 void fn_043324(uintptr_t context, uintptr_t rm_ptr); /* 0x043324: DPMI real-mode transition (save) */
 /* 0x04335c is rm_switch_a (L0 batch A). */
 uint32_t fn_03f084(const uint16_t *arg1, const uint16_t *arg2, uint16_t *arg3, const uint16_t *arg4); /* 0x03f084: DPMI INT 31h ctx wrapper */
@@ -603,6 +604,7 @@ int32_t fn_042aba(uint32_t handle, void *buf, uint32_t count); /* 0x042aba: DOS 
 int32_t fn_044807(uint32_t handle, int32_t offset, int32_t whence); /* 0x044807: DOS AH=42 lseek */
 int32_t fn_044bec(uint32_t handle);                              /* 0x044bec: DOS AH=3e close-file */
 int32_t fn_049415(const char *name); /* 0x049415: DOS AH=41 delete */
+int32_t fn_044c1e(const char *name); /* 0x044c1e: JMP thunk -> fn_049415 */
 /* Debug-break gate: if g_debug_break (DAT_00053624) is set, fire a breakpoint
  * with (eax, edx&0xffff); always returns 0. Port routes INT3 to sys_breakpoint.
  *  orig: 0x045a44 */

@@ -41,8 +41,8 @@ TOTALS: 228 / 528 done
 | L0 | 112 | 109 | 0 | 0 | 3 |
 | L1 | 47 | 31 | 0 | 0 | 16 |
 | L2 | 32 | 14 | 0 | 0 | 18 |
-| L3 | 21 | 8 | 0 | 0 | 13 |
-| L4 | 13 | 1 | 0 | 0 | 12 |
+| L3 | 21 | 9 | 0 | 0 | 12 |
+| L4 | 13 | 2 | 0 | 0 | 11 |
 | L5 | 10 | 2 | 0 | 0 | 8 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
 | L7 | 8 | 0 | 0 | 0 | 8 |
@@ -169,7 +169,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_041439 (0x041439, 24 ins) ported** — IRQ handler (PUSHAD+segs; CLD; seg_ds_load; irq_cli; DAT_00063f84=2; inb(DAT_00053334+0xe); outb(0x20,0x20)=8259 PIC EOI; irq_sti; IRETD). All callees (seg_ds_load/irq_cli/inb/outb/irq_sti) already ported as flat-model no-op sys stubs; IRETD has no C equivalent (handler returns). Only observable effect = DAT_00063f84=2. Added globals g_dat_63f84 + g_dat_53334. Note: the L1 deferral note's "deps 0x469d9+DAT_00063f84+DAT_00053334 unported" was STALE (those deps are ported/now-added). 1 check. L1 26->27, TOTALS 205->206, suite 717 PASS 0 FAIL. | STATUS.md L1 |
 | 2026-07-08 | **fn_03ee88 + fn_043381 ported** — (1) fn_03ee88 (0x03ee88, 38 ins) timer/IRQ tick handler: advances 63e28 (wrap@8 -> 63f08++), 63e24, 63e3c (wrap@18 -> 63e40++), 63e38, 63e30 (+= 63e2c, wrap@0xffff -> 63e34++), then irq_sti + outb(0x20,0x20) PIC EOI; IRETD not portable. All 4 I/O callees ported. Added 8 globals (63e28/24/3c/38/40/30/2c/34; 63f08 existed). 8 checks. (2) fn_043381 (0x043381, 34 ins) DPMI real-mode return: calls rm_switch_b + saves reg/flag state to ctx (register-ABI, no flat-model effect) -> no-op standin. Note: the stale L1 deferral note still lists 0x043381/0x043324/0x0431b5/0x041439 as pending but they are all now [x]. L1 27->29, TOTALS 206->208, suite 726 PASS 0 FAIL. | STATUS.md L1 |
 | 2026-07-08 | **fn_048e60 (0x048e60, 203B) ported** — 128-bit fixed-point normalize + Newton-Raphson reciprocal divide (pure L0 leaf, `uint32_t *p`: p[0]=lo mantissa, p[1]=hi mantissa w/ top byte = status flags, p[2] low16 = exp field). Normalizes the 64-bit mantissa (bits shifted out tracked in a 128-bit low half), divides by the reciprocal estimate via a Newton iteration, writes back p[0]/p[1] + p[2]; guard/overflow paths zero the value and OR 0xc0 into the status byte (offset 7 = top byte of p[1]). P-code CARRY4/CONCAT44/CONCAT14 -> 64-bit int ops; u2 wraps 16-bit. **Differential vs independent reference (scratch/fp_048e60.py)** — the reference initially masked bit 31 of the normalized hi-mantissa with 0x7fffffff, but the original `iVar6=(int)((u5|0x100000000)>>1)` is always in [0x80000000,0x8fffffff] (normalized mantissa top bit set), so the C `int32_t` cast was correct; fixed the reference. 10 cases (guard/early-return/ovp/Newton/div2/denom==-1 special) PASS. L0 108->109, TOTALS 228->229, suite 784 PASS 0 FAIL. **3 remaining L0 confirmed deferred for dedicated passes:** 0x04794a (363B, complex fx, 8 callers, register-ABI), 0x0485eb (122B, fx subtract, register-ABI ESI/EDI + decompiler drops the epilogue), 0x04a3a8 (230B, FPU FLD/FCOMP/FDIV/FMUL over {int16,double} table 0x519bc). | STATUS.md L0 |
-| 2026-07-08 | **fn_04391d (0x04391d, 17 ins) ported** — DOS/DPMI timer-vector setup: swi(0x21) AH=0x25 AL=0x04 (set int vector 4 = DAT_00053408:DAT_00053404), then if DAT_000533b2>=3 dos_install_timer_int() else CR0.ET bit op. All DPMI/DOS/CR0-specific, no flat-model effect; dos_install_timer_int is a ported no-op -> no-op standin (2 smoke checks). Also deferred 0x042ccc (41 ins, DPMI heap free-all shutdown: walks g_heap_head chain + heap_unlink + INT 31h AH=502/INT 21h AH=49 frees; g_heap_head IS used by the flat heap so the unlink loop has real effect but it is a shutdown-only DPMI cleanup, deferred) and 0x043e34 (93 ins field-descriptor read w/ ES-seg far pointers + data-driven callbacks) + 0x047b79 (177-ins 64-bit FPU) as complex. L1 29->30, TOTALS 208->209, suite 728 PASS 0 FAIL. | STATUS.md L1 |
+| 2026-07-08 | **fn_04391d (0x04391d, 17 ins) ported**
+| 2026-07-08 | **fn_044c1e + fn_041e51 ported** — (1) fn_044c1e (0x044c1e, 4B) tail-call thunk JMP 0x049415; fn_049415 (DOS AH=41 delete, sys_file_delete no-op) already ported -> straight pass-through. (2) fn_041e51 (0x041e51, 26B) register-ABI: MOV ECX,EAX; CALL 0x041df2 (seg-save, EAX=ESP); MOV ECX,ESP; CALL 0x041e38 (DPMI INT31h real-mode trampoline); RET. Return = fn_041e38's EAX = caller's *EBX (the real-mode result); both callees are flat-model no-ops so that result is never produced -> no-op standin returning 0 (documented approximation of the register-ABI *EBX return); params model a=EAX,b=EDX,c=EBX,d=ECX. Supersedes the stale L3 note '0x041e51 fragile DPMI thunk (returns caller's *EBX)' -- now ported as the no-op standin. **Also deferred (register-ABI):** 0x047f54 + 0x048053 (L1, fixed-point normalize, EAX/EDX in EBX out-ptr, the 0x0463dc call's return is discarded via POP EAX -- 0x0463dc is spurious data in the 0x0461cc interpreter, not a portable fn), 0x048fe6 + 0x045bb7 (L1, DPMI/DOS INT 2f/31/21 IRQ+mem setup w/ in_CS/in_CR0/in_DS extraout register returns). 2 checks. L3 8->9, L4 1->2, TOTALS 229->231, suite 786 PASS 0 FAIL. | STATUS.md L3/L4 | — DOS/DPMI timer-vector setup: swi(0x21) AH=0x25 AL=0x04 (set int vector 4 = DAT_00053408:DAT_00053404), then if DAT_000533b2>=3 dos_install_timer_int() else CR0.ET bit op. All DPMI/DOS/CR0-specific, no flat-model effect; dos_install_timer_int is a ported no-op -> no-op standin (2 smoke checks). Also deferred 0x042ccc (41 ins, DPMI heap free-all shutdown: walks g_heap_head chain + heap_unlink + INT 31h AH=502/INT 21h AH=49 frees; g_heap_head IS used by the flat heap so the unlink loop has real effect but it is a shutdown-only DPMI cleanup, deferred) and 0x043e34 (93 ins field-descriptor read w/ ES-seg far pointers + data-driven callbacks) + 0x047b79 (177-ins 64-bit FPU) as complex. L1 29->30, TOTALS 208->209, suite 728 PASS 0 FAIL. | STATUS.md L1 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -379,7 +380,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|---|---|---|
 | [x] | 0x03f084 | 218 | fn_03f084 | | |
 | [ ] | 0x0418c6 | 11 | FUN_000418c6 | | |
-| [ ] | 0x041e51 | 26 | FUN_00041e51 | | |
+| [x] | 0x041e51 | 26 | fn_041e51 | dpmi | no-op standin (reg-ABI, ret 0); test_f1 PASS |
 | [x] | 0x042aba | 30 | fn_042aba | | |
 | [ ] | 0x042fc2 | 174 | FUN_00042fc2 | | |
 | [x] | 0x043f80 | 66 | fn_043f80 | | |
@@ -407,7 +408,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x044748 | 190 | FUN_00044748 | | |
 | [x] | 0x044848 | 16 | fn_044848 | | lseek wrapper -> fn_044807(h,0,SEEK_SET) |
 | [ ] | 0x044867 | 35 | FUN_00044867 | | |
-| [ ] | 0x044c1e | 4 | thunk_FUN_00049415 | | |
+| [x] | 0x044c1e | 4 | fn_044c1e | dpmi | JMP thunk -> fn_049415; test_f1 PASS |
 | [ ] | 0x044c23 | 640 | FUN_00044c23 | | |
 | [ ] | 0x04574a | 339 | FUN_0004574a | | |
 | [ ] | 0x04836c | 181 | FUN_0004836c | | |

@@ -2888,6 +2888,27 @@ uint32_t fn_041e38(uint32_t a, uint32_t b, uintptr_t ctx, uint32_t d) {
     return *(uint32_t *)ctx;
 }
 
+/* 0x044c1e: tail-call thunk (4B) -- JMP 0x049415.
+ *
+ * Unconditional tail jump to fn_049415 (DOS AH=41 file delete). Same signature,
+ * so the flat port is a straight pass-through. */
+int32_t fn_044c1e(const char *name) { return fn_049415(name); }
+
+/* 0x041e51: seg-save + DPMI real-mode call (26B), register-ABI.
+ *
+ * Original: MOV ECX,EAX; MOV EAX,ESP; CALL 0x041df2 (save segments to the stack
+ * frame); MOV EAX,ECX; MOV ECX,ESP; CALL 0x041e38 (DPMI INT 31h real-mode
+ * trampoline); RET. Its return is fn_041e38's EAX, which the original computes as
+ * *EBX (EBX = the caller's register-ABI context pointer) -- i.e. the real-mode
+ * result. Both callees are flat-model no-ops (no segment switches, no real-mode
+ * transition), so the real-mode result is never produced; the return (caller's
+ * *EBX, register-ABI) is undefined in the flat model and approximated as 0.
+ * Params model the register-ABI inputs (a=EAX, b=EDX, c=EBX, d=ECX). */
+uint32_t fn_041e51(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    (void)a; (void)b; (void)c; (void)d;
+    return 0;
+}
+
 /* 0x043324: DPMI real-mode transition, protected-mode (save) side (55B).
  *
  * Original reads EDI (context ptr) and EBX (real-mode far ptr: [EBX]=ES, [EBX+6]=BP)

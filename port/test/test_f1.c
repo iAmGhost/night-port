@@ -1906,6 +1906,30 @@ static void reset_03442e(void) {
     g_dat_63f50 = 0; g_dat_63f08 = 0; g_dat_63f0c = 0;
 }
 
+static void test_fn_03ba2c(void) {
+    printf("fn_03ba2c (0x03ba2c)\n");
+    /* reference: node content after building 200 lists (a=0>=0 path never sets g_dat_62d68[i],
+     * so it links after node@0; the observable output is the arena nodes at offset 11*i) */
+    memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+    fn_03ba2c(0x1000, 0x40);
+    check(g_dat_62d64 == 2200, "  cursor = 200*11 = 2200");
+    check(nstart(0) == 0x1000 && nnext(0) == 2189 && nlen(0) == 0, "  node@0 start/next/len");
+    check(nstart(11) == 0x1000 + 0x40, "  node@11 start = c_init+inc");
+    check(nstart(2189) == 0x1000 + 199*0x40, "  node@2189 start = c_init+199*inc");
+    check(g_dat_62d68[0] == 0 && g_dat_62d68[199] == 0, "  heads untouched (a>=0 path)");
+    /* differential: fn_03ba2c vs a manual 200-iteration loop of fn_034aba */
+    uint8_t s1[0x1000], s2[0x1000];
+    memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+    fn_03ba2c(0x2000, 0x21);
+    memcpy(s1, nar(), 0x1000); uint32_t c1 = g_dat_62d64;
+    memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+    uint32_t c = 0x2000;
+    for (uint32_t i = 0; i < 200; i++) { fn_034aba(0, (int32_t)i, 0x140, (int32_t)c, 0); c += 0x21; }
+    memcpy(s2, nar(), 0x1000);
+    check(memcmp(s1, s2, 0x1000) == 0 && c1 == g_dat_62d64, "  == manual 200x fn_034aba loop");
+    /* restore clean arena for any later node tests */
+    memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
+}
 static void test_fn_03442e(void) {
     printf("fn_03442e (0x03442e)\n");
 
@@ -2532,6 +2556,7 @@ int main(void) {
     test_042576();
     test_l10_accessors();
     test_fn_034aba();
+    test_fn_03ba2c();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

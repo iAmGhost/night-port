@@ -1515,7 +1515,7 @@ uint32_t g_dat_62d64 = 0;   /* node-arena bump cursor (offset into s_node_arena)
 #define NIGHT_NODE_ARENA (1u << 16)
 static uint8_t s_node_arena[NIGHT_NODE_ARENA];
 uintptr_t g_node_arena_base = (uintptr_t)s_node_arena;
-uint32_t  g_dat_62d68[128] = {0};   /* DAT_00062d68: head-node offset per list idx */
+uint32_t  g_dat_62d68[200] = {0};   /* DAT_00062d68: head-node offset per list idx (fn_03ba2c/03c65b index 0..199) */
 static inline uint8_t *nd(uint32_t off) { return s_node_arena + off; }
 /* byte-wise node field accessors (alignment-safe: nodes are 11 bytes, so int16/int32
  * fields land on unaligned byte offsets — direct casts fault/corrupt on arm64). */
@@ -1573,6 +1573,13 @@ void fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag) {
         node_next_set(pivar1, newnode1);
         node_next_set(newnode1, newnode2);
     }
+}
+/* 0x03ba2c: build 200 interval lists. c_init=EAX, inc=EDX. Each iteration i
+ * (0..199) carves [0,0x140) into list i with node-start=c_init+i*inc, flag=0.
+ * (The a=0>=0 path never touches g_dat_62d68[i]; it links after node@0, so the
+ * observable output lives in the arena nodes at offsets 11*i.) */
+void fn_03ba2c(uint32_t c_init, uint32_t inc) {
+    for (uint32_t i = 0; i < 200; i++) { fn_034aba(0, (int32_t)i, 0x140, (int32_t)c_init, 0); c_init += inc; }
 }
 uint32_t g_dat_639dc = 0;
 uint32_t g_dat_639e0 = 0;

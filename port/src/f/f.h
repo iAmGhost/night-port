@@ -598,6 +598,11 @@ void fn_049e15(char *dest, int count2, int count3); /* 0x049e15: in-buffer range
 uint32_t fn_041e38(uint32_t a, uint32_t b, uintptr_t ctx, uint32_t d); /* 0x041e38: DPMI real-mode trampoline B */
 uint32_t fn_041e51(uint32_t a, uint32_t b, uint32_t c, uint32_t d); /* 0x041e51: seg-save + DPMI real-mode call (no-op, returns 0) */
 uint32_t fn_0422d5(uint32_t a, const char *b, uint32_t c, uint32_t d, uint8_t e); /* 0x0422d5: DOS open/seek/term wrapper (dispatch_b only) */
+void fn_0429c8(const char *msg, uint32_t param2);  /* 0x0429c8: fatal-error reporter (debug_break_hook -> fn_0422d5) */
+uint32_t fn_0429e5(uint32_t a, const char *b, uint32_t c, uint32_t d, uint8_t e); /* 0x0429e5: JMP thunk -> fn_0422d5 */
+void fn_0429ea(const char *msg, uint32_t param2);  /* 0x0429ea: fatal-error reporter (direct fn_0422d5) */
+void fn_0418c6(void);                              /* 0x0418c6: report undefined ctor/dtor via fn_0429c8 */
+void fn_045dad(void);                              /* 0x045dad: report FPU-not-loaded via fn_0429ea */
 void fn_043324(uintptr_t context, uintptr_t rm_ptr); /* 0x043324: DPMI real-mode transition (save) */
 /* 0x04335c is rm_switch_a (L0 batch A). */
 uint32_t fn_03f084(const uint16_t *arg1, const uint16_t *arg2, uint16_t *arg3, const uint16_t *arg4); /* 0x03f084: DPMI INT 31h ctx wrapper */

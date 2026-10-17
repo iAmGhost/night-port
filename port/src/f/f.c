@@ -2924,6 +2924,44 @@ uint32_t fn_0422d5(uint32_t a, const char *b, uint32_t c, uint32_t d, uint8_t e)
     return 0;
 }
 
+/* 0x0429c8: fatal-error reporter (28B). Original: PUSH EBX/ECX; EBX=EAX (msg),
+ * ECX=EDX (param2), EDX=DS; CALL 0x045a44 (debug_break_hook: fires INT3 if
+ * g_debug_break set, always returns 0); TEST/JNZ; if 0 restore EAX/EDX and CALL
+ * 0x0429e5 (thunk -> fn_0422d5 fatal-exit path). Flat model: debug_break_hook
+ * returns 0, so this always takes the fatal-exit branch (dispatch_b(0,0xff)).
+ * Register-ABI inputs: EAX=msg (string), EDX=param2 (unused downstream). */
+void fn_0429c8(const char *msg, uint32_t param2) {
+    (void)param2;
+    if (debug_break_hook((uint32_t)msg, 0) == 0) {
+        fn_0422d5(0, msg, 0, 0, 0);
+    }
+}
+
+/* 0x0429e5: 4B JMP thunk -> fn_0422d5. Same signature, straight pass-through. */
+uint32_t fn_0429e5(uint32_t a, const char *b, uint32_t c, uint32_t d, uint8_t e) {
+    return fn_0422d5(a, b, c, d, e);
+}
+
+/* 0x0429ea: fatal-error reporter (28B), identical to 0x0429c8 but calls
+ * fn_0422d5 directly (not via the 0x0429e5 thunk). */
+void fn_0429ea(const char *msg, uint32_t param2) {
+    (void)param2;
+    if (debug_break_hook((uint32_t)msg, 0) == 0) {
+        fn_0422d5(0, msg, 0, 0, 0);
+    }
+}
+
+/* 0x0418c6: 11B -- report "undefined constructor or destructor called!" via
+ * fn_0429c8 (the C++ guard for an undefined ctor/dtor). */
+void fn_0418c6(void) {
+    fn_0429c8("undefined constructor or destructor called!", 0);
+}
+
+/* 0x045dad: 16B -- report "Floating-point support not loaded" via fn_0429ea. */
+void fn_045dad(void) {
+    fn_0429ea("Floating-point support not loaded\r\n", 1);
+}
+
 /* 0x043324: DPMI real-mode transition, protected-mode (save) side (55B).
  *
  * Original reads EDI (context ptr) and EBX (real-mode far ptr: [EBX]=ES, [EBX+6]=BP)

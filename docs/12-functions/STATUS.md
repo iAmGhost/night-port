@@ -40,8 +40,8 @@ TOTALS: 228 / 528 done
 |---|---|---|---|---|---|
 | L0 | 112 | 109 | 0 | 0 | 3 |
 | L1 | 47 | 32 | 0 | 0 | 15 |
-| L2 | 32 | 14 | 0 | 0 | 18 |
-| L3 | 21 | 9 | 0 | 0 | 12 |
+| L2 | 32 | 17 | 0 | 0 | 15 |
+| L3 | 21 | 11 | 0 | 0 | 10 |
 | L4 | 13 | 2 | 0 | 0 | 11 |
 | L5 | 10 | 2 | 0 | 0 | 8 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
@@ -172,6 +172,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_04391d (0x04391d, 17 ins) ported**
 | 2026-07-08 | **fn_044c1e + fn_041e51 ported**
 | 2026-07-08 | **fn_0422d5 ported**
+| 2026-07-08 | **Fatal-error-reporter batch ported (5 fns)** — Porting the small gate fn_0429c8/fn_0429ea (28B each) unlocked a cluster. Disasm: PUSH EBX/ECX; EBX=EAX(msg), ECX=EDX(param2), EDX=DS; CALL 0x045a44 (debug_break_hook: INT3 if g_debug_break, always returns 0); if 0 restore + CALL fn_0422d5 (fatal-exit path = dispatch_b(0,0xff)). Flat model: debug_break_hook always 0 -> always takes the fatal-exit branch. Ported: fn_0429c8, fn_0429ea (reporters), fn_0429e5 (4B JMP thunk -> fn_0422d5), fn_0418c6 (11B: fn_0429c8("undefined constructor or destructor called!")), fn_045dad (16B: fn_0429ea("Floating-point support not loaded\r\n",1)). Register-ABI inputs (EAX=msg, EDX=param2 unused). 4 checks (thunk returns 0; reporters run). L2 14->17, L3 9->11, TOTALS 232->237, suite 787->789 PASS 0 FAIL. | STATUS.md L2/L3 |
 | 2026-07-08 | **Leaf-tier (L0-L4) clean wins EXHAUSTED — remaining need dedicated fresh-context passes.** frontier.py (all-callees-ported) residual, each deferred w/ rationale: L1 — 0x04a814 (linear/binary search over {lo,hi} array; reg-ABI EDX=val-ptr EDI=base; count from no-op fx_stub_4a923 -> degenerate), 0x047f54/0x048053 (fixed-point normalize, reg-ABI EAX/EDX in EBX out, 0x0463dc call return discarded via POP EAX; 0x0463dc is spurious data), 0x045bb7 (DOS INT21h mem alloc, in_DS reg-ABI), 0x048fe6 (INT2f/31 IRQ setup, in_CS/in_CR0 extraout reg-ABI), 0x042ccc (DPMI heap free-all teardown, heap_unlink + INT31/21 frees, reg-ABI), 0x043e34/0x047b79/0x0440a9 (FPU/large parser). L2 — 0x041fa1 (JMP thunk -> UNPORTED 0x0438a3), 0x04a32b (FPU, args on FPU stack, reg-ABI), 0x046d47 (caseD_8 virtual-dispatch tail-merge), 0x044387 (503B CONCAT31 complex). L3 — 0x044a50/0x049236 (DOS disk/file reg-ABI extraout), 0x04488b (452B DOS device open, in_stack_* reg-ABI). L4 — 0x043fc3 (field-deserializer, unaff_ESI/extraout reg-ABI + indirect calls), 0x044c23 (640B). NEXT (fresh context, tractable first): the register-ABI FPU cluster (0x04a814, 0x047f54, 0x048053, 0x04a32b) via full disasm + FPU-stack trace; then 0x0451bc (1096B typed deserializer, biggest L3 win). Total this turn: +4 (0x048e60 L0 diff-verified, 0x044c1e L4 thunk, 0x041e51 L3, 0x0422d5 L1). TOTALS 232/528, suite 787 PASS 0 FAIL. | STATUS.md L0-L4 | — (0x0422d5, 58B) DOS file open + seek + terminate wrapper. Original: INT 21h AH=03h/AL=01 open file 0x420b8 (handle in AX); strlen(param_2); INT 21h AH=40 seek; dispatch_b(0, 0xff); INT 21h AH=4c terminate with param_5. All INT 21h calls are flat-model no-op stubs (swi(0x21)) and AH=4c terminate is a no-op, so the strlen only feeds the no-op seek and the sole observable effect is the real event dispatch dispatch_b(0, 0xff); returns the terminate result (0). Supersedes the stale L1 note '(405B) DOS I/O INT 13h+disk' (misread: it is 58B of INT 21h file ops). 1 check. L1 31->32, TOTALS 231->232, suite 787 PASS 0 FAIL. | STATUS.md L1 | — (1) fn_044c1e (0x044c1e, 4B) tail-call thunk JMP 0x049415; fn_049415 (DOS AH=41 delete, sys_file_delete no-op) already ported -> straight pass-through. (2) fn_041e51 (0x041e51, 26B) register-ABI: MOV ECX,EAX; CALL 0x041df2 (seg-save, EAX=ESP); MOV ECX,ESP; CALL 0x041e38 (DPMI INT31h real-mode trampoline); RET. Return = fn_041e38's EAX = caller's *EBX (the real-mode result); both callees are flat-model no-ops so that result is never produced -> no-op standin returning 0 (documented approximation of the register-ABI *EBX return); params model a=EAX,b=EDX,c=EBX,d=ECX. Supersedes the stale L3 note '0x041e51 fragile DPMI thunk (returns caller's *EBX)' -- now ported as the no-op standin. **Also deferred (register-ABI):** 0x047f54 + 0x048053 (L1, fixed-point normalize, EAX/EDX in EBX out-ptr, the 0x0463dc call's return is discarded via POP EAX -- 0x0463dc is spurious data in the 0x0461cc interpreter, not a portable fn), 0x048fe6 + 0x045bb7 (L1, DPMI/DOS INT 2f/31/21 IRQ+mem setup w/ in_CS/in_CR0/in_DS extraout register returns). 2 checks. L3 8->9, L4 1->2, TOTALS 229->231, suite 786 PASS 0 FAIL. | STATUS.md L3/L4 | — DOS/DPMI timer-vector setup: swi(0x21) AH=0x25 AL=0x04 (set int vector 4 = DAT_00053408:DAT_00053404), then if DAT_000533b2>=3 dos_install_timer_int() else CR0.ET bit op. All DPMI/DOS/CR0-specific, no flat-model effect; dos_install_timer_int is a ported no-op -> no-op standin (2 smoke checks). Also deferred 0x042ccc (41 ins, DPMI heap free-all shutdown: walks g_heap_head chain + heap_unlink + INT 31h AH=502/INT 21h AH=49 frees; g_heap_head IS used by the flat heap so the unlink loop has real effect but it is a shutdown-only DPMI cleanup, deferred) and 0x043e34 (93 ins field-descriptor read w/ ES-seg far pointers + data-driven callbacks) + 0x047b79 (177-ins 64-bit FPU) as complex. L1 29->30, TOTALS 208->209, suite 728 PASS 0 FAIL. | STATUS.md L1 |
 ## L0 (112)
 
@@ -349,9 +350,9 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x041fa1 | 0 | FUN_00041fa1 | | |
 | [x] | 0x0423b7 | 23 | fn_0423b7 | callback chain: g_dat_5336c(param_1)->r1; g_dat_53370(r1) [reused from 0423cf]; fn_0423cf(param_1); added g_dat_5336c | port+test PASS |
 | [x] | 0x042576 | 179 | fn_042576 | file-mode parser: to_lower(s[0]) in r/w/a else fn_042a0d(9); +/-/b/t modifiers -> 0x43/0x40/3; w|2/a|0x82/r|1; g_dat_53619==0x200 default-binary; ret (p2<<32)|flags | port+test PASS |
-| [ ] | 0x0429c8 | 28 | FUN_000429c8 | | |
-| [ ] | 0x0429e5 | 4 | thunk_FUN_000422d5 | | |
-| [ ] | 0x0429ea | 28 | FUN_000429ea | | |
+| [x] | 0x0429c8 | 28 | fn_0429c8 | fatal-error reporter (debug_break_hook -> fn_0422d5) | test_f1 PASS |
+| [x] | 0x0429e5 | 4 | fn_0429e5 | JMP thunk -> fn_0422d5 | test_f1 PASS |
+| [x] | 0x0429ea | 28 | fn_0429ea | fatal-error reporter (direct fn_0422d5) | test_f1 PASS |
 | [x] | 0x042a19 | 6 | fn_042a19 | trivial wrapper: g_dat_64008 = 0xe (MOV EAX,0xe; JMP fn_042a0d) | port+test PASS |
 | [ ] | 0x042d2a | 258 | FUN_00042d2a | | |
 | [ ] | 0x042eef | 210 | FUN_00042eef | | |
@@ -381,7 +382,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
 | [x] | 0x03f084 | 218 | fn_03f084 | | |
-| [ ] | 0x0418c6 | 11 | FUN_000418c6 | | |
+| [x] | 0x0418c6 | 11 | fn_0418c6 | report undefined ctor/dtor via fn_0429c8 | test_f1 PASS |
+| [ ] | 0x041d18
 | [x] | 0x041e51 | 26 | fn_041e51 | dpmi | no-op standin (reg-ABI, ret 0); test_f1 PASS |
 | [x] | 0x042aba | 30 | fn_042aba | | |
 | [ ] | 0x042fc2 | 174 | FUN_00042fc2 | | |
@@ -391,7 +393,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x044a50 | 100 | FUN_00044a50 | | |
 | [x] | 0x0451bc | 1096 | fn_0451bc | | |
 | [x] | 0x045dac | 0 | (artifact) | 1-byte disasm fragment | |
-| [ ] | 0x045dad | 16 | FUN_00045dad | | |
+| [x] | 0x045dad | 16 | fn_045dad | report FPU-not-loaded via fn_0429ea | test_f1 PASS |
 | [ ] | 0x048422 | 354 | FUN_00048422 | | |
 | [ ] | 0x048754 | 24 | FUN_00048754 | | |
 | [ ] | 0x04876d | 66 | FUN_0004876d | | |

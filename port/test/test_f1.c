@@ -2254,6 +2254,12 @@ static void test_fn_044c1e_fn_041e51(void) {
     check(fn_044c1e("FILE") == 0, "  thunk -> fn_049415 (no-op delete) returns 0");
     check(fn_041e51(0x11, 0x22, 0x33, 0x44) == 0, "  fn_041e51 (seg-save + DPMI real-mode) no-op returns 0");
     check(fn_0422d5(0, "PATH", 0, 0, 0) == 0, "  fn_0422d5 (DOS open/seek/term wrapper) no-op returns 0");
+    check(fn_0429e5(0, "PATH", 0, 0, 0) == 0, "  fn_0429e5 (JMP thunk -> fn_0422d5) returns 0");
+    fn_0429c8("msg", 0);
+    fn_0429ea("msg", 0);
+    fn_0418c6();
+    fn_045dad();
+    check(1, "  fn_0429c8/fn_0429ea/fn_0418c6/fn_045dad (fatal-error reporters) run");
 }
 
 static void test_fn_041e38(void) {

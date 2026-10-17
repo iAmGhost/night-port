@@ -437,6 +437,15 @@ extern uint32_t g_dat_639dc;    /* DAT_000639dc */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
 uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */
 uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_dat_639e0 */
+void fn_031f10(uint8_t *p, uint32_t val);  /* 0x031f10: ring push (count@0x31, buf@0x32, cap 5) */
+void fn_0348e2(void);                       /* 0x0348e2: slot-alloc (g_dat_63f50, wrap @9) */
+void fn_0343d1(uint8_t i);                  /* 0x0343d1: idx flag/counter (g_dat_62cd8/62c58) */
+extern uint8_t  g_dat_63f14[16];  /* DAT_00063f14 (byte slots) */
+extern uint32_t g_dat_63f28[16];  /* DAT_00063f28 (dword slots) */
+extern uint8_t  g_dat_63f50;      /* DAT_00063f50 (slot index) */
+extern uint32_t g_dat_63f08;      /* DAT_00063f08 (slot fill value) */
+extern uint8_t  g_dat_62cd8[16];  /* DAT_00062cd8 (counters) */
+extern uint8_t  g_dat_62c58[16];  /* DAT_00062c58 (flags) */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */

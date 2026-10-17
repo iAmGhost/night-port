@@ -1491,6 +1491,28 @@ uint32_t g_dat_639e0 = 0;
 uint32_t fn_01519f(const uint8_t *p) { return *(const uint32_t *)(p + 1) - g_dat_639dc; }  /* 0x01519f */
 uint32_t fn_0151d5(const uint8_t *p) { return *(const uint32_t *)(p + 9) - g_dat_639e0; }  /* 0x0151d5 */
 
+uint8_t  g_dat_63f14[16] = {0};
+uint32_t g_dat_63f28[16] = {0};
+uint8_t  g_dat_63f50 = 0;
+uint32_t g_dat_63f08 = 0;
+uint8_t  g_dat_62cd8[16] = {0};
+uint8_t  g_dat_62c58[16] = {0};
+
+void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */
+    uint8_t c = p[0x31];
+    if (c < 5) { *(uint32_t *)(p + 0x32 + c*4) = val; p[0x31] = c + 1; }
+}
+void fn_0348e2(void) {                                          /* 0x0348e2 */
+    g_dat_63f14[g_dat_63f50] = 0;
+    g_dat_63f28[g_dat_63f50] = g_dat_63f08;
+    g_dat_63f50++;
+    if (g_dat_63f50 > 9) g_dat_63f50 = 0;
+}
+void fn_0343d1(uint8_t i) {                                     /* 0x0343d1 */
+    if (g_dat_62cd8[i] == 0) g_dat_62c58[i] = 0;
+    else { g_dat_62c58[i] = 1; g_dat_62cd8[i]--; }
+}
+
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array
  * (4 bytes per node); each node's byte1 holds flags: 0x40=initialized, 0x20=open.
  * param_1 (EAX) = index, param_2 (EDX) = ctx carried in the return's high dword.

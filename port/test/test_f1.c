@@ -1878,6 +1878,14 @@ static void test_l10_accessors(void) {
     check(fn_01519f(b1) == 0x8, "  fn_01519f = *(p+1) - base");
     uint8_t b2[20] = {0}; b2[9] = 0x20; g_dat_639e0 = 0x10;
     check(fn_0151d5(b2) == 0x10, "  fn_0151d5 = *(p+9) - base");
+    uint8_t rb[0x48] = {0}; fn_031f10(rb, 0x11111111); fn_031f10(rb, 0x22222222);
+    check(rb[0x31] == 2 && *(uint32_t*)(rb+0x32) == 0x11111111 && *(uint32_t*)(rb+0x36) == 0x22222222, "  fn_031f10 ring push");
+    g_dat_63f50 = 0; g_dat_63f08 = 0x555; fn_0348e2();
+    check(g_dat_63f14[0] == 0 && g_dat_63f28[0] == 0x555 && g_dat_63f50 == 1, "  fn_0348e2 slot alloc");
+    g_dat_62cd8[3] = 2; fn_0343d1(3);
+    check(g_dat_62c58[3] == 1 && g_dat_62cd8[3] == 1, "  fn_0343d1 decrement flag");
+    g_dat_62cd8[5] = 0; g_dat_62c58[5] = 0xAA; fn_0343d1(5);
+    check(g_dat_62c58[5] == 0, "  fn_0343d1 zero counter -> flag0");
 }
 
 int main(void) {

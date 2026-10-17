@@ -442,12 +442,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x01545e | 1036 | FUN_0001545e | | |
 | [ ] | 0x01586b | 435 | FUN_0001586b | | |
 | [ ] | 0x017218 | 242 | FUN_00017218 | | |
-| [ ] | 0x031f10 | 78 | FUN_00031f10 | | |
+| [x] | 0x031f10 | 78 | fn_031f10 | ring push (count@0x31,cap5) | 1:1 (reg-ABI) |
 | [ ] | 0x031f5f | 221 | FUN_00031f5f | | |
 | [ ] | 0x0326c1 | 109 | FUN_000326c1 | | |
 | [ ] | 0x034353 | 125 | FUN_00034353 | | |
-| [ ] | 0x0343d1 | 92 | FUN_000343d1 | | |
-| [ ] | 0x0348e2 | 91 | FUN_000348e2 | | |
+| [x] | 0x0343d1 | 92 | fn_0343d1 | idx flag/counter (62cd8/62c58) | 1:1 |
+| [x] | 0x0348e2 | 91 | fn_0348e2 | slot-alloc (g_dat_63f50 wrap@9) | 1:1 |
 | [ ] | 0x03493e | 72 | FUN_0003493e | | |
 | [x] | 0x034a87 | 50 | fn_034a87 | v=g_dat_62d64; +=11; return v | 1:1 |
 | [ ] | 0x0350aa | 96 | FUN_000350aa | | |

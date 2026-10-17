@@ -1830,6 +1830,21 @@ static void test_045a76(void) {
     g_dat_533bb = 0;
 }
 
+static uint32_t g_last5336c, g_last53370, g_last53374;
+static uint32_t cb5336c(uint32_t x){ g_last5336c = x; return x + 10; }
+static uint32_t cb53370(uint32_t x){ g_last53370 = x; return x; }
+static uint32_t cb53374(uint32_t x){ g_last53374 = x; return 0; }
+static void test_0423b7(void) {
+    printf("fn_0423b7 (0x0423b7) callback dispatcher\n");
+    g_dat_5336c = cb5336c; g_dat_53370 = cb53370; g_dat_53374 = cb53374;
+    g_last5336c = g_last53370 = g_last53374 = 0;
+    fn_0423b7(5, 0, 0, 0);
+    check(g_last5336c == 5, "  5336c called with param_1=5");
+    check(g_last53370 == 5, "  53370 last call = fn_0423cf(5)");
+    check(g_last53374 == 5, "  53374 (fn_0423cf) = 5");
+    g_dat_5336c = NULL; g_dat_53370 = NULL; g_dat_53374 = NULL;
+}
+
 int main(void) {
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
@@ -1930,6 +1945,7 @@ int main(void) {
     test_049c76();
     test_045a82();
     test_045a76();
+    test_0423b7();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

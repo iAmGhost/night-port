@@ -798,10 +798,21 @@ uint32_t heap_size_adjust(uint32_t *p)
  * slot faults, as in the original). */
 u32_cb_fn g_dat_53370 = NULL;   /* DAT_00053370 */
 u32_cb_fn g_dat_53374 = NULL;   /* DAT_00053374 */
+u32_cb_fn g_dat_5336c = NULL;   /* DAT_0005336c */
 uint32_t fn_0423cf(uint32_t input) {
     uint32_t r = g_dat_53370(input);   /* 0x423d2 CALL [0x53370] */
     (void)g_dat_53374(r);              /* 0x423d8 CALL [0x53374] */
     return input;                        /* 0x423de EAX=EDX (original input) */
+}
+
+/* 0x0423b7: PUSH EDX; EDX=EAX; CALL [0x5336c]; CALL [0x53370]; EAX=EDX; CALL
+ * 0x423cf; POP EDX; RET. Chain: g_dat_5336c(param_1) -> r1; g_dat_53370(r1);
+ * fn_0423cf(param_1). param_2/3/4 are register-passed (unused by the u32_cb chain). */
+void fn_0423b7(uint32_t param_1, uint32_t param_2, uint32_t param_3, uint32_t param_4) {
+    (void)param_2; (void)param_3; (void)param_4;
+    uint32_t r1 = g_dat_5336c(param_1);   /* 0x423ba CALL [0x5336c] */
+    (void)g_dat_53370(r1);                 /* 0x423c0 CALL [0x53370] */
+    fn_0423cf(param_1);                    /* 0x423c8 CALL 0x423cf (EAX=EDX=param_1) */
 }
 
 /* Insert+init a region into the all-blocks chain.  orig: 0x042e2d */

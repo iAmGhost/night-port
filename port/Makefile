@@ -3,7 +3,7 @@
 #   make selftest — build the res-pipeline selftest (needs SDL3)
 CC      ?= cc
 CFLAGS  ?= -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter
-SRC_F   = src/f/f.c
+SRC_F   = src/f/f.c src/f/fx_04794a.c
 SRC_SYS = src/sys/sys.c
 T       = test
 

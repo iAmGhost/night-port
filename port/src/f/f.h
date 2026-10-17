@@ -145,6 +145,7 @@ void     fn_10664(void);                        /* 0x010664: CD request build + 
 void     fn_10b1d(void);                        /* 0x010b1d: CD track/TOC read (no-op) */
 void     fn_048e60(uint32_t *p);                /* 0x048e60: 128-bit fixed-point normalize + Newton reciprocal divide */
 void     fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out); /* 0x047f54: fixed-point normalize (EAX:EDX in, EBX out) */
+uint64_t fn_04794a(uint32_t eax, uint32_t edx, uint32_t ebx, uint32_t ecx, uint32_t esi); /* 0x04794a: complex fixed-point normalize, register-ABI, returns (EDX<<32)|EAX */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);

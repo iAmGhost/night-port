@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdint.h>
 #include "../../scratch/fp_047f54_vectors.h"
+#include "../../scratch/fp_04794a_ctest.h"
 
 static int failures = 0;
 static void check(int ok, const char *what) {
@@ -2362,6 +2363,31 @@ static void test_fn_047f54(void) {
     check(ok, "  all 2009 differential vectors match reference (scratch/fp_047f54_ref.py)");
 }
 
+/* fn_04794a (0x0004794a): complex fixed-point normalize, 149-ins register-ABI
+ * routine (EAX:EDX in, EBX,ECX,ESI exponent; returns (EDX<<32)|EAX). The C port
+ * is a disasm-faithful translation (port/src/f/fx_04794a.c) verified by
+differential testing against the ground-truth mini x86 emulator
+ * (scratch/fp_04794a_ref.py). Vectors below are the emulator's outputs. */
+static void test_fn_04794a(void) {
+    int pass = 0, fail = 0;
+    for (int i = 0; i < F4794A_VECS_N; i++) {
+        const f4794a_vec_t *v = &f4794a_vecs[i];
+        uint64_t got = fn_04794a(v->eax, v->edx, v->ebx, v->ecx, v->esi);
+        uint64_t exp = ((uint64_t)v->hi << 32) | (uint64_t)v->lo;
+        if (got == exp) pass++;
+        else {
+            fail++;
+            if (fail <= 8)
+                printf("  04794a mismatch i=%d in={%x,%x,%x,%x,%x} got=%016llx exp=%016llx\n",
+                       i, v->eax, v->edx, v->ebx, v->ecx, v->esi,
+                       (unsigned long long)got, (unsigned long long)exp);
+        }
+    }
+    printf("fn_04794a (0x0004794a, fixed-point normalize, %d diff vectors): %d pass, %d fail\n",
+           F4794A_VECS_N, pass, fail);
+    check(fail == 0, "  all vectors match ground-truth emulator (scratch/fp_04794a_ref.py)");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -3218,6 +3244,7 @@ int main(void) {
     test_fn_0003b5c0();
     test_fn_00035c5c();
     test_fn_047f54();
+    test_fn_04794a();
     test_fn_048e60();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();

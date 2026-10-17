@@ -1744,6 +1744,41 @@ int32_t fn_0163b4(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma, 1); }
 int32_t fn_01656f(uint8_t *s) { return fn_015b5b_core(s, fn_mg_comma_dash, 2); }
 int32_t fn_016750(uint8_t *s) { return fn_015b5b_core(s, fn_mg_14dot, 3); }
 
+int32_t fn_017ca6(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   /* 0x017ca6: Bresenham diagonal stepper (primary axis = larger |velocity|) */
+    *(int32_t *)(s + 0x17) = 2;
+    int32_t Vx = *(int32_t *)(s + 0xf3);
+    int32_t Vy = *(int32_t *)(s + 0xf7);
+    if (abs32(Vx) > abs32(Vy)) {                                    /* X-dominant */
+        int32_t X = (int32_t)fn_01519f(s);
+        if (Vx < 0) { if (X < *(int32_t *)(s + 0xbf)) return 1; }
+        else         { if (X > *(int32_t *)(s + 0xbf)) return 1; }
+        *out1 = (Vx < 0) ? -param2 : param2;
+        *out2 = 0;
+        *(int32_t *)(s + 0xfb) += abs32(Vy);
+        if (abs32(Vx) < *(int32_t *)(s + 0xfb)) {
+            *(int32_t *)(s + 0xfb) -= abs32(Vx);
+            *out2 = (Vy < 0) ? -param2 : param2;
+        }
+    } else {                                                        /* Y-dominant */
+        int32_t Y = (int32_t)fn_0151d5(s);
+        int32_t g12 = *(int32_t *)(g_dat_63354 + 0x12);
+        int32_t g16 = *(int32_t *)(g_dat_63354 + 0x16);
+        if (Vy < 0) {
+            if (Y < *(int32_t *)(s + 0xc3) || Y - param2 <= g12) return 1;
+        } else {
+            if (Y > *(int32_t *)(s + 0xc3) || *(int32_t *)(s + 0xef) + param2 >= g16) return 1;
+        }
+        *out2 = (Vy < 0) ? -param2 : param2;
+        *(int32_t *)(s + 0xfb) += abs32(Vx);
+        *out1 = 0;
+        if (abs32(Vy) < *(int32_t *)(s + 0xfb)) {
+            *(int32_t *)(s + 0xfb) -= abs32(Vy);
+            *out1 = (Vx < 0) ? -param2 : param2;
+        }
+    }
+    return 0;
+}
+
 int32_t fn_01730b(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2) {   /* 0x01730b: 2-phase X-then-Y move-toward-target */
     *(int32_t *)(s + 0x17) = 2;
     int32_t X = (int32_t)fn_01519f(s);

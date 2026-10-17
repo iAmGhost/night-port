@@ -2152,6 +2152,42 @@ static void test_l10_accessors(void) {
       *(int32_t *)(g_dat_63354 + 0x16) = 15;
       *(int32_t *)(sn+1) = 5; *(int32_t *)(sn+9) = 10; *(int32_t *)(sn+0xaf) = 0;   // X=5 moving, Y=10
       x1 = y1 = 999; rr = fn_01730b(sn, 5, &x1, &y1);
+      // fn_017ca6: Bresenham diagonal stepper (primary axis = larger |velocity|).
+      g_dat_639dc = 0; g_dat_639e0 = 0;
+      *(int32_t *)(g_dat_63354 + 0x12) = 0; *(int32_t *)(g_dat_63354 + 0x16) = 1000;
+      uint8_t sc[0x200] = {0}; int32_t a1, b1;
+      // 1: X-dominant, Vx>0, in-bounds, no secondary -> out1=+5, out2=0, s[0xfb]=3, ret0
+      *(int32_t *)(sc+1) = 50; *(int32_t *)(sc+0xf3) = 10; *(int32_t *)(sc+0xf7) = 3;
+      *(int32_t *)(sc+0xbf) = 100; *(int32_t *)(sc+0xfb) = 0;
+      a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      check(rr == 0 && a1 == 5 && b1 == 0 && *(int32_t *)(sc+0xfb) == 3, "  fn_017ca6 X-dom no-secondary");
+      // 2: X-dominant, Vx>0, X>s[0xbf] -> ret1 (out untouched)
+      *(int32_t *)(sc+1) = 150; *(int32_t *)(sc+0xbf) = 100; *(int32_t *)(sc+0xf3) = 10; *(int32_t *)(sc+0xf7) = 3;
+      a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      check(rr == 1 && a1 == 999 && b1 == 999, "  fn_017ca6 X-dom out-of-bounds ret1");
+      // 3: X-dominant, Vx<0, X<s[0xbf] -> ret1
+      *(int32_t *)(sc+1) = 50; *(int32_t *)(sc+0xbf) = 100; *(int32_t *)(sc+0xf3) = -10; *(int32_t *)(sc+0xf7) = 3;
+      a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      check(rr == 1 && a1 == 999 && b1 == 999, "  fn_017ca6 X-dom Vx<0 X<bound ret1");
+      // 4: X-dominant, secondary step (s[0xfb]=5, +|Vy|=9 -> 14, |Vx|=10<14 -> out2=+5, s[0xfb]=4)
+      *(int32_t *)(sc+1) = 50; *(int32_t *)(sc+0xbf) = 100; *(int32_t *)(sc+0xf3) = 10; *(int32_t *)(sc+0xf7) = 9;
+      *(int32_t *)(sc+0xfb) = 5;
+      a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      check(rr == 0 && a1 == 5 && b1 == 5 && *(int32_t *)(sc+0xfb) == 4, "  fn_017ca6 X-dom secondary");
+      // 5: Y-dominant, Vy>0, in-bounds, no secondary -> out2=+5, out1=0, s[0xfb]=3, ret0
+      *(int32_t *)(sc+9) = 50; *(int32_t *)(sc+0xf3) = 3; *(int32_t *)(sc+0xf7) = 10;
+      *(int32_t *)(sc+0xc3) = 100; *(int32_t *)(sc+0xef) = 10; *(int32_t *)(sc+0xfb) = 0;
+      a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      check(rr == 0 && a1 == 0 && b1 == 5 && *(int32_t *)(sc+0xfb) == 3, "  fn_017ca6 Y-dom no-secondary");
+      // 6: Y-dominant, Vy<0, Y<s[0xc3] -> ret1
+      *(int32_t *)(sc+9) = 50; *(int32_t *)(sc+0xc3) = 100; *(int32_t *)(sc+0xf3) = 3; *(int32_t *)(sc+0xf7) = -10;
+      a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      check(rr == 1 && a1 == 999 && b1 == 999, "  fn_017ca6 Y-dom Vy<0 Y<bound ret1");
+      // 7: Y-dominant, secondary step (s[0xfb]=5, +|Vx|=9 -> 14, |Vy|=10<14 -> out1=+5, s[0xfb]=4)
+      *(int32_t *)(sc+9) = 50; *(int32_t *)(sc+0xc3) = 100; *(int32_t *)(sc+0xef) = 10;
+      *(int32_t *)(sc+0xf3) = 9; *(int32_t *)(sc+0xf7) = 10; *(int32_t *)(sc+0xfb) = 5;
+      a1 = b1 = 999; rr = fn_017ca6(sc, 5, &a1, &b1);
+      check(rr == 0 && a1 == 5 && b1 == 5 && *(int32_t *)(sc+0xfb) == 4, "  fn_017ca6 Y-dom secondary");
       check(rr == 0 && x1 == 5 && y1 == 999 && *(int32_t *)(sn+0xaf) == 2, "  fn_01730b Y clamped by g16 bound");
       *(int32_t *)(g_dat_63354 + 0x16) = 1000;
       check(rr == 0 && o1 == -5 && o2 == -5, "  fn_01776f F>mid cb>=0xa0 no-arrival");

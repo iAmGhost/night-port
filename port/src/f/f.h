@@ -477,6 +477,7 @@ int32_t  fn_0161f9(uint8_t *s);        /* 0x0161f9: family core, magic '+' */
 int32_t  fn_0163b4(uint8_t *s);        /* 0x0163b4: family core, magic ',' */
 int32_t  fn_01656f(uint8_t *s);        /* 0x01656f: family core, magic {',' '-'} */
 int32_t  fn_016750(uint8_t *s);        /* 0x016750: family core, magic {'1' '4' '.'} */
+int32_t  fn_017ca6(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x017ca6: Bresenham diagonal stepper */
 int32_t  fn_01730b(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01730b: 2-phase X-then-Y move-toward-target */
 int32_t  fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01776f: 2D movement delta computer */
 void     fn_032158(void);              /* 0x032158: entity list -> set targets to player + prng jitter */

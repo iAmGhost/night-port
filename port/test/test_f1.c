@@ -2012,6 +2012,38 @@ static void test_fn_0405de(void) {
     check(g_dat_40014 == 0x0001 && g_dat_40018 == 0 && g_dat_4001c == 0, "  high16 dropped (zero-extended)");
 }
 
+static void test_fn_043f80(void) {
+    printf("fn_043f80 (0x043f80)\n");
+    static uint8_t dest[32], src[16];
+    const uint8_t *r;
+
+    /* 'A' (0x41) -> dest[8] |= 1<<1 = 2; stops at byte 1 zero */
+    memset(dest, 0xaa, 32); memset(src, 0, 16); src[0] = 0x41;
+    r = fn_043f80(src, dest);
+    check(dest[8] == 2 && r == src + 1, "  0x41 -> dest[8]=2, cursor at zero (src+1)");
+    check(dest[0] == 0 && dest[1] == 0 && dest[15] == 0, "  dest cleared (was 0xaa)");
+
+    /* 0x41 then ']' -> ']' NOT processed, cursor past ']' (src+2) */
+    memset(dest, 0, 32); memset(src, 0, 16); src[0] = 0x41; src[1] = 0x5d;
+    r = fn_043f80(src, dest);
+    check(dest[8] == 2 && r == src + 2, "  0x41,']' -> ']' skipped, cursor src+2");
+
+    /* 0x05,0x07 -> dest[0] = (1<<5)|(1<<7) = 160 */
+    memset(dest, 0, 32); memset(src, 0, 16); src[0] = 0x05; src[1] = 0x07;
+    r = fn_043f80(src, dest);
+    check(dest[0] == 160 && r == src + 2, "  0x05,0x07 -> dest[0]=160, cursor at zero (src+2)");
+
+    /* byte 0 == 0 -> nothing processed, cursor src+1 */
+    memset(dest, 0, 32); memset(src, 0, 16); src[0] = 0;
+    r = fn_043f80(src, dest);
+    check(dest[0] == 0 && r == src + 1, "  leading 0 -> no-op, cursor src+1");
+
+    /* byte 0 == ']' (0x5d) IS processed (faithful quirk: no 0x5d check on byte 0) */
+    memset(dest, 0, 32); memset(src, 0, 16); src[0] = 0x5d;
+    r = fn_043f80(src, dest);
+    check(dest[0x5d >> 3] == (1 << (0x5d & 7)) && r == src + 1, "  byte0 0x5d processed (quirk)");
+}
+
 static uint8_t *run_0451bc(uint8_t *out, uint8_t *stream, uint8_t *st, uint8_t *alt,
                            uint8_t type, uint8_t flags, int32_t size, int32_t length,
                            uint8_t **p_sp) {
@@ -2721,6 +2753,7 @@ int main(void) {
     test_fn_03493e();
     test_fn_0405de();
     test_fn_0451bc();
+    test_fn_043f80();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

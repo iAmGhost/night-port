@@ -2357,6 +2357,36 @@ void fn_0450da(char *out, int32_t value, int *spec) {
     }
 }
 
+/* 0x043f80: 8-bit presence bitmap builder (66B).
+ *
+ * Clears a 32-byte bitmap `dest`, then for each byte b in `src` (starting at byte 0)
+ * sets dest[b>>3] |= 1<<(b&7). Byte 0 is processed unconditionally if non-zero; the scan
+ * then stops at the first 0 or 0x5d (']') byte (that byte is NOT processed). Returns the
+ * source cursor position at exit (EAX=ECX).
+ *
+ * ABI: src=EAX, dest=EDX. The 0x51854 table = {1,2,4,8,16,32,64,128} = 1<<n. Depends on
+ * fn_041e20 (memset). Faithful quirk: byte 0 skips the 0x5d check (only bytes >=1 are
+ * tested against 0x5d); the cursor at exit is the zero byte's address (not past it) when
+ * stopped by 0, but past the 0x5d byte when stopped by 0x5d.
+ */
+const uint8_t *fn_043f80(const uint8_t *src, uint8_t *dest) {
+    static const uint8_t tbl[8] = {1,2,4,8,16,32,64,128};   /* 0x51854 */
+    fn_041e20(dest, 0, 0x20);   /* clear 32 bytes */
+    uint8_t b = src[0];
+    src++;
+    if (b != 0) {
+        for (;;) {
+            dest[b >> 3] |= tbl[b & 7];
+            uint8_t bn = src[0];
+            if (bn == 0) break;      /* cursor at the zero byte */
+            src++;
+            if (bn == 0x5d) break;   /* cursor past the ']' byte */
+            b = bn;
+        }
+    }
+    return src;
+}
+
 /* 0x0451bc: typed field formatter/deserializer (1096 bytes, ~354 instructions, L3).
  *
  * Reads a field described by a state struct `st` (type code st[0x15] + flags st[0x14])

@@ -34,14 +34,14 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 196 / 528 done
+TOTALS: 197 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 108 | 0 | 0 | 4 |
 | L1 | 47 | 25 | 0 | 0 | 22 |
 | L2 | 32 | 11 | 0 | 0 | 21 |
-| L3 | 21 | 1 | 0 | 0 | 20 |
+| L3 | 21 | 2 | 0 | 0 | 19 |
 | L4 | 13 | 0 | 0 | 0 | 13 |
 | L5 | 10 | 1 | 0 | 0 | 9 |
 | L6 | 10 | 0 | 0 | 0 | 10 |
@@ -154,6 +154,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | 2026-07-08 | **fn_03493e (0x03493e, 72B) ported** — slot-byte read. No args, returns AL. The slot index is g_dat_63f50 (wraps 0..9, already ported). Full disasm (Ghidra decomp said the index==0 case returns 0 — WRONG) confirmed: if g_dat_63f50==0 return the byte at 0x63f1d else the byte at 0x63f13+g_dat_63f50. Key layout fact: 0x63f13 is a standalone byte, and g_dat_63f14[16] (already ported) starts at 0x63f14, so 0x63f1d == g_dat_63f14[9] and 0x63f13+k == g_dat_63f14[k-1] for k>=1. The 0x63f13 byte itself is never read (index 0 special-cased to 0x63f1d). So fn_03493e reuses the existing g_dat_63f14 — no new table needed: `(g_dat_63f50==0) ? g_dat_63f14[9] : g_dat_63f14[g_dat_63f50-1]`. 4 checks (index 0->[9], 1->[0], 5->[4], 9->[8]) against a known g_dat_63f14 fill. L10 19->20, TOTALS 193->194, suite 676 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **fn_0405de (0x0405de, 82B) ported** — store 4 16-bit values. ABI p1=EAX, p2=EDX, p3=EBX, p4=ECX. Full disasm showed the Ghidra decomp's `& 0xffff0000ffff` mask was misleading — it is actually 4 separate 16-bit stores: `XOR EAX,EAX; MOV AX,reg; MOV [0x40014/18/1c/20],EAX`, i.e. g_dat_40014=low16(p1), g_dat_40018=low16(p2), g_dat_4001c=low16(p3), g_dat_40020=low16(p4) (each zero-extended to a 4-byte global). Added 4 globals g_dat_40014/18/1c/20 (consecutive after the already-ported g_dat_40010 frame-pitch at 0x40010). 5 checks (each low16 stored to the right slot + high16 dropped/zero-extended). L10 20->21, TOTALS 194->195, suite 681 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **fn_0451bc (0x0451bc, 1096B) ported** — typed field formatter/deserializer (the big L3 win, first of 21 L3 fns). Fully traced from raw disasm (354 instructions; Ghidra's 338-line decomp was a register-ABI maze). ABI out=EAX, cur=EDX (ptr to stream read-ptr), st=EBX (state), alt=ECX (null-string fallback). **Type dispatch** (st[0x15]): E/G/e/g->cb_indirect_53644 (return its ptr, len=strn_len); F/f->(flag 0x10 ? fn_0450da fixed-point : cb); P/p->date/time (flag 0x80: 8-hex date + ':' + 4-hex secs, else 8-hex; 'P' uppercased; size init 13/8); S/s->string (flag 0x80 reads 8-byte {ptr,len} header, else 4-byte ptr; ptr==0->alt; 'S' reads len word/byte, 's' computes via word_nlen/strn_len); X/x->hex (itoa32_tbl base16, 'X' upper); c->single char (reads 1 byte, advances 4); d/i->signed decimal (flag 0x20 dword / 0x10 word / else itoa32s); o->octal (itoa32s_tbl base8, flag 0x01 writes '0' at out[0] + format at out+1); u->unsigned decimal (itoa32_tbl base10); default->write type char, len 1. **Pre-pass**: {X,o,u,x} read val (flag 0x10: 16-bit read but **still advances *cur by 4** — faithful quirk), clear flag 0x2/0x4; {d,i} set st[0x16]=0x20. **Epilogue** (0x4556a): negative '-' moves to prefix (st[0x17]) + ret advances past it; flags 0x02/0x04 set prefix ' '/'+'; st[0x16]=='*' clears prefix; length clamp; st+0x04 (size) -= (prefix_len + length + remainder). 9 callees all pre-ported (fn_0450da, cb_indirect_53644, itoa32s/_tbl, itoa32_tbl, strn_len, word_nlen, string_upper, fn_045079). 13 checks (c char, d 42, i -5 prefix, u 100+size-dec, x/X hex, o octal + flag01 '0'-prefix, u flag10 word-read + cursor-quirk, default char). L3 0->1, TOTALS 195->196, suite 695 PASS 0 FAIL. | STATUS.md L3 |
+| 2026-07-08 | **fn_043f80 (0x043f80, 66B) ported** — 8-bit presence-bitmap builder. ABI src=EAX, dest=EDX. fn_041e20(dest,0,32) clears a 32-byte bitmap, then for each byte b in src (from byte 0) sets `dest[b>>3] |= 1<<(b&7)` (table @0x51854 = {1,2,4,8,16,32,64,128}). Scan stops at first 0 or 0x5d (']') byte; that byte is NOT processed. Returns the source cursor at exit (EAX=ECX). Faithful quirks verified in disasm: (1) byte 0 is processed even if it is 0x5d (the 0x5d check only applies from byte 1 on); (2) the exit cursor is the zero byte's address when stopped by 0, but the address PAST the 0x5d byte when stopped by 0x5d. Depends on ported fn_041e20 (memset). 6 checks (single 0x41->dest[8]=2 + zero cursor, ']'-skip, 0x05/0x07->dest[0]=160, leading-zero no-op, byte0=0x5d quirk). L3 1->2, TOTALS 196->197, suite 701 PASS 0 FAIL. | STATUS.md L3 |
 ## L0 (112)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -366,7 +367,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x041e51 | 26 | FUN_00041e51 | | |
 | [ ] | 0x042aba | 30 | FUN_00042aba | | |
 | [ ] | 0x042fc2 | 174 | FUN_00042fc2 | | |
-| [ ] | 0x043f80 | 66 | FUN_00043f80 | | |
+| [x] | 0x043f80 | 66 | fn_043f80 | | |
 | [ ] | 0x044807 | 64 | FUN_00044807 | | |
 | [ ] | 0x04488b | 452 | FUN_0004488b | | |
 | [ ] | 0x044a50 | 100 | FUN_00044a50 | | |

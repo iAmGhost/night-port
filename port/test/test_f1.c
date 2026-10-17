@@ -1982,6 +1982,24 @@ static void test_l10_accessors(void) {
       check(n0 != 0, "  fn_0100d9: freed s0/s1/array -> 0x80 reusable");
       if (n0) heap_free_host(n0);
       for (int i = 0; i < nf; i++) heap_free_host(fill[i]); }
+    {
+      uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_dat_53c7c = tgt; g_dat_53c6c = 0;
+      uint8_t s[0x200] = {0};
+      *(uint32_t *)(s+0x17) = 0x1f;
+      int32_t r = fn_015a1f(s);
+      check(r == 0 && g_dat_53c6c == 1, "  fn_015a1f state 0x1f -> ret0 + flag");
+      prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0xb; r = fn_015a1f(s);
+      check(r == 2 && s[0x117] == 1 && g_dat_53c6c == 1, "  fn_015a1f [0xb,0x14] -> ret2");
+      prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 0; r = fn_015a1f(s);
+      check(r == 0 && s[0x117] == 0, "  fn_015a1f out-of-range s[0x1f]!=4 -> ret0");
+      prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; s[0xd] = 2;
+      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); s[1] = 5; s[9] = 5;
+      r = fn_015a1f(s);
+      check(r == 1, "  fn_015a1f close + table=100 -> ret1");
+      prng_seed(0x1234); memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); r = fn_015a1f(s);
+      check(r == 0, "  fn_015a1f table=0 -> ret0");
+      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
+    }
 }
 
 int main(void) {

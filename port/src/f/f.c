@@ -1499,6 +1499,8 @@ uint8_t  g_dat_62cd8[128] = {0};
 uint8_t  g_dat_62c58[128] = {0};
 uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
 uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
+int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
+uint8_t  g_dat_53eb8[0x2000] = {0}; /* 0x53eb8: zeroed runtime table */
 
 void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */
     uint8_t c = p[0x31];
@@ -1661,6 +1663,32 @@ uint32_t fn_0100d9(uint32_t *s) {                                   /* 0x0100d9:
         heap_free_host(array_off);                               /* free the array */
     }
     return (uint32_t)s;
+}
+
+int32_t fn_015a1f(uint8_t *s) {                                      /* 0x015a1f: state machine + table distance check */
+    int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
+    int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
+    if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {                /* reached target state */
+        g_dat_53c6c = 1;
+        return 0;
+    }
+    if ((*(uint32_t *)(s + 0x17)) >= 0xb && (*(uint32_t *)(s + 0x17)) <= 0x14) {  /* in [0xb,0x14] */
+        *(uint32_t *)(s + 0x117) = 1;
+        g_dat_53c6c = 1;
+        *(int32_t *)(s + 0x113) = (int32_t)prng_next() % 10;
+        return 2;
+    }
+    /* out of [0xb,0x14] */
+    *(uint32_t *)(s + 0x117) = 0;
+    *(int32_t *)(s + 0x113) = (int32_t)prng_next() % 10;
+    if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
+        int32_t idx = (int32_t)(*(int32_t *)(s + 0x113)) * 10 + (int32_t)(*(int32_t *)(s + 0xd)) * 0x88;
+        /* LATENT BUG: idx can be negative (signed prng%10) -> out-of-bounds table read (1:1). */
+        if (abs32((int32_t)fn_01519f(s) - tX) < (int32_t)g_dat_53eb8[idx]) {
+            if (abs32((int32_t)fn_0151d5(s) - tY) < 6) return 1;
+        }
+    }
+    return 0;
 }
 
 /* 0x0492d0: node/device-table accessor. g_dat_53730 points to a uint32 array

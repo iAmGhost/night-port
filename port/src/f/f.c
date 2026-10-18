@@ -6533,3 +6533,14 @@ uint32_t fn_040f4f(void) {
         g_dat_53334 += 0x10;                                   /* advance port window */
     }
 }
+
+/* 0x035a19 (L11, 122 B): 3-byte device write sequence. Write a0 (EAX), a1 (EDX), and --
+ * if a2 (EBX) >= 0 -- a2, each via fn_0358c7((uint8)x). Return -1 on the first write timeout
+ * (fn_0358c7 != 0), else 0. */
+int32_t fn_035a19(int32_t a0, int32_t a1, int32_t a2) {
+    (void)canary_id(0, 0x24);                                   /* PUSH 0x24;CALL 0x418ee */
+    if (fn_0358c7((uint8_t)a0) != 0) return -1;                 /* write a0 */
+    if (fn_0358c7((uint8_t)a1) != 0) return -1;                 /* write a1 */
+    if (a2 >= 0 && fn_0358c7((uint8_t)a2) != 0) return -1;      /* write a2 only if a2>=0 */
+    return 0;
+}

@@ -4055,6 +4055,22 @@ static void test_fn_040f4f(void) {
     g_dat_53334 = save;
 }
 
+static void test_fn_035a19(void) {
+    printf("fn_035a19 (0x035a19, 3-byte device write)\n");
+    /* 3x fn_0358c7((uint8)x): poll inb(g_dat_530ac+1) bit0x40 clear, outb(g_dat_530ac,x).
+     * a2 write skipped when a2<0. -1 on first timeout, else 0. */
+    uint16_t st = (uint16_t)(g_dat_530ac + 1);
+    uint16_t dp = (uint16_t)g_dat_530ac;
+    sys_port_set(st, 0);
+    check(fn_035a19(0x11, 0x22, 0x33) == 0, "035a19 all ready -> 0");
+    check(sys_inb(dp) == 0x33, "035a19 last write = a2");
+    sys_port_set(st, 0);
+    check(fn_035a19(0x11, 0x22, -1) == 0, "035a19 a2<0 skipped -> 0");
+    check(sys_inb(dp) == 0x22, "035a19 last write = a1 when a2<0");
+    sys_port_set(st, 0x40);
+    check(fn_035a19(0x11, 0x22, 0x33) == -1, "035a19 timeout -> -1");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4352,6 +4368,7 @@ int main(void) {
     test_fn_035c2d_040948();
     test_fn_0411d9();
     test_fn_040f4f();
+    test_fn_035a19();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

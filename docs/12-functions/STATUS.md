@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 309 / 528 done
+TOTALS: 310 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 309 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 48 | 0 | 0 | 33 |
-| L11 | 77 | 35 | 0 | 0 | 42 |
+| L11 | 77 | 36 | 0 | 0 | 41 |
 | L12 | 58 | 15 | 0 | 0 | 43 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x035a19 PORTED (L11, 122 B) -- 3-byte device write sequence.** Args in EAX/EDX/EBX: write a0, then a1, and -- if a2 (EBX) >= 0 -- a2, each via fn_0358c7((uint8)x). Return -1 on the first write timeout (fn_0358c7 != 0), else 0. Verified via sys_port_set: all-ready -> 0 with last byte = a2; a2<0 -> 0 with last byte = a1 (a2 skipped); timeout -> -1. 5 checks. L11 35->36, TOTALS 309->310/528, suite +5 PASS 0 FAIL. **NEXT:** L11 0x03b9b7 (linked-list walk, needs fn_03b67e/fn_041c28 + node struct), 0x034990 (heap-init, needs fn_034a87); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L11 |
 | 2026-07-08 | **0x040f4f PORTED (L12, 99 B) -- device-discovery scan.** Loop over 8 consecutive port bases (g_dat_53334, +0x10, ... +0x70): at each, fn_04123d() (init) then fn_0412a3() (status read); if status==0xaa return the current base, else g_dat_53334 += 0x10. After 8 with no match, return 0. Mutates g_dat_53334 (callers restore). Verified via sys_port_set with g_dat_53334=0x300: iter0/1 not-ready (+0xe bit7 clear -> fn_0412a3=0), iter2 ready (+0xe=0x80)+status 0xaa -> returns 0x320; and all-8-not-ready -> 0. 2 checks. L12 14->15, TOTALS 308->309/528, suite +2 PASS 0 FAIL. **NEXT:** L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L12 |
 | 2026-07-08 | **0x0411d9 PORTED (L12, 99 B) -- 16-bit device value read.** If fn_041340(0xe1) (write cmd 0xe1) succeeds (ready = +0xc bit7 clear), read two status bytes via fn_0412a3 (ready = +0xe bit7 SET via fn_0412e9, then inb +0xa); first read = high, second = low; combine (hi<<8)|lo, store to DAT_00063f88, return. Else return 0. (New global g_dat_63f88.) Verified via sys_port_set: write-ready + read-ready + status=0x34 -> r==0x3434 (confirms the <<8| combine) and DAT_63f88==r; write-not-ready (+0xc=0x80) -> 0. Note both +0xa reads return the same port value (no write between), so the hi/lo ORDER is disasm-verified (SHL 8 on the first read), the value is the (v<<8)|v shape. 4 checks. L12 13->14, TOTALS 307->308/528, suite +4 PASS 0 FAIL. **NEXT:** L12 0x040f4f (99B device-discovery scan); L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L12 |
 | 2026-07-08 | **0x035c2d (L11, 45 B) + 0x040948 (L12, 53 B) PORTED -- 2 more thin device-write wrappers.** 0x035c2d(arg)=fn_0358c7((uint8)arg): save/zero/reload AL just zero-extends the input byte, then CALL 0x0358c7 (wait g_dat_530ac+1 bit0x40 clear, outb(g_dat_530ac,arg), 0 ok / -1 timeout). 0x040948(arg)={fn_041340(0x40); return fn_041340(arg)}: save EAX, write cmd 0x40 (result discarded), reload EAX, write arg (return result) -- a two-command device write on g_dat_53334+0xc. Both verified with the sys_port_set reset trick: ready path (return + exact byte written) and not-ready path (timeout 0/-1, no write). 7 checks. L11 34->35, L12 12->13, TOTALS 305->307/528, suite +7 PASS 0 FAIL. **NEXT:** L12 0x040f4f/0x0411d9 (99B, 3 callees); L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L11/L12 |
@@ -668,7 +669,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x034f31 | 376 | FUN_00034f31 | | |
 | [x] | 0x0356ba | 76 | FUN_000356ba | PIT | reg-ABI ticks->DAT_00063330; divisor=(ticks*DAT_000530b4)/100 -> fn_03575d |
 | [ ] | 0x035941 | 127 | FUN_00035941 | | |
-| [ ] | 0x035a19 | 122 | FUN_00035a19 | | |
+| [x] | 0x035a19 | 122 | fn_035a19 | 3-byte write (a0,a1,a2-if>=0) via fn_0358c7; -1 on first timeout | all/a2<0/timeout paths |
 | [x] | 0x035c2d | 45 | fn_035c2d | thin wrapper -> fn_0358c7((uint8)arg) (zero-extends AL) | ready(0)/not-ready(-1) + byte written |
 | [ ] | 0x035f1b | 293 | FUN_00035f1b | | |
 | [ ] | 0x036041 | 334 | FUN_00036041 | | |

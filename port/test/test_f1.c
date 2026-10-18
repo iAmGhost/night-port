@@ -2665,6 +2665,42 @@ static void test_fn_0412e9_041390(void) {
     g_dat_53334 = saved;
 }
 
+static void test_fn_03c6ec_03d88f(void) {
+    printf("fn_03c6ec/fn_03d88f (node reset + list reset)\n");
+    /* fn_03c6ec: reset one node (fn_03c7d7 fields + s+0x44), return the node. */
+    uint8_t node[0x60];
+    memset(node, 0xab, sizeof node);
+    *(uint32_t *)(node + 0x2a) = 0xdeadbeef;
+    *(uint32_t *)(node + 0x36) = 0x12345678;
+    node[0x3a] = 0x55;
+    *(uint32_t *)(node + 0x44) = 0xcafebabe;
+    uint8_t *r = fn_03c6ec(node);
+    check(r == node, "  fn_03c6ec returns its node");
+    check(*(uint32_t *)(node + 0x2a) == 0, "  fn_03c6ec zeroes +0x2a (fn_03c7d7)");
+    check(*(uint32_t *)(node + 0x36) == 0, "  fn_03c6ec zeroes +0x36 (fn_03c7d7)");
+    check(node[0x3a] == 0, "  fn_03c6ec zeroes +0x3a (fn_03c7d7)");
+    check(*(uint32_t *)(node + 0x44) == 0, "  fn_03c6ec zeroes +0x44");
+    check(node[0x40] == 0xab, "  fn_03c6ec leaves +0x40 untouched");
+
+    /* fn_03d88f: reset every node in the list at g_dat_63350 (next = node+0x34c). */
+    static uint8_t list[0x360 * 2];
+    memset(list, 0xcd, sizeof list);
+    uint8_t *n0 = list, *n1 = list + 0x360;
+    *(uint32_t *)(n0 + 0x2e) = 0x11111111;
+    *(uint32_t *)(n1 + 0x32) = 0x22222222;
+    n1[0x3a] = 0x77;
+    *(uint8_t **)(n0 + 0x34c) = n1;   /* n0 -> n1 */
+    *(uint8_t **)(n1 + 0x34c) = NULL; /* n1 -> end */
+    g_dat_63350 = n0;
+    uint32_t rr = fn_03d88f();
+    check(rr == 0, "  fn_03d88f returns 0 (null next)");
+    check(*(uint32_t *)(n0 + 0x2e) == 0, "  fn_03d88f resets n0 +0x2e (fn_03c7d7)");
+    check(*(uint32_t *)(n1 + 0x32) == 0, "  fn_03d88f resets n1 +0x32 (fn_03c7d7)");
+    check(n1[0x3a] == 0, "  fn_03d88f resets n1 +0x3a");
+    check(n0[0x40] == 0xcd, "  fn_03d88f leaves n0 +0x40 untouched");
+    g_dat_63350 = NULL;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3692,6 +3728,7 @@ int main(void) {
     test_fn_043234();
     test_fn_041e94_04123d();
     test_fn_0412e9_041390();
+    test_fn_03c6ec_03d88f();
     test_fn_048754();
     test_fn_048e60();
     test_fn_0485eb();

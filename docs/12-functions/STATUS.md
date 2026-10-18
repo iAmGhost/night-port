@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 279 / 528 done
+TOTALS: 281 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 279 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 46 | 0 | 0 | 35 |
-| L11 | 77 | 28 | 0 | 0 | 49 |
+| L11 | 77 | 30 | 0 | 0 | 47 |
 | L12 | 58 | 9 | 0 | 0 | 49 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x03c6ec + 0x03d88f PORTED (L11, 62B/68B) — struct-node reset + list reset.** Both depend only on the ported fn_0003c7d7 (zero 6 node fields + memset DAT_0005d08c/5d0a0). 0x03c6ec(s): register-ABI (s in EAX), canary `PUSH 0x24`; calls fn_03c7d7(s), zeroes the dword at s+0x44, returns s. 0x03d88f(): no-arg, canary `PUSH 0x20`; walks next = node+0x34c from DAT_00063350 (new global), calling fn_03c7d7(node) on each, returns 0 (the null next pointer at loop exit). POINTER-WIDTH: the original 4-byte next at +0x34c is read as a full 64-bit pointer (consistent with fn_0003b5c0's documented 32->64 adaptation). 11 differential checks (fn_03c6ec: 6 — return/zeroed-fields/untouched; fn_03d88f: 5 — return + both nodes reset + untouched). L11 28->30, TOTALS 279->281, suite 892->903 PASS 0 FAIL. | STATUS.md L11 |
 | 2026-07-08 | **0x0412e9 + 0x041390 PORTED (L10, 86B each) — CD-ROM/device status spin-polls, previously deferred to the CD-subsystem batch (lines 140/191) but ported now as self-contained verified leaves.** Both: canary prologue `PUSH 0x24; CALL 0x418ee`, no args, poll `inb(g_dat_53334+off)` with a 0x7fff counter decremented before each poll. 0x0412e9 polls +0xe, returns 1 on the first poll with bit 0x80 SET (0 on the 0x7fff-iter timeout); 0x041390 polls +0xc, returns 1 on bit 0x80 CLEAR (0 on timeout). The decompiler's "reg-ABI EDX extraout" is an artifact — EDX is push/pop'd around inb (which clobbers then restores it), so EAX is the only output. Verified via the sys_port_set port-map hook (base 0x100, so +0xc/+0xe are within PORT_MAX 0x400): 8 checks cover both the immediate-return bit states and both 0x7fff-iter timeouts. Wiring g_dat_53334 to a real CD device stays a separate mid-subsystems/sys-layer task. L10 44->46, TOTALS 277->279, suite 884->892 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **Leaf tier (L0-L4) exhaustively assessed: every remaining function is gated on a dedicated subsystem pass -- no clean isolated wins left.** Current: L0 111/112, L1 38/47, L2 19/32, L3 15/21, L4 4/13. Per-function blockers (verified via full disasm + callee port-status): **L0** 0x04a3a8 = FPU (deferred, FPU-stack ambiguity). **L1** 0x04a814 = table-scan whose start index comes from 0x04a923, which is a **misanalyzed data block** (66 'ADD AL'/DAA insns -- not real code) so its return is unknowable; 0x042ccc = DPMI heap-invariant + DPMI/DOS; 0x045bb7 = 3x INT 0x21 (DOS); 0x048053 = gated on 0x0463dc (DPMI caller-frame fn); 0x048fe6 = INT 0x2f/0x31 + CR0 (IRQ/system); 0x043e34 = **emit-subsystem state-machine emitter** (93 insns, register-ABI EAX=ctx/EDX=cursor/EBX=val, ES:ECX far writes, kCharClass[0x5185c] as a state table, TWO loops exiting on opposite bit-0x2 conditions, pipelined emit of prior-step result); 0x047b79 = FPU; 0x0440a9 = huge (733B). **L2** 0x041fa1 = 1-insn JMP-thunk to unported 0x0438a3; 0x046d32/0x046d47 = caseD indirect tail-jump `JMP [EBP+0x76]` + register-ABI (dispatcher cases); 0x04a32b = FPU (ambiguous arg count); 0x044387 = huge (503B). **L4** 0x043fc3 = **emit-subsystem emitter, sibling of 0x043e34** (87 insns, SAME emit_ctx struct, 0x51854 table, ES:ESI writes, calls 0x043f80 then ctx->[0]/ctx->[4]); 0x044c23 = huge (640B). **Conclusion:** the leaf tier needs dedicated passes on (a) the FPU register-ABI cluster (0x04a3a8/0x047b79/0x04a32b), (b) the emit subsystem (0x043e34 + 0x043fc3, share emit_ctx -- port as a pair with a Python ref), (c) DPMI/DOS/IRQ (0x042ccc/0x045bb7/0x048fe6/0x048053), (d) the 0x04a923 misanalysis (re-analyze the data region). Each is a full pass, not an isolated win. | STATUS.md L0-L4 |
 | 2026-07-08 | **Node-pool family (0x041d47, 0x044ab5, 0x04933a, 0x049192) all BLOCKED on one shared memory-mapping decision -- dedicated pass.** 0x044ab5 (L6, 57 insns) is a node/record allocator: if g_node_list_done (0x63ff8) is non-empty, pop the head done-node and reuse its record (field4), else walk the 0x1a-byte record table 0x53410..0x53618 for a free record (field_c&0x3==0), or if exhausted allocate a 0x22-byte block (record at node+8); epilogue fn_041e20-zeros the record, sets rec->field_c, links the node into g_node_list_active (0x63ffc), returns the record addr. **Shared blocker:** the record/node address is deref'd uniformly as [addr+off] in the flat original, but in the port a record can live in (a) the fixed table DAT_00053410 (no port global yet), (b) g_heap_base (heap_malloc(8)/heap_malloc(0x22) as 0x04933a/0x044ab5 do), or (c) g_ndpool (as the already-ported fn_044b96/fn_043234 deref via g_ndpool+off). The port has NOT reconciled which base node/record pointers use -- so a faithful 1:1 port of any of these needs that decision first (are g_ndpool and g_heap_base the same arena? where does the 0x53410 table map?). Not a set of clean isolated wins. | STATUS.md L6/L7 |
@@ -656,11 +657,11 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03ace9 | 420 | FUN_0003ace9 | | |
 | [ ] | 0x03b718 | 570 | FUN_0003b718 | | |
 | [ ] | 0x03b9b7 | 113 | FUN_0003b9b7 | | |
-| [ ] | 0x03c6ec | 62 | FUN_0003c6ec | | |
+| [x] | 0x03c6ec | 62 | fn_03c6ec | reset one node: fn_03c7d7(s) + zero s+0x44, return s | f.c |
 | [ ] | 0x03cb38 | 160 | FUN_0003cb38 | | |
 | [ ] | 0x03cbd9 | 145 | FUN_0003cbd9 | | |
 | [ ] | 0x03d606 | 117 | FUN_0003d606 | | |
-| [ ] | 0x03d88f | 68 | FUN_0003d88f | | |
+| [x] | 0x03d88f | 68 | fn_03d88f | reset every node in list at g_dat_63350 (next=+0x34c), return 0 | f.c |
 | [ ] | 0x03d999 | 53 | FUN_0003d999 | | |
 | [ ] | 0x03de85 | 272 | FUN_0003de85 | | |
 | [ ] | 0x03df96 | 264 | FUN_0003df96 | | |

@@ -607,6 +607,32 @@ void fn_0003c7d7(uint8_t *s) {
     fn_041e20(g_dat_5d08c, 0, 0x14);
 }
 
+/* 0x03c6ec: reset one struct node (register-ABI, node pointer in EAX). canary
+ * prologue PUSH 0x24; CALL 0x418ee. Calls fn_0003c7d7(s) (zero 6 fields + memset
+ * 2 buffers), then zeroes the dword at s+0x44, and returns s (the node). */
+uint8_t *fn_03c6ec(uint8_t *s) {
+    (void)canary_id((uintptr_t)s, 0x24);   /* 0xc6ec-0xc6f1 */
+    fn_0003c7d7(s);                         /* 0xc70a */
+    *(uint32_t *)(s + 0x44) = 0;            /* 0xc712 */
+    return s;                               /* 0xc71f */
+}
+
+/* 0x03d88f: reset every node in the linked list rooted at DAT_00063350. canary
+ * prologue PUSH 0x20; CALL 0x418ee, no args. Walks next = node+0x34c from
+ * g_dat_63350, calling fn_0003c7d7(node) on each; at loop exit EAX holds the null
+ * next pointer, so it returns 0. POINTER-WIDTH: the original 4-byte next field at
+ * +0x34c is read as a full 64-bit pointer in the flat port (cf. fn_0003b5c0). */
+uint8_t *g_dat_63350 = NULL;  /* DAT_00063350: reset-list head */
+uint32_t fn_03d88f(void) {
+    (void)canary_id(0, 0x20);                    /* 0xd88f-0xd894 */
+    uint8_t *node = g_dat_63350;                 /* 0xd8a7/0xd8ac */
+    while (node != NULL) {                       /* 0xd8af/0xd8b3 */
+        fn_0003c7d7(node);                       /* 0xd8b8 */
+        node = *(uint8_t **)(node + 0x34c);      /* 0xd8c0/0xd8c6 */
+    }
+    return 0;                                     /* 0xd8cb (EAX = null next) */
+}
+
 uint8_t *g_dat_639cc = NULL;  /* DAT_000639cc: doubly-linked list head */
 uint8_t *g_dat_639d0 = NULL;  /* DAT_000639d0: doubly-linked list tail */
 int32_t  g_dat_639c8 = 0;     /* DAT_000639c8: list node count */

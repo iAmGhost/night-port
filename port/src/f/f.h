@@ -124,6 +124,9 @@ extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick
 void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
 void fn_0003f592(void);                         /* 0x0003f592: VGA vline to A0000 + palette (no-op, unmodeled buffer) */
 void fn_0003c7d7(uint8_t *s);                   /* 0x0003c7d7: zero 6 struct fields + memset DAT_0005d08c/5d0a0 */
+uint8_t *fn_03c6ec(uint8_t *s);                 /* 0x03c6ec: reset one node (fn_03c7d7 + zero +0x44), return s */
+uint32_t fn_03d88f(void);                       /* 0x03d88f: reset every node in list at g_dat_63350 (next=+0x34c) */
+extern uint8_t *g_dat_63350;                    /* DAT_00063350: reset-list head */
 extern uint8_t g_dat_5d08c[0x14];               /* DAT_0005d08c */
 extern uint8_t g_dat_5d0a0[0x14];               /* DAT_0005d0a0 */
 uint8_t *fn_0003b5c0(uint8_t *node, uint8_t flag, uint32_t d_ecx, uint32_t d_edx, uint32_t d_ebx); /* 0x0003b5c0: linked-list insert (reg-ABI) */

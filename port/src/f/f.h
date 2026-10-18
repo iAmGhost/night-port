@@ -447,7 +447,7 @@ uint32_t cmdline_count(struct cmd_ctx *ctx);
  * +0x0c, and a flags byte at +0x10 (the original's emit context struct). */
 struct emit_ctx {
     uint16_t (*next)(struct emit_ctx *);   /* +0x00 */
-    uint32_t _r1;                          /* +0x04 */
+    void (*emit)(uint16_t, struct emit_ctx *); /* +0x04: consume/putback one char */
     uint32_t _r2;                          /* +0x08 */
     uint32_t count;                        /* +0x0c */
     uint8_t  flags;                        /* +0x10 */
@@ -465,6 +465,21 @@ void emit_value(struct emit_ctx *ctx, uintptr_t **pos, uint32_t value);
 /* Decrement ctx->count; if the previous count != 0, call ctx->next() once and
  * return its result, else return 0xffffffff (also returned when flags&0x2).  orig: 0x0445a6 */
 uint32_t emit_step(struct emit_ctx *ctx);
+/* Emit-subsystem numeric tokenizer. Skips leading chars whose class
+ * (kCharClass[(c+1)&0xff]) has bit 0x2 (whitespace); unless flags&0x2 (peek),
+ * decrements ctx->count (0 -> emit+return with no value), reads an optional
+ * sign (+/-, only when allow_sign != 0), auto-detects the base (0 -> 0x/0X
+ * prefix = 16, a lone leading 0 = 8, else 10; else uses the given base, still
+ * tolerating a 0x prefix when base==16), accumulates hex_digit_value digits,
+ * and (if flags&0x1 and at least one digit) stores the (optionally negated,
+ * word/dword per flags&0x10) value through the value-buffer stream cursor at
+ * **pos (mirroring emit_value: dest = **pos; *pos += 1). The
+ * trailing non-digit char is passed to ctx->emit (consuming it) unless EOF. In
+ * the flat model the original's near/far store variants collapse to one
+ * *(uint32_t *)dest = value (or uint16 when flags&0x10). Returns total chars
+ * consumed (skip + sign + prefix + digits).
+ *  orig: 0x044387 */
+int fn_044387(struct emit_ctx *ctx, uintptr_t **pos, int base, int allow_sign);
 
 /* Event-dispatch table (DAT_000537dc): 10 entries of {flag(2=done), key, fn}.
  * fn pointers reference game handlers (wired when those are ported; NULL until

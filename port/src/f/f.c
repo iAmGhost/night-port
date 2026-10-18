@@ -1957,6 +1957,91 @@ uint32_t emit_step(struct emit_ctx *ctx)
     return r;                                          /* 0x445c6 */
 }
 
+/* Emit-subsystem numeric tokenizer.  orig: 0x044387.
+ * arg1 (EAX) ctx  = emit context (next@+0, emit@+4, count@+0xc, flags@+0x10).
+ * arg2 (EDX) pos    = value-buffer stream cursor (uintptr_t **; mirrors emit_value).
+ * arg3 (EBX) base   = 0 auto-detect (0x->16 / lone 0->8 / else 10) else 8/10/16.
+ * arg4 (ECX) allow_sign = non-zero permits a leading +/-.
+ * Returns total chars consumed. See f.h for the full contract. */
+int fn_044387(struct emit_ctx *ctx, uintptr_t **pos, int base, int allow_sign)
+{
+    int skip = 0;          /* EBP: leading-skip + sign + prefix + colon count */
+    int have_digit = 0;    /* EBX: number of digits folded into acc            */
+    int acc = 0;           /* [ESP+8]: accumulator                             */
+    int sign = 0x2b;       /* [ESP]: sign char (default '+')                   */
+    int b = base;          /* EDI: effective base                              */
+    int c = (int)ctx->next(ctx);   /* 0x43a6: first char                       */
+
+    for (;;) {                                        /* 0x43a4-0x43bb */
+        if ((kCharClass[(uint8_t)(c + 1)] & 0x2) == 0) break;
+        skip++;
+        c = (int)ctx->next(ctx);
+    }
+    if (ctx->flags & 0x2) goto epilogue;              /* 0x43bd: peek mode */
+
+    int cnt = ctx->count;
+    ctx->count = (uint32_t)(cnt - 1);                 /* 0x43c7-0x43cd */
+    if (cnt == 0) {                                   /* 0x43d2 */
+        if (ctx->emit) ctx->emit((uint16_t)c, ctx);   /* 0x44f6: emit trailing */
+        goto epilogue;
+    }
+
+    if (allow_sign && (c == 0x2b || c == 0x2d)) {     /* 0x43dd-0x43f0 */
+        sign = c;
+        skip++;
+        c = (int)emit_step(ctx);                      /* 0x43f8 */
+        if (c == -1) goto epilogue;                   /* 0x4402 */
+    }
+
+    if (b != 0) {                                     /* 0x4460 */
+        if (b == 16 && c == 0x30) {                   /* 0x4465 */
+            have_digit = 1;
+            c = (int)emit_step(ctx);
+            if (c == -1) goto epilogue;               /* 0x447d */
+            if (c == 0x78 || c == 0x58) { skip += 2; have_digit = 0; c = (int)emit_step(ctx); if (c == -1) goto epilogue; }
+        }
+        goto digits;
+    }
+    if (c == 0x30) {                                  /* 0x440c */
+        have_digit = 1;
+        c = (int)emit_step(ctx);
+        if (c == -1) goto epilogue;                   /* 0x4424 */
+        if (c == 0x78 || c == 0x58) { skip += 2; have_digit = 0; c = (int)emit_step(ctx); if (c == -1) goto epilogue; b = 16; goto digits; }
+        b = 8;                                        /* 0x4452 */
+        goto digits;
+    }
+    b = 10;                                           /* 0x4459 */
+
+digits:                                              /* 0x44a0 */
+    {
+        int v = hex_digit_value(c);
+        if (v < b) { acc = acc * b + v; have_digit++; c = (int)emit_step(ctx); if (c == -1) goto epilogue; goto digits; }
+    }
+    if (c == 0x3a && (ctx->flags & 0x80)) {           /* 0x44c2/0x44c7: ':' */
+        for (;;) {
+            have_digit++;
+            c = (int)emit_step(ctx);                  /* 0x44d0 */
+            if (c == -1) goto epilogue;               /* 0x44dc */
+            {
+                int v = hex_digit_value(c);
+                if (v < b) { acc = acc * b + v; continue; }   /* 0x44e5 */
+            }
+            break;
+        }
+    }
+    if (ctx->emit) ctx->emit((uint16_t)c, ctx);       /* 0x44f6: emit trailing */
+
+epilogue:                                            /* 0x44fd */
+    if (sign == 0x2d) acc = -acc;                    /* 0x4503 */
+    if (have_digit > 0 && (ctx->flags & 0x1)) {       /* 0x4507/0x4514 */
+        uintptr_t dest = **pos;                       /* 0x4556: dest = slot value */
+        *pos += 1;                                    /* 0x4552: advance stream cursor */
+        if (ctx->flags & 0x10) *(uint16_t *)dest = (uint16_t)acc;
+        else                    *(uint32_t *)dest = (uint32_t)acc;
+    }
+    return skip + have_digit;                        /* 0x4512/0x4575 */
+}
+
 void dispatch_a(uint32_t key)
 {
     for (;;) {                                          /* 0x4461f outer */

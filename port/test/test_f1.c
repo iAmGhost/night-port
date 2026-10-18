@@ -3620,6 +3620,51 @@ static void test_fn_042928(void) {
     t_042928_node(n, 0x80000000u, 0x10, 1); check(fn_042928(n) == (int32_t)0x80000000u, "  field4=INT32_MIN, 0x10 -> INT32_MIN (wrap)");
 }
 
+/* ---------- fn_044387: emit-subsystem numeric tokenizer ---------- */
+static const char *t_in; static int t_pos; static int t_ret;
+static uint16_t t_next(struct emit_ctx *ctx) { (void)ctx; return (t_pos < (int)strlen(t_in)) ? (uint16_t)(unsigned char)t_in[t_pos++] : 0xffff; }
+static void   t_emit(uint16_t c, struct emit_ctx *ctx) { (void)ctx; t_ret = c; }
+static void t_parse(const char *s, uintptr_t **pos, struct emit_ctx *ctx,
+                    int base, int allow, uint8_t flags, int *ret, int *nemit) {
+    t_in = s; t_pos = 0; t_ret = -1;
+    ctx->next = t_next; ctx->emit = t_emit; ctx->count = 0x100000u; ctx->flags = flags;
+    *ret = fn_044387(ctx, pos, base, allow);
+    *nemit = t_ret;
+}
+
+static void test_fn_044387(void) {
+    uint32_t value;
+    uintptr_t stream[1];
+    uintptr_t *cur;
+    struct emit_ctx ctx;
+    int ret, ne;
+
+    value = 0; stream[0] = (uintptr_t)&value; cur = stream;
+    t_parse("42 ", &cur, &ctx, 0, 0, 0x1, &ret, &ne);
+    check(ret == 2, "  fn_044387 dec 42: consumed=2");
+    check(value == 42, "  fn_044387 dec 42: value=42");
+    check(cur == stream + 1, "  fn_044387 dec 42: cursor advanced 1 slot");
+    check(ne == ' ', "  fn_044387 dec 42: trailing space emitted");
+
+    value = 0; stream[0] = (uintptr_t)&value; cur = stream;
+    t_parse("0x1F ", &cur, &ctx, 0, 0, 0x1, &ret, &ne);
+    check(ret == 4 && value == 31, "  fn_044387 hex 0x1F: consumed=4 (0,x,1,F) value=31");
+    check(cur == stream + 1, "  fn_044387 hex 0x1F: cursor advanced");
+
+    value = 0; stream[0] = (uintptr_t)&value; cur = stream;
+    t_parse("-5 ", &cur, &ctx, 0, 1, 0x1, &ret, &ne);
+    check(ret == 2, "  fn_044387 neg -5: consumed=2 (1 sign + 1 digit)");
+    check((int32_t)value == -5, "  fn_044387 neg -5: value=-5");
+
+    value = 0; stream[0] = (uintptr_t)&value; cur = stream;
+    t_parse("07 ", &cur, &ctx, 0, 0, 0x1, &ret, &ne);
+    check(ret == 2 && value == 7, "  fn_044387 octal 07: consumed=2 value=7");
+
+    value = 0; stream[0] = (uintptr_t)&value; cur = stream;
+    t_parse("2a ", &cur, &ctx, 16, 0, 0x11, &ret, &ne);
+    check((uint16_t)value == 42, "  fn_044387 word store 2a: low16=42");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -3857,6 +3902,7 @@ int main(void) {
     test_fn_041439();
     test_fn_03ee88();
     test_fn_043381();
+    test_fn_044387();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 327 / 528 done
+TOTALS: 328 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 327 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 57 | 0 | 0 | 24 |
-| L11 | 77 | 38 | 0 | 0 | 39 |
+| L11 | 77 | 39 | 0 | 0 | 38 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -684,7 +684,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x034aba | 387 | fn_034aba | 3-way interval-list splitter (node arena) | 7 tests |
 | [x] | 0x034f31 | 376 | fn_034f31 | MIDI/RIFF | MIDI RIFF deserializer (MThd header + N MTrk tracks); heap-offset model; test PASS, 20 checks |
 | [x] | 0x0356ba | 76 | FUN_000356ba | PIT | reg-ABI ticks->DAT_00063330; divisor=(ticks*DAT_000530b4)/100 -> fn_03575d |
-| [ ] | 0x035941 | 127 | FUN_00035941 | | |
+| [x] | 0x035941 | 127 | FUN_00035941 | device-init handshake: g_530ac=a0; if(fn_0357f2(0xff)&&fn_0357f2(0xff))return-1; if(fn_0357f2(0x3f))return-1; inb(+1); return 0 | 2-scenario test (g_530ac write, -1 path, +1 port evolution), 6 checks |
 | [x] | 0x035a19 | 122 | fn_035a19 | 3-byte write (a0,a1,a2-if>=0) via fn_0358c7; -1 on first timeout | all/a2<0/timeout paths |
 | [x] | 0x035c2d | 45 | fn_035c2d | thin wrapper -> fn_0358c7((uint8)arg) (zero-extends AL) | ready(0)/not-ready(-1) + byte written |
 | [ ] | 0x035f1b | 293 | FUN_00035f1b | | |

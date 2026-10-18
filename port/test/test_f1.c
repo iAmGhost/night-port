@@ -4411,6 +4411,30 @@ static void test_fn_0357f2(void) {
     check(r == -1, "0357f2 phase1 timeout -> -1");
 }
 
+static void test_fn_035941(void) {
+    printf("fn_035941 (0x035941, device-init handshake over fn_0357f2)\n");
+    uint32_t sv = g_dat_530ac;
+    /* scenario 1: base 0x378, +1 bit6 clear, data 0x55.
+     * call1 fn_0357f2(0xff): phase1 ok, outb(+1,0xff), phase2 spins (no -1), data 0x55 -> 0.
+     * call3 fn_0357f2(0x3f): phase1 sees +1=0xff (bit6 set) -> -1. => returns -1. */
+    sys_ports_reset();
+    sys_port_set(0x379, 0x00);
+    sys_port_set(0x378, 0x55);
+    int32_t r = fn_035941(0x378);
+    check(g_dat_530ac == 0x378, "035941 g_530ac = a0");
+    check(r == -1, "035941 -> -1 (call1 poisons +1; call3 phase1 timeout)");
+    check(sys_inb(0x379) == 0xff, "035941 +1 = 0xff (call1 outb; call3 timed out before write)");
+    /* scenario 2: +1 bit6 set from the start -> call1 times out, +1 unchanged. */
+    sys_ports_reset();
+    sys_port_set(0x379, 0x40);
+    sys_port_set(0x378, 0x55);
+    r = fn_035941(0x378);
+    check(g_dat_530ac == 0x378, "035941 g_530ac = 0x378 (scenario 2)");
+    check(r == -1, "035941 -> -1 (call1 phase1 timeout)");
+    check(sys_inb(0x379) == 0x40, "035941 +1 unchanged (0x40)");
+    g_dat_530ac = sv;
+}
+
 static void test_fn_03cc6b(void) {
     printf("fn_03cc6b (0x03cc6b, state machine, no callees)\n");
     static uint8_t a0[0x360];
@@ -4826,6 +4850,7 @@ int main(void) {
     test_fn_017218();
     test_fn_013aad();
     test_fn_0357f2();
+    test_fn_035941();
     test_fn_03cc6b();
     test_fn_034f31();
     test_fn_045bb7();

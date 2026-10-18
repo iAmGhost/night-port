@@ -6964,6 +6964,26 @@ int32_t fn_0357f2(uint8_t a0) {
     return (data == 0xfe) ? -2 : 0;                             /* 0x358a4 */
 }
 
+/* 0x035941 (L11, 127 B): device-init handshake over fn_0357f2.
+ *   g_530ac = a0;
+ *   if (fn_0357f2(0xff) != 0 && fn_0357f2(0xff) != 0) return -1;
+ *   if (fn_0357f2(0x3f) != 0) return -1;
+ *   (void)inb(g_530ac + 1);   // 0x359a6: read +1 (result discarded)
+ *   return 0;
+ * Note: under the static sys-port map the first fn_0357f2(0xff) writes 0xff to
+ * +1 (bit6 set), so every subsequent phase-1 poll times out and the function
+ * returns -1; a live device would clear bit6 between polls. */
+int32_t fn_035941(uint32_t a0) {
+    (void)canary_id(0, 0x28);                                   /* PUSH 0x28;CALL 0x418ee */
+    g_dat_530ac = a0;                                           /* 0x3595f */
+    if (fn_0357f2(0xff) != 0 && fn_0357f2(0xff) != 0)           /* 0x35969/77 */
+        return -1;                                              /* 0x35980 */
+    if (fn_0357f2(0x3f) != 0)                                   /* 0x3598e */
+        return -1;                                              /* 0x35997 */
+    (void)inb((uint16_t)(g_dat_530ac + 1));                     /* 0x359a6 */
+    return 0;                                                   /* 0x359ae */
+}
+
 /* 0x035b91 (L12, 98 B): args AL/DL/BL. val = (a2 * g_dat_530b8) / 100 (signed); take the
  * low byte and clamp to 0x7f (bytes 0x80..0xff, i.e. negative quotients, clamp to 127).
  * Return fn_035a19(a0, a1, clamped). */

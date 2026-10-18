@@ -517,6 +517,7 @@ uint32_t g_dat_63e14 = 0;   /* DAT_00063e14: 2-node swap counter (fn_03e14c) */
 uint32_t g_dat_63e18 = 0;   /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
 uint32_t g_dat_63e1c = 0;   /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
 uint32_t g_dat_63e20 = 0;   /* DAT_00063e20: 3rd cache slot (zeroed, not read) */
+uint32_t g_dat_62a8c = 0;   /* DAT_00062a8c: zeroed by fn_03ee0a (list-destroy) */
 uint32_t g_dat_63364 = 0;   /* DAT_00063364: removed-element flag byte (fn_031f5f) */
 uint32_t g_dat_63368 = 0;   /* DAT_00063368: removed-element value word (fn_031f5f) */
 uint8_t g_dat_53c4c[9] = {0};   /* DAT_00053c4c: 9-byte real-mode command staging area */
@@ -1271,6 +1272,31 @@ uint32_t fn_03e14c(uint32_t a0, uint32_t a1) {
     }
     g_dat_63e14--;   /* DEC [0x63e14] (always) */
     return a0;
+}
+
+/* 0x03ee0a (L11, 123 B): destroy a prev-linked list.
+ *   g_63e20 = g_63e18;
+ *   while (g_63e20 != 0) {
+ *       uint32_t next = node->0x51;              // read BEFORE mutating neighbors
+ *       heap_free_guard(fn_03e14c(g_63e20, 0));  // fn_03e14c returns a0; guard frees it
+ *       g_63e20 = next;
+ *   }
+ *   g_62a8c = 0;
+ * fn_03e14c removes the node from the doubly-linked list (cache/swap) and the
+ * guard frees the block; the walk follows the (pre-read) 0x51 prev links to 0. */
+void fn_03ee0a(void) {
+    (void)canary_id(0, 0x28);                                   /* PUSH 0x28;CALL 0x418ee */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_63e20 = g_dat_63e18;                                  /* 0x3ee22/27 */
+    for (;;) {
+        if (g_dat_63e20 == 0) break;                            /* 0x3ee2c/33 */
+        uint32_t next = *(uint32_t *)(hb + g_dat_63e20 + 0x51); /* 0x3ee35/3a */
+        uint32_t p = g_dat_63e20;                               /* 0x3ee40/45 */
+        if (p != 0)                                             /* 0x3ee48/4c */
+            heap_free_guard(fn_03e14c(p, 0));                   /* 0x3ee4e/53/58 */
+        g_dat_63e20 = next;                                     /* 0x3ee69/6c */
+    }
+    g_dat_62a8c = 0;                                            /* 0x3ee73 */
 }
 /* 0x01435f: find the first interval i (0..5) whose [w8..w10] straddles thr=a0->0x11
  * (w8 <= thr < w10), then return 0 iff (a1 == a0->0x17) && (a2 == i), else 1. a0 is a

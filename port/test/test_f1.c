@@ -4435,6 +4435,25 @@ static void test_fn_035941(void) {
     g_dat_530ac = sv;
 }
 
+static void test_fn_03ee0a(void) {
+    printf("fn_03ee0a (0x03ee0a, destroy prev-list via fn_03e14c + heap_free_guard)\n");
+    uint32_t sv14 = g_dat_63e14, sv18 = g_dat_63e18, sv1c = g_dat_63e1c, sv20 = g_dat_63e20, sv = g_dat_62a8c;
+    /* prev-list N2 <- N1 <- N0 (prev@0x51 chain; next@0x55 for fn_03e14c swap). */
+    uint32_t n0 = heap_arena_alloc(0x60), n1 = heap_arena_alloc(0x60), n2 = heap_arena_alloc(0x60);
+    uint8_t *N0 = (uint8_t *)(g_heap_base + n0), *N1 = (uint8_t *)(g_heap_base + n1), *N2 = (uint8_t *)(g_heap_base + n2);
+    *(uint32_t *)(N0 + 0x51) = 0;   *(uint32_t *)(N0 + 0x55) = n1;
+    *(uint32_t *)(N1 + 0x51) = n0;  *(uint32_t *)(N1 + 0x55) = n2;
+    *(uint32_t *)(N2 + 0x51) = n1;  *(uint32_t *)(N2 + 0x55) = 0;
+    g_dat_63e14 = 5; g_dat_63e18 = n2; g_dat_63e1c = 0; g_dat_63e20 = 0;
+    g_dat_62a8c = 0x12345678;
+    fn_03ee0a();
+    check(g_dat_62a8c == 0, "03ee0a g_62a8c = 0");
+    check(g_dat_63e20 == 0, "03ee0a walk ends at 0");
+    check(g_dat_63e14 == 2, "03ee0a counter 5->2 (3 nodes freed)");
+    check(g_dat_63e18 == 0, "03ee0a g_63e18 = 0 (last node prev)");
+    g_dat_63e14 = sv14; g_dat_63e18 = sv18; g_dat_63e1c = sv1c; g_dat_63e20 = sv20; g_dat_62a8c = sv;
+}
+
 static void test_fn_03cc6b(void) {
     printf("fn_03cc6b (0x03cc6b, state machine, no callees)\n");
     static uint8_t a0[0x360];
@@ -4851,6 +4870,7 @@ int main(void) {
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();
+    test_fn_03ee0a();
     test_fn_03cc6b();
     test_fn_034f31();
     test_fn_045bb7();

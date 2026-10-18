@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 328 / 528 done
+TOTALS: 329 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 328 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 57 | 0 | 0 | 24 |
-| L11 | 77 | 39 | 0 | 0 | 38 |
+| L11 | 77 | 40 | 0 | 0 | 37 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -709,7 +709,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03de85 | 272 | FUN_0003de85 | | |
 | [ ] | 0x03df96 | 264 | FUN_0003df96 | | |
 | [ ] | 0x03e20f | 2911 | FUN_0003e20f | | |
-| [ ] | 0x03ee0a | 123 | FUN_0003ee0a | | |
+| [x] | 0x03ee0a | 123 | FUN_0003ee0a | destroy prev-list: g_63e20=g_63e18; while(g_63e20) heap_free_guard(fn_03e14c(g_63e20,0)), g_63e20=node->0x51; then g_62a8c=0 | 3-node prev-list test (g_62a8c=0, walk ends 0, counter 5->2, g_63e18=0), 4 checks |
 | [ ] | 0x03f15f | 606 | FUN_0003f15f | | |
 | [ ] | 0x03f462 | 303 | FUN_0003f462 | | |
 | [x] | 0x03f592 | 178 | FUN_0003f592 | VGA | reg-ABI vline to A0000+fn_03f3be (no-op, unmodeled DAT_000a0000) |

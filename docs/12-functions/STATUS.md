@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 284 / 528 done
+TOTALS: 285 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 284 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 47 | 0 | 0 | 34 |
+| L10 | 81 | 48 | 0 | 0 | 33 |
 | L11 | 77 | 32 | 0 | 0 | 45 |
 | L12 | 58 | 9 | 0 | 0 | 49 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x0326c1 PORTED (L10, 109B) — free-all per-element heap buffers, resolves the earlier "memory-mapping-gated" mislabel.** base (EAX) is a real pointer to a struct: count@0, two parallel arrays of `count` 32-bit HEAP OFFSETS at +0x68 and +0x1f8 (4-byte spacing); frees both per element via heap_free_host, returns base. **Memory-model clarified** (from the heap impl + f.h:304): heap-allocated DATA is addressed as 32-bit OFFSETS from g_heap_base (bit0 of B_SIZE = allocated, block = data-4); node LISTS / fragment chains use real 64-bit pointers (fn_0003b5c0 precedent). So 0x0326c1 (offsets) is a clean win, while 0x03c65b's fragment nodes (data@0/next@4/len@8, all deref'd as real ptrs) need the widened-fragment-node layout decision consistent with their builder — deferred. 8 checks (bit0 set pre-free, clear post-free for all 8 blocks, count-0 no-op). L10 47->48, TOTALS 284->285, suite 919->927 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **0x0358c7 PORTED (L10, 121B) — device port-wait + write, supersedes the line-143 "free-loop deferred" note (it was never a free-loop; it's a pure port poll).** register-ABI (byte in AL), canary `PUSH 0x28`. Polls inb(g_dat_530ac+1) counting consecutive bit-0x40-SET reads up to 0x2000; on clear it outb(g_dat_530ac, arg) and returns 0, on the 0x2000-iter timeout returns -1 with no write. New global g_dat_530ac (port base). 7 checks (immediate-ready write verified via port_val, both bit-set timeout variants return -1 and leave the base byte untouched). **Frontier triage this pass:** the remaining small mid-tier clean-candidates (0x03c65b record-packer, 0x0326c1 free-all) dereference packed 32-bit pointer arrays, so they are gated on the node-pool flat-memory-vs-64-bit-pointer mapping decision (a cross-cutting pass), not isolated wins. L10 46->47, TOTALS 283->284, suite 912->919 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **0x0412a3 + 0x041340 PORTED (L11, 69B/79B) — ready-gated CD-ROM device I/O, complements the 0x0412e9/0x041390 polls ported earlier this pass.** Both depend only on already-ported leaves (0x0412e9/0x041390 poll loops, inb=0x04238c, outb=0x04231d). 0x0412a3(): canary `PUSH 0x20`; `if (fn_0412e9()==0) return 0; return inb(g_dat_53334+0xa);` (status read gated on the +0xe bit7-set ready-poll). 0x041340(cmd in EAX): canary `PUSH 0x24`; `if (fn_041390()==0) return 0; outb(g_dat_53334+0xc, cmd); return 1;` (command write gated on the +0xc bit7-clear ready-poll). 9 checks: both functions' not-ready->0 path (with +0xc left untouched in the write case) and ready path (inb value returned / outb byte verified via the port_val map read back with inb). **Also documented a frontier.py data-drift bug:** the analysis rank.tsv/callgraph.tsv still list stale mid-function addresses (e.g. 0x010b39/0x010b4b/0x010b71 inside the already-ported 0x010b1d, 288B) as if they were separate 52B functions; those are phantoms (Ghidra has merged them into 0x010b1d), so they were never pending work. L11 30->32, TOTALS 281->283, suite 903->912 PASS 0 FAIL. | STATUS.md L11 |
 | 2026-07-08 | **0x03c6ec + 0x03d88f PORTED (L11, 62B/68B) — struct-node reset + list reset.** Both depend only on the ported fn_0003c7d7 (zero 6 node fields + memset DAT_0005d08c/5d0a0). 0x03c6ec(s): register-ABI (s in EAX), canary `PUSH 0x24`; calls fn_03c7d7(s), zeroes the dword at s+0x44, returns s. 0x03d88f(): no-arg, canary `PUSH 0x20`; walks next = node+0x34c from DAT_00063350 (new global), calling fn_03c7d7(node) on each, returns 0 (the null next pointer at loop exit). POINTER-WIDTH: the original 4-byte next at +0x34c is read as a full 64-bit pointer (consistent with fn_0003b5c0's documented 32->64 adaptation). 11 differential checks (fn_03c6ec: 6 — return/zeroed-fields/untouched; fn_03d88f: 5 — return + both nodes reset + untouched). L11 28->30, TOTALS 279->281, suite 892->903 PASS 0 FAIL. | STATUS.md L11 |
@@ -535,7 +536,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x017218 | 242 | FUN_00017218 | | |
 | [x] | 0x031f10 | 78 | fn_031f10 | ring push (count@0x31,cap5) | 1:1 (reg-ABI) |
 | [ ] | 0x031f5f | 221 | FUN_00031f5f | | |
-| [ ] | 0x0326c1 | 109 | FUN_000326c1 | | |
+| [x] | 0x0326c1 | 109 | fn_0326c1 | free per-element heap offsets at +0x68/+0x1f8 (count@0), return base | f.c |
 | [x] | 0x034353 | 125 | fn_034353 | slot update (63f1e/63f0c) | 1:1 (reg-ABI) |
 | [x] | 0x0343d1 | 92 | fn_0343d1 | idx flag/counter (62cd8/62c58) | 1:1 |
 | [x] | 0x0348e2 | 91 | fn_0348e2 | slot-alloc (g_dat_63f50 wrap@9) | 1:1 |

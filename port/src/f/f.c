@@ -2069,6 +2069,22 @@ int32_t fn_0358c7(uint8_t arg) {
     outb((uint16_t)g_dat_530ac, arg);                    /* 0x35924-0x35929 */
     return 0;                                            /* 0x3592e */
 }
+
+/* 0x0326c1: free all per-element heap buffers embedded in a struct. canary
+ * PUSH 0x28; CALL 0x418ee. base (EAX) is a real pointer to a struct laid out
+ * as: count@0 (int32), then two parallel arrays of `count` 32-bit HEAP OFFSETS
+ * at +0x68 and +0x1f8 (4-byte spacing). For i in 0..count-1 it frees both
+ * *(base+0x68+i*4) and *(base+0x1f8+i*4) via heap_free_host, then returns base.
+ * (The EDX arg is unused. Faithful to the 4-byte offset spacing.) */
+uint8_t *fn_0326c1(uint8_t *base) {
+    (void)canary_id((uintptr_t)base, 0x28);              /* 0x326c1-0x326c6 */
+    int32_t n = *(int32_t *)base;                        /* 0x326e5: count at +0 */
+    for (int32_t i = 0; i < n; i++) {                    /* 0x326ed-0x3271e */
+        heap_free_host(*(uint32_t *)(base + 0x68 + (size_t)i * 4));   /* +0x68 array */
+        heap_free_host(*(uint32_t *)(base + 0x1f8 + (size_t)i * 4));  /* +0x1f8 array */
+    }
+    return base;                                         /* 0x3271e-0x32721 */
+}
 /* 0x042a30: same shape, but CALL const_64004 -> writes [0x64004]. */
 void fn_042a30(uint32_t x) { g_dat_64004 = x; }
 /* 0x042a3c: CALL [0x533bd]; RET. */

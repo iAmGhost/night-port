@@ -2749,6 +2749,30 @@ static void test_fn_0358c7(void) {
     g_dat_530ac = saved;
 }
 
+static void test_fn_0326c1(void) {
+    printf("fn_0326c1 (free-all per-element heap buffers)\n");
+    heap_arena_init();
+    heap_acquire_region(0x2000);
+    static uint8_t base[0x400];
+    const int32_t n = 4;
+    uint32_t fo[4], so[4];
+    for (int i = 0; i < n; i++) { fo[i] = heap_malloc(16); so[i] = heap_malloc(16); }
+    check(fo[0] && fo[3] && so[0] && so[3], "  allocated 8 blocks");
+    check(((uint32_t *)(g_heap_base + fo[0] - 4))[0] & 1, "  block bit0 set (allocated) pre-free");
+    *(int32_t *)(base + 0) = n;
+    for (int i = 0; i < n; i++) {
+        *(uint32_t *)(base + 0x68 + i * 4) = fo[i];
+        *(uint32_t *)(base + 0x1f8 + i * 4) = so[i];
+    }
+    check(fn_0326c1(base) == base, "  fn_0326c1 returns base");
+    for (int i = 0; i < n; i++)
+        check((((uint32_t *)(g_heap_base + fo[i] - 4))[0] & 1) == 0 &&
+              (((uint32_t *)(g_heap_base + so[i] - 4))[0] & 1) == 0,
+              "  pair[i] both freed (bit0 clear)");
+    *(int32_t *)(base + 0) = 0;
+    check(fn_0326c1(base) == base, "  count 0 -> returns base");
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3779,6 +3803,7 @@ int main(void) {
     test_fn_03c6ec_03d88f();
     test_fn_0412a3_041340();
     test_fn_0358c7();
+    test_fn_0326c1();
     test_fn_048754();
     test_fn_048e60();
     test_fn_0485eb();

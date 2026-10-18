@@ -516,6 +516,7 @@ uint32_t fn_0412a3(void);          /* 0x0412a3: ready-gated inb(base+0xa) status
 uint32_t fn_041340(uint32_t cmd);  /* 0x041340: ready-gated outb(base+0xc, cmd) write */
 int32_t  fn_0358c7(uint8_t arg);   /* 0x0358c7: wait +1 bit0x40 clear, outb(base,arg); -1 on 0x2000 timeout */
 extern uint32_t g_dat_530ac;       /* DAT_000530ac: device port base */
+uint8_t *fn_0326c1(uint8_t *base); /* 0x0326c1: free per-element heap offsets at +0x68/+0x1f8, return base */
 void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
 uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 /* 0x047d24: register-ABI wrapper around fx_mul64 (a=EAX, b=EDX, out=EBX). */

@@ -530,6 +530,18 @@ int32_t fn_044a50(uint32_t index, uint32_t ctx);        /* 0x044a50 */
  * bit7, AH=0x42 lseek(end) sign-gate -> fn_045a82 (-1); AH=0x40 write sign-gate
  * -> fn_045a82; if written!=count fn_042a0d(0xc); return written. */
 int32_t fn_049236(uint32_t index, uint32_t ctx, uint32_t count);  /* 0x049236 */
+
+/* 0x14-byte I/O state struct used by 0x044748: f4=count, f8=buffer, f12=flags
+ * (byte0 @0x0c, byte1 @0x0d), f16=handle. */
+typedef struct {
+    uint32_t f0;
+    uint32_t f4;
+    uint32_t f8;
+    uint32_t f12;
+    uint32_t f16;
+} io_state_t;
+/* 0x044748: reg-ABI EAX=io_state_t*. Flush (f13 bit4) or seek-back (else); tail sets f0=f8, f4=0. */
+int32_t fn_044748(io_state_t *in);
 uint64_t fn_045a76(uint32_t param_1, uint32_t param_2); /* 0x045a76: fn_045a82 thunk (param_2==0 -> 0) */
 uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode parser (r/w/a + +/-/b/t) */
 

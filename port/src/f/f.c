@@ -2996,6 +2996,39 @@ int32_t fn_049236(uint32_t index, uint32_t ctx, uint32_t count) {
     return written;                                    /* 0x492a8 EAX=EDX */
 }
 
+/* 0x044748: reg-ABI EAX=io_state_t*. Flush path (f12 byte1 bit4): clear byte1 bit1;
+ * if byte0 bit1 set and f8!=0, fn_049236(handle=f16,buffer=f8,count=f4); if -1 or
+ * !=f4, set byte0 bit5 + return -1 (partial also fn_042a0d(0xc)). Else seek-back
+ * path: if f8!=0 clear byte0 bit1; if byte1 bit5 clear and f4!=0, fn_044807(f16,-f4,1);
+ * if -1 set byte0 bit5 + return -1. Tail always sets f0=f8, f4=0. Returns 0/-1. */
+int32_t fn_044748(io_state_t *in) {
+    int32_t esi = 0;
+    uint32_t b13 = (in->f12 >> 8) & 0xff;          /* byte @0x0d */
+    if (b13 & 0x10u) {                              /* flush path */
+        in->f12 = (in->f12 & 0xffff00ffu) | ((((in->f12 >> 8) & 0xff) & 0xefu) << 8); /* byte1 &= 0xef */
+        uint32_t b12 = in->f12 & 0xff;              /* byte @0x0c */
+        if ((b12 & 0x2u) && in->f8 != 0) {
+            int32_t r = fn_049236(in->f16, in->f8, in->f4);   /* handle, buffer, count */
+            if (r == -1) { in->f12 |= 0x20u; esi = -1; }
+            else if (r != (int32_t)in->f4) { fn_042a0d(0xc); in->f12 |= 0x20u; esi = -1; }
+        }
+    } else {                                        /* seek-back path */
+        if (in->f8 != 0) {
+            in->f12 = (in->f12 & 0xffffff00u) | ((in->f12 & 0xff) & 0xefu); /* byte0 &= 0xef */
+            uint32_t b13b = (in->f12 >> 8) & 0xff;
+            if ((b13b & 0x20u) == 0) {              /* byte1 bit5 clear */
+                int32_t r;
+                if (in->f4 != 0) r = fn_044807(in->f16, -(int32_t)in->f4, 1);
+                else r = 0;                          /* f4==0: EAX=0, skip call */
+                if (r == -1) { in->f12 |= 0x20u; esi = -1; }
+            }
+        }
+    }
+    in->f0 = in->f8;                                /* 0x0447fe */
+    in->f4 = 0;                                     /* 0x0447f7 */
+    return esi;
+}
+
 /* 0x042a19: MOV EAX,0xe; JMP 0x042a0d -> g_dat_64008 = 0xe. */
 void fn_042a19(void) { g_dat_64008 = 0xe; }
 

@@ -2502,6 +2502,31 @@ static void test_fn_044a50_049236(void) {
     g_dat_53730 = NULL; g_arr_53730 = NULL;
 }
 
+static void test_fn_044748(void) {
+    static uint32_t tbl[8];
+    g_dat_53730 = tbl; g_arr_53730 = tbl; g_dat_536dc = 8;
+    uint32_t save_dx = sys_ioctl_dx, save_cf = sys_ioctl_cf;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    printf("fn_044748 (0x044748)\n");
+    io_state_t s;
+    memset(&s, 0, sizeof s);
+    s.f4 = 5; s.f8 = 0x1000; s.f12 = 0x02001002u; s.f16 = 1;   /* byte1 bit4, byte0 bit1 */
+    int32_t rv = fn_044748(&s);
+    check(rv == 0, "  flush success: return 0");
+    check(s.f0 == 0x1000 && s.f4 == 0, "  flush tail: f0=f8, f4=0");
+    memset(&s, 0, sizeof s);
+    s.f4 = 3; s.f8 = 0x2000; s.f12 = 0x00000002u; s.f16 = 2;   /* byte1 bit4 clear */
+    rv = fn_044748(&s);
+    check(rv == 0, "  seek-back success: return 0");
+    check(s.f0 == 0x2000 && s.f4 == 0, "  seek-back tail: f0=f8, f4=0");
+    memset(&s, 0, sizeof s);                                    /* f8==0: no-op tail */
+    s.f4 = 7; s.f12 = 0x02001002u; s.f16 = 1;
+    rv = fn_044748(&s);
+    check(rv == 0 && s.f0 == 0 && s.f4 == 0, "  f8==0: tail only (f0=f8=0, f4=0)");
+    sys_ioctl_dx = save_dx; sys_ioctl_cf = save_cf;
+    g_dat_53730 = NULL; g_arr_53730 = NULL;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3373,6 +3398,7 @@ int main(void) {
     test_fn_048f4c();
     test_fn_048f2c_048f9e();
     test_fn_044a50_049236();
+    test_fn_044748();
     test_fn_048754();
     test_fn_048e60();
     test_fn_049415();

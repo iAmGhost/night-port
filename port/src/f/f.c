@@ -3255,6 +3255,7 @@ void fn_043280(uint8_t *dest, uint32_t pattern, uint32_t count) {      /* 0x0432
 }
 
 uint32_t g_dat_62d64 = 0;   /* node-arena bump cursor (offset into s_node_arena) */
+uint32_t g_dat_62d60 = 0;   /* DAT_00062d60: node-arena base (set to g_node_arena_base by fn_034990) */
 
 /* Node arena — 32->64 pointer adaptation. The original stores full 32-bit node
  * addresses; the port stores base-relative uint32 offsets into s_node_arena and
@@ -3292,6 +3293,28 @@ void fn_0405de(uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4) {
 }
 uint32_t fn_01520b(const uint8_t *p) { return *(const uint32_t *)(p + 5); }  /* 0x01520b */
 uint32_t fn_034a87(void) { uint32_t v = g_dat_62d64; g_dat_62d64 += 11; return v; }  /* 0x034a87 */
+
+/* 0x034990 (L11, 126 B): node-pool / video-arena INIT. Original:
+ *   g_62d60 = heap_malloc(0x1adb0); g_62d64 = g_62d60;          // arena base + cursor
+ *   for (i = 0; i < 0xc8; i++) { node = fn_034a87();            // node = g_62d64; g_62d64 += 11
+ *       node->len = 0x140; node->start = 0xa0000; node->next = 0;
+ *       g_62d68[i] = node; }
+ * The port stores base-relative offsets into the static s_node_arena, so the cursor
+ * g_62d64 starts at offset 0 and g_62d60 records the arena base (g_node_arena_base).
+ * Node layout (11 B): start@+0, next@+4, len@+8 (word), flag@+10. Each head list i is
+ * seeded with a single full-arena node [0,0x140) at video base 0xa0000. No canary.
+ */
+void fn_034990(void) {
+    g_dat_62d60 = (uint32_t)(uintptr_t)g_node_arena_base;  /* arena base (orig heap_malloc(0x1adb0)) */
+    g_dat_62d64 = 0;                                        /* cursor = base-relative offset 0 */
+    for (uint32_t i = 0; i < 0xc8; i++) {
+        uint32_t node = fn_034a87();   /* node = 11*i; g_dat_62d64 += 11 */
+        node_len_set(node, 0x140);     /* [node+8] = 0x140 */
+        node_start_set(node, 0xa0000); /* [node+0] = 0xa0000 */
+        node_next_set(node, 0);        /* [node+4] = 0 */
+        g_dat_62d68[i] = node;         /* head of list i */
+    }
+}
 
 /* 0x034aba: 3-way interval-list splitter. Splits the interval containing `a`
  * (within list g_dat_62d68[idx]) to carve out [a, a+b) as a new node (start=c,

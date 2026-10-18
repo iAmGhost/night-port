@@ -1936,6 +1936,29 @@ static void test_fn_03ba2c(void) {
     /* restore clean arena for any later node tests */
     memset(nar(), 0, 0x1000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68);
 }
+
+static void test_fn_034990(void) {
+    printf("fn_034990 (0x034990, node-pool/video-arena init)\n");
+    uint32_t sv60 = g_dat_62d60, sv64 = g_dat_62d64;
+    uint32_t sv68[200]; memcpy(sv68, g_dat_62d68, sizeof g_dat_62d68);
+    uint8_t savarena[0x1000]; memcpy(savarena, nar(), 0x1000);
+
+    memset(nar(), 0, 0x1000);
+    fn_034990();
+
+    check(g_dat_62d64 == 2200, "034990 cursor = 200*11 = 2200");
+    check(g_dat_62d60 == (uint32_t)(uintptr_t)g_node_arena_base, "034990 g_62d60 = arena base");
+    check(g_dat_62d68[0] == 0 && g_dat_62d68[1] == 11 && g_dat_62d68[199] == 2189, "034990 heads 0/1/199");
+    check(nstart(0) == 0xa0000 && nnext(0) == 0 && nlen(0) == 0x140, "034990 node@0 start/next/len");
+    check(nstart(11) == 0xa0000 && nnext(11) == 0 && nlen(11) == 0x140, "034990 node@11");
+    check(nstart(2189) == 0xa0000 && nnext(2189) == 0 && nlen(2189) == 0x140, "034990 node@2189 (idx199)");
+    int allgood = 1;
+    for (uint32_t i = 0; i < 200; i++) if (g_dat_62d68[i] != 11*i) allgood = 0;
+    check(allgood, "034990 all 200 heads = 11*i");
+
+    g_dat_62d60 = sv60; g_dat_62d64 = sv64; memcpy(g_dat_62d68, sv68, sizeof g_dat_62d68);
+    memcpy(nar(), savarena, 0x1000);
+}
 static void init_arena_03ba86(void) {
     memset(nar(), 0, 0x1000);
     setnode(0, 0, 0, 0x140, 0);   /* node@0 covers [0,0x140) so non-zero-a walks terminate */
@@ -4904,6 +4927,7 @@ int main(void) {
     test_l10_accessors();
     test_fn_034aba();
     test_fn_03ba2c();
+    test_fn_034990();
     test_fn_03ba86();
     test_fn_03a594();
     test_fn_036626();

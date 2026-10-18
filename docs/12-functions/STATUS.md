@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 334 / 528 done
+TOTALS: 335 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 334 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 57 | 0 | 0 | 24 |
-| L11 | 77 | 40 | 0 | 0 | 37 |
+| L11 | 77 | 41 | 0 | 0 | 36 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 4 | 0 | 0 | 12 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -681,7 +681,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0342ff | 83 | FUN_000342ff | | |
 | [x] | 0x03442e | 518 | fn_03442e | rotating 10-slot event buffer | 12 tests |
 | [x] | 0x034635 | 255 | fn_034635 | keyboard input state machine (g_dat_62c58[key] state; calls fn_034353) | 1:1 (disasm; 5 checks) |
-| [ ] | 0x034990 | 126 | FUN_00034990 | | |
+| [x] | 0x034990 | 126 | FUN_00034990 | node-pool/video-arena INIT: g_62d60=arena base (s_node_arena; orig heap_malloc(0x1adb0)); g_62d64=0 (base-relative cursor); for i in 0..0xc7 { node=fn_034a87(); node.len=0x140; node.start=0xa0000; node.next=0; g_62d68[i]=node } (writer only -- no deref of start, so NOT memory-mapping-gated; unblocks the node pool) | cursor=2200 + g_62d60=base + heads 0/1/199 + node@0/11/2189 start/next/len + all-200-heads=11*i, 7 checks |
 | [x] | 0x034aba | 387 | fn_034aba | 3-way interval-list splitter (node arena) | 7 tests |
 | [x] | 0x034f31 | 376 | fn_034f31 | MIDI/RIFF | MIDI RIFF deserializer (MThd header + N MTrk tracks); heap-offset model; test PASS, 20 checks |
 | [x] | 0x0356ba | 76 | FUN_000356ba | PIT | reg-ABI ticks->DAT_00063330; divisor=(ticks*DAT_000530b4)/100 -> fn_03575d |

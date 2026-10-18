@@ -675,6 +675,7 @@ uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode pars
 extern uint32_t g_dat_53c60;    /* DAT_00053c60 */
 extern uint32_t g_dat_40010;    /* DAT_00040010 */
 void     fn_043280(uint8_t *dest, uint32_t pattern, uint32_t count);   /* 0x043280: byte-pattern fill */
+extern uint32_t g_dat_62d60;    /* DAT_00062d60: node-arena base (s_node_arena in the port) */
 extern uint32_t g_dat_62d64;    /* DAT_00062d64 */
 uint32_t fn_010e15(void);                /* 0x010e15: return g_dat_53c60 */
 uint32_t fn_040631(uint32_t param);      /* 0x040631: g_dat_40010 = low16(param); return low16 */
@@ -685,6 +686,7 @@ extern uint32_t g_dat_40020;   /* DAT_00040020 (low16 slot) */
 void fn_0405de(uint32_t p1, uint32_t p2, uint32_t p3, uint32_t p4);  /* 0x0405de: store 4 low16 to 0x40014..0x40020 */
 uint32_t fn_01520b(const uint8_t *p);    /* 0x01520b: return *(uint32*)(p+5) */
 uint32_t fn_034a87(void);                /* 0x034a87: v=g_dat_62d64; g_dat_62d64+=11; return v */
+void fn_034990(void);                    /* 0x034990: node-pool/video-arena init (200 heads) */
 extern uintptr_t g_node_arena_base;    /* node-arena base (s_node_arena) */
 extern uint32_t  g_dat_62d68[200];      /* DAT_00062d68: head-node offset per list idx (200 lists) */
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */

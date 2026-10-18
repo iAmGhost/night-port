@@ -83,6 +83,12 @@ int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count);      /* AH=3f
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence); /* AH=42: new pos, default 0 */
 int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count); /* AH=40: bytes written; no backend -> success (count) */
 int32_t sys_file_close(uint32_t handle);                                /* AH=3e: 0=success (CF clear), nonzero=error */
+int32_t sys_file_open(const char *name, uint32_t mode);                 /* AH=3d: handle>=0 success, <0 error; no backend -> sys_open_ret */
+int32_t sys_file_create(const char *name, uint32_t mode);               /* AH=3c: handle>=0 success, <0 error; no backend -> sys_create_ret */
 int32_t sys_file_delete(const char *name);                             /* AH=41: 0 on success, default 0 */
+extern int32_t sys_open_ret;    /* test knob: sys_file_open return (default 0=success, handle 0) */
+extern int32_t sys_create_ret;  /* test knob: sys_file_create return (default 0=success, handle 0) */
+void sys_file_open_queue(const int32_t *vals, int n);  /* test: enqueue N open results, then fall back to sys_open_ret */
+void sys_file_open_reset(void);                          /* test: clear the queued open results */
 
 #endif

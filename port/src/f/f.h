@@ -542,6 +542,10 @@ typedef struct {
 } io_state_t;
 /* 0x044748: reg-ABI EAX=io_state_t*. Flush (f13 bit4) or seek-back (else); tail sets f0=f8, f4=0. */
 int32_t fn_044748(io_state_t *in);
+
+/* 0x04488b: reg-ABI, 4 stack args (name, mode, extra, val). File open/create with
+ * node-table registration; returns handle (16-bit) or fn_045a82(-1) on error. */
+int32_t fn_04488b(const uint8_t *name, uint16_t mode, uint8_t extra, uint32_t val);
 uint64_t fn_045a76(uint32_t param_1, uint32_t param_2); /* 0x045a76: fn_045a82 thunk (param_2==0 -> 0) */
 uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode parser (r/w/a + +/-/b/t) */
 
@@ -635,6 +639,7 @@ int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */
 /* 0x0492d0: node/device-table accessor. */
 extern uint32_t g_dat_536dc;              /* DAT_000536dc: node index bound */
+extern uint32_t g_dat_536d8;              /* DAT_000536d8: create-mode xor (load-time 0) */
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */
 extern uint32_t g_dat_53780;             /* DAT_00053780: TZ range diff */
 extern uint32_t g_dat_53784;             /* DAT_00053784: TZ has-second-part flag (0/1) */

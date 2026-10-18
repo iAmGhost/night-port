@@ -2527,6 +2527,50 @@ static void test_fn_044748(void) {
     g_dat_53730 = NULL; g_arr_53730 = NULL;
 }
 
+static void test_fn_04488b(void) {
+    printf("fn_04488b (0x04488b)\n");
+    static uint32_t tbl[8];
+    g_dat_53730 = tbl; g_arr_53730 = tbl; g_dat_536dc = 8;
+    const char *name = "NIGHT.DAT";
+    uint32_t save_dx = sys_ioctl_dx, save_cf = sys_ioctl_cf;
+    int32_t save_or = sys_open_ret, save_cr = sys_create_ret;
+    uint32_t save_53619 = g_dat_53619, save_536d8 = g_dat_536d8;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0; sys_create_ret = 0;
+    g_dat_53619 = 0; g_dat_536d8 = 0;
+
+    memset(tbl, 0, sizeof tbl); tbl[0] = 0x18; sys_file_open_reset();      /* case 1 */
+    int32_t rv = fn_04488b((const uint8_t *)name, 0x0001, 0, 0);
+    check(rv == 0, "  case1: open success -> handle 0");
+    check(tbl[0] == 0x4001a, "  case1: value 0x18|0x2=0x1a -> tbl 0x4001a");
+
+    memset(tbl, 0, sizeof tbl); sys_ioctl_dx = 0x80; sys_file_open_reset(); /* case 2 */
+    rv = fn_04488b((const uint8_t *)name, 0x0201, 0, 0);
+    check(rv == 0, "  case2: return handle 0");
+    check(tbl[0] == 0x42042, "  case2: (0x2000|0x2)|0x40=0x2042 -> tbl 0x42042");
+    sys_ioctl_dx = 0;
+
+    memset(tbl, 0, sizeof tbl); sys_file_open_reset(); sys_open_ret = (int32_t)0x80000005; /* case 3 */
+    rv = fn_04488b((const uint8_t *)name, 0x0001, 0, 0);
+    int32_t expected = (int32_t)fn_045a82(5, (uint32_t)(uintptr_t)name);
+    check(rv == expected, "  case3: open-fail (code5) delegates to fn_045a82");
+    sys_open_ret = 0;
+
+    memset(tbl, 0, sizeof tbl); int32_t q[2] = { (int32_t)0x80000002, 0x3 }; sys_file_open_queue(q, 2); /* case 4 */
+    rv = fn_04488b((const uint8_t *)name, 0x0025, 0, 0);
+    check(rv == 3, "  case4: open-fail(code2)+create+reopen -> handle 3");
+    check(tbl[3] == 0x40002, "  case4: value 0x2 (m==1) -> tbl[3] 0x40002");
+    sys_file_open_reset();
+
+    memset(tbl, 0, sizeof tbl); static const uint8_t spname[] = "   X"; sys_file_open_reset(); /* case 5 */
+    rv = fn_04488b(spname, 0x0001, 0, 0);
+    check(rv == 0, "  case5: leading spaces skipped -> handle 0");
+
+    sys_ioctl_dx = save_dx; sys_ioctl_cf = save_cf;
+    sys_open_ret = save_or; sys_create_ret = save_cr;
+    g_dat_53619 = save_53619; g_dat_536d8 = save_536d8;
+    g_dat_53730 = NULL; g_arr_53730 = NULL;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3399,6 +3443,7 @@ int main(void) {
     test_fn_048f2c_048f9e();
     test_fn_044a50_049236();
     test_fn_044748();
+    test_fn_04488b();
     test_fn_048754();
     test_fn_048e60();
     test_fn_049415();

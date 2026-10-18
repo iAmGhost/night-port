@@ -124,6 +124,20 @@ int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count) {
     (void)handle; (void)buf; return (int32_t)count;        /* no backend: write to the void, report count */
 }
 int32_t sys_file_close(uint32_t handle) { (void)handle; return 0; }   /* AH=3e: success */
+int32_t sys_open_ret = 0;    /* AH=3d default: success, handle 0 */
+int32_t sys_create_ret = 0;  /* AH=3c default: success, handle 0 */
+static int32_t s_open_seq[8];
+static int s_open_top = 0, s_open_n = 0;
+void sys_file_open_queue(const int32_t *vals, int n) {
+    s_open_n = (n < 8) ? n : 8;
+    for (int i = 0; i < s_open_n; i++) s_open_seq[i] = vals[i];
+    s_open_top = 0;
+}
+void sys_file_open_reset(void) { s_open_top = 0; s_open_n = 0; }
+int32_t sys_file_open(const char *name, uint32_t mode) { (void)name; (void)mode;
+    if (s_open_top < s_open_n) return s_open_seq[s_open_top++];   /* queued (test) */
+    return sys_open_ret; }   /* AH=3d */
+int32_t sys_file_create(const char *name, uint32_t mode) { (void)name; (void)mode; return sys_create_ret; } /* AH=3c */
 int32_t sys_file_delete(const char *name) { (void)name; return 0; }
 uint16_t sys_fpu_control_word(void) { return 0x037f; }
 

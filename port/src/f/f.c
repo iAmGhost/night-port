@@ -2071,6 +2071,7 @@ uint32_t g_dat_53734 = 0;                /* DAT_00053734: TZ count */
 uint32_t g_dat_53758 = 0;                /* DAT_00053758: TZ index */
 uint8_t  g_dat_533bb = 0;                /* DAT_000533bb: classify-enable threshold */
 uint32_t g_dat_53619 = 0;                /* DAT_00053619: 0x200 => default binary */
+uint32_t g_dat_536d8 = 0;                /* DAT_000536d8: create-mode xor (load-time 0) */
 
 /* 0x049a35: timezone ("TZ") config parser. Reads the "TZ" config value (a
  * time-range string), parses it via parse_time_str, and fills the g_dat_537xx
@@ -3027,6 +3028,80 @@ int32_t fn_044748(io_state_t *in) {
     in->f0 = in->f8;                                /* 0x0447fe */
     in->f4 = 0;                                     /* 0x0447f7 */
     return esi;
+}
+
+/* 0x04488b: reg-ABI, 4 stack args (name, mode, extra, val). File open/create handler.
+ *
+ * - skip leading spaces in name
+ * - open (AH=3d, mode=(mode&0x83)|extra); handle=res&0xffff if res>=0 else -1
+ * - if (mode&3) && handle!=-1 && ioctl_device(handle)==0:
+ *     - if (mode>>8)&4: close, fn_042a0d(7), return -1
+ *     - if (mode&0x40): write 0 bytes; if res<0: close, return fn_045a82(res, buf)
+ * - if handle==-1 (open failed):
+ *     - if !(mode&0x20) || open_res!=2: return fn_045a82(open_res, name)
+ *     - create (AH=3c, CX=((val|0x180)^g_dat_536d8)&0x80 ? 0 : 1), close, reopen (AH=3d);
+ *       any res<0 -> return fn_045a82(res, name); else handle=res&0xffff
+ * - node flags = fn_0492d0(handle,0) & 0x3c; accumulates into the stored value:
+ *     value = flags | (ioctl_device(handle)!=0 ? 0x2000 : 0)   (OR DH,0x20)
+ *           | (m==0?0x1 : m==1?0x2 : m==2?0x3 : 0)             (OR DL,x), m=(mode&0x83|extra)&0x7f
+ *           | (mode&0x10 ? 0x80 : 0)                           (OR DL,0x80)
+ * - stored = value|0x40 if ((mode_hi&3)&&(mode_hi&2)) || ((mode_hi&3)==0 && g_dat_53619==0x200)
+ *            else value.  store_arr53730(handle, stored); return handle.
+ */
+int32_t fn_04488b(const uint8_t *name, uint16_t mode, uint8_t extra, uint32_t val)
+{
+    while (*name == 0x20) name++;                                   /* 0x044897-9d */
+    uint32_t open_mode = (mode & 0x83u) | (uint32_t)extra;          /* 0x04489f-b2 */
+    int32_t open_res = sys_file_open((const char *)name, open_mode);/* 0x0448bb-bd */
+    int32_t handle = (open_res >= 0) ? (int32_t)(open_res & 0xffff) : -1;  /* 0x0448c7-cd */
+
+    if ((mode & 0x3) && handle != -1 && ioctl_device((uint32_t)handle) == 0) {  /* 0x0448d2-ed */
+        if ((mode >> 8) & 0x4) {                                     /* 0x0448ef-f4 */
+            sys_file_close((uint32_t)handle);                        /* 0x0448f6-fa */
+            fn_042a0d(7);                                            /* 0x044900-05 */
+            return -1;                                               /* 0x04490a-0f */
+        }
+        if ((mode & 0x40)) {                                         /* 0x044914-17 */
+            uint8_t wbuf;                                            /* 0x044919: [ESP+8] */
+            int32_t wres = sys_file_write((uint32_t)handle, &wbuf, 0); /* 0x04491d-23 */
+            if (wres < 0) {                                          /* 0x04492d-2f */
+                sys_file_close((uint32_t)handle);                    /* 0x044931-35 */
+                return (int32_t)fn_045a82((uint32_t)(wres & 0xffff), (uint32_t)(uintptr_t)&wbuf); /* 0x04493b-42 */
+            }
+        }
+    }
+
+    if (handle == -1) {                                              /* 0x04494c-4f */
+        if (((mode & 0x20) == 0) || ((open_res & 0xffff) != 2)) {   /* 0x044955-62 (CMP WORD) */
+            return (int32_t)fn_045a82((uint32_t)(open_res & 0xffff), (uint32_t)(uintptr_t)name); /* 0x04493b */
+        }
+        uint32_t cmode = ((val == 0) ? 0x180u : val) ^ g_dat_536d8;  /* 0x044964-77 */
+        uint32_t ccreate = (cmode & 0x80u) ? 0u : 1u;                /* 0x04497d-88: CX */
+        int32_t cres = sys_file_create((const char *)name, ccreate); /* 0x044990-92 */
+        if (cres < 0)                                                /* 0x04499c-9e */
+            return (int32_t)fn_045a82((uint32_t)(cres & 0xffff), (uint32_t)(uintptr_t)name);
+        (void)sys_file_close((uint32_t)(cres & 0xffff));            /* 0x0449a0-a8 */
+        int32_t ores = sys_file_open((const char *)name, open_mode); /* 0x0449b4-c7 */
+        if (ores < 0)                                                /* 0x0449cb-cd */
+            return (int32_t)fn_045a82((uint32_t)(ores & 0xffff), (uint32_t)(uintptr_t)name);
+        handle = (int32_t)(ores & 0xffff);                           /* 0x0449d3-d5 */
+    }
+
+    uint32_t value = (uint32_t)(fn_0492d0((uint32_t)handle, 0) & 0x3c); /* 0x0449da-e3 */
+    if (ioctl_device((uint32_t)handle) != 0) value |= 0x2000u;        /* 0x0449e5-f0: OR DH,0x20 */
+    uint32_t m = open_mode & 0x7fu;                                  /* 0x0449f3 */
+    if      (m == 0) value |= 0x1;                                   /* 0x044a00-06 */
+    else if (m == 1) value |= 0x2;                                   /* 0x044a09-0f */
+    else if (m == 2) value |= 0x3;                                   /* 0x0449f7-fd */
+    if (mode & 0x10) value |= 0x80;                                  /* 0x044a12-19 */
+    uint8_t mhi = (uint8_t)((mode >> 8) & 0xff);                     /* 0x044a24 */
+    uint32_t stored;
+    if (((mhi & 0x3) && (mhi & 0x2)) || ((mhi & 0x3) == 0 && g_dat_53619 == 0x200))
+        stored = value | 0x40;                                       /* 0x044a1c-22+3c: EDX=EAX */
+    else
+        stored = value;                                              /* 0x044a3e: EDX unchanged */
+    store_arr53730((uint32_t)handle, stored);                        /* 0x044a3e-40 */
+    return handle;                                                   /* 0x044a45-47 */
 }
 
 /* 0x042a19: MOV EAX,0xe; JMP 0x042a0d -> g_dat_64008 = 0xe. */

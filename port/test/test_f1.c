@@ -2773,6 +2773,45 @@ static void test_fn_0326c1(void) {
     check(fn_0326c1(base) == base, "  count 0 -> returns base");
 }
 
+static void test_fn_040660_0406f5(void) {
+    printf("fn_040660/fn_0406f5 (VGA DAC row-blit fade in/out pair)\n");
+    static uint8_t arg1[0x300];
+    for (int j = 0; j < 0x300; j++) arg1[j] = (uint8_t)(j & 0xff);
+    static uint8_t hist[0x10000];
+    int hn;
+    const uint32_t a2 = 3;
+    /* --- fade-in: frames i = 0..a2-1, local[j] = arg1[j]*i/a2 --- */
+    sys_ports_reset();
+    fn_040660(arg1, a2);
+    hn = sys_hist(hist, 0x10000);
+    check(hn == (int)(a2 * 0x300), "  fn_040660 blitted arg2*0x300 bytes to 0x3C9");
+    int ok0 = 1, ok1 = 1, ok2 = 1;
+    for (int j = 0; j < 0x300; j++) {
+        if (hist[j]          != (uint8_t)((arg1[j] * 0) / a2)) ok0 = 0;
+        if (hist[0x300 + j]  != (uint8_t)((arg1[j] * 1) / a2)) ok1 = 0;
+        if (hist[0x600 + j]  != (uint8_t)((arg1[j] * 2) / a2)) ok2 = 0;
+    }
+    check(ok0, "  fn_040660 frame i=0 all-zeros");
+    check(ok1, "  fn_040660 frame i=1 = arg1/arg2");
+    check(ok2, "  fn_040660 frame i=2 = arg1*2/arg2");
+    check(inb(0x3c8) == 0, "  fn_040660 0x3C8 control byte = 0");
+    /* --- fade-out: frames i = a2..0 (a2+1 frames), last frame zeros --- */
+    sys_ports_reset();
+    fn_0406f5(arg1, a2);
+    hn = sys_hist(hist, 0x10000);
+    check(hn == (int)((a2 + 1) * 0x300), "  fn_0406f5 blitted (arg2+1)*0x300 bytes");
+    int f_full = 1, f_mid = 1, f_zero = 1;
+    for (int j = 0; j < 0x300; j++) {
+        if (hist[0 * 0x300 + j] != (uint8_t)((arg1[j] * 3) / a2)) f_full = 0; /* i=3 -> arg1 */
+        if (hist[1 * 0x300 + j] != (uint8_t)((arg1[j] * 2) / a2)) f_mid = 0;  /* i=2 */
+        if (hist[3 * 0x300 + j] != (uint8_t)((arg1[j] * 0) / a2)) f_zero = 0; /* i=0 -> zeros */
+    }
+    check(f_full, "  fn_0406f5 frame i=arg2 = arg1 (full)");
+    check(f_mid,  "  fn_0406f5 frame i=arg2-1 = arg1*2/arg2");
+    check(f_zero, "  fn_0406f5 frame i=0 all-zeros (last)");
+    check(inb(0x3c8) == 0, "  fn_0406f5 0x3C8 control byte = 0");
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3804,6 +3843,7 @@ int main(void) {
     test_fn_0412a3_041340();
     test_fn_0358c7();
     test_fn_0326c1();
+    test_fn_040660_0406f5();
     test_fn_048754();
     test_fn_048e60();
     test_fn_0485eb();

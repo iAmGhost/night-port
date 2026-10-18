@@ -140,6 +140,48 @@ void board_out(uint8_t a, int b, const uint8_t *c) {
     }
 }
 
+/* fn_040660  orig: 0x040660 (L10, 52 insns) -- VGA DAC row-blit "fade in" (ascending).
+ *   arg1 (EAX) = 0x300-byte source row, arg2 (EDX) = frame count (>0). For each
+ *   frame i in 0..arg2-1: local[j] = (uint8)arg1[j] * i / arg2  (j in 0..0x2ff),
+ *   then fn_00035ec2 (no-op VGA sequencer ready-wait) + board_out(0, 0x100,
+ *   local) = outb(0x3C8, 0) + OUTSB 0x300 bytes of local to 0x3C9. So the DAC
+ *   data port (0x3C9) receives arg2 frames of 768 scaled bytes each: a fade from
+ *   all-zeros (i=0) toward arg1 (i -> arg2). Disasm-verified (PUSH 0x334 canary,
+ *   local @ EBP-0x310, i=[EBP-0x10] 0..arg2, j=[EBP-0xc] 0..0x2ff).
+ *   FAITHFULNESS: arg1[j] is zero-extended (MOV DL) before IMUL, so the product
+ *   is non-negative and the SAR+IDIV reduces to an unsigned divide; the result
+ *   fits a byte (i < arg2 => arg1[j]*i/arg2 < 256). */
+void fn_040660(const uint8_t *arg1, uint32_t arg2) {
+    (void)canary_id((uintptr_t)arg1, 0x334);
+    uint8_t local[0x300];
+    for (uint32_t i = 0; i < arg2; i++) {
+        for (uint32_t j = 0; j < 0x300; j++)
+            local[j] = (uint8_t)(((uint32_t)arg1[j] * i) / arg2);
+        fn_00035ec2();
+        board_out(0, 0x100, local);
+    }
+}
+
+/* fn_0406f5  orig: 0x0406f5 (L10, 52 insns) -- mirror of 0x040660 (fade out,
+ *   descending): frames i = arg2, arg2-1, ..., 0 (arg2+1 frames). Same per-frame
+ *   scale local[j] = (uint8)arg1[j] * i / arg2 and the same board_out blit; the
+ *   final frame (i=0) is all zeros. LATENT: each frame divides by arg2, so
+ *   arg2 == 0 would raise #DE on the i=0 frame (the game always calls with
+ *   arg2 > 0). Disasm-verified (i=[EBP-0x10] init to arg2, while i>=0, i--).
+ *   FAITHFULNESS: arg1[j] is zero-extended (MOV DL) before IMUL, so the product
+ *   is non-negative and the SAR+IDIV reduces to an unsigned divide; the result
+ *   fits a byte (i <= arg2 => arg1[j]*i/arg2 <= 255). */
+void fn_0406f5(const uint8_t *arg1, uint32_t arg2) {
+    (void)canary_id((uintptr_t)arg1, 0x334);
+    uint8_t local[0x300];
+    for (int32_t i = (int32_t)arg2; i >= 0; i--) {
+        for (uint32_t j = 0; j < 0x300; j++)
+            local[j] = (uint8_t)(((uint32_t)arg1[j] * (uint32_t)i) / arg2);
+        fn_00035ec2();
+        board_out(0, 0x100, local);
+    }
+}
+
 /* board_in  orig: 0x040061
  *   outb(0x3C7, a); REP INSB: 3*b bytes from port 0x3C9 -> c
  * a = control byte, b = n, c = buffer

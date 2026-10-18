@@ -116,6 +116,8 @@ int   fn_00040788(void);                        /* 0x00040788: DPMI mem alloc IN
 void fn_000104c7(void);                         /* 0x000104c7: DPMI mem alloc + DAT_00053c58/5c setup (no-op) */
 void fn_0003f645(void);                         /* 0x0003f645: VGA palette + A0000 memset loop (no-op) */
 void fn_00035ec2(void);                         /* 0x00035ec2: VGA 0x3DA sequencer ready-wait (no-op, degenerate spin) */
+void fn_040660(const uint8_t *arg1, uint32_t arg2); /* 0x040660: VGA DAC row-blit fade-in (ascending, i 0..arg2-1) */
+void fn_0406f5(const uint8_t *arg1, uint32_t arg2); /* 0x0406f5: VGA DAC row-blit fade-out (descending, i arg2..0) */
 uint32_t fn_00041bdc(uint32_t size);            /* 0x00041bdc: heap_malloc wrapper (size 0->1) */
 void fn_00035d0f(void);                         /* 0x00035d0f: DMA channel busy-wait (no-op, degenerate spin) */
 void fn_000356ba(uint32_t ticks);               /* 0x000356ba: PIT ch0 rate setup from ticks (reg-ABI) */

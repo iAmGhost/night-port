@@ -13,7 +13,7 @@
 static uint8_t port_val[PORT_MAX];
 /* write history for 0x3C9 (board data port) — lets tests replay the
  * OUTSB stream the original hardware would have seen */
-#define HIST_MAX 256
+#define HIST_MAX 0x10000   /* grown: a multi-frame VGA blit (0x3C9 OUTSB, 0x300/frame) exceeds 256 */
 static uint8_t hist[HIST_MAX];
 static int hist_n;
 

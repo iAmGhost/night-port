@@ -4071,6 +4071,37 @@ static void test_fn_035a19(void) {
     check(fn_035a19(0x11, 0x22, 0x33) == -1, "035a19 timeout -> -1");
 }
 
+static void test_fn_035329(void) {
+    printf("fn_035329 (0x035329, record scan for min value)\n");
+    /* a0: records (0xe each): tag@+0x5, int32 val@+0xa. a1: out{+0x10 cur,+0x14 idx,+0x1c
+     * count,+0x20 flag}. cur=a0->+0xa (record0 val). Skip tag 0x2f; update on cur>val;
+     * flag cleared only on non-skip iterations. */
+    uint32_t a0 = heap_arena_alloc(0x40);
+    uint32_t a1 = heap_arena_alloc(0x40);
+    uint8_t *r0 = (uint8_t *)(g_heap_base + a0);
+    uint8_t *r1 = (uint8_t *)(g_heap_base + a1);
+    r0[0x05]=0x00; *(int32_t*)(r0+0x0a)=100;   /* rec0: tag0 val100 (cur init) */
+    r0[0x13]=0x2f; *(int32_t*)(r0+0x18)=1;     /* rec1: skip, val1 */
+    r0[0x21]=0x00; *(int32_t*)(r0+0x26)=50;    /* rec2: tag0 val50 */
+    r0[0x2f]=0x00; *(int32_t*)(r0+0x34)=200;   /* rec3: tag0 val200 */
+    *(uint32_t*)(r1+0x1c)=4;                    /* count=4 */
+    fn_035329(a0, a1);
+    check(*(int32_t*)(r1+0x10)==50,  "035329 out_cur = 50 (min of non-skip)");
+    check(*(uint32_t*)(r1+0x14)==2,  "035329 out_idx = 2");
+    check(r1[0x20]==0,               "035329 flag cleared (last non-skip)");
+    /* scenario 2: single skipped record -> flag stays 1, idx/cur unchanged */
+    uint32_t b0 = heap_arena_alloc(0x20);
+    uint32_t b1 = heap_arena_alloc(0x20);
+    uint8_t *s0 = (uint8_t *)(g_heap_base + b0);
+    uint8_t *s1 = (uint8_t *)(g_heap_base + b1);
+    s0[0x05]=0x2f; *(int32_t*)(s0+0x0a)=77;     /* rec0: skip, val77 (also cur init) */
+    *(uint32_t*)(s1+0x1c)=1;                     /* count=1 */
+    fn_035329(b0, b1);
+    check(*(int32_t*)(s1+0x10)==77, "035329 cur unchanged when only-skip");
+    check(*(uint32_t*)(s1+0x14)==0, "035329 idx stays 0 when only-skip");
+    check(s1[0x20]==1,               "035329 flag stays 1 when all skipped");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4369,6 +4400,7 @@ int main(void) {
     test_fn_0411d9();
     test_fn_040f4f();
     test_fn_035a19();
+    test_fn_035329();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

@@ -6544,3 +6544,31 @@ int32_t fn_035a19(int32_t a0, int32_t a1, int32_t a2) {
     if (a2 >= 0 && fn_0358c7((uint8_t)a2) != 0) return -1;      /* write a2 only if a2>=0 */
     return 0;
 }
+
+/* 0x035329 (L10, 166 B): scan an array of 0xe-byte records for the smallest value.
+ * a0 (EAX) = base of records: tag byte at +0x5, int32 value at +0xa. a1 (EDX) = result
+ * struct: +0x10 out_cur(int32), +0x14 out_idx(uint32), +0x1c count(uint32), +0x20 flag(byte).
+ * cur starts at a0->+0xa; for i in 0..count-1, if record i's tag != 0x2f and cur > its value,
+ * set idx=i and cur=value, then clear a1->+0x20 (the flag-clear is gated on tag!=0x2f: a 0x2f
+ * record skips straight to i++). After the loop a1->+0x14 = idx, a1->+0x10 = cur. Addresses are
+ * flat arena offsets (g_heap_base + off). */
+void fn_035329(uint32_t a0, uint32_t a1) {
+    (void)canary_id(0, 0x2c);                                   /* PUSH 0x2c;CALL 0x418ee */
+    uint8_t *p0 = (uint8_t *)(g_heap_base + a0);                /* records */
+    uint8_t *p1 = (uint8_t *)(g_heap_base + a1);                /* result */
+    int32_t  cur = *(int32_t *)(p0 + 0xa);                      /* cur = a0->+0xa */
+    p1[0x20] = 1;                                               /* flag = 1 */
+    uint32_t idx = 0, i = 0;                                    /* [EBP-0x10], [EBP-0x14] */
+    uint32_t count = *(uint32_t *)(p1 + 0x1c);                  /* a1->+0x1c */
+    while (i < count) {                                         /* CMP i,count; JNC (unsigned) */
+        uint8_t tag = p0[i * 0xe + 0x5];
+        if (tag != 0x2f) {                                      /* CMP tag,0x2f; JZ skip */
+            int32_t val = *(int32_t *)(p0 + i * 0xe + 0xa);
+            if (cur > val) { idx = i; cur = val; }              /* CMP cur,val; JLE skip */
+            p1[0x20] = 0;                                       /* clear flag (non-skip only) */
+        }
+        i++;
+    }
+    *(uint32_t *)(p1 + 0x14) = idx;                             /* a1->+0x14 = idx */
+    *(int32_t  *)(p1 + 0x10) = cur;                             /* a1->+0x10 = cur */
+}

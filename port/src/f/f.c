@@ -6392,3 +6392,52 @@ int32_t fn_045bb7(uint32_t size)
     g_dat_64008 = 5;         /* 0x45c23 MOV [EAX],0x5 with EAX = const_64008() = 0x64008 */
     return -1;               /* 0x45c29 MOV EAX,0xffffffff */
 }
+
+/* fn_04a814  orig: 0x0004a814 (L1, 57 insns) -- linear UPPER-BOUND scan over the
+ * 8-byte {hi,lo} powers-of-10 table at 0x04a928 (a decimal-magnitude lookup used by
+ * the FP cluster FUN_0004a367/0x04a3a8/0x04a84e).
+ * Register-ABI: EAX = start index (int32), EDX = pointer to a 64-bit key {lo,hi};
+ * returns the int32 counter (EAX). The CALL 0x04a923 (fx_stub_4a923, a no-op) sets
+ * EDI to the table base 0x04a928 and leaves EAX unchanged; INC EAX; EDI += EAX*8
+ * starts the scan at entry (start+1). Forward: advance while key >= entry; backward:
+ * step back while entry > key. "key < entry" (64-bit) = (hi<ehi)|| (hi==ehi && lo<elo).
+ * Table (bit-exact from 0x04a928..0x04a9d0): [0]=0, [1..20]=10^0..10^19,
+ * [21]=UINT64_MAX (the binary's own sentinel at 0x04a9d0) -- OOB-safe. */
+static const uint64_t g_pow10_tbl_04a928[22] = {
+    0ULL,
+    1ULL, 10ULL, 100ULL, 1000ULL, 10000ULL, 100000ULL, 1000000ULL,
+    10000000ULL, 100000000ULL, 1000000000ULL, 10000000000ULL,
+    100000000000ULL, 1000000000000ULL, 10000000000000ULL, 100000000000000ULL,
+    1000000000000000ULL, 10000000000000000ULL, 100000000000000000ULL,
+    1000000000000000000ULL, 10000000000000000000ULL,
+    UINT64_MAX
+};
+
+static int key_lt_entry_814(uint32_t hi, uint32_t lo, uint64_t ent)
+{
+    uint32_t ehi = (uint32_t)(ent >> 32);
+    uint32_t elo = (uint32_t)ent;
+    return (hi < ehi) || (hi == ehi && lo < elo);
+}
+
+int32_t fn_04a814(int32_t start, const uint32_t *key)
+{
+    uint32_t lo = key[0];                              /* [EDX] */
+    uint32_t hi = key[1];                              /* [EDX+4] */
+    int e = (int)((start + 1) & 0xffffffffu);          /* EDI = base + (start+1)*8 */
+    int cnt = 0;
+    for (;;) {                                         /* forward: key >= entry */
+        if (key_lt_entry_814(hi, lo, g_pow10_tbl_04a928[e]))
+            break;
+        e++;
+        cnt++;
+    }
+    for (;;) {                                         /* backward: entry > key */
+        e--;
+        if (!key_lt_entry_814(hi, lo, g_pow10_tbl_04a928[e]))
+            break;
+        e--;
+        cnt--;
+    }
+    return cnt;
+}

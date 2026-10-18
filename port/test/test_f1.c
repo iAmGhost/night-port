@@ -3935,6 +3935,51 @@ static void test_fn_047b4f(void) {
     check(ok, "  all 3000 vectors: wrapper(out=a<op>b) == core fn_047b79(packed regs)");
 }
 
+/* Independent 64-bit reference for fn_04a814 (uses full uint64_t compare, no
+ * hi/lo split -- independently formulated to catch translation bugs). Table is the
+ * same powers-of-10 + UINT64_MAX sentinel as the ported table. */
+static const uint64_t ref_tbl_814[22] = {
+    0ULL,
+    1ULL, 10ULL, 100ULL, 1000ULL, 10000ULL, 100000ULL, 1000000ULL,
+    10000000ULL, 100000000ULL, 1000000000ULL, 10000000000ULL,
+    100000000000ULL, 1000000000000ULL, 10000000000000ULL, 100000000000000ULL,
+    1000000000000000ULL, 10000000000000000ULL, 100000000000000000ULL,
+    1000000000000000000ULL, 10000000000000000000ULL,
+    UINT64_MAX
+};
+static int ref_scan_814(uint64_t key, int32_t start) {
+    int e = (int)((start + 1) & 0xffffffffu);
+    int cnt = 0;
+    for (;;) { if (key < ref_tbl_814[e]) break; e++; cnt++; }
+    for (;;) { e--; if (!(key < ref_tbl_814[e])) break; e--; cnt--; }
+    return cnt;
+}
+
+static void test_fn_04a814(void) {
+    uint32_t k[2];
+    /* hand-verified against the x86 scan (0x04a814) */
+    k[0]=0;       k[1]=0; check(fn_04a814(0,k)==0, "key=0 start=0 -> 0");
+    k[0]=1;       k[1]=0; check(fn_04a814(0,k)==1, "key=1 start=0 -> 1");
+    k[0]=100;     k[1]=0; check(fn_04a814(0,k)==3, "key=100 start=0 -> 3");
+    k[0]=256;     k[1]=0; check(fn_04a814(0,k)==3, "key=256 start=0 -> 3");
+    k[0]=100000;  k[1]=0; check(fn_04a814(0,k)==6, "key=1e5 start=0 -> 6");
+    k[0]=1048576; k[1]=0; check(fn_04a814(0,k)==7, "key=1048576 start=0 -> 7");
+    check(fn_04a814(1,k)==6, "key=1048576 start=1 -> 6");
+    k[0]=1000000; k[1]=0; check(fn_04a814(0,k)==7, "key=1e6 start=0 -> 7");
+    /* differential vs independent 64-bit reference */
+    long mism=0; unsigned seed=1;
+    for (int i=0;i<5000;i++) {
+        seed=seed*1664525u+1013904223u; uint32_t lo=seed&0x7fffff;
+        seed=seed*1664525u+1013904223u; uint32_t hi=(seed>>8)&0x3;
+        seed=seed*1664525u+1013904223u; int32_t start=(int32_t)(seed%14);
+        uint64_t key=((uint64_t)hi<<32)|lo;
+        uint32_t kv[2]={lo,hi};
+        int a=fn_04a814(start,kv), b=ref_scan_814(key,start);
+        if (a!=b) { if (mism<3) printf("  814 diff key=%llu start=%d C=%d ref=%d\n",(unsigned long long)key,start,a,b); mism++; }
+    }
+    check(mism==0, "04a814 5000 differential vs 64-bit reference");
+}
+
 static void test_fn_045bb7(void) {
     printf("fn_045bb7 (0x045bb7, DOS far-memory alloc/resize/verify)\n");
     /* Flat model: no DOS far memory -> every path hits a failing INT 21 AH=0x4A ->
@@ -4200,6 +4245,7 @@ int main(void) {
     test_fn_048053();
     test_fn_047b79();
     test_fn_047b4f();
+    test_fn_04a814();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

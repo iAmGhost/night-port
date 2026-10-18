@@ -600,6 +600,7 @@ void fn_00035d0f(void) {}
 
 int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) */
 int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
+uint32_t g_dat_63304 = 0;  /* DAT_00063304: timer divisor (denominator in fn_03565a) */
 uint32_t g_dat_63330 = 0;  /* DAT_00063330: last timer tick value (written by fn_0356ba) */
 
 /* fn_000356ba  orig: 0x000356ba (L11, 76B)
@@ -6599,4 +6600,21 @@ int32_t fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2) {
     uint8_t b    = (uint8_t)q;                                  /* low byte of quotient */
     if (b > 0x7f) b = 0x7f;                                     /* clamp */
     return fn_035a19((int32_t)a0, (int32_t)a1, (int32_t)b);     /* write a0,a1,clamped */
+}
+
+/* 0x03565a (L12, 95 B): div = input / 1000 (signed). If div == 0, r = 0x10000; else
+ * r = (div * 0x4aa) / g_dat_63304 (unsigned DIV). Then fn_000356ba(r) (PIT ch0 setup, void)
+ * and return r. (0x0356ba was already ported as fn_000356ba, old 000-prefix naming.) */
+int32_t fn_03565a(int32_t input) {
+    (void)canary_id(0, 0x1c);                                   /* PUSH 0x1c;CALL 0x418ee */
+    int32_t div = input / 1000;                                 /* IDIV EBX=0x3e8 (signed) */
+    int32_t r;
+    if (div == 0) {
+        r = 0x10000;                                            /* 0x03567f */
+    } else {
+        int32_t num = div * 0x4aa;                              /* IMUL EAX, 0x4aa (signed) */
+        r = (int32_t)((uint32_t)num / g_dat_63304);             /* DIV [0x63304] (unsigned) */
+    }
+    fn_000356ba((uint32_t)r);                                   /* CALL 0x0356ba (PIT setup) */
+    return r;                                                   /* divisor (incidental EAX) */
 }

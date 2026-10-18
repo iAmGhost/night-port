@@ -4134,6 +4134,22 @@ static void test_fn_035b91(void) {
     g_dat_530b8 = saved;
 }
 
+static void test_fn_03565a(void) {
+    printf("fn_03565a (0x03565a, timer divisor -> fn_000356ba PIT setup)\n");
+    int32_t  sv_b4  = g_dat_530b4;
+    uint32_t sv_304 = g_dat_63304;
+    uint32_t sv_330 = g_dat_63330;
+    g_dat_530b4 = 200;
+    g_dat_63304 = 1194;                /* 0x4aa */
+    check(fn_03565a(2000) == 2,        "03565a(2000): div=2, r=(2*0x4aa)/0x4aa=2");
+    check(g_dat_63330 == 2,            "03565a g_dat_63330 = r = 2");
+    check(fn_03565a(500) == 0x10000,   "03565a(500): div==0 -> r=0x10000");
+    check(g_dat_63330 == 0x10000,      "03565a g_dat_63330 = r = 0x10000");
+    g_dat_530b4 = sv_b4;
+    g_dat_63304 = sv_304;
+    g_dat_63330 = sv_330;
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4435,6 +4451,7 @@ int main(void) {
     test_fn_035329();
     test_fn_035bf4_035ac0();
     test_fn_035b91();
+    test_fn_03565a();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

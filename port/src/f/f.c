@@ -2175,6 +2175,23 @@ void fn_042ccc(void)
     }
 }
 
+/* 0x042eef: free a DPMI heap block (84 insns).
+ *
+ * In the flat model the only observable effect is the initial CALL fn_042ccc
+ * (unlink freeable regions from g_heap_head). The DPMI/DOS memory services
+ * (INT 31h AH=05 AL=01 free, INT 21h AH=48 alloc, INT 31h AH=06 remap) never
+ * happen (no DPMI) and fail (CF=1), so the success-path far-pointer
+ * bookkeeping is unreachable and the function bails with EAX=0. The conditional
+ * write DAT_0006400c=0xfffff is guarded by (DAT_0006400e & 0xfff0); DAT_0006400e
+ * is never set anywhere in the port (stays 0), so that write is unreachable too.
+ * arg is the block far-pointer/handle (unused in the flat model). orig: 0x042eef */
+uint32_t fn_042eef(uint32_t arg)
+{
+    fn_042ccc();   /* 0x42ef5: unlink freeable regions (the only real effect)  */
+    (void)arg;     /* block handle: only feeds the DPMI free (no-op)           */
+    return 0;      /* DPMI/DOS free+alloc fail (CF=1) -> bail with EAX=0       */
+}
+
 void dispatch_a(uint32_t key)
 {
     for (;;) {                                          /* 0x4461f outer */

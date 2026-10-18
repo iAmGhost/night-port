@@ -3781,6 +3781,17 @@ static void test_fn_042ccc(void) {
     check(g_heap_head == 0, "  fn_042ccc: single freeable region -> head 0");
 }
 
+/* ---------- fn_042eef: DPMI free a heap block ---------- */
+static void test_fn_042eef(void) {
+    printf("fn_042eef (0x042eef, DPMI free block)\n");
+    heap_arena_init();
+    uint32_t rA = heap_acquire_region(0x1000) - 0x30;   /* freeable */
+    check(g_heap_head == rA, "  fn_042eef: freeable region is head");
+    uint32_t ret = fn_042eef(rA);
+    check(ret == 0, "  fn_042eef: returns 0 (DPMI free fails in flat model)");
+    check(g_heap_head == 0, "  fn_042eef: freeable region unlinked via fn_042ccc");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4022,6 +4033,7 @@ int main(void) {
     test_fn_043fc3();
     test_fn_043e34();
     test_fn_042ccc();
+    test_fn_042eef();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

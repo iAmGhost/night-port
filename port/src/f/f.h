@@ -483,6 +483,7 @@ int fn_044387(struct emit_ctx *ctx, uintptr_t **pos, int base, int allow_sign);
 uint32_t fn_043fc3(struct emit_ctx *ctx, uintptr_t **pos, const uint8_t **src);
 uint32_t fn_043e34(struct emit_ctx *ctx, uintptr_t *pos);
 void fn_042ccc(void);
+uint32_t fn_042eef(uint32_t arg);
 
 /* Event-dispatch table (DAT_000537dc): 10 entries of {flag(2=done), key, fn}.
  * fn pointers reference game handlers (wired when those are ported; NULL until

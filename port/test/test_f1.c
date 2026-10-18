@@ -4182,6 +4182,47 @@ static void test_fn_01072f(void) {
     g_dat_53c5c = sv;
 }
 
+static void test_fn_03e14c(void) {
+    printf("fn_03e14c (0x03e14c, 2-node prev/next swap)\n");
+    uint32_t sv_c = g_dat_63e14, sv_18 = g_dat_63e18, sv_1c = g_dat_63e1c, sv_20 = g_dat_63e20;
+    /* swap case: counter=2, neither cache matches a0 -> X=A->next gets X.prev=Y=A->prev,
+     * Y=A->prev gets Y.next=X=A->next (A itself unchanged). */
+    uint32_t na = heap_arena_alloc(0x60);
+    uint32_t nx = heap_arena_alloc(0x60);
+    uint32_t ny = heap_arena_alloc(0x60);
+    uint8_t *A = (uint8_t *)(g_heap_base + na);
+    uint8_t *X = (uint8_t *)(g_heap_base + nx);
+    uint8_t *Y = (uint8_t *)(g_heap_base + ny);
+    for (int i = 0; i < 0x60; i++) { A[i]=0; X[i]=0; Y[i]=0; }
+    *(uint32_t*)(A+0x51) = ny;   /* A.prev = Y */
+    *(uint32_t*)(A+0x55) = nx;   /* A.next = X */
+    *(uint32_t*)(X+0x51) = 0xCCC; /* X.prev sentinel */
+    *(uint32_t*)(Y+0x55) = 0xBBB; /* Y.next sentinel */
+    g_dat_63e14 = 2; g_dat_63e18 = 0; g_dat_63e1c = 0;
+    check(fn_03e14c(na, 0) == na, "03e14c swap: return a0");
+    check(g_dat_63e14 == 1, "03e14c swap: counter 2->1");
+    check(*(uint32_t*)(X+0x51) == ny, "03e14c swap: X.prev = A.prev (Y)");
+    check(*(uint32_t*)(Y+0x55) == nx, "03e14c swap: Y.next = A.next (X)");
+    /* g_dat_63e18 == a0 case: cache a0->prev, clear that prev's next */
+    uint32_t nc = heap_arena_alloc(0x60);
+    uint32_t nd = heap_arena_alloc(0x60);
+    uint8_t *C = (uint8_t *)(g_heap_base + nc);
+    uint8_t *D = (uint8_t *)(g_heap_base + nd);
+    for (int i = 0; i < 0x60; i++) { C[i]=0; D[i]=0; }
+    *(uint32_t*)(C+0x51) = nd;   /* C.prev = D */
+    *(uint32_t*)(D+0x55) = 0x5555; /* D.next sentinel */
+    g_dat_63e14 = 3; g_dat_63e18 = nc; g_dat_63e1c = 0;
+    fn_03e14c(nc, 0);
+    check(g_dat_63e18 == nd, "03e14c cache: 63e18 = a0->prev (D)");
+    check(*(uint32_t*)(D+0x55) == 0, "03e14c cache: D->next cleared");
+    check(g_dat_63e14 == 2, "03e14c cache: counter 3->2");
+    /* counter==1 case: zero all caches */
+    g_dat_63e14 = 1; g_dat_63e18 = 0xAAA; g_dat_63e1c = 0xBBB; g_dat_63e20 = 0xCCC;
+    fn_03e14c(na, 0);
+    check(g_dat_63e18 == 0 && g_dat_63e1c == 0 && g_dat_63e20 == 0, "03e14c counter==1: caches zeroed");
+    g_dat_63e14 = sv_c; g_dat_63e18 = sv_18; g_dat_63e1c = sv_1c; g_dat_63e20 = sv_20;
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4486,6 +4527,7 @@ int main(void) {
     test_fn_03565a();
     test_fn_0105f7();
     test_fn_01072f();
+    test_fn_03e14c();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

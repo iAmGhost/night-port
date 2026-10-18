@@ -513,6 +513,10 @@ void fn_03f410(uint32_t color) { palette_set(g_dat_63e58, color); }
  *   No DPMI in the flat model -> no-op. The DAT_00053c5c-2 read only feeds the
  *   DPMI argument and has no observable flat-model effect, so it is not
  *   dereferenced; the global is tracked for fidelity. */
+uint32_t g_dat_63e14 = 0;   /* DAT_00063e14: 2-node swap counter (fn_03e14c) */
+uint32_t g_dat_63e18 = 0;   /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
+uint32_t g_dat_63e1c = 0;   /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
+uint32_t g_dat_63e20 = 0;   /* DAT_00063e20: 3rd cache slot (zeroed, not read) */
 uint8_t g_dat_53c4c[9] = {0};   /* DAT_00053c4c: 9-byte real-mode command staging area */
 uintptr_t g_dat_53c5c = 0;   /* DAT_00053c5c: DPMI far-pointer (debug-reg source) */
 void fn_1053f(void)
@@ -1198,6 +1202,37 @@ void fn_01072f(void) {
     mem_copy((uint8_t *)g_dat_53c5c, g_dat_53c4c, 9);   /* staging -> *g_dat_53c5c */
     fn_10570(cmd, 9);                       /* no-op in the flat model */
     mem_copy(g_dat_53c4c, (const uint8_t *)g_dat_53c5c, 9);   /* *g_dat_53c5c -> staging */
+}
+/* 0x03e14c: 2-node doubly-linked prev/next manipulation (fields 0x51=prev, 0x55=next),
+ * gated by a counter. a0 is a heap offset; a1 is stored but never read. If
+ * g_dat_63e14==1: zero the three cache globals. Else: if g_dat_63e18==a0 -> cache a0's
+ * prev and clear that prev's next; else if g_dat_63e1c==a0 -> cache a0's next and clear
+ * that next's prev; else -> swap a0's prev<->next links (a 2-node rotation). Decrement
+ * the counter; return a0. */
+uint32_t fn_03e14c(uint32_t a0, uint32_t a1) {
+    (void)canary_id(0, 0x24);
+    (void)a1;   /* stored to [EBP-4], never read */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    if (g_dat_63e14 == 1) {
+        g_dat_63e18 = 0;
+        g_dat_63e1c = 0;
+        g_dat_63e20 = 0;
+    } else {
+        if (g_dat_63e18 == a0) {
+            g_dat_63e18 = *(uint32_t *)(hb + a0 + 0x51);
+            *(uint32_t *)(hb + *(uint32_t *)(hb + a0 + 0x51) + 0x55) = 0;
+        } else if (g_dat_63e1c == a0) {
+            g_dat_63e1c = *(uint32_t *)(hb + a0 + 0x55);
+            *(uint32_t *)(hb + *(uint32_t *)(hb + a0 + 0x55) + 0x51) = 0;
+        } else {
+            uint32_t n0x55 = *(uint32_t *)(hb + a0 + 0x55);   /* a0->next */
+            uint32_t n0x51 = *(uint32_t *)(hb + a0 + 0x51);   /* a0->prev */
+            *(uint32_t *)(hb + n0x55 + 0x51) = n0x51;         /* next->prev = prev */
+            *(uint32_t *)(hb + n0x51 + 0x55) = n0x55;         /* prev->next = next */
+        }
+    }
+    g_dat_63e14--;   /* DEC [0x63e14] (always) */
+    return a0;
 }
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }

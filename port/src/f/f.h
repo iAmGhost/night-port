@@ -148,6 +148,7 @@ void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O 
 void     fn_10570(const uint8_t *buf, uint32_t len);   /* 0x010570: DPMI real-mode read via 0x103e0 (no-op) */
 void     fn_0105f7(uint8_t al);                  /* 0x0105f7: build 24-byte DMA cmd from DAT_00051a14 + g_dat_53c5c patch; write al to byte 0 of *g_dat_53c5c (far-pointer buffer); submit via fn_10570 (no-op) */
 void     fn_01072f(void);                         /* 0x01072f: build 26-byte cmd from DAT_00051a58; g_dat_53c4c[0]=4; round-trip 9 bytes staging<->*g_dat_53c5c; submit via fn_10570 (no-op) */
+uint32_t fn_03e14c(uint32_t a0, uint32_t a1);     /* 0x03e14c: 2-node prev/next swap (0x51/0x55) gated by g_dat_63e14 counter; return a0 */
 uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+checksum (no-op -> 0) */
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
 void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */
@@ -333,6 +334,10 @@ extern uint8_t   g_heap_cfg_b2;    /* DAT_000533b2: top-check mode byte */
 extern uint8_t   g_heap_cfg_b3;    /* DAT_000533b3: top-check mode byte (0x0431b5) */
 extern uint8_t   g_heap_cfg_b4;    /* DAT_000533b4: top-check flag */
 extern uint8_t   g_heap_flag;      /* DAT_00063fbd: wrappers zero it, never read */
+extern uint32_t  g_dat_63e14;      /* DAT_00063e14: 2-node swap counter (fn_03e14c) */
+extern uint32_t  g_dat_63e18;      /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
+extern uint32_t  g_dat_63e1c;      /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
+extern uint32_t  g_dat_63e20;      /* DAT_00063e20: 3rd cache slot (zeroed, not read) */
 extern uint32_t  g_ds_segment;     /* DPMI DS selector (flat model: 0) */
 
 /* Arena support (the original grows via DPMI; the port uses a static arena). */

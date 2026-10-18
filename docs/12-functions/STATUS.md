@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 317 / 528 done
+TOTALS: 318 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 317 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 49 | 0 | 0 | 32 |
+| L10 | 81 | 50 | 0 | 0 | 31 |
 | L11 | 77 | 36 | 0 | 0 | 41 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x03e14c PORTED (L10, 194 B) -- 2-node doubly-linked prev/next manipulation.** Args a0(EAX, heap offset)/a1(EDX, stored but never read). Gated by g_dat_63e14 counter: if ==1 -> zero g_dat_63e18/63e1c/63e20; else if g_dat_63e18==a0 -> g_dat_63e18=a0->0x51(prev) and (prev)->0x55(next)=0; else if g_dat_63e1c==a0 -> g_dat_63e1c=a0->0x55(next) and (next)->0x51(prev)=0; else -> SWAP: X=a0->next gets X.prev=a0->prev(Y), Y=a0->prev gets Y.next=a0->next(X) (A itself untouched). Always DEC g_dat_63e14; return a0. Nodes: 0x51=prev, 0x55=next (4-byte stride, 0x55-0x51=4). Added 4 globals (g_dat_63e14 counter, g_dat_63e18/63e1c cached node offsets, g_dat_63e20 zeroed-not-read). Test: 3-node swap (X.prev==Y, Y.next==X, A unchanged), cache-match (63e18=a0->prev, prev->next cleared), counter==1 (caches zeroed). 8 checks. L10 49->50, TOTALS 317->318/528, suite 1082 PASS 0 FAIL. **NEXT:** L10 0x01435f(190B, 4-deep pointer chain), 0x035dfc(197B); L11 0x034990(heap-init, ~110KB arena), 0x03f462(303B). | STATUS.md L10 |
 | 2026-07-08 | **0x01072f PORTED (L12, 137 B) -- real-mode command build + staging round-trip.** No formal args. Builds a 26-byte command (copy the DAT_00051a58 template, extracted via Ghidra: `1a 00 03 00 | 00x12 | 09 00 00 00 | 00 00 00 00`; patch bytes 20..23 from the g_dat_53c5c pointer value), sets g_dat_53c4c[0]=4 (new 9-byte global at 0x53c4c, 0x8 before the g_dat_53c5c pointer), then round-trips 9 bytes: mem_copy(*g_dat_53c5c, g_dat_53c4c, 9) staging->buffer, fn_10570(cmd,9) (no-op), mem_copy(g_dat_53c4c, *g_dat_53c5c, 9) buffer->staging. **Observable:** g_dat_53c4c[0]=4 and *g_dat_53c5c[0..8] = the staging area (with byte0=4); the staging round-trips to the same value. The 26-byte cmd is discarded by the no-op callee. Test: staging={0x10..0x18}, buffer=0xEE -> after: staging[0]=4, buffer[0..8]={4,0x11..0x18}. 2 checks. L12 20->21, TOTALS 316->317/528, suite 1074 PASS 0 FAIL. **NOTE:** g_dat_53c4c + g_dat_53c5c are the real-mode command staging area + target pointer (0x53c4c/0x53c5c). **NEXT:** L12 0x010cbd(137B, reads UNINITIALIZED [EBP-4] -> non-deterministic *g_dat_53c5c write, weak test -- defer); L10 0x03c65b (64-bit wall); L11 0x034990 (heap-init, ~110KB arena). | STATUS.md L12 |
 | 2026-07-08 | **0x0105f7 PORTED (L12, 108 B) -- real-mode serial/DMA command build.** No formal args (reads informal AL). Copies the 24-byte DAT_00051a14 template (extracted via Ghidra read_memory: `18 00 0c 00 | 00 00 00 00 | 00 00 00 00 | 00 00 00 00 | 00 00 01 00 | 00 00 00 00`) to a local buf, patches bytes 20..23 from g_dat_53c5c (b20=g&0xf, b21=0, b22=(g>>4)&0xff, b23=(g>>12)&0xff), writes the AL arg into byte 0 of the buffer pointed to by g_dat_53c5c via mem_copy(g_dat_53c5c,&al,1) (g_dat_53c5c is a DPMI far-pointer), then submits via fn_10570(buf,1) (no-op in the flat model). **The 24-byte cmd is DISCARDED** by the no-op callee, so the sole observable effect is (*g_dat_53c5c) byte 0 = al. **FIDELITY FIX:** my first cut wrote to &g_dat_53c5c (the variable); 0x01072f/0x010cbd confirm g_dat_53c5c is a POINTER (used as mem_copy src+dst address), so the correct target is the buffer it points to. **fn_10570 signature changed** void() -> (const uint8_t*,uint32_t) to match the real (buf,len) form (no existing callers in f.c; updated the test's 0-arg call at test_f1.c:2224). Test: point g_dat_53c5c at a 16-byte buffer; 0105f7(0xAB) -> buffer[0]=0xAB; 0105f7(0x11) -> buffer[0]=0x11. 2 checks. L12 19->20, TOTALS 315->316/528, suite 1072 PASS 0 FAIL. **NEXT:** L12 0x01072f(137B)/0x010cbd(137B); L10 0x03c65b/0x0326c1 (64-bit testability wall -- raw 32-bit node->start passed straight to mem_copy can't be a valid 64-bit buffer, so no source avoids both a crash len>0 and an infinite loop len=0); L11 0x034990 (heap-init, needs g_dat_62d60 + ~110KB arena in test). | STATUS.md L12 |
 | 2026-07-08 | **0x03565a PORTED (L12, 95 B) -- timer divisor -> fn_000356ba PIT setup.** div=input/1000 (signed); r = div==0 ? 0x10000 : (div*0x4aa)/g_dat_63304 (unsigned DIV); fn_000356ba(r); return r. Added g_dat_63304 (timer divisor). **NAMING GOTCHA:** 0x0356ba was ALREADY ported as fn_000356ba (old 000-prefix, f.c:612) -- my initial grep for 'fn_0356ba' missed it (not a substring of 'fn_000356ba'), so I briefly created a duplicate fn_0356ba. Removed it; fn_03565a now calls fn_000356ba. Lesson: grep both fn_XXXXXX and fn_0XXXXXX conventions before assuming a gap. Test: 03565a(2000)=2, 03565a(500)=0x10000 (div==0). 4 checks. L12 18->19, TOTALS 314->315/528, suite +4 PASS 0 FAIL. **NEXT:** L10 0x03c65b (arena-mapped, 2 callees), 0x03c72b; L11 0x034990 (heap init). | STATUS.md L12 |
@@ -606,7 +607,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03d75c | 306 | FUN_0003d75c | | |
 | [ ] | 0x03dcbd | 455 | FUN_0003dcbd | | |
 | [ ] | 0x03e0a0 | 171 | FUN_0003e0a0 | | |
-| [ ] | 0x03e14c | 194 | FUN_0003e14c | | |
+| [x] | 0x03e14c | 194 | fn_03e14c | heap/dlist | 2-node prev/next swap (0x51/0x55) gated by g_dat_63e14 counter; 4 new globals (63e14/18/1c/20); test PASS, 8 checks |
 | [x] | 0x03ef29 | 200 | fn_03ef29 | | install IRQ 0x1c, divisor in EAX (isr_set/outb no-op) |
 | [x] | 0x03eff2 | 132 | fn_03eff2 | | install IRQ 0x1c (FPU) handler, flag-guarded (isr_set/outb no-op) |
 | [x] | 0x03f3be | 81 | fn_03f3be | | VGA palette-set (INT10 0x4f05), index 63e5c, color in EAX |

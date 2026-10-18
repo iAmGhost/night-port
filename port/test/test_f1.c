@@ -1981,6 +1981,45 @@ static void test_fn_03dcbd(void) {
     check(p[0] == 0x22222222, "03dcbd: all-zero fields, field 0 untouched, no crash");
 }
 
+static void test_fn_010d47(void) {
+    printf("fn_010d47 (0x010d47, periodic CD-refresh tick)\n");
+    uint32_t sv38 = g_dat_63e38, sv24 = g_dat_63e24, sv28 = g_dat_63e28;
+    uint8_t svff8 = g_dat_52ff8; int32_t sv48 = g_dat_53c48;
+
+    /* s1: gate fail (q <= threshold) -> no side effects */
+    g_dat_63e38 = 100; g_dat_53c48 = 10;   /* q = 0 <= 10 -> return */
+    g_dat_52ff8 = 0xab; g_dat_63e24 = 0x1111; g_dat_63e28 = 0x2222;
+    fn_010d47();
+    check(g_dat_63e38 == 100, "010d47 s1: g_63e38 unchanged (gate fail)");
+    check(g_dat_52ff8 == 0xab, "010d47 s1: g_52ff8 unchanged (gate fail)");
+    check(g_dat_63e24 == 0x1111 && g_dat_63e28 == 0x2222, "010d47 s1: g_63e24/g_63e28 unchanged");
+
+    /* s2: boundary (q == threshold -> JLE taken -> return) */
+    g_dat_63e38 = 4900; g_dat_53c48 = 10;  /* q = 10 <= 10 -> return */
+    g_dat_52ff8 = 0xcd;
+    fn_010d47();
+    check(g_dat_63e38 == 4900, "010d47 s2: g_63e38 unchanged (q==threshold)");
+    check(g_dat_52ff8 == 0xcd, "010d47 s2: g_52ff8 unchanged (q==threshold)");
+
+    /* s3: gate pass (q > threshold) -> reset counter, set g_52ff8, restore 24/28 */
+    g_dat_63e38 = 49000; g_dat_53c48 = 10; /* q = 100 > 10 -> proceed */
+    g_dat_52ff8 = 0; g_dat_63e24 = 0x3333; g_dat_63e28 = 0x4444;
+    fn_010d47();
+    check(g_dat_63e38 == 0, "010d47 s3: g_63e38 = 0 (gate pass)");
+    check(g_dat_52ff8 == 1, "010d47 s3: g_52ff8 = 1 (gate pass)");
+    check(g_dat_63e24 == 0x3333, "010d47 s3: g_63e24 restored");
+    check(g_dat_63e28 == 0x4444, "010d47 s3: g_63e28 restored");
+
+    /* s4: signed division (negative quotient) */
+    g_dat_63e38 = (uint32_t)(-1000); g_dat_53c48 = -10; /* q = -2 > -10 -> proceed */
+    g_dat_52ff8 = 0;
+    fn_010d47();
+    check(g_dat_63e38 == 0, "010d47 s4: g_63e38 = 0 (neg quotient > neg threshold)");
+    check(g_dat_52ff8 == 1, "010d47 s4: g_52ff8 = 1");
+
+    g_dat_63e38 = sv38; g_dat_63e24 = sv24; g_dat_63e28 = sv28; g_dat_52ff8 = svff8; g_dat_53c48 = sv48;
+}
+
 static void test_fn_015295(void) {
     printf("fn_015295 (0x015295, entity tick: clamp + conditional list-insert + accumulator)\n");
     uint8_t *sv53c7c = g_dat_53c7c, *sv53c80 = g_dat_53c80;
@@ -5031,6 +5070,7 @@ int main(void) {
     test_fn_03ba2c();
     test_fn_034990();
     test_fn_03dcbd();
+    test_fn_010d47();
     test_fn_015295();
     test_fn_03ba86();
     test_fn_03a594();

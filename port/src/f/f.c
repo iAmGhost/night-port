@@ -1477,6 +1477,28 @@ void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op)
 void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }
 void fn_10b1d(void)   { /* 0x010b1d: CD track/TOC read via 0x10570 (no-op). */ }
 
+/* 0x010d47 (L13, 150 bytes): periodic CD-refresh tick.
+ *   canary 0x24; q = (int32)g_63e38 / 490  (signed, truncated: IDIV 0x1ea).
+ *   if (q <= g_53c48) return;  (JLE signed)
+ *   else: g_63e38 = 0;  g_52ff8 = 0;  ...; fn_10b1d();  g_63e24/g_63e28 restored; g_52ff8 = 1.
+ * The original then computes e = *(g_63354+0x40); idx = e*4 + (g_63370-1)*40;
+ *   v = *(idx + 0x52da4);  and CALL fn_10b1d (passing v in EAX).  In the port fn_10b1d is a
+ *   no-op CD read that ignores its argument, so the 0x52da4 data-table read is dead and is
+ *   omitted (pointer/data-table wall, same class as 0x03c65b/0x03c72b).  The observable
+ *   effects are just the gate + global writes + the fn_10b1d call. */
+void fn_010d47(void) {
+    (void)canary_id(0, 0x24);
+    int32_t q = (int32_t)g_dat_63e38 / 490;   /* IDIV EBX(0x1ea), signed truncated */
+    if (q <= g_dat_53c48) return;
+    g_dat_63e38 = 0;
+    int32_t s1 = (int32_t)g_dat_63e24, s2 = (int32_t)g_dat_63e28;  /* saved/restored (net unchanged) */
+    g_dat_52ff8 = 0;
+    fn_10b1d();   /* CD track/TOC read (no-op); dead data-table read omitted above */
+    g_dat_63e24 = (uint32_t)s1;
+    g_dat_63e28 = (uint32_t)s2;
+    g_dat_52ff8 = 1;
+}
+
 /* str_len  orig: 0x041f5d
  *   strlen with a 2^32 underflow guard: counts from 0xffffffff down, reads
  *   a byte per step, stops at NUL (or after 2^32 steps if unterminated).
@@ -1611,6 +1633,7 @@ uint32_t g_dat_63e40 = 0;   /* DAT_00063e40: coarse counter (every 18) */
 uint32_t g_dat_63e30 = 0;   /* DAT_00063e30: frame/time counter (18-bit) */
 uint32_t g_dat_63e2c = 0;   /* DAT_00063e2c: tick rate increment */
 uint32_t g_dat_63e34 = 0;   /* DAT_00063e34: high frame counter (63e30 wraps) */
+int32_t  g_dat_53c48 = 0;   /* DAT_00053c48: CD-refresh threshold (cmp g_63e38/490, 0x010d47) */
 
 /* ---- IRQ-handler install state (fn_03eff2 / fn_03ffab) ---- */
 uint8_t  g_dat_63e4a = 0;   /* DAT_00063e4a: IRQ 0x1c (FPU) pending-install flag (1=install) */

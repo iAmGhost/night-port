@@ -165,6 +165,7 @@ uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+c
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
 void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */
 void     fn_10b1d(void);                        /* 0x010b1d: CD track/TOC read (no-op) */
+void     fn_010d47(void);                       /* 0x010d47: periodic CD-refresh tick (gated on g_63e38/490 > g_53c48) */
 void     fn_048e60(uint32_t *p);                /* 0x048e60: 128-bit fixed-point normalize + Newton reciprocal divide */
 void     fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out); /* 0x047f54: fixed-point normalize (EAX:EDX in, EBX out) */
 uint64_t fn_048053(uint32_t f0, uint32_t f1, uint16_t f2);         /* 0x048053: fixed-point -> double normalize (12B in, EDX:EAX out) */
@@ -753,6 +754,7 @@ extern uint8_t  g_dat_62c90;      /* DAT_00062c90 (byte flag) */
 extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
 extern uint8_t *g_dat_53c7c;   /* DAT_00053c7c (kb config ptr; [0x1b] int32) */
 extern uint8_t *g_dat_53c80;   /* DAT_00053c80 (entity ptr; compared to a0 in 0x015295) */
+extern int32_t  g_dat_53c48;   /* DAT_00053c48: CD-refresh threshold (cmp g_63e38/490, 0x010d47) */
 extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
 extern uint8_t *g_dat_53c70;   /* DAT_00053c70 (entity list head; next at +0x13f) */
 extern uint8_t *g_dat_53c74;   /* DAT_00053c74 (entity list tail; prev at +0x147) */

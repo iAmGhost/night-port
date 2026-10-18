@@ -2,6 +2,7 @@
  * Bodies are 1:1 translations of the decompilation in analysis/pseudo/,
  * cross-checked against the disassembly (scratch/batch1_asm*.txt).
  * Semantics: docs/12-functions/primitives.md */
+#include <stdio.h>
 #include "f.h"
 #include "../sys/sys.h"
 #include <math.h>
@@ -4843,3 +4844,124 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr)
  * 24-byte disasm. */
 void fn_048754(fx128 *a)
 { fn_04791a(a, a, 0u, 0x80000000u, 0x3fffu); }
+
+/* fn_047d4e  orig: 0x047d4e  (fx_mul64, 108 insns) — 64x64->128 fixed-point multiply
+ * with 96-bit mantissa normalize + round-half + exponent re-bias.
+ * Register-ABI: in {EAX=a_lo, EDX=a_hi, EBX=b_lo, ECX=b_hi, ESI=esi(exp field, 32-bit,
+ * 16-bit halves)}; out {EAX=r_lo, EDX=r_hi, ESI=r_exp}. Bias 0xc002; overflow ->
+ * 0x8000000000000000 (ESI=0x7fff); underflow -> 0.
+ * Faithful asm-mirror (word-by-word 128-bit MAC preserved so the trailing SF/CF that
+ * feed the JS at 0x047de4 and the round block match the disasm exactly).
+ * See scratch/fp_047d4e_ref.py for the matching Python reference (196 differential vectors). */
+static void fn_047d4e_epi(uint32_t ECX, uint32_t EAX, uint32_t EDX, fx64_t *out)
+{
+    uint32_t sum = ECX + ECX;
+    uint32_t c = (sum < ECX) ? 1u : 0u;            /* 0x047e33 ADD ECX,ECX (CF) */
+    ECX = sum;                                      /* ECX now holds the doubled value */
+    uint32_t cx = ((((ECX & 0xffffu) >> 1) | (c << 15)) & 0xffffu); /* 0x047e35 RCR CX,1 (on doubled ECX) */
+    ECX = (ECX & 0xffff0000u) | cx;
+    out->lo = EAX; out->hi = EDX; out->exp = ECX;   /* 0x047e38 MOV ESI,ECX; RET */
+}
+
+void fn_047d4e(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi, uint32_t esi, fx64_t *out)
+{
+    uint32_t EAX=a_lo, EDX=a_hi, EBX=b_lo, ECX=b_hi, ESI=esi, EDI=0, EBP=0;
+    uint32_t CF=0, ZF=0, SF=0;
+    /* 0x047d4e OR EAX,EAX ; 0x047d50 JNZ */
+    ZF = (EAX==0)?1u:0u;
+    if (ZF) {
+        ZF = (EDX==0)?1u:0u;                        /* 0x047d52 OR EDX,EDX ; 0x047d54 JNZ */
+        if (ZF) {
+            uint32_t si = ((ESI & 0xffffu) * 2u);   /* 0x047d56 ADD SI,SI */
+            CF = (si > 0xffffu)?1u:0u; si &= 0xffffu;
+            ESI = (ESI & 0xffff0000u) | si;
+            ZF = (si==0)?1u:0u;
+            if (ZF) { out->lo=0; out->hi=0; out->exp=ESI; return; } /* 0x047d5b RET */
+            uint32_t old=si; si=((si>>1)|(CF<<15))&0xffffu; CF=old&1u; /* 0x047d5c RCR SI,1 */
+            ESI=(ESI&0xffff0000u)|si;
+        }
+    }
+    /* 0x047d5f OR ECX,ECX ; 0x047d61 JNZ */
+    ZF = (ECX==0)?1u:0u;
+    if (ZF) { EBX; ZF=(EBX==0)?1u:0u; }             /* 0x047d63 OR EBX ; 0x047d65 JNZ */
+    if (ZF) { ZF = ((ESI & 0x7fff0000u)==0)?1u:0u; }/* 0x047d67 TEST ; 0x047d6d JNZ */
+    if (ZF) { out->lo=0; out->hi=0; out->exp=0; return; } /* 0x047d6f */
+    /* main 0x047d76: XCHG ESI,ECX */
+    { uint32_t t=ESI; ESI=ECX; ECX=t; }
+    EDI=ECX;                                        /* 0x047d7a MOV EDI,ECX */
+    EDI=((EDI<<16)|(EDI>>16));                       /* 0x047d7c ROL EDI,16 */
+    { uint32_t x=EDI>>16; EDI=(x&0x8000u)?(0x10000u+x)-0x10000u:x; EDI&=0xffffffffu; } /* 0x047d7f SAR EDI,16 */
+    { uint32_t x=ECX>>16; ECX=(x&0x8000u)?(0x10000u+x)-0x10000u:x; ECX&=0xffffffffu; } /* 0x047d82 SAR ECX,16 */
+    EDI &= 0x80007fffu; ECX &= 0x80007fffu;         /* 0x047d85/8b AND */
+    { uint32_t r=ECX+EDI; CF=(r<ECX)?1u:0u; ECX=r; }/* 0x047d91 ADD ECX,EDI */
+    { uint32_t lo=ECX&0xffffu; CF=(lo<0x3feu)?1u:0u; uint32_t cx=(lo-0x3feu)&0xffffu; ECX=(ECX&0xffff0000u)|cx; } /* 0x047d93 SUB CX,0x3fe */
+    if (!CF) {                                       /* 0x047d98 JC -> underflow */
+        CF = ((ECX&0xffffu) < 0x7fffu)?1u:0u; ZF=((ECX&0xffffu)==0x7fffu)?1u:0u; /* 0x047d9a CMP CX,0x7fff */
+        if (!CF) { ECX=(ECX&0xffff0000u)|0x7fffu; EDX=0x80000000u; EAX=0; fn_047d4e_epi(ECX,EAX,EDX,out); return; } /* 0x047da1 JMP overflow */
+    }
+    { uint32_t cx=ECX&0xffffu; int32_t s=(cx&0x8000u)?(int32_t)cx-0x10000:(int32_t)cx; /* 0x047da6 CMP CX,-0x40 */
+      if (s < -0x40) { out->lo=0; out->hi=0; out->exp=0; return; } }
+    /* multiply 0x047db7 */
+    uint32_t exp_adj_ecx=ECX; EBP=0;
+    uint32_t push_esi=ESI, push_edx=EDX, push_eax=EAX;
+    { uint64_t p=(uint64_t)EAX*EBX; EAX=(uint32_t)p; EDX=(uint32_t)(p>>32); } /* 0x047dbd MUL EBX */
+    { uint32_t tt=EAX; EAX=ESI; ESI=tt; }           /* 0x047dbf XCHG EAX,ESI */
+    ECX=EDX;                                        /* 0x047dc0 MOV ECX,EDX */
+    EDX=push_eax;                                   /* 0x047dc2 POP EDX */
+    { uint64_t p=(uint64_t)EAX*EDX; EAX=(uint32_t)p; EDX=(uint32_t)(p>>32); } /* 0x047dc3 MUL EDX */
+    EDI=EDX;                                        /* 0x047dc5 MOV EDI,EDX */
+    { uint32_t r=ECX+EAX; CF=(r<ECX)?1u:0u; ECX=r; }/* 0x047dc7 ADD ECX,EAX */
+    { uint32_t r=EDI+EBP+CF; CF=(r<EDI)?1u:0u; EDI=r; } /* 0x047dc9 ADC EDI,EBP */
+    { uint32_t r=EBP+EBP+CF; CF=(r<EBP)?1u:0u; EBP=r; } /* 0x047dcb ADC EBP,EBP */
+    EAX=push_edx;                                   /* 0x047dcd POP EAX */
+    { uint32_t tt=EAX; EAX=EBX; EBX=tt; }           /* 0x047dce XCHG EAX,EBX */
+    { uint64_t p=(uint64_t)EAX*EBX; EAX=(uint32_t)p; EDX=(uint32_t)(p>>32); } /* 0x047dcf MUL EBX */
+    { uint32_t r=ECX+EAX; CF=(r<ECX)?1u:0u; ECX=r; }/* 0x047dd1 ADD ECX,EAX */
+    { uint32_t r=EDI+EDX+CF; CF=(r<EDI)?1u:0u; EDI=r; } /* 0x047dd3 ADC EDI,EDX */
+    { uint32_t r=EBP+0u+CF; CF=(r<EBP)?1u:0u; EBP=r; } /* 0x047dd5 ADC EBP,0 */
+    EAX=EBX;                                        /* 0x047dd8 MOV EAX,EBX */
+    EDX=push_esi;                                   /* 0x047dda POP EDX */
+    { uint64_t p=(uint64_t)EAX*EDX; EAX=(uint32_t)p; EDX=(uint32_t)(p>>32); } /* 0x047ddb MUL EDX */
+    { uint32_t r=EAX+EDI; CF=(r<EAX)?1u:0u; EAX=r; }/* 0x047ddd ADD EAX,EDI */
+    { uint32_t r=EDX+EBP+CF; CF=(r<EDX)?1u:0u; EDX=r; SF=(EDX&0x80000000u)?1u:0u; } /* 0x047ddf ADC EDX,EBP */
+    EBX=ECX;                                        /* 0x047de1 MOV EBX,ECX */
+    ECX=exp_adj_ecx;                                /* 0x047de3 POP ECX */
+    /* round/normalize 0x047de4 JS */
+    if (!SF) {
+        { uint32_t r=EBX+EBX; CF=(r<EBX)?1u:0u; EBX=r; } /* 0x047de6 ADD EBX,EBX */
+        { uint32_t r=EAX+EAX+CF; CF=(r<EAX)?1u:0u; EAX=r; } /* 0x047de8 ADC EAX,EAX */
+        { uint32_t r=EDX+EDX+CF; CF=(r<EDX)?1u:0u; EDX=r; } /* 0x047dea ADC EDX,EDX */
+        { uint32_t cx=((ECX&0xffffu)-1u)&0xffffu; ECX=(ECX&0xffff0000u)|cx; } /* 0x047dec DEC CX */
+    }
+    { uint32_t r=EBX+EBX; CF=(r<EBX)?1u:0u; EBX=r; ZF=(EBX==0)?1u:0u; } /* 0x047dee ADD EBX,EBX */
+    if (CF) {                                        /* 0x047df0 JNC */
+        if (ZF) {                                    /* 0x047df2 JNZ not taken (EBX==0) */
+            ESI=ESI|ESI; ZF=(ESI==0)?1u:0u;          /* 0x047df4 OR ESI,ESI */
+            /* 0x047df6 SETNZ BL (unused below) */
+            CF=EBX&1u; EBX=(EBX>>1)&0xffffffffu;     /* 0x047df9 SHR EBX,1 */
+            if (!CF) { ESI=(EAX>>1)&0xffffffffu; }   /* 0x047dfb JC; 0x047dfd/ff */
+            { uint32_t r=EAX+0u+CF; CF=(r<EAX)?1u:0u; EAX=r; } /* 0x047e01 ADC EAX,0 */
+            { uint32_t r=EDX+0u+CF; CF=(r<EDX)?1u:0u; EDX=r; } /* 0x047e04 ADC EDX,0 */
+        } else {
+            { uint32_t r=EAX+0u+CF; CF=(r<EAX)?1u:0u; EAX=r; } /* 0x047e01 ADC EAX,0 */
+            { uint32_t r=EDX+0u+CF; CF=(r<EDX)?1u:0u; EDX=r; } /* 0x047e04 ADC EDX,0 */
+        }
+    }
+    if (CF) {                                        /* 0x047e07 JNC not taken */
+        { uint32_t old=EDX; EDX=((EDX>>1)|(CF<<31))&0xffffffffu; CF=old&1u; } /* 0x047e09 RCR EDX,1 */
+        { uint32_t old=EAX; EAX=((EAX>>1)|(CF<<31))&0xffffffffu; CF=old&1u; } /* 0x047e0b RCR EAX,1 */
+        { uint32_t old16=ECX&0xffffu; uint32_t cx=(old16+1u)&0xffffu; ECX=(ECX&0xffff0000u)|cx; } /* 0x047e0d INC CX */
+        CF=((ECX&0xffffu)<0x7fffu)?1u:0u; ZF=((ECX&0xffffu)==0x7fffu)?1u:0u; /* 0x047e0f CMP CX,0x7fff */
+        if (ZF) { ECX=(ECX&0xffff0000u)|0x7fffu; EDX=0x80000000u; EAX=0; fn_047d4e_epi(ECX,EAX,EDX,out); return; } /* 0x047e14 JZ overflow */
+    }
+    /* 0x047e1a OR CX,CX ; 0x047e1d JG (OF=0 for OR) */
+    { uint32_t CX=ECX&0xffffu; ZF=(CX==0)?1u:0u; SF=(CX&0x8000u)?1u:0u;
+      if (!(SF==0u && !ZF)) {                        /* JG not taken (CX<=0 signed) */
+        if (!ZF) { CX=(-CX)&0xffffu; } else { CX=1u; } /* 0x047e1f JNZ; 0x047e25 NEG / 0x047e21 */
+        EBX=0u;                                      /* 0x047e28 SUB EBX,EBX */
+        uint32_t CL=CX&31u;                          /* x86 masks SHRD count to 5 bits */
+        if (CL) { EAX=((EAX>>CL)|(EDX<<(32-CL)))&0xffffffffu; EDX=(EDX>>CL)&0xffffffffu; } /* 0x047e2a/2d SHRD */
+        CX=0u; ECX=(ECX&0xffff0000u)|CX;             /* 0x047e30 SUB CX,CX */
+      } }
+    fn_047d4e_epi(ECX,EAX,EDX,out);
+}

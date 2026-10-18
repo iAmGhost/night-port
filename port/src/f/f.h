@@ -153,6 +153,11 @@ typedef struct { uint32_t lo, hi, exp, ebx, edi; uint16_t bx; } fx_sub_t;
 void fn_0485eb(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi, uint32_t expA, uint32_t expB, fx_sub_t *out); /* 0x0485eb */
 /* 0x047xxx FPU cluster value: 64-bit mantissa (lo:hi) + 16-bit exponent (lo@0,hi@4,exp@8). */
 typedef struct { uint32_t lo; uint32_t hi; uint16_t exp; } fx128;
+/* 0x047d4e (fx_mul64): 64x64->128 fixed-point multiply. reg-ABI in {EAX=a_lo,EDX=a_hi,
+ * EBX=b_lo,ECX=b_hi,ESI=esi(exp field)}; out {EAX=r_lo,EDX=r_hi,ESI=r_exp}. Bias 0xc002;
+ * overflow -> 0x8000000000000000 (ESI=0x7fff); underflow -> 0. */
+typedef struct { uint32_t lo; uint32_t hi; uint32_t exp; } fx64_t;
+void fn_047d4e(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi, uint32_t esi, fx64_t *out); /* 0x047d4e */
 /* 0x048585: thin wrapper over fn_0485eb. a,b are fx128 {lo,hi,exp}. If a==0 return 0;
  * if b==0 zero *a and return 0; else *a = (0x0485eb(a,b)) result {lo,hi,exp}, return EDI (neg flag). */
 uint32_t fn_048585(fx128 *a, fx128 *b); /* 0x048585 */

@@ -11,6 +11,7 @@
 #include "../../scratch/fp_047f54_vectors.h"
 #include "../../scratch/fp_04794a_ctest.h"
 #include "../../scratch/vectors_0485eb.h"
+#include "../../scratch/vectors_047d4e.h"
 
 static int failures = 0;
 static void check(int ok, const char *what) {
@@ -2738,6 +2739,28 @@ static void test_fn_049415(void) {
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
 }
 
+static void test_fn_047d4e(void) {
+    printf("fn_047d4e (0x047d4e, fx_mul64 64x64->128)\n");
+    unsigned bad = 0;
+    for (unsigned i = 0; i < v047d4e_n; i++) {
+        const v047d4e_t *v = &v047d4e_v[i];
+        fx64_t r;
+        fn_047d4e(v->al, v->ah, v->bl, v->bh, v->esi, &r);
+        if (r.lo != v->rlo || r.hi != v->rhi || r.exp != v->rex) {
+            if (bad < 3) {
+                char m[200];
+                snprintf(m, sizeof m, "  0x47d4e[%u] in al=%08x ah=%08x bl=%08x bh=%08x esi=%08x -> got lo=%08x hi=%08x exp=%08x | want lo=%08x hi=%08x exp=%08x",
+                    i, v->al, v->ah, v->bl, v->bh, v->esi, r.lo, r.hi, r.exp, v->rlo, v->rhi, v->rex);
+                printf("%s\n", m);
+            }
+            bad++;
+        }
+    }
+    check(bad == 0, "  all vectors match Python asm-mirror ref");
+    if (bad) { printf("  DBG total bad=%u indices:", bad); for (unsigned i=0;i<v047d4e_n;i++){ const v047d4e_t*v=&v047d4e_v[i]; fx64_t r; fn_047d4e(v->al,v->ah,v->bl,v->bh,v->esi,&r); if(r.lo!=v->rlo||r.hi!=v->rhi||r.exp!=v->rex) printf(" %u",i);} printf("\n"); }
+    check(v047d4e_n >= 190, "  vector set size");
+}
+
 static void test_fn_044c1e_fn_041e51(void) {
     printf("fn_044c1e (0x044c1e) / fn_041e51 (0x041e51)\n");
     check(fn_044c1e("FILE") == 0, "  thunk -> fn_049415 (no-op delete) returns 0");
@@ -3578,6 +3601,7 @@ int main(void) {
     test_fn_048e60();
     test_fn_0485eb();
     test_fn_048585();
+    test_fn_047d4e();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();
     test_fn_043324();

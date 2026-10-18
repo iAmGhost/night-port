@@ -549,6 +549,8 @@ uint32_t fn_0413e7(void);  /* 0x0413e7: thin wrapper -> fn_041340(0xd1) */
 uint32_t fn_041410(void);  /* 0x041410: thin wrapper -> fn_041340(0xd3) */
 int32_t  fn_035c2d(uint8_t arg);  /* 0x035c2d: thin wrapper -> fn_0358c7((uint8)arg) */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */
+extern uint32_t g_dat_63f88;  /* DAT_00063f88: 16-bit device value (0x0411d9) */
+uint32_t fn_0411d9(void);  /* 0x0411d9: if fn_041340(0xe1) { combine 2x fn_0412a3 as (hi<<8)|lo -> DAT_63f88 } else 0 */
 int32_t  fn_0358c7(uint8_t arg);   /* 0x0358c7: wait +1 bit0x40 clear, outb(base,arg); -1 on 0x2000 timeout */
 extern uint32_t g_dat_530ac;       /* DAT_000530ac: device port base */
 uint8_t *fn_0326c1(uint8_t *base); /* 0x0326c1: free per-element heap offsets at +0x68/+0x1f8, return base */

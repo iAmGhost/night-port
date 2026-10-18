@@ -6498,3 +6498,22 @@ int32_t fn_035c2d(uint8_t arg) { (void)canary_id(0, 0x20); return fn_0358c7((uin
  * result discarded); reload EAX; CALL 0x041340(arg) (write arg, return result); restore; RET.
  * Observably: fn_041340(0x40); return fn_041340(arg). */
 uint32_t fn_040948(uint32_t arg) { (void)canary_id(0, 0x20); fn_041340(0x40); return fn_041340(arg); }  /* 0x040948 */
+
+uint32_t g_dat_63f88 = 0;  /* DAT_00063f88: 16-bit device value (0x0411d9 combines two status bytes) */
+
+/* 0x0411d9 (L12, 99 B): read a 16-bit device value. If fn_041340(0xe1) (write cmd 0xe1)
+ * succeeds (ready), read two status bytes via fn_0412a3 (first=high, second=low), combine
+ * (hi<<8)|lo, store to DAT_00063f88, and return it; else return 0. */
+uint32_t fn_0411d9(void) {
+    (void)canary_id(0, 0x28);                                   /* PUSH 0x28;CALL 0x418ee */
+    uint32_t r;
+    if (fn_041340(0xe1) != 0) {                                 /* MOV EAX,0xe1; CALL 0x41340; TEST/JNZ */
+        uint32_t hi = fn_0412a3();                              /* CALL 0x412a3 (high byte) */
+        uint32_t lo = fn_0412a3();                              /* CALL 0x412a3 (low byte) */
+        r = (hi << 8) | lo;                                     /* SHL 8; OR */
+        g_dat_63f88 = r;                                        /* MOV [0x63f88],EDX */
+    } else {
+        r = 0;                                                  /* not ready */
+    }
+    return r;
+}

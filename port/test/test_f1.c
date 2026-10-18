@@ -4019,6 +4019,22 @@ static void test_fn_035c2d_040948(void) {
     check(sys_inb(P) == 0x80, "040948 no write when not-ready");
 }
 
+static void test_fn_0411d9(void) {
+    printf("fn_0411d9 (0x0411d9, 16-bit device value read)\n");
+    /* if fn_041340(0xe1) ready (poll +0xc bit7 clear): read 2x fn_0412a3 (poll +0xe bit7
+     * set, then inb +0xa), combine (hi<<8)|lo -> DAT_63f88, return. Else return 0. Both +0xa
+     * reads return the same port value (no write between), so r = (v<<8)|v. */
+    uint16_t base = (uint16_t)g_dat_53334;
+    sys_port_set(base + 0xc, 0);      /* write ready (+0xc bit7 clear) */
+    sys_port_set(base + 0xe, 0x80);   /* read ready (+0xe bit7 set) */
+    sys_port_set(base + 0xa, 0x34);   /* status byte */
+    uint32_t r = fn_0411d9();
+    check(r == (0x34 << 8) | 0x34, "0411d9 combines (hi<<8)|lo");
+    check(g_dat_63f88 == r, "0411d9 stores to DAT_63f88");
+    sys_port_set(base + 0xc, 0x80);   /* write not ready */
+    check(fn_0411d9() == 0, "0411d9 not-ready -> 0");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4314,6 +4330,7 @@ int main(void) {
     test_fn_04a367();
     test_fn_040efd_wrappers();
     test_fn_035c2d_040948();
+    test_fn_0411d9();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

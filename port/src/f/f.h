@@ -502,6 +502,13 @@ uint32_t fn_041e94(uint32_t size); /* 0x041e94: heap_malloc alias */
 /* 0x04123d: device-port init. canary_id(0,0x20); outb(g_dat_53334+6,1); 10x
  * inb(g_dat_53334+6); outb(g_dat_53334+6,0). No stack args (RET 0). */
 void fn_04123d(void);              /* 0x04123d: device-port init loop */
+
+/* 0x0412e9/0x041390: CD-ROM/device status spin-polls (no args). Both poll
+ * inb(g_dat_53334+off) up to 0x7fff times. 0x0412e9 (+0xe) returns 1 when the
+ * polled byte has bit 0x80 SET; 0x041390 (+0xc) returns 1 when bit 0x80 CLEAR;
+ * both return 0 on the 0x7fff-iter timeout. */
+uint32_t fn_0412e9(void);          /* 0x0412e9: poll +0xe for bit7 set   */
+uint32_t fn_041390(void);          /* 0x041390: poll +0xc for bit7 clear */
 void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
 uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 /* 0x047d24: register-ABI wrapper around fx_mul64 (a=EAX, b=EDX, out=EBX). */

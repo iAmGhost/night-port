@@ -2637,6 +2637,34 @@ static void test_fn_041e94_04123d(void) {
     g_dat_53334 = saved_port;
 }
 
+static void test_fn_0412e9_041390(void) {
+    printf("fn_0412e9/fn_041390 (device-port spin polls)\n");
+    uint32_t saved = g_dat_53334;
+    g_dat_53334 = 0x100;   /* base so base+0xc / base+0xe are within PORT_MAX (0x400) */
+
+    /* fn_0412e9: poll inb(base+0xe), return 1 when bit7 SET, else 0 on timeout. */
+    sys_port_set(0x100 + 0xe, 0x80);
+    check(fn_0412e9() == 1, "  fn_0412e9 bit7 set (0x80) -> 1 (immediate)");
+    sys_port_set(0x100 + 0xe, 0x81);
+    check(fn_0412e9() == 1, "  fn_0412e9 0x81 (bit7 set + low) -> 1");
+    sys_port_set(0x100 + 0xe, 0x00);
+    check(fn_0412e9() == 0, "  fn_0412e9 bit7 clear -> 0 (0x7fff-iter timeout)");
+    sys_port_set(0x100 + 0xe, 0x7f);
+    check(fn_0412e9() == 0, "  fn_0412e9 0x7f (bit7 clear) -> 0 (timeout)");
+
+    /* fn_041390: poll inb(base+0xc), return 1 when bit7 CLEAR, else 0 on timeout. */
+    sys_port_set(0x100 + 0xc, 0x00);
+    check(fn_041390() == 1, "  fn_041390 bit7 clear (0x00) -> 1 (immediate)");
+    sys_port_set(0x100 + 0xc, 0x7f);
+    check(fn_041390() == 1, "  fn_041390 0x7f (bit7 clear + low) -> 1");
+    sys_port_set(0x100 + 0xc, 0x80);
+    check(fn_041390() == 0, "  fn_041390 bit7 set -> 0 (0x7fff-iter timeout)");
+    sys_port_set(0x100 + 0xc, 0xff);
+    check(fn_041390() == 0, "  fn_041390 0xff (bit7 set) -> 0 (timeout)");
+
+    g_dat_53334 = saved;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3663,6 +3691,7 @@ int main(void) {
     test_fn_044867();
     test_fn_043234();
     test_fn_041e94_04123d();
+    test_fn_0412e9_041390();
     test_fn_048754();
     test_fn_048e60();
     test_fn_0485eb();

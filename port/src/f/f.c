@@ -1972,6 +1972,40 @@ void fn_04123d(void) {
     for (int i = 0; i < 10; i++) (void)inb(port);      /* 0x41267-41289 */
     outb(port, 0);                                     /* 0x4128b-41295 */
 }
+
+/* 0x0412e9: CD-ROM/device status spin-poll. canary prologue PUSH 0x24; CALL 0x418ee.
+ * No args. Polls inb(g_dat_53334 + 0xe) up to 0x7fff times: a counter (init 0x7fff)
+ * is decremented before each poll; the first poll whose byte has bit 0x80 SET returns
+ * 1, and if the counter reaches -1 (0x7fff polls, bit never set) it returns 0.
+ * EDX is push/pop'd around inb (the original inb clobbers EDX, then restores it), so
+ * the decompiler's "extraout EDX" is an artifact -- the only output is EAX.
+ * A 2026-07-08 note deferred this to the "CD subsystem" batch, but it is a
+ * self-contained verified leaf: ported here (wiring g_dat_53334 to a real device is a
+ * separate sys-layer task). */
+uint32_t fn_0412e9(void) {
+    (void)canary_id(0, 0x24);
+    int32_t n = 0x7fff;
+    for (;;) {
+        n--;                                            /* 0x41308 DEC [EBP-4] */
+        if (n == -1) return 0;                          /* 0x4130b/4130f */
+        uint8_t r = inb((uint16_t)(g_dat_53334 + 0xe)); /* 0x41311-41319 */
+        if (r & 0x80) return 1;                         /* 0x4131e/41320/41322 */
+    }
+}
+
+/* 0x041390: mirror of 0x0412e9, but polls inb(g_dat_53334 + 0xc) for bit 0x80 CLEAR.
+ * canary prologue PUSH 0x24; CALL 0x418ee. No args. The first poll whose byte has bit
+ * 0x80 CLEAR returns 1; if the 0x7fff-iter counter exhausts (bit never cleared) 0. */
+uint32_t fn_041390(void) {
+    (void)canary_id(0, 0x24);
+    int32_t n = 0x7fff;
+    for (;;) {
+        n--;                                            /* 0x413af DEC [EBP-4] */
+        if (n == -1) return 0;                          /* 0x413b2/413b6 */
+        uint8_t r = inb((uint16_t)(g_dat_53334 + 0xc)); /* 0x413b8-413c0 */
+        if (!(r & 0x80)) return 1;                      /* 0x413c5/413c7/413c9 */
+    }
+}
 /* 0x042a30: same shape, but CALL const_64004 -> writes [0x64004]. */
 void fn_042a30(uint32_t x) { g_dat_64004 = x; }
 /* 0x042a3c: CALL [0x533bd]; RET. */

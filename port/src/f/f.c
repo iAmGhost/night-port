@@ -2152,6 +2152,29 @@ end:
     return consumed;
 }
 
+/* 0x042ccc: DPMI free-all heap teardown (41 insns).
+ *
+ * Walks the g_heap_head region chain. For each region r, if it is "freeable" --
+ * its sentinel-prev block fills the whole region, i.e. B_SIZE(R_SENT_PREV(r)) +
+ * 0x2c == B_SIZE(r) (the region holds a single full free block) -- it is unlinked
+ * via heap_unlink and its DPMI memory is freed (INT 31h AH=0x05 AL=0x02, or INT
+ * 21h AH=0x49 depending on a saved prev-field check). Both INT frees are no-ops
+ * in the flat model, so the sole observable effect is the heap_unlink of each
+ * freeable region. Non-freeable regions are left in place. The chain advances via
+ * B_NEXT(r) (saved before unlink). orig: 0x042ccc */
+void fn_042ccc(void)
+{
+    uint32_t r = g_heap_head;
+    while (r != 0) {
+        uint32_t next = B_NEXT(r);                       /* save before unlink  */
+        if (B_SIZE(R_SENT_PREV(r)) + 0x2c == B_SIZE(r)) {    /* freeable?        */
+            heap_unlink(r);                              /* remove from chain   */
+            /* INT 31h AH=5 AL=2 / INT 21h AH=49 free: no-op in flat model     */
+        }
+        r = next;
+    }
+}
+
 void dispatch_a(uint32_t key)
 {
     for (;;) {                                          /* 0x4461f outer */

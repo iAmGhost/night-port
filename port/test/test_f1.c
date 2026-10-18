@@ -3760,6 +3760,27 @@ static void test_fn_043e34(void) {
     check(ts_emitc == ' ', "  fn_043e34 word: ' ' put back");
 }
 
+/* ---------- fn_042ccc: DPMI free-all heap teardown ---------- */
+static void test_fn_042ccc(void) {
+    printf("fn_042ccc (0x042ccc, DPMI free-all teardown)\n");
+    heap_arena_init();
+    uint32_t rA = heap_acquire_region(0x1000) - 0x30;
+    uint32_t rB = heap_acquire_region(0x1000) - 0x30;
+    check(g_heap_head != 0, "  fn_042ccc: two regions in chain");
+    /* make rB NOT freeable: shrink its block0 (rB+0x2c) so the fill condition fails */
+    hw(rB + 0x2c)[0] = hw(rB)[0] - 0x2c - 4;
+    fn_042ccc();
+    check(g_heap_head == rB, "  fn_042ccc: freeable rA unlinked, head now rB");
+    check(hw(rB)[1] == 0, "  fn_042ccc: rB.prev NULL after rA removed");
+
+    /* second: single freeable region -> head becomes 0 */
+    heap_arena_init();
+    uint32_t rC = heap_acquire_region(0x1000) - 0x30;
+    check(g_heap_head == rC, "  fn_042ccc: single region is head");
+    fn_042ccc();
+    check(g_heap_head == 0, "  fn_042ccc: single freeable region -> head 0");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4000,6 +4021,7 @@ int main(void) {
     test_fn_044387();
     test_fn_043fc3();
     test_fn_043e34();
+    test_fn_042ccc();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

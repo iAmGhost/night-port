@@ -1344,6 +1344,25 @@ void fn_03d67c(uint32_t a0, uint32_t a1, uint32_t a2) {
     a[a1 * 3 + 1] = b1;
     a[a1 * 3 + 2] = b2;
 }
+
+/* 0x03d606 (L11, 117 B): index-driven reorder. a0 is a g_heap_base heap offset;
+ * struct: count@0x3c (int32), pairs_off@0x44 (heap offset to 2-byte pairs), and a
+ * 3-byte-stride data array inline at a0+0x48. Loop i in 0..count-1: a1 = pairs[i*2],
+ * a2 = pairs[i*2+1]; fn_03d67c(a0+0x48, a1, a2). (orig args: EAX=a0+0x48 base,
+ * EDX=a1, EBX=a2 -> fn_03d67c(a0=EAX, a1=EDX, a2=EBX).) */
+void fn_03d606(uint32_t a0) {
+    (void)canary_id(0, 0x24);                                   /* PUSH 0x24;CALL 0x418ee */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *s = hb + a0;                                       /* struct at heap offset a0 */
+    int32_t count = *(int32_t *)(s + 0x3c);                     /* 0x3d636 */
+    uint32_t po = *(uint32_t *)(s + 0x44);                      /* pairs heap offset */
+    uint8_t *pairs = hb + po;
+    for (int32_t i = 0; i < count; i++) {
+        uint32_t a1 = pairs[i * 2 + 0];                         /* 0x3d65e: EDX = a1 */
+        uint32_t a2 = pairs[i * 2 + 1];                         /* 0x3d648: EBX = a2 */
+        fn_03d67c(a0 + 0x48, a1, a2);                           /* 0x3d66c */
+    }
+}
 /* 0x017218: set the sign of an output value pair by a 2-bit index. Args: a0 (heap
  * offset of a state struct), a1 (int32 value), ptr1/ptr2 (heap offsets of int32 output
  * slots). Sets a0->0x17 = 2. Then on idx = a0->0xbb (0..3):

@@ -4300,6 +4300,33 @@ static void test_fn_03d67c(void) {
     check(A[9]==3 && A[10]==3 && A[11]==3, "03d67c e3 = old e2 {3,3,3}");
 }
 
+static void test_fn_03d606(void) {
+    printf("fn_03d606 (0x03d606, index-driven reorder via fn_03d67c)\n");
+    uint32_t a0 = heap_arena_alloc(0x48 + 0x10);   /* struct: count@0x3c, pairs@0x44, data@0x48 */
+    uint32_t po = heap_arena_alloc(8);             /* 2 pairs */
+    uint8_t *S = (uint8_t *)(g_heap_base + a0);
+    uint8_t *P = (uint8_t *)(g_heap_base + po);
+    for (int i = 0; i < 0x48 + 0x10; i++) S[i] = 0;
+    for (int i = 0; i < 8; i++) P[i] = 0;
+    for (int e = 0; e < 3; e++) for (int b = 0; b < 3; b++) S[0x48 + e * 3 + b] = e + 1; /* e0={1,1,1} e1={2,2,2} e2={3,3,3} */
+    P[0] = 0; P[1] = 1; P[2] = 1; P[3] = 2;        /* pairs (a1=0,a2=1),(a1=1,a2=2) */
+    *(int32_t *)(S + 0x3c) = 2;                    /* count */
+    *(uint32_t *)(S + 0x44) = po;                  /* pairs heap offset */
+    /* differential: same two fn_03d67c calls on a copy */
+    uint32_t eo = heap_arena_alloc(0x10);
+    uint8_t *E = (uint8_t *)(g_heap_base + eo);
+    for (int e = 0; e < 3; e++) for (int b = 0; b < 3; b++) E[e * 3 + b] = e + 1;
+    fn_03d67c(eo, P[0], P[1]);
+    fn_03d67c(eo, P[2], P[3]);
+    fn_03d606(a0);
+    int ok = 1;
+    for (int i = 0; i < 9; i++) if (S[0x48 + i] != E[i]) ok = 0;
+    check(ok, "03d606 data matches differential");
+    check(S[0x48+0]==2 && S[0x48+1]==2 && S[0x48+2]==2, "03d606 e0={2,2,2}");
+    check(S[0x48+3]==3 && S[0x48+4]==3 && S[0x48+5]==3, "03d606 e1={3,3,3}");
+    check(S[0x48+6]==1 && S[0x48+7]==1 && S[0x48+8]==1, "03d606 e2={1,1,1}");
+}
+
 static void test_fn_017218(void) {
     printf("fn_017218 (0x017218, sign-vector by 2-bit index)\n");
     uint32_t a0 = heap_arena_alloc(0xc8);
@@ -4795,6 +4822,7 @@ int main(void) {
     test_fn_01435f();
     test_fn_031f5f();
     test_fn_03d67c();
+    test_fn_03d606();
     test_fn_017218();
     test_fn_013aad();
     test_fn_0357f2();

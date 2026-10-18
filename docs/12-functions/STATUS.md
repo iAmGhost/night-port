@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 326 / 528 done
+TOTALS: 327 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 326 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 57 | 0 | 0 | 24 |
-| L11 | 77 | 37 | 0 | 0 | 40 |
+| L11 | 77 | 38 | 0 | 0 | 39 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -703,7 +703,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x03c6ec | 62 | fn_03c6ec | reset one node: fn_03c7d7(s) + zero s+0x44, return s | f.c |
 | [ ] | 0x03cb38 | 160 | FUN_0003cb38 | | |
 | [ ] | 0x03cbd9 | 145 | FUN_0003cbd9 | | |
-| [ ] | 0x03d606 | 117 | FUN_0003d606 | | |
+| [x] | 0x03d606 | 117 | FUN_0003d606 | index-driven reorder (heap-offset struct): loop i<a0->0x3c: fn_03d67c(a0+0x48, pairs[i*2], pairs[i*2+1]); pairs at heap-off a0->0x44 | differential test (same fn_03d67c calls on copy) + explicit final state, 5 checks |
 | [x] | 0x03d88f | 68 | fn_03d88f | reset every node in list at g_dat_63350 (next=+0x34c), return 0 | f.c |
 | [ ] | 0x03d999 | 53 | FUN_0003d999 | | |
 | [ ] | 0x03de85 | 272 | FUN_0003de85 | | |

@@ -2621,6 +2621,20 @@ static void test_fn_043234(void) {
     g_ndpool = NULL; g_node_list_active = 0;
 }
 
+static void test_fn_041e94_04123d(void) {
+    printf("fn_041e94/fn_04123d (heap thunk + device init)\n");
+    /* fn_041e94 == heap_malloc (JMP 0x41bdc). Differential on non-allocating cases: */
+    check(fn_041e94(0) == heap_malloc(0), "  fn_041e94(0) == heap_malloc(0)");
+    check(fn_041e94(0xFFFFFFD5u) == heap_malloc(0xFFFFFFD5u), "  fn_041e94(oversize) == heap_malloc(oversize)");
+    check(fn_041e94(16) != 0, "  fn_041e94(16) returns a valid pointer");
+    /* fn_04123d: device init loop (outb/inb stubs), runs without crash. */
+    uint32_t saved_port = g_dat_53334;
+    g_dat_53334 = 0x300;
+    fn_04123d();    /* outb(0x306,1); 10x inb(0x306); outb(0x306,0) */
+    check(1, "  fn_04123d runs (device init loop, port I/O stubbed)");
+    g_dat_53334 = saved_port;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3496,6 +3510,7 @@ int main(void) {
     test_fn_04488b();
     test_fn_044867();
     test_fn_043234();
+    test_fn_041e94_04123d();
     test_fn_048754();
     test_fn_048e60();
     test_fn_049415();

@@ -1860,6 +1860,23 @@ u32_cb_fn  g_dat_533bd = NULL; /* DAT_000533bd */
 void fn_042a08(void) { g_dat_64008 = 0xd; }
 /* 0x042a0d: PUSH EDX; MOV EDX,EAX; CALL const_64008; MOV [EAX],EDX; POP EDX; RET. */
 void fn_042a0d(uint32_t x) { g_dat_64008 = x; }
+
+/* 0x041e94: pure JMP thunk to 0x041bdc (heap_malloc). Same reg-ABI (EAX=size,
+ * high word ignored). Behaviourally identical to heap_malloc(size). */
+uint32_t fn_041e94(uint32_t size) { return heap_malloc(size); }
+
+/* 0x04123d: device-port init (no stack args, RET 0). Prologue canary PUSH 0x20;
+ * CALL 0x0418ee (canary_id, no-op guard in flat model). Then outb(port,1); 10 x
+ * inb(port); outb(port,0) where port = g_dat_53334 + 6. The loop counter (EAX=[EBP-4],
+ * INC) is recomputed/overwritten with the port before each inb, so it only bounds the
+ * 10 identical inb(port) calls (dead as an argument). */
+void fn_04123d(void) {
+    (void)canary_id(0, 0x20);                        /* 0x4123d-41242 */
+    uint16_t port = (uint16_t)(g_dat_53334 + 6);      /* [0x53334] + 6 */
+    outb(port, 1);                                     /* 0x4125a-41262 */
+    for (int i = 0; i < 10; i++) (void)inb(port);      /* 0x41267-41289 */
+    outb(port, 0);                                     /* 0x4128b-41295 */
+}
 /* 0x042a30: same shape, but CALL const_64004 -> writes [0x64004]. */
 void fn_042a30(uint32_t x) { g_dat_64004 = x; }
 /* 0x042a3c: CALL [0x533bd]; RET. */

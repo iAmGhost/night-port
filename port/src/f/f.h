@@ -482,6 +482,13 @@ extern uint8_t  g_dat_533bb;    /* DAT_000533bb: classify-enable threshold (>2) 
 extern u32_cb_fn  g_dat_533bd;  /* DAT_000533bd: callback slot (0x042a3c) */
 void     fn_042a08(void);       /* 0x042a08: g_dat_64008 = 13 */
 void     fn_042a0d(uint32_t x); /* 0x042a0d: g_dat_64008 = x */
+
+/* 0x041e94: pure JMP thunk to 0x041bdc (heap_malloc). Same reg-ABI (EAX=size). */
+uint32_t fn_041e94(uint32_t size); /* 0x041e94: heap_malloc alias */
+
+/* 0x04123d: device-port init. canary_id(0,0x20); outb(g_dat_53334+6,1); 10x
+ * inb(g_dat_53334+6); outb(g_dat_53334+6,0). No stack args (RET 0). */
+void fn_04123d(void);              /* 0x04123d: device-port init loop */
 void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
 uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 /* 0x047d24: register-ABI wrapper around fx_mul64 (a=EAX, b=EDX, out=EBX). */

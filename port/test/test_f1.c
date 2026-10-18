@@ -4300,6 +4300,42 @@ static void test_fn_03d67c(void) {
     check(A[9]==3 && A[10]==3 && A[11]==3, "03d67c e3 = old e2 {3,3,3}");
 }
 
+static void test_fn_017218(void) {
+    printf("fn_017218 (0x017218, sign-vector by 2-bit index)\n");
+    uint32_t a0 = heap_arena_alloc(0xc8);
+    uint32_t p1 = heap_arena_alloc(8);
+    uint32_t p2 = heap_arena_alloc(8);
+    uint8_t *A  = (uint8_t *)(g_heap_base + a0);
+    int32_t *O1 = (int32_t *)(g_heap_base + p1);
+    int32_t *O2 = (int32_t *)(g_heap_base + p2);
+    for (int i = 0; i < 0xc8; i++) A[i] = 0;
+    int32_t expect[4][2] = {{5,5},{-5,5},{5,-5},{-5,-5}};
+    for (uint32_t idx = 0; idx < 4; idx++) {
+        *(uint32_t*)(A+0xbb) = idx;
+        *(int32_t*)(A+0xab) = 2;
+        *O1 = 0x7777; *O2 = 0x7777;   /* sentinel */
+        int32_t r = fn_017218(a0, 5, p1, p2);
+        check(*(uint32_t*)(A+0x17) == 2, "017218 a0->0x17 = 2");
+        check(*O1 == expect[idx][0], "017218 *ptr1 sign");
+        check(*O2 == expect[idx][1], "017218 *ptr2 sign");
+        check(r == 0, "017218 ret 0 (cnt>=0)");
+        check(*(int32_t*)(A+0xab) == 1, "017218 cnt 2->1");
+    }
+    /* idx > 3: default (no write) */
+    *(uint32_t*)(A+0xbb) = 5;
+    *(int32_t*)(A+0xab) = 2;
+    *O1 = 0xAAAA; *O2 = 0xBBBB;
+    int32_t r = fn_017218(a0, 5, p1, p2);
+    check(*O1 == 0xAAAA && *O2 == 0xBBBB, "017218 idx>3: no write");
+    check(r == 0, "017218 idx>3 ret 0");
+    /* negative counter: ret 1, no decrement */
+    *(uint32_t*)(A+0xbb) = 0;
+    *(int32_t*)(A+0xab) = -1;
+    r = fn_017218(a0, 5, p1, p2);
+    check(r == 1, "017218 ret 1 (cnt<0)");
+    check(*(int32_t*)(A+0xab) == -1, "017218 cnt unchanged when <0");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4608,6 +4644,7 @@ int main(void) {
     test_fn_01435f();
     test_fn_031f5f();
     test_fn_03d67c();
+    test_fn_017218();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

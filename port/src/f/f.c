@@ -1308,6 +1308,34 @@ void fn_03d67c(uint32_t a0, uint32_t a1, uint32_t a2) {
     a[a1 * 3 + 1] = b1;
     a[a1 * 3 + 2] = b2;
 }
+/* 0x017218: set the sign of an output value pair by a 2-bit index. Args: a0 (heap
+ * offset of a state struct), a1 (int32 value), ptr1/ptr2 (heap offsets of int32 output
+ * slots). Sets a0->0x17 = 2. Then on idx = a0->0xbb (0..3):
+ *   0: *ptr1= a1, *ptr2= a1   1: *ptr1=-a1, *ptr2= a1
+ *   2: *ptr1= a1, *ptr2=-a1   3: *ptr1=-a1, *ptr2=-a1   (idx>3: no write).
+ * Finally: if a0->0xab (int32) < 0 return 1 (unchanged); else a0->0xab-- and return 0.
+ * NOTE: the original also passes 2 extra register args (EBX, ECX) that are stored but
+ * never read; omitted here as they have no observable effect. */
+int32_t fn_017218(uint32_t a0, int32_t a1, uint32_t ptr1, uint32_t ptr2) {
+    (void)canary_id(0, 0x28);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *a = hb + a0;
+    int32_t *o1 = (int32_t *)(hb + ptr1);
+    int32_t *o2 = (int32_t *)(hb + ptr2);
+    *(uint32_t *)(a + 0x17) = 2;                       /* a0->0x17 = 2 */
+    uint32_t idx = *(uint32_t *)(a + 0xbb);            /* switch index */
+    switch (idx) {
+        case 0: *o1 = a1;  *o2 = a1;  break;
+        case 1: *o1 = -a1; *o2 = a1;  break;
+        case 2: *o1 = a1;  *o2 = -a1; break;
+        case 3: *o1 = -a1; *o2 = -a1; break;
+        default: break;                                 /* idx > 3: no write */
+    }
+    int32_t cnt = *(int32_t *)(a + 0xab);
+    if (cnt < 0) return 1;                             /* a0->0xab < 0: no decrement */
+    *(int32_t *)(a + 0xab) = cnt - 1;                  /* a0->0xab-- */
+    return 0;
+}
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }
 void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }

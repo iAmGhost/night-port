@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 321 / 528 done
+TOTALS: 322 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 321 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 53 | 0 | 0 | 28 |
+| L10 | 81 | 54 | 0 | 0 | 27 |
 | L11 | 77 | 36 | 0 | 0 | 41 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x017218 PORTED (L10, 242 B) -- sign-vector by 2-bit index + counter.** Args (a0, a1, ptr1, ptr2): a0 state struct (heap offset), a1 int32 value, ptr1/ptr2 int32 output slots (heap offsets). a0->0x17=2. Switch on idx=a0->0xbb (table @0x172b8: 0x17254/0x17269/0x17280/0x17297): idx0=(a1,a1), idx1=(-a1,a1), idx2=(a1,-a1), idx3=(-a1,-a1), idx>3=no write. The NEG idiom (*p=a1; *p=-*p) collapses to *p=-a1. Tail: if a0->0xab(int32)<0 return 1 (no change); else a0->0xab-- return 0. **NOTE:** original also passes 2 extra register args (EBX/ECX) that are stored but never read -- omitted (no observable effect). Memory model: a0/ptr1/ptr2 all heap offsets (g_heap_base+off), consistent with 0x01435f/0x031f5f/0x03d67c. Test: all 4 idx + default(no-write) + negative-counter(no-decrement). 24 checks. L10 53->54, TOTALS 321->322/528, suite 1120 PASS 0 FAIL. **NEXT:** L10 0x03f462(303B), 0x034f31(376B), 0x0112fd(entity-ctx); L11 0x034990(heap-init ~110KB). | STATUS.md L10 |
 | 2026-07-08 | **0x03d67c PORTED (L10, 223 B) -- 3-byte-stride array element move.** Args (a0, a1, a2): move element a2 to index a1 of a 3-byte-stride array at a0 (base at g_heap_base+a0), shifting [a1, a2-1] right by one. Save element[a2] (3 bytes) to locals; for i=a2-1 down to a1: element[i+1]=element[i] (i.e. a[(i+1)*3+k]=a[i*3+k], high->low so the source is read before the dest is clobbered); then element[a1]=saved. a1<a2. **BUG FIXED:** first cut used stride `+1` (a[i*3+1+k]) instead of `+3` (a[(i+1)*3+k]) -- off-by-one broke the two right-shifted elements. Test: 4 elements {1,1,1}{2,2,2}{3,3,3}{4,4,4}, move elem3 to idx1 -> {1,1,1}{4,4,4}{2,2,2}{3,3,3}. 4 checks. L10 52->53, TOTALS 320->321/528, suite 1096 PASS 0 FAIL. **0x0112fd DEFERRED:** it is an entity-list 2-node unlink (next=0x13f, prev=0x143, real C pointers) that COLLIDES with three pre-existing entity-list globals already ported with real pointers: g_dat_53c68 (int32, entity count), g_dat_53c70 (uint8_t*, head), g_dat_53c78 (uint8_t*, cursor), plus an undeclared g_dat_53c74. My first (uint32-offset) port conflicted on redeclaration. Porting it correctly needs the entity-list subsystem representation (real pointers, entity struct at 0x17/0x11/0xd/0x30/0x32). **NEXT:** L10 0x0112fd(entity ctx), 0x017218(242B), 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
 | 2026-07-08 | **0x031f5f PORTED (L10, 221 B) -- remove-first-element + shift-array-left.** Arg a0(EAX, heap offset). a0->0x31(byte count)--; a0->0x17=a0->0x32 (save slot0); then for i in 0..count-2: slot[i]=slot[i+1] (4-byte slots at a0+0x32, i.e. *(a0+0x32+i*4)=*(a0+0x36+i*4), a left-shift/overlap copy); a0->0x11=0. Then via P1=a0->0x123, P2=P1->0x4, base=P2[a0->0x17 & 0x7fffffff]: if base->0x69!=0 set g_dat_63364=base->0x69(byte), g_dat_63368=base->0x6a(word). Added 2 globals (63364/63368). **LATENT BUG:** the leading JLE on the zero-extended count byte is dead (never <=0), so count==0 underflows to 255 and shifts 255 slots (OOB) -- not exercised in the test. Test: count=3, slots {0,100,200}, P2[0]->base{0x69=0x42,0x6a=0x1234}; after: count=2, slot0=100, slot1=200, a0->0x17=0, g_dat_63364=0x42, g_dat_63368=0x1234. 7 checks. L10 51->52, TOTALS 319->320/528, suite 1092 PASS 0 FAIL. **NOTE:** same P1/P2 interval-list chain as 0x01435f (a0->0x123 -> +0x4 -> P2[idx]). **DEFER:** 0x035dfc (197B) is a busy-wait state-machine that ALWAYS hangs single-threaded (every path loops; the L2 return needs a flag to flip mid-function). **NEXT:** L10 0x03d67c(223B), 0x0112fd(233B), 0x017218(242B); L11 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
 | 2026-07-08 | **0x01435f PORTED (L10, 190 B) -- 4-level pointer-chain straddle scan.** Args a0(EAX, heap offset), a1(DL byte), a2(BL byte). Chain: thr=a0->0x11, idx=a0->0x17 (& 0x7fffffff for the base index, raw for the return compare), P1=a0->0x123, P2=P1->0x4 (array of base offsets), base=P2[idx]. Loop i=0..5: find first i where w8=base[i*4+8] <= thr < w10=base[i*4+0xa] (w8>thr -> skip; w10>thr -> break with i; else i++). Return 0 iff (a1==a0->0x17 raw) && (a2==i), else 1. Test: 4 arena allocs (a0 0x140, P1 0x10, P2 0x20, base 0x30); base[0]={6,3} skip, base[1]={4,7} break i=1; (a1,a2)=(1,1)->0, (1,2)->1, (0,1)->1. 3 checks. L10 50->51, TOTALS 318->319/528, suite 1085 PASS 0 FAIL. **NOTE:** the base chain (a0->0x123 -> +0x4 -> P2[idx]) mirrors the node/interval-list layout (cf. fn_03ba2c). **NEXT:** L10 0x035dfc(197B, 1 callee); L11 0x034990(heap-init, ~110KB arena), 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
@@ -567,7 +568,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x01520b | 47 | fn_01520b | return *(u32*)(p+5) | 1:1 |
 | [ ] | 0x01545e | 1036 | FUN_0001545e | | |
 | [ ] | 0x01586b | 435 | FUN_0001586b | | |
-| [ ] | 0x017218 | 242 | FUN_00017218 | | |
+| [x] | 0x017218 | 242 | fn_017218 | heap/state | set *ptr1/*ptr2 to a sign-combo of a1 by idx=a0->0xbb (0..3, table @0x172b8); a0->0xab-- (ret 1 if <0); test PASS, 24 checks |
 | [x] | 0x031f10 | 78 | fn_031f10 | ring push (count@0x31,cap5) | 1:1 (reg-ABI) |
 | [x] | 0x031f5f | 221 | fn_031f5f | heap/array | remove-first-element + shift array left by one slot (4B stride at a0+0x32); save slot0 to a0->0x17; P2[a0->0x17] -> g_dat_63364/63368; test PASS, 7 checks |
 | [x] | 0x0326c1 | 109 | fn_0326c1 | free per-element heap offsets at +0x68/+0x1f8 (count@0), return base | f.c |

@@ -6373,3 +6373,22 @@ void fn_047b4f(fx128 *a, const fx128 *b, fx128 *out)
     fn_047b79(a->lo, a->hi, esi, b->hi, b->lo, &r_lo, &r_hi, &r_exp);  /* 0x047b67 */
     out->lo = r_lo; out->hi = r_hi; out->exp = r_exp;                 /* 0x047b6d..0x047b72 */
 }
+
+/* fn_045bb7  orig: 0x00045bb7 (L1, 71 insns) — DOS far-memory allocate/resize/verify manager.
+ *   Register-ABI: EAX = size (primary arg), EDI = secondary register arg; returns
+ *   int32 (a handle, or -1 on failure). Reads DAT_53398 (size threshold),
+ *   DAT_533b2/b3 (flags), DAT_53384 (stored handle).
+ *   FLAT MODEL: no DOS far memory, so every INT 21 (AH=0xED query, AH=0x4A
+ *   allocate/resize) fails. Control-flow: the threshold check (EAX < DAT_53398)
+ *   jumps straight to the fail path; otherwise both flag sub-paths converge on the
+ *   terminal INT 21 AH=0x4A (0x45c14), which fails (JGE 0x45c61 not taken) and falls
+ *   to the fail path (0x45c1e). So EVERY execution reaches the fail path:
+ *       r = const_64008();  *r = 5;  return -1.
+ *   In the flat port *0x64008 is the global g_dat_64008. The register args do not
+ *   affect the flat-model outcome (all DOS ops fail). */
+int32_t fn_045bb7(uint32_t size)
+{
+    (void)size;              /* EAX: only gates the threshold branch, which also lands on the fail path */
+    g_dat_64008 = 5;         /* 0x45c23 MOV [EAX],0x5 with EAX = const_64008() = 0x64008 */
+    return -1;               /* 0x45c29 MOV EAX,0xffffffff */
+}

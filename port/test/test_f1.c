@@ -3935,6 +3935,22 @@ static void test_fn_047b4f(void) {
     check(ok, "  all 3000 vectors: wrapper(out=a<op>b) == core fn_047b79(packed regs)");
 }
 
+static void test_fn_045bb7(void) {
+    printf("fn_045bb7 (0x045bb7, DOS far-memory alloc/resize/verify)\n");
+    /* Flat model: no DOS far memory -> every path hits a failing INT 21 AH=0x4A ->
+     * always the fail path: g_dat_64008 = 5, return -1. */
+    for (uint32_t sz = 0; sz < 3; sz++) {
+        g_dat_64008 = 0xdeadbeefu;              /* sentinel */
+        int32_t r = fn_045bb7(sz);
+        if (r != -1 || g_dat_64008 != 5) {
+            printf("    FAIL size=%u: r=%d g_dat_64008=0x%08x (want -1 / 5)\n", sz, r, g_dat_64008);
+            check(0, "  fail path: r==-1 && g_dat_64008==5");
+            return;
+        }
+    }
+    check(1, "  fail path: r==-1 && g_dat_64008==5 (3 sizes)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4184,6 +4200,7 @@ int main(void) {
     test_fn_048053();
     test_fn_047b79();
     test_fn_047b4f();
+    test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

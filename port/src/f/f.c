@@ -1926,6 +1926,27 @@ void node_deactivate(uint32_t rec_off)   /* 0x44b5d */
     }
 }
 
+/* 0x043234: walk the active node list (head g_node_list_active, offset-based via
+ * g_ndpool). For each node, rec = base + node->rec (the io_state record). If
+ * (rec[0xc] & mask) count++; if additionally (rec[0xd] & 0x10) call fn_044748(rec).
+ * Returns the count of matching records. (orig: EAX=mask, returns EBX.) */
+uint32_t fn_043234(uint32_t mask) {
+    uint8_t *base = g_ndpool;
+    uint32_t cur = g_node_list_active;            /* 0x43239 EDX=[0x63ffc] */
+    uint32_t count = 0;                            /* 0x4323f XOR EBX,EBX */
+    while (cur != 0) {                             /* 0x43259 TEST EDX,EDX / JNZ 0x43243 */
+        struct nd_node *node = (struct nd_node *)(base + cur);
+        uint8_t *rec = base + node->rec;           /* 0x43243 EAX=[EDX+4] */
+        if (rec[0xc] & mask) {                     /* 0x43246 TEST [EAX+0xc],ECX */
+            count++;                                /* 0x4324b INC EBX */
+            if (rec[0xd] & 0x10)                   /* 0x4324c TEST [EAX+0xd],0x10 */
+                fn_044748((io_state_t *)rec);       /* 0x43252 CALL 0x044748 */
+        }
+        cur = node->next;                          /* 0x43257 EDX=[EDX] */
+    }
+    return count;                                  /* 0x4325d MOV EAX,EBX */
+}
+
 const uint8_t *parse_mod_prefix(const uint8_t *s, uint8_t *out)   /* 0x44fd7 */
 {
     out[0x14] = 0;                                 /* 0x44fd9 init flags */

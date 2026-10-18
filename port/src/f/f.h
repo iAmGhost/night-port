@@ -510,6 +510,12 @@ extern uint32_t  g_node_list_done;   /* DAT_00063ff8: head offset */
  * |= 0x3, unlink the node from the active list, and push it onto the front of
  * the done list. No-op if not found.  orig: 0x044b5d */
 void node_deactivate(uint32_t rec_off);
+
+/* 0x043234: walk the active node list (head g_node_list_active, offset-based via
+ * g_ndpool). For each node, rec = base + node->rec (the io_state). If (rec[0xc] &
+ * mask) count++; if additionally (rec[0xd] & 0x10) call fn_044748(rec) (flush).
+ * Returns the count of matching records. */
+uint32_t fn_043234(uint32_t mask);
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),
  * '0' -> out+0x16 = '0'. Stops at the first other character.  orig: 0x044fd7 */

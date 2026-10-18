@@ -2593,6 +2593,34 @@ static void test_fn_044867(void) {
     g_dat_53730 = NULL; g_arr_53730 = NULL;
 }
 
+static void test_fn_043234(void) {
+    printf("fn_043234 (0x043234)\n");
+    uint8_t pool[72]; memset(pool, 0, sizeof pool);
+    g_ndpool = pool;
+    *(uint32_t *)(pool + 8)  = 16;   /* node A: next */
+    *(uint32_t *)(pool + 12) = 24;   /* node A: rec -> io_state A */
+    *(uint32_t *)(pool + 16) = 0;    /* node B: next (end) */
+    *(uint32_t *)(pool + 20) = 48;   /* node B: rec -> io_state B */
+    g_node_list_active = 8;          /* head = node A */
+    *(uint32_t *)(pool + 28) = 0x1234; /* A.f4 */
+    *(uint32_t *)(pool + 32) = 0x5678; /* A.f8 */
+    pool[36] = 0x04;                    /* A flags0 (bit1 clear -> no write) */
+    pool[37] = 0x10;                    /* A flags1 (bit4 -> flush) */
+    *(uint32_t *)(pool + 40) = 1;       /* A handle */
+    *(uint32_t *)(pool + 52) = 0x9999;  /* B.f4 */
+    pool[60] = 0x04;                    /* B flags0 */
+    pool[61] = 0x00;                    /* B flags1 (no flush) */
+    *(uint32_t *)(pool + 64) = 1;       /* B handle */
+
+    uint32_t cnt = fn_043234(0x04);
+    check(cnt == 2, "  counts both matching io_states (mask 0x04)");
+    check(*(uint32_t *)(pool + 28) == 0, "  A flushed (f4 -> 0)");
+    check(*(uint32_t *)(pool + 24) == 0x5678, "  A tail f0 = f8");
+    check(*(uint32_t *)(pool + 52) == 0x9999, "  B not flushed (f4 unchanged)");
+
+    g_ndpool = NULL; g_node_list_active = 0;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3467,6 +3495,7 @@ int main(void) {
     test_fn_044748();
     test_fn_04488b();
     test_fn_044867();
+    test_fn_043234();
     test_fn_048754();
     test_fn_048e60();
     test_fn_049415();

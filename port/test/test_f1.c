@@ -2221,7 +2221,7 @@ static void test_fn_03feb8(void) {
 
 static void test_cd_dpmi_noops(void) {
     printf("CD/DPMI real-mode I/O cluster (no-op standins)\n");
-    fn_103e0(); fn_10570(); (void)fn_10876(); fn_107b9(); fn_10664(); fn_10b1d();
+    fn_103e0(); fn_10570(0, 0); (void)fn_10876(); fn_107b9(); fn_10664(); fn_10b1d();
     check(1, "  all six run as no-ops (no flat-model effect)");
     /* DPMI memory-region / real-mode-call initializers (L10): zero DAT_000a0000
      * region + 3 real-mode requests via the no-op fn_041e51 trampoline. */
@@ -4150,6 +4150,18 @@ static void test_fn_03565a(void) {
     g_dat_63330 = sv_330;
 }
 
+static void test_fn_0105f7(void) {
+    printf("fn_0105f7 (0x0105f7, real-mode DMA cmd build -> g_dat_53c5c)\n");
+    uintptr_t sv = g_dat_53c5c;
+    g_dat_53c5c = 0;
+    fn_0105f7(0xAB);
+    check(g_dat_53c5c == 0xAB, "0105f7(0xAB): low byte = al, high bytes 0");
+    g_dat_53c5c = 0xDEAD1234u;
+    fn_0105f7(0x11);
+    check(g_dat_53c5c == 0xDEAD1211u, "0105f7(0x11): low byte = al, high bytes (0xDEAD12) preserved");
+    g_dat_53c5c = sv;
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4452,6 +4464,7 @@ int main(void) {
     test_fn_035bf4_035ac0();
     test_fn_035b91();
     test_fn_03565a();
+    test_fn_0105f7();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

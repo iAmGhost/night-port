@@ -1147,7 +1147,30 @@ ovp:
  * they have no deterministic flat-model effect -- documented no-op standins
  * (per the DPMI-trampoline convention, cf. fn_043381 / fn_04391d). */
 void fn_103e0(void)   { /* 0x0103e0: DPMI INT 0x31 real-mode I/O wrapper (no-op). */ }
-void fn_10570(void)   { /* 0x010570: 0x100-byte DPMI real-mode read via 0x103e0 (no-op). */ }
+void fn_10570(const uint8_t *buf, uint32_t len) { (void)buf; (void)len; }   /* 0x010570: 0x100-byte DPMI real-mode read via 0x103e0 (no-op). */
+/* DAT_00051a14: 24-byte real-mode serial/DMA command template (extracted from the binary). */
+static const uint8_t g_serial_tpl_51a14[24] = {
+    0x18,0x00,0x0c,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x01,0x00, 0x00,0x00,0x00,0x00
+};
+/* 0x0105f7: build a 24-byte real-mode serial/DMA command: copy the DAT_00051a14
+ * template, patch bytes 20..23 from g_dat_53c5c (b20=g&0xf, b21=0, b22=(g>>4)&0xff,
+ * b23=(g>>12)&0xff), write the informal AL arg into the low byte of g_dat_53c5c
+ * (mem_copy(g_dat_53c5c,&al,1)), then submit via fn_10570(buf,1) (no-op in the flat
+ * model). The only observable effect is g_dat_53c5c's low byte = al (the 24-byte cmd
+ * is discarded by the no-op callee). */
+void fn_0105f7(uint8_t al) {
+    (void)canary_id(0, 0x38);
+    uint8_t buf[24];
+    for (int i = 0; i < 24; i++) buf[i] = g_serial_tpl_51a14[i];
+    buf[20] = (uint8_t)((uint16_t)g_dat_53c5c & 0xf);
+    buf[21] = 0;
+    buf[22] = (uint8_t)((g_dat_53c5c >> 4) & 0xff);
+    buf[23] = (uint8_t)((g_dat_53c5c >> 12) & 0xff);
+    mem_copy((uint8_t *)&g_dat_53c5c, (const uint8_t *)&al, 1);   /* low byte = al (mem_copy) */
+    fn_10570(buf, 1);                /* no-op in the flat model */
+}
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }
 void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }

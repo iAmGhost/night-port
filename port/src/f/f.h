@@ -153,6 +153,9 @@ typedef struct { uint32_t lo, hi, exp, ebx, edi; uint16_t bx; } fx_sub_t;
 void fn_0485eb(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi, uint32_t expA, uint32_t expB, fx_sub_t *out); /* 0x0485eb */
 /* 0x047xxx FPU cluster value: 64-bit mantissa (lo:hi) + 16-bit exponent (lo@0,hi@4,exp@8). */
 typedef struct { uint32_t lo; uint32_t hi; uint16_t exp; } fx128;
+/* 0x048585: thin wrapper over fn_0485eb. a,b are fx128 {lo,hi,exp}. If a==0 return 0;
+ * if b==0 zero *a and return 0; else *a = (0x0485eb(a,b)) result {lo,hi,exp}, return EDI (neg flag). */
+uint32_t fn_048585(fx128 *a, fx128 *b); /* 0x048585 */
 void fn_0478f0(fx128 *a, fx128 *out, const fx128 *b); /* 0x0478f0: fn_04794a wrapper (EAX=a,EBX=out,EDX=b); out={r_lo,r_hi,a->exp} */
 void fn_0478e2(fx128 *a, fx128 *out, const fx128 *b); /* 0x0478e2: as 0x0478f0 but b->exp bit15 flipped before compose */
 void fn_04791a(fx128 *a, fx128 *out, uint32_t b_lo, uint32_t b_hi, uint32_t exp_hi); /* 0x04791a: fn_04794a wrapper w/ scalar b (stack args; exp_hi low16) */

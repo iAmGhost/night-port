@@ -2699,6 +2699,40 @@ static void test_fn_0485eb(void) {
     printf("  (%u differential vectors checked)\n", (unsigned)v0485eb_n);
 }
 
+static void test_fn_048585(void) {
+    printf("fn_048585 (0x048585, wrapper over fn_0485eb)\n");
+    fx128 b1 = {0x12345678, 0x11111111, 5}, z = {0,0,0};
+    fx128 a0 = {0,0,0};
+    check(fn_048585(&a0, &b1) == 0 && a0.lo==0 && a0.hi==0 && a0.exp==0, "  a==0 -> 0");
+    fx128 a1 = {0x99999999, 0x55555555, 3};
+    check(fn_048585(&a1, &z) == 0 && a1.lo==0 && a1.hi==0 && a1.exp==0, "  b==0 -> *a=0, ret 0");
+    struct { uint32_t alo,ahi; uint16_t aexp; uint32_t blo,bhi; uint16_t bexp; const char* n; } cases[] = {
+        {0x12345678, 0x00000001, 5, 0x11111111, 0x00000001, 3, "A>B expA>expB"},
+        {0x00000001, 0x00000000, 3, 0x12345678, 0x00000001, 5, "A<B expA<expB"},
+        {0x12345678, 0x80000000, 100, 0x11111111, 0x40000000, 90, "big exp"},
+        {0x0000ffff, 0x00000000, 7, 0x00010000, 0x00000000, 7, "adjacent"},
+        {0xdeadbeef, 0x9abc, 0x3b14, 0xcafebabe, 0x1234, 0x1f31, "mixed"},
+    };
+    unsigned bad = 0;
+    for (unsigned i = 0; i < sizeof cases / sizeof cases[0]; i++) {
+        fx128 a = { cases[i].alo, cases[i].ahi, cases[i].aexp };
+        fx128 b = { cases[i].blo, cases[i].bhi, cases[i].bexp };
+        fx_sub_t r;
+        fn_0485eb(a.lo, a.hi, b.lo, b.hi, a.exp, b.exp, &r);
+        uint32_t expect_ret = (uint32_t)r.edi;
+        uint32_t got = fn_048585(&a, &b);
+        if (got != expect_ret || a.lo != r.lo || a.hi != r.hi || a.exp != (uint16_t)r.exp) {
+            if (bad < 3) { char m[160];
+                snprintf(m, sizeof m, "  0x48585[%s] got ret=%08x lo=%08x hi=%08x exp=%04x | exp ret=%08x lo=%08x hi=%08x exp=%04x",
+                    cases[i].n, got, a.lo, a.hi, a.exp, expect_ret, r.lo, r.hi, (uint16_t)r.exp);
+                printf("%s\n", m);
+            }
+            bad++;
+        }
+    }
+    check(bad == 0, "  non-zero cases match fn_0485eb composition");
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -3543,6 +3577,7 @@ int main(void) {
     test_fn_048754();
     test_fn_048e60();
     test_fn_0485eb();
+    test_fn_048585();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();
     test_fn_043324();

@@ -883,6 +883,24 @@ L_04864e:
     out->edi = (int32_t)edi;
 }
 
+/* fn_048585  orig: 0x048585
+ * Thin wrapper over fn_0485eb. a,b are fx128 {lo@0,hi@4,exp@8(word)}.
+ * if a==0 (lo,hi,exp all 0) -> return 0. if b==0 -> *a=0, return 0.
+ * else EAX=a.lo,EDX=a.hi,EBX=b.lo,ECX=b.hi,SI=a.exp,DI=b.exp; CALL 0x0485eb;
+ * a.lo=r.lo, a.hi=r.hi, a.exp=(uint16_t)r.exp; return EDI (r.edi). */
+uint32_t fn_048585(fx128 *a, fx128 *b)
+{
+    if (a->exp == 0 && a->hi == 0 && a->lo == 0) return 0;      /* 0x048585..0x048599 */
+    if (b->exp == 0 && b->hi == 0 && b->lo == 0) {              /* 0x04859a..0x0485b9 */
+        a->lo = 0; a->hi = 0; a->exp = 0;
+        return 0;
+    }
+    fx_sub_t r;
+    fn_0485eb(a->lo, a->hi, b->lo, b->hi, a->exp, b->exp, &r);  /* 0x0485ba..0x0485d3 */
+    a->lo = r.lo; a->hi = r.hi; a->exp = (uint16_t)r.exp;       /* 0x0485d9..0x0485de */
+    return (uint32_t)r.edi;                                     /* 0x0485e2: EAX=EDI */
+}
+
 /* fn_048e60  orig: 0x048e60
  * 128-bit fixed-point normalize + Newton-Raphson reciprocal division (L0 leaf, pure).
  * Input via p (uint32_t*): p[0]=low mantissa, p[1]=high mantissa (top byte = status flags),

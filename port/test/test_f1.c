@@ -4336,6 +4336,54 @@ static void test_fn_017218(void) {
     check(*(int32_t*)(A+0xab) == -1, "017218 cnt unchanged when <0");
 }
 
+static void test_fn_034f31(void) {
+    printf("fn_034f31 (0x034f31, MIDI RIFF deserializer)\n");
+    uint32_t src_off = heap_arena_alloc(0x40);   /* MThd + 2 MTrk (38 bytes) */
+    uint32_t recs_off = heap_arena_alloc(0x40);  /* 2 * 0xe records */
+    uint32_t dst_off  = heap_arena_alloc(0x40);  /* output struct */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *s  = hb + src_off;
+    const uint8_t midi[38] = {
+        0x4d,0x54,0x68,0x64, 0x00,0x00,0x00,0x06, 0x00,0x00, 0x00,0x02, 0x00,0xf0, /* MThd len6 fmt0 ntrks2 div240 */
+        0x4d,0x54,0x72,0x6b, 0x00,0x00,0x00,0x04, 0x00, 0x90,0x40,0x30,             /* MTrk0 len4: delta0 */
+        0x4d,0x54,0x72,0x6b, 0x00,0x00,0x00,0x04, 0x81,0x01, 0x90,0x45,             /* MTrk1 len4: delta129 */
+    };
+    memcpy(s, midi, sizeof(midi));
+    int32_t r = fn_034f31(src_off, recs_off, dst_off);
+    uint8_t *dst = hb + dst_off;
+    uint8_t *rec0 = hb + recs_off;
+    uint8_t *rec1 = hb + recs_off + 0xe;
+    check(r == 1, "034f31 ret 1");
+    check(*(uint32_t*)(dst+0x0)  == src_off,      "034f31 dst[0] = src off");
+    check(*(uint32_t*)(dst+0x1c) == 2,            "034f31 dst[0x1c] = ntrks 2");
+    check(*(uint32_t*)(dst+0x4)  == 240,          "034f31 dst[0x4] = division 240");
+    check(*(uint32_t*)(dst+0x8)  == 0x7a120,      "034f31 dst[0x8] = 0x7a120");
+    check(*(uint32_t*)(dst+0xc)  == 0,            "034f31 dst[0xc] = 0");
+    check(*(uint32_t*)(dst+0x18) == 0x10000,      "034f31 dst[0x18] = 0x10000");
+    check(dst[0x20] == 0,                         "034f31 dst[0x20] = 0");
+    /* record 0: delta 0 (1-byte LEB128) -> rec0[0] = src+0x17 (0x16+1) */
+    check(*(uint32_t*)(rec0+0x0) == src_off + 0x17, "034f31 rec0[0] advanced 1");
+    check(*(uint32_t*)(rec0+0x6) == 4,            "034f31 rec0[6] = len 4");
+    check(rec0[0x4]==0x90 && rec0[0x5]==0x90,     "034f31 rec0 tag 0x90");
+    check(*(uint32_t*)(rec0+0xa) == 0,            "034f31 rec0[0xa] delta 0");
+    /* record 1: delta 129 (2-byte LEB128 0x81 0x01) -> rec1[0] = src+0x24 (0x22+2) */
+    check(*(uint32_t*)(rec1+0x0) == src_off + 0x24, "034f31 rec1[0] advanced 2");
+    check(*(uint32_t*)(rec1+0x6) == 4,            "034f31 rec1[6] = len 4");
+    check(rec1[0x4]==0x90 && rec1[0x5]==0x90,     "034f31 rec1 tag 0x90");
+    check(*(uint32_t*)(rec1+0xa) == 129,          "034f31 rec1[0xa] delta 129");
+    /* fn_035329 min: both non-skip, cur init=rec0 delta=0, min stays idx0/cur0 */
+    check(*(int32_t*)(dst+0x10) == 0,             "034f31 dst[0x10] cur = 0");
+    check(*(uint32_t*)(dst+0x14) == 0,            "034f31 dst[0x14] idx = 0");
+    /* error: bad MThd magic -> -1 */
+    uint32_t bad_src = heap_arena_alloc(0x40);
+    uint8_t *bs = hb + bad_src;
+    memcpy(bs, midi, sizeof(midi)); bs[0] = 'X';
+    check(fn_034f31(bad_src, recs_off, dst_off) == -1, "034f31 bad MThd -> -1");
+    /* error: bad MTrk magic -> -2 */
+    bs[0] = 0x4d; bs[0x0e] = 'X';   /* restore MThd, corrupt track0 "MTrk" */
+    check(fn_034f31(bad_src, recs_off, dst_off) == -2, "034f31 bad MTrk -> -2");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4645,6 +4693,7 @@ int main(void) {
     test_fn_031f5f();
     test_fn_03d67c();
     test_fn_017218();
+    test_fn_034f31();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

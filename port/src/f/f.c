@@ -1336,6 +1336,56 @@ int32_t fn_017218(uint32_t a0, int32_t a1, uint32_t ptr1, uint32_t ptr2) {
     *(int32_t *)(a + 0xab) = cnt - 1;                  /* a0->0xab-- */
     return 0;
 }
+/* 4-byte RIFF chunk markers (DAT_00051470 / DAT_00051475). */
+static const uint8_t s_mthd_marker[4] = {0x4d, 0x54, 0x68, 0x64};  /* "MThd" (MIDI header) */
+static const uint8_t s_mtrk_marker[4] = {0x4d, 0x54, 0x72, 0x6b};  /* "MTrk" (MIDI track) */
+/* 0x034f31: MIDI RIFF deserializer. a0 = offset of the "MThd" chunk, a1 = offset of a
+ * record array (0xe bytes each), a2 = offset of the output struct. Validates the MThd
+ * magic (else return -1). Sets a2->0x0=a0, a2->0x1c=BE16(MThd+0xa) clamped<=16 (ntrks),
+ * a2->0x4=BE16(MThd+0xc) (division), then advances past the MThd chunk (+= BE32(+4)+8).
+ * For each of the ntrks MTrk chunks: validate "MTrk" (else -2); rec[0]=track-data ptr
+ * (cur+8) as a heap offset, rec[6]=BE32(len), rec[4]=rec[5]=0x90, rec[0xa]=LEB128 delta
+ * from rec[0] (advancing rec[0]), cur += len+8. After the loop: a2->0xc=0, a2->0x8=0x7a120,
+ * a2->0x20=0 (byte), a2->0x18=0x10000, then fn_035329(a1,a2). Returns 1.
+ * NOTE: a0/a1/a2 are heap offsets; the 32-bit pointer fields (a2->0x0, rec[0]) store
+ * offsets (g_heap_base-relative), so the source buffer and record array must be in the
+ * arena for these offsets to be valid. */
+int32_t fn_034f31(uint32_t a0, uint32_t a1, uint32_t a2) {
+    (void)canary_id(0, 0x34);                                   /* PUSH 0x34; CALL 0x418ee */
+    uint8_t *hb  = (uint8_t *)g_heap_base;
+    const uint8_t *src = hb + a0;          /* MThd chunk */
+    uint8_t *recs = hb + a1;               /* record array */
+    uint8_t *dst  = hb + a2;               /* output struct */
+    if (fn_0350aa(src, s_mthd_marker) < 0) return -1;   /* bad MThd magic */
+    *(uint32_t *)(dst + 0x0)  = a0;                            /* a2->0x0  = a0 (offset) */
+    uint32_t v1c = fn_03510b(src + 4);                        /* BE32(MThd+4) = chunk len */
+    uint32_t count = fn_03518a(src + 0xa);                    /* BE16(MThd+0xa) = ntrks */
+    if (count > 16) count = 16;                               /* clamp */
+    *(uint32_t *)(dst + 0x1c) = count;                        /* a2->0x1c = count */
+    *(uint32_t *)(dst + 0x4)  = fn_03518a(src + 0xc);         /* a2->0x4  = division */
+    uint8_t *cur = (uint8_t *)src + v1c + 8;                  /* skip MThd -> first MTrk */
+    for (uint32_t i = 0; i < count; i++) {
+        if (fn_0350aa(cur, s_mtrk_marker) < 0) return -2;     /* bad MTrk magic */
+        uint8_t *rec = recs + i * 0xe;
+        uint8_t *track = cur + 8;                             /* track data ptr */
+        *(uint32_t *)(rec + 0x0) = (uint32_t)(track - hb);    /* rec[0] = cur+8 (offset) */
+        uint32_t len = fn_03510b(cur + 4);                    /* BE32(MTrk+4) = track len */
+        *(uint32_t *)(rec + 0x6) = len;                       /* rec[6] = len */
+        cur = cur + len + 8;                                  /* cur += len+8 */
+        rec[0x4] = 0x90;                                      /* rec[4] = 0x90 */
+        rec[0x5] = 0x90;                                      /* rec[5] = 0x90 */
+        uint8_t *lc = hb + *(uint32_t *)(rec + 0x0);          /* LEB128 cursor (real ptr) */
+        uint32_t lval = fn_0351dc(&lc);                       /* decode LEB128 delta */
+        *(uint32_t *)(rec + 0x0) = (uint32_t)(lc - hb);       /* rec[0] advanced */
+        *(uint32_t *)(rec + 0xa) = lval;                      /* rec[0xa] = delta */
+    }
+    *(uint32_t *)(dst + 0xc)  = 0;                            /* a2->0xc  = 0 */
+    *(uint32_t *)(dst + 0x8)  = 0x7a120;                      /* a2->0x8  = 0x7a120 */
+    dst[0x20] = 0;                                            /* a2->0x20 = 0 (byte) */
+    *(uint32_t *)(dst + 0x18) = 0x10000;                      /* a2->0x18 = 0x10000 */
+    fn_035329(recs, dst);                                     /* scan records for min */
+    return 1;
+}
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }
 void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }

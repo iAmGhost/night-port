@@ -13,6 +13,7 @@
 #include "../../scratch/vectors_0485eb.h"
 #include "../../scratch/vectors_047d4e.h"
 #include "../../scratch/fp_048053_vectors.h"
+#include "../../scratch/fp_047b79_vectors.h"
 
 static int failures = 0;
 static void check(int ok, const char *what) {
@@ -3879,6 +3880,27 @@ static void test_fn_048053(void) {
     check(ok, "  all differential vectors match reference (scratch/fp_048053_ref.py)");
 }
 
+static void test_fn_047b79(void) {
+    printf("fn_047b79 (0x047b79, fixed-point binary op)\n");
+    int ok = 1;
+    for (int i = 0; i < NV79; i++) {
+        const uint32_t *v = &V79[i*8];
+        uint32_t oe, od; uint16_t osi;
+        fn_047b79(v[0], v[1], v[2], v[3], v[4], &oe, &od, &osi);
+        if (oe != v[5] || od != v[6] || (uint32_t)osi != v[7]) {
+            printf("    first mismatch vec %d: in=(0x%08x,0x%08x,0x%08x,0x%08x,0x%08x) got=(0x%08x,0x%08x,0x%04x) exp=(0x%08x,0x%08x,0x%04x)\n",
+                   i, v[0], v[1], v[2], v[3], v[4], oe, od, osi, v[5], v[6], v[7]);
+            ok = 0; break;
+        }
+    }
+    check(ok, "  all 3000 differential vectors match reference (scratch/fp_047b79_ref.py)");
+    uint32_t oe, od; uint16_t osi;
+    fn_047b79(0,0,0,0,0, &oe,&od,&osi);
+    check(oe==0 && od==0xc0000000u && osi==0xffff, "  B=0,A=0 marker (0,0xC0000000,0xffff)");
+    fn_047b79(5,0,0,0,0, &oe,&od,&osi);
+    check(oe==0 && od==0x80000000u && osi==0x7fff, "  B=0,A!=0 marker (0,0x80000000,0x7fff)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4126,6 +4148,7 @@ int main(void) {
     test_fn_04a32b();
     test_fn_04a3a8();
     test_fn_048053();
+    test_fn_047b79();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

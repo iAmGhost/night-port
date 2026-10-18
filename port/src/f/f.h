@@ -151,6 +151,8 @@ void     fn_10b1d(void);                        /* 0x010b1d: CD track/TOC read (
 void     fn_048e60(uint32_t *p);                /* 0x048e60: 128-bit fixed-point normalize + Newton reciprocal divide */
 void     fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out); /* 0x047f54: fixed-point normalize (EAX:EDX in, EBX out) */
 uint64_t fn_048053(uint32_t f0, uint32_t f1, uint16_t f2);         /* 0x048053: fixed-point -> double normalize (12B in, EDX:EAX out) */
+void fn_047b79(uint32_t eax, uint32_t edx, uint32_t esi, uint32_t ecx, uint32_t ebx,
+               uint32_t *o_eax, uint32_t *o_edx, uint16_t *o_si);    /* 0x047b79: pure-integer fixed-point binary op (mult/div); register-ABI in EAX,EDX,ESI,ECX,EBX, out EAX,EDX,SI */
 uint64_t fn_04794a(uint32_t eax, uint32_t edx, uint32_t ebx, uint32_t ecx, uint32_t esi); /* 0x04794a: complex fixed-point normalize, register-ABI, returns (EDX<<32)|EAX */
 /* 0x0485eb register-ABI align-subtract-normalize: A={a_hi:a_lo}, B={b_hi:b_lo}, expA/expB 15-bit.
  * Output registers (read by caller): lo=EAX, hi=EDX, exp=ESI, ebx=EBX(=expA&0x8000),

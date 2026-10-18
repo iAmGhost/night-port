@@ -4085,7 +4085,7 @@ static void test_fn_035329(void) {
     r0[0x21]=0x00; *(int32_t*)(r0+0x26)=50;    /* rec2: tag0 val50 */
     r0[0x2f]=0x00; *(int32_t*)(r0+0x34)=200;   /* rec3: tag0 val200 */
     *(uint32_t*)(r1+0x1c)=4;                    /* count=4 */
-    fn_035329(a0, a1);
+    fn_035329(r0, r1);
     check(*(int32_t*)(r1+0x10)==50,  "035329 out_cur = 50 (min of non-skip)");
     check(*(uint32_t*)(r1+0x14)==2,  "035329 out_idx = 2");
     check(r1[0x20]==0,               "035329 flag cleared (last non-skip)");
@@ -4096,7 +4096,7 @@ static void test_fn_035329(void) {
     uint8_t *s1 = (uint8_t *)(g_heap_base + b1);
     s0[0x05]=0x2f; *(int32_t*)(s0+0x0a)=77;     /* rec0: skip, val77 (also cur init) */
     *(uint32_t*)(s1+0x1c)=1;                     /* count=1 */
-    fn_035329(b0, b1);
+    fn_035329(s0, s1);
     check(*(int32_t*)(s1+0x10)==77, "035329 cur unchanged when only-skip");
     check(*(uint32_t*)(s1+0x14)==0, "035329 idx stays 0 when only-skip");
     check(s1[0x20]==1,               "035329 flag stays 1 when all skipped");

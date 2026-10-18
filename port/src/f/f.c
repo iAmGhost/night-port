@@ -6742,10 +6742,10 @@ int32_t fn_035a19(int32_t a0, int32_t a1, int32_t a2) {
  * set idx=i and cur=value, then clear a1->+0x20 (the flag-clear is gated on tag!=0x2f: a 0x2f
  * record skips straight to i++). After the loop a1->+0x14 = idx, a1->+0x10 = cur. Addresses are
  * flat arena offsets (g_heap_base + off). */
-void fn_035329(uint32_t a0, uint32_t a1) {
+void fn_035329(uint8_t *a0, uint8_t *a1) {
     (void)canary_id(0, 0x2c);                                   /* PUSH 0x2c;CALL 0x418ee */
-    uint8_t *p0 = (uint8_t *)(g_heap_base + a0);                /* records */
-    uint8_t *p1 = (uint8_t *)(g_heap_base + a1);                /* result */
+    uint8_t *p0 = a0;                                           /* records (raw ptr) */
+    uint8_t *p1 = a1;                                           /* result (raw ptr) */
     int32_t  cur = *(int32_t *)(p0 + 0xa);                      /* cur = a0->+0xa */
     p1[0x20] = 1;                                               /* flag = 1 */
     uint32_t idx = 0, i = 0;                                    /* [EBP-0x10], [EBP-0x14] */

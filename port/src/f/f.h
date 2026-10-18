@@ -123,6 +123,7 @@ void fn_00035d0f(void);                         /* 0x00035d0f: DMA channel busy-
 void fn_000356ba(uint32_t ticks);               /* 0x000356ba: PIT ch0 rate setup from ticks (reg-ABI) */
 extern int32_t  g_dat_530b4;                    /* DAT_000530b4: timer rate multiplier */
 extern int32_t  g_dat_530b8;                    /* DAT_000530b8: timer rate multiplier #2 (fn_035b91) */
+extern int32_t  g_dat_530bc[16];                /* DAT_000530bc: 16-entry command table (fn_035b0c writes [a0&0xf]) */
 extern uint32_t g_dat_63304;                    /* DAT_00063304: timer divisor (fn_03565a denominator) */
 extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick value */
 void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
@@ -577,6 +578,7 @@ int32_t  fn_035941(uint32_t a0);             /* 0x035941: device init handshake:
 int32_t  fn_0359c1(void);                    /* 0x0359c1: probe device bases 0x300,0x310,0x320,0x330: first fn_035941(base)==0 -> 0 else -1 */
 int32_t  fn_035a94(void);                    /* 0x035a94: passthrough -> fn_0359c1() */
 int32_t  fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b91: clamp (a2*g_dat_530b8)/100 low byte to 0x7f, fn_035a19(a0,a1,clamped) */
+int32_t  fn_035b0c(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b0c: (a0&0xf0==0xb0&&a1==7)? g_530bc[a0&0xf]=a2; fn_035b91 : fn_035a19 */
 int32_t  fn_03565a(int32_t input);  /* 0x03565a: div=input/1000; r=div==0?0x10000:(div*0x4aa)/g_dat_63304; fn_000356ba(r); return r */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */
 extern uint32_t g_dat_63f88;  /* DAT_00063f88: 16-bit device value (0x0411d9) */

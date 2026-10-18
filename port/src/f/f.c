@@ -608,6 +608,7 @@ void fn_00035d0f(void) {}
 
 int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) */
 int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
+int32_t  g_dat_530bc[16]; /* DAT_000530bc: 16-entry command table; fn_035b0c writes [a0&0xf]=a2 */
 uint32_t g_dat_63304 = 0;  /* DAT_00063304: timer divisor (denominator in fn_03565a) */
 uint32_t g_dat_63330 = 0;  /* DAT_00063330: last timer tick value (written by fn_0356ba) */
 
@@ -7042,6 +7043,21 @@ int32_t fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2) {
     uint8_t b    = (uint8_t)q;                                  /* low byte of quotient */
     if (b > 0x7f) b = 0x7f;                                     /* clamp */
     return fn_035a19((int32_t)a0, (int32_t)a1, (int32_t)b);     /* write a0,a1,clamped */
+}
+
+/* 0x035b0c (L13, 132 B): device-command dispatcher. Args a0=EAX(AL), a1=EDX(DL),
+ * a2=EBX(BL). If (a0&0xf0)==0xb0 && a1==7: store a2 into the command table
+ * g_dat_530bc[a0&0xf] (a 32-bit slot) then call fn_035b91(a0,a1,a2); else call
+ * fn_035a19(a0,a1,a2). Both callees use the a0=EAX,a1=EDX,a2=EBX convention and
+ * both branches load EAX=a0,EDX=a1,EBX=a2 identically, so the port passes (a0,a1,a2)
+ * to either. Returns the callee's result (EAX). */
+int32_t fn_035b0c(uint8_t a0, uint8_t a1, uint8_t a2) {
+    (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
+    if ((a0 & 0xf0) == 0xb0 && a1 == 0x7) {                     /* 0x35b2b-0x35b46 */
+        g_dat_530bc[a0 & 0xf] = a2;                             /* 0x35b48-0x35b5a */
+        return fn_035b91(a0, a1, a2);                           /* 0x35b6f */
+    }
+    return fn_035a19((int32_t)a0, (int32_t)a1, (int32_t)a2);    /* 0x35b85 */
 }
 
 /* 0x03565a (L12, 95 B): div = input / 1000 (signed). If div == 0, r = 0x10000; else

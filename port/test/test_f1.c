@@ -4474,6 +4474,36 @@ static void test_fn_035a94(void) {
     g_dat_530ac = sv;
 }
 
+static void test_fn_035b0c(void) {
+    printf("fn_035b0c (0x035b0c, device cmd dispatcher + 0x530bc table write)\n");
+    uint32_t sv = g_dat_530ac;
+    int32_t sv_tbl[16];
+    for (int i = 0; i < 16; i++) sv_tbl[i] = g_dat_530bc[i];
+    uint32_t base = 0x100;
+    sys_ports_reset();
+    g_dat_530ac = base;
+    sys_port_set(base + 1, 0x00);      /* bit6 clear -> fn_0358c7 ready immediately */
+
+    /* branch A: a0 high nibble 0xb, a1==7 -> table write + fn_035b91 */
+    int32_t r1 = fn_035b0c(0xb0, 7, 0x42);
+    check(r1 == 0, "035b0c branch A -> 0 (port writes ready)");
+    check(g_dat_530bc[0xb0 & 0xf] == 0x42, "035b0c branch A table[a0&0xf=0] = a2=0x42");
+
+    /* branch B: a0 high nibble 0xc -> no table write, fn_035a19 */
+    int32_t r2 = fn_035b0c(0xc0, 0, 0x11);
+    check(r2 == 0, "035b0c branch B -> 0");
+    check(g_dat_530bc[0xb0 & 0xf] == 0x42, "035b0c branch B leaves table[0] unchanged");
+
+    /* branch B: a0 high nibble 0xb but a1!=7 -> still no table write */
+    int32_t r3 = fn_035b0c(0xb3, 0, 0x99);
+    check(r3 == 0, "035b0c (a0 high 0xb, a1!=7) -> branch B, 0");
+    check(g_dat_530bc[0xb3 & 0xf] == sv_tbl[0xb3 & 0xf], "035b0c (a1!=7) no table write");
+
+    for (int i = 0; i < 16; i++) g_dat_530bc[i] = sv_tbl[i];
+    g_dat_530ac = sv;
+    sys_ports_reset();
+}
+
 static void test_fn_03cc6b(void) {
     printf("fn_03cc6b (0x03cc6b, state machine, no callees)\n");
     static uint8_t a0[0x360];
@@ -4893,6 +4923,7 @@ int main(void) {
     test_fn_03ee0a();
     test_fn_0359c1();
     test_fn_035a94();
+    test_fn_035b0c();
     test_fn_03cc6b();
     test_fn_034f31();
     test_fn_045bb7();

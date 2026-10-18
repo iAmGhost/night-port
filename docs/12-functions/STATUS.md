@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 331 / 528 done
+TOTALS: 332 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -51,7 +51,7 @@ TOTALS: 331 / 528 done
 | L10 | 81 | 57 | 0 | 0 | 24 |
 | L11 | 77 | 40 | 0 | 0 | 37 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
-| L13 | 16 | 1 | 0 | 0 | 15 |
+| L13 | 16 | 2 | 0 | 0 | 14 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
 | L16 | 8 | 0 | 0 | 0 | 8 |
@@ -794,7 +794,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x0347e3 | 254 | FUN_000347e3 | | |
 | [ ] | 0x034eb0 | 128 | FUN_00034eb0 | | |
 | [x] | 0x035a94 | 43 | FUN_00035a94 | passthrough -> fn_0359c1() | return -1 + g_530ac=0x330, 2 checks |
-| [ ] | 0x035b0c | 132 | FUN_00035b0c | | |
+| [x] | 0x035b0c | 132 | FUN_00035b0c | device cmd dispatcher: (a0&0xf0==0xb0&&a1==7)? g_530bc[a0&0xf]=a2; fn_035b91 : fn_035a19 | branch A/B table write + no-write + a1!=7, 6 checks |
 | [ ] | 0x03801b | 124 | FUN_0003801b | | |
 | [ ] | 0x038098 | 318 | FUN_00038098 | | |
 | [ ] | 0x0381d7 | 460 | FUN_000381d7 | | |

@@ -725,6 +725,8 @@ extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
 extern uint8_t *g_dat_53c7c;   /* DAT_00053c7c (kb config ptr; [0x1b] int32) */
 extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
 extern uint8_t *g_dat_53c70;   /* DAT_00053c70 (entity list head; next at +0x13f) */
+extern uint8_t *g_dat_53c74;   /* DAT_00053c74 (entity list tail; prev at +0x147) */
+void fn_013aad(uint32_t a0);   /* 0x013aad: entity-list bubble-sort (ascending by node->+0x9) */
 extern int32_t  g_dat_51c98;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 extern int32_t  g_dat_53c90;   /* DAT_00053c90 (player-event latch) */
 extern int32_t  g_dat_53c68;   /* DAT_00053c68 (entity count) */

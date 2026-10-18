@@ -774,6 +774,42 @@ void fn_00035c5c(void) {
     }
 }
 
+/* fn_013aad  orig: 0x00013aad (L10, 415B)
+ *   Entity-list bubble-sort: sort the doubly-linked entity list ascending by
+ *   node->+0x9 (int32 key), relinking nodes in place and maintaining head
+ *   (g_dat_53c70) + tail (g_dat_53c74). g_dat_53c7c = special-node marker
+ *   (stable-sort tie-breaker). No callees (canary only).
+ *   Node layout (real C pointers; POINTER-WIDTH ADAPTATION): +0x0 type(byte),
+ *   +0x9 key(int32), +0x13f next(8-byte ptr, widened from 4), +0x147 prev
+ *   (8-byte ptr; orig 0x143, shifted past the 8-byte next). */
+void fn_013aad(uint32_t a0) {
+    (void)a0;
+    for (int32_t i = 0; ; i++) {
+        if (g_dat_53c68 - 1 <= i) break;                 /* 0x13ad7 */
+        uint8_t *cur = g_dat_53c70;                      /* 0x13ae6 */
+        for (int32_t j = 0; ; j++) {
+            if (g_dat_53c68 - i - 1 <= j) break;         /* 0x13afd */
+            uint8_t *nxt = *(uint8_t **)(cur + 0x13f);   /* 0x13b12 */
+            int32_t ck = *(int32_t *)(cur + 0x9);
+            int32_t nk = *(int32_t *)(nxt + 0x9);
+            if (ck < nk) { cur = nxt; continue; }        /* 0x13b21 */
+            if (nxt == g_dat_53c7c && nk == ck) { cur = nxt; continue; }  /* 0x13b4e */
+            if (nxt[0] == cur[0] && nk == ck) { cur = nxt; continue; }    /* 0x13b7b */
+            /* full swap (0x13b8c): */
+            uint8_t *nxt_next = *(uint8_t **)(nxt + 0x13f);
+            uint8_t *cur_prev = *(uint8_t **)(cur + 0x147);
+            if (nxt_next) *(uint8_t **)(nxt_next + 0x147) = cur;   /* 0x13ba4 */
+            if (cur_prev) *(uint8_t **)(cur_prev + 0x13f) = nxt;   /* 0x13bc2 */
+            *(uint8_t **)(cur + 0x13f) = nxt_next;                 /* 0x13bd4 */
+            *(uint8_t **)(nxt + 0x147) = cur_prev;                 /* 0x13be6 */
+            *(uint8_t **)(cur + 0x147) = nxt;                      /* 0x13bf2 */
+            *(uint8_t **)(nxt + 0x13f) = cur;                      /* 0x13bfe */
+            if (*(uint8_t **)(nxt + 0x147) == NULL) g_dat_53c70 = nxt;  /* 0x13c04 */
+            if (*(uint8_t **)(cur + 0x13f) == NULL) g_dat_53c74 = cur;  /* 0x13c18 */
+        }
+    }
+}
+
 /*
  * 0x00047f54: fixed-point normalize (register-ABI). Inputs EAX:EDX = 64-bit
  * fixed-point value (EAX=low, EDX=high); EBX = 12-byte output pointer
@@ -3302,6 +3338,7 @@ uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
 uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
+uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */

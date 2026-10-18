@@ -4336,6 +4336,30 @@ static void test_fn_017218(void) {
     check(*(int32_t*)(A+0xab) == -1, "017218 cnt unchanged when <0");
 }
 
+static void test_fn_013aad(void) {
+    printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
+    const int NS = 0x150;
+    static uint8_t buf[3 * NS];
+    uint8_t *n0 = buf, *n1 = buf + NS, *n2 = buf + 2*NS;
+    for (int k = 0; k < 3; k++) for (int b = 0; b < NS; b++) buf[k*NS+b] = 0;
+    /* list: n0(key3) <-> n1(key1) <-> n2(key2), all type=1. */
+    n0[0]=1; *(int32_t*)(n0+0x9)=3; *(uint8_t**)(n0+0x13f)=n1; *(uint8_t**)(n0+0x147)=NULL;
+    n1[0]=1; *(int32_t*)(n1+0x9)=1; *(uint8_t**)(n1+0x13f)=n2; *(uint8_t**)(n1+0x147)=n0;
+    n2[0]=1; *(int32_t*)(n2+0x9)=2; *(uint8_t**)(n2+0x13f)=NULL;*(uint8_t**)(n2+0x147)=n1;
+    g_dat_53c68 = 3; g_dat_53c70 = n0; g_dat_53c74 = n2; g_dat_53c7c = NULL;
+    fn_013aad(0);
+    /* expected ascending: n1(1) <-> n2(2) <-> n0(3); head=n1, tail=n0. */
+    check(g_dat_53c70 == n1, "013aad head=n1(key1)");
+    check(g_dat_53c74 == n0, "013aad tail=n0(key3)");
+    check(*(uint8_t**)(n1+0x13f) == n2, "013aad n1.next=n2");
+    check(*(uint8_t**)(n2+0x13f) == n0, "013aad n2.next=n0");
+    check(*(uint8_t**)(n0+0x13f) == NULL, "013aad n0.next=NULL");
+    check(*(uint8_t**)(n1+0x147) == NULL, "013aad n1.prev=NULL");
+    check(*(uint8_t**)(n2+0x147) == n1, "013aad n2.prev=n1");
+    check(*(uint8_t**)(n0+0x147) == n2, "013aad n0.prev=n2");
+    check(*(int32_t*)(n1+0x9)==1 && *(int32_t*)(n2+0x9)==2 && *(int32_t*)(n0+0x9)==3, "013aad keys 1,2,3 in order");
+}
+
 static void test_fn_034f31(void) {
     printf("fn_034f31 (0x034f31, MIDI RIFF deserializer)\n");
     uint32_t src_off = heap_arena_alloc(0x40);   /* MThd + 2 MTrk (38 bytes) */
@@ -4693,6 +4717,7 @@ int main(void) {
     test_fn_031f5f();
     test_fn_03d67c();
     test_fn_017218();
+    test_fn_013aad();
     test_fn_034f31();
     test_fn_045bb7();
     test_fn_04391d();

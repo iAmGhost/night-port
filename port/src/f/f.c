@@ -2221,6 +2221,28 @@ uint32_t fn_042d2a(uint32_t arg1, uint32_t arg2)
     return 0;
 }
 
+/* 0x048fe6: DPMI / real-mode IRQ installer (86 insns), register-ABI
+ * (arg1 = EAX, arg2 = EDX = [ESP], returns AL).
+ *
+ * Under DPMI (the original's real environment) this queries DPMI (INT 2f
+ * AH=0x16); if DPMI is present and passes its checks it runs a sequence of
+ * INT 2f AH=0xfa interrupt-gate calls, sets DAT_000536c9 = 1, and returns 1.
+ * In the non-DPMI fallback it installs a real-mode IRQ handler (isr_set(7,
+ * 0x461a8, CS)) gated behind a DPMI INT 31 AX=0xa00 call and returns 0.
+ *
+ * Flat model: no DPMI -> the initial INT 2f AH=0x16 query returns AL=0, so the
+ * function takes the fallback; there the INT 31 AX=0xa00 gate call fails
+ * (CF=1, no DPMI), so the isr_set and the DAT_000536c8/6c9 writes are
+ * unreachable and it returns 0. DAT_000536c9 is not read anywhere in the port
+ * and the function has no direct callers (DPMI callback), so the sole
+ * observable behavior is the return value 0 -> no-op standin. The real-mode ISR
+ * it would install does not apply to the flat address space. orig: 0x048fe6 */
+uint32_t fn_048fe6(uint32_t arg1, uint32_t arg2)
+{
+    (void)arg1; (void)arg2;
+    return 0;
+}
+
 void dispatch_a(uint32_t key)
 {
     for (;;) {                                          /* 0x4461f outer */

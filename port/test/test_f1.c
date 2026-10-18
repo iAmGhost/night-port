@@ -3817,6 +3817,15 @@ static void test_fn_042d2a(void) {
     check(g_heap_head == rB, "  fn_042d2a: no match leaves region");
 }
 
+/* ---------- fn_048fe6: DPMI/real-mode IRQ installer (no-op standin) ---------- */
+static void test_fn_048fe6(void) {
+    printf("fn_048fe6 (0x048fe6, DPMI IRQ installer)\n");
+    /* flat model: no DPMI -> fallback -> INT 31 gate fails -> return 0, no effect */
+    check(fn_048fe6(0x1234, 0x5678) == 0, "  fn_048fe6: returns 0 (DPMI query fails)");
+    check(fn_048fe6(0, 0) == 0, "  fn_048fe6: zero args returns 0");
+    check(fn_048fe6(0, 0x1234) == 0, "  fn_048fe6: arg2-only returns 0");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4060,6 +4069,7 @@ int main(void) {
     test_fn_042ccc();
     test_fn_042eef();
     test_fn_042d2a();
+    test_fn_048fe6();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

@@ -485,6 +485,7 @@ uint32_t fn_043e34(struct emit_ctx *ctx, uintptr_t *pos);
 void fn_042ccc(void);
 uint32_t fn_042eef(uint32_t arg);
 uint32_t fn_042d2a(uint32_t arg1, uint32_t arg2);
+uint32_t fn_048fe6(uint32_t arg1, uint32_t arg2);
 
 /* Event-dispatch table (DAT_000537dc): 10 entries of {flag(2=done), key, fn}.
  * fn pointers reference game handlers (wired when those are ported; NULL until

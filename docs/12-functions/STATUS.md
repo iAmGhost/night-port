@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 329 / 528 done
+TOTALS: 330 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -50,7 +50,7 @@ TOTALS: 329 / 528 done
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 57 | 0 | 0 | 24 |
 | L11 | 77 | 40 | 0 | 0 | 37 |
-| L12 | 58 | 21 | 0 | 0 | 37 |
+| L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -757,7 +757,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03272f | 7013 | FUN_0003272f | | |
 | [x] | 0x034735 | 173 | FUN_00034735 | | |
 | [x] | 0x03565a | 95 | fn_03565a | div=input/1000; r=div==0?0x10000:(div*0x4aa)/g_dat_63304; fn_000356ba(r); return r | 2 cases (div=2, div==0) |
-| [ ] | 0x0359c1 | 87 | FUN_000359c1 | | |
+| [x] | 0x0359c1 | 87 | FUN_000359c1 | device-base probe: for i in {0x300,0x310,0x320,0x330} if fn_035941(i)==0 return 0; return -1 | always -1 under static ports (g_530ac ends 0x330), 2 checks |
 | [x] | 0x035ac0 | 75 | fn_035ac0 | device-init, for i in 0..15 fn_035a19(i+0xb0,0x78,0) | final byte = a2=0 |
 | [x] | 0x035b91 | 98 | fn_035b91 | clamp (a2*g_dat_530b8)/100 low byte to 0x7f -> fn_035a19(a0,a1,c) | val=100, clamp=0x7f, timeout |
 | [x] | 0x035bf4 | 56 | fn_035bf4 | thin -> fn_035a19(al,dl,-1) | ready=0/last=dl, timeout=-1 |

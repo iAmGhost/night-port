@@ -4454,6 +4454,16 @@ static void test_fn_03ee0a(void) {
     g_dat_63e14 = sv14; g_dat_63e18 = sv18; g_dat_63e1c = sv1c; g_dat_63e20 = sv20; g_dat_62a8c = sv;
 }
 
+static void test_fn_0359c1(void) {
+    printf("fn_0359c1 (0x0359c1, probe device bases 0x300..0x330 step 0x10)\n");
+    uint32_t sv = g_dat_530ac;
+    sys_ports_reset();
+    int32_t r = fn_0359c1();
+    check(r == -1, "0359c1 -> -1 (all bases fail under static ports)");
+    check(g_dat_530ac == 0x330, "0359c1 iterated to last base 0x330");
+    g_dat_530ac = sv;
+}
+
 static void test_fn_03cc6b(void) {
     printf("fn_03cc6b (0x03cc6b, state machine, no callees)\n");
     static uint8_t a0[0x360];
@@ -4871,6 +4881,7 @@ int main(void) {
     test_fn_0357f2();
     test_fn_035941();
     test_fn_03ee0a();
+    test_fn_0359c1();
     test_fn_03cc6b();
     test_fn_034f31();
     test_fn_045bb7();

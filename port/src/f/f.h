@@ -574,6 +574,7 @@ int32_t  fn_035bf4(uint8_t al, uint8_t dl);  /* 0x035bf4: thin -> fn_035a19(al,d
 void     fn_035ac0(void);                    /* 0x035ac0: device-init, for i in 0..15 fn_035a19(i+0xb0,0x78,0) */
 int32_t  fn_0357f2(uint8_t a0);              /* 0x0357f2: device read w/ status handshake; -1 phase1 timeout, -2 data==0xfe, 0 ok */
 int32_t  fn_035941(uint32_t a0);             /* 0x035941: device init handshake: g_530ac=a0; retry fn_0357f2(0xff) then fn_0357f2(0x3f); 0 on success else -1 */
+int32_t  fn_0359c1(void);                    /* 0x0359c1: probe device bases 0x300,0x310,0x320,0x330: first fn_035941(base)==0 -> 0 else -1 */
 int32_t  fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b91: clamp (a2*g_dat_530b8)/100 low byte to 0x7f, fn_035a19(a0,a1,clamped) */
 int32_t  fn_03565a(int32_t input);  /* 0x03565a: div=input/1000; r=div==0?0x10000:(div*0x4aa)/g_dat_63304; fn_000356ba(r); return r */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */

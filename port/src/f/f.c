@@ -7010,6 +7010,21 @@ int32_t fn_035941(uint32_t a0) {
     return 0;                                                   /* 0x359ae */
 }
 
+/* 0x0359c1 (L12, 87 B): device-base probe. Try each base in
+ * {0x300,0x310,0x320,0x330} (step 0x10); return 0 on the first fn_035941(base)
+ * that succeeds (returns 0), else -1 after exhausting all bases. fn_035941 sets
+ * g_530ac to the last base tried (0x330 on the all-fail path). Under the static
+ * sys-port map fn_035941 always returns -1, so this returns -1 and leaves
+ * g_530ac == 0x330 (a live device would clear its status bit and let a base pass). */
+int32_t fn_0359c1(void) {
+    (void)canary_id(0, 0x24);                                   /* PUSH 0x24;CALL 0x418ee */
+    for (uint32_t i = 0x300; i <= 0x330; i += 0x10) {           /* 0x359d9/e0/e2/e6/ed */
+        if (fn_035941(i) == 0)                                  /* 0x359ef/f2/f7/f9 */
+            return 0;                                           /* 0x359fb */
+    }
+    return -1;                                                  /* 0x35a06 */
+}
+
 /* 0x035b91 (L12, 98 B): args AL/DL/BL. val = (a2 * g_dat_530b8) / 100 (signed); take the
  * low byte and clamp to 0x7f (bytes 0x80..0xff, i.e. negative quotients, clamp to 127).
  * Return fn_035a19(a0, a1, clamped). */

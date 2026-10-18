@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 335 / 528 done
+TOTALS: 336 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 335 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 57 | 0 | 0 | 24 |
+| L10 | 81 | 58 | 0 | 0 | 23 |
 | L11 | 77 | 41 | 0 | 0 | 36 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 4 | 0 | 0 | 12 |
@@ -615,7 +615,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03ce0b | 692 | FUN_0003ce0b | | |
 | [x] | 0x03d67c | 223 | fn_03d67c | heap/array | move element a2 to index a1 of a 3-byte-stride array (shift [a1,a2-1] right by one); test PASS, 4 checks |
 | [ ] | 0x03d75c | 306 | FUN_0003d75c | | |
-| [ ] | 0x03dcbd | 455 | FUN_0003dcbd | | |
+| [x] | 0x03dcbd | 455 | FUN_0003dcbd | struct DESTRUCTOR: a0 is a real ptr; for fields +0x4..+0x38 (14 words, step 4), if non-zero heap_free_host(field) (orig 0x041c31) then null; field +0x0 untouched. Only real callee heap_free_host | field0 untouched + all-14 nulled + heap reusable + all-zero no-crash, 5 checks |
 | [ ] | 0x03e0a0 | 171 | FUN_0003e0a0 | | |
 | [x] | 0x03e14c | 194 | fn_03e14c | heap/dlist | 2-node prev/next swap (0x51/0x55) gated by g_dat_63e14 counter; 4 new globals (63e14/18/1c/20); test PASS, 8 checks |
 | [x] | 0x03ef29 | 200 | fn_03ef29 | | install IRQ 0x1c, divisor in EAX (isr_set/outb no-op) |

@@ -1959,6 +1959,27 @@ static void test_fn_034990(void) {
     g_dat_62d60 = sv60; g_dat_62d64 = sv64; memcpy(g_dat_62d68, sv68, sizeof g_dat_62d68);
     memcpy(nar(), savarena, 0x1000);
 }
+
+static void test_fn_03dcbd(void) {
+    printf("fn_03dcbd (0x03dcbd, struct destructor: free 14 sub-obj heap-objs +0x4..+0x38)\n");
+    uint8_t s[0x40] = {0};
+    uint32_t *p = (uint32_t *)s;
+    p[0] = 0x11111111;                       /* field 0: sentinel (must be untouched) */
+    int ok = 1;
+    for (int k = 1; k <= 14; k++) { p[k] = heap_malloc(8); if (!p[k]) ok = 0; }
+    check(ok, "03dcbd: allocated 14 sub-obj blocks");
+    fn_03dcbd(p);
+    check(p[0] == 0x11111111, "03dcbd: field 0 untouched");
+    int allz = 1; for (int k = 1; k <= 14; k++) if (p[k] != 0) allz = 0;
+    check(allz, "03dcbd: all 14 sub-obj fields nulled after free");
+    uint32_t d = heap_malloc(8);
+    check(d != 0, "03dcbd: heap reusable after freeing 14");
+    if (d) heap_free_host(d);
+    /* all-zero fields -> no free, field 0 untouched, no crash */
+    memset(s, 0, 0x40); p[0] = 0x22222222;
+    fn_03dcbd(p);
+    check(p[0] == 0x22222222, "03dcbd: all-zero fields, field 0 untouched, no crash");
+}
 static void init_arena_03ba86(void) {
     memset(nar(), 0, 0x1000);
     setnode(0, 0, 0, 0x140, 0);   /* node@0 covers [0,0x140) so non-zero-a walks terminate */
@@ -4928,6 +4949,7 @@ int main(void) {
     test_fn_034aba();
     test_fn_03ba2c();
     test_fn_034990();
+    test_fn_03dcbd();
     test_fn_03ba86();
     test_fn_03a594();
     test_fn_036626();

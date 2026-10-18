@@ -3316,6 +3316,21 @@ void fn_034990(void) {
     }
 }
 
+/* 0x03dcbd (L10, 455 B): STRUCT DESTRUCTOR. a0 is a real (64-bit) pointer to a
+ * struct whose fields +0x4..+0x38 (14 words, step 4) each hold a heap offset of a
+ * sub-object. For each of the 14, if non-zero: heap_free_host(field) (orig 0x041c31)
+ * then null the field. Field +0x0 is untouched. Repetitive unrolled loop (no branch
+ * table). No canary beyond the standard prologue marker. */
+void fn_03dcbd(uint32_t *a0) {
+    (void)canary_id(0, 0x20);
+    for (int k = 1; k <= 14; k++) {    /* fields at +0x4 .. +0x38 */
+        if (a0[k] != 0) {
+            heap_free_host(a0[k]);
+            a0[k] = 0;
+        }
+    }
+}
+
 /* 0x034aba: 3-way interval-list splitter. Splits the interval containing `a`
  * (within list g_dat_62d68[idx]) to carve out [a, a+b) as a new node (start=c,
  * flag=flag), clamping a+b to 0x140. Returns void. */

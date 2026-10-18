@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 305 / 528 done
+TOTALS: 307 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,8 +49,8 @@ TOTALS: 305 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 48 | 0 | 0 | 33 |
-| L11 | 77 | 34 | 0 | 0 | 43 |
-| L12 | 58 | 12 | 0 | 0 | 46 |
+| L11 | 77 | 35 | 0 | 0 | 42 |
+| L12 | 58 | 13 | 0 | 0 | 45 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x035c2d (L11, 45 B) + 0x040948 (L12, 53 B) PORTED -- 2 more thin device-write wrappers.** 0x035c2d(arg)=fn_0358c7((uint8)arg): save/zero/reload AL just zero-extends the input byte, then CALL 0x0358c7 (wait g_dat_530ac+1 bit0x40 clear, outb(g_dat_530ac,arg), 0 ok / -1 timeout). 0x040948(arg)={fn_041340(0x40); return fn_041340(arg)}: save EAX, write cmd 0x40 (result discarded), reload EAX, write arg (return result) -- a two-command device write on g_dat_53334+0xc. Both verified with the sys_port_set reset trick: ready path (return + exact byte written) and not-ready path (timeout 0/-1, no write). 7 checks. L11 34->35, L12 12->13, TOTALS 305->307/528, suite +7 PASS 0 FAIL. **NEXT:** L12 0x040f4f/0x0411d9 (99B, 3 callees); L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L11/L12 |
 | 2026-07-08 | **0x040efd / 0x0413e7 / 0x041410 PORTED (L12, 40 B each) -- 3 thin device-port-write wrappers.** Found after realizing frontier.py takes a LEVEL arg (default 2) -- I'd only ever run it at L2, missing ~50 clean candidates in L3-L13 unblocked by recent ports. Each is: PUSH 0x1c;CALL 0x0418ee (frame/canary, absorbed by C frame); save EBX..EBP; MOV EAX,<const>; CALL 0x041340; restore; RET -- observably `return fn_041340(const)` with const in {0xd0,0xd1,0xd3}. fn_041340 is ready-gated: fn_041390() polls inb(g_dat_53334+0xc) for bit7 clear (1=ready / 0 after 0x7fff timeout), then outb(+0xc,cmd) (persistent port_val in flat model), return 1. **TEST GOTCHA:** naive `wrapper()==fn_041340(const)` fails -- writing 0xd0/d1/d3 (bit7 SET) leaves the port "busy", so a 2nd call times out -> 0. Fix: sys_port_set(P,0) before each call; verify return==1 AND the exact cmd written (sys_inb(P)==0xd0/d1/d3); plus the not-ready path (sys_port_set(P,0x80) -> returns 0, no write). 8 checks. L12 9->12, TOTALS 302->305/528, suite +8 PASS 0 FAIL. **NEXT (many clean candidates now visible across tiers):** L12 0x040948(53B)/0x040f4f(99B)/0x0411d9(99B); L11 0x035c2d(45B); L3 0x042fc2(174B, DPMI/INT21 heap). | STATUS.md L12 |
 | 2026-07-08 | **0x04a367 PORTED (L2, 64 B / 31 insns, FP table-lookup cluster caller) -- a clean win unblocked by 0x04a814.** All 3 callees ported: 0x04a3a8 (fn_04a3a8, this turn), 0x04a84e (fx_mantissa_scale), 0x04a814 (fn_04a814, this turn). Register+stack ABI resolved from the SOLE caller FUN_0004a48f @0x04a59b: arg0=[EBP+8] (base-double low32), arg1=[EBP+0xc] (base-double high32), arg2=[EBP+0x10] (clamped index, caller EBX), arg3=[EBP+0x14] (ptr to 64-bit {lo,hi}), EAX-in = caller [ECX]; returns int32. **DEAD-STORE FINDING:** arg0/arg1 are pushed BY VALUE (copies of the caller's slots); the FPU block (0x04a3a8 -> FSTP [EBP+8], then fx_mantissa_scale(out=&[EBP+8], in=arg3)) writes ONLY to those pushed copies, which are popped by RET 0x10 and never read back; arg3 is the read-only `in` source. So the FPU block has NO observable effect and the function is observably `return fn_04a814(arg2, arg3)`. Ported faithfully (the FPU block is computed into a local `dslot` then discarded, since both callees are pure). Verified: 256-combo test (8 keys x 8 starts x 4 eax_in) confirms return == fn_04a814(arg2,arg3) and that arg0/arg1/eax_in do not affect it (incl. the eax_in!=arg2 branch that runs the FPU block). L2 24->25, TOTALS 301->302/528, suite 1026->1027 PASS 0 FAIL. **NEXT:** remaining L2 clean candidate is 0x0487b0 (464 B) / 0x048c8c (467 B) -- large dedicated passes. | STATUS.md L2 |
 | 2026-07-08 | **0x04a814 PORTED (L1, 57 insns, decimal-magnitude upper-bound scan) -- RESOLVES the last 0x04a923-gated L1 fn.** Confirms the same-day characterization. The 8-byte table @0x04a928 is {0, 10^0, 10^1, ..., 10^19, UINT64_MAX-sentinel} (22 entries, bit-exact from the binary; the mis-decoded 'OR EAX,0xa7640000' at 0x04a9c3 is the lo bytes of the 10^18 entry; 0x04a9d0 = the UINT64_MAX sentinel). Port fn_04a814(int32 start, const uint32_t *key): the CALL 0x04a923 (fx_stub_4a923 no-op) sets EDI=0x04a928, EAX unchanged; e=start+1; forward advance while key>=entry, backward step while entry>key; "key<entry" (64-bit)=(hi<ehi)||(hi==ehi&&lo<elo). Verified: 8 hand-verified x86-disasm cases (key=0/1/100/256/1e5/1048576/1e6, incl. a start=1 case) + 5000 differential vs an INDEPENDENT 64-bit reference (full uint64_t compare, no hi/lo split) -- 0 mismatch. NOTE: a pre-generated vector header (scratch/fp_04a814_vectors.h) proved untrustworthy in this env (a stale powers-of-16 copy kept being restored even after rm+regen), so the test computes expected values INLINE (hand cases + 64-bit ref), no file dependency. L1 44->45, TOTALS 300->301/528, suite 1017->1026 PASS 0 FAIL. **Remaining L1 (2):** 0x0440a9 (733B, dedicated pass), 0x049506 (gated on 0x04574a). | STATUS.md L1 |
@@ -666,7 +667,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0356ba | 76 | FUN_000356ba | PIT | reg-ABI ticks->DAT_00063330; divisor=(ticks*DAT_000530b4)/100 -> fn_03575d |
 | [ ] | 0x035941 | 127 | FUN_00035941 | | |
 | [ ] | 0x035a19 | 122 | FUN_00035a19 | | |
-| [ ] | 0x035c2d | 45 | FUN_00035c2d | | |
+| [x] | 0x035c2d | 45 | fn_035c2d | thin wrapper -> fn_0358c7((uint8)arg) (zero-extends AL) | ready(0)/not-ready(-1) + byte written |
 | [ ] | 0x035f1b | 293 | FUN_00035f1b | | |
 | [ ] | 0x036041 | 334 | FUN_00036041 | | |
 | [ ] | 0x036190 | 253 | FUN_00036190 | | |
@@ -754,7 +755,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03d9cf | 749 | FUN_0003d9cf | | |
 | [ ] | 0x03ed6f | 154 | FUN_0003ed6f | | |
 | [ ] | 0x03f80d | 119 | FUN_0003f80d | | |
-| [ ] | 0x040948 | 53 | FUN_00040948 | | |
+| [x] | 0x040948 | 53 | fn_040948 | two-cmd write: fn_041340(0x40); return fn_041340(arg) | ready(1)/not-ready(0) + last write |
 | [ ] | 0x040b83 | 389 | FUN_00040b83 | | |
 | [x] | 0x040efd | 40 | fn_040efd | thin wrapper -> fn_041340(0xd0) (frame 0x1c + save/restore) | ready/not-ready + exact cmd written |
 | [ ] | 0x040f4f | 99 | FUN_00040f4f | | |

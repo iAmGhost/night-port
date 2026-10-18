@@ -6486,3 +6486,15 @@ int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, const uint32_t *ar
 uint32_t fn_040efd(void) { (void)canary_id(0, 0x1c); return fn_041340(0xd0); }  /* 0x040efd */
 uint32_t fn_0413e7(void) { (void)canary_id(0, 0x1c); return fn_041340(0xd1); }  /* 0x0413e7 */
 uint32_t fn_041410(void) { (void)canary_id(0, 0x1c); return fn_041340(0xd3); }  /* 0x041410 */
+
+/* ---- 0x035c2d (L11, 45 B): thin wrapper -> fn_0358c7((uint8)arg) ----
+ * PUSH 0x20;CALL 0x418ee (frame); save regs; EAX=zero-extend(AL); CALL 0x0358c7; restore; RET.
+ * The save/zero/reload of AL just zero-extends the input byte (a uint8_t arg already is),
+ * so observably: return fn_0358c7(arg). */
+int32_t fn_035c2d(uint8_t arg) { (void)canary_id(0, 0x20); return fn_0358c7((uint8_t)arg); }  /* 0x035c2d */
+
+/* ---- 0x040948 (L12, 53 B): two-command device write ----
+ * PUSH 0x20;CALL 0x418ee (frame); save regs; save EAX; CALL 0x041340(0x40) (write cmd 0x40,
+ * result discarded); reload EAX; CALL 0x041340(arg) (write arg, return result); restore; RET.
+ * Observably: fn_041340(0x40); return fn_041340(arg). */
+uint32_t fn_040948(uint32_t arg) { (void)canary_id(0, 0x20); fn_041340(0x40); return fn_041340(arg); }  /* 0x040948 */

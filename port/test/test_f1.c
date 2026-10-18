@@ -3999,6 +3999,26 @@ static void test_fn_040efd_wrappers(void) {
     check(sys_inb(P) == 0x80, "040efd no write when not ready");
 }
 
+static void test_fn_035c2d_040948(void) {
+    printf("fn_035c2d / fn_040948 (thin device-write wrappers)\n");
+    /* 0x035c2d(arg) = fn_0358c7((uint8)arg): polls inb(g_dat_530ac+1) for bit0x40 clear,
+     * outb(g_dat_530ac, arg) returns 0; -1 on 0x2000 timeout (bit0x40 stays set). */
+    uint16_t st = (uint16_t)(g_dat_530ac + 1);
+    sys_port_set(st, 0);
+    check(fn_035c2d(0x7e) == 0, "035c2d ready -> 0");
+    check(sys_inb((uint16_t)g_dat_530ac) == 0x7e, "035c2d wrote byte 0x7e");
+    sys_port_set(st, 0x40);
+    check(fn_035c2d(0x7e) == -1, "035c2d not-ready -> -1 (timeout)");
+    /* 0x040948(arg) = { fn_041340(0x40); return fn_041340(arg); } on port g_dat_53334+0xc */
+    uint16_t P = (uint16_t)(g_dat_53334 + 0xc);
+    sys_port_set(P, 0);
+    check(fn_040948(0xa5) == 1, "040948 ready -> 1");
+    check(sys_inb(P) == 0xa5, "040948 last write = arg 0xa5");
+    sys_port_set(P, 0x80);
+    check(fn_040948(0xa5) == 0, "040948 not-ready -> 0");
+    check(sys_inb(P) == 0x80, "040948 no write when not-ready");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4293,6 +4313,7 @@ int main(void) {
     test_fn_04a814();
     test_fn_04a367();
     test_fn_040efd_wrappers();
+    test_fn_035c2d_040948();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

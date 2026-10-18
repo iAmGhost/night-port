@@ -3380,6 +3380,8 @@ uint8_t  g_dat_63f50 = 0;
 uint32_t g_dat_63f08 = 0;
 uint8_t  g_dat_62cd8[128] = {0};
 uint8_t  g_dat_62c58[128] = {0};
+uint32_t g_dat_62d5c = 0;  /* DAT_00062d5c: frame counter (decremented by fn_0347e3) */
+uint8_t  g_dat_52ff8 = 0;  /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
 uint8_t  g_dat_62c75 = 0;   /* 0x62c75 */
 uint8_t  g_dat_62c82 = 0;   /* 0x62c82 */
 uint8_t  g_dat_62c8e = 0;   /* 0x62c8e */
@@ -3457,6 +3459,29 @@ void fn_034735(uint8_t idx) {                                    /* 0x034735: pe
         g_dat_62c58[idx]++;
         fn_03442e(idx);
     }
+}
+
+/* 0x0347e3 (L13, 254 B): keyboard dispatch pump. Gated on g_52ff8. For each of the
+ * 128 per-key state slots g_62c58[i] that is non-zero, dispatch on the index: the
+ * scan-code keys {0x1d,0x2a,0x2c,0x36,0x38} drive fn_034735 (modifier state
+ * machine) and {0x48,0x4b,0x4d,0x50} drive fn_034635 (key state machine); any other
+ * index is ignored. After the loop, decrement the frame counter g_62d5c if non-zero.
+ * No return value. */
+void fn_0347e3(void) {
+    (void)canary_id(0, 0x24);                                   /* PUSH 0x24;CALL 0x418ee */
+    if (g_dat_52ff8 == 0) return;                               /* 0x347fb/cf */
+    for (uint32_t i = 0; i < 0x80; i++) {                       /* 0x34808-0x3481e */
+        if (g_dat_62c58[i] == 0) continue;                      /* 0x34824-0x34834 */
+        switch (i) {                                            /* 0x3483a-0x348c3 */
+        case 0x1d: case 0x2a: case 0x2c: case 0x36: case 0x38:
+            fn_034735((uint8_t)i); break;                       /* 0x34851 */
+        case 0x48: case 0x4b: case 0x4d: case 0x50:
+            fn_034635((uint8_t)i); break;                       /* 0x34842 */
+        default:
+            break;
+        }
+    }
+    if (g_dat_62d5c != 0) g_dat_62d5c--;                        /* 0x348ca-0x348d3 */
 }
 
 void fn_03442e(uint8_t x) {                                      /* 0x03442e */

@@ -739,6 +739,9 @@ extern uint8_t  g_dat_63f50;      /* DAT_00063f50 (slot index) */
 extern uint32_t g_dat_63f08;      /* DAT_00063f08 (slot fill value) */
 extern uint8_t  g_dat_62cd8[128]; /* DAT_00062cd8 (counters, per-key) */
 extern uint8_t  g_dat_62c58[128]; /* DAT_00062c58 (flags, per-key) */
+extern uint32_t g_dat_62d5c;     /* DAT_00062d5c: frame counter (decremented by fn_0347e3) */
+extern uint8_t  g_dat_52ff8;     /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
+void fn_0347e3(void);            /* 0x0347e3: keyboard dispatch pump over g_62c58 */
 extern uint8_t  g_dat_62c75;      /* DAT_00062c75 (byte flag) */
 extern uint8_t  g_dat_62c82;      /* DAT_00062c82 (byte flag) */
 extern uint8_t  g_dat_62c8e;      /* DAT_00062c8e (byte flag) */

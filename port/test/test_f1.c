@@ -4528,6 +4528,60 @@ static void test_fn_034eb0(void) {
     sys_ports_reset();
 }
 
+static void test_fn_0347e3(void) {
+    printf("fn_0347e3 (0x0347e3, keyboard dispatch pump over g_62c58)\n");
+    uint8_t  sv_c58[128], sv_cd8[128];
+    memcpy(sv_c58, g_dat_62c58, 128);
+    memcpy(sv_cd8, g_dat_62cd8, 128);
+    uint32_t sv24 = g_dat_52ff8, svdc = g_dat_62d5c;
+    uint32_t sv90 = g_dat_62c90, sv82 = g_dat_62c82, sve = g_dat_62c8e, sv75 = g_dat_62c75;
+    uint32_t sv94 = g_dat_62a94;
+
+    /* isolate: zero per-key state + ring-trigger keys so callees only touch g_62c58 */
+    memset(g_dat_62c58, 0, 128);
+    memset(g_dat_62cd8, 0, 128);
+    g_dat_62c90 = g_dat_62c82 = g_dat_62c8e = g_dat_62c75 = 0;
+
+    /* 1. gate off: nothing happens */
+    g_dat_52ff8 = 0; g_dat_62c58[0x1d] = 1; g_dat_62d5c = 3;
+    fn_0347e3();
+    check(g_dat_62c58[0x1d] == 1, "0347e3 gate off: g_62c58[0x1d] unchanged");
+    check(g_dat_62d5c == 3, "0347e3 gate off: g_62d5c unchanged");
+
+    /* 2. fn_034735 dispatch (0x1d, state<4): increment */
+    g_dat_52ff8 = 1; memset(g_dat_62c58, 0, 128); g_dat_62c58[0x1d] = 1;
+    fn_0347e3();
+    check(g_dat_62c58[0x1d] == 2, "0347e3 fn_034735(0x1d): state 1->2");
+
+    /* 3. fn_034635 dispatch (0x50, state<4): increment */
+    g_dat_52ff8 = 1; memset(g_dat_62c58, 0, 128); g_dat_62c58[0x50] = 2;
+    fn_0347e3();
+    check(g_dat_62c58[0x50] == 3, "0347e3 fn_034635(0x50): state 2->3");
+
+    /* 4. non-dispatch index (0x20): untouched */
+    g_dat_52ff8 = 1; memset(g_dat_62c58, 0, 128); g_dat_62c58[0x20] = 1;
+    fn_0347e3();
+    check(g_dat_62c58[0x20] == 1, "0347e3 non-dispatch idx 0x20: untouched");
+
+    /* 5. fn_034735 reset (0x38, state==4, cd8==0) */
+    g_dat_52ff8 = 1; memset(g_dat_62c58, 0, 128); memset(g_dat_62cd8, 0, 128);
+    g_dat_62c58[0x38] = 4;
+    fn_0347e3();
+    check(g_dat_62c58[0x38] == 0, "0347e3 fn_034735(0x38) state4 cd8==0: reset to 0");
+
+    /* 6. g_62d5c decrement */
+    g_dat_52ff8 = 1; memset(g_dat_62c58, 0, 128); g_dat_62d5c = 5;
+    fn_0347e3();
+    check(g_dat_62d5c == 4, "0347e3: g_62d5c decremented");
+
+    /* restore */
+    memcpy(g_dat_62c58, sv_c58, 128);
+    memcpy(g_dat_62cd8, sv_cd8, 128);
+    g_dat_52ff8 = sv24; g_dat_62d5c = svdc;
+    g_dat_62c90 = sv90; g_dat_62c82 = sv82; g_dat_62c8e = sve; g_dat_62c75 = sv75;
+    g_dat_62a94 = sv94;
+}
+
 static void test_fn_03cc6b(void) {
     printf("fn_03cc6b (0x03cc6b, state machine, no callees)\n");
     static uint8_t a0[0x360];
@@ -4949,6 +5003,7 @@ int main(void) {
     test_fn_035a94();
     test_fn_035b0c();
     test_fn_034eb0();
+    test_fn_0347e3();
     test_fn_03cc6b();
     test_fn_034f31();
     test_fn_045bb7();

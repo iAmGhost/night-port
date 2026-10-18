@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 333 / 528 done
+TOTALS: 334 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -51,7 +51,7 @@ TOTALS: 333 / 528 done
 | L10 | 81 | 57 | 0 | 0 | 24 |
 | L11 | 77 | 40 | 0 | 0 | 37 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
-| L13 | 16 | 3 | 0 | 0 | 13 |
+| L13 | 16 | 4 | 0 | 0 | 12 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
 | L16 | 8 | 0 | 0 | 0 | 8 |
@@ -791,7 +791,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x010d47 | 150 | FUN_00010d47 | | |
 | [ ] | 0x013908 | 420 | FUN_00013908 | | |
 | [ ] | 0x031a8e | 1153 | FUN_00031a8e | | |
-| [ ] | 0x0347e3 | 254 | FUN_000347e3 | | |
+| [x] | 0x0347e3 | 254 | FUN_000347e3 | keyboard dispatch pump: gate g_52ff8; for i in 0..0x7f if g_62c58[i]: {0x1d,0x2a,0x2c,0x36,0x38}->fn_034735, {0x48,0x4b,0x4d,0x50}->fn_034635; then g_62d5c-- | gate off + fn_034735 inc + fn_034635 inc + non-dispatch untouched + state4 reset + g_62d5c dec, 7 checks |
 | [x] | 0x034eb0 | 128 | FUN_00034eb0 | device/IRQ teardown: if g_63324 {irq_cli;fn_03575d(0);isr_set(8,g_63334,g_63338);fn_035ac0;irq_sti;g_63324=0; if g_6333c {heap_free_host;g_6333c=0}} | positive (g_63324 cleared, heap_free skipped) + negative (body skipped), 4 checks |
 | [x] | 0x035a94 | 43 | FUN_00035a94 | passthrough -> fn_0359c1() | return -1 + g_530ac=0x330, 2 checks |
 | [x] | 0x035b0c | 132 | FUN_00035b0c | device cmd dispatcher: (a0&0xf0==0xb0&&a1==7)? g_530bc[a0&0xf]=a2; fn_035b91 : fn_035a19 | branch A/B table write + no-write + a1!=7, 6 checks |

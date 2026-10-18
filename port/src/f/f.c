@@ -6865,6 +6865,37 @@ void fn_035ac0(void) {
         (void)fn_035a19(i + 0xb0, 0x78, 0);                    /* write (i+0xb0),0x78,0 */
 }
 
+/* 0x0357f2 (L10, 212 B): device read with status handshaking. Arg AL (byte a0).
+ * Phase 1: wait for status bit6 (0x40) to clear on inb(g_dat_530ac+1), up to 0x2000
+ *   iters; timeout -> -1. Then outb(g_dat_530ac+1, a0) (write the data byte to the
+ *   status port). Phase 2: wait for status bit7 (0x80) to clear on inb(+1), up to
+ *   0x2000 iters (a 0x7530 re-check follows but is dead since i < 0x2000 < 0x7530)
+ *   -> -1. Read data from inb(g_dat_530ac); if 0xfe -> -2, else 0.
+ * NOTE: the outb writes to +1 (the same port phase-2 polls), so phase-2 sees `a0`
+ * after the write -- a0's bit7 (0x80) therefore gates the phase-2 wait. */
+int32_t fn_0357f2(uint8_t a0) {
+    (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
+    int32_t i = 0;
+    for (;;) {                                                  /* phase 1: wait bit6 clear */
+        if (i >= 0x2000) break;                                 /* 0x3581c */
+        uint8_t s = inb((uint16_t)(g_dat_530ac + 1));           /* 0x35825/82b */
+        if (s & 0x40) { i++; continue; }                        /* 0x35830 */
+        break;
+    }
+    if (i >= 0x2000) return -1;                                 /* 0x3583f */
+    outb((uint16_t)(g_dat_530ac + 1), a0);                      /* 0x35858: write a0 */
+    i = 0;
+    for (;;) {                                                  /* phase 2: wait bit7 clear */
+        if (i >= 0x2000) break;                                 /* 0x3586c */
+        uint8_t s = inb((uint16_t)(g_dat_530ac + 1));           /* 0x35875/87b */
+        if (s & 0x80) { i++; continue; }                        /* 0x35880 */
+        break;
+    }
+    if (i >= 0x7530) return -1;                                 /* 0x35888 (dead) */
+    uint32_t data = inb((uint16_t)g_dat_530ac);                 /* 0x3589f */
+    return (data == 0xfe) ? -2 : 0;                             /* 0x358a4 */
+}
+
 /* 0x035b91 (L12, 98 B): args AL/DL/BL. val = (a2 * g_dat_530b8) / 100 (signed); take the
  * low byte and clamp to 0x7f (bytes 0x80..0xff, i.e. negative quotients, clamp to 127).
  * Return fn_035a19(a0, a1, clamped). */

@@ -4360,6 +4360,30 @@ static void test_fn_013aad(void) {
     check(*(int32_t*)(n1+0x9)==1 && *(int32_t*)(n2+0x9)==2 && *(int32_t*)(n0+0x9)==3, "013aad keys 1,2,3 in order");
 }
 
+static void test_fn_0357f2(void) {
+    printf("fn_0357f2 (0x0357f2, device read w/ status handshake)\n");
+    g_dat_530ac = 0x378;
+    /* success: status bit6&bit7 clear, a0 bit7 clear (0x11), data != 0xfe */
+    sys_ports_reset();
+    sys_port_set(0x379, 0x00);
+    sys_port_set(0x378, 0x55);
+    int32_t r = fn_0357f2(0x11);
+    check(r == 0, "0357f2 success ret 0");
+    check(sys_inb(0x379) == 0x11, "0357f2 wrote a0 to +1 port");
+    check(sys_inb(0x378) == 0x55, "0357f2 data port untouched");
+    /* -2: data == 0xfe */
+    sys_ports_reset();
+    sys_port_set(0x379, 0x00);
+    sys_port_set(0x378, 0xfe);
+    r = fn_0357f2(0x22);
+    check(r == -2, "0357f2 data 0xfe -> -2");
+    /* -1: phase-1 timeout (status bit6 always set) */
+    sys_ports_reset();
+    sys_port_set(0x379, 0x40);
+    r = fn_0357f2(0x33);
+    check(r == -1, "0357f2 phase1 timeout -> -1");
+}
+
 static void test_fn_034f31(void) {
     printf("fn_034f31 (0x034f31, MIDI RIFF deserializer)\n");
     uint32_t src_off = heap_arena_alloc(0x40);   /* MThd + 2 MTrk (38 bytes) */
@@ -4718,6 +4742,7 @@ int main(void) {
     test_fn_03d67c();
     test_fn_017218();
     test_fn_013aad();
+    test_fn_0357f2();
     test_fn_034f31();
     test_fn_045bb7();
     test_fn_04391d();

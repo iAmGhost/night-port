@@ -126,6 +126,10 @@ extern int32_t  g_dat_530b8;                    /* DAT_000530b8: timer rate mult
 extern int32_t  g_dat_530bc[16];                /* DAT_000530bc: 16-entry command table (fn_035b0c writes [a0&0xf]) */
 extern uint32_t g_dat_63304;                    /* DAT_00063304: timer divisor (fn_03565a denominator) */
 extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick value */
+extern uint32_t g_dat_63324;                    /* DAT_00063324: IRQ/device enabled flag (gate + cleared by fn_034eb0) */
+extern uint32_t g_dat_63334;                    /* DAT_00063334: IRQ8 handler offset (isr_set arg) */
+extern uint32_t g_dat_63338;                    /* DAT_00063338: IRQ8 handler segment (isr_set arg, low 16) */
+extern uint32_t g_dat_6333c;                    /* DAT_0006333c: memory block freed via fn_041c31 (fn_034eb0) */
 void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
 void fn_0003f592(void);                         /* 0x0003f592: VGA vline to A0000 + palette (no-op, unmodeled buffer) */
 void fn_0003c7d7(uint8_t *s);                   /* 0x0003c7d7: zero 6 struct fields + memset DAT_0005d08c/5d0a0 */
@@ -579,6 +583,7 @@ int32_t  fn_0359c1(void);                    /* 0x0359c1: probe device bases 0x3
 int32_t  fn_035a94(void);                    /* 0x035a94: passthrough -> fn_0359c1() */
 int32_t  fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b91: clamp (a2*g_dat_530b8)/100 low byte to 0x7f, fn_035a19(a0,a1,clamped) */
 int32_t  fn_035b0c(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b0c: (a0&0xf0==0xb0&&a1==7)? g_530bc[a0&0xf]=a2; fn_035b91 : fn_035a19 */
+void     fn_034eb0(void);                    /* 0x034eb0: device/IRQ teardown: if g_63324 {irq_cli;fn_03575d(0);isr_set(8,g_63334,g_63338);fn_035ac0;irq_sti;g_63324=0; if g_6333c {fn_041c31;g_6333c=0}} */
 int32_t  fn_03565a(int32_t input);  /* 0x03565a: div=input/1000; r=div==0?0x10000:(div*0x4aa)/g_dat_63304; fn_000356ba(r); return r */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */
 extern uint32_t g_dat_63f88;  /* DAT_00063f88: 16-bit device value (0x0411d9) */

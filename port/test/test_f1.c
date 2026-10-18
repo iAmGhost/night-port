@@ -4504,6 +4504,30 @@ static void test_fn_035b0c(void) {
     sys_ports_reset();
 }
 
+static void test_fn_034eb0(void) {
+    printf("fn_034eb0 (0x034eb0, device/IRQ teardown)\n");
+    uint32_t sv24 = g_dat_63324, sv34 = g_dat_63334, sv38 = g_dat_63338, sv3c = g_dat_6333c;
+    uint32_t sv53 = g_dat_530ac;
+    sys_ports_reset();
+    g_dat_530ac = 0x100;          /* safe device base for fn_035ac0's port writes */
+
+    /* Case 1: g_63324 set, g_6333c=0 -> teardown runs, g_63324 cleared, heap_free skipped */
+    g_dat_63324 = 1; g_dat_6333c = 0;
+    fn_034eb0();
+    check(g_dat_63324 == 0, "034eb0 positive: g_63324 cleared to 0");
+    check(g_dat_6333c == 0, "034eb0 positive: g_6333c==0 (heap_free_host skipped)");
+
+    /* Case 2: g_63324 clear -> whole body skipped */
+    g_dat_63324 = 0; g_dat_6333c = 5;
+    fn_034eb0();
+    check(g_dat_63324 == 0, "034eb0 negative: g_63324 stays 0");
+    check(g_dat_6333c == 5, "034eb0 negative: g_6333c untouched (body skipped)");
+
+    g_dat_63324 = sv24; g_dat_63334 = sv34; g_dat_63338 = sv38; g_dat_6333c = sv3c;
+    g_dat_530ac = sv53;
+    sys_ports_reset();
+}
+
 static void test_fn_03cc6b(void) {
     printf("fn_03cc6b (0x03cc6b, state machine, no callees)\n");
     static uint8_t a0[0x360];
@@ -4924,6 +4948,7 @@ int main(void) {
     test_fn_0359c1();
     test_fn_035a94();
     test_fn_035b0c();
+    test_fn_034eb0();
     test_fn_03cc6b();
     test_fn_034f31();
     test_fn_045bb7();

@@ -611,6 +611,10 @@ int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn
 int32_t  g_dat_530bc[16]; /* DAT_000530bc: 16-entry command table; fn_035b0c writes [a0&0xf]=a2 */
 uint32_t g_dat_63304 = 0;  /* DAT_00063304: timer divisor (denominator in fn_03565a) */
 uint32_t g_dat_63330 = 0;  /* DAT_00063330: last timer tick value (written by fn_0356ba) */
+uint32_t g_dat_63324 = 0;  /* DAT_00063324: IRQ/device enabled flag (gate + cleared by fn_034eb0) */
+uint32_t g_dat_63334 = 0;  /* DAT_00063334: IRQ8 handler offset (isr_set arg) */
+uint32_t g_dat_63338 = 0;  /* DAT_00063338: IRQ8 handler segment (isr_set arg, low 16) */
+uint32_t g_dat_6333c = 0;  /* DAT_0006333c: memory block freed via fn_041c31 (fn_034eb0) */
 
 /* fn_000356ba  orig: 0x000356ba (L11, 76B)
  *   Timer rate setup (register-ABI, input ticks in EAX). Stores
@@ -7058,6 +7062,26 @@ int32_t fn_035b0c(uint8_t a0, uint8_t a1, uint8_t a2) {
         return fn_035b91(a0, a1, a2);                           /* 0x35b6f */
     }
     return fn_035a19((int32_t)a0, (int32_t)a1, (int32_t)a2);    /* 0x35b85 */
+}
+
+/* 0x034eb0 (L13, 128 B): device/IRQ teardown. Gated on g_63324: disable IRQs
+ * (irq_cli), retime the PIT (fn_03575d(0)), reinstall IRQ8 (isr_set(8, g_63334,
+ * g_63338-low16)), re-init the device command table (fn_035ac0), re-enable IRQs
+ * (irq_sti), clear g_63324; then if g_6333c != 0 free that block via fn_041c31 and
+ * clear g_6333c. No return value. */
+void fn_034eb0(void) {
+    (void)canary_id(0, 0x1c);                                   /* PUSH 0x1c;CALL 0x418ee */
+    if (g_dat_63324 == 0) return;                               /* 0x34ec8/cf */
+    irq_cli();                                                  /* 0x34ed1 */
+    (void)fn_03575d(0);                                         /* 0x34ed6/ed8 */
+    isr_set(0x8, g_dat_63334, (uint16_t)g_dat_63338);           /* 0x34edd-0x34ef4 */
+    fn_035ac0();                                                /* 0x34ef9 */
+    irq_sti();                                                  /* 0x34efe */
+    g_dat_63324 = 0;                                            /* 0x34f03 */
+    if (g_dat_6333c != 0) {                                     /* 0x34f0d/14 */
+        heap_free_host(g_dat_6333c);                         /* 0x34f16/1b */
+        g_dat_6333c = 0;                                        /* 0x34f20 */
+    }
 }
 
 /* 0x03565a (L12, 95 B): div = input / 1000 (signed). If div == 0, r = 0x10000; else

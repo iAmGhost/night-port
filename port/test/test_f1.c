@@ -3712,6 +3712,54 @@ static void test_fn_043fc3(void) {
     check(cur == stream, "  fn_043fc3 no-store: output cursor NOT advanced (flags&1=0)");
 }
 
+/* ---------- fn_043e34: emit-subsystem whitespace-delimited token reader ---------- */
+static void test_fn_043e34(void) {
+    printf("fn_043e34 (0x043e34, whitespace token reader)\n");
+    uint8_t obuf[16];
+    uintptr_t cursor;
+    struct emit_ctx ctx;
+    uint32_t w;
+
+    /* case 1: byte mode, "  hello world" -> skip 2 ws, store "hello", stop at ws */
+    memset(obuf, 0xcc, sizeof obuf);
+    ts_stream = "  hello world"; ts_si = 0; ts_emitc = -1;
+    memset(&ctx, 0, sizeof ctx); ctx.next = ts_next; ctx.emit = ts_emit; ctx.count = 10; ctx.flags = 0x1;
+    cursor = (uintptr_t)obuf;
+    w = fn_043e34(&ctx, &cursor);
+    check(w == 7, "  fn_043e34 byte '  hello': consumed=7 (2ws+5)");
+    check(obuf[0]=='h'&&obuf[1]=='e'&&obuf[2]=='l'&&obuf[3]=='l'&&obuf[4]=='o'&&obuf[5]==0, "  fn_043e34 byte: obuf 'hello\\0'");
+    check(ts_emitc == ' ', "  fn_043e34 byte: ' ' put back");
+    check(cursor == (uintptr_t)obuf + 4, "  fn_043e34 byte: cursor += 4 (near)");
+
+    /* case 2: peek mode -> returns 0 after skipping */
+    ts_stream = "  hello"; ts_si = 0; ts_emitc = -1;
+    memset(&ctx, 0, sizeof ctx); ctx.next = ts_next; ctx.emit = ts_emit; ctx.count = 10; ctx.flags = 0x2;
+    cursor = (uintptr_t)obuf;
+    w = fn_043e34(&ctx, &cursor);
+    check(w == 0, "  fn_043e34 peek: returns 0");
+    check(ts_emitc == -1, "  fn_043e34 peek: no put-back");
+
+    /* case 3: count==0 -> put back first char, return ws count */
+    ts_stream = "  hello"; ts_si = 0; ts_emitc = -1;
+    memset(&ctx, 0, sizeof ctx); ctx.next = ts_next; ctx.emit = ts_emit; ctx.count = 0; ctx.flags = 0x1;
+    cursor = (uintptr_t)obuf;
+    w = fn_043e34(&ctx, &cursor);
+    check(w == 2, "  fn_043e34 count=0: consumed=2 (ws only)");
+    check(ts_emitc == 'h', "  fn_043e34 count=0: 'h' put back");
+    check(cursor == (uintptr_t)obuf + 4, "  fn_043e34 count=0: cursor += 4");
+
+    /* case 4: word mode (flags 0x20), "ab " -> store words */
+    memset(obuf, 0xcc, sizeof obuf);
+    ts_stream = "ab "; ts_si = 0; ts_emitc = -1;
+    memset(&ctx, 0, sizeof ctx); ctx.next = ts_next; ctx.emit = ts_emit; ctx.count = 10; ctx.flags = 0x21;
+    cursor = (uintptr_t)obuf;
+    w = fn_043e34(&ctx, &cursor);
+    check(w == 2, "  fn_043e34 word 'ab ': consumed=2");
+    check(obuf[0]==0x61&&obuf[1]==0&&obuf[2]==0x62&&obuf[3]==0, "  fn_043e34 word: obuf[0..3]=0x0061,0x0062");
+    check(obuf[4]==0&&obuf[5]==0, "  fn_043e34 word: null word at [4..5]");
+    check(ts_emitc == ' ', "  fn_043e34 word: ' ' put back");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -3951,6 +3999,7 @@ int main(void) {
     test_fn_043381();
     test_fn_044387();
     test_fn_043fc3();
+    test_fn_043e34();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

@@ -2087,6 +2087,71 @@ uint32_t fn_043fc3(struct emit_ctx *ctx, uintptr_t **pos, const uint8_t **src)
     return written;
 }
 
+/* 0x043e34: emit-subsystem whitespace-delimited token reader (93 insns).
+ *
+ * Reads a whitespace-delimited token: skips leading whitespace (kCharClass[(c+1)]
+ * bit 0x02 = whitespace, each counted in `consumed`), then stores a run of
+ * non-whitespace chars to the output buffer, stopping at the next whitespace or
+ * EOF. `count` is a token budget: if count>0 it is decremented once and the token
+ * is read+stored; if count==0 the first non-ws char is emitted back (put) and
+ * nothing is stored. The first token char is read via ctx->next (in the skip
+ * loop); subsequent chars via emit_step (which decrements count again per char and
+ * returns 0xffff on EOF/peek). A terminating whitespace char is emitted back; an
+ * EOF terminator is not. Output slot: dest = (uint8_t*)(old *pos), *pos += 8
+ * (flags&4, far) else 4 (near / flags&8) -- all flat in 64-bit. Store size = mode
+ * (flags&0x20 ? word : byte), dest advances by mode per char; null-terminated at
+ * dest_end when flags&1 and consumed>0. Peek mode (flags&2) returns 0 after
+ * skipping. Returns total chars consumed (leading whitespace + token chars).
+ *
+ * ABI (register): ctx=EAX, pos=EDX (output cursor, uintptr_t *). Depends on
+ * emit_step (0x0445a6) and kCharClass (0x5185c). orig: 0x043e34 */
+uint32_t fn_043e34(struct emit_ctx *ctx, uintptr_t *pos)
+{
+    int mode = (ctx->flags & 0x20) ? 2 : 1;         /* [ESP]: 1=byte 2=word  */
+
+    uint8_t *dest = NULL;
+    if (ctx->flags & 0x1) {                          /* output slot (flat)     */
+        dest = (uint8_t *)(uintptr_t)*pos;          /* old *pos = slot start  */
+        *pos += (ctx->flags & 0x4) ? 8 : 4;         /* far=8, near/0x8=4      */
+    }
+
+    uint32_t consumed = 0;                           /* ESI                    */
+    int c = (int)ctx->next(ctx);                     /* skip loop            */
+    while (kCharClass[(uint8_t)(c + 1)] & 0x2) {
+        consumed++;
+        c = (int)ctx->next(ctx);
+    }
+    if (ctx->flags & 0x2) return 0;                  /* peek mode             */
+
+    uint32_t cnt = ctx->count;
+    ctx->count = cnt - 1;
+    if (cnt == 0) {                                  /* token budget exhausted */
+        if (ctx->emit) ctx->emit((uint16_t)c, ctx);  /* put back first char    */
+        goto end;
+    }
+
+    for (;;) {
+        consumed++;
+        if (ctx->flags & 0x1) {
+            if (mode == 1) { dest[0] = (uint8_t)c; dest += 1; }
+            else           { *(uint16_t *)dest = (uint16_t)c; dest += 2; }
+        }
+        c = (int)emit_step(ctx);
+        if (c == -1) goto end;                       /* EOF: no put-back      */
+        if (kCharClass[(uint8_t)(c + 1)] & 0x2) {    /* whitespace terminator */
+            if (ctx->emit) ctx->emit((uint16_t)c, ctx);   /* put back          */
+            goto end;
+        }
+        /* non-ws: continue */
+    }
+end:
+    if ((ctx->flags & 0x1) && consumed > 0) {
+        if (mode == 1) dest[0] = 0;
+        else           *(uint16_t *)dest = 0;
+    }
+    return consumed;
+}
+
 void dispatch_a(uint32_t key)
 {
     for (;;) {                                          /* 0x4461f outer */

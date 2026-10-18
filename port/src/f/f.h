@@ -122,6 +122,7 @@ uint32_t fn_00041bdc(uint32_t size);            /* 0x00041bdc: heap_malloc wrapp
 void fn_00035d0f(void);                         /* 0x00035d0f: DMA channel busy-wait (no-op, degenerate spin) */
 void fn_000356ba(uint32_t ticks);               /* 0x000356ba: PIT ch0 rate setup from ticks (reg-ABI) */
 extern int32_t  g_dat_530b4;                    /* DAT_000530b4: timer rate multiplier */
+extern int32_t  g_dat_530b8;                    /* DAT_000530b8: timer rate multiplier #2 (fn_035b91) */
 extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick value */
 void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
 void fn_0003f592(void);                         /* 0x0003f592: VGA vline to A0000 + palette (no-op, unmodeled buffer) */
@@ -552,6 +553,7 @@ int32_t  fn_035a19(int32_t a0, int32_t a1, int32_t a2);  /* 0x035a19: 3-byte wri
 void     fn_035329(uint32_t a0, uint32_t a1);  /* 0x035329: scan 0xe-byte records (tag@+0x5,val@+0xa) for min -> a1{+0x10 cur,+0x14 idx,+0x20 flag} */
 int32_t  fn_035bf4(uint8_t al, uint8_t dl);  /* 0x035bf4: thin -> fn_035a19(al,dl,-1) (3rd byte skipped) */
 void     fn_035ac0(void);                    /* 0x035ac0: device-init, for i in 0..15 fn_035a19(i+0xb0,0x78,0) */
+int32_t  fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b91: clamp (a2*g_dat_530b8)/100 low byte to 0x7f, fn_035a19(a0,a1,clamped) */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */
 extern uint32_t g_dat_63f88;  /* DAT_00063f88: 16-bit device value (0x0411d9) */
 uint32_t fn_0411d9(void);  /* 0x0411d9: if fn_041340(0xe1) { combine 2x fn_0412a3 as (hi<<8)|lo -> DAT_63f88 } else 0 */

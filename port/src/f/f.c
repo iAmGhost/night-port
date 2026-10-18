@@ -599,6 +599,7 @@ uint32_t fn_00041bdc(uint32_t size) { if (size == 0) size = 1; return heap_mallo
 void fn_00035d0f(void) {}
 
 int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) */
+int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
 uint32_t g_dat_63330 = 0;  /* DAT_00063330: last timer tick value (written by fn_0356ba) */
 
 /* fn_000356ba  orig: 0x000356ba (L11, 76B)
@@ -6586,4 +6587,16 @@ void fn_035ac0(void) {
     (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
     for (int32_t i = 0; i < 16; i++)                            /* 0x10 iters */
         (void)fn_035a19(i + 0xb0, 0x78, 0);                    /* write (i+0xb0),0x78,0 */
+}
+
+/* 0x035b91 (L12, 98 B): args AL/DL/BL. val = (a2 * g_dat_530b8) / 100 (signed); take the
+ * low byte and clamp to 0x7f (bytes 0x80..0xff, i.e. negative quotients, clamp to 127).
+ * Return fn_035a19(a0, a1, clamped). */
+int32_t fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2) {
+    (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
+    int32_t prod = (int32_t)a2 * g_dat_530b8;                   /* IMUL EDX,[0x530b8] */
+    int32_t q    = prod / 100;                                  /* IDIV EBX=0x64 (signed) */
+    uint8_t b    = (uint8_t)q;                                  /* low byte of quotient */
+    if (b > 0x7f) b = 0x7f;                                     /* clamp */
+    return fn_035a19((int32_t)a0, (int32_t)a1, (int32_t)b);     /* write a0,a1,clamped */
 }

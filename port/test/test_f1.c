@@ -4118,6 +4118,22 @@ static void test_fn_035bf4_035ac0(void) {
     check(sys_inb(dp) == 0, "035ac0 final byte = a2=0 (last iter)");
 }
 
+static void test_fn_035b91(void) {
+    printf("fn_035b91 (0x035b91, clamp (a2*g_dat_530b8)/100 low byte to 0x7f -> fn_035a19)\n");
+    uint16_t st = (uint16_t)(g_dat_530ac + 1);
+    uint16_t dp = (uint16_t)g_dat_530ac;
+    int32_t saved = g_dat_530b8;
+    g_dat_530b8 = 200;
+    sys_port_set(st, 0);
+    check(fn_035b91(0x11, 0x22, 50) == 0,  "035b91 ready -> 0");
+    check(sys_inb(dp) == 100,              "035b91 3rd byte = (50*200)/100 = 100");
+    fn_035b91(0x11, 0x22, 200);            /* (200*200)/100=400 -> byte 0x90=144 -> clamp 0x7f */
+    check(sys_inb(dp) == 0x7f,             "035b91 clamp to 0x7f");
+    sys_port_set(st, 0x40);
+    check(fn_035b91(0x11, 0x22, 50) == -1, "035b91 timeout -> -1");
+    g_dat_530b8 = saved;
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4418,6 +4434,7 @@ int main(void) {
     test_fn_035a19();
     test_fn_035329();
     test_fn_035bf4_035ac0();
+    test_fn_035b91();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

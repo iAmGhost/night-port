@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 281 / 528 done
+TOTALS: 283 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 281 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 46 | 0 | 0 | 35 |
-| L11 | 77 | 30 | 0 | 0 | 47 |
+| L11 | 77 | 32 | 0 | 0 | 45 |
 | L12 | 58 | 9 | 0 | 0 | 49 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x0412a3 + 0x041340 PORTED (L11, 69B/79B) — ready-gated CD-ROM device I/O, complements the 0x0412e9/0x041390 polls ported earlier this pass.** Both depend only on already-ported leaves (0x0412e9/0x041390 poll loops, inb=0x04238c, outb=0x04231d). 0x0412a3(): canary `PUSH 0x20`; `if (fn_0412e9()==0) return 0; return inb(g_dat_53334+0xa);` (status read gated on the +0xe bit7-set ready-poll). 0x041340(cmd in EAX): canary `PUSH 0x24`; `if (fn_041390()==0) return 0; outb(g_dat_53334+0xc, cmd); return 1;` (command write gated on the +0xc bit7-clear ready-poll). 9 checks: both functions' not-ready->0 path (with +0xc left untouched in the write case) and ready path (inb value returned / outb byte verified via the port_val map read back with inb). **Also documented a frontier.py data-drift bug:** the analysis rank.tsv/callgraph.tsv still list stale mid-function addresses (e.g. 0x010b39/0x010b4b/0x010b71 inside the already-ported 0x010b1d, 288B) as if they were separate 52B functions; those are phantoms (Ghidra has merged them into 0x010b1d), so they were never pending work. L11 30->32, TOTALS 281->283, suite 903->912 PASS 0 FAIL. | STATUS.md L11 |
 | 2026-07-08 | **0x03c6ec + 0x03d88f PORTED (L11, 62B/68B) — struct-node reset + list reset.** Both depend only on the ported fn_0003c7d7 (zero 6 node fields + memset DAT_0005d08c/5d0a0). 0x03c6ec(s): register-ABI (s in EAX), canary `PUSH 0x24`; calls fn_03c7d7(s), zeroes the dword at s+0x44, returns s. 0x03d88f(): no-arg, canary `PUSH 0x20`; walks next = node+0x34c from DAT_00063350 (new global), calling fn_03c7d7(node) on each, returns 0 (the null next pointer at loop exit). POINTER-WIDTH: the original 4-byte next at +0x34c is read as a full 64-bit pointer (consistent with fn_0003b5c0's documented 32->64 adaptation). 11 differential checks (fn_03c6ec: 6 — return/zeroed-fields/untouched; fn_03d88f: 5 — return + both nodes reset + untouched). L11 28->30, TOTALS 279->281, suite 892->903 PASS 0 FAIL. | STATUS.md L11 |
 | 2026-07-08 | **0x0412e9 + 0x041390 PORTED (L10, 86B each) — CD-ROM/device status spin-polls, previously deferred to the CD-subsystem batch (lines 140/191) but ported now as self-contained verified leaves.** Both: canary prologue `PUSH 0x24; CALL 0x418ee`, no args, poll `inb(g_dat_53334+off)` with a 0x7fff counter decremented before each poll. 0x0412e9 polls +0xe, returns 1 on the first poll with bit 0x80 SET (0 on the 0x7fff-iter timeout); 0x041390 polls +0xc, returns 1 on bit 0x80 CLEAR (0 on timeout). The decompiler's "reg-ABI EDX extraout" is an artifact — EDX is push/pop'd around inb (which clobbers then restores it), so EAX is the only output. Verified via the sys_port_set port-map hook (base 0x100, so +0xc/+0xe are within PORT_MAX 0x400): 8 checks cover both the immediate-return bit states and both 0x7fff-iter timeouts. Wiring g_dat_53334 to a real CD device stays a separate mid-subsystems/sys-layer task. L10 44->46, TOTALS 277->279, suite 884->892 PASS 0 FAIL. | STATUS.md L10 |
 | 2026-07-08 | **Leaf tier (L0-L4) exhaustively assessed: every remaining function is gated on a dedicated subsystem pass -- no clean isolated wins left.** Current: L0 111/112, L1 38/47, L2 19/32, L3 15/21, L4 4/13. Per-function blockers (verified via full disasm + callee port-status): **L0** 0x04a3a8 = FPU (deferred, FPU-stack ambiguity). **L1** 0x04a814 = table-scan whose start index comes from 0x04a923, which is a **misanalyzed data block** (66 'ADD AL'/DAA insns -- not real code) so its return is unknowable; 0x042ccc = DPMI heap-invariant + DPMI/DOS; 0x045bb7 = 3x INT 0x21 (DOS); 0x048053 = gated on 0x0463dc (DPMI caller-frame fn); 0x048fe6 = INT 0x2f/0x31 + CR0 (IRQ/system); 0x043e34 = **emit-subsystem state-machine emitter** (93 insns, register-ABI EAX=ctx/EDX=cursor/EBX=val, ES:ECX far writes, kCharClass[0x5185c] as a state table, TWO loops exiting on opposite bit-0x2 conditions, pipelined emit of prior-step result); 0x047b79 = FPU; 0x0440a9 = huge (733B). **L2** 0x041fa1 = 1-insn JMP-thunk to unported 0x0438a3; 0x046d32/0x046d47 = caseD indirect tail-jump `JMP [EBP+0x76]` + register-ABI (dispatcher cases); 0x04a32b = FPU (ambiguous arg count); 0x044387 = huge (503B). **L4** 0x043fc3 = **emit-subsystem emitter, sibling of 0x043e34** (87 insns, SAME emit_ctx struct, 0x51854 table, ES:ESI writes, calls 0x043f80 then ctx->[0]/ctx->[4]); 0x044c23 = huge (640B). **Conclusion:** the leaf tier needs dedicated passes on (a) the FPU register-ABI cluster (0x04a3a8/0x047b79/0x04a32b), (b) the emit subsystem (0x043e34 + 0x043fc3, share emit_ctx -- port as a pair with a Python ref), (c) DPMI/DOS/IRQ (0x042ccc/0x045bb7/0x048fe6/0x048053), (d) the 0x04a923 misanalysis (re-analyze the data region). Each is a full pass, not an isolated win. | STATUS.md L0-L4 |
@@ -674,8 +675,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03f885 | 437 | FUN_0003f885 | | |
 | [ ] | 0x040660 | 148 | FUN_00040660 | | |
 | [ ] | 0x0406f5 | 145 | FUN_000406f5 | | |
-| [ ] | 0x0412a3 | 69 | FUN_000412a3 | | |
-| [ ] | 0x041340 | 79 | FUN_00041340 | | |
+| [x] | 0x0412a3 | 69 | fn_0412a3 | ready-gated (fn_0412e9) inb(g_dat_53334+0xa) status read; 0 if not ready | f.c |
+| [x] | 0x041340 | 79 | fn_041340 | ready-gated (fn_041390) outb(g_dat_53334+0xc, cmd) write; 1 on write, 0 if not ready | f.c |
 | [ ] | 0x0417f3 | 106 | FUN_000417f3 | | |
 ## L12 (58)
 

@@ -2032,6 +2032,27 @@ uint32_t fn_041390(void) {
         if (!(r & 0x80)) return 1;                      /* 0x413c5/413c7/413c9 */
     }
 }
+
+/* 0x0412a3: read a device status byte, gated on the ready-poll. canary prologue
+ * PUSH 0x20; CALL 0x418ee, no args. Calls fn_0412e9() (poll +0xe for bit7 set);
+ * if that returns 0 (not ready) it returns 0; otherwise it returns
+ * inb(g_dat_53334 + 0xa) (the status register). */
+uint32_t fn_0412a3(void) {
+    (void)canary_id(0, 0x20);                            /* 0x412a3-0x412a8 */
+    if (fn_0412e9() == 0) return 0;                      /* 0x412bb/412c0/412c2 */
+    return inb((uint16_t)(g_dat_53334 + 0xa));           /* 0x412cd/412d5 */
+}
+
+/* 0x041340: write a device command byte, gated on the ready-poll. canary prologue
+ * PUSH 0x24; CALL 0x418ee, command in EAX. Calls fn_041390() (poll +0xc for bit7
+ * clear); if that returns 0 (not ready) it returns 0; otherwise it issues
+ * outb(g_dat_53334 + 0xc, cmd) and returns 1. */
+uint32_t fn_041340(uint32_t cmd) {
+    (void)canary_id((uintptr_t)cmd, 0x24);               /* 0x41340-0x41345 */
+    if (fn_041390() == 0) return 0;                      /* 0x4135b/41360/41362 */
+    outb((uint16_t)(g_dat_53334 + 0xc), (uint8_t)cmd);   /* 0x4136d-0x41378 */
+    return 1;                                            /* 0x4137d */
+}
 /* 0x042a30: same shape, but CALL const_64004 -> writes [0x64004]. */
 void fn_042a30(uint32_t x) { g_dat_64004 = x; }
 /* 0x042a3c: CALL [0x533bd]; RET. */

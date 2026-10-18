@@ -2701,6 +2701,33 @@ static void test_fn_03c6ec_03d88f(void) {
     g_dat_63350 = NULL;
 }
 
+static void test_fn_0412a3_041340(void) {
+    printf("fn_0412a3/fn_041340 (ready-gated device status read / command write)\n");
+    uint32_t saved = g_dat_53334;
+    g_dat_53334 = 0x100;
+
+    /* fn_0412a3: polls +0xe for bit7 set (fn_0412e9); ready -> inb(+0xa), else 0. */
+    sys_port_set(0x100 + 0xe, 0x00);            /* not ready: bit7 clear -> timeout */
+    check(fn_0412a3() == 0, "  fn_0412a3 not ready (bit7 clear) -> 0");
+    sys_port_set(0x100 + 0xe, 0x80);            /* ready: bit7 set */
+    sys_port_set(0x100 + 0xa, 0x42);            /* status byte */
+    check(fn_0412a3() == 0x42, "  fn_0412a3 ready -> inb(base+0xa)=0x42");
+    sys_port_set(0x100 + 0xa, 0xff);
+    check(fn_0412a3() == 0xff, "  fn_0412a3 ready -> inb(base+0xa)=0xff");
+
+    /* fn_041340(cmd): polls +0xc for bit7 clear (fn_041390); ready -> outb(+0xc,cmd),1. */
+    sys_port_set(0x100 + 0xc, 0x80);            /* not ready: bit7 set -> timeout */
+    check(fn_041340(0x55) == 0, "  fn_041340 not ready (bit7 set) -> 0");
+    check(inb(0x100 + 0xc) == 0x80, "  fn_041340 not ready leaves +0xc unchanged");
+    sys_port_set(0x100 + 0xc, 0x00);            /* ready: bit7 clear */
+    check(fn_041340(0x55) == 1, "  fn_041340 ready -> writes, returns 1");
+    check(inb(0x100 + 0xc) == 0x55, "  fn_041340 wrote cmd 0x55 to base+0xc");
+    check(fn_041340(0xa1) == 1, "  fn_041340 ready (2nd) -> 1");
+    check(inb(0x100 + 0xc) == 0xa1, "  fn_041340 overwrote +0xc with 0xa1");
+
+    g_dat_53334 = saved;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3729,6 +3756,7 @@ int main(void) {
     test_fn_041e94_04123d();
     test_fn_0412e9_041390();
     test_fn_03c6ec_03d88f();
+    test_fn_0412a3_041340();
     test_fn_048754();
     test_fn_048e60();
     test_fn_0485eb();

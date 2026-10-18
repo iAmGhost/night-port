@@ -7025,6 +7025,13 @@ int32_t fn_0359c1(void) {
     return -1;                                                  /* 0x35a06 */
 }
 
+/* 0x035a94 (L13, 43 B): trivial passthrough -- return fn_0359c1(). PUSH 0x20;CALL
+ * 0x418ee frame; CALL 0x0359c1; return EAX. No state of its own. */
+int32_t fn_035a94(void) {
+    (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
+    return fn_0359c1();                                         /* 0x35aac/ab1/ab4 */
+}
+
 /* 0x035b91 (L12, 98 B): args AL/DL/BL. val = (a2 * g_dat_530b8) / 100 (signed); take the
  * low byte and clamp to 0x7f (bytes 0x80..0xff, i.e. negative quotients, clamp to 127).
  * Return fn_035a19(a0, a1, clamped). */

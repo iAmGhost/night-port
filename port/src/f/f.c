@@ -3111,6 +3111,86 @@ double fn_04a32b(double arg1, double arg2)
     return local;
 }
 
+/* ---- 0x04a3a8 (76 insns) ----
+ *
+ * FLD/FCOMP/FDIV/FMUL: a clamp + decimal-power fn.
+ *
+ *   ABI (RET 0xc, 12 bytes of args): arg1 = double @ [ESP+0x20] (after the
+ *         5 PUSHes + SUB 8), arg2 = int32_t = ECX @ [ESP+0x28]. Returns a
+ *         double in FPU ST(0).
+ *
+ *   (1) clamp local = arg1:
+ *         arg1 == +inf -> +DAT_000519a4 (0x7fefffffffffffff = +DBL_MAX)
+ *         arg1 is NaN  -> -DAT_000519ac (0xffefffffffffffff = -DBL_MAX)
+ *         else (finite/-inf) -> local = arg1 (passthrough)
+ *         (FCOMP vs 0x51994=+inf then 0x5199c=-inf; the JNZ after SAHF tests
+ *         C0=ZF: taken iff C0==0, i.e. the equal/unordered cases.)
+ *
+ *   (2) power-scale: let s = DAT_000519be = table[0].mult (10^216-ish).
+ *         arg2 < 0 : edx = -arg2;  if edx > 0x134 { local /= s; edx -= 0xd8; }
+ *         arg2 >= 0: edx =  arg2;  if arg2 > 0x134 { local *= s; edx -= 0xd8; }
+ *         (0x134 = 308, 0xd8 = 216.)
+ *
+ *   (3) table-power over {int16 count; double mult} @ 0x519bc (8 entries, the
+ *         last count==1 is the catch-all terminator; each mult ~= 10^count as a
+ *         nearest power of 2): local2 = 1.0; walk entries: if edx >= count {
+ *         local2 *= mult; edx -= count; }; if edx == 0 done; if count == 1
+ *         re-loop the same entry (consume the remainder one "digit" at a time);
+ *         else next entry.
+ *
+ *   (4) local = arg2 < 0 ? local / local2 : local * local2; return local.
+ *
+ *   Net: ~= arg1 * 10^arg2 (power-of-10 approximation) with the clamps above.
+ *   Flat 64-bit: all FPU ops are ordinary C double ops; the table/clamp/scale
+ *   constants are embedded as their exact 64-bit patterns (a3a8_dbl) so the
+ *   result is bit-exact. Differential vs an independent Python reference.
+ */
+static double a3a8_dbl(uint64_t b) { double d; memcpy(&d, &b, 8); return d; }
+static const int kA3a8_counts[8] = { 216, 108, 54, 27, 14, 8, 4, 1 };
+static const uint64_t kA3a8_mults[8] = {
+  0x6cc734e940c6f9c6ULL, 0x565b403dcc834e12ULL, 0x4b24e1878814c9ceULL,
+  0x4589d971e4fe8402ULL, 0x42d6bcc41e900000ULL, 0x4197d78400000000ULL,
+  0x40c3880000000000ULL, 0x4024000000000000ULL,
+};
+#define K_A3A8_CLAMP_MAX 0x7fefffffffffffffULL /* +DBL_MAX (DAT_000519a4) */
+#define K_A3A8_CLAMP_MIN 0xffefffffffffffffULL /* -DBL_MAX (DAT_000519ac) */
+#define K_A3A8_SCALE     0x6cc734e940c6f9c6ULL /* 10^216-ish (DAT_000519be) */
+
+double fn_04a3a8(double arg1, int32_t arg2) {
+  double local;
+  if (arg1 == INFINITY)
+    local = a3a8_dbl(K_A3A8_CLAMP_MAX);
+  else if (isnan(arg1))
+    local = a3a8_dbl(K_A3A8_CLAMP_MIN);
+  else
+    local = arg1;
+
+  int32_t edx;
+  double scale = a3a8_dbl(K_A3A8_SCALE);
+  if (arg2 < 0) {
+    edx = -arg2;
+    if (edx > 0x134) { local = local / scale; edx -= 0xd8; }
+  } else {
+    edx = arg2;
+    if (arg2 > 0x134) { local = local * scale; edx -= 0xd8; }
+  }
+
+  double local2 = 1.0;
+  int i = 0;
+  for (;;) {
+    if (edx >= kA3a8_counts[i]) {
+      local2 = local2 * a3a8_dbl(kA3a8_mults[i]);
+      edx -= kA3a8_counts[i];
+    }
+    if (edx == 0) break;
+    if (kA3a8_counts[i] == 1) continue; /* re-consume remainder via 10^1 */
+    i++;
+  }
+
+  local = arg2 < 0 ? local / local2 : local * local2;
+  return local;
+}
+
 int32_t fn_016959(uint8_t *s, int32_t param2, int32_t *param3) {    /* 0x016959 */
     *(int32_t *)(s + 0x17) = 2;
     int32_t F = (int32_t)fn_01519f(s);

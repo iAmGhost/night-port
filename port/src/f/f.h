@@ -663,6 +663,7 @@ void fn_010376(uint8_t *s, uint32_t unused); /* 0x010376: free struct fields @0x
 uint32_t fn_03518a(const uint8_t *p);          /* 0x03518a: BE 16-bit read (p[0]<<8)|p[1] */
 void fn_04a7fa(double a, double *out);          /* 0x04a7fa: *out = a - fpu_rndint(a) */
 double fn_04a32b(double arg1, double arg2);     /* 0x04a32b: local=arg1-rndint(arg1); if arg1<0 local+=-1.0; return local */
+double fn_04a3a8(double arg1, int32_t arg2);     /* 0x04a3a8: clamp(+inf->+DBL_MAX, NaN->-DBL_MAX) then ~= arg1*10^arg2 via scale+table power */
 int32_t fn_016959(uint8_t *s, int32_t param2, int32_t *param3); /* 0x016959: move-toward-target clamped step + countdown */
 int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3); /* 0x017530: twin of fn_016959 */
 int32_t fn_016a60(uint8_t *s, int32_t param2, int32_t *out);   /* 0x016a60: clamped move-toward-target */

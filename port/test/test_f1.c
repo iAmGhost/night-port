@@ -3843,6 +3843,25 @@ static void test_fn_04a32b(void) {
     check(fn_04a32b(2.3, 42.0) == 0.2999999999999998, "  04a32b arg2 unused (2.3,42)==(2.3,0)");
 }
 
+static void test_fn_04a3a8(void) {
+    printf("fn_04a3a8 (0x04a3a8, FPU clamp + decimal-power ~= arg1*10^arg2)\n");
+    /* expected bits from an independent Python reference (same table/ops). */
+    check(fn_04a3a8(1.0, 0) == dbl(0x3ff0000000000000ULL), "  04a3a8 1.0 0 -> 1.0");
+    check(fn_04a3a8(2.3, 0) == dbl(0x4002666666666666ULL), "  04a3a8 2.3 0 -> 2.3");
+    check(fn_04a3a8(-2.3, 0) == dbl(0xc002666666666666ULL), "  04a3a8 -2.3 0 -> -2.3");
+    check(fn_04a3a8(1.0, 5) == dbl(0x40f86a0000000000ULL), "  04a3a8 1.0 5 -> 10^5");
+    check(fn_04a3a8(1.0, -5) == dbl(0x3ee4f8b588e368f1ULL), "  04a3a8 1.0 -5 -> 10^-5");
+    check(fn_04a3a8(1.0, 300) == dbl(0x7e37e43c8800759cULL), "  04a3a8 1.0 300 -> 10^300");
+    check(fn_04a3a8(1.0, -300) == dbl(0x01a56e1fc2f8f359ULL), "  04a3a8 1.0 -300 -> 10^-300");
+    check(fn_04a3a8(1.0, 1000) == dbl(0x7ff0000000000000ULL), "  04a3a8 1.0 1000 -> +inf (overflow)");
+    check(fn_04a3a8(1.0, -1000) == dbl(0x0000000000000000ULL), "  04a3a8 1.0 -1000 -> 0.0 (underflow)");
+    check(fn_04a3a8(dbl(0x7ff0000000000000ULL), 0) == dbl(0x7fefffffffffffffULL), "  04a3a8 +inf 0 -> +DBL_MAX (clamp)");
+    check(fn_04a3a8(dbl(0xfff0000000000000ULL), 0) == dbl(0xfff0000000000000ULL), "  04a3a8 -inf 0 -> -inf (passthrough)");
+    check(fn_04a3a8(dbl(0x7ff8000000000000ULL), 0) == dbl(0xffefffffffffffffULL), "  04a3a8 NaN 0 -> -DBL_MAX (clamp)");
+    check(fn_04a3a8(dbl(0x7ff0000000000000ULL), 5) == dbl(0x7ff0000000000000ULL), "  04a3a8 +inf 5 -> +inf (DBL_MAX*10^5 ovf)");
+    check(fn_04a3a8(dbl(0x7ff8000000000000ULL), 10) == dbl(0xfff0000000000000ULL), "  04a3a8 NaN 10 -> -inf (-DBL_MAX*10^10 ovf)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4088,6 +4107,7 @@ int main(void) {
     test_fn_042d2a();
     test_fn_048fe6();
     test_fn_04a32b();
+    test_fn_04a3a8();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

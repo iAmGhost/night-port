@@ -807,6 +807,82 @@ void fn_03feb8(void)
     g_dat_00417 &= 0xdf;                             /* clear bit 0x20 of 0x417 */
 }
 
+/* fn_0485eb  orig: 0x0485eb
+ * 64-bit fixed-point align-subtract-normalize (register-ABI). Faithful asm-mirror.
+ * in : eax=A_lo, edx=A_hi, ebx=B_lo, ecx=B_hi, esi=expA, edi=expB.
+ * out: lo=EAX, hi=EDX, exp=ESI, ebx=EBX(=expA&0x8000), bx=BX(=(expA&0x8000)^(expB&0xffff)),
+ *      edi=EDI (neg flag; NEG EDI if bit7(bx) set).
+ * Verified differentially against scratch/fp_0485eb_ref.py (469 vectors). */
+void fn_0485eb(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
+               uint32_t expA, uint32_t expB, fx_sub_t *out)
+{
+    uint32_t eax = a_lo, edx = a_hi, ebx = b_lo, ecx = b_hi;
+    uint32_t esi = expA, edi = expB;
+    uint32_t esi0 = expA, edi0 = expB;
+    uint32_t cf = 0;
+
+    esi &= 0x7fff;                       /* AND ESI,0x7fff */
+    edi &= 0x7fff;                       /* AND EDI,0x7fff */
+    cf = esi < edi; esi -= edi;          /* SUB ESI,EDI */
+    if ((int32_t)esi < 0) goto L_04864a; /* JL 0x04864a */
+    edi = 0;                             /* SUB EDI,EDI */
+L_0485ff:
+    cf = ecx < edx;                      /* CMP ECX,EDX */
+    if (ecx != edx) goto L_04860b;       /* JNZ 0x04860b */
+    cf = ebx < eax;                      /* CMP EBX,EAX */
+    if (ebx == eax) goto L_04860d;       /* JZ 0x04860d */
+L_04860b:
+    if (!cf) goto L_048612;              /* JNC 0x048612 */
+L_04860d:
+    cf = eax < ebx; eax -= ebx;          /* SUB EAX,EBX */
+    { uint32_t prev = edx; uint32_t sub = ecx + cf; cf = prev < sub; edx -= sub; } /* SBB EDX,ECX */
+    cf = 1;                              /* STC */
+L_048612:
+    { uint64_t v = (uint64_t)edi * 2 + cf; cf = v > 0xFFFFFFFFull; edi = (uint32_t)v; } /* ADC EDI,EDI */
+    esi -= 1;                            /* DEC ESI */
+    if ((int32_t)esi < -1) goto L_048627;/* JL 0x048627 */
+    { uint64_t v = (uint64_t)eax * 2; cf = v > 0xFFFFFFFFull; eax = (uint32_t)v; } /* ADD EAX,EAX */
+    { uint64_t v = (uint64_t)edx * 2 + cf; cf = v > 0xFFFFFFFFull; edx = (uint32_t)v; } /* ADC EDX,EDX */
+    if (cf) goto L_04860d;               /* JC 0x04860d */
+    if (edx & 0x80000000u) goto L_0485ff;/* OR EDX,EDX; JS 0x0485ff */
+    goto L_048612;                        /* JMP 0x048612 */
+L_048627:
+    esi = 0;                             /* SUB ESI,ESI */
+    if (eax) goto L_048633;              /* OR EAX,EAX; JNZ 0x048633 */
+    if (edx) goto L_048633;              /* OR EDX,EDX; JNZ 0x048633 */
+    goto L_048648;
+L_048633:
+    if (edx & 0x80000000u) goto L_04863e;/* OR EDX,EDX; JS 0x04863e */
+    { uint64_t v = (uint64_t)eax * 2 + cf; cf = v > 0xFFFFFFFFull; eax = (uint32_t)v; } /* ADC EAX,EAX */
+    { uint64_t v = (uint64_t)edx * 2 + cf; cf = v > 0xFFFFFFFFull; edx = (uint32_t)v; } /* ADC EDX,EDX */
+    esi -= 1;                            /* DEC ESI */
+    goto L_048633;
+L_04863e:
+    ecx = edi0;                          /* POP ECX (saved edi0) */
+    ecx &= 0x7fff;                       /* AND ECX,0x7fff */
+    esi += ecx;                          /* ADD ESI,ECX */
+L_048648:
+    goto L_04864e;
+L_04864a:
+    esi += edi;                          /* ADD ESI,EDI */
+    edi = 0;                             /* SUB EDI,EDI */
+L_04864e:
+    ecx = edi0;                          /* POP ECX */
+    ebx = esi0 & 0x8000u;                /* POP EBX; AND EBX,0x8000 */
+    esi |= ebx;                          /* OR ESI,EBX */
+    if (edx == 0) esi = 0;               /* OR EDX,EDX; JNZ 0x04865e; else SUB ESI,ESI */
+    {
+        uint16_t bx = (uint16_t)(ebx & 0xFFFFu) ^ (uint16_t)(ecx & 0xFFFFu); /* XOR BX,CX */
+        if (bx & 0x80) edi = (uint32_t)(-(int32_t)edi); /* JNS 0x048665; NEG EDI */
+        out->bx = bx;
+    }
+    out->lo  = eax;
+    out->hi  = edx;
+    out->exp = esi;
+    out->ebx = ebx;
+    out->edi = (int32_t)edi;
+}
+
 /* fn_048e60  orig: 0x048e60
  * 128-bit fixed-point normalize + Newton-Raphson reciprocal division (L0 leaf, pure).
  * Input via p (uint32_t*): p[0]=low mantissa, p[1]=high mantissa (top byte = status flags),

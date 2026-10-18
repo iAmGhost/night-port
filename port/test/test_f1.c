@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include "../../scratch/fp_047f54_vectors.h"
 #include "../../scratch/fp_04794a_ctest.h"
+#include "../../scratch/vectors_0485eb.h"
 
 static int failures = 0;
 static void check(int ok, const char *what) {
@@ -2670,6 +2671,34 @@ static void test_fn_048e60(void) {
     }
 }
 
+static void test_fn_0485eb(void) {
+    printf("fn_0485eb (0x0485eb, 64-bit align-subtract-normalize, register-ABI)\n");
+    /* Differential vs independent asm-mirror reference (scratch/fp_0485eb_ref.py). */
+    unsigned bad = 0;
+    for (unsigned i = 0; i < v0485eb_n; i++) {
+        const v0485eb_t *v = &v0485eb_v[i];
+        fx_sub_t got;
+        fn_0485eb(v->a_lo, v->a_hi, v->b_lo, v->b_hi, v->expA, v->expB, &got);
+        if (got.lo != v->lo || got.hi != v->hi || got.exp != v->exp ||
+            got.ebx != v->ebx || got.bx != v->bx || (uint32_t)got.edi != v->edi) {
+            if (bad < 3) {
+                char m[160];
+                snprintf(m, sizeof m,
+                 "  0x485eb[%u] in a=%08x:%08x b=%08x:%08x ea=%04x eb=%04x\n"
+                 "      got lo=%08x hi=%08x exp=%08x ebx=%08x bx=%04x edi=%d\n"
+                 "      exp lo=%08x hi=%08x exp=%08x ebx=%08x bx=%04x edi=%u",
+                 i, v->a_lo, v->a_hi, v->b_lo, v->b_hi, v->expA, v->expB,
+                 got.lo, got.hi, got.exp, got.ebx, got.bx, got.edi,
+                 v->lo, v->hi, v->exp, v->ebx, v->bx, v->edi);
+                printf("%s\n", m);
+            }
+            bad++;
+        }
+    }
+    check(bad == 0, "  all vectors match reference");
+    printf("  (%u differential vectors checked)\n", (unsigned)v0485eb_n);
+}
+
 static void test_fn_049415(void) {
     printf("fn_049415 (0x049415)\n");
     check(fn_049415("FILE") == 0, "  no-op delete returns 0");
@@ -3513,6 +3542,7 @@ int main(void) {
     test_fn_041e94_04123d();
     test_fn_048754();
     test_fn_048e60();
+    test_fn_0485eb();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();
     test_fn_043324();

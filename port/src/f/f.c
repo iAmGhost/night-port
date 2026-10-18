@@ -1290,6 +1290,24 @@ void fn_031f5f(uint32_t a0) {
     for (int32_t i = 0; i < cnt; i++)
         *(uint32_t *)(a + 0x32 + i * 4) = *(uint32_t *)(a + 0x36 + i * 4);  /* slot[i]=slot[i+1] */
 }
+/* 0x03d67c: move element a2 to index a1 of a 3-byte-stride array at a0, shifting the
+ * range [a1, a2-1] right by one. Saves element[a2] (3 bytes) to locals, then for
+ * i = a2-1 down to a1: element[i+1] = element[i] (right-shift, high->low so the source
+ * is read before the dest is overwritten), then element[a1] = the saved element.
+ * a0 is a heap offset (base at g_heap_base + a0); a1 < a2. */
+void fn_03d67c(uint32_t a0, uint32_t a1, uint32_t a2) {
+    (void)canary_id(0, 0x30);
+    uint8_t *a = (uint8_t *)g_heap_base + a0;
+    uint8_t b0 = a[a2 * 3 + 0];   /* save element[a2] */
+    uint8_t b1 = a[a2 * 3 + 1];
+    uint8_t b2 = a[a2 * 3 + 2];
+    for (int32_t i = (int32_t)a2 - 1; i >= (int32_t)a1; i--)
+        for (int k = 0; k < 3; k++)
+            a[(i + 1) * 3 + k] = a[i * 3 + k];   /* element[i+1] = element[i] (stride 3) */
+    a[a1 * 3 + 0] = b0;   /* element[a1] = saved element */
+    a[a1 * 3 + 1] = b1;
+    a[a1 * 3 + 2] = b2;
+}
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }
 void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }

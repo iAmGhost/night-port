@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 320 / 528 done
+TOTALS: 321 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 320 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 52 | 0 | 0 | 29 |
+| L10 | 81 | 53 | 0 | 0 | 28 |
 | L11 | 77 | 36 | 0 | 0 | 41 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x03d67c PORTED (L10, 223 B) -- 3-byte-stride array element move.** Args (a0, a1, a2): move element a2 to index a1 of a 3-byte-stride array at a0 (base at g_heap_base+a0), shifting [a1, a2-1] right by one. Save element[a2] (3 bytes) to locals; for i=a2-1 down to a1: element[i+1]=element[i] (i.e. a[(i+1)*3+k]=a[i*3+k], high->low so the source is read before the dest is clobbered); then element[a1]=saved. a1<a2. **BUG FIXED:** first cut used stride `+1` (a[i*3+1+k]) instead of `+3` (a[(i+1)*3+k]) -- off-by-one broke the two right-shifted elements. Test: 4 elements {1,1,1}{2,2,2}{3,3,3}{4,4,4}, move elem3 to idx1 -> {1,1,1}{4,4,4}{2,2,2}{3,3,3}. 4 checks. L10 52->53, TOTALS 320->321/528, suite 1096 PASS 0 FAIL. **0x0112fd DEFERRED:** it is an entity-list 2-node unlink (next=0x13f, prev=0x143, real C pointers) that COLLIDES with three pre-existing entity-list globals already ported with real pointers: g_dat_53c68 (int32, entity count), g_dat_53c70 (uint8_t*, head), g_dat_53c78 (uint8_t*, cursor), plus an undeclared g_dat_53c74. My first (uint32-offset) port conflicted on redeclaration. Porting it correctly needs the entity-list subsystem representation (real pointers, entity struct at 0x17/0x11/0xd/0x30/0x32). **NEXT:** L10 0x0112fd(entity ctx), 0x017218(242B), 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
 | 2026-07-08 | **0x031f5f PORTED (L10, 221 B) -- remove-first-element + shift-array-left.** Arg a0(EAX, heap offset). a0->0x31(byte count)--; a0->0x17=a0->0x32 (save slot0); then for i in 0..count-2: slot[i]=slot[i+1] (4-byte slots at a0+0x32, i.e. *(a0+0x32+i*4)=*(a0+0x36+i*4), a left-shift/overlap copy); a0->0x11=0. Then via P1=a0->0x123, P2=P1->0x4, base=P2[a0->0x17 & 0x7fffffff]: if base->0x69!=0 set g_dat_63364=base->0x69(byte), g_dat_63368=base->0x6a(word). Added 2 globals (63364/63368). **LATENT BUG:** the leading JLE on the zero-extended count byte is dead (never <=0), so count==0 underflows to 255 and shifts 255 slots (OOB) -- not exercised in the test. Test: count=3, slots {0,100,200}, P2[0]->base{0x69=0x42,0x6a=0x1234}; after: count=2, slot0=100, slot1=200, a0->0x17=0, g_dat_63364=0x42, g_dat_63368=0x1234. 7 checks. L10 51->52, TOTALS 319->320/528, suite 1092 PASS 0 FAIL. **NOTE:** same P1/P2 interval-list chain as 0x01435f (a0->0x123 -> +0x4 -> P2[idx]). **DEFER:** 0x035dfc (197B) is a busy-wait state-machine that ALWAYS hangs single-threaded (every path loops; the L2 return needs a flag to flip mid-function). **NEXT:** L10 0x03d67c(223B), 0x0112fd(233B), 0x017218(242B); L11 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
 | 2026-07-08 | **0x01435f PORTED (L10, 190 B) -- 4-level pointer-chain straddle scan.** Args a0(EAX, heap offset), a1(DL byte), a2(BL byte). Chain: thr=a0->0x11, idx=a0->0x17 (& 0x7fffffff for the base index, raw for the return compare), P1=a0->0x123, P2=P1->0x4 (array of base offsets), base=P2[idx]. Loop i=0..5: find first i where w8=base[i*4+8] <= thr < w10=base[i*4+0xa] (w8>thr -> skip; w10>thr -> break with i; else i++). Return 0 iff (a1==a0->0x17 raw) && (a2==i), else 1. Test: 4 arena allocs (a0 0x140, P1 0x10, P2 0x20, base 0x30); base[0]={6,3} skip, base[1]={4,7} break i=1; (a1,a2)=(1,1)->0, (1,2)->1, (0,1)->1. 3 checks. L10 50->51, TOTALS 318->319/528, suite 1085 PASS 0 FAIL. **NOTE:** the base chain (a0->0x123 -> +0x4 -> P2[idx]) mirrors the node/interval-list layout (cf. fn_03ba2c). **NEXT:** L10 0x035dfc(197B, 1 callee); L11 0x034990(heap-init, ~110KB arena), 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
 | 2026-07-08 | **0x03e14c PORTED (L10, 194 B) -- 2-node doubly-linked prev/next manipulation.** Args a0(EAX, heap offset)/a1(EDX, stored but never read). Gated by g_dat_63e14 counter: if ==1 -> zero g_dat_63e18/63e1c/63e20; else if g_dat_63e18==a0 -> g_dat_63e18=a0->0x51(prev) and (prev)->0x55(next)=0; else if g_dat_63e1c==a0 -> g_dat_63e1c=a0->0x55(next) and (next)->0x51(prev)=0; else -> SWAP: X=a0->next gets X.prev=a0->prev(Y), Y=a0->prev gets Y.next=a0->next(X) (A itself untouched). Always DEC g_dat_63e14; return a0. Nodes: 0x51=prev, 0x55=next (4-byte stride, 0x55-0x51=4). Added 4 globals (g_dat_63e14 counter, g_dat_63e18/63e1c cached node offsets, g_dat_63e20 zeroed-not-read). Test: 3-node swap (X.prev==Y, Y.next==X, A unchanged), cache-match (63e18=a0->prev, prev->next cleared), counter==1 (caches zeroed). 8 checks. L10 49->50, TOTALS 317->318/528, suite 1082 PASS 0 FAIL. **NEXT:** L10 0x01435f(190B, 4-deep pointer chain), 0x035dfc(197B); L11 0x034990(heap-init, ~110KB arena), 0x03f462(303B). | STATUS.md L10 |
@@ -558,7 +559,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x01053f | 48 | fn_1053f | | DPMI INT 0x31 AX=0x101 (no-op in flat model) |
 | [x] | 0x010e15 | 43 | fn_010e15 | return g_dat_53c60 | 1:1 (canary prologue omitted) |
 | [ ] | 0x010efc | 1024 | FUN_00010efc | | |
-| [ ] | 0x0112fd | 233 | FUN_000112fd | | |
+| [ ] | 0x0112fd | 233 | FUN_000112fd | DEFERRED | entity-list 2-node unlink (next 0x13f / prev 0x143); collides with pre-existing g_dat_53c68(int32 entity-count) / g_dat_53c70(uint8_t* head) / g_dat_53c78(uint8_t* cursor) real-pointer globals -- needs entity-list subsystem context |
 | [ ] | 0x013aad | 415 | FUN_00013aad | | |
 | [x] | 0x01435f | 190 | fn_01435f | heap/scan | 4-level pointer chain a0->P1=P1->P2[idx]->base; 6-interval straddle scan (w8<=thr<w10); return 0 iff a1==a0->0x17&&a2==i; test PASS, 3 checks |
 | [x] | 0x01519f | 53 | fn_01519f | return *(u32*)(p+1)-g_dat_639dc | 1:1 |
@@ -605,7 +606,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x03cad3 | 100 | fn_03cad3 | struct -> g_dat_639dc/e0/e4 | 1:1 |
 | [ ] | 0x03cc6b | 415 | FUN_0003cc6b | | |
 | [ ] | 0x03ce0b | 692 | FUN_0003ce0b | | |
-| [ ] | 0x03d67c | 223 | FUN_0003d67c | | |
+| [x] | 0x03d67c | 223 | fn_03d67c | heap/array | move element a2 to index a1 of a 3-byte-stride array (shift [a1,a2-1] right by one); test PASS, 4 checks |
 | [ ] | 0x03d75c | 306 | FUN_0003d75c | | |
 | [ ] | 0x03dcbd | 455 | FUN_0003dcbd | | |
 | [ ] | 0x03e0a0 | 171 | FUN_0003e0a0 | | |

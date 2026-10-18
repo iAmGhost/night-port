@@ -4283,6 +4283,23 @@ static void test_fn_031f5f(void) {
     g_dat_63364 = sv364; g_dat_63368 = sv368;
 }
 
+static void test_fn_03d67c(void) {
+    printf("fn_03d67c (0x03d67c, 3-byte-stride array element move)\n");
+    uint32_t a0 = heap_arena_alloc(0x20);
+    uint8_t *A = (uint8_t *)(g_heap_base + a0);
+    for (int i = 0; i < 0x20; i++) A[i] = 0;
+    /* 4 elements (3-byte stride): e0={1,1,1} e1={2,2,2} e2={3,3,3} e3={4,4,4} */
+    A[0]=1; A[1]=1; A[2]=1;
+    A[3]=2; A[4]=2; A[5]=2;
+    A[6]=3; A[7]=3; A[8]=3;
+    A[9]=4; A[10]=4; A[11]=4;
+    fn_03d67c(a0, 1, 3);   /* move element 3 to index 1 */
+    check(A[0]==1 && A[1]==1 && A[2]==1, "03d67c e0 unchanged {1,1,1}");
+    check(A[3]==4 && A[4]==4 && A[5]==4, "03d67c e1 = moved {4,4,4}");
+    check(A[6]==2 && A[7]==2 && A[8]==2, "03d67c e2 = old e1 {2,2,2}");
+    check(A[9]==3 && A[10]==3 && A[11]==3, "03d67c e3 = old e2 {3,3,3}");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4590,6 +4607,7 @@ int main(void) {
     test_fn_03e14c();
     test_fn_01435f();
     test_fn_031f5f();
+    test_fn_03d67c();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

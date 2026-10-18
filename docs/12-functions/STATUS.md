@@ -39,8 +39,8 @@ TOTALS: 299 / 528 done
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 112 | 0 | 0 | 0 |
-| L1 | 47 | 44 | 0 | 0 | 5 |
-| L2 | 32 | 23 | 0 | 0 | 9 |
+| L1 | 47 | 43 | 0 | 0 | 4 |
+| L2 | 32 | 24 | 0 | 0 | 8 |
 | L3 | 21 | 15 | 0 | 0 | 6 |
 | L4 | 13 | 5 | 0 | 0 | 8 |
 | L5 | 10 | 4 | 0 | 0 | 6 |
@@ -48,8 +48,8 @@ TOTALS: 299 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 50 | 0 | 0 | 31 |
-| L11 | 77 | 32 | 0 | 0 | 45 |
+| L10 | 81 | 48 | 0 | 0 | 33 |
+| L11 | 77 | 34 | 0 | 0 | 43 |
 | L12 | 58 | 9 | 0 | 0 | 49 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -336,7 +336,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x049d0b | 166 | fmt_int_signed | fixed-width signed integer formatter: sign ('+'/'-'), leading-'0' pad to width, 1/2/3 digits (base 100/10/1 by magnitude, IDIV); returns field count; two no-output cutoffs (width+1>maxw, digits>width) | fmt_int_signed (f.c) |
 | [x] | 0x049db2 | 98 | fmt_decimal | decimal formatter: intlen digit chars from src (then '0' pad), '.', fractlen chars from src (then '0' pad); "0." if intlen<=0&&fractlen==0; returns new out pos. Shares exit with 0x49db0 (POP ESI;RET tail of 0x49d0b) | fmt_decimal (f.c) |
 | [x] | 0x04a2a7 | 131 | fx_double_naninf | double NaN/Inf inline-string writer. If (hi>>20)&0xff==0xff: write "inf" (mant=0) / "nan" (mant!=0), leading '-' if sign, return 1; else return 0 (out untouched). Latent bug: only 8 of 11 exp bits checked, so 1.0 (exp 0x3ff, mant=0) -> "inf" | fx_double_naninf (f.c) |
-| [ ] | 0x04a3a8 | 230 | FUN_0004a3a8 | | |
+| [x] | 0x04a3a8 | 230 | FUN_0004a3a8 | FPU clamp + decimal-power ~=arg1*10^arg2; differential vs independent Python | f.c |
 | [x] | 0x04a7a2 | 86 | strn_casecmp | string | port+test PASS (batch I) |
 | [x] | 0x04a84e | 106 | fx_mantissa_scale | 53-bit mantissa scaler: exp=hi[31:20] (bias 0x433); mantissa=(hi&0xfffff)|0x100000 (bit20 implicit 1) + lo; shift left (exp>bias) / right (exp<bias) by exp-0x433, RNE on right-shift, store 64-bit result | fx_mantissa_scale (f.c) |
 | [x] | 0x04a8b9 | 105 | fmt_u64_fixed | 64-bit unsigned -> fixed-width right-justified ASCII field: buf[width]=0 sentinel, then repeatedly extract v%10000 (4-digit group via two 32-bit DIVs == 64-bit div), convert to 4 ASCII digits (AAM in orig), store right-to-left at buf[pos+3..pos], v/=10000, pad '0' groups until width slots filled | fmt_u64_fixed (f.c) |
@@ -380,7 +380,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x047b79 | 426 | FUN_00047b79 | pure-integer fixed-point binary op (mult/div); reg-ABI in EAX,EDX,ESI,ECX,EBX out EAX,EDX,SI; differential vs fp_047b79_ref.py (3000 vecs) | f.c |
 | [x] | 0x047d24 | 41 | fn_047d24 | fx | register-ABI fx_mul64 wrapper; differential test PASS |
 | [x] | 0x047f54 | 127 | fn_047f54 | fx | register-ABI fixed-point normalize (EAX:EDX in, EBX out); 2009-vector differential test PASS |
-| [ ] | 0x048053 | 198 | FUN_00048053 | | |
+| [x] | 0x048053 | 198 | FUN_00048053 | fixed-point -> double normalize; differential vs fp_048053_ref.py (620 vecs) | f.c |
 | [x] | 0x048585 | 101 | FUN_00048585 | | |
 | [x] | 0x048f4c | 81 | fn_048f4c | reg-ABI fx_mul64+fn_04794a loop over arr of fx128; acc=arr[0], iter i: acc=fn_04794a(fx_mul64(acc,mant,(E0<<16)|arr[0].exp),arr[i+1],(arr[i+1].exp<<16)|arr[0].exp); ret (EDX<<32)|EAX; EAX=mant_lo,EDX=mant_hi,EBX=count,ECX=arr,ESI=exp_base | f.c |
 | [x] | 0x048fe6 | 201 | fn_048fe6 | DPMI/real-mode IRQ installer (register-ABI arg1=EAX, arg2=EDX, returns AL). Original (DPMI): INT 2f AH=16 query -> present+checks-pass: 4x INT 2f AH=fa gate calls + DAT_000536c9=1, return 1; fallback: isr_set(7,0x461a8,CS) gated behind INT 31 AX=0xa00, return 0. Flat: no DPMI -> INT 2f AH=16 returns 0 -> fallback -> INT 31 gate fails (CF=1) -> isr_set/DAT writes unreachable -> return 0. No callers (DPMI callback) + DAT_000536c9 not read -> no-op standin | port+test PASS (3) |

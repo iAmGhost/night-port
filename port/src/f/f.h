@@ -149,6 +149,7 @@ void     fn_10570(const uint8_t *buf, uint32_t len);   /* 0x010570: DPMI real-mo
 void     fn_0105f7(uint8_t al);                  /* 0x0105f7: build 24-byte DMA cmd from DAT_00051a14 + g_dat_53c5c patch; write al to byte 0 of *g_dat_53c5c (far-pointer buffer); submit via fn_10570 (no-op) */
 void     fn_01072f(void);                         /* 0x01072f: build 26-byte cmd from DAT_00051a58; g_dat_53c4c[0]=4; round-trip 9 bytes staging<->*g_dat_53c5c; submit via fn_10570 (no-op) */
 uint32_t fn_03e14c(uint32_t a0, uint32_t a1);     /* 0x03e14c: 2-node prev/next swap (0x51/0x55) gated by g_dat_63e14 counter; return a0 */
+uint32_t fn_01435f(uint32_t a0, uint8_t a1, uint8_t a2);  /* 0x01435f: find first straddling interval i (0..5); return 0 iff a1==a0->0x17 && a2==i else 1 */
 uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+checksum (no-op -> 0) */
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
 void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */

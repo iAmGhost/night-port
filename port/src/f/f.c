@@ -1234,6 +1234,33 @@ uint32_t fn_03e14c(uint32_t a0, uint32_t a1) {
     g_dat_63e14--;   /* DEC [0x63e14] (always) */
     return a0;
 }
+/* 0x01435f: find the first interval i (0..5) whose [w8..w10] straddles thr=a0->0x11
+ * (w8 <= thr < w10), then return 0 iff (a1 == a0->0x17) && (a2 == i), else 1. a0 is a
+ * heap offset; pointer chain: a0->0x123=P1, P1->0x4=P2 (an array of base offsets),
+ * base = P2[a0->0x17 & 0x7fffffff]. base is a flat array with uint16 w8 at [i*4+8] and
+ * uint16 w10 at [i*4+0xa] for i=0..5. a1 (byte) compared to a0->0x17 (raw 32-bit),
+ * a2 (byte) compared to i. */
+uint32_t fn_01435f(uint32_t a0, uint8_t a1, uint8_t a2) {
+    (void)canary_id(0, 0x2c);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t thr     = *(uint32_t *)(hb + a0 + 0x11);
+    uint32_t idx_raw = *(uint32_t *)(hb + a0 + 0x17);   /* raw (return compare) */
+    uint32_t idx     = idx_raw & 0x7fffffffu;           /* sign-cleared (base index) */
+    uint32_t p1      = *(uint32_t *)(hb + a0 + 0x123);  /* a0->0x123 */
+    uint32_t p2      = *(uint32_t *)(hb + p1 + 0x4);    /* P1->0x4 */
+    uint32_t base    = *(uint32_t *)(hb + p2 + idx * 4);/* P2[idx] */
+    int32_t i = 0;
+    for (;;) {
+        if (i >= 6) break;
+        uint16_t w8 = *(uint16_t *)(hb + base + i * 4 + 8);
+        if (w8 > (uint16_t)thr) { i++; continue; }        /* 0x143cb JG -> continue */
+        uint16_t w10 = *(uint16_t *)(hb + base + i * 4 + 0xa);
+        if (w10 > (uint16_t)thr) break;                    /* 0x143e3 JG -> break (i stays) */
+        i++;                                               /* continue */
+    }
+    if ((uint32_t)a1 == idx_raw && (uint32_t)a2 == (uint32_t)i) return 0;
+    return 1;
+}
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }
 void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }

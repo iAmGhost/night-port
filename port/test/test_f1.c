@@ -4223,6 +4223,31 @@ static void test_fn_03e14c(void) {
     g_dat_63e14 = sv_c; g_dat_63e18 = sv_18; g_dat_63e1c = sv_1c; g_dat_63e20 = sv_20;
 }
 
+static void test_fn_01435f(void) {
+    printf("fn_01435f (0x01435f, straddling-interval scan)\n");
+    uint32_t a0 = heap_arena_alloc(0x140);
+    uint32_t p1 = heap_arena_alloc(0x10);
+    uint32_t p2 = heap_arena_alloc(0x20);
+    uint32_t ba = heap_arena_alloc(0x30);
+    uint8_t *A  = (uint8_t *)(g_heap_base + a0);
+    uint8_t *P1 = (uint8_t *)(g_heap_base + p1);
+    uint8_t *P2 = (uint8_t *)(g_heap_base + p2);
+    uint8_t *B  = (uint8_t *)(g_heap_base + ba);
+    for (int i = 0; i < 0x140; i++) A[i] = 0;
+    for (int i = 0; i < 0x20; i++) { P1[i] = 0; P2[i] = 0; B[i] = 0; }
+    *(uint32_t *)(A + 0x11) = 5;     /* threshold */
+    *(uint32_t *)(A + 0x17) = 1;     /* idx (also the return-compare value) */
+    *(uint32_t *)(A + 0x123) = p1;   /* P1 offset */
+    *(uint32_t *)(P1 + 0x4) = p2;    /* P1->0x4 = P2 */
+    *(uint32_t *)(P2 + 4) = ba;      /* P2[1] = base (idx=1) */
+    /* base[0]: w8=6 (>thr, skip), w10=3. base[1]: w8=4 (<=thr), w10=7 (>thr -> break i=1). */
+    *(uint16_t *)(B + 0*4 + 8) = 6;   *(uint16_t *)(B + 0*4 + 0xa) = 3;
+    *(uint16_t *)(B + 1*4 + 8) = 4;   *(uint16_t *)(B + 1*4 + 0xa) = 7;
+    check(fn_01435f(a0, 1, 1) == 0, "01435f a1==idx,a2==i(1) -> 0");
+    check(fn_01435f(a0, 1, 2) == 1, "01435f a2!=i -> 1");
+    check(fn_01435f(a0, 0, 1) == 1, "01435f a1!=idx -> 1");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4528,6 +4553,7 @@ int main(void) {
     test_fn_0105f7();
     test_fn_01072f();
     test_fn_03e14c();
+    test_fn_01435f();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

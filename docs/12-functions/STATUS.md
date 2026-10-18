@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 325 / 528 done
+TOTALS: 326 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 325 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 56 | 0 | 0 | 25 |
+| L10 | 81 | 57 | 0 | 0 | 24 |
 | L11 | 77 | 37 | 0 | 0 | 40 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x03cc6b PORTED (L10, 415 B) -- state machine, no real callees (frame only).** c = a0->0x34c (64-bit ptr). If g_639e4==0: if g_639dc==c->0x0: g_63354=c; g_639e4=1; if g_63370!=1 copy kb-config. Else: if c->0x4-1==g_639e0: g_63354=c; g_639e4=0; if g_63370!=1 copy kb-config. Both branches: if c->0xc-0xc8 > g_639e0 (signed): g_639e0++. kb-config copy: g_63358=g_63354; g_63374=g_53c7c->0x2b; g_63384=(b)g_53c7c->0x28; g_63378=(b)g_53c7c->0x27; g_6337c=(b)g_53c7c->0x26; g_63380=(b)g_53c7c->0x25. **a0->0x34c = 64-bit pointer** (flat-port convention, cf. f.c:675/682) -- used purely as a pointer here (no heap_free), so NO 32-bit wall (unlike 0x03c72b). Added 7 globals (63358/63370/63374/63378/6337c/63380/63384). Test: 4 cases (branch1 match+copy, branch1 no-match, branch2 match+copy, branch2 no-match) verifying g_639e4 toggle, g_63354/58, kb-config copy, g_639e0 increment, and untouched-on-mismatch. 20 checks. L10 56->57, TOTALS 325->326/528, suite 1174 PASS 0 FAIL. **0x03d75c DEFERRED:** float/physics loop (x87 FLD/FMUL/FSUBR/FISTP, 0x041f7e=rint callee, float table 0x5d0b4 @0x14-stride, pointer chain 0x63dfc, 5+ globals) -- needs float-table + pointer-chain setup. **NEXT:** L10 0x01586b(435B,1); L11 0x034990(heap-init ~110KB). | STATUS.md L10 |
 | 2026-07-08 | **0x0357f2 PORTED (L10, 212 B) -- device read with status handshake.** Arg AL (byte a0). Phase 1: wait for status bit6 (0x40) to clear on inb(g_dat_530ac+1) up to 0x2000 iters (timeout -> -1). outb(g_dat_530ac+1, a0) (writes the data byte to the +1/status port). Phase 2: wait for status bit7 (0x80) to clear on inb(+1) up to 0x2000 iters (a 0x7530 re-check follows but is DEAD since i<0x2000<0x7530). Read data from inb(g_dat_530ac); 0xfe -> -2, else 0. **KEY:** the outb writes to +1 (the same port phase-2 polls), so phase-2 sees `a0` after the write -- a0's bit7 gates the phase-2 wait. Uses existing inb/outb (sys layer) + g_dat_530ac (port base). Test (sys_port_set seeding): success (bit6/7 clear, a0=0x11, data 0x55 -> 0; +1 records 0x11, base untouched), -2 (data 0xfe), phase-1 timeout (bit6 set -> -1, 8192 iters). 5 checks. L10 55->56, TOTALS 324->325/528, suite 1154 PASS 0 FAIL. **0x03c72b DEFERRED:** recursive tree-destroy, but its node fields (a0->0x34c/0x348/0x44) store 32-bit pointers that must be heap offsets for heap_free_host/guard while the recursion dereferences a0 as a real C pointer -- 32-bit pointer wall + needs full heap-allocator setup to test. **NEXT:** L10 0x03d75c(306B,2)/0x03cc6b(415B,1)/0x01586b(435B,1); L11 0x034990(heap-init ~110KB). | STATUS.md L10 |
 | 2026-07-08 | **0x013aad PORTED (L10, 415 B) -- entity-list bubble-sort.** No callees (canary only). Sorts the doubly-linked entity list (head g_dat_53c70, tail g_dat_53c74) ascending by node->+0x9 (int32 key), relinking nodes in place. Outer i in 0..count-2 (count=g_dat_53c68); inner j in 0..count-i-2, each pass restarting cur=head. Advance (cur=nxt) when ck<nk, OR (nxt==g_dat_53c7c && nk==ck), OR (nxt->+0 type==cur->+0 && nk==ck); else FULL SWAP: relink prev/next (nxt->next->prev=cur if nxt->next; cur->prev->next=nxt if cur->prev; then cross next/prev), and update head (=nxt if cur was head) + tail (=cur if nxt was tail). **POINTER-WIDTH ADAPTATION (consistent with fn_00035c5c):** entity nodes are real C ptrs; next@+0x13f widened to 8 bytes; prev@+0x143 (orig) shifted to +0x147 (8 bytes, past the 8-byte next). Added g_dat_53c74 (tail). Test: 3-node list keys [3,1,2] all-type -> sorted [1,2,3], head=n1, tail=n0, all prev/next correct. 9 checks. L10 54->55, TOTALS 323->324/528, suite 1149 PASS 0 FAIL. **DEFERRED (same turn):** 0x03c65b (node-pool 64-bit wall: node->start int32 can't be a valid 64-bit mem_copy source), 0x035d5d (nested busy-wait on 4 global flags, hangs single-threaded), 0x03a5f7 (0xa0000 video + busy-wait), 0x03f462 (0xa0000 DPMI video blit). **NEXT:** L10 0x03c72b(171B,3 callees)/0x0357f2(212B,3)/0x03d75c(306B,2)/0x03cc6b(415B,1)/0x01586b(435B,1); L11 0x034990(heap-init ~110KB). | STATUS.md L10 |
 | 2026-07-08 | **0x034f31 PORTED (L11, 376 B) -- MIDI RIFF deserializer.** a0=MThd chunk (heap offset), a1=record array (0xe bytes/track), a2=output struct. Validates "MThd" magic @DAT_00051470 (else -1). Sets a2->0x0=a0, a2->0x1c=BE16(MThd+0xa) clamped<=16 (ntrks), a2->0x4=BE16(MThd+0xc) (division); cur += BE32(MThd+4)+8 (past MThd). Per MTrk: validate "MTrk" @DAT_00051475 (else -2); rec[0]=track-data ptr (cur+8) as heap offset, rec[6]=BE32(len), rec[4]=rec[5]=0x90, rec[0xa]=LEB128 delta via fn_0351dc (advancing rec[0]), cur += len+8. After: a2->0xc=0, a2->0x8=0x7a120, a2->0x20=0, a2->0x18=0x10000, fn_035329(a1,a2); ret 1. **KEY:** records store 32-bit pointer fields (rec[0], a2->0x0) that can't hold 64-bit pointers -> heap-offset model (source buffer + record array must be arena-resident). Re-modeled fn_035329 to raw ptrs (prior commit) so the 0x035xxx deserialization subsystem is consistent. Magics embedded as file-static s_mthd_marker/s_mtrk_marker. Test: 2-track MIDI (delta0=1-byte, delta129=2-byte LEB128) + bad-MThd(-1) + bad-MTrk(-2). 20 checks. L11 36->37, TOTALS 322->323/528, suite 1140 PASS 0 FAIL. **NEXT:** 0x03f462 (palette), L11 0x034990 (heap-init ~110KB), 0x0112fd (entity-ctx). | STATUS.md L10 |
@@ -609,7 +610,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03c72b | 171 | FUN_0003c72b | | |
 | [x] | 0x03c7d7 | 123 | FUN_0003c7d7 | struct | reg-ABI; zero 6 fields (+0x2a..0x3b) + memset DAT_0005d08c/5d0a0 |
 | [x] | 0x03cad3 | 100 | fn_03cad3 | struct -> g_dat_639dc/e0/e4 | 1:1 |
-| [ ] | 0x03cc6b | 415 | FUN_0003cc6b | | |
+| [x] | 0x03cc6b | 415 | fn_03cc6b | state-machine | g_639e4 toggle: branch1 (g_639dc==c->0x0) or branch2 (c->0x4-1==g_639e0) set g_63354/58 + copy kb-config; g_639e0++ if c->0xc-0xc8>g_639e0; test PASS, 20 checks |
 | [ ] | 0x03ce0b | 692 | FUN_0003ce0b | | |
 | [x] | 0x03d67c | 223 | fn_03d67c | heap/array | move element a2 to index a1 of a 3-byte-stride array (shift [a1,a2-1] right by one); test PASS, 4 checks |
 | [ ] | 0x03d75c | 306 | FUN_0003d75c | | |

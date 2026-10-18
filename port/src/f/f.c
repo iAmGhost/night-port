@@ -3585,6 +3585,55 @@ int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3) { /* 0x017530: by
 }
 
 uint8_t *g_dat_63354 = NULL;   /* 0x63354: POINTER to clamp-bounds struct; lo=P+0x12, hi=P+0x16 (double-deref) */
+uint8_t *g_dat_63358 = NULL;   /* 0x63358: mirror of g_dat_63354 (0x03cc6b) */
+uint32_t g_dat_63370 = 0;      /* 0x63370: mode flag (0x03cc6b) */
+uint32_t g_dat_63374 = 0;      /* 0x63374: = g_dat_53c7c->0x2b (0x03cc6b) */
+uint32_t g_dat_63378 = 0;      /* 0x63378: = (byte)g_dat_53c7c->0x27 (0x03cc6b) */
+uint32_t g_dat_6337c = 0;      /* 0x6337c: = (byte)g_dat_53c7c->0x26 (0x03cc6b) */
+uint32_t g_dat_63380 = 0;      /* 0x63380: = (byte)g_dat_53c7c->0x25 (0x03cc6b) */
+uint32_t g_dat_63384 = 0;      /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) */
+
+/* 0x03cc6b (L10, 415 B): state machine, no real callees (frame only). c = a0->0x34c
+ * (64-bit ptr). if g_639e4==0: if g_639dc==c->0x0: g_63354=c; g_639e4=1; if g_63370!=1
+ *   copy kb-config. else: if c->0x4-1==g_639e0: g_63354=c; g_639e4=0; if g_63370!=1
+ *   copy kb-config. Both branches: if c->0xc - 0xc8 > g_639e0: g_639e0++.
+ * kb-config copy: g_63358=g_63354; g_63374=g_53c7c->0x2b; g_63384=(b)g_53c7c->0x28;
+ *   g_63378=(b)g_53c7c->0x27; g_6337c=(b)g_53c7c->0x26; g_63380=(b)g_53c7c->0x25. */
+void fn_03cc6b(uint8_t *a0) {
+    (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
+    uint8_t *c = *(uint8_t **)(a0 + 0x34c);                     /* 0x3cc98 */
+    if (g_dat_639e4 == 0) {                                     /* 0x3cc8f */
+        if (g_dat_639dc == *(uint32_t *)c) {                    /* 0x3cca4 */
+            g_dat_63354 = c;                                    /* 0x3ccb5 */
+            g_dat_639e4 = 1;                                    /* 0x3ccba */
+            if (g_dat_63370 != 1) {                             /* 0x3ccc1 */
+                g_dat_63358 = g_dat_63354;                      /* 0x3cccf */
+                g_dat_63374 = *(uint32_t *)(g_dat_53c7c + 0x2b);/* 0x3ccdc */
+                g_dat_63384 = *(uint8_t *)(g_dat_53c7c + 0x28); /* 0x3ccee */
+                g_dat_63378 = *(uint8_t *)(g_dat_53c7c + 0x27); /* 0x3cd00 */
+                g_dat_6337c = *(uint8_t *)(g_dat_53c7c + 0x26); /* 0x3cd12 */
+                g_dat_63380 = *(uint8_t *)(g_dat_53c7c + 0x25); /* 0x3cd24 */
+            }
+        }
+        if ((int32_t)(*(uint32_t *)(c + 0xc)) - 0xc8 > (int32_t)g_dat_639e0)
+            g_dat_639e0++;                                       /* 0x3cd42 */
+    } else {                                                     /* 0x3cd4d */
+        if ((int32_t)(*(uint32_t *)(c + 0x4)) - 1 == (int32_t)g_dat_639e0) {  /* 0x3cd60 */
+            g_dat_63354 = c;                                    /* 0x3cd6f */
+            g_dat_639e4 = 0;                                    /* 0x3cd74 */
+            if (g_dat_63370 != 1) {                             /* 0x3cd7b */
+                g_dat_63358 = g_dat_63354;                      /* 0x3cd89 */
+                g_dat_63374 = *(uint32_t *)(g_dat_53c7c + 0x2b);/* 0x3cd96 */
+                g_dat_63384 = *(uint8_t *)(g_dat_53c7c + 0x28); /* 0x3cda8 */
+                g_dat_63378 = *(uint8_t *)(g_dat_53c7c + 0x27); /* 0x3cdba */
+                g_dat_6337c = *(uint8_t *)(g_dat_53c7c + 0x26); /* 0x3cdcc */
+                g_dat_63380 = *(uint8_t *)(g_dat_53c7c + 0x25); /* 0x3cdde */
+            }
+        }
+        if ((int32_t)(*(uint32_t *)(c + 0xc)) - 0xc8 > (int32_t)g_dat_639e0)
+            g_dat_639e0++;                                       /* 0x3cdfc */
+    }
+}
 
 int32_t fn_016a60(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x016a60: clamped move-toward-target */
     *(int32_t *)(s + 0x17) = 2;

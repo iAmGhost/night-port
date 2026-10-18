@@ -4384,6 +4384,61 @@ static void test_fn_0357f2(void) {
     check(r == -1, "0357f2 phase1 timeout -> -1");
 }
 
+static void test_fn_03cc6b(void) {
+    printf("fn_03cc6b (0x03cc6b, state machine, no callees)\n");
+    static uint8_t a0[0x360];
+    static uint8_t c[0x10];
+    static uint8_t kb[0x30];
+    for (int i = 0; i < 0x360; i++) a0[i] = 0;
+    for (int i = 0; i < 0x10; i++) c[i] = 0;
+    for (int i = 0; i < 0x30; i++) kb[i] = 0;
+    *(uint8_t **)(a0 + 0x34c) = c;         /* a0->0x34c = c */
+    *(uint32_t *)(c + 0x0) = 0x1234;        /* c->0x0 */
+    *(uint32_t *)(c + 0x4) = 0x55;          /* c->0x4 */
+    *(uint32_t *)(c + 0xc) = 0x1c0;         /* c->0xc (0x1c0-0xc8=0x78=120) */
+    g_dat_53c7c = kb;
+    *(uint32_t *)(kb + 0x2b) = 0x77;        /* kb->0x2b */
+    kb[0x28] = 0x11; kb[0x27] = 0x22; kb[0x26] = 0x33; kb[0x25] = 0x44;
+    /* Case 1: branch1 (g_639e4==0) match, copy kb-config, g_639e0++ */
+    g_dat_639e4 = 0; g_dat_639dc = 0x1234; g_dat_63370 = 0; g_dat_639e0 = 0;
+    g_dat_63354 = NULL;
+    fn_03cc6b(a0);
+    check(g_dat_639e4 == 1, "03cc6b c1 g_639e4=1");
+    check(g_dat_63354 == c, "03cc6b c1 g_63354=c");
+    check(g_dat_63358 == c, "03cc6b c1 g_63358=c");
+    check(g_dat_63374 == 0x77, "03cc6b c1 g_63374=0x77");
+    check(g_dat_63384 == 0x11, "03cc6b c1 g_63384=0x11");
+    check(g_dat_63378 == 0x22, "03cc6b c1 g_63378=0x22");
+    check(g_dat_6337c == 0x33, "03cc6b c1 g_6337c=0x33");
+    check(g_dat_63380 == 0x44, "03cc6b c1 g_63380=0x44");
+    check(g_dat_639e0 == 1, "03cc6b c1 g_639e0 0->1");
+    /* Case 2: branch1 no match; g_63354 untouched */
+    g_dat_639e4 = 0; g_dat_639dc = 0x9999; g_dat_63370 = 0; g_dat_639e0 = 100;
+    uint8_t *sentinel = (uint8_t *)0x1;
+    g_dat_63354 = sentinel;
+    fn_03cc6b(a0);
+    check(g_dat_639e4 == 0, "03cc6b c2 g_639e4 stays 0");
+    check(g_dat_63354 == sentinel, "03cc6b c2 g_63354 untouched");
+    check(g_dat_639e0 == 101, "03cc6b c2 g_639e0 100->101");
+    /* Case 3: branch2 (g_639e4!=0) match (c->0x4-1==g_639e0); copy kb-config */
+    g_dat_639e4 = 1; g_dat_63370 = 0; g_dat_639e0 = 0x54;   /* c->0x4-1=0x54 */
+    g_dat_63354 = NULL;
+    fn_03cc6b(a0);
+    check(g_dat_639e4 == 0, "03cc6b c3 g_639e4=0");
+    check(g_dat_63354 == c, "03cc6b c3 g_63354=c");
+    check(g_dat_63358 == c, "03cc6b c3 g_63358=c");
+    check(g_dat_63374 == 0x77, "03cc6b c3 g_63374=0x77");
+    check(g_dat_639e0 == 0x55, "03cc6b c3 g_639e0 0x54->0x55");
+    /* Case 4: branch2 no match; g_639e0++ only */
+    g_dat_639e4 = 1; g_dat_63370 = 0; g_dat_639e0 = 0x55;   /* c->0x4-1=0x54 != 0x55 */
+    uint8_t *sentinel2 = (uint8_t *)0x2;
+    g_dat_63354 = sentinel2;
+    fn_03cc6b(a0);
+    check(g_dat_639e4 == 1, "03cc6b c4 g_639e4 stays 1");
+    check(g_dat_63354 == sentinel2, "03cc6b c4 g_63354 untouched");
+    check(g_dat_639e0 == 0x56, "03cc6b c4 g_639e0 0x55->0x56");
+}
+
 static void test_fn_034f31(void) {
     printf("fn_034f31 (0x034f31, MIDI RIFF deserializer)\n");
     uint32_t src_off = heap_arena_alloc(0x40);   /* MThd + 2 MTrk (38 bytes) */
@@ -4743,6 +4798,7 @@ int main(void) {
     test_fn_017218();
     test_fn_013aad();
     test_fn_0357f2();
+    test_fn_03cc6b();
     test_fn_034f31();
     test_fn_045bb7();
     test_fn_04391d();

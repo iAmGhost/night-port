@@ -700,6 +700,7 @@ extern uint8_t  g_tab_5d884[128 * 21];  /* RODATA string->value table @0x5d884, 
 int32_t fn_036626(const char *s);  /* 0x036626: case-insensitive string->value table lookup */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
 uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */
+void fn_015295(uint8_t *a0, int32_t a1); /* 0x015295: entity tick -- clamp a0->5, conditional list-insert + accumulator */
 uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_dat_639e0 */
 void fn_031f10(uint8_t *p, uint32_t val);  /* 0x031f10: ring push (count@0x31, buf@0x32, cap 5) */
 void fn_0348e2(void);                       /* 0x0348e2: slot-alloc (g_dat_63f50, wrap @9) */
@@ -751,6 +752,7 @@ extern uint8_t  g_dat_62c8e;      /* DAT_00062c8e (byte flag) */
 extern uint8_t  g_dat_62c90;      /* DAT_00062c90 (byte flag) */
 extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
 extern uint8_t *g_dat_53c7c;   /* DAT_00053c7c (kb config ptr; [0x1b] int32) */
+extern uint8_t *g_dat_53c80;   /* DAT_00053c80 (entity ptr; compared to a0 in 0x015295) */
 extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
 extern uint8_t *g_dat_53c70;   /* DAT_00053c70 (entity list head; next at +0x13f) */
 extern uint8_t *g_dat_53c74;   /* DAT_00053c74 (entity list tail; prev at +0x147) */

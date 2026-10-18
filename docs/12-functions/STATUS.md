@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 336 / 528 done
+TOTALS: 337 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 336 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 58 | 0 | 0 | 23 |
-| L11 | 77 | 41 | 0 | 0 | 36 |
+| L11 | 77 | 42 | 0 | 0 | 35 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 4 | 0 | 0 | 12 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -652,7 +652,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x01348f | 817 | FUN_0001348f | | |
 | [ ] | 0x0137c1 | 326 | FUN_000137c1 | | |
 | [ ] | 0x013c4d | 1809 | FUN_00013c4d | | |
-| [ ] | 0x015295 | 456 | FUN_00015295 | | |
+| [x] | 0x015295 | 456 | FUN_00015295 | entity tick: a0->5+=a1 clamp<=0; gate a0[0x30]==1 && a0[0x25]!=0xff && a0->5==0 && a0->11>0x15; a0[0x25]=0xff; if a0[0]==1 { off=heap_malloc(0x21) [orig 0x19+8 for widened 8-byte prev]; if(off) fn_0003b5c0(base+off, a0==g_53c80?1:0, a0->32, a0->1, a0->9-0x1e) }; *(g_53c7c+0x52)+=a0->32. dead clamp (a0->1-g_639dc) omitted. new global g_dat_53c80 | 4-scenario test (gate fail, a0[0]!=1, branch A flag=1, branch B flag=0; node payload + accumulator + node free), 17 checks |
 | [x] | 0x015a1f | 315 | fn_015a1f | state machine, data-table distance check | 1:1 (disasm; 5 checks) |
 | [x] | 0x015b5b | 442 | fn_015b5b | family variant (s[0x83] gate + table[idx+1] '.' check) | 1:1 (disasm; 6 checks) |
 | [x] | 0x015d16 | 442 | fn_015d16 | family variant (X-gate + char-selects-Y-limit) | 1:1 (disasm; 6 checks) |

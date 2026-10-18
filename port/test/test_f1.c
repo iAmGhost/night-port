@@ -1980,6 +1980,87 @@ static void test_fn_03dcbd(void) {
     fn_03dcbd(p);
     check(p[0] == 0x22222222, "03dcbd: all-zero fields, field 0 untouched, no crash");
 }
+
+static void test_fn_015295(void) {
+    printf("fn_015295 (0x015295, entity tick: clamp + conditional list-insert + accumulator)\n");
+    uint8_t *sv53c7c = g_dat_53c7c, *sv53c80 = g_dat_53c80;
+    uint32_t sv639dc = g_dat_639dc;
+    uint8_t *sv_cc = g_dat_639cc, *sv_d0 = g_dat_639d0;
+    uint32_t sv_c8 = g_dat_639c8;
+    uint8_t accbuf[0x60] = {0};
+    uint8_t other[8] = {0};
+    g_dat_53c7c = accbuf; g_dat_639dc = 0;
+    g_dat_639cc = NULL; g_dat_639d0 = NULL; g_dat_639c8 = 0;
+    uint8_t *nodeA = NULL, *nodeB = NULL;
+
+    /* s1: gate fails (a0[0x30] != 1) -> only a0->5 clamp */
+    {
+        uint8_t s[0x40] = {0};
+        *(int32_t*)(s+5) = -2; s[0x30] = 2; s[0x25] = 0; s[0] = 1;
+        *(int32_t*)(s+0x11) = 0x16; *(uint32_t*)(s+0x32) = 0x400;
+        *(uint32_t*)(accbuf+0x52) = 5;
+        fn_015295(s, 1);
+        check(*(int32_t*)(s+5) == -1, "015295 s1: a0->5 += 1 = -1");
+        check(g_dat_639c8 == 0, "015295 s1: no list insert (gate fail)");
+        check(*(uint32_t*)(accbuf+0x52) == 5, "015295 s1: accumulator unchanged");
+        check(s[0x25] == 0, "015295 s1: a0[0x25] unchanged (gate fail)");
+    }
+
+    /* s2: gate passes, a0[0]=0 (not 1) -> a0[0x25]=0xff, no insert, no accumulator */
+    g_dat_639cc = NULL; g_dat_639d0 = NULL; g_dat_639c8 = 0;
+    {
+        uint8_t s[0x40] = {0};
+        *(int32_t*)(s+5) = -3; s[0x30] = 1; s[0x25] = 0; s[0] = 0;
+        *(int32_t*)(s+0x11) = 0x16; *(uint32_t*)(s+0x32) = 0x400;
+        *(uint32_t*)(accbuf+0x52) = 10;
+        fn_015295(s, 3);
+        check(*(int32_t*)(s+5) == 0, "015295 s2: a0->5 clamped to 0");
+        check(s[0x25] == 0xff, "015295 s2: a0[0x25] = 0xff set");
+        check(g_dat_639c8 == 0, "015295 s2: no list insert (a0[0] != 1)");
+        check(*(uint32_t*)(accbuf+0x52) == 10, "015295 s2: accumulator unchanged (a0[0]!=1)");
+    }
+
+    /* s3: gate passes, a0[0]=1, a0==g_53c80 (branch A, flag=1) */
+    g_dat_639cc = NULL; g_dat_639d0 = NULL; g_dat_639c8 = 0;
+    {
+        uint8_t s[0x40] = {0};
+        *(int32_t*)(s+5) = -3; s[0x30] = 1; s[0x25] = 0; s[0] = 1;
+        *(int32_t*)(s+0x11) = 0x16;
+        *(uint32_t*)(s+1) = 0x200; *(uint32_t*)(s+9) = 0x300; *(uint32_t*)(s+0x32) = 0x400;
+        g_dat_53c80 = s;   /* a0 == g_53c80 -> branch A */
+        *(uint32_t*)(accbuf+0x52) = 100;
+        fn_015295(s, 3);
+        check(g_dat_639c8 == 1, "015295 s3: list insert (count=1)");
+        check(*(uint32_t*)(accbuf+0x52) == 100 + 0x400, "015295 s3: accumulator += a0->32");
+        nodeA = g_dat_639cc;
+        check(nodeA && nodeA[0] == 1, "015295 s3: node flag=1 (branch A)");
+        check(nodeA && *(uint32_t*)(nodeA+0x1) == 0x400, "015295 s3: node+1 = a0->32 (d_ecx)");
+        check(nodeA && *(uint32_t*)(nodeA+0x9) == 0x200, "015295 s3: node+9 = a0->1 (d_edx)");
+        check(nodeA && *(uint32_t*)(nodeA+0xd) == (0x300-0x1e), "015295 s3: node+0xd = a0->9-0x1e (d_ebx)");
+    }
+
+    /* s4: gate passes, a0[0]=1, a0!=g_53c80 (branch B, flag=0) */
+    g_dat_639cc = NULL; g_dat_639d0 = NULL; g_dat_639c8 = 0;
+    {
+        uint8_t s[0x40] = {0};
+        *(int32_t*)(s+5) = -3; s[0x30] = 1; s[0x25] = 0; s[0] = 1;
+        *(int32_t*)(s+0x11) = 0x16;
+        *(uint32_t*)(s+1) = 0x200; *(uint32_t*)(s+9) = 0x300; *(uint32_t*)(s+0x32) = 0x400;
+        g_dat_53c80 = other;   /* a0 != g_53c80 -> branch B */
+        *(uint32_t*)(accbuf+0x52) = 100;
+        fn_015295(s, 3);
+        check(g_dat_639c8 == 1, "015295 s4: list insert (count=1)");
+        check(*(uint32_t*)(accbuf+0x52) == 100 + 0x400, "015295 s4: accumulator += a0->32");
+        nodeB = g_dat_639cc;
+        check(nodeB && nodeB[0] == 0, "015295 s4: node flag=0 (branch B)");
+    }
+
+    /* cleanup: free the two created nodes */
+    if (nodeA) heap_free_host((uint32_t)(nodeA - (uint8_t *)g_heap_base));
+    if (nodeB) heap_free_host((uint32_t)(nodeB - (uint8_t *)g_heap_base));
+    g_dat_53c7c = sv53c7c; g_dat_53c80 = sv53c80; g_dat_639dc = sv639dc;
+    g_dat_639cc = sv_cc; g_dat_639d0 = sv_d0; g_dat_639c8 = sv_c8;
+}
 static void init_arena_03ba86(void) {
     memset(nar(), 0, 0x1000);
     setnode(0, 0, 0, 0x140, 0);   /* node@0 covers [0,0x140) so non-zero-a walks terminate */
@@ -4950,6 +5031,7 @@ int main(void) {
     test_fn_03ba2c();
     test_fn_034990();
     test_fn_03dcbd();
+    test_fn_015295();
     test_fn_03ba86();
     test_fn_03a594();
     test_fn_036626();

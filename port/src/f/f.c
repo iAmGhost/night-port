@@ -3426,12 +3426,50 @@ uint8_t  g_dat_62c8e = 0;   /* 0x62c8e */
 uint8_t  g_dat_62c90 = 0;   /* 0x62c90 */
 uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
 uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
+uint8_t *g_dat_53c80 = 0;      /* 0x53c80 */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
 uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
+
+/* 0x015295 (L11, 456 B): ENTITY TICK.
+ *   1. a0->5 += a1; if (a0->5 > 0) a0->5 = 0;        (clamp the counter to <= 0)
+ *   gate: proceed iff  a0[0x30]==1 && a0[0x25]!=0xff && a0->5==0 && a0->11>0x15;
+ *         else return (only the a0->5 clamp applied).
+ *   2. a0[0x25] = 0xff;  if (a0[0] != 1) return;      (set active, then exit if not type 1)
+ *   3. if (a0 == g_dat_53c80): node = heap_malloc(0x21); if (node) fn_0003b5c0(node, 1, a0->32, a0->1, a0->9-0x1e);
+ *      else:                   node = heap_malloc(0x21); if (node) fn_0003b5c0(node, 0, a0->32, a0->1, a0->9-0x1e);
+ *   (heap_malloc returns a heap OFFSET; the node pointer is g_heap_base + offset, and the
+ *    failure check is on the offset, per the port's heap convention.)
+ *   4. *(g_dat_53c7c + 0x52) += a0->32;               (accumulator -- reached only in step 3)
+ * NOTE: the original computes a clamped offset (tmp) from (a0->1 - g_dat_639dc) in each
+ * branch (bounds 0x104 / 0x136) but NEVER consumes it -- dead code, omitted here.
+ * POINTER-WIDTH ADAPTATION: the original allocates the node with heap_malloc(0x19) (25 B,
+ * 4-byte prev@+0x15); the port widens prev to 8 B@+0x19, so the node needs +8 B = 0x21.
+ * reg-ABI: a0=EAX (struct ptr), a1=EDX. Only real callees: heap_malloc (0x41bdc) and
+ * fn_0003b5c0 (list insert); 0x418ee is the canary. */
+void fn_015295(uint8_t *a0, int32_t a1) {
+    (void)canary_id(0, 0x48);
+    int32_t *p5 = (int32_t *)(a0 + 5);
+    *p5 += a1;                                     /* 0x152b8 */
+    if (*p5 > 0) *p5 = 0;                          /* 0x152c4 */
+    if (a0[0x30] != 1) return;                     /* 0x152d1/152dc */
+    if (a0[0x25] == 0xff) return;                  /* 0x152e9 */
+    if (*p5 != 0) return;                          /* 0x152f9 (a0->5 must be 0) */
+    if (*(int32_t *)(a0 + 0x11) <= 0x15) return;   /* 0x15304 (a0->11 must be > 0x15) */
+    a0[0x25] = 0xff;                               /* 0x1530e */
+    if (a0[0] != 1) return;                        /* 0x1531c */
+    uint32_t a0_1   = *(uint32_t *)(a0 + 1);       /* a0->1  */
+    uint32_t a0_9   = *(uint32_t *)(a0 + 9);       /* a0->9  */
+    uint32_t a0_32  = *(uint32_t *)(a0 + 0x32);    /* a0->32 */
+    uint32_t node_off = heap_malloc(0x21);  /* orig 0x19 +8 (widened prev) */
+    if (node_off)
+        fn_0003b5c0((uint8_t *)(g_heap_base + node_off),
+                    a0 == g_dat_53c80 ? 1 : 0, a0_32, a0_1, a0_9 - 0x1e);
+    *(uint32_t *)(g_dat_53c7c + 0x52) += a0_32;    /* 0x15453 accumulator */
+}
 uint8_t  g_dat_53eb8[0x2000] = {0}; /* 0x53eb8: zeroed runtime table */
 
 void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */

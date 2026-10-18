@@ -6441,3 +6441,38 @@ int32_t fn_04a814(int32_t start, const uint32_t *key)
     }
     return cnt;
 }
+
+/* ---- 0x4a367: FP table-lookup cluster caller (64 B, 31 insns) ----
+ * Register+stack ABI (resolved from the sole caller FUN_0004a48f @0x04a59b):
+ *   arg0  = [EBP+8]   low 32 bits of the base double
+ *   arg1  = [EBP+0xc] high 32 bits of the base double
+ *   arg2  = [EBP+0x10] target index (int, from the caller's clamped EBX)
+ *   arg3  = [EBP+0x14] ptr to a 64-bit {lo,hi} (mantissa/key source)
+ *   EAX-in (implicit register input) = the caller's [ECX]
+ *   returns int32 (the 0x04a814 scan count).
+ *
+ * Body: base = arg0 | arg1<<32 (double); if (EAX-in != arg2) base =
+ *   fn_04a3a8(base, arg2 - (EAX-in));  FSTP base -> [EBP+8];
+ *   fx_mantissa_scale(out=&[EBP+8], in=arg3);  return fn_04a814(arg2, arg3).
+ *
+ * DEAD-STORE ANALYSIS (verified vs FUN_0004a48f): arg0/arg1 are pushed BY VALUE
+ * (copies of the caller's [EBP+8]/[EBP+0xc]); the FPU block writes only to those
+ * pushed copies (0x04a367's [EBP+8]/[EBP+0xc] slots), which are popped by RET 0x10
+ * and never read back by the caller. arg3 is the read-only `in` source (fx_mantissa_scale
+ * writes to out=&[EBP+8], not to *arg3). Hence the FPU block (0x04a3a8 +
+ * fx_mantissa_scale + FSTP) has NO observable effect. The function's sole
+ * observable behavior is its return value = fn_04a814(arg2, arg3).
+ * We reproduce the FPU block faithfully (it is executed in the original) into a
+ * local `dslot`; fn_04a3a8 and fx_mantissa_scale are pure, so the result is not
+ * observable and dslot is unused. */
+int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, const uint32_t *arg3, uint32_t eax_in)
+{
+    double dslot;
+    uint64_t bits = (uint64_t)arg0 | ((uint64_t)arg1 << 32);   /* base double (arg0=low, arg1=high) */
+    memcpy(&dslot, &bits, 8);
+    if (eax_in != (uint32_t)arg2)                              /* JZ 0x4a38d: skip when equal */
+        dslot = fn_04a3a8(dslot, (int32_t)((uint32_t)arg2 - eax_in));  /* CALL 0x04a3a8; FSTP -> dead */
+    fx_mantissa_scale((uint32_t *)&dslot, arg3);               /* CALL 0x04a84e; out=&[EBP+8] -> dead */
+    (void)dslot;                                               /* dead store, not observable */
+    return fn_04a814(arg2, arg3);                              /* MOV EAX,ECX; MOV EDX,EBX; CALL 0x04a814 */
+}

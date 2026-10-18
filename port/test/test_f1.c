@@ -3980,6 +3980,32 @@ static void test_fn_04a814(void) {
     check(mism==0, "04a814 5000 differential vs 64-bit reference");
 }
 
+static void test_fn_04a367(void) {
+    printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
+    /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
+     * fx_mantissa_scale + FSTP) writes only to the pushed arg0/arg1 stack slots (popped
+     * by RET 0x10, never read back). Verify: (1) fn_04a367(arg0,arg1,arg2,arg3,eax) ==
+     * fn_04a814(arg2,arg3) over many args; (2) arg0/arg1/eax_in do NOT affect the
+     * return (dead-store confirmation -- incl. the eax_in!=arg2 case that runs the FPU block). */
+    static const uint32_t keys[][2] = {
+        {0,0},{1,0},{100,0},{256,0},{100000,0},{1048576,0},{1000000,0},{0x12345678,0x9abcdef}
+    };
+    int nkeys = (int)(sizeof(keys)/sizeof(keys[0]));
+    int mism = 0;
+    for (int k = 0; k < nkeys; k++) {
+        for (int start = 0; start < 8; start++) {
+            uint32_t a0 = 0x3f800000u + (uint32_t)k;        /* varying low half  */
+            uint32_t a1 = 0x1234u * (uint32_t)(k + 1);      /* varying high half */
+            for (uint32_t eax = 0; eax < 4; eax++) {
+                int32_t got  = fn_04a367(a0, a1, start, keys[k], eax);
+                int32_t want = fn_04a814(start, keys[k]);
+                if (got != want) { if (mism<3) printf("    FAIL k=%d start=%d eax=%u got=%d want=%d\n",k,start,eax,got,want); mism++; }
+            }
+        }
+    }
+    check(mism==0, "04a367 return == fn_04a814(arg2,arg3) over 8 keys x 8 starts x 4 eax_in (arg0/arg1/eax dead)");
+}
+
 static void test_fn_045bb7(void) {
     printf("fn_045bb7 (0x045bb7, DOS far-memory alloc/resize/verify)\n");
     /* Flat model: no DOS far memory -> every path hits a failing INT 21 AH=0x4A ->
@@ -4246,6 +4272,7 @@ int main(void) {
     test_fn_047b79();
     test_fn_047b4f();
     test_fn_04a814();
+    test_fn_04a367();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

@@ -12,6 +12,7 @@
 #include "../../scratch/fp_04794a_ctest.h"
 #include "../../scratch/vectors_0485eb.h"
 #include "../../scratch/vectors_047d4e.h"
+#include "../../scratch/fp_048053_vectors.h"
 
 static int failures = 0;
 static void check(int ok, const char *what) {
@@ -3862,6 +3863,22 @@ static void test_fn_04a3a8(void) {
     check(fn_04a3a8(dbl(0x7ff8000000000000ULL), 10) == dbl(0xfff0000000000000ULL), "  04a3a8 NaN 10 -> -inf (-DBL_MAX*10^10 ovf)");
 }
 
+static void test_fn_048053(void) {
+    printf("fn_048053 (0x048053, fixed-point -> double normalize)\n");
+    size_t n = FP_048053_VECS_N;
+    int ok = 1;
+    for (size_t i=0;i<n;i++) {
+        const fp_048053_vec_t *v = &fp_048053_vecs[i];
+        uint64_t got = fn_048053(v->f0, v->f1, v->f2);
+        if (got != v->exp) {
+            printf("    first mismatch vec %zu: in={0x%08x,0x%08x,0x%04x} got=0x%016llx exp=0x%016llx\n",
+                   i, v->f0, v->f1, v->f2, (unsigned long long)got, (unsigned long long)v->exp);
+            ok = 0; break;
+        }
+    }
+    check(ok, "  all differential vectors match reference (scratch/fp_048053_ref.py)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4108,6 +4125,7 @@ int main(void) {
     test_fn_048fe6();
     test_fn_04a32b();
     test_fn_04a3a8();
+    test_fn_048053();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

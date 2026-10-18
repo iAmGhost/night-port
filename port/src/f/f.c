@@ -821,6 +821,99 @@ void fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out)
     out[2] = (uint16_t)(((cx << 1) | cf) & 0xffff);
 }
 
+/* fn_048053  orig: 0x00048053 (L1, 74 insns)
+ *   48-bit fixed-point -> double normalizer (register-ABI). Input: 12-byte
+ *   struct { f0 u32 @0, f1 u32 @4, f2 u16 @8 } (a fixed-point value, at
+ *   [EDI+EBP+0x1c] in the caller). Returns a 64-bit (EDX:EAX) IEEE-754-ish
+ *   representation; callers store EAX->low, EDX->high. Called from the
+ *   0x0461cc interpreter (0x046a1e / 0x046a51).
+ *   The single CALL 0x0463dc (mid-range branch, side effects only, EAX
+ *   save/restore) is a net no-op: 0x0463dc is a dispatcher that copies a
+ *   27-dword state buffer, calls [0x533bd]=0x042a07 (a no-op primitive), and
+ *   copies it back -- no observable effect, so no-op'd here (same treatment
+ *   as fn_047f54's identical spurious call).
+ *   Faithful instruction emulation; only the four live carries are tracked:
+ *   SHL EBX,22; ADD EAX,0x800; ADC EDX,0; ADD BX,BX->RCR EDX,1.
+ *   Differential vs scratch/fp_048053_ref.py (2,000,000 random vectors). */
+uint64_t fn_048053(uint32_t f0, uint32_t f1, uint16_t f2)
+{
+    uint32_t eax = f0, edx = f1, ecx = f2, esi = 0xfffff800, ebx = f0;
+    /* SHL EBX,22 */
+    uint32_t cf1 = (eax >> 10) & 1;              /* f0 bit 10 */
+    ebx = (eax << 22) & 0xffffffff;
+    uint32_t z_shl = (ebx == 0);
+    if (cf1) {
+        if (z_shl) esi = (esi + esi) & 0xffffffff;   /* ADD ESI,ESI */
+        uint32_t s = eax + 0x800;                    /* ADD EAX,0x800 */
+        uint32_t cf2 = (s < eax) ? 1 : 0;
+        eax = s;
+        uint32_t s2 = edx + cf2;                     /* ADC EDX,0 */
+        uint32_t cf3 = (s2 < edx) ? 1 : 0;
+        edx = s2;
+        if (cf3) {
+            edx = 0x80000000;                         /* 0x48079 */
+            ecx = (ecx + 1) & 0xffff;                 /* INC CX */
+        }
+    }
+    eax = eax & esi;                                   /* AND EAX,ESI */
+    ebx = ecx;                                         /* MOV EBX,ECX (pre-bias) */
+    ecx &= 0x7fff;                                     /* AND CX,0x7fff */
+    ecx = (ecx + 0xc400) & 0xffff;                     /* ADD CX,0xc400 */
+    uint32_t cx = ecx;
+    if (cx < 0x7ff) {                                  /* small exponent */
+        if (cx == 0) {
+            uint64_t p = (((uint64_t)edx << 32) | eax) >> 12;  /* SHRD EAX,EDX,12 */
+            eax = (uint32_t)p;
+            edx = (edx << 1) & 0xffffffff;            /* ADD EDX,EDX */
+            edx >>= 12;                               /* SHR EDX,12 */
+        } else {
+            uint64_t p = (((uint64_t)edx << 32) | eax) >> 11;  /* SHRD EAX,EDX,11 */
+            eax = (uint32_t)p;
+            edx = (edx << 1) & 0xffffffff;            /* ADD EDX,EDX */
+            p = (((uint64_t)ecx << 32) | edx) >> 11;  /* SHRD EDX,ECX,11 */
+            edx = (uint32_t)p;
+        }
+        uint32_t bx = ebx & 0xffff;
+        uint32_t cf4 = (bx >> 15) & 1;                /* ADD BX,BX carry */
+        edx = ((edx << 1) | cf4) & 0xffffffff;        /* RCR EDX,1 */
+    } else if (cx < 0xc400) {                         /* mid range (0x480f0) */
+        uint64_t p = (((uint64_t)edx << 32) | eax) >> 11;  /* SHRD EAX,EDX,11 */
+        eax = (uint32_t)p;
+        edx = (edx << 1) & 0xffffffff;                /* ADD EDX,EDX */
+        edx >>= 11;                                   /* SHR EDX,11 */
+        uint32_t bx = ebx & 0xffff;
+        uint32_t cf4 = (bx >> 15) & 1;
+        edx = ((edx << 1) | cf4) & 0xffffffff;        /* RCR EDX,1 */
+        edx |= 0x7ff00000;                            /* OR EDX,0x7ff00000 */
+        /* CALL 0x463dc no-op (handler 0x42a07 is a no-op primitive) */
+    } else if (cx < 0xffcc) {                         /* zero (0x480ea) */
+        eax = 0;
+        edx = 0;
+    } else {                                          /* large range (0x480c3) */
+        cx = (cx - 0xc) & 0xffff;                     /* SUB CX,0xc */
+        cx = (-cx) & 0xffff;                          /* NEG CX (16-bit) */
+        uint32_t cl = cx & 0xff;
+        if (cl >= 0x20) {                             /* CMP CL,0x20; JC not taken */
+            cl = (cl - 0x20) & 0xff;
+            esi = eax;
+            eax = edx;
+            edx = 0;
+        }
+        uint64_t p = (((uint64_t)eax << 32) | esi) >> cl;  /* SHRD ESI,EAX,cl */
+        esi = (uint32_t)p;
+        p = (((uint64_t)edx << 32) | eax) >> cl;      /* SHRD EAX,EDX,cl */
+        eax = (uint32_t)p;
+        edx >>= cl;                                   /* SHR EDX,cl */
+        uint32_t cf5 = (esi >> 31) & 1;               /* ADD ESI,ESI carry */
+        esi = (esi << 1) & 0xffffffff;
+        uint32_t s = eax + cf5;                       /* ADC EAX,0 */
+        uint32_t cf5b = (s < cf5) ? 1 : 0;
+        eax = s;
+        edx = edx + cf5b;                             /* ADC EDX,0 */
+    }
+    return ((uint64_t)edx << 32) | eax;
+}
+
 /* ---- IRQ 0x1c / IRQ 9 installers + timer-DMA state (fn_03ef29 / fn_03feb8) ---- */
 uint8_t  g_dat_63e88[0x80]; /* DAT_00063e88: 128-byte DMA/channel status (zeroed on IRQ9 install) */
 uint32_t g_dat_63f4c = 0;   /* DAT_00063f4c: -1 sentinel (set to 0xffffffff on IRQ9 install) */

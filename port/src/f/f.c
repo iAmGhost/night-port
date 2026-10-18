@@ -6476,3 +6476,13 @@ int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, const uint32_t *ar
     (void)dslot;                                               /* dead store, not observable */
     return fn_04a814(arg2, arg3);                              /* MOV EAX,ECX; MOV EDX,EBX; CALL 0x04a814 */
 }
+
+/* ---- 0x040efd / 0x0413e7 / 0x041410 (L12, 40 B each): thin port-write wrappers ----
+ * Each is: PUSH 0x1c; CALL 0x0418ee (frame/canary, absorbed by the C frame); save EBX..EBP;
+ * MOV EAX, <const>; CALL 0x041340; restore; RET. The register save/restore and the
+ * 0x1c-byte frame have no observable effect, so each is observably just
+ *   return fn_041340(const)
+ * with const = 0xd0 / 0xd1 / 0xd3 respectively (device port-write command codes). */
+uint32_t fn_040efd(void) { (void)canary_id(0, 0x1c); return fn_041340(0xd0); }  /* 0x040efd */
+uint32_t fn_0413e7(void) { (void)canary_id(0, 0x1c); return fn_041340(0xd1); }  /* 0x0413e7 */
+uint32_t fn_041410(void) { (void)canary_id(0, 0x1c); return fn_041340(0xd3); }  /* 0x041410 */

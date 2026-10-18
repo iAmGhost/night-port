@@ -3980,6 +3980,25 @@ static void test_fn_04a814(void) {
     check(mism==0, "04a814 5000 differential vs 64-bit reference");
 }
 
+static void test_fn_040efd_wrappers(void) {
+    printf("fn_040efd/0x0413e7/0x041410 (thin wrappers -> fn_041340(const))\n");
+    /* 0x040efd/0x0413e7/0x041410: PUSH 0x1c;CALL 0x418ee (frame); save regs;
+     * MOV EAX,<const>; CALL 0x041340; restore; RET. Observably return fn_041340(const)
+     * with const in {0xd0,0xd1,0xd3}. fn_041340 is ready-gated by fn_041390() which polls
+     * inb(g_dat_53334+0xc) for bit7 clear, then outb(cmd) (persistent port_val in the flat
+     * model). So reset the port to ready (0) before each call; cmd 0xd0/d1/d3 has bit7 set
+     * so the written value is observable. Also cover the not-ready (bit7 set) path. */
+    uint16_t P = (uint16_t)(g_dat_53334 + 0xc);
+    sys_port_set(P, 0);  check(fn_040efd() == 1, "040efd ready->write->1");
+    check(sys_inb(P) == (0xd0 & 0xff), "040efd wrote cmd 0xd0");
+    sys_port_set(P, 0);  check(fn_0413e7() == 1, "0413e7 ready->write->1");
+    check(sys_inb(P) == (0xd1 & 0xff), "0413e7 wrote cmd 0xd1");
+    sys_port_set(P, 0);  check(fn_041410() == 1, "041410 ready->write->1");
+    check(sys_inb(P) == (0xd3 & 0xff), "041410 wrote cmd 0xd3");
+    sys_port_set(P, 0x80);  check(fn_040efd() == 0, "040efd not-ready->0");
+    check(sys_inb(P) == 0x80, "040efd no write when not ready");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4273,6 +4292,7 @@ int main(void) {
     test_fn_047b4f();
     test_fn_04a814();
     test_fn_04a367();
+    test_fn_040efd_wrappers();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

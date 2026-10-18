@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 302 / 528 done
+TOTALS: 305 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -50,7 +50,7 @@ TOTALS: 302 / 528 done
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 48 | 0 | 0 | 33 |
 | L11 | 77 | 34 | 0 | 0 | 43 |
-| L12 | 58 | 9 | 0 | 0 | 49 |
+| L12 | 58 | 12 | 0 | 0 | 46 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x040efd / 0x0413e7 / 0x041410 PORTED (L12, 40 B each) -- 3 thin device-port-write wrappers.** Found after realizing frontier.py takes a LEVEL arg (default 2) -- I'd only ever run it at L2, missing ~50 clean candidates in L3-L13 unblocked by recent ports. Each is: PUSH 0x1c;CALL 0x0418ee (frame/canary, absorbed by C frame); save EBX..EBP; MOV EAX,<const>; CALL 0x041340; restore; RET -- observably `return fn_041340(const)` with const in {0xd0,0xd1,0xd3}. fn_041340 is ready-gated: fn_041390() polls inb(g_dat_53334+0xc) for bit7 clear (1=ready / 0 after 0x7fff timeout), then outb(+0xc,cmd) (persistent port_val in flat model), return 1. **TEST GOTCHA:** naive `wrapper()==fn_041340(const)` fails -- writing 0xd0/d1/d3 (bit7 SET) leaves the port "busy", so a 2nd call times out -> 0. Fix: sys_port_set(P,0) before each call; verify return==1 AND the exact cmd written (sys_inb(P)==0xd0/d1/d3); plus the not-ready path (sys_port_set(P,0x80) -> returns 0, no write). 8 checks. L12 9->12, TOTALS 302->305/528, suite +8 PASS 0 FAIL. **NEXT (many clean candidates now visible across tiers):** L12 0x040948(53B)/0x040f4f(99B)/0x0411d9(99B); L11 0x035c2d(45B); L3 0x042fc2(174B, DPMI/INT21 heap). | STATUS.md L12 |
 | 2026-07-08 | **0x04a367 PORTED (L2, 64 B / 31 insns, FP table-lookup cluster caller) -- a clean win unblocked by 0x04a814.** All 3 callees ported: 0x04a3a8 (fn_04a3a8, this turn), 0x04a84e (fx_mantissa_scale), 0x04a814 (fn_04a814, this turn). Register+stack ABI resolved from the SOLE caller FUN_0004a48f @0x04a59b: arg0=[EBP+8] (base-double low32), arg1=[EBP+0xc] (base-double high32), arg2=[EBP+0x10] (clamped index, caller EBX), arg3=[EBP+0x14] (ptr to 64-bit {lo,hi}), EAX-in = caller [ECX]; returns int32. **DEAD-STORE FINDING:** arg0/arg1 are pushed BY VALUE (copies of the caller's slots); the FPU block (0x04a3a8 -> FSTP [EBP+8], then fx_mantissa_scale(out=&[EBP+8], in=arg3)) writes ONLY to those pushed copies, which are popped by RET 0x10 and never read back; arg3 is the read-only `in` source. So the FPU block has NO observable effect and the function is observably `return fn_04a814(arg2, arg3)`. Ported faithfully (the FPU block is computed into a local `dslot` then discarded, since both callees are pure). Verified: 256-combo test (8 keys x 8 starts x 4 eax_in) confirms return == fn_04a814(arg2,arg3) and that arg0/arg1/eax_in do not affect it (incl. the eax_in!=arg2 branch that runs the FPU block). L2 24->25, TOTALS 301->302/528, suite 1026->1027 PASS 0 FAIL. **NEXT:** remaining L2 clean candidate is 0x0487b0 (464 B) / 0x048c8c (467 B) -- large dedicated passes. | STATUS.md L2 |
 | 2026-07-08 | **0x04a814 PORTED (L1, 57 insns, decimal-magnitude upper-bound scan) -- RESOLVES the last 0x04a923-gated L1 fn.** Confirms the same-day characterization. The 8-byte table @0x04a928 is {0, 10^0, 10^1, ..., 10^19, UINT64_MAX-sentinel} (22 entries, bit-exact from the binary; the mis-decoded 'OR EAX,0xa7640000' at 0x04a9c3 is the lo bytes of the 10^18 entry; 0x04a9d0 = the UINT64_MAX sentinel). Port fn_04a814(int32 start, const uint32_t *key): the CALL 0x04a923 (fx_stub_4a923 no-op) sets EDI=0x04a928, EAX unchanged; e=start+1; forward advance while key>=entry, backward step while entry>key; "key<entry" (64-bit)=(hi<ehi)||(hi==ehi&&lo<elo). Verified: 8 hand-verified x86-disasm cases (key=0/1/100/256/1e5/1048576/1e6, incl. a start=1 case) + 5000 differential vs an INDEPENDENT 64-bit reference (full uint64_t compare, no hi/lo split) -- 0 mismatch. NOTE: a pre-generated vector header (scratch/fp_04a814_vectors.h) proved untrustworthy in this env (a stale powers-of-16 copy kept being restored even after rm+regen), so the test computes expected values INLINE (hand cases + 64-bit ref), no file dependency. L1 44->45, TOTALS 300->301/528, suite 1017->1026 PASS 0 FAIL. **Remaining L1 (2):** 0x0440a9 (733B, dedicated pass), 0x049506 (gated on 0x04574a). | STATUS.md L1 |
 | 2026-07-08 | **0x04a814 FULLY CHARACTERIZED (analysis pass; port deferred to a fresh dedicated pass on the FP table-lookup cluster).** Raw-byte + Ghidra-boundary verification: (a) 0x04a923 = fx_stub_4a923 (ALREADY ported as a no-op, line 344) -- body `CALL 0x04a9d8` + zero-filler; 0x04a9d8 is an UNOWNED 2-byte `POP EDI; RET` (Ghidra fn-gap between fx_stub_4a923 body_end 0x4a9c9 and fx_double_exp start 0x4a9da). Net effect of `CALL 0x04a923` (traced): EDI := 0x04a928 (the return address pushed by the inner CALL, captured by POP EDI), EAX UNCHANGED, stack balanced. (b) **0x04a814 (57B, 0x4a814..0x4a84d) is a linear UPPER-BOUND scan, NOT 'fx_mul64 wrapper'** (the line-145 'calls fx_mul64' note is STALE/wrong -- the 57-byte body has no fx_mul64 call). Body: PUSH EDI/ECX; CALL 0x04a923 (-> EDI=0x4a928, EAX=start); INC EAX; LEA EDI,[EDI+EAX*8] (pos = 0x4a928+(start+1)*8); lo=[EDX], hi=[EDX+4]; EAX=0; then FORWARD scan `while (hi>entry_hi) || (hi==entry_hi && lo>=entry_lo)`: EDI+=8,EAX++ (i.e. advance while key>=entry, 64-bit (hi,lo) compare); then BACKWARD scan `while (hi<entry_hi) || (hi==entry_hi && lo<entry_lo)`: EDI-=8,EAX-- (back up while entry>key); return EAX (= count/position = upper-bound index in a run of entries <= key). Table entries are 8 bytes {hi=[+0], lo=[+4]}. (c) Call site (FUN_0004a367, called by FUN_0004a48f): right before CALL 0x04a814 it sets EAX=ECX=[EBP+0x10]=arg0 (start index) and EDX=EBX=[EBP+0x14]=arg1 (pointer to the 64-bit {lo,hi} key); it ALSO calls 0x04a84e immediately before (0x4a84e is a sibling in the same cluster). Part of an FP table-lookup cluster (0x04a367/0x04a3a8/0x04a84e/0x04a814, FSTP double + LEA-of-double). **Next pass (fresh ctx):** extract the 0x04a928 table (8-byte entries; verify sorted + sentinel extent), read 0x04a84e/0x04a3a8 for the cluster's FP context, port 0x04a814 as a faithful upper-bound scan, differential-test vs a Python ref over the real table + caller keys. Doc-only this turn (300/528 unchanged); no code change. | STATUS.md 0x04a814 |
@@ -755,12 +756,12 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03f80d | 119 | FUN_0003f80d | | |
 | [ ] | 0x040948 | 53 | FUN_00040948 | | |
 | [ ] | 0x040b83 | 389 | FUN_00040b83 | | |
-| [ ] | 0x040efd | 40 | FUN_00040efd | | |
+| [x] | 0x040efd | 40 | fn_040efd | thin wrapper -> fn_041340(0xd0) (frame 0x1c + save/restore) | ready/not-ready + exact cmd written |
 | [ ] | 0x040f4f | 99 | FUN_00040f4f | | |
 | [ ] | 0x040fb3 | 549 | FUN_00040fb3 | | |
 | [ ] | 0x0411d9 | 99 | FUN_000411d9 | | |
-| [ ] | 0x0413e7 | 40 | FUN_000413e7 | | |
-| [ ] | 0x041410 | 40 | FUN_00041410 | | |
+| [x] | 0x0413e7 | 40 | fn_0413e7 | thin wrapper -> fn_041340(0xd1) | ready/not-ready + exact cmd written |
+| [x] | 0x041410 | 40 | fn_041410 | thin wrapper -> fn_041340(0xd3) | ready/not-ready + exact cmd written |
 ## L13 (16)
 
 | Status | Addr | Size | Name | Subsystem | Notes |

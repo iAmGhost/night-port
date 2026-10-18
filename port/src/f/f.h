@@ -544,6 +544,9 @@ uint32_t fn_0412e9(void);          /* 0x0412e9: poll +0xe for bit7 set   */
 uint32_t fn_041390(void);          /* 0x041390: poll +0xc for bit7 clear */
 uint32_t fn_0412a3(void);          /* 0x0412a3: ready-gated inb(base+0xa) status read */
 uint32_t fn_041340(uint32_t cmd);  /* 0x041340: ready-gated outb(base+0xc, cmd) write */
+uint32_t fn_040efd(void);  /* 0x040efd: thin wrapper -> fn_041340(0xd0) */
+uint32_t fn_0413e7(void);  /* 0x0413e7: thin wrapper -> fn_041340(0xd1) */
+uint32_t fn_041410(void);  /* 0x041410: thin wrapper -> fn_041340(0xd3) */
 int32_t  fn_0358c7(uint8_t arg);   /* 0x0358c7: wait +1 bit0x40 clear, outb(base,arg); -1 on 0x2000 timeout */
 extern uint32_t g_dat_530ac;       /* DAT_000530ac: device port base */
 uint8_t *fn_0326c1(uint8_t *base); /* 0x0326c1: free per-element heap offsets at +0x68/+0x1f8, return base */

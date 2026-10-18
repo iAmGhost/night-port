@@ -4035,6 +4035,26 @@ static void test_fn_0411d9(void) {
     check(fn_0411d9() == 0, "0411d9 not-ready -> 0");
 }
 
+static void test_fn_040f4f(void) {
+    printf("fn_040f4f (0x040f4f, device-discovery scan)\n");
+    /* Probe 8 bases B,B+0x10..B+0x70: fn_04123d + fn_0412a3; status 0xaa -> return base.
+     * fn_0412a3 reads inb(base+0xa) gated on fn_0412e9 (poll base+0xe bit7 set); a not-ready
+     * base (+0xe bit7 clear) yields 0. Found at B+0x20; loop mutates g_dat_53334, so restore it. */
+    uint32_t save = g_dat_53334;
+    g_dat_53334 = 0x300;
+    sys_port_set(0x300 + 0xe, 0);      /* iter0 not ready -> status 0 */
+    sys_port_set(0x310 + 0xe, 0);      /* iter1 not ready */
+    sys_port_set(0x320 + 0xe, 0x80);   /* iter2 ready */
+    sys_port_set(0x320 + 0xa, 0xaa);   /* iter2 status 0xaa -> found */
+    check(fn_040f4f() == 0x320, "040f4f found at base 0x320");
+    g_dat_53334 = save;
+    /* none found: all 8 bases not ready -> 0 */
+    g_dat_53334 = 0x300;
+    for (int i = 0; i < 8; i++) sys_port_set(0x300 + (uint16_t)(i * 0x10) + 0xe, 0);
+    check(fn_040f4f() == 0, "040f4f none found -> 0");
+    g_dat_53334 = save;
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4331,6 +4351,7 @@ int main(void) {
     test_fn_040efd_wrappers();
     test_fn_035c2d_040948();
     test_fn_0411d9();
+    test_fn_040f4f();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

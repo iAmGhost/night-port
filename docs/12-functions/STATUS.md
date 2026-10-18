@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 308 / 528 done
+TOTALS: 309 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -50,7 +50,7 @@ TOTALS: 308 / 528 done
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 48 | 0 | 0 | 33 |
 | L11 | 77 | 35 | 0 | 0 | 42 |
-| L12 | 58 | 14 | 0 | 0 | 44 |
+| L12 | 58 | 15 | 0 | 0 | 43 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x040f4f PORTED (L12, 99 B) -- device-discovery scan.** Loop over 8 consecutive port bases (g_dat_53334, +0x10, ... +0x70): at each, fn_04123d() (init) then fn_0412a3() (status read); if status==0xaa return the current base, else g_dat_53334 += 0x10. After 8 with no match, return 0. Mutates g_dat_53334 (callers restore). Verified via sys_port_set with g_dat_53334=0x300: iter0/1 not-ready (+0xe bit7 clear -> fn_0412a3=0), iter2 ready (+0xe=0x80)+status 0xaa -> returns 0x320; and all-8-not-ready -> 0. 2 checks. L12 14->15, TOTALS 308->309/528, suite +2 PASS 0 FAIL. **NEXT:** L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L12 |
 | 2026-07-08 | **0x0411d9 PORTED (L12, 99 B) -- 16-bit device value read.** If fn_041340(0xe1) (write cmd 0xe1) succeeds (ready = +0xc bit7 clear), read two status bytes via fn_0412a3 (ready = +0xe bit7 SET via fn_0412e9, then inb +0xa); first read = high, second = low; combine (hi<<8)|lo, store to DAT_00063f88, return. Else return 0. (New global g_dat_63f88.) Verified via sys_port_set: write-ready + read-ready + status=0x34 -> r==0x3434 (confirms the <<8| combine) and DAT_63f88==r; write-not-ready (+0xc=0x80) -> 0. Note both +0xa reads return the same port value (no write between), so the hi/lo ORDER is disasm-verified (SHL 8 on the first read), the value is the (v<<8)|v shape. 4 checks. L12 13->14, TOTALS 307->308/528, suite +4 PASS 0 FAIL. **NEXT:** L12 0x040f4f (99B device-discovery scan); L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L12 |
 | 2026-07-08 | **0x035c2d (L11, 45 B) + 0x040948 (L12, 53 B) PORTED -- 2 more thin device-write wrappers.** 0x035c2d(arg)=fn_0358c7((uint8)arg): save/zero/reload AL just zero-extends the input byte, then CALL 0x0358c7 (wait g_dat_530ac+1 bit0x40 clear, outb(g_dat_530ac,arg), 0 ok / -1 timeout). 0x040948(arg)={fn_041340(0x40); return fn_041340(arg)}: save EAX, write cmd 0x40 (result discarded), reload EAX, write arg (return result) -- a two-command device write on g_dat_53334+0xc. Both verified with the sys_port_set reset trick: ready path (return + exact byte written) and not-ready path (timeout 0/-1, no write). 7 checks. L11 34->35, L12 12->13, TOTALS 305->307/528, suite +7 PASS 0 FAIL. **NEXT:** L12 0x040f4f/0x0411d9 (99B, 3 callees); L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L11/L12 |
 | 2026-07-08 | **0x040efd / 0x0413e7 / 0x041410 PORTED (L12, 40 B each) -- 3 thin device-port-write wrappers.** Found after realizing frontier.py takes a LEVEL arg (default 2) -- I'd only ever run it at L2, missing ~50 clean candidates in L3-L13 unblocked by recent ports. Each is: PUSH 0x1c;CALL 0x0418ee (frame/canary, absorbed by C frame); save EBX..EBP; MOV EAX,<const>; CALL 0x041340; restore; RET -- observably `return fn_041340(const)` with const in {0xd0,0xd1,0xd3}. fn_041340 is ready-gated: fn_041390() polls inb(g_dat_53334+0xc) for bit7 clear (1=ready / 0 after 0x7fff timeout), then outb(+0xc,cmd) (persistent port_val in flat model), return 1. **TEST GOTCHA:** naive `wrapper()==fn_041340(const)` fails -- writing 0xd0/d1/d3 (bit7 SET) leaves the port "busy", so a 2nd call times out -> 0. Fix: sys_port_set(P,0) before each call; verify return==1 AND the exact cmd written (sys_inb(P)==0xd0/d1/d3); plus the not-ready path (sys_port_set(P,0x80) -> returns 0, no write). 8 checks. L12 9->12, TOTALS 302->305/528, suite +8 PASS 0 FAIL. **NEXT (many clean candidates now visible across tiers):** L12 0x040948(53B)/0x040f4f(99B)/0x0411d9(99B); L11 0x035c2d(45B); L3 0x042fc2(174B, DPMI/INT21 heap). | STATUS.md L12 |
@@ -759,7 +760,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x040948 | 53 | fn_040948 | two-cmd write: fn_041340(0x40); return fn_041340(arg) | ready(1)/not-ready(0) + last write |
 | [ ] | 0x040b83 | 389 | FUN_00040b83 | | |
 | [x] | 0x040efd | 40 | fn_040efd | thin wrapper -> fn_041340(0xd0) (frame 0x1c + save/restore) | ready/not-ready + exact cmd written |
-| [ ] | 0x040f4f | 99 | FUN_00040f4f | | |
+| [x] | 0x040f4f | 99 | fn_040f4f | device-discovery: scan 8 bases (g_dat_53334+=0x10), return base where fn_0412a3()==0xaa else 0 | found@base / none->0 |
 | [ ] | 0x040fb3 | 549 | FUN_00040fb3 | | |
 | [x] | 0x0411d9 | 99 | fn_0411d9 | if fn_041340(0xe1) { combine 2x fn_0412a3 (hi<<8)|lo -> DAT_63f88 } else 0 | combine + store + not-ready |
 | [x] | 0x0413e7 | 40 | fn_0413e7 | thin wrapper -> fn_041340(0xd1) | ready/not-ready + exact cmd written |

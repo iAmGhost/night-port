@@ -6517,3 +6517,19 @@ uint32_t fn_0411d9(void) {
     }
     return r;
 }
+
+/* 0x040f4f (L12, 99 B): device-discovery scan. Probe 8 consecutive port bases
+ * (g_dat_53334, +0x10, ... +0x70): at each, fn_04123d() (init) then fn_0412a3() (status);
+ * if status==0xaa return the current base; else advance g_dat_53334 by 0x10. If none match
+ * in 8, return 0. Mutates g_dat_53334 (callers restore if needed). */
+uint32_t fn_040f4f(void) {
+    (void)canary_id(0, 0x24);                                  /* PUSH 0x24;CALL 0x418ee */
+    int32_t i = 0;
+    for (;;) {
+        if (i >= 8) return 0;                                  /* CMP i,8; JGE */
+        fn_04123d();                                           /* device-port init at base */
+        if (fn_0412a3() == 0xaa) return g_dat_53334;           /* signature found */
+        i++;
+        g_dat_53334 += 0x10;                                   /* advance port window */
+    }
+}

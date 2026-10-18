@@ -146,7 +146,7 @@ void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (d
 void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */
 void     fn_10570(const uint8_t *buf, uint32_t len);   /* 0x010570: DPMI real-mode read via 0x103e0 (no-op) */
-void     fn_0105f7(uint8_t al);                  /* 0x0105f7: build 24-byte DMA cmd from DAT_00051a14 + g_dat_53c5c patch; write al->g_dat_53c5c low byte; submit via fn_10570 (no-op) */
+void     fn_0105f7(uint8_t al);                  /* 0x0105f7: build 24-byte DMA cmd from DAT_00051a14 + g_dat_53c5c patch; write al to byte 0 of *g_dat_53c5c (far-pointer buffer); submit via fn_10570 (no-op) */
 uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+checksum (no-op -> 0) */
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
 void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */

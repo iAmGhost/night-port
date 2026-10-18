@@ -4151,14 +4151,16 @@ static void test_fn_03565a(void) {
 }
 
 static void test_fn_0105f7(void) {
-    printf("fn_0105f7 (0x0105f7, real-mode DMA cmd build -> g_dat_53c5c)\n");
+    printf("fn_0105f7 (0x0105f7, real-mode DMA cmd build -> *g_dat_53c5c)\n");
     uintptr_t sv = g_dat_53c5c;
-    g_dat_53c5c = 0;
+    static uint8_t target[16];
+    g_dat_53c5c = (uintptr_t)target;   // point the DPMI far-pointer at a valid buffer
+    target[0] = 0xFF;
     fn_0105f7(0xAB);
-    check(g_dat_53c5c == 0xAB, "0105f7(0xAB): low byte = al, high bytes 0");
-    g_dat_53c5c = 0xDEAD1234u;
+    check(target[0] == 0xAB, "0105f7(0xAB): *g_dat_53c5c byte 0 = al");
+    target[0] = 0xFF;
     fn_0105f7(0x11);
-    check(g_dat_53c5c == 0xDEAD1211u, "0105f7(0x11): low byte = al, high bytes (0xDEAD12) preserved");
+    check(target[0] == 0x11, "0105f7(0x11): *g_dat_53c5c byte 0 = al");
     g_dat_53c5c = sv;
 }
 

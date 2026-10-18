@@ -1156,10 +1156,11 @@ static const uint8_t g_serial_tpl_51a14[24] = {
 };
 /* 0x0105f7: build a 24-byte real-mode serial/DMA command: copy the DAT_00051a14
  * template, patch bytes 20..23 from g_dat_53c5c (b20=g&0xf, b21=0, b22=(g>>4)&0xff,
- * b23=(g>>12)&0xff), write the informal AL arg into the low byte of g_dat_53c5c
- * (mem_copy(g_dat_53c5c,&al,1)), then submit via fn_10570(buf,1) (no-op in the flat
- * model). The only observable effect is g_dat_53c5c's low byte = al (the 24-byte cmd
- * is discarded by the no-op callee). */
+ * b23=(g>>12)&0xff), write the informal AL arg into byte 0 of the buffer pointed to
+ * by g_dat_53c5c (mem_copy(g_dat_53c5c,&al,1) -- g_dat_53c5c is a DPMI far-pointer),
+ * then submit via fn_10570(buf,1) (no-op in the flat model). The only observable
+ * effect is (*g_dat_53c5c) byte 0 = al (the 24-byte cmd is discarded by the no-op
+ * callee). g_dat_53c5c must point at a valid buffer (0 -> *0 crash, as in the original). */
 void fn_0105f7(uint8_t al) {
     (void)canary_id(0, 0x38);
     uint8_t buf[24];
@@ -1168,7 +1169,7 @@ void fn_0105f7(uint8_t al) {
     buf[21] = 0;
     buf[22] = (uint8_t)((g_dat_53c5c >> 4) & 0xff);
     buf[23] = (uint8_t)((g_dat_53c5c >> 12) & 0xff);
-    mem_copy((uint8_t *)&g_dat_53c5c, (const uint8_t *)&al, 1);   /* low byte = al (mem_copy) */
+    mem_copy((uint8_t *)g_dat_53c5c, (const uint8_t *)&al, 1);   /* byte 0 of buffer @ g_dat_53c5c = al */
     fn_10570(buf, 1);                /* no-op in the flat model */
 }
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */

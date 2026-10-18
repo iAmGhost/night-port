@@ -3665,6 +3665,53 @@ static void test_fn_044387(void) {
     check((uint16_t)value == 42, "  fn_044387 word store 2a: low16=42");
 }
 
+/* ---------- fn_043fc3: emit-subsystem char-set filter/extract ---------- */
+static const char *ts_stream; static int ts_si; static int ts_emitc;
+static uint16_t ts_next(struct emit_ctx *ctx) { (void)ctx; return (ts_si < (int)strlen(ts_stream)) ? (uint16_t)(unsigned char)ts_stream[ts_si++] : 0; }
+static void   ts_emit(uint16_t c, struct emit_ctx *ctx) { (void)ctx; ts_emitc = (int)c; }
+
+static void test_fn_043fc3(void) {
+    printf("fn_043fc3 (0x043fc3, char-set filter/extract)\n");
+    uint8_t obuf[16];
+    uintptr_t stream[1];
+    uintptr_t *cur;
+    struct emit_ctx ctx;
+    const char *src;
+    const uint8_t *sp;
+    uint32_t w;
+
+    /* case 1: keep PRESENT {A,B}, input "AABx" */
+    memset(obuf, 0xcc, sizeof obuf);
+    src = "AB]"; sp = (const uint8_t *)src;
+    ts_stream = "AABx"; ts_si = 0; ts_emitc = -1;
+    memset(&ctx, 0, sizeof ctx); ctx.next = ts_next; ctx.emit = ts_emit; ctx.count = 0x100; ctx.flags = 0x1;
+    obuf[0]=0; stream[0]=(uintptr_t)obuf; cur=stream;
+    w = fn_043fc3(&ctx, &cur, &sp);
+    check(w == 3, "  fn_043fc3 keep {A,B} 'AABx': written=3");
+    check(obuf[0]=='A'&&obuf[1]=='A'&&obuf[2]=='B'&&obuf[3]==0, "  fn_043fc3 keep: output 'AAB\\0'");
+    check(ts_emitc == 'x', "  fn_043fc3 keep: 'x' emitted (put back)");
+    check(cur == stream + 1, "  fn_043fc3 keep: output cursor advanced 1");
+
+    /* case 2: INVERT set {x} (caret), input "abcx" */
+    memset(obuf, 0xcc, sizeof obuf);
+    src = "^x]"; sp = (const uint8_t *)src;
+    ts_stream = "abcx"; ts_si = 0; ts_emitc = -1;
+    memset(&ctx, 0, sizeof ctx); ctx.next = ts_next; ctx.emit = ts_emit; ctx.count = 0x100; ctx.flags = 0x1;
+    obuf[0]=0; stream[0]=(uintptr_t)obuf; cur=stream;
+    w = fn_043fc3(&ctx, &cur, &sp);
+    check(w == 3, "  fn_043fc3 invert ^{x} 'abcx': written=3");
+    check(obuf[0]=='a'&&obuf[1]=='b'&&obuf[2]=='c'&&obuf[3]==0, "  fn_043fc3 invert: output 'abc\\0'");
+
+    /* case 3: no store (flags=0), input "AABx", set {A,B} */
+    src = "AB]"; sp = (const uint8_t *)src;
+    ts_stream = "AABx"; ts_si = 0; ts_emitc = -1;
+    memset(&ctx, 0, sizeof ctx); ctx.next = ts_next; ctx.emit = ts_emit; ctx.count = 0x100; ctx.flags = 0x0;
+    stream[0]=(uintptr_t)obuf; cur=stream;
+    w = fn_043fc3(&ctx, &cur, &sp);
+    check(w == 3, "  fn_043fc3 no-store: written=3 (count only)");
+    check(cur == stream, "  fn_043fc3 no-store: output cursor NOT advanced (flags&1=0)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -3903,6 +3950,7 @@ int main(void) {
     test_fn_03ee88();
     test_fn_043381();
     test_fn_044387();
+    test_fn_043fc3();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

@@ -2042,6 +2042,51 @@ epilogue:                                            /* 0x44fd */
     return skip + have_digit;                        /* 0x4512/0x4575 */
 }
 
+/* 0x043fc3: character-set filter/extract (91 insns).
+ *
+ * Parses a character set from *src (an optional '^' escape marker followed by a
+ * run of bytes up to ']' or NUL, built into a 32-byte presence bitmap via
+ * fn_043f80), then reads consecutive chars from ctx->next and keeps only those
+ * matching the set: without '^' it keeps chars PRESENT in the set, with '^' it
+ * keeps chars NOT present (the caret inverts). Matching chars are written to
+ * the output buffer (dest = **pos; *pos += 1 -- all near/far/0x8 modes collapse
+ * in the flat 64-bit model, as in emit_value) when flags&0x1, and null-
+ * terminated when flags&0x1 and count>0. A non-matching char is passed to
+ * ctx->emit (put back) and stops the scan; peek mode (flags&0x2) reads one char
+ * then exits without storing. Returns the number of matching chars written.
+ *
+ * ABI (register): ctx=EAX, pos=EDX (output cursor, uintptr_t **), src=EBX
+ * (source cursor, const uint8_t **). The 0x51854 table = {1,2,4,8,16,32,64,128}
+ * = 1<<n. Depends on fn_043f80 (presence bitmap). orig: 0x043fc3 */
+uint32_t fn_043fc3(struct emit_ctx *ctx, uintptr_t **pos, const uint8_t **src)
+{
+    const uint8_t *sp = *src;                  /* [EBX]: source position        */
+    int is_caret = (sp[0] == 0x5e) ? 1 : 0;    /* byte at *src == '^'?          */
+    if (is_caret) *src = sp + 1;              /* skip the '^' marker           */
+    uint8_t bitmap[0x20];
+    *src = fn_043f80(*src, bitmap);           /* build presence bitmap         */
+
+    uint8_t *dest = NULL;
+    if (ctx->flags & 0x1) { dest = (uint8_t *)**pos; *pos += 1; }  /* output buf */
+
+    uint32_t count = ctx->count;              /* [ECX+0xc]                     */
+    uint32_t written = 0;
+    while (count > 0) {
+        int c = ctx->next(ctx);
+        if (ctx->flags & 0x2) break;          /* peek mode: read one, exit     */
+        int not_present = !(bitmap[c >> 3] & (1 << (c & 7)));
+        if (not_present != is_caret) {        /* non-matching char             */
+            if (ctx->emit) ctx->emit((uint16_t)c, ctx);
+            break;
+        }
+        if (ctx->flags & 0x1) dest[written] = (uint8_t)c;
+        written++;
+        count--;
+    }
+    if ((ctx->flags & 0x1) && written > 0) dest[written] = 0;   /* null-term   */
+    return written;
+}
+
 void dispatch_a(uint32_t key)
 {
     for (;;) {                                          /* 0x4461f outer */

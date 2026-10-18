@@ -6356,3 +6356,20 @@ void fn_047b79(uint32_t eax, uint32_t edx, uint32_t esi, uint32_t ecx, uint32_t 
     return;
 }
 
+
+/* fn_047b4f  orig: 0x00047b4f (L1, 18 insns)
+ *   Thin register-ABI wrapper over fn_047b79 (the fixed-point binary op).
+ *   a (EAX) and b (EDX) are fx128 { lo u32@0, hi u32@4, exp u16@8 }; the
+ *   result is written to the struct pointed to by EBX (out):  out = a <op> b.
+ *   Packs the 0x047b79 register-ABI exactly:
+ *       ESI = (b->exp << 16) | a->exp   (SHL ESI,0x10 on b->exp, then MOV SI,a->exp)
+ *       EAX = a->lo, EDX = a->hi, ECX = b->hi, EBX = b->lo
+ *   EBX is PUSHed on entry and reused as b->lo across the CALL, then POPped to
+ *   recover the out pointer for the write-back (out->lo, out->hi, out->exp-word). */
+void fn_047b4f(fx128 *a, const fx128 *b, fx128 *out)
+{
+    uint32_t esi = ((uint32_t)b->exp << 16) | (uint32_t)a->exp;   /* 0x047b5b/0x047b5e */
+    uint32_t r_lo, r_hi; uint16_t r_exp;
+    fn_047b79(a->lo, a->hi, esi, b->hi, b->lo, &r_lo, &r_hi, &r_exp);  /* 0x047b67 */
+    out->lo = r_lo; out->hi = r_hi; out->exp = r_exp;                 /* 0x047b6d..0x047b72 */
+}

@@ -3901,6 +3901,40 @@ static void test_fn_047b79(void) {
     check(oe==0 && od==0x80000000u && osi==0x7fff, "  B=0,A!=0 marker (0,0x80000000,0x7fff)");
 }
 
+static void test_fn_047b4f(void) {
+    printf("fn_047b4f (0x047b4f, out=a<op>b wrapper over 0x047b79)\n");
+    /* Marker cases: b=0 gives the fixed-point identity/zero markers. */
+    {
+        fx128 a={0,0,0}, b={0,0,0}, out={1,2,3};
+        fn_047b4f(&a, &b, &out);
+        check(out.lo==0 && out.hi==0xc0000000u && out.exp==0xffff, "  a=0,b=0 -> (0,0xC0000000,0xffff)");
+        a=(fx128){5,0,0}; out=(fx128){1,2,3};
+        fn_047b4f(&a, &b, &out);
+        check(out.lo==0 && out.hi==0x80000000u && out.exp==0x7fff, "  a!=0,b=0 -> (0,0x80000000,0x7fff)");
+        /* non-clobber: a and b are read-only; only out is written */
+        a=(fx128){0xa1b2c3d4u,0x5678u,0x1234}; b=(fx128){0xdeadbeefu,0x0badf00du,0x2345}; out=(fx128){0,0,0};
+        fn_047b4f(&a, &b, &out);
+        check(a.lo==0xa1b2c3d4u && a.hi==0x5678u && a.exp==0x1234 &&
+              b.lo==0xdeadbeefu && b.hi==0x0badf00du && b.exp==0x2345, "  a,b not clobbered (read-only)");
+    }
+    /* Differential: rebuild (a,b) from each verified V79 vector's input registers and
+     * confirm the wrapper reproduces the same output the core fn_047b79 gives. */
+    int ok = 1;
+    for (int i = 0; i < NV79; i++) {
+        const uint32_t *v = &V79[i*8];
+        fx128 a = { v[0], v[1], (uint16_t)(v[2] & 0xffff) };
+        fx128 b = { v[4], v[3], (uint16_t)((v[2] >> 16) & 0xffff) };
+        fx128 out = { 0,0,0 };
+        fn_047b4f(&a, &b, &out);
+        if (out.lo != v[5] || out.hi != v[6] || out.exp != (uint16_t)v[7]) {
+            printf("    first mismatch vec %d: a=(0x%08x,0x%08x,0x%04x) b=(0x%08x,0x%08x,0x%04x) got=(0x%08x,0x%08x,0x%04x)\n",
+                   i, a.lo, a.hi, a.exp, b.lo, b.hi, b.exp, out.lo, out.hi, out.exp);
+            ok = 0; break;
+        }
+    }
+    check(ok, "  all 3000 vectors: wrapper(out=a<op>b) == core fn_047b79(packed regs)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4149,6 +4183,7 @@ int main(void) {
     test_fn_04a3a8();
     test_fn_048053();
     test_fn_047b79();
+    test_fn_047b4f();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

@@ -34,13 +34,13 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 294 / 528 done
+TOTALS: 295 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
 | L0 | 112 | 111 | 0 | 0 | 1 |
 | L1 | 47 | 41 | 0 | 0 | 6 |
-| L2 | 32 | 22 | 0 | 0 | 10 |
+| L2 | 32 | 23 | 0 | 0 | 9 |
 | L3 | 21 | 15 | 0 | 0 | 6 |
 | L4 | 13 | 5 | 0 | 0 | 8 |
 | L5 | 10 | 4 | 0 | 0 | 6 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x04a32b PORTED (L2, 28 insns, FPU remainder/normalize).** 3-arg call to the ported 0x04a7fa (arg1, arg2, &local) computes local = arg1 - fpu_rndint(arg1) (the toward-nearest-even remainder); 0x04a7fa's arg2 is UNUSED (it only reads arg1 + the out ptr, verified by its 10-insn disasm) and it LEAVES arg1 on the FPU stack on return. Then FLDZ; FCOMPP compares arg1 (ST1) vs 0.0 (ST0); JBE skips the FADD. **RESOLVED FCOMPP DIRECTION** via the canonical x87 idiom (`fld a; fld b; fcomip; ...; jb` tests a<b), so C0=(ST1<ST0): C0=(arg1<0.0), JBE jumps when arg1>=0.0 -> the FADD runs iff arg1<0.0. DAT_0005184c decodes to 0xBFF0000000000000 = -1.0, so: `if (arg1 < 0.0) local += -1.0;` return local (double in FPU ST). C maps the FPU-ST return to a plain `double` return. Differential vs INDEPENDENT Python ref (local = a - round_half_even(a); if a<0: local -= 1.0; C & Python both IEEE-754 + rint -> bitwise-equal), 11 checks incl. half-even boundary (1.5/-0.5), a<0 branch, large-scale (1e10+0.5), arg2-unused. L2 22->23, TOTALS 294->295/528, suite 983->994 PASS 0 FAIL. **NEXT (FPU cluster remainder):** 0x047b79 (L1, 177-insn 64-bit FPU), 0x04a3a8 (L0, 230B FLD/FCOMP/FDIV/FMUL over {int16,double} table 0x519bc w/ 0x134/0xd8 -- the last L0); then DPMI/DOS misanalysis re-pass (0x045bb7 uninit-EDI, 0x048053/0x0463dc). | STATUS.md L2 |
 | 2026-07-08 | **0x048fe6 PORTED (L1, 86 insns, DPMI/real-mode IRQ installer -- no-op standin).** Register-ABI (arg1=EAX, arg2=EDX=[ESP], returns AL). Under DPMI (original's real environment): INT 2f AH=0x16 query; if DPMI present + checks pass, runs 4x INT 2f AH=0xfa interrupt-gate calls, sets DAT_000536c9=1, returns 1. Non-DPMI fallback: installs real-mode IRQ handler isr_set(7,0x461a8,CS) gated behind a DPMI INT 31 AX=0xa00 call, returns 0. Flat model: no DPMI -> INT 2f AH=0x16 returns AL=0 -> fallback; there INT 31 AX=0xa00 fails (CF=1, no DPMI) -> isr_set + DAT_000536c8/6c9 writes unreachable -> return 0. DECISION: DAT_000536c9 is not read anywhere in the port and the function has no direct callers (DPMI callback / real-mode handler), so the sole observable behavior is the return value 0 -> no-op standin (consistent with the DPMI-fail convention). The real-mode ISR does not apply to the flat address space. 3 checks. L1 40->41, TOTALS 293->294/528, suite 980->983 PASS 0 FAIL. **NEXT (leaf remainder):** 0x045bb7 (L1 DOS mem alloc, spurious callee 0x045a6a) + 0x048053 (L1 fixed-point normalize, spurious callee 0x0463dc) both need re-analysis of misdecoded tails; FPU cluster 0x04a3a8/0x047b79/0x04a32b needs FPU-stack trace. | STATUS.md L1 |
 | 2026-07-08 | **0x042d2a PORTED (L2, 93 insns, heap region expand/absorb).** Same DPMI-fail convention as 0x042eef. In the flat model: CALL fn_042ccc (unlink freeable regions), then walk g_heap_head. For the first (offset-sorted) region r where (r+0x2c)==arg1 AND alloc_count hw(r)[6]==1, call heap_unlink(r); bail (return 0) if hw(r-4)[0]!=0 (the [region-8]+4 check); otherwise attempt the DPMI realloc (INT 31h AH=05 AL=03), which never happens and fails (CF=1) -> return 0. Non-matching regions advance via B_NEXT(r); r>arg1 (JA) bails immediately; end of chain (r==0) returns 0. arg2 (EBP) only feeds the unreachable success path. 4 checks. NOTE: a fresh heap_acquire_region region IS freeable, so the leading fn_042ccc unlinks it before the match loop -- tests shrink block0 (hw(r+0x2c)[0]=total-0x2c-4) to make the region non-freeable so the match loop (not fn_042ccc) performs the unlink. L2 21->22, TOTALS 292->293/528, suite 976->980 PASS 0 FAIL. **NEXT (same convention):** 0x045bb7 (L1, DOS mem alloc/free), 0x048fe6 (L1, IRQ setup), 0x048053 (L1, fixed-point normalize, 0x0463dc spurious callee). | STATUS.md L2 |
 | 2026-07-08 | **0x042eef PORTED (L2, 84 insns, DPMI free-a-heap-block).** Established the flat-model DPMI-memory convention (matches fn_00040788: "allocation never happens"): DPMI/DOS memory services (INT 31h AX=0x100 alloc, INT 31h AH=05 free/realloc, INT 21h AH=48 alloc, INT 31h AH=06 remap) do NOT happen in the flat model and FAIL (CF=1), so callers bail. 0x042eef's sole observable effect is the initial CALL fn_042ccc (unlink freeable regions from g_heap_head); the success-path far-pointer bookkeeping ([arg]=DI:SI, [arg+8]=arg-8, [arg+4]=0) is unreachable because INT 31 AH=5 AL=1 fails (CF=1 -> EAX=0 via SBB/INC/JZ). The conditional write DAT_0006400c=0xfffff (0x42f48) is guarded by (DAT_0006400e & 0xfff0); DAT_0006400e is never set anywhere in the port (stays 0), so that write is unreachable too. arg is the block far-pointer/handle (unused in flat model). 3 checks (freeable region unlinked via fn_042ccc; returns 0). L2 20->21, TOTALS 291->292/528, suite 973->976 PASS 0 FAIL. **NEXT (same DPMI-fail convention):** 0x042d2a (L2, 93 insn heap-expand: call 0x042ccc + walk g_heap_head for region where end==arg1 & alloc_count==1 -> heap_unlink; then INT 31 AH=5 AL=3 realloc fails -> return 0); then 0x045bb7 (DOS mem alloc), 0x048fe6 (IRQ setup), 0x048053 (fixed-point, 0x0463dc spurious). | STATUS.md L2 |
@@ -422,7 +423,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x049a0b | 27 | fn_049a0b | | unix-time decode: mode=0 + fn_0498f6(0x63df,*secs,0,out) |
 | [x] | 0x049a35 | 719 | fn_049a35 | TZ config parser: config_value_ptr("TZ"), parse_time_str x2, fills g_dat_53780/84/88/a7/7c/34/58; params unused (callback sig). Added 7 TZ globals | port+test PASS |
 | [x] | 0x049c76 | 142 | fn_049c76 | TZ range parser (fn_049a35 variant, direct string): parse_time_str x2, initial offset 0x3840, 53780=18000-secs; p2/p3/p4 unused | port+test PASS |
-| [ ] | 0x04a32b | 59 | FUN_0004a32b | | |
+| [x] | 0x04a32b | 59 | fn_04a32b | local=a-rndint(a); a<0 -> local-1.0; return double (FPU ST) | 1:1 FPU |
 | [ ] | 0x04a367 | 64 | FUN_0004a367 | | |
 ## L3 (21)
 

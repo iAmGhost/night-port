@@ -3826,6 +3826,23 @@ static void test_fn_048fe6(void) {
     check(fn_048fe6(0, 0x1234) == 0, "  fn_048fe6: arg2-only returns 0");
 }
 
+static void test_fn_04a32b(void) {
+    printf("fn_04a32b (0x04a32b, FPU remainder: local=a-rint(a); a<0 -> local-1.0)\n");
+    /* Python reference (independent): local = a - round_half_even(a); if a<0: local -= 1.0.
+     * C and Python use the same IEEE-754 double and deterministic ops, so compare exact. */
+    check(fn_04a32b(0.0, 0.0) == 0.0, "  04a32b 0.0 -> 0.0");
+    check(fn_04a32b(1.5, 0.0) == -0.5, "  04a32b 1.5 -> -0.5 (rint(1.5)=2, a>=0)");
+    check(fn_04a32b(0.5, 0.0) == 0.5, "  04a32b 0.5 -> 0.5 (rint(0.5)=0, a>=0)");
+    check(fn_04a32b(-0.5, 0.0) == -1.5, "  04a32b -0.5 -> -1.5 (a<0: -0.5 - 1.0)");
+    check(fn_04a32b(2.3, 0.0) == 0.2999999999999998, "  04a32b 2.3 -> 0.2999...8");
+    check(fn_04a32b(-2.3, 0.0) == -1.2999999999999998, "  04a32b -2.3 -> -1.2999...8 (a<0)");
+    check(fn_04a32b(7.0, 0.0) == 0.0, "  04a32b 7.0 -> 0.0 (integer, a>=0)");
+    check(fn_04a32b(-7.0, 0.0) == -1.0, "  04a32b -7.0 -> -1.0 (integer, a<0: 0 - 1)");
+    check(fn_04a32b(10000000000.5, 0.0) == 0.5, "  04a32b 1e10+0.5 -> 0.5");
+    check(fn_04a32b(-9999999999.5, 0.0) == -0.5, "  04a32b -1e10+0.5 -> -0.5 (a<0, rint even)");
+    check(fn_04a32b(2.3, 42.0) == 0.2999999999999998, "  04a32b arg2 unused (2.3,42)==(2.3,0)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4070,6 +4087,7 @@ int main(void) {
     test_fn_042eef();
     test_fn_042d2a();
     test_fn_048fe6();
+    test_fn_04a32b();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

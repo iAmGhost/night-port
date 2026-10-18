@@ -3095,6 +3095,22 @@ uint32_t fn_03518a(const uint8_t *p) { return ((uint32_t)p[0] << 8) | (uint32_t)
 
 void fn_04a7fa(double a, double *out) { *out = a - fpu_rndint(a); }  /* 0x04a7fa */
 
+/* DAT_0005184c = -1.0 (0xBFF0000000000000). 0x04a32b: 3-arg call to 0x04a7fa
+ * (arg1, arg2=unused, &local) -> local = arg1 - fpu_rndint(arg1) = toward-
+ * nearest-even remainder; 0x04a7fa leaves arg1 on the FPU stack. FLDZ; FCOMPP
+ * compares arg1 (ST1) vs 0.0 (ST0); C0 = (ST1 < ST0) = (arg1 < 0.0); JBE (arg1
+ * >= 0.0) skips the FADD. So: if (arg1 < 0.0) local += DAT_0005184c (-1.0).
+ * Returns the double in FPU ST. arg2 is passed through but unused (0x04a7fa
+ * only reads arg1 and the out ptr). orig: 0x04a32b */
+double fn_04a32b(double arg1, double arg2)
+{
+    (void)arg2;
+    double local;
+    fn_04a7fa(arg1, &local);       /* local = arg1 - fpu_rndint(arg1) */
+    if (arg1 < 0.0) local += -1.0; /* 0x4a34c JBE: DAT_0005184c = -1.0  */
+    return local;
+}
+
 int32_t fn_016959(uint8_t *s, int32_t param2, int32_t *param3) {    /* 0x016959 */
     *(int32_t *)(s + 0x17) = 2;
     int32_t F = (int32_t)fn_01519f(s);

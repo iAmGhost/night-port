@@ -3792,6 +3792,31 @@ static void test_fn_042eef(void) {
     check(g_heap_head == 0, "  fn_042eef: freeable region unlinked via fn_042ccc");
 }
 
+/* ---------- fn_042d2a: heap region expand ---------- */
+static void test_fn_042d2a(void) {
+    printf("fn_042d2a (0x042d2a, heap region expand)\n");
+    /* match: region_end == arg1, alloc_count==1, hw(r-4)[0]==0 -> unlink + return 0.
+     * Make rA non-freeable (shrink block0) so the leading fn_042ccc keeps it and the
+     * match loop (not fn_042ccc) performs the unlink. */
+    heap_arena_init();
+    uint32_t rA = heap_acquire_region(0x1000) - 0x30;
+    hw(rA)[6] = 1;                       /* alloc_count == 1 (match req)       */
+    hw(rA + 0x2c)[0] = hw(rA)[0] - 0x2c - 4;   /* not freeable -> fn_042ccc keeps it */
+    uint32_t ret = fn_042d2a(rA + 0x2c, 0x1234);
+    check(ret == 0, "  fn_042d2a: match returns 0 (DPMI realloc fails)");
+    check(g_heap_head == 0, "  fn_042d2a: matching region unlinked");
+
+    /* no match: arg1 matches no region_end -> no unlink. Make rB non-freeable
+     * (shrink block0) so the leading fn_042ccc does not unlink it first. */
+    heap_arena_init();
+    uint32_t rB = heap_acquire_region(0x1000) - 0x30;
+    hw(rB)[6] = 1;
+    hw(rB + 0x2c)[0] = hw(rB)[0] - 0x2c - 4;   /* not freeable -> fn_042ccc keeps it */
+    uint32_t ret2 = fn_042d2a(rB + 0x2c + 1, 0);
+    check(ret2 == 0, "  fn_042d2a: no match returns 0");
+    check(g_heap_head == rB, "  fn_042d2a: no match leaves region");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -4034,6 +4059,7 @@ int main(void) {
     test_fn_043e34();
     test_fn_042ccc();
     test_fn_042eef();
+    test_fn_042d2a();
     test_fn_04391d();
     test_fn_03442e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

@@ -2192,6 +2192,35 @@ uint32_t fn_042eef(uint32_t arg)
     return 0;      /* DPMI/DOS free+alloc fail (CF=1) -> bail with EAX=0       */
 }
 
+/* 0x042d2a: heap region expand / absorb-adjacent (93 insns).
+ *
+ * In the flat model: CALL fn_042ccc (unlink freeable regions), then walk
+ * g_heap_head. For the (first, offset-sorted) region r where (r + 0x2c) == arg1
+ * AND alloc_count hw(r)[6] == 1, call heap_unlink(r); if hw(r-4)[0] != 0 (the
+ * [region-8]+4 check) it returns 0 without the DPMI step. Otherwise it attempts
+ * the DPMI realloc (INT 31h AH=05 AL=03), which never happens in the flat model
+ * and fails (CF=1), so the success-path bookkeeping is unreachable and the
+ * function returns 0. Non-matching regions advance via B_NEXT; a region with
+ * r > arg1 (JA) bails immediately. arg2 (EBP) only feeds the unreachable
+ * success path. orig: 0x042d2a */
+uint32_t fn_042d2a(uint32_t arg1, uint32_t arg2)
+{
+    fn_042ccc();                                       /* 0x42d33              */
+    (void)arg2;
+    uint32_t r = g_heap_head;                          /* 0x42d38              */
+    while (r != 0) {
+        if (r > arg1) return 0;                        /* 0x42d45 JA           */
+        if (r + 0x2c == arg1 && hw(r)[6] == 1) {       /* 0x42d50 / 0x42d5a    */
+            heap_unlink(r);                            /* 0x42d62              */
+            if (hw(r - 4)[0] != 0) return 0;           /* 0x42d6a/6e           */
+            /* INT 31 AH=5 AL=3 realloc: fails (CF=1) -> return 0 (0x42dba)   */
+            return 0;
+        }
+        r = B_NEXT(r);                                 /* 0x42e1a advance      */
+    }
+    return 0;
+}
+
 void dispatch_a(uint32_t key)
 {
     for (;;) {                                          /* 0x4461f outer */

@@ -2053,6 +2053,22 @@ uint32_t fn_041340(uint32_t cmd) {
     outb((uint16_t)(g_dat_53334 + 0xc), (uint8_t)cmd);   /* 0x4136d-0x41378 */
     return 1;                                            /* 0x4137d */
 }
+
+/* 0x0358c7: device port-wait + write (register-ABI, byte in AL). canary prologue
+ * PUSH 0x28; CALL 0x418ee. Polls inb(g_dat_530ac + 1) up to 0x2000 times, counting
+ * consecutive reads with bit 0x40 SET; when the bit clears (i < 0x2000) it writes
+ * outb(g_dat_530ac, arg) and returns 0; if the bit stays set for all 0x2000 reads it
+ * returns -1 (timeout) and does not write. */
+uint32_t g_dat_530ac = 0;  /* DAT_000530ac: device port base */
+int32_t fn_0358c7(uint8_t arg) {
+    (void)canary_id((uintptr_t)arg, 0x28);               /* 0x358c7-0x358cc */
+    int32_t i = 0;
+    while (i < 0x2000 && (inb((uint16_t)(g_dat_530ac + 1)) & 0x40)) /* 0x358f1-0x35907 */
+        i++;
+    if (i >= 0x2000) return -1;                          /* 0x3590d/0x35916 */
+    outb((uint16_t)g_dat_530ac, arg);                    /* 0x35924-0x35929 */
+    return 0;                                            /* 0x3592e */
+}
 /* 0x042a30: same shape, but CALL const_64004 -> writes [0x64004]. */
 void fn_042a30(uint32_t x) { g_dat_64004 = x; }
 /* 0x042a3c: CALL [0x533bd]; RET. */

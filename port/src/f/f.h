@@ -514,6 +514,8 @@ uint32_t fn_0412e9(void);          /* 0x0412e9: poll +0xe for bit7 set   */
 uint32_t fn_041390(void);          /* 0x041390: poll +0xc for bit7 clear */
 uint32_t fn_0412a3(void);          /* 0x0412a3: ready-gated inb(base+0xa) status read */
 uint32_t fn_041340(uint32_t cmd);  /* 0x041340: ready-gated outb(base+0xc, cmd) write */
+int32_t  fn_0358c7(uint8_t arg);   /* 0x0358c7: wait +1 bit0x40 clear, outb(base,arg); -1 on 0x2000 timeout */
+extern uint32_t g_dat_530ac;       /* DAT_000530ac: device port base */
 void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
 uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 /* 0x047d24: register-ABI wrapper around fx_mul64 (a=EAX, b=EDX, out=EBX). */

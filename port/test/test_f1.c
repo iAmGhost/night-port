@@ -2728,6 +2728,27 @@ static void test_fn_0412a3_041340(void) {
     g_dat_53334 = saved;
 }
 
+static void test_fn_0358c7(void) {
+    printf("fn_0358c7 (device port-wait + write)\n");
+    uint32_t saved = g_dat_530ac;
+    g_dat_530ac = 0x100;
+    /* bit 0x40 clear immediately -> outb(base,arg) + return 0. */
+    sys_port_set(0x101, 0x00);
+    check(fn_0358c7(0x37) == 0, "  fn_0358c7 ready (bit0x40 clear) -> 0");
+    check(inb(0x100) == 0x37, "  fn_0358c7 wrote arg 0x37 to base");
+    sys_port_set(0x101, 0x01);   /* bit clear + low bit */
+    check(fn_0358c7(0x99) == 0, "  fn_0358c7 ready (0x01, bit clear) -> 0");
+    check(inb(0x100) == 0x99, "  fn_0358c7 wrote 0x99 to base");
+    /* bit 0x40 stays set -> 0x2000-iter timeout -> -1, no write. */
+    sys_port_set(0x100, 0xee);   /* sentinel: must NOT be overwritten */
+    sys_port_set(0x101, 0x40);
+    check(fn_0358c7(0x37) == -1, "  fn_0358c7 timeout (bit0x40 set) -> -1");
+    check(inb(0x100) == 0xee, "  fn_0358c7 timeout leaves base unchanged (no write)");
+    sys_port_set(0x101, 0xc1);   /* bit set + low bits */
+    check(fn_0358c7(0x37) == -1, "  fn_0358c7 timeout (0xc1, bit set) -> -1");
+    g_dat_530ac = saved;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3757,6 +3778,7 @@ int main(void) {
     test_fn_0412e9_041390();
     test_fn_03c6ec_03d88f();
     test_fn_0412a3_041340();
+    test_fn_0358c7();
     test_fn_048754();
     test_fn_048e60();
     test_fn_0485eb();

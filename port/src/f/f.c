@@ -2005,6 +2005,38 @@ void fn_044bb4(uint8_t *node) {
     if ((node[0x0d] & 7) == 0) node[0x0d] |= 0x2;                 /* 0x044bd4/bd9/bdb/bde */
 }
 
+/* 0x042a43: device/heap node initializer (38 ins). Byte offsets: +0x0 data(out),
+ * +0x4 (out=0), +0x8 data ptr, +0xc heap flag byte (|=0x8 on malloc success), +0xd
+ * flags byte, +0x10 device handle, +0x14 alloc size, +0x18 inline fallback storage.
+ * fn_044bb4(node); if size==0 pick size from flags (0x86 if &0x2, 1 if &0x4, else
+ * 0x1000); data=heap_malloc(size); on success node[0xc]|=0x8; on failure use inline
+ * storage (+0x18), size=1, flags=(flags&0xf8)|0x4. Finally +0x4=0, +0x0=data.
+ * Returns data (EAX at RET). */
+uint32_t fn_042a43(uint8_t *node) {
+    fn_044bb4(node);                                            /* 0x042a47 */
+    uint32_t size = *(uint32_t *)(node + 0x14);
+    if (size == 0) {                                            /* 0x042a4c */
+        uint8_t f = node[0x0d];
+        if (f & 0x2) size = 0x86;                               /* 0x042a5a */
+        else if (f & 0x4) size = 1;                             /* 0x042a68 */
+        else size = 0x1000;                                     /* 0x042a71 */
+        *(uint32_t *)(node + 0x14) = size;
+    }
+    uint32_t data = heap_malloc(size);                          /* 0x042a78/2a7b */
+    *(uint32_t *)(node + 0x08) = data;                          /* 0x042a80 */
+    if (data == 0) {                                            /* 0x042a85 */
+        *(uint32_t *)(node + 0x14) = 1;                          /* 0x042a8d */
+        *(uint32_t *)(node + 0x08) = (uint32_t)(uintptr_t)(node + 0x18); /* 0x042a87/2a97 */
+        node[0x0d] = (node[0x0d] & 0xf8) | 0x4;                 /* 0x042a9a/2aa2 */
+    } else {
+        node[0x0c] |= 0x8;                                      /* 0x042aa7 */
+    }
+    uint32_t d_final = *(uint32_t *)(node + 0x08);              /* 0x042aab: EAX=[EDX+0x8] (re-read) */
+    *(uint32_t *)(node + 0x04) = 0;                             /* 0x042aae */
+    *(uint32_t *)(node + 0x00) = d_final;                       /* 0x042ab5 */
+    return d_final;
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

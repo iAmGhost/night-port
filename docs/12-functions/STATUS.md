@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 275 / 528 done
+TOTALS: 276 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -44,7 +44,7 @@ TOTALS: 275 / 528 done
 | L3 | 21 | 11 | 0 | 0 | 10 |
 | L4 | 13 | 2 | 0 | 0 | 11 |
 | L5 | 10 | 2 | 0 | 0 | 8 |
-| L6 | 10 | 0 | 0 | 0 | 10 |
+| L6 | 10 | 1 | 0 | 0 | 9 |
 | L7 | 8 | 0 | 0 | 0 | 8 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x042a43 PORTED (L6, 38 insns, device/heap node initializer) -- first L6 fn done.** Byte-offset node convention (like fn_044bb4): +0x0 data(out), +0x4(out=0), +0x8 data ptr, +0xc heap-flag byte, +0xd flags byte, +0x10 device, +0x14 alloc size, +0x18 inline fallback. fn_044bb4(node) first; if size==0 pick from flags (0x86 if &0x2, 1 if &0x4, else 0x1000); data=heap_malloc(size); on success node[0xc]|=0x8; on failure inline storage (+0x18), size=1, flags=(flags&0xf8)|0x4. **Latent-bug trap fixed in port:** the epilogue re-reads EAX=[EDX+0x8] at 0x042aab (AFTER the fallback overwrites the data field with the inline pointer), so +0x0 and the return reflect the FINAL data field (inline ptr in the fallback case), not the original heap_malloc result (0). 13 differential checks (4 size-selection paths + pre-set size preserved + oversize-forced fallback: size/inline-ptr/flags/no-heap-flag/field0 all verified); test forces ioctl_device->0 (sys_ioctl_dx/cf=0) so fn_044bb4 returns early and size-selection is deterministic. L6 0->1, TOTALS 275->276, suite 858->871 PASS 0 FAIL. | STATUS.md L6 |
 | 2026-07-08 | **FPU-cluster false-positive gates identified (0x04794a, 0x047d4e PORTABLE).** The callee cross-ref flagged 0x04794a (gated 0x047a9f) and 0x047d4e (gated 0x047e3d) as unblocked-NO, but those "callees" are Ghidra SPLITs of each function's OWN normalize loop: 0x047a9f starts `OR EAX,EAX; JNZ 0x0004796d` and 0x047e3d starts `OR EAX,EAX; JNZ 0x00047d5f` -- the JNZ targets (0x4796d, 0x47d5f) are INSIDE 0x04794a/0x047d4e respectively. So neither has a real unported callee -> both are PORTABLE. 0x04794a (149 insns/363B, complex fx normalize, 8 callers, reg-ABI) and 0x047d4e (108 insns, fx multiply, reg-ABI) both need the established pattern (Python asm-mirror ref + differential vectors + C asm-mirror). 0x04a9da was a FALSE "unblocked" lead -- already ported as fx_double_exp (line 317, 6-case test); a redundant fn_04a9da duplicate I added+removed this session. Real new wins this session: 0x0485eb (L0), 0x048585 (L1). NEXT: dedicated fresh pass on 0x047d4e (more tractable, 108 insns) then 0x04794a. | STATUS.md FPU |
 | 2026-07-08 | **0x048585 PORTED (L1, 46-insn wrapper over fn_0485eb).** reg-ABI EAX=a*, EDX=b* (both fx128 {lo,hi,exp}). Zero-checks: if a==0 (lo,hi,exp) -> RET 0; if b==0 -> *a=0, RET 0; else marshal EAX=a.lo,EDX=a.hi,EBX=b.lo,ECX=b.hi,SI=a.exp,DI=b.exp; CALL 0x0485eb; write a.lo=r.lo, a.hi=r.hi, a.exp=(uint16)r.exp; RET EDI (r.edi). Reuses fx128 typedef (matches {dword@0,dword@4,word@8}). The SI/DI high16 are caller-garbage but fn_0485eb masks them (&0x7fff) so only a->exp/b->exp low15 matter. Verified: a==0, b==0, + 5 non-zero cases vs direct fn_0485eb composition (return + write-back all match). L1 37->38, suite 853->856 PASS 0 FAIL. | STATUS.md L1 |
 | 2026-07-08 | **0x0485eb PORTED (L0, 122B, register-ABI fx align-subtract-normalize).** Faithful asm-mirror C (goto labels L_0485ff/0b/0d/12/27/33/3e/48/4a/4e) + Python ref mirroring the same disasm (scratch/fp_0485eb_ref.py). in {a_lo,a_hi}={EAX,EDX}, {b_lo,b_hi}={EBX,ECX}, expA=ESI, expB=EDI; out struct fx_sub_t{lo=EAX,hi=EDX,exp=ESI,ebx=(expA&0x8000),bx=((expA&0x8000)^(expB&0xffff)),edi=neg-flag(NEG if bit7(bx))}. **Key insight:** the normalize is BIT-SERIAL — ESI=(expA&0x7fff)-(expB&0x7fff) decrements by 1 per shift cycle, so it takes up to ~0x7fff iterations for large exp diffs (the original is O(exp-diff), not O(log)). C-side is fast; only the one-time Python vector gen is slow. Back-edges JC 0x4860d (carry->re-subtract) + JS 0x485ff (hi-bit31->re-compare) mirrored exactly. 469 differential vectors (19 edge + 250 full-range + 200 small-exp) all match. L0 110->111, suite 852->853 PASS 0 FAIL. Unblocks 0x048585 (L1). | STATUS.md L0 |
@@ -468,7 +469,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x041ffc | 38 | FUN_00041ffc | | |
 | [ ] | 0x04262a | 199 | FUN_0004262a | | |
 | [ ] | 0x04285c | 136 | FUN_0004285c | | |
-| [ ] | 0x042a43 | 118 | FUN_00042a43 | | |
+| [x] | 0x042a43 | 118 | fn_042a43 | device/heap node initializer: size from flags (0x86/1/0x1000), heap_malloc + inline-storage fallback (0x042aab re-reads data field for +0x0/return); 13 checks | fn_042a43 (f.c) |
 | [ ] | 0x044ab5 | 167 | FUN_00044ab5 | | |
 | [ ] | 0x04589e | 188 | FUN_0004589e | | |
 | [ ] | 0x046d00 | 4 | caseD_2 | | |

@@ -3379,6 +3379,43 @@ static void test_l10_accessors(void) {
     }
 }
 
+static void test_fn_042a43(void) {
+    printf("fn_042a43 (0x042a43, device/heap node initializer)\n");
+    heap_arena_init(); g_heap_seg_limit = 0;
+    heap_acquire_region(0x4000);
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;   /* ioctl_device -> 0, fn_044bb4 returns early */
+    /* size selection from node[0x0d] when node[0x14]==0: &0x2->0x86, &0x4->1, else 0x1000 */
+    { uint8_t n[0x30] = {0}; n[0x0d] = 0x2;
+      uint32_t d = fn_042a43(n);
+      check(*(uint32_t *)(n+0x14) == 0x86, "  flags&0x2 -> size 0x86");
+      check(d != 0 && *(uint32_t *)(n+0x08) == d && *(uint32_t *)(n+0x00) == d, "  data ptr in 0x08 & 0x00");
+      check(n[0x0c] & 0x8, "  malloc success: node[0x0c]|=0x8");
+      check(*(uint32_t *)(n+0x04) == 0, "  node[0x04]=0");
+    }
+    { uint8_t n[0x30] = {0}; n[0x0d] = 0x4; fn_042a43(n);
+      check(*(uint32_t *)(n+0x14) == 1, "  flags&0x4 -> size 1");
+    }
+    { uint8_t n[0x30] = {0}; n[0x0d] = 0; fn_042a43(n);
+      check(*(uint32_t *)(n+0x14) == 0x1000, "  no flags -> size 0x1000");
+    }
+    { uint8_t n[0x30] = {0}; n[0x0d] = 0x6; fn_042a43(n);
+      check(*(uint32_t *)(n+0x14) == 0x86, "  flags 0x6 -> 0x86 (0x2 precedence)");
+    }
+    { uint8_t n[0x30] = {0}; n[0x0d] = 0x2; *(uint32_t *)(n+0x14) = 0x50; fn_042a43(n);
+      check(*(uint32_t *)(n+0x14) == 0x50, "  pre-set size 0x50 preserved (not recomputed)");
+    }
+    /* fallback: oversize node[0x14] forces heap_malloc -> 0 -> inline storage +0x18 */
+    { uint8_t n[0x30] = {0}; n[0x0d] = 0x20; *(uint32_t *)(n+0x14) = 0xFFFFFFFFu;
+      uint32_t d = fn_042a43(n);
+      check(*(uint32_t *)(n+0x14) == 1, "  fallback: size -> 1");
+      check(d == (uint32_t)(uintptr_t)(n+0x18), "  fallback: data = &n[0x18] (inline)");
+      check(n[0x0d] == ((0x20u & 0xf8u) | 0x4u), "  fallback: flags=(flags&0xf8)|0x4");
+      check((n[0x0c] & 0x8) == 0, "  fallback: node[0x0c] NOT |=0x8");
+      check(*(uint32_t *)(n+0x00) == d, "  fallback: node[0x00]=data (re-read)");
+    }
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -3602,6 +3639,7 @@ int main(void) {
     test_fn_0485eb();
     test_fn_048585();
     test_fn_047d4e();
+    test_fn_042a43();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();
     test_fn_043324();

@@ -2571,6 +2571,28 @@ static void test_fn_04488b(void) {
     g_dat_53730 = NULL; g_arr_53730 = NULL;
 }
 
+static void test_fn_044867(void) {
+    printf("fn_044867 (0x044867)\n");
+    static uint32_t tbl[8];
+    const char *name = "W.DAT";
+    uint32_t save_dx = sys_ioctl_dx, save_cf = sys_ioctl_cf;
+    int32_t save_or = sys_open_ret;
+    uint32_t save_53619 = g_dat_53619, save_536d8 = g_dat_536d8;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0; g_dat_53619 = 0; g_dat_536d8 = 0;
+    g_dat_53730 = tbl; g_arr_53730 = tbl; g_dat_536dc = 8;
+    uint32_t val = 0x0042;   /* extra=0x42, val=0x42 */
+    memset(tbl, 0, sizeof tbl); sys_file_open_reset();
+    int32_t ref = fn_04488b((const uint8_t *)name, 0, (uint8_t)(val & 0xff), val);
+    uint32_t ref0 = tbl[0];
+    memset(tbl, 0, sizeof tbl); sys_file_open_reset();
+    int32_t rv = fn_044867(0, 0, (const uint8_t *)name, val);
+    check(rv == ref, "  wrapper return == fn_04488b(name,0,val&0xff,val)");
+    check(tbl[0] == ref0, "  wrapper side-effect (tbl[0]) matches fn_04488b");
+    sys_ioctl_dx = save_dx; sys_ioctl_cf = save_cf; sys_open_ret = save_or;
+    g_dat_53619 = save_53619; g_dat_536d8 = save_536d8;
+    g_dat_53730 = NULL; g_arr_53730 = NULL;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3444,6 +3466,7 @@ int main(void) {
     test_fn_044a50_049236();
     test_fn_044748();
     test_fn_04488b();
+    test_fn_044867();
     test_fn_048754();
     test_fn_048e60();
     test_fn_049415();

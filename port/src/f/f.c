@@ -3104,6 +3104,14 @@ int32_t fn_04488b(const uint8_t *name, uint16_t mode, uint8_t extra, uint32_t va
     return handle;                                                   /* 0x044a45-47 */
 }
 
+/* 0x044867: 4 stack args (p1, p2, name, val); p1/p2 unused. Thin wrapper that
+ * calls fn_04488b(name, mode=0, extra=val&0xff, val=val). (PUSH name,0,val,val) */
+int32_t fn_044867(uint32_t p1, uint32_t p2, const uint8_t *name, uint32_t val)
+{
+    (void)p1; (void)p2;
+    return fn_04488b(name, 0, (uint8_t)(val & 0xff), val);   /* 0x044873-0x044880 */
+}
+
 /* 0x042a19: MOV EAX,0xe; JMP 0x042a0d -> g_dat_64008 = 0xe. */
 void fn_042a19(void) { g_dat_64008 = 0xe; }
 

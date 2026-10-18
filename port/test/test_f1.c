@@ -4248,6 +4248,41 @@ static void test_fn_01435f(void) {
     check(fn_01435f(a0, 0, 1) == 1, "01435f a1!=idx -> 1");
 }
 
+static void test_fn_031f5f(void) {
+    printf("fn_031f5f (0x031f5f, remove-first + shift array left)\n");
+    uint32_t sv364 = g_dat_63364, sv368 = g_dat_63368;
+    uint32_t a0 = heap_arena_alloc(0x140);
+    uint32_t p1 = heap_arena_alloc(0x10);
+    uint32_t p2 = heap_arena_alloc(0x20);
+    uint32_t ba = heap_arena_alloc(0x80);
+    uint8_t *A  = (uint8_t *)(g_heap_base + a0);
+    uint8_t *P1 = (uint8_t *)(g_heap_base + p1);
+    uint8_t *P2 = (uint8_t *)(g_heap_base + p2);
+    uint8_t *B  = (uint8_t *)(g_heap_base + ba);
+    for (int i = 0; i < 0x140; i++) A[i] = 0;
+    for (int i = 0; i < 0x10; i++) P1[i] = 0;
+    for (int i = 0; i < 0x20; i++) P2[i] = 0;
+    for (int i = 0; i < 0x80; i++) B[i] = 0;
+    A[0x31] = 3;                       /* count */
+    *(uint32_t *)(A + 0x32) = 0;       /* slot0 (E0, the removed element) */
+    *(uint32_t *)(A + 0x36) = 100;     /* slot1 (E1) */
+    *(uint32_t *)(A + 0x3a) = 200;     /* slot2 (E2) */
+    *(uint32_t *)(A + 0x123) = p1;     /* P1 */
+    *(uint32_t *)(P1 + 0x4) = p2;      /* P1->0x4 = P2 */
+    *(uint32_t *)(P2 + 0) = ba;        /* P2[0] = base (idx = E0 = 0) */
+    B[0x69] = 0x42;
+    *(uint16_t *)(B + 0x6a) = 0x1234;
+    fn_031f5f(a0);
+    check(A[0x31] == 2, "031f5f count 3->2");
+    check(*(uint32_t *)(A + 0x17) == 0, "031f5f a0->0x17 = saved slot0 (0)");
+    check(*(uint32_t *)(A + 0x32) == 100, "031f5f slot0 = old slot1 (100)");
+    check(*(uint32_t *)(A + 0x36) == 200, "031f5f slot1 = old slot2 (200)");
+    check(*(uint32_t *)(A + 0x11) == 0, "031f5f a0->0x11 cleared");
+    check(g_dat_63364 == 0x42, "031f5f g_dat_63364 = base->0x69");
+    check(g_dat_63368 == 0x1234, "031f5f g_dat_63368 = base->0x6a");
+    g_dat_63364 = sv364; g_dat_63368 = sv368;
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4554,6 +4589,7 @@ int main(void) {
     test_fn_01072f();
     test_fn_03e14c();
     test_fn_01435f();
+    test_fn_031f5f();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

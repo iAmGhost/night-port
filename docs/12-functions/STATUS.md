@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 319 / 528 done
+TOTALS: 320 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 319 / 528 done
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 51 | 0 | 0 | 30 |
+| L10 | 81 | 52 | 0 | 0 | 29 |
 | L11 | 77 | 36 | 0 | 0 | 41 |
 | L12 | 58 | 21 | 0 | 0 | 37 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x031f5f PORTED (L10, 221 B) -- remove-first-element + shift-array-left.** Arg a0(EAX, heap offset). a0->0x31(byte count)--; a0->0x17=a0->0x32 (save slot0); then for i in 0..count-2: slot[i]=slot[i+1] (4-byte slots at a0+0x32, i.e. *(a0+0x32+i*4)=*(a0+0x36+i*4), a left-shift/overlap copy); a0->0x11=0. Then via P1=a0->0x123, P2=P1->0x4, base=P2[a0->0x17 & 0x7fffffff]: if base->0x69!=0 set g_dat_63364=base->0x69(byte), g_dat_63368=base->0x6a(word). Added 2 globals (63364/63368). **LATENT BUG:** the leading JLE on the zero-extended count byte is dead (never <=0), so count==0 underflows to 255 and shifts 255 slots (OOB) -- not exercised in the test. Test: count=3, slots {0,100,200}, P2[0]->base{0x69=0x42,0x6a=0x1234}; after: count=2, slot0=100, slot1=200, a0->0x17=0, g_dat_63364=0x42, g_dat_63368=0x1234. 7 checks. L10 51->52, TOTALS 319->320/528, suite 1092 PASS 0 FAIL. **NOTE:** same P1/P2 interval-list chain as 0x01435f (a0->0x123 -> +0x4 -> P2[idx]). **DEFER:** 0x035dfc (197B) is a busy-wait state-machine that ALWAYS hangs single-threaded (every path loops; the L2 return needs a flag to flip mid-function). **NEXT:** L10 0x03d67c(223B), 0x0112fd(233B), 0x017218(242B); L11 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
 | 2026-07-08 | **0x01435f PORTED (L10, 190 B) -- 4-level pointer-chain straddle scan.** Args a0(EAX, heap offset), a1(DL byte), a2(BL byte). Chain: thr=a0->0x11, idx=a0->0x17 (& 0x7fffffff for the base index, raw for the return compare), P1=a0->0x123, P2=P1->0x4 (array of base offsets), base=P2[idx]. Loop i=0..5: find first i where w8=base[i*4+8] <= thr < w10=base[i*4+0xa] (w8>thr -> skip; w10>thr -> break with i; else i++). Return 0 iff (a1==a0->0x17 raw) && (a2==i), else 1. Test: 4 arena allocs (a0 0x140, P1 0x10, P2 0x20, base 0x30); base[0]={6,3} skip, base[1]={4,7} break i=1; (a1,a2)=(1,1)->0, (1,2)->1, (0,1)->1. 3 checks. L10 50->51, TOTALS 318->319/528, suite 1085 PASS 0 FAIL. **NOTE:** the base chain (a0->0x123 -> +0x4 -> P2[idx]) mirrors the node/interval-list layout (cf. fn_03ba2c). **NEXT:** L10 0x035dfc(197B, 1 callee); L11 0x034990(heap-init, ~110KB arena), 0x03f462(303B), 0x034f31(376B). | STATUS.md L10 |
 | 2026-07-08 | **0x03e14c PORTED (L10, 194 B) -- 2-node doubly-linked prev/next manipulation.** Args a0(EAX, heap offset)/a1(EDX, stored but never read). Gated by g_dat_63e14 counter: if ==1 -> zero g_dat_63e18/63e1c/63e20; else if g_dat_63e18==a0 -> g_dat_63e18=a0->0x51(prev) and (prev)->0x55(next)=0; else if g_dat_63e1c==a0 -> g_dat_63e1c=a0->0x55(next) and (next)->0x51(prev)=0; else -> SWAP: X=a0->next gets X.prev=a0->prev(Y), Y=a0->prev gets Y.next=a0->next(X) (A itself untouched). Always DEC g_dat_63e14; return a0. Nodes: 0x51=prev, 0x55=next (4-byte stride, 0x55-0x51=4). Added 4 globals (g_dat_63e14 counter, g_dat_63e18/63e1c cached node offsets, g_dat_63e20 zeroed-not-read). Test: 3-node swap (X.prev==Y, Y.next==X, A unchanged), cache-match (63e18=a0->prev, prev->next cleared), counter==1 (caches zeroed). 8 checks. L10 49->50, TOTALS 317->318/528, suite 1082 PASS 0 FAIL. **NEXT:** L10 0x01435f(190B, 4-deep pointer chain), 0x035dfc(197B); L11 0x034990(heap-init, ~110KB arena), 0x03f462(303B). | STATUS.md L10 |
 | 2026-07-08 | **0x01072f PORTED (L12, 137 B) -- real-mode command build + staging round-trip.** No formal args. Builds a 26-byte command (copy the DAT_00051a58 template, extracted via Ghidra: `1a 00 03 00 | 00x12 | 09 00 00 00 | 00 00 00 00`; patch bytes 20..23 from the g_dat_53c5c pointer value), sets g_dat_53c4c[0]=4 (new 9-byte global at 0x53c4c, 0x8 before the g_dat_53c5c pointer), then round-trips 9 bytes: mem_copy(*g_dat_53c5c, g_dat_53c4c, 9) staging->buffer, fn_10570(cmd,9) (no-op), mem_copy(g_dat_53c4c, *g_dat_53c5c, 9) buffer->staging. **Observable:** g_dat_53c4c[0]=4 and *g_dat_53c5c[0..8] = the staging area (with byte0=4); the staging round-trips to the same value. The 26-byte cmd is discarded by the no-op callee. Test: staging={0x10..0x18}, buffer=0xEE -> after: staging[0]=4, buffer[0..8]={4,0x11..0x18}. 2 checks. L12 20->21, TOTALS 316->317/528, suite 1074 PASS 0 FAIL. **NOTE:** g_dat_53c4c + g_dat_53c5c are the real-mode command staging area + target pointer (0x53c4c/0x53c5c). **NEXT:** L12 0x010cbd(137B, reads UNINITIALIZED [EBP-4] -> non-deterministic *g_dat_53c5c write, weak test -- defer); L10 0x03c65b (64-bit wall); L11 0x034990 (heap-init, ~110KB arena). | STATUS.md L12 |
@@ -567,7 +568,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x01586b | 435 | FUN_0001586b | | |
 | [ ] | 0x017218 | 242 | FUN_00017218 | | |
 | [x] | 0x031f10 | 78 | fn_031f10 | ring push (count@0x31,cap5) | 1:1 (reg-ABI) |
-| [ ] | 0x031f5f | 221 | FUN_00031f5f | | |
+| [x] | 0x031f5f | 221 | fn_031f5f | heap/array | remove-first-element + shift array left by one slot (4B stride at a0+0x32); save slot0 to a0->0x17; P2[a0->0x17] -> g_dat_63364/63368; test PASS, 7 checks |
 | [x] | 0x0326c1 | 109 | fn_0326c1 | free per-element heap offsets at +0x68/+0x1f8 (count@0), return base | f.c |
 | [x] | 0x034353 | 125 | fn_034353 | slot update (63f1e/63f0c) | 1:1 (reg-ABI) |
 | [x] | 0x0343d1 | 92 | fn_0343d1 | idx flag/counter (62cd8/62c58) | 1:1 |

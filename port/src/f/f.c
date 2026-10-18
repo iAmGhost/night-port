@@ -517,6 +517,8 @@ uint32_t g_dat_63e14 = 0;   /* DAT_00063e14: 2-node swap counter (fn_03e14c) */
 uint32_t g_dat_63e18 = 0;   /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
 uint32_t g_dat_63e1c = 0;   /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
 uint32_t g_dat_63e20 = 0;   /* DAT_00063e20: 3rd cache slot (zeroed, not read) */
+uint32_t g_dat_63364 = 0;   /* DAT_00063364: removed-element flag byte (fn_031f5f) */
+uint32_t g_dat_63368 = 0;   /* DAT_00063368: removed-element value word (fn_031f5f) */
 uint8_t g_dat_53c4c[9] = {0};   /* DAT_00053c4c: 9-byte real-mode command staging area */
 uintptr_t g_dat_53c5c = 0;   /* DAT_00053c5c: DPMI far-pointer (debug-reg source) */
 void fn_1053f(void)
@@ -1260,6 +1262,33 @@ uint32_t fn_01435f(uint32_t a0, uint8_t a1, uint8_t a2) {
     }
     if ((uint32_t)a1 == idx_raw && (uint32_t)a2 == (uint32_t)i) return 0;
     return 1;
+}
+/* 0x031f5f: remove the first element of a0's array (4-byte slots at a0+0x32): save
+ * slot0 (a0->0x32) to a0->0x17, shift the rest left by one slot (slot[i]=slot[i+1] for
+ * i in 0..count-2), and decrement the count (a0->0x31, byte). Then via P1=a0->0x123,
+ * P2=P1->0x4, base=P2[a0->0x17 & 0x7fffffff]: if base->0x69 != 0, set g_dat_63364=
+ * base->0x69 (byte) and g_dat_63368=base->0x6a (word). a0->0x11 = 0. NOTE: the leading
+ * JLE on the zero-extended count byte is dead (never <= 0), so count==0 underflows to
+ * 255 and shifts 255 slots (latent bug, not exercised in the test). */
+void fn_031f5f(uint32_t a0) {
+    (void)canary_id(0, 0x28);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *a = hb + a0;
+    a[0x31]--;                                            /* a0->0x31-- (byte, wraps 0->255) */
+    *(uint32_t *)(a + 0x17) = *(uint32_t *)(a + 0x32);    /* a0->0x17 = a0->0x32 (saved slot0) */
+    uint32_t idx  = *(uint32_t *)(a + 0x17) & 0x7fffffffu;
+    uint32_t p1   = *(uint32_t *)(a + 0x123);             /* P1 */
+    uint32_t p2   = *(uint32_t *)(hb + p1 + 0x4);         /* P1->0x4 */
+    uint32_t base = *(uint32_t *)(hb + p2 + idx * 4);     /* P2[idx] */
+    uint8_t *b = hb + base;
+    if (b[0x69] != 0) {
+        g_dat_63364 = b[0x69];                            /* byte -> int32 */
+        g_dat_63368 = *(uint16_t *)(b + 0x6a);            /* word -> int32 */
+    }
+    *(uint32_t *)(a + 0x11) = 0;                          /* a0->0x11 = 0 */
+    int32_t cnt = (int32_t)a[0x31];                       /* count after DEC */
+    for (int32_t i = 0; i < cnt; i++)
+        *(uint32_t *)(a + 0x32 + i * 4) = *(uint32_t *)(a + 0x36 + i * 4);  /* slot[i]=slot[i+1] */
 }
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }

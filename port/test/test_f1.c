@@ -3416,6 +3416,35 @@ static void test_fn_042a43(void) {
     sys_ioctl_dx = 0; sys_ioctl_cf = 0;
 }
 
+/* 0x042928: node lseek-offset compute. node byte offsets: +0x4 "bytes/offset"
+ * field, +0xd flags, +0x10 device handle. r = fn_044848(device) = lseek pos
+ * (sys_file_lseek stub always 0). if (r==-1) -1; if (field4==0) r; if
+ * (node[0xd]&0x10) field4+r; else r-field4. */
+static void t_042928_node(uint8_t *n, uint32_t f4, uint8_t fl, uint32_t dev) {
+    memset(n, 0, 0x20);
+    *(uint32_t *)(n + 0x4)  = f4;
+    n[0x0d]                 = fl;
+    *(uint32_t *)(n + 0x10) = dev;
+}
+static void test_fn_042928(void) {
+    printf("fn_042928 (0x042928, node lseek-offset compute)\n");
+    uint8_t n[0x20];
+    /* r = fn_044848(node[0x10]) = 0 (sys_file_lseek stub always 0) */
+    t_042928_node(n, 0, 0, 1);        check(fn_042928(n) == 0, "  field4=0 -> r (0)");
+    t_042928_node(n, 0, 0x10, 1);     check(fn_042928(n) == 0, "  field4=0 (0x10 set) -> r (0); field4-gate first");
+    t_042928_node(n, 100, 0x10, 1);   check(fn_042928(n) == 100, "  field4=100, 0x10 -> +100");
+    t_042928_node(n, 100, 0, 1);      check(fn_042928(n) == -100, "  field4=100, no 0x10 -> -100");
+    t_042928_node(n, 100, 0x11, 1);   check(fn_042928(n) == 100, "  field4=100, flags=0x11 (0x10 set) -> +100");
+    t_042928_node(n, 1, 0, 1);        check(fn_042928(n) == -1, "  field4=1, no 0x10 -> -1");
+    t_042928_node(n, 1, 0x10, 1);     check(fn_042928(n) == 1, "  field4=1, 0x10 -> +1");
+    t_042928_node(n, 0x7fff, 0, 1);   check(fn_042928(n) == -0x7fff, "  field4=0x7fff, no 0x10 -> -0x7fff");
+    t_042928_node(n, 0x7fff, 0x10, 1);check(fn_042928(n) == 0x7fff, "  field4=0x7fff, 0x10 -> +0x7fff");
+    t_042928_node(n, 5, 0x10, 0);     check(fn_042928(n) == 5, "  device=0 (stub ignores handle), 0x10 -> +5");
+    t_042928_node(n, 5, 0x30, 1);     check(fn_042928(n) == 5, "  flags=0x30 (0x10 set w/ 0x20) -> +5");
+    t_042928_node(n, 5, 0x20, 1);     check(fn_042928(n) == -5, "  flags=0x20 (no 0x10) -> -5");
+    t_042928_node(n, 0x80000000u, 0x10, 1); check(fn_042928(n) == (int32_t)0x80000000u, "  field4=INT32_MIN, 0x10 -> INT32_MIN (wrap)");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -3640,6 +3669,7 @@ int main(void) {
     test_fn_048585();
     test_fn_047d4e();
     test_fn_042a43();
+    test_fn_042928();
     test_fn_049415();
     test_fn_044c1e_fn_041e51();
     test_fn_043324();

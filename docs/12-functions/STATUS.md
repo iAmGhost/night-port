@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 276 / 528 done
+TOTALS: 277 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -43,7 +43,7 @@ TOTALS: 276 / 528 done
 | L2 | 32 | 19 | 0 | 0 | 13 |
 | L3 | 21 | 15 | 0 | 0 | 6 |
 | L4 | 13 | 4 | 0 | 0 | 9 |
-| L5 | 10 | 3 | 0 | 0 | 7 |
+| L5 | 10 | 4 | 0 | 0 | 6 |
 | L6 | 10 | 2 | 0 | 0 | 8 |
 | L7 | 8 | 1 | 0 | 0 | 7 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x042928 PORTED (L5, 25 insns, node lseek-offset compute) -- clean win** (callee 0x044848 lseek-wrapper already ported). node byte offsets: +0x4 "bytes/offset" field, +0xd flags, +0x10 device handle. r = fn_044848(device) = lseek position (sys_file_lseek stub always 0). if (r==-1) return -1; if (field4==0) return r; if (node[0xd]&0x10) return field4+r; else return r-field4. 13 differential checks verify the field4==0 gate, the 0x10-set +field4 branch, the no-0x10 -field4 branch, INT32_MIN wrap, and that the device handle is ignored by the lseek stub. L5 3->4, TOTALS 276->277, suite 871->884 PASS 0 FAIL. | STATUS.md L5 |
 | 2026-07-08 | **0x041d47 ANALYZED (L7, 60 insns, node device-read handler) -- unblocked, fully traced, READY TO PORT; deferred pending a data-field model decision.** node = arg (byte-offset node, same layout as fn_042a43). Trace: (1) if data(+0x8)==0: fn_042a43(node); (2) if (flags(+0xd)&0x20)&&(flags&0x6): fn_043234(0x2000); (3) BL=field_c(+0x0c byte)&0xfb; field0(+0x0)=data; field_c low byte=BL (high bytes kept so the 0x2400 bits survive); (4) if (field_c & 0x2400)==0x2400 && device(+0x10)==0: field4(+0x4)=0; k=get_key_echo(); if (int32)k!=-1 {*data=k; field4=1} (else field4 stays 0); (5) else: EBX=(flags&0x4)?1:size(+0x14); field4=fn_042aba(device, data, EBX); (6) epilogue: ESI=field4; if >0 (nothing) elif <0 {field4=0; field_c|=0x20} else(==0){field_c|=0x10}; return field4. **All callees ported** (0x042a43 this pass, 0x043234, 0x042aba, get_key_echo) -> genuinely unblocked. **Porting subtlety (why deferred):** step 4 derefs the node data field (*data=k) and step 5 passes it as buf to fn_042aba, but data is DUAL -- a heap OFFSET (set by fn_042a43's heap_malloc, deref via g_heap_base+offset) OR a raw inline pointer (node+0x18 fallback). The flat-model disasm `[EBX]=AL` derefs both uniformly; the port must pick the right base per case. Deferred pending a decision on how the node data field represents offset-vs-ptr (fn_042a43 deliberately does NOT deref data, so it avoided this). | STATUS.md L7 |
 | 2026-07-08 | **0x042a43 PORTED (L6, 38 insns, device/heap node initializer) -- first L6 fn done.** Byte-offset node convention (like fn_044bb4): +0x0 data(out), +0x4(out=0), +0x8 data ptr, +0xc heap-flag byte, +0xd flags byte, +0x10 device, +0x14 alloc size, +0x18 inline fallback. fn_044bb4(node) first; if size==0 pick from flags (0x86 if &0x2, 1 if &0x4, else 0x1000); data=heap_malloc(size); on success node[0xc]|=0x8; on failure inline storage (+0x18), size=1, flags=(flags&0xf8)|0x4. **Latent-bug trap fixed in port:** the epilogue re-reads EAX=[EDX+0x8] at 0x042aab (AFTER the fallback overwrites the data field with the inline pointer), so +0x0 and the return reflect the FINAL data field (inline ptr in the fallback case), not the original heap_malloc result (0). 13 differential checks (4 size-selection paths + pre-set size preserved + oversize-forced fallback: size/inline-ptr/flags/no-heap-flag/field0 all verified); test forces ioctl_device->0 (sys_ioctl_dx/cf=0) so fn_044bb4 returns early and size-selection is deterministic. L6 0->1, TOTALS 275->276, suite 858->871 PASS 0 FAIL. | STATUS.md L6 |
 | 2026-07-08 | **FPU-cluster false-positive gates identified (0x04794a, 0x047d4e PORTABLE).** The callee cross-ref flagged 0x04794a (gated 0x047a9f) and 0x047d4e (gated 0x047e3d) as unblocked-NO, but those "callees" are Ghidra SPLITs of each function's OWN normalize loop: 0x047a9f starts `OR EAX,EAX; JNZ 0x0004796d` and 0x047e3d starts `OR EAX,EAX; JNZ 0x00047d5f` -- the JNZ targets (0x4796d, 0x47d5f) are INSIDE 0x04794a/0x047d4e respectively. So neither has a real unported callee -> both are PORTABLE. 0x04794a (149 insns/363B, complex fx normalize, 8 callers, reg-ABI) and 0x047d4e (108 insns, fx multiply, reg-ABI) both need the established pattern (Python asm-mirror ref + differential vectors + C asm-mirror). 0x04a9da was a FALSE "unblocked" lead -- already ported as fx_double_exp (line 317, 6-case test); a redundant fn_04a9da duplicate I added+removed this session. Real new wins this session: 0x0485eb (L0), 0x048585 (L1). NEXT: dedicated fresh pass on 0x047d4e (more tractable, 108 insns) then 0x04794a. | STATUS.md FPU |
@@ -455,7 +456,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x041af8 | 226 | heap_malloc | heap | heap.md; port+test PASS (batch 7-8) |
 | [ ] | 0x04247a | 251 | FUN_0004247a | | |
 | [ ] | 0x0428f8 | 47 | FUN_000428f8 | | |
-| [ ] | 0x042928 | 47 | FUN_00042928 | | |
+| [x] | 0x042928 | 47 | fn_042928 | node lseek-offset compute: r=fn_044848(dev); r==-1->-1; field4==0->r; flags&0x10->field4+r; else r-field4; 13 checks | fn_042928 (f.c) |
 | [ ] | 0x04297a | 44 | FUN_0004297a | | |
 | [x] | 0x04322f | 4 | fn_04322f | | mov eax,-1; ret |
 | [x] | 0x043234 | 46 | fn_043234 | walk active node list, count matching io_states, flush (fn_044748) those with flags1 bit4 | f.c |

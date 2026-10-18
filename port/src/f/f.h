@@ -508,6 +508,7 @@ uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out);
 void fn_044bb4(uint8_t *node);   /* 0x044bb4: ioctl node flag-setter */
 uint32_t fn_042a43(uint8_t *node);   /* 0x042a43: device/heap node initializer (size by flags, malloc+inline fallback) */
+int32_t fn_042928(uint8_t *node);    /* 0x042928: node lseek-offset compute (lseek pos +/- field4 by flag 0x10) */
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

@@ -2037,6 +2037,22 @@ uint32_t fn_042a43(uint8_t *node) {
     return d_final;
 }
 
+/* 0x042928: node lseek-offset compute (25 ins). node = arg (byte offsets:
+ * +0x4 "bytes/offset" field, +0xd flags, +0x10 device handle).
+ * r = fn_044848(device) (lseek position; -1 on error).
+ * if (r == -1) return -1;
+ * if (node[+0x4] == 0) return r;
+ * if (node[+0xd] & 0x10) return node[+0x4] + r;
+ * return r - node[+0x4]; */
+int32_t fn_042928(uint8_t *node) {
+    int32_t r = fn_044848(*(uint32_t *)(node + 0x10), 0, 0, 0);  /* 0x04292d-30 */
+    if (r == -1) return -1;                                       /* 0x042937-3a */
+    int32_t field4 = (int32_t)*(uint32_t *)(node + 0x04);         /* 0x04293c */
+    if (field4 == 0) return r;                                     /* 0x04293f-41 */
+    if (node[0x0d] & 0x10) return field4 + r;                      /* 0x042943-49 */
+    return r - field4;                                             /* 0x042950-52 */
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

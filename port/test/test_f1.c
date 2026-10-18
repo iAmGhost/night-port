@@ -4164,6 +4164,24 @@ static void test_fn_0105f7(void) {
     g_dat_53c5c = sv;
 }
 
+static void test_fn_01072f(void) {
+    printf("fn_01072f (0x01072f, real-mode cmd build -> staging round-trip)\n");
+    uintptr_t sv = g_dat_53c5c;
+    uint8_t sv_stg[9];
+    for (int i = 0; i < 9; i++) sv_stg[i] = g_dat_53c4c[i];
+    static uint8_t target[16];
+    g_dat_53c5c = (uintptr_t)target;
+    for (int i = 0; i < 9; i++) g_dat_53c4c[i] = (uint8_t)(0x10 + i);
+    for (int i = 0; i < 9; i++) target[i] = 0xEE;
+    fn_01072f();
+    check(g_dat_53c4c[0] == 4, "01072f: g_dat_53c4c[0] = 4");
+    int ok = 1;
+    for (int i = 0; i < 9; i++) { uint8_t w = (i == 0) ? 4 : (uint8_t)(0x10 + i); if (target[i] != w) ok = 0; }
+    check(ok, "01072f: *g_dat_53c5c[0..8] = staging with byte0=4");
+    for (int i = 0; i < 9; i++) g_dat_53c4c[i] = sv_stg[i];
+    g_dat_53c5c = sv;
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4467,6 +4485,7 @@ int main(void) {
     test_fn_035b91();
     test_fn_03565a();
     test_fn_0105f7();
+    test_fn_01072f();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

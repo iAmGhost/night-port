@@ -147,6 +147,7 @@ void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + ti
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */
 void     fn_10570(const uint8_t *buf, uint32_t len);   /* 0x010570: DPMI real-mode read via 0x103e0 (no-op) */
 void     fn_0105f7(uint8_t al);                  /* 0x0105f7: build 24-byte DMA cmd from DAT_00051a14 + g_dat_53c5c patch; write al to byte 0 of *g_dat_53c5c (far-pointer buffer); submit via fn_10570 (no-op) */
+void     fn_01072f(void);                         /* 0x01072f: build 26-byte cmd from DAT_00051a58; g_dat_53c4c[0]=4; round-trip 9 bytes staging<->*g_dat_53c5c; submit via fn_10570 (no-op) */
 uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+checksum (no-op -> 0) */
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
 void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */
@@ -263,6 +264,7 @@ extern uint32_t g_dat_63e5c;               /* DAT_00063e5c: palette index (fn_03
 extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03f410) */
 extern uint8_t  g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
 extern uintptr_t g_dat_53c5c;               /* DAT_00053c5c: DPMI far-pointer (debug-reg) */
+extern uint8_t  g_dat_53c4c[9];            /* DAT_00053c4c: 9-byte real-mode command staging area */
 extern uint8_t  g_dat_63e88[0x80];          /* DAT_00063e88: DMA/channel status (IRQ9 install) */
 extern uint32_t g_dat_63f4c;               /* DAT_00063f4c: -1 sentinel (IRQ9 install) */
 void     fn_03ee88(void);                   /* 0x03ee88: timer/IRQ tick handler (counter wraps) */

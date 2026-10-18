@@ -513,6 +513,7 @@ void fn_03f410(uint32_t color) { palette_set(g_dat_63e58, color); }
  *   No DPMI in the flat model -> no-op. The DAT_00053c5c-2 read only feeds the
  *   DPMI argument and has no observable flat-model effect, so it is not
  *   dereferenced; the global is tracked for fidelity. */
+uint8_t g_dat_53c4c[9] = {0};   /* DAT_00053c4c: 9-byte real-mode command staging area */
 uintptr_t g_dat_53c5c = 0;   /* DAT_00053c5c: DPMI far-pointer (debug-reg source) */
 void fn_1053f(void)
 {
@@ -1171,6 +1172,32 @@ void fn_0105f7(uint8_t al) {
     buf[23] = (uint8_t)((g_dat_53c5c >> 12) & 0xff);
     mem_copy((uint8_t *)g_dat_53c5c, (const uint8_t *)&al, 1);   /* byte 0 of buffer @ g_dat_53c5c = al */
     fn_10570(buf, 1);                /* no-op in the flat model */
+}
+/* DAT_00051a58: 26-byte real-mode command template (extracted from the binary). */
+static const uint8_t g_serial_tpl_51a58[26] = {
+    0x1a,0x00,0x03,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x09,0x00, 0x00,0x00,0x00,0x00
+};
+/* 0x01072f: build a 26-byte real-mode command (copy the DAT_00051a58 template, patch
+ * bytes 20..23 from the g_dat_53c5c pointer value), set g_dat_53c4c[0]=4, then
+ * round-trip 9 bytes between the g_dat_53c4c staging area and the buffer pointed to by
+ * g_dat_53c5c: first copy staging->*g_dat_53c5c, submit via fn_10570(cmd,9) (no-op),
+ * then copy *g_dat_53c5c->staging back. Observable: g_dat_53c4c[0]=4 and *g_dat_53c5c
+ * byte 0..8 = the staging area (with byte 0 = 4). The 26-byte cmd is discarded by the
+ * no-op callee. g_dat_53c5c must point at a valid >=9-byte buffer (0 -> *0 crash). */
+void fn_01072f(void) {
+    (void)canary_id(0, 0x38);
+    uint8_t cmd[26];
+    for (int i = 0; i < 26; i++) cmd[i] = g_serial_tpl_51a58[i];
+    cmd[20] = (uint8_t)((uint16_t)g_dat_53c5c & 0xf);
+    cmd[21] = 0;
+    cmd[22] = (uint8_t)((g_dat_53c5c >> 4) & 0xff);
+    cmd[23] = (uint8_t)((g_dat_53c5c >> 12) & 0xff);
+    g_dat_53c4c[0] = 4;                       /* MOV byte [0x53c4c], 4 */
+    mem_copy((uint8_t *)g_dat_53c5c, g_dat_53c4c, 9);   /* staging -> *g_dat_53c5c */
+    fn_10570(cmd, 9);                       /* no-op in the flat model */
+    mem_copy(g_dat_53c4c, (const uint8_t *)g_dat_53c5c, 9);   /* *g_dat_53c5c -> staging */
 }
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }

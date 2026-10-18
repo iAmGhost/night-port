@@ -550,6 +550,8 @@ uint32_t fn_041410(void);  /* 0x041410: thin wrapper -> fn_041340(0xd3) */
 int32_t  fn_035c2d(uint8_t arg);  /* 0x035c2d: thin wrapper -> fn_0358c7((uint8)arg) */
 int32_t  fn_035a19(int32_t a0, int32_t a1, int32_t a2);  /* 0x035a19: 3-byte write (a0,a1,a2-if>=0) via fn_0358c7; -1 on first timeout */
 void     fn_035329(uint32_t a0, uint32_t a1);  /* 0x035329: scan 0xe-byte records (tag@+0x5,val@+0xa) for min -> a1{+0x10 cur,+0x14 idx,+0x20 flag} */
+int32_t  fn_035bf4(uint8_t al, uint8_t dl);  /* 0x035bf4: thin -> fn_035a19(al,dl,-1) (3rd byte skipped) */
+void     fn_035ac0(void);                    /* 0x035ac0: device-init, for i in 0..15 fn_035a19(i+0xb0,0x78,0) */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */
 extern uint32_t g_dat_63f88;  /* DAT_00063f88: 16-bit device value (0x0411d9) */
 uint32_t fn_0411d9(void);  /* 0x0411d9: if fn_041340(0xe1) { combine 2x fn_0412a3 as (hi<<8)|lo -> DAT_63f88 } else 0 */

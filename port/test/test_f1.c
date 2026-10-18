@@ -4102,6 +4102,22 @@ static void test_fn_035329(void) {
     check(s1[0x20]==1,               "035329 flag stays 1 when all skipped");
 }
 
+static void test_fn_035bf4_035ac0(void) {
+    printf("fn_035bf4 / fn_035ac0 (thin wrappers -> fn_035a19)\n");
+    uint16_t st = (uint16_t)(g_dat_530ac + 1);
+    uint16_t dp = (uint16_t)g_dat_530ac;
+    /* 0x035bf4(al,dl) = fn_035a19(al,dl,-1): writes al then dl (a2=-1 skipped). */
+    sys_port_set(st, 0);
+    check(fn_035bf4(0x11, 0x22) == 0, "035bf4 ready -> 0");
+    check(sys_inb(dp) == 0x22,        "035bf4 last write = dl (a2=-1 skipped)");
+    sys_port_set(st, 0x40);
+    check(fn_035bf4(0x11, 0x22) == -1, "035bf4 timeout -> -1");
+    /* 0x035ac0: 16 x fn_035a19(i+0xb0,0x78,0); each ends with a2=0, so final byte = 0. */
+    sys_port_set(st, 0);
+    fn_035ac0();
+    check(sys_inb(dp) == 0, "035ac0 final byte = a2=0 (last iter)");
+}
+
 static void test_fn_04a367(void) {
     printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
     /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
@@ -4401,6 +4417,7 @@ int main(void) {
     test_fn_040f4f();
     test_fn_035a19();
     test_fn_035329();
+    test_fn_035bf4_035ac0();
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();

@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 311 / 528 done
+TOTALS: 313 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -50,7 +50,7 @@ TOTALS: 311 / 528 done
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 49 | 0 | 0 | 32 |
 | L11 | 77 | 36 | 0 | 0 | 41 |
-| L12 | 58 | 15 | 0 | 0 | 43 |
+| L12 | 58 | 17 | 0 | 0 | 41 |
 | L13 | 16 | 0 | 0 | 0 | 16 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x035bf4 + 0x035ac0 PORTED (L12, 56 B / 75 B) -- thin wrappers over fn_035a19.** 0x035bf4(al,dl) = fn_035a19(al,dl,-1) (a2=EBX=-1 skips the 3rd byte write; writes al then dl). 0x035ac0() = for i in 0..15: fn_035a19(i+0xb0,0x78,0) (device-init loop, void; incidental EAX ignored). Both need only fn_035a19 (just ported). Test via sys_port_set: 035bf4 ready->0 (last=dl), timeout->-1; 035ac0 final byte=a2=0. 4 checks. L12 15->17, TOTALS 311->313/528, suite +4 PASS 0 FAIL. **NEXT:** L12 0x03565a (95 B, q/1000->x0x4aa/[0x63304]->fn_0356ba), 0x035b91 (98 B); L10 0x03c65b (143 B, arena-mapped). | STATUS.md L12 |
 | 2026-07-08 | **0x035329 PORTED (L10, 166 B) -- record scan for min value, first arena-mapped port this pass.** Args a0(EAX)/a1(EDX) are flat 32-bit data addresses -> g_heap_base+off. a0 = array of 0xe-byte records (tag byte @+0x5, int32 val @+0xa); a1 = result struct (+0x10 out_cur, +0x14 out_idx, +0x1c count, +0x20 flag). cur=a0->+0xa; for i in 0..count-1: if record i's tag != 0x2f AND cur > its val, set idx=i/cur=val and clear a1->+0x20. **SUBTLE:** the flag-clear sits at 0x0353ad, reached ONLY on tag!=0x2f iters (a 0x2f record jumps straight to i++ at 0x0353b4) -- so flag stays 1 when all records are skipped. Test allocates arena regions via heap_arena_alloc and writes record/result data at g_heap_base+off; 2 scenarios (min=50/idx=2/flag=0; and only-skip -> cur=77/idx=0/flag=1). 6 checks. L10 48->49, TOTALS 310->311/528, suite +6 PASS 0 FAIL. **MEMORY MODEL CONFIRMED for this class:** original 32-bit data addrs map to g_heap_base + addr (1 MiB s_heap_arena, hw(off)); heap_arena_alloc(size) hands out free 64-aligned offsets -- this unblocks the node-pool family (0x041d47, 0x044ab5, 0x04933a, 0x049192) and 0x03c65b/0x0326c1. **NEXT:** L10 0x035d5d (busy-wait, weak test -- defer), 0x03c72b (171B, 3 callees); L11 0x03b9b7 (linked-list walk). | STATUS.md L10 |
 | 2026-07-08 | **0x035a19 PORTED (L11, 122 B) -- 3-byte device write sequence.** Args in EAX/EDX/EBX: write a0, then a1, and -- if a2 (EBX) >= 0 -- a2, each via fn_0358c7((uint8)x). Return -1 on the first write timeout (fn_0358c7 != 0), else 0. Verified via sys_port_set: all-ready -> 0 with last byte = a2; a2<0 -> 0 with last byte = a1 (a2 skipped); timeout -> -1. 5 checks. L11 35->36, TOTALS 309->310/528, suite +5 PASS 0 FAIL. **NEXT:** L11 0x03b9b7 (linked-list walk, needs fn_03b67e/fn_041c28 + node struct), 0x034990 (heap-init, needs fn_034a87); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L11 |
 | 2026-07-08 | **0x040f4f PORTED (L12, 99 B) -- device-discovery scan.** Loop over 8 consecutive port bases (g_dat_53334, +0x10, ... +0x70): at each, fn_04123d() (init) then fn_0412a3() (status read); if status==0xaa return the current base, else g_dat_53334 += 0x10. After 8 with no match, return 0. Mutates g_dat_53334 (callers restore). Verified via sys_port_set with g_dat_53334=0x300: iter0/1 not-ready (+0xe bit7 clear -> fn_0412a3=0), iter2 ready (+0xe=0x80)+status 0xaa -> returns 0x320; and all-8-not-ready -> 0. 2 checks. L12 14->15, TOTALS 308->309/528, suite +2 PASS 0 FAIL. **NEXT:** L11 0x03b9b7(113)/0x035a19(122)/0x034990(126); L10 0x035d5d(158)/0x035329(166)/0x03c72b(171). | STATUS.md L12 |
@@ -743,9 +744,9 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x034735 | 173 | FUN_00034735 | | |
 | [ ] | 0x03565a | 95 | FUN_0003565a | | |
 | [ ] | 0x0359c1 | 87 | FUN_000359c1 | | |
-| [ ] | 0x035ac0 | 75 | FUN_00035ac0 | | |
+| [x] | 0x035ac0 | 75 | fn_035ac0 | device-init, for i in 0..15 fn_035a19(i+0xb0,0x78,0) | final byte = a2=0 |
 | [ ] | 0x035b91 | 98 | FUN_00035b91 | | |
-| [ ] | 0x035bf4 | 56 | FUN_00035bf4 | | |
+| [x] | 0x035bf4 | 56 | fn_035bf4 | thin -> fn_035a19(al,dl,-1) | ready=0/last=dl, timeout=-1 |
 | [ ] | 0x037347 | 357 | FUN_00037347 | | |
 | [ ] | 0x037922 | 480 | FUN_00037922 | | |
 | [ ] | 0x038a20 | 191 | FUN_00038a20 | | |

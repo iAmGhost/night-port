@@ -6572,3 +6572,18 @@ void fn_035329(uint32_t a0, uint32_t a1) {
     *(uint32_t *)(p1 + 0x14) = idx;                             /* a1->+0x14 = idx */
     *(int32_t  *)(p1 + 0x10) = cur;                             /* a1->+0x10 = cur */
 }
+
+/* 0x035bf4 (L12, 56 B): thin wrapper -> fn_035a19(al, dl, -1). Args in AL/DL (bytes);
+ * a2 = EBX = -1 so the 3rd byte write is skipped. Returns fn_035a19's result. */
+int32_t fn_035bf4(uint8_t al, uint8_t dl) {
+    (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
+    return fn_035a19((int32_t)al, (int32_t)dl, -1);             /* EBX = -1 -> a2 skipped */
+}
+
+/* 0x035ac0 (L12, 75 B): device-init sequence. for i in 0..15: fn_035a19(i+0xb0, 0x78, 0).
+ * No args; the incidental EAX (last write's result) is ignored (void). */
+void fn_035ac0(void) {
+    (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
+    for (int32_t i = 0; i < 16; i++)                            /* 0x10 iters */
+        (void)fn_035a19(i + 0xb0, 0x78, 0);                    /* write (i+0xb0),0x78,0 */
+}

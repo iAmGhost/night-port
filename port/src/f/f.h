@@ -522,6 +522,14 @@ const char *fn_049b84(const char *s, uint32_t *out);
 void     fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3); /* 0x049a35: TZ config parser (params unused) */
 void     fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4); /* 0x049c76: TZ range parser (direct string) */
 uint64_t fn_045a82(uint32_t param_1, uint32_t param_2); /* 0x045a82: byte classifier (g_dat_64004/64008) */
+/* 0x044a50: reg-ABI EAX=index, EDX=ctx. Lazy-init the node (fn_0492d0), mark the
+ * table slot (store_arr53730 low|0x40); if bit13 set, two AH=0x44 ioctls with
+ * RCL/ROR sign gates -> fn_045a82 error (returns -1) else 0. */
+int32_t fn_044a50(uint32_t index, uint32_t ctx);        /* 0x044a50 */
+/* 0x049236: reg-ABI EAX=index, EDX=ctx, EBX=count. fn_0492d0 lazy-init; if AL
+ * bit7, AH=0x42 lseek(end) sign-gate -> fn_045a82 (-1); AH=0x40 write sign-gate
+ * -> fn_045a82; if written!=count fn_042a0d(0xc); return written. */
+int32_t fn_049236(uint32_t index, uint32_t ctx, uint32_t count);  /* 0x049236 */
 uint64_t fn_045a76(uint32_t param_1, uint32_t param_2); /* 0x045a76: fn_045a82 thunk (param_2==0 -> 0) */
 uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode parser (r/w/a + +/-/b/t) */
 

@@ -120,6 +120,9 @@ int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence) {
     (void)handle; (void)offset; (void)whence; return 0;   /* no CD backend: pos 0 */
 }
+int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count) {
+    (void)handle; (void)buf; return (int32_t)count;        /* no backend: write to the void, report count */
+}
 int32_t sys_file_close(uint32_t handle) { (void)handle; return 0; }   /* AH=3e: success */
 int32_t sys_file_delete(const char *name) { (void)name; return 0; }
 uint16_t sys_fpu_control_word(void) { return 0x037f; }

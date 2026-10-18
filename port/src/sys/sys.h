@@ -81,6 +81,7 @@ struct dos_time sys_gettime(void);
  * will override these in the mid-subsystems task. */
 int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count);      /* AH=3f: bytes read, default 0 */
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence); /* AH=42: new pos, default 0 */
+int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count); /* AH=40: bytes written; no backend -> success (count) */
 int32_t sys_file_close(uint32_t handle);                                /* AH=3e: 0=success (CF clear), nonzero=error */
 int32_t sys_file_delete(const char *name);                             /* AH=41: 0 on success, default 0 */
 

@@ -2954,6 +2954,48 @@ uint64_t fn_0492d0(uint32_t index, uint32_t ctx) {
     return (((uint64_t)ctx) << 32) | g_dat_53730[index];       /* 0x4931e */
 }
 
+/* 0x044a50: reg-ABI EAX=index, EDX=ctx. 46 insns. Lazy-initialize the node via
+ * fn_0492d0 (low dword = g_arr_53730[index]); mark the slot via store_arr53730
+ * (low|0x40); if the marked value's bit13 (0x2000) is set, two AH=0x44 ioctls
+ * (AL=0 then AL=1) each with the RCL/ROR sign reconstruction; a negative result
+ * routes to fn_045a82 (error, returns -1). Success returns 0. */
+int32_t fn_044a50(uint32_t index, uint32_t ctx) {
+    uint64_t r = fn_0492d0(index, ctx);              /* 0x44a59 */
+    uint32_t eax = (uint32_t)r | 0x40;                /* OR AL,0x40 */
+    store_arr53730(index, eax);                       /* 0x44a66 */
+    if (eax & 0x2000u) {                              /* TEST BH,0x20; JZ */
+        uint32_t dx, cf, rcl, ror;
+        sys_dos_ioctl(index, &dx, &cf);               /* AL=0 AH=0x44 INT 21 */
+        rcl = (dx << 1) | cf; ror = (rcl >> 1) | (rcl << 31);
+        if (ror & 0x80000000u)                        /* TEST EDX,EDX; JGE not taken */
+            return (int32_t)fn_045a82(ror & 0xffffu, ror);
+        sys_dos_ioctl(index, &dx, &cf);               /* AL=1 AH=0x44 INT 21 */
+        rcl = (dx << 1) | cf; ror = (rcl >> 1) | (rcl << 31);
+        if (ror & 0x80000000u)                        /* TEST EDX,EDX; JL taken */
+            return (int32_t)fn_045a82(ror & 0xffffu, ror);
+    }
+    return 0;                                          /* XOR EAX,EAX */
+}
+
+/* 0x049236: reg-ABI EAX=index, EDX=ctx, EBX=count. 55 insns. fn_0492d0 lazy-init;
+ * if the low byte's bit7 (0x80) is set, AH=0x42 lseek(whence=2,end, offset=0) with
+ * a 32-bit sign gate -> fn_045a82 (-1); then AH=0x40 write(handle=index, buf=ctx,
+ * count) with a sign gate -> fn_045a82; if written != count, fn_042a0d(0xc); return
+ * the written count. */
+int32_t fn_049236(uint32_t index, uint32_t ctx, uint32_t count) {
+    uint64_t r = fn_0492d0(index, ctx);               /* 0x49244 */
+    if ((uint32_t)r & 0x80u) {                         /* TEST AL,0x80; JZ */
+        int32_t pos = sys_file_lseek(index, 0, 2);     /* AH=0x42 end */
+        if (pos < 0)                                   /* TEST EDX,EDX; JGE not taken */
+            return (int32_t)fn_045a82((uint32_t)pos & 0xffffu, (uint32_t)pos);
+    }
+    int32_t written = sys_file_write(index, (const void *)(uintptr_t)ctx, count); /* AH=0x40 */
+    if (written < 0)                                   /* TEST EAX,EAX; JGE not taken */
+        return (int32_t)fn_045a82((uint32_t)written & 0xffffu, (uint32_t)written);
+    if ((uint32_t)written != count) fn_042a0d(0xc);    /* 0x4929a CMP/JZ */
+    return written;                                    /* 0x492a8 EAX=EDX */
+}
+
 /* 0x042a19: MOV EAX,0xe; JMP 0x042a0d -> g_dat_64008 = 0xe. */
 void fn_042a19(void) { g_dat_64008 = 0xe; }
 

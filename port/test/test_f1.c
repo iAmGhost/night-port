@@ -2474,6 +2474,34 @@ static void test_fn_048f2c_048f9e(void) {
 
 /* fn_048754 (L3): in-place a = fn_04791a(a, a, 0, 0x80000000, 0x3fff). Verify
  * against the (verified) fn_04791a applied identically to an equal copy. */
+static void test_fn_044a50_049236(void) {
+    /* Both reference DAT_00053730 via two C aliases (g_dat_53730/g_arr_53730); keep in sync. */
+    static uint32_t tbl[8];
+    g_dat_53730 = tbl; g_arr_53730 = tbl; g_dat_536dc = 8;
+    uint32_t save_dx = sys_ioctl_dx, save_cf = sys_ioctl_cf;
+
+    printf("fn_044a50 (0x044a50)\n");
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    tbl[1] = 0x00004000u;   /* byte1=0x40: skip lazy-init, bit13 clear */
+    check(fn_044a50(1, 0x55) == 0, "  success (bit13 clear): return 0");
+    check(g_dat_53730[1] == (0x00004000u | 0x40u) | 0x40000u, "  slot = (old|0x40)|0x40000");
+    tbl[2] = 0x00006000u;   /* byte1=0x60 (0x40|0x20): skip init, bit13 set */
+    check(fn_044a50(2, 0x11) == 0, "  bit13 set, ioctl success: return 0");
+    tbl[3] = 0x00006000u;   /* bit13 set, force ioctl error */
+    sys_ioctl_dx = 0; sys_ioctl_cf = 1;   /* RCL/ROR gate: CF=1 -> reconstructed high bit set */
+    check(fn_044a50(3, 0x22) == -1, "  bit13 set, ioctl error: fn_045a82 -> -1");
+    sys_ioctl_dx = save_dx; sys_ioctl_cf = save_cf;
+
+    printf("fn_049236 (0x049236)\n");
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    tbl[1] = 0;
+    check(fn_049236(1, 0, 5) == 5, "  AL bit7 clear: write returns count");
+    tbl[2] = 0x80;          /* -> after init 0x4080, AL bit7 set */
+    check(fn_049236(2, 0, 3) == 3, "  AL bit7 set: lseek+write success, return count");
+    sys_ioctl_dx = save_dx; sys_ioctl_cf = save_cf;
+    g_dat_53730 = NULL; g_arr_53730 = NULL;
+}
+
 static void test_fn_048754(void) {
     fx128 a0 = {0x1234u, 0x5678u, 0x3333u};
     fx128 a = a0, exp = a0;
@@ -3344,6 +3372,7 @@ int main(void) {
     test_fn_0478f0_cluster();
     test_fn_048f4c();
     test_fn_048f2c_048f9e();
+    test_fn_044a50_049236();
     test_fn_048754();
     test_fn_048e60();
     test_fn_049415();

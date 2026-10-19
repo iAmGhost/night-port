@@ -3444,6 +3444,15 @@ void fn_03dcbd(uint32_t *a0) {
     }
 }
 
+/* 0x03d999 (L10, 53 B): wrapper -- destruct a0 via fn_03dcbd, then return a0.
+ * a1 (EDX) is stored to the frame but never read. */
+uint32_t *fn_03d999(uint32_t *a0, uint32_t a1) {
+    (void)a1;
+    (void)canary_id(0, 0x24);
+    fn_03dcbd(a0);
+    return a0;
+}
+
 /* 0x034aba: 3-way interval-list splitter. Splits the interval containing `a`
  * (within list g_dat_62d68[idx]) to carve out [a, a+b) as a new node (start=c,
  * flag=flag), clamping a+b to 0x140. Returns void. */

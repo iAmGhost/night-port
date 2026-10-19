@@ -1960,6 +1960,22 @@ static void test_fn_034990(void) {
     memcpy(nar(), savarena, 0x1000);
 }
 
+static void test_fn_03d999(void) {
+    printf("fn_03d999 (0x03d999, wrapper: fn_03dcbd(a0); return a0)\n");
+    uint8_t s[0x40] = {0};
+    uint32_t *p = (uint32_t *)s;
+    p[0] = 0x33333333;
+    p[1] = heap_malloc(8);
+    check(p[1] != 0, "03d999: sub-obj allocated");
+    uint32_t *r = fn_03d999(p, 5);
+    check(r == p, "03d999: returns a0");
+    check(p[0] == 0x33333333, "03d999: field 0 untouched");
+    check(p[1] == 0, "03d999: sub-obj freed+nulled via fn_03dcbd");
+    uint32_t d = heap_malloc(8);
+    check(d != 0, "03d999: heap reusable");
+    if (d) heap_free_host(d);
+}
+
 static void test_fn_03dcbd(void) {
     printf("fn_03dcbd (0x03dcbd, struct destructor: free 14 sub-obj heap-objs +0x4..+0x38)\n");
     uint8_t s[0x40] = {0};
@@ -5143,6 +5159,7 @@ int main(void) {
     test_fn_034aba();
     test_fn_03ba2c();
     test_fn_034990();
+    test_fn_03d999();
     test_fn_03dcbd();
     test_fn_010d47();
     test_fn_015295();

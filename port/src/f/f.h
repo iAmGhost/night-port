@@ -693,6 +693,7 @@ uint32_t fn_01520b(const uint8_t *p);    /* 0x01520b: return *(uint32*)(p+5) */
 uint32_t fn_034a87(void);                /* 0x034a87: v=g_dat_62d64; g_dat_62d64+=11; return v */
 void fn_034990(void);                    /* 0x034990: node-pool/video-arena init (200 heads) */
 void fn_03dcbd(uint32_t *a0);            /* 0x03dcbd: struct destructor -- free 14 sub-obj heap-objs at +0x4..+0x38 (each if non-zero), null */
+uint32_t *fn_03d999(uint32_t *a0, uint32_t a1); /* 0x03d999: wrapper -- fn_03dcbd(a0); return a0 (a1 unused) */
 extern uintptr_t g_node_arena_base;    /* node-arena base (s_node_arena) */
 extern uint32_t  g_dat_62d68[200];      /* DAT_00062d68: head-node offset per list idx (200 lists) */
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */

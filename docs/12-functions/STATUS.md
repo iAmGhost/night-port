@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 345 / 528 done
+TOTALS: 346 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 345 / 528 done
 | L7 | 8 | 2 | 0 | 0 | 6 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 58 | 0 | 0 | 23 |
+| L10 | 81 | 61 | 0 | 0 | 20 |
 | L11 | 77 | 43 | 0 | 0 | 34 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 6 | 0 | 0 | 10 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x01586b PORTED (L10, 435 B) -- clamp a0[9] to [min,max] after adding a1, with a ROM-table pre-pass.** Only callee is the canary (PUSH 0x2c;CALL 0x418ee). a0 (EAX) = item byte-buffer, a1 (EDX) = delta. if a1==0 return. p=g_dat_63354; min=*(s32*)(p+0x12)+g_dat_639e0; max=(p[0x10]==0)?*(s32*)(p+0x16)+g_dat_639e0 : *(s32*)(*(u8_t**)(p+0x34c)+0x16)+g_dat_639e0. Pre-pass (only if a0[0]<=1): for i in 0..g_dat_62a8c, t=&g_tab_5c8bc[i] {a1_lo,v_lo,a1_hi,v_hi;0x14 stride}: if (a0[1]>t->a1_lo && a0[1]<t->a1_hi){ if(a1>0){if(t->v_lo<a0[9]+a1<t->v_hi) a1=t->v_lo-a0[9]} else {if(t->v_lo<a0[9]+a1<t->v_hi) a1=t->v_hi-a0[9]} }. Final: if (a0[9]<min || a0[9]>max) a0[9]+=a1 (no clamp); else a0[9]+=a1 then clamp to [min,max]. EAX-at-exit is inconsistent across paths (a1 vs clamped) -> void. a0 fields: a0[0] byte, a0[1]/a0[9] unaligned s32 (cf. fn_0151d5 = *(s32*)(p+9)). New global g_tab_5c8bc (ROM clamp table; struct in f.h); reuses g_dat_63354/639e0/62a8c. Test: 7 scenarios (a1=0 no-op, in-range +100, clamp high, in-range +500, cur<min no-clamp, table pre-pass d=v_lo-cur, key out-of-range no-adjust). 7 checks. L10 60->61 (summary row corrected from stale 58), TOTALS 345->346/528. | STATUS.md L10 |
 | 2026-07-08 | **0x040e8d PORTED (L13, 111 B) -- device/timer setup guard (resolves earlier deferral).** canary PUSH 0x20;CALL 0x418ee. If g_63f90==0 return (not initialized). Else: local=(g_dat_63f84==0xa?0x72:g_dat_63f84+8); CALL 0x407f8([0x63fb0])=fn_000407f8() (DPMI real-mode req, no-op); CALL 0x42361(local,[0x63f54],[0x63f58])=isr_set(...) (INT 21h set-vector, no-op); CALL 0x41410()=fn_041340(0xd3) (device port-write = the ONLY flat-model observable effect). The handler far-pointer + DPMI request feed no-op sys stubs (no observable effect); the earlier deferral noted only the incidental fn_041410 CD command is testable -- this port captures exactly that. New global g_63f90 (init flag). All callees ported (fn_000407f8/isr_set/fn_041410). Test: 3 scenarios (g_63f90=0 guard -> no write; g_63f90=1 ready -> writes 0xd3 to +0xc; g_63f90=1 not-ready bit7 set -> fn_041340 returns 0 no write). 3 checks. L13 5->6, TOTALS 344->345/528. | STATUS.md L13 |
 | 2026-07-08 | **0x03d75c DEFERRED (L10, 306 B) -- data-table wall.** Loop over [0x62a90] 20-byte records at 0x5d0b4: reads rec[+0]=idx, rec[+4]=off2, rec[+0x10]=float; computes dx=rec[+4]-*(0x63dfc+0xc+idx*4)-[0x639dc], dy=rec[+4]-*(0x63dfc+0x4+idx*4)-[0x639dc] then adds fpu_rndint(rec[+0x10]) to each; if both dx,dy in [0,0x13f]: *(float)(0x5d0c4+i*0x14) = arg0 * *(float)(0x5274c + (0x63354+0x40 + (0x63370-1)*0x28)*4... ) - old_float. Touches many ROM/global tables (0x5d0b4/0x5d0b8/0x5d0c4, 0x63dfc, 0x639dc, 0x63354, 0x63370, 0x5274c) -- needs a dedicated pass to model them (cf. 0x01586b). Both callees (fpu_rndint x2) are ported. | STATUS.md |
 | 2026-07-08 | **0x04097e DEFERRED (L13, 516 B) -- device-port driver, 7 new globals.** All 6 callees ported (canary, fn_040948, fn_041e20=memset, mem_copy=0x041e6c, outb, fn_041340) BUT needs 7 undefined globals: g_63f8c, g_63f94, g_63f98, g_63f9c, g_63fa8, g_63fb4 (a 0xffff=64KB device buffer for memset+mem_copy), g_63fac (value byte-sent to device). Reads 2 header bytes of a0; fn_040948(b0); switch(b1) sets g_63f9c (0x14/0x75/0x77/0x17); mem_copy(g_63fb4, a0+2, count); burst of outb() port writes (0x04231d) + 3x fn_041340(). Return = last fn_041340(). Device-port + 64KB buffer modeling needed; not a clean win. | STATUS.md L13 |
@@ -589,7 +590,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0151d5 | 53 | fn_0151d5 | return *(u32*)(p+9)-g_dat_639e0 | 1:1 |
 | [x] | 0x01520b | 47 | fn_01520b | return *(u32*)(p+5) | 1:1 |
 | [ ] | 0x01545e | 1036 | FUN_0001545e | | |
-| [ ] | 0x01586b | 435 | FUN_0001586b | | |
+| [x] | 0x01586b | 435 | FUN_0001586b | fn_01586b | clamp a0[9] to [min,max] after +a1; g_tab_5c8bc pre-pass |
 | [x] | 0x017218 | 242 | fn_017218 | heap/state | set *ptr1/*ptr2 to a sign-combo of a1 by idx=a0->0xbb (0..3, table @0x172b8); a0->0xab-- (ret 1 if <0); test PASS, 24 checks |
 | [x] | 0x031f10 | 78 | fn_031f10 | ring push (count@0x31,cap5) | 1:1 (reg-ABI) |
 | [x] | 0x031f5f | 221 | fn_031f5f | heap/array | remove-first-element + shift array left by one slot (4B stride at a0+0x32); save slot0 to a0->0x17; P2[a0->0x17] -> g_dat_63364/63368; test PASS, 7 checks |

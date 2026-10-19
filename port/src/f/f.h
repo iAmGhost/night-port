@@ -746,6 +746,9 @@ extern uint32_t g_dat_6337c;   /* 0x6337c: = (byte)g_dat_53c7c->0x26 (0x03cc6b) 
 extern uint32_t g_dat_63380;   /* 0x63380: = (byte)g_dat_53c7c->0x25 (0x03cc6b) */
 extern uint32_t g_dat_63384;   /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) */
 void fn_03cc6b(uint8_t *a0);   /* 0x03cc6b: state machine (g_639e4 toggle, g_63354/58, kb-config copy, g_639e0++) */
+void fn_01586b(uint8_t *a0, uint32_t a1);  /* 0x01586b: clamp a0[9] to [min,max] after adding a1, g_tab_5c8bc pre-pass */
+struct clamp_tab_5c8bc { int32_t a1_lo, v_lo, a1_hi, v_hi, _pad; };  /* 0x5c8bc: 20 B, 0x14 stride */
+extern struct clamp_tab_5c8bc g_tab_5c8bc[512];
 extern uint8_t  g_dat_639e4;      /* DAT_000639e4 (byte) */
 extern uint8_t  g_dat_63f1e[16];  /* DAT_00063f1e (byte slots) */
 extern uint32_t g_dat_63f0c;      /* DAT_00063f0c (slot base) */

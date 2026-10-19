@@ -3040,6 +3040,42 @@ static void test_fn_0412a3_041340(void) {
     g_dat_53334 = saved;
 }
 
+static void test_fn_01586b(void) {
+    printf("fn_01586b (clamp a0[9] to [min,max] + g_tab_5c8bc pre-pass)\n");
+    static uint8_t buf[0x400];
+    uint8_t *savedp = g_dat_63354; uint32_t saved_e0 = g_dat_639e0, saved_c = g_dat_62a8c;
+    g_dat_63354 = buf;
+    buf[0x10] = 0;                        /* max path = buf[0x16]+e0 (no 0x34c) */
+    *(int32_t *)(buf + 0x12) = 100;       /* min = 100 + e0 */
+    *(int32_t *)(buf + 0x16) = 1000;      /* max = 1000 + e0 */
+    g_dat_639e0 = 0;
+    static uint8_t a0[32];
+    g_dat_62a8c = 0;                      /* no table pre-pass by default */
+    a0[0] = 0; *(int32_t *)(a0+1) = 0; *(int32_t *)(a0+9) = 500;
+    fn_01586b(a0, 0);                     /* a1 == 0 -> no-op */
+    check(*(int32_t *)(a0+9) == 500, "  a1=0 -> no-op (500)");
+    fn_01586b(a0, 100);                   /* in-range +100 -> 600 */
+    check(*(int32_t *)(a0+9) == 600, "  in-range +100 -> 600");
+    *(int32_t *)(a0+9) = 950; fn_01586b(a0, 100);   /* clamp high: 1050>1000 -> 1000 */
+    check(*(int32_t *)(a0+9) == 1000, "  clamp high -> 1000");
+    *(int32_t *)(a0+9) = 200; fn_01586b(a0, 500);   /* in-range +500 -> 700 */
+    check(*(int32_t *)(a0+9) == 700, "  in-range +500 -> 700");
+    *(int32_t *)(a0+9) = 50;  fn_01586b(a0, 100);   /* cur<min -> +a1 no clamp -> 150 */
+    check(*(int32_t *)(a0+9) == 150, "  cur<min -> +a1 no clamp -> 150");
+    /* table pre-pass (a0[0]<=1, key match, d>0): d = v_lo-cur = -100 -> 500-100=400 */
+    g_dat_62a8c = 1;
+    g_tab_5c8bc[0] = (struct clamp_tab_5c8bc){10, 400, 100, 800, 0};
+    a0[0] = 0; *(int32_t *)(a0+1) = 50; *(int32_t *)(a0+9) = 500;
+    fn_01586b(a0, 100);
+    check(*(int32_t *)(a0+9) == 400, "  table pre-pass d=v_lo-cur -> 400");
+    /* table present but key out of range -> no pre-pass adjustment: 500+100=600 */
+    *(int32_t *)(a0+1) = 200; *(int32_t *)(a0+9) = 500;
+    fn_01586b(a0, 100);
+    check(*(int32_t *)(a0+9) == 600, "  table key out-of-range -> no adjust -> 600");
+    g_dat_62a8c = saved_c; g_dat_639e0 = saved_e0; g_dat_63354 = savedp;
+    memset(g_tab_5c8bc, 0, sizeof(g_tab_5c8bc));
+}
+
 static void test_fn_040e8d(void) {
     printf("fn_040e8d (timer/device setup guard)\n");
     uint32_t saved53 = g_dat_53334, savedf90 = g_63f90;
@@ -5362,6 +5398,7 @@ int main(void) {
     test_fn_03c6ec_03d88f();
     test_fn_0412a3_041340();
     test_fn_040e8d();
+    test_fn_01586b();
     test_fn_0358c7();
     test_fn_0326c1();
     test_fn_040660_0406f5();

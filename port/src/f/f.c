@@ -3953,6 +3953,53 @@ uint32_t g_dat_6337c = 0;      /* 0x6337c: = (byte)g_dat_53c7c->0x26 (0x03cc6b) 
 uint32_t g_dat_63380 = 0;      /* 0x63380: = (byte)g_dat_53c7c->0x25 (0x03cc6b) */
 uint32_t g_dat_63384 = 0;      /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) */
 
+/* ---- 0x01586b (L10, 435 B): clamp a0[9] to [min,max] after adding a1 ----
+ * canary PUSH 0x2c;CALL 0x418ee. a0 (EAX) = item byte-buffer, a1 (EDX) = delta.
+ *   p = g_dat_63354
+ *   min = *(s32*)(p+0x12) + g_dat_639e0
+ *   max = (p[0x10]==0) ? *(s32*)(p+0x16) + g_dat_639e0
+ *                       : *(s32*)( *(u8_t**)(p+0x34c) + 0x16 ) + g_dat_639e0
+ *   pre-pass (only if a0[0] <= 1): for i in 0..g_dat_62a8c, t=&g_tab_5c8bc[i]:
+ *     if (a0[1] > t->a1_lo && a0[1] < t->a1_hi):            // 0x1591f JLE cont / 0x15931 JL match
+ *       if (a1 > 0) { if (t->v_lo < a0[9]+a1 < t->v_hi) a1 = t->v_lo - a0[9]; }   // 0x1596a-1597a
+ *       else        { if (t->v_lo < a0[9]+a1 < t->v_hi) a1 = t->v_hi - a0[9]; }   // 0x159ab-159bb
+ *   final: if (a0[9] < min || a0[9] > max) a0[9] += a1;                       // 0x159d9 (no clamp)
+ *          else { a0[9] += a1; clamp a0[9] to [min,max]; }                     // 0x159e4
+ * The EAX at exit is inconsistent across paths (a1 on the no-clamp path, clamped
+ * value on the clamp path), so the return value is incidental -> void. a0 fields:
+ * a0[0] byte, a0[1]/a0[9] unaligned s32 (cf. fn_0151d5 = *(s32*)(p+9)). */
+struct clamp_tab_5c8bc g_tab_5c8bc[512];   /* 0x5c8bc ROM clamp table; count = g_dat_62a8c (struct def in f.h) */
+void fn_01586b(uint8_t *a0, uint32_t a1) {
+    (void)canary_id(0, 0x2c);                                /* 0x1586b/15870 */
+    int32_t d = (int32_t)a1;
+    if (d == 0) return;                                       /* 0x15888/1588c */
+    uint8_t *p = g_dat_63354;
+    int32_t mn = (int32_t)(*(int32_t *)(p + 0x12) + g_dat_639e0);   /* 0x15892-158a0 */
+    int32_t mx;
+    if (p[0x10] == 0) mx = (int32_t)(*(int32_t *)(p + 0x16) + g_dat_639e0);     /* 0x158b4-158c2 */
+    else { uint8_t *q = *(uint8_t **)(p + 0x34c); mx = (int32_t)(*(int32_t *)(q + 0x16) + g_dat_639e0); } /* 0x158c7-158db */
+    if (a0[0] <= 1) {                                          /* 0x158e1-158eb (a0[0] > 1 skips) */
+        for (uint32_t i = 0; i < g_dat_62a8c; i++) {
+            struct clamp_tab_5c8bc *t = &g_tab_5c8bc[i];
+            int32_t key = *(int32_t *)(a0 + 1);
+            int32_t v = *(int32_t *)(a0 + 9) + d;
+            if (key > t->a1_lo && key < t->a1_hi) {
+                if (d > 0) { if (v > t->v_lo && v < t->v_hi) d = t->v_lo - *(int32_t *)(a0 + 9); }
+                else        { if (v > t->v_lo && v < t->v_hi) d = t->v_hi - *(int32_t *)(a0 + 9); }
+            }
+        }
+    }
+    int32_t cur = *(int32_t *)(a0 + 9);
+    if (cur < mn || cur > mx) {
+        *(int32_t *)(a0 + 9) = cur + d;                        /* 0x159df (no clamp) */
+    } else {
+        int32_t nv = cur + d;                                  /* 0x159ea */
+        if (nv < mn) nv = mn;                                  /* 0x159fe */
+        else if (nv > mx) nv = mx;                             /* 0x15a14 */
+        *(int32_t *)(a0 + 9) = nv;
+    }
+}
+
 /* 0x03cc6b (L10, 415 B): state machine, no real callees (frame only). c = a0->0x34c
  * (64-bit ptr). if g_639e4==0: if g_639dc==c->0x0: g_63354=c; g_639e4=1; if g_63370!=1
  *   copy kb-config. else: if c->0x4-1==g_639e0: g_63354=c; g_639e4=0; if g_63370!=1

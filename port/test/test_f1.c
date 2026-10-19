@@ -3276,6 +3276,29 @@ static void test_fn_049192(void) {
     check(node[0x0c] & 0x20, "  error: f12 byte0 bit5 set");
 }
 
+static void test_fn_0446b2(void) {
+    printf("fn_0446b2 (putc + write-counter)\n");
+    /* Node first so the buffer offset is nonzero (n[2]==0 would trigger
+     * fn_049192's init path and write to a fresh buffer, not ours). */
+    uint32_t node_off = heap_malloc(0x20);
+    uint32_t buf_off = heap_malloc(32);
+    uint8_t *buf = (uint8_t *)g_heap_base + buf_off;
+    uint8_t *node = (uint8_t *)g_heap_base + node_off;
+    uint32_t *n = (uint32_t *)node;
+    /* struct p: [0] = node heap offset, [0x10] = write counter */
+    static uint8_t pbuf[0x14];
+    uint32_t *p = (uint32_t *)pbuf;
+    memset(node, 0, 0x20);
+    n[0] = buf_off; n[1] = 0; n[2] = buf_off; n[3] = 0x2; n[5] = 16;
+    memset(pbuf, 0, sizeof(pbuf));
+    p[0] = node_off; p[4] = 42;
+    uint32_t r = fn_0446b2(pbuf, 'A');
+    check(r == 'A', "  0446b2: returns fn_049192 result");
+    check(p[4] == 43, "  0446b2: p[0x10] counter incremented");
+    check(buf[0] == 'A', "  0446b2: char written via fn_049192");
+    check(n[1] == 1, "  0446b2: node f4 count=1");
+}
+
 static void test_fn_041d18(void) {
     printf("fn_041d18 (pull one byte from node buffer)\n");
     uint32_t saved_act = g_node_list_active;
@@ -5755,6 +5778,7 @@ int main(void) {
     test_fn_04933a();
     test_fn_041c8f();
     test_fn_049192();
+    test_fn_0446b2();
     test_fn_041d18();
     test_fn_041d47();
     test_fn_0358c7();

@@ -3493,6 +3493,18 @@ uint32_t fn_049192(uint32_t ch, uint8_t *node) {
     return c;
 }
 
+/* 0x0446b2 (16 B): putc + node write-counter. reg-ABI (arg1 = EAX = p, arg2
+ * = EDX = ch). EAX <- ch, EDX <- [p] (the node pointer, stored as a heap
+ * offset), CALL fn_049192 (putc to that node), then INC [p+0x10] (the node's
+ * write counter). Returns fn_049192's result (EAX, untouched by the INC).
+ * orig: 0x0446b2 */
+uint32_t fn_0446b2(uint8_t *p, uint32_t ch)
+{
+    uint32_t r = fn_049192(ch, (uint8_t *)g_heap_base + *(uint32_t *)p);   /* 0x0446b7-b9 */
+    (*(uint32_t *)(p + 0x10))++;                                            /* 0x0446be */
+    return r;
+}
+
 /* 0x041c8f (136 B): getch -- read one char from a node I/O buffer (with
  * CR-consume and EOF handling). reg-ABI: node in EAX (copied to EDX); returns the
  * byte (0-255) or -1 (0xffffffff) in EAX. f0 (node[+0]) is a heap offset

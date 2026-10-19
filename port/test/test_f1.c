@@ -1960,6 +1960,49 @@ static void test_fn_034990(void) {
     memcpy(nar(), savarena, 0x1000);
 }
 
+static void test_fn_036853(void) {
+    printf("fn_036853 (0x036853, resource lookup + value transform)\n");
+    memset(g_tab_5d884, 0, sizeof g_tab_5d884);
+    /* entry0: str "AA", v13@13=0x100, v2@17=0 ; entry1: str "BB", v13@34=0x200, v2@38=0x40 */
+    memcpy(g_tab_5d884 + 0,  "AA", 2);
+    memcpy(g_tab_5d884 + 13, "\x00\x01\x00\x00", 4); /* entry0.v13=0x100 */
+    memcpy(g_tab_5d884 + 17, "\x00\x00\x00\x00", 4); /* entry0.v2=0       */
+    memcpy(g_tab_5d884 + 21, "BB", 2);
+    memcpy(g_tab_5d884 + 34, "\x00\x02\x00\x00", 4); /* entry1.v13=0x200 */
+    memcpy(g_tab_5d884 + 38, "\x40\x00\x00\x00", 4); /* entry1.v2=0x40    */
+    g_dat_633a0 = 2;
+
+    res_reader rd = {0};
+    rd.flags = 0; rd.flags2 = 0; rd.id = 0;
+    g_639b8 = &rd;
+
+    /* a2==0: value = v2+a1 = 0 -> amount=0x1000 -> res_consume success pos=0x1000, rem=0 */
+    rd.pos = 0; rd.remaining = 0x1000; rd.end = 0;
+    check(fn_036853("aa", 0, 0) == 0, "036853 a2==0 match -> ret 0 (lseek no-op)");
+    check(rd.pos == 0x1000 && rd.remaining == 0, "036853 a2==0: value=v2+a1=0 -> pos=0x1000, rem=0");
+
+    /* a2==2: value = v2+v13+a1 = 0+0x100 = 0x100 -> amount=0x1100 > rem -> exhaust pos=0, rem=0 */
+    rd.pos = 0; rd.remaining = 0x1000; rd.end = 0;
+    check(fn_036853("aa", 0, 2) == 0, "036853 a2==2 match -> ret 0");
+    check(rd.pos == 0 && rd.remaining == 0, "036853 a2==2: value=v2+v13+a1=0x100 -> exhaust pos=0, rem=0");
+
+    /* a2==1 (other): match but no submit -> ret 0, reader unchanged */
+    rd.pos = 0; rd.remaining = 0x1000; rd.end = 0;
+    check(fn_036853("aa", 0, 1) == 0, "036853 a2==1 match -> ret 0");
+    check(rd.pos == 0 && rd.remaining == 0x1000, "036853 a2==1: no submit, reader unchanged");
+
+    /* no match: ret g_dat_633a0 (=2), reader unchanged */
+    rd.pos = 0; rd.remaining = 0x1000; rd.end = 0;
+    check(fn_036853("zz", 0, 0) == 2, "036853 no match -> ret g_dat_633a0=2");
+    check(rd.pos == 0 && rd.remaining == 0x1000, "036853 no match: reader unchanged");
+
+    /* entry1 a2==2: value = v2+v13+a1 = 0x40+0x200 = 0x240 -> exhaust */
+    rd.pos = 0; rd.remaining = 0x1000; rd.end = 0;
+    check(fn_036853("bb", 0, 2) == 0, "036853 entry1 a2==2 -> ret 0");
+    check(rd.pos == 0 && rd.remaining == 0, "036853 entry1 a2==2: value=0x240 -> exhaust");
+    g_639b8 = NULL;
+}
+
 static void test_fn_0367c9(void) {
     printf("fn_0367c9 (0x0367c9, resource lookup by name -> fn_04247a submit)\n");
 
@@ -5246,6 +5289,7 @@ int main(void) {
     test_fn_034aba();
     test_fn_03ba2c();
     test_fn_034990();
+    test_fn_036853();
     test_fn_0367c9();
     test_fn_042717();
     test_fn_03d999();

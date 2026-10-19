@@ -1759,6 +1759,30 @@ int32_t fn_0367c9(const char *a0) {
     return 0;
 }
 
+/* fn_036853 orig: 0x036853 (L10, 183B)
+ * Resource lookup by name with a value transform. Walk the g_tab_5d884 table
+ * (bound g_dat_633a0, 21-byte entries {str[13]; int32 value13@13; int32
+ * value2@17}). On the FIRST str_icmp match over str_len(a0) bytes (case-
+ * insensitive, prefix matches as in fn_036626), branch on a2:
+ *   a2==0: submit v = value2 + a1            to g_639b8, return fn_04247a result.
+ *   a2==2: submit v = value2 + value13 + a1  to g_639b8, return fn_04247a result.
+ *   else:  no submit, return 0.
+ * No match: return g_dat_633a0 (the loop's final i). Both submits use
+ * fn_04247a(r, v, mode=0) -- the str_len result in EBX is cleared (XOR EBX,EBX)
+ * before the call, so mode is 0. */
+int32_t fn_036853(const char *a0, int32_t a1, int32_t a2) {
+    int32_t len = (int32_t)str_len(a0);
+    for (uint32_t i = 0; i < g_dat_633a0; i++) {
+        const uint8_t *e = g_tab_5d884 + i * 21;
+        if (str_icmp((const char *)e, a0, len) != 0) continue;   /* no match */
+        int32_t v13, v2; memcpy(&v13, e + 13, 4); memcpy(&v2, e + 17, 4);
+        if (a2 == 0)       return fn_04247a(g_639b8, v2 + a1, 0);
+        if (a2 == 2)       return fn_04247a(g_639b8, v2 + v13 + a1, 0);
+        return 0;   /* match but a2 not 0/2: no submit */
+    }
+    return (int32_t)g_dat_633a0;   /* no match: return count (loop's final i) */
+}
+
 /* res_consume  orig: 0x042438
  * Consume `amount` bytes from a chunked resource reader. Clears flag bit
  * 0x10 on entry. Success requires (end - pos) <= amount <= remaining:

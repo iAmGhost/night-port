@@ -1,0 +1,87 @@
+# 0x0487b0 (L2, 464 B) register-flow trace  --  IN PROGRESS (verify ABIs vs C ports before porting)
+
+## Invariants (VERIFIED against scratch/dis_0487b0.txt, 158 insns)
+ABI: `fn_0487b0(fx128 *a)` single-arg in-place. EAX=a at entry, `MOV EDI,EAX`.
+  fx128 = {lo@+0 u32, hi@+4 u32, exp@+8 u16}. Result written to a at 0x048972-77.
+Entry pushes (0x0487b0-b4): EDI, ESI, EDX, ECX, EBX  (all restored at 0x04897b-7f).
+  Then: ECX=0; a->exp := 0x3ffe (0x0487d0); flagword := (0 - 0x3ffe) = 0xffffc002 pushed to [ESP] (0x0487cf).
+  NOTE: [ESP] flagword is a SAVED-REG slot (PUSH/DEC/POP), track as a C local, NOT stack.
+
+## Phase 1 -- t1
+  ESI=0xbffe3ffe, ECX=0x80000000, EBX=0
+  t1 = r94a(a->lo, a->hi, EBX=0, ECX=0x80000000, ESI=0xbffe3ffe)   @0x0487e5  (ESI PRESERVED=0xbffe3ffe)
+
+## Phase 2 -- domain branch (on ORIGINAL a->hi/lo; a->exp was just set to 0x3ffe so the
+##          word-cmp @0x0487ea is always-equal, only hi/lo matter):
+  IF (a->hi==0xb504f333 && a->lo<=0xf9de6484)   [JBE@0x048801]  -> "small domain":
+      a->lo:=t1.lo; a->hi:=t1.hi; a->exp:=SI(0x3ffe);  flagword-- (DEC [ESP] @0x048826)
+  ELSE @0x048803:
+      ESI:=0xbffe3ffe;  t1 = r94a(a->lo,a->hi,0,0x80000000,0xbffe3ffe)  @0x048816 (SAME args -> same t1);
+      a NOT written (a stays {orig_lo,orig_hi,0x3ffe});  flagword unchanged.
+  Both branches leave: EAX:EDX=t1, ESI=0xbffe3ffe.
+
+## Phase 3 -- t2 (common, @0x048829)
+  PUSH EAX(t1.lo); PUSH EDX(t1.hi); PUSH ESI(0xbffe3ffe)      <-- these 3 are later POPped (see Phase 4)
+  SI:=a->exp(0x3ffe); DEC SI(->0x3ffd); ESI:=0x3ffd; ESI|=0x3ffe0000 -> ESI=0x3ffe3ffd
+  t2 = r94a(a->lo, a->hi, EBX=0, ECX=0x80000000, ESI=0x3ffe3ffd)   @0x04884a  (ESI preserved)
+
+## Phase 4 -- rb79 #1 (@0x04885c)
+  SHL ESI,16 (0x3ffe3ffd -> 0x3ffd0000)
+  POP EAX(=0xbffe3ffe); MOV SI,AX(=0x3ffe)  -> ESI=0x3ffd0000|0x3ffe=0x3ffd3ffe
+  POP EDX(=t1.hi);  POP EAX(=t1.lo)
+  rb79(EAX=t1.lo, EDX=t1.hi, ESI=0x3ffd3ffe, ECX=t2.hi, EBX=t2.lo)   -> (o_eax,o_edx,o_si)
+  [VERIFY rb79 return: EAX=o_eax, EDX=o_edx, SI=o_si; ESI high16 post-rb79 = ? (check C port)]
+
+## Phase 5 -- square + write a (@0x048870)
+  PUSH EAX(o_eax); PUSH EDX(o_edx); PUSH ESI
+  ECX:=ESI; SHL ESI,16; MOV SI,CX  -> ESI=(o_si<<16)|o_si
+  ECX:=o_edx; EBX:=o_eax            (EAX=o_eax, EDX=o_edx unchanged)
+  square = rd4e(EAX=o_eax, EDX=o_edx, EBX=o_eax, ECX=o_edx, ESI=(o_si<<16)|o_si)  @0x048870
+       = (o_edx:o_eax)^2  ;  ESI := rd4e returned exp (clobbers)
+  a->lo:=square.lo; a->hi:=square.hi; a->exp:=SI (rd4e exp)
+
+## Phase 6 -- two f4c poly-evals
+  f4c(EBX=3, ECX=tbl0x4872c) @0x048889 ; PUSH EAX/EDX/ESI
+  reload EAX=a->lo, EDX=a->hi, SI=a->exp ; f4c(EBX=2, ECX=tbl0x4870e) @0x0488a5
+       [VERIFY f4c register ABI: which of EAX/EDX/EBX/ECX/ESI = mant_lo/mant_hi/count/arr/exp_base -- check 0x048f4c disasm]
+  POP ECX; ROL ESI,16; MOV SI,CX; ROL ESI,16 ; POP ECX; POP EBX
+  rb79 #2 @0x0488b6  (args: EAX/EDX = f4c#2 result; ECX=a->hi? ; EBX=a->lo? ; ESI = juggling) [VERIFY]
+  EBX:=a->lo; ECX:=a->hi; ROL ESI,16; MOV SI,a->exp; ROL ESI,16
+  rd4e #2 @0x0488ca  (a = rd4e(..., EBX=a->lo, ECX=a->hi, ESI=juggled)) ; ESI=returned exp
+  ROL ESI,16; MOV SI,[ESP]; ROL ESI,16 ; ECX:=[ESP+4]; EBX:=[ESP+8]
+  rd4e #3 @0x0488e1  (EAX/EDX = rd4e#2 result, EBX=[ESP+8], ECX=[ESP+4], ESI=juggled) ; ESI=returned exp
+  ROL ESI,16; POP ECX; MOV SI,CX; ROL ESI,16 ; POP ECX; POP EBX
+  r94a @0x0488f2   (EAX/EDX = rd4e#3 result, EBX=?, ECX=?, ESI=juggled) -> EAX:EDX; [VERIFY EBX/ECX]
+
+## Phase 7 -- flag check
+  POP ECX (flagword); OR ECX,ECX; JZ 0x048972
+     flagword starts 0xffffc002, DEC'd ONLY in the IF (small-domain) branch -> 0xffffc001.
+     OR never zero either way, so JZ @0x0488fa is NOT taken in practice?? [VERIFY: does OR ECX,ECX
+     test 32-bit (never 0 here) or is there a low16/low-bit gate I'm missing? Re-examine the exact
+     semantics -- this decides whether Phase 8 ever runs.]
+
+## Phase 8 -- (if Phase 7 not JZ)
+  PUSH EAX/EDX/ESI; EDX:=EDI(a); EAX:=flagword; f0e(EAX=flagword, EDX=a) @0x048903
+       [f0e = fx_from_s32-style sign thunk; VERIFY effect/ABI]
+  EAX:=a->lo; EDX:=a->hi; SI:=a->exp; ESI&=0xffff; ESI|=0xbff20000
+  rd4e #4 (EBX=0x865435c, ECX=0xde8082e3, ESI=juggled) @0x048927
+  POP ECX; ROL ESI,16; MOV SI,CX; ROL ESI,16; POP ECX; POP EBX
+  r94a @0x048938
+  PUSH EAX/EDX/ESI; EAX:=a->lo; EDX:=a->hi; SI:=a->exp; ESI&=0xffff; ESI|=0x3ffe0000
+  rd4e #5 (EBX=0, ECX=0xb1800000, ESI=juggled) @0x04895c
+  POP ECX; ROL ESI,16; MOV SI,CX; ROL ESI,16; POP ECX; POP EBX
+  r94a @0x04896d
+
+## Phase 9 -- store
+  a->lo:=EAX; a->hi:=EDX; a->exp:=SI   @0x048972-77
+  POP EBX/ECX/EDX/ESI/EDI; RET
+
+## TODO before C port (fresh context, full budget)
+  1. Nail f4c / rb79 / rd4e / r94a register ABIs (from 0x048f4c disasm + C ports = source of truth).
+  2. Resolve Phase-7 JZ semantics (does Phase 8 ever run? what gates it?).
+  3. Build scratch/fp_0487b0_ref.py composing verified r94a/rb79/rd4e + ported f4c/f0e, register-faithful.
+  4. Generate diff vectors; asm-mirror C `fn_0487b0`; add coeff tables g_coeff_4870e / g_coeff_4872c.
+
+## Coeff tables (raw LE, 10B fx128 {lo,hi,exp})
+  0x4870e (2): {0xb5e946e9,0xca20ad9a,0xbffe}, {0xb57f6509,0x83125100,0x4003}
+  0x4872c (3): {0,0,0xff80}, {0x7076bb3f,0xac025b3e,0x048e}, {0x33ef60c0,0x041fd0a9,0x079c}

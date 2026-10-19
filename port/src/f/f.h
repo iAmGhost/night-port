@@ -950,9 +950,12 @@ uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
 /* 0x048f4c: register-ABI. acc=arr[0] (lo:hi); loop `count` times: acc =
  * fn_04794a(fx_mul64(acc, mant, (exp_base<<16)|arr[0].exp), arr[i+1],
  * (arr[i+1].exp<<16)|arr[0].exp). Returns final (EDX<<32)|EAX. Reg-ABI: EAX=mant_lo,
- * EDX=mant_hi, EBX=count, ECX=arr, ESI=exp_base (low16). */
+ * EDX=mant_hi, EBX=count, ECX=arr, ESI=exp_base (low16). out_final_esi (optional,
+ * may be NULL) receives the loop's final 32-bit ESI (after the last iteration's ROL);
+ * callers (e.g. fn_0487b0) re-derive it via PUSH/POP. Only its low16 survives the
+ * caller juggle, but the full 32b is exposed to mirror the register. */
 uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
-                   const fx128 *arr, uint32_t exp_base);                  /* 0x048f4c */
+                   const fx128 *arr, uint32_t exp_base, uint32_t *out_final_esi); /* 0x048f4c */
 /* 0x048f2c: register-ABI in-place. a = 048f4c(a, arr, count, exp=a->exp); a->exp
  * unchanged. EAX=a (in/out {lo,hi,exp}), EDX=arr, EBX=count. */
 void fn_048f2c(fx128 *a, const fx128 *arr, uint32_t count);               /* 0x048f2c */
@@ -963,6 +966,7 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr);               /* 0x0
  * EAX=a (in/out). Sign/normalize op (b=0x80000000_00000000, exp_hi=0x3fff). */
 void fn_048754(fx128 *a);                                                  /* 0x048754 */
 void fn_048422(fx128 *a);                                                  /* 0x048422: FPU/fx128 composite (354B) */
+void fn_0487b0(fx128 *a);                                                  /* 0x0487b0: FPU/fx128 composite (464B) */
 void     fx_stub_4a923(void);                                             /* 0x4a923 */
 void     fx_round_down(uint32_t *v, uint16_t mode);                       /* 0x481df */
 

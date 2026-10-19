@@ -3,6 +3,7 @@
  * cross-checked against the disassembly (scratch/batch1_asm*.txt).
  * Semantics: docs/12-functions/primitives.md */
 #include <stdio.h>
+#include <stdlib.h>
 #include "f.h"
 #include "../sys/sys.h"
 #include <math.h>
@@ -6635,7 +6636,7 @@ void fn_04791a(fx128 *a, fx128 *out, uint32_t b_lo, uint32_t b_hi, uint32_t exp_
  * Faithful mirror of the 32-instruction disasm (verified ESI trace matches
  * fx_mul64<-ESI=(E0<<16)|arr[0].exp every iter, fn_04794a<-ESI=(arr[i+1].exp<<16)|arr[0].exp). */
 uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
-                   const fx128 *arr, uint32_t exp_base)
+                   const fx128 *arr, uint32_t exp_base, uint32_t *out_final_esi)
 {
     uint32_t EAX = arr[0].lo, EDX = arr[0].hi;
     uint32_t ESI = (uint32_t)arr[0].exp;      /* 048f5e: MOV SI,[arr[0]+8], high16=0 */
@@ -6652,6 +6653,7 @@ uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
         uint64_t r = fn_04794a(EAX, EDX, arr[i+1].lo, arr[i+1].hi, ESI); /* 048f8d */
         EAX = (uint32_t)r; EDX = (uint32_t)(r >> 32);
     }
+    if (out_final_esi) *out_final_esi = ESI;   /* final 32-bit ESI (post last ROL) */
     return ((uint64_t)EDX << 32) | EAX;
 }
 
@@ -6661,7 +6663,7 @@ uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
  * SI is written back verbatim). */
 void fn_048f2c(fx128 *a, const fx128 *arr, uint32_t count)
 {
-    uint64_t r = fn_048f4c(a->lo, a->hi, count, arr, (uint32_t)a->exp);
+    uint64_t r = fn_048f4c(a->lo, a->hi, count, arr, (uint32_t)a->exp, NULL);
     a->lo = (uint32_t)r;
     a->hi = (uint32_t)(r >> 32);
 }
@@ -6674,10 +6676,133 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr)
 {
     uint32_t esi = ((uint32_t)a->exp << 16) | (uint32_t)a->exp;
     uint64_t r = fx_mul64(a->lo, a->hi, a->lo, a->hi, esi);        /* R = a^2 */
-    uint64_t s = fn_048f4c((uint32_t)r, (uint32_t)(r >> 32), count, arr, (uint32_t)a->exp);
+    uint64_t s = fn_048f4c((uint32_t)r, (uint32_t)(r >> 32), count, arr, (uint32_t)a->exp, NULL);
     uint64_t t = fx_mul64((uint32_t)s, (uint32_t)(s >> 32), a->lo, a->hi, esi); /* t = s * a */
     a->lo = (uint32_t)t;
     a->hi = (uint32_t)(t >> 32);
+}
+
+/* 0x4872c / 0x4870e coefficient tables (10-byte fx128 entries) for fn_0487b0,
+ * extracted byte-for-byte from NIGHT.EXE (file offset = RVA - 0x2600). 0x4872c:
+ * 4 entries (f4c count=3 -> arr[0..3]); 0x4870e: 3 entries (count=2 -> arr[0..2]).
+ * 0x4872c[0] is the zero/exp-0x3fff sentinel (byte-identical to g_coeff_48312[8]). */
+static const fx128 g_coeff_4872c[4] = {
+    {0x00000000u, 0x80000000u, 0x3fff},
+    {0x3e7076bbu, 0x8eac025bu, 0xc004},
+    {0xa933ef60u, 0x9c041fd0u, 0x4007},
+    {0x6c83bb96u, 0xc05ff4e0u, 0xc008},
+};
+static const fx128 g_coeff_4870e[3] = {
+    {0xb5e946e9u, 0xca20ad9au, 0xbffe},
+    {0xb57f6509u, 0x83125100u, 0x4003},
+    {0x9dacd228u, 0x803ff895u, 0xc005},
+};
+
+/* ROL ESI,16; MOV SI,src_low16; ROL ESI,16 -- the ESI re-derivation idiom the
+ * 0x0487b0 disasm repeats after each callee clobbers ESI. (Callees return only
+ * low16 of their post-call ESI via o_si/out_final_esi; the high16 is always
+ * washed out by the MOV SI,src step, so low16 suffices for a faithful result.) */
+static uint32_t jb70_juggle(uint32_t esi, uint32_t src)
+{
+    esi = (esi << 16) | (esi >> 16);
+    esi = (esi & 0xffff0000u) | (src & 0xffffu);
+    return (esi << 16) | (esi >> 16);
+}
+
+/* 0x0487b0 (L2, 464B, 158 insns): in-place fx128 transform. Faithful mirror of
+ * scratch/fp_0487b0_ref.py (trace-faithful to scratch/dis_0487b0.txt). 16 callee
+ * calls: r94a x6, rb79 x2, rd4e x5, f4c x2, f0e x1. ESI is tracked literally (each
+ * callee clobbers it; re-derived via jb70_juggle / [ESP] reads). flagword =
+ * orig_exp - 0x3ffe (else) / -0x3fff (if, DEC [ESP]); the JZ short path (fw==0)
+ * stores {r3}; otherwise the f0e block (fx_from_s32) runs and result is {r5}. */
+void fn_0487b0(fx128 *a)
+{
+    uint32_t alo = a->lo, ahi = a->hi;
+    uint32_t orig_exp = a->exp & 0xffffu;
+
+    /* 0x0487b5-0x0487cf: fw = orig_exp - 0x3ffe (32-bit wrap); a.exp <- 0x3ffe */
+    uint32_t fw = orig_exp - 0x3ffeu;
+    uint32_t aexp = 0x3ffe;
+
+    /* 0x0487d4-0x0487e5: R = r94a(a, 0, 0x80000000, 0xbffe3ffe) */
+    uint64_t r = fn_04794a(alo, ahi, 0, 0x80000000u, 0xbffe3ffeu);
+    uint32_t Rlo = (uint32_t)r, Rhi = (uint32_t)(r >> 32);
+
+    /* 0x0487ea-0x048826: if-branch iff (hi==0xb504f333 && lo<=0xf9de6484) */
+    if (ahi == 0xb504f333u && alo <= 0xf9de6484u) {
+        alo = Rlo; ahi = Rhi; aexp = 0x3ffe;
+        fw = fw - 1u;                       /* 0x048826 DEC [ESP] */
+    }
+
+    /* 0x048829-0x04884a: t2 = r94a(a, 0, 0x80000000, 0x3ffe3ffd) */
+    r = fn_04794a(alo, ahi, 0, 0x80000000u, 0x3ffe3ffdu);
+    uint32_t t2lo = (uint32_t)r, t2hi = (uint32_t)(r >> 32);
+
+    /* 0x04884f-0x04885c: o = rb79(R, 0x3ffd3ffe, t2) */
+    uint32_t olo, ohi; uint16_t oesi;
+    fn_047b79(Rlo, Rhi, 0x3ffd3ffeu, t2hi, t2lo, &olo, &ohi, &oesi);
+
+    /* 0x048861-0x04887a: a = rd4e(o, o, (oesi<<16)|oesi) */
+    fx64_t o; fn_047d4e(olo, ohi, olo, ohi, ((uint32_t)oesi << 16) | (uint32_t)oesi, &o);
+    alo = o.lo; ahi = o.hi; aexp = o.exp & 0xffffu;
+
+    /* 0x04887e-0x0488a5: f4c#1 = f4c(a,3,0x4872c,a.exp); f4c#2 = f4c(a,2,0x4870e,a.exp) */
+    uint32_t f4c1esi, f4c2esi;
+    uint64_t f1 = fn_048f4c(alo, ahi, 3, g_coeff_4872c, aexp, &f4c1esi);
+    uint32_t f4c1lo = (uint32_t)f1, f4c1hi = (uint32_t)(f1 >> 32);
+    uint64_t f2 = fn_048f4c(alo, ahi, 2, g_coeff_4870e, aexp, &f4c2esi);
+    uint32_t f4c2lo = (uint32_t)f2, f4c2hi = (uint32_t)(f2 >> 32);
+
+    /* 0x0488aa-0x0488b6: o2 = rb79(f4c2, juggle(f4c2esi,f4c1esi), f4c1) */
+    uint32_t esi_j = jb70_juggle(f4c2esi, f4c1esi);
+    uint32_t o2lo, o2hi; uint16_t o2esi;
+    fn_047b79(f4c2lo, f4c2hi, esi_j, f4c1hi, f4c1lo, &o2lo, &o2hi, &o2esi);
+
+    /* 0x0488bb-0x0488ca: m2 = rd4e(o2, a, juggle(o2esi, a.exp)) */
+    esi_j = jb70_juggle(o2esi, aexp);
+    fn_047d4e(o2lo, o2hi, alo, ahi, esi_j, &o);
+    uint32_t m2lo = o.lo, m2hi = o.hi, m2exp = o.exp;
+
+    /* 0x0488cf-0x0488e1: m3 = rd4e(m2, o, juggle(m2exp, oesi)) */
+    esi_j = jb70_juggle(m2exp, oesi);
+    fn_047d4e(m2lo, m2hi, olo, ohi, esi_j, &o);
+    uint32_t m3lo = o.lo, m3hi = o.hi, m3exp = o.exp;
+
+    /* 0x0488e6-0x0488f2: r3 = r94a(m3, o, juggle(m3exp, oesi)) */
+    esi_j = jb70_juggle(m3exp, oesi);
+    r = fn_04794a(m3lo, m3hi, olo, ohi, esi_j);
+    uint32_t r3lo = (uint32_t)r, r3hi = (uint32_t)(r >> 32);
+
+    /* 0x0488f7-0x0488fa: JZ (fw==0) -> short path {r3} */
+    if (fw == 0) {
+        a->lo = r3lo; a->hi = r3hi; a->exp = esi_j & 0xffffu;
+        return;
+    }
+
+    /* 0x0488fc-0x048903: a = fx_from_s32(fw) (f0e) */
+    struct fxnum fn; fx_from_s32(&fn, (int32_t)fw);
+    alo = fn.lo; ahi = fn.hi; aexp = fn.exp & 0xffffu;
+
+    /* 0x04890d-0x048927: c1 = rd4e(a, 0x865435c, 0xde8082e3, a.exp|0xbff20000) */
+    fn_047d4e(alo, ahi, 0x0865435cu, 0xde8082e3u, (aexp & 0xffffu) | 0xbff20000u, &o);
+    uint32_t c1lo = o.lo, c1hi = o.hi, c1exp = o.exp;
+
+    /* 0x04892c-0x048938: r4 = r94a(c1, r3, juggle(c1exp, m3exp)) [ESI_p3 low16=m3exp low16] */
+    esi_j = jb70_juggle(c1exp, m3exp);
+    r = fn_04794a(c1lo, c1hi, r3lo, r3hi, esi_j);
+    uint32_t r4lo = (uint32_t)r, r4hi = (uint32_t)(r >> 32);
+
+    /* 0x048940-0x04895c: c2 = rd4e(a, 0, 0xb1800000, a.exp|0x3ffe0000) */
+    fn_047d4e(alo, ahi, 0, 0xb1800000u, (aexp & 0xffffu) | 0x3ffe0000u, &o);
+    uint32_t c2lo = o.lo, c2hi = o.hi, c2exp = o.exp;
+
+    /* 0x048961-0x04896d: r5 = r94a(c2, r4, juggle(c2exp, c1exp)) [ESI_p4 low16=c1exp low16] */
+    esi_j = jb70_juggle(c2exp, c1exp);
+    r = fn_04794a(c2lo, c2hi, r4lo, r4hi, esi_j);
+    uint32_t r5lo = (uint32_t)r, r5hi = (uint32_t)(r >> 32);
+
+    /* 0x048972-0x048977: a = {r5, c2exp_low16} */
+    a->lo = r5lo; a->hi = r5hi; a->exp = esi_j & 0xffffu;
 }
 
 /* 0x048754: register-ABI in-place wrapper. a = fn_04791a(a, a, 0, 0x80000000,
@@ -6861,8 +6986,8 @@ void fn_047d4e(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi, uint3
     { uint32_t t=ESI; ESI=ECX; ECX=t; }
     EDI=ECX;                                        /* 0x047d7a MOV EDI,ECX */
     EDI=((EDI<<16)|(EDI>>16));                       /* 0x047d7c ROL EDI,16 */
-    { uint32_t x=EDI>>16; EDI=(x&0x8000u)?(0x10000u+x)-0x10000u:x; EDI&=0xffffffffu; } /* 0x047d7f SAR EDI,16 */
-    { uint32_t x=ECX>>16; ECX=(x&0x8000u)?(0x10000u+x)-0x10000u:x; ECX&=0xffffffffu; } /* 0x047d82 SAR ECX,16 */
+    { uint32_t x=EDI>>16; EDI=(x&0x8000u)?(x-0x10000u):x; } /* 0x047d7f SAR EDI,16 (arith sign-extend) */
+    { uint32_t x=ECX>>16; ECX=(x&0x8000u)?(x-0x10000u):x; } /* 0x047d82 SAR ECX,16 (arith sign-extend) */
     EDI &= 0x80007fffu; ECX &= 0x80007fffu;         /* 0x047d85/8b AND */
     { uint32_t r=ECX+EDI; CF=(r<ECX)?1u:0u; ECX=r; }/* 0x047d91 ADD ECX,EDI */
     { uint32_t lo=ECX&0xffffu; CF=(lo<0x3feu)?1u:0u; uint32_t cx=(lo-0x3feu)&0xffffu; ECX=(ECX&0xffff0000u)|cx; } /* 0x047d93 SUB CX,0x3fe */

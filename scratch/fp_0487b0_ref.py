@@ -42,7 +42,7 @@ def _fx_normalize(v, expbase):
     v = m32(v)
     if v == 0:
         return (0, 0, 0)
-    p = 31 - v.bit_length() + 1                   # BSR: MSB bit position
+    p = v.bit_length() - 1                        # BSR: MSB bit position (== fx_normalize 31-__builtin_clz)
     norm = (v << (31 - p)) & M32
     return (norm, norm, (p + expbase) & 0xffff)   # lo=hi=norm, exp=p+base
 

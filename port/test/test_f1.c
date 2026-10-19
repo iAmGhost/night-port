@@ -1321,6 +1321,22 @@ static void test_fx_mul64(void) {
           "deterministic");
 }
 
+/* 0x047d4e SAR16 regression (0x047d7f / 0x047d82). The original does SAR (arithmetic)
+ * on the two 16-bit halves of the exp field; a logical shift (the earlier C: 
+ * (0x10000+x)-0x10000 == x) drops the sign extension and corrupts out->exp bit15
+ * whenever the exp high-16 has bit15 set. Locks the fix with two sign-bit inputs
+ * (values taken from the 0x0487b0 blk2/blk3 rd4e calls, verified vs fp_047d4e_ref). */
+static void test_fn_047d4e_sar16(void) {
+    printf("== fn_047d4e SAR16 (0x047d7f/82 arith sign-extend) regression ==\n");
+    fx64_t o;
+    fn_047d4e(0x80000000u, 0x80000000u, 0x0865435cu, 0xde8082e3u, 0xbff23fffu, &o);
+    check(o.lo == 0xe6e5c63fu && o.hi == 0xde8082e3u && (o.exp & 0xffffu) == 0xfbf2u,
+          "sign-bit exp: lo=e6e5c63f hi=de8082e3 exp=fbf2 (was exp=7bf2, logical-shift bug)");
+    fn_047d4e(0xfff40000u, 0xfff40000u, 0u, 0xb1800000u, (0xc00cu & 0xffffu) | 0x3ffe0000u, &o);
+    check(o.lo == 0xb177ae00u && o.hi == 0xb177ae00u && (o.exp & 0xffffu) == 0xfc0cu,
+          "sign-bit exp c2: lo=b177ae00 hi=b177ae00 exp=fc0c (was exp=7c0c)");
+}
+
 static void test_fx_stub_4a923(void) {
     printf("== fx_stub_4a923 (L0: no-op stub 0x04a923) ==\n");
     /* Disassembly-verified no-op: CALL 0x4a9d8 (POP EDI; RET) returns to the
@@ -2757,14 +2773,14 @@ static void test_fn_048f4c(void) {
     uint32_t esi1 = o0.exp; esi1 = (esi1<<16)|(esi1>>16);   /* 048f82 ROL */
     esi1 = (esi1&0xffff0000u)|A1; esi1 = (esi1<<16)|(esi1>>16); /* 048f85/048f8a */
     uint64_t S0 = fn_04794a(o0.lo, o0.hi, arr[1].lo, arr[1].hi, esi1);
-    if (fn_048f4c(mant_lo, mant_hi, 1, arr, exp_base) != S0) { fail++; printf("  count=1 mismatch\n"); }
+    if (fn_048f4c(mant_lo, mant_hi, 1, arr, exp_base, NULL) != S0) { fail++; printf("  count=1 mismatch\n"); }
 
     /* count=2: 2nd rd4e ESI from ESI preserved by r94a (=esi1); then r94a ESI from o1.exp. */
     uint32_t e2 = esi1; e2 = (e2<<16)|(e2>>16); e2 = (e2&0xffff0000u)|E0; e2 = (e2<<16)|(e2>>16); /* 048f63-6a */
     fx64_t o1; fn_047d4e((uint32_t)S0, (uint32_t)(S0>>32), mant_lo, mant_hi, e2, &o1);
     uint32_t esi2 = o1.exp; esi2 = (esi2<<16)|(esi2>>16); esi2 = (esi2&0xffff0000u)|A2; esi2 = (esi2<<16)|(esi2>>16);
     uint64_t S1 = fn_04794a(o1.lo, o1.hi, arr[2].lo, arr[2].hi, esi2);
-    if (fn_048f4c(mant_lo, mant_hi, 2, arr, exp_base) != S1) { fail++; printf("  count=2 mismatch\n"); }
+    if (fn_048f4c(mant_lo, mant_hi, 2, arr, exp_base, NULL) != S1) { fail++; printf("  count=2 mismatch\n"); }
 
     printf("fn_048f4c (0x048f4c, fn_047d4e+fn_04794a loop): %s\n", fail ? "FAIL" : "PASS");
     check(fail == 0, "  count=1,2 match hand-sequenced fn_047d4e/fn_04794a with rd4e-returned ESI");
@@ -2779,14 +2795,14 @@ static void test_fn_048f2c_048f9e(void) {
     uint32_t count = 2;
 
     fx128 a = a0;
-    uint64_t r = fn_048f4c(a0.lo, a0.hi, count, arr, a0.exp);
+    uint64_t r = fn_048f4c(a0.lo, a0.hi, count, arr, a0.exp, NULL);
     fn_048f2c(&a, arr, count);
     if (a.lo != (uint32_t)r || a.hi != (uint32_t)(r >> 32) || a.exp != a0.exp) { fail++; printf("  048f2c mismatch\n"); }
 
     fx128 b = a0;
     uint32_t esi = ((uint32_t)a0.exp << 16) | (uint32_t)a0.exp;
     uint64_t r2 = fx_mul64(a0.lo, a0.hi, a0.lo, a0.hi, esi);
-    uint64_t s  = fn_048f4c((uint32_t)r2, (uint32_t)(r2 >> 32), count, arr, a0.exp);
+    uint64_t s  = fn_048f4c((uint32_t)r2, (uint32_t)(r2 >> 32), count, arr, a0.exp, NULL);
     uint64_t t  = fx_mul64((uint32_t)s, (uint32_t)(s >> 32), a0.lo, a0.hi, esi);
     fn_048f9e(&b, count, arr);
     if (b.lo != (uint32_t)t || b.hi != (uint32_t)(t >> 32) || b.exp != a0.exp) { fail++; printf("  048f9e mismatch\n"); }
@@ -3523,6 +3539,40 @@ static void test_fn_048422(void) {
     }
     printf("fn_048422 (0x048422, FPU/fx128 composite, %d diff vectors): %s\n", n, fail ? "FAIL" : "PASS");
     check(fail == 0, "  all vectors match Python reference fp_048422_ref.py");
+}
+
+static void test_fn_0487b0(void) {
+    /* 0x0487b0 differential vectors from scratch/fp_0487b0_ref.py (fixed ref, trace-
+     * faithful to scratch/dis_0487b0.txt). Covers all 4 (branch, path) combos:
+     * if/else (magic-hi compare) x jz(fw==0 short path)/f0e(fx_from_s32 path). */
+    struct { uint32_t lo, hi; uint16_t exp; uint32_t elo, ehi; uint16_t eexp; } V[] = {
+        {0x12345678,0xabcdef90,0x2000, 0xb174e748,0xb16a7222,0xfc0b}, /* else/f0e */
+        {0x12345678,0xabcdef90,0x3ffe, 0x00000000,0x00000000,0x0000}, /* else/jz  */
+        {0x12345678,0xabcdef90,0x3fff, 0xb17fff1a,0xb171a322,0x7bfe}, /* else/f0e */
+        {0x00000001,0x00000000,0x0001, 0xb177ad3c,0xb1743e22,0xfc0c}, /* else/f0e */
+        {0xdeadbeef,0xcafebabe,0x7fff, 0xb182c50e,0xb17b6f22,0x7c0c}, /* else/f0e */
+        {0x00000001,0xb504f333,0x2000, 0xb17a7331,0xb16e0b22,0xfc0b}, /* if/f0e   */
+        {0x00000001,0xb504f333,0x3fff, 0x00000000,0x00000000,0x0000}, /* if/jz    */
+        {0xf9de6484,0xb504f333,0x3000, 0xb174e748,0xb16a7222,0xfc0a}, /* if/f0e lo==th */
+        {0xf9de6485,0xb504f333,0x2000, 0xb174e748,0xb16a7222,0xfc0b}, /* else lo>th */
+        {0x00000002,0xb504f333,0x4000, 0xb17fff1a,0xb171a322,0x7bfe}, /* if/f0e   */
+        {0x00000003,0xb504f332,0x2000, 0xb174e748,0xb16a7222,0xfc0b}, /* else hi-1 */
+        {0x00000000,0x00000000,0x1000, 0x851a732a,0x8519a25a,0xfc0c}, /* else zero */
+        {0xffffffff,0xffffffff,0x0000, 0xb17a7331,0xb16e0b22,0xfc0c}, /* else ones */
+        {0xf9de6484,0xb504f333,0x3fff, 0x00000000,0x00000000,0x0000}, /* if/jz lo==th */
+    };
+    int fail = 0, n = (int)(sizeof(V)/sizeof(V[0]));
+    for (int i = 0; i < n; i++) {
+        fx128 a = { V[i].lo, V[i].hi, V[i].exp };
+        fn_0487b0(&a);
+        if (a.lo != V[i].elo || a.hi != V[i].ehi || a.exp != V[i].eexp) {
+            fail++;
+            printf("  vec %d (in 0x%08x,0x%08x,0x%04x): got 0x%08x,0x%08x,0x%04x want 0x%08x,0x%08x,0x%04x\n",
+                   i, V[i].lo, V[i].hi, V[i].exp, a.lo, a.hi, a.exp, V[i].elo, V[i].ehi, V[i].eexp);
+        }
+    }
+    printf("fn_0487b0 (0x0487b0, FPU/fx128 composite, %d diff vectors): %s\n", n, fail ? "FAIL" : "PASS");
+    check(fail == 0, "  all vectors match Python reference fp_0487b0_ref.py");
 }
 
 static void test_fn_03c65b(void) {
@@ -5791,6 +5841,7 @@ int main(void) {
     test_fx_compare();
     test_fx_classify_status();
     test_fx_mul64();
+    test_fn_047d4e_sar16();
     test_fx_stub_4a923();
     test_fx_round_down();
     test_string_upper();
@@ -5890,6 +5941,7 @@ int main(void) {
     test_fn_040660_0406f5();
     test_fn_048754();
     test_fn_048422();
+    test_fn_0487b0();
     test_fn_04836c();
     test_fn_03c65b();
     test_fn_048e60();

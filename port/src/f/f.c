@@ -3924,6 +3924,46 @@ static inline void     node_len_set(uint32_t o, int16_t v){ uint8_t*p=s_node_are
 static inline uint8_t  node_flag_get(uint32_t o){  return s_node_arena[o+10]; }
 static inline void     node_flag_set(uint32_t o, uint8_t v){ s_node_arena[o+10]=v; }
 
+/* ---- Video-RAM model (flat 0xa0000 VGA graphics segment) ----
+ * The original renders into the VGA video segment at flat 0xa0000 (DAT_000a0000).
+ * The flat 64-bit port has no such segment, so we model the 64 KB video window
+ * [0xa0000, 0xb0000) as an explicit buffer. A flat video address va maps to
+ * g_video_ram[va - 0xa0000]. This unblocks the video-flatten consumer (0x03c65b)
+ * and the blit family. Out-of-window va is clamped to the buffer base (defensive;
+ * real game stays within the window). */
+#define VIDEO_BASE   0xa0000u
+#define VIDEO_SIZE   0x10000u
+uint8_t g_video_ram[VIDEO_SIZE];
+static inline uint8_t *video_map(uint32_t va) {
+    uint32_t off = va - VIDEO_BASE;
+    if (off >= VIDEO_SIZE) off = 0;
+    return g_video_ram + off;
+}
+
+/* 0x03c65b (L10, 143 B): video flatten. EAX = a0 (packed-records dest buffer).
+ * For each of the 200 interval lists (i = 0..0xc7) seeded at fn_034990, walk the
+ * node chain from g_dat_62d68[i], mem_copy(node->start video RAM, node->len bytes)
+ * into the growing dest record, advancing the in-record offset by node->len, until
+ * the record is 0x140 bytes full; then advance the dest by 0x140 (one record per
+ * list). node->start is a flat video address (0xa0000 base) mapped via video_map.
+ * Both callees (canary, mem_copy) ported. Canary PUSH 0x2c. */
+void fn_03c65b(uint8_t *a0) {
+    (void)canary_id(0, 0x2c);
+    uint8_t *out = a0;
+    for (uint32_t i = 0; i < 0xc8; i++) {
+        uint32_t cur = g_dat_62d68[i];
+        int32_t   off = 0;
+        while (off < 0x140) {
+            int32_t  len   = node_len_get(cur);      /* MOVSX EBX,word[cur+8] */
+            uint32_t start = (uint32_t)node_start_get(cur); /* dword[cur+0] video addr */
+            mem_copy(out + off, video_map(start), (uint32_t)len);
+            off += len;
+            cur = node_next_get(cur);                /* dword[cur+4] */
+        }
+        out += 0x140;
+    }
+}
+
 uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */
 uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
 uint32_t g_dat_40014 = 0, g_dat_40018 = 0, g_dat_4001c = 0, g_dat_40020 = 0;

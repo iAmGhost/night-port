@@ -3520,6 +3520,25 @@ static void test_fn_048422(void) {
     check(fail == 0, "  all vectors match Python reference fp_048422_ref.py");
 }
 
+static void test_fn_03c65b(void) {
+    /* fn_03c65b (0x03c65b): video flatten. Seeds 200 lists (fn_034990 -- every head
+     * node has start=0xa0000, len=0x140), sets the new video-RAM model to a known
+     * pattern, then flattens. Verifies video_map(0xa0000)=g_video_ram and the full
+     * 200-list flatten loop: each 0x140-byte record i == g_video_ram[0..0x13f]. */
+    for (uint32_t j = 0; j < 0x10000; j++) g_video_ram[j] = (uint8_t)(j * 7 + 1);
+    memset(g_dat_62d68, 0, sizeof(g_dat_62d68));
+    fn_034990();
+    uint8_t dest[0x17000];
+    memset(dest, 0xCC, sizeof(dest));
+    fn_03c65b(dest);
+    int ok0 = 1; for (int j = 0; j < 0x140; j++) if (dest[j] != g_video_ram[j]) { ok0 = 0; break; }
+    check(ok0, "03c65b rec0 == video[0..0x13f]");
+    int ok1 = 1; for (int j = 0; j < 0x140; j++) if (dest[100*0x140 + j] != g_video_ram[j]) { ok1 = 0; break; }
+    check(ok1, "03c65b rec100 == video[0..0x13f]");
+    int ok2 = 1; for (int j = 0; j < 0x140; j++) if (dest[199*0x140 + j] != g_video_ram[j]) { ok2 = 0; break; }
+    check(ok2, "03c65b rec199 == video[0..0x13f]");
+}
+
 static void test_fn_04836c(void) {
     /* fn_04836c: out = a OP b (via fn_047b4f) with zero/inf special cases + sign
      * post-scale. The main path (both nonzero) underflows to 0 for typical inputs;
@@ -5867,6 +5886,7 @@ int main(void) {
     test_fn_048754();
     test_fn_048422();
     test_fn_04836c();
+    test_fn_03c65b();
     test_fn_048e60();
     test_fn_0485eb();
     test_fn_048585();

@@ -2936,6 +2936,38 @@ int32_t fn_042928(uint8_t *node) {
     return r - field4;                                             /* 0x042950-52 */
 }
 
+/* 0x04285c (L6, 136 B): io_state / node destructor. a0 = node (real ptr), a1 = close flag (EDI).
+ *   if (*(u32*)(a0+0xc) == 0) return -1;          // gate: flags dword
+ *   esi = 0;
+ *   if (a0[0xd] & 0x10) esi = fn_044748(a0);      // flush (F13 bit4)
+ *   r = fn_042928(a0);                            // lseek-offset compute
+ *   if (r != -1) fn_044807(a0->0x10, r, 0);       // lseek(handle, r, whence=0)
+ *   if (a1) esi |= fn_044bec(a0->0x10);           // close handle
+ *   if (a0[0xc] & 0x8) { heap_free_host(a0->0x8); a0->0x8 = 0; }   // free region
+ *   if (a0[0xd] & 0x8) { tmp_filename(buf, a0[0x19]); fn_044c1e(buf); } // delete temp file
+ *   return esi;
+ * All callees are ported; the sys file ops (lseek/close/delete) are no-ops in the flat
+ * model, so the observable effects are the return value (esi) and the a0->0x8 nulling.
+ * a0->0x8 holds a heap offset (heap_free_host takes an offset, cf. 0x034eb0). */
+int32_t fn_04285c(uint8_t *a0, int32_t a1) {
+    if (*(uint32_t *)(a0 + 0xc) == 0) return -1;        /* 0x42867-72 */
+    int32_t esi = 0;
+    if (a0[0xd] & 0x10) esi = fn_044748((io_state_t *)a0);  /* 0x42879-85 */
+    int32_t r = fn_042928(a0);                          /* 0x42887-8e */
+    if (r != -1) fn_044807(*(uint32_t *)(a0 + 0x10), r, 0); /* 0x42890-9a */
+    if (a1 != 0) esi |= fn_044bec(*(uint32_t *)(a0 + 0x10)); /* 0x4289f-ab */
+    if (a0[0xc] & 0x8) {                                /* 0x428ad-b1 */
+        heap_free_host(*(uint32_t *)(a0 + 0x8));        /* 0x428b3-b6 */
+        *(uint32_t *)(a0 + 0x8) = 0;                    /* 0x428bb */
+    }
+    if (a0[0xd] & 0x8) {                                /* 0x428c2-c6 */
+        char buf[0x10];
+        tmp_filename(buf, a0[0x19]);                    /* 0x428c8-cf */
+        fn_044c1e(buf);                                 /* 0x428d4-d6 */
+    }
+    return esi;                                          /* 0x428db */
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

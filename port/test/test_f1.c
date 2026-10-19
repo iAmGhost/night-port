@@ -4891,6 +4891,44 @@ static void test_fn_045bb7(void) {
     check(1, "  fail path: r==-1 && g_dat_64008==5 (3 sizes)");
 }
 
+static void test_fn_04285c(void) {
+    printf("fn_04285c (0x04285c, io_state/node destructor)\n");
+    /* s1: gate fail (a0->0xc dword == 0) -> -1 */
+    {
+        uint8_t s[0x20] = {0};
+        check(fn_04285c(s, 1) == -1, "04285c s1: gate fail (a0->0xc==0) -> -1");
+    }
+    /* s2: minimal (a0[0xc]=1, a0[0xd]=0, a1=0) -> esi=0; a0->0x8 untouched */
+    {
+        uint8_t s[0x20] = {0};
+        s[0xc] = 1;
+        s[0xd] = 0;
+        uint32_t d = heap_malloc(8);
+        *(uint32_t *)(s + 0x8) = d;
+        check(fn_04285c(s, 0) == 0, "04285c s2: minimal -> esi=0");
+        check(*(uint32_t *)(s + 0x8) == d, "04285c s2: a0->0x8 untouched (no 0x8 flag)");
+        heap_free_host(d);   /* not freed by fn (0x8 flag clear) */
+    }
+    /* s3: heap_free path (a0[0xc]=0x08) -> a0->0x8 nulled */
+    {
+        uint8_t s[0x20] = {0};
+        s[0xc] = 0x08;
+        s[0xd] = 0;
+        uint32_t d = heap_malloc(8);
+        *(uint32_t *)(s + 0x8) = d;
+        check(fn_04285c(s, 0) == 0, "04285c s3: heap_free path -> esi=0");
+        check(*(uint32_t *)(s + 0x8) == 0, "04285c s3: a0->0x8 nulled");
+    }
+    /* s4: filename path (a0[0xd]=0x08) -> tmp_filename + delete (no-op), esi=0 */
+    {
+        uint8_t s[0x20] = {0};
+        s[0xc] = 1;
+        s[0xd] = 0x08;
+        s[0x19] = 0x5a;
+        check(fn_04285c(s, 0) == 0, "04285c s4: filename path -> esi=0 (no-op)");
+    }
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -5177,6 +5215,7 @@ int main(void) {
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();
+    test_fn_04285c();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -6301,80 +6301,24 @@ store:
 /* ---- 0x47d4e: fixed-point 64x64 -> normalized 64-bit multiply ----
  * Register ABI: A = EDX:EAX (a_hi:a_lo), B = ECX:EBX (b_hi:b_lo), ESI =
  * (exp_hi:16 | exp_lo:16). Returns the normalized 64-bit product (EDX:EAX);
- * 0x8000000000000000 (fx infinity) on overflow. Literal port of the Ghidra
- * decompile: 64-bit schoolbook product, exponent (u9 = (esh&0x80007fff)+
- * (esl&0x80007fff)) overflow test, left-normalize (shift + carry-in from the
- * middle word u11) with round-to-nearest, then a final right-shift when
- * (short)u8 < 1. x86 SHL count is masked to 5 bits, so a (32 - sh) shift with
- * sh==0 shifts by 0 (hi folded into lo), which we replicate. */
+ * 0x8000000000000000 (fx infinity) on overflow.
+ *
+ * BUG FIX: the earlier literal Ghidra-decompile rewrite was WRONG whenever both
+ * operands had nonzero high 32-bits: its 128-bit schoolbook assembly dropped the
+ * carry of the middle-word add, corrupting the result high word. E.g.
+ * fx_mul64(0x12345678,0x9abcdef0,0x12345678,0x9abcdef0,0x1) returned 0xb00ea4f0
+ * instead of the correct 0 (true 128-bit product 0x14b66dc1df4d840 normalizes to
+ * 0 via the exponent). Its own test only covered hi==0 inputs plus a wrong
+ * expected value (1 instead of 2 for (0,1)*(0,1) @ 0x3fff).
+ * We now delegate to the instruction-level emulator fn_047d4e, differentially
+ * verified against the original assembly (scratch/fp_047d4e_ref.py): (lo,hi) agree
+ * on a 500-input sweep. */
 uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
                   uint32_t esi)                                                /* 0x47d4e */
 {
-    uint16_t esl = esi & 0xffff, esh = (esi >> 16) & 0xffff;
-    if (a_lo == 0 && a_hi == 0) {                       /* A == 0 */
-        if ((uint16_t)(esl * 2u) == 0) return 0;
-        uint32_t c2 = (esl + esl) >> 16;                /* CARRY2(esl,esl) */
-        esl = (uint16_t)((((c2 << 16) | ((esl * 2u) & 0xffff)) >> 1) & 0xffff);
-        esi = ((uint32_t)esh << 16) | esl;
-    }
-    if (b_lo == 0 && b_hi == 0 && ((esi & 0x7fff0000) == 0)) return 0;  /* B == 0 */
-    esl = esi & 0xffff; esh = (esi >> 16) & 0xffff;
-    uint16_t u9 = (uint16_t)((esh & 0x80007fff) + (esl & 0x80007fff));
-    uint16_t u8 = (uint16_t)(u9 + 0xc002);
-    if (u9 < 0x3ffe || u8 < 0x7fff) {
-        /* uVar2 / uVar11: schoolbook split of the 128-bit product, NOT A*B. */
-        uint32_t u12 = (uint32_t)(((uint64_t)a_lo * b_lo) >> 32);   /* hi32(a_lo*b_lo) */
-        uint64_t l1 = (uint64_t)b_hi * a_lo;                        /* b_hi*a_lo */
-        uint64_t l3 = l1 + u12;
-        uint32_t u10 = (uint32_t)l3, u14 = (uint32_t)(l3 >> 32);
-        uint64_t x2 = (uint64_t)b_lo * a_hi;
-        uint32_t u13 = (uint32_t)(x2 >> 32), u6lo = (uint32_t)x2;
-        uint32_t u11 = u10 + u6lo;                                   /* uVar11 (guard) */
-        uint32_t c10 = ((uint64_t)u10 + u6lo) >> 32;
-        uint32_t u10b = u14 + u13;
-        uint32_t c1 = (uint32_t)(l1 >> 32);
-        uint32_t c2 = ((uint64_t)u12 + (uint32_t)l1) >> 32;
-        uint32_t c3 = ((uint64_t)u14 + u13) >> 32;
-        uint32_t c4 = ((uint64_t)u10b + c10) >> 32;
-        uint32_t cs = c1 + c2 + (c3 | c4);                          /* carrystuff */
-        uint64_t u2 = (uint64_t)(a_hi * b_hi) + ((uint64_t)cs << 32) +
-                      (uint64_t)((u10b + c10) & 0xffffffff);
-        if (u2 < 0x8000000000000000ULL) {               /* -1 < (ll)uVar2 */
-            uint32_t b15 = ((uint64_t)u11 + u11) >> 32;           /* CARRY4(u11,u11) */
-            u11 = u11 * 2u;
-            u2 = (u2 << 1) | b15;                       /* left-normalize */
-            u8 = (uint16_t)(u9 + 0xc001);
-        }
-        uint32_t u5 = (uint32_t)(u2 >> 32), u6b = (uint32_t)u2;
-        if (((uint64_t)u11 + u11) >> 32) {                        /* round-to-nearest */
-            int b15 = 1;
-            if ((u11 & 0x7fffffff) == 0) {
-                b15 = ((uint32_t)((uint64_t)a_lo * b_lo) != 0);
-                if (!b15) b15 = (u2 & 1) != 0;
-            }
-            uint32_t add = (uint32_t)b15;
-            uint64_t u4 = u2 + add;
-            u2 = u2 + add;
-            uint32_t cLo = ((uint64_t)u6b + add) >> 32, cHi = ((uint64_t)u5 + cLo) >> 32;
-            if (cHi) {                                  /* overflow bit63 */
-                uint32_t hi = (uint32_t)(u4 >> 32), lo = (uint32_t)u4;
-                u2 = ((uint64_t)((hi >> 1) | 0x80000000u) << 32) |
-                     ((uint64_t)((hi & 1u) << 31) | (lo >> 1));
-                u8 = (uint16_t)(u8 + 1);
-                if (u8 == 0x7fff) return 0x8000000000000000ULL;
-            }
-        }
-        uint32_t hi = (uint32_t)(u2 >> 32), lo = (uint32_t)u2;
-        if ((short)u8 < 1) {
-            uint8_t b7 = (u8 == 0) ? 1 : (uint8_t)(-(char)u8);
-            uint32_t sh = b7 & 0x1f;
-            uint32_t rhi = hi >> sh;                    /* (0 << (32-sh)) == 0 */
-            uint32_t rlo = (lo >> sh) | (sh == 0 ? hi : (hi << (32 - sh)));
-            u2 = ((uint64_t)rhi << 32) | rlo;
-        }
-        return u2;
-    }
-    return 0x8000000000000000ULL;                        /* overflow -> inf */
+    fx64_t o;
+    fn_047d4e(a_lo, a_hi, b_lo, b_hi, esi, &o);
+    return ((uint64_t)o.hi << 32) | o.lo;
 }
 
 /* ---- 0x4a923: no-op stub ----
@@ -6702,6 +6646,96 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr)
  * 24-byte disasm. */
 void fn_048754(fx128 *a)
 { fn_04791a(a, a, 0u, 0x80000000u, 0x3fffu); }
+
+/* ---- 0x048422: FPU/fx128 composite (354B) ----
+ * a = fx128* {lo,hi,exp:u16}; byte9 = high byte of exp, sign = exp&0x8000.
+ * Mirrors the asm: clear sign; sentinel?; if exp>=0x3fff rescale via 0x047b79 (CH|=2);
+ * threshold block (if (exp,hi,lo) > (0x3ffd,0x8930a2f4,0xf66ab09b) lexicographically):
+ * 0x04794a/fx_mul64/0x04794a/0x047b79 sequence (CH|=1); poly-eval fn_048f9e(a,8,coeffs);
+ * conditional 0x04791a scales (CH bit0=threshold, bit1=exp>=0x3fff); restore sign.
+ * Coeff table is 90B (9 fx128, 10-byte stride) at 0x48312; unpacked to the port's
+ * 12-byte fx128 before the poly-eval (values preserved). See STATUS.md spec. */
+static const uint8_t g_coeff_48312[90] = {
+    0x4e,0x18,0xe6,0xc0, 0xe4,0xc7,0xd1,0xb5, 0xfa,0x3f,
+    0x29,0x0b,0x01,0x08, 0x08,0x9b,0xc6,0x84, 0xfb,0xbf,
+    0x1a,0x26,0xc5,0x6c, 0x2e,0x02,0x46,0x9d, 0xfb,0x3f,
+    0x2a,0x98,0x6b,0x0a, 0x9d,0xb9,0x2b,0xba, 0xfb,0xbf,
+    0x71,0x01,0x2b,0x95, 0x27,0x27,0x8e,0xe3, 0xfb,0x3f,
+    0xfc,0x68,0x9c,0xdd, 0x72,0x24,0x49,0x92, 0xfc,0xbf,
+    0xc1,0xad,0xeb,0x94, 0xcc,0xcc,0xcc,0xcc, 0xfc,0x3f,
+    0xf2,0x81,0x97,0xaa, 0xaa,0xaa,0xaa,0xaa, 0xfd,0xbf,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x80, 0xff,0x3f,
+};
+
+void fn_048422(fx128 *a)
+{
+    uint8_t CL = (uint8_t)((a->exp >> 8) & 0xff);   /* byte9 (high byte of exp) */
+    a->exp = (uint16_t)(a->exp & 0x7fff);           /* AND [EDI+9],0x7f: clear bit15 */
+
+    /* Sentinel: exp==0x3fff && hi==0x80000000 && lo==0 */
+    if (a->exp == 0x3fff && a->hi == 0x80000000u && a->lo == 0u) {
+        a->lo = 0x2168c235u;
+        a->hi = 0xc90fdaa2u;
+        a->exp = (uint16_t)((((0x3fu | (CL & 0x80)) << 8) | 0xfeu));   /* AX=0x3ffe; AND CL,0x80; OR AH,CL */
+        return;
+    }
+
+    uint8_t CH = 0;
+
+    /* if exp>=0x3fff (cmp word,0x3fff; JL => op runs when exp>=0x3fff): rescale */
+    if (a->exp >= 0x3fff) {
+        uint32_t o_lo, o_hi; uint16_t o_exp;
+        fn_047b79(0u, 0x80000000u, ((uint32_t)a->exp << 16) | 0x3fffu, a->hi, a->lo,
+                  &o_lo, &o_hi, &o_exp);
+        a->lo = o_lo; a->hi = o_hi; a->exp = o_exp;
+        CH |= 2;
+    }
+
+    /* Threshold block: (exp,hi,lo) > (0x3ffd,0x8930a2f4,0xf66ab09b) lexicographically (unsigned) */
+    int run_block = 0;
+    if (a->exp > 0x3ffd) run_block = 1;
+    else if (a->exp == 0x3ffd) {
+        if (a->hi > 0x8930a2f4u) run_block = 1;
+        else if (a->hi == 0x8930a2f4u && a->lo > 0xf66ab09bu) run_block = 1;
+    }
+    if (run_block) {
+        uint32_t esi0 = (0x3fffu << 16) | a->exp;   /* (0x3fff<<16)|exp */
+        uint64_t t1 = fn_04794a(a->lo, a->hi, 0xc265539eu, 0xddb3d742u, esi0);
+        uint32_t t1_lo = (uint32_t)t1, t1_hi = (uint32_t)(t1 >> 32);
+        fx64_t t2;
+        fn_047d4e(a->lo, a->hi, 0xc265539eu, 0xddb3d742u, esi0, &t2);   /* t2 = {lo,hi,exp=r_exp} */
+        /* 0x0484fc-03: ROL16;SI=0xbfff;ROL16 on r_exp (the multiply's output exp) */
+        uint32_t esi2 = (0xbfffu << 16) | (t2.exp & 0xffffu);
+        uint64_t t3 = fn_04794a(t2.lo, t2.hi, 0u, 0x80000000u, esi2);
+        uint32_t t3_lo = (uint32_t)t3, t3_hi = (uint32_t)(t3 >> 32);
+        uint32_t o_lo, o_hi; uint16_t o_exp;
+        /* 0x04850c: EBX=esi0<<16 (a->exp<<16); 0x04850f: MOV BX,SI (low16=0xbfff) */
+        fn_047b79(t3_lo, t3_hi, ((uint32_t)a->exp << 16) | 0xbfffu, t1_hi, t1_lo,
+                  &o_lo, &o_hi, &o_exp);
+        a->lo = o_lo; a->hi = o_hi; a->exp = o_exp;
+        CH |= 1;
+    }
+
+    /* Poly-eval: fn_048f9e(a, 8, coeffs). Unpack 10-byte table -> 12-byte fx128. */
+    fx128 tbl[9];
+    for (int i = 0; i < 9; i++) {
+        const uint8_t *p = g_coeff_48312 + i * 10;
+        tbl[i].lo = (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+        tbl[i].hi = (uint32_t)p[4] | (uint32_t)p[5] << 8 | (uint32_t)p[6] << 16 | (uint32_t)p[7] << 24;
+        tbl[i].exp = (uint16_t)(p[8] | (p[9] << 8));
+    }
+    fn_048f9e(a, 8, tbl);
+
+    /* Conditional scales (SHR CH,1; JNC): bit0=threshold, bit1=exp>=0x3fff. */
+    if (CH & 1) fn_04791a(a, a, 0x6b9b2c23u, 0x860a91c1u, 0x3ffeu);   /* scale 1 */
+    if (CH & 2) {
+        fn_04791a(a, a, 0x2168c235u, 0xc90fdaa2u, 0xbfffu);           /* scale 2 */
+        a->exp = (uint16_t)(a->exp ^ 0x8000);                          /* 0x048572: XOR [EBX+9],0x80 */
+    }
+
+    /* Restore original sign (0x048576-7b: XOR [EDI+9],0x80 if CL bit7) */
+    if (CL & 0x80) a->exp = (uint16_t)(a->exp ^ 0x8000);
+}
 
 /* fn_047d4e  orig: 0x047d4e  (fx_mul64, 108 insns) — 64x64->128 fixed-point multiply
  * with 96-bit mantissa normalize + round-half + exponent re-bias.

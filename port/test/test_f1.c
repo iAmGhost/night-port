@@ -1309,7 +1309,11 @@ static void test_fx_mul64(void) {
     check(fx_mul64(1,0,1,0, (0x7fffu<<16)|0x3fff) == 0x8000000000000000ULL,
           "overflow -> 0x8000000000000000");
     check(fx_mul64(1,0,1,0, (0x3fffu<<16)) == 0, "1*1 @ 0x3fff underflows -> 0");
-    check(fx_mul64(0,1,0,1, (0x3fffu<<16)) == 1, "2^32*2^32 @ 0x3fff -> 1");
+    check(fx_mul64(0,1,0,1, (0x3fffu<<16)) == 2, "2^32*2^32 @ 0x3fff -> 2");
+    /* REGRESSION (both operands hi!=0): the old rewrite returned 0xb00ea4f0 here.
+     * True 128-bit product 0x14b66dc1df4d840 normalizes to 0 via the exponent. */
+    check(fx_mul64(0x12345678u,0x9abcdef0u, 0x12345678u,0x9abcdef0u, 0x00010001u) == 0,
+          "hi!=0 self-square @ low exp -> 0 (was 0xb00ea4f0, schoolbook carry bug)");
     /* A = 0x1ffffffff (a_hi=1,a_lo=0xffffffff), B = 1 : cross term exercised */
     check(fx_mul64(0xffffffff,1, 1,0, (0x3fffu<<16)) == 0, "(2^33-1)*1 @ 0x3fff -> 0");
     /* determinism */
@@ -3478,6 +3482,42 @@ static void test_fn_048754(void) {
     int ok = (a.lo == exp.lo && a.hi == exp.hi && a.exp == exp.exp);
     printf("fn_048754 (0x048754, fn_04791a in-place): %s\n", ok ? "PASS" : "FAIL");
     check(ok, "  a == fn_04791a(a,a,0,0x80000000,0x3fff) in place");
+}
+
+/* fn_048422 (L3, 354B): FPU/fx128 composite. Differential test against the
+ * independently-built Python reference (scratch/fp_048422_ref.py), which composes
+ * the verified 04794a/047b79/047d4e refs and mirrors the ported 048f4c/048f9e/
+ * 04791a. Vectors cover: sentinel(+/-), exp>=0x3fff(+scale2 sign-XOR), threshold
+ * (3 sub-cases + boundary no-ops), no-blocks, sign-restore, exp==0, all-zero. */
+static void test_fn_048422(void) {
+    struct { uint32_t lo, hi; uint16_t exp; uint32_t elo, ehi; uint16_t eexp; } V[] = {
+        {0x00000000,0x80000000,0x3fff, 0x2168c235,0xc90fdaa2,0x3ffe}, /* sentinel pos */
+        {0x00000000,0x80000000,0xbfff, 0x2168c235,0xc90fdaa2,0xbffe}, /* sentinel neg */
+        {0x12345678,0x9abcdef0,0x4000, 0x2168c235,0xc90fdaa2,0x8000}, /* exp>=0x3fff + thr */
+        {0x11111111,0x22222222,0x4000, 0x2168c235,0xc90fdaa2,0x8000}, /* exp>=0x3fff + thr */
+        {0x11111111,0x8930a2f5,0x3ffd, 0x6b9b2c23,0x860a91c1,0x0000}, /* thr: hi>th */
+        {0xf66ab09c,0x8930a2f4,0x3ffd, 0x6b9b2c23,0x860a91c1,0x0000}, /* thr: hi==th lo>th */
+        {0xf66ab09b,0x8930a2f4,0x3ffd, 0x91cb110c,0x8d1eaa1a,0x3ffd}, /* boundary: lo==th no-op */
+        {0x8930a2f4,0x8930a2f4,0x3ffd, 0x78ee5f50,0x8e35f3e0,0x3ffd}, /* boundary: hi==th lo<=th */
+        {0x12345678,0x9abcdef0,0x0001, 0x00000000,0x00000000,0x0001}, /* no blocks */
+        {0x12345678,0x9abcdef0,0x8001, 0x00000000,0x00000000,0x8001}, /* sign, no blocks */
+        {0xdeadbeef,0xcafebabe,0x0000, 0x00000000,0x00000000,0x0000}, /* exp==0 */
+        {0x00000000,0x00000000,0x0000, 0x00000000,0x00000000,0x0000}, /* all-zero */
+        {0x33333333,0x44444444,0x3ffe, 0x6b9b2c23,0x860a91c1,0x0000}, /* just below thr */
+        {0xaaaaaaaa,0xbbbbbbbb,0xbfff, 0x2168c235,0xc90fdaa2,0x0000}, /* sign + exp>=0x3fff */
+    };
+    int fail = 0, n = (int)(sizeof(V)/sizeof(V[0]));
+    for (int i = 0; i < n; i++) {
+        fx128 a = { V[i].lo, V[i].hi, V[i].exp };
+        fn_048422(&a);
+        if (a.lo != V[i].elo || a.hi != V[i].ehi || a.exp != V[i].eexp) {
+            fail++;
+            printf("  vec %d (in 0x%08x,0x%08x,0x%04x): got 0x%08x,0x%08x,0x%04x want 0x%08x,0x%08x,0x%04x\n",
+                   i, V[i].lo, V[i].hi, V[i].exp, a.lo, a.hi, a.exp, V[i].elo, V[i].ehi, V[i].eexp);
+        }
+    }
+    printf("fn_048422 (0x048422, FPU/fx128 composite, %d diff vectors): %s\n", n, fail ? "FAIL" : "PASS");
+    check(fail == 0, "  all vectors match Python reference fp_048422_ref.py");
 }
 
 static void test_fn_048e60(void) {
@@ -5785,6 +5825,7 @@ int main(void) {
     test_fn_0326c1();
     test_fn_040660_0406f5();
     test_fn_048754();
+    test_fn_048422();
     test_fn_048e60();
     test_fn_0485eb();
     test_fn_048585();

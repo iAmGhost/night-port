@@ -3138,6 +3138,16 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_03b9b7(void) {
+    printf("fn_03b9b7 (drain entity list)\n");
+    uint8_t *saved_cc = g_dat_639cc;
+    g_dat_639cc = NULL; g_dat_639d4 = NULL;
+    fn_03b9b7();
+    check(g_dat_639cc == NULL, "  empty: head stays NULL");
+    check(g_dat_639d4 == NULL, "  empty: cursor ends NULL");
+    g_dat_639cc = saved_cc;
+}
+
 static void test_fn_041c8f(void) {
     printf("fn_041c8f (getch from node buffer)\n");
     uint32_t boff = heap_malloc(16);
@@ -5598,6 +5608,7 @@ int main(void) {
     test_fn_0427d2();
     test_fn_0427a3();
     test_fn_037306();
+    test_fn_03b9b7();
     test_fn_041c8f();
     test_fn_049192();
     test_fn_041d18();

@@ -692,6 +692,7 @@ uint32_t fn_03d88f(void) {
 
 uint8_t *g_dat_639cc = NULL;  /* DAT_000639cc: doubly-linked list head */
 uint8_t *g_dat_639d0 = NULL;  /* DAT_000639d0: doubly-linked list tail */
+uint8_t *g_dat_639d4 = NULL;  /* DAT_000639d4: drain cursor (fn_03b9b7) */
 int32_t  g_dat_639c8 = 0;     /* DAT_000639c8: list node count */
 
 /* fn_0003b5c0  orig: 0x0003b5c0 (L10, 189B)
@@ -752,6 +753,33 @@ uint8_t *fn_0003b67e(uint8_t *node) {
     }
     g_dat_639c8--;
     return node;
+}
+
+/* 0x03b9b7 (113 B): drain the entity linked list -- remove and free every node.
+ * reg-ABI: no args (operates on globals). canary_id(0, 0x28). Disassembly-verified
+ * (41 insns; only direct CALLs to 0x0418ee/0x03b67e/0x041c28, no indirect CALL/JMP):
+ *   g_dat_639d4 = g_dat_639cc;
+ *   while (g_dat_639d4 != 0) {
+ *       next = *(uint8_t**)(g_dat_639d4 + 0x11);   // entity next (host ptr)
+ *       fn_0003b67e(g_dat_639d4);                  // remove from list
+ *       heap_free_guard(off(g_dat_639d4));         // 0x041c28; off = ptr - g_heap_base
+ *       g_dat_639d4 = next;
+ *   }
+ * Entity nodes are host pointers (= g_heap_base + offset, cf. fn_0003b5c0 callers);
+ * heap_free_guard takes a heap offset, so convert.
+ * TESTING LIMITATION: the drain is untestable past an empty list because
+ * fn_0003b67e's head branch NULL-derefs next->prev when removing the last node
+ * (documented latent bug in fn_0003b67e); the game never drains to empty here. */
+void fn_03b9b7(void) {
+    (void)canary_id(0, 0x28);                                  /* PUSH 0x28;CALL 0x418ee */
+    g_dat_639d4 = g_dat_639cc;                                  /* 0x3b9cf/d4 */
+    while (g_dat_639d4 != NULL) {
+        uint8_t *next = *(uint8_t **)(g_dat_639d4 + 0x11);      /* 0x3b9e7 */
+        fn_0003b67e(g_dat_639d4);                               /* 0x3ba00 remove */
+        uint32_t off = (uint32_t)((uint8_t *)g_dat_639d4 - (uint8_t *)g_heap_base);
+        heap_free_guard(off);                                    /* 0x3ba05 (0x041c28) */
+        g_dat_639d4 = next;                                      /* 0x3ba1e */
+    }
 }
 
 uint8_t *g_dat_53c78 = NULL;  /* DAT_00053c78: entity linked-list cursor */

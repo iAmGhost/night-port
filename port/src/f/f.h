@@ -141,9 +141,11 @@ extern uint8_t g_dat_5d08c[0x14];               /* DAT_0005d08c */
 extern uint8_t g_dat_5d0a0[0x14];               /* DAT_0005d0a0 */
 uint8_t *fn_0003b5c0(uint8_t *node, uint8_t flag, uint32_t d_ecx, uint32_t d_edx, uint32_t d_ebx); /* 0x0003b5c0: linked-list insert (reg-ABI) */
 uint8_t *fn_0003b67e(uint8_t *node);            /* 0x0003b67e: linked-list remove (reg-ABI) */
+void fn_03b9b7(void);                           /* 0x03b9b7: drain entity list (remove+free each node) */
 extern uint8_t *g_dat_639cc;                    /* DAT_000639cc: list head */
 extern uint8_t *g_dat_639d0;                    /* DAT_000639d0: list tail */
 extern int32_t  g_dat_639c8;                    /* DAT_000639c8: list count */
+extern uint8_t *g_dat_639d4;                  /* DAT_000639d4: drain cursor (fn_03b9b7) */
 void fn_00035c5c(void);                         /* 0x00035c5c: entity-list init pass (walk + set fields) */
 extern uint8_t *g_dat_53c70;                    /* DAT_00053c70: entity list head */
 extern uint8_t *g_dat_53c78;                    /* DAT_00053c78: entity list cursor */

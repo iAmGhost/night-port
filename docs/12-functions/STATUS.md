@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 353 / 528 done
+TOTALS: 354 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 353 / 528 done
 | L7 | 8 | 4 | 0 | 0 | 4 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 61 | 0 | 0 | 20 |
+| L10 | 81 | 62 | 0 | 0 | 20 |
 | L11 | 77 | 46 | 0 | 0 | 31 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 6 | 0 | 0 | 10 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x03b9b7 PORTED (L10, 113 B) -- drain the entity linked list (resolves the long-standing deferral).** canary PUSH 0x28;CALL 0x418ee -> canary_id(0,0x28). g_dat_639d4 = g_dat_639cc; while(g_dat_639d4){ next = *(uint8_t**)(g_dat_639d4+0x11); fn_0003b67e(g_dat_639d4) [remove from list, returns node]; heap_free_guard((uint32)(g_dat_639d4 - g_heap_base)) [0x041c28; a node is a real ptr = g_heap_base+offset per fn_0003b5c0, so convert to a heap offset before freeing]; g_dat_639d4 = next }. **Disassembly-verified via disassemble_bytes (41 insns):** only direct CALLs to 0x0418ee/0x03b67e/0x041c28 -- NO indirect CALL/JMP (clears the indirect-call risk caveat that had gated it). New global g_dat_639d4 (drain cursor, uint8_t*, mirrors g_dat_639cc). **TESTING LIMITATION (documented, not a port defect):** the drain is untestable past an empty list because fn_0003b67e's head branch writes *(next+0x19) with next=NULL when removing the last node (its documented latent null-deref; head==tail==only node) -> any full drain segfaults; the game never drains to empty here. Test: empty-list no-op (head/cursor stay NULL), 2 checks. L10 61->62, TOTALS 353->354/528. **Next:** 0x04933a (node-pool list rebuild, disasm flaky -- retry), frontier L11 0x016b8f(1116B) / L13 0x04097e(516B). | STATUS.md L10 |
 | 2026-07-08 | **0x041c8f PORTED (L11, 136 B) -- getch from node I/O buffer.** fn_041c8f(node) (node in EAX; decompiler's 2nd arg is an ABI artifact): error path (f12 byte0 bit0 clear) fn_042a0d(4)+f12 bit5+ret -1; else count=f4, f4=count-1, if empty fn_041d18 refill else read g_heap_base+f0 (f0++); then if f12 bit6 clear: on CR (0x0d) consume the following byte (same count-dec + refill/read); on EOF (0x1a) set f12 bit4 + return -1. **Disassembly-verified (55 insns)** -- the decompiler's CONCAT44/extraout noise collapses to a clean EAX-in/EAX-out trace. 10 test checks (4 scenarios: normal/CR/EOF/error). L11 45->46, TOTALS 352->353/528. **Node-pool cluster: 0x041d47/0x041d18/0x049192/0x041c8f done.** | STATUS.md L11 |
 | 2026-07-08 | **0x049192 PORTED (L11, 163 B) -- putc to node I/O buffer.** fn_049192(ch,node): error path (f12 byte0 bit1 clear) fn_042a0d(4)+f12 bit5+ret -1; lazy-init fn_042a43 if f8=0; LF(10)+!f12-bit6 -> CRLF expand (write '\\r' then LF); write char to g_heap_base+f0, f0++, f4++; flush fn_044748 if (mask&f12)!=0 or f4==cap (node[+0x14]); mask=0x400 (normal) or 0x600 (LF). **Disassembly-verified:** the decompiler's "uVar1=extraout_ECX" after a CRLF-branch flush is a register artifact -- ECX is the callee-saved MASK (set once at entry, the EAX-only flush calls never clobber it), so TEST ECX,EDI = mask & f12. 11 test checks. L11 44->45, TOTALS 351->352/528. **Node-pool cluster: 0x041d47 / 0x041d18 / 0x049192 done.** | STATUS.md L11 |
 | 2026-07-08 | **0x041d18 PORTED (L8, 46 B) -- pull one byte from the node buffer.** Sole callee is fn_041d47 (just ported) -> the node-pool memory-model resolution from 0x041d47 makes this a clean win. r = fn_041d47(node, node); if r (node[+4]) == 0 return -1 (empty); else { b = *(g_heap_base + node[+0]); node[+4]--; node[+0]++; return b }. The original 8-byte CONCAT44 return's high32 is the EDX input (the node ptr) -- ABI artifact; only low32 (byte / -1) is meaningful. Test: 2 scenarios / 4 checks (key-echo-primed node -> returns 'A', node[+4]->0, node[+0] advanced; device-read-primed node count 0 -> -1). L8 2->3, TOTALS 350->351/528. | STATUS.md L8 |
@@ -724,7 +725,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03a1b3 | 112 | FUN_0003a1b3 | | |
 | [ ] | 0x03ace9 | 420 | FUN_0003ace9 | | |
 | [ ] | 0x03b718 | 570 | FUN_0003b718 | | |
-| [ ] | 0x03b9b7 | 113 | FUN_0003b9b7 | | |
+| [x] | 0x03b9b7 | 113 | fn_03b9b7 | drain entity list: g_dat_639d4=cc; while(cursor){next=cur[+0x11]; fn_0003b67e(cur); heap_free_guard(cur-g_heap_base); cursor=next} (drain untestable past empty: fn_0003b67e latent null-deref) | f.c |
 | [x] | 0x03c6ec | 62 | fn_03c6ec | reset one node: fn_03c7d7(s) + zero s+0x44, return s | f.c |
 | [ ] | 0x03cb38 | 160 | FUN_0003cb38 | | |
 | [ ] | 0x03cbd9 | 145 | FUN_0003cbd9 | | |

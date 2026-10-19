@@ -1755,6 +1755,64 @@ int res_consume(res_reader *r, int amount) {
     return 1;
 }
 
+/* 0x04247a (L5, 251 B): io_state node write/seek, dispatched on r->flags & 0x6 and mode.
+ * r = node (res_reader, 16-bit layout), value = ESI, mode = EBX.
+ *   if (r->flags & 0x6):                       // CASE A
+ *     if (r->flags2 & 0x10) {                  // CASEA1: flush
+ *       if (fn_044748(r) != 0) { if (mode==0 && value<0) fn_042a0d(9); return -1; }
+ *     } else {                                  // CASEA2
+ *       if (mode == 1) value -= (int32_t)r->remaining;
+ *       r->pos = r->end; r->remaining = 0;
+ *     }
+ *     r->flags &= 0xeb;                         // TAIL_COMMON
+ *     return (fn_044807(r->id, value, mode) == -1) ? -1 : 0;
+ *   else:                                       // CASE D
+ *     mode 0: cur=fn_044848(r->id); if (res_consume(r, value-(cur-r->remaining))==0) return 0;
+ *              return (fn_044807(r->id, value, 0)==-1)?-1:0;
+ *     mode 1: rem=r->remaining; if (res_consume(r, value)==0) return 0;
+ *              return (fn_044807(r->id, value-rem, 1)==-1)?-1:0;
+ *     mode 2: r->pos=r->end; r->flags&=0xef; r->remaining=0;
+ *              return (fn_044807(r->id, value, 2)==-1)?-1:0;
+ *     else:   fn_042a0d(9); return -1;
+ * All callees ported; lseek (fn_044807/fn_044848) is a no-op returning 0 in the flat
+ * model, so the lseek paths yield 0. Observable effects: return value + node field
+ * writes (pos/remaining/flags). */
+int32_t fn_04247a(res_reader *r, int32_t value, int32_t mode) {
+    if (r->flags & 0x6) {                        /* 0x42481-85 */
+        if (r->flags2 & 0x10) {                  /* 0x42487-8b */
+            if (fn_044748((io_state_t *)r) != 0) {   /* 0x4248d-94 */
+                if (mode == 0 && value < 0) fn_042a0d(9); /* 0x42498-a0 */
+                return -1;                        /* 0x424aa-af */
+            }
+        } else {                                 /* 0x424b3 */
+            if (mode == 1) value -= (int32_t)r->remaining; /* 0x424b3-b8 */
+            r->pos = r->end;                      /* 0x424c5 */
+            r->remaining = 0;                     /* 0x424be */
+        }
+        r->flags &= 0xeb;                        /* 0x424c7 TAIL_COMMON */
+        return (fn_044807(r->id, value, mode) == -1) ? -1 : 0; /* 0x424cb-d8 */
+    }
+    if (mode == 0) {                             /* 0x424f0 */
+        int32_t cur = fn_044848(r->id, 0, 0, 0); /* 0x4251b-1e */
+        int32_t amount = value - (cur - (int32_t)r->remaining); /* 0x42523-2a */
+        if (res_consume(r, amount) == 0) return 0; /* 0x42530-35 */
+        return (fn_044807(r->id, value, mode) == -1) ? -1 : 0; /* 0x42539-43 */
+    }
+    if (mode == 1) {                             /* 0x424f6 */
+        int32_t rem = (int32_t)r->remaining;     /* 0x424fa (pre-consume) */
+        if (res_consume(r, value) == 0) return 0; /* 0x424fd-04 */
+        return (fn_044807(r->id, value - rem, mode) == -1) ? -1 : 0; /* 0x42506-12 */
+    }
+    if (mode == 2) {                             /* 0x4254c */
+        r->pos = r->end;                         /* 0x42552 */
+        r->flags &= 0xef;                        /* 0x4255a */
+        r->remaining = 0;                        /* 0x4255f */
+        return (fn_044807(r->id, value, mode) == -1) ? -1 : 0; /* 0x42566-6b */
+    }
+    fn_042a0d(9);                                /* 0x424a0 (mode>2 / <0) */
+    return -1;
+}
+
 /* digit_chr  orig: 0x0427e7
  *   ADD EAX, 0x30; if (EAX > 0x39) EAX += 0x27
  * Maps a digit value 0..35 to its ASCII char: 0-9 -> '0'-'9', 10-35 ->

@@ -315,17 +315,17 @@ static void test_str_icmp(void) {
 
 static void test_res_consume(void) {
     printf("res_consume (0x042438)\n");
-    uint8_t buf[16] = {0};
-    res_reader r = { .pos = buf, .remaining = 10, .end = buf + 4, .flags = 0x10, .id = 0 };
+    /* pos/end are 32-bit addresses/offsets (16-bit node layout). */
+    res_reader r = { .pos = 0, .remaining = 10, .end = 4, .flags = 0x10, .id = 0 };
     int rc = res_consume(&r, 4);        /* end-pos=4 <= 4 <= remaining=10 -> ok */
     check(rc == 0, "success rc==0");
-    check(r.pos == buf + 4, "pos advanced by amount");
+    check(r.pos == 4, "pos advanced by amount");
     check(r.remaining == 6, "remaining decremented");
     check(r.flags == 0, "flag bit 0x10 cleared");
-    res_reader r2 = { .pos = buf, .remaining = 10, .end = buf + 8, .flags = 0, .id = 0 };
+    res_reader r2 = { .pos = 0, .remaining = 10, .end = 8, .flags = 0, .id = 0 };
     rc = res_consume(&r2, 3);           /* 3 < end-pos=8 -> fail */
     check(rc == 1, "fail rc==1");
-    check(r2.pos == buf + 8, "pos = end on fail");
+    check(r2.pos == 8, "pos = end on fail");
     check(r2.remaining == 0, "remaining = 0 on fail");
 }
 
@@ -4891,6 +4891,42 @@ static void test_fn_045bb7(void) {
     check(1, "  fail path: r==-1 && g_dat_64008==5 (3 sizes)");
 }
 
+static void test_fn_04247a(void) {
+    printf("fn_04247a (0x04247a) - io write/seek\n");
+    uint32_t saved_err = g_dat_64008;
+
+    /* (1) CASE D, mode>2: fn_042a0d(9), return -1. */
+    res_reader rd = {0};
+    int32_t v = fn_04247a(&rd, 10, 5);
+    check(v == -1, "D mode>2: -1");
+    check(g_dat_64008 == 9, "D mode>2: g_dat_64008=9");
+    g_dat_64008 = saved_err;
+
+    /* (2) CASE A (flags&0x6), CASEA2 (flags2 no 0x10), mode==1:
+     *   pos=end, remaining=0, flags&=0xeb, return 0 (lseek no-op). */
+    res_reader ra = { .pos = 0, .remaining = 0x56, .end = 0x1234, .flags = 0x06, .id = 0 };
+    v = fn_04247a(&ra, 100, 1);
+    check(v == 0, "A2: ret 0");
+    check(ra.pos == 0x1234, "A2: pos=end");
+    check(ra.remaining == 0, "A2: remaining=0");
+    check(ra.flags == (0x06 & 0xeb), "A2: flags &= 0xeb");
+
+    /* (3) CASE D, mode==2: pos=end, flags&=0xef, remaining=0, return 0. */
+    res_reader r2 = { .pos = 0, .remaining = 0x77, .end = 0xABCD, .flags = 0, .id = 0 };
+    v = fn_04247a(&r2, 10, 2);
+    check(v == 0, "D2: ret 0");
+    check(r2.pos == 0xABCD, "D2: pos=end");
+    check(r2.remaining == 0, "D2: remaining=0");
+    check(r2.flags == (0 & 0xef), "D2: flags &= 0xef");
+
+    /* (4) CASE D, mode==0, all-zero reader: cur=0, amount=0, consume ok -> 0. */
+    res_reader r4 = { .pos = 0, .remaining = 0, .end = 0, .flags = 0, .id = 0 };
+    v = fn_04247a(&r4, 0, 0);
+    check(v == 0, "D0: consume(0) ok -> 0");
+
+    g_dat_64008 = saved_err;
+}
+
 static void test_fn_04285c(void) {
     printf("fn_04285c (0x04285c, io_state/node destructor)\n");
     /* s1: gate fail (a0->0xc dword == 0) -> -1 */
@@ -5215,6 +5251,7 @@ int main(void) {
     test_fn_045bb7();
     test_fn_04391d();
     test_fn_03442e();
+    test_fn_04247a();
     test_fn_04285c();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;

@@ -233,12 +233,14 @@ void     isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg); /*
  * current block, remaining the bytes still to read, id a resource handle.
  * flags bit 0x10 is a state bit cleared on each consume. */
 typedef struct {
-    uint8_t  *pos;      /* 0x0: current read position        */
+    uint32_t  pos;      /* 0x0: current read position (32-bit addr/offset) */
     uint32_t  remaining;/* 0x4: bytes remaining in resource  */
-    uint8_t  *end;      /* 0x8: end of current block         */
+    uint32_t  end;      /* 0x8: end of current block (32-bit addr/offset)  */
     uint8_t   flags;    /* 0xc: state flags (bit 0x10)       */
+    uint8_t   flags2;   /* 0xd: secondary flags (0x10/0x8 in io write/seek) */
+    uint8_t   _pad[2];  /* 0xe-0xf: (unused, keep id at 0x10) */
     uint32_t  id;       /* 0x10: resource id / handle        */
-} res_reader;
+} res_reader;   /* 16-bit node layout: pos/end/remaining/id are 32-bit */
 
 /* Internal state of the callback-based streaming printf (FUN_00044c23), as
  * seen by its byte-sink callback. pos is at offset 0x0, count at 0x10. */
@@ -298,6 +300,7 @@ int      str_icmp(const char *a, const char *b, int n);
  * return 0. Otherwise pos = end, remaining = 0, return 1. Clears flag 0x10.
  * orig: 0x042438 */
 int      res_consume(res_reader *r, int amount);
+int32_t  fn_04247a(res_reader *r, int32_t value, int32_t mode);  /* 0x04247a: io write/seek, dispatch on flags/mode */
 /* Digit value (0..35) -> ASCII char: 0-9 -> '0'-'9', 10-35 -> 'a'-'z'.
  * orig: 0x0427e7 */
 int      digit_chr(int d);

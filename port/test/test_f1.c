@@ -3138,6 +3138,41 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_041d47(void) {
+    printf("fn_041d47 (I/O fill: key-echo or device-read into node buffer)\n");
+    uint32_t saved_act = g_node_list_active;
+    uint32_t boff = heap_malloc(16);       /* buffer as a heap OFFSET */
+    uint8_t *buf = (uint8_t *)g_heap_base + boff;
+    static uint8_t rec[0x20];
+    uint32_t *r = (uint32_t *)rec;
+    /* key-echo branch: f12=0x2400 (byte1=0x24), handle=0, node[+8]=buffer offset */
+    memset(rec, 0, sizeof(rec));
+    r[2] = boff;                           /* node[+8] */
+    r[3] = 0x2400;                          /* node[+0xc] f12 */
+    r[4] = 0;                              /* node[+0x10] handle */
+    g_node_list_active = 0;                /* fn_043234 no-op */
+    g_keybuf = 'A';
+    int32_t ret = fn_041d47(rec, 0);
+    check(ret == 1, "  key-echo: returns 1");
+    check(r[0] == boff, "  key-echo: node[+0]=node[+8]");
+    check(buf[0] == 'A', "  key-echo: buf[0]='A'");
+    check(r[1] == 1, "  key-echo: node[+4]=1");
+    /* device-read branch: f12=0, handle!=0 -> fn_042aba(=sys_file_read=0) */
+    memset(rec, 0, sizeof(rec));
+    r[2] = boff;
+    r[3] = 0;
+    r[4] = 0x1234;
+    r[5] = 7;
+    g_node_list_active = 0;
+    int32_t ret2 = fn_041d47(rec, 0);
+    check(ret2 == 0, "  read: returns 0 (sys_file_read no-op)");
+    check(r[1] == 0, "  read: node[+4]=0");
+    check((rec[0x0c] & 0x10) != 0, "  read: node[0x0c]|=0x10 (empty)");
+    check(r[0] == boff, "  read: node[+0]=node[+8]");
+    check((rec[0x0c] & 0x04) == 0, "  read: node[0x0c] bit2 cleared");
+    g_node_list_active = saved_act;
+}
+
 static void test_fn_040e8d(void) {
     printf("fn_040e8d (timer/device setup guard)\n");
     uint32_t saved53 = g_dat_53334, savedf90 = g_63f90;
@@ -5464,6 +5499,7 @@ int main(void) {
     test_fn_0427d2();
     test_fn_0427a3();
     test_fn_037306();
+    test_fn_041d47();
     test_fn_0358c7();
     test_fn_0326c1();
     test_fn_040660_0406f5();

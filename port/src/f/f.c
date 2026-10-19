@@ -3198,6 +3198,54 @@ void node_deactivate(uint32_t rec_off)   /* 0x44b5d */
  * g_ndpool). For each node, rec = base + node->rec (the io_state record). If
  * (rec[0xc] & mask) count++; if additionally (rec[0xd] & 0x10) call fn_044748(rec).
  * Returns the count of matching records. (orig: EAX=mask, returns EBX.) */
+/* 0x041d47 (170 B): I/O-state "fill/prime" step. node = io_state record
+ * (raw offsets: f0@+0 data ptr, f4@+4 count, f8@+8 buffer, f12@+0xc/0xd flags,
+ * f16@+0x10 handle, +0x14 reserved count).
+ *   if (node[+8] == 0) fn_042a43(node);                    // lazy-init buffer
+ *   if ((node[0x0d]&0x20) && (node[0x0d]&0x6)) fn_043234(0x2000); // flush active list
+ *   f12 = node[+0xc]; node[+0] = node[+8]; node[0x0c] &= 0xfb;
+ *   if ((f12 & 0x2400) == 0x2400 && node[+0x10] == 0) {    // key-echo branch
+ *       node[+4] = 0;
+ *       key = get_key_echo();                              // DOS AH=01, -1 on no-key
+ *       if (key != -1) { *node[+0] = key; node[+4] = 1; }
+ *   } else {                                               // device-read branch
+ *       count = (node[0x0d] & 0x4) ? 1 : node[+0x14];
+ *       node[+4] = fn_042aba(node[+0x10], node[+0], count);
+ *   }
+ *   if (node[+4] == 0) node[0x0c] |= 0x10;                 // empty-result flag
+ *   else if (node[+4] < 0) { node[+4] = 0; node[0x0c] |= 0x20; } // error flag
+ *   return node[+4];
+ * Buffer (node[+0]/[+8]) is dereferenced directly as a host pointer (flat model),
+ * matching fn_044748. param_2 (EDX input) is unused. No canary prologue. */
+int32_t fn_041d47(uint8_t *node, uint32_t param_2) {
+    (void)param_2;
+    if (*(uint32_t *)(node + 0x08) == 0) fn_042a43(node);                 /* 0x41d4d-53 */
+    uint8_t b13 = node[0x0d];
+    if ((b13 & 0x20) && (b13 & 0x6)) fn_043234(0x2000);                   /* 0x41d58-6a */
+    uint32_t f12 = *(uint32_t *)(node + 0x0c);                            /* 0x41d6f EDX=[+0xc] */
+    uint32_t buf = *(uint32_t *)(node + 0x08);                            /* 0x41d75 EAX=[+8] */
+    node[0x0c] = (uint8_t)f12 & 0xfb;                                     /* 0x41d72/78/83 BL&0xfb */
+    *(uint32_t *)(node + 0x00) = buf;                                     /* 0x41d7b f0 = f8 */
+    if ((f12 & 0x2400) == 0x2400 && *(uint32_t *)(node + 0x10) == 0) {     /* 0x41d86-93 */
+        *(uint32_t *)(node + 0x04) = 0;                                    /* 0x41d95 */
+        int32_t key = (int32_t)(int8_t)get_key_echo();                    /* 0x41d98 */
+        if (key != -1) {                                                    /* 0x41d9d */
+            *((int8_t *)(g_heap_base + *(uint32_t *)(node + 0x00))) = (int8_t)key; /* 0x41da4: *buf = key (buf=heap offset) */
+            *(uint32_t *)(node + 0x04) = 1;                                /* 0x41da6 */
+        }
+    } else {                                                                /* 0x41daf */
+        uint32_t count = (node[0x0d] & 0x4) ? 1u : *(uint32_t *)(node + 0x14);
+        int32_t r = fn_042aba(*(uint32_t *)(node + 0x10),
+                              (void *)(g_heap_base + *(uint32_t *)(node + 0x00)),
+                              count);                                        /* 0x41dc4 */
+        *(uint32_t *)(node + 0x04) = (uint32_t)r;                          /* 0x41dc9 */
+    }
+    int32_t res = (int32_t)*(uint32_t *)(node + 0x04);                     /* 0x41dcc */
+    if (res == 0) node[0x0c] |= 0x10;                                      /* 0x41dd5 */
+    else if (res < 0) { *(uint32_t *)(node + 0x04) = 0; node[0x0c] |= 0x20; } /* 0x41ddb-e7 */
+    return (int32_t)*(uint32_t *)(node + 0x04);                            /* 0x41dea */
+}
+
 uint32_t fn_043234(uint32_t mask) {
     uint8_t *base = g_ndpool;
     uint32_t cur = g_node_list_active;            /* 0x43239 EDX=[0x63ffc] */

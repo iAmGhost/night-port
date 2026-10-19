@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 346 / 528 done
+TOTALS: 347 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -45,7 +45,7 @@ TOTALS: 346 / 528 done
 | L4 | 13 | 5 | 0 | 0 | 8 |
 | L5 | 10 | 5 | 0 | 0 | 5 |
 | L6 | 10 | 3 | 0 | 0 | 7 |
-| L7 | 8 | 2 | 0 | 0 | 6 |
+| L7 | 8 | 3 | 0 | 0 | 5 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 61 | 0 | 0 | 20 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x0427d2 PORTED (L7, 20 B) -- node destruct + deactivate, returns the destructor's result.** r = fn_04285c(a0, a1); node_deactivate(a0); return r. Dual-convention: the original passes the same EAX (a 32-bit node pointer) to both fn_04285c (node ptr) and node_deactivate (rec offset); identical in the DPMI 32-bit flat model. In the 64-bit port a0 is truncated to 32 bits for the node_deactivate call to mirror the original EAX. Both callees ported (fn_04285c io_state destructor; node_deactivate = 0x44b5d). New externs g_ndpool/g_node_list_active/g_node_list_done (node-pool head globals; 0 = empty list). Test: 3 scenarios (early-return passthrough for a0[0xc]=0 at a1=0/7; explicit -1); node_deactivate is a no-op with an empty pool (0 list heads). 3 checks. L7 2->3, TOTALS 346->347/528. | STATUS.md L7 |
 | 2026-07-08 | **0x01586b PORTED (L10, 435 B) -- clamp a0[9] to [min,max] after adding a1, with a ROM-table pre-pass.** Only callee is the canary (PUSH 0x2c;CALL 0x418ee). a0 (EAX) = item byte-buffer, a1 (EDX) = delta. if a1==0 return. p=g_dat_63354; min=*(s32*)(p+0x12)+g_dat_639e0; max=(p[0x10]==0)?*(s32*)(p+0x16)+g_dat_639e0 : *(s32*)(*(u8_t**)(p+0x34c)+0x16)+g_dat_639e0. Pre-pass (only if a0[0]<=1): for i in 0..g_dat_62a8c, t=&g_tab_5c8bc[i] {a1_lo,v_lo,a1_hi,v_hi;0x14 stride}: if (a0[1]>t->a1_lo && a0[1]<t->a1_hi){ if(a1>0){if(t->v_lo<a0[9]+a1<t->v_hi) a1=t->v_lo-a0[9]} else {if(t->v_lo<a0[9]+a1<t->v_hi) a1=t->v_hi-a0[9]} }. Final: if (a0[9]<min || a0[9]>max) a0[9]+=a1 (no clamp); else a0[9]+=a1 then clamp to [min,max]. EAX-at-exit is inconsistent across paths (a1 vs clamped) -> void. a0 fields: a0[0] byte, a0[1]/a0[9] unaligned s32 (cf. fn_0151d5 = *(s32*)(p+9)). New global g_tab_5c8bc (ROM clamp table; struct in f.h); reuses g_dat_63354/639e0/62a8c. Test: 7 scenarios (a1=0 no-op, in-range +100, clamp high, in-range +500, cur<min no-clamp, table pre-pass d=v_lo-cur, key out-of-range no-adjust). 7 checks. L10 60->61 (summary row corrected from stale 58), TOTALS 345->346/528. | STATUS.md L10 |
 | 2026-07-08 | **0x040e8d PORTED (L13, 111 B) -- device/timer setup guard (resolves earlier deferral).** canary PUSH 0x20;CALL 0x418ee. If g_63f90==0 return (not initialized). Else: local=(g_dat_63f84==0xa?0x72:g_dat_63f84+8); CALL 0x407f8([0x63fb0])=fn_000407f8() (DPMI real-mode req, no-op); CALL 0x42361(local,[0x63f54],[0x63f58])=isr_set(...) (INT 21h set-vector, no-op); CALL 0x41410()=fn_041340(0xd3) (device port-write = the ONLY flat-model observable effect). The handler far-pointer + DPMI request feed no-op sys stubs (no observable effect); the earlier deferral noted only the incidental fn_041410 CD command is testable -- this port captures exactly that. New global g_63f90 (init flag). All callees ported (fn_000407f8/isr_set/fn_041410). Test: 3 scenarios (g_63f90=0 guard -> no write; g_63f90=1 ready -> writes 0xd3 to +0xc; g_63f90=1 not-ready bit7 set -> fn_041340 returns 0 no write). 3 checks. L13 5->6, TOTALS 344->345/528. | STATUS.md L13 |
 | 2026-07-08 | **0x03d75c DEFERRED (L10, 306 B) -- data-table wall.** Loop over [0x62a90] 20-byte records at 0x5d0b4: reads rec[+0]=idx, rec[+4]=off2, rec[+0x10]=float; computes dx=rec[+4]-*(0x63dfc+0xc+idx*4)-[0x639dc], dy=rec[+4]-*(0x63dfc+0x4+idx*4)-[0x639dc] then adds fpu_rndint(rec[+0x10]) to each; if both dx,dy in [0,0x13f]: *(float)(0x5d0c4+i*0x14) = arg0 * *(float)(0x5274c + (0x63354+0x40 + (0x63370-1)*0x28)*4... ) - old_float. Touches many ROM/global tables (0x5d0b4/0x5d0b8/0x5d0c4, 0x63dfc, 0x639dc, 0x63354, 0x63370, 0x5274c) -- needs a dedicated pass to model them (cf. 0x01586b). Both callees (fpu_rndint x2) are ported. | STATUS.md |
@@ -552,7 +553,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x042023 | 32 | FUN_00042023 | | |
 | [ ] | 0x0426f2 | 26 | FUN_000426f2 | | |
 | [x] | 0x042717 | 103 | FUN_00042717 | | |
-| [ ] | 0x0427d2 | 20 | FUN_000427d2 | | |
+| [x] | 0x0427d2 | 20 | FUN_000427d2 | fn_0427d2 | r=fn_04285c(a0,a1); node_deactivate(a0); return r |
 | [ ] | 0x0446c3 | 132 | FUN_000446c3 | | |
 | [ ] | 0x049192 | 163 | FUN_00049192 | | |
 ## L8 (7)

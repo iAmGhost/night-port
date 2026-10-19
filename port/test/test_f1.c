@@ -3076,6 +3076,22 @@ static void test_fn_01586b(void) {
     memset(g_tab_5c8bc, 0, sizeof(g_tab_5c8bc));
 }
 
+static void test_fn_0427d2(void) {
+    printf("fn_0427d2 (r=fn_04285c(a0,a1); node_deactivate(a0); return r)\n");
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    uint8_t *saved_pool = g_ndpool;
+    g_node_list_active = 0;   /* empty pool -> node_deactivate is a safe no-op */
+    g_node_list_done = 0;
+    static uint8_t node[0x40];
+    memset(node, 0, sizeof(node));
+    uint8_t *a0 = node;
+    /* a0[0xc]==0 -> fn_04285c returns -1 early; fn_0427d2 must pass that through */
+    check(fn_0427d2(a0, 0) == fn_04285c(a0, 0), "  a0[0xc]=0,a1=0 -> r passthrough");
+    check(fn_0427d2(a0, 7) == fn_04285c(a0, 7), "  a0[0xc]=0,a1=7 -> r passthrough");
+    check(fn_0427d2(a0, 0) == -1, "  a0[0xc]=0 -> returns -1 (early-return passthrough)");
+    g_node_list_active = saved_act; g_node_list_done = saved_done; g_ndpool = saved_pool;
+}
+
 static void test_fn_040e8d(void) {
     printf("fn_040e8d (timer/device setup guard)\n");
     uint32_t saved53 = g_dat_53334, savedf90 = g_63f90;
@@ -5399,6 +5415,7 @@ int main(void) {
     test_fn_0412a3_041340();
     test_fn_040e8d();
     test_fn_01586b();
+    test_fn_0427d2();
     test_fn_0358c7();
     test_fn_0326c1();
     test_fn_040660_0406f5();

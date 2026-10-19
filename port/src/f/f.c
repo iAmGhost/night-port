@@ -3113,6 +3113,18 @@ uint32_t fn_042717(uint32_t a0) {
     return 0;
 }
 
+/* 0x0427d2 (L7, 20 B): node destruct + deactivate, returning the destructor's
+ * result.  r = fn_04285c(a0, a1); node_deactivate(a0); return r.  Dual-convention:
+ * the original passes the same EAX (a 32-bit node pointer) to both fn_04285c (node
+ * ptr) and node_deactivate (rec offset) -- identical in the DPMI 32-bit flat model.
+ * In the 64-bit port a0 is truncated to 32 bits for the node_deactivate call to
+ * mirror the original EAX (a real 64-bit ptr can't double as a small rec offset). */
+int32_t fn_0427d2(uint8_t *a0, int32_t a1) {
+    int32_t r = fn_04285c(a0, a1);
+    node_deactivate((uint32_t)(uintptr_t)a0);   /* same 32-bit value as orig EAX */
+    return r;
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

@@ -352,6 +352,7 @@ extern uint32_t  g_heap_seg_limit; /* DAT_00053384: DPMI segment limit */
 extern uint8_t   g_heap_cfg_b2;    /* DAT_000533b2: top-check mode byte */
 extern uint8_t   g_heap_cfg_b3;    /* DAT_000533b3: top-check mode byte (0x0431b5) */
 extern uint8_t   g_heap_cfg_b4;    /* DAT_000533b4: top-check flag */
+extern uint8_t   g_dat_5340c;      /* DAT_0005340c: system-init "armed" flag (1 = run init) */
 extern uint8_t   g_heap_flag;      /* DAT_00063fbd: wrappers zero it, never read */
 extern uint32_t  g_dat_63e14;      /* DAT_00063e14: 2-node swap counter (fn_03e14c) */
 extern uint32_t  g_dat_63e18;      /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
@@ -455,6 +456,8 @@ void fpu_state_save(uintptr_t dst);
 /* DOS INT 21h AH=25h: install the int 0x35 (8253 soft-timer) handler. The
  * modern port installs its timer via SDL; faithful sys stub.  orig: 0x043958 */
 void dos_install_timer_int(void);
+void     fn_0438a3(void);                    /* 0x0438a3: DPMI/DOS system-init dispatcher (flat: clear g_dat_5340c) */
+void     fn_041fa1(void);                    /* 0x041fa1: JMP thunk -> fn_0438a3 */
 
 /* Command-line parser context. The original passes a struct with a next-char
  * callback at +0x00, an emit callback at +0x04, a parsed number at +0x0c, and

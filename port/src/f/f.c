@@ -1986,6 +1986,7 @@ uint32_t  g_heap_seg_limit = 0;   /* DAT_00053384 */
 uint8_t   g_heap_cfg_b2    = 0;   /* DAT_000533b2 */
 uint8_t   g_heap_cfg_b3    = 0;   /* DAT_000533b3 */
 uint8_t   g_heap_cfg_b4    = 0;   /* DAT_000533b4 */
+uint8_t   g_dat_5340c      = 0;   /* DAT_0005340c: system-init "armed" flag (1 = run init) */
 uint8_t   g_heap_flag      = 0;   /* DAT_00063fbd (wrappers zero; never read) */
 uint32_t  g_ds_segment     = 0;   /* DPMI DS (flat model: 0) */
 static uint32_t s_arena_used = 0; /* next free offset in the arena */
@@ -2837,6 +2838,46 @@ uint32_t fn_043071(uint32_t size)
     if (r == -1) return 0;                             /* 0x043108-0b (always in flat) */
     /* 0x04310d+: unreachable (r != -1) -- block walk + adjacency + creation -> 1 */
     return 1;
+}
+
+/* 0x0438a3: DPMI/DOS core system-init dispatcher (122 B; NOT in the 528 list).
+ * Guarded by DAT_0005340c: if it is not 1, return immediately (no change).
+ * Otherwise dispatch on DAT_000533b2 (b2) / DAT_000533b4 (b4); every branch is
+ * DPMI/DOS/CR0-specific with no flat-model effect:
+ *   b4 != 0        -> dos_install_timer_int()                        (0x043958)
+ *   else b2 == 9   -> DPMI call [DAT_00053364]+0x30, EAX=0xe02,EBX=0
+ *   else b2 == 0   -> INT 0x21 AH=0xf3, AL=low8(DAT_0005340a)
+ *   else b2 == 1   -> DX=DAT_00053368, EAX=0, dos_realmode_setup()   (0x0490b0, arg ignored)
+ *   else           -> EDX=0, dos_realmode_setup(); if (AL==1) fn_04391d()
+ * then clears DAT_0005340c = 0. All three callees (dos_install_timer_int,
+ * dos_realmode_setup, fn_04391d) are already ported no-ops, so the sole
+ * flat-model effect is the DAT_0005340c clear. 0x041fa1 is a 5-byte
+ * `JMP 0x0438a3` tail thunk whose behavior is exactly this function.
+ * orig: 0x0438a3 (0x0438a3..0x04391c) */
+void fn_0438a3(void)
+{
+    if (g_dat_5340c != 1) return;                       /* 0x0438a3-a8 guard  */
+    if (g_heap_cfg_b4 != 0) {
+        dos_install_timer_int();                        /* 0x0438be (0x043958) */
+    } else if (g_heap_cfg_b2 == 9) {
+        /* 0x0438c9-d9: DPMI call [DAT_00053364]+0x30, EAX=0xe02, EBX=0 (no flat effect) */
+    } else if (g_heap_cfg_b2 == 0) {
+        /* 0x0438e2-ea: INT 0x21 AH=0xf3, AL=low8(DAT_0005340a) (DOS, no flat effect) */
+    } else if (g_heap_cfg_b2 == 1) {
+        dos_realmode_setup();                           /* 0x0438f2-fb (0x0490b0), arg ignored */
+    } else {
+        dos_realmode_setup();                           /* 0x043902-04: EDX=0 */
+        /* 0x043909-0d: if (AL==1) fn_04391d(); the flat DOS stub leaves AL=0 -> not
+         * taken, and fn_04391d is a no-op either way. */
+    }
+    g_dat_5340c = 0;                                    /* 0x043912           */
+}
+
+/* 0x041fa1: 5-byte tail thunk `JMP 0x0438a3` -- its behavior is exactly
+ * fn_0438a3(); a straight forward. orig: 0x041fa1 */
+void fn_041fa1(void)
+{
+    fn_0438a3();
 }
 
 /* 0x042d2a: heap region expand / absorb-adjacent (93 insns).

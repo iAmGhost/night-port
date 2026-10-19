@@ -4477,6 +4477,39 @@ static void test_fn_043071(void) {
     g_dat_53640 = s53640; g_heap_head = shead;
 }
 
+static void test_fn_0438a3(void) {
+    printf("fn_0438a3/fn_041fa1 (0x0438a3 DPMI/DOS system-init dispatcher + 0x041fa1 thunk)\n");
+    uint8_t sb2 = g_heap_cfg_b2, sb4 = g_heap_cfg_b4, s40c = g_dat_5340c;
+    /* guard: 5340c != 1 -> no change */
+    g_dat_5340c = 0;
+    fn_0438a3();
+    check(g_dat_5340c == 0, "  fn_0438a3: guard 5340c=0 -> unchanged");
+    /* b4!=0 -> dos_install_timer_int; 5340c cleared */
+    g_dat_5340c = 1; g_heap_cfg_b4 = 1; g_heap_cfg_b2 = 0;
+    fn_0438a3();
+    check(g_dat_5340c == 0, "  fn_0438a3: b4!=0 path clears 5340c");
+    /* b2==9 -> DPMI (no-op); 5340c cleared */
+    g_dat_5340c = 1; g_heap_cfg_b4 = 0; g_heap_cfg_b2 = 9;
+    fn_0438a3();
+    check(g_dat_5340c == 0, "  fn_0438a3: b2==9 DPMI path clears 5340c");
+    /* b2==0 -> INT 21 (no-op); 5340c cleared */
+    g_dat_5340c = 1; g_heap_cfg_b4 = 0; g_heap_cfg_b2 = 0;
+    fn_0438a3();
+    check(g_dat_5340c == 0, "  fn_0438a3: b2==0 DOS path clears 5340c");
+    /* else (b2 other) -> dos_realmode_setup; 5340c cleared */
+    g_dat_5340c = 1; g_heap_cfg_b4 = 0; g_heap_cfg_b2 = 5;
+    fn_0438a3();
+    check(g_dat_5340c == 0, "  fn_0438a3: else path (b2=5) clears 5340c");
+    /* thunk fn_041fa1 forwards to fn_0438a3 */
+    g_dat_5340c = 1; g_heap_cfg_b4 = 0; g_heap_cfg_b2 = 5;
+    fn_041fa1();
+    check(g_dat_5340c == 0, "  fn_041fa1: thunk forwards (clears 5340c)");
+    g_dat_5340c = 0;
+    fn_041fa1();
+    check(g_dat_5340c == 0, "  fn_041fa1: thunk guard (5340c=0 unchanged)");
+    g_heap_cfg_b2 = sb2; g_heap_cfg_b4 = sb4; g_dat_5340c = s40c;
+}
+
 /* ---------- fn_042d2a: heap region expand ---------- */
 static void test_fn_042d2a(void) {
     printf("fn_042d2a (0x042d2a, heap region expand)\n");
@@ -5747,6 +5780,7 @@ int main(void) {
     test_fn_042eef();
     test_fn_042fc2();
     test_fn_043071();
+    test_fn_0438a3();
     test_fn_042d2a();
     test_fn_048fe6();
     test_fn_04a32b();

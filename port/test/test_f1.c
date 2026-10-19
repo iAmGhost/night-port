@@ -4448,6 +4448,35 @@ static void test_fn_042fc2(void) {
     g_dat_5363c = s5363c; g_heap_seg_limit = s53384; g_heap_cfg_b2 = s533b2;
 }
 
+static void test_fn_043071(void) {
+    printf("fn_043071 (0x043071, DPMI/DOS core heap acquirer)\n");
+    heap_arena_init();
+    uint8_t  sb2 = g_heap_cfg_b2, sb3 = g_heap_cfg_b3, sb4 = g_heap_cfg_b4;
+    uint32_t s5363c = g_dat_5363c, s53384 = g_heap_seg_limit, s64008 = g_dat_64008;
+    uint32_t s53640 = g_dat_53640, shead = g_heap_head;
+    /* DPMI path: b2==1 && b3==0 -> fn_042fc2 -> 0 */
+    g_heap_cfg_b2 = 1; g_heap_cfg_b3 = 0; g_dat_5363c = 0;
+    check(fn_043071(0x100) == 0, "  fn_043071: DPMI path (b2=1,b3=0) -> 0");
+    /* DPMI path: b2==9 -> fn_042fc2 -> 0 */
+    g_heap_cfg_b2 = 9; g_heap_cfg_b3 = 0;
+    check(fn_043071(0x100) == 0, "  fn_043071: DPMI path (b2=9) -> 0");
+    /* heap path: b2==0, 5363c==0 -> 0 (guard) */
+    g_heap_cfg_b2 = 0; g_dat_5363c = 0;
+    check(fn_043071(0x100) == 0, "  fn_043071: heap path 5363c==0 -> 0");
+    /* heap path: 53384==-2 sentinel -> 0 */
+    g_dat_5363c = 1; g_heap_seg_limit = 0xfffffffe;
+    check(fn_043071(0x100) == 0, "  fn_043071: heap path 53384==-2 -> 0");
+    /* heap path: heap_size_adjust ok -> fn_045bb7 -> -1 -> 0, side effect g_dat_64008=5 */
+    g_heap_seg_limit = 0x100000; g_heap_cfg_b2 = 0;
+    g_heap_head = 0; g_dat_53640 = 0x8000;
+    g_dat_64008 = 0;
+    check(fn_043071(0x100) == 0, "  fn_043071: heap path fn_045bb7->-1 -> 0");
+    check(g_dat_64008 == 5, "  fn_043071: fn_045bb7 side effect g_dat_64008=5");
+    g_heap_cfg_b2 = sb2; g_heap_cfg_b3 = sb3; g_heap_cfg_b4 = sb4;
+    g_dat_5363c = s5363c; g_heap_seg_limit = s53384; g_dat_64008 = s64008;
+    g_dat_53640 = s53640; g_heap_head = shead;
+}
+
 /* ---------- fn_042d2a: heap region expand ---------- */
 static void test_fn_042d2a(void) {
     printf("fn_042d2a (0x042d2a, heap region expand)\n");
@@ -5717,6 +5746,7 @@ int main(void) {
     test_fn_042ccc();
     test_fn_042eef();
     test_fn_042fc2();
+    test_fn_043071();
     test_fn_042d2a();
     test_fn_048fe6();
     test_fn_04a32b();

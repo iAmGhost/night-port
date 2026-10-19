@@ -2800,6 +2800,45 @@ uint32_t fn_042fc2(uint32_t size)
     return 1;                                       /* 0x043028-6c bookkeeping (unreachable) */
 }
 
+/* 0x043071 (L4, 323 B): DPMI/DOS core heap acquirer -- the real allocator the
+ * original heap_malloc (0x041af8) delegated to. The port's heap_malloc is a
+ * self-contained arena and does NOT call this; this is 1:1 coverage only.
+ * canary-free (PUSH regs; shared epilogue 0x0431ac: ADD ESP,4; POPs; RET; return EAX).
+ * Disassembly-verified (110 insns): direct CALLs to 0x042fc2 (fn_042fc2, DPMI path),
+ * 0x0431b5 (heap_size_adjust), 0x045bb7 (fn_045bb7), plus the UNREACHABLE 0x042e2d
+ * (heap_insert_init) / 0x041c31 (heap_free_host) in the success path. NO indirect.
+ * FLAT MODEL = always return 0 (alloc failed):
+ *   - DPMI path (b2==1&&b3==0 || b2==9): fn_042fc2(size) -> 0.
+ *   - heap-walk path: guard g_dat_5363c==0 -> 0; guard g_heap_seg_limit==-2 -> 0;
+ *     heap_size_adjust(&s)==0 -> 0; then total = s+g_heap_seg_limit (overflow -> -2);
+ *     fn_045bb7(total) -> -1 (flat) -> 0. The g_heap_head (0x53350) block walk,
+ *     adjacency extension, and new-block creation (heap_insert_init + heap_free_host,
+ *     EAX=1 success) are all unreachable because fn_045bb7 fails first.
+ * The 2<=b2<=8 && b4==0 branch recomputes g_heap_seg_limit = DS-seg-limit+1 (LSL);
+ * dead in the flat model (b2==0 default) -- modeled via the heap_top_check equivalent.
+ * Side effects preserved via ported callees: heap_size_adjust size-cell write,
+ * fn_045bb7 (g_dat_64008=5). Reuses existing g_heap_seg_limit (0x53384) +
+ * g_heap_cfg_b2/b3/b4 (0x533b2/b3/b4); NO new globals. orig: 0x043071 */
+uint32_t fn_043071(uint32_t size)
+{
+    if ((g_heap_cfg_b2 == 1 && g_heap_cfg_b3 == 0) || g_heap_cfg_b2 == 9) {
+        return fn_042fc2(size);                        /* 0x043092-95 (0 in flat) */
+    }
+    if (g_dat_5363c == 0) return 0;                    /* 0x04309f-a6 */
+    if (g_heap_seg_limit == 0xfffffffe) return 0;      /* 0x0430af-b6 (== -2) */
+    uint32_t s = size;
+    if (heap_size_adjust(&s) == 0) return 0;           /* 0x0430b8-c1 */
+    if (g_heap_cfg_b2 >= 2 && g_heap_cfg_b2 <= 8 && g_heap_cfg_b4 == 0) {
+        g_heap_seg_limit = (g_ds_segment + 1) * 0x10000u;   /* 0x0430e0-e8 (dead in flat) */
+    }
+    uint32_t total = s + g_heap_seg_limit;             /* 0x0430ed-f6 */
+    if (total < g_heap_seg_limit) total = 0xfffffffe;  /* 0x0430f8-fc overflow -> -2 */
+    int32_t r = fn_045bb7(total);                      /* 0x043101-03 (-1 in flat) */
+    if (r == -1) return 0;                             /* 0x043108-0b (always in flat) */
+    /* 0x04310d+: unreachable (r != -1) -- block walk + adjacency + creation -> 1 */
+    return 1;
+}
+
 /* 0x042d2a: heap region expand / absorb-adjacent (93 insns).
  *
  * In the flat model: CALL fn_042ccc (unlink freeable regions), then walk

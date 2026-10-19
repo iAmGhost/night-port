@@ -4431,21 +4431,21 @@ static void test_fn_042eef(void) {
 static void test_fn_042fc2(void) {
     printf("fn_042fc2 (0x042fc2, DPMI/DOS heap alloc)\n");
     heap_arena_init();
-    uint32_t s5363c = g_dat_5363c, s53384 = g_dat_53384, s533b2 = g_dat_533b2;
+    uint32_t s5363c = g_dat_5363c, s53384 = g_heap_seg_limit, s533b2 = g_heap_cfg_b2;
     /* guard 1: no DPMI (5363c==0) -> 0 */
     g_dat_5363c = 0;
     check(fn_042fc2(0x100) == 0, "  fn_042fc2: 5363c==0 -> 0");
     /* guard 2: 53384==-2 sentinel -> 0 */
-    g_dat_5363c = 1; g_dat_53384 = 0xfffffffe;
+    g_dat_5363c = 1; g_heap_seg_limit = 0xfffffffe;
     check(fn_042fc2(0x100) == 0, "  fn_042fc2: 53384==-2 -> 0");
     /* INT 0x21 path (533b2 != 1): heap_size_adjust ok, INT 0x21 AH=48 fails -> 0 */
-    g_dat_53384 = 0x100000; g_dat_533b2 = 0;
+    g_heap_seg_limit = 0x100000; g_heap_cfg_b2 = 0;
     heap_acquire_region(0x1000);   /* give heap_size_adjust a live heap */
     check(fn_042fc2(0x100) == 0, "  fn_042fc2: INT 0x21 path (flat) -> 0");
     /* free path (533b2 == 1): fn_042eef returns 0 in flat -> 0 */
-    g_dat_533b2 = 1;
+    g_heap_cfg_b2 = 1;
     check(fn_042fc2(0x100) == 0, "  fn_042fc2: free path (flat) -> 0");
-    g_dat_5363c = s5363c; g_dat_53384 = s53384; g_dat_533b2 = s533b2;
+    g_dat_5363c = s5363c; g_heap_seg_limit = s53384; g_heap_cfg_b2 = s533b2;
 }
 
 /* ---------- fn_042d2a: heap region expand ---------- */

@@ -19,6 +19,7 @@
 
 - use uv for python
 - use `dosbox-staging` for running original game
+- **Debugging tools (e.g. `ldbg`): always add an arbitrary timeout** so a watch/step/continue cannot loop or block forever. Never run an interactive debugger session unbounded -- cap it (e.g. a timeout wrapper / max-steps / alarm) and recover from the timeout instead of hanging.
 
 ## Running original game
 

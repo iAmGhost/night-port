@@ -2767,16 +2767,15 @@ uint32_t fn_042eef(uint32_t arg)
     return 0;      /* DPMI/DOS free+alloc fail (CF=1) -> bail with EAX=0       */
 }
 
-/* 0x042fc2 globals (DPMI/DOS heap allocator) */
-uint32_t g_dat_53384 = 0;   /* DAT_00053384: DPMI/DOS memory limit (-2 sentinel) */
-uint8_t  g_dat_533b2 = 0;   /* DAT_000533b2: DPMI/DOS memory-mode byte */
+/* 0x042fc2 reuses existing DPMI/heap config globals: g_heap_seg_limit (DAT_00053384),
+ * g_heap_cfg_b2 (DAT_000533b2), g_dat_5363c (DAT_0005363c). */
 
 /* 0x042fc2 (L3, 174 B): DPMI/DOS heap block allocator (INT 0x21 AH=48 AL=0x8000).
  * canary-free (PUSH regs; shared epilogue 0x042fb9: ADD ESP,4; POPs; RET; return EAX).
  * Flat model: no DOS/DPMI -> INT 0x21 AH=48 always fails (CF=1, masked EAX=0) and the
  * b2==1 free path (fn_042eef) also returns 0, so every branch returns 0 (alloc failed);
  * the heap_insert_init/heap_free_host bookkeeping (EAX=1) is unreachable. Faithful
- * control flow: guard on g_dat_5363c==0 / g_dat_53384==-2, heap_size_adjust(&size) (0->fail),
+ * control flow: guard on g_dat_5363c==0 / g_heap_seg_limit==-2, heap_size_adjust(&size) (0->fail),
  * then the b2==1 free path (fn_042eef) or the INT 0x21 AH=48 alloc (no-op -> 0).
  * Observable side effects preserved via the ported callees: heap_size_adjust's
  * size-cell write and, in the b2==1 path, fn_042eef -> fn_042ccc (heap unlink).
@@ -2785,10 +2784,10 @@ uint8_t  g_dat_533b2 = 0;   /* DAT_000533b2: DPMI/DOS memory-mode byte */
 uint32_t fn_042fc2(uint32_t size)
 {
     if (g_dat_5363c == 0) return 0;                 /* 0x042fc8-cf */
-    if (g_dat_53384 == 0xfffffffe) return 0;        /* 0x042fd5-fc (== -2) */
+    if (g_heap_seg_limit == 0xfffffffe) return 0;   /* 0x042fd5-fc (== -2) */
     uint32_t s = size;
     if (heap_size_adjust(&s) == 0) return 0;        /* 0x042fde-fe7 */
-    if (g_dat_533b2 == 1) {                         /* 0x042fe9: free-a-block path */
+    if (g_heap_cfg_b2 == 1) {                       /* 0x042fe9: free-a-block path */
         uint32_t r = fn_042eef(size);               /* 0x042ff2-ff5 */
         if (r == 0) return 0;                       /* 0x042ffe-00 (always, in flat) */
         s = *(uint32_t *)r;                         /* 0x043002-04 (unreachable in flat) */

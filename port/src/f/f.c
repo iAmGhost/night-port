@@ -3125,6 +3125,25 @@ int32_t fn_0427d2(uint8_t *a0, int32_t a1) {
     return r;
 }
 
+/* 0x0427a3 (L7, 46 B): walk the ACTIVE node list; find the node whose rec == a0
+ * and destruct+deactivate it via fn_0427d2(base+rec, 1); return that result. If
+ * the active list is empty or no node matches, return -1.
+ * orig: EAX=a0; head=[0x63ffc] (a pointer in the 32-bit model); node->next@+0,
+ * node->rec@+4; fn_0427d2(rec_ptr, 1). Port: head is an offset into g_ndpool, so
+ * the record passed to fn_0427d2 is base+node->rec. */
+int32_t fn_0427a3(uint32_t a0) {
+    uint8_t *base = g_ndpool;
+    uint32_t cur = g_node_list_active;
+    while (cur != 0) {
+        struct nd_node *node = (struct nd_node *)(base + cur);
+        if (node->rec == a0) {
+            return fn_0427d2(base + node->rec, 1);
+        }
+        cur = node->next;
+    }
+    return -1;
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

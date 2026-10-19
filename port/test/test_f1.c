@@ -3092,6 +3092,28 @@ static void test_fn_0427d2(void) {
     g_node_list_active = saved_act; g_node_list_done = saved_done; g_ndpool = saved_pool;
 }
 
+static void test_fn_0427a3(void) {
+    printf("fn_0427a3 (walk active list; node rec==a0 -> fn_0427d2(base+rec,1); else -1)\n");
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    uint8_t *saved_pool = g_ndpool;
+    static uint8_t pool[0x100];
+    memset(pool, 0, sizeof(pool));
+    g_ndpool = pool;
+    *(uint32_t *)(pool + 0x10) = 0;    /* node.next = 0 */
+    *(uint32_t *)(pool + 0x14) = 0x20; /* node.rec  = 0x20 */
+    pool[0x20 + 0xc] = 0;              /* record[0xc]=0 -> fn_04285c returns -1 */
+    g_node_list_active = 0x10;
+    g_node_list_done = 0;
+    check(fn_0427a3(0xFF) == -1, "  not found -> -1");
+    check(g_node_list_active == 0x10, "  not found -> active head unchanged");
+    /* flat-model note: node_deactivate receives (u32)(base+rec), not the rec offset
+     * (dual-convention), so the found case's list/record mutation is not observable
+     * here; verify the delegation by return-value equality. */
+    check(fn_0427a3(0x20) == fn_0427d2(pool + 0x20, 1), "  found -> delegates to fn_0427d2(base+rec,1)");
+    check(fn_0427a3(0x20) == -1, "  found, record[0xc]=0 -> -1");
+    g_node_list_active = saved_act; g_node_list_done = saved_done; g_ndpool = saved_pool;
+}
+
 static void test_fn_040e8d(void) {
     printf("fn_040e8d (timer/device setup guard)\n");
     uint32_t saved53 = g_dat_53334, savedf90 = g_63f90;
@@ -5416,6 +5438,7 @@ int main(void) {
     test_fn_040e8d();
     test_fn_01586b();
     test_fn_0427d2();
+    test_fn_0427a3();
     test_fn_0358c7();
     test_fn_0326c1();
     test_fn_040660_0406f5();

@@ -608,6 +608,7 @@ int32_t fn_042928(uint8_t *node);    /* 0x042928: node lseek-offset compute (lse
 int32_t fn_04285c(uint8_t *a0, int32_t a1);  /* 0x04285c: io_state/node destructor (flush/lseek/close/free/filename) */
 uint32_t fn_042717(uint32_t a0);  /* 0x042717: find node with rec==a0: active+flags&0x3 -> fn_04285c(rec,1); done -> reactivate; else g_64008=4, return 0 */
 int32_t fn_0427d2(uint8_t *a0, int32_t a1);  /* 0x0427d2: r=fn_04285c(a0,a1); node_deactivate(a0); return r */
+int32_t fn_0427a3(uint32_t a0);  /* 0x0427a3: walk active list; node rec==a0 -> fn_0427d2(base+rec,1); else -1 */
 extern uint8_t  *g_ndpool;          /* node pool base (offset 0 = NULL sentinel) */
 extern uint32_t g_node_list_active; /* 0x63ffc: active list head (offset; 0=empty) */
 extern uint32_t g_node_list_done;   /* 0x63ff8: done list head (offset; 0=empty) */

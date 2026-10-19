@@ -615,6 +615,8 @@ int32_t fn_0427a3(uint32_t a0);  /* 0x0427a3: walk active list; node rec==a0 -> 
 extern uint8_t  *g_ndpool;          /* node pool base (offset 0 = NULL sentinel) */
 extern uint32_t g_node_list_active; /* 0x63ffc: active list head (offset; 0=empty) */
 extern uint32_t g_node_list_done;   /* 0x63ff8: done list head (offset; 0=empty) */
+extern uint8_t  g_dat_53451;         /* DAT_00053451: file-structure flag */
+void     fn_04933a(void);            /* 0x04933a: rebuild active node list from file-struct table @0x53410 */
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

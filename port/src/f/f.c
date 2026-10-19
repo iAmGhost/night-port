@@ -3196,6 +3196,49 @@ char **g_dat_537d4 = NULL;                                /* DAT_000537d4: confi
 uint32_t cb_indirect_53644(void) { return g_cb_53644 ? g_cb_53644() : 0; } /* 0x451b5 */
 
 /* ---- L0 batch D (9): node list, modifier-prefix parser, debug hook ---- */
+/* 0x04933a (119 B): rebuild the active node list from the file-structure table.
+ * No canary (only PUSH EBX/ECX/EDX). Disassembly-verified (38 insns, disassemble_bytes):
+ * only direct CALLs to 0x041af8 (heap_malloc) and 0x0429ea (error msg), no indirect.
+ *   g_dat_53451 = (g_dat_53451 & 0xf8) | 0x4;
+ *   ecx = 0x53410;   // file-structure table base (offset within g_ndpool)
+ *   while (*(g_ndpool + ecx + 0xc) != 0) {
+ *       off = heap_malloc(8) [retry once; on 2nd fail fn_0429ea(msg,1) then fall
+ *           through with off==0 -- flat orig crashes writing addr 4; the port writes
+ *           g_heap_base+4 (flat-model artifact, never exercised since malloc succeeds)].
+ *       node = g_heap_base + off;
+ *       node[+4] = ecx;             // rec -> record offset (0x0427a3 reads g_ndpool+rec)
+ *       g_node_list_active = off;   // prepend
+ *       ecx += 0x1a;
+ *       node[+0] = old_head;        // next
+ *   }
+ *   g_node_list_done = 0;           // = the zero sentinel that ended the loop
+ * Data model: 0x53410 is a data-segment record table (0x1a-byte records); the record
+ * base is g_ndpool + 0x53410 (0x0427a3 consumes node->rec as g_ndpool+rec). Nodes are
+ * heap-allocated (g_heap_base + off). */
+extern void fn_0429ea(const char *msg, uint32_t param2);
+uint8_t  g_dat_53451 = 0;   /* DAT_00053451: file-structure flag */
+
+void fn_04933a(void) {
+    g_dat_53451 = (g_dat_53451 & 0xf8) | 0x4;                 /* 0x4933d-56 */
+    uint8_t *base = g_ndpool;
+    uint32_t ecx = 0x53410;                                   /* 0x49351 */
+    for (;;) {
+        if (*(int32_t *)(base + ecx + 0xc) == 0) break;        /* 0x493a1-a6 */
+        uint32_t off = heap_malloc(8);                         /* 0x4935e-63 */
+        if (off == 0) {
+            off = heap_malloc(8);                             /* 0x4936e-73 retry */
+            if (off == 0)
+                fn_0429ea("Not enough memory to allocate file structures\r\n", 1); /* 0x4937e-88 */
+        }
+        uint32_t old_head = g_node_list_active;               /* 0x4938d */
+        *(uint32_t *)(g_heap_base + off + 4) = ecx;           /* 0x49393 rec */
+        g_node_list_active = off;                             /* 0x49396 prepend */
+        ecx += 0x1a;                                          /* 0x4939c */
+        *(uint32_t *)(g_heap_base + off) = old_head;          /* 0x4939f next */
+    }
+    g_node_list_done = 0;                                     /* 0x493a8 sentinel */
+}
+
 uint8_t  *g_ndpool = NULL;
 uint32_t  g_node_list_active = 0;    /* DAT_00063ffc */
 uint32_t  g_node_list_done = 0;      /* DAT_00063ff8 */

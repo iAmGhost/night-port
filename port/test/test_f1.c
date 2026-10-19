@@ -3138,6 +3138,45 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_04933a(void) {
+    printf("fn_04933a (rebuild active node list from file-struct table)\n");
+    /* file-struct table at g_ndpool + 0x53410 -> pool must be >= 0x53410 + 3*0x1a */
+    static uint8_t pool[0x53500];
+    memset(pool, 0, sizeof pool);
+    *(uint32_t *)(pool + 0x53410 + 0xc) = 1;   /* record 0 present */
+    *(uint32_t *)(pool + 0x5342a + 0xc) = 2;   /* record 1 present */
+    *(uint32_t *)(pool + 0x53444 + 0xc) = 0;   /* sentinel: stop */
+    /* Save/restore node-pool state only. Heap is touched only ADDITIVELY by
+     * fn_04933a's heap_malloc(8) (2 nodes; auto-acquires a region if none). NO
+     * heap_arena_init() here -- a trailing reset would wipe the region later
+     * lazy tests (e.g. fn_041c8f, which heap_malloc's without priming) rely on. */
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active;
+    uint32_t saved_done = g_node_list_done;
+    g_ndpool = pool;
+    g_dat_53451 = 0x1f;
+    g_node_list_active = 0;
+    g_node_list_done = 0xdead;
+    fn_04933a();
+    check(g_dat_53451 == 0x1c, "  flag: (0x1f & 0xf8)|0x4 = 0x1c");
+    check(g_node_list_done == 0, "  done list zeroed");
+    uint32_t head = g_node_list_active;
+    check(head != 0, "  active list non-empty");
+    if (head != 0) {
+        uint32_t n1 = *(uint32_t *)(g_heap_base + head);       /* node2->next */
+        uint32_t r1 = *(uint32_t *)(g_heap_base + head + 4);   /* node2->rec */
+        check(r1 == 0x5342a, "  head->rec = 0x5342a (2nd record)");
+        check(n1 != 0, "  head->next set");
+        uint32_t r2 = *(uint32_t *)(g_heap_base + n1 + 4);     /* node1->rec */
+        uint32_t n2 = *(uint32_t *)(g_heap_base + n1);         /* node1->next */
+        check(r2 == 0x53410, "  node1->rec = 0x53410 (1st record)");
+        check(n2 == 0, "  node1->next = 0 (was empty head)");
+    }
+    g_ndpool = saved_pool;
+    g_node_list_active = saved_act;
+    g_node_list_done = saved_done;
+}
+
 static void test_fn_03b9b7(void) {
     printf("fn_03b9b7 (drain entity list)\n");
     uint8_t *saved_cc = g_dat_639cc;
@@ -5609,6 +5648,7 @@ int main(void) {
     test_fn_0427a3();
     test_fn_037306();
     test_fn_03b9b7();
+    test_fn_04933a();
     test_fn_041c8f();
     test_fn_049192();
     test_fn_041d18();

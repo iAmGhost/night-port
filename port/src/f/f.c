@@ -6737,6 +6737,45 @@ void fn_048422(fx128 *a)
     if (CL & 0x80) a->exp = (uint16_t)(a->exp ^ 0x8000);
 }
 
+/* fn_04836c  orig: 0x0004836c (L4, 53 insns) -- fx128 binary op (a OP b) with
+ *   zero/inf special cases + a sign-dependent post-scale.
+ *   Register-ABI: EAX=a (fx128*), EDX=b (fx128*), EBX=out (fx128*). a->exp is the
+ *   16-bit word at +8 (byte9 = sign, bit15); the byte9 "flag" reads are exp>>8.
+ *   - a==0 (a->exp&0x7fff==0): out = b>=0 ? {0,0,0} : {0x2168c235,0xc90fdaa2,0x4000}
+ *   - else b==0 (b->exp&0x7fff==0): out = {0x2168c235,0xc90fdaa2,(a->exp&0x8000)|0x3fff}
+ *   - else: out = a OP b (fn_047b4f); fn_048422(out) normalizes; then
+ *       (a negative && out flag>0) -> scale (0x2168c235,0xc90fdaa2,0xc000)
+ *       (a non-neg  && out flag<0) -> scale (0x2168c235,0xc90fdaa2,0x4000).
+ *   LATENT ORIG QUIRK: the original mangles EAX low16 via `MOV CX,[EDI+8]` before
+ *   CALL 0x047b4f (which reads a from EAX), feeding a corrupted `a`; the C port
+ *   passes the correct a pointer (the clear intent -- EDI is preserved). */
+void fn_04836c(fx128 *a, const fx128 *b, fx128 *out)
+{
+    if ((a->exp & 0x7fff) == 0) {                      /* 0x048371-78: a is zero */
+        if ((b->exp & 0x8000) == 0) {                  /* 0x04837a: b non-negative */
+            out->exp = 0; out->hi = 0; out->lo = 0;
+        } else {                                       /* b negative */
+            out->exp = 0x4000; out->hi = 0xc90fdaa2; out->lo = 0x2168c235;
+        }
+        return;
+    }
+    if ((b->exp & 0x7fff) == 0) {                      /* 0x0483aa-b1: b is zero */
+        out->exp = (uint16_t)((a->exp & 0x8000) | 0x3fff); out->hi = 0xc90fdaa2; out->lo = 0x2168c235;
+        return;
+    }
+    int8_t ch = (int8_t)(a->exp >> 8);                 /* 0x0483d2: CH = a->flag (byte9) */
+    fn_047b4f(a, b, out);                              /* 0x0483d5: out = a OP b */
+    fn_048422(out);                                    /* 0x0483dc: normalize */
+    int8_t dl = (int8_t)(out->exp >> 8);               /* 0x0483e1: DL = out->flag (byte9) */
+    if (ch < 0) {                                      /* 0x0483e4: a negative */
+        if (dl > 0)                                    /* 0x048406: out positive */
+            fn_04791a(out, out, 0x2168c235u, 0xc90fdaa2u, 0xc000u);
+    } else {                                           /* a non-negative */
+        if (dl < 0)                                    /* 0x0483ea: out negative */
+            fn_04791a(out, out, 0x2168c235u, 0xc90fdaa2u, 0x4000u);
+    }
+}
+
 /* fn_047d4e  orig: 0x047d4e  (fx_mul64, 108 insns) — 64x64->128 fixed-point multiply
  * with 96-bit mantissa normalize + round-half + exponent re-bias.
  * Register-ABI: in {EAX=a_lo, EDX=a_hi, EBX=b_lo, ECX=b_hi, ESI=esi(exp field, 32-bit,

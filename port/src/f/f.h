@@ -194,6 +194,7 @@ void fn_0478f0(fx128 *a, fx128 *out, const fx128 *b); /* 0x0478f0: fn_04794a wra
 void fn_0478e2(fx128 *a, fx128 *out, const fx128 *b); /* 0x0478e2: as 0x0478f0 but b->exp bit15 flipped before compose */
 void fn_04791a(fx128 *a, fx128 *out, uint32_t b_lo, uint32_t b_hi, uint32_t exp_hi); /* 0x04791a: fn_04794a wrapper w/ scalar b (stack args; exp_hi low16) */
 void fn_047b4f(fx128 *a, const fx128 *b, fx128 *out);                /* 0x047b4f: thin wrapper, out = a <op> b via fn_047b79 (register-ABI pack) */
+void fn_04836c(fx128 *a, const fx128 *b, fx128 *out);                /* 0x04836c: fx128 a OP b w/ zero/inf special cases + sign post-scale */
 
 /* strlen with a 2^32 underflow guard  orig: 0x041f5d */
 uint32_t str_len(const char *a);

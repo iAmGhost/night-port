@@ -3520,6 +3520,46 @@ static void test_fn_048422(void) {
     check(fail == 0, "  all vectors match Python reference fp_048422_ref.py");
 }
 
+static void test_fn_04836c(void) {
+    /* fn_04836c: out = a OP b (via fn_047b4f) with zero/inf special cases + sign
+     * post-scale. The main path (both nonzero) underflows to 0 for typical inputs;
+     * the substantive differentiator is the distinct zero/inf special-case exps. */
+    struct { uint32_t alo, ahi; uint16_t aexp; uint32_t blo, bhi; uint16_t bexp;
+             uint32_t elo, ehi; uint16_t eexp; const char *name; } V[] = {
+        {0x12345678,0x9abcdef0,0x0001, 0x11111111,0x22222222,0x0002, 0x00000000,0x00000000,0x0000, "a>0 b>0 main->0"},
+        {0x12345678,0x9abcdef0,0x8001, 0x11111111,0x22222222,0x0002, 0x00000000,0x00000000,0x0000, "a<0 b>0 main->0"},
+        {0x33333333,0x44444444,0x3ffe, 0x55555555,0x66666666,0x0003, 0x00000000,0x00000000,0x0000, "a>0 b>0 hi-exp"},
+        {0x00000000,0x00000000,0x0000, 0x11111111,0x22222222,0x0002, 0x00000000,0x00000000,0x0000, "a=+0 b>0 -> +0"},
+        {0x00000000,0x00000000,0x8000, 0x11111111,0x22222222,0x8002, 0x2168c235,0xc90fdaa2,0x4000, "a=-0 b<0 -> neg-zero"},
+        {0x12345678,0x9abcdef0,0x0001, 0x00000000,0x00000000,0x0000, 0x2168c235,0xc90fdaa2,0x3fff, "a>0 b=0 -> +inf"},
+        {0x12345678,0x9abcdef0,0x8001, 0x00000000,0x00000000,0x0000, 0x2168c235,0xc90fdaa2,0xbfff, "a<0 b=0 -> -inf"},
+        {0xffffffff,0xffffffff,0x0007, 0x80000000,0x00000000,0x0008, 0x00000000,0x00000000,0x0000, "a>0 b>0 edge"},
+        {0x2168c235,0xc90fdaa2,0x3fff, 0x2168c235,0xc90fdaa2,0xbfff, 0x00000000,0x00000000,0x0000, "a>0 b<0 sentinel"},
+        {0x9a0376ac,0x2ae8a92d,0x2f6e, 0x6f5133b6,0x4e58c88c,0xb265, 0x00000000,0x00000000,0x0000, "rnd a<0 b<0"},
+        {0x5c8d4fe2,0x11a41589,0x004e, 0x3ffc0fe0,0x8a7b443e,0x2f58, 0x00000000,0x00000000,0x0000, "rnd a>0 b>0"},
+        {0xc01248f2,0x3252d2dd,0x99a5, 0xbe6ed434,0x9e25e453,0x1ad8, 0x00000000,0x00000000,0x0000, "rnd a<0 b<0"},
+        {0xd7205aa4,0x0c4859d7,0xa681, 0xdaeef252,0x4d559480,0x35e4, 0x00000000,0x00000000,0x0000, "rnd a<0 b>0"},
+        {0xcacd1773,0x26240a88,0x8387, 0x0e7814f7,0xb5df5c0f,0x9ab1, 0x00000000,0x00000000,0x0000, "rnd a<0 b<0"},
+        {0x174a63ea,0xbc2b7035,0x38e7, 0xaf58e097,0x40782715,0x02d0, 0x00000000,0x00000000,0x0000, "rnd a<0 b>0"},
+        {0xdb4748b1,0x515e20eb,0xa0f9, 0x5b00b6b7,0x81668117,0x1d3d, 0x00000000,0x00000000,0x0000, "rnd a<0 b<0"},
+        {0xdc059138,0xeb75c75d,0x2a41, 0x2e8fc7e2,0xa547022f,0x97f4, 0x00000000,0x00000000,0x0000, "rnd a<0 b<0"},
+    };
+    int fail = 0, n = (int)(sizeof(V)/sizeof(V[0]));
+    for (int i = 0; i < n; i++) {
+        fx128 a = { V[i].alo, V[i].ahi, V[i].aexp };
+        fx128 b = { V[i].blo, V[i].bhi, V[i].bexp };
+        fx128 out = { 0, 0, 0 };
+        fn_04836c(&a, &b, &out);
+        if (out.lo != V[i].elo || out.hi != V[i].ehi || out.exp != V[i].eexp) {
+            fail++;
+            printf("  vec %d (%s): got 0x%08x,0x%08x,0x%04x want 0x%08x,0x%08x,0x%04x\n",
+                   i, V[i].name, out.lo, out.hi, out.exp, V[i].elo, V[i].ehi, V[i].eexp);
+        }
+    }
+    printf("fn_04836c (0x04836c, fx128 a OP b + special cases, %d diff vectors): %s\n", n, fail ? "FAIL" : "PASS");
+    check(fail == 0, "  all vectors match Python reference fp_04836c_ref.py");
+}
+
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
     /* Differential vs independent reference (scratch/fp_048e60.py). */
@@ -5826,6 +5866,7 @@ int main(void) {
     test_fn_040660_0406f5();
     test_fn_048754();
     test_fn_048422();
+    test_fn_04836c();
     test_fn_048e60();
     test_fn_0485eb();
     test_fn_048585();

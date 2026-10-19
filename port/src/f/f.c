@@ -3144,6 +3144,23 @@ int32_t fn_0427a3(uint32_t a0) {
     return -1;
 }
 
+/* 0x037306 (L11, 64 B): resource-reader cleanup / shutdown. If g_639b8 (the
+ * resource-reader node) is non-NULL, destruct+deactivate it via
+ * fn_0427a3(g_639b8), then run the DPMI real-mode cleanup fn_00040570() and
+ * re-install the IRQ 9 (fn_03ffab) and IRQ 0x1c (fn_03eff2) handlers; else
+ * return early. All four callees are flat-model no-ops (DPMI/IRQ installers), so
+ * the only flat-model observable is the guard -> smoke test. g_639b8 is a
+ * res_reader *; the original passes it (a 32-bit ptr) as fn_0427a3's rec, so it
+ * is truncated to 32 bits here (dual-convention, cf. fn_0427d2). */
+void fn_037306(void) {
+    (void)canary_id(0, 0x1c);
+    if (g_639b8 == NULL) return;
+    fn_0427a3((uint32_t)(uintptr_t)g_639b8);
+    fn_00040570();
+    fn_03ffab();
+    fn_03eff2();
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 348 / 528 done
+TOTALS: 349 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 348 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 61 | 0 | 0 | 20 |
-| L11 | 77 | 43 | 0 | 0 | 34 |
+| L11 | 77 | 44 | 0 | 0 | 33 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 6 | 0 | 0 | 10 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x037306 PORTED (L11, 64 B) -- resource-reader cleanup / shutdown guard.** canary PUSH 0x1c;CALL 0x418ee. If g_639b8 (the resource-reader node) is non-NULL: fn_0427a3(g_639b8) [destructor+deactivate, just ported], fn_00040570() [DPMI real-mode {3} no-op], fn_03ffab() [IRQ 9 installer], fn_03eff2() [IRQ 0x1c installer]; else early return. All four callees are already ported (DPMI/IRQ flat-model no-ops). g_639b8 is res_reader *; the original passes it (a 32-bit ptr) as fn_0427a3's rec arg, so it is truncated to 32 bits here (dual-convention, cf. fn_0427d2). The function reads but never clears g_639b8. Test: 3 scenarios (guard false -> early return with list intact; guard true -> 4 no-op callees run, active list intact because no node matches the truncated-pointer rec; g_639b8 preserved). Observable effect is limited to the guard because all callees are flat-model no-ops -> smoke test. 3 checks. L11 43->44, TOTALS 348->349/528. | STATUS.md L11 |
 | 2026-07-08 | **0x0427a3 PORTED (L7, 46 B) -- walk active list, destruct+deactivate the node whose rec==a0.** Walks g_node_list_active (offset-based via g_ndpool); on node->rec==a0 returns fn_0427d2(base+node->rec, 1); if the list is empty or no match, returns -1. Only callee is fn_0427d2 (just ported). orig: head=[0x63ffc] (a pointer in the 32-bit model), node->next@+0, node->rec@+4; port passes base+node->rec to fn_0427d2. Test: 4 scenarios (not-found -> -1 + active head unchanged; found -> delegates to fn_0427d2(base+rec,1) via return-value equality; found with record[0xc]=0 -> -1). Flat-model note: node_deactivate receives (u32)(base+rec) not the rec offset (dual-convention), so the found case's list/record mutation is not observable; the delegation is verified by return-value equality. 4 checks. L7 3->4, TOTALS 347->348/528. | STATUS.md L7 |
 | 2026-07-08 | **0x0427d2 PORTED (L7, 20 B) -- node destruct + deactivate, returns the destructor's result.** r = fn_04285c(a0, a1); node_deactivate(a0); return r. Dual-convention: the original passes the same EAX (a 32-bit node pointer) to both fn_04285c (node ptr) and node_deactivate (rec offset); identical in the DPMI 32-bit flat model. In the 64-bit port a0 is truncated to 32 bits for the node_deactivate call to mirror the original EAX. Both callees ported (fn_04285c io_state destructor; node_deactivate = 0x44b5d). New externs g_ndpool/g_node_list_active/g_node_list_done (node-pool head globals; 0 = empty list). Test: 3 scenarios (early-return passthrough for a0[0xc]=0 at a1=0/7; explicit -1); node_deactivate is a no-op with an empty pool (0 list heads). 3 checks. L7 2->3, TOTALS 346->347/528. | STATUS.md L7 |
 | 2026-07-08 | **0x01586b PORTED (L10, 435 B) -- clamp a0[9] to [min,max] after adding a1, with a ROM-table pre-pass.** Only callee is the canary (PUSH 0x2c;CALL 0x418ee). a0 (EAX) = item byte-buffer, a1 (EDX) = delta. if a1==0 return. p=g_dat_63354; min=*(s32*)(p+0x12)+g_dat_639e0; max=(p[0x10]==0)?*(s32*)(p+0x16)+g_dat_639e0 : *(s32*)(*(u8_t**)(p+0x34c)+0x16)+g_dat_639e0. Pre-pass (only if a0[0]<=1): for i in 0..g_dat_62a8c, t=&g_tab_5c8bc[i] {a1_lo,v_lo,a1_hi,v_hi;0x14 stride}: if (a0[1]>t->a1_lo && a0[1]<t->a1_hi){ if(a1>0){if(t->v_lo<a0[9]+a1<t->v_hi) a1=t->v_lo-a0[9]} else {if(t->v_lo<a0[9]+a1<t->v_hi) a1=t->v_hi-a0[9]} }. Final: if (a0[9]<min || a0[9]>max) a0[9]+=a1 (no clamp); else a0[9]+=a1 then clamp to [min,max]. EAX-at-exit is inconsistent across paths (a1 vs clamped) -> void. a0 fields: a0[0] byte, a0[1]/a0[9] unaligned s32 (cf. fn_0151d5 = *(s32*)(p+9)). New global g_tab_5c8bc (ROM clamp table; struct in f.h); reuses g_dat_63354/639e0/62a8c. Test: 7 scenarios (a1=0 no-op, in-range +100, clamp high, in-range +500, cur<min no-clamp, table pre-pass d=v_lo-cur, key out-of-range no-adjust). 7 checks. L10 60->61 (summary row corrected from stale 58), TOTALS 345->346/528. | STATUS.md L10 |
@@ -712,7 +713,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x036190 | 253 | FUN_00036190 | | |
 | [ ] | 0x03628e | 392 | FUN_0003628e | | |
 | [ ] | 0x036417 | 287 | FUN_00036417 | | |
-| [ ] | 0x037306 | 64 | FUN_00037306 | | |
+| [x] | 0x037306 | 64 | FUN_00037306 | fn_037306 | cleanup guard: if g_639b8 -> fn_0427a3 + DPMI/IRQ no-ops |
 | [ ] | 0x0383a4 | 160 | FUN_000383a4 | | |
 | [ ] | 0x038b30 | 242 | FUN_00038b30 | | |
 | [ ] | 0x038c23 | 186 | FUN_00038c23 | | |

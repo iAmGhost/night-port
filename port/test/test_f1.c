@@ -3114,6 +3114,30 @@ static void test_fn_0427a3(void) {
     g_node_list_active = saved_act; g_node_list_done = saved_done; g_ndpool = saved_pool;
 }
 
+static void test_fn_037306(void) {
+    printf("fn_037306 (cleanup: if g_639b8 -> fn_0427a3(g_639b8)+DPMI/IRQ no-ops)\n");
+    res_reader *saved = g_639b8;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    uint8_t *saved_pool = g_ndpool;
+    static uint8_t pool[0x40];
+    memset(pool, 0, sizeof(pool));
+    g_ndpool = pool;
+    *(uint32_t *)(pool + 0x10) = 0;     /* node.next */
+    *(uint32_t *)(pool + 0x14) = 0x10;  /* node.rec  */
+    g_node_list_active = 0x10;
+    g_node_list_done = 0;
+    g_639b8 = NULL;
+    fn_037306();
+    check(g_node_list_active == 0x10, "  g_639b8=NULL -> early return (list intact)");
+    static uint8_t rr[8];
+    g_639b8 = (res_reader *)rr;
+    fn_037306();
+    check(g_node_list_active == 0x10, "  g_639b8!=NULL -> list intact (no-op callees)");
+    check(g_639b8 == (res_reader *)rr, "  g_639b8 preserved (fn does not clear it)");
+    g_node_list_active = saved_act; g_node_list_done = saved_done; g_ndpool = saved_pool;
+    g_639b8 = saved;
+}
+
 static void test_fn_040e8d(void) {
     printf("fn_040e8d (timer/device setup guard)\n");
     uint32_t saved53 = g_dat_53334, savedf90 = g_63f90;
@@ -5439,6 +5463,7 @@ int main(void) {
     test_fn_01586b();
     test_fn_0427d2();
     test_fn_0427a3();
+    test_fn_037306();
     test_fn_0358c7();
     test_fn_0326c1();
     test_fn_040660_0406f5();

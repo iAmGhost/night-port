@@ -6644,12 +6644,12 @@ uint64_t fn_048f4c(uint32_t mant_lo, uint32_t mant_hi, uint32_t count,
         ESI = (ESI << 16) | (ESI >> 16);      /* 048f63 ROL ESI,16 */
         ESI = (ESI & 0xffff0000u) | E0;       /* 048f66 MOV SI,[EBP+8] */
         ESI = (ESI << 16) | (ESI >> 16);      /* 048f6a ROL ESI,16 */
-        uint64_t r = fx_mul64(EAX, EDX, mant_lo, mant_hi, ESI); /* 048f73 */
-        EAX = (uint32_t)r; EDX = (uint32_t)(r >> 32);
-        ESI = (ESI << 16) | (ESI >> 16);      /* 048f82 ROL ESI,16 */
+        fx64_t o; fn_047d4e(EAX, EDX, mant_lo, mant_hi, ESI, &o); /* 048f73: rd4e returns exp in ESI */
+        EAX = o.lo; EDX = o.hi;
+        ESI = (o.exp << 16) | (o.exp >> 16);   /* 048f82 ROL ESI,16 on rd4e's RETURNED exp */
         ESI = (ESI & 0xffff0000u) | (arr[i+1].exp & 0xffffu);   /* 048f85 MOV SI,[arr[i+1]+8] */
         ESI = (ESI << 16) | (ESI >> 16);      /* 048f8a ROL ESI,16 */
-        r = fn_04794a(EAX, EDX, arr[i+1].lo, arr[i+1].hi, ESI); /* 048f8d */
+        uint64_t r = fn_04794a(EAX, EDX, arr[i+1].lo, arr[i+1].hi, ESI); /* 048f8d */
         EAX = (uint32_t)r; EDX = (uint32_t)(r >> 32);
     }
     return ((uint64_t)EDX << 32) | EAX;

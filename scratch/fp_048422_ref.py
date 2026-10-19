@@ -38,7 +38,7 @@ def f048f4c(mant_lo, mant_hi, count, arr, exp_base):
         ESI = rol16(ESI)
         r = rd4e(EAX, EDX, mant_lo, mant_hi, ESI)
         EAX, EDX = r[0], r[1]
-        ESI = rol16(ESI)
+        ESI = rol16(r[2])                          # 048f82 ROL on rd4e's RETURNED exp (r[2])
         ESI = (ESI & 0xffff0000) | (arr[i+1][2] & 0xffff)
         ESI = rol16(ESI)
         r = r94a(EAX, EDX, arr[i+1][0], arr[i+1][1], ESI)

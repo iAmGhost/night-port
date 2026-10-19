@@ -2752,17 +2752,22 @@ static void test_fn_048f4c(void) {
     fx128 arr[3] = { {0x1u,0x2u,0x1111}, {0x3u,0x4u,0x2222}, {0x5u,0x6u,0x3333} };
     uint32_t mant_lo=0x7u, mant_hi=0x8u, exp_base=0x4444;
     uint32_t A0=arr[0].exp, A1=arr[1].exp, A2=arr[2].exp, E0=exp_base&0xffffu;
-
-    uint64_t R0 = fx_mul64(arr[0].lo, arr[0].hi, mant_lo, mant_hi, (E0<<16)|A0);
-    uint64_t S0 = fn_04794a((uint32_t)R0, (uint32_t)(R0>>32), arr[1].lo, arr[1].hi, (A1<<16)|A0);
+    /* count=1: rd4e then r94a; r94a ESI derived from rd4e's RETURNED exp (o0.exp). */
+    fx64_t o0; fn_047d4e(arr[0].lo, arr[0].hi, mant_lo, mant_hi, (E0<<16)|A0, &o0);
+    uint32_t esi1 = o0.exp; esi1 = (esi1<<16)|(esi1>>16);   /* 048f82 ROL */
+    esi1 = (esi1&0xffff0000u)|A1; esi1 = (esi1<<16)|(esi1>>16); /* 048f85/048f8a */
+    uint64_t S0 = fn_04794a(o0.lo, o0.hi, arr[1].lo, arr[1].hi, esi1);
     if (fn_048f4c(mant_lo, mant_hi, 1, arr, exp_base) != S0) { fail++; printf("  count=1 mismatch\n"); }
 
-    uint64_t R1 = fx_mul64((uint32_t)S0, (uint32_t)(S0>>32), mant_lo, mant_hi, (E0<<16)|A0);
-    uint64_t S1 = fn_04794a((uint32_t)R1, (uint32_t)(R1>>32), arr[2].lo, arr[2].hi, (A2<<16)|A0);
+    /* count=2: 2nd rd4e ESI from ESI preserved by r94a (=esi1); then r94a ESI from o1.exp. */
+    uint32_t e2 = esi1; e2 = (e2<<16)|(e2>>16); e2 = (e2&0xffff0000u)|E0; e2 = (e2<<16)|(e2>>16); /* 048f63-6a */
+    fx64_t o1; fn_047d4e((uint32_t)S0, (uint32_t)(S0>>32), mant_lo, mant_hi, e2, &o1);
+    uint32_t esi2 = o1.exp; esi2 = (esi2<<16)|(esi2>>16); esi2 = (esi2&0xffff0000u)|A2; esi2 = (esi2<<16)|(esi2>>16);
+    uint64_t S1 = fn_04794a(o1.lo, o1.hi, arr[2].lo, arr[2].hi, esi2);
     if (fn_048f4c(mant_lo, mant_hi, 2, arr, exp_base) != S1) { fail++; printf("  count=2 mismatch\n"); }
 
-    printf("fn_048f4c (0x048f4c, fx_mul64+fn_04794a loop): %s\n", fail ? "FAIL" : "PASS");
-    check(fail == 0, "  count=1,2 match hand-sequenced fx_mul64/fn_04794a with literal ESI");
+    printf("fn_048f4c (0x048f4c, fn_047d4e+fn_04794a loop): %s\n", fail ? "FAIL" : "PASS");
+    check(fail == 0, "  count=1,2 match hand-sequenced fn_047d4e/fn_04794a with rd4e-returned ESI");
 }
 
 /* fn_048f2c / fn_048f9e (L2): in-place 048f4c wrappers. Structural test against
@@ -3497,8 +3502,8 @@ static void test_fn_048422(void) {
         {0x11111111,0x22222222,0x4000, 0x2168c235,0xc90fdaa2,0x8000}, /* exp>=0x3fff + thr */
         {0x11111111,0x8930a2f5,0x3ffd, 0x6b9b2c23,0x860a91c1,0x0000}, /* thr: hi>th */
         {0xf66ab09c,0x8930a2f4,0x3ffd, 0x6b9b2c23,0x860a91c1,0x0000}, /* thr: hi==th lo>th */
-        {0xf66ab09b,0x8930a2f4,0x3ffd, 0x91cb110c,0x8d1eaa1a,0x3ffd}, /* boundary: lo==th no-op */
-        {0x8930a2f4,0x8930a2f4,0x3ffd, 0x78ee5f50,0x8e35f3e0,0x3ffd}, /* boundary: hi==th lo<=th */
+        {0xf66ab09b,0x8930a2f4,0x3ffd, 0xf66ab09b,0x8930a2f4,0x3ffd}, /* boundary: lo==th no-op */
+        {0x8930a2f4,0x8930a2f4,0x3ffd, 0x8930a2f4,0x8930a2f4,0x3ffd}, /* boundary: hi==th lo<=th */
         {0x12345678,0x9abcdef0,0x0001, 0x00000000,0x00000000,0x0001}, /* no blocks */
         {0x12345678,0x9abcdef0,0x8001, 0x00000000,0x00000000,0x8001}, /* sign, no blocks */
         {0xdeadbeef,0xcafebabe,0x0000, 0x00000000,0x00000000,0x0000}, /* exp==0 */

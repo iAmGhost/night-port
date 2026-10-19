@@ -3196,6 +3196,40 @@ char **g_dat_537d4 = NULL;                                /* DAT_000537d4: confi
 uint32_t cb_indirect_53644(void) { return g_cb_53644 ? g_cb_53644() : 0; } /* 0x451b5 */
 
 /* ---- L0 batch D (9): node list, modifier-prefix parser, debug hook ---- */
+/* 0x010927 (L13, 302 B): CD/MSCDEX root-directory read. canary PUSH 0x44;CALL 0x418ee.
+ * Disassembly-verified (63 insns): only direct CALLs (0x0418ee canary x2, 0x041e6c
+ * mem_copy x2, 0x010570/0x0107b9 CD no-ops, 0x041c28 heap_free_guard, 0x041e94
+ * heap_malloc thunk), NO indirect. bufA(7B) <- ROM 0x51acc; bufB(26B) <- ROM 0x51ad4;
+ * [0x53c5c] <- bufA; fn_010570(bufB,7) [no-op]; bufA <- [0x53c5c]; count=(bufA[2]-bufA[1])
+ * +1 -> DAT_00053c60; free old DAT_00053c64; DAT_00053c64 = heap_malloc((count+1)*5);
+ * for i<count fn_0107b9(bufA[1]+i, DAT_00053c64+i*5) [no-op; port fn_0107b9 takes void,
+ * so frame/dest are discarded]; final dword at g_heap_base + DAT_00053c64 + count*5 + 1
+ * = bufA[3] + bufA[4]*0x4b + bufA[5]*0x1194 - 0x96. ROM bufA={0x0a,0,0,0,0,0,0} -> count=1. */
+uint32_t g_dat_53c64 = 0;        /* DAT_00053c64: dir-entry buffer heap offset */
+static const uint8_t g_rom_51acc[7]  = {0x0a, 0, 0, 0, 0, 0, 0};
+static const uint8_t g_rom_51ad4[26] = {0x1a, 0, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                                         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+void fn_010927(void) {
+    (void)canary_id(0, 0x44);
+    uint8_t bufA[7], bufB[26];
+    uint8_t *rsp = (uint8_t *)(uintptr_t)g_dat_53c5c;            /* DPMI far-pointer */
+    mem_copy(bufA, g_rom_51acc, 7);                              /* 0x01093f-4a */
+    mem_copy(bufB, g_rom_51ad4, 26);                             /* 0x010950-5a */
+    mem_copy(rsp, bufA, 7);                                      /* 0x010977-84: *g_dat_53c5c <- bufA */
+    fn_10570(bufB, 7);                                           /* 0x010989-91 (no-op) */
+    mem_copy(bufA, rsp, 7);                                      /* 0x010996-a4: bufA <- *g_dat_53c5c */
+    g_dat_53c60 = (uint32_t)bufA[2] - (uint32_t)bufA[1] + 1u;    /* 0x0109a9-b6 */
+    if (g_dat_53c64 != 0) heap_free_guard(g_dat_53c64);          /* 0x0109bc-ca */
+    g_dat_53c64 = heap_malloc((g_dat_53c60 + 1) * 5);            /* 0x0109cf-dd */
+    for (uint32_t i = 0; i < g_dat_53c60; i++) {                 /* 0x0109e2-a18 */
+        (void)((uint32_t)bufA[1] + i);                           /* frame (discarded) */
+        (void)(g_dat_53c64 + i * 5);                             /* dest (discarded) */
+        fn_107b9();                                              /* 0x0107b9 no-op */
+    }
+    uint32_t val = (uint32_t)bufA[3] + (uint32_t)bufA[4]*0x4b + (uint32_t)bufA[5]*0x1194 - 0x96u;
+    *(uint32_t *)(g_heap_base + g_dat_53c64 + g_dat_53c60 * 5 + 1) = val;  /* 0x010a18-4a */
+}
+
 /* 0x04933a (119 B): rebuild the active node list from the file-structure table.
  * No canary (only PUSH EBX/ECX/EDX). Disassembly-verified (38 insns, disassemble_bytes):
  * only direct CALLs to 0x041af8 (heap_malloc) and 0x0429ea (error msg), no indirect.

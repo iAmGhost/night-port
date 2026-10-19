@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 354 / 528 done
+TOTALS: 356 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -44,14 +44,14 @@ TOTALS: 354 / 528 done
 | L3 | 21 | 15 | 0 | 0 | 6 |
 | L4 | 13 | 5 | 0 | 0 | 8 |
 | L5 | 10 | 5 | 0 | 0 | 5 |
-| L6 | 10 | 3 | 0 | 0 | 7 |
-| L7 | 8 | 4 | 0 | 0 | 4 |
-| L8 | 7 | 1 | 0 | 0 | 6 |
-| L9 | 2 | 1 | 0 | 0 | 1 |
-| L10 | 81 | 62 | 0 | 0 | 20 |
-| L11 | 77 | 46 | 0 | 0 | 31 |
+| L6 | 10 | 4 | 0 | 0 | 6 |
+| L7 | 8 | 5 | 0 | 0 | 3 |
+| L8 | 7 | 3 | 0 | 0 | 4 |
+| L9 | 2 | 2 | 0 | 0 | 0 |
+| L10 | 81 | 61 | 0 | 0 | 20 |
+| L11 | 77 | 45 | 0 | 0 | 32 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
-| L13 | 16 | 6 | 0 | 0 | 10 |
+| L13 | 16 | 7 | 0 | 0 | 9 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
 | L16 | 8 | 0 | 0 | 0 | 8 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x010927 PORTED (L13, 302 B) -- CD/MSCDEX root-directory read.** canary PUSH 0x44;CALL 0x418ee. Disassembly-verified (63 insns): only direct CALLs (0x0418ee canary x2, 0x041e6c mem_copy x2, 0x010570/0x0107b9 CD no-ops, 0x041c28 heap_free_guard, 0x041e94 heap_malloc thunk), NO indirect. bufA(7B)<-ROM 0x51acc {0x0a,0,0,0,0,0,0}; bufB(26B)<-ROM 0x51ad4 {0x1a,0,0x03,..}. **KEY MISREAD FIXED:** [0x53c5c] is a DPMI far-POINTER (uintptr_t, already ported at f.c:524), NOT an address -- the mem_copy dest/src is the VALUE at [0x53c5c], so *g_dat_53c5c<-bufA; fn_10570(bufB,7)[no-op]; bufA<-*g_dat_53c5c (round-trip). count=(bufA[2]-bufA[1])+1->g_dat_53c60 (already defined at f.c:3752 by the L10 accessor cluster / fn_010e15 -- NOT redefined); free old g_dat_53c64; g_dat_53c64=heap_malloc((count+1)*5); for i<count fn_107b9(bufA[1]+i, g_dat_53c64+i*5) [no-op; port fn_107b9 takes void so frame/dest discarded]; final dword @ g_heap_base+g_dat_53c64+count*5+1 = bufA[3]+bufA[4]*0x4b+bufA[5]*0x1194-0x96. With ROM bufA: count=1, final=0xfffffe6a. **STATUS FIX:** the 0x04933a commit (814455f) added its journal entry but never marked the 0x04933a table row [x] nor bumped the TOTALS line -- both corrected here (the L11 summary row already showed 46). Test: 6 checks (count=1, buffer alloc, *rsp[0]=0x0a/[1]=0/[6]=0, final dword). Reuses g_dat_53c5c/g_dat_53c60; new global g_dat_53c64. L13 6->7, TOTALS 356/528. | STATUS.md L13 |
 | 2026-07-08 | **0x04933a PORTED (L11, 119 B) -- node-pool active-list rebuild from the file-structure table (resolves the line-150/151 deferral).** No canary (only PUSH EBX/ECX/EDX). Disassembly-verified via disassemble_bytes (38 insns; disassemble_function returned empty for this fn): only direct CALLs to 0x041af8 (heap_malloc) + 0x0429ea (error msg), NO indirect. Logic: g_dat_53451=(g_dat_53451 & 0xf8)|0x4; ecx=0x53410 (file-struct table base, 0x1a-byte records); while (*(g_ndpool+ecx+0xc)!=0) { off=heap_malloc(8) [retry once; on 2nd-fail fn_0429ea("Not enough memory to allocate file structures\r\n",1) then fall through with off==0 -- flat orig crashes writing addr 4, port writes g_heap_base+4 (flat-model artifact, never exercised)]; node=g_heap_base+off; node[+4]=ecx (rec); g_node_list_active=off (prepend); ecx+=0x1a; node[+0]=old-head }; g_node_list_done=0 (the zero sentinel). **DATA MODEL:** 0x53410 is a data-segment record table read via g_ndpool+ecx+0xc (0x0427a3 consumes node->rec as g_ndpool+rec); nodes heap-allocated (g_heap_base+off). New global g_dat_53451 (byte flag). The deferral's 3 blockers are resolved: (1) the table needs no ROM contents -- the fn only reads the +0xc sentinel, so the test models it as a pool buffer at g_ndpool+0x53410; (2) the double-fail write-to-0 is a documented flat-model artifact (untested); (3) base consistency -- node list holds g_heap_base offsets, records via g_ndpool, the two bases set independently by the caller (integration concern); the port faithfully allocates nodes via heap_malloc and reads records via g_ndpool. **TEST PITFALL (fixed):** the first test called heap_arena_init() at teardown, wiping the heap region the lazy test_fn_041c8f (heap_malloc without priming) relies on -> segfault in the NEXT test. Fix: no heap reset; save/restore node-pool state only; fn_04933a's heap_malloc is additive. Test: 2 present records + sentinel -> flag=0x1c, done=0, 2-node chain (head->rec=0x5342a/next=node1; node1->rec=0x53410/next=0), 8 checks. L11 46->47, TOTALS 354->355/528. | STATUS.md L11 |
 | 2026-07-08 | **0x03b9b7 PORTED (L10, 113 B) -- drain the entity linked list (resolves the long-standing deferral).** canary PUSH 0x28;CALL 0x418ee -> canary_id(0,0x28). g_dat_639d4 = g_dat_639cc; while(g_dat_639d4){ next = *(uint8_t**)(g_dat_639d4+0x11); fn_0003b67e(g_dat_639d4) [remove from list, returns node]; heap_free_guard((uint32)(g_dat_639d4 - g_heap_base)) [0x041c28; a node is a real ptr = g_heap_base+offset per fn_0003b5c0, so convert to a heap offset before freeing]; g_dat_639d4 = next }. **Disassembly-verified via disassemble_bytes (41 insns):** only direct CALLs to 0x0418ee/0x03b67e/0x041c28 -- NO indirect CALL/JMP (clears the indirect-call risk caveat that had gated it). New global g_dat_639d4 (drain cursor, uint8_t*, mirrors g_dat_639cc). **TESTING LIMITATION (documented, not a port defect):** the drain is untestable past an empty list because fn_0003b67e's head branch writes *(next+0x19) with next=NULL when removing the last node (its documented latent null-deref; head==tail==only node) -> any full drain segfaults; the game never drains to empty here. Test: empty-list no-op (head/cursor stay NULL), 2 checks. L10 61->62, TOTALS 353->354/528. **Next:** 0x04933a (node-pool list rebuild, disasm flaky -- retry), frontier L11 0x016b8f(1116B) / L13 0x04097e(516B). | STATUS.md L10 |
 | 2026-07-08 | **0x041c8f PORTED (L11, 136 B) -- getch from node I/O buffer.** fn_041c8f(node) (node in EAX; decompiler's 2nd arg is an ABI artifact): error path (f12 byte0 bit0 clear) fn_042a0d(4)+f12 bit5+ret -1; else count=f4, f4=count-1, if empty fn_041d18 refill else read g_heap_base+f0 (f0++); then if f12 bit6 clear: on CR (0x0d) consume the following byte (same count-dec + refill/read); on EOF (0x1a) set f12 bit4 + return -1. **Disassembly-verified (55 insns)** -- the decompiler's CONCAT44/extraout noise collapses to a clean EAX-in/EAX-out trace. 10 test checks (4 scenarios: normal/CR/EOF/error). L11 45->46, TOTALS 352->353/528. **Node-pool cluster: 0x041d47/0x041d18/0x049192/0x041c8f done.** | STATUS.md L11 |
@@ -551,7 +552,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x04589e | 188 | FUN_0004589e | | |
 | [ ] | 0x046d00 | 4 | caseD_2 | | |
 | [ ] | 0x0473bf | 37 | caseD_3 | | |
-| [ ] | 0x04933a | 119 | FUN_0004933a | | |
+| [x] | 0x04933a | 119 | FUN_0004933a | node-pool active-list rebuild from file-struct table @0x53410 | see journal (L11, 119B): g_dat_53451 flag, prepend 8B heap nodes, g_node_list_done=0; 8 checks (row marked late -- corrected in the 0x010927 commit) |
 ## L7 (8)
 
 | Status | Addr | Size | Name | Subsystem | Notes |
@@ -813,7 +814,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x010927 | 302 | FUN_00010927 | | |
+| [x] | 0x010927 | 302 | FUN_00010927 | CD/MSCDEX root-directory read | canary PUSH 0x44; disasm-verified (63 insns, no indirect); bufA<-ROM 0x51acc, bufB<-ROM 0x51ad4; [0x53c5c] is a far-ptr: *g_dat_53c5c<-bufA, fn_10570(bufB,7)[no-op], bufA<-*g_dat_53c5c; count=(bufA[2]-bufA[1])+1->g_dat_53c60; g_dat_53c64=heap_malloc((count+1)*5); fn_107b9 loop[no-op]; final dword @ g_heap_base+g_dat_53c64+count*5+1 = bufA[3]+bufA[4]*0x4b+bufA[5]*0x1194-0x96; ROM bufA={0x0a,..}->count=1; 6 checks |
 | [x] | 0x010d47 | 150 | FUN_00010d47 | periodic CD-refresh tick: q=(i32)g_63e38/490; if q<=g_53c48 return; else g_63e38=0; g_52ff8=0; fn_10b1d(); restore g_63e24/g_63e28; g_52ff8=1 (dead 0x52da4 table read omitted -- feeds no-op fn_10b1d) | gate-fail no-op + boundary(q==thr) + gate-pass(g_63e38=0,g_52ff8=1,24/28 restored) + signed neg-quotient, 11 checks |
 | [ ] | 0x013908 | 420 | FUN_00013908 | row-map blit via fn_03ba86; self-referential rendering-segment struct (sub-obj ptrs 0x34c/0x350, 32-bit ptr fields + unaligned dword reads) | DEFERRED: node-pool rendering family; needs dedicated struct/pointer-width modeling pass |
 | [ ] | 0x031a8e | 1153 | FUN_00031a8e | | |

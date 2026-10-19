@@ -3138,6 +3138,27 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_010927(void) {
+    printf("fn_010927 (CD/MSCDEX root-directory read)\n");
+    heap_arena_init();
+    heap_acquire_region(0x1000);
+    uint8_t rsp[7];
+    uintptr_t save_rsp = g_dat_53c5c;
+    g_dat_53c5c = (uintptr_t)rsp;      /* DPMI far-pointer to 7-byte MSCDEX buffer */
+    g_dat_53c60 = 0; g_dat_53c64 = 0;
+    memset(rsp, 0xff, 7);
+    fn_010927();
+    check(g_dat_53c60 == 1, "  count = (bufA[2]-bufA[1])+1 = 1");
+    check(g_dat_53c64 != 0, "  dir-entry buffer allocated");
+    check(rsp[0] == 0x0a, "  *rsp[0] = 0x0a (bufA[0])");
+    check(rsp[1] == 0, "  *rsp[1] = 0");
+    check(rsp[6] == 0, "  *rsp[6] = 0");
+    uint32_t fv = *(uint32_t *)(g_heap_base + g_dat_53c64 + 6);   /* +count*5+1 = +6 */
+    check(fv == (uint32_t)(-0x96), "  final dword = 0 - 0x96 = 0xfffffe6a");
+    g_dat_53c5c = save_rsp;
+    g_dat_53c60 = 0; g_dat_53c64 = 0;
+}
+
 static void test_fn_04933a(void) {
     printf("fn_04933a (rebuild active node list from file-struct table)\n");
     /* file-struct table at g_ndpool + 0x53410 -> pool must be >= 0x53410 + 3*0x1a */
@@ -5716,6 +5737,7 @@ int main(void) {
     test_fn_03442e();
     test_fn_04247a();
     test_fn_04285c();
+    test_fn_010927();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

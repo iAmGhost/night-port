@@ -520,6 +520,9 @@ uint32_t fn_043fc3(struct emit_ctx *ctx, uintptr_t **pos, const uint8_t **src);
 uint32_t fn_043e34(struct emit_ctx *ctx, uintptr_t *pos);
 void fn_042ccc(void);
 uint32_t fn_042eef(uint32_t arg);
+uint32_t fn_042fc2(uint32_t size);   /* 0x042fc2: DPMI/DOS heap alloc (INT 0x21 AH=48); flat no-op, returns 0 */
+extern uint32_t g_dat_53384;         /* DAT_00053384 */
+extern uint8_t  g_dat_533b2;         /* DAT_000533b2 */
 uint32_t fn_042d2a(uint32_t arg1, uint32_t arg2);
 uint32_t fn_048fe6(uint32_t arg1, uint32_t arg2);
 int32_t fn_045bb7(uint32_t size);            /* 0x045bb7: DOS far-memory alloc/resize/verify; flat model always fails -> g_dat_64008=5, return -1 */

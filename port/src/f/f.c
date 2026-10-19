@@ -1720,6 +1720,7 @@ int str_icmp(const char *a, const char *b, int n) {
  * 0x633a0 bounds the walk (runtime count). Sized generously for the real table. */
 uint32_t g_dat_633a0 = 0;
 uint8_t  g_tab_5d884[128 * 21];
+res_reader *g_639b8 = NULL;   /* resource-reader node pointer (0x639b8) */
 /* 0x036626: case-insensitive lookup of s in the 0x5d884 table (bound g_dat_633a0),
  * returning the matched entry's int32 value (offset 13) or 0. s=EAX. The match
  * compares str_len(s) bytes via str_icmp (0x423e5); a shorter query that is a
@@ -1734,6 +1735,28 @@ int32_t fn_036626(const char *s) {
         }
     }
     return result;
+}
+
+/* fn_0367c9 orig: 0x0367c9 (L10, 137B)
+ * Resource lookup by name. Walk the g_tab_5d884 string->value table (bound
+ * g_dat_633a0, 21-byte entries {str[13]; int32 value@13; int32 value2@17}).
+ * On the FIRST entry whose name matches a0 (str_icmp over str_len(a0) bytes,
+ * case-insensitive, prefix matches as in fn_036626), submit the entry's int32
+ * at offset 17 (0x5d895-0x5d884=0x11) to the resource reader g_639b8 via
+ * fn_04247a(r, value, mode=0) and return 1. The fn_04247a return value is
+ * discarded (the original ignores it). Returns 0 if no entry matches (or
+ * g_dat_633a0 == 0). */
+int32_t fn_0367c9(const char *a0) {
+    int32_t len = (int32_t)str_len(a0);
+    for (uint32_t i = 0; i < g_dat_633a0; i++) {
+        const uint8_t *e = g_tab_5d884 + i * 21;
+        if (str_icmp((const char *)e, a0, len) == 0) {
+            int32_t v; memcpy(&v, e + 17, 4);
+            fn_04247a(g_639b8, v, 0);
+            return 1;
+        }
+    }
+    return 0;
 }
 
 /* res_consume  orig: 0x042438

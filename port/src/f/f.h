@@ -704,7 +704,9 @@ void     fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag); 
 extern uint32_t g_dat_639dc;    /* DAT_000639dc */
 extern uint32_t g_dat_633a0;    /* DAT_000633a0: # entries in the 0x5d884 string table */
 extern uint8_t  g_tab_5d884[128 * 21];  /* RODATA string->value table @0x5d884, 21-byte entries */
+extern res_reader *g_639b8;      /* DAT_000639b8: resource-reader node pointer (target of fn_0367c9 submits) */
 int32_t fn_036626(const char *s);  /* 0x036626: case-insensitive string->value table lookup */
+int32_t fn_0367c9(const char *a0); /* 0x0367c9: find name in 0x5d884 table; on first match fn_04247a(g_639b8, entry@17, 0); 1/0 */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
 uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */
 void fn_015295(uint8_t *a0, int32_t a1); /* 0x015295: entity tick -- clamp a0->5, conditional list-insert + accumulator */

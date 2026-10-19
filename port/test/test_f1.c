@@ -1960,6 +1960,52 @@ static void test_fn_034990(void) {
     memcpy(nar(), savarena, 0x1000);
 }
 
+static void test_fn_0367c9(void) {
+    printf("fn_0367c9 (0x0367c9, resource lookup by name -> fn_04247a submit)\n");
+
+    /* Two 21-byte table entries.
+       entry0: str "AA", value@13=0x1111, value2@17=0x100 (positive)
+       entry1: str "BB", value@13=0x2222, value2@17=0 (zero)          */
+    memset(g_tab_5d884, 0, sizeof g_tab_5d884);
+    memcpy(g_tab_5d884 + 0,  "AA", 2);             /* entry0.str          */
+    memcpy(g_tab_5d884 + 13, "\x11\x11\x00\x00", 4); /* entry0.value@13=0x1111 */
+    memcpy(g_tab_5d884 + 17, "\x00\x01\x00\x00", 4); /* entry0.value2@17=0x100  */
+    memcpy(g_tab_5d884 + 21, "BB", 2);             /* entry1.str          */
+    memcpy(g_tab_5d884 + 34, "\x22\x22\x00\x00", 4); /* entry1.value@13=0x2222 */
+    memcpy(g_tab_5d884 + 38, "\x00\x00\x00\x00", 4); /* entry1.value2@17=0      */
+
+    res_reader rd = {0};
+    rd.remaining = 0x1000; rd.pos = 0; rd.end = 0; rd.flags = 0; rd.flags2 = 0; rd.id = 0;
+    g_639b8 = &rd;
+    g_dat_633a0 = 2;
+
+    /* Case 1: "aa" matches entry0 (value2=0x100, positive).
+       fn_04247a(r,0x100,0): flags&0x6==0 -> mode0; cur=0; amount=0x100-(0-0x1000)=0x1100
+       > remaining 0x1000 -> res_consume FAILS -> exhaust (pos=0, remaining=0). */
+    rd.remaining = 0x1000; rd.pos = 0; rd.end = 0;
+    check(fn_0367c9("aa") == 1, "0367c9: 'aa' matches entry0, returns 1");
+    check(rd.remaining == 0, "0367c9: entry0 value2 positive -> reader exhausted (remaining=0)");
+    check(rd.pos == 0, "0367c9: entry0 value2 positive -> pos stays 0 (exhaust path)");
+
+    /* Case 2: "bb" matches entry1 (value2=0). amount=0-(0-0x1000)=0x1000 ->
+       res_consume SUCCEEDS (pos+=0x1000, remaining=0). */
+    rd.remaining = 0x1000; rd.pos = 0; rd.end = 0;
+    check(fn_0367c9("bb") == 1, "0367c9: 'bb' matches entry1, returns 1");
+    check(rd.pos == 0x1000, "0367c9: entry1 value2 zero -> pos advances to 0x1000");
+    check(rd.remaining == 0, "0367c9: entry1 value2 zero -> remaining drained to 0");
+
+    /* Case 3: "zz" no match -> returns 0, reader unchanged */
+    rd.remaining = 0x1000; rd.pos = 0; rd.end = 0;
+    check(fn_0367c9("zz") == 0, "0367c9: 'zz' no match, returns 0");
+    check(rd.remaining == 0x1000 && rd.pos == 0, "0367c9: no match leaves reader unchanged");
+
+    /* Case 4: count 0 -> returns 0 immediately */
+    g_dat_633a0 = 0;
+    check(fn_0367c9("aa") == 0, "0367c9: count=0 returns 0");
+    g_dat_633a0 = 2;
+    g_639b8 = NULL;
+}
+
 static void test_fn_042717(void) {
     printf("fn_042717 (0x042717, node find: active->destruct / done->reactivate / not-found)\n");
     static uint8_t pool[0x80];
@@ -5200,6 +5246,7 @@ int main(void) {
     test_fn_034aba();
     test_fn_03ba2c();
     test_fn_034990();
+    test_fn_0367c9();
     test_fn_042717();
     test_fn_03d999();
     test_fn_03dcbd();

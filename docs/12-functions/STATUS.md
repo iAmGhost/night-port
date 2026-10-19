@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 350 / 528 done
+TOTALS: 351 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x041d18 PORTED (L8, 46 B) -- pull one byte from the node buffer.** Sole callee is fn_041d47 (just ported) -> the node-pool memory-model resolution from 0x041d47 makes this a clean win. r = fn_041d47(node, node); if r (node[+4]) == 0 return -1 (empty); else { b = *(g_heap_base + node[+0]); node[+4]--; node[+0]++; return b }. The original 8-byte CONCAT44 return's high32 is the EDX input (the node ptr) -- ABI artifact; only low32 (byte / -1) is meaningful. Test: 2 scenarios / 4 checks (key-echo-primed node -> returns 'A', node[+4]->0, node[+0] advanced; device-read-primed node count 0 -> -1). L8 2->3, TOTALS 350->351/528. | STATUS.md L8 |
 | 2026-07-08 | **0x041d47 PORTED (L7, 170 B) -- node I/O fill step: key-echo or device-read into the node buffer.** node = arg (io_state record, raw offsets). Trace: (1) if node[+8]==0 fn_042a43(node) [lazy-init buffer]; (2) if (node[0x0d]&0x20)&&(node[0x0d]&0x6) fn_043234(0x2000) [flush active list]; (3) f12=node[+0xc]; node[+0]=node[+8]; node[0x0c]&=0xfb (byte0 clear bit2, high bytes kept); (4) if (f12&0x2400)==0x2400 && node[+0x10]==0 {node[+4]=0; k=get_key_echo(); if (int32)k!=-1 {*buf=k; node[+4]=1}}; (5) else {count=(node[0x0d]&0x4)?1:node[+0x14]; node[+4]=fn_042aba(node[+0x10], buf, count)}; (6) tail: if node[+4]==0 node[0x0c]|=0x10; elif <0 {node[+4]=0; node[0x0c]|=0x20}; return node[+4]. **MEMORY MODEL RESOLVED (lifts the earlier line-148 deferral):** the node data/buffer field (node[+0]/[+8]) is a heap OFFSET, deref'd via g_heap_base + off (same arena-mapped convention as 0x035329) -- NOT a raw 64-bit host pointer (storing a host ptr in the 32-bit field truncated it and segfaulted the first test attempt). The offset-vs-ptr ambiguity the earlier deferral cited is settled in favor of heap-offset. All 4 callees ported (fn_042a43, fn_043234, fn_042aba, get_key_echo). Test: 2 scenarios / 9 checks (key-echo: f12=0x2400 + handle=0 + keybuf='A' -> ret 1, buf='A', node[+4]=1; device-read: handle!=0 -> fn_042aba=sys_file_read=0 -> ret 0, node[0x0c]|=0x10, node[+0]=node[+8]). L7 3->4, TOTALS 349->350/528. | STATUS.md L7 |
 | 2026-07-08 | **0x037306 PORTED (L11, 64 B) -- resource-reader cleanup / shutdown guard.** canary PUSH 0x1c;CALL 0x418ee. If g_639b8 (the resource-reader node) is non-NULL: fn_0427a3(g_639b8) [destructor+deactivate, just ported], fn_00040570() [DPMI real-mode {3} no-op], fn_03ffab() [IRQ 9 installer], fn_03eff2() [IRQ 0x1c installer]; else early return. All four callees are already ported (DPMI/IRQ flat-model no-ops). g_639b8 is res_reader *; the original passes it (a 32-bit ptr) as fn_0427a3's rec arg, so it is truncated to 32 bits here (dual-convention, cf. fn_0427d2). The function reads but never clears g_639b8. Test: 3 scenarios (guard false -> early return with list intact; guard true -> 4 no-op callees run, active list intact because no node matches the truncated-pointer rec; g_639b8 preserved). Observable effect is limited to the guard because all callees are flat-model no-ops -> smoke test. 3 checks. L11 43->44, TOTALS 348->349/528. | STATUS.md L11 |
 | 2026-07-08 | **0x0427a3 PORTED (L7, 46 B) -- walk active list, destruct+deactivate the node whose rec==a0.** Walks g_node_list_active (offset-based via g_ndpool); on node->rec==a0 returns fn_0427d2(base+node->rec, 1); if the list is empty or no match, returns -1. Only callee is fn_0427d2 (just ported). orig: head=[0x63ffc] (a pointer in the 32-bit model), node->next@+0, node->rec@+4; port passes base+node->rec to fn_0427d2. Test: 4 scenarios (not-found -> -1 + active head unchanged; found -> delegates to fn_0427d2(base+rec,1) via return-value equality; found with record[0xc]=0 -> -1). Flat-model note: node_deactivate receives (u32)(base+rec) not the rec offset (dual-convention), so the found case's list/record mutation is not observable; the delegation is verified by return-value equality. 4 checks. L7 3->4, TOTALS 347->348/528. | STATUS.md L7 |
@@ -565,7 +566,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|---|---|---|
 | [x] | 0x041901 | 44 | canary_check | runtime | primitives.md; test_f1 PASS; 0x429ea->sys_fatal (sys) |
 | [ ] | 0x04192e | 457 | FUN_0004192e | | |
-| [ ] | 0x041d18 | 46 | FUN_00041d18 | | |
+| [x] | 0x041d18 | 46 | fn_041d18 | pull one byte from node buffer: fn_041d47 prime; if node[+4]==0 return -1; else read buf byte (g_heap_base+node[+0]), node[+0]++, node[+4]--, return byte | f.c |
 | [ ] | 0x042394 | 33 | FUN_00042394 | | |
 | [ ] | 0x04270d | 9 | FUN_0004270d | | |
 | [x] | 0x0427a3 | 46 | FUN_000427a3 | fn_0427a3 | walk active list; node rec==a0 -> fn_0427d2(base+rec,1); else -1 |

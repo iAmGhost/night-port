@@ -3138,6 +3138,37 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_041d18(void) {
+    printf("fn_041d18 (pull one byte from node buffer)\n");
+    uint32_t saved_act = g_node_list_active;
+    uint32_t boff = heap_malloc(16);
+    uint8_t *buf = (uint8_t *)g_heap_base + boff;
+    static uint8_t rec[0x20];
+    uint32_t *r = (uint32_t *)rec;
+    (void)buf;
+    /* Case A: key-echo branch (f12=0x2400, handle=0, keybuf='A') -> node[+4]=1, buf[0]='A' */
+    memset(rec, 0, sizeof(rec));
+    r[2] = boff;      /* node[+8] */
+    r[3] = 0x2400;    /* f12 */
+    r[4] = 0;         /* handle */
+    g_node_list_active = 0;
+    g_keybuf = 'A';
+    int32_t ret = fn_041d18(rec, 0);
+    check(ret == 'A', "  non-empty: returns buf byte 'A'");
+    check(r[1] == 0, "  non-empty: node[+4] decremented to 0");
+    check(r[0] == boff + 1, "  non-empty: node[+0] advanced by 1");
+    /* Case B: device-read branch (handle!=0) -> node[+4]=0 -> return -1 */
+    memset(rec, 0, sizeof(rec));
+    r[2] = boff;
+    r[3] = 0;         /* f12=0 */
+    r[4] = 0x1234;    /* handle != 0 -> read branch -> fn_042aba=0 */
+    r[5] = 7;
+    g_node_list_active = 0;
+    int32_t ret2 = fn_041d18(rec, 0);
+    check(ret2 == -1, "  empty: returns -1");
+    g_node_list_active = saved_act;
+}
+
 static void test_fn_041d47(void) {
     printf("fn_041d47 (I/O fill: key-echo or device-read into node buffer)\n");
     uint32_t saved_act = g_node_list_active;
@@ -5499,6 +5530,7 @@ int main(void) {
     test_fn_0427d2();
     test_fn_0427a3();
     test_fn_037306();
+    test_fn_041d18();
     test_fn_041d47();
     test_fn_0358c7();
     test_fn_0326c1();

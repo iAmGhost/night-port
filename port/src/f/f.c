@@ -3217,6 +3217,24 @@ void node_deactivate(uint32_t rec_off)   /* 0x44b5d */
  *   return node[+4];
  * Buffer (node[+0]/[+8]) is dereferenced directly as a host pointer (flat model),
  * matching fn_044748. param_2 (EDX input) is unused. No canary prologue. */
+/* 0x041d18 (46 B): pull one byte from the node buffer. Calls fn_041d47 to
+ * fill/prime the node; if node[+4] (result count) is 0, return -1 (empty).
+ * Else read the byte at the buffer (node[+0], a heap offset -> g_heap_base+off),
+ * advance node[+0] by 1, decrement node[+4], and return the byte. The original
+ * 8-byte return (CONCAT44) has high32 = the EDX input (the node ptr) -- an
+ * ABI artifact; only the low 32 (byte / -1) is meaningful. Sole callee:
+ * fn_041d47 (ported this pass). */
+int32_t fn_041d18(uint8_t *node, uint32_t param_2) {
+    (void)param_2;
+    int32_t res = fn_041d47(node, (uint32_t)(uintptr_t)node);   /* 0x041d1e */
+    if (res == 0) return -1;                                       /* empty */
+    uint32_t o = *(uint32_t *)(node + 0x00);                       /* buffer offset */
+    int32_t b = (int32_t)*(uint8_t *)(g_heap_base + o);            /* *pbVar1 */
+    *(uint32_t *)(node + 0x04) = *(uint32_t *)(node + 0x04) - 1u;  /* count-- */
+    *(uint32_t *)(node + 0x00) = o + 1;                            /* advance */
+    return b;
+}
+
 int32_t fn_041d47(uint8_t *node, uint32_t param_2) {
     (void)param_2;
     if (*(uint32_t *)(node + 0x08) == 0) fn_042a43(node);                 /* 0x41d4d-53 */

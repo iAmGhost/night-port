@@ -642,6 +642,7 @@ void node_deactivate(uint32_t rec_off);
  * mask) count++; if additionally (rec[0xd] & 0x10) call fn_044748(rec) (flush).
  * Returns the count of matching records. */
 uint32_t fn_043234(uint32_t mask);
+int32_t fn_041d18(uint8_t *node, uint32_t param_2); /* 0x041d18: pull one byte from node buffer (fn_041d47 + advance) */
 int32_t fn_041d47(uint8_t *node, uint32_t param_2); /* 0x041d47: I/O fill step (key-echo or device read into node buffer) */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),

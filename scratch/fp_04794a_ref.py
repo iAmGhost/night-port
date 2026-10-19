@@ -100,7 +100,7 @@ def _opval(R, tok, CF):
     return True, _get(R, t)
 
 
-def emulate(EAX, EBX, ECX, EDX, ESI):
+def emulate_full(EAX, EBX, ECX, EDX, ESI):
     R = {'EAX': EAX & 0xffffffff, 'EBX': EBX & 0xffffffff, 'ECX': ECX & 0xffffffff,
          'EDX': EDX & 0xffffffff, 'ESI': ESI & 0xffffffff, 'EBP': 0, 'EDI': 0}
     CF = ZF = SF = 0
@@ -124,7 +124,7 @@ def emulate(EAX, EBX, ECX, EDX, ESI):
                 pc += 1
             continue
         if mn == 'RET':
-            return R['EAX'], R['EDX']
+            return R['EAX'], R['EDX'], R['ESI']
         if mn == 'STC':
             CF = 1
         elif mn == 'PUSH':
@@ -222,6 +222,12 @@ def emulate(EAX, EBX, ECX, EDX, ESI):
         else:
             raise RuntimeError(f"unhandled: {text} at {a:#x}")
         pc += 1
+
+
+def emulate(EAX, EBX, ECX, EDX, ESI):
+    """Backward-compat: returns (EAX, EDX) only. Use emulate_full for (EAX,EDX,ESI)."""
+    lo, hi, _esi = emulate_full(EAX, EBX, ECX, EDX, ESI)
+    return lo, hi
 
 
 def _jump(mn, CF, ZF, SF):

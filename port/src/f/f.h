@@ -967,6 +967,7 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr);               /* 0x0
 void fn_048754(fx128 *a);                                                  /* 0x048754 */
 void fn_048422(fx128 *a);                                                  /* 0x048422: FPU/fx128 composite (354B) */
 void fn_0487b0(fx128 *a);                                                  /* 0x0487b0: FPU/fx128 composite (464B) */
+void fn_04876d(fx128 *a, fx128 *b);                                        /* 0x04876d: a=0487b0(a); b=a*b; b=b*const (in place) */
 void     fx_stub_4a923(void);                                             /* 0x4a923 */
 void     fx_round_down(uint32_t *v, uint16_t mode);                       /* 0x481df */
 

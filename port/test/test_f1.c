@@ -1612,7 +1612,7 @@ static void test_047d24(void) {
     uint32_t esi = ((uint32_t)(uint16_t)b[2] << 16) | (uint16_t)a[2];
     uint64_t r = fx_mul64(a[0], a[1], b[0], b[1], esi);
     check(out[0] == (uint32_t)r && out[1] == (uint32_t)(r >> 32), "  out[0..4] = fx_mul64 lo/hi");
-    check(out[2] == 0x0012, "  out[8] (word) = A[8]");
+    check(out[2] == 0x0000, "  out[8] (word) = result exp (0x0000: product underflows, NOT A[8]=0x0012)");
     uint32_t az[3] = {0,0,0}; uint32_t oz[3] = {9,9,9};
     fn_047d24(az, b, oz);
     uint64_t rz = fx_mul64(0, 0, b[0], b[1], ((uint32_t)(uint16_t)b[2] << 16));
@@ -3573,6 +3573,45 @@ static void test_fn_0487b0(void) {
     }
     printf("fn_0487b0 (0x0487b0, FPU/fx128 composite, %d diff vectors): %s\n", n, fail ? "FAIL" : "PASS");
     check(fail == 0, "  all vectors match Python reference fp_0487b0_ref.py");
+}
+
+static void test_fn_04876d(void) {
+    /* 0x04876d differential vectors from scratch/fp_04876d_ref.py (composes the
+     * verified fp_0487b0_ref + fp_047d4e_ref). a=EAX, b=EDX. Verifies the glue:
+     * a=0487b0(a); b=a*b (in place); b=b*const (in place, esi=(b.exp<<16)|0x3fff).
+     * Covers 0487b0 underflow (a->0), if-branch boundary, sentinel, 10 random. */
+    struct { uint32_t alo,ahi; uint16_t aexp; uint32_t blo,bhi; uint16_t bexp;
+             uint32_t elo,ehi; uint16_t eexp; uint32_t llo,lhi; uint16_t lexp; } V[] = {
+        {0x11111111,0x22222222,0x3ffe, 0x33333333,0x44444444,0x3ffe, 0x00000000,0x00000000,0x0000, 0x00000000,0x00000000,0x3c00},
+        {0x00000000,0x00000000,0x0000, 0x12345678,0x9abcdef0,0x4000, 0xb17a7331,0xb16e0b22,0xfc0c, 0x00000000,0x80000000,0xffff},
+        {0xb504f333,0xf9de6484,0x3ffe, 0xabcdef01,0x23456789,0x4001, 0x00000000,0x00000000,0x0000, 0x00000000,0x00000000,0x3c00},
+        {0xb504f333,0xf9de6484,0x3ffe, 0x00000001,0x00000000,0x4000, 0x00000000,0x00000000,0x0000, 0x00000000,0x00000000,0x3c00},
+        {0x80000000,0x00000000,0x3fff, 0x80000000,0x00000000,0x3fff, 0xb17fff1a,0xb171a322,0x7bfe, 0x00000000,0x80000000,0x7fff},
+        {0x2265b1f5,0x91b7584a,0x3204, 0x414c343c,0x1e2feb89,0x3fda, 0x9b0d6fac,0x9b04483e,0xfc0a, 0x00000000,0x80000000,0xffff},
+        {0xc2ce6f44,0x7311d8a3,0x3f1c, 0xa6cecc1b,0x612e7696,0x36b7, 0x9cb2ffcf,0x9ca5923c,0xfc06, 0x00000000,0x80000000,0xffff},
+        {0x18072e8c,0x7ce42c82,0x30e8, 0xe4b06ce6,0xd5f4b3b2,0x3c79, 0xa75c0f5f,0xa74ec12f,0xfc0a, 0x00000000,0x80000000,0xffff},
+        {0x6ec9d286,0x9b810e76,0x3011, 0xb2221a58,0x7204e52d,0x3885, 0xb0ad3788,0xb0a8fe23,0xfc0a, 0x00000000,0x80000000,0xffff},
+        {0xb8b6d8fe,0xcd447e35,0x3752, 0x9755d4c1,0xf1fd42a2,0x3345, 0xc0683ff6,0xc05b9e0f,0xfc09, 0x00000000,0x80000000,0xffff},
+        {0xe6c3f339,0x51431193,0x30fa, 0x05b6e6e3,0x06839eb9,0x304b, 0xa6945f9f,0xa68d4d30,0xfc0a, 0x00000000,0x80000000,0xffff},
+        {0xf06c144a,0xe1988ad9,0x3c32, 0xafbd67f9,0x37730edf,0x3d81, 0xa87c7fac,0xa879be2d,0xfc08, 0x00000000,0x80000000,0xffff},
+        {0xb9d179e0,0x076f3787,0x3718, 0xc381e88f,0x701966a0,0x3fdd, 0xc56f1f01,0xc56dde09,0xfc09, 0x00000000,0x80000000,0xffff},
+        {0x8d88348a,0x3bab6c39,0x3b0f, 0x3b1a11df,0xad45f23d,0x3700, 0xdaed9ed0,0xdaeb25dc,0xfc08, 0x00000000,0x80000000,0xffff},
+        {0xc2cd789a,0x75a89294,0x3945, 0xed2f89d9,0x05805975,0x3d51, 0x9528af3d,0x95223246,0xfc09, 0x00000000,0x80000000,0xffff},
+    };
+    int fail = 0, n = (int)(sizeof(V)/sizeof(V[0]));
+    for (int i = 0; i < n; i++) {
+        fx128 a = { V[i].alo, V[i].ahi, V[i].aexp };
+        fx128 b = { V[i].blo, V[i].bhi, V[i].bexp };
+        fn_04876d(&a, &b);
+        if (a.lo != V[i].elo || a.hi != V[i].ehi || a.exp != V[i].eexp ||
+            b.lo != V[i].llo || b.hi != V[i].lhi || b.exp != V[i].lexp) {
+            fail++;
+            printf("  vec %d: a got (0x%08x,0x%08x,0x%04x) want (0x%08x,0x%08x,0x%04x); b got (0x%08x,0x%08x,0x%04x) want (0x%08x,0x%08x,0x%04x)\n",
+                   i, a.lo,a.hi,a.exp, V[i].elo,V[i].ehi,V[i].eexp, b.lo,b.hi,b.exp, V[i].llo,V[i].lhi,V[i].lexp);
+        }
+    }
+    printf("fn_04876d (0x04876d, FPU/fx128 composite, %d diff vectors): %s\n", n, fail ? "FAIL" : "PASS");
+    check(fail == 0, "  all a,b vectors match Python reference fp_04876d_ref.py");
 }
 
 static void test_fn_03c65b(void) {
@@ -5942,6 +5981,7 @@ int main(void) {
     test_fn_048754();
     test_fn_048422();
     test_fn_0487b0();
+    test_fn_04876d();
     test_fn_04836c();
     test_fn_03c65b();
     test_fn_048e60();

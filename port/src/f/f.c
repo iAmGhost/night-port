@@ -3110,15 +3110,19 @@ uint32_t fn_042a3c(uint32_t x) { return g_dat_533bd(x); }
 /* 0x047d24: register-ABI wrapper around fx_mul64 (0x47d4e). Entry: a=EAX, b=EDX,
  * out=EBX. esi = (B[8]<<16) | A[8]. The POP-EBX idiom: EBX (the out ptr) is
  * pushed, temporarily reused to hold B[0] (the b_lo arg to fx_mul64), then POPped
- * back before writing the result. Writes out[0]=rlo, out[4]=rhi, out[8](word)=A[8]. */
+ * back before writing the result. Writes out[0]=rlo, out[4]=rhi, and out[8](word)
+ * = SI = the returned ESI low16 (the multiply's normalized result exp), NOT A[8] --
+ * the earlier port wrote A[8] (latent bug: 0x47d4e clobbers ESI to return the exp,
+ * so the true out->exp is the result exp). */
 void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out) {
     uint16_t a8 = *(uint16_t *)(a + 2);                 /* 0x47d33 A[8] */
     uint16_t b8 = *(uint16_t *)(b + 2);                 /* 0x47d27 B[8] */
     uint32_t esi = ((uint32_t)b8 << 16) | a8;           /* 0x47d30/47d33 */
-    uint64_t r = fx_mul64(a[0], a[1], b[0], b[1], esi); /* 0x47d3c CALL 0x47d4e */
-    out[0] = (uint32_t)(r & 0xffffffff);                /* 0x47d42 MOV [EBX],EAX */
-    out[1] = (uint32_t)(r >> 32);                       /* 0x47d44 MOV [EBX+4],EDX */
-    *(uint16_t *)(out + 2) = a8;                        /* 0x47d47 MOV word[EBX+8],SI */
+    fx64_t o;
+    fn_047d4e(a[0], a[1], b[0], b[1], esi, &o);         /* 0x47d3c CALL 0x47d4e (ESI=result exp) */
+    out[0] = o.lo;                                      /* 0x47d42 MOV [EBX],EAX */
+    out[1] = o.hi;                                      /* 0x47d44 MOV [EBX+4],EDX */
+    *(uint16_t *)(out + 2) = (uint16_t)o.exp;           /* 0x47d47 MOV word[EBX+8],SI (returned exp) */
 }
 
 /* 0x044bb4: node flag-setter. param_1 (EAX) = node ptr.
@@ -6803,6 +6807,25 @@ void fn_0487b0(fx128 *a)
 
     /* 0x048972-0x048977: a = {r5, c2exp_low16} */
     a->lo = r5lo; a->hi = r5hi; a->exp = esi_j & 0xffffu;
+}
+
+/* 0x04876d: a=EAX, b=EDX (both fx128*). Three in-place fx128 steps:
+ *   (1) 0x048773 a = fn_0487b0(a)              (in place)
+ *   (2) 0x04877c b = a * b                      (fn_047d24(a,b,out=b), in place on b)
+ *   (3) 0x048782-..a6 b = b * fx128(0x5c17f0bd,0xb8aa3b29)  in place,
+ *       esi=(b->exp<<16)|0x3fff, result exp written back to b->exp.
+ * The 047d24 out is b (MOV EBX,EDX; out=EBX); EDI=b (PUSH EDX;POP EDI) is the tail
+ * base. Result in b; void return (EAX clobbered by the multiply). */
+void fn_04876d(fx128 *a, fx128 *b)
+{
+    fn_0487b0(a);                                                    /* 0x048773 */
+    fn_047d24((uint32_t *)a, (uint32_t *)b, (uint32_t *)b);          /* 0x04877c: b=a*b, out=b */
+    uint32_t esi = ((uint32_t)b->exp << 16) | 0x3fffu;               /* 0x048782/8b/8e */
+    fx64_t o;
+    fn_047d4e(b->lo, b->hi, 0x5c17f0bd, 0xb8aa3b29, esi, &o);        /* 0x04879c */
+    b->lo = o.lo;                                                    /* 0x0487a1 */
+    b->hi = o.hi;                                                    /* 0x0487a3 */
+    b->exp = (uint16_t)o.exp;                                        /* 0x0487a6 */
 }
 
 /* 0x048754: register-ABI in-place wrapper. a = fn_04791a(a, a, 0, 0x80000000,

@@ -3138,6 +3138,37 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_049192(void) {
+    printf("fn_049192 (putc to node buffer)\n");
+    uint32_t boff = heap_malloc(32);
+    uint8_t *buf = (uint8_t *)g_heap_base + boff;
+    static uint8_t node[0x20];
+    uint32_t *n = (uint32_t *)node;
+    /* T1: normal char -> buffer[0]='X', f0=buf+1, f4=1, return 'X' */
+    memset(node, 0, sizeof(node));
+    n[0] = boff; n[1] = 0; n[2] = boff; n[3] = 0x2; n[5] = 16;
+    uint32_t r1 = fn_049192('X', node);
+    check(r1 == 'X', "  normal: returns char");
+    check(buf[0] == 'X', "  normal: buffer[0]='X'");
+    check(n[0] == boff + 1, "  normal: f0 advanced");
+    check(n[1] == 1, "  normal: f4=1");
+    /* T2: LF (10) -> CRLF: buffer[0]='\r', buffer[1]='\n', f4=2, f12 byte1 bit4 */
+    memset(node, 0, sizeof(node));
+    n[0] = boff; n[1] = 0; n[2] = boff; n[3] = 0x2; n[5] = 16;
+    uint32_t r2 = fn_049192(10, node);
+    check(r2 == 10, "  LF: returns 10");
+    check(buf[0] == 0x0d, "  LF: buffer[0]='\\r'");
+    check(buf[1] == 0x0a, "  LF: buffer[1]='\\n'");
+    check(n[1] == 2, "  LF: f4=2");
+    check(node[0x0d] & 0x10, "  LF: f12 byte1 bit4 set");
+    /* T3: error path (f12 bit1 clear) -> return -1, f12 byte0 bit5 */
+    memset(node, 0, sizeof(node));
+    n[0] = boff; n[1] = 0; n[2] = boff; n[3] = 0x0; n[5] = 16;
+    uint32_t r3 = fn_049192('X', node);
+    check(r3 == 0xffffffffu, "  error: returns -1");
+    check(node[0x0c] & 0x20, "  error: f12 byte0 bit5 set");
+}
+
 static void test_fn_041d18(void) {
     printf("fn_041d18 (pull one byte from node buffer)\n");
     uint32_t saved_act = g_node_list_active;
@@ -5530,6 +5561,7 @@ int main(void) {
     test_fn_0427d2();
     test_fn_0427a3();
     test_fn_037306();
+    test_fn_049192();
     test_fn_041d18();
     test_fn_041d47();
     test_fn_0358c7();

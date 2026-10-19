@@ -3224,6 +3224,57 @@ void node_deactivate(uint32_t rec_off)   /* 0x44b5d */
  * 8-byte return (CONCAT44) has high32 = the EDX input (the node ptr) -- an
  * ABI artifact; only the low 32 (byte / -1) is meaningful. Sole callee:
  * fn_041d47 (ported this pass). */
+/* 0x049192 (163 B): putc -- write one char to a node I/O buffer.
+ * reg-ABI: EBX=char (param_1), EDX=node (param_2, io_state_t*). Returns the
+ * char (0-255) on success, -1 on error. Buffer fields f0/f8 are heap offsets
+ * (dereferenced via g_heap_base). Disassembly-verified (mask is ECX, callee-
+ * saved; the decompiler's "uVar1 = extraout_ECX" is a register artifact):
+ *   if (node[0x0c] & 0x2)==0: fn_042a0d(4); node[0x0c]|=0x20; return -1;
+ *   if (f8==0) fn_042a43(node);                 // lazy init
+ *   mask = 0x400;
+ *   if (ch==10 && (node[0x0c]&0x40)==0) {       // LF, no f12 bit6: CRLF expand
+ *       mask = 0x600; node[0x0d]|=0x10;
+ *       *(u8*)(base+f0)=0x0d; f0++; f4++;
+ *       if (f4==cap && fn_044748(node)!=0) return -1;
+ *   }
+ *   node[0x0d]|=0x10; *(u8*)(base+f0)=ch; f0++; f4++;
+ *   if ((mask & f12)!=0 || f4==cap) { if (fn_044748(node)!=0) return -1; }
+ *   return ch;
+ * cap = node[+0x14]. Callees: fn_042a0d, fn_042a43, fn_044748 (all ported). */
+uint32_t fn_049192(uint32_t ch, uint8_t *node) {
+    uint32_t *n = (uint32_t *)node;              /* n[0]=f0 n[1]=f4 n[2]=f8 n[3]=f12 n[5]=cap */
+    if ((node[0x0c] & 0x02) == 0) {              /* f12 byte0 bit1 clear -> error */
+        fn_042a0d(4);
+        node[0x0c] |= 0x20;
+        return 0xffffffffu;
+    }
+    if (n[2] == 0) {                              /* f8 (buffer start) unset -> init */
+        fn_042a43(node);
+    }
+    uint32_t mask = 0x400;                        /* ECX */
+    if ((int32_t)ch == 10 && (node[0x0c] & 0x40) == 0) {   /* LF, no f12 bit6 */
+        mask = 0x600;
+        node[0x0d] |= 0x10;                        /* f12 byte1 bit4 */
+        uint32_t o = n[0];                         /* f0 cursor */
+        *(uint8_t *)(g_heap_base + o) = 0x0d;      /* buffer = '\r' */
+        n[0] = o + 1;
+        n[1] = n[1] + 1;
+        if (n[1] == n[5]) {                        /* f4 == capacity */
+            if (fn_044748((io_state_t *)node) != 0) return 0xffffffffu;
+        }
+    }
+    node[0x0d] |= 0x10;                            /* f12 byte1 bit4 */
+    uint8_t c = (uint8_t)ch;
+    uint32_t o = n[0];                             /* f0 cursor */
+    *(uint8_t *)(g_heap_base + o) = c;             /* buffer = char */
+    n[0] = o + 1;
+    n[1] = n[1] + 1;
+    if (((mask & n[3]) != 0) || (n[1] == n[5])) {  /* (mask & f12) or full */
+        if (fn_044748((io_state_t *)node) != 0) return 0xffffffffu;
+    }
+    return c;
+}
+
 int32_t fn_041d18(uint8_t *node, uint32_t param_2) {
     (void)param_2;
     int32_t res = fn_041d47(node, (uint32_t)(uintptr_t)node);   /* 0x041d1e */

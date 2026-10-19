@@ -3026,6 +3026,46 @@ int32_t fn_04285c(uint8_t *a0, int32_t a1) {
     return esi;                                          /* 0x428db */
 }
 
+/* 0x042717 (L7, 103 B): find the pool node whose record == a0.
+ *  - Walk the ACTIVE list (head g_node_list_active=0x63ffc); if node->rec==a0 and
+ *    the record's flags byte (rec+0xc) has bit 0x3 set, destruct the record via
+ *    fn_04285c(rec,1). Return a0.
+ *  - Else walk the DONE list (head g_node_list_done=0x63ff8); if node->rec==a0,
+ *    move the node to the front of the active list (reactivate) and return a0.
+ *    (Original overwrites the done head with node->next regardless of position --
+ *    only correct when the found node is the done head; latent quirk, ported 1:1.)
+ *  - Else not found: fn_042a0d(4) (g_64008=4), return 0.
+ * Nodes are nd_node {next@+0, rec@+4} at g_ndpool+off; the record is io_state at
+ * g_ndpool+rec. */
+uint32_t fn_042717(uint32_t a0) {
+    uint8_t *base = g_ndpool;
+    uint32_t cur = g_node_list_active;                     /* 0x63ffc */
+    while (cur != 0) {                                      /* 0x42721 */
+        struct nd_node *node = (struct nd_node *)(base + cur);
+        if (node->rec == a0) {
+            if (base[node->rec + 0xc] & 0x3) {             /* 0x4272c-39 */
+                fn_04285c(base + node->rec, 1);
+            }
+            return a0;                                     /* 0x4273e-43 */
+        }
+        cur = node->next;                                  /* 0x42744-46 */
+    }
+    uint32_t dcur = g_node_list_done;                      /* 0x63ff8 */
+    while (dcur != 0) {                                    /* 0x4274d */
+        struct nd_node *node = (struct nd_node *)(base + dcur);
+        if (node->rec == a0) {                             /* 0x42753-56 */
+            uint32_t old_active = g_node_list_active;      /* 0x4275c */
+            g_node_list_done = node->next;                 /* 0x4275a (latent quirk) */
+            node->next = old_active;                       /* 0x42767 */
+            g_node_list_active = dcur;                     /* 0x42762 */
+            return a0;                                     /* 0x42769 */
+        }
+        dcur = node->next;                                 /* 0x4276b-6d */
+    }
+    fn_042a0d(4);                                          /* 0x4276f-74 */
+    return 0;
+}
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */

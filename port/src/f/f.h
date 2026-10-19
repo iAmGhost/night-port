@@ -604,6 +604,7 @@ void fn_044bb4(uint8_t *node);   /* 0x044bb4: ioctl node flag-setter */
 uint32_t fn_042a43(uint8_t *node);   /* 0x042a43: device/heap node initializer (size by flags, malloc+inline fallback) */
 int32_t fn_042928(uint8_t *node);    /* 0x042928: node lseek-offset compute (lseek pos +/- field4 by flag 0x10) */
 int32_t fn_04285c(uint8_t *a0, int32_t a1);  /* 0x04285c: io_state/node destructor (flush/lseek/close/free/filename) */
+uint32_t fn_042717(uint32_t a0);  /* 0x042717: find node with rec==a0: active+flags&0x3 -> fn_04285c(rec,1); done -> reactivate; else g_64008=4, return 0 */
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

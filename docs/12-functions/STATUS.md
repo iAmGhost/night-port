@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 341 / 528 done
+TOTALS: 342 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -45,7 +45,7 @@ TOTALS: 341 / 528 done
 | L4 | 13 | 5 | 0 | 0 | 8 |
 | L5 | 10 | 5 | 0 | 0 | 5 |
 | L6 | 10 | 3 | 0 | 0 | 7 |
-| L7 | 8 | 1 | 0 | 0 | 7 |
+| L7 | 8 | 2 | 0 | 0 | 6 |
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 58 | 0 | 0 | 23 |
@@ -76,6 +76,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | Date | Decision | Ref |
 |---|---|---|
 | 2026-07-08 | **0x03d75c DEFERRED (L10, 306 B) -- data-table wall.** Loop over [0x62a90] 20-byte records at 0x5d0b4: reads rec[+0]=idx, rec[+4]=off2, rec[+0x10]=float; computes dx=rec[+4]-*(0x63dfc+0xc+idx*4)-[0x639dc], dy=rec[+4]-*(0x63dfc+0x4+idx*4)-[0x639dc] then adds fpu_rndint(rec[+0x10]) to each; if both dx,dy in [0,0x13f]: *(float)(0x5d0c4+i*0x14) = arg0 * *(float)(0x5274c + (0x63354+0x40 + (0x63370-1)*0x28)*4... ) - old_float. Touches many ROM/global tables (0x5d0b4/0x5d0b8/0x5d0c4, 0x63dfc, 0x639dc, 0x63354, 0x63370, 0x5274c) -- needs a dedicated pass to model them (cf. 0x01586b). Both callees (fpu_rndint x2) are ported. | STATUS.md |
+| 2026-07-08 | **0x042717 PORTED (L7, 103 B) -- pool node find.** a0=record offset. Walk ACTIVE list (head 0x63ffc): if node->rec==a0 and rec[0xc]&0x3, fn_04285c(rec,1) destruct; return a0. Else walk DONE list (head 0x63ff8): if node->rec==a0, reactivate (move to active head); return a0. Else fn_042a0d(4) (g_64008=4), return 0. Uses same g_ndpool/nd_node pool as node_deactivate. Latent quirk ported 1:1: done-list unlink overwrites head with node->next regardless of found node's position (only correct when found node is head). Both callees (fn_04285c, fn_042a0d) ported. 9 checks across 4 scenarios (active-no-destruct, active-destruct via region-free, done-reactivate, not-found). L7 1->2, TOTALS 341->342/528, suite 1271->1280 PASS 0 FAIL. | STATUS.md L7 |
 | 2026-07-08 | **0x03d999 PORTED (L11, 53 B) -- trivial wrapper.** fn_03dcbd(a0) (struct destructor, ported this session); return a0. a1 (EDX) stored to frame but never read. Canary 0x24. Test: set p[0]=sentinel + p[1]=heap block; fn_03d999(p,5) -> returns p, p[0] untouched, p[1] freed+nulled (proves fn_03dcbd called), heap reusable. 5 checks. L11 42->43, TOTALS 340->341/528, suite 1266->1271 PASS 0 FAIL. | STATUS.md L11 |
 | 2026-07-08 | **0x04247a PORTED (L5, 251 B) -- io write/seek; res_reader layout FIXED (supersedes the DEFERRED entry below).** Resolved the res_reader layout wall: the node IS a res_reader, and the ported struct was NOT in the 16-bit layout (pos/end were 8-byte pointers, no 0xd slot). FIX: made pos/end uint32_t (32-bit addr/offset, matching the original 16-bit pointers) and added flags2 (0xd) + _pad[2] so the struct is exactly pos@0/remaining@4/end@8/flags@0xc/flags2@0xd/id@0x10 (20 bytes, natural alignment, no packed attr needed). This corrects res_consume's byte layout (now reads the 16-bit offsets) and lets 0x04247a use the struct fields. Dispatch: if (r->flags&0x6) [CASE A]: if (r->flags2&0x10){if(fn_044748(r)!=0){if(mode==0&&value<0)fn_042a0d(9);return -1}} else {if(mode==1)value-=r->remaining; r->pos=r->end; r->remaining=0}; r->flags&=0xeb; return (fn_044807(r->id,value,mode)==-1)?-1:0. else [CASE D]: mode0{cur=fn_044848(r->id); if(res_consume(r,value-(cur-r->remaining))==0)return 0; return (fn_044807(r->id,value,0)==-1)?-1:0}; mode1{rem=r->remaining; if(res_consume(r,value)==0)return 0; return (fn_044807(r->id,value-rem,1)==-1)?-1:0}; mode2{r->pos=r->end; r->flags&=0xef; r->remaining=0; return (fn_044807(r->id,value,2)==-1)?-1:0}; else{fn_042a0d(9);return -1}. lseek (fn_044807/fn_044848) is a no-op returning 0 in the flat model -> lseek paths yield 0; observable = return + node field writes. Test: 4 scenarios (D mode>2 -> -1 + g_64008=9, A2 mode1 pos/remaining/flags, D2 mode2 pos/remaining/flags, D0 mode0 consume(0) ok). 11 checks. res_consume test updated to 32-bit offsets (still passes). L5 4->5, TOTALS 339->340/528, suite 1255->1266 PASS 0 FAIL. | STATUS.md L5 |
 | 2026-07-08 | **0x04247a DEFERRED (L5, 251 B) -- needs res_reader/io_state node layout pass.** Multi-mode io write/seek: dispatches on node[0xc]&0x6 (CASEA vs CASED) and mode (0/1/2/>2); all 5 callees ported (fn_044748/fn_042a0d/fn_044807/res_consume/fn_044848). BUT the node is accessed at fixed 16-bit offsets (pos@+0, remaining@+4, end@+8, flags@+0xc AND a 2nd flag byte @+0xd, id@+0x10), whereas the ported res_reader struct is NOT packed -- actual 64-bit layout is pos@0, remaining@8, end@16, flags@0x18, id@0x1c (struct comments claim the 16-bit layout but the compiler ignores it), and there is no slot for node[0xd]. So fn_04247a's raw 16-bit accesses would be inconsistent with res_consume (which reads the 64-bit struct fields), and node[0xd] (0x10/0x8 flag tests) has no representation. Needs a dedicated pass: pack res_reader to the 16-bit layout (would change res_consume's existing test) or introduce a full io_state node struct with both flag bytes. | STATUS.md |
@@ -539,7 +540,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x041e94 | 4 | fn_041e94 | thunk_FUN_00041bdc = heap_malloc alias (JMP 0x41bdc); reg-ABI EAX=size | f.c |
 | [ ] | 0x042023 | 32 | FUN_00042023 | | |
 | [ ] | 0x0426f2 | 26 | FUN_000426f2 | | |
-| [ ] | 0x042717 | 103 | FUN_00042717 | | |
+| [x] | 0x042717 | 103 | FUN_00042717 | | |
 | [ ] | 0x0427d2 | 20 | FUN_000427d2 | | |
 | [ ] | 0x0446c3 | 132 | FUN_000446c3 | | |
 | [ ] | 0x049192 | 163 | FUN_00049192 | | |

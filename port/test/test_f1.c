@@ -1960,6 +1960,47 @@ static void test_fn_034990(void) {
     memcpy(nar(), savarena, 0x1000);
 }
 
+static void test_fn_042717(void) {
+    printf("fn_042717 (0x042717, node find: active->destruct / done->reactivate / not-found)\n");
+    static uint8_t pool[0x80];
+    g_ndpool = pool; memset(pool, 0, sizeof pool);
+    uint32_t *p = (uint32_t *)pool;
+    /* nodes @8/16/24 (nd_node: next,rec); records @40/48/56 */
+    p[2]=16; p[3]=40;   /* node0: next=16, rec=40 */
+    p[4]=24; p[5]=48;   /* node1: next=24, rec=48 */
+    p[6]=0;  p[7]=56;   /* node2: next=0,  rec=56 */
+
+    /* Case 1: found in active, flags&0x3 clear -> no destruct, return rec */
+    pool[40+0xc] = 0x00;
+    g_node_list_active = 8; g_node_list_done = 0;
+    check(fn_042717(40) == 40, "042717: found in active (flags&0x3==0) returns rec");
+
+    /* Case 2: found in active, flags&0x3 set -> destruct (rec heap region freed+nulled) */
+    uint32_t region = heap_malloc(8);
+    check(region != 0, "042717: region allocated");
+    pool[48+0xc] = 0x0b;   /* 0x3 (0x042717 destruct gate) | 0x8 (0x04285c free region) */
+    pool[48+0x8] = region; /* heap region to be freed */
+    pool[48+0xd] = 0;      /* no flush / no temp-delete */
+    pool[48+0x10] = 0;     /* id 0 (lseek/close no-op) */
+    check(fn_042717(48) == 48, "042717: found in active (flags&0x3) returns rec");
+    check(pool[48+0x8] == 0, "042717: destruct freed+nulled rec region via fn_04285c");
+
+    /* Case 3: found in done list -> reactivate (move to active head) */
+    g_node_list_active = 16;   /* active: node1 -> node2 */
+    p[2] = 0;                  /* node0.next = 0 (standalone in done) */
+    g_node_list_done = 8;      /* done head = node0 (rec 40) */
+    check(fn_042717(40) == 40, "042717: found in done returns rec");
+    check(g_node_list_active == 8, "042717: node0 moved to active head");
+    check(g_node_list_done == 0, "042717: done list emptied");
+
+    /* Case 4: not found -> g_64008=4, return 0 */
+    g_node_list_active = 16; g_node_list_done = 0;
+    uint32_t sv = g_dat_64008;
+    check(fn_042717(0x999) == 0, "042717: not found returns 0");
+    check(g_dat_64008 == 4, "042717: not found sets g_64008=4");
+    g_dat_64008 = sv;
+}
+
 static void test_fn_03d999(void) {
     printf("fn_03d999 (0x03d999, wrapper: fn_03dcbd(a0); return a0)\n");
     uint8_t s[0x40] = {0};
@@ -5159,6 +5200,7 @@ int main(void) {
     test_fn_034aba();
     test_fn_03ba2c();
     test_fn_034990();
+    test_fn_042717();
     test_fn_03d999();
     test_fn_03dcbd();
     test_fn_010d47();

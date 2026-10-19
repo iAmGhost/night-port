@@ -3040,6 +3040,27 @@ static void test_fn_0412a3_041340(void) {
     g_dat_53334 = saved;
 }
 
+static void test_fn_040e8d(void) {
+    printf("fn_040e8d (timer/device setup guard)\n");
+    uint32_t saved53 = g_dat_53334, savedf90 = g_63f90;
+    g_dat_53334 = 0x100;
+    /* guard: g_63f90 = 0 -> no port-write (device init flag clear). */
+    sys_port_set(0x100 + 0xc, 0x00);   /* ready */
+    g_63f90 = 0;
+    fn_040e8d();
+    check(inb(0x100 + 0xc) == 0x00, "  g_63f90=0 -> no write (guard)");
+    /* g_63f90 = 1, ready -> fn_041410() = fn_041340(0xd3) writes 0xd3. */
+    sys_port_set(0x100 + 0xc, 0x00);
+    g_63f90 = 1;
+    fn_040e8d();
+    check(inb(0x100 + 0xc) == 0xd3, "  g_63f90=1 ready -> writes 0xd3");
+    /* g_63f90 = 1, not ready (bit7 set) -> fn_041340 returns 0, no write. */
+    sys_port_set(0x100 + 0xc, 0x80);
+    fn_040e8d();
+    check(inb(0x100 + 0xc) == 0x80, "  g_63f90=1 not ready -> no write");
+    g_dat_53334 = saved53; g_63f90 = savedf90;
+}
+
 static void test_fn_0358c7(void) {
     printf("fn_0358c7 (device port-wait + write)\n");
     uint32_t saved = g_dat_530ac;
@@ -5340,6 +5361,7 @@ int main(void) {
     test_fn_0412e9_041390();
     test_fn_03c6ec_03d88f();
     test_fn_0412a3_041340();
+    test_fn_040e8d();
     test_fn_0358c7();
     test_fn_0326c1();
     test_fn_040660_0406f5();

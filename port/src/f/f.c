@@ -7185,6 +7185,25 @@ int32_t fn_035c2d(uint8_t arg) { (void)canary_id(0, 0x20); return fn_0358c7((uin
  * Observably: fn_041340(0x40); return fn_041340(arg). */
 uint32_t fn_040948(uint32_t arg) { (void)canary_id(0, 0x20); fn_041340(0x40); return fn_041340(arg); }  /* 0x040948 */
 
+/* ---- 0x040e8d (L14, 111 B): timer/device setup guard ----
+ * canary prologue PUSH 0x20; CALL 0x418ee; save EBX..EBP. If g_63f90 == 0 (not
+ * initialized) it returns. Otherwise:
+ *   local = (g_dat_63f84 == 0xa) ? 0x72 : g_dat_63f84 + 8        (0x40eae-0x40ec8)
+ *   CALL 0x407f8([0x63fb0])              -> fn_000407f8()   DPMI real-mode request, no-op
+ *   CALL 0x42361(local,[0x63f54],[0x63f58]) -> isr_set(...)  INT 21h set-vector, no-op
+ *   CALL 0x41410()                        -> fn_041340(0xd3)  device port-write (only observable effect)
+ * The handler far-pointer (offset [0x63f54] / segment [0x63f58]) and the DPMI request
+ * [0x63fb0] feed no-op sys stubs, so they have no flat-model effect. */
+uint32_t g_63f90 = 0;   /* DAT_00063f90: timer/device init flag (0x040e8d guard) */
+void fn_040e8d(void) {
+    (void)canary_id(0, 0x20);                                            /* 0x40e8d-0x40e92 */
+    if (g_63f90 == 0) return;                                            /* 0x40ea5-0x40eac */
+    uint32_t local = (g_dat_63f84 == 0xa) ? 0x72 : g_dat_63f84 + 8;       /* 0x40eae-0x40ec8 */
+    fn_000407f8();                                                        /* 0x40ed0, no-op */
+    isr_set((uint8_t)local, 0, 0);                                       /* 0x40eea, no-op (orig handler [0x63f54]/[0x63f58]) */
+    fn_041410();                                                          /* 0x40eef, fn_041340(0xd3) observable */
+}
+
 uint32_t g_dat_63f88 = 0;  /* DAT_00063f88: 16-bit device value (0x0411d9 combines two status bytes) */
 
 /* 0x0411d9 (L12, 99 B): read a 16-bit device value. If fn_041340(0xe1) (write cmd 0xe1)

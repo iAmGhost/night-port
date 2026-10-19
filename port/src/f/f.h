@@ -590,6 +590,8 @@ int32_t  fn_035b0c(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b0c: (a0&0xf0==
 void     fn_034eb0(void);                    /* 0x034eb0: device/IRQ teardown: if g_63324 {irq_cli;fn_03575d(0);isr_set(8,g_63334,g_63338);fn_035ac0;irq_sti;g_63324=0; if g_6333c {fn_041c31;g_6333c=0}} */
 int32_t  fn_03565a(int32_t input);  /* 0x03565a: div=input/1000; r=div==0?0x10000:(div*0x4aa)/g_dat_63304; fn_000356ba(r); return r */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */
+void fn_040e8d(void);  /* 0x040e8d: if g_63f90 {fn_000407f8();isr_set(local,0,0);fn_041410()} */
+extern uint32_t g_63f90;  /* DAT_00063f90: timer/device init flag (0x040e8d guard) */
 extern uint32_t g_dat_63f88;  /* DAT_00063f88: 16-bit device value (0x0411d9) */
 uint32_t fn_0411d9(void);  /* 0x0411d9: if fn_041340(0xe1) { combine 2x fn_0412a3 as (hi<<8)|lo -> DAT_63f88 } else 0 */
 uint32_t fn_040f4f(void);  /* 0x040f4f: scan 8 port bases (g_dat_53334 += 0x10); return base where fn_0412a3()==0xaa else 0 */

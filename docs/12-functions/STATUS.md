@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 344 / 528 done
+TOTALS: 345 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -51,7 +51,7 @@ TOTALS: 344 / 528 done
 | L10 | 81 | 58 | 0 | 0 | 23 |
 | L11 | 77 | 43 | 0 | 0 | 34 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
-| L13 | 16 | 5 | 0 | 0 | 11 |
+| L13 | 16 | 6 | 0 | 0 | 10 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
 | L15 | 5 | 0 | 0 | 0 | 5 |
 | L16 | 8 | 0 | 0 | 0 | 8 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x040e8d PORTED (L13, 111 B) -- device/timer setup guard (resolves earlier deferral).** canary PUSH 0x20;CALL 0x418ee. If g_63f90==0 return (not initialized). Else: local=(g_dat_63f84==0xa?0x72:g_dat_63f84+8); CALL 0x407f8([0x63fb0])=fn_000407f8() (DPMI real-mode req, no-op); CALL 0x42361(local,[0x63f54],[0x63f58])=isr_set(...) (INT 21h set-vector, no-op); CALL 0x41410()=fn_041340(0xd3) (device port-write = the ONLY flat-model observable effect). The handler far-pointer + DPMI request feed no-op sys stubs (no observable effect); the earlier deferral noted only the incidental fn_041410 CD command is testable -- this port captures exactly that. New global g_63f90 (init flag). All callees ported (fn_000407f8/isr_set/fn_041410). Test: 3 scenarios (g_63f90=0 guard -> no write; g_63f90=1 ready -> writes 0xd3 to +0xc; g_63f90=1 not-ready bit7 set -> fn_041340 returns 0 no write). 3 checks. L13 5->6, TOTALS 344->345/528. | STATUS.md L13 |
 | 2026-07-08 | **0x03d75c DEFERRED (L10, 306 B) -- data-table wall.** Loop over [0x62a90] 20-byte records at 0x5d0b4: reads rec[+0]=idx, rec[+4]=off2, rec[+0x10]=float; computes dx=rec[+4]-*(0x63dfc+0xc+idx*4)-[0x639dc], dy=rec[+4]-*(0x63dfc+0x4+idx*4)-[0x639dc] then adds fpu_rndint(rec[+0x10]) to each; if both dx,dy in [0,0x13f]: *(float)(0x5d0c4+i*0x14) = arg0 * *(float)(0x5274c + (0x63354+0x40 + (0x63370-1)*0x28)*4... ) - old_float. Touches many ROM/global tables (0x5d0b4/0x5d0b8/0x5d0c4, 0x63dfc, 0x639dc, 0x63354, 0x63370, 0x5274c) -- needs a dedicated pass to model them (cf. 0x01586b). Both callees (fpu_rndint x2) are ported. | STATUS.md |
 | 2026-07-08 | **0x04097e DEFERRED (L13, 516 B) -- device-port driver, 7 new globals.** All 6 callees ported (canary, fn_040948, fn_041e20=memset, mem_copy=0x041e6c, outb, fn_041340) BUT needs 7 undefined globals: g_63f8c, g_63f94, g_63f98, g_63f9c, g_63fa8, g_63fb4 (a 0xffff=64KB device buffer for memset+mem_copy), g_63fac (value byte-sent to device). Reads 2 header bytes of a0; fn_040948(b0); switch(b1) sets g_63f9c (0x14/0x75/0x77/0x17); mem_copy(g_63fb4, a0+2, count); burst of outb() port writes (0x04231d) + 3x fn_041340(). Return = last fn_041340(). Device-port + 64KB buffer modeling needed; not a clean win. | STATUS.md L13 |
 | 2026-07-08 | **CORRECTION: port-status checks by `fn_XXXXXX` or raw address are UNRELIABLE.** Many leaves are ported under semantic names (0x041f5d=`str_len` L0 [x], 0x04231d=`outb`, 0x041f76=`abs32`, 0x041f7e=`fpu_rndint`, 0x040491=`blt_rows`, 0x040042=`board_out`, 0x042438=`res_consume`, 0x041e6c=`mem_copy`, 0x044859=`to_lower`). The "gated" verdicts in the mid-tier scan above are therefore PARTIALLY INVALID: 0x0367c9/0x036853 depend on 0x041f5d which IS ported (=str_len), so they may only be gated on 0x0423e5. RELIABLE check: `grep -rn "<semantic_name>" port/src/f/f.c` and match against the `orig: 0xXXXXXX` in the impl comment, OR check STATUS.md rows by address. Re-verify callee port-status with this method next turn before deferring. | STATUS.md |
@@ -817,7 +818,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03d8d4 | 196 | FUN_0003d8d4 | | |
 | [ ] | 0x04097e | 516 | FUN_0004097e | | |
 | [ ] | 0x040d09 | 387 | FUN_00040d09 | | |
-| [ ] | 0x040e8d | 111 | FUN_00040e8d | | |
+| [x] | 0x040e8d | 111 | FUN_00040e8d | fn_040e8d | device/timer setup guard (g_63f90): 0x407f8+isr_set(no-op) + fn_041410()=fn_041340(0xd3) port-write |
 ## L14 (7)
 
 | Status | Addr | Size | Name | Subsystem | Notes |

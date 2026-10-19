@@ -3614,6 +3614,126 @@ static void test_fn_04876d(void) {
     check(fail == 0, "  all a,b vectors match Python reference fp_04876d_ref.py");
 }
 
+static void test_fn_048a48(void) {
+    /* fn_048a48 (0x048a48, L3, 502B, 171 insns) differential vectors from
+     * scratch/fp_048a48_ref.py (composes fp_0485eb_ref + fp_04794a_ref + fp_047d4e_ref
+     * + fp_0487b0_ref._f4c + fp_047b79_ref). In-place: a={lo,hi,exp}, esi in {0,1,2}
+     * (the 3 L4 thunks). Covers 0485eb align-subtract, sign block, F-flags, AL&1,
+     * underflow (d2<-0x20), every scale, f4c/f9e/ch branches, 047b79. */
+    struct { uint16_t esi; uint32_t lo,hi,exp; uint32_t elo,ehi; uint16_t eexp; } V[] = {
+        {0u, 0x12345678u, 0x9abcdef0u, 0x3ffe, 0x3fd199b0u, 0xa5b5d206u, 0x3ffd},
+        {1u, 0x12345678u, 0x9abcdef0u, 0x3ffe, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x12345678u, 0x9abcdef0u, 0x3ffe, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x00000001u, 0x00000000u, 0x3ffe, 0x00000000u, 0x80000000u, 0x3fc0},
+        {1u, 0x00000001u, 0x00000000u, 0x3ffe, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x00000001u, 0x00000000u, 0x3ffe, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x80000000u, 0x00000000u, 0x3fff, 0x00000000u, 0x80000000u, 0x3fe0},
+        {1u, 0x80000000u, 0x00000000u, 0x3fff, 0x00000000u, 0x80000000u, 0x0000},
+        {2u, 0x80000000u, 0x00000000u, 0x3fff, 0x00000000u, 0x80000000u, 0x7fff},
+        {0u, 0x5a5a5a5au, 0xa5a5a5a5u, 0x3fdd, 0x5a5a5a5au, 0xa5a5a5a5u, 0x3fdd},
+        {1u, 0x5a5a5a5au, 0xa5a5a5a5u, 0x3fdd, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x5a5a5a5au, 0xa5a5a5a5u, 0x3fdd, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0xffffffffu, 0xffffffffu, 0x3fc0, 0xffffffffu, 0xffffffffu, 0x3fc0},
+        {1u, 0xffffffffu, 0xffffffffu, 0x3fc0, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0xffffffffu, 0xffffffffu, 0x3fc0, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x11111111u, 0x22222222u, 0x3fbf, 0x11111111u, 0x22222222u, 0x3fbf},
+        {1u, 0x11111111u, 0x22222222u, 0x3fbf, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x11111111u, 0x22222222u, 0x3fbf, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x12345678u, 0x9abcdef0u, 0x4000, 0x00000000u, 0x80000000u, 0xffff},
+        {1u, 0x12345678u, 0x9abcdef0u, 0x4000, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x12345678u, 0x9abcdef0u, 0x4000, 0x49713410u, 0xfc3ebd9eu, 0xbffb},
+        {0u, 0xdeadbeefu, 0xcafebabeu, 0x4001, 0xa27e5d00u, 0xf7700e5eu, 0x3ffb},
+        {1u, 0xdeadbeefu, 0xcafebabeu, 0x4001, 0x0513f2e8u, 0x003ddc03u, 0x8000},
+        {2u, 0xdeadbeefu, 0xcafebabeu, 0x4001, 0x00000000u, 0x80000000u, 0xffff},
+        {0u, 0x00000000u, 0x00000000u, 0x3fff, 0x00000000u, 0x00000000u, 0x0000},
+        {1u, 0x00000000u, 0x00000000u, 0x3fff, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x00000000u, 0x00000000u, 0x3fff, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x00000000u, 0x00000000u, 0x3ffe, 0x00000000u, 0x00000000u, 0x0000},
+        {1u, 0x00000000u, 0x00000000u, 0x3ffe, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x00000000u, 0x00000000u, 0x3ffe, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x12345678u, 0x9abcdef0u, 0x0000, 0x12345678u, 0x9abcdef0u, 0x0000},
+        {1u, 0x12345678u, 0x9abcdef0u, 0x0000, 0x12345678u, 0x03579bdeu, 0x0000},
+        {2u, 0x12345678u, 0x9abcdef0u, 0x0000, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x7fffffffu, 0x7fffffffu, 0x7fff, 0x249964b8u, 0xc6cf1a4cu, 0x3ffd},
+        {1u, 0x7fffffffu, 0x7fffffffu, 0x7fff, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x7fffffffu, 0x7fffffffu, 0x7fff, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x0000abcdu, 0x00001234u, 0x3f00, 0x0000abcdu, 0x00001234u, 0x3f00},
+        {1u, 0x0000abcdu, 0x00001234u, 0x3f00, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x0000abcdu, 0x00001234u, 0x3f00, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x000000ffu, 0x00000100u, 0x3e00, 0x000000ffu, 0x00000100u, 0x3e00},
+        {1u, 0x000000ffu, 0x00000100u, 0x3e00, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x000000ffu, 0x00000100u, 0x3e00, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x01020304u, 0x05060708u, 0x3fd0, 0x01020304u, 0x05060708u, 0x3fd0},
+        {1u, 0x01020304u, 0x05060708u, 0x3fd0, 0x00000000u, 0x00000000u, 0x0000},
+        {2u, 0x01020304u, 0x05060708u, 0x3fd0, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0x8361d022u, 0xcf155871u, 0x35be, 0x8361d022u, 0xcf155871u, 0x35be},
+        {1u, 0xc70ef7e5u, 0xb17aec3cu, 0x0466, 0x00000000u, 0x00000000u, 0x0000},
+        {0u, 0x1c606152u, 0x2c3bc503u, 0x0ab2, 0x1c606152u, 0x2c3bc503u, 0x0ab2},
+        {2u, 0x031126c9u, 0xdc3a397bu, 0x04d9, 0x00000000u, 0x80000000u, 0x3fff},
+        {1u, 0x2b6b9567u, 0xa1adbb9du, 0x20fe, 0x00000000u, 0x00000000u, 0x0000},
+        {1u, 0x14ace101u, 0xab2c8221u, 0x36bc, 0x00000000u, 0x00000000u, 0x0000},
+        {1u, 0xb795d7edu, 0x288f51f6u, 0x2507, 0x00000000u, 0x00000000u, 0x0000},
+        {0u, 0xf8d82fedu, 0xb01eda6du, 0x3e89, 0xf8d82fedu, 0xb01eda6du, 0x3e89},
+        {0u, 0xf9e6046cu, 0xade35ce0u, 0x10b4, 0xf9e6046cu, 0xade35ce0u, 0x10b4},
+        {2u, 0xa840a55fu, 0xfdc325f9u, 0x14fe, 0x00000000u, 0x80000000u, 0x3fff},
+        {2u, 0x897cff5eu, 0xd22b0606u, 0x3570, 0x00000000u, 0x80000000u, 0x3fff},
+        {2u, 0x1d464b4au, 0x724b67f0u, 0x2e69, 0x00000000u, 0x80000000u, 0x3fff},
+        {0u, 0xd06df933u, 0x96576c1bu, 0x3b4d, 0xd06df933u, 0x96576c1bu, 0x3b4d},
+        {0u, 0xdb0ae0d3u, 0xb258603eu, 0x2223, 0xdb0ae0d3u, 0xb258603eu, 0x2223},
+        {0u, 0xfd8cfbbeu, 0x8cd303b3u, 0x1136, 0xfd8cfbbeu, 0x8cd303b3u, 0x1136},
+        {0u, 0xf5ecb5a3u, 0x2df50f02u, 0x3a92, 0xf5ecb5a3u, 0x2df50f02u, 0x3a92},
+        {0u, 0xa9ca02ffu, 0xc2eecb2du, 0x2513, 0xa9ca02ffu, 0xc2eecb2du, 0x2513},
+        {2u, 0xb1083419u, 0x4f5661c5u, 0x10a2, 0x00000000u, 0x80000000u, 0x3fff},
+    };
+    int fail = 0, n = (int)(sizeof(V)/sizeof(V[0]));
+    for (int i = 0; i < n; i++) {
+        fx128 a = { V[i].lo, V[i].hi, V[i].exp };
+        fn_048a48(&a, V[i].esi);
+        if (a.lo != V[i].elo || a.hi != V[i].ehi || a.exp != V[i].eexp) {
+            fail++;
+            printf("  vec %d: esi=%u in (0x%08x,0x%08x,0x%04x) got (0x%08x,0x%08x,0x%04x) want (0x%08x,0x%08x,0x%04x)\n",
+                   i, V[i].esi, V[i].lo,V[i].hi,V[i].exp, a.lo,a.hi,a.exp, V[i].elo,V[i].ehi,V[i].eexp);
+        }
+    }
+    printf("fn_048a48 (0x048a48, L3 FPU/fx128 composite, %d diff vectors): %s\n", n, fail ? "FAIL" : "PASS");
+    check(fail == 0, "  all a vectors match Python reference fp_048a48_ref.py");
+}
+
+static void test_fn_048c3f_thunks(void) {
+    /* The 3 L4 thunks 0x048c3f/0x048c49/0x048c56 are 5-insn wrappers: PUSH ESI;
+     * MOV/SUB ESI,k; CALL 0x048a48; POP ESI; RET, with k=0/2/1, a in EAX. Verify
+     * each thunk(a) == fn_048a48(a, k) on the same inputs. */
+    struct { uint32_t lo, hi, exp; } T[] = {
+        {0x12345678, 0x9abcdef0, 0x3ffe},
+        {0xdeadbeef, 0xcafebabe, 0x4001},
+        {0x00000000, 0x80000000, 0x3fff},
+        {0x8361d022, 0xcf155871, 0x35be},
+        {0x00000001, 0x00000000, 0x3fbf},
+    };
+    int n = (int)(sizeof(T)/sizeof(T[0])), fail = 0;
+    for (int i = 0; i < n; i++) {
+        fx128 a0 = { T[i].lo, T[i].hi, T[i].exp };
+        fx128 a1 = { T[i].lo, T[i].hi, T[i].exp };
+        fx128 a2 = { T[i].lo, T[i].hi, T[i].exp };
+        fx128 e0 = { T[i].lo, T[i].hi, T[i].exp };
+        fx128 e1 = { T[i].lo, T[i].hi, T[i].exp };
+        fx128 e2 = { T[i].lo, T[i].hi, T[i].exp };
+        fn_048c3f(&a0); fn_048a48(&e0, 0);
+        fn_048c49(&a1); fn_048a48(&e1, 2);
+        fn_048c56(&a2); fn_048a48(&e2, 1);
+        int ok0 = (a0.lo == e0.lo && a0.hi == e0.hi && a0.exp == e0.exp);
+        int ok1 = (a1.lo == e1.lo && a1.hi == e1.hi && a1.exp == e1.exp);
+        int ok2 = (a2.lo == e2.lo && a2.hi == e2.hi && a2.exp == e2.exp);
+        if (!ok0 || !ok1 || !ok2) {
+            fail++;
+            printf("  vec %d: in (0x%08x,0x%08x,0x%04x) thunk0%s thunk1%s thunk2%s\n",
+                   i, T[i].lo, T[i].hi, T[i].exp, ok0 ? "= " : "!=", ok1 ? "= " : "!=", ok2 ? "= " : "!=");
+        }
+    }
+    printf("fn_048c3f thunks (0x048c3f/49/56, L4 5-insn wrappers, %d x 3): %s\n", n, fail ? "FAIL" : "PASS");
+    check(fail == 0, "  all 3 thunks == fn_048a48(a, 0/2/1)");
+}
+
 static void test_fn_03c65b(void) {
     /* fn_03c65b (0x03c65b): video flatten. Seeds 200 lists (fn_034990 -- every head
      * node has start=0xa0000, len=0x140), sets the new video-RAM model to a known
@@ -5982,6 +6102,8 @@ int main(void) {
     test_fn_048422();
     test_fn_0487b0();
     test_fn_04876d();
+    test_fn_048a48();
+    test_fn_048c3f_thunks();
     test_fn_04836c();
     test_fn_03c65b();
     test_fn_048e60();

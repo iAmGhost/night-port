@@ -6686,6 +6686,143 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr)
     a->hi = (uint32_t)(t >> 32);
 }
 
+/* ===================== fn_048a48 (0x00048a48, L3, 502B, 171 insns) =====================
+ * In-place fx128 transform: void fn_048a48(fx128 *a, uint16_t esi).  The ONLY callers
+ * are the 3 L4 thunks 0x048c3f/0x048c49/0x048c56 (esi=0/2/1), which set only ESI; EDX/
+ * ECX/EBX are phantom Ghidra params.  5-step algorithm (trace-faithful to
+ * scratch/dis_048a48_raw.txt; Python ref scratch/fp_048a48_ref.py):
+ *   1. r=0485eb(a.a, b=0x2168c235:0xc90fdaa2, expA=a.exp, expB=0x3ffe); a={r}; r_edi=r.edi.
+ *   2. signblock iff a.exp bit7: a=04791a(a,a,b,0x3ffe); base=(sign?r_edi-1:r_edi).
+ *   3. F=(base&0xffff0000)|((esi&0xff)<<8)|(((base&0xff)+((esi&0xff)&2))&7); F0=F&0xff,
+ *      F1=(F>>8)&0xff; AL&1 block iff (F0&1): a=04791a(a,a,b,0xbffe); a.exp^=0x8000.
+ *   4. d2=(int16)a.exp-0x3ffe; if d2<-0x20: triple={0,0x80000000,0x3fff}; else
+ *      idx=clamp(-d2,0,8), scale=0x48a36[idx]; f4c iff ((F0+1)&2)||F1==1 (triple=f4c(a^2));
+ *      f9e iff ((F0+1)&2)==0||F1==1 (a=f9e(a), in-place).
+ *   5. select a iff ((F0+1)&2)==0 else triple; sel.exp^=0x8000 iff (F0&4). If F1!=1 write
+ *      sel. Else (CH, esi==1): ch=the OTHER source; ch.exp^=0x8000 iff ((F0+2)&4); build
+ *      ESI=(ch.exp<<16)|sel.exp; if ch.all-zero: a={0,0x80000000,0x7fff} else
+ *      a=047b79(sel.lo,sel.hi,ESI,ch.hi,ch.lo).
+ * CORRECTIONS vs the earlier (c3258f5) spec: 0485eb expB=0x3ffe (DI; MOV EDX clobbers EDX,
+ * NOT EDI -- the 8aba586 "correction" was itself wrong); select/ch re-read use (F0+1)&2 /
+ * (F0+3)&2 (complementary, keyed on F0&3), NOT "F0 even/odd"; the callee ESI high16 (H)
+ * is discarded by the CH re-read (no fn_048f9e ESI out needed). */
+const fx128 g_coeff_48982[9] = {          /* 0x048982 (048f9e path) */
+    {0x856a5359u, 0xca963b81u, 0x3fce}, {0x9dc0f88fu, 0xd73f9f39u, 0xbfd6},
+    {0x43684be5u, 0xb092309du, 0x3fde}, {0xaa271c7fu, 0xd7322b3fu, 0xbfe5},
+    {0xb6399c7du, 0xb8ef1d2au, 0x3fec}, {0x0d00d00cu, 0xd00d00d0u, 0xbff2},
+    {0x88888888u, 0x88888888u, 0x3ff8}, {0xaaaaaaaau, 0xaaaaaaaau, 0xbffc},
+    {0x00000000u, 0x80000000u, 0x3fff}
+};
+const fx128 g_coeff_489dc[9] = {          /* 0x0489dc (f4c path) */
+    {0x9dc0f88fu, 0xd73f9f39u, 0x3fd2}, {0x03e4e905u, 0xc9cba546u, 0xbfda},
+    {0xc6c4bdaau, 0x8f76c77fu, 0x3fe2}, {0xc4fae397u, 0x93f27dbbu, 0xbfe9},
+    {0x0d00d00du, 0xd00d00d0u, 0x3fef}, {0x0b60b60bu, 0xb60b60b6u, 0xbff5},
+    {0xaaaaaaaau, 0xaaaaaaaau, 0x3ffa}, {0x00000000u, 0x80000000u, 0xbffe},
+    {0x00000000u, 0x80000000u, 0x3fff}
+};
+const uint16_t g_scale_48a36[9] = { 0, 1, 2, 3, 4, 4, 5, 5, 6 }; /* 0x048a36 */
+
+static uint64_t r91a_pair(uint32_t lo, uint32_t hi, uint32_t a_exp,
+                          uint32_t b_lo, uint32_t b_hi, uint32_t exp_hi)
+{
+    /* fn_04791a (fx4794a_store): esi=(exp_hi<<16)|a_exp; mantissa=04794a(a,b,esi);
+     * out.exp = a_exp (preserved). Returns (hi<<32)|lo. */
+    uint32_t esi = ((exp_hi & 0xffffu) << 16) | (a_exp & 0xffffu);
+    return fn_04794a(lo, hi, b_lo, b_hi, esi);
+}
+
+void fn_048a48(fx128 *a, uint16_t esi_in)
+{
+    uint32_t lo = a->lo, hi = a->hi;
+    uint32_t exp = a->exp & 0xffffu;
+    uint32_t esi = esi_in & 0xffffu;
+
+    /* STEP 1: 0485eb align-subtract-normalize (expA=a.exp, expB=0x3ffe=DI) */
+    fx_sub_t r;
+    fn_0485eb(lo, hi, 0x2168c235u, 0xc90fdaa2u, exp, 0x3ffe, &r);
+    lo = r.lo; hi = r.hi; exp = r.exp;
+    uint32_t r_edi = r.edi;
+
+    /* STEP 2: sign block iff a.exp bit7 */
+    int signpath = (exp & 0x8000u) != 0;
+    uint32_t base = signpath ? (r_edi - 1u) : r_edi;
+    if (signpath) {
+        uint64_t m = r91a_pair(lo, hi, exp, 0x2168c235u, 0xc90fdaa2u, 0x3ffe);
+        lo = (uint32_t)(m & 0xffffffffu); hi = (uint32_t)(m >> 32);
+    }
+
+    /* STEP 3: F-flags + AL&1 block */
+    uint32_t F = (base & 0xffff0000u) | ((esi & 0xffu) << 8)
+                | (((base & 0xffu) + ((esi & 0xffu) & 2u)) & 7u);
+    uint32_t F0 = F & 0xffu;
+    uint32_t F1 = (F >> 8) & 0xffu;
+    if ((F0 & 1u) != 0) {
+        uint64_t m = r91a_pair(lo, hi, exp, 0x2168c235u, 0xc90fdaa2u, 0xbffe);
+        lo = (uint32_t)(m & 0xffffffffu); hi = (uint32_t)(m >> 32);
+        exp = (exp ^ 0x8000u) & 0xffffu;
+    }
+
+    /* STEP 4: d2 + poly */
+    int d2 = (int)(int16_t)exp - 0x3ffe;
+    uint32_t t_lo = 0, t_hi = 0, t_exp = 0;
+    if (d2 < -0x20) {
+        t_lo = 0; t_hi = 0x80000000u; t_exp = 0x3fff;
+    } else {
+        int idx = (d2 < 0) ? (-d2) : 0;
+        if (idx > 8) idx = 8;
+        uint32_t scale = g_scale_48a36[idx];
+        if (((F0 + 1u) & 2u) != 0 || F1 == 1u) {                 /* f4c path */
+            fx64_t sq;
+            fn_047d4e(lo, hi, lo, hi, ((exp & 0xffffu) << 16) | (exp & 0xffffu), &sq);
+            uint32_t f4_esi;
+            uint64_t f4 = fn_048f4c(sq.lo, sq.hi, (8u - scale), &g_coeff_489dc[scale],
+                                    sq.exp, &f4_esi);
+            t_lo = (uint32_t)(f4 & 0xffffffffu);
+            t_hi = (uint32_t)(f4 >> 32);
+            t_exp = f4_esi & 0xffffu;
+        }
+        if (((F0 + 1u) & 2u) == 0 || F1 == 1u) {                 /* f9e path (in-place) */
+            fx128 tmp = { lo, hi, (uint16_t)exp };
+            fn_048f9e(&tmp, (8u - scale), &g_coeff_48982[scale]);
+            lo = tmp.lo; hi = tmp.hi; exp = tmp.exp;
+        }
+    }
+
+    /* STEP 5: select (a iff ((F0+1)&2)==0) + conditional 047b79 */
+    uint32_t s_lo, s_hi, s_exp, c_lo, c_hi, c_exp;
+    if (((F0 + 1u) & 2u) == 0) {
+        s_lo = lo; s_hi = hi; s_exp = exp;
+        c_lo = t_lo; c_hi = t_hi; c_exp = t_exp;
+    } else {
+        s_lo = t_lo; s_hi = t_hi; s_exp = t_exp;
+        c_lo = lo; c_hi = hi; c_exp = exp;
+    }
+    if (F0 & 4u) s_exp = (s_exp ^ 0x8000u) & 0xffffu;
+
+    if (F1 != 1u) {                                              /* no CH: write select */
+        a->lo = s_lo; a->hi = s_hi; a->exp = (uint16_t)s_exp;
+        return;
+    }
+
+    /* CH block (F1 == 1, esi == 1) */
+    if ((F0 + 2u) & 4u) c_exp = (c_exp ^ 0x8000u) & 0xffffu;
+    uint32_t ESI = ((c_exp & 0xffffu) << 16) | (s_exp & 0xffffu);
+    if (c_lo == 0 && c_hi == 0 && (ESI & 0x7fff0000u) == 0) {    /* underflow -> 0x1.0 */
+        a->lo = 0; a->hi = 0x80000000u; a->exp = 0x7fff;
+        return;
+    }
+    uint32_t o_lo, o_hi; uint16_t o_si;
+    fn_047b79(s_lo, s_hi, ESI, c_hi, c_lo, &o_lo, &o_hi, &o_si);
+    a->lo = o_lo; a->hi = o_hi; a->exp = o_si;
+}
+
+/* L4 thunks around fn_048a48 (register-ABI, a in EAX, ESI preserved): each is
+ * PUSH ESI; MOV/SUB ESI,k; CALL 0x048a48; POP ESI; RET. 0x048c3f->k=0 (SUB ESI,ESI),
+ * 0x048c49->k=2, 0x048c56->k=1. */
+void fn_048c3f(fx128 *a) { fn_048a48(a, 0); }
+void fn_048c49(fx128 *a) { fn_048a48(a, 2); }
+void fn_048c56(fx128 *a) { fn_048a48(a, 1); }
+
 /* 0x4872c / 0x4870e coefficient tables (10-byte fx128 entries) for fn_0487b0,
  * extracted byte-for-byte from NIGHT.EXE (file offset = RVA - 0x2600). 0x4872c:
  * 4 entries (f4c count=3 -> arr[0..3]); 0x4870e: 3 entries (count=2 -> arr[0..2]).

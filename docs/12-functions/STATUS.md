@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 352 / 528 done
+TOTALS: 353 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 352 / 528 done
 | L8 | 7 | 1 | 0 | 0 | 6 |
 | L9 | 2 | 1 | 0 | 0 | 1 |
 | L10 | 81 | 61 | 0 | 0 | 20 |
-| L11 | 77 | 45 | 0 | 0 | 32 |
+| L11 | 77 | 46 | 0 | 0 | 31 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 6 | 0 | 0 | 10 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-08 | **0x041c8f PORTED (L11, 136 B) -- getch from node I/O buffer.** fn_041c8f(node) (node in EAX; decompiler's 2nd arg is an ABI artifact): error path (f12 byte0 bit0 clear) fn_042a0d(4)+f12 bit5+ret -1; else count=f4, f4=count-1, if empty fn_041d18 refill else read g_heap_base+f0 (f0++); then if f12 bit6 clear: on CR (0x0d) consume the following byte (same count-dec + refill/read); on EOF (0x1a) set f12 bit4 + return -1. **Disassembly-verified (55 insns)** -- the decompiler's CONCAT44/extraout noise collapses to a clean EAX-in/EAX-out trace. 10 test checks (4 scenarios: normal/CR/EOF/error). L11 45->46, TOTALS 352->353/528. **Node-pool cluster: 0x041d47/0x041d18/0x049192/0x041c8f done.** | STATUS.md L11 |
 | 2026-07-08 | **0x049192 PORTED (L11, 163 B) -- putc to node I/O buffer.** fn_049192(ch,node): error path (f12 byte0 bit1 clear) fn_042a0d(4)+f12 bit5+ret -1; lazy-init fn_042a43 if f8=0; LF(10)+!f12-bit6 -> CRLF expand (write '\\r' then LF); write char to g_heap_base+f0, f0++, f4++; flush fn_044748 if (mask&f12)!=0 or f4==cap (node[+0x14]); mask=0x400 (normal) or 0x600 (LF). **Disassembly-verified:** the decompiler's "uVar1=extraout_ECX" after a CRLF-branch flush is a register artifact -- ECX is the callee-saved MASK (set once at entry, the EAX-only flush calls never clobber it), so TEST ECX,EDI = mask & f12. 11 test checks. L11 44->45, TOTALS 351->352/528. **Node-pool cluster: 0x041d47 / 0x041d18 / 0x049192 done.** | STATUS.md L11 |
 | 2026-07-08 | **0x041d18 PORTED (L8, 46 B) -- pull one byte from the node buffer.** Sole callee is fn_041d47 (just ported) -> the node-pool memory-model resolution from 0x041d47 makes this a clean win. r = fn_041d47(node, node); if r (node[+4]) == 0 return -1 (empty); else { b = *(g_heap_base + node[+0]); node[+4]--; node[+0]++; return b }. The original 8-byte CONCAT44 return's high32 is the EDX input (the node ptr) -- ABI artifact; only low32 (byte / -1) is meaningful. Test: 2 scenarios / 4 checks (key-echo-primed node -> returns 'A', node[+4]->0, node[+0] advanced; device-read-primed node count 0 -> -1). L8 2->3, TOTALS 350->351/528. | STATUS.md L8 |
 | 2026-07-08 | **0x041d47 PORTED (L7, 170 B) -- node I/O fill step: key-echo or device-read into the node buffer.** node = arg (io_state record, raw offsets). Trace: (1) if node[+8]==0 fn_042a43(node) [lazy-init buffer]; (2) if (node[0x0d]&0x20)&&(node[0x0d]&0x6) fn_043234(0x2000) [flush active list]; (3) f12=node[+0xc]; node[+0]=node[+8]; node[0x0c]&=0xfb (byte0 clear bit2, high bytes kept); (4) if (f12&0x2400)==0x2400 && node[+0x10]==0 {node[+4]=0; k=get_key_echo(); if (int32)k!=-1 {*buf=k; node[+4]=1}}; (5) else {count=(node[0x0d]&0x4)?1:node[+0x14]; node[+4]=fn_042aba(node[+0x10], buf, count)}; (6) tail: if node[+4]==0 node[0x0c]|=0x10; elif <0 {node[+4]=0; node[0x0c]|=0x20}; return node[+4]. **MEMORY MODEL RESOLVED (lifts the earlier line-148 deferral):** the node data/buffer field (node[+0]/[+8]) is a heap OFFSET, deref'd via g_heap_base + off (same arena-mapped convention as 0x035329) -- NOT a raw 64-bit host pointer (storing a host ptr in the 32-bit field truncated it and segfaulted the first test attempt). The offset-vs-ptr ambiguity the earlier deferral cited is settled in favor of heap-offset. All 4 callees ported (fn_042a43, fn_043234, fn_042aba, get_key_echo). Test: 2 scenarios / 9 checks (key-echo: f12=0x2400 + handle=0 + keybuf='A' -> ret 1, buf='A', node[+4]=1; device-read: handle!=0 -> fn_042aba=sys_file_read=0 -> ret 0, node[0x0c]|=0x10, node[+0]=node[+8]). L7 3->4, TOTALS 349->350/528. | STATUS.md L7 |
@@ -577,7 +578,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
 | [x] | 0x0418ee | 15 | canary_id | runtime | primitives.md; test_f1 PASS |
-| [ ] | 0x041c8f | 136 | FUN_00041c8f | | |
+| [x] | 0x041c8f | 136 | fn_041c8f | io/node | getch from node buffer (CR-consume, EOF 0x1a->-1); fn_041d18 refill when f4 empty; disasm-verified 55 insns |
 ## L10 (81)
 
 | Status | Addr | Size | Name | Subsystem | Notes |

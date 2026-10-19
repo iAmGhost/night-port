@@ -643,6 +643,7 @@ void node_deactivate(uint32_t rec_off);
  * Returns the count of matching records. */
 uint32_t fn_043234(uint32_t mask);
 uint32_t fn_049192(uint32_t ch, uint8_t *node);   /* 0x049192: putc to node I/O buffer (mask is ECX; CRLF expand; fn_044748 flush) */
+uint32_t fn_041c8f(uint8_t *node);              /* 0x041c8f: getch from node buffer (CR-consume, EOF) */
 int32_t fn_041d18(uint8_t *node, uint32_t param_2); /* 0x041d18: pull one byte from node buffer (fn_041d47 + advance) */
 int32_t fn_041d47(uint8_t *node, uint32_t param_2); /* 0x041d47: I/O fill step (key-echo or device read into node buffer) */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):

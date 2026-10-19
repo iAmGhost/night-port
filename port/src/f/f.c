@@ -3275,6 +3275,58 @@ uint32_t fn_049192(uint32_t ch, uint8_t *node) {
     return c;
 }
 
+/* 0x041c8f (136 B): getch -- read one char from a node I/O buffer (with
+ * CR-consume and EOF handling). reg-ABI: node in EAX (copied to EDX); returns the
+ * byte (0-255) or -1 (0xffffffff) in EAX. f0 (node[+0]) is a heap offset
+ * (dereferenced via g_heap_base); f4 (node[+4]) = remaining count; f12 byte0
+ * (node[+0xc]) holds flags. Disassembly-verified (55 insns):
+ *   if (node[0x0c] & 0x1)==0: fn_042a0d(4); node[0x0c]|=0x20; return -1;
+ *   count=f4; f4=count-1;
+ *   if (count-1<0) b=fn_041d18(node);          // refill
+ *   else { b=*(u8*)(base+f0); f0++; }
+ *   if ((node[0x0c] & 0x40)==0) {
+ *     if (b==0x0d) { c=f4; f4=c-1;               // CR: consume next byte
+ *       if (c-1<0) b=fn_041d18(node); else { b=*(u8*)(base+f0); f0++; } }
+ *     if (b==0x1a) { node[0x0c]|=0x10; b=-1; }    // EOF
+ *   }
+ *   return b;
+ * Callees: fn_042a0d, fn_041d18 (all ported). The decompiler's second param is
+ * an ABI artifact -- disassembly uses only EAX (node) and returns EAX. */
+uint32_t fn_041c8f(uint8_t *node) {
+    uint32_t *n = (uint32_t *)node;              /* n[0]=f0 n[1]=f4 */
+    if ((node[0x0c] & 0x01) == 0) {              /* f12 byte0 bit0 clear -> error */
+        fn_042a0d(4);
+        node[0x0c] |= 0x20;
+        return 0xffffffffu;
+    }
+    int32_t count = (int32_t)n[1];               /* f4 */
+    n[1] = (uint32_t)(count - 1);
+    uint32_t b;
+    if (count - 1 < 0) {                          /* buffer empty -> refill */
+        b = (uint32_t)fn_041d18(node, 0);
+    } else {
+        b = *(uint8_t *)(g_heap_base + n[0]);
+        n[0] = n[0] + 1;
+    }
+    if ((node[0x0c] & 0x40) == 0) {               /* f12 byte0 bit6 clear */
+        if (b == 0x0d) {                           /* CR: consume next byte */
+            int32_t c2 = (int32_t)n[1];
+            n[1] = (uint32_t)(c2 - 1);
+            if (c2 - 1 < 0) {
+                b = (uint32_t)fn_041d18(node, 0);
+            } else {
+                b = *(uint8_t *)(g_heap_base + n[0]);
+                n[0] = n[0] + 1;
+            }
+        }
+        if (b == 0x1a) {                           /* EOF */
+            node[0x0c] |= 0x10;
+            b = 0xffffffffu;
+        }
+    }
+    return b;
+}
+
 int32_t fn_041d18(uint8_t *node, uint32_t param_2) {
     (void)param_2;
     int32_t res = fn_041d47(node, (uint32_t)(uintptr_t)node);   /* 0x041d1e */

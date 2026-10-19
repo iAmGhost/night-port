@@ -3138,6 +3138,43 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_041c8f(void) {
+    printf("fn_041c8f (getch from node buffer)\n");
+    uint32_t boff = heap_malloc(16);
+    uint8_t *buf = (uint8_t *)g_heap_base + boff;
+    static uint8_t node[0x20];
+    uint32_t *n = (uint32_t *)node;
+    /* T1: normal char -> returns 'H', f4=1, f0 advanced */
+    buf[0]='H'; buf[1]='i';
+    memset(node, 0, sizeof(node));
+    n[0] = boff; n[1] = 2; node[0x0c] = 0x1;
+    uint32_t r1 = fn_041c8f(node);
+    check(r1 == 'H', "  normal: returns 'H'");
+    check(n[1] == 1, "  normal: f4=1");
+    check(n[0] == boff + 1, "  normal: f0 advanced");
+    /* T2: CR (0x0d) -> consume next, returns 0x0a, f4=0, f0=buf+2 */
+    buf[0]=0x0d; buf[1]=0x0a;
+    memset(node, 0, sizeof(node));
+    n[0] = boff; n[1] = 2; node[0x0c] = 0x1;
+    uint32_t r2 = fn_041c8f(node);
+    check(r2 == 0x0a, "  CR: returns LF (0x0a)");
+    check(n[1] == 0, "  CR: f4=0");
+    check(n[0] == boff + 2, "  CR: f0=buf+2");
+    /* T3: EOF (0x1a) -> returns -1, f12 byte0 bit4 set */
+    buf[0]=0x1a;
+    memset(node, 0, sizeof(node));
+    n[0] = boff; n[1] = 1; node[0x0c] = 0x1;
+    uint32_t r3 = fn_041c8f(node);
+    check(r3 == 0xffffffffu, "  EOF: returns -1");
+    check(node[0x0c] & 0x10, "  EOF: f12 byte0 bit4 set");
+    /* T4: error (f12 bit0 clear) -> returns -1, f12 byte0 bit5 set */
+    memset(node, 0, sizeof(node));
+    n[0] = boff; n[1] = 1; node[0x0c] = 0x0;
+    uint32_t r4 = fn_041c8f(node);
+    check(r4 == 0xffffffffu, "  error: returns -1");
+    check(node[0x0c] & 0x20, "  error: f12 byte0 bit5 set");
+}
+
 static void test_fn_049192(void) {
     printf("fn_049192 (putc to node buffer)\n");
     uint32_t boff = heap_malloc(32);
@@ -5561,6 +5598,7 @@ int main(void) {
     test_fn_0427d2();
     test_fn_0427a3();
     test_fn_037306();
+    test_fn_041c8f();
     test_fn_049192();
     test_fn_041d18();
     test_fn_041d47();

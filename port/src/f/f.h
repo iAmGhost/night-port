@@ -972,6 +972,7 @@ void fn_048754(fx128 *a);                                                  /* 0x
 void fn_048422(fx128 *a);                                                  /* 0x048422: FPU/fx128 composite (354B) */
 void fn_0487b0(fx128 *a);                                                  /* 0x0487b0: FPU/fx128 composite (464B) */
 void fn_04876d(fx128 *a, fx128 *b);                                        /* 0x04876d: a=0487b0(a); b=a*b; b=b*const (in place) */
+void fn_048c8c(fx128 *a);                                                  /* 0x048c8c: in-place fx128 composite (negate+normalize+square+poly); sign-sentinel on normalizable inputs */
 void     fx_stub_4a923(void);                                             /* 0x4a923 */
 void     fx_round_down(uint32_t *v, uint16_t mode);                       /* 0x481df */
 

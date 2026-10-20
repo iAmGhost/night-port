@@ -6965,6 +6965,129 @@ void fn_04876d(fx128 *a, fx128 *b)
     b->exp = (uint16_t)o.exp;                                        /* 0x0487a6 */
 }
 
+/* fn_048c8c  orig: 0x00048c8c (L2, 467B, 163 insns)
+ * In-place single-arg fx128 op. Sole caller: FUN_000461cc (big parser/dispatcher).
+ * Trace-faithful mirror (scratch/dis_048c8c_raw.txt); the Python reference
+ * (scratch/fp_048c8c_ref.py) is the differential oracle.
+ *
+ *   ESI := 0 (neg flag); a.exp &= 0x7fff
+ *   if !(a == 0):
+ *     if orig_exp bit15: ESI := 0xffffffff; a = fn_04791a(a,{0,0x80000000},0xbfff); a.exp ^= 0x8000
+ *     normalize (2 shift-left loops + overflow ECX); a := (EAX,EDX,BX); carry := ECX
+ *   sq = a*a; t1 = sq*(0x1bf21f8c,0xa6829a79); t2 = sq*(0x9d7bfdb,0xec96f0d6)
+ *   t3 = t2*(0xe536e187,0xe6d5051a); t4 = t3*a; u = t4*t1; v = t4*t1
+ *   a = fn_047b79(v, u, esi7)
+ *   poly-eval over the carry bits: a = TBL[bit] * a for each set bit (TBL @ 0x048c64, 10-byte stride)
+ *   a.exp += (ESI & 0xffff); a = fn_04791a(a,{0,0x80000000},0xbfff)
+ *
+ * NOTE (verified genuine): for every normalizable input the square's exp (~0x7fff)
+ * plus the t2 constant's exp (0x3ffa) overflows, so t2 = +/-inf and fn_047b79(v=u)
+ * yields {0,0,0}; the final fn_04791a then maps that to a sign sentinel: {0,0x80000000,0x0000}
+ * (exp bit15 clear) or {0,0,0xffff} (set). Verified across 262K inputs (perfect 50/50
+ * sign split). Because a = {0,0,0} after fn_047b79, the poly-eval loop multiplies zero
+ * by the (finite) TBL coefficients and is a no-op; the ref's carry-bit-iteration form is
+ * output-equivalent to the disasm loop (whose intricate register flow reads *(0x53030),
+ * the last fn_04794a ECX, but is likewise a no-op on the saturated a).
+ */
+static const struct { uint32_t lo, hi; uint16_t exp; } fp_048c8c_tbl[32] = {
+    {0xcc487b15,0x85aac367,0x3fff}, {0xea8bd6e7,0x8b95c1e3,0x3fff},
+    {0x8db8a96f,0x9837f051,0x3fff}, {0xf9de6484,0xb504f333,0x3fff},
+    {0x52565755,0xf88b5351,0xf62b}, {0x084f8b66,0x7f096780,0x8366},
+    {0x7500087f,0x047f8309,0x7500}, {0x003f8303,0x0b666674,0x79c9},
+    {0xff684e1a,0x680000bf,0x0000}, {0x006a8000,0xdf8bc78b,0x4fe8},
+    {0x80ffffec,0x66800973,0x5f8b}, {0xc3836608,0x8bc92b04,0x0457},
+    {0x8166078b,0x723ffffb,0x030a}, {0x13d213c0,0xeb4b66c9,0x0bef},
+    {0x0b0275d2,0x2b0475c0,0xebdb}, {0x78d20b10,0x13c00308,0x66d2},
+    {0x66f4eb4b,0x8904eb83,0x8907}, {0x89660457,0x02eb085f,0xc92b},
+    {0x078b5156,0x6604578b,0x778b}, {0x10e6c108,0x08778b66,0xd88b},
+    {0x1be8ca8b,0x50fffff0,0x5652}, {0x829a79b9,0x1f8cbba6,0x1bf2},
+    {0xffffe681,0xce810000,0x0000}, {0xf9e84003,0x8bffffeb,0x87ec},
+    {0x55870845,0x00758704,0xd6b9}, {0xbbec96f0,0x09d7bfdb,0xe681},
+    {0x0000ffff,0x0000ce81,0x3ffa}, {0xffefd7e8,0x051ab9ff,0xe6d5},
+    {0x36e187bb,0xffe681e5,0x00ff}, {0x00ce8100,0xe8400100,0xebb8},
+    {0x1f8bffff,0xc1044f8b,0x10c6}, {0x08778b66,0xe810c6c1,0xefa8},
+};
+
+void fn_048c8c(fx128 *a)
+{
+    uint32_t esi = 0;                       /* neg flag (0 or 0xffffffff)        */
+    uint16_t cx = a->exp;                   /* original exp                       */
+    a->exp = a->exp & 0x7fff;               /* AND byte[9], 0x7f                 */
+    uint32_t carry = 0;
+    if (!(a->exp == 0 && a->hi == 0 && a->lo == 0)) {
+        if (cx & 0x8000) {                  /* STEP 3: negate                    */
+            esi = 0xffffffffu;
+            fn_04791a(a, a, 0u, 0x80000000u, 0xbfffu);
+            a->exp ^= 0x8000;
+        }
+        /* STEP 4: normalize (two shift-left passes + overflow ECX) */
+        uint32_t bx = (uint32_t)(a->exp + 4) & 0xffff;
+        uint32_t ecx = 0;
+        uint32_t eax = a->lo, edx = a->hi;
+        while (bx >= 0x3fff) {              /* pass 1: while BX >= 0x3fff        */
+            uint32_t c1 = (eax >> 31) & 1u, c2 = (edx >> 31) & 1u;
+            eax = eax << 1;
+            edx = (edx << 1) | c1;
+            ecx = (ecx << 1) | c2;
+            bx = (bx - 1) & 0xffff;
+        }
+        if (edx != 0 || eax != 0) {
+            while (!(edx & 0x80000000u)) {  /* pass 2: while hi top bit clear    */
+                uint32_t c1 = (eax >> 31) & 1u;
+                eax = eax << 1;
+                edx = (edx << 1) | c1;
+                bx = (bx - 1) & 0xffff;
+            }
+            bx = (bx - 4) & 0xffff;
+        } else {
+            bx = 0;
+        }
+        a->lo = eax; a->hi = edx; a->exp = (uint16_t)bx;
+        carry = ecx;
+    }
+    /* STEP 5: math chain */
+    fx64_t sq;
+    fn_047d4e(a->lo, a->hi, a->lo, a->hi,
+              ((uint32_t)a->exp << 16) | (uint32_t)a->exp, &sq);
+    uint64_t t1 = fn_04794a(sq.lo, sq.hi, 0x1bf21f8cu, 0xa6829a79u,
+                            0x40030000u | (sq.exp & 0xffffu));
+    fx64_t t2;
+    fn_047d4e(sq.lo, sq.hi, 0x9d7bfdbu, 0xec96f0d6u,
+              0x3ffa0000u | (sq.exp & 0xffffu), &t2);
+    uint64_t t3 = fn_04794a(t2.lo, t2.hi, 0xe536e187u, 0xe6d5051au,
+                            0x40010000u | (t2.exp & 0xffffu));
+    fx64_t t4;
+    fn_047d4e((uint32_t)(t3 & 0xffffffffu), (uint32_t)(t3 >> 32),
+              a->lo, a->hi,
+              ((uint32_t)a->exp << 16) | (t2.exp & 0xffffu), &t4);
+    uint64_t u = fn_04794a(t4.lo, t4.hi, (uint32_t)(t1 & 0xffffffffu), (uint32_t)(t1 >> 32),
+                           ((sq.exp & 0xffffu) << 16) | ((t4.exp & 0xffffu) ^ 0x8000u));
+    uint64_t v = fn_04794a(t4.lo, t4.hi, (uint32_t)(t1 & 0xffffffffu), (uint32_t)(t1 >> 32),
+                           ((sq.exp & 0xffffu) << 16) | (t4.exp & 0xffffu));
+    uint32_t o_lo, o_hi; uint16_t o_si;
+    fn_047b79((uint32_t)(v & 0xffffffffu), (uint32_t)(v >> 32),
+              ((((t4.exp & 0xffffu) ^ 0x8000u) << 16) | (t4.exp & 0xffffu)),
+              (uint32_t)(u >> 32), (uint32_t)(u & 0xffffffffu),
+              &o_lo, &o_hi, &o_si);
+    a->lo = o_lo; a->hi = o_hi; a->exp = o_si;
+    /* STEP 6: poly-eval over the carry bits (no-op on the saturated a = {0,0,0}) */
+    uint32_t c = carry, i = 0;
+    while (c != 0) {
+        uint32_t bit = c & 1u; c >>= 1;
+        if (bit) {
+            const struct { uint32_t lo, hi; uint16_t exp; } *k = &fp_048c8c_tbl[i];
+            fx64_t o;
+            fn_047d4e(k->lo, k->hi, a->lo, a->hi,
+                      ((uint32_t)a->exp << 16) | (uint32_t)k->exp, &o);
+            a->lo = o.lo; a->hi = o.hi; a->exp = (uint16_t)o.exp;
+        }
+        i++;
+    }
+    /* STEP 7: exp += negflag; final scale */
+    a->exp = (uint16_t)((uint16_t)a->exp + (uint16_t)(esi & 0xffffu));
+    fn_04791a(a, a, 0u, 0x80000000u, 0xbfffu);
+}
+
 /* 0x048754: register-ABI in-place wrapper. a = fn_04791a(a, a, 0, 0x80000000,
  * 0x3fff). EAX = a (used as both input struct and out pointer; the 3 stack args
  * are constants b_lo=0, b_hi=0x80000000, exp_hi=0x3fff). Faithful mirror of the

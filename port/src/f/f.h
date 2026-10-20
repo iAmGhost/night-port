@@ -526,6 +526,14 @@ uint32_t emit_step(struct emit_ctx *ctx);
 int fn_044387(struct emit_ctx *ctx, uintptr_t **pos, int base, int allow_sign);
 uint32_t fn_043fc3(struct emit_ctx *ctx, uintptr_t **pos, const uint8_t **src);
 uint32_t fn_043e34(struct emit_ctx *ctx, uintptr_t *pos);
+/* 0x0440a9: stream token parser -> list append (241 insn). Reads a
+ * whitespace-delimited token from ctx, parses int/frac/exp/sign, appends a
+ * 4/8-byte element to the *pos list-pool cursor, returns the char count.
+ * The 0x53648 converter slot (g_fp_0442fa, default fn_045dad) is invoked for
+ * the non-integer (flags&0x10 clear) output path. */
+uint32_t fn_0440a9(struct emit_ctx *ctx, uintptr_t **pos);
+typedef void (*fp_conv_t)(const char *buf, uint64_t *out);
+extern fp_conv_t g_fp_0442fa;   /* the 0x53648 string->64-bit converter slot */
 void fn_042ccc(void);
 uint32_t fn_042eef(uint32_t arg);
 uint32_t fn_042fc2(uint32_t size);   /* 0x042fc2: DPMI/DOS heap alloc (INT 0x21 AH=48); flat no-op, returns 0 */

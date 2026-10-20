@@ -2619,6 +2619,180 @@ epilogue:                                            /* 0x44fd */
     return skip + have_digit;                        /* 0x4512/0x4575 */
 }
 
+/* 0x0440a9: stream token parser -> list append (241 insns, 733 B).
+ *
+ * Reads one whitespace-delimited token from an emit_ctx stream reader, parses
+ * its integer/fractional/exponent/sign parts into a local char buffer,
+ * (optionally) converts the buffer via the 0x53648 converter slot, appends a
+ * 4- or 8-byte element to the caller's list-pool (the *pos cursor), and returns
+ * the char count.  ABI (register): ctx=EAX, pos=EDX (list-pool cursor,
+ * uintptr_t **; mirrors emit_value: near dest=**pos, *pos+=1; far
+ * dest=*(*pos+1), *pos+=2).
+ *
+ * Faithful notes (latent bugs replicated -- do NOT "fix"): the integer
+ * accumulator [ESP+0x6a] (int_acc) is the HIGH 2 bytes of the [ESP+0x68] dword
+ * (acc_num), so acc_num = (int_acc<<16) | lo16; it is self-recursive and dead
+ * after the digit loop (the original reads it UNINITIALIZED on the first digit;
+ * the port seeds it 0 via acc.num=0 for determinism). The fractional recompute
+ * (0x04420a-0x044234) divides 0 by 10, so lo16 (acc2) is always 0 on that path.
+ * See scratch/PORT_0440a9_SPEC.md for the address-by-address analysis.
+ * orig: 0x0440a9 */
+
+/* The 0x53648 converter slot: a runtime-set function pointer the game points at
+ * a string->64-bit converter. Its static default (DAT_00053648 = 0x045dac) is
+ * fn_045dad ("report FPU-not-loaded"). Modeled as an overridable global so the
+ * test can drive the converter path. */
+typedef void (*fp_conv_t)(const char *buf, uint64_t *out);
+static void fp_0442fa_default(const char *buf, uint64_t *out) { (void)buf; (void)out; fn_045dad(); }
+fp_conv_t g_fp_0442fa = fp_0442fa_default;   /* overridable: the test sets a converter */
+
+uint32_t fn_0440a9(struct emit_ctx *ctx, uintptr_t **pos)
+{
+    uint8_t buf[0x50];            /* ESI = ESP = token buffer (<=0x50 bytes)   */
+    int i = 0;                    /* ESI - ESP: buffer write index             */
+    uint32_t ws_count = 0;        /* [ESP+0x6c]                                */
+    int char_count = 0;           /* EDI: char count (return)                  */
+    int c = 0, first = 0;         /* EBX/EBP: current / first non-ws char      */
+    uint32_t count = 0;           /* P2 snapshot of ctx->count                 */
+    uint32_t r64_lo = 0, r64_hi = 0; /* [ESP+0x50/0x54] converter OUT          */
+    uint32_t int_flag = 0;        /* [ESP+0x5c]                                */
+    union { uint32_t num; struct { uint16_t lo16; uint16_t int_acc; }; } acc;  /* [ESP+0x68/0x6a] */
+    acc.num = 0;                                  /* seeds int_acc/lo16 = 0   */
+
+    /* P1 (0x0440c0-0x0440dc): skip leading whitespace (class bit 0x2). */
+    for (;;) {
+        c = (int)ctx->next(ctx);                        /* 0x0440c2 CALL [ECX] */
+        if (kCharClass[(uint8_t)(c + 1)] & 0x2) {       /* 0x0440cf/0x0440d6   */
+            ws_count++;                                  /* 0x0440d8             */
+            continue;
+        }
+        break;                                           /* 0x0440de             */
+    }
+    first = c;    /* EBP = EBX = first non-whitespace char */
+
+    /* P2 (0x0440de-0x044121): peek/count/sign. */
+    if (ctx->flags & 0x2) goto near_end;                /* 0x0440de/0x0440e2   */
+    count = ctx->count;                                 /* 0x0440e8             */
+    ctx->count = count - 1;                             /* 0x0440eb/0x0440ee   */
+    if (count == 0) goto consume_last;                  /* 0x0440f1/0x0440f3   */
+    if (first == 0x2b || first == 0x2d) {               /* 0x0440f9-0x044101   */
+        buf[i] = (char)first; i++;                      /* 0x044109/0x044110   */
+        c = (int)emit_step(ctx);                        /* 0x04410b             */
+        ws_count++;                                     /* 0x044111/0x044114   */
+        if (c == -1) goto near_end;                     /* 0x044118/0x04411b   */
+    }
+    /* 0x044121-0x044136: digit-or-dot gate. */
+    if (kCharClass[(uint8_t)(c + 1)] & 0x20) goto digit_init;  /* 0x04412a/131 */
+    if (c == 0x2e) goto digit_init;                          /* 0x044133/136   */
+    goto consume_last;                                      /* 0x044136 JNZ     */
+
+digit_init:                                              /* 0x04413c           */
+    acc.num = 0;                                         /* 0x04413e           */
+    int_flag = 0;                                        /* 0x044142           */
+    if (kCharClass[(uint8_t)(c + 1)] & 0x20) {          /* 0x04414f/156       */
+        int_flag = 1;                                    /* 0x044158           */
+        for (;;) {                                       /* 0x044160 digit loop */
+            buf[i] = (char)c; i++;                       /* 0x044160/165       */
+            if (ctx->flags & 0x10) {                     /* 0x044166/168       */
+                int v = (int)acc.int_acc * 10;           /* 0x04416a IMUL      */
+                c = c + v - 0x30;                        /* 0x04416f/171       */
+                acc.int_acc = (uint16_t)c;               /* 0x044174           */
+            }
+            char_count++;                                /* 0x04417b           */
+            c = (int)emit_step(ctx);                     /* 0x04417c           */
+            if (c == -1) goto near_end;                  /* 0x044183/186       */
+            if (kCharClass[(uint8_t)(c + 1)] & 0x20) continue; /* 0x044193/19a */
+            break;                                       /* 0x04419c           */
+        }
+    }
+    /* P4 (0x04419c-0x0441fa): fractional part (if '.'). */
+    if (c == 0x2e) {                                     /* 0x04419c/19f       */
+        buf[i] = (char)c; i++;                           /* 0x0441a7/ae        */
+        c = (int)emit_step(ctx);                         /* 0x0441a9           */
+        if (c == -1) goto near_end;                      /* 0x0441b1/1b4       */
+        if (int_flag == 0 && !(kCharClass[(uint8_t)(c + 1)] & 0x20))
+            goto consume_last;                           /* 0x0441ba-1d1       */
+        char_count++;                                    /* 0x0441d7           */
+        while (kCharClass[(uint8_t)(c + 1)] & 0x20) {    /* 0x0441d8/1e8       */
+            char_count++;                                /* 0x0441ea           */
+            buf[i] = (char)c; i++;                       /* 0x0441ed/1f4       */
+            c = (int)emit_step(ctx);                     /* 0x0441ef           */
+            if (c == -1) break;                          /* 0x0441f7/1fa       */
+        }
+        /* P5 (0x0441fc-0x044234): fractional recompute (if flags&0x10). */
+        if (ctx->flags & 0x10) {                         /* 0x0441fc/200       */
+            uint32_t acc2v = 0;                          /* 0x044206           */
+            int p = i - 1;                               /* 0x044204/20a       */
+            for (;;) {                                   /* 0x04420a loop      */
+                int ch = (int)buf[p];                    /* 0x04420b           */
+                if (ch == 0x2e) break;                   /* 0x04420e/210       */
+                acc2v = acc2v / 10;                      /* 0x044226 DIV (digit discarded) */
+                p--;
+            }
+            acc.lo16 = (uint16_t)acc2v;                  /* 0x044230/234       */
+        }
+        if (c == -1) goto near_end;                      /* 0x044239/23c       */
+    }
+    /* P6 (0x044242-0x0442c0): exponent (if 'e'/'E' and !flags&0x10). */
+    if (ctx->flags & 0x10) goto consume_last;            /* 0x044242/246       */
+    if (c == 0x65 || c == 0x45) {                        /* 0x04424c-254       */
+        char_count++;                                    /* 0x04425a           */
+        buf[i] = (char)c; i++;                           /* 0x04425d/64        */
+        c = (int)emit_step(ctx);                         /* 0x04425f           */
+        if (c == -1) goto near_end;                      /* 0x044269/6c        */
+        if (c == 0x2b || c == 0x2d) {                    /* 0x04426e-76        */
+            char_count++;                                /* 0x044278           */
+            buf[i] = (char)c; i++;                       /* 0x04427b/82        */
+            c = (int)emit_step(ctx);                     /* 0x04427d           */
+            if (c == -1) goto near_end;                  /* 0x044285/88        */
+        }
+        if (kCharClass[(uint8_t)(c + 1)] & 0x20) {       /* 0x04428a/9a        */
+            for (;;) {                                   /* 0x0442a0 loop      */
+                char_count++;                            /* 0x0442a0           */
+                buf[i] = (char)c; i++;                   /* 0x0442a3/aa        */
+                c = (int)emit_step(ctx);                 /* 0x0442a5           */
+                if (c == -1) goto near_end;              /* 0x0442ad/b0        */
+                if (kCharClass[(uint8_t)(c + 1)] & 0x20) continue; /* 0x0442b9/c0 */
+                break;
+            }
+        } else {
+            char_count = 0;                              /* 0x04429c           */
+            goto consume_last;                           /* 0x04429e           */
+        }
+    }
+consume_last:                                            /* 0x0442c2           */
+    if (ctx->emit) ctx->emit((uint16_t)c, ctx);          /* 0x0442c2-c6        */
+near_end:                                                /* 0x0442c9           */
+    if (char_count <= 0) goto ret;                       /* 0x0442c9/2cb       */
+    char_count += ws_count;                              /* 0x0442d1           */
+    if (!(ctx->flags & 0x1)) goto ret;                   /* 0x0442d5/2d9       */
+    buf[i] = 0;                                          /* 0x0442df           */
+    if (ctx->flags & 0x10) {                             /* 0x0442e2/2e6       */
+        if (buf[0] == 0x2d) acc.num = 0u - acc.num;      /* 0x0442e8-f2 NEG    */
+    } else {
+        uint64_t r64 = 0;
+        g_fp_0442fa((const char *)buf, &r64);            /* 0x0442f4-fa        */
+        r64_lo = (uint32_t)r64; r64_hi = (uint32_t)(r64 >> 32);
+    }
+    /* Pool append (0x044300-0x044379). */
+    {
+        uint8_t fl = ctx->flags;
+        uintptr_t dest;
+        if (fl & 0x4) { dest = *(*pos + 1); *pos += 2; } /* 0x044306-13 far    */
+        else          { dest = **pos;     *pos += 1; }   /* 0x044318-40 near   */
+        if (fl & 0x10) {
+            *(uint32_t *)dest = acc.num;                 /* 0x04434b/79        */
+        } else if ((fl & 0x20) || (fl & 0x40)) {
+            *(uint32_t *)dest = r64_lo;                  /* 0x04435b/5f        */
+            *(uint32_t *)(dest + 4) = r64_hi;            /* 0x044362/66        */
+        } else {
+            *(uint32_t *)dest = fx64_to_f32(r64_lo, r64_hi); /* 0x04436c-74/79 */
+        }
+    }
+ret:
+    return (uint32_t)char_count;                         /* 0x04437c           */
+}
+
 /* 0x043fc3: character-set filter/extract (91 insns).
  *
  * Parses a character set from *src (an optional '^' escape marker followed by a

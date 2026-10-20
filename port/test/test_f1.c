@@ -6224,6 +6224,72 @@ static void test_fn_04285c(void) {
     }
 }
 
+/* ---------- fn_0440a9 (0x0440a9): stream token parser -> list append ---------- */
+static const char *t0440a9_str;
+static uint32_t t0440a9_pos;
+static uint16_t t0440a9_next(struct emit_ctx *ctx) {
+    (void)ctx;
+    if (t0440a9_pos < strlen(t0440a9_str)) return (uint16_t)t0440a9_str[t0440a9_pos++];
+    return 0x00;   /* not reached: emit_step bounds reads via ctx->count */
+}
+static void t0440a9_emit(uint16_t c, struct emit_ctx *ctx) { (void)c; (void)ctx; }
+static void t0440a9_conv(const char *buf, uint64_t *out) {
+    double d = strtod(buf, NULL);   /* the game's real slot: string -> double */
+    memcpy(out, &d, 8);
+}
+
+static void test_fn_0440a9(void) {
+    printf("fn_0440a9 (0x0440a9): stream token parser -> list append\n");
+    struct emit_ctx ctx = { t0440a9_next, t0440a9_emit, 0, 0, 0 };
+    uint32_t vals[8];
+    uintptr_t pool[8];
+    for (int k = 0; k < 8; k++) pool[k] = (uintptr_t)&vals[k];
+
+    /* A: "123" integer mode (flags 0x11) -> count 3, stored 123<<16. */
+    t0440a9_str = "123"; t0440a9_pos = 0; ctx.count = 3; ctx.flags = 0x11;
+    uintptr_t *cursor = pool;
+    uint32_t r = fn_0440a9(&ctx, &cursor);
+    check(r == 3 && (cursor - pool) == 1 && vals[0] == (uint32_t)(123u << 16),
+          "  A '123' int mode: count=3, stored=123<<16");
+
+    /* B: "-7" integer mode (flags 0x11) -> count 2, stored -(7<<16). */
+    t0440a9_str = "-7"; t0440a9_pos = 0; ctx.count = 2; ctx.flags = 0x11;
+    cursor = pool + 1;
+    r = fn_0440a9(&ctx, &cursor);
+    check(r == 2 && (cursor - pool) == 2 && vals[1] == (uint32_t)(0u - (7u << 16)),
+          "  B '-7' int mode: count=2, stored=-(7<<16)");
+
+    /* C: "42" float/default mode (flags 0x1) -> count 2, stored 42.0f bits. */
+    t0440a9_str = "42"; t0440a9_pos = 0; ctx.count = 2; ctx.flags = 0x1;
+    fp_conv_t saved = g_fp_0442fa; g_fp_0442fa = t0440a9_conv;
+    cursor = pool + 2;
+    r = fn_0440a9(&ctx, &cursor);
+    g_fp_0442fa = saved;
+    check(r == 2 && (cursor - pool) == 3 && vals[2] == 0x42280000u,
+          "  C '42' float mode: count=2, stored=0x42280000 (42.0f)");
+
+    /* D: "123" no-output (flags 0x10) -> count 3, pool untouched. */
+    t0440a9_str = "123"; t0440a9_pos = 0; ctx.count = 3; ctx.flags = 0x10;
+    cursor = pool + 3; vals[3] = 0xdeadbeef;
+    r = fn_0440a9(&ctx, &cursor);
+    check(r == 3 && cursor == pool + 3 && vals[3] == 0xdeadbeef,
+          "  D '123' no-output: count=3, pool untouched");
+
+    /* E: "1.5" integer mode (flags 0x11) -> count 3, stored 1<<16 (frac dropped). */
+    t0440a9_str = "1.5"; t0440a9_pos = 0; ctx.count = 3; ctx.flags = 0x11;
+    cursor = pool + 4;
+    r = fn_0440a9(&ctx, &cursor);
+    check(r == 3 && (cursor - pool) == 5 && vals[4] == (uint32_t)(1u << 16),
+          "  E '1.5' int mode: count=3, stored=1<<16 (frac dropped)");
+
+    /* F: "5" count=0 -> count 0, pool untouched. */
+    t0440a9_str = "5"; t0440a9_pos = 0; ctx.count = 0; ctx.flags = 0x11;
+    cursor = pool + 5; vals[5] = 0x12345678;
+    r = fn_0440a9(&ctx, &cursor);
+    check(r == 0 && cursor == pool + 5 && vals[5] == 0x12345678,
+          "  F '5' count=0: count=0, pool untouched");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -6547,6 +6613,7 @@ int main(void) {
     test_fn_04247a();
     test_fn_04285c();
     test_fn_010927();
+    test_fn_0440a9();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

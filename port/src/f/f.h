@@ -624,6 +624,14 @@ void     fn_042a30(uint32_t x); /* 0x042a30: g_dat_64004 = x */
 uint32_t fn_042a3c(uint32_t x); /* 0x042a3c: return g_dat_533bd(x) */
 /* 0x047d24: register-ABI wrapper around fx_mul64 (a=EAX, b=EDX, out=EBX). */
 void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out);
+
+/* FPU-interp (0x0461cc) caseD opcode handlers: fr=EBP frame base, esi/edi =
+ * operand byte-offsets into the EBP+0x1c operand area (operand = fx128 layout
+ * lo@0/hi@4/exp@8). Transcribe the 3 LEA + CALL 1:1; the `JMP [EBP+0x76]`
+ * tail-dispatch (owned by the 0x0461cc interpreter) is omitted. */
+void fn_046d32(uint8_t *fr, uint32_t esi, uint32_t edi); /* caseD_0: fn_0478f0(a=out=+EDI, b=+ESI) */
+void fn_046d47(uint8_t *fr, uint32_t esi, uint32_t edi); /* caseD_8: fn_047d24(a=out=+EDI, b=+ESI) */
+void fn_0473e5(uint8_t *fr, uint32_t esi, uint32_t edi); /* caseD_4: fn_0478f0(a=out=+ESI, b=+EDI) */
 void fn_044bb4(uint8_t *node);   /* 0x044bb4: ioctl node flag-setter */
 uint32_t fn_042a43(uint8_t *node);   /* 0x042a43: device/heap node initializer (size by flags, malloc+inline fallback) */
 int32_t fn_042928(uint8_t *node);    /* 0x042928: node lseek-offset compute (lseek pos +/- field4 by flag 0x10) */

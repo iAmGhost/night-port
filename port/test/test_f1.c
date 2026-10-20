@@ -6290,6 +6290,69 @@ static void test_fn_0440a9(void) {
           "  F '5' count=0: count=0, pool untouched");
 }
 
+/* ---------- caseD trio (0x046d32/0x046d47/0x0473e5): FPU-interp opcode stubs ---------- */
+static void test_cased_trio(void) {
+    printf("caseD trio (0x046d32/0x046d47/0x0473e5): FPU-interp opcode stubs\n");
+    uint8_t fr[0x80];   /* models the EBP frame; operand area at fr+0x1c */
+
+    /* caseD_0 (0x046d32): fn_0478f0(a=out=fr+0x1c+EDI, b=fr+0x1c+ESI). */
+    {
+        uint32_t esi = 0x00, edi = 0x10;   /* b at ESI, a/out at EDI (distinct, non-overlapping) */
+        fx128 A = {0x11111111, 0x22222222, 0x0012};
+        fx128 B = {0x33333333, 0x44444444, 0x0010};
+        memset(fr, 0, sizeof fr);
+        memcpy(fr + 0x1c + edi, &A, sizeof(fx128));
+        memcpy(fr + 0x1c + esi, &B, sizeof(fx128));
+        fx128 out_ref; fn_0478f0(&A, &out_ref, &B);   /* reference: handler direct */
+        fn_046d32(fr, esi, edi);
+        fx128 got, bgot;
+        memcpy(&got,  fr + 0x1c + edi, sizeof(fx128));
+        memcpy(&bgot, fr + 0x1c + esi, sizeof(fx128));
+        check(got.lo==out_ref.lo && got.hi==out_ref.hi && got.exp==out_ref.exp,
+              "  caseD_0: out(at EDI) == fn_0478f0(a,b)");
+        check(bgot.lo==B.lo && bgot.hi==B.hi && bgot.exp==B.exp,
+              "  caseD_0: b (at ESI) unchanged (input-only)");
+    }
+
+    /* caseD_8 (0x046d47): fn_047d24(a=out=fr+0x1c+EDI, b=fr+0x1c+ESI). */
+    {
+        uint32_t esi = 0x00, edi = 0x10;
+        uint32_t A[3] = {0x11111111, 0x22222222, 0x00000012};
+        uint32_t B[3] = {0x33333333, 0x44444444, 0x00000010};
+        memset(fr, 0, sizeof fr);
+        memcpy(fr + 0x1c + edi, A, 12);
+        memcpy(fr + 0x1c + esi, B, 12);
+        uint32_t out_ref[3]; fn_047d24(A, B, out_ref);
+        fn_046d47(fr, esi, edi);
+        uint32_t got[3], bgot[3];
+        memcpy(got,  fr + 0x1c + edi, 12);
+        memcpy(bgot, fr + 0x1c + esi, 12);
+        check(got[0]==out_ref[0] && got[1]==out_ref[1] && got[2]==out_ref[2],
+              "  caseD_8: out(at EDI) == fn_047d24(a,b)");
+        check(bgot[0]==B[0] && bgot[1]==B[1] && bgot[2]==B[2],
+              "  caseD_8: b (at ESI) unchanged (input-only)");
+    }
+
+    /* caseD_4 (0x0473e5): fn_0478f0(a=out=fr+0x1c+ESI, b=fr+0x1c+EDI). */
+    {
+        uint32_t esi = 0x00, edi = 0x10;   /* a/out at ESI, b at EDI */
+        fx128 A = {0x55555555, 0x66666666, 0x0014};
+        fx128 B = {0x77777777, 0x88888888, 0x0016};
+        memset(fr, 0, sizeof fr);
+        memcpy(fr + 0x1c + esi, &A, sizeof(fx128));
+        memcpy(fr + 0x1c + edi, &B, sizeof(fx128));
+        fx128 out_ref; fn_0478f0(&A, &out_ref, &B);
+        fn_0473e5(fr, esi, edi);
+        fx128 got, bgot;
+        memcpy(&got,  fr + 0x1c + esi, sizeof(fx128));
+        memcpy(&bgot, fr + 0x1c + edi, sizeof(fx128));
+        check(got.lo==out_ref.lo && got.hi==out_ref.hi && got.exp==out_ref.exp,
+              "  caseD_4: out(at ESI) == fn_0478f0(a,b)");
+        check(bgot.lo==B.lo && bgot.hi==B.hi && bgot.exp==B.exp,
+              "  caseD_4: b (at EDI) unchanged (input-only)");
+    }
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -6614,6 +6677,7 @@ int main(void) {
     test_fn_04285c();
     test_fn_010927();
     test_fn_0440a9();
+    test_cased_trio();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

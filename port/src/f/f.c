@@ -3299,6 +3299,40 @@ void fn_047d24(uint32_t *a, uint32_t *b, uint32_t *out) {
     *(uint16_t *)(out + 2) = (uint16_t)o.exp;           /* 0x47d47 MOV word[EBX+8],SI (returned exp) */
 }
 
+/* ==========================================================================
+ * FPU-interpreter (0x0461cc) opcode handlers -- caseD dispatch family
+ * --------------------------------------------------------------------------
+ * The 0x0461cc bytecode interpreter threads control through a per-call frame
+ * at EBP. Each opcode handler (a) computes 3 operand pointers from the frame
+ *   (base EBP+0x1c, byte offsets ESI / EDI set by the interpreter), (b) calls
+ *   an fx handler, and (c) tail-jumps to the NEXT opcode via `JMP [EBP+0x76]`
+ *   (the dispatch slot, owned by the interpreter).
+ *
+ * Ported as standalone handlers: the 3 LEA + CALL are transcribed 1:1
+ * (verified against the disasm). The `JMP [EBP+0x76]` tail-jump is
+ * interpreter plumbing -- a standalone C opcode returns instead (re-dispatch
+ * is the interpreter's 0x0461cc job, not this opcode's). `fr` models EBP;
+ * esi/edi model the interpreter's operand byte-offsets into the EBP+0x1c area.
+ * ========================================================================== */
+
+/* caseD_0 (0x046d32): LEA EAX,[EDI+EBP+0x1c]; LEA EDX,[ESI+EBP+0x1c]; LEA EBX,[EDI+EBP+0x1c];
+ *                      CALL 0x0478f0; JMP [EBP+0x76].
+ * a=out=&fr[0x1c+EDI] (in place), b=&fr[0x1c+ESI]; fn_0478f0(a,out,b). */
+void fn_046d32(uint8_t *fr, uint32_t esi, uint32_t edi)
+{ fn_0478f0((fx128 *)(fr + 0x1c + edi), (fx128 *)(fr + 0x1c + edi), (fx128 *)(fr + 0x1c + esi)); }
+
+/* caseD_8 (0x046d47): LEA EAX,[EDI+EBP+0x1c]; LEA EDX,[ESI+EBP+0x1c]; LEA EBX,[EDI+EBP+0x1c];
+ *                      CALL 0x047d24; JMP [EBP+0x76].
+ * a=out=&fr[0x1c+EDI], b=&fr[0x1c+ESI]; fn_047d24(a,b,out) (fx_mul64). */
+void fn_046d47(uint8_t *fr, uint32_t esi, uint32_t edi)
+{ fn_047d24((uint32_t *)(fr + 0x1c + edi), (uint32_t *)(fr + 0x1c + esi), (uint32_t *)(fr + 0x1c + edi)); }
+
+/* caseD_4 (0x0473e5): LEA EAX,[ESI+EBP+0x1c]; LEA EDX,[EDI+EBP+0x1c]; LEA EBX,[ESI+EBP+0x1c];
+ *                      CALL 0x0478f0; JMP [EBP+0x76].
+ * a=out=&fr[0x1c+ESI] (in place), b=&fr[0x1c+EDI]; fn_0478f0(a,out,b). */
+void fn_0473e5(uint8_t *fr, uint32_t esi, uint32_t edi)
+{ fn_0478f0((fx128 *)(fr + 0x1c + esi), (fx128 *)(fr + 0x1c + esi), (fx128 *)(fr + 0x1c + edi)); }
+
 /* 0x044bb4: node flag-setter. param_1 (EAX) = node ptr.
  * if (node[0x0d] & 0x20) return;
  * if (ioctl_device(node[0x10]) == 0) return;   ; node[0x10] = handle

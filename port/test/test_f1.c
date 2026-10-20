@@ -6062,29 +6062,36 @@ static void test_fn_034f31(void) {
 }
 
 static void test_fn_04a367(void) {
-    printf("fn_04a367 (0x04a367, FP cluster caller -> fn_04a814)\n");
-    /* Sole observable effect = return fn_04a814(arg2, arg3); the FPU block (0x04a3a8 +
-     * fx_mantissa_scale + FSTP) writes only to the pushed arg0/arg1 stack slots (popped
-     * by RET 0x10, never read back). Verify: (1) fn_04a367(arg0,arg1,arg2,arg3,eax) ==
-     * fn_04a814(arg2,arg3) over many args; (2) arg0/arg1/eax_in do NOT affect the
-     * return (dead-store confirmation -- incl. the eax_in!=arg2 case that runs the FPU block). */
+    printf("fn_04a367 (0x04a367, FP digit-mantissa extractor -> fn_04a814)\n");
+    /* Corrected behavior (2026-07-13): fn_04a367(dbl=(arg0,arg1), arg2, arg3, eax_in)
+     * sets *arg3 = fx_mantissa_scale(dbl') where dbl' = (eax_in==arg2 ? dbl :
+     * fn_04a3a8(dbl, arg2-eax_in)), and returns fn_04a814(arg2, arg3). arg3 is an OUT
+     * slot (0x04a84e writes through its EDX arg). Verify BOTH the return and the *arg3
+     * write against an independent computation on fresh copies. */
     static const uint32_t keys[][2] = {
         {0,0},{1,0},{100,0},{256,0},{100000,0},{1048576,0},{1000000,0},{0x12345678,0x9abcdef}
     };
     int nkeys = (int)(sizeof(keys)/sizeof(keys[0]));
-    int mism = 0;
+    int mism = 0, accw = 0;
     for (int k = 0; k < nkeys; k++) {
         for (int start = 0; start < 8; start++) {
             uint32_t a0 = 0x3f800000u + (uint32_t)k;        /* varying low half  */
             uint32_t a1 = 0x1234u * (uint32_t)(k + 1);      /* varying high half */
             for (uint32_t eax = 0; eax < 4; eax++) {
-                int32_t got  = fn_04a367(a0, a1, start, keys[k], eax);
-                int32_t want = fn_04a814(start, keys[k]);
-                if (got != want) { if (mism<3) printf("    FAIL k=%d start=%d eax=%u got=%d want=%d\n",k,start,eax,got,want); mism++; }
+                double dslot; uint64_t bits = (uint64_t)a0 | ((uint64_t)a1 << 32); memcpy(&dslot, &bits, 8);
+                if (eax != (uint32_t)start) dslot = fn_04a3a8(dslot, (int32_t)((uint32_t)start - eax));
+                uint32_t exp_key[2] = {keys[k][0], keys[k][1]};
+                fx_mantissa_scale(exp_key, (uint32_t *)&dslot);
+                int32_t want = fn_04a814(start, exp_key);
+                uint32_t act_key[2] = {keys[k][0], keys[k][1]};
+                int32_t got  = fn_04a367(a0, a1, start, act_key, eax);
+                if (got != want) { if (mism<3) printf("    FAIL ret k=%d start=%d eax=%u got=%d want=%d\n",k,start,eax,got,want); mism++; }
+                if (act_key[0]!=exp_key[0] || act_key[1]!=exp_key[1]) { if (accw<3) printf("    FAIL acc k=%d start=%d eax=%u got=%08x,%08x want=%08x,%08x\n",k,start,eax,act_key[0],act_key[1],exp_key[0],exp_key[1]); accw++; }
             }
         }
     }
-    check(mism==0, "04a367 return == fn_04a814(arg2,arg3) over 8 keys x 8 starts x 4 eax_in (arg0/arg1/eax dead)");
+    check(mism==0, "04a367 return == fn_04a814(arg2, *arg3) over 8 keys x 8 starts x 4 eax_in");
+    check(accw==0, "04a367 writes *arg3 == fx_mantissa_scale(10^k-scaled double) (arg3 is OUT, not dead)");
 }
 
 static void test_fn_045bb7(void) {

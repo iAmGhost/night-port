@@ -8517,28 +8517,24 @@ int32_t fn_04a814(int32_t start, const uint32_t *key)
  *
  * Body: base = arg0 | arg1<<32 (double); if (EAX-in != arg2) base =
  *   fn_04a3a8(base, arg2 - (EAX-in));  FSTP base -> [EBP+8];
- *   fx_mantissa_scale(out=&[EBP+8], in=arg3);  return fn_04a814(arg2, arg3).
+ *   fx_mantissa_scale(in=&[EBP+8], out=arg3);  return fn_04a814(arg2, arg3).
  *
- * DEAD-STORE ANALYSIS (verified vs FUN_0004a48f): arg0/arg1 are pushed BY VALUE
- * (copies of the caller's [EBP+8]/[EBP+0xc]); the FPU block writes only to those
- * pushed copies (0x04a367's [EBP+8]/[EBP+0xc] slots), which are popped by RET 0x10
- * and never read back by the caller. arg3 is the read-only `in` source (fx_mantissa_scale
- * writes to out=&[EBP+8], not to *arg3). Hence the FPU block (0x04a3a8 +
- * fx_mantissa_scale + FSTP) has NO observable effect. The function's sole
- * observable behavior is its return value = fn_04a814(arg2, arg3).
- * We reproduce the FPU block faithfully (it is executed in the original) into a
- * local `dslot`; fn_04a3a8 and fx_mantissa_scale are pure, so the result is not
- * observable and dslot is unused. */
-int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, const uint32_t *arg3, uint32_t eax_in)
+ * NOTE (corrected 2026-07-13): an earlier version mislabeled the FPU block as a
+ * "dead store". 0x04a84e (fx_mantissa_scale) READS its EAX arg and WRITES its EDX
+ * arg (epilogue: POP EBP <- 2nd PUSH EDX; MOV [EBP],ECX; MOV [EBP+4],EBX). In this
+ * call EAX=&[EBP+8] and EDX=arg3, so arg3 (the caller's 64-bit accumulator) IS
+ * written with the scaled mantissa -- observable by FUN_0004a48f. The return is
+ * fn_04a814(arg2, arg3) over the UPDATED arg3. So *arg3 = the 64-bit scaled
+ * mantissa of the 10^(arg2-eax_in)-scaled base double; arg3 is an OUT slot. */
+int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, uint32_t *arg3, uint32_t eax_in)
 {
     double dslot;
     uint64_t bits = (uint64_t)arg0 | ((uint64_t)arg1 << 32);   /* base double (arg0=low, arg1=high) */
     memcpy(&dslot, &bits, 8);
     if (eax_in != (uint32_t)arg2)                              /* JZ 0x4a38d: skip when equal */
-        dslot = fn_04a3a8(dslot, (int32_t)((uint32_t)arg2 - eax_in));  /* CALL 0x04a3a8; FSTP -> dead */
-    fx_mantissa_scale((uint32_t *)&dslot, arg3);               /* CALL 0x04a84e; out=&[EBP+8] -> dead */
-    (void)dslot;                                               /* dead store, not observable */
-    return fn_04a814(arg2, arg3);                              /* MOV EAX,ECX; MOV EDX,EBX; CALL 0x04a814 */
+        dslot = fn_04a3a8(dslot, (int32_t)((uint32_t)arg2 - eax_in));  /* CALL 0x04a3a8; FSTP [EBP+8] */
+    fx_mantissa_scale(arg3, (uint32_t *)&dslot);               /* CALL 0x04a84e; in=&dslot, out=arg3 (writes acc) */
+    return fn_04a814(arg2, arg3);                              /* MOV EAX,ECX; MOV EDX,EBX; CALL 0x04a814 (updated arg3) */
 }
 
 /* ---- 0x040efd / 0x0413e7 / 0x041410 (L12, 40 B each): thin port-write wrappers ----

@@ -676,6 +676,7 @@ int32_t fn_041d47(uint8_t *node, uint32_t param_2); /* 0x041d47: I/O fill step (
 const uint8_t *parse_mod_prefix(const uint8_t *s, uint8_t *out);
 /* 0x044ea4: parse a numeric conversion specifier (width / precision / suffix). */
 uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec);
+uint32_t fn_044c23(uint8_t **src, void (*cb)(uint8_t *st, uint8_t ch), uint8_t *buf, const uint8_t *fmt); /* 0x044c23: format-string field processor */
 /* 0x049b84: parse a [J|M]N[.N[.N]][/month:minute:second] date/time string into
  * a 9-dword struct; returns the position after the parsed string. */
 const char *fn_049b84(const char *s, uint32_t *out);

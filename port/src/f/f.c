@@ -3758,6 +3758,90 @@ uint8_t *fn_044ea4(const uint8_t *s, uint32_t **va, uint8_t *spec) {
     return (uint8_t *)after;
 }
 
+/* 0x044c23: format-string field processor (reg-ABI: EAX=buf, EDX=fmt,
+ * EBX=src, ECX=cb). Walks `fmt`; each plain char is forwarded to cb(st,ch).
+ * '%' parses the specifier via fn_044ea4 (fills descriptor `st`: [4] width,
+ * [8] precision, [0x14] flags, [0x16] fill char), then:
+ *   'n'  : store st[0x10] (value) into a target descriptor, advancing *src by
+ *          8 (far, flags&0x80) or 4 (near); 16-bit store iff !(flags&0x20)&&
+ *          (flags&0x10). Near target = *(uint8_t**)(*src-4); far offset =
+ *          *(uint32_t*)(*src-8).
+ *   other: fn_0451bc(out,src,st,alt) -> strptr, then emit: fill-prefill
+ *          (st[16]==' ') / inline st[0x17] / '0'*st[0x0c] / fill-postfill
+ *          (st[16]!=' ') / strptr (wide 2-byte iff type in {s,S}&&flags&0x20)
+ *          / trailing ' '*st[0x04] (flags&0x08).
+ * Flat model: the original's near/far stores (LES / ES:[x]) collapse to one
+ * flat store. Returns st[0x10] (accumulated value / callback-maintained len).
+ */
+uint32_t fn_044c23(uint8_t **src, void (*cb)(uint8_t *st, uint8_t ch),
+                   uint8_t *buf, const uint8_t *fmt) {
+    uint8_t out[0x28];              /* ESP+0x00: fn_0451bc output scratch */
+    uint8_t st[0x20];               /* ESP+0x28: descriptor (cb receives &st) */
+    uint8_t alt[8] = {0};           /* ESP+0x48: empty fallback string */
+
+    *(uint32_t *)(st + 0x00) = (uint32_t)(uintptr_t)buf;
+    *(uint32_t *)(st + 0x10) = 0;
+    st[0x14] = 0;
+    st[0x15] = 0;
+
+    const uint8_t *p = fmt;
+    for (;;) {
+        uint8_t c = *p;
+        if (c == 0) break;
+        if (c != 0x25) { p = p + 1; cb(st, c); continue; }
+
+        /* '%' : parse specifier prefix + conversion char */
+        uint8_t *ret = fn_044ea4(p + 1, (uint32_t **)src, st);
+        uint8_t specchar = *ret;
+        st[0x15] = specchar;
+        p = ret + 1;
+        if (specchar == 0) break;
+
+        if (specchar != 'n') {
+            uint8_t *strptr = fn_0451bc(out, src, st, alt);
+            uint8_t flags = st[0x14];
+            uint8_t t = st[0x15];
+            if (!(flags & 0x08) && st[0x16] == 0x20) {
+                int32_t n = *(int32_t *)(st + 0x04);
+                while (n > 0) { n--; *(int32_t *)(st + 0x04) = n; cb(st, st[0x16]); }
+            }
+            { uint8_t *ip = st + 0x17; while (*ip) { cb(st, *ip); ip++; } }
+            { int32_t zc = *(int32_t *)(st + 0x0c);
+              while (zc > 0) { zc--; *(int32_t *)(st + 0x0c) = zc; cb(st, 0x30); } }
+            if (!(flags & 0x08) && st[0x16] != 0x20) {
+                int32_t n = *(int32_t *)(st + 0x04);
+                while (n > 0) { n--; *(int32_t *)(st + 0x04) = n; cb(st, st[0x16]); }
+            }
+            { int32_t n = *(int32_t *)(st + 0x08);
+              int wide = ((t == 's' || t == 'S') && (flags & 0x20)) ? 2 : 1;
+              uint8_t *sp = strptr;
+              while (n > 0) { n--; *(int32_t *)(st + 0x08) = n; cb(st, sp[0]); sp += wide; } }
+            if (flags & 0x08) {
+                int32_t n = *(int32_t *)(st + 0x04);
+                while (n > 0) { n--; *(int32_t *)(st + 0x04) = n; cb(st, 0x20); }
+            }
+        } else {
+            uint8_t flags = st[0x14];
+            uint32_t value = *(uint32_t *)(st + 0x10);
+            int is_far = (flags & 0x80) != 0;
+            int is_16  = !(flags & 0x20) && (flags & 0x10) != 0;
+            if (is_far) {
+                *src += 8;
+                uint32_t off = *(uint32_t *)(*src - 8);
+                if (is_16) *(uint16_t *)(uintptr_t)off = (uint16_t)(value & 0xffff);
+                else       *(uint32_t *)(uintptr_t)off = value;
+            } else {
+                *src += 4;
+                uint32_t ptr = *(uint32_t *)(*src - 4);
+                uint8_t *targ = (uint8_t *)(uintptr_t)ptr;   /* 32-bit flat ptr (cf. fn_0451bc) */
+                if (is_16) *(uint16_t *)targ = (uint16_t)(value & 0xffff);
+                else       *(uint32_t *)targ = value;
+            }
+        }
+    }
+    return *(uint32_t *)(st + 0x10);
+}
+
 /* 0x049b84: parse a [J|M]N[.N[.N]][/month:minute:second] date/time string.
  * Output struct (uint32_t*, byte offsets):
  *   [0x20] era (1='J', 0='M', -1=neither)

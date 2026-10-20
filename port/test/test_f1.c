@@ -2196,6 +2196,64 @@ static void test_fn_044ab5(void) {
     free(arena);
 }
 
+/* ---- 0x044c23 format-string field processor wiring ----
+ * Exercises the main loop, fn_044ea4 (specifier parse) and fn_0451bc (value
+ * formatters) via value-based specifiers (%c, %u) that read raw bytes from the
+ * stream -- no pointer deref, so no low-4GB flat-model target is needed.
+ * The %n / %s pointer-deref paths (near/far x 16/32-bit stores, string reads)
+ * are verified by code inspection (they mirror fn_0451bc's 32-bit flat-pointer
+ * convention and need a real <4GB target, unavailable to a 64-bit test). */
+struct rec44c23 { char buf[256]; int len; };
+static struct rec44c23 g_rec44c23;
+static void rec44c23_cb(uint8_t *st, uint8_t ch) {
+    (void)st;
+    if (g_rec44c23.len < 255) g_rec44c23.buf[g_rec44c23.len++] = (char)ch;
+}
+static void rec44c23_reset(void) { g_rec44c23.len = 0; g_rec44c23.buf[0] = 0; }
+
+static void test_fn_044c23(void) {
+    printf("fn_044c23 (0x044c23, format-string field processor: plain/%%c/%%u emit)\n");
+    uint8_t *buf = (uint8_t *)malloc(512);
+    if (!buf) { check(0, "044c23: alloc (SKIP)"); return; }
+    memset(buf, 0, 512);
+
+    /* plain chars: "AB" -> emit A,B; return st[0x10]=0 (no numeric). */
+    rec44c23_reset();
+    uint32_t r1 = fn_044c23(NULL, rec44c23_cb, buf, (const uint8_t *)"AB");
+    check(r1 == 0, "plain: return st[0x10] = 0");
+    check(g_rec44c23.len == 2 && g_rec44c23.buf[0] == 'A' && g_rec44c23.buf[1] == 'B',
+          "plain: emits 'A','B'");
+
+    /* %c: stream[0]='Z'; fn_0451bc 'c' -> out[0]='Z', pglen=1, psize untouched
+       (no fill). Emits 'A' then 'Z'; *src advances by 4. */
+    rec44c23_reset();
+    uint8_t stream[8] = {0};
+    stream[0] = 'Z';
+    uint8_t *cur = stream;
+    uint8_t **src = &cur;
+    uint32_t r2 = fn_044c23(src, rec44c23_cb, buf, (const uint8_t *)"A%c");
+    check(g_rec44c23.len == 2 && g_rec44c23.buf[0] == 'A' && g_rec44c23.buf[1] == 'Z',
+          "%c: emits 'A','Z'");
+    check(r2 == 0, "%c: return st[0x10] = 0");
+    check((uint32_t)(cur - stream) == 4, "%c: *src advanced by 4 (fn_0451bc)");
+
+    /* %u: stream[0..3]=100; fn_0451bc 'u' pre-pass reads dword, out="100",
+       pglen=3, psize<0 (no fill). Emits 'Q' then "100"; *src advances by 4. */
+    rec44c23_reset();
+    uint8_t stream2[8] = {0};
+    *(uint32_t *)stream2 = 100;
+    uint8_t *cur2 = stream2;
+    uint8_t **src2 = &cur2;
+    uint32_t r3 = fn_044c23(src2, rec44c23_cb, buf, (const uint8_t *)"Q%u");
+    check(g_rec44c23.len == 4 && g_rec44c23.buf[0] == 'Q' && g_rec44c23.buf[1] == '1'
+          && g_rec44c23.buf[2] == '0' && g_rec44c23.buf[3] == '0',
+          "%u: emits 'Q','1','0','0'");
+    check(r3 == 0, "%u: return st[0x10] = 0");
+    check((uint32_t)(cur2 - stream2) == 4, "%u: *src advanced by 4 (pre-pass read)");
+
+    free(buf);
+}
+
 static void test_fn_03d999(void) {
     printf("fn_03d999 (0x03d999, wrapper: fn_03dcbd(a0); return a0)\n");
     uint8_t s[0x40] = {0};
@@ -6360,6 +6418,7 @@ int main(void) {
     test_fn_03b9b7();
     test_fn_04933a();
     test_fn_044ab5();
+    test_fn_044c23();
     test_fn_041c8f();
     test_fn_049192();
     test_fn_0446b2();

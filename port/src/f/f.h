@@ -758,6 +758,7 @@ extern uint32_t  g_dat_62d68[200];      /* DAT_00062d68: head-node offset per li
 /* Video-RAM model (flat 0xa0000 VGA segment): 64 KB window [0xa0000,0xb0000). */
 extern uint8_t g_video_ram[0x10000];
 void fn_03c65b(uint8_t *a0);           /* 0x03c65b: video flatten (200 lists -> 0x140 packed records) */
+void fn_03ce0b(uint8_t *ent, uint8_t *dst);  /* 0x03ce0b: 4-branch sprite-draw (viewport blit, video-arena src) */
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */
 void     fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p);  /* 0x03ba86: nested-list builder from byte stream */
 void     fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count);  /* 0x03a594: copy bytes != 0xff */
@@ -797,6 +798,7 @@ int32_t fn_016a60(uint8_t *s, int32_t param2, int32_t *out);   /* 0x016a60: clam
 int32_t fn_017637(uint8_t *s, int32_t param2, int32_t *out);   /* 0x017637: clamped move-toward-target (corrected B-reached) */
 int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out);   /* 0x0174a2: clamp to [0,0x140); adjust out */
 extern uint8_t *g_dat_63354;   /* pointer to clamp-bounds struct: lo=P+0x12, hi=P+0x16 (double-deref) */
+extern int32_t  g_dat_63360;   /* 0x63360: frame counter; %10 gates periodic board_out in 0x03ce0b */
 extern uint8_t *g_dat_63358;   /* 0x63358: mirror of g_dat_63354 (0x03cc6b) */
 extern uint32_t g_dat_63370;   /* 0x63370: mode flag (0x03cc6b) */
 extern uint32_t g_dat_63374;   /* 0x63374: = g_dat_53c7c->0x2b (0x03cc6b) */

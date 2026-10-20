@@ -6486,8 +6486,113 @@ static void test_fn_035d_spin(void) {
     for (int i = 0; i < 0x80; i++) g_dat_63e88[i] = 0;
 }
 
+/* 0x03ce0b (L10, 692 B): 4-branch sprite-draw (viewport blit). Verifies all 4 branch
+ * dispatches + the common epilogue (ent[0x22]=ent[0x1e]=0; board_out skipped when
+ * g_63360%10!=0) + a full B0 pixel check (its video-mapped src is cleanly in-window).
+ * B1/B2 (two-blit, sibling sprites) + B3 (scrolled) pixel-exactness depend on the real
+ * game sprite-RAM layout (base - s_e0 offsets) -> deferred to video-subsystem
+ * integration (cf. 0x03c65b cluster). */
+static void test_fn_03ce0b(void) {
+    printf("fn_03ce0b (0x03ce0b): 4-branch sprite-draw (viewport blit, video-arena src)\n");
+    /* Heap buffers (not large statics) so this test doesn't shift the binary's data
+     * segment layout (which would expose a latent OOB in 03de85's heap path). */
+    uint8_t *dst  = (uint8_t *)calloc(1, 0x18000);   /* blit destination (max doff+h*0x140 ~0x17700) */
+    uint8_t *ent  = (uint8_t *)calloc(1, 0x400);     /* viewport/entity (0x354-byte struct + margin) */
+    uint8_t *sib0 = (uint8_t *)calloc(1, 0x400);     /* sibling for B1 (e[0x350]) */
+    uint8_t *sib1 = (uint8_t *)calloc(1, 0x400);     /* sibling for B2 (e[0x34c]) */
+    uint8_t *cbuf = (uint8_t *)calloc(1, 0x400);     /* g_dat_63354 buffer for the periodic board_out */
+    uint8_t *saved_bounds = g_dat_63354;
+
+    /* --- B0: g_639e4==0 -> one full-screen blit of the primary sprite --- */
+    memset(g_video_ram, 0, 0x10000);
+    g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_639dc = 0;          /* src = 0 + e348 - e0 = 0xa0000 */
+    memset(ent, 0, 0x400);
+    *(uint32_t *)(ent + 0x0)   = 0;
+    *(uint32_t *)(ent + 0x4)   = 0;
+    *(uint32_t *)(ent + 0xc)   = 1000;
+    *(uint32_t *)(ent + 0x1a)  = 0x140;
+    *(uint32_t *)(ent + 0x22)  = 0xABCD;
+    *(uint32_t *)(ent + 0x1e)  = 0x5678;
+    *(uint32_t *)(ent + 0x348) = 0xa0000;
+    for (int32_t r = 0; r < 0xc8; r++)
+        for (int c = 0; c < 0x140; c++)
+            g_video_ram[r * 0x140 + c] = (uint8_t)((r * 0x140 + c) & 0xff);
+    memset(dst, 0xcc, 0x18000);
+    g_dat_63360 = 7;   /* %10 != 0 -> board_out skipped */
+    fn_03ce0b(ent, dst);
+    int ok_b0 = (dst[0] == 0x00) && (dst[0x140] == 0x40) && (dst[0x130] == 0x30)
+           && (dst[0xf9ff] == 0xff);   /* last byte of row 0xc7: index 0xc7*0x140+0x13f=0xf9ff, val 0xff */
+    check(ok_b0, "  B0: blt_rows copied primary sprite (200 rows x 0x140) to dst");
+    check(*(uint32_t *)(ent + 0x22) == 0, "  B0: epilogue clears ent[0x22]");
+    check(*(uint32_t *)(ent + 0x1e) == 0, "  B0: epilogue clears ent[0x1e]");
+
+    /* --- B1: g_639e4!=0 && g_639e0 < ent[0x4] -> two blits (primary + sibling e[0x350]) --- */
+    memset(ent, 0, 0x400); memset(sib0, 0, 0x400);
+    g_dat_639e4 = 1; g_dat_639e0 = 50; g_dat_639dc = 0x90000;
+    *(uint32_t *)(ent + 0x0)   = 0x50;
+    *(uint32_t *)(ent + 0x4)   = 100;    /* e4=100 > g0=50 -> B1 */
+    *(uint32_t *)(ent + 0x1a)  = 0x140;
+    *(uint32_t *)(ent + 0x22)  = 1;
+    *(uint32_t *)(ent + 0x348) = 0xa0000;
+    *(uint32_t *)(sib0 + 0x4)   = 0;
+    *(uint32_t *)(sib0 + 0x1a)  = 0x140;
+    *(uint32_t *)(sib0 + 0x348) = 0xa0000;
+    *(uint64_t *)(ent + 0x350) = (uint64_t)(uintptr_t)sib0;   /* sibling pointer (64-bit) */
+    g_dat_63360 = 7;
+    fn_03ce0b(ent, dst);
+    check(*(uint32_t *)(ent + 0x22) == 0, "  B1: epilogue clears ent[0x22]");
+    check(*(uint32_t *)(ent + 0x1e) == 0, "  B1: epilogue clears ent[0x1e]");
+
+    /* --- B2: g_639e4!=0 && g_639e0>=ent[0x4] && g_639e0+0xc8>ent[0xc] -> two blits (sibling e[0x34c]) --- */
+    memset(ent, 0, 0x400); memset(sib1, 0, 0x400);
+    g_dat_639e4 = 1; g_dat_639e0 = 0x60; g_dat_639dc = 0x90000;
+    *(uint32_t *)(ent + 0x0)   = 0x50;
+    *(uint32_t *)(ent + 0x4)   = 0x40;   /* e4 < g0=0x60 */
+    *(uint32_t *)(ent + 0xc)   = 0x100;  /* ec=0x100 < g0+0xc8=0x128 -> B2; h2a=ec-g0=0xa0<=0xc8 */
+    *(uint32_t *)(ent + 0x1a)  = 0x140;
+    *(uint32_t *)(ent + 0x22)  = 1;
+    *(uint32_t *)(ent + 0x348) = 0xa0000;
+    *(uint32_t *)(sib1 + 0x4)   = 0;
+    *(uint32_t *)(sib1 + 0x1a)  = 0x140;
+    *(uint32_t *)(sib1 + 0x348) = 0xa0000;
+    *(uint64_t *)(ent + 0x34c) = (uint64_t)(uintptr_t)sib1;   /* sibling pointer (64-bit) */
+    g_dat_63360 = 7;
+    fn_03ce0b(ent, dst);
+    check(*(uint32_t *)(ent + 0x22) == 0, "  B2: epilogue clears ent[0x22]");
+    check(*(uint32_t *)(ent + 0x1e) == 0, "  B2: epilogue clears ent[0x1e]");
+
+    /* --- B3: g_639e4!=0 && g_639e0>=ent[0x4] && g_639e0+0xc8<=ent[0xc] -> one scrolled blit --- */
+    memset(ent, 0, 0x400);
+    g_dat_639e4 = 1; g_dat_639e0 = 0x60; g_dat_639dc = 0x90000;
+    *(uint32_t *)(ent + 0x0)   = 0x50;
+    *(uint32_t *)(ent + 0x4)   = 0x40;   /* e4 < g0=0x60 */
+    *(uint32_t *)(ent + 0xc)   = 1000;   /* ec=1000 > g0+0xc8=0x128 -> B3 */
+    *(uint32_t *)(ent + 0x1a)  = 0x140;
+    *(uint32_t *)(ent + 0x22)  = 1;
+    *(uint32_t *)(ent + 0x348) = 0xa0000;
+    g_dat_63360 = 7;
+    fn_03ce0b(ent, dst);
+    check(*(uint32_t *)(ent + 0x22) == 0, "  B3: epilogue clears ent[0x22]");
+    check(*(uint32_t *)(ent + 0x1e) == 0, "  B3: epilogue clears ent[0x1e]");
+
+    /* --- epilogue periodic board_out: g_63360 % 10 == 0 triggers board_out(0,0x100,g_63354+0x48) --- */
+    memset(ent, 0, 0x400);
+    g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_639dc = 0;
+    *(uint32_t *)(ent + 0x1a)  = 0x140;
+    *(uint32_t *)(ent + 0x348) = 0xa0000;
+    g_dat_63354 = cbuf;   /* valid buffer for board_out (reads +0x48 for 0x300 bytes) */
+    g_dat_63360 = 10;     /* %10 == 0 -> board_out runs (no-op in flat model) */
+    fn_03ce0b(ent, dst);
+    check(*(uint32_t *)(ent + 0x22) == 0, "  periodic: g_63360%10==0 path runs without crash");
+
+    free(dst); free(ent); free(sib0); free(sib1); free(cbuf);
+    g_dat_63354 = saved_bounds;   /* restore */
+    g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_639dc = 0; g_dat_63360 = 0;
+    memset(g_video_ram, 0, 0x10000);
+}
+
 int main(void) {
-    static uint8_t s_t_bounds[0x20];
+    static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
     /* --- fn_017927: 2D move/AI (double-deref bounds via g_dat_63354) --- */
     { g_dat_639dc = 0; g_dat_639e0 = 0;
@@ -6817,6 +6922,7 @@ int main(void) {
     test_fn_03237b();
     test_fn_037922();
     test_fn_035d_spin();
+    test_fn_03ce0b();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

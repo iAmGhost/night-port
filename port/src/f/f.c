@@ -4606,8 +4606,59 @@ void fn_03c65b(uint8_t *a0) {
     }
 }
 
-uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */
-uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
+/* 0x03ce0b (L10, 692 B): 4-branch sprite-draw (viewport blit). EAX = a0 (the 0x354-byte
+ * viewport/entity struct), EDX = a1 (the screen blit target, a 0xa0000-based video buffer
+ * region of 200 rows x 0x140 pitch). Video-arena model (cf. 0x03c65b / 0x034990): the sprite
+ * source is a flat 0xa0000 video address = g_dat_639dc (sprite-RAM base, set by 0x03cad3) +
+ * sprite offset, mapped through video_map(). ent[0x348]/ent[0x34c]/ent[0x350] are flat video
+ * addresses of sprite data (ent[0x34c]/[0x350] are POINTER fields to sibling viewport structs,
+ * each with [0] sprite-base, [0x4] scroll, [0x1a] src pitch, [0x348] sprite addr). Screen pitch
+ * is 0x140, viewport height 0xc8 (200 rows). Dispatch + 1-2 blt_rows() calls per branch:
+ *   B0 g_639e4==0                      : 1 blit (full 200 rows of the primary sprite)
+ *   B1 g_639e4!=0 && g_639e0<ent[0x4]  : 2 blits (primary top + sibling ent[0x350] bottom)
+ *   B2 g_639e4!=0 && g_639e0>=ent[0x4] && g_639e0+0xc8>ent[0xc] : 2 blits (primary bottom + ent[0x34c] top)
+ *   B3 otherwise                       : 1 blit (scrolled primary sprite)
+ * Common epilogue: ent[0x22]=0; ent[0x1e]=0; if (g_63360 % 10 == 0) board_out(0,0x100,g_63354+0x48).
+ * Canary PUSH 0x38. All 3 callees ported (canary, blt_rows=0x040491, board_out=0x040042). */
+void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
+    (void)canary_id(0, 0x38);
+    uint8_t *e = ent;
+    uint32_t g0   = g_dat_639e0;      /* scroll row */
+    uint32_t base = g_dat_639dc;      /* sprite-RAM base (video addr) */
+    if (g_dat_639e4 == 0) {          /* B0 */
+        uint32_t sa = base + *(uint32_t *)(e + 0x348) - *(uint32_t *)(e + 0x0);
+        blt_rows(video_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
+    } else if (g0 < *(uint32_t *)(e + 0x4)) {          /* B1 */
+        uint8_t *s1 = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x350);   /* ent[0x350] = sibling ptr (64-bit) */
+        uint32_t sp1 = *(uint32_t *)(s1 + 0x1a);
+        uint32_t h1a = 0xc8 - (*(uint32_t *)(e + 0x4) - g0);
+        uint32_t do1a = (uint32_t)((int)(0xc8 - (g0 - *(uint32_t *)(s1 + 0x4))) * (int)0x140);
+        blt_rows(video_map(*(uint32_t *)(e + 0x348)), (int)*(uint32_t *)(e + 0x1a), 0x140,
+                 (int)h1a, dst + do1a, 0x140);
+        uint32_t h1b = *(uint32_t *)(e + 0x4) - g0;
+        uint32_t sa1b = *(uint32_t *)(s1 + 0x348) + base - *(uint32_t *)(s1 + 0x0)
+                       + sp1 * (0xc8 - h1b);
+        blt_rows(video_map(sa1b), (int)sp1, 0x140, (int)h1b, dst, 0x140);
+    } else if (g0 + 0xc8 > *(uint32_t *)(e + 0xc)) {    /* B2 */
+        uint32_t h2a = *(uint32_t *)(e + 0xc) - g0;
+        uint32_t sa2a = *(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0)) * 0x140;
+        blt_rows(video_map(sa2a), (int)*(uint32_t *)(e + 0x1a), 0x140, (int)h2a, dst, 0x140);
+        uint8_t *s2 = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x34c);   /* ent[0x34c] = sibling ptr (64-bit) */
+        uint32_t h2b = g0 - *(uint32_t *)(e + 0);
+        uint32_t do2b = (uint32_t)((int)((0xc8 - g0) + *(uint32_t *)(e + 0)) * (int)0x140);
+        uint32_t sa2b = *(uint32_t *)(s2 + 0x348) + base - *(uint32_t *)(s2 + 0x0);
+        blt_rows(video_map(sa2b), (int)*(uint32_t *)(s2 + 0x1a), 0x140, (int)h2b, dst + do2b, 0x140);
+    } else {                                      /* B3 */
+        uint32_t sa = *(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0)) * *(uint32_t *)(e + 0x1a);
+        blt_rows(video_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
+    }
+    /* common epilogue */
+    *(uint32_t *)(e + 0x22) = 0;
+    *(uint32_t *)(e + 0x1e) = 0;
+    if ((int32_t)g_dat_63360 % 10 == 0) board_out(0, 0x100, g_dat_63354 + 0x48);
+}
+
+uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
 uint32_t g_dat_40014 = 0, g_dat_40018 = 0, g_dat_4001c = 0, g_dat_40020 = 0;
 /* 0x0405de: store 4 16-bit values. ABI p1=EAX, p2=EDX, p3=EBX, p4=ECX. Each is
  * zero-extended (XOR EAX,EAX; MOV AX,reg) and stored to consecutive globals:
@@ -5123,6 +5174,7 @@ int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3) { /* 0x017530: by
 }
 
 uint8_t *g_dat_63354 = NULL;   /* 0x63354: POINTER to clamp-bounds struct; lo=P+0x12, hi=P+0x16 (double-deref) */
+int32_t  g_dat_63360 = 0;      /* 0x63360: frame counter; %10 gates the periodic board_out in 0x03ce0b */
 uint8_t *g_dat_63358 = NULL;   /* 0x63358: mirror of g_dat_63354 (0x03cc6b) */
 uint32_t g_dat_63370 = 0;      /* 0x63370: mode flag (0x03cc6b) */
 uint32_t g_dat_63374 = 0;      /* 0x63374: = g_dat_53c7c->0x2b (0x03cc6b) */
@@ -8832,6 +8884,7 @@ int32_t fn_04a814(int32_t start, const uint32_t *key)
     int e = (int)((start + 1) & 0xffffffffu);          /* EDI = base + (start+1)*8 */
     int cnt = 0;
     for (;;) {                                         /* forward: key >= entry */
+        if (e >= 22) break;
         if (key_lt_entry_814(hi, lo, g_pow10_tbl_04a928[e]))
             break;
         e++;
@@ -8839,6 +8892,7 @@ int32_t fn_04a814(int32_t start, const uint32_t *key)
     }
     for (;;) {                                         /* backward: entry > key */
         e--;
+        if (e < 0) break;
         if (!key_lt_entry_814(hi, lo, g_pow10_tbl_04a928[e]))
             break;
         e--;

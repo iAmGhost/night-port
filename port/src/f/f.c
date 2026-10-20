@@ -838,6 +838,40 @@ uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2) {
     return node;                                       /* 0x113d6 */
 }
 
+/* 0x0323f8 (L11, 105 B): drain the entity list -- walk from head, remove each
+ * node (fn_0112fd, arg2=0) and free it (heap_free_guard, offset = node-base).
+ * Runs until the list is empty. next is captured before the remove so the walk
+ * is safe even as the list shrinks. No return value used. */
+void fn_0323f8(void) {
+    (void)canary_id(0, 0x2c);
+    uint8_t *cur = g_dat_53c70;                        /* [0x53c70] */
+    while (cur != NULL) {
+        uint8_t *next = *(uint8_t **)(cur + 0x13f);     /* [cur+0x13f] */
+        uint8_t *rem = fn_0112fd(cur, 0);               /* 0x0112fd, returns node */
+        uint32_t off = (uint32_t)((uint8_t *)rem - (uint8_t *)g_heap_base);
+        heap_free_guard(off);                            /* 0x041c28 (NULL-tolerant) */
+        cur = next;                                      /* [EBP-4]=next */
+    }
+}
+
+/* 0x03237b (L11, 124 B): conditional drain -- walk from head, remove+free only
+ * the nodes whose dword at +0xd is non-zero (fn_0112fd + heap_free_guard),
+ * leaving the others linked in place. Clears g_dat_53c88 = 0 after the walk. */
+void fn_03237b(void) {
+    (void)canary_id(0, 0x2c);
+    uint8_t *cur = g_dat_53c70;
+    while (cur != NULL) {
+        uint8_t *next = *(uint8_t **)(cur + 0x13f);
+        if (*(uint32_t *)(cur + 0xd) != 0) {            /* dword flag @+0xd */
+            uint8_t *rem = fn_0112fd(cur, 0);
+            uint32_t off = (uint32_t)((uint8_t *)rem - (uint8_t *)g_heap_base);
+            heap_free_guard(off);
+        }
+        cur = next;
+    }
+    g_dat_53c88 = 0;                                    /* [0x53c88]=0 */
+}
+
 /* fn_013aad  orig: 0x00013aad (L10, 415B)
  *   Entity-list bubble-sort: sort the doubly-linked entity list ascending by
  *   node->+0x9 (int32 key), relinking nodes in place and maintaining head
@@ -4731,6 +4765,7 @@ uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
+uint32_t g_dat_53c88 = 0;      /* 0x53c88 (cleared by fn_03237b conditional drain) */
 
 /* 0x015295 (L11, 456 B): ENTITY TICK.
  *   1. a0->5 += a1; if (a0->5 > 0) a0->5 = 0;        (clamp the counter to <= 0)

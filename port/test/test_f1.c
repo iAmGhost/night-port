@@ -6402,6 +6402,50 @@ static void test_fn_03de85(void) {
     heap_arena_init();                      /* reset arena */
 }
 
+/* Build a 3-node entity list n1->n2->n3 from the heap. Returns the 3 data ptrs. */
+static void build_entity_list3(uint8_t **n1, uint8_t **n2, uint8_t **n3) {
+    *n1 = (uint8_t *)g_heap_base + heap_malloc(0x160);
+    *n2 = (uint8_t *)g_heap_base + heap_malloc(0x160);
+    *n3 = (uint8_t *)g_heap_base + heap_malloc(0x160);
+    memset(*n1, 0, 0x160);
+    memset(*n2, 0, 0x160);
+    memset(*n3, 0, 0x160);
+    *(uint8_t **)(*n1+0x13f) = *n2; *(uint8_t **)(*n1+0x147) = NULL;
+    *(uint8_t **)(*n2+0x13f) = *n3; *(uint8_t **)(*n2+0x147) = *n1;
+    *(uint8_t **)(*n3+0x13f) = NULL; *(uint8_t **)(*n3+0x147) = *n2;
+    g_dat_53c70 = *n1; g_dat_53c74 = *n3; g_dat_53c78 = *n1; g_dat_53c68 = 3;
+}
+
+static void test_fn_0323f8(void) {
+    printf("fn_0323f8 (0x0323f8): drain entity list (remove+free all)\n");
+    heap_arena_init();
+    heap_acquire_region(0x2000);
+    uint8_t *n1, *n2, *n3;
+    build_entity_list3(&n1, &n2, &n3);
+    fn_0323f8();
+    check(g_dat_53c70 == NULL, "  head drained to NULL");
+    check(g_dat_53c74 == NULL, "  tail drained to NULL");
+    check(g_dat_53c68 == 0, "  count drained to 0");
+    heap_arena_init();
+}
+
+static void test_fn_03237b(void) {
+    printf("fn_03237b (0x03237b): conditional drain (dword flag @+0xd)\n");
+    heap_arena_init();
+    heap_acquire_region(0x2000);
+    uint8_t *n1, *n2, *n3;
+    build_entity_list3(&n1, &n2, &n3);
+    *(uint32_t *)(n2+0xd) = 5;               /* only n2 is flagged for removal */
+    g_dat_53c88 = 0x12345678;
+    fn_03237b();
+    check(g_dat_53c70 == n1, "  head is kept node n1");
+    check(g_dat_53c74 == n3, "  tail is kept node n3");
+    check(g_dat_53c68 == 2, "  count reduced 3->2 (n2 removed)");
+    check(g_dat_53c88 == 0, "  g_dat_53c88 cleared to 0");
+    check(*(uint8_t **)(n1+0x13f) == n3, "  n1->next relinked to n3");
+    heap_arena_init();
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -6729,6 +6773,8 @@ int main(void) {
     test_cased_trio();
     test_fn_0112fd();
     test_fn_03de85();
+    test_fn_0323f8();
+    test_fn_03237b();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

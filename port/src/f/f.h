@@ -834,6 +834,9 @@ uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2);   /* 0x0112fd: entity-list REM
 extern int32_t  g_dat_51c98;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 extern int32_t  g_dat_53c90;   /* DAT_00053c90 (player-event latch) */
 extern int32_t  g_dat_53c68;   /* DAT_00053c68 (entity count) */
+extern uint32_t g_dat_53c88;   /* DAT_00053c88 (cleared by fn_03237b conditional drain) */
+void fn_0323f8(void);   /* 0x0323f8: drain entity list -- remove+free every node until empty */
+void fn_03237b(void);   /* 0x03237b: conditional drain -- remove+free nodes with dword@+0xd != 0; g_dat_53c88=0 */
 #define FN_015A1F_TBL 0x2000
 extern uint8_t  g_dat_53eb8[FN_015A1F_TBL]; /* DAT_00053eb8 (zeroed runtime table) */
 void fn_034635(uint8_t key);

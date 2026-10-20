@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 385 / 528 done
+TOTALS: 387 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -49,7 +49,7 @@ TOTALS: 385 / 528 done
 | L8 | 7 | 4 | 0 | 0 | 3 |
 | L9 | 2 | 2 | 0 | 0 | 0 |
 | L10 | 81 | 63 | 0 | 0 | 18 |
-| L11 | 77 | 46 | 0 | 0 | 31 |
+| L11 | 77 | 48 | 0 | 0 | 29 |
 | L12 | 58 | 22 | 0 | 0 | 36 |
 | L13 | 16 | 7 | 0 | 0 | 9 |
 | L14 | 7 | 0 | 0 | 0 | 7 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-13 | **0x0323f8 + 0x03237b (L11) PORTED + 8 tests -- entity-list drain functions.** Both walk from g_dat_53c70 (head), capturing next@+0x13f BEFORE the remove so the walk is safe as the list shrinks. **fn_0323f8** (drain-all): for every node, `fn_0112fd(node,0)` (remove) + `heap_free_guard(node-base)` (free), until empty. **fn_03237b** (conditional drain): same but only removes nodes whose dword@+0xd != 0 (keeps the rest linked in place), then clears g_dat_53c88=0. Key: 0x041c28=heap_free_guard takes a heap OFFSET, entity nodes are host pointers (g_heap_base+offset), so convert node-g_heap_base (same pattern as ported sibling fn_03b9b7); fn_0112fd returns the removed node. Tests build a 3-node heap entity list (0x160 each, next@+0x13f/prev@+0x147 8-byte), drain: 0x0323f8 -> head/tail NULL + count 0 (3 checks); 0x03237b with only n2 flagged -> head=n1/tail=n3/count 2/g_dat_53c88=0/n1->next=n3 (5 checks). FIRST-TRY PASS (1 mechanical fix: g_dat_53c88 needed a definition, was only declared). L11 46->48, TOTALS 385->387/528. Suite 1510->1518 PASS 0 FAIL. (finish-mid-tiers batch 2.) | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **0x03de85 (L11, 272 B) PORTED + 6 tests -- re-entrant struct CONSTRUCTOR (pair of fn_03dcbd).** `uint32_t fn_03de85(uint32_t *s, uint32_t count, uint32_t last_size)`: `fn_03dcbd(s)` (free old 14 sub-objs); `size=count*4`; `for i in 1..13: s[i]=heap_malloc(size)` (offsets +0x4..+0x34); `s[14]=heap_malloc(last_size)` (+0x38); `return 1`. Confirmed fn_03dcbd is the paired DESTRUCTOR (frees the same 14 sub-objs at +0x4..+0x38), and heap_malloc returns a uint32 heap OFFSET (stored directly in the fields). Test (test_fn_03de85): heap_arena_init + heap_acquire_region(0x1000), call ctor(count=3,last=0x20), verify return==1 / all 14 non-zero / distinct / s[0] untouched / fn_03dcbd frees+nulls all 14 -- 6 checks, FIRST-TRY PASS. L11 45->46, TOTALS 384->385/528. Suite 1504->1510 PASS 0 FAIL. (finish-mid-tiers batch 1: 0x0112fd + 0x03de85 done; full assessment of the rest banked at scratch/PORT_MIDTIERS_NOTES.md.) | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **0x0112fd (L10, 233 B) PORTED + 3 tests -- entity doubly-linked list REMOVE.** `uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2)` (arg2 unused). Removes `node` from the entity list (head=g_dat_53c70, tail=g_dat_53c74, count=g_dat_53c68): **count==1** -> head=tail=g_dat_53c78=NULL; **head** (head==node) -> head=node->next, new-head->prev=NULL; **tail** (tail==node) -> tail=node->prev, new-tail->next=NULL; **middle** -> prev->next=node->next, next->prev=node->prev. Then count--, return node. No callees (canary only). **KEY:** the old "DEFERRED... collides with globals" note was a false alarm -- the globals ARE the shared entity-list state (g_dat_53c68/53c70/53c74/53c78, already declared) and this fn uses them correctly. Uses the 8-byte POINTER-WIDTH ADAPTATION (next@+0x13f, prev@+0x147) matching the sibling entity fns fn_013aad/fn_00035c5c (so list links stay compatible). Test (test_fn_0112fd): build A<->B<->C, remove middle (A<->C), remove head (C), remove last (count==1 clears all) -- 3 checks, FIRST-TRY PASS. L10 62->63, TOTALS 383->384/528. Suite 1501->1504 PASS 0 FAIL. (finish-mid-tiers: started L10 batch; 0x03c72b/0x035dfc deferred -- 0x03c72b needs heap pointer/offset model for its 0x041c28/0x041c31 free calls, 0x035dfc is a 4-flag spin-wait.) | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **caseD trio (0x046d32/0x046d47/0x0473e5, L2, 20 B each) PORTED as disasm-verified stubs -> L2 32/32, finish-leaf-tiers COMPLETE.** The 3 are FPU-interpreter (0x0461cc) opcode handlers in the threaded-dispatch family. Exact disasm (Ghidra): each = 3x `LEA <EAX/EDX/EBX>,[{ESI,EDI}+EBP+0x1c]` + `CALL <handler>` + `JMP [EBP+0x76]`. **KEY RE-ASSESSMENT:** the stale "BLOCKED ... handler unported" note was WRONG -- the handlers ARE ported: 0x0478f0 = fn_0478f0 (fx_norm, `fx4794a_store`) and 0x047d24 = fn_047d24 (fx_mul64 wrapper); both 12-byte fx128 layout (lo@0/hi@4/exp@8). So the only dependency was the frame model. **MODEL:** `fr` = EBP frame base; esi/edi = interpreter's operand byte-offsets into the EBP+0x1c operand area. caseD_0 (0x046d32): a=out=fr+0x1c+EDI, b=fr+0x1c+ESI -> fn_0478f0 (in-place at EDI); caseD_8 (0x046d47): a=out=fr+0x1c+EDI, b=fr+0x1c+ESI -> fn_047d24; caseD_4 (0x0473e5): a=out=fr+0x1c+ESI, b=fr+0x1c+EDI -> fn_0478f0 (in-place at ESI). The `JMP [EBP+0x76]` tail-jump is the threaded-interpreter dispatch to the NEXT opcode (the slot is owned by the 0x0461cc interpreter, a separate L6 fn) -- a standalone C opcode returns instead (documented). **TEST (test_cased_trio): 6 wiring checks** -- for each, place distinct operands at the esi/edi offsets in a frame buffer, call the caseD fn, verify the `out` location == a direct handler call (fn_0478f0/fn_047d24) AND the `b` (input-only) location is UNCHANGED (proves the a/b/out index mapping). FIRST-TRY PASS (only fix: `sizeof(fx128)` parens). L2 29->32 (COMPLETE), TOTALS 380->383/528. Suite 1495->1501 PASS 0 FAIL. **finish-leaf-tiers now 4/4 tiers complete (L0 112/112, L1 47/47, L2 32/32, L3 21/21).** NEXT: move to finish-mid-tiers / the 0x0461cc interpreter (L6, 5909 B) which subsumes these opcodes. | f.c, f.h, test_f1.c, STATUS.md |
@@ -739,8 +740,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x017927 | 894 | FUN_00017927 | | |
 | [x] | 0x017ca6 | 620 | fn_017ca6 | Bresenham diagonal stepper | 1:1 (disasm; 7 checks) |
 | [x] | 0x032158 | 412 | fn_032158 | entity list: set targets to player + prng jitter | 1:1 (disasm; 6 checks) |
-| [ ] | 0x03237b | 124 | FUN_0003237b | | |
-| [ ] | 0x0323f8 | 105 | FUN_000323f8 | | |
+| [x] | 0x03237b | 124 | FUN_0003237b | PORTED + 5 tests: conditional drain -- remove+free nodes with dword@+0xd != 0 (fn_0112fd + heap_free_guard(node-base)), keep others; g_dat_53c88=0 | f.c |
+| [x] | 0x0323f8 | 105 | FUN_000323f8 | PORTED + 3 tests: drain entity list -- walk from head, remove (fn_0112fd) + free (heap_free_guard, node-base) each node until empty | f.c |
 | [ ] | 0x032464 | 604 | FUN_00032464 | | |
 | [ ] | 0x034295 | 105 | FUN_00034295 | | |
 | [ ] | 0x0342ff | 83 | FUN_000342ff | | |

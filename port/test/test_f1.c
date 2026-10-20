@@ -6617,15 +6617,24 @@ static void test_fn_03rle(void) {
     for (int x = 0; x < 20; x++) { uint8_t want = (x >= 10) ? 0xAB : 0; if (scr[x] != want) { ok1 = 0; break; } }
     check(ok1 && scr[20] == 0, "  fill mode0: run@col10 len20 clipped to [10,20) with 0xAB");
 
-    /* --- FILL mode0 nonzero dest_off: OPEN (see scratch/PORT_03bebb_SPEC.md). The fill
-     *   DESTINATION with nonzero dest_off still needs the caller's exact base-register mapping.
-     *   Verify the port is non-destructive (fills exactly one contiguous run) as a smoke check. --- */
+    /* --- FILL mode0 dest_off=5 (>=0 so left=0, right=col=20): run skip=10 len=20 ->
+     *   col_acc=10, col_acc+rl=30 > right(20) -> RIGHT-clip. Faithful (disasm 0x03c06e):
+     *   fill @ db+col_acc = base+dest_off+col_acc = byte 15, cnt=rl-ovf=10 -> [15,25). --- */
     memset(scr, 0, 0x10000);
     fn_03bebb(base, 5, 0, 20, 1, rle, 0, 0x77);
-    int nz2=0, run2=1, started2=0;
-    for (int x = 0; x < 64; x++) { if (scr[x]) { nz2++; if(!started2)started2=1; else if(x!=last2+1)run2=0; last2=x; } }
-    (void)nz2; (void)run2; (void)started2;
-    check(nz2>0, "  fill mode0: dest_off=5 fills a run (dest base mapping pending, see spec)");
+    int ok2 = 1;
+    for (int x = 0; x < 30; x++) { uint8_t want = (x >= 15 && x < 25) ? 0x77 : 0; if (scr[x] != want) { ok2 = 0; break; } }
+    check(ok2, "  fill mode0: dest_off=5 run@col10 len20 right-clips to [15,25)");
+
+    /* --- FILL mode0 dest_off=-5 (<0 so left=5, right=col=15): run skip=10 len=20 ->
+     *   after the skip byte col_acc=10. left(5)>col_acc(10)? NO. col_acc+rl(30)>right(15)?
+     *   YES -> RIGHT-clip: ovf=30-15=15, cnt=rl-ovf=5, fill @ db+col_acc=(base-5)+10=byte 5
+     *   -> [5,10) count 5. Faithful to disasm 0x03c06e; probe-verified. --- */
+    memset(scr, 0, 0x10000);
+    fn_03bebb(base, -5, 0, 15, 1, rle, 0, 0x77);
+    int ok2b = 1;
+    for (int x = 0; x < 20; x++) { uint8_t want = (x >= 5 && x < 10) ? 0x77 : 0; if (scr[x] != want) { ok2b = 0; break; } }
+    check(ok2b, "  fill mode0: dest_off=-5 left-clips to [5,10) (faithful, probe-verified)");
 
     /* --- FILL mode0: two runs (skip0=5,len0=10),(skip1=3,len1=8), col=300 -> [5,15) + [18,26) --- */
     memset(scr, 0, 0x10000);

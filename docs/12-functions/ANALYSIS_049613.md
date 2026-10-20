@@ -78,6 +78,12 @@ lock the transcription.
 
 ## DEFERRED — next-context checklist
 1. Python ref `scratch/fp_049613_ref.py` mirroring the disasm exactly (both passes verbatim).
+   **NOT standalone — transitive callee ports required in Python:** the `fn_0495eb` call @0x4963c
+   (args EAX=G1, EDX=G2, EBX=`d->year`; returns 0/1) transitively needs Python ports of
+   `fn_049506 -> fn_04574a -> fn_0498f6`. The cycle is broken because `fn_049506` builds its
+   temp struct with `mode=0`, so `fn_04574a(temp)` takes the `TEST EBX,EBX;JGE` path and SKIPS
+   the `fn_049613` call (no infinite recursion). `is_leap` + `fx_less` are self-contained (easy).
+   All five are already ported + verified in C (f.c: fn_0495eb~3855, fn_049506~3826, fn_04574a~3785).
 2. C mirror `fn_049613` in `port/src/f/f.c`; **replace the no-op stub**; declare in `f.h`.
    Model globals `0x537ca` (ptr-to-flag), `0x53734`/`0x53758` (G1/G2) as `extern` vars the
    test controls.

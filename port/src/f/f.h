@@ -535,6 +535,7 @@ uint32_t fn_048fe6(uint32_t arg1, uint32_t arg2);
 int32_t fn_045bb7(uint32_t size);            /* 0x045bb7: DOS far-memory alloc/resize/verify; flat model always fails -> g_dat_64008=5, return -1 */
 int32_t fn_04a814(int32_t start, const uint32_t *key);  /* 0x04a814: upper-bound scan over powers-of-10 table @0x04a928 */
 int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, uint32_t *arg3, uint32_t eax_in); /* 0x04a367: *arg3(out) = scaled mantissa of the 10^(arg2-eax_in)-scaled double; return = fn_04a814(arg2, arg3) */
+char *fn_04a48f(double d, uint32_t width, uint32_t *p_cnt, uint32_t *p_flag, uint32_t format, char *out); /* 0x04a48f: double -> fixed/exponent decimal-ASCII string; returns out */
 
 /* Event-dispatch table (DAT_000537dc): 10 entries of {flag(2=done), key, fn}.
  * fn pointers reference game handlers (wired when those are ported; NULL until

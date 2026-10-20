@@ -8537,6 +8537,97 @@ int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, uint32_t *arg3, ui
     return fn_04a814(arg2, arg3);                              /* MOV EAX,ECX; MOV EDX,EBX; CALL 0x04a814 (updated arg3) */
 }
 
+/* ---- 0x04a48f: double -> fixed/exponent decimal-ASCII string formatter (485 B, 192 insns) ----
+ * ABI (7 stack args, all read from the stack; return = out in every path):
+ *   d      = the input double (A1:A2 as lo:hi dwords)
+ *   width  = A3, output digit-slot count (clamped [1,16] early, [1,17] final)
+ *   p_cnt  = A4, ptr to a 32-bit slot: written by fx_double_exp (unbiased exp), then
+ *            reused as a running digit-count (ADD/INC)  -- DUAL ROLE
+ *   p_flag = A5, ptr to a 32-bit flag/length out: 0 default, 0xffffffff if d<0,
+ *            the high-bytes OR value when acc==0
+ *   format = A6, format selector (0x46=='F' gates the fixed-point path)
+ *   out    = A7, the output string buffer (returned)
+ * Self-contained (no absolute memory ops). Sole caller: FUN_00049e80 (unported).
+ *
+ * Algorithm (control-flow-faithful to 0x04a48f): handle inf/nan (early return out);
+ * d==+/-0 (render the accumulator, which is 0); sign (d:=|d|, set negative flag);
+ * exponent -> digit estimate n=(3*|e|+5)/10; if 'F': width += signed est; width<0 -> skip;
+ * fractional/integer fast path (frac==0 && width>est -> flag, width=est); two fn_04a367
+ * digit-mantissa extractions into a 64-bit accumulator (2nd overwrites 1st when it runs);
+ * high-bytes OR test (acc!=0 -> render; else *p_flag=*p_cnt=0, if 'F' width-=est);
+ * render: clamp width to [1,17], fmt_u64_fixed(acc, buf, width), copy buf -> out. */
+char *fn_04a48f(double d, uint32_t width, uint32_t *p_cnt, uint32_t *p_flag,
+                uint32_t format, char *out)
+{
+    uint64_t dbits;
+    uint32_t dlo, dhi;
+    int32_t  ebx;
+    uint32_t acc[2] = {0, 0};    /* [EBP-0x2c] 64-bit digit accumulator (lo,hi) */
+    int32_t  e, edx;
+    uint32_t n_est;
+    uint8_t  flag8 = 0;          /* [EBP-0x18] integer fast-path flag */
+    double   frac;
+    int32_t  r1, r2;
+    char     buf[24];            /* [EBP-0x40] fmt_u64_fixed output field */
+
+    *p_flag = 0;                 /* 0x04a4ae */
+    *p_cnt  = 0;                 /* 0x04a4b5 */
+    if (fx_double_naninf(d, out)) return out;   /* 0x04a4bb: inf/nan -> return out */
+
+    memcpy(&dbits, &d, 8);
+    dlo = (uint32_t)dbits; dhi = (uint32_t)(dbits >> 32);
+    ebx = (int32_t)width;
+
+    if ((dhi & 0x7fffffff) == 0 && dlo == 0)   /* 0x04a4e5-0x04a4ef: d == +/-0 -> render 0 */
+        goto render;
+
+    /* 0x04a4f5: sign. JBE skip if d>=0; else clear sign (d:=|d|) + negative flag. */
+    if (d < 0.0) { d = -d; *p_flag = 0xffffffffu; }
+    memcpy(&dbits, &d, 8); dlo = (uint32_t)dbits; dhi = (uint32_t)(dbits >> 32);
+
+    /* 0x04a50e: exponent -> digit estimate. */
+    fx_double_exp(d, p_cnt);                /* *p_cnt = unbiased exponent */
+    e = (int32_t)(*p_cnt); if (e < 0) e = -e;           /* abs */
+    n_est = (3u * (uint32_t)e + 5u) / 10u;              /* (3*|e|+5)/10 */
+    edx = (*p_cnt >= 0) ? (int32_t)n_est : -(int32_t)n_est;   /* signed est */
+    *p_cnt = (uint32_t)edx;                 /* 0x04a549: counter = signed est */
+
+    if (format == 0x46) ebx += edx;         /* 0x04a550: 'F' -> width += signed est */
+    if (ebx < 0) goto skip;                 /* 0x04a554: JL -> skip extraction */
+    if (ebx > 0x10) ebx = 0x10;             /* 0x04a55a-0x04a55f: clamp to 16 */
+
+    /* 0x04a564-0x04a58b: fractional / integer fast path. */
+    flag8 = 0;
+    frac = d - fpu_rndint(d);               /* fn_04a7fa: fractional part */
+    if (frac == 0.0 && ebx > edx) {         /* FCOMPP JNZ skip if frac!=0; CMP EBX,EDX JLE skip */
+        flag8 = 1;
+        ebx = edx;
+    }
+
+    /* 0x04a58e: first digit-mantissa extraction (writes acc). */
+    r1 = fn_04a367(dlo, dhi, ebx, acc, *p_cnt);
+    if (r1 != 0) {                          /* 0x04a5a6: JZ -> skip */
+        *p_cnt += (uint32_t)r1;             /* 0x04a5ab */
+        if (format == 0x46 || flag8 != 0) ebx += r1;   /* 0x04a5ad-0x04a5b8 */
+        if (ebx < 1) ebx = 1;               /* 0x04a5ba-0x04a5bf */
+        if (ebx > 0x10) ebx = 0x10;         /* 0x04a5c6-0x04a5cb */
+        r2 = fn_04a367(dlo, dhi, ebx, acc, *p_cnt);     /* 0x04a5d0: 2nd (overwrites acc) */
+        if (r2 > 0) { *p_cnt += 1; ebx += 1; }          /* 0x04a5e4-0x04a5ec: JLE skip */
+    }
+skip:
+    /* 0x04a5ee: high-bytes OR of the accumulator. */
+    if ((acc[0] | acc[1]) != 0) goto render;   /* acc != 0 -> render */
+    *p_flag = 0;                            /* 0x04a614: *A5 = 0 */
+    *p_cnt  = 0;                            /* 0x04a619: *A4 = 0 */
+    if (format == 0x46) ebx -= edx;         /* 0x04a620: 'F' -> EBX -= EDX */
+render:
+    if (ebx < 1) ebx = 1;                   /* 0x04a622-0x04a627 */
+    if (ebx > 0x11) ebx = 0x11;             /* 0x04a62e-0x04a633 */
+    fmt_u64_fixed((const uint64_t *)acc, buf, ebx);   /* 0x04a638-0x04a644 */
+    strcpy(out, buf);                       /* 0x04a649-0x04a664: copy field -> out */
+    return out;
+}
+
 /* ---- 0x040efd / 0x0413e7 / 0x041410 (L12, 40 B each): thin port-write wrappers ----
  * Each is: PUSH 0x1c; CALL 0x0418ee (frame/canary, absorbed by the C frame); save EBX..EBP;
  * MOV EAX, <const>; CALL 0x041340; restore; RET. The register save/restore and the

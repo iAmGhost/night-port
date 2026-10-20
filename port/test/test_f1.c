@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 #include "../../scratch/fp_047f54_vectors.h"
 #include "../../scratch/fp_04794a_ctest.h"
 #include "../../scratch/vectors_0485eb.h"
@@ -6094,6 +6095,45 @@ static void test_fn_04a367(void) {
     check(accw==0, "04a367 writes *arg3 == fx_mantissa_scale(10^k-scaled double) (arg3 is OUT, not dead)");
 }
 
+static void test_fn_04a48f(void) {
+    printf("fn_04a48f (0x04a48f, double -> fixed/exponent decimal-ASCII string)\n");
+    /* Differential vs scratch/fp_04a48f_ref.py (independent re-implementation of the
+     * control flow + primitives). Each vector: d, width, format -> out, *p_cnt, *p_flag.
+     * Covers: inf/nan (±), 0, small integers (fast path), negative flag, non-'F' format,
+     * fractional (frac!=0), and multi-call paths. */
+    struct V { double d; uint32_t w, f; const char *out; uint32_t pcnt, pflag; };
+    static const struct V v[] = {
+        {1.0, 10, 0x46, "1", 1, 0},
+        {2.0, 10, 0x46, "2", 1, 0},
+        {0.0, 3, 0x46, "000", 0, 0},
+        {0.0, 5, 0x46, "00000", 0, 0},
+        {INFINITY, 5, 0x46, "inf", 0, 0},
+        {-INFINITY, 5, 0x46, "-inf", 0, 0},
+        {NAN, 5, 0x46, "nan", 0, 0},
+        {-NAN, 5, 0x46, "-nan", 0, 0},
+        {-1.0, 10, 0x46, "1", 1, 0xffffffff},
+        {-2.0, 10, 0x46, "2", 1, 0xffffffff},
+        {2.5, 5, 0x41, "25000", 1, 0},
+        {1234.0, 12, 0x46, "1234", 4, 0},
+        {1234.5, 12, 0x46, "1234500000000000", 4, 0},
+        {0.5, 8, 0x46, "50000000", 0, 0},
+        {100.0, 10, 0x46, "100", 3, 0},
+        {1.0, 1, 0x46, "1", 1, 0},
+        {1.0, 3, 0x00, "1", 1, 0},
+        {55.0, 4, 0x46, "55", 2, 0},
+        {98765.0, 10, 0x46, "98765", 5, 0},
+    };
+    int n = (int)(sizeof(v)/sizeof(v[0]));
+    int mism = 0;
+    for (int i = 0; i < n; i++) {
+        char out[64]; uint32_t pcnt = 0xdeadbeefu, pflag = 0x12345678u;
+        char *r = fn_04a48f(v[i].d, v[i].w, &pcnt, &pflag, v[i].f, out);
+        int ok = (r == out) && (strcmp(out, v[i].out) == 0) && (pcnt == v[i].pcnt) && (pflag == v[i].pflag);
+        if (!ok) { if (mism < 5) printf("    FAIL d=%g w=%u f=%02x out=\"%s\"(want \"%s\") pcnt=%u(want %u) pflag=%08x(want %08x)\n", v[i].d, v[i].w, v[i].f, out, v[i].out, pcnt, v[i].pcnt, pflag, v[i].pflag); mism++; }
+    }
+    check(mism==0, "04a48f matches Python ref over 19 vectors (out, *p_cnt, *p_flag)");
+}
+
 static void test_fn_045bb7(void) {
     printf("fn_045bb7 (0x045bb7, DOS far-memory alloc/resize/verify)\n");
     /* Flat model: no DOS far memory -> every path hits a failing INT 21 AH=0x4A ->
@@ -6472,6 +6512,7 @@ int main(void) {
     test_fn_047b4f();
     test_fn_04a814();
     test_fn_04a367();
+    test_fn_04a48f();
     test_fn_040efd_wrappers();
     test_fn_035c2d_040948();
     test_fn_0411d9();

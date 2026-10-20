@@ -6446,6 +6446,32 @@ static void test_fn_03237b(void) {
     heap_arena_init();
 }
 
+static void test_fn_037922(void) {
+    printf("fn_037922 (0x037922): clear-all-state cleanup\n");
+    heap_arena_init();
+    heap_acquire_region(0x4000);
+    /* defensive: ensure the 8 globals start unset */
+    g_dat_639c0 = g_dat_53c8c = g_dat_63e00 = g_dat_639ec = 0;
+    g_dat_63d10 = g_dat_63dd4 = g_dat_53c00 = g_dat_53b3c = 0;
+    for (uint32_t i = 0; i < 100; i++) g_pool_53d0c[i] = 0;
+    /* pool[0] = a valid offset; two struct/container globals set */
+    g_pool_53d0c[0] = heap_malloc(0x20);
+    uint32_t so = heap_malloc(15*4);            /* fn_03de85-style struct, sub-objs zeroed */
+    uint32_t *s = (uint32_t *)(g_heap_base + so); memset(s, 0, 15*4); g_dat_639c0 = s;
+    uint32_t co = heap_malloc(2*4);             /* fn_0100d9 container {count=0, array=0} */
+    uint32_t *c = (uint32_t *)(g_heap_base + co); c[0] = 0; c[1] = 0; g_dat_53b3c = c;
+    fn_037922();
+    check(g_dat_639c0 == 0, "  g_639c0 cleared");
+    check(g_dat_53c8c == 0, "  g_53c8c cleared");
+    check(g_dat_63e00 == 0, "  g_63e00 cleared");
+    check(g_dat_639ec == 0, "  g_639ec cleared");
+    check(g_dat_63d10 == 0, "  g_63d10 cleared");
+    check(g_dat_53b3c == 0, "  g_53b3c cleared");
+    check(g_dat_63dd4 == 0, "  g_63dd4 cleared");
+    check(g_dat_53c00 == 0, "  g_53c00 cleared");
+    heap_arena_init();
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -6775,6 +6801,7 @@ int main(void) {
     test_fn_03de85();
     test_fn_0323f8();
     test_fn_03237b();
+    test_fn_037922();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

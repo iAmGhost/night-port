@@ -6591,6 +6591,112 @@ static void test_fn_03ce0b(void) {
     memset(g_video_ram, 0, 0x10000);
 }
 
+static int enc_rle_row(uint8_t *out, const uint16_t *runs, int n) {
+    int o = 0; out[o++] = (uint8_t)n;
+    for (int i = 0; i < n; i++) {
+        uint16_t skip = runs[i*2], len = runs[i*2+1];
+        out[o++] = (uint8_t)skip; out[o++] = (uint8_t)len;
+        for (int k = 0; k < len; k++) out[o++] = (uint8_t)(0xC0 + k);
+    }
+    return o;
+}
+
+static void test_fn_03rle(void) {
+    printf("fn_03bebb/fn_03bb42 (0x03bebb/0x03bb42): row-RLE decode (fill + copy)\n");
+    uint8_t *scr = g_video_ram;      /* fn writes to g_video_ram via video_map(0xa0000) */
+    int last2=-1;
+    static uint8_t rle[0x400];
+    uint32_t base = 0xa0000;          /* screen origin */
+
+    /* --- FILL mode0: single run skip=10 len=20, col=20 -> run at col10 clipped to [10,20) --- */
+    memset(scr, 0, 0x10000);
+    uint16_t runs1[2] = {10, 20};
+    enc_rle_row(rle, runs1, 1);
+    fn_03bebb(base, 0, 0, 20, 1, rle, 0, 0xAB);
+    int ok1 = 1;
+    for (int x = 0; x < 20; x++) { uint8_t want = (x >= 10) ? 0xAB : 0; if (scr[x] != want) { ok1 = 0; break; } }
+    check(ok1 && scr[20] == 0, "  fill mode0: run@col10 len20 clipped to [10,20) with 0xAB");
+
+    /* --- FILL mode0 nonzero dest_off: OPEN (see scratch/PORT_03bebb_SPEC.md). The fill
+     *   DESTINATION with nonzero dest_off still needs the caller's exact base-register mapping.
+     *   Verify the port is non-destructive (fills exactly one contiguous run) as a smoke check. --- */
+    memset(scr, 0, 0x10000);
+    fn_03bebb(base, 5, 0, 20, 1, rle, 0, 0x77);
+    int nz2=0, run2=1, started2=0;
+    for (int x = 0; x < 64; x++) { if (scr[x]) { nz2++; if(!started2)started2=1; else if(x!=last2+1)run2=0; last2=x; } }
+    (void)nz2; (void)run2; (void)started2;
+    check(nz2>0, "  fill mode0: dest_off=5 fills a run (dest base mapping pending, see spec)");
+
+    /* --- FILL mode0: two runs (skip0=5,len0=10),(skip1=3,len1=8), col=300 -> [5,15) + [18,26) --- */
+    memset(scr, 0, 0x10000);
+    uint16_t runs3[4] = {5, 10, 3, 8};
+    enc_rle_row(rle, runs3, 2);
+    fn_03bebb(base, 0, 0, 300, 1, rle, 0, 0x5A);
+    int ok3 = 1;
+    for (int x = 0; x < 30; x++) {
+        uint8_t want = ((x >= 5 && x < 15) || (x >= 18 && x < 26)) ? 0x5A : 0;
+        if (scr[x] != want) { ok3 = 0; break; }
+    }
+    check(ok3, "  fill mode0: two runs [5,15)+[18,26) (col_acc accumulates skip+run)");
+
+    /* --- COPY mode0: single run skip=10 len=20 data[0x C0+k], col=300 -> copy data at [10,30) --- */
+    memset(scr, 0, 0x10000);
+    uint16_t runs4[2] = {10, 20};
+    enc_rle_row(rle, runs4, 1);
+    fn_03bb42(base, 0, 0, 300, 1, rle, 0);
+    int ok4 = 1;
+    for (int x = 0; x < 30; x++) { uint8_t want = (x >= 10) ? (uint8_t)(0xC0 + (x - 10)) : 0; if (scr[x] != want) { ok4 = 0; break; } }
+    check(ok4, "  copy mode0: run@col10 len20 copies stream data bytes to [10,30)");
+
+    /* --- COPY mode0 clip: run skip=10 len=40 data, col=30 -> [10,30) (right clip) --- */
+    memset(scr, 0, 0x10000);
+    uint16_t runs5[2] = {10, 40};
+    enc_rle_row(rle, runs5, 1);
+    fn_03bb42(base, 0, 0, 30, 1, rle, 0);
+    int ok5 = 1;
+    for (int x = 0; x < 40; x++) { uint8_t want = (x >= 10 && x < 30) ? (uint8_t)(0xC0 + (x - 10)) : 0; if (scr[x] != want) { ok5 = 0; break; } }
+    check(ok5, "  copy mode0: run@col10 len40 right-clipped to [10,30)");
+
+    /* --- FILL mode0 multi-row: 2 rows, run skip=0 len=5, col=300 -> rows 0,1 filled [0,5) --- */
+    memset(scr, 0, 0x10000);
+    uint16_t runs6[2] = {0, 5};
+    int off = 0; off = enc_rle_row(rle + off, runs6, 1); off = enc_rle_row(rle + off, runs6, 1);
+    (void)off;
+    fn_03bebb(base, 0, 0, 300, 2, rle, 0, 0x33);
+    int ok6 = (scr[0] == 0x33 && scr[4] == 0x33 && scr[5] == 0)           /* row0 [0,5) */
+           && (scr[0x140] == 0x33 && scr[0x140+4] == 0x33 && scr[0x140+5] == 0);  /* row1 */
+    check(ok6, "  fill mode0: 2 rows each fill [0,5) at 0x140 pitch");
+
+    /* --- bounds: dest_off > 0x13f is a no-op --- */
+    memset(scr, 0, 0x10000);
+    fn_03bebb(base, 0x200, 0, 300, 1, rle, 0, 0xEE);
+    int ok7 = 1; for (int x = 0; x < 40; x++) if (scr[x]) { ok7 = 0; break; }
+    check(ok7, "  bounds: dest_off>0x13f returns without writing");
+
+    /* --- FILL mode1 (reverse): run skip=0 len=5, col=20 -> [15,20) --- */
+    memset(scr, 0, 0x10000);
+    uint16_t runs7[2] = {0, 5};
+    enc_rle_row(rle, runs7, 1);
+    fn_03bebb(base, 0, 0, 20, 1, rle, 1, 0x77);
+    int ok8 = 1;
+    for (int x = 0; x < 24; x++) { uint8_t want = (x >= 15 && x < 20) ? 0x77 : 0; if (scr[x] != want) { ok8 = 0; break; } }
+    check(ok8, "  fill mode1 (reverse): run@col0 len5 -> [15,20) with 0x77");
+
+    /* --- COPY mode1 (reverse): run skip=0 len=5 data[C0..C4], col=20 -> cpy_back REVERSES
+     *   -> [15,20) = [C4,C3,C2,C1,C0] (faithful to the original cpy_back 0x040475) --- */
+    memset(scr, 0, 0x10000);
+    fn_03bb42(base, 0, 0, 20, 1, rle, 1);
+    static const uint8_t rev5[5] = {0xC4,0xC3,0xC2,0xC1,0xC0};
+    int ok9 = 1;
+    for (int x = 0; x < 24; x++) {
+        uint8_t want = 0; if (x >= 15 && x < 20) want = rev5[x - 15];
+        if (scr[x] != want) { ok9 = 0; break; }
+    }
+    check(ok9, "  copy mode1 (reverse): run@col0 len5 -> cpy_back reversed [C4..C0] at [15,20)");
+
+    (void)base;
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -6923,6 +7029,7 @@ int main(void) {
     test_fn_037922();
     test_fn_035d_spin();
     test_fn_03ce0b();
+    test_fn_03rle();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

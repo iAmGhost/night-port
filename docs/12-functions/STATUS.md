@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 391 / 528 done
+TOTALS: 392 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 391 / 528 done
 | L7 | 8 | 5 | 0 | 0 | 3 |
 | L8 | 7 | 4 | 0 | 0 | 3 |
 | L9 | 2 | 2 | 0 | 0 | 0 |
-| L10 | 81 | 66 | 0 | 0 | 15 |
+| L10 | 81 | 67 | 0 | 0 | 14 |
 | L11 | 77 | 48 | 0 | 0 | 29 |
 | L12 | 58 | 23 | 0 | 0 | 35 |
 | L13 | 16 | 7 | 0 | 0 | 9 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-13 | **0x03bb42 (L10, 888 B) PORTED + 5 tests; 0x03bebb (L10, 885 B) core ported + 7/10 tests -- the row-RLE blit PAIR.** Both decode a row-RLE stream ([N runs][per run: skip_byte, run_len, <run_len data>]; col_acc accumulates skip+run) and blit into the 0xa0000 video arena (row pitch 0x140, 200 rows) via video_map(). 0x03bb42 = COPY (forward mem_copy 0x041e6c / reverse cpy_back 0x040475 which REVERSES the bytes); 0x03bebb = constant FILL (fn_041e20 memset). Both have mode0 (forward, left/right clip) + mode1 (reverse) paths; dest base = caller EAX (flat video addr). KEY: the decompiler merges EAX:EDX into a bogus 64-bit lVar, so the base must be derived from the caller's register setup. 0x03bb42 fully verified (5 checks: fwd copy, fwd clip, rev cpy_back reversed, + fill siblings). 0x03bebb verified for dest_off=0 (fwd fill, multi-run col_acc, 2-row, bounds, both mode1) but the nonzero-dest_off fill DESTINATION is OPEN -- the exact caller register->param mapping (EAX vs EDX vs base) needs a fresh careful disasm pass (decompiler unreliable). 2 smoke-checks stand in for the 2 open dest_off checks. Full spec: scratch/PORT_03bebb_SPEC.md. L10 66->67, TOTALS 391->392/528. Suite 1539->1548 PASS 0 FAIL. | f.c, f.h, test_f1.c, STATUS.md, PORT_03bebb_SPEC.md |
 | 2026-07-13 | **0x03ce0b (L10, 692 B) PORTED + 10 tests -- 4-branch sprite-draw (viewport blit).** EAX=ent (0x354-byte viewport), EDX=dst (0xa0000-based screen buffer). Uses the established video-arena model (cf. 0x03c65b/0x034990): blit src is a flat 0xa0000 video addr = g_639dc (sprite-RAM base, set by 0x03cad3) + sprite offset, via video_map(). Dispatch on g_639e4/g_639e0 vs ent[0x4]/[0xc]: B0 (g_639e4==0) 1 full blit; B1 (g_639e0<ent[0x4]) 2 blits w/ sibling ent[0x350]; B2 (g_639e0+0xc8>ent[0xc]) 2 blits w/ sibling ent[0x34c]; B3 else 1 scrolled blit. **KEY: ent[0x350]/ent[0x34c] are POINTER fields (deref, 64-bit in the flat model)** -- the first port attempt read them as field offsets (s1=e+0x350) -> UAF; fixed to `*(uint64_t*)(e+0x350)`. Epilogue: ent[0x22]=0, ent[0x1e]=0, if (g_63360%10==0) board_out(0,0x100,g_63354+0x48). 10 checks (all 4 dispatches + epilogue + B0 pixel + periodic no-crash). **Latent-bug fix discovered while testing: fn_04a814 (the 0x04a814 pow10-table scan) has an UNBOUNDED forward+backward read (orig does SUB EDI,0x8 off both ends); my adding g_dat_63360 shifted the data layout and turned the latent OOB (benign in the original layout, and in baseline non-ASan) into a crash -- the BASELINE ASan build also aborts on it (f.c:8842). Added `if(e>=22)break` / `if(e<0)break` guards: valid-input behavior unchanged (real keys always resolve in-table), OOB reads eliminated.** Test uses heap (calloc) buffers, not large statics (a 0x30000 static shifted the data layout and re-exposed a latent OOB in 03de85's heap path). L10 65->66, TOTALS 390->391/528. Suite 1529->1539 PASS 0 FAIL (non-ASan). NOTE: ASan-only `caseD_8` FAIL is a pre-existing ASan-layout artifact (baseline ASan aborts on the fn_04a814 OOB instead); non-ASan (the suite standard) is fully green. | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **0x035d5d + 0x035dfc (L10) PORTED as degenerate no-op standins + 3 tests.** Both are 3-tier nested 4-flag busy-waits over g_dat_63e88[] bytes (A=[0x39]=0x63ec1, B=[0x1c]=0x63ea4, C=[0x1d]=0x63ea5, D=[0x38]=0x63ec0); 0x035dfc adds a [0x63e89] (g_dat_63e88[1]) sub-spin and returns 0/1. KEY FINDING: the first check waits until all 4 flags clear, but the SECOND (and 3rd) check JUMPS BACK (re-spins) when all four are clear -- so with the flat model's static zero-initialized g_dat_63e88 the routines never make progress and would loop forever (degenerate, exactly like fn_00035ec2 / fn_00035d0f). No register args are read; no observable effect. Ported as no-op standins (fn_00035dfc returns the all-idle value 0). Test (test_fn_035d_spin): seed g_dat_63e88 with a pattern, call both, verify no side effect on the flags + fn_00035dfc returns 0 -- 3 checks, FIRST-TRY PASS (1 mechanical fix: test called fn_035d5d with one 0 vs the declared fn_00035d5d with two -- sibling fn_0003XXXXX convention). L10 63->65, TOTALS 388->390/528. Suite 1526->1529 PASS 0 FAIL. (finish-mid-tiers: closes the last two spin-wait deferrals from the L10 frontier; 0x03ce0b 4-branch sprite-draw + 0x03bebb/0x03bb42 RLE-blit pair remain as the next large rendering fns.) | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **0x037922 (L12, 480 B) PORTED + 8 tests -- clear-all-state cleanup.** Frees the 100 pooled objects (offsets in g_pool_53d0c; heap_free_host is NULL-tolerant for the unset ones), then for 8 struct/container globals (0x639c0/0x53c8c/0x63e00/0x639ec/0x63d10/0x63dd4 via fn_03d999, 0x53b3c/0x53c00 via fn_0100d9): `if (g) { destructor(g); heap_free_guard(host_to_off(g)); g = 0; }`. KEY CONVENTION: the pool stores heap OFFSETS (heap_free_host takes offset directly) while the 8 struct globals store HOST POINTERS (destructors take uint32_t* and dereference s[0]/s[1]); the destructor returns the input host ptr in the flat model, so the free uses `host_ptr - g_heap_base` directly (host_to_off helper, pattern of fn_03b9b7). 9 new globals declared. Test: fresh heap region, set pool[0] + g_639c0 (15-dword zeroed struct) + g_53b3c (2-dword container), call, verify all 8 globals cleared -- 8 checks, FIRST-TRY PASS. L12 22->23, TOTALS 387->388/528. Suite 1518->1526 PASS 0 FAIL. (finish-mid-tiers batch 3.) | f.c, f.h, test_f1.c, STATUS.md |
@@ -673,8 +674,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [ ] | 0x03a5f7 | 278 | FUN_0003a5f7 | | |
 | [x] | 0x03b5c0 | 189 | FUN_0003b5c0 | list | reg-ABI insert; append node (flag/ECX/EDX/EBX payload); next@0x11/prev@0x19 (8B) |
 | [x] | 0x03b67e | 153 | FUN_0003b67e | list | reg-ABI remove; head/tail/middle splice; latent null-deref on last node |
-| [ ] | 0x03bb42 | 888 | FUN_0003bb42 | | |
-| [ ] | 0x03bebb | 885 | FUN_0003bebb | | |
+| [x] | 0x03bb42 | 888 | fn_03bb42 | PORTED + tested: COPY row-RLE blit (forward mem_copy / reverse cpy_back); 5 checks PASS |
+| [ ] | 0x03bebb | 885 | fn_03bebb | core ported + 7/10 tested; OPEN: nonzero-dest_off fill-destination base mapping (decompiler EAX:EDX 64-bit merge) -- spec at scratch/PORT_03bebb_SPEC.md |
 | [ ] | 0x03c231 | 1065 | FUN_0003c231 | | |
 | [x] | 0x03c65b | 143 | fn_03c65b | video flatten | video-RAM model (g_video_ram) + 3 checks PASS |
 | [ ] | 0x03c72b | 171 | FUN_0003c72b | | |

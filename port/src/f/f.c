@@ -4658,6 +4658,189 @@ void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
     if ((int32_t)g_dat_63360 % 10 == 0) board_out(0, 0x100, g_dat_63354 + 0x48);
 }
 
+/* fn_03bebb  orig: 0x03bebb (L10, 885 B) -- constant-fill row-RLE blit (forward/reverse).
+ * ABI: EAX=base (flat 0xa0000 video addr), EDX=dest_off (signed, <=0x13f), EBX=start_row
+ *      (signed), ECX=col; stack: row_count, rle (const uint8_t*), mode (char), fill_byte.
+ * RLE row = [N runs] then per run: col_byte (skip width, added to col_acc), run_len (width),
+ *           <run_len data bytes> (skipped -- replaced by fill_byte). col_acc = current column.
+ * dest byte = video_map(base + start_row*0x140 + dest_off + col_off); row pitch 0x140.
+ * mode0 forward: left/right clip; mode1 reverse: right-to-left fill (dest = base+..+col-1-...).
+ * Faithful to disasm incl. the skip-loop advancing by (col_byte+2) and the left-clip branch
+ * NOT re-clipping the right edge (run clipped on both sides over-fills right). */
+void fn_03bebb(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
+               uint32_t row_count, const uint8_t *rle, int32_t mode, uint8_t fill_byte) {
+    (void)canary_id((uintptr_t)base, 0x3c);
+    if (dest_off > 0x13f) return;
+    if ((int32_t)(dest_off + col) < 0) return;
+    if (start_row > 0xc8) return;
+    if ((int32_t)(start_row + (int32_t)row_count) < 0) return;
+
+    const uint8_t *p = rle;
+    if (start_row < 0) {
+        for (int32_t i = 0; i < -start_row; i++) {
+            uint32_t N = p[0];
+            p += 2;
+            for (uint32_t j = 0; j < N; j++)
+                p += (uint32_t)p[0] + 2;   /* faithful: skips by col_byte+2, not run_len+2 */
+            p -= 1;
+        }
+        row_count += (uint32_t)start_row;   /* start_row<0 -> subtract |start_row| */
+        start_row = 0;
+    } else {
+        if ((uint32_t)(start_row + (int32_t)row_count) > 0xc8)
+            row_count = 0xc8 - (uint32_t)start_row;
+    }
+
+    if (mode == 0) {
+        uint32_t db = base + (uint32_t)start_row * 0x140 + (uint32_t)dest_off;
+        int32_t left = 0;
+        if (dest_off < 0) left = -dest_off;
+        int32_t right = col;
+        if (dest_off + col > 0x140) right = 0x140 - dest_off;
+        for (uint32_t r = 0; r < row_count; r++) {
+            uint32_t N = p[0]; p += 1;
+            int32_t col_acc = 0;
+            for (uint32_t i = 0; i < N; i++) {
+                uint32_t cb = p[0]; p += 1;
+                col_acc += (int32_t)cb;
+                uint32_t rl = p[0]; p += 1;
+                if (left > col_acc) {
+                    int32_t skip = left - col_acc;
+                    int32_t cnt = (int32_t)rl - skip;
+                    if (cnt > 0) fn_041e20(video_map(db + (uint32_t)left), fill_byte, (uint32_t)cnt);
+                } else if (col_acc + (int32_t)rl > right) {
+                    int32_t ovf = col_acc + (int32_t)rl - right;
+                    int32_t cnt = (int32_t)rl - ovf;
+                    if (cnt > 0) fn_041e20(video_map(db + (uint32_t)col_acc), fill_byte, (uint32_t)cnt);
+                } else {
+                    fn_041e20(video_map(db + (uint32_t)col_acc), fill_byte, rl);
+                }
+                p += rl;
+                col_acc += (int32_t)rl;
+            }
+            db += 0x140;
+        }
+    } else {
+        uint32_t db = base + (uint32_t)start_row * 0x140 + (uint32_t)dest_off + (uint32_t)col - 1;
+        int32_t left = 0;
+        if (dest_off + col > 0x140) left = dest_off + col - 0x140;
+        if (dest_off < 0) col += dest_off;
+        for (uint32_t r = 0; r < row_count; r++) {
+            uint32_t N = p[0]; p += 1;
+            int32_t col_acc = 0;
+            for (uint32_t i = 0; i < N; i++) {
+                uint32_t cb = p[0]; p += 1;
+                col_acc += (int32_t)cb;
+                uint32_t rl = p[0]; p += 1;
+                if (left > col_acc) {
+                    int32_t skip = left - col_acc;
+                    int32_t cnt = (int32_t)rl - skip;
+                    if (cnt > 0)
+                        fn_041e20(video_map(db - rl - (uint32_t)col_acc + 1), fill_byte, (uint32_t)cnt);
+                } else if (col_acc + (int32_t)rl > col) {
+                    int32_t ovf = col_acc + (int32_t)rl - col;
+                    int32_t cnt = (int32_t)rl - ovf;
+                    if (cnt > 0) fn_041e20(video_map(db - (uint32_t)col + 1), fill_byte, (uint32_t)cnt);
+                } else {
+                    fn_041e20(video_map(db - rl - (uint32_t)col_acc + 1), fill_byte, rl);
+                }
+                p += rl;
+                col_acc += (int32_t)rl;
+            }
+            db += 0x140;
+        }
+    }
+}
+
+/* fn_03bb42  orig: 0x03bb42 (L10, 888 B) -- COPY row-RLE blit (forward/reverse).
+ * Identical structure to fn_03bebb but the per-run primitive is a byte COPY of the
+ * stream data (forward: mem_copy; reverse: cpy_back) instead of a constant fill. */
+void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
+               uint32_t row_count, const uint8_t *rle, int32_t mode) {
+    (void)canary_id((uintptr_t)base, 0x48);
+    if (dest_off > 0x13f) return;
+    if ((int32_t)(dest_off + col) < 0) return;
+    if (start_row > 0xc8) return;
+    if ((int32_t)(start_row + (int32_t)row_count) < 0) return;
+
+    const uint8_t *p = rle;
+    if (start_row < 0) {
+        for (int32_t i = 0; i < -start_row; i++) {
+            uint32_t N = p[0];
+            p += 2;
+            for (uint32_t j = 0; j < N; j++)
+                p += (uint32_t)p[0] + 2;
+            p -= 1;
+        }
+        row_count += (uint32_t)start_row;
+        start_row = 0;
+    } else {
+        if ((uint32_t)(start_row + (int32_t)row_count) > 0xc8)
+            row_count = 0xc8 - (uint32_t)start_row;
+    }
+
+    if (mode == 0) {
+        uint32_t db = base + (uint32_t)start_row * 0x140 + (uint32_t)dest_off;
+        int32_t left = 0;
+        if (dest_off < 0) left = -dest_off;
+        int32_t right = col;
+        if (dest_off + col > 0x140) right = 0x140 - dest_off;
+        for (uint32_t r = 0; r < row_count; r++) {
+            uint32_t N = p[0]; p += 1;
+            int32_t col_acc = 0;
+            for (uint32_t i = 0; i < N; i++) {
+                uint32_t cb = p[0]; p += 1;
+                col_acc += (int32_t)cb;
+                uint32_t rl = p[0]; p += 1;
+                const uint8_t *data = p;   /* stream data for this run */
+                if (left > col_acc) {
+                    int32_t skip = left - col_acc;
+                    int32_t cnt = (int32_t)rl - skip;
+                    if (cnt > 0) mem_copy(video_map(db + (uint32_t)left), data + skip, (uint32_t)cnt);
+                } else if (col_acc + (int32_t)rl > right) {
+                    int32_t ovf = col_acc + (int32_t)rl - right;
+                    int32_t cnt = (int32_t)rl - ovf;
+                    if (cnt > 0) mem_copy(video_map(db + (uint32_t)col_acc), data, (uint32_t)cnt);
+                } else {
+                    mem_copy(video_map(db + (uint32_t)col_acc), data, rl);
+                }
+                p += rl;
+                col_acc += (int32_t)rl;
+            }
+            db += 0x140;
+        }
+    } else {
+        uint32_t db = base + (uint32_t)start_row * 0x140 + (uint32_t)dest_off + (uint32_t)col - 1;
+        int32_t left = 0;
+        if (dest_off + col > 0x140) left = dest_off + col - 0x140;
+        if (dest_off < 0) col += dest_off;
+        for (uint32_t r = 0; r < row_count; r++) {
+            uint32_t N = p[0]; p += 1;
+            int32_t col_acc = 0;
+            for (uint32_t i = 0; i < N; i++) {
+                uint32_t cb = p[0]; p += 1;
+                col_acc += (int32_t)cb;
+                uint32_t rl = p[0]; p += 1;
+                const uint8_t *data = p;
+                if (left > col_acc) {
+                    int32_t skip = left - col_acc;
+                    int32_t cnt = (int32_t)rl - skip;
+                    if (cnt > 0) cpy_back(video_map(db - (uint32_t)(col_acc + skip)), data + skip, (int)cnt);
+                } else if (col_acc + (int32_t)rl > col) {
+                    int32_t ovf = col_acc + (int32_t)rl - col;
+                    int32_t cnt = (int32_t)rl - ovf;
+                    if (cnt > 0) cpy_back(video_map(db - (uint32_t)col + 1), data, (int)cnt);
+                } else {
+                    cpy_back(video_map(db - (uint32_t)col_acc), data, (int)rl);
+                }
+                p += rl;
+                col_acc += (int32_t)rl;
+            }
+            db += 0x140;
+        }
+    }
+}
+
 uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
 uint32_t g_dat_40014 = 0, g_dat_40018 = 0, g_dat_4001c = 0, g_dat_40020 = 0;
 /* 0x0405de: store 4 16-bit values. ABI p1=EAX, p2=EDX, p3=EBX, p4=ECX. Each is

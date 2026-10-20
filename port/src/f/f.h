@@ -759,6 +759,14 @@ extern uint32_t  g_dat_62d68[200];      /* DAT_00062d68: head-node offset per li
 extern uint8_t g_video_ram[0x10000];
 void fn_03c65b(uint8_t *a0);           /* 0x03c65b: video flatten (200 lists -> 0x140 packed records) */
 void fn_03ce0b(uint8_t *ent, uint8_t *dst);  /* 0x03ce0b: 4-branch sprite-draw (viewport blit, video-arena src) */
+
+/* 0x03bebb: constant-fill row-RLE blit (forward/reverse). EAX=base(flat 0xa0000 video
+ * addr), EDX=dest_off(signed,<0x140), EBX=start_row(signed), ECX=col; stack: row_count,
+ * rle, mode, fill_byte. 0x03bb42: identical but copy (mem_copy/cpy_back) instead of fill. */
+void fn_03bebb(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
+               uint32_t row_count, const uint8_t *rle, int32_t mode, uint8_t fill_byte);
+void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
+               uint32_t row_count, const uint8_t *rle, int32_t mode);
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */
 void     fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p);  /* 0x03ba86: nested-list builder from byte stream */
 void     fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count);  /* 0x03a594: copy bytes != 0xff */

@@ -23,16 +23,21 @@ int32_t fn_049613(struct dec_datetime *d);
   - leap cumulative    @`0x5197a` (13 entries): `[0,31,60,91,121,152,182,213,244,274,305,335,366]`
   - direct 16-bit read @`0x51962` = 31 (a doy threshold, @0x4977c and @0x4987a).
 
-### Day-in-month formula (verified)
-The code loads two int16 entries 2 bytes apart and subtracts:
-- nonleap: `A=[0x5195e + m*2]`, `B=[0x51960 + m*2]` → `days = B - A = nl[m+1]-nl[m]`
-- leap:    `A=[0x51978 + m*2]`, `B=[0x5197a + m*2]` → `days = B - A = lp[m]-lp[m-1]`
-  (0x51978 is the last nonleap entry `nl[13]=365`; the leap table begins at 0x5197a.)
-This yields the standard day counts (Jan=31, Feb=28/29, …) **with `m = d->month` behaving
-1-based** (m=1 → Jan → 31). NOTE: fn_04574a treats `d.month` 0-based for its own table
-(`month % 12`). Whether the normalized month handed to fn_049613 is 0- or 1-based must be
-confirmed when the ref is written — **the C-vs-Python diff test does not depend on this**
-(both replicate the same raw memory access).
+### Day-in-month formula (verified — CORRECTED)
+**Key subtlety:** the sequence is `MOV reg, [base + m*2]` (a 32-bit load) then `SAR reg, 16`,
+which extracts the int16 at **base+m*2+2** (the int32 load grabs two int16s; SAR 16 keeps the
+high one), NOT at base+m*2. Model the raw layout as int16 array `T` (base 0x51958, index i →
+0x51958+2i):
+```
+T = [0,0,0,0, 0,0,31,59,90,120,151,181,212,243,273,304,334,365, 0,31,60,91,121,152,182,213,244,274,305,335,366]
+```
+- nonleap: `EAX = T[4+m]`, `EDX = T[5+m]`  → `days = T[5+m] - T[4+m]`
+- leap:    `EAX = T[17+m]`, `EDX = T[18+m]` → `days = T[18+m] - T[17+m]`
+**Verified (m = d->month, 0-BASED, 0=Jan):** m=0→31 (Jan), m=1→28 nonleap / 29 leap (Feb),
+m=11→31 (Dec). Consistent with fn_04574a's 0-based month. (An earlier draft of this doc had
+`nl[m+1]-nl[m]` / 1-based — that was off by one entry; the above is the corrected, verified
+formula. The C-vs-Python diff still just replicates this exact access, so it is agnostic to
+the 0-based convention.)
 
 ## Callees (all ported)
 - `fn_0495eb` (0x495eb): date compare `int32_t fn_0495eb(struct dec_datetime *x, struct dec_datetime *y, int32_t ref_year)`.

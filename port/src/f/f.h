@@ -654,6 +654,12 @@ extern uint32_t  g_node_list_done;   /* DAT_00063ff8: head offset */
  * the done list. No-op if not found.  orig: 0x044b5d */
 void node_deactivate(uint32_t rec_off);
 
+/* 0x044ab5: file-structure record allocator. Allocates a 0x1a-byte record from the
+ * 26-entry pool at g_ndpool+0x53410 (heap fallback / in-heap overflow), wires a fresh
+ * node onto the front of the ACTIVE list. Returns the record pointer, or NULL (and
+ * g_dat_64008=5) on allocation failure. */
+uint8_t *fn_044ab5(void);
+
 /* 0x043234: walk the active node list (head g_node_list_active, offset-based via
  * g_ndpool). For each node, rec = base + node->rec (the io_state). If (rec[0xc] &
  * mask) count++; if additionally (rec[0xd] & 0x10) call fn_044748(rec) (flush).

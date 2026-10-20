@@ -3417,6 +3417,59 @@ void node_deactivate(uint32_t rec_off)   /* 0x44b5d */
     }
 }
 
+/* 0x044ab5 (L6, 57 insns, 0 FPU): file-structure RECORD allocator. Allocates one
+ * 0x1a-byte record from the 26-entry pool at g_ndpool+0x53410 (stride 0x1a, ends
+ * 0x53618), falling back to the heap; wires a fresh 8-byte node (heap) onto the
+ * front of the ACTIVE list (0x63ffc). Returns the record POINTER, or NULL (and
+ * g_dat_64008=5) on allocation failure. Single caller FUN_000426f2 passes the
+ * return as a record pointer (reg-ABI ECX) to fn_04262a, so it returns uint8_t*.
+ * 3 paths (disassembly-verified, disassemble_bytes):
+ *   WARM  (g_node_list_done!=0): reuse the done head node; record = g_ndpool +
+ *           node->rec; flags = (rec->flags & 0x4003) | 0x3; done head = node->next.
+ *   POOL  (done empty): scan g_ndpool[0x53410..0x53618) for a free record (flags
+ *           & 0x3 == 0); allocate an 8-byte node; flags = 0x3.
+ *   OVERFLOW (pool exhausted): heap_malloc(0x22); node at +0, record at +8 (in-heap);
+ *           flags = 0x4003.
+ * All three converge on FINALIZE: memset(record,0,0x1a); rec->flags = flags; node->rec
+ * = record offset; g_node_list_active = node; node->next = old active head; return
+ * record. Nodes live in g_heap_base (heap_malloc); records in g_ndpool. */
+uint8_t *fn_044ab5(void) {
+    uint8_t  *rec;          /* record pointer (the return) */
+    uint32_t  node_off;     /* node offset from g_heap_base */
+    uint32_t  edi;          /* record->flags to store */
+    uint32_t  done = g_node_list_done;                 /* [0x63ff8] */
+    if (done != 0) {                                     /* WARM */
+        struct nd_node *n = (struct nd_node *)(g_heap_base + done);
+        rec        = g_ndpool + n->rec;
+        edi        = *(uint32_t *)(rec + 0xc);
+        g_node_list_done = n->next;                      /* [0x63ff8] = head->next */
+        edi        = (edi & 0x4003) | 0x3;
+        node_off   = done;
+    } else {                                             /* COLD */
+        for (uint32_t off = 0x53410; off < 0x53618; off += 0x1a) {
+            if ((g_ndpool[off + 0xc] & 0x3) == 0) {      /* free record */
+                node_off = heap_malloc(8);
+                if (node_off == 0) { fn_042a0d(5); return NULL; }
+                rec = g_ndpool + off; edi = 0x3;
+                goto finalize;
+            }
+        }
+        node_off = heap_malloc(0x22);                    /* OVERFLOW */
+        if (node_off == 0) { fn_042a0d(5); return NULL; }
+        rec  = (uint8_t *)g_heap_base + node_off + 8;
+        edi  = 0x4003;
+    }
+finalize:
+    fn_041e20(rec, 0, 0x1a);                             /* memset(record, 0, 0x1a) */
+    *(uint32_t *)(rec + 0xc) = edi;                      /* record->flags = edi */
+    uint32_t     old_active = g_node_list_active;        /* [0x63ffc] */
+    struct nd_node *n = (struct nd_node *)(g_heap_base + node_off);
+    n->rec  = (uint32_t)(rec - g_ndpool);                /* g_ndpool offset (overflow: in-heap) */
+    g_node_list_active = node_off;                       /* [0x63ffc] = node */
+    n->next = old_active;
+    return rec;
+}
+
 /* 0x043234: walk the active node list (head g_node_list_active, offset-based via
  * g_ndpool). For each node, rec = base + node->rec (the io_state record). If
  * (rec[0xc] & mask) count++; if additionally (rec[0xd] & 0x10) call fn_044748(rec).

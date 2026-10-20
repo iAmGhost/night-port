@@ -2145,6 +2145,57 @@ static void test_fn_042717(void) {
     g_dat_64008 = sv;
 }
 
+static void test_fn_044ab5(void) {
+    printf("fn_044ab5 (0x044ab5, file-structure record allocator: pool/warm/overflow)\n");
+    /* Record pool lives at g_ndpool+0x53410 (26 x 0x1a); arena must be >=0x5360d. */
+    uint8_t *arena = (uint8_t *)malloc(0x53800);
+    if (!arena) { check(0, "044ab5: arena alloc (SKIP)"); return; }
+    memset(arena, 0, 0x53800);
+    uint8_t  *saved_pool = g_ndpool;
+    uint32_t  saved_act  = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = arena;
+
+    /* --- POOL path: done empty -> first free record is g_ndpool+0x53410 --- */
+    g_node_list_done = 0; g_node_list_active = 0;
+    uint8_t *r1 = fn_044ab5();
+    check(r1 == arena + 0x53410, "pool: returns first free record (g_ndpool+0x53410)");
+    check(*(uint32_t *)(r1 + 0xc) == 0x3, "pool: record flags set to 0x3");
+    uint32_t a1 = g_node_list_active;
+    check(a1 != 0, "pool: node allocated, active head set");
+    check(*(uint32_t *)(g_heap_base + a1 + 4) == 0x53410, "pool: node->rec = 0x53410");
+    check(*(uint32_t *)(g_heap_base + a1 + 0) == 0, "pool: node->next = 0 (was empty active)");
+
+    /* second call: first record now busy -> next free record */
+    g_node_list_done = 0;
+    uint8_t *r2 = fn_044ab5();
+    check(r2 == arena + 0x53410 + 0x1a, "pool: second call returns next free record");
+
+    /* --- WARM path: done head is a heap node whose rec points into the pool --- */
+    uint32_t wn = heap_malloc(8);
+    check(wn != 0, "warm: node allocated for seeding");
+    *(uint32_t *)(g_heap_base + wn + 0) = 0;         /* next = 0 */
+    *(uint32_t *)(g_heap_base + wn + 4) = 0x53410;   /* rec = first pool record */
+    arena[0x53410 + 0xc] = 0x12;                       /* pre-set record flags */
+    g_node_list_done = wn; g_node_list_active = 0;
+    uint8_t *rw = fn_044ab5();
+    check(rw == arena + 0x53410, "warm: returns the done node's record");
+    check(*(uint32_t *)(rw + 0xc) == 0x3, "warm: flags = (old & 0x4003)|0x3 = 0x3");
+    check(g_node_list_done == 0, "warm: done head = node->next (0)");
+    check(g_node_list_active == wn, "warm: active head = done node");
+
+    /* --- OVERFLOW path: all 26 pool records busy, done empty --- */
+    for (uint32_t off = 0x53410; off < 0x53618; off += 0x1a) arena[off + 0xc] |= 0x1;
+    g_node_list_done = 0; g_node_list_active = 0;
+    uint8_t *ro = fn_044ab5();
+    check(ro != NULL, "overflow: returns a record (heap)");
+    check((uintptr_t)ro > g_heap_base, "overflow: record allocated in the heap");
+    check(*(uint32_t *)(ro + 0xc) == 0x4003, "overflow: record flags = 0x4003");
+    check(g_node_list_active != 0, "overflow: node allocated, active head set");
+
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    free(arena);
+}
+
 static void test_fn_03d999(void) {
     printf("fn_03d999 (0x03d999, wrapper: fn_03dcbd(a0); return a0)\n");
     uint8_t s[0x40] = {0};
@@ -6308,6 +6359,7 @@ int main(void) {
     test_fn_037306();
     test_fn_03b9b7();
     test_fn_04933a();
+    test_fn_044ab5();
     test_fn_041c8f();
     test_fn_049192();
     test_fn_0446b2();

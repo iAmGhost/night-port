@@ -6353,6 +6353,35 @@ static void test_cased_trio(void) {
     }
 }
 
+/* ---------- fn_0112fd (0x0112fd): entity doubly-linked list REMOVE ---------- */
+static void test_fn_0112fd(void) {
+    printf("fn_0112fd (0x0112fd): entity doubly-linked list REMOVE\n");
+    int32_t  s_cnt  = g_dat_53c68;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_78 = g_dat_53c78;
+    uint8_t A[0x150], B[0x150], C[0x150];
+    #define NXT(p) (*(uint8_t **)((p) + 0x13f))
+    #define PRV(p) (*(uint8_t **)((p) + 0x147))
+    memset(A,0,sizeof A); memset(B,0,sizeof B); memset(C,0,sizeof C);
+    /* build A <-> B <-> C */
+    NXT(A)=B; NXT(B)=C; NXT(C)=0; PRV(A)=0; PRV(B)=A; PRV(C)=B;
+    g_dat_53c68=3; g_dat_53c70=A; g_dat_53c74=C;
+    /* remove middle B */
+    uint8_t *r = fn_0112fd(B, 0);
+    check(r==B && g_dat_53c70==A && g_dat_53c74==C && NXT(A)==C && PRV(C)==A && g_dat_53c68==2,
+          "  remove middle: A<->C, count 2, ret B");
+    /* remove head A */
+    r = fn_0112fd(A, 0);
+    check(r==A && g_dat_53c70==C && g_dat_53c74==C && PRV(C)==0 && g_dat_53c68==1,
+          "  remove head: head=tail=C, prev(C)=0, count 1, ret A");
+    /* remove last C (count==1) */
+    r = fn_0112fd(C, 0);
+    check(r==C && g_dat_53c70==0 && g_dat_53c74==0 && g_dat_53c78==0 && g_dat_53c68==0,
+          "  remove last: head=tail=0, g_53c78=0, count 0, ret C");
+    g_dat_53c68=s_cnt; g_dat_53c70=s_head; g_dat_53c74=s_tail; g_dat_53c78=s_78;
+    #undef NXT
+    #undef PRV
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -6678,6 +6707,7 @@ int main(void) {
     test_fn_010927();
     test_fn_0440a9();
     test_cased_trio();
+    test_fn_0112fd();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

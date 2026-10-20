@@ -809,6 +809,35 @@ void fn_00035c5c(void) {
     }
 }
 
+/* fn_0112fd  orig: 0x000112fd (L10, 233B)
+ *   Entity doubly-linked list REMOVE. Removes `node` (arg1) from the entity
+ *   list (head=g_dat_53c70, tail=g_dat_53c74, count=g_dat_53c68); head/tail/
+ *   middle cases; decrements count; returns node. count==1 clears head/tail +
+ *   g_dat_53c78. arg2 (EDX) stored but unused. No callees (canary only).
+ *   Node layout (matches fn_013aad/fn_00035c5c POINTER-WIDTH ADAPTATION):
+ *   next@+0x13f (8B, orig 4B), prev@+0x147 (8B, orig 0x143 shifted +4). */
+uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2) {
+    (void)arg2;
+    if (g_dat_53c68 == 1) {                          /* 0x1131a */
+        g_dat_53c70 = NULL; g_dat_53c74 = NULL; g_dat_53c78 = NULL;   /* 0x11323/2d/37 */
+    } else if (g_dat_53c70 == node) {                /* 0x11346: remove head */
+        uint8_t *next = *(uint8_t **)(node + 0x13f);
+        g_dat_53c70 = next;                           /* 0x11359 */
+        *(uint8_t **)(next + 0x147) = NULL;           /* 0x11367: new head's prev=0 */
+    } else if (g_dat_53c74 == node) {                /* 0x11373: remove tail */
+        uint8_t *prev = *(uint8_t **)(node + 0x147);
+        g_dat_53c74 = prev;                           /* 0x11386 */
+        *(uint8_t **)(prev + 0x13f) = NULL;           /* 0x11394: new tail's next=0 */
+    } else {                                          /* 0x113a0: remove middle */
+        uint8_t *next = *(uint8_t **)(node + 0x13f);
+        uint8_t *prev = *(uint8_t **)(node + 0x147);
+        *(uint8_t **)(prev + 0x13f) = next;           /* 0x113b2: prev->next = next */
+        *(uint8_t **)(next + 0x147) = prev;           /* 0x113ca: next->prev = prev */
+    }
+    g_dat_53c68--;                                    /* 0x113d0 */
+    return node;                                       /* 0x113d6 */
+}
+
 /* fn_013aad  orig: 0x00013aad (L10, 415B)
  *   Entity-list bubble-sort: sort the doubly-linked entity list ascending by
  *   node->+0x9 (int32 key), relinking nodes in place and maintaining head

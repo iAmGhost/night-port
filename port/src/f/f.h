@@ -829,6 +829,7 @@ extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
 extern uint8_t *g_dat_53c70;   /* DAT_00053c70 (entity list head; next at +0x13f) */
 extern uint8_t *g_dat_53c74;   /* DAT_00053c74 (entity list tail; prev at +0x147) */
 void fn_013aad(uint32_t a0);   /* 0x013aad: entity-list bubble-sort (ascending by node->+0x9) */
+uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2);   /* 0x0112fd: entity-list REMOVE (head/tail/middle); returns node */
 extern int32_t  g_dat_51c98;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 extern int32_t  g_dat_53c90;   /* DAT_00053c90 (player-event latch) */
 extern int32_t  g_dat_53c68;   /* DAT_00053c68 (entity count) */

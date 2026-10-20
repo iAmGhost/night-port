@@ -6433,7 +6433,7 @@ void fx_double_exp(double d, uint32_t *out)   /* 0x4a9da */
     uint32_t hi = (uint32_t)(cv.u >> 32);
     uint32_t edx = 0;
     if ((hi & 0x7fffffff) != 0 || lo != 0) {      /* JNZ / TEST lo / JZ */
-        edx = (uint32_t)((int32_t)((hi >> 20) & 0xff) - 0x3fe);
+        edx = (uint32_t)((int32_t)((hi >> 20) & 0x7ff) - 0x3fe);
     }
     *out = edx;
 }
@@ -6489,7 +6489,7 @@ int fx_double_naninf(double d, char *out)   /* 0x4a2a7 */
     union { double dd; uint64_t u; } cv; cv.dd = d;
     uint32_t lo = (uint32_t)cv.u;
     uint32_t hi = (uint32_t)(cv.u >> 32);
-    if (((hi >> 20) & 0xff) != 0xff) return 0;
+    if (((hi >> 20) & 0x7ff) != 0x7ff) return 0;
     uint32_t mantissa = lo | (hi & 0xfffff);
     const char *s = (mantissa != 0) ? "nan" : "inf";   /* 0x51848 : 0x51844 */
     if (hi & 0x80000000) { out[0] = '-'; memcpy(out + 1, s, 4); }

@@ -1237,6 +1237,41 @@ static void test_datetime_pack(void) {
     check(p.f14 == 0xc1, "f14 concrete = 0xc1");
     check(p.f20 == 0xffffffffu, "f20=-1");
     check(p.f18 == 0xababababu, "f18 untouched");
+    check(p.f1c == 0xababababu, "f1c (doy) untouched");
+    check(*(uint32_t *)((uint8_t *)&p + 0x20) == 0xffffffffu, "offset 0x20 (mode) = -1 [layout fix]");
+    check(*(uint32_t *)((uint8_t *)&p + 0x1c) == 0xababababu, "offset 0x1c (doy) untouched [layout fix]");
+}
+
+static void test_fn_04297a(void) {
+    printf("fn_04297a (L5: current-DOS-clock recurring-date offset 0x04297a)\n");
+    char **save_cfg = g_dat_537d4;
+    uint32_t save_c = g_dat_5377c, save_0 = g_dat_53780;
+    g_dat_537d4 = NULL;   /* fn_049a35 no-op */
+    g_dat_5377c = 0; g_dat_53780 = 0;
+
+    /* clock1 */
+    sys_date = (struct dos_date){40, 5, 15, 6};
+    sys_time = (struct dos_time){10, 30, 45, 0};
+    struct datetime_pack ref1; datetime_pack(&ref1);
+    int32_t exp1 = fn_04574a((struct dec_datetime *)&ref1);
+    int32_t out1 = -99999;
+    int32_t r1 = fn_04297a(&out1);
+    check(r1 == exp1, "04297a(clock1) == datetime_pack|>fn_04574a");
+    check(out1 == exp1, "04297a *out == result");
+    check(fn_04297a(NULL) == exp1, "04297a(clock1, NULL out)");
+
+    /* clock2 */
+    sys_date = (struct dos_date){12, 1, 1, 6};
+    sys_time = (struct dos_time){0, 0, 0, 0};
+    struct datetime_pack ref2; datetime_pack(&ref2);
+    int32_t exp2 = fn_04574a((struct dec_datetime *)&ref2);
+    check(fn_04297a(NULL) == exp2, "04297a(clock2) == expected2");
+
+    /* layout fix: datetime_pack must set mode@0x20 = -1 */
+    struct datetime_pack chk; datetime_pack(&chk);
+    check(((struct dec_datetime *)&chk)->mode == -1, "datetime_pack mode@0x20 == -1 (f20 layout)");
+
+    g_dat_537d4 = save_cfg; g_dat_5377c = save_c; g_dat_53780 = save_0;
 }
 
 static double dbl(uint64_t b) { double d; memcpy(&d, &b, 8); return d; }
@@ -6124,6 +6159,7 @@ int main(void) {
     test_fx_norm32();
     test_fx_double_exp();
     test_datetime_pack();
+    test_fn_04297a();
     test_fx_double_naninf();
     test_fx_compare();
     test_fx_classify_status();

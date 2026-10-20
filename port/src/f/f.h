@@ -1026,8 +1026,12 @@ uint32_t tokenize(char *s, char **out, char **end_out);
  * f10=0xffffffff. The SHL ECX,16 zeroes the low byte of each packed local, so
  * the DOW-based return and the "day-change" branch are dead and it returns 0. */
 struct datetime_pack {
-    uint32_t f0, f4, f8, fc, f10, f14, f18, f20;
+    uint32_t f0, f4, f8, fc, f10, f14, f18, f1c, f20;  /* 9 dwords = 0x24; f20@0x20 == dec_datetime mode (layout fix) */
 };
 uint32_t datetime_pack(struct datetime_pack *out);
+/* Current-DOS-clock recurring-date offset (orig: 0x04297a). Packs the DOS clock
+ * into a local struct via datetime_pack, then returns fn_04574a on it; *out gets
+ * the result if non-NULL. Verified against the fn_049613 no-op stub (mode=-1). */
+int32_t fn_04297a(int32_t *out);
 
 #endif

@@ -6340,8 +6340,26 @@ uint32_t datetime_pack(struct datetime_pack *out)   /* 0x45687 */
     out->fc  = 0;                    /* local1 byte0 = 0 */
     out->f10 = (uint32_t)(0 - 1);    /* local1 byte1 (0) - 1 */
     out->f14 = (uint8_t)timeval;     /* local1 byte2 = low8(timeval) */
-    out->f20 = 0xffffffff;           /* constant */
+    out->f20 = 0xffffffff;           /* constant -> offset 0x20 (== dec_datetime mode = -1) */
     return 0;
+}
+
+/* ---- 0x4297a: current-DOS-clock recurring-date offset ----
+ * Packs the current DOS date/time into a local 0x24-byte struct (layout-compatible
+ * with struct dec_datetime) via datetime_pack, conditionally bumps the first field
+ * if the pack return is >= 0x1f4 (dead: the pack return is always < 0x1f4), then
+ * returns fn_04574a (date_norm) on that struct. If out is non-NULL, the result is
+ * also stored there. datetime_pack sets mode@0x20 = -1, so fn_04574a takes the
+ * mode<0 -> fn_049613 (no-op stub) path. */
+int32_t fn_04297a(int32_t *out)   /* 0x4297a */
+{
+    struct datetime_pack buf;                              /* 0x24; == struct dec_datetime layout */
+    uint32_t r = datetime_pack(&buf);                      /* 0x42983 */
+    if ((int32_t)r >= 0x1f4)                               /* 0x42988-8f: dead (r < 0x1f4) */
+        buf.f0++;
+    int32_t res = fn_04574a((struct dec_datetime *)&buf);  /* 0x42994 */
+    if (out) *out = res;                                   /* 0x4299b-9f */
+    return res;                                            /* 0x429a6: EAX */
 }
 
 /* ---- 0x4a2a7: double NaN/Inf inline-string writer ----

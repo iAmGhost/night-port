@@ -6382,6 +6382,26 @@ static void test_fn_0112fd(void) {
     #undef PRV
 }
 
+/* ---------- fn_03de85 (0x03de85): struct constructor (14 sub-objects) ---------- */
+static void test_fn_03de85(void) {
+    printf("fn_03de85 (0x03de85): struct constructor (14 sub-objects)\n");
+    heap_arena_init();
+    uint32_t data = heap_acquire_region(0x1000);
+    check(data != 0, "  region acquired");
+    uint32_t s[15] = {0};
+    uint32_t r = fn_03de85(s, 3, 0x20);   /* 13 sub-objs of size 12, last of size 0x20 */
+    check(r == 1, "  returns 1");
+    int nz = 1;
+    for (uint32_t i = 1; i <= 14; i++) if (s[i] == 0) nz = 0;
+    check(nz, "  all 14 sub-objects allocated (non-zero offsets)");
+    check(s[1] != s[2] && s[13] != s[14], "  offsets distinct (13 same-size + 1 last)");
+    check(s[0] == 0, "  s[0] (struct self) untouched");
+    fn_03dcbd(s);                          /* free the sub-objects */
+    int cleared = 1; for (uint32_t i = 1; i <= 14; i++) if (s[i] != 0) cleared = 0;
+    check(cleared, "  fn_03dcbd frees + nulls all 14");
+    heap_arena_init();                      /* reset arena */
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -6708,6 +6728,7 @@ int main(void) {
     test_fn_0440a9();
     test_cased_trio();
     test_fn_0112fd();
+    test_fn_03de85();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

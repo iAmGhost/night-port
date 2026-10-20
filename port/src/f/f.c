@@ -4614,6 +4614,21 @@ uint32_t *fn_03d999(uint32_t *a0, uint32_t a1) {
     return a0;
 }
 
+/* 0x03de85 (L11, 272B): re-entrant struct CONSTRUCTOR (pair of fn_03dcbd).
+ * arg1 = struct ptr (uint32_t*); arg2 = sub-object dword-count (each sub-obj
+ * size = arg2*4); arg3 = last sub-object size. Frees old sub-objects
+ * (fn_03dcbd), allocates the 14 sub-objects at +0x4..+0x38 (13 of size
+ * arg2*4, last of size arg3), returns 1. */
+uint32_t fn_03de85(uint32_t *s, uint32_t count, uint32_t last_size) {
+    (void)canary_id(0, 0x28);
+    fn_03dcbd(s);                          /* 0x3deb0: free old sub-objects */
+    uint32_t size = count * 4;             /* [EBP-0x10] = arg2*4 */
+    for (uint32_t i = 1; i <= 13; i++)     /* 0x3deb8..0x3df72: 13 x +0x4..+0x34 */
+        s[i] = heap_malloc(size);
+    s[14] = heap_malloc(last_size);        /* 0x3df78: +0x38, size arg3 */
+    return 1;                               /* 0x3df85/8c */
+}
+
 /* 0x034aba: 3-way interval-list splitter. Splits the interval containing `a`
  * (within list g_dat_62d68[idx]) to carve out [a, a+b) as a new node (start=c,
  * flag=flag), clamping a+b to 0x140. Returns void. */

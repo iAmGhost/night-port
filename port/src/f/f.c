@@ -3766,6 +3766,98 @@ uint8_t  g_dat_533bb = 0;                /* DAT_000533bb: classify-enable thresh
 uint32_t g_dat_53619 = 0;                /* DAT_00053619: 0x200 => default binary */
 uint32_t g_dat_536d8 = 0;                /* DAT_000536d8: create-mode xor (load-time 0) */
 
+/* ---- 0x04574a / 0x049506 / 0x0495eb: recurring-event date sub-unit ----
+ * These operate on struct dec_datetime with an "Nth weekday of month" recurrence
+ * model: [+0x0c]=day is a WEEK index (1-5) and [+0x18]=dow the weekday.
+ * 0x04574a normalizes a struct (via fn_0498f6) and returns a unix-epoch-ish
+ * offset; 0x049506 maps a recurrence to a day-of-year offset; 0x0495eb compares
+ * two. The 0x049613 helper (236 ins) is reached only when mode<0 and is stubbed
+ * (deferred); the sub-unit tests run with mode>=0. */
+static const int16_t g_nonleap_tbl[13] = { 0,31,59,90,120,151,181,212,243,273,304,334,365 }; /* DAT_00051960 */
+static const int16_t g_leap_tbl[13]    = { 0,31,60,91,121,152,182,213,244,274,305,335,366 };  /* DAT_0005197a */
+
+/* 0x049613: recurring-event date arithmetic (236 ins). DEFERRED to a fresh
+ * context. Called by fn_04574a only when d->mode<0; the date-compare sub-unit
+ * always uses mode>=0, so this stub is never reached by the differential tests
+ * and exists only to satisfy the link. */
+void fn_049613(struct dec_datetime *d) { (void)d; }
+
+int32_t fn_04574a(struct dec_datetime *d) {
+    int32_t r_raw = d->month % 12;                 /* 0x45757-60: IDIV rem (sign of dividend) */
+    int32_t r = r_raw;
+    int32_t q = d->month / 12;
+    int32_t year = d->year;
+    int32_t EDI;                                   /* running day count */
+    int32_t total_sec;
+
+    if (year < (int32_t)0xf4fb7ea1) return -1;     /* 0x4576c-79: sanity */
+    year += q;                                     /* 0x4577e-8d */
+    while (r < 0) { year--; r += 12; }             /* 0x4578f-97 */
+    if (year < 0) return -1;                       /* 0x45799-9b */
+
+    int32_t leap = (int32_t)is_leap((uint32_t)(year + 0x76c), (uint32_t)r_raw); /* 0x4579d-a8 */
+    const int16_t *tbl = leap ? g_leap_tbl : g_nonleap_tbl;  /* 0x457ac/b1 */
+
+    int32_t absbase = year * 365 + (year + 3) / 4; /* 0x457b1-ca (Gregorian /100//400 NOT applied) */
+    EDI = d->day + (int32_t)tbl[r] + absbase - 1;  /* 0x457cd-d8 */
+    if (year != 0) EDI--;                          /* 0x457d9-db */
+
+    total_sec = d->sec + d->min * 60 + d->hour * 3600;   /* 0x457de-fd */
+    while (total_sec < 0) { EDI--; total_sec += 0x15180; }  /* 0x457ff-80a */
+
+    fn_0498f6(EDI, (uint32_t)total_sec, 0, d);     /* 0x4580c-14: normalize d in place */
+    fn_049a35(0, 0, 0);                            /* 0x45819: refresh TZ globals */
+    total_sec += (int32_t)g_dat_5377c;             /* 0x4581e-27 */
+    if (d->mode < 0) fn_049613(d);                 /* 0x45824-2f */
+    if (d->mode > 0) total_sec -= (int32_t)g_dat_53780;  /* 0x45834-3a */
+    while (total_sec < 0) { EDI--; total_sec += 0x15180; }  /* 0x45840-4b */
+    if (EDI < 0x63de) return -1;                   /* 0x4584d-53 */
+    if (EDI != 0x63de) {                           /* 0x45859 */
+        total_sec += (EDI - 0x63df) * 0x15180;     /* 0x45877-93 */
+        return total_sec;                          /* 0x45895 */
+    }
+    int32_t g = (int32_t)g_dat_5377c;              /* 0x4585b (EDI == 0x63de) */
+    total_sec -= 0x15180;                          /* 0x45860 */
+    if (g <= 0) return -1;                         /* 0x45866-68 */
+    if (total_sec >= 0) return total_sec;          /* 0x4586e-70 */
+    return -1;                                     /* 0x45872 */
+}
+
+int32_t fn_049506(struct dec_datetime *d, int32_t ref_year) {
+    int32_t mode = d->mode;                        /* 0x49510 */
+    if (mode == 1) return d->doy - 1;              /* 0x495d3-d8 */
+    if (mode != 0) return d->doy;                  /* 0x495df */
+
+    int32_t month = d->month;
+    int32_t leap = (int32_t)is_leap((uint32_t)(ref_year + 0x76c), (uint32_t)ref_year);  /* 0x4951b-21 */
+    int32_t days_in_month = leap                   /* 0x4952a-54 */
+        ? (g_leap_tbl[month + 1] - g_leap_tbl[month])
+        : (g_nonleap_tbl[month + 1] - g_nonleap_tbl[month]);
+
+    struct dec_datetime temp;                      /* 0x49556-79 */
+    temp.sec = 0; temp.min = 0; temp.hour = 0;
+    temp.day = 1; temp.month = month; temp.year = ref_year;
+    temp.dow = 0; temp.doy = 0; temp.mode = 0;
+    fn_04574a(&temp);                              /* 0x4957d: normalizes temp->dow/doy */
+
+    int32_t dow_diff = (d->dow - temp.dow + 7) % 7; /* 0x49586-98: IDIV rem (quotient discarded) */
+    int32_t day = d->day;
+    int32_t dayval;
+    if (day == 5) {                                /* 0x4959d-a0 */
+        int32_t cmp = dow_diff + 29;               /* 0x495a2-af: (dow_diff+1)+28 */
+        dayval = (cmp <= days_in_month) ? 4 : 3;   /* 0x495b1-bd */
+    } else {
+        dayval = day - 1;                          /* 0x495c1 */
+    }
+    return temp.doy + dow_diff + dayval * 7;       /* 0x495c2-cf */
+}
+
+int32_t fn_0495eb(struct dec_datetime *x, struct dec_datetime *y, int32_t ref_year) {
+    int32_t rx = fn_049506(x, ref_year);           /* 0x495ee-f7 */
+    int32_t ry = fn_049506(y, ref_year);           /* 0x495f9-02 */
+    return (rx > ry) ? 1 : 0;                      /* 0x49604-0d */
+}
+
 /* 0x049a35: timezone ("TZ") config parser. Reads the "TZ" config value (a
  * time-range string), parses it via parse_time_str, and fills the g_dat_537xx
  * TZ globals. The 3 params are part of a callback signature and unused. */

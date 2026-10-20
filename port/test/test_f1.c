@@ -2415,6 +2415,54 @@ static void test_fn_044bec(void) {
     check(fn_044bec(7) == 0, "  close success (sys stub) -> returns 0");
 }
 
+static void test_fn_04574a_date_cluster(void) {
+    printf("date-cluster 0x04574a/0x049506/0x0495eb (recurring-event dates)\n");
+    g_dat_537d4 = NULL;   /* no TZ config -> fn_049a35 is a no-op, so g5377c/53780 keep set values */
+    uint32_t save_c = g_dat_5377c, save_0 = g_dat_53780;
+    struct dec_datetime d;
+
+    /* ---- fn_04574a ---- */
+    memset(&d,0,sizeof d); d.day=1; d.month=0; d.year=0; g_dat_5377c=0;
+    check(fn_04574a(&d) == -1, "  04574a year=0 -> -1 (day<0x63de)");
+    memset(&d,0,sizeof d); d.day=1; d.month=0; d.year=70; g_dat_5377c=0;
+    check(fn_04574a(&d) == 0, "  04574a 1970-01-01 -> 0 (epoch)");
+    memset(&d,0,sizeof d); d.day=31; d.month=11; d.year=69; g_dat_5377c=0;
+    check(fn_04574a(&d) == -1, "  04574a 1969-12-31 g=0 -> -1 (edge)");
+    memset(&d,0,sizeof d); d.day=31; d.month=11; d.year=69; g_dat_5377c=90000;
+    check(fn_04574a(&d) == 3600, "  04574a 1969-12-31 g=90000 -> 3600 (edge)");
+    memset(&d,0,sizeof d); d.day=1; d.month=0; d.year=71; d.mode=1; g_dat_5377c=0; g_dat_53780=100;
+    check(fn_04574a(&d) == 31535900, "  04574a 1971-01-01 mode=1 g80=100 -> 31535900");
+
+    /* ---- fn_049506 (mode=0 recurring) ---- */
+    memset(&d,0,sizeof d); d.day=1; d.month=0; d.dow=0;
+    check(fn_049506(&d, 90) == 6,  "  049506 w1 Jan dow0 ref1990 -> 6");
+    memset(&d,0,sizeof d); d.day=2; d.month=0; d.dow=0;
+    check(fn_049506(&d, 90) == 13, "  049506 w2 Jan dow0 ref1990 -> 13");
+    memset(&d,0,sizeof d); d.day=5; d.month=0; d.dow=0;
+    check(fn_049506(&d, 90) == 27, "  049506 w5 Jan dow0 ref1990 -> 27");
+    memset(&d,0,sizeof d); d.day=5; d.month=0; d.dow=1;
+    check(fn_049506(&d, 90) == 28, "  049506 w5 Jan dow1 ref1990 -> 28");
+    memset(&d,0,sizeof d); d.day=1; d.month=1; d.dow=0;
+    check(fn_049506(&d, 92) == 32, "  049506 w1 Feb dow0 ref1992(leap) -> 32");
+    /* mode != 0 */
+    memset(&d,0,sizeof d); d.doy=10; d.mode=1;
+    check(fn_049506(&d, 90) == 9,  "  049506 mode=1 -> doy-1=9");
+    memset(&d,0,sizeof d); d.doy=10; d.mode=2;
+    check(fn_049506(&d, 90) == 10, "  049506 mode=2 -> doy=10");
+    memset(&d,0,sizeof d); d.doy=10; d.mode=-1;
+    check(fn_049506(&d, 90) == 10, "  049506 mode=-1 -> doy=10");
+
+    /* ---- fn_0495eb ---- */
+    struct dec_datetime x, y;
+    memset(&x,0,sizeof x); memset(&y,0,sizeof y);
+    x.day=1; x.month=0; x.dow=0; y.day=2; y.month=0; y.dow=0;
+    check(fn_0495eb(&x,&y,90) == 0, "  0495eb x<y -> 0");
+    check(fn_0495eb(&y,&x,90) == 1, "  0495eb x>y -> 1");
+    check(fn_0495eb(&x,&x,90) == 0, "  0495eb x==y -> 0");
+
+    g_dat_5377c = save_c; g_dat_53780 = save_0;
+}
+
 static void test_fn_0498f6(void) {
     printf("fn_0498f6 (0x0498f6, date decoder)\n");
     struct dec_datetime d;
@@ -6133,6 +6181,7 @@ int main(void) {
     test_fn_044807();
     test_fn_044bec();
     test_fn_0498f6();
+    test_fn_04574a_date_cluster();
     test_fn_04322f();
     test_fn_044848();
     test_fn_049a0b();

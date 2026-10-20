@@ -97,6 +97,10 @@ struct dec_datetime {
     int32_t mode;   /* +0x20: set by caller 0x049a0b, read by 0x049506 */
 };
 struct dec_datetime *fn_0498f6(int32_t base_day, uint32_t seconds, int32_t delta, struct dec_datetime *out);
+int32_t fn_04574a(struct dec_datetime *d);                                   /* 0x04574a: recurring-event date/time normalizer (in-place; returns unix-epoch-ish offset or -1) */
+int32_t fn_049506(struct dec_datetime *d, int32_t ref_year);                 /* 0x049506: recurring-event date -> day-of-year offset */
+int32_t fn_0495eb(struct dec_datetime *x, struct dec_datetime *y, int32_t ref_year); /* 0x0495eb: 1 iff 0x049506(x)>0x049506(y) */
+void    fn_049613(struct dec_datetime *d);                                   /* 0x049613: DEFERRED stub (date arithmetic, reached only when mode<0) */
 int32_t fn_04322f(void);                                            /* 0x04322f: return -1 */
 int32_t fn_044848(uint32_t handle, uint32_t a2, uint32_t a3, uint32_t a4); /* 0x044848: lseek(h,0,SEEK_SET) */
 void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_t p4); /* 0x049a0b: unix-time decode */

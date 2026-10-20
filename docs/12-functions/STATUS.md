@@ -34,7 +34,7 @@ Rules:
 
 (counts: done = `[x]`, analyzed = `[~]`, skipped = `[-]`, pending = `[ ]`)
 
-TOTALS: 388 / 528 done
+TOTALS: 390 / 528 done
 
 | Level | Total | Done | Analyzed | Skipped | Pending |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ TOTALS: 388 / 528 done
 | L7 | 8 | 5 | 0 | 0 | 3 |
 | L8 | 7 | 4 | 0 | 0 | 3 |
 | L9 | 2 | 2 | 0 | 0 | 0 |
-| L10 | 81 | 63 | 0 | 0 | 18 |
+| L10 | 81 | 65 | 0 | 0 | 16 |
 | L11 | 77 | 48 | 0 | 0 | 29 |
 | L12 | 58 | 23 | 0 | 0 | 35 |
 | L13 | 16 | 7 | 0 | 0 | 9 |
@@ -75,6 +75,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Date | Decision | Ref |
 |---|---|---|
+| 2026-07-13 | **0x035d5d + 0x035dfc (L10) PORTED as degenerate no-op standins + 3 tests.** Both are 3-tier nested 4-flag busy-waits over g_dat_63e88[] bytes (A=[0x39]=0x63ec1, B=[0x1c]=0x63ea4, C=[0x1d]=0x63ea5, D=[0x38]=0x63ec0); 0x035dfc adds a [0x63e89] (g_dat_63e88[1]) sub-spin and returns 0/1. KEY FINDING: the first check waits until all 4 flags clear, but the SECOND (and 3rd) check JUMPS BACK (re-spins) when all four are clear -- so with the flat model's static zero-initialized g_dat_63e88 the routines never make progress and would loop forever (degenerate, exactly like fn_00035ec2 / fn_00035d0f). No register args are read; no observable effect. Ported as no-op standins (fn_00035dfc returns the all-idle value 0). Test (test_fn_035d_spin): seed g_dat_63e88 with a pattern, call both, verify no side effect on the flags + fn_00035dfc returns 0 -- 3 checks, FIRST-TRY PASS (1 mechanical fix: test called fn_035d5d with one 0 vs the declared fn_00035d5d with two -- sibling fn_0003XXXXX convention). L10 63->65, TOTALS 388->390/528. Suite 1526->1529 PASS 0 FAIL. (finish-mid-tiers: closes the last two spin-wait deferrals from the L10 frontier; 0x03ce0b 4-branch sprite-draw + 0x03bebb/0x03bb42 RLE-blit pair remain as the next large rendering fns.) | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **0x037922 (L12, 480 B) PORTED + 8 tests -- clear-all-state cleanup.** Frees the 100 pooled objects (offsets in g_pool_53d0c; heap_free_host is NULL-tolerant for the unset ones), then for 8 struct/container globals (0x639c0/0x53c8c/0x63e00/0x639ec/0x63d10/0x63dd4 via fn_03d999, 0x53b3c/0x53c00 via fn_0100d9): `if (g) { destructor(g); heap_free_guard(host_to_off(g)); g = 0; }`. KEY CONVENTION: the pool stores heap OFFSETS (heap_free_host takes offset directly) while the 8 struct globals store HOST POINTERS (destructors take uint32_t* and dereference s[0]/s[1]); the destructor returns the input host ptr in the flat model, so the free uses `host_ptr - g_heap_base` directly (host_to_off helper, pattern of fn_03b9b7). 9 new globals declared. Test: fresh heap region, set pool[0] + g_639c0 (15-dword zeroed struct) + g_53b3c (2-dword container), call, verify all 8 globals cleared -- 8 checks, FIRST-TRY PASS. L12 22->23, TOTALS 387->388/528. Suite 1518->1526 PASS 0 FAIL. (finish-mid-tiers batch 3.) | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **0x0323f8 + 0x03237b (L11) PORTED + 8 tests -- entity-list drain functions.** Both walk from g_dat_53c70 (head), capturing next@+0x13f BEFORE the remove so the walk is safe as the list shrinks. **fn_0323f8** (drain-all): for every node, `fn_0112fd(node,0)` (remove) + `heap_free_guard(node-base)` (free), until empty. **fn_03237b** (conditional drain): same but only removes nodes whose dword@+0xd != 0 (keeps the rest linked in place), then clears g_dat_53c88=0. Key: 0x041c28=heap_free_guard takes a heap OFFSET, entity nodes are host pointers (g_heap_base+offset), so convert node-g_heap_base (same pattern as ported sibling fn_03b9b7); fn_0112fd returns the removed node. Tests build a 3-node heap entity list (0x160 each, next@+0x13f/prev@+0x147 8-byte), drain: 0x0323f8 -> head/tail NULL + count 0 (3 checks); 0x03237b with only n2 flagged -> head=n1/tail=n3/count 2/g_dat_53c88=0/n1->next=n3 (5 checks). FIRST-TRY PASS (1 mechanical fix: g_dat_53c88 needed a definition, was only declared). L11 46->48, TOTALS 385->387/528. Suite 1510->1518 PASS 0 FAIL. (finish-mid-tiers batch 2.) | f.c, f.h, test_f1.c, STATUS.md |
 | 2026-07-13 | **0x03de85 (L11, 272 B) PORTED + 6 tests -- re-entrant struct CONSTRUCTOR (pair of fn_03dcbd).** `uint32_t fn_03de85(uint32_t *s, uint32_t count, uint32_t last_size)`: `fn_03dcbd(s)` (free old 14 sub-objs); `size=count*4`; `for i in 1..13: s[i]=heap_malloc(size)` (offsets +0x4..+0x34); `s[14]=heap_malloc(last_size)` (+0x38); `return 1`. Confirmed fn_03dcbd is the paired DESTRUCTOR (frees the same 14 sub-objs at +0x4..+0x38), and heap_malloc returns a uint32 heap OFFSET (stored directly in the fields). Test (test_fn_03de85): heap_arena_init + heap_acquire_region(0x1000), call ctor(count=3,last=0x20), verify return==1 / all 14 non-zero / distinct / s[0] untouched / fn_03dcbd frees+nulls all 14 -- 6 checks, FIRST-TRY PASS. L11 45->46, TOTALS 384->385/528. Suite 1504->1510 PASS 0 FAIL. (finish-mid-tiers batch 1: 0x0112fd + 0x03de85 done; full assessment of the rest banked at scratch/PORT_MIDTIERS_NOTES.md.) | f.c, f.h, test_f1.c, STATUS.md |
@@ -660,8 +661,8 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 | [x] | 0x0358c7 | 121 | fn_0358c7 | wait for inb(base+1) bit0x40 clear (max 0x2000), then outb(base,arg); -1 on timeout | f.c |
 | [x] | 0x035c5c | 178 | FUN_00035c5c | entity | walk list (head=DAT_00053c70,next@0x13f); set [0x30]=1,[0x17]=0x15,[0x11]=0,[0x32]=table[idx*0x88] |
 | [x] | 0x035d0f | 77 | FUN_00035d0f | DMA | 3x memory-poll spin on DAT_00063e88[AL] (no-op; degenerate, static byte) |
-| [ ] | 0x035d5d | 158 | FUN_00035d5d | | |
-| [ ] | 0x035dfc | 197 | FUN_00035dfc | | |
+| [x] | 0x035d5d | 158 | FUN_00035d5d | PORTED + 1 test: 4-flag DMA/channel busy-wait (spin over g_dat_63e88 bytes 0x1c/0x1d/0x38/0x39); 2nd+3rd checks re-spin when all-clear -> degenerate (hangs in flat model w/ static-zero flags) -> no-op standin | f.c |
+| [x] | 0x035dfc | 197 | FUN_00035dfc | PORTED + 2 tests: same 4-flag busy-wait + [0x63e89] sub-spin + return 0/1; degenerate (all-clear 2nd-check re-spins forever) -> no-op standin returning 0 | f.c |
 | [x] | 0x035ec2 | 88 | FUN_00035ec2 | VGA | 0x3DA sequencer ready-wait (no-op; degenerate spin, port stub) |
 | [x] | 0x036626 | 125 | FUN_00036626 | | |
 | [ ] | 0x0366a4 | 292 | FUN_000366a4 | | |

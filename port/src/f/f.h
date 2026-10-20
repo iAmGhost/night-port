@@ -125,6 +125,8 @@ void fn_040660(const uint8_t *arg1, uint32_t arg2); /* 0x040660: VGA DAC row-bli
 void fn_0406f5(const uint8_t *arg1, uint32_t arg2); /* 0x0406f5: VGA DAC row-blit fade-out (descending, i arg2..0) */
 uint32_t fn_00041bdc(uint32_t size);            /* 0x00041bdc: heap_malloc wrapper (size 0->1) */
 void fn_00035d0f(void);                         /* 0x00035d0f: DMA channel busy-wait (no-op, degenerate spin) */
+void fn_00035d5d(void);                         /* 0x00035d5d: 4-flag DMA/channel busy-wait (no-op, degenerate spin) */
+int  fn_00035dfc(void);                         /* 0x00035dfc: 4-flag busy-wait + settle query (no-op, degenerate spin, returns 0) */
 void fn_000356ba(uint32_t ticks);               /* 0x000356ba: PIT ch0 rate setup from ticks (reg-ABI) */
 extern int32_t  g_dat_530b4;                    /* DAT_000530b4: timer rate multiplier */
 extern int32_t  g_dat_530b8;                    /* DAT_000530b8: timer rate multiplier #2 (fn_035b91) */

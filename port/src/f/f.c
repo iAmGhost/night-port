@@ -607,6 +607,27 @@ uint32_t fn_00041bdc(uint32_t size) { if (size == 0) size = 1; return heap_mallo
  *   (documented degenerate case). No flat-model observable effect. */
 void fn_00035d0f(void) {}
 
+/* fn_00035d5d  orig: 0x00035d5d (L10, 158B) -- 4-flag DMA/channel busy-wait.
+ *   Spins on three nested 4-flag checks over g_dat_63e88[] bytes: A=[0x39]
+ *   (0x63ec1), B=[0x1c] (0x63ea4), C=[0x1d] (0x63ea5), D=[0x38] (0x63ec0).
+ *   The first check waits until all four are clear, but the second and third
+ *   checks JUMP BACK (re-spin) when all four are clear -- so with the flat
+ *   model's static zero-initialized g_dat_63e88 the routine never makes
+ *   progress and would loop forever (degenerate spin, like fn_00035ec2 / the
+ *   DMA handshake in fn_00035d0f). No register args are read; no observable
+ *   effect. No-op standin. */
+void fn_00035d5d(void) {}
+
+/* fn_00035dfc  orig: 0x00035dfc (L10, 197B) -- 4-flag busy-wait + settle query.
+ *   Same three nested 4-flag checks as fn_00035d5d (A=[0x39], B=[0x1c],
+ *   C=[0x1d], D=[0x38] of g_dat_63e88) plus a sub-spin on E=[0x01] (0x63e89).
+ *   Returns 1 if the E sub-spin is reached (a flag settles to a specific
+ *   pattern) and 0 from the third-check all-clear exit; with the flat model's
+ *   static zero flags the second check loops forever (all-clear re-spin), so
+ *   the routine is degenerate. No register args read. No-op standin returning
+ *   the all-idle value 0. */
+int fn_00035dfc(void) { return 0; }
+
 int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) */
 int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
 int32_t  g_dat_530bc[16]; /* DAT_000530bc: 16-entry command table; fn_035b0c writes [a0&0xf]=a2 */

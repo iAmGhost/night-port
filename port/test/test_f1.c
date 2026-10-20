@@ -6472,6 +6472,20 @@ static void test_fn_037922(void) {
     heap_arena_init();
 }
 
+static void test_fn_035d_spin(void) {
+    printf("fn_035d5d + fn_035dfc (0x035d5d/0x035dfc): 4-flag DMA busy-waits (degenerate no-op standins)\n");
+    /* g_dat_63e88 (the DMA/channel-status buffer holding all 5 spin flags) must be untouched */
+    for (int i = 0; i < 0x80; i++) g_dat_63e88[i] = (uint8_t)i;
+    uint8_t before0 = g_dat_63e88[0x1c];   /* 0x63ea4 */
+    fn_00035d5d();
+    check(g_dat_63e88[0x1c] == before0, "  fn_035d5d: no side effect on flags");
+    int r = fn_00035dfc();
+    check(r == 0, "  fn_035dfc: returns all-idle 0");
+    check(g_dat_63e88[0x39] == (uint8_t)0x39, "  fn_035dfc: no side effect on flags");
+    /* restore BSS-zero buffer so other tests see a clean DMA status */
+    for (int i = 0; i < 0x80; i++) g_dat_63e88[i] = 0;
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x20];
     g_dat_63354 = s_t_bounds;
@@ -6802,6 +6816,7 @@ int main(void) {
     test_fn_0323f8();
     test_fn_03237b();
     test_fn_037922();
+    test_fn_035d_spin();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

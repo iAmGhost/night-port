@@ -109,6 +109,7 @@ void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handle
 void fn_037306(void);                          /* 0x037306: cleanup -- if g_639b8: fn_0427a3(g_639b8); fn_00040570; fn_03ffab; fn_03eff2 */
 void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (divisor in EAX) */
 void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */
+void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count, const uint8_t *src); /* 0x03f462: row-wrap fill into A0000 */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
 void fn_0003fade(void);                         /* 0x0003fade: zero DAT_000a0000[64000] (DPMI region, no-op) */
@@ -288,6 +289,8 @@ extern uint32_t g_dat_63318;               /* DAT_00063318: PIT ch0 divisor */
 extern uint32_t g_dat_63e50[256];          /* DAT_00063e50: per-register palette cache */
 extern uint32_t g_dat_63e5c;               /* DAT_00063e5c: palette index (fn_03f3be) */
 extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03f410) */
+extern uint32_t g_dat_531f4;               /* DAT_000531f4: VESA row width (VBE[0x8]<<10), init'd by 0x03f15f */
+extern uint32_t g_dat_63e64;               /* DAT_00063e64: VESA bytes-per-line/pitch (VBE[0x12]), init'd by 0x03f15f */
 extern uint8_t  g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
 extern uintptr_t g_dat_53c5c;               /* DAT_00053c5c: DPMI far-pointer (debug-reg) */
 extern uint8_t  g_dat_53c4c[9];            /* DAT_00053c4c: 9-byte real-mode command staging area */

@@ -1764,6 +1764,8 @@ uint32_t g_dat_63318 = 0;   /* DAT_00063318: PIT ch0 divisor (clamped to [1,0x10
 uint32_t g_dat_63e50[256];  /* DAT_00063e50: per-register palette cache (color<<shift) */
 uint32_t g_dat_63e5c = 0;   /* DAT_00063e5c: palette index (fn_03f3be) */
 uint32_t g_dat_63e58 = 0;   /* DAT_00063e58: palette index (fn_03f410) */
+uint32_t g_dat_531f4 = 0x140; /* DAT_000531f4: VESA row width (init'd at runtime by 0x03f15f) */
+uint32_t g_dat_63e64 = 0x140; /* DAT_00063e64: VESA bytes-per-line/pitch (init'd at runtime by 0x03f15f) */
 uint8_t  g_dat_63e4c = 0;   /* DAT_00063e4c: palette color shift amount */
 void fn_03ee88(void)
 {
@@ -4838,6 +4840,52 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
             }
             db += 0x140;
         }
+    }
+}
+
+/* fn_03f462  orig: 0x03f462 (L11, 303 B) -- row-wrap fill into the A0000 video arena.
+ * ABI (from prologue + caller FUN_0003a224 @0x03a387: PUSH src; ECX=0x1e0; EBX=0x280;
+ *   EDX=0; EAX=0): EAX=base, EDX=row2, EBX=width (bytes/iter), ECX=count, [stack]=src.
+ *   pos   = base + row2 * DAT_00063e64 (pitch);
+ *   ROW   = pos / DAT_000531f4 (W)          [IDIV, signed];
+ *   COL   = pos % DAT_000531f4 (W);
+ *   fn_03f3be(ROW)  -- VGA palette-set side-effect (1-arg, only EAX read).
+ * Then `count` iterations, each copies `width` bytes from src into video_map(COL),
+ * wrapping at the row width W:
+ *   - if COL+width > W: split into [COL,W) then [0, ovf); ROW++ + fn_03f3be(ROW);
+ *     new COL = pitch - part1 where part1 = W - COL.
+ *   - else: copy all width at COL; COL += pitch; if COL >= W { COL -= W; ROW++; fn_03f3be(ROW); }.
+ *   src += width each iteration.
+ * DAT_000531f4 (W) and DAT_00063e64 (pitch) are VESA mode values set at runtime by
+ * 0x03f15f (VBE mode-info: W = VBE[0x8]<<10, pitch = VBE[0x12]); defaults 0x140 here. */
+void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count,
+               const uint8_t *src) {
+    (void)canary_id((uintptr_t)base, 0x34);
+    int32_t W = (int32_t)g_dat_531f4;
+    int32_t pitch = (int32_t)g_dat_63e64;
+    int32_t pos = (int32_t)base + row2 * pitch;
+    int32_t row = pos / W;
+    int32_t col = pos % W;
+    fn_03f3be((uint32_t)row);
+    for (uint32_t i = 0; i < count; i++) {
+        if (col + (int32_t)width > W) {
+            int32_t ovf = col + (int32_t)width - W;
+            int32_t part1 = (int32_t)width - ovf;          /* = W - col */
+            mem_copy(video_map(0xa0000u + (uint32_t)col), src, (uint32_t)part1);
+            row += 1;
+            fn_03f3be((uint32_t)row);
+            mem_copy(video_map(0xa0000u), src + part1, (uint32_t)ovf);
+            col = pitch - part1;
+        } else {
+            mem_copy(video_map(0xa0000u + (uint32_t)col), src, width);
+            col += pitch;
+            if (col >= W) {
+                col -= W;
+                row += 1;
+                fn_03f3be((uint32_t)row);
+            }
+        }
+        src += width;
     }
 }
 

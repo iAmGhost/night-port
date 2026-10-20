@@ -6706,6 +6706,45 @@ static void test_fn_03rle(void) {
     (void)base;
 }
 
+static void test_fn_03f462(void) {
+    printf("fn_03f462 (0x03f462): row-wrap fill into A0000 (VESA W/pitch)\n");
+    uint8_t *scr = g_video_ram;   /* fn writes to g_video_ram via video_map(col) */
+    uint32_t W0 = g_dat_531f4, P0 = g_dat_63e64;
+    g_dat_531f4 = 16; g_dat_63e64 = 16;
+
+    /* T1: W=pitch=16, base=0,row2=0 -> pos=0,row=0,col=0. width=6,count=2,
+     *   src=0..11. Iter0: col0+6<=16 simple, copy 6 to [0,6), col+=16=16>=16 -> col=0,row=1.
+     *   Iter1: copy 6 to [0,6) again (=src[6..12]). => scr[0..5]=6..11, [6..15]=0. */
+    uint8_t s1[12]; for (int i=0;i<12;i++) s1[i]=(uint8_t)i;
+    memset(scr,0,0x10000);
+    fn_03f462(0,0,6,2,s1);
+    int ok1=1; for(int x=0;x<16;x++){uint8_t w=(x<6)?(uint8_t)(6+x):0; if(scr[x]!=w){ok1=0;break;}}
+    check(ok1, "  simple 2-iter (pitch==W): final [0,6)=src[6..12), rest 0");
+
+    /* T2: split-wrap. base=12 -> col=12. width=10,count=1. col12+10=22>16 -> ovf=6,part1=4.
+     *   copy 4 to video[12,16)=src[0..4); ROW++ ; copy 6 to video[0,6)=src[4..10).
+     *   col = pitch-part1 = 12 (faithful: pitch==W keeps col). */
+    uint8_t s2[10]; for(int i=0;i<10;i++) s2[i]=(uint8_t)(0x30+i);
+    memset(scr,0,0x10000);
+    fn_03f462(12,0,10,1,s2);
+    int ok2=1; for(int x=0;x<16;x++){uint8_t w=0; if(x>=0&&x<6)w=(uint8_t)(0x34+x); else if(x>=12&&x<16)w=(uint8_t)(0x30+(x-12)); if(scr[x]!=w){ok2=0;break;}}
+    check(ok2, "  split-wrap: [12,16)=src[0..4), [0,6)=src[4..10), [6,12)=0");
+
+    /* T3: pitch(20)>W(16) wrap. base=0,col=0. width=6,count=3.
+     *   Iter0: copy6 to[0,6),col=0+20=20>=16->col=4,row=1.
+     *   Iter1: copy6 to[4,10),col=4+20=24>=16->col=8,row=2.
+     *   Iter2: copy6 to[8,14),col=8+20=28>=16->col=12. => [0,6)=0..5,[4,10)=6..11,[8,14)=12..17. */
+    uint8_t s3[18]; for(int i=0;i<18;i++) s3[i]=(uint8_t)i;
+    g_dat_63e64 = 20;
+    memset(scr,0,0x10000);
+    fn_03f462(0,0,6,3,s3);
+    int ok3=1; uint8_t want3[16]={0,1,2,3,6,7,8,9,12,13,14,15,16,17,0,0};
+    for(int x=0;x<16;x++){ if(scr[x]!=want3[x]){ok3=0;break;} }
+    check(ok3, "  pitch>W row-advance: [0,6)/[4,10)/[8,14) filled, col wraps 20->4->8->12");
+
+    g_dat_531f4 = W0; g_dat_63e64 = P0;
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7039,6 +7078,7 @@ int main(void) {
     test_fn_035d_spin();
     test_fn_03ce0b();
     test_fn_03rle();
+    test_fn_03f462();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

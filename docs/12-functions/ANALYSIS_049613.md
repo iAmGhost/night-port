@@ -42,6 +42,12 @@ the 0-based convention.)
 ## Callees (all ported)
 - `fn_0495eb` (0x495eb): date compare `int32_t fn_0495eb(struct dec_datetime *x, struct dec_datetime *y, int32_t ref_year)`.
 - `fx_less` (0x498c6): `uint32_t fx_less(const struct fxnum *a, const struct fxnum *b)`.
+  **`struct fxnum` = an overlay on the `struct dec_datetime` base pointer, NOT (year,dow,doy):**
+  `lo` = `[base+0x00]` = `sec`, `hi` = `[base+0x04]` = `min`, `exp` = `[base+0x08]` = `hour`
+  (fn_049613 passes `d` and the global's base pointer straight in, so the time fields are what
+  get compared). **The comparison is UNSIGNED:** lo/hi use `CMP EDI,EDX` (CF), and the exponent
+  uses `JL`; the C port keeps the time fields small/non-negative so signed/unsigned agree and
+  uses `a->exp < b->exp` on the uint32 fields.
 - `is_leap` (0x494cb): leap-year flag.
 
 ## Control-flow structure (medium confidence — pin exact branches in the ref)
@@ -81,17 +87,25 @@ The exact inequality directions (JGE/JG/JLE/JL) are easy to get subtly wrong; th
 reference must transcribe each compare verbatim from the disasm, and the diff test will
 lock the transcription.
 
-## DEFERRED — next-context checklist
-1. Python ref `scratch/fp_049613_ref.py` mirroring the disasm exactly (both passes verbatim).
-   **NOT standalone — transitive callee ports required in Python:** the `fn_0495eb` call @0x4963c
-   (args EAX=G1, EDX=G2, EBX=`d->year`; returns 0/1) transitively needs Python ports of
-   `fn_049506 -> fn_04574a -> fn_0498f6`. The cycle is broken because `fn_049506` builds its
-   temp struct with `mode=0`, so `fn_04574a(temp)` takes the `TEST EBX,EBX;JGE` path and SKIPS
-   the `fn_049613` call (no infinite recursion). `is_leap` + `fx_less` are self-contained (easy).
-   All five are already ported + verified in C (f.c: fn_0495eb~3855, fn_049506~3826, fn_04574a~3785).
-2. C mirror `fn_049613` in `port/src/f/f.c`; **replace the no-op stub**; declare in `f.h`.
-   Model globals `0x537ca` (ptr-to-flag), `0x53734`/`0x53758` (G1/G2) as `extern` vars the
-   test controls.
-3. Differential test (C vs Python) over varied (d, G1, G2, flag) inputs.
-4. **Re-run** `test_fn_04574a_date_cluster` + `test_fn_04297a` to confirm the previously
-   stubbed absolute values now match (they currently assume the no-op stub).
+## PORTED + DIFF-VERIFIED (2026-07-12)
+All checklist items below are done:
+1. Python ref `scratch/fp_049613_ref.py` — mirrors the disasm (both passes verbatim). The
+   transitive `fn_0495eb -> fn_049506 -> fn_04574a -> fn_0498f6` cycle is broken because
+   `fn_049506` builds its temp struct with `mode=0`, so `fn_04574a(temp)` takes the
+   `TEST EBX,EBX;JGE` path and SKIPS the `fn_049613` call (no recursion). `fxnum` corrected
+   to `(hour,min,sec)`; `fx_less` confirmed unsigned.
+2. C mirror `int32_t fn_049613(struct dec_datetime *d)` in `port/src/f/f.c` (no-op stub
+   replaced); declared in `f.h`. Globals: `g_dat_537ca` (`uint8_t *` flag-byte ptr),
+   `g_dat_53734`/`g_dat_53758` retyped `uint32_t` -> `struct dec_datetime` (G1/G2); the 4
+   `fn_049b84` call sites in fn_049a35/fn_049c76 cast to `(uint32_t*)&`.
+3. Differential test `test_fn_049613` (port/test/test_f1.c): 19 vectors vs the Python ref,
+   each asserting `ret == exp` AND `d->mode == ret`. FIRST-TRY PASS, no debug loop.
+4. `test_fn_04574a_date_cluster` + `test_fn_04297a` still green (flag=0 -> fn_049613 returns
+   0 + d->mode=0, matching the old stub's behavior). FULL SUITE **1464 PASS 0 FAIL**.
+
+**Semantics (now understood):** fn_049613 answers, for a recurring-event target date `d`
+(with a `mode<0` recurrence flag), whether/which of two stored reference recurrences
+(G1/G2) `d` matches this cycle — returning a small match count (0/1) the caller stores
+in `d->mode`. The two near-duplicate passes handle the "primary" vs "secondary" ordering
+(fn_0495eb picks which global is primary). Reached only from fn_04574a's `mode<0` path
+(recurring-event dates), never from plain-date normalization.

@@ -2498,6 +2498,58 @@ static void test_fn_04574a_date_cluster(void) {
     g_dat_5377c = save_c; g_dat_53780 = save_0;
 }
 
+static void test_fn_049613(void) {
+    printf("fn_049613 (recurring-event date arithmetic, 236 ins)\n");
+    /* Differential vectors from scratch/fp_049613_ref.py (independent ref).
+     * struct dec_datetime field order: sec,min,hour,day,month,year,dow,doy,mode.
+     * G1==G2 cases -> fn_0495eb==0 (cmp=0); mode!=0 cases -> fn_049506 returns
+     * doy directly (no fn_04574a dependence), so every vector is deterministic. */
+    typedef struct { const char *name; int flag; int G1[9]; int G2[9]; int d[9]; int32_t exp; } V;
+    static const V tv[] = {
+        {"A flag=0",            0, {0,0,0,1,0,100,0,0,0},  {0,0,0,1,0,100,0,0,0},  {0,0,0,3,0,100,0,0,-1}, 0},
+        {"B doy EDX>ddoy cmp0", 1, {0,0,0,1,0,100,0,100,2},{0,0,0,1,0,100,0,100,2},{0,0,0,3,0,100,0,50,2}, 0},
+        {"C doy match fxless0", 1, {0,0,0,1,0,100,0,100,2},{0,0,0,1,0,100,0,100,2},{0,0,0,3,0,100,0,100,2},0},
+        {"D doy EDX>ddoy d99",  1, {0,0,0,1,0,100,0,100,2},{0,0,0,1,0,100,0,100,2},{5,5,5,3,0,100,0,99,2}, 0},
+        {"E ordering d150",     1, {0,0,0,1,0,100,0,100,2},{0,0,0,1,0,100,0,100,2},{0,0,0,3,0,100,0,150,2},0},
+        {"F week hit fxless0",  1, {0,0,0,15,5,100,3,150,0},{0,0,0,15,5,100,3,150,0},{0,0,0,16,5,100,3,150,0},0},
+        {"G week m<p.month",    1, {0,0,0,15,5,100,3,150,0},{0,0,0,15,5,100,3,150,0},{0,0,0,16,3,100,1,40,0}, 0},
+        {"H week m>p.month",    1, {0,0,0,15,5,100,3,150,0},{0,0,0,15,5,100,3,150,0},{0,0,0,16,7,100,3,200,0},0},
+        {"I mode1 leapadj",     1, {0,0,0,1,0,100,0,200,1},{0,0,0,1,0,100,0,100,1},{0,0,0,3,0,100,0,200,1}, 1},
+        {"J cmp pass2 tail",    1, {0,0,0,1,0,100,0,200,2},{0,0,0,1,0,100,0,100,2},{0,0,0,3,0,100,0,100,2},0},
+        {"K week day5 special", 1, {0,0,0,5,5,100,3,150,0}, {0,0,0,5,5,100,3,150,0}, {0,0,0,28,5,100,3,150,0},0},
+        {"L week pd!=5",        1, {0,0,0,10,5,100,3,150,0},{0,0,0,10,5,100,3,150,0},{0,0,0,8,5,100,3,150,0}, 0},
+        {"M nonleap month",     1, {0,0,0,15,5,101,3,150,0},{0,0,0,15,5,101,3,150,0},{0,0,0,16,5,101,3,150,0},0},
+        {"N pass2 week hit",    1, {0,0,0,15,5,100,3,150,0},{0,0,0,15,5,100,3,150,0},{2,2,2,16,5,100,3,150,0},0},
+        {"P1 doy=,sec>,cmp0",   1, {7,6,5,1,0,100,0,100,2},{7,6,5,1,0,100,0,200,2},{7,6,5,3,0,100,0,100,2},1},
+        {"P2 cmp1 dt<prim",     1, {7,6,5,1,0,100,0,200,2},{7,6,5,1,0,100,0,100,2},{7,6,2,3,0,100,0,100,2},1},
+        {"P3 cmp1 tail",        1, {7,6,5,1,0,100,0,200,2},{7,6,5,1,0,100,0,100,2},{7,6,9,3,0,100,0,100,2},0},
+        {"P4 cmp0 tail",        1, {7,6,5,1,0,100,0,100,2},{7,6,5,1,0,100,0,300,2},{7,6,9,3,0,100,0,100,2},1},
+        {"P5 week match=1",     1, {0,0,0,10,5,100,3,150,0},{0,0,0,10,5,100,3,150,0},{0,0,0,64,5,100,3,150,0},0},
+    };
+    uint8_t  save_flag = *g_dat_537ca;
+    struct dec_datetime save1 = g_dat_53734, save2 = g_dat_53758;
+    uint32_t save_77c = g_dat_5377c, save_780 = g_dat_53780;
+    g_dat_5377c = 0; g_dat_53780 = 0;   /* match the Python ref (TZ_SEC=TZ_RANGE=0) */
+    for (size_t i = 0; i < sizeof tv / sizeof tv[0]; i++) {
+        struct dec_datetime g1, g2, d;
+        for (int k = 0; k < 9; k++) {
+            ((int32_t *)&g1)[k] = tv[i].G1[k];
+            ((int32_t *)&g2)[k] = tv[i].G2[k];
+            ((int32_t *)&d)[k]  = tv[i].d[k];
+        }
+        *g_dat_537ca = (uint8_t) tv[i].flag;
+        g_dat_53734 = g1; g_dat_53758 = g2;
+        int32_t ret = fn_049613(&d);
+        char buf[160];
+        snprintf(buf, sizeof buf, "  049613 %s -> %d (exp %d)", tv[i].name, ret, (int) tv[i].exp);
+        check(ret == tv[i].exp, buf);
+        snprintf(buf, sizeof buf, "  049613 %s d->mode==ret", tv[i].name);
+        check(d.mode == ret, buf);
+    }
+    *g_dat_537ca = save_flag; g_dat_53734 = save1; g_dat_53758 = save2;
+    g_dat_5377c = save_77c; g_dat_53780 = save_780;
+}
+
 static void test_fn_0498f6(void) {
     printf("fn_0498f6 (0x0498f6, date decoder)\n");
     struct dec_datetime d;
@@ -6218,6 +6270,7 @@ int main(void) {
     test_fn_044bec();
     test_fn_0498f6();
     test_fn_04574a_date_cluster();
+    test_fn_049613();
     test_fn_04322f();
     test_fn_044848();
     test_fn_049a0b();

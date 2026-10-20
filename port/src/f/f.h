@@ -100,7 +100,7 @@ struct dec_datetime *fn_0498f6(int32_t base_day, uint32_t seconds, int32_t delta
 int32_t fn_04574a(struct dec_datetime *d);                                   /* 0x04574a: recurring-event date/time normalizer (in-place; returns unix-epoch-ish offset or -1) */
 int32_t fn_049506(struct dec_datetime *d, int32_t ref_year);                 /* 0x049506: recurring-event date -> day-of-year offset */
 int32_t fn_0495eb(struct dec_datetime *x, struct dec_datetime *y, int32_t ref_year); /* 0x0495eb: 1 iff 0x049506(x)>0x049506(y) */
-void    fn_049613(struct dec_datetime *d);                                   /* 0x049613: DEFERRED stub (date arithmetic, reached only when mode<0) */
+int32_t fn_049613(struct dec_datetime *d);  /* 0x049613: recurring-event date arithmetic; returns EDI (also d->mode) */
 int32_t fn_04322f(void);                                            /* 0x04322f: return -1 */
 int32_t fn_044848(uint32_t handle, uint32_t a2, uint32_t a3, uint32_t a4); /* 0x044848: lseek(h,0,SEEK_SET) */
 void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_t p4); /* 0x049a0b: unix-time decode */
@@ -836,8 +836,9 @@ extern uint32_t g_dat_53784;             /* DAT_00053784: TZ has-second-part fla
 extern uint32_t g_dat_53788;             /* DAT_00053788: TZ time prefix buf (4B) */
 extern uint32_t g_dat_537a7;             /* DAT_000537a7: TZ time2 prefix buf (4B) */
 extern uint32_t g_dat_5377c;             /* DAT_0005377c: TZ seconds */
-extern uint32_t g_dat_53734;             /* DAT_00053734: TZ count */
-extern uint32_t g_dat_53758;             /* DAT_00053758: TZ index */
+extern struct dec_datetime g_dat_53734;      /* DAT_00053734: recurring-event reference date G1 */
+extern struct dec_datetime g_dat_53758;      /* DAT_00053758: recurring-event reference date G2 */
+extern uint8_t *g_dat_537ca;                 /* DAT_000537ca: ptr to enable flag (0 -> fn_049613 returns 0) */
 uint64_t fn_0492d0(uint32_t index, uint32_t ctx);
 void     fn_042a19(void);       /* 0x042a19: g_dat_64008 = 0xe (tail-jump fn_042a0d) */
 void     fn_044b96(void);       /* 0x044b96: drain g_node_list_done via heap_free_host */

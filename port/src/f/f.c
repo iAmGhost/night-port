@@ -3760,8 +3760,13 @@ uint32_t g_dat_53784 = 0;                /* DAT_00053784: TZ has-second-part fla
 uint32_t g_dat_53788 = 0;                /* DAT_00053788: TZ time prefix buf (4B) */
 uint32_t g_dat_537a7 = 0;                /* DAT_000537a7: TZ time2 prefix buf (4B) */
 uint32_t g_dat_5377c = 0;                /* DAT_0005377c: TZ seconds */
-uint32_t g_dat_53734 = 0;                /* DAT_00053734: TZ count */
-uint32_t g_dat_53758 = 0;                /* DAT_00053758: TZ index */
+/* 0x53734/0x53758: two adjacent 36-byte struct dec_datetime reference dates
+ * (the "recurring-event" anchors used by fn_049613). The TZ parser (fn_049a35/
+ * fn_049c76) writes only their first dword, hence the (uint32_t*) casts there. */
+struct dec_datetime g_dat_53734;         /* DAT_00053734: reference date G1 */
+struct dec_datetime g_dat_53758;         /* DAT_00053758: reference date G2 */
+static uint8_t g_dat_537ca_target = 0;   /* flag byte (0 -> fn_049613 returns 0) */
+uint8_t *g_dat_537ca = &g_dat_537ca_target; /* DAT_000537ca: ptr to enable flag */
 uint8_t  g_dat_533bb = 0;                /* DAT_000533bb: classify-enable threshold */
 uint32_t g_dat_53619 = 0;                /* DAT_00053619: 0x200 => default binary */
 uint32_t g_dat_536d8 = 0;                /* DAT_000536d8: create-mode xor (load-time 0) */
@@ -3776,11 +3781,122 @@ uint32_t g_dat_536d8 = 0;                /* DAT_000536d8: create-mode xor (load-
 static const int16_t g_nonleap_tbl[13] = { 0,31,59,90,120,151,181,212,243,273,304,334,365 }; /* DAT_00051960 */
 static const int16_t g_leap_tbl[13]    = { 0,31,60,91,121,152,182,213,244,274,305,335,366 };  /* DAT_0005197a */
 
-/* 0x049613: recurring-event date arithmetic (236 ins). DEFERRED to a fresh
- * context. Called by fn_04574a only when d->mode<0; the date-compare sub-unit
- * always uses mode>=0, so this stub is never reached by the differential tests
- * and exists only to satisfy the link. */
-void fn_049613(struct dec_datetime *d) { (void)d; }
+/* 0x049613: recurring-event date arithmetic (236 ins). Reached from fn_04574a
+ * only when d->mode<0 (after fn_0498f6 normalization). Gated by the flag byte at
+ * *g_dat_537ca (0 -> d->mode=0, return 0). Otherwise it orders the two reference
+ * structs G1 (0x53734) / G2 (0x53758) via fn_0495eb into a primary/secondary pair
+ * and tests, for each, whether d falls within that struct's recurring window
+ * (week-of-month when the ref's mode==0, day-of-year when mode!=0). Returns the
+ * EDI accumulator in EAX and stores it in d->mode in place. fx_less is passed the
+ * base dec_datetime pointer (fxnum {lo,hi,exp} overlay => lo=sec,hi=min,exp=hour).
+ * The 0x49781/0x4987f constant (int16@0x51964) is g_nonleap_tbl[3] = 90.
+ * x86 IDIV truncates toward zero; C int32 division matches for these small operands. */
+int32_t fn_049613(struct dec_datetime *d) {
+    int32_t EDI = 0;
+
+    if (*g_dat_537ca == 0) { d->mode = 0; return 0; }         /* 0x49623-29 */
+
+    int32_t cmp = fn_0495eb(&g_dat_53734, &g_dat_53758, d->year);  /* [ESP+0x10] */
+    struct dec_datetime *primary, *secondary;
+    if (cmp != 0) { primary = &g_dat_53758; secondary = &g_dat_53734; }  /* 0x49649-4e */
+    else          { primary = &g_dat_53734; secondary = &g_dat_53758; }  /* 0x49655-5a */
+
+    int32_t m = d->month;                                     /* EBP */
+    int32_t leapbit = (int32_t)is_leap((uint32_t)(d->year + 0x76c), 0); /* 0x4966a-6f */
+    const int16_t *dtbl = leapbit ? g_leap_tbl : g_nonleap_tbl;
+    int32_t daycnt = (int32_t)(dtbl[m + 1] - dtbl[m]);         /* [ESP+0xc] */
+
+    int32_t match = 0;                                        /* [ESP+0x14] */
+    int32_t pmode = primary->mode;                            /* 0x496a1 EAX */
+    if (pmode != 0) {                                         /* 0x496aa JNZ -> 0x49763 */
+        int32_t EDX = primary->doy;                           /* [EBX+0x1c] */
+        if (pmode == 1) {                                     /* 0x49766 CMP EAX,1 */
+            if ((int32_t)is_leap((uint32_t)(d->year + 0x76c), 0)) {  /* 0x49773 */
+                if (EDX > (int32_t)g_nonleap_tbl[3]) EDX++;   /* 0x49784-88 */
+            }
+            EDX--;                                            /* 0x49789 */
+        }
+        int32_t ddoy = d->doy;                                /* [ECX+0x1c] */
+        if (EDX <= ddoy) {                                    /* 0x4978f JG -> skip */
+            EDI = 1;                                          /* 0x49791 */
+            if (EDX == ddoy) match = 1;                       /* 0x49796 JNZ; else 0x49798 */
+        }
+    } else {                                                  /* 0x496b0-6c7 */
+        int32_t pmonth = primary->month;                      /* [EBX+0x10] */
+        if (m == pmonth) {                                    /* week-of-month match */
+            int32_t rem1 = (d->dow + 7 - primary->dow) % 7;   /* 0x496df IDIV rem */
+            int32_t a0   = d->day - rem1;                     /* [ESP] */
+            int32_t rem2 = (d->dow + 6 - primary->dow) % 7;   /* 0x49701 IDIV rem */
+            int32_t b8   = d->day - 1 - rem2;                 /* [ESP+0x8] */
+            int32_t pd   = primary->day;                      /* [EBX+0x0c] */
+            if (pd == 5) {                                    /* 0x49712 */
+                int32_t v = daycnt - 7;
+                if (v < a0) { EDI = 1; if (v >= b8) match = 1; }  /* 0x4972d/734/798 */
+            } else {                                          /* 0x4973c */
+                int32_t v = (pd - 1) * 7 + 1;
+                if (v <= a0) { EDI = 1; if (v > b8) match = 1; }  /* 0x49758/75f/798 */
+            }
+        } else if (m > pmonth) {
+            EDI = 1;                                          /* 0x496b7 */
+        }
+        /* m < pmonth: EDI=0, match=0 (initial) -> 0x4979c */
+    }
+
+    if (match != 0) {                                         /* 0x4979c */
+        EDI = (fx_less((const struct fxnum *)d, (const struct fxnum *)primary) == 0) ? 1 : 0;
+    }
+
+    if (EDI != 0) {                                           /* 0x497b6 JNZ -> pass-2 */
+        int32_t smode = secondary->mode;                      /* 0x497cb [ESI+0x20] */
+        int32_t ebxf = 0;                                     /* 0x497ce */
+        if (smode != 0) {                                      /* 0x497d2 JNZ -> 0x49861 */
+            int32_t EDX = secondary->doy;                      /* [ESI+0x1c] */
+            if (smode == 1) {                                  /* 0x49864 CMP EAX,1 */
+                if ((int32_t)is_leap((uint32_t)(d->year + 0x76c), 0)) {  /* 0x49871 */
+                    if (EDX > (int32_t)g_nonleap_tbl[3]) EDX++;   /* 0x49882-86 */
+                }
+                EDX--;                                         /* 0x49887 */
+            }
+            int32_t ddoy = d->doy;                             /* [ECX+0x1c] */
+            if (EDX <= ddoy) {                                 /* 0x4988d JG -> EDI unchanged */
+                EDI = 0;                                       /* 0x4988f */
+                if (EDX == ddoy) ebxf = 1;                     /* 0x49893 JNZ; else 0x49895 */
+            }
+        } else {                                               /* 0x497d8-7e6 */
+            int32_t smonth = secondary->month;                /* [ESI+0x10] */
+            if (m == smonth) {                                /* pass-2 week-of-month match */
+                int32_t rem1b = (d->dow + 7 - secondary->dow) % 7; /* 0x49801 */
+                int32_t a4    = d->day - rem1b;              /* [ESP+0x4] */
+                int32_t rem2b = (d->dow + 6 - secondary->dow) % 7; /* 0x4981c */
+                int32_t b4    = d->day - 1 - rem2b;          /* EBP @0x49822 */
+                EDI = 0;                                       /* 0x49827 */
+                int32_t sd   = secondary->day;               /* [ESI+0x0c] */
+                if (sd == 5) {                                /* 0x49829 */
+                    int32_t v = daycnt - 7;
+                    if (v >= a4) { EDI = 1; }                 /* 0x4983d -> 0x4989a */
+                    else if (b4 <= v) { ebxf = 1; }          /* 0x49846 JG; else 0x49848 */
+                } else {                                      /* 0x4984a */
+                    int32_t v = (sd - 1) * 7 + 1;
+                    if (v > a4) { EDI = 1; }                  /* 0x49859 JG -> 0x4983d */
+                    else if (b4 < v) { ebxf = 1; }           /* 0x4985d JGE; else 0x4985f */
+                }
+            } else if (m > smonth) {
+                EDI = 0;                                       /* 0x497df -> 0x4989a */
+            }
+            /* m < smonth: EDI unchanged -> 0x4989a */
+        }
+        if (ebxf != 0)                                        /* 0x4989a */
+            EDI = (int32_t)fx_less((const struct fxnum *)d, (const struct fxnum *)secondary);
+        if (cmp != 0)                                         /* 0x498a9 */
+            EDI = cmp - EDI;                                  /* 0x498b1-b5 */
+    } else {                                                  /* 0x497b8: EDI == 0 */
+        if (cmp == 0) { d->mode = 0; return 0; }              /* 0x497be JZ */
+        EDI = cmp;                                            /* 0x497c4 */
+    }
+
+    d->mode = EDI;                                            /* 0x498b9 */
+    return EDI;                                               /* 0x498b7 */
+}
 
 int32_t fn_04574a(struct dec_datetime *d) {
     int32_t r_raw = d->month % 12;                 /* 0x45757-60: IDIV rem (sign of dividend) */
@@ -3875,10 +3991,10 @@ void fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3) {
         pcVar1 = parse_time_str(pcVar1, (char *)&g_dat_537a7, &local_10);
         g_dat_53780 = g_dat_5377c - local_10;
         if (*pcVar1 == ',') {
-            pcVar1 = (char *)fn_049b84(pcVar1 + 1, &g_dat_53734);
+            pcVar1 = (char *)fn_049b84(pcVar1 + 1, (uint32_t *)&g_dat_53734);
         }
         if (*pcVar1 == ',') {
-            fn_049b84(pcVar1 + 1, &g_dat_53758);
+            fn_049b84(pcVar1 + 1, (uint32_t *)&g_dat_53758);
         }
     }
 }
@@ -3898,10 +4014,10 @@ void fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4) {
         pcVar1 = parse_time_str(pcVar1, (char *)&g_dat_537a7, &local_10);
         g_dat_53780 = 18000u - local_10;               /* 5h - second secs */
         if (*pcVar1 == ',') {
-            pcVar1 = (char *)fn_049b84(pcVar1 + 1, &g_dat_53734);
+            pcVar1 = (char *)fn_049b84(pcVar1 + 1, (uint32_t *)&g_dat_53734);
         }
         if (*pcVar1 == ',') {
-            fn_049b84(pcVar1 + 1, &g_dat_53758);
+            fn_049b84(pcVar1 + 1, (uint32_t *)&g_dat_53758);
         }
     }
 }

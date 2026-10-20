@@ -518,7 +518,6 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|---|---|---|
 | [x] | 0x03f084 | 218 | fn_03f084 | | |
 | [x] | 0x0418c6 | 11 | fn_0418c6 | report undefined ctor/dtor via fn_0429c8 | test_f1 PASS |
-| [ ] | 0x041d18
 | [x] | 0x041e51 | 26 | fn_041e51 | dpmi | no-op standin (reg-ABI, ret 0); test_f1 PASS |
 | [x] | 0x042aba | 30 | fn_042aba | | |
 | [x] | 0x042fc2 | 174 | FUN_00042fc2 | | |

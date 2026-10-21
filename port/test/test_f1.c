@@ -7303,6 +7303,28 @@ static void test_fn_03fb0e(void) {
     check(screen[0xfa00 - 1] == data[0xfa00 - 1], "  last byte matches source");
 }
 
+static void test_fn_03a1b3(void) {
+    printf("fn_03a1b3 (0x03a1b3): read {A,B,data[A*B]} block from resource node g_639b8\n");
+    heap_arena_init();
+    g_dat_633a0 = 0;   /* empty table -> fn_0367c9 returns 0, leaves g_639b8 as we set it */
+    uint32_t data_off = heap_arena_alloc(0x20);
+    uint8_t *data = (uint8_t *)g_heap_base + data_off;
+    *(uint32_t *)(data + 0) = 2;                     /* A=2 */
+    *(uint32_t *)(data + 4) = 3;                     /* B=3 */
+    for (uint32_t i = 0; i < 6; i++) data[8 + i] = (uint8_t)(0xa0 + i);   /* data[A*B] */
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = (uint8_t *)g_heap_base + node_off;
+    *(uint32_t *)(node + 0) = data_off;              /* pos */
+    *(uint32_t *)(node + 4) = 14;                    /* remaining (4+4+6) */
+    *(uint32_t *)(node + 8) = data_off;              /* end */
+    node[0xc] = 0x41;                                /* bulk + open */
+    g_639b8 = (res_reader *)node;
+    uint8_t dest[16]; memset(dest, 0, sizeof(dest));
+    fn_03a1b3("NORES", dest);
+    check(dest[0] == 0xa0 && dest[5] == 0xa5, "  6 bytes (A*B) read into dest");
+    check(dest[6] == 0, "  dest[6] untouched");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7649,6 +7671,7 @@ int main(void) {
     test_fn_04192e();
     test_fn_03fb73();
     test_fn_03fb0e();
+    test_fn_03a1b3();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

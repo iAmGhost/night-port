@@ -1875,6 +1875,19 @@ int32_t fn_0367c9(const char *a0) {
     return 0;
 }
 
+/* 0x03a1b3 (L11): read a {A,B,data[A*B]} block from the resource reader g_639b8.
+ * ABI (disasm-verified): EAX=name (const char*, the resource key), EDX=dest (block buffer).
+ * canary_id(name, 0x28) preserves EAX/EDX. fn_0367c9(name) looks the resource up (only touches
+ * g_639b8 on a match). Then fn_04192e reads u32 A, u32 B from g_639b8, and A*B bytes into dest. */
+void fn_03a1b3(const char *name, uint8_t *dest) {
+    (void)canary_id((uintptr_t)name, 0x28);
+    fn_0367c9(name);                                       /* 0x3a1d3 CALL 0x367c9 */
+    uint32_t A, B;
+    fn_04192e((uint8_t *)&A, 1, 4, (uint8_t *)g_639b8);    /* 0x3a1e4: read u32 A */
+    fn_04192e((uint8_t *)&B, 1, 4, (uint8_t *)g_639b8);    /* 0x3a1f5: read u32 B */
+    fn_04192e(dest, A, B, (uint8_t *)g_639b8);             /* 0x3a206: read A*B bytes -> dest */
+}
+
 /* fn_036853 orig: 0x036853 (L10, 183B)
  * Resource lookup by name with a value transform. Walk the g_tab_5d884 table
  * (bound g_dat_633a0, 21-byte entries {str[13]; int32 value13@13; int32

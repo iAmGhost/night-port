@@ -804,6 +804,7 @@ extern uint8_t  g_tab_5d884[128 * 21];  /* RODATA string->value table @0x5d884, 
 extern res_reader *g_639b8;      /* DAT_000639b8: resource-reader node pointer (target of fn_0367c9 submits) */
 int32_t fn_036626(const char *s);  /* 0x036626: case-insensitive string->value table lookup */
 int32_t fn_0367c9(const char *a0); /* 0x0367c9: find name in 0x5d884 table; on first match fn_04247a(g_639b8, entry@17, 0); 1/0 */
+void fn_03a1b3(const char *name, uint8_t *dest); /* 0x03a1b3: read {A,B,data[A*B]} block from resource reader g_639b8 into dest */
 int32_t fn_036853(const char *a0, int32_t a1, int32_t a2); /* 0x036853: lookup + value transform (a2: 0 -> v2+a1, 2 -> v2+v13+a1) */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
 /* 0x03df96 sprite-blit font: original is a 4-byte-dword-pointer struct; port widens each pointer

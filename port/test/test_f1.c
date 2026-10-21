@@ -4827,7 +4827,7 @@ static void test_l10_accessors(void) {
     check(d != 0, "  fn_010376: freed 3 blocks, heap reusable");
     heap_free_host(d);
     uint8_t q[2] = {0x12, 0x34}; check(fn_03518a(q) == 0x1234, "  fn_03518a BE16 read");
-    { double out; fn_04a7fa(5.0, &out); check(out == 0.0, "  fn_04a7fa integer -> 0"); fn_04a7fa(2.3, &out); check(out == 2.3 - fpu_rndint(2.3), "  fn_04a7fa = a - rndint"); }
+    { double out; fn_04a7fa(5.0, &out); check(out == 5.0, "  fn_04a7fa *out = rndint(5.0)"); fn_04a7fa(2.3, &out); check(out == 2.0, "  fn_04a7fa *out = rndint(2.3)"); fn_04a7fa(-2.7, &out); check(out == -3.0, "  fn_04a7fa *out = rndint(-2.7) (nearest-even)"); }
     { g_dat_639dc = 0; uint8_t s[0xd0] = {0}; int32_t out;
       *(uint32_t*)(s+1) = 100; *(int32_t*)(s+0xbf) = 50; *(int32_t*)(s+0xab) = 5;
       int32_t r = fn_016959(s, 10, &out);
@@ -5524,20 +5524,23 @@ static void test_fn_048fe6(void) {
 }
 
 static void test_fn_04a32b(void) {
-    printf("fn_04a32b (0x04a32b, FPU remainder: local=a-rint(a); a<0 -> local-1.0)\n");
-    /* Python reference (independent): local = a - round_half_even(a); if a<0: local -= 1.0.
-     * C and Python use the same IEEE-754 double and deterministic ops, so compare exact. */
+    printf("fn_04a32b (0x04a32b, x87 floor: rndint(a) minus 1 when the fraction is negative)\n");
+    /* Re-derived from the disassembly (PORT BUG FIX, see f.c): 0x04a7fa stores rndint(a) into
+     * the local and leaves the fraction on the x87 stack; FLDZ/FCOMPP tests that fraction, so
+     * the -1.0 adjustment happens when rounding went UP, not when a < 0. Result = floor(a). */
     check(fn_04a32b(0.0, 0.0) == 0.0, "  04a32b 0.0 -> 0.0");
-    check(fn_04a32b(1.5, 0.0) == -0.5, "  04a32b 1.5 -> -0.5 (rint(1.5)=2, a>=0)");
-    check(fn_04a32b(0.5, 0.0) == 0.5, "  04a32b 0.5 -> 0.5 (rint(0.5)=0, a>=0)");
-    check(fn_04a32b(-0.5, 0.0) == -1.5, "  04a32b -0.5 -> -1.5 (a<0: -0.5 - 1.0)");
-    check(fn_04a32b(2.3, 0.0) == 0.2999999999999998, "  04a32b 2.3 -> 0.2999...8");
-    check(fn_04a32b(-2.3, 0.0) == -1.2999999999999998, "  04a32b -2.3 -> -1.2999...8 (a<0)");
-    check(fn_04a32b(7.0, 0.0) == 0.0, "  04a32b 7.0 -> 0.0 (integer, a>=0)");
-    check(fn_04a32b(-7.0, 0.0) == -1.0, "  04a32b -7.0 -> -1.0 (integer, a<0: 0 - 1)");
-    check(fn_04a32b(10000000000.5, 0.0) == 0.5, "  04a32b 1e10+0.5 -> 0.5");
-    check(fn_04a32b(-9999999999.5, 0.0) == -0.5, "  04a32b -1e10+0.5 -> -0.5 (a<0, rint even)");
-    check(fn_04a32b(2.3, 42.0) == 0.2999999999999998, "  04a32b arg2 unused (2.3,42)==(2.3,0)");
+    check(fn_04a32b(1.5, 0.0) == 1.0, "  04a32b 1.5 -> 1.0 (rint=2, fraction -0.5 -> -1)");
+    check(fn_04a32b(0.5, 0.0) == 0.0, "  04a32b 0.5 -> 0.0 (rint half-even = 0)");
+    check(fn_04a32b(-0.5, 0.0) == -1.0, "  04a32b -0.5 -> -1.0");
+    check(fn_04a32b(2.3, 0.0) == 2.0, "  04a32b 2.3 -> 2.0");
+    check(fn_04a32b(-2.3, 0.0) == -3.0, "  04a32b -2.3 -> -3.0 (fraction -0.3 -> -1)");
+    check(fn_04a32b(7.0, 0.0) == 7.0, "  04a32b 7.0 -> 7.0 (integer stays)");
+    check(fn_04a32b(-7.0, 0.0) == -7.0, "  04a32b -7.0 -> -7.0 (was -1.0 in the buggy port)");
+    check(fn_04a32b(10000000000.5, 0.0) == 10000000000.0, "  04a32b 1e10+0.5 -> 1e10 (half-even)");
+    check(fn_04a32b(-9999999999.5, 0.0) == -10000000000.0, "  04a32b -9999999999.5 -> -1e10");
+    check(fn_04a32b(0.3010299956639812, 0.0) == 0.0, "  04a32b log10(2) -> 0");
+    check(fn_04a32b(2.9999999999999996, 0.0) == 2.0, "  04a32b log10(1000) -> 2");
+    check(fn_04a32b(2.3, 42.0) == 2.0, "  04a32b arg2 unused (2.3,42)==(2.3,0)");
 }
 
 static void test_fn_04a3a8(void) {

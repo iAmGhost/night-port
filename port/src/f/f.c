@@ -6393,22 +6393,35 @@ void fn_010376(uint8_t *s, uint32_t unused) {                        /* 0x010376
 
 uint32_t fn_03518a(const uint8_t *p) { return ((uint32_t)p[0] << 8) | (uint32_t)p[1]; }  /* 0x03518a */
 
-void fn_04a7fa(double a, double *out) { *out = a - fpu_rndint(a); }  /* 0x04a7fa */
+/* fn_04a7fa  orig: 0x04a7fa (22 B) -- x87 helper: FLD arg1; FLD ST(0); call fpu_rndint
+ * (0x041f7e, FRNDINT with round-to-nearest-even); FSUB ST(1),ST(0); FSTP QWORD [EAX].
+ * FSUB ST(1),ST(0) leaves the stack intact and computes ST(1) -= ST(0), so the value FSTP
+ * stores is ST(0) = rndint(arg1): *out = rndint(arg1) -- while the FRACTION
+ * (arg1 - rndint(arg1)) is left on the x87 stack for the caller.
+ * PORT BUG FIXED here: an earlier reading had *out = arg1 - rndint(arg1), which inverted the
+ * two results. Verified by the only two callers: 0x04a32b reads [EBP-0x14] (= *out) back and
+ * FADDs -1.0 to build floor(); 0x04a48f ignores *out and consumes the fraction on the stack
+ * (that call site is modelled inline in fn_04a48f, so it is unaffected).
+ * The C port has no x87 stack, so only the stored value is exposed here. */
+void fn_04a7fa(double a, double *out) { *out = fpu_rndint(a); }  /* 0x04a7fa */
 
-/* DAT_0005184c = -1.0 (0xBFF0000000000000). 0x04a32b: 3-arg call to 0x04a7fa
- * (arg1, arg2=unused, &local) -> local = arg1 - fpu_rndint(arg1) = toward-
- * nearest-even remainder; 0x04a7fa leaves arg1 on the FPU stack. FLDZ; FCOMPP
- * compares arg1 (ST1) vs 0.0 (ST0); C0 = (ST1 < ST0) = (arg1 < 0.0); JBE (arg1
- * >= 0.0) skips the FADD. So: if (arg1 < 0.0) local += DAT_0005184c (-1.0).
- * Returns the double in FPU ST. arg2 is passed through but unused (0x04a7fa
- * only reads arg1 and the out ptr). orig: 0x04a32b */
+/* DAT_0005184c = -1.0 (0xBFF0000000000000). 0x04a32b: local(EBP-0x14) = *out of 0x04a7fa =
+ * rndint(arg1); the helper also leaves the FRACTION arg1-rndint(arg1) on the x87 stack, which
+ * FLDZ + FCOMPP compares against 0 (C0 = fraction < 0; JBE skips when fraction >= 0). If the
+ * fraction is negative the helper adds DAT_0005184c (-1.0) to local, then FLD local.
+ * So this is **floor(arg1)** (nearest-even integer, minus one when rounding went up) -- it is
+ * the decimal-exponent helper used by the printf float formatter 0x049e80.
+ * PORT BUG FIXED here: the previous version returned arg1-rndint(arg1) (-1.0 more when arg1<0),
+ * which is not floor (e.g. floor(-7.0) was computed as -1.0).
+ * arg2 is pushed by the original call site but never read (0x04a7fa takes one double + out).
+ * orig: 0x04a32b */
 double fn_04a32b(double arg1, double arg2)
 {
     (void)arg2;
-    double local;
-    fn_04a7fa(arg1, &local);       /* local = arg1 - fpu_rndint(arg1) */
-    if (arg1 < 0.0) local += -1.0; /* 0x4a34c JBE: DAT_0005184c = -1.0  */
-    return local;
+    double local = 0.0;
+    fn_04a7fa(arg1, &local);                /* 0x4a340: local = rndint(arg1)      */
+    if (arg1 - local < 0.0) local += -1.0;  /* 0x4a345-57: FLDZ/FCOMPP + FADD -1.0 */
+    return local;                           /* 0x4a35a: FLD local -> ST(0)        */
 }
 
 /* ---- 0x04a3a8 (76 insns) ----

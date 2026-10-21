@@ -868,6 +868,13 @@ void fn_034735(uint8_t idx);                /* 0x034735: per-key state machine (
 uint32_t fn_0351dc(uint8_t **cursor);       /* 0x0351dc: unsigned LEB128 (base-128) decoder */
 uint32_t fn_03510b(const uint8_t *p);       /* 0x03510b: big-endian 32-bit read */
 uint8_t *fn_041e20(uint8_t *dest, uint8_t byte, uint32_t count);  /* 0x041e20: memset via fn_043280 */
+extern uint32_t g_dat_63f94;   /* DAT_00063f94: device transfer bytes remaining */
+extern uint32_t g_dat_63f98;   /* DAT_00063f98: last transfer chunk length (device sees n-1) */
+extern uint32_t g_dat_63f9c;   /* DAT_00063f9c: device command selector (0x14 special) */
+extern uint8_t *g_dat_63fa8;   /* DAT_00063fa8: DMA source cursor (host ptr in the port) */
+extern uint8_t *g_dat_63fb4;   /* DAT_00063fb4: device buffer, 0x10000-byte window (host ptr) */
+extern uint32_t g_dat_63fac;   /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
+void fn_040b83(uint8_t *src, uint32_t unused_edx);  /* 0x040b83: one DMA chunk: fill 0x80 + mem_copy + DMA port burst + 3x fn_041340 */
 int32_t  fn_0350aa(const uint8_t *a, const uint8_t *b);           /* 0x0350aa: 4-byte prefix equal? 1/-1 */
 uint64_t fn_0408c5(const uint8_t *p);       /* 0x0408c5: little-endian 24-bit (3-byte) read */
 void fn_03cad3(const uint8_t *p);           /* 0x03cad3: struct -> g_dat_639dc/e0/e4 */

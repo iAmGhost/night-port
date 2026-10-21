@@ -7836,6 +7836,66 @@ static void test_fn_03628e(void) {
     g_dat_63e5c = s_e5c; g_dat_63e4c = s_e4c; g_dat_63e50[0] = s_e50;
 }
 
+static void test_fn_040b83(void) {
+    printf("fn_040b83 (0x040b83): one DMA transfer chunk (0x80 fill + copy + DMA port burst + device cmds)\n");
+    uint8_t *dev = (uint8_t *)calloc(1, 0x10000 + 16);
+    uint8_t *src = (uint8_t *)calloc(1, 0x10000 + 16);
+    if (!dev || !src) { check(0, "  heap buffers (SKIP)"); return; }
+    for (uint32_t i = 0; i < 0x10010; i++) src[i] = (uint8_t)(i * 3 + 1);
+    uint32_t s94 = g_dat_63f94, s98 = g_dat_63f98, s9c = g_dat_63f9c, sac = g_dat_63fac;
+    uint8_t *sa8 = g_dat_63fa8, *sb4 = g_dat_63fb4;
+    uint32_t sport = g_dat_53334;
+    uint8_t p2 = sys_inb(2), p3 = sys_inb(3), p0a = sys_inb(0x0a), p0b = sys_inb(0x0b),
+            p0c = sys_inb(0x0c), p83 = sys_inb(0x83);
+    g_dat_53334 = 0x300;                       /* device cmd/status port = 0x30c */
+    g_dat_63fb4 = dev;
+
+    /* --- A: remaining <= 0xffff -> whole remainder copied, buffer pre-filled with 0x80 --- */
+    memset(dev, 0, 0x10010);
+    g_dat_63f94 = 4; g_dat_63f9c = 0x14; g_dat_63fac = 0x123456;
+    sys_port_set(0x30c, 0);                    /* bit7 clear -> ready */
+    fn_040b83(src, 0);
+    check(g_dat_63f98 == 3, "  A: device count = len-1 (DMA counts n-1)");
+    check(dev[0]==src[0] && dev[1]==src[1] && dev[2]==src[2] && dev[3]==src[3], "  A: 4 bytes copied");
+    check(dev[4] == 0x80 && dev[0xfffe] == 0x80 && dev[0xffff] == 0x00,
+          "  A: 0xffff-byte 0x80 pre-fill (indices 0..0xfffe; only in this branch)");
+    check(g_dat_63f94 == 0 && g_dat_63fa8 == src + 4, "  A: remaining cleared, cursor advanced by len");
+    check(sys_inb(0x0a)==1 && sys_inb(0x0c)==0 && sys_inb(0x0b)==0x49, "  A: DMA mask/unmask, byte ptr, preset");
+    check(sys_inb(2)==0x34 && sys_inb(0x83)==0x12, "  A: address 0x123456 -> port 2 (low, mid) + page 0x83");
+    check(sys_inb(3)==0x00 && sys_inb(0x30c)==0x00, "  A: count 3 -> port 3 low/high, last cmd = 0x00");
+
+    /* --- B: remaining > 0xffff -> 0xffff-byte chunk, NO pre-fill --- */
+    memset(dev, 0, 0x10010);
+    g_dat_63f94 = 0x20000; g_dat_63f9c = 0x14; g_dat_63fac = 0x00abcd;
+    sys_port_set(0x30c, 0);
+    fn_040b83(src, 0);
+    check(g_dat_63f98 == 0xfffe && g_dat_63f94 == 0x10001 && g_dat_63fa8 == src + 0xffff,
+          "  B: chunk 0xffff (count 0xfffe), remaining 0x10001");
+    check(dev[0xfff0] == src[0xfff0] && dev[0xffff] == 0x00, "  B: exactly 0xffff bytes copied, no 0x80 fill");
+    check(sys_inb(3)==0xff && sys_inb(0x30c)==0xfe && sys_inb(0x83)==0x00,
+          "  B: count high 0xff on port 3; cmd chain stops at 0xfe (bit7 set blocks the next gate)");
+
+    /* --- C: g_dat_63f9c == 0x14 -> command is 0x14; count 0x1414 keeps every gate open --- */
+    g_dat_63f94 = 0x1415; g_dat_63f9c = 0x14;          /* -> device count 0x1414 */
+    sys_port_set(0x30c, 0);
+    fn_040b83(src, 0);
+    check(g_dat_63f98 == 0x1414 && sys_inb(0x30c) == 0x14,
+          "  C: cmds 0x14,0x14,0x14 all written (bit7 clear keeps the device ready)");
+
+    /* --- D: g_dat_63f9c != 0x14 -> command is g_dat_63f9c-1; its bit7 then blocks the rest --- */
+    g_dat_63f94 = 0x1415; g_dat_63f9c = 0x94;          /* cmd1 = 0x93 */
+    sys_port_set(0x30c, 0);
+    fn_040b83(src, 0);
+    check(sys_inb(0x30c) == 0x93, "  D: decrement path wrote 0x93, gating off the two count cmds");
+    check(sys_inb(3) == 0x14, "  D: DMA count high byte still programmed (outb is ungated)");
+
+    g_dat_63f94 = s94; g_dat_63f98 = s98; g_dat_63f9c = s9c; g_dat_63fac = sac;
+    g_dat_63fa8 = sa8; g_dat_63fb4 = sb4; g_dat_53334 = sport;
+    sys_port_set(2, p2); sys_port_set(3, p3); sys_port_set(0x0a, p0a); sys_port_set(0x0b, p0b);
+    sys_port_set(0x0c, p0c); sys_port_set(0x83, p83); sys_port_set(0x30c, 0);
+    free(dev); free(src);
+}
+
 static void test_fn_036417(void) {
     printf("fn_036417 (0x036417): screen RLE loader into caller buffer, 0x4b000 bound, dl->board_out\n");
     heap_arena_init();
@@ -8331,6 +8391,7 @@ int main(void) {
     test_fn_036190();
     test_fn_036417();
     test_fn_03628e();
+    test_fn_040b83();
     test_fn_03fc1d();
     test_fn_03e0a0();
     test_fn_03fb0e();

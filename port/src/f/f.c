@@ -5884,6 +5884,58 @@ uint8_t *fn_041e20(uint8_t *dest, uint8_t byte, uint32_t count) {  /* 0x041e20: 
     fn_043280(dest, p, count);
     return dest;
 }
+/* Device/DMA transfer state (DAT_00063f94..0x63fac), used by 0x040b83 and 0x04097e.
+ * DAT_00063fb4 / DAT_00063fa8 hold flat 32-bit buffer addresses in the original; the port
+ * keeps them as host pointers because they are only ever used as copy source/destination
+ * (a 32-bit mirror would truncate on 64-bit hosts). */
+uint32_t  g_dat_63f94;      /* DAT_00063f94: bytes still to transfer */
+uint32_t  g_dat_63f98;      /* DAT_00063f98: length of the last transfer chunk */
+uint32_t  g_dat_63f9c;      /* DAT_00063f9c: device command selector (0x14 special-cased) */
+uint8_t  *g_dat_63fa8;      /* DAT_00063fa8: DMA source cursor */
+uint8_t  *g_dat_63fb4;      /* DAT_00063fb4: device buffer (0x10000-byte window) */
+uint32_t  g_dat_63fac;      /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
+
+/* fn_040b83  orig: 0x040b83 (L12, 390 B) -- one DMA transfer chunk of a device load.
+ * reg-ABI: EAX = source buffer, EDX = saved to [ebp-4] but NEVER read (dead arg, kept
+ * for ABI fidelity). EAX lands in g_dat_63fa8 via the stack-guard prologue. If the
+ * remaining count <= 0xffff (0x40ba8 jle) the chunk is the whole remainder and the device
+ * buffer is pre-filled with 0x80 over 0xffff bytes; otherwise the chunk is 0xffff bytes and
+ * no fill happens. Then mem_copy(buffer, cursor, len); cursor += len; remaining -= len;
+ * len-- (0x40c0a dec, so the DEVICE is told one byte fewer than was copied -- faithful,
+ * DMA count registers are programmed as n-1). Then the ISA DMA programming burst for the
+ * channel: mask ch (0x0a,5), clear byte ptr (0x0c,0), preset (0x0b,0x49), address low/mid
+ * from g_dat_63fac (port 2 twice), page register (0x83 = addr>>16), count low/high on port 3
+ * from the decremented length, then unmask (0x0a,1). Finally three device commands via
+ * fn_041340 on port g_dat_53334+0xc: g_dat_63f9c==0x14 ? 0x14 : (g_dat_63f9c-1), then the
+ * count low byte and count high byte. */
+void fn_040b83(uint8_t *src, uint32_t unused_edx) {
+    (void)unused_edx;                                              /* 0x40b9d: dead [ebp-4] */
+    g_dat_63fa8 = src;                                             /* 0x40ba0-a3 */
+    if (g_dat_63f94 > 0xffffu) {                                   /* 0x40ba8 jle */
+        g_dat_63f98 = 0xffff;                                      /* 0x40bb4 */
+    } else {
+        g_dat_63f98 = g_dat_63f94;                                 /* 0x40bc0-c5 */
+        fn_041e20(g_dat_63fb4, 0x80, 0xffff);                      /* 0x40bca-d9 */
+    }
+    mem_copy(g_dat_63fb4, g_dat_63fa8, g_dat_63f98);               /* 0x40bde-f4 */
+    g_dat_63f94 = g_dat_63f94 - g_dat_63f98;                       /* 0x40bf4-f9 */
+    g_dat_63fa8 = g_dat_63fa8 + g_dat_63f98;                       /* 0x40bff-40c04 */
+    g_dat_63f98 = g_dat_63f98 - 1;                                 /* 0x40c0a */
+    outb(0x0a, 5);                                                 /* 0x40c1a: mask ch */
+    outb(0x0c, 0);                                                 /* 0x40c26: flip byte ptr */
+    outb(0x0b, 0x49);                                              /* 0x40c35: preset */
+    outb(0x02, g_dat_63fac & 0xff);                                /* 0x40c4b: addr low */
+    outb(0x02, (g_dat_63fac >> 8) & 0xff);                         /* 0x40c64: addr mid */
+    outb(0x83, (g_dat_63fac >> 0x10) & 0xff);                      /* 0x40c7d: page reg */
+    outb(0x03, g_dat_63f98 & 0xff);                                /* 0x40c93: count low */
+    outb(0x03, (g_dat_63f98 >> 8) & 0xff);                         /* 0x40cac: count high */
+    outb(0x0a, 1);                                                 /* 0x40cbb: unmask ch */
+    if (g_dat_63f9c == 0x14) fn_041340(g_dat_63f9c);               /* 0x40cc0-cd6 */
+    else                     fn_041340(g_dat_63f9c - 1);           /* 0x40cc9-cf */
+    fn_041340(g_dat_63f98 & 0xff);                                 /* 0x40cea */
+    fn_041340((g_dat_63f98 >> 8) & 0xff);                          /* 0x40cfc */
+}
+
 int32_t fn_0350aa(const uint8_t *a, const uint8_t *b) {            /* 0x0350aa: 4-byte prefix equal? (a=EAX,b=EDX) -> 1/-1 */
     for (int i = 0; i < 4; i++) { if (a[i] != b[i]) return -1; }
     return 1;

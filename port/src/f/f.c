@@ -9602,3 +9602,37 @@ void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
         fn_03bb42(base, (1 - i) * 7 + col0, start_row, 6, 7, rle, 0);
     }
 }
+
+/* fn_038b30  orig: 0x038b30 (L11, 242 B) -- render an integer as a 5-glyph right-justified
+ * number field (left blank-pad + digit glyphs), font-table + RLE blit. Generalization of
+ * 0x038c23: variable width with blank padding instead of a fixed 2-glyph rotate.
+ * ABI (raw disasm; fn_03bb42 blit convention EAX=base/EDX=dest_off/EBX=start_row/ECX=col;
+ * this fn's own regs: EAX=base,EDX=font,EBX=col0,ECX=start_row,[stk]=number):
+ *   itoa32s(number, buf, 10); len = str_len(buf); pad = 5 - len;
+ *   char_table = *(font+0x34); rle_base = *(font+0x38);          // host pointers (port model)
+ *   for (i = 0; i < pad; i++)            // blank glyphs (glyph at char_table[0])
+ *     fn_03bb42(base, i*7 + col0, start_row, col=6, rows=7, rle_base + *char_table, mode=0);
+ *   for (i = 0; i < len; i++)            // digits, right-justified from column (5-len)
+ *     fn_03bb42(base, (i+pad)*7 + col0, start_row, 6, 7,
+ *               rle_base + *(char_table - 0x40 + buf[i]*4), 0);
+ * font[0x34]/[0x38] modeled as 64-bit host pointers (rle_base widened to +0x3c). */
+void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number) {
+    (void)canary_id(0, 0x44);                                     /* PUSH 0x44;CALL 0x418ee */
+    char buf[16];
+    itoa32s(number, buf, 10);                                     /* 0x038b51-5c */
+    int len = str_len(buf);                                       /* 0x038b61-69 */
+    int pad = 5 - len;                                            /* 0x038b6c-74 */
+    uintptr_t char_table = *(uintptr_t *)(font + 0x34);
+    uintptr_t rle_base   = *(uintptr_t *)(font + 0x3c);   /* orig +0x38, widened to 0x3c (8-byte ptr) */
+    for (int i = 0; i < pad; i++) {                               /* 0x038b80-bb9 (pad/blank glyphs) */
+        uint32_t glyph_off = *(uint32_t *)char_table;             /* 0x038b94-b9d: rle_base + *char_table */
+        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+        fn_03bb42(base, i * 7 + col0, start_row, 6, 7, rle, 0);
+    }
+    for (int i = 0; i < len; i++) {                               /* 0x038bc4-c19 (digit glyphs) */
+        uint32_t d = (uint32_t)(uint8_t)buf[i];                   /* 0x038bd5-bd8: AL=buf[i];AND 0xff */
+        uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + d * 4); /* 0x038be6-bf4 */
+        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+        fn_03bb42(base, (i + pad) * 7 + col0, start_row, 6, 7, rle, 0);
+    }
+}

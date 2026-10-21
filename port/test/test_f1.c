@@ -6824,6 +6824,57 @@ static void test_fn_038c23(void) {
     check(ok2, "  T2 5: '0'@col100 (X=0xa0) + '5'@col107 (X=0xa5) => leading-zero pad");
 }
 
+static void test_fn_038b30(void) {
+    printf("fn_038b30 (0x038b30): render integer as 5-glyph right-justified field (pad + digits)\n");
+    uint8_t *scr = g_video_ram;
+    static uint32_t char_map[256];          /* char_map[ascii] = glyph RLE offset */
+    static uint8_t  rle_buf[11 * 28];       /* 10 digit glyphs + 1 pad glyph */
+    static uint8_t  font[0x44];
+    for (uint32_t c = '0'; c <= '9'; c++) char_map[c] = (c - '0') * 28;
+    for (int d = 0; d < 10; d++)            /* digit glyph d: 7 rows of [1,0,1,X_d] */
+        for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
+    for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + 10*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=0xb0; } /* pad glyph = 0xb0 */
+    char_map[16] = 10 * 28;                 /* pad glyph (char_table[0]) -> 0xb0 */
+    *(uint64_t *)(font + 0x34) = (uint64_t)(uintptr_t)(char_map + 16);   /* char_table; +16 elem = 0x40 bytes so (ct-0x40)=char_map */
+    *(uint64_t *)(font + 0x3c) = (uint64_t)(uintptr_t)rle_buf;            /* rle_base (orig +0x38) */
+    uint32_t base = 0xa0000u;
+    int col0 = 100, row = 5;                /* field slot k (0..4) occupies cols col0+k*7 .. +6; byte at col0+k*7 */
+
+    /* T1: 42 -> len=2,pad=3 -> blanks@k=0,1,2 (cols100,107,114=0xb0); '4'@k=3 (col121=0xa4); '2'@k=4 (col128=0xa2) */
+    memset(scr, 0, 0x10000);
+    fn_038b30(base, font, col0, row, 42);
+    int ok1 = 1;
+    for (int r = 0; r < 7; r++) {
+        if (scr[(row+r)*0x140 + 100] != 0xb0) ok1 = 0;
+        if (scr[(row+r)*0x140 + 107] != 0xb0) ok1 = 0;
+        if (scr[(row+r)*0x140 + 114] != 0xb0) ok1 = 0;
+        if (scr[(row+r)*0x140 + 121] != 0xa4) ok1 = 0;
+        if (scr[(row+r)*0x140 + 128] != 0xa2) ok1 = 0;
+    }
+    check(ok1, "  T1 42: 3 blanks(0xb0)@100/107/114 + '4'@121(0xa4) + '2'@128(0xa2) over 7 rows");
+    check(scr[row*0x140 + 99] == 0 && scr[row*0x140 + 135] == 0, "  T1 42: outside field (99,135) untouched");
+
+    /* T2: 5 -> len=1,pad=4 -> blanks@k=0..3 (100,107,114,121=0xb0); '5'@k=4 (128=0xa5) */
+    memset(scr, 0, 0x10000);
+    fn_038b30(base, font, col0, row, 5);
+    int ok2 = 1;
+    for (int r = 0; r < 7; r++) {
+        for (int k = 0; k < 4; k++) if (scr[(row+r)*0x140 + (100 + k*7)] != 0xb0) ok2 = 0;
+        if (scr[(row+r)*0x140 + 128] != 0xa5) ok2 = 0;
+    }
+    check(ok2, "  T2 5: 4 blanks(0xb0)@100..121 + '5'@128(0xa5) => right-justified");
+
+    /* T3: 0 -> len=1,pad=4 -> blanks@100..121 (0xb0); '0'@128 (0xa0) */
+    memset(scr, 0, 0x10000);
+    fn_038b30(base, font, col0, row, 0);
+    int ok3 = 1;
+    for (int r = 0; r < 7; r++) {
+        for (int k = 0; k < 4; k++) if (scr[(row+r)*0x140 + (100 + k*7)] != 0xb0) ok3 = 0;
+        if (scr[(row+r)*0x140 + 128] != 0xa0) ok3 = 0;
+    }
+    check(ok3, "  T3 0: 4 blanks(0xb0)@100..121 + '0'@128(0xa0) => edge number=0");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7160,6 +7211,7 @@ int main(void) {
     test_fn_03f462();
     test_fn_03a5f7();
     test_fn_038c23();
+    test_fn_038b30();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

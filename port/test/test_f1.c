@@ -7370,6 +7370,38 @@ static void test_fn_036041(void) {
     check(g_video_ram[10] == 0x55 && g_video_ram[63990] == 0x55, "  FILL10: video[10]=video[63990]=0x55");
 }
 
+static void test_fn_03e0a0(void) {
+    printf("fn_03e0a0 (0x03e0a0): build + append doubly-linked list node (offset model)\n");
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_63e18 = 0; g_dat_63e1c = 0;   /* empty list */
+    /* io source: 81 bytes (1 for fn_041c8f + 80 for fn_04192e) */
+    uint32_t data_off = heap_arena_alloc(81 + 4);
+    uint8_t *data = hb + data_off;
+    for (uint32_t i = 0; i < 81; i++) data[i] = (uint8_t)(0x40 + i);
+    uint32_t ioff = heap_arena_alloc(0x20);
+    uint8_t *io = hb + ioff;
+    *(uint32_t *)(io + 0) = data_off;   /* pos */
+    *(uint32_t *)(io + 4) = 81;          /* remaining */
+    *(uint32_t *)(io + 8) = data_off;    /* end */
+    io[0xc] = 0x41;                      /* bulk + open */
+    uint32_t n1 = heap_arena_alloc(0x60);
+    uint32_t r1 = fn_03e0a0(n1, io);
+    check(r1 == n1, "  returns node offset");
+    check(g_dat_63e18 == n1 && g_dat_63e1c == n1, "  head=tail=n1 (first node)");
+    check(*(uint32_t *)(hb + n1 + 0x51) == 0 && *(uint32_t *)(hb + n1 + 0x55) == 0, "  n1 next/prev = 0");
+    check(hb[n1] == data[0], "  n1[0]=first byte (0x40)");
+    check(hb[n1 + 1] == data[1] && hb[n1 + 80] == data[80], "  n1[1..80]=80 data bytes");
+    /* reset io cursor, then append a 2nd node */
+    *(uint32_t *)(io + 0) = data_off; *(uint32_t *)(io + 4) = 81;
+    uint32_t n2 = heap_arena_alloc(0x60);
+    fn_03e0a0(n2, io);
+    check(g_dat_63e1c == n2 && g_dat_63e18 == n1, "  head=n1, tail=n2 (after 2nd)");
+    check(*(uint32_t *)(hb + n1 + 0x51) == n2, "  n1->next = n2");
+    check(*(uint32_t *)(hb + n2 + 0x55) == n1, "  n2->prev = n1");
+    check(*(uint32_t *)(hb + n2 + 0x51) == 0, "  n2->next = 0");
+}
+
 static void test_fn_03fb0e(void) {
     printf("fn_03fb0e (0x03fb0e): load 64000 B screen image from I/O node into g_dat_51a0c\n");
     heap_arena_init();
@@ -7763,6 +7795,7 @@ int main(void) {
     test_fn_03fa3b();
     test_fn_035f1b();
     test_fn_036041();
+    test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

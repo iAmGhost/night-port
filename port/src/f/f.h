@@ -172,6 +172,7 @@ void     fn_0105f7(uint8_t al);                  /* 0x0105f7: build 24-byte DMA 
 void     fn_01072f(void);                         /* 0x01072f: build 26-byte cmd from DAT_00051a58; g_dat_53c4c[0]=4; round-trip 9 bytes staging<->*g_dat_53c5c; submit via fn_10570 (no-op) */
 uint32_t fn_03e14c(uint32_t a0, uint32_t a1);     /* 0x03e14c: 2-node prev/next swap (0x51/0x55) gated by g_dat_63e14 counter; return a0 */
 void     fn_03ee0a(void);                          /* 0x03ee0a: destroy prev-list: g_63e20=g_63e18; while(g_63e20) heap_free_guard(fn_03e14c(g_63e20,0)); g_63e20=node->0x51; then g_62a8c=0 */
+uint32_t fn_03e0a0(uint32_t node_off, uint8_t *io_node);  /* 0x03e0a0: build+append doubly-linked node (offset model); node[0]=fn_041c8f, node[1..80]=fn_04192e; return node_off */
 uint32_t fn_01435f(uint32_t a0, uint8_t a1, uint8_t a2);  /* 0x01435f: find first straddling interval i (0..5); return 0 iff a1==a0->0x17 && a2==i else 1 */
 void     fn_031f5f(uint32_t a0);     /* 0x031f5f: remove first array element (shift left by one), save slot0 to a0->0x17, set g_dat_63364/63368 from P2[a0->0x17] */
 void     fn_03d67c(uint32_t a0, uint32_t a1, uint32_t a2);  /* 0x03d67c: move element a2 to index a1 of a 3-byte-stride array (shift [a1,a2-1] right) */

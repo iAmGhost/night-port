@@ -1417,6 +1417,33 @@ void fn_03ee0a(void) {
     }
     g_dat_62a8c = 0;                                            /* 0x3ee73 */
 }
+
+/* 0x03e0a0 (L10, ~60 insns / 171 B): build + append a doubly-linked list node.
+ * Offset model (matches siblings fn_03e14c/fn_03ee0a): a0 is a heap offset for a 0x58-byte
+ * node; g_dat_63e18/63e1c are head/tail offsets; node[0x51]=next, node[0x55]=prev. a1 is a
+ * host io-node pointer (source reader). Reads node[0]=fn_041c8f(a1), node[1..80]=fn_04192e
+ * (node+1,4,0x14,a1) (80 bytes). Returns a0. */
+uint32_t fn_03e0a0(uint32_t node_off, uint8_t *io_node) {
+    (void)canary_id(0, 0x24);                                   /* 0x3e0a0-05 */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *node = hb + node_off;                              /* 0x3e0b7 */
+    if (g_dat_63e18 == 0) {                                     /* 0x3e0bd: empty */
+        g_dat_63e18 = node_off;                                 /* 0x3e0c9 */
+        g_dat_63e1c = node_off;                                 /* 0x3e0d1 */
+        *(uint32_t *)(node + 0x55) = 0;                         /* 0x3e0d9 */
+        *(uint32_t *)(node + 0x51) = 0;                         /* 0x3e0e3 */
+    } else {                                                    /* 0x3e0ec: append to tail */
+        uint32_t tail = g_dat_63e1c;
+        *(uint32_t *)(hb + tail + 0x51) = node_off;             /* 0x3e0f5 */
+        *(uint32_t *)(node + 0x55) = tail;                      /* 0x3e101 */
+        *(uint32_t *)(node + 0x51) = 0;                         /* 0x3e107 */
+        g_dat_63e1c = node_off;                                 /* 0x3e111 */
+    }
+    uint32_t b = fn_041c8f(io_node);                            /* 0x3e119 */
+    node[0] = (uint8_t)b;                                       /* 0x3e123 */
+    fn_04192e(node + 1, 4, 0x14, io_node);                      /* 0x3e136: 80 bytes */
+    return node_off;                                            /* 0x3e13b-41 */
+}
 /* 0x01435f: find the first interval i (0..5) whose [w8..w10] straddles thr=a0->0x11
  * (w8 <= thr < w10), then return 0 iff (a1 == a0->0x17) && (a2 == i), else 1. a0 is a
  * heap offset; pointer chain: a0->0x123=P1, P1->0x4=P2 (an array of base offsets),

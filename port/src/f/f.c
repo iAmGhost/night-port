@@ -5406,6 +5406,7 @@ int32_t fn_017530(uint8_t *s, int32_t param2, int32_t *param3) { /* 0x017530: by
 
 uint8_t *g_dat_63354 = NULL;   /* 0x63354: POINTER to clamp-bounds struct; lo=P+0x12, hi=P+0x16 (double-deref) */
 int32_t  g_dat_63360 = 0;      /* 0x63360: frame counter; %10 gates the periodic board_out in 0x03ce0b */
+uint8_t *g_dat_63e04 = NULL;   /* 0x63e04: HUD number font ptr; +0x34=char_table(8B), +0x3c=rle_base(8B) (fn_0137c1) */
 uint8_t *g_dat_63358 = NULL;   /* 0x63358: mirror of g_dat_63354 (0x03cc6b) */
 uint32_t g_dat_63370 = 0;      /* 0x63370: mode flag (0x03cc6b) */
 uint32_t g_dat_63374 = 0;      /* 0x63374: = g_dat_53c7c->0x2b (0x03cc6b) */
@@ -9600,6 +9601,45 @@ void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
         uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + digit * 4); /* 0x038ca2-cad */
         const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
         fn_03bb42(base, (1 - i) * 7 + col0, start_row, 6, 7, rle, 0);
+    }
+}
+
+/* fn_0137c1  orig: 0x0137c1 (L10, 326 B) -- HUD countdown/timer number display.
+ * Renders entity[0x2b] (5-glyph right-justified field) using the GLOBAL font at g_dat_63e04
+ * (char_table=font[0x34], rle_base=font[0x38]), then decrements two countdown fields.
+ * ABI (raw disasm): EAX=entity, EDX=base (video base, e.g. 0xa0000); no stack args (RET).
+ *   itoa32s(entity[0x2b], buf, 10); len=str_len(buf); pad=5-len;
+ *   for (i<pad) fn_03bb42(base, i*6+0x41, row=0x14, col=5, rows=7, rle_base+*(char_table+4), 0);   // blank=char_table[1]
+ *   for (i<len) fn_03bb42(base, (i+pad)*6+0x41, 0x14, 5, 7, rle_base+*(char_table-0x3c+buf[i]*4), 0);
+ *   if (entity[0x52]!=0 && DAT_00063360 even) { entity[0x2b]++; entity[0x52]--; }   // tick-gated (every 2 frames)
+ *   if (entity[0x56]!=0) { *(int16*)(entity+0x23)++; entity[0x56]--; }               // per-frame
+ * font[0x34]/[0x38] widened to 8B host ptrs at 0x34/0x3c (pointer-width adaptation, cf. 0x038b30).
+ * NOTE: glyph offsets differ from 0x038b30 -- blank=char_table[1] (+4), digit=char_table-0x3c+d*4
+ * (one element earlier); slots are 6 cols wide at col 0x41 (vs 7 cols from col0). */
+void fn_0137c1(uint8_t *entity, uint32_t base) {
+    (void)canary_id(0, 0x44);                                     /* PUSH 0x44;CALL 0x418ee */
+    char buf[16];
+    itoa32s(*(int32_t *)(entity + 0x2b), buf, 10);                /* 0x0137e6-ec */
+    int len = str_len(buf);                                       /* 0x0137f1-79 */
+    int pad = 5 - len;                                            /* 0x0137fc-04 */
+    uintptr_t char_table = *(uintptr_t *)(g_dat_63e04 + 0x34);
+    uintptr_t rle_base   = *(uintptr_t *)(g_dat_63e04 + 0x3c);    /* orig +0x38, widened to 0x3c */
+    for (int i = 0; i < pad; i++) {                               /* 0x013807-52 (blank glyphs) */
+        uint32_t glyph_off = *(uint32_t *)(char_table + 4);       /* blank = char_table[1] */
+        fn_03bb42(base, i * 6 + 0x41, 0x14, 5, 7, (const uint8_t *)(rle_base + glyph_off), 0);
+    }
+    for (int i = 0; i < len; i++) {                               /* 0x013854-ba (digit glyphs) */
+        uint32_t d = (uint32_t)(uint8_t)buf[i];
+        uint32_t glyph_off = *(uint32_t *)(char_table - 0x3c + d * 4); /* char_map[d+1] under test model */
+        fn_03bb42(base, (i + pad) * 6 + 0x41, 0x14, 5, 7, (const uint8_t *)(rle_base + glyph_off), 0);
+    }
+    if (*(int32_t *)(entity + 0x52) != 0 && (int32_t)g_dat_63360 % 2 == 0) {  /* 0x0138ba-dc (even tick) */
+        *(int32_t *)(entity + 0x2b) = *(int32_t *)(entity + 0x2b) + 1;
+        *(int32_t *)(entity + 0x52) = *(int32_t *)(entity + 0x52) - 1;
+    }
+    if (*(int32_t *)(entity + 0x56) != 0) {                       /* 0x0138ea-fd (per-frame) */
+        *(int16_t *)(entity + 0x23) = *(int16_t *)(entity + 0x23) + 1;
+        *(int32_t *)(entity + 0x56) = *(int32_t *)(entity + 0x56) - 1;
     }
 }
 

@@ -6875,6 +6875,73 @@ static void test_fn_038b30(void) {
     check(ok3, "  T3 0: 4 blanks(0xb0)@100..121 + '0'@128(0xa0) => edge number=0");
 }
 
+static void test_fn_0137c1(void) {
+    printf("fn_0137c1 (0x0137c1): HUD countdown number display (global font 0x63e04 + tick 0x63360)\n");
+    uint8_t *scr = g_video_ram;
+    static uint32_t char_map[256];
+    static uint8_t  rle_buf[11 * 28];
+    static uint8_t  font[0x44];
+    /* digit ascii c -> char_map[1+c] = (c-'0')*28 (port reads char_table-0x3c+c*4 = char_map[1+c]); blank -> char_map[17] = 10*28 (0xb0) */
+    for (uint32_t c = '0'; c <= '9'; c++) char_map[1 + c] = (c - '0') * 28;
+    for (int d = 0; d < 10; d++)
+        for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
+    for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + 10*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=0xb0; }
+    char_map[17] = 10 * 28;
+    *(uint64_t *)(font + 0x34) = (uint64_t)(uintptr_t)(char_map + 16);   /* char_table (byte +0x40) */
+    *(uint64_t *)(font + 0x3c) = (uint64_t)(uintptr_t)rle_buf;           /* rle_base */
+    g_dat_63e04 = font;
+    uint32_t base = 0xa0000u;
+    static uint8_t ent[0x60];
+    int32_t save_tick = g_dat_63360;
+    /* slot k byte col = 0x41 + k*6 = 65,71,77,83,89 ; rows 20..26 (start_row=0x14 hardcoded) */
+
+    /* T1: 42, no countdowns -> blanks@k0,1,2 (65,71,77=0xb0); '4'@83 (0xa4); '2'@89 (0xa2) */
+    memset(ent, 0, sizeof ent); *(int32_t *)(ent + 0x2b) = 42;
+    memset(scr, 0, 0x10000);
+    fn_0137c1(ent, base);
+    int ok1 = 1;
+    for (int r = 0; r < 7; r++) {
+        if (scr[(20+r)*0x140 + (65+0*6)] != 0xb0) ok1 = 0;
+        if (scr[(20+r)*0x140 + (65+1*6)] != 0xb0) ok1 = 0;
+        if (scr[(20+r)*0x140 + (65+2*6)] != 0xb0) ok1 = 0;
+        if (scr[(20+r)*0x140 + (65+3*6)] != 0xa4) ok1 = 0;
+        if (scr[(20+r)*0x140 + (65+4*6)] != 0xa2) ok1 = 0;
+    }
+    check(ok1, "  T1 42: blanks@65/71/77(0xb0) + '4'@83(0xa4) + '2'@89(0xa2), rows 20..26");
+    check(*(int32_t *)(ent+0x2b) == 42 && *(int32_t *)(ent+0x52) == 0, "  T1 42: no countdown -> count unchanged");
+
+    /* T2: 7, no countdowns -> blanks@65,71,77,83 (0xb0); '7'@89 (0xa7) */
+    memset(ent, 0, sizeof ent); *(int32_t *)(ent + 0x2b) = 7;
+    memset(scr, 0, 0x10000);
+    fn_0137c1(ent, base);
+    int ok2 = 1;
+    for (int r = 0; r < 7; r++) {
+        for (int k = 0; k < 4; k++) if (scr[(20+r)*0x140 + (65+k*6)] != 0xb0) ok2 = 0;
+        if (scr[(20+r)*0x140 + (65+4*6)] != 0xa7) ok2 = 0;
+    }
+    check(ok2, "  T2 7: 4 blanks(0xb0)@65..83 + '7'@89(0xa7)");
+
+    /* T3: 5, [0x52]=3, tick even(4) -> renders "5" (pre-increment), then [0x2b]++ (5->6), [0x52]-- (3->2); [0x56]=2 -> [0x23]++, [0x56]-- (2->1) */
+    memset(ent, 0, sizeof ent); *(int32_t *)(ent + 0x2b) = 5; *(int32_t *)(ent + 0x52) = 3; *(int32_t *)(ent + 0x56) = 2;
+    g_dat_63360 = 4;                       /* even */
+    memset(scr, 0, 0x10000);
+    fn_0137c1(ent, base);
+    check(*(int32_t *)(ent+0x2b) == 6 && *(int32_t *)(ent+0x52) == 2, "  T3 even tick: [0x2b]++ (5->6), [0x52]-- (3->2)");
+    check(*(int16_t *)(ent+0x23) == 1 && *(int32_t *)(ent+0x56) == 1, "  T3: [0x23]++ (0->1), [0x56]-- (2->1)");
+    int ok3 = 1;
+    for (int r = 0; r < 7; r++) if (scr[(20+r)*0x140 + (65+4*6)] != 0xa5) ok3 = 0;
+    check(ok3, "  T3: renders pre-increment value '5'@89 (0xa5)");
+
+    /* T4: 9, [0x52]=3, tick odd(3) -> NO [0x2b]/[0x52] change */
+    memset(ent, 0, sizeof ent); *(int32_t *)(ent + 0x2b) = 9; *(int32_t *)(ent + 0x52) = 3;
+    g_dat_63360 = 3;                       /* odd */
+    memset(scr, 0, 0x10000);
+    fn_0137c1(ent, base);
+    check(*(int32_t *)(ent+0x2b) == 9 && *(int32_t *)(ent+0x52) == 3, "  T4 odd tick: [0x2b]/[0x52] unchanged (9,3)");
+
+    g_dat_63360 = save_tick;               /* restore tick for later tests */
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7212,6 +7279,7 @@ int main(void) {
     test_fn_03a5f7();
     test_fn_038c23();
     test_fn_038b30();
+    test_fn_0137c1();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

@@ -113,6 +113,7 @@ void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count, cons
 void fn_03a5f7(const uint8_t *base); /* 0x03a5f7: progressive horizontal reveal of 200-row source into A0000 */
 void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038c23: render 0..99 as 2 digit glyphs */
 void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038b30: render int as 5-glyph right-justified field */
+void fn_0137c1(uint8_t *entity, uint32_t base); /* 0x0137c1: HUD countdown number display (global font 0x63e04, tick 0x63360) */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
 void fn_0003fade(void);                         /* 0x0003fade: zero DAT_000a0000[64000] (DPMI region, no-op) */
@@ -814,6 +815,7 @@ int32_t fn_017637(uint8_t *s, int32_t param2, int32_t *out);   /* 0x017637: clam
 int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out);   /* 0x0174a2: clamp to [0,0x140); adjust out */
 extern uint8_t *g_dat_63354;   /* pointer to clamp-bounds struct: lo=P+0x12, hi=P+0x16 (double-deref) */
 extern int32_t  g_dat_63360;   /* 0x63360: frame counter; %10 gates periodic board_out in 0x03ce0b */
+extern uint8_t *g_dat_63e04;   /* 0x63e04: HUD number font ptr; +0x34=char_table(8B), +0x3c=rle_base(8B) (fn_0137c1) */
 extern uint8_t *g_dat_63358;   /* 0x63358: mirror of g_dat_63354 (0x03cc6b) */
 extern uint32_t g_dat_63370;   /* 0x63370: mode flag (0x03cc6b) */
 extern uint32_t g_dat_63374;   /* 0x63374: = g_dat_53c7c->0x2b (0x03cc6b) */

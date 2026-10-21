@@ -5040,6 +5040,59 @@ res_reader *fn_04270d(const uint8_t *name, const char *modestr) {
     return fn_0426f2(name, modestr, 0);
 }
 
+/* fn_03d0c0  orig: 0x03d0c0 (L13, 387 B) -- build the 200 row-interval lists for one
+ * viewport/entity (the row-table twin of the already-ported fn_03ce0b sprite draw).
+ * reg-ABI: EAX = entity. Same globals/fields as fn_03ce0b: g_dat_639e4 (mode),
+ * g_dat_639e0 (scroll row), g_dat_639dc (sprite video base); ent[0x0] src base,
+ * ent[0x4] top row, ent[0xc] bottom row, ent[0x1a] sprite pitch, ent[0x348] sprite
+ * video address, and ent[0x34c]/ent[0x350] as WIDENED 64-bit sibling pointers (port
+ * convention, cf. fn_03ce0b). Every path calls the already-ported fn_03ba2c(c_init, inc),
+ * which walks 200 rows through fn_034aba(0, row, 0x140, c_init, 0). Branches verbatim:
+ *   B0 g_dat_639e4 == 0            -> fn_03ba2c(base + e[0x348] - e[0], e[0x1a])   0x3d0e6-102
+ *   B1 g0 < e[4]                   -> primary (e[0x348], e[0x1a])                  0x3d11a-29
+ *      then s = e[0x350]; c_init = s[0x348] + base - s[0]
+ *                        + (0xc8 - (s[4] - g0)) * s[0x1a]                          0x3d12e-7e
+ *   B2 g0 + 0xc8 > e[0xc]          -> primary offset by the SCREEN pitch 0x140:
+ *                                      e[0x348] + (g0 - e[4]) * 0x140              0x3d19c-1c0
+ *      then s = e[0x34c]; fn_03ba2c(s[0x348] + base - s[0], s[0x1a])               0x3d1c5-1f4
+ *   B3 otherwise                   -> e[0x348] + (g0 - e[4]) * e[0x1a]  (the SPRITE
+ *                                      pitch here, unlike B2 -- faithful)           0x3d1fb-222
+ * Tail (all paths): ent[0x22] = 0 and ent[0x1e] = 0. The PUSH 0x20 / CALL 0x418ee
+ * canary prologue is not replicated (port convention).
+ * PORT HAZARD (flagged): ent[0x34c] and ent[0x350] are 4 bytes apart in the original, so
+ * after widening them to 8-byte host pointers (the fn_03ce0b convention) the two fields
+ * OVERLAP -- an entity can carry only one sibling pointer in the port model until the
+ * entity structs get a proper 32-bit handle/translation scheme. */
+void fn_03d0c0(uint8_t *ent) {
+    uint8_t *e = ent;
+    uint32_t g0 = g_dat_639e0;
+    uint32_t base = g_dat_639dc;
+    if (g_dat_639e4 == 0) {                                            /* 0x3d0e4 */
+        fn_03ba2c(base + *(uint32_t *)(e + 0x348) - *(uint32_t *)(e + 0x0),
+                  *(uint32_t *)(e + 0x1a));                            /* 0x3d102 */
+    } else if (g0 < *(uint32_t *)(e + 0x4)) {                           /* 0x3d118 */
+        fn_03ba2c(*(uint32_t *)(e + 0x348), *(uint32_t *)(e + 0x1a));   /* 0x3d129 */
+        uint8_t *s = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x350);    /* 0x3d131 */
+        uint32_t inc = *(uint32_t *)(s + 0x1a);
+        uint32_t ci  = *(uint32_t *)(s + 0x348) + base - *(uint32_t *)(s + 0x0)
+                     + (0xc8u - (*(uint32_t *)(s + 0x4) - g0)) * inc;   /* 0x3d137-7c */
+        fn_03ba2c(ci, inc);                                             /* 0x3d17e */
+    } else if (g0 + 0xc8u > *(uint32_t *)(e + 0xc)) {                    /* 0x3d19a */
+        uint32_t inc = *(uint32_t *)(e + 0x1a);
+        fn_03ba2c(*(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0x4)) * 0x140u,
+                  inc);                                                 /* 0x3d1c0 */
+        uint8_t *s = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x34c);    /* 0x3d1c8 */
+        fn_03ba2c(*(uint32_t *)(s + 0x348) + base - *(uint32_t *)(s + 0x0),
+                  *(uint32_t *)(s + 0x1a));                             /* 0x3d1f4 */
+    } else {                                                            /* 0x3d1fb */
+        uint32_t inc = *(uint32_t *)(e + 0x1a);
+        fn_03ba2c(*(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0x4)) * inc,
+                  inc);                                                 /* 0x3d222 */
+    }
+    *(uint32_t *)(e + 0x22) = 0;                                        /* 0x3d22a */
+    *(uint32_t *)(e + 0x1e) = 0;                                        /* 0x3d234 */
+}
+
 /* fn_03c72b  orig: 0x0003c72b (L10, 171 B) -- recursive entity teardown.
  * Original ABI: EAX = entity (flat pointer), EDX = saved to [ebp-4] but NEVER used.
  * Because the port addresses heap blocks by heap OFFSET (that is what the 0x41c28 /

@@ -786,6 +786,7 @@ res_reader *fn_04262a(const uint8_t *name, const char *modestr, res_reader *node
 res_reader *fn_0426f2(const uint8_t *name, const char *modestr, uint8_t extra); /* 0x0426f2: alloc record (fn_044ab5) + open */
 res_reader *fn_04270d(const uint8_t *name, const char *modestr); /* 0x04270d: fn_0426f2 with extra=0 */
 uint32_t fn_03c72b(uint32_t ent);   /* 0x03c72b: recursive entity teardown (offset ABI): free child via 0x41c28, free+clear +0x348 and +0x44 via 0x41c31 */
+void fn_03d0c0(uint8_t *ent);       /* 0x03d0c0: build 200 row-interval lists (4 branches) via fn_03ba2c; clears ent[0x1e]/[0x22] */
 int32_t fn_0417f3(const char *name, uint8_t *dest); /* 0x0417f3: resource payload (skips 0x1a header) */
 
 /* ---- L10 trivial accessors (canary prologue not replicated) ---- */

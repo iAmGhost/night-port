@@ -6810,6 +6810,74 @@ static void test_fn_035d_spin(void) {
  * B1/B2 (two-blit, sibling sprites) + B3 (scrolled) pixel-exactness depend on the real
  * game sprite-RAM layout (base - s_e0 offsets) -> deferred to video-subsystem
  * integration (cf. 0x03c65b cluster). */
+static void test_fn_03d0c0(void) {
+    printf("fn_03d0c0 (0x03d0c0): 4-branch row-interval build for a viewport\n");
+    uint8_t *ent  = (uint8_t *)calloc(1, 0x400);
+    uint8_t *sibA = (uint8_t *)calloc(1, 0x400);   /* ent[0x350] (B1 sibling) */
+    uint8_t *sibB = (uint8_t *)calloc(1, 0x400);   /* ent[0x34c] (B2 sibling) */
+    if (!ent || !sibA || !sibB) { check(0, "  heap buffers (SKIP)"); return; }
+    uint32_t s_cursor = g_dat_62d64;
+    uint32_t s_639e4 = g_dat_639e4, s_639e0 = g_dat_639e0, s_639dc = g_dat_639dc;
+
+    memset(ent, 0, 0x400);
+    *(uint32_t *)(ent + 0x00) = 0x100;  *(uint32_t *)(ent + 0x04) = 20;
+    *(uint32_t *)(ent + 0x1a) = 0x140;  *(uint32_t *)(ent + 0x348) = 0xa0000;
+    *(uint32_t *)(ent + 0x1e) = 0x5678; *(uint32_t *)(ent + 0x22) = 0xabcd;
+    /* The port widens ent[0x34c] and ent[0x350] to 8-byte host pointers (cf. fn_03ce0b),
+     * so the two fields OVERLAP (they are 4 bytes apart in the original): only one can
+     * hold a pointer at a time. Each branch therefore sets the sibling it reads. */
+    memset(sibA, 0, 0x400); memset(sibB, 0, 0x400);
+    *(uint32_t *)(sibA + 0x00) = 0x80;   *(uint32_t *)(sibA + 0x04) = 30;
+    *(uint32_t *)(sibA + 0x1a) = 0x100;  *(uint32_t *)(sibA + 0x348) = 0xa1000;
+    *(uint32_t *)(sibB + 0x00) = 0x40;   *(uint32_t *)(sibB + 0x1a) = 0x80;
+    *(uint32_t *)(sibB + 0x348) = 0xa2000;
+
+    /* The observable output is the node arena: fn_03ba2c allocates 200 nodes (11 B each)
+     * per call, so the cursor counts the calls and each row's node start is c_init. */
+    #define RESET_IV() do { memset(nar(), 0, 0x2000); g_dat_62d64 = 0; memset(g_dat_62d68, 0, sizeof g_dat_62d68); } while (0)
+
+    /* B0: g_639e4 == 0 -> single build, c_init = base + e[0x348] - e[0] */
+    RESET_IV(); g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_639dc = 0x2000;
+    *(uint32_t *)(ent + 0x0c) = 100;
+    fn_03d0c0(ent);
+    check(g_dat_62d64 == 2200, "  B0: one build (cursor 2200)");
+    check(nstart(0) == (int32_t)(0x2000 + 0xa0000 - 0x100) &&
+          nstart(2189) == (int32_t)(0x2000 + 0xa0000 - 0x100 + 199 * 0x140),
+          "  B0: c_init and c_init + 199*inc");
+    check(*(uint32_t *)(ent + 0x1e) == 0 && *(uint32_t *)(ent + 0x22) == 0,
+          "  tail: ent[0x1e] and ent[0x22] cleared");
+
+    /* B1: g0 < ent[4] -> primary then the ent[0x350] sibling */
+    RESET_IV(); g_dat_639e4 = 1; g_dat_639e0 = 10;              /* 10 < 20 */
+    *(uint64_t *)(ent + 0x350) = (uintptr_t)sibA;
+    fn_03d0c0(ent);
+    check(g_dat_62d64 == 4400, "  B1: two builds (cursor 4400)");
+    check(nstart(0) == (int32_t)0xa0000, "  B1: primary c_init = ent[0x348]");
+    check(nstart(2200) == (int32_t)(0xa1000 + 0x2000 - 0x80 + (0xc8 - (30 - 10)) * 0x100),
+          "  B1: sibling offset by (0xc8 - (sib[4]-g0)) * sib pitch");
+
+    /* B2: g0 + 0xc8 > ent[0xc] -> primary offset by the SCREEN pitch, then ent[0x34c] */
+    RESET_IV(); g_dat_639e0 = 50;                               /* 50 >= 20, 250 > 100 */
+    *(uint64_t *)(ent + 0x34c) = (uintptr_t)sibB;
+    fn_03d0c0(ent);
+    check(g_dat_62d64 == 4400, "  B2: two builds");
+    check(nstart(0) == (int32_t)(0xa0000 + (50 - 20) * 0x140),
+          "  B2: primary offset uses the 0x140 screen pitch");
+    check(nstart(2200) == (int32_t)(0xa2000 + 0x2000 - 0x40), "  B2: sibling c_init");
+
+    /* B3: otherwise -> single build offset by the entity's own pitch (faithful: NOT 0x140) */
+    RESET_IV(); g_dat_639e0 = 200; *(uint32_t *)(ent + 0x0c) = 1000;   /* 400 <= 1000 */
+    fn_03d0c0(ent);
+    check(g_dat_62d64 == 2200, "  B3: one build");
+    check(nstart(0) == (int32_t)(0xa0000 + (200 - 20) * 0x140),
+          "  B3: offset by ent pitch (differs from B2 only if pitch != 0x140)");
+
+    #undef RESET_IV
+    memset(nar(), 0, 0x2000); g_dat_62d64 = s_cursor;
+    g_dat_639e4 = s_639e4; g_dat_639e0 = s_639e0; g_dat_639dc = s_639dc;
+    free(ent); free(sibA); free(sibB);
+}
+
 static void test_fn_03ce0b(void) {
     printf("fn_03ce0b (0x03ce0b): 4-branch sprite-draw (viewport blit, video-arena src)\n");
     /* Heap buffers (not large statics) so this test doesn't shift the binary's data
@@ -8196,6 +8264,7 @@ int main(void) {
     test_fn_03237b();
     test_fn_037922();
     test_fn_035d_spin();
+    test_fn_03d0c0();
     test_fn_03ce0b();
     test_fn_03rle();
     test_fn_03f462();

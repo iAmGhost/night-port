@@ -7338,6 +7338,38 @@ static void test_fn_035f1b(void) {
     check(g_video_ram[63990] == 0x10 && g_video_ram[63999] == 0x19, "  literal: video[63990..99]=0x10..0x19");
 }
 
+static void test_fn_036041(void) {
+    printf("fn_036041 (0x036041): screen loader w/ 0xff-skip RLE (via fn_041c8f)\n");
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;   /* empty table -> fn_0367c9/fn_036853 no-op, g_639b8 unchanged */
+    /* [768 table (0xF0)] + [FILL4 0xAB][FILL3 0xFF skip][lit 0x10][lit 0xFF skip][lit 0x20] + [6399 FILL10 0x55] -> 64000 */
+    const uint32_t rlen = 2 + 2 + 1 + 1 + 1 + 6399 * 2;   /* 12805 */
+    const uint32_t data_len = 0x300 + rlen;               /* 13573 */
+    uint32_t data_off = heap_arena_alloc(data_len + 4);
+    uint8_t *data = hb + data_off;
+    for (uint32_t i = 0; i < 0x300; i++) data[i] = 0xF0;
+    uint32_t p = 0x300;
+    data[p++] = 0xC4; data[p++] = 0xAB;   /* FILL 4 x 0xAB (0xC0|4) */
+    data[p++] = 0xC3; data[p++] = 0xFF;   /* FILL 3 x 0xFF (skip) */
+    data[p++] = 0x10;                     /* literal 0x10 */
+    data[p++] = 0x20;                     /* literal 0x20 */
+    data[p++] = 0x30;                     /* literal 0x30 */
+    for (uint32_t k = 0; k < 6399; k++) { data[p++] = 0xCA; data[p++] = 0x55; }  /* FILL 10 x 0x55 */
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = data_len; *(uint32_t *)(node + 8) = data_off;
+    node[0xc] = 0x41;
+    g_639b8 = (res_reader *)node;
+    memset(g_video_ram, 0, sizeof(g_video_ram));
+    fn_036041("NORES", 0);
+    check(g_dat_636b8[0] == 0x3C, "  table[0]=0xF0>>2=0x3C");
+    check(g_video_ram[0] == 0xAB && g_video_ram[3] == 0xAB, "  FILL4: video[0..3]=0xAB");
+    check(g_video_ram[4] == 0 && g_video_ram[6] == 0, "  FILL3 0xff: video[4..6] skip (0)");
+    check(g_video_ram[7] == 0x10 && g_video_ram[8] == 0x20 && g_video_ram[9] == 0x30, "  literal: video[7..9]=0x10,0x20,0x30");
+    check(g_video_ram[10] == 0x55 && g_video_ram[63990] == 0x55, "  FILL10: video[10]=video[63990]=0x55");
+}
+
 static void test_fn_03fb0e(void) {
     printf("fn_03fb0e (0x03fb0e): load 64000 B screen image from I/O node into g_dat_51a0c\n");
     heap_arena_init();
@@ -7730,6 +7762,7 @@ int main(void) {
     test_fn_03fb73();
     test_fn_03fa3b();
     test_fn_035f1b();
+    test_fn_036041();
     test_fn_03fb0e();
     test_fn_03a1b3();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

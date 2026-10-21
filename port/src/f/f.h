@@ -714,6 +714,7 @@ uint32_t fn_04192e(uint8_t *dest, uint32_t count, uint32_t mult, uint8_t *node);
 void fn_03fb73(uint8_t *node, uint32_t size); /* 0x03fb73: RLE screen-block expander into video (g_dat_51a0c); fills buf via fn_04192e */
 void fn_03fa3b(uint8_t *node, uint32_t size); /* 0x03fa3b: 200-row RLE screen decoder into video (per-row op count, ctl<0x80 FILL / ctl>=0x80 COPY) */
 void fn_035f1b(const char *name, uint32_t dl); /* 0x035f1b: screen + 768 B font-table loader (fn_04192e table >>2; RLE via fn_041c8f into g_video_ram) */
+void fn_036041(const char *name, uint32_t dl); /* 0x036041: screen loader w/ 0xff-skip RLE (FILL value==0xff / literal 0xff skip) */
 void fn_03fb0e(uint8_t *node, uint32_t count); /* 0x03fb0e: load 64000 B screen image from I/O node into g_dat_51a0c via heap buf + fn_04192e */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),

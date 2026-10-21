@@ -4140,6 +4140,37 @@ void fn_035f1b(const char *name, uint32_t dl) {
     if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);          /* 0x3601a-031 */
 }
 
+/* 0x036041 (L11, ~100 insns / 335 B): screen loader with 0xff-skip RLE. Same shape as 0x035f1b but the
+ * RLE (via fn_041c8f) treats 0xff as a no-write skip: FILL (byte&0xc0==0xc0) writes value count times,
+ * skipping the write when value==0xff (pos still advances); literal byte==0xff skips (pos++), else write
+ * the literal. Table setup identical to 0x035f1b (768 B into g_dat_636b8, >>2). If dl==1 board_out. */
+void fn_036041(const char *name, uint32_t dl) {
+    (void)canary_id((uintptr_t)name, 0x3c);                        /* 0x36041-46 */
+    fn_0367c9(name);                                               /* 0x36058 */
+    fn_036853(name, 0xfffffd00, 2);                                /* 0x3606e */
+    fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);          /* 0x3609b: 768 B table */
+    for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x360a9-bb */
+    fn_036853(name, 0x80, 0);                                      /* 0x360ce */
+    uint32_t pos = 0;                                              /* 0x360d3 */
+    while (pos < 0xfa00) {
+        uint32_t byte = fn_041c8f((uint8_t *)g_639b8);             /* 0x360e5 */
+        if ((byte & 0xc0) == 0xc0) {                               /* 0x360f5-ff: FILL */
+            uint32_t count = byte & 0x3f;                          /* 0x36104 */
+            uint32_t value = fn_041c8f((uint8_t *)g_639b8);        /* 0x3610f */
+            for (uint32_t c = count; c; c--) {                     /* 0x36117-3f */
+                if (value != 0xff) g_video_ram[pos] = (uint8_t)value;  /* 0x36120-35 */
+                pos++;                                                   /* pos++ always */
+            }
+        } else if (byte == 0xff) {                                 /* 0x36143-4a: literal skip */
+            pos++;
+        } else {                                                   /* 0x3614c: literal */
+            g_video_ram[pos] = (uint8_t)byte;
+            pos++;
+        }
+    }
+    if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);          /* 0x36167-180 */
+}
+
 /* 0x03fb0e (L10): load a screen image from an I/O node into the screen (g_dat_51a0c).
  * ABI (disasm-verified): EAX=node (host ptr, passed straight to fn_04192e), EDX=count (bytes).
  * canary_id(node, 0x20) preserves EAX/EDX. buf_off=heap_malloc(count); g_dat_63e7c=buf_off;

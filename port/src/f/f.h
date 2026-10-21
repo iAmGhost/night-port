@@ -115,6 +115,7 @@ void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
 void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038b30: render int as 5-glyph right-justified field */
 void fn_0137c1(uint8_t *entity, uint32_t base); /* 0x0137c1: HUD countdown number display (global font 0x63e04, tick 0x63360) */
 void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x0383a4: render integer digits left-to-right (8-col spacing) */
+void fn_03df96(uint32_t base); /* 0x03df96: sprite/entity blit (per-record glyph via fn_03bb42) */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
 void fn_0003fade(void);                         /* 0x0003fade: zero DAT_000a0000[64000] (DPMI region, no-op) */
@@ -788,6 +789,20 @@ int32_t fn_036626(const char *s);  /* 0x036626: case-insensitive string->value t
 int32_t fn_0367c9(const char *a0); /* 0x0367c9: find name in 0x5d884 table; on first match fn_04247a(g_639b8, entry@17, 0); 1/0 */
 int32_t fn_036853(const char *a0, int32_t a1, int32_t a2); /* 0x036853: lookup + value transform (a2: 0 -> v2+a1, 2 -> v2+v13+a1) */
 extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
+/* 0x03df96 sprite-blit font: original is a 4-byte-dword-pointer struct; port widens each pointer
+ * to 8 bytes (pointer-width adaptation). orig offsets: col_tbl=+0x04, rowcount_tbl=+0x08,
+ * x_tbl=+0x0c, y_tbl=+0x10, char_table=+0x34, rle_base=+0x38. */
+struct hud_font {
+    uint32_t *col_tbl;       /* orig +0x04: col (ECX) table */
+    uint32_t *rowcount_tbl;  /* orig +0x08: row_count table */
+    uint32_t *x_tbl;         /* orig +0x0c: dest_off (x) offset table */
+    uint32_t *y_tbl;         /* orig +0x10: start_row (y) offset table */
+    uint32_t *char_table;    /* orig +0x34: glyph RLE-offset table */
+    uint32_t *rle_base;      /* orig +0x38: RLE data base */
+};
+extern struct hud_font *g_dat_63dfc;  /* 0x63dfc: sprite blit font ptr (fn_03df96) */
+extern uint32_t g_dat_62a90;          /* 0x62a90: sprite record count (fn_03df96) */
+extern uint8_t *g_dat_5d0b4;          /* 0x5d0b4: sprite record array, 0x14 stride (fn_03df96) */
 uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */
 void fn_015295(uint8_t *a0, int32_t a1); /* 0x015295: entity tick -- clamp a0->5, conditional list-insert + accumulator */
 uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_dat_639e0 */

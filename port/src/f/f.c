@@ -5044,6 +5044,9 @@ void fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count) {
 }
 uint32_t g_dat_639dc = 0;
 uint32_t g_dat_639e0 = 0;
+struct hud_font *g_dat_63dfc = NULL;  /* 0x63dfc: sprite blit font ptr (fn_03df96) */
+uint32_t g_dat_62a90 = 0;            /* 0x62a90: sprite record count (fn_03df96) */
+uint8_t *g_dat_5d0b4 = NULL;         /* 0x5d0b4: sprite record array, 0x14 stride (fn_03df96) */
 uint32_t fn_01519f(const uint8_t *p) { return *(const uint32_t *)(p + 1) - g_dat_639dc; }  /* 0x01519f */
 uint32_t fn_0151d5(const uint8_t *p) { return *(const uint32_t *)(p + 9) - g_dat_639e0; }  /* 0x0151d5 */
 
@@ -9666,6 +9669,35 @@ void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
         uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + d * 4); /* 0x03840b-419 */
         const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
         fn_03bb42(base, i * 8 + col0, start_row, 7, 7, rle, 0);
+    }
+}
+
+/* fn_03df96  orig: 0x03df96 (L11, 82 insns) -- sprite/entity blit: for each of g_dat_62a90 records
+ * (0x14-byte stride at g_dat_5d0b4), blit glyph g=rec[0] via fn_03bb42 at a viewport-relative position.
+ * ABI (raw disasm): EAX=base (video base); no other args (RET). Font is the GLOBAL g_dat_63dfc.
+ * Record layout (0x14 B): [0]=g(int32 glyph idx), [4]=f4(int32), [8]=f8(int32), [0xc]=mode(byte), [0x10]=sc(float).
+ *   dest_off  = f4 - font->x_tbl[g]  - g_dat_639dc + (int)fpu_rndint(sc);
+ *   start_row = f8 - font->y_tbl[g]  - g_dat_639e0;
+ *   fn_03bb42(base, dest_off, start_row, col=font->col_tbl[g], rows=font->rowcount_tbl[g],
+ *             rle = (uint8_t*)font->rle_base + font->char_table[g], mode);
+ * Font pointer fields widened to 8 B (pointer-width adaptation, cf. 0x038c23). g_dat_639dc/639e0 =
+ * viewport x/y scroll offsets (shared with 0x03ce0b). */
+void fn_03df96(uint32_t base) {
+    (void)canary_id(0, 0x38);                                     /* PUSH 0x38;CALL 0x418ee */
+    const struct hud_font *font = g_dat_63dfc;
+    for (int32_t i = 0; i < (int32_t)g_dat_62a90; i++) {          /* 0x03dfb8-c9 */
+        const uint8_t *rec = g_dat_5d0b4 + (uint32_t)i * 0x14;    /* record i @ 0x5d0b4 + i*0x14 */
+        int32_t  g      = *(const int32_t *)(rec + 0x0);          /* glyph index */
+        int32_t  f4     = *(const int32_t *)(rec + 0x4);          /* dest_off (x) component */
+        int32_t  f8     = *(const int32_t *)(rec + 0x8);          /* start_row (y) component */
+        uint32_t mode   = (uint32_t)rec[0xc];                     /* mode/fill byte */
+        float    sc     = *(const float *)(rec + 0x10);           /* scale (rounded) */
+        int32_t dest_off  = f4 - (int32_t)font->x_tbl[g] - (int32_t)g_dat_639dc + (int32_t)fpu_rndint((double)sc); /* 0x03e046-086 */
+        int32_t start_row = f8 - (int32_t)font->y_tbl[g] - (int32_t)g_dat_639e0;                              /* 0x03e046/56 */
+        int32_t col       = (int32_t)font->col_tbl[g];             /* 0x03e02a */
+        int32_t row_count = (int32_t)font->rowcount_tbl[g];        /* 0x03e018 */
+        const uint8_t *rle = (const uint8_t *)((uintptr_t)font->rle_base + font->char_table[g]);              /* 0x03e005 */
+        fn_03bb42(base, dest_off, start_row, col, row_count, rle, mode);
     }
 }
 

@@ -6987,6 +6987,59 @@ static void test_fn_0383a4(void) {
     check(ok3, "  T3 938: '9'@100(0xa9) + '3'@108(0xa3) + '8'@116(0xa8) 3-digit");
 }
 
+static void test_fn_03df96(void) {
+    printf("fn_03df96 (0x03df96): sprite/entity blit (per-record glyph via fn_03bb42)\n");
+    uint8_t *scr = g_video_ram;
+    static uint32_t col_tbl[2], rowcount_tbl[2], x_tbl[2], y_tbl[2], char_table[2];
+    static uint8_t  rle_buf[3 * 4];              /* 1 glyph, 3 rows of [1,0,1,0xA5] */
+    static struct hud_font font;
+    for (int r = 0; r < 3; r++) { uint8_t *p = rle_buf + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=0xA5; }
+    col_tbl[0]=7; rowcount_tbl[0]=3; x_tbl[0]=0; y_tbl[0]=0; char_table[0]=0;
+    font.col_tbl=col_tbl; font.rowcount_tbl=rowcount_tbl; font.x_tbl=x_tbl; font.y_tbl=y_tbl;
+    font.char_table=char_table; font.rle_base=(uint32_t*)rle_buf;
+    g_dat_63dfc = &font;
+    static uint8_t ents[3 * 0x14];
+    g_dat_5d0b4 = ents;
+    uint32_t save_x = g_dat_639dc, save_y = g_dat_639e0;
+    g_dat_639dc = 20; g_dat_639e0 = 10;
+    uint32_t base = 0xa0000u;
+    /* rec layout: [0]=g(int32), [4]=f4(int32), [8]=f8(int32), [0xc]=mode(byte), [0x10]=sc(float) */
+    #define SETREC(i,g,f4,f8,md,sc) do { \
+        *(int32_t*)(ents+(i)*0x14+0)=(g); *(int32_t*)(ents+(i)*0x14+4)=(f4); \
+        *(int32_t*)(ents+(i)*0x14+8)=(f8); ents[(i)*0x14+0xc]=(uint8_t)(md); \
+        *(float*)(ents+(i)*0x14+0x10)=(sc); } while(0)
+
+    /* T1: 1 rec g=0 f4=100 f8=50 sc=2.0 -> dest_off=100-0-20+2=82, start_row=50-0-10=40, 3 rows 0xA5 */
+    g_dat_62a90 = 1;
+    SETREC(0,0,100,50,0,2.0f);
+    memset(scr,0,0x10000);
+    fn_03df96(base);
+    int ok1=1; for(int r=0;r<3;r++) if(scr[(40+r)*0x140+82]!=0xA5) ok1=0;
+    check(ok1, "  T1 g0: dest_off=100-20+2=82, start_row=50-10=40, 3 rows 0xA5");
+    check(scr[40*0x140+81]==0 && scr[40*0x140+83]==0, "  T1: adjacent cols 81/83 untouched");
+
+    /* T2: sc=2.7 -> fpu_rndint=3 -> dest_off=100-20+3=83 */
+    g_dat_62a90 = 1;
+    SETREC(0,0,100,50,0,2.7f);
+    memset(scr,0,0x10000);
+    fn_03df96(base);
+    int ok2=1; for(int r=0;r<3;r++) if(scr[(40+r)*0x140+83]!=0xA5) ok2=0;
+    check(ok2, "  T2 sc=2.7 rounds to 3 -> dest_off=100-20+3=83");
+
+    /* T3: 2 recs -> verify per-record loop */
+    g_dat_62a90 = 2;
+    SETREC(0,0,100,50,0,0.0f);   /* dest_off=100-20=80,  start_row=50-10=40 */
+    SETREC(1,0,200,60,0,0.0f);   /* dest_off=200-20=180, start_row=60-10=50 */
+    memset(scr,0,0x10000);
+    fn_03df96(base);
+    int ok3=1;
+    for(int r=0;r<3;r++){ if(scr[(40+r)*0x140+80]!=0xA5) ok3=0; if(scr[(50+r)*0x140+180]!=0xA5) ok3=0; }
+    check(ok3, "  T3 2 recs: rec0@col80/row40, rec1@col180/row50");
+
+    g_dat_639dc = save_x; g_dat_639e0 = save_y;
+    #undef SETREC
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7326,6 +7379,7 @@ int main(void) {
     test_fn_038b30();
     test_fn_0137c1();
     test_fn_0383a4();
+    test_fn_03df96();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

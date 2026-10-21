@@ -2972,8 +2972,12 @@ int32_t fn_041ffc(uint8_t *node, const char *fmt, uintptr_t **pos)
     sc.next  = scan_next;                                 /* 0x42001: mov ecx,0x31fa6 */
     sc.emit  = scan_emit;                                 /* 0x42006: mov esi,0x31ff4 */
     sc._r2   = 0;                                         /* original: uninitialised residue */
-    sc.count = 0;                                         /* original: uninitialised residue */
-    sc.flags = 0;                                         /* original: uninitialised residue */
+    /* The original leaves count/flags as uninitialised stack residue (latent bug). The game's "%c"
+     * path only works when that residue is 0xffffffff, which emit_chars takes as the
+     * single-character sentinel (0x43df7), so the port pins the sentinel rather than 0 -- with a
+     * count of 0 every "%c" conversion would read nothing at all. */
+    sc.count = 0xffffffffu;
+    sc.flags = 0;                                         /* normalised by cmdline_parse anyway */
     sc.node  = node;                                      /* 0x4200b: [ESP+8] = EAX (tail field) */
     return fn_043a7f((struct emit_ctx *)&sc, fmt, pos);    /* 0x4200f-42018 */
 }
@@ -2985,6 +2989,113 @@ int32_t fn_042023(uint8_t *node, const char *fmt, uintptr_t *slots)
 {
     uintptr_t *pos = slots;                               /* 0x42034: [ESP] = EBX (= caller args)  */
     return fn_041ffc(node, fmt, &pos);                    /* 0x42037-42039 */
+}
+
+/* DAT_0005302c: 256-byte character-translation table. It is initialised image data in the DS
+ * segment (DS offset 0x302c) and the ONLY reference to it in the whole program is the single read
+ * inside 0x032464, so it is a pure constant table (no builder writes it). */
+static const uint8_t kXlat_5302c[256] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x38, 0x66, 0x1d, 0x50, 0x69, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6c, 0x00, 0x00, 0x00,
+    0x39, 0x67, 0x4d, 0x2a, 0x00, 0x48, 0x00, 0x68, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x38, 0x66, 0x1d, 0x50, 0x69, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4b, 0x00, 0x00, 0x00,
+    0x39, 0x67, 0x4d, 0x2a, 0x00, 0x48, 0x00, 0x68, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x20, 0x03, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00,
+    0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00,
+    0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00,
+    0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00,
+    0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x0a, 0x00, 0x03, 0x00, 0x00, 0x00, 0x46, 0x00, 0x00, 0x00, 0x46, 0x00, 0x00, 0x00,
+    0xa5, 0x00, 0x00, 0x00, 0xd3, 0x00, 0x00, 0x00, 0xe4, 0x00, 0x00, 0x00, 0xe5, 0x00, 0x00, 0x00,
+    0xd9, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x00, 0x00, 0x1d, 0x00, 0x00, 0x00, 0x44, 0x00, 0x00, 0x00,
+};
+
+/* DAT_00062ac8 / DAT_00062b90: two 0xc8-byte latch arrays written by 0x032464 (indexed by the id
+ * word parsed per entry) and read by the key/state helpers. */
+uint8_t g_dat_62ac8[0xc8];
+uint8_t g_dat_62b90[0xc8];
+
+/* fn_032464  orig: 0x032464 (604 B) -- text-table loader: pulls a numeric config table out of the
+ * resource reader stream (g_639b8) through the 0x042023 scanf front end and expands it into a
+ * caller-supplied block of parallel arrays.
+ * ABI: EAX = block (already allocated by the caller; it passes straight through the 0x0418ee stack
+ * guard, which returns it unchanged), EDX = resource name (also passed through: EDX is preserved by
+ * the guard and handed to fn_0367c9, which opens the name into g_639b8). Returns the block.
+ * Block layout (byte offsets; entries are indexed by i):
+ *   +0x000  dword  entry count                            (filled by the first "%d\n")
+ *   +0x004  byte   per-entry value count n_i              (filled by "%d ")
+ *   +0x068  dword  heap offset of buffer A_i (n_i bytes)   (heap_malloc(n_i))
+ *   +0x1f8  dword  heap offset of buffer B_i (n_i slots)  (heap_malloc(n_i))
+ *   +0x388  word   per-entry id                           (filled by "%d "; the original stores a
+ *                                                          DWORD there, so each write also covers
+ *                                                          the next entry's word -- reproduced)
+ *   +0x450  dword  per-entry extra value                  (filled by "%d\n", byte stride 1!)
+ * Sequence per entry: id, n, buffer A (n chars via "%c ", each mapped through kXlat_5302c), a
+ * literal newline, buffer B (n values via "%d " written at BYTE stride 1 -- the original's
+ * overlapping dword writes are kept), one more value latched into g_dat_62ac8[id], one into
+ * g_dat_62b90[id], and the last value into block+0x450+i.
+ * The two 0x80-byte key-state arrays g_dat_62c58/g_dat_62cd8 are cleared first. */
+uint8_t *fn_032464(uint8_t *block, const char *name)
+{
+    (void)canary_id((uintptr_t)block, 0x40);              /* 0x32469: guard, EAX/EDX pass through */
+
+    fn_041e20(g_dat_62c58, 0, 0x80);                      /* 0x3247b-48d */
+    fn_041e20(g_dat_62cd8, 0, 0x80);                      /* 0x32492-49e */
+    fn_0367c9(name);                                      /* 0x324a6: open the resource (EDX) */
+
+    uint8_t *node = (uint8_t *)g_639b8;                   /* 0x324b5: push [0x139b8] */
+    uintptr_t slot;                                       /* one-element slot stream   */
+
+    slot = (uintptr_t)block;                              /* 0x324ab-4bb: "%d\n" -> count */
+    fn_042023(node, "%d\n", &slot);
+
+    for (uint32_t i = 0; (int32_t)i < (int32_t)*(const uint32_t *)block; i = i + 1) {
+        slot = (uintptr_t)(block + 0x388 + i * 2);        /* 0x324e0-4fc: "%d " -> id word */
+        fn_042023(node, "%d ", &slot);
+
+        slot = (uintptr_t)(block + 4 + i);                /* 0x32504-51a: "%d " -> n_i byte */
+        fn_042023(node, "%d ", &slot);
+        uint32_t n = block[4 + i];                        /* 0x32522-52b */
+
+        uint32_t ha = heap_malloc(n);                     /* 0x32530 */
+        *(uint32_t *)(block + 0x68 + i * 4) = ha;         /* 0x32540 */
+        uint32_t hb = heap_malloc(n);                     /* 0x32551 */
+        *(uint32_t *)(block + 0x1f8 + i * 4) = hb;        /* 0x32561 */
+
+        for (uint32_t j = 0; (int32_t)j < (int32_t)n; j = j + 1) {   /* 0x32567-0x325bd */
+            uint8_t ch = 0;
+            slot = (uintptr_t)&ch;                        /* 0x32589-599: "%c " -> one char */
+            fn_042023(node, "%c ", &slot);
+            *(uint8_t *)(g_heap_base + ha + j) = kXlat_5302c[ch];  /* 0x325af-5bb */
+        }
+
+        slot = 0;                                         /* 0x325bf-5cb: literal newline only */
+        fn_042023(node, "\n", &slot);
+
+        uint32_t v = 0;
+        for (uint32_t j = 0; (int32_t)j < (int32_t)n; j = j + 1) {   /* 0x325d3-0x3261c */
+            slot = (uintptr_t)(g_heap_base + hb + j);     /* byte stride 1, dword writes */
+            fn_042023(node, "%d ", &slot);
+        }
+
+        v = 0;
+        slot = (uintptr_t)&v;                             /* 0x3261e-633: "%d " -> latch */
+        fn_042023(node, "%d ", &slot);
+        uint16_t id = *(const uint16_t *)(block + 0x388 + i * 2);   /* 0x32636-645 */
+        g_dat_62ac8[id] = (uint8_t)v;                     /* 0x3264b-4e */
+
+        v = 0;
+        slot = (uintptr_t)&v;                             /* 0x32654-669: "%d\n" -> latch */
+        fn_042023(node, "%d\n", &slot);
+        g_dat_62b90[id] = (uint8_t)v;                     /* 0x32681-84 */
+
+        slot = (uintptr_t)(block + 0x450 + i);            /* 0x3268a-6a8: "%d\n" -> block tail */
+        fn_042023(node, "%d\n", &slot);
+    }
+    return block;                                         /* 0x326b0-6c0 */
 }
 
 /* 0x0440a9: stream token parser -> list append (241 insns, 733 B).

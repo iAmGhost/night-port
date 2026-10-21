@@ -557,6 +557,9 @@ int32_t fn_043a7f(struct emit_ctx *ctx, const char *fmt, uintptr_t **pos); /* 0x
 uint32_t fn_0439fd(int32_t ch, uint8_t *node);   /* 0x0439fd (untracked): push one char back into an io node buffer; -1 when refused */
 int32_t fn_041ffc(uint8_t *node, const char *fmt, uintptr_t **pos); /* 0x041ffc: stream-scan front end (fixed ctx, scanner 0x043a7f) */
 int32_t fn_042023(uint8_t *node, const char *fmt, uintptr_t *slots); /* 0x042023: scanf-style entry; slots = destination address list */
+extern uint8_t g_dat_62ac8[0xc8];   /* DAT_00062ac8: per-id byte latch (written by 0x032464) */
+extern uint8_t g_dat_62b90[0xc8];   /* DAT_00062b90: per-id byte latch (written by 0x032464) */
+uint8_t *fn_032464(uint8_t *block, const char *name); /* 0x032464: numeric text-table loader from the g_639b8 stream */
 /* 0x0440a9: stream token parser -> list append (241 insn). Reads a
  * whitespace-delimited token from ctx, parses int/frac/exp/sign, appends a
  * 4/8-byte element to the *pos list-pool cursor, returns the char count.

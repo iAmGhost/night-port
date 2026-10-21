@@ -5633,6 +5633,68 @@ static void test_fn_0439fd_041ffc(void) {
     check(r == 1 && v1 == 7, "  literal chars match the stream, then %d stores 7");
 }
 
+/* fn_032464 (0x032464, 604 B): numeric text-table loader driven by the 0x042023 scanf front end.
+ * The config stream is the resource reader node (g_639b8); the name lookup is neutralised by an
+ * empty g_tab_5d884 (g_dat_633a0 = 0) so fn_0367c9 returns 0 and the caller-supplied reader stays. */
+static void test_fn_032464(void) {
+    printf("fn_032464: text-table loader through the scan front end\n");
+    res_reader *saved_rd = g_639b8;
+    uint32_t saved_n = g_dat_633a0;
+    /* The refill path (fn_041c8f -> fn_041d18 -> fn_041d47) reads node fields past the 0x14-byte
+     * core struct, so the node gets a padded buffer like the other io-node tests. */
+    static uint8_t cfg_node[0x20];
+    uint32_t *cn = (uint32_t *)cfg_node;
+    res_reader *rd = (res_reader *)cfg_node;
+
+    static const char *cfg = "2\n7 3\na b c\n10 20 30\n42\n9\n5\n9 2\na b\n11 12\n7\n8\n6\n";
+    uint32_t base = heap_malloc(0x100);
+    memcpy((uint8_t *)g_heap_base + base, cfg, strlen(cfg));
+    memset(cfg_node, 0, sizeof cfg_node);
+    cn[0] = base; cn[1] = (uint32_t)strlen(cfg); cn[2] = base; cn[5] = 0x100;
+    cfg_node[0x0c] = 0x01;              /* readable */
+    g_639b8 = rd;
+    g_dat_633a0 = 0;                    /* empty resource-name table -> fn_0367c9 no-op */
+
+    memset(g_dat_62c58, 0xff, sizeof g_dat_62c58);
+    memset(g_dat_62cd8, 0xff, sizeof g_dat_62cd8);
+    memset(g_dat_62ac8, 0, sizeof g_dat_62ac8);
+    memset(g_dat_62b90, 0, sizeof g_dat_62b90);
+
+    uint8_t *block = calloc(0x800, 1);
+    uint8_t *ret = fn_032464(block, "zz");
+
+    check(ret == block, "  returns the caller's block unchanged");
+    check(*(uint32_t *)block == 2, "  first \"%%d\\n\" fills the entry count = 2");
+    check(*(uint16_t *)(block + 0x388) == 7 && *(uint16_t *)(block + 0x38a) == 9,
+          "  id words at +0x388 (overlapping dword writes) = 7, 9");
+    check(block[4] == 3 && block[5] == 2, "  per-entry counts at +0x004 = 3, 2");
+
+    uint32_t ha0 = *(uint32_t *)(block + 0x68), hb0 = *(uint32_t *)(block + 0x1f8);
+    uint32_t ha1 = *(uint32_t *)(block + 0x6c);
+    check(ha0 && ha1 && ha0 != ha1, "  heap_malloc per entry: distinct buffer A offsets");
+    uint8_t *a0 = (uint8_t *)g_heap_base + ha0, *a1 = (uint8_t *)g_heap_base + ha1;
+    check(a0[0] == 0x38 && a0[1] == 0x66 && a0[2] == 0x1d,
+          "  \"%%c \" chars a/b/c mapped through the 0x5302c translation table");
+    check(a1[0] == 0x38 && a1[1] == 0x66, "  second entry chars a/b mapped too");
+
+    uint8_t *b0 = (uint8_t *)g_heap_base + hb0;
+    check(b0[0] == 0x0a && b0[1] == 0x14 && b0[2] == 0x1e,
+          "  buffer B dword writes at byte stride 1 leave 10/20/30 low bytes overlapped");
+    check(*(uint32_t *)(b0 + 2) == 30, "  the last overlapping dword write wins at +2");
+
+    check(g_dat_62ac8[7] == 42 && g_dat_62b90[7] == 9, "  latches: 62ac8[7]=42, 62b90[7]=9");
+    check(g_dat_62ac8[9] == 7 && g_dat_62b90[9] == 8, "  latches: 62ac8[9]=7, 62b90[9]=8");
+    uint8_t *tail = block + 0x450;
+    check(tail[0] == 5 && tail[1] == 6, "  block tail values at +0x450 (byte stride 1) = 5, 6");
+    /* the stream runs dry on the final value, so the reader ends in the refill/EOF state:
+     * only the fact that the cursor state changed is assertable here. */
+    check(cn[1] != (uint32_t)strlen(cfg) || cn[0] != base,
+          "  the reader node state was consumed by the scan");
+
+    g_639b8 = saved_rd; g_dat_633a0 = saved_n;
+    free(block);
+}
+
 /* fn_049e80 (0x049e80, 547 B): the printf-style float formatter, sole caller 0x045c79
  * (W=0x27, M=3, E=precision default 6). Vectors pin the exact field contents the port
  * produces plus the untouched byte after the field, so regressions and overruns both show up.
@@ -8851,6 +8913,7 @@ int main(void) {
     test_fn_0438a3();
     test_fn_042d2a();
     test_fn_048fe6();
+    test_fn_032464();
     test_fn_0439fd_041ffc();
     test_fn_043a7f();
     test_fn_049e80();

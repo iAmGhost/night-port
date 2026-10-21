@@ -733,6 +733,7 @@ void fn_036190(const char *name, uint8_t *dest); /* 0x036190: screen RLE loader 
 void fn_036417(const char *name, uint8_t *dest, uint32_t dl); /* 0x036417: screen RLE loader into caller 0x4b000-byte dest; dl->board_out; table g_dat_636b8 */
 void fn_03628e(const char *name, uint32_t dl);               /* 0x03628e: screen RLE loader into the 0xa0000 video window (wraps at 0x10000, fn_03f3be fade per wrap); dl->board_out */
 void fn_03fb0e(uint8_t *node, uint32_t count); /* 0x03fb0e: load 64000 B screen image from I/O node into g_dat_51a0c via heap buf + fn_04192e */
+void fn_03f885(res_reader *node);              /* 0x03f885: resource-op dispatcher (6B header: dword size + word opcode -> palette/screen handlers; default fn_04247a(node,size-6,1)) */
 void fn_03fc1d(uint8_t *node, uint32_t size); /* 0x03fc1d: VGA-palette DAC load (read 4B hdr + size-4 B table; board_out(hdr[2], 0x100-hdr[2], table)) */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),

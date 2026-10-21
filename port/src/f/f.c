@@ -4377,6 +4377,52 @@ void fn_03628e(const char *name, uint32_t dl) {
     }
 }
 
+/* fn_03f885  orig: 0x03f885 (L11, 438 B) -- resource-op dispatcher (screen/palette commands).
+ * reg-ABI: EAX = resource node. First a 6-byte header is pulled from the stream into
+ * [ebp-0x10]: dword param (= the payload size that follows the 6-byte header) and the word
+ * at +4 = the OPCODE (compared as an UNSIGNED word, cmp word ptr / jb-jbe). Dispatch, with
+ * the comparison tree read straight off the disassembly (0x3f9a9-0x3fa2d):
+ *   4        -> fn_04247a(node,4,1); fn_04192e(table,3,0x100,node); table[i] >>= 2 for 0x300;
+ *               board_out(0,0x100,table)                        0x3f916-0x3f989
+ *   0xb      -> fn_03fc1d(node, param-6)                        0x3f8c0
+ *   0xc      -> fn_03fb73(node, param-6)                        0x3f8d3
+ *   0xd      -> fn_03fade()                                     0x3f8e6
+ *   0xf      -> fn_03fa3b(node, param-6)                        0x3f903
+ *   0x10     -> fn_03fb0e(node, param-6)                        0x3f8f0
+ *   anything else (incl. <4, 5..0xa, 0xe, >0x10)
+ *            -> fn_04247a(node, param-6, 1)                     0x3f991
+ * Every branch returns immediately after its call, so the default is only reached from the
+ * unmatched comparisons. The 768 B table is a stack local in the original ([ebp-0x310]). */
+void fn_03f885(res_reader *node) {
+    uint8_t hdr[8];                                              /* [ebp-0x10] dword + word @+4 */
+    memset(hdr, 0, sizeof hdr);
+    fn_04192e(hdr, 6, 1, (uint8_t *)node);                       /* 0x3f8b0 */
+    uint32_t param = *(uint32_t *)(void *)hdr;                   /* 0x3f8b5-10] */
+    uint16_t op    = *(uint16_t *)(void *)(hdr + 4);              /* 0x3f8b5: [ebp-0xc] */
+    if (op >= 0xc) {                                             /* 0x3f9ba jb */
+        if (op == 0xc) { fn_03fb73((uint8_t *)node, param - 6); return; }   /* 0x3f8d3 */
+        if (op <= 0xf) {                                         /* 0x3f9d2 jb */
+            if (op == 0xd) { fn_0003fade(); return; }              /* 0x3f8e6 */
+            if (op == 0xf) { fn_03fa3b((uint8_t *)node, param - 6); return; } /* 0x3f903 */
+        } else {
+            if (op == 0x10) { fn_03fb0e((uint8_t *)node, param - 6); return; } /* 0x3f8f0 */
+        }
+    } else {                                                     /* op < 0xc */
+        if (op >= 4) {                                           /* 0x3fa0a jb */
+            if (op == 4) {                                       /* 0x3f916 */
+                fn_04247a(node, 4, 1);
+                uint8_t table[0x300];                            /* [ebp-0x310] */
+                fn_04192e(table, 3, 0x100, (uint8_t *)node);      /* 0x3f93b */
+                for (int32_t i = 0; i < 0x300; i++) table[i] >>= 2;  /* 0x3f964-972 */
+                board_out(0, 0x100, table);                       /* 0x3f984 */
+                return;
+            }
+            if (op == 0xb) { fn_03fc1d((uint8_t *)node, param - 6); return; } /* 0x3f8c0 */
+        }
+    }
+    fn_04247a(node, (int32_t)(param - 6), 1);                     /* 0x3f991 default */
+}
+
 /* 0x036417 (L11, ~85 insns / 288 B): screen RLE loader into a caller buffer, 0x4b000 bound.
  * Like fn_036190 but 3-arg (dl in EBX low byte, reg-ABI) + board_out if dl==1; writes to dest
  * until pos=0x4b000 (311296 B); table -> g_dat_636b8 (>>2, shared w/ 0x035f1b/0x036041). RLE:

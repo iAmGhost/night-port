@@ -7995,6 +7995,55 @@ static void test_fn_040b83(void) {
     free(dev); free(src);
 }
 
+/* test helper: build a resource node over a heap buffer with a 6-byte op header */
+static void mk_resnode(uint8_t *data, uint32_t data_off, uint8_t *nd, uint32_t node_off,
+                       uint32_t parm, uint16_t opc, uint32_t len) {
+    *(uint32_t *)(void *)data = parm; *(uint16_t *)(void *)(data + 4) = opc;
+    *(uint32_t *)(nd + 0) = data_off; *(uint32_t *)(nd + 4) = len;
+    *(uint32_t *)(nd + 8) = data_off; nd[0xc] = 0x41;
+}
+
+static void test_fn_03f885(void) {
+    printf("fn_03f885 (0x03f885): resource-op dispatcher (palette/screen commands)\n");
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *hist = (uint8_t *)calloc(1, 0x10000);
+    if (!hist) { check(0, "  hist buffer (SKIP)"); return; }
+    uint32_t data_off = heap_arena_alloc(0x600);
+    uint8_t *data = hb + data_off;
+    for (uint32_t i = 0; i < 0x600; i++) data[i] = 0xF0;
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *nd = hb + node_off;
+
+    /* op 4: fn_04247a(node,4,1) + 768 B table >>2 + board_out(0,0x100,table) */
+    int n0 = sys_hist(hist, 0x10000);
+    mk_resnode(data, data_off, nd, node_off, 0x1000, 4, 0x600);
+    fn_03f885((res_reader *)nd);
+    int n1 = sys_hist(hist, 0x10000);
+    check(n1 > n0 && (n0 + 0x300 > 0x10000 || n1 - n0 == 0x300),
+          "  op 4: palette bytes out (board_out of the >>2 table; exact only while history has room)");
+    check(sys_inb(0x3c8) == 0x00, "  op 4: DAC index 0");
+    check(hist[n1 - 1] == 0x3C, "  op 4: table bytes >>2 (0xF0 -> 0x3C)");
+
+    /* op 0xb: fn_03fc1d(node, size-6); its 4-byte header byte 2 is the DAC start index */
+    mk_resnode(data, data_off, nd, node_off, 6 + 0x100, 0xb, 0x600);
+    data[6] = 0; data[7] = 0; data[8] = 0x20; data[9] = 0;
+    fn_03f885((res_reader *)nd);
+    n1 = sys_hist(hist, 0x10000);
+    check(n1 > n0, "  op 0xb: fn_03fc1d emitted its DAC writes (history may be saturated late)");
+    check(sys_inb(0x3c8) == 0x20, "  op 0xb: DAC start index taken from the table header");
+
+    /* op 0xd: fn_03fade() consumes nothing but the 6-byte header */
+    mk_resnode(data, data_off, nd, node_off, 0x100, 0xd, 0x600);
+    fn_03f885((res_reader *)nd);
+    check(*(uint32_t *)(nd + 0) == data_off + 6, "  op 0xd: fade only, stream advanced by exactly 6");
+
+    /* default (opcode 0): fn_04247a(node, size-6, 1) consumes the payload */
+    mk_resnode(data, data_off, nd, node_off, 6 + 8, 0, 0x600);
+    fn_03f885((res_reader *)nd);
+    check(*(uint32_t *)(nd + 0) > data_off + 6, "  default: fn_04247a(node,size-6,1) consumed the payload");
+    free(hist);
+}
+
 static void test_fn_036417(void) {
     printf("fn_036417 (0x036417): screen RLE loader into caller buffer, 0x4b000 bound, dl->board_out\n");
     heap_arena_init();
@@ -8492,6 +8541,7 @@ int main(void) {
     test_fn_03628e();
     test_fn_040b83();
     test_fn_04097e();
+    test_fn_03f885();
     test_fn_010181();
     test_fn_03fc1d();
     test_fn_03e0a0();

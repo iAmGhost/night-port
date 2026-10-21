@@ -902,7 +902,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 
 | Status | Addr | Size | Name | Subsystem | Notes |
 |---|---|---|---|---|---|
-| [ ] | 0x035263 | 197 | FUN_00035263 | | |
+| [x] | 0x035263 | 197 | fn_035263 | audio/midi | MIDI sequencer step: idx=ctx[0x14]; rec=base+idx*0xe; b=*cursor; b<0x80->fn_0353d0(rec->f4,rec) else head_off++,fn_0353d0(b,rec); tag==0x2f->acc=0x7fffffff else acc+=LEB128(fn_0351dc); fn_035329 re-find min |
 | [ ] | 0x03690b | 2554 | FUN_0003690b | | |
 | [ ] | 0x0374ad | 538 | FUN_000374ad | | |
 | [ ] | 0x0376c8 | 601 | FUN_000376c8 | | |
@@ -913,7 +913,7 @@ _L0 (leaves) is the starting point. First batch: memory/video-buffer primitives 
 |---|---|---|---|---|---|
 | [ ] | 0x0113e7 | 1087 | FUN_000113e7 | | |
 | [ ] | 0x01441e | 3456 | FUN_0001441e | | |
-| [ ] | 0x034e3c | 115 | FUN_00034e3c | | |
+| [x] | 0x034e3c | 115 | fn_034e3c | audio/midi | MIDI sequencer control loop: while hb[0x6330c]>=hb[0x63310] fn_035263(hb+0x63220,hb+0x63300); if flag hb[0x63320]: v=hb[0x63328]++; if v<hb[0x530b0] fn_034f31 (parse next) else fn_034eb0 (teardown) |
 | [ ] | 0x038445 | 1498 | FUN_00038445 | | |
 | [ ] | 0x038f3d | 3269 | FUN_00038f3d | | |
 | [ ] | 0x03a224 | 879 | FUN_0003a224 | | |

@@ -5040,6 +5040,38 @@ res_reader *fn_04270d(const uint8_t *name, const char *modestr) {
     return fn_0426f2(name, modestr, 0);
 }
 
+/* fn_03c72b  orig: 0x0003c72b (L10, 171 B) -- recursive entity teardown.
+ * Original ABI: EAX = entity (flat pointer), EDX = saved to [ebp-4] but NEVER used.
+ * Because the port addresses heap blocks by heap OFFSET (that is what the 0x41c28 /
+ * 0x41c31 free wrappers consume, and the child field is freed through 0x41c28), the
+ * port ABI is offset-based: uint32_t fn_03c72b(uint32_t ent). Field reads use flat_ofs()
+ * so the sign-extended 32->64 recovery matches the rest of the port.
+ * Body (verbatim): if ent[0x34c] != 0, re-read it and (redundantly) re-test it, recurse
+ * with EDX=0 on the child, then free the child block via heap_free_guard (0x41c28) --
+ * the child link is NOT cleared. Then free ent[0x348] (0x41c31) and clear it, and free
+ * ent[0x44] (0x41c31) and clear it. Returns the entity itself ([ebp-0xc] = EAX, re-read
+ * from [ebp-8] at 0x3c7c6). The PUSH 0x2c / CALL 0x418ee canary prologue is not
+ * replicated (port convention). */
+uint32_t fn_03c72b(uint32_t ent_off) {
+    uint8_t *ent = flat_ofs(ent_off);
+    if (*(uint32_t *)(ent + 0x34c) != 0) {                      /* 0x3c74b-52 */
+        uint32_t child = *(uint32_t *)(ent + 0x34c);            /* 0x3c757-5d [ebp-0x14] */
+        if (child != 0) {                                       /* 0x3c760-64 (faithful re-test) */
+            uint32_t r = fn_03c72b(child);                      /* 0x3c76b (EDX=0) */
+            heap_free_guard(r);                                 /* 0x3c770 free the child */
+        }                                                       /* 0x3c775 [ebp-0x10] unused */
+    }
+    if (*(uint32_t *)(ent + 0x348) != 0) {                      /* 0x3c784-8b */
+        heap_free_host(*(uint32_t *)(ent + 0x348));             /* 0x3c796 */
+        *(uint32_t *)(ent + 0x348) = 0;                         /* 0x3c79e */
+    }
+    if (*(uint32_t *)(ent + 0x44) != 0) {                       /* 0x3c7ab-af */
+        heap_free_host(*(uint32_t *)(ent + 0x44));              /* 0x3c7b7 */
+        *(uint32_t *)(ent + 0x44) = 0;                          /* 0x3c7bf */
+    }
+    return ent_off;                                             /* 0x3c7c9-81 */
+}
+
 /* fn_04589e  orig: 0x04589e (L6, 188 B) -- build a tokenized command line in the heap.
  * Copies DAT_00053388 (a heap-offset string) into a fresh block, appends the dword
  * DAT_0005338c, then a token-pointer array, and tokenizes the copy IN PLACE.

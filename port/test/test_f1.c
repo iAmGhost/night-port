@@ -3282,6 +3282,44 @@ static void test_fn_0426f2_04270d(void) {
     free(arena);
 }
 
+static void test_fn_03c72b(void) {
+    printf("fn_03c72b (0x03c72b): recursive entity teardown\n");
+    /* This test needs a deterministic heap (three 0x350+ blocks plus frees), so it
+     * initialises the heap itself -- and restores the SAME known state (init + pre-seed,
+     * the established workaround for the heap_acquire_region/heap_alloc size mismatch)
+     * at the end, which is what later heap tests (test_fn_041e94_04123d) rely on. */
+    heap_arena_init();
+    (void)heap_malloc(0x2000);                      /* pre-seed one big free region */
+    uint32_t ent = heap_arena_alloc(0x400);          /* bump slot: never freed */
+    uint8_t *e = flat_ofs(ent);
+    memset(e, 0, 0x400);
+    uint32_t b1 = heap_malloc(0x20), b2 = heap_malloc(0x20);
+    check(b1 != 0 && b2 != 0, "  two heap blocks allocated");
+    if (!b1 || !b2) return;
+    *(uint32_t *)(e + 0x348) = b1;
+    *(uint32_t *)(e + 0x44)  = b2;
+    check(fn_03c72b(ent) == ent, "  returns the entity");
+    check(*(uint32_t *)(e + 0x348) == 0 && *(uint32_t *)(e + 0x44) == 0,
+          "  +0x348 and +0x44 freed and cleared");
+
+    /* Child chain ent -> child -> grandchild: the recursion frees the grandchild's
+     * +0x44, then the grandchild block (0x41c28), then the child block. The child link
+     * itself is deliberately left set (faithful to the original). */
+    uint32_t child = heap_malloc(0x360), gc = heap_malloc(0x360);
+    check(child != 0 && gc != 0, "  child + grandchild blocks allocated");
+    if (!child || !gc) return;
+    uint8_t *c = flat_ofs(child), *g = flat_ofs(gc);
+    memset(c, 0, 0x360); memset(g, 0, 0x360);
+    *(uint32_t *)(g + 0x44) = heap_malloc(0x20);
+    *(uint32_t *)(c + 0x34c) = gc;
+    *(uint32_t *)(e + 0x34c) = child;
+    fn_03c72b(ent);
+    check(*(uint32_t *)(g + 0x44) == 0, "  depth-2 recursion freed the grandchild's +0x44");
+    check(*(uint32_t *)(e + 0x34c) == child, "  child link left intact (faithful)");
+    heap_arena_init();                               /* hand on the known heap state */
+    (void)heap_malloc(0x400);
+}
+
 static void test_fn_04589e(void) {
     printf("fn_04589e (0x04589e): tokenize command line into a heap block\n");
     /* No heap_arena_init() here: it would wipe free-list state a later test
@@ -8047,6 +8085,7 @@ int main(void) {
     test_fn_04488b();
     test_fn_04262a();
     test_fn_0417f3();
+    test_fn_03c72b();
     test_fn_0426f2_04270d();
     test_fn_04589e();
     test_fn_044867();

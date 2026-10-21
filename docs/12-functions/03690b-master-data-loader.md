@@ -144,3 +144,35 @@ CD/resource backend (mid-subsystems task). Order of work: (1) unify the `DAT_537
 (2) give `sys_file_open/read/lseek` + `fn_04488b` a real handle model (a memory or file-backed
 resource reader over `NIGHT/NIGHT.RES` / `TG_NIGHT.IMG`), (3) re-run `scratch/ins3690b.py`, add the
 structural test (its body is in this file's history and worked up to the open), then mark the row.
+
+## Attempt log 2 (same day): open chain fixed, new blockers found
+
+Re-landed the port (`scratch/ins3690b.py`, WIP diff kept in `scratch/wip_03690b.patch`) plus the
+model fixes below, then reverted the tree to `7cd13c2` because the test hangs (see "hang").
+
+**Fixed and verified on its own (1906 PASS, ASan clean, before revert):** `DAT_00053730` existed as
+two *independent* C variables -- `g_dat_53730` (read by `fn_0492d0`) and `g_arr_53730` (written by
+`store_arr53730`) -- so they drifted apart. Unifying them (`#define g_arr_53730 g_dat_53730`) and
+backing the DAT with a static array by default (it is BSS in the original, right after
+`DAT_000536dc`, not a heap block) removed every fault in the *open* chain:
+`fn_04270d -> fn_0426f2 -> fn_044ab5 -> fn_04262a -> fn_04488b` now runs. Two existing tests had to
+attach their own table instead of relying on the stale alias: `test_fn_042717` (case 2, close path)
+and `test_fn_044bec` (which also gained a check that slot 7 gets bit 22 from `store_arr53730`).
+
+**Also fixed:** the generated `kVocNames[100]` table needs a comma after every row -- without it C
+string-literal concatenation folded the rows and left entries 20..99 NULL (`str_len(NULL)` SEGV).
+
+**Blocker A -- heap model under-provisioning.** `heap_acquire_region` (port of `0x043071`) computes
+`total = 0x2c + data_area` but hands back `region + 0x2c + 4`, so a freshly acquired region carries
+4 bytes less usable data than the request; `heap_grow` (`0x04322c`) is a stub. Measured on a fresh
+arena: `heap_malloc(0x10000) -> 0` while `0x4b4/0x3c/8/0x1000` succeed individually, and after ~14
+loader allocations the free list goes empty and the small `0x3c` sprite requests start failing.
+`0x043071` really does more (DPMI allocate via `0x045bb7`, `DAT_00053384` slack, region coalescing)
+-- porting that, or at least the slack, is a prerequisite for any function that allocates 20+ blocks.
+
+**Blocker B -- hang.** With the resource stream still stubbed (no CD/file backend, so reads return 0
+bytes) the test binary spins: the loader never returns within 90 s. The most likely cause is that the
+`0x4b4`/`8`/`0x3c` blocks come from recycled heap memory whose leading count word is not zero, so the
+`for (i = 0; (int32_t)block[0] > i; i++)` loops in `0x032464`/`0x010010` run for a huge count reading
+nothing. Needs a short diagnosis (print the count word) before the loader can be verified; a live CD
+backend makes it moot.

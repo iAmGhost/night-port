@@ -3575,6 +3575,36 @@ static void test_fn_049192(void) {
     check(node[0x0c] & 0x20, "  error: f12 byte0 bit5 set");
 }
 
+/* 0x036537: banner printf uses g_dat_5147c = "\n%s\n"; with the %s argument NULL the
+ * conversion selects the empty `alt` fallback, so only the two LF bytes are emitted.
+ * fn_049192 expands each LF to CR+LF (f12 bit6 clear), so the node buffer receives
+ * 0d 0a 0d 0a and f4 (write count) == 4. The trailing fn_0423b7(0) dispatcher runs
+ * the registered callback chain, so those pointers must be installed. */
+static uint32_t g_s6537_5336c_arg, g_s6537_53370_arg;
+static uint32_t s6537_cb5336c(uint32_t x) { g_s6537_5336c_arg = x; return x + 7; }
+static uint32_t s6537_cb53370(uint32_t x) { g_s6537_53370_arg = x; return x; }
+static uint32_t s6537_cb53374(uint32_t x) { (void)x; return 0; }
+static void test_fn_036537(void) {
+    printf("fn_036537 (0x036537): boot/console init + banner printf\n");
+    heap_arena_init();
+    (void)heap_malloc(0x400);                       /* pre-seed free-list */
+    uint32_t buf_off = heap_malloc(32);
+    uint8_t *buf = (uint8_t *)g_heap_base + buf_off;
+    memset(buf, 0, 32);
+    memset(&g_dat_5342a, 0, sizeof g_dat_5342a);
+    uint32_t *n = (uint32_t *)&g_dat_5342a;
+    n[0] = buf_off; n[2] = buf_off; n[3] = 0x2; n[5] = 16;   /* f0/f8 buffer, ready, capacity */
+    uint32_t va = 0;                                /* %s argument == NULL -> alt (empty) */
+    g_s6537_5336c_arg = g_s6537_53370_arg = 0;
+    g_dat_5336c = s6537_cb5336c; g_dat_53370 = s6537_cb53370; g_dat_53374 = s6537_cb53374;
+    fn_036537((uint8_t *)&va);
+    check(buf[0] == 0x0d && buf[1] == 0x0a && buf[2] == 0x0d && buf[3] == 0x0a,
+          "  banner emits CR LF CR LF (LF expanded by fn_049192)");
+    check(n[1] == 4, "  node write counter (f4) == 4");
+    check(g_s6537_5336c_arg == 0, "  trailing fn_0423b7(0) dispatcher ran");
+    g_dat_5336c = g_dat_53370 = g_dat_53374 = NULL;
+}
+
 static void test_fn_042394(void) {
     printf("fn_042394 (0x042394): fixed-node printf wrapper (fn_0446c3 on g_dat_5342a)\n");
     /* Empty fmt -> no emit bytes -> exercises the f13-bit2 flush path (fn_044748)
@@ -7848,6 +7878,7 @@ int main(void) {
     test_fn_049192();
     test_fn_0446b2();
     test_fn_0446c3();
+    test_fn_036537();
     test_fn_042394();
     test_fn_041d18();
     test_fn_041d47();

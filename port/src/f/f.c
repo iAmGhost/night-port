@@ -2037,7 +2037,7 @@ int digit_chr(int d) {
  * descriptor is the raw 32-bit byte-array fn_044c23 passes to cb.
  */
 void fmt_emit(fmt_state *st, uint8_t byte) {
-    uint8_t *p = (uint8_t *)g_heap_base + st->pos;
+    uint8_t *p = flat_ofs(st->pos);
     st->pos = st->pos + 1;
     *p = byte;
     st->count++;
@@ -3882,7 +3882,7 @@ uint32_t fn_049192(uint32_t ch, uint8_t *node) {
         mask = 0x600;
         node[0x0d] |= 0x10;                        /* f12 byte1 bit4 */
         uint32_t o = n[0];                         /* f0 cursor */
-        *(uint8_t *)(g_heap_base + o) = 0x0d;      /* buffer = '\r' */
+        flat_ofs(o)[0] = 0x0d;                      /* buffer = '\r' */
         n[0] = o + 1;
         n[1] = n[1] + 1;
         if (n[1] == n[5]) {                        /* f4 == capacity */
@@ -3892,7 +3892,7 @@ uint32_t fn_049192(uint32_t ch, uint8_t *node) {
     node[0x0d] |= 0x10;                            /* f12 byte1 bit4 */
     uint8_t c = (uint8_t)ch;
     uint32_t o = n[0];                             /* f0 cursor */
-    *(uint8_t *)(g_heap_base + o) = c;             /* buffer = char */
+    flat_ofs(o)[0] = c;                             /* buffer = char */
     n[0] = o + 1;
     n[1] = n[1] + 1;
     if (((mask & n[3]) != 0) || (n[1] == n[5])) {  /* (mask & f12) or full */
@@ -3908,7 +3908,7 @@ uint32_t fn_049192(uint32_t ch, uint8_t *node) {
  * orig: 0x0446b2 */
 uint32_t fn_0446b2(uint8_t *p, uint32_t ch)
 {
-    uint32_t r = fn_049192(ch, (uint8_t *)g_heap_base + *(uint32_t *)p);   /* 0x0446b7-b9 */
+    uint32_t r = fn_049192(ch, flat_ofs(*(uint32_t *)p));   /* 0x0446b7-b9 */
     (*(uint32_t *)(p + 0x10))++;                                            /* 0x0446be */
     return r;
 }
@@ -3951,10 +3951,29 @@ int32_t fn_0446c3(io_state_t *node, const uint8_t *fmt, uint8_t **src) {
  * fmt (the format string, read from [ESP+0x10]); EBX = pointer to a stack slot
  * holding the varargs-array base -> the printf src cursor. local_c (0x042399)
  * is the fmt-args descriptor built from the caller's varargs. */
-io_state_t g_dat_5342a;                                /* DAT_0005342a: global console printf io node */
+io_node_full_t g_dat_5342a;                             /* DAT_0005342a: global console printf io node (0x18 B) */
 void fn_042394(const uint8_t *fmt, uint8_t *varargs) {
     uint8_t *cur = varargs;                            /* 0x042399 lea ebx,[ESP+0x14] (varargs base) */
-    fn_0446c3(&g_dat_5342a, fmt, &cur);                /* 0x0423ab CALL 0x446c3, EAX=0x5342a */
+    fn_0446c3((io_state_t *)&g_dat_5342a, fmt, &cur);   /* 0x0423ab CALL 0x446c3, EAX=0x5342a */
+}
+
+/* fn_036537  orig: 0x036537 (L11, 86 B) -- boot/console init sequence.
+ * reg-ABI EAX = the printf varargs block. Sequence (disasm):
+ *   canary_id(arg1,0x28); fn_00040570(); fn_03eff2(); fn_1053f(); fn_040e8d();
+ *   fn_03ffab();  push arg1; push DAT_0005147c; fn_042394(fmt, varargs);
+ *   EAX=0; fn_0423b7(0).
+ * DAT_0005147c = "\n%s\n" -- the console banner printf. The five DPMI/IRQ setup
+ * calls are flat-model no-op stand-ins (already ported). */
+static const uint8_t g_dat_5147c[] = { '\n', '%', 's', '\n', 0 };  /* DAT_0005147c */
+void fn_036537(uint8_t *varargs) {
+    (void)canary_id((uintptr_t)varargs, 0x28);         /* 0x03653c CALL 0x418ee */
+    fn_00040570();                                     /* 0x036552 DPMI real-mode call {3} */
+    fn_03eff2();                                       /* 0x036557 install IRQ 0x1c (FPU) */
+    fn_1053f();                                        /* 0x03655c DPMI INT 0x31 AX=0x101 */
+    fn_040e8d();                                       /* 0x036561 */
+    fn_03ffab();                                       /* 0x036566 install IRQ 9 */
+    fn_042394(g_dat_5147c, varargs);                   /* 0x036575 banner printf */
+    fn_0423b7(0, 0, 0, 0);                             /* 0x03657f CALL 0x423b7, EAX=0 */
 }
 
 /* 0x041c8f (136 B): getch -- read one char from a node I/O buffer (with

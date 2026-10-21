@@ -367,6 +367,14 @@ void     cb_noop2(void);
  *   region+0x2c..region+total, 0xffffffff end-marker at region+total,
  *   traversal via next@8, size@0 with bit 0 = the allocated flag. */
 extern uintptr_t g_heap_base;      /* base address of the heap arena */
+/* Recover a host pointer from a 32-bit arena-relative offset. The original stored
+ * these as 32-bit flat pointers; the port stores (buf - g_heap_base), which is a
+ * SIGNED quantity whenever `buf` is a data-segment global that happens to sit
+ * below the arena. Sign-extending (not zero-extending) makes the round-trip exact
+ * for any global/arena link order, while being identical for in-arena offsets. */
+static inline uint8_t *flat_ofs(uint32_t off) {
+    return (uint8_t *)g_heap_base + (int32_t)off;
+}
 extern uint32_t  g_heap_head;      /* DAT_00053350: all-blocks chain head */
 extern uint32_t  g_heap_cursor;    /* DAT_00053354: malloc search cursor */
 extern uint32_t  g_heap_highwater; /* DAT_00053358: global size high-water */
@@ -757,8 +765,13 @@ typedef struct {
 /* 0x044748: reg-ABI EAX=io_state_t*. Flush (f13 bit4) or seek-back (else); tail sets f0=f8, f4=0. */
 int32_t fn_044748(io_state_t *in);
 int32_t fn_0446c3(io_state_t *node, const uint8_t *fmt, uint8_t **src); /* 0x0446c3: printf-to-node sink (fn_044c23 + fn_0446b2); reg-ABI EAX=node,EDX=fmt,EBX=src */
-extern io_state_t g_dat_5342a;                          /* DAT_0005342a: global console printf io node */
+/* DAT_0005342a console io node. The original node extends past the 0x14-byte core
+ * struct: fn_049192 uses the dword at +0x14 as the buffer capacity (flush when
+ * f4 == that field), so the global needs 0x18 bytes of storage. */
+typedef struct { uint32_t f0, f4, f8, f12, f16, cap; } io_node_full_t;   /* 0x18 */
+extern io_node_full_t g_dat_5342a;                       /* DAT_0005342a: global console printf io node */
 void fn_042394(const uint8_t *fmt, uint8_t *varargs);   /* 0x042394: fixed-node printf wrapper -> fn_0446c3(&g_dat_5342a,...) */
+void fn_036537(uint8_t *varargs);                       /* 0x036537: boot/console init sequence (DPMI/IRQ setup + banner printf + dispatcher) */
 
 /* 0x04488b: reg-ABI, 4 stack args (name, mode, extra, val). File open/create with
  * node-table registration; returns handle (16-bit) or fn_045a82(-1) on error. */

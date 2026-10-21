@@ -4027,6 +4027,46 @@ uint32_t fn_04192e(uint8_t *dest, uint32_t count, uint32_t mult, uint8_t *node) 
     return total_read / count;                                            /* 0x41ae6-aef DIV */
 }
 
+/* 0x03fb73 (L10, 169 B): RLE screen-block expander into video. ABI: EAX=node, EDX=size (bytes to read).
+ * buf_off = heap_malloc(size); g_dat_63e7c = buf_off; fn_04192e(g_heap_base+buf_off, size, 1, node) fills
+ * buf with the RLE data. buf: [0:2]=start_row(u16 LE), [2:4]=row_count(u16 LE), [4..]=RLE ops. Video base =
+ * g_dat_51a0c; row_base = g_dat_51a0c + start_row*0x140 (320 B/row). Per row (do..while, g_dat_63e78 counter,
+ * JNZ after DEC): bl=byte (num ops); while bl: len=byte, d+=len (dest skip); ctl=byte; if ctl<0x80: COPY ctl
+ * bytes (buf->video) else val=byte, FILL (256-ctl)&0xff bytes with val; bl--. Then row_base += 0x140.
+ * Finally heap_free_host(buf_off). No video bounds check (faithful to the original 0xa0000-segment writes). */
+void fn_03fb73(uint8_t *node, uint32_t size) {
+    canary_id((uintptr_t)node, 0x20);                              /* 0x3fb73-78 */
+    uint32_t buf_off = heap_malloc(size);                          /* 0x3fb90-98 */
+    g_dat_63e7c = buf_off;
+    fn_04192e((uint8_t *)(g_heap_base + buf_off), size, 1, node);  /* 0x3fba5-ad */
+    const uint8_t *buf = (const uint8_t *)(g_heap_base + buf_off);
+    uint8_t *vid = g_dat_51a0c;                                    /* 0x3fbb2 EDI=[0x51a0c] */
+    uint16_t start_row = *(const uint16_t *)(buf + 0);             /* 0x3fbbf LODSW */
+    uint16_t row_count = *(const uint16_t *)(buf + 2);             /* 0x3fbcb LODSW */
+    g_dat_63e78 = row_count;                                       /* 0x3fbcd */
+    uint8_t *row_base = vid + (uint32_t)start_row * 0x140;         /* 0x3fbc1-9 MUL 0x140, ADD; EDX=EDI */
+    const uint8_t *p = buf + 4;                                    /* 0x3fbb8 ESI=buf */
+    do {                                                           /* 0x3fbd6 row top */
+        uint8_t *d = row_base;                                     /* 0x3fbd6 EDI=EDX */
+        uint8_t bl = *p++;                                         /* 0x3fbd8 LODSB */
+        while (bl != 0) {                                          /* 0x3fbdd (JZ 0x3fbfb) */
+            uint8_t len = *p++;                                    /* 0x3fbdf LODSB */
+            d += len;                                              /* 0x3fbe0 ADD EDI,EAX */
+            uint8_t ctl = *p++;                                    /* 0x3fbe2 LODSB */
+            if ((int8_t)ctl >= 0) {                                /* 0x3fbe5 JS -> else (FILL) */
+                memcpy(d, p, ctl);                                 /* 0x3fbea MOVSB.REP (CX=ctl) */
+                p += ctl;
+            } else {
+                uint8_t val = *p++;                                /* 0x3fbf6 LODSB */
+                memset(d, val, (size_t)((256 - ctl) & 0xff));      /* 0x3fbf7 STOSB.REP (NEG AL) */
+            }
+            bl--;                                                  /* 0x3fbec/9 DEC BL */
+        }
+        row_base += 0x140;                                         /* 0x3fbfd ADD EDX,0x140 */
+    } while (--g_dat_63e78 != 0);                                  /* 0x3fc03-9 DEC [0x63e78]; JNZ */
+    heap_free_host(g_dat_63e7c);                                   /* 0x3fc0b-10 */
+}
+
 uint32_t fn_043234(uint32_t mask) {
     uint8_t *base = g_ndpool;
     uint32_t cur = g_node_list_active;            /* 0x43239 EDX=[0x63ffc] */
@@ -4661,6 +4701,13 @@ static inline uint8_t *video_map(uint32_t va) {
     if (off >= VIDEO_SIZE) off = 0;
     return g_video_ram + off;
 }
+
+/* DAT_00051a0c: raw video base pointer (orig 0xa0000 segment) -> g_video_ram. The RLE screen
+ * expander (fn_03fb73) writes at g_dat_51a0c + start_row*0x140 (320 B/row), NOT via video_map. */
+uint8_t *g_dat_51a0c = g_video_ram;
+/* DAT_00063e7c / 0x63e78: fn_03fb73 RLE screen-buffer offset (heap off) + row-count counter. */
+uint32_t g_dat_63e7c;
+uint32_t g_dat_63e78;
 
 /* 0x03c65b (L10, 143 B): video flatten. EAX = a0 (packed-records dest buffer).
  * For each of the 200 interval lists (i = 0..0xc7) seeded at fn_034990, walk the

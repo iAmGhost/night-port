@@ -7225,6 +7225,61 @@ static void test_fn_04192e(void) {
     }
 }
 
+static void test_fn_03fb73(void) {
+    printf("fn_03fb73 (0x03fb73): RLE screen-block expander into video\n");
+    heap_arena_init();   /* establish g_heap_base=s_heap_arena + grow room */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_51a0c = g_video_ram;   /* raw video base (0xa0000) */
+    /* Pre-seed the heap free-list: heap_acquire_region provides a data area 4 bytes smaller than
+     * heap_alloc needs, and heap_grow is a stub, so a fresh heap_malloc(size) returns 0. A large
+     * (failing) heap_malloc leaves a big free block that fn_03fb73's internal heap_malloc fits. */
+    (void)heap_malloc(0x400);
+
+    /* T1 (COPY): start_row=0, row_count=1, bl=1, len=0, ctl=0x80 (COPY 128), 128 bytes 0x00..0x7f */
+    {
+        uint8_t node[0x20]; memset(node,0,sizeof(node));
+        uint32_t node_off = heap_arena_alloc(0x100);   /* node buffer (separate arena slot) */
+        uint8_t *nb = hb + node_off;
+        int o = 0;
+        nb[o++]=0x00; nb[o++]=0x00;   /* start_row=0 */
+        nb[o++]=0x01; nb[o++]=0x00;   /* row_count=1 */
+        nb[o++]=0x01;                 /* bl=1 op */
+        nb[o++]=0x00;                 /* len=0 (no skip) */
+        nb[o++]=0x05;                 /* ctl=0x05 -> COPY 5 (ctl<0x80 = COPY) */
+        for (int i=0;i<5;i++) nb[o++]=(uint8_t)i;
+        int rle = o;
+        memset(g_video_ram, 0, sizeof(g_video_ram));
+        node[0x0c]=0x41; *(uint32_t*)(node+0x08)=node_off; *(uint32_t*)(node+0x00)=node_off;
+        *(uint32_t*)(node+0x04)=(uint32_t)rle;
+        fn_03fb73(node, (uint32_t)rle);
+        check(g_video_ram[0]==0x00 && g_video_ram[1]==0x01, "  T1 COPY: video[0..1]=00 01");
+        check(g_video_ram[4]==0x04, "  T1 COPY: video[4]=0x04 (5 bytes)");
+        check(g_video_ram[5]==0x00, "  T1 COPY: video[5] untouched");
+    }
+
+    /* T2 (FILL + skip): start_row=0, row_count=1, bl=1, len=5, ctl=0x7f (FILL 129), val=0xAB */
+    {
+        uint8_t node[0x20]; memset(node,0,sizeof(node));
+        uint32_t node_off = heap_arena_alloc(0x40);    /* node buffer (separate arena slot) */
+        uint8_t *nb = hb + node_off;
+        int o = 0;
+        nb[o++]=0x00; nb[o++]=0x00;   /* start_row=0 */
+        nb[o++]=0x01; nb[o++]=0x00;   /* row_count=1 */
+        nb[o++]=0x01;                 /* bl=1 op */
+        nb[o++]=0x02;                 /* len=2 (skip 2) */
+        nb[o++]=0xfb;                 /* ctl=0xfb -> FILL (256-0xfb)&0xff=5 (ctl>=0x80 = FILL) */
+        nb[o++]=0xAB;                 /* val */
+        int rle = o;
+        memset(g_video_ram, 0, sizeof(g_video_ram));
+        node[0x0c]=0x41; *(uint32_t*)(node+0x08)=node_off; *(uint32_t*)(node+0x00)=node_off;
+        *(uint32_t*)(node+0x04)=(uint32_t)rle;
+        fn_03fb73(node, (uint32_t)rle);
+        check(g_video_ram[1]==0x00, "  T2 FILL: video[1] untouched (skip 2)");
+        check(g_video_ram[2]==0xAB && g_video_ram[6]==0xAB, "  T2 FILL: video[2..6]=0xAB (5)");
+        check(g_video_ram[7]==0x00, "  T2 FILL: video[7] untouched");
+    }
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7569,6 +7624,7 @@ int main(void) {
     test_fn_035263();
     test_fn_034e3c();
     test_fn_04192e();
+    test_fn_03fb73();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

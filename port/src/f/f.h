@@ -711,6 +711,7 @@ uint32_t fn_041c8f(uint8_t *node);              /* 0x041c8f: getch from node buf
 int32_t fn_041d18(uint8_t *node, uint32_t param_2); /* 0x041d18: pull one byte from node buffer (fn_041d47 + advance) */
 int32_t fn_041d47(uint8_t *node, uint32_t param_2); /* 0x041d47: I/O fill step (key-echo or device read into node buffer) */
 uint32_t fn_04192e(uint8_t *dest, uint32_t count, uint32_t mult, uint8_t *node); /* 0x04192e: stream read node->dest (byte/bulk); \r\n + 0x1a handling; returns total_read/count */
+void fn_03fb73(uint8_t *node, uint32_t size); /* 0x03fb73: RLE screen-block expander into video (g_dat_51a0c); fills buf via fn_04192e */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),
  * '0' -> out+0x16 = '0'. Stops at the first other character.  orig: 0x044fd7 */
@@ -779,6 +780,9 @@ extern uint32_t  g_dat_62d68[200];      /* DAT_00062d68: head-node offset per li
 
 /* Video-RAM model (flat 0xa0000 VGA segment): 64 KB window [0xa0000,0xb0000). */
 extern uint8_t g_video_ram[0x10000];
+extern uint8_t *g_dat_51a0c;     /* DAT_00051a0c: raw video base (0xa0000) -> g_video_ram (fn_03fb73) */
+extern uint32_t g_dat_63e7c;     /* DAT_00063e7c: RLE screen-buffer offset (fn_03fb73) */
+extern uint32_t g_dat_63e78;     /* DAT_00063e78: RLE row-count counter (fn_03fb73) */
 void fn_03c65b(uint8_t *a0);           /* 0x03c65b: video flatten (200 lists -> 0x140 packed records) */
 void fn_03ce0b(uint8_t *ent, uint8_t *dst);  /* 0x03ce0b: 4-branch sprite-draw (viewport blit, video-arena src) */
 

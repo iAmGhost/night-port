@@ -7309,6 +7309,35 @@ static void test_fn_03fa3b(void) {
     check(g_video_ram[0x140*199] == 0xc7, "  row199 COPY: video=0xc7");
 }
 
+static void test_fn_035f1b(void) {
+    printf("fn_035f1b (0x035f1b): screen + 768 B font-table loader (RLE via fn_041c8f)\n");
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;   /* empty table -> fn_0367c9/fn_036853 no-op, g_639b8 unchanged */
+    /* node data: [768 table (0xF0 each)] + [6399 RLE runs of 10 (0xCA,val)] + [10 literals] -> fills 64000 video exactly (no overshoot). */
+    const uint32_t nruns = 6399;
+    const uint32_t data_len = 0x300 + nruns * 2 + 10;   /* 768 + 12798 + 10 = 13576 */
+    uint32_t data_off = heap_arena_alloc(data_len + 4);
+    uint8_t *data = hb + data_off;
+    for (uint32_t i = 0; i < 0x300; i++) data[i] = 0xF0;               /* table -> >>2 = 0x3C */
+    uint32_t p = 0x300;
+    for (uint32_t k = 0; k < nruns; k++) { data[p++] = 0xCA; data[p++] = (uint8_t)(k & 0xff); }
+    for (uint32_t i = 0; i < 10; i++) data[p++] = (uint8_t)(0x10 + i);  /* 10 literals */
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    *(uint32_t *)(node + 0) = data_off;   /* pos */
+    *(uint32_t *)(node + 4) = data_len;   /* remaining */
+    *(uint32_t *)(node + 8) = data_off;   /* end */
+    node[0xc] = 0x41;                     /* bulk + open */
+    g_639b8 = (res_reader *)node;
+    memset(g_video_ram, 0, sizeof(g_video_ram));
+    fn_035f1b("NORES", 0);                /* dl=0 -> skip board_out */
+    check(g_dat_636b8[0] == 0x3C, "  table[0]=0xF0>>2=0x3C");
+    check(g_video_ram[0] == 0x00 && g_video_ram[10] == 0x01, "  RLE: video[0]=0, video[10]=1");
+    check(g_video_ram[63980] == 0xfe, "  RLE: video[63980]=6398&0xff=0xfe");
+    check(g_video_ram[63990] == 0x10 && g_video_ram[63999] == 0x19, "  literal: video[63990..99]=0x10..0x19");
+}
+
 static void test_fn_03fb0e(void) {
     printf("fn_03fb0e (0x03fb0e): load 64000 B screen image from I/O node into g_dat_51a0c\n");
     heap_arena_init();
@@ -7700,6 +7729,7 @@ int main(void) {
     test_fn_04192e();
     test_fn_03fb73();
     test_fn_03fa3b();
+    test_fn_035f1b();
     test_fn_03fb0e();
     test_fn_03a1b3();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

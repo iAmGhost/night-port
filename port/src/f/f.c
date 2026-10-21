@@ -4112,6 +4112,34 @@ void fn_03fa3b(uint8_t *node, uint32_t size) {
     heap_free_host(g_dat_63e7c);                                   /* 0x3facc-ad1 */
 }
 
+/* 0x035f1b (L11, ~90 insns / 294 B): screen + 768 B font-table loader. ABI: EAX=name, EDX=dl (low
+ * byte used). canary(name, dl, 0x3c). fn_0367c9(name) (lookup, sets g_639b8). fn_036853(name,-0x300,2)
+ * (seek to end-0x300). fn_04192e(g_dat_636b8, 3, 0x100, g_639b8) reads 768 B table into g_dat_636b8;
+ * each byte >>= 2. fn_036853(name,0x80,0) (seek to 0x80). RLE-decode into video (0xa0000 -> g_video_ram)
+ * via fn_041c8f (1 byte at a time): byte&0xc0==0xc0 -> count=byte&0x3f, value=next, write value count
+ * times; else write the literal byte. Loops until video pos reaches 0xfa00 (64000). If dl==1:
+ * board_out(0,0xff,g_dat_636b8). */
+void fn_035f1b(const char *name, uint32_t dl) {
+    (void)canary_id((uintptr_t)name, 0x3c);                        /* 0x35f1b-20 */
+    fn_0367c9(name);                                               /* 0x35f49 */
+    fn_036853(name, 0xfffffd00, 2);                                /* 0x35f5b: seek to end-0x300 */
+    fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);          /* 0x35f75: read 768 B table */
+    for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x35f83-9c */
+    fn_036853(name, 0x80, 0);                                      /* 0x35fa8: seek to 0x80 */
+    uint32_t pos = 0;                                              /* 0x35fad: video write pos */
+    while (pos < 0xfa00) {
+        uint32_t byte = fn_041c8f((uint8_t *)g_639b8);             /* 0x35fbb */
+        if ((byte & 0xc0) == 0xc0) {                               /* 0x35fcb-d5: RLE run */
+            uint32_t count = byte & 0x3f;                          /* 0x35fda */
+            uint32_t value = fn_041c8f((uint8_t *)g_639b8);        /* 0x35fe5 */
+            for (uint32_t c = count; c; c--) g_video_ram[pos++] = (uint8_t)value; /* 0x35fed-004 */
+        } else {                                                   /* 0x36008: literal */
+            g_video_ram[pos++] = (uint8_t)byte;
+        }
+    }
+    if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);          /* 0x3601a-031 */
+}
+
 /* 0x03fb0e (L10): load a screen image from an I/O node into the screen (g_dat_51a0c).
  * ABI (disasm-verified): EAX=node (host ptr, passed straight to fn_04192e), EDX=count (bytes).
  * canary_id(node, 0x20) preserves EAX/EDX. buf_off=heap_malloc(count); g_dat_63e7c=buf_off;
@@ -4770,6 +4798,7 @@ uint8_t *g_dat_51a0c = g_video_ram;
 /* DAT_00063e7c / 0x63e78: fn_03fb73 RLE screen-buffer offset (heap off) + row-count counter. */
 uint32_t g_dat_63e7c;
 uint32_t g_dat_63e78;
+uint8_t g_dat_636b8[0x300];   /* 0x636b8: 768 B font/glyph table loaded+>>2 by fn_035f1b */
 
 /* 0x03c65b (L10, 143 B): video flatten. EAX = a0 (packed-records dest buffer).
  * For each of the 200 interval lists (i = 0..0xc7) seeded at fn_034990, walk the

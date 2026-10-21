@@ -8728,6 +8728,48 @@ static void mk_resnode(uint8_t *data, uint32_t data_off, uint8_t *nd, uint32_t n
     *(uint32_t *)(nd + 8) = data_off; nd[0xc] = 0x41;
 }
 
+/* fn_03f80d (0x03f80d, 120 B): the resource-op block gate. The ops it drives use opcode 0xd
+ * (fn_03fade), which consumes only its 6-byte header, so the byte accounting through the node is
+ * exact and observable. */
+static void test_fn_03f80d(void) {
+    printf("fn_03f80d (0x03f80d): resource-op block gate (tag 0xf1fa + int16 count)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    /* case 1: tag present, three ops */
+    uint32_t d1 = heap_arena_alloc(0x100); uint8_t *data = hb + d1; memset(data, 0, 0x100);
+    uint32_t n1 = heap_arena_alloc(0x20);  uint8_t *nd = hb + n1;
+    for (int k = 0; k < 3; k++) {
+        *(uint32_t *)(data + 0x10 + k * 6) = 6;              /* op size field */
+        *(uint16_t *)(data + 0x14 + k * 6) = 0xd;            /* opcode: header only */
+    }
+    mk_resnode(data, d1, nd, n1, 0, 0, 0x100);               /* writes data[0..5]: re-tag below */
+    data[4] = 0xfa; data[5] = 0xf1;                         /* tag 0xf1fa at header +4 */
+    data[6] = 3;   data[7] = 0;                             /* count (int16) at header +6 */
+    uint32_t r = fn_03f80d((res_reader *)nd);
+    check(r == 1, "  tag 0xf1fa: the block is accepted");
+    check(*(uint32_t *)(nd + 4) == 0x100u - (0x10u + 3u * 6u),
+          "  three dispatcher ops ran (16 + 3*6 bytes consumed)");
+
+    /* case 2: tag mismatch -> nothing but the header is consumed */
+    uint32_t d2 = heap_arena_alloc(0x100); uint8_t *d = hb + d2; memset(d, 0, 0x100);
+    uint32_t n2 = heap_arena_alloc(0x20);  uint8_t *n = hb + n2;
+    mk_resnode(d, d2, n, n2, 0, 0, 0x100);
+    d[6] = 3;
+    check(fn_03f80d((res_reader *)n) == 0, "  tag mismatch: reports 0");
+    check(*(uint32_t *)(n + 4) == 0x100u - 0x10u, "  tag mismatch: only the header read");
+
+    /* case 3: count sign-extended (0xffff = -1) -> accepted, no ops */
+    uint32_t d3 = heap_arena_alloc(0x100); d = hb + d3; memset(d, 0, 0x100);
+    uint32_t n3 = heap_arena_alloc(0x20);  n = hb + n3;
+    mk_resnode(d, d3, n, n3, 0, 0, 0x100);
+    d[4] = 0xfa; d[5] = 0xf1; d[6] = 0xff; d[7] = 0xff;
+    check(fn_03f80d((res_reader *)n) == 1, "  negative count still accepted (MOVSX pinned)");
+    check(*(uint32_t *)(n + 4) == 0x100u - 0x10u, "  negative count runs no ops");
+
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03f885(void) {
     printf("fn_03f885 (0x03f885): resource-op dispatcher (palette/screen commands)\n");
     uint8_t *hb = (uint8_t *)g_heap_base;
@@ -9447,6 +9489,7 @@ int main(void) {
     test_fn_040b83();
     test_fn_04097e();
     test_fn_03f885();
+    test_fn_03f80d();
     test_fn_03ace9();
     test_fn_040fb3();
     test_fn_040d09();

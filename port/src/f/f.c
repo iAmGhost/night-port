@@ -4902,6 +4902,30 @@ void fn_03628e(const char *name, uint32_t dl) {
  *            -> fn_04247a(node, param-6, 1)                     0x3f991
  * Every branch returns immediately after its call, so the default is only reached from the
  * unmatched comparisons. The 768 B table is a stack local in the original ([ebp-0x310]). */
+/* fn_03f80d  orig: 0x03f80d (L11, 120 B) -- the resource-op block gate.
+ * EAX = io node (the 0x0418ee guard is PUSH 0x38;CALL 0x418ee and passes EAX through). It reads a
+ * 16-byte header off the stream and, when the tag WORD at +4 equals 0xf1fa (compared zero-extended),
+ * runs the resource-op dispatcher fn_03f885 exactly (int16)hdr[6] times -- the count is sign
+ * extended, so a negative count runs nothing yet still reports success. A tag mismatch consumes only
+ * the header and reports 0. The loop's counter is post-incremented inside the compare (MOV EDX,[i];
+ * INC [i]; CMP EDX,count; JGE out), which is the same trip count as written. */
+uint32_t fn_03f80d(res_reader *node)
+{
+    (void)canary_id((uintptr_t)node, 0x38);                       /* 0x3f80d-816 */
+    uint8_t hdr[0x10];                                            /* [EBP-0x18] */
+    uint32_t i = 0;                                               /* 0x3f828 [EBP-8] */
+    fn_04192e(hdr, 0x10, 1, (uint8_t *)node);                     /* 0x3f82f-3f */
+    if (*(const uint16_t *)(hdr + 4) != 0xf1fau) {                /* 0x3f846-4f */
+        return 0;                                                 /* 0x3f851 */
+    }
+    int32_t count = (int16_t)(uint16_t)(hdr[6] | (hdr[7] << 8));  /* 0x3f85a MOVSX word */
+    while ((int32_t)i < count) {                                  /* 0x3f85e-66 */
+        i = i + 1;
+        fn_03f885(node);                                          /* 0x3f86b */
+    }
+    return 1;                                                     /* 0x3f872 */
+}
+
 void fn_03f885(res_reader *node) {
     uint8_t hdr[8];                                              /* [ebp-0x10] dword + word @+4 */
     memset(hdr, 0, sizeof hdr);

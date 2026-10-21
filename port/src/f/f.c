@@ -11432,6 +11432,31 @@ void fn_035263(uint8_t *base, uint8_t *ctx) {
  * [0x20]=flag byte), record array at hb+0x63220. Loop: while (target>=cur) fn_035263(base,ctx). Then if
  * flag!=0: v=hb[0x63328], hb[0x63328]++; if (v<hb[0x530b0]) fn_034f31(ctx[0],0x63220,0x63300) else
  * fn_034eb0(). No return value. */
+uint32_t g_dat_6330c = 0;   /* DAT_0006330c: timer-tick counter (inc'd by the IRQ8 handler) */
+/* DAT_00063334 holds the installed IRQ8 handler as a raw offset/segment pair (see isr_set). The
+ * handler body calls through it directly, so the port additionally keeps a host callable slot. */
+void (*g_cb_63334)(void) = 0;
+
+/* fn_034c40  orig: 0x034c40 (L17, 104 B) -- the IRQ8 (RTC) tick handler body.
+ * The prologue/epilogue are `pushal; push ds/es/fs/gs; ... pop gs/fs/es/ds; popal`, so every
+ * register (including EAX, which the decompiler reports as a "return value") is restored: the only
+ * observable effects are the globals, the callback and the port writes documented below. */
+void fn_034c40(void)
+{
+    seg_ds_load();                                     /* 0x34c50 CALL 0x42310 */
+    irq_cli();                                         /* 0x34c55 CALL 0x4231b */
+    fn_034e3c();                                       /* 0x34c5a CALL 0x34e3c */
+    g_dat_6330c = g_dat_6330c + 1;                     /* 0x34c5f INC [0x1330c] */
+    if ((int32_t)g_dat_6332c >= 0x10000) {             /* 0x34c65 CMP [0x1332c],0x10000; 0x34c6f JL */
+        if (g_cb_63334 != 0) g_cb_63334();             /* 0x34c71 PUSHFD; 0x34c72 CALL [0x13334]
+                                                        * (the callee pops the pushed EFLAGS) */
+        g_dat_6332c = g_dat_6332c - 0x10000;           /* 0x34c78 SUB [0x1332c],0x10000 */
+    }
+    g_dat_6332c = g_dat_6332c + g_dat_63318;           /* 0x34c82 MOV EAX,[0x13318]; 0x34c87 ADD */
+    outb(0x20, 0x20);                                  /* 0x34c8d-0x34c97: EOI to the master PIC */
+    irq_sti();                                         /* 0x34c9c CALL 0x4232b */
+}
+
 void fn_034e3c(void) {
     (void)canary_id(0, 0x1c);                                             /* PUSH 0x1c;CALL 0x418ee */
     uint8_t *hb = (uint8_t *)g_heap_base;

@@ -143,6 +143,8 @@ extern int32_t  g_dat_63308;                    /* DAT_00063308: rate/scale word
 extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick value */
 extern uint32_t g_dat_63324;                    /* DAT_00063324: IRQ/device enabled flag (gate + cleared by fn_034eb0) */
 extern uint32_t g_dat_63334;                    /* DAT_00063334: IRQ8 handler offset (isr_set arg) */
+extern uint32_t g_dat_6330c;                    /* DAT_0006330c: timer-tick counter (fn_034c40) */
+extern void   (*g_cb_63334)(void);              /* host callable for the CALL through DAT_00063334 */
 extern uint32_t g_dat_63338;                    /* DAT_00063338: IRQ8 handler segment (isr_set arg, low 16) */
 extern uint32_t g_dat_6333c;                    /* DAT_0006333c: memory block freed via fn_041c31 (fn_034eb0) */
 void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
@@ -658,6 +660,7 @@ int32_t  fn_035a94(void);                    /* 0x035a94: passthrough -> fn_0359
 int32_t  fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b91: clamp (a2*g_dat_530b8)/100 low byte to 0x7f, fn_035a19(a0,a1,clamped) */
 int32_t  fn_035b0c(uint8_t a0, uint8_t a1, uint8_t a2);  /* 0x035b0c: (a0&0xf0==0xb0&&a1==7)? g_530bc[a0&0xf]=a2; fn_035b91 : fn_035a19 */
 void     fn_034eb0(void);                    /* 0x034eb0: device/IRQ teardown: if g_63324 {irq_cli;fn_03575d(0);isr_set(8,g_63334,g_63338);fn_035ac0;irq_sti;g_63324=0; if g_6333c {fn_041c31;g_6333c=0}} */
+void     fn_034c40(void);                    /* 0x034c40: IRQ8 tick handler: seg_ds_load;irq_cli;fn_034e3c;g_6330c++; if g_6332c>=0x10000 {call [g_63334]; g_6332c-=0x10000}; g_6332c+=g_63318; outb(0x20,0x20); irq_sti */
 int32_t  fn_03565a(int32_t input);  /* 0x03565a: div=input/1000; r=div==0?0x10000:(div*0x4aa)/g_dat_63304; fn_000356ba(r); return r */
 uint32_t fn_040948(uint32_t arg);  /* 0x040948: fn_041340(0x40); return fn_041340(arg) */
 void fn_040e8d(void);  /* 0x040e8d: if g_63f90 {fn_000407f8();isr_set(local,0,0);fn_041410()} */

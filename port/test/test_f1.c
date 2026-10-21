@@ -8136,6 +8136,51 @@ static uint32_t tdrd(const uint8_t *p, uint32_t i) { uint32_t v; memcpy(&v, p + 
  * test pins the structural behaviour -- which blocks are allocated into which global, the alias
  * assignments, the NULL-on-failure convention and the empty-table results -- not payload bytes.
  * Content-level verification belongs to the CD-backend task. */
+/* fn_034c40 (0x034c40, 104 B): the IRQ8 (RTC) tick handler body. The original is entirely
+ * pushal/popal wrapped, so only the globals, the callback through DAT_00063334 and the PIC EOI are
+ * observable (the EOI goes to port 0x20, which the sys port model does not record). fn_034e3c's MIDI
+ * control loop is defused by giving it target < cur and clearing its flag, exactly as its own test
+ * does. */
+static int tc_isr_calls;
+static void tc_isr_probe(void) { tc_isr_calls = tc_isr_calls + 1; }
+
+static void test_fn_034c40(void) {
+    printf("fn_034c40 (0x034c40): IRQ8 tick handler (0x10000 quantum + handler call)\n");
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    memset(hb + 0x63200, 0, 0x200);
+    *(int32_t *)(hb + 0x6330c) = 0;      /* MIDI target  < cur -> fn_034e3c loop skipped */
+    *(int32_t *)(hb + 0x63310) = 100;
+    hb[0x63320] = 0;                     /* no re-sync / teardown path */
+
+    uint32_t s0c = g_dat_6330c, s2c = g_dat_6332c, s18 = g_dat_63318;
+    void (*s_cb)(void) = g_cb_63334;
+    g_cb_63334 = tc_isr_probe;
+
+    g_dat_6330c = 5; g_dat_6332c = 0xffff; g_dat_63318 = 0x1234; tc_isr_calls = 0;
+    fn_034c40();
+    check(g_dat_6330c == 6, "  DAT_6330c tick counter incremented");
+    check(tc_isr_calls == 0, "  below the 0x10000 quantum: the handler is not called");
+    check(g_dat_6332c == 0xffff + 0x1234, "  no quantum subtracted; the PIT divisor is added back");
+
+    g_dat_6332c = 0x10000 + 0x123; g_dat_63318 = 9;
+    fn_034c40();
+    check(tc_isr_calls == 1, "  at the quantum: the DAT_63334 handler runs once");
+    check(g_dat_6332c == 0x123 + 9, "  quantum subtracted first, divisor added after");
+
+    g_dat_6332c = 0xffffffffu; g_dat_63318 = 1; tc_isr_calls = 0;
+    fn_034c40();
+    check(tc_isr_calls == 0, "  the compare is signed (JL): a negative accumulator takes no branch");
+    check(g_dat_6332c == 0, "  wrap-around arithmetic kept: 0xffffffff + 1 = 0");
+
+    g_cb_63334 = 0; g_dat_6332c = 0x20000; g_dat_63318 = 0;
+    fn_034c40();
+    check(g_dat_6332c == 0x10000, "  NULL handler slot: the quantum is still subtracted");
+
+    g_dat_6330c = s0c; g_dat_6332c = s2c; g_dat_63318 = s18; g_cb_63334 = s_cb;
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 /* fn_03690b (0x03690b, 2555 B): the master data loader. NIGHT.RES is fed through the sys layer's
  * sequential stand-in stream (sys_file_image_set), because the real CD/.IMG backend is still a todo.
  * The synthetic image carries a real 100-entry resource index plus every table body in load order,
@@ -9406,6 +9451,7 @@ int main(void) {
     test_fn_040fb3();
     test_fn_040d09();
     test_fn_03658d();
+    test_fn_034c40();
     test_fn_03690b();
     test_fn_0366a4();
     test_fn_03d8d4_03d9cf();

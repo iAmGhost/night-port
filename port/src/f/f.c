@@ -3698,6 +3698,43 @@ void fn_010927(void) {
     *(uint32_t *)(g_heap_base + g_dat_53c64 + g_dat_53c60 * 5 + 1) = val;  /* 0x010a18-4a */
 }
 
+/* DAT_00051b38: 24-byte DPMI real-mode call template (extracted from the binary).
+ * Identical in content to DAT_00051a14 but kept as its own ROM image for 1:1 fidelity. */
+static const uint8_t g_rm_call_tpl_51b38[24] = {
+    0x18,0x00,0x0c,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x01,0x00, 0x00,0x00,0x00,0x00
+};
+
+/* fn_010cbd  orig: 0x010cbd (L12, 137 B) -- build a DPMI real-mode call block for the
+ * debug-register far buffer DAT_00053c5c and submit it (fn_10570 is a no-op in this
+ * port, see the DPMI family note), then report the block's result-flag bit.
+ * Disasm: `mov ecx,6 / lea edi,[ebp-0x20] / mov esi,0x51b38 / rep movsd` copies the
+ * 24-byte ROM template to the stack block; the far-pointer value itself is split
+ * paragraph-style into the block -- `mov ax,[0x53c5c]; and eax,0xf` -> word at block+0x0e
+ * (only AX is stored, so the partial-register high bits are irrelevant) and
+ * `mov eax,[0x53c5c]; shr eax,4` -> word at block+0x10. Then `mov ebx,1` is mem_copy's
+ * COUNT (mem_copy ABI: EAX=dst, EDX=src, EBX=n), so 1 byte is written to the far buffer
+ * from [ebp-4], which is never initialised -- a latent original bug, replicated
+ * faithfully. fn_10570(block, 1) then submits it. The result is read with the UNALIGNED
+ * `mov eax,[ebp-0x1d]` = dword at block+3 (bytes 3..6 of the template, all zero and not
+ * touched by the +0x0e/+0x10 writes), tested against 0x200: set -> 0, clear -> 1. With
+ * the port's no-op real-mode backend the flag stays clear, so it returns 1; that only
+ * becomes meaningful once the DPMI backend fills the block. */
+int32_t fn_010cbd(void) {
+    uint8_t blk[24];
+    mem_copy(blk, g_rm_call_tpl_51b38, 24);                     /* 0x010cd5-82 (rep movsd) */
+    uintptr_t fptr = g_dat_53c5c;                             /* DAT_00053c5c (host pointer) */
+    uint32_t fp = (uint32_t)fptr;                             /* the original read it as a dword */
+    *(uint16_t *)(blk + 0x0e) = (uint16_t)(fp & 0xfu);          /* 0x010ce4-ef */
+    *(uint16_t *)(blk + 0x10) = (uint16_t)((fp >> 4) & 0xffffu);/* 0x010cf3-811 */
+    uint32_t uninit;                                            /* [ebp-4]: never written */
+    mem_copy((uint8_t *)fptr, (const uint8_t *)&uninit, 1);     /* 0x010d0c (EBX=1) */
+    fn_10570(blk, 1);                                           /* 0x010d19 (no-op) */
+    uint32_t v; memcpy(&v, blk + 3, 4);                         /* 0x010d1e unaligned read */
+    return (v & 0x200u) ? 0 : 1;                                /* 0x010d21-3b */
+}
+
 /* 0x04933a (119 B): rebuild the active node list from the file-structure table.
  * No canary (only PUSH EBX/ECX/EDX). Disassembly-verified (38 insns, disassemble_bytes):
  * only direct CALLs to 0x041af8 (heap_malloc) and 0x0429ea (error msg), no indirect.

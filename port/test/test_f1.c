@@ -3603,6 +3603,26 @@ static void test_fn_037306(void) {
     g_639b8 = saved;
 }
 
+static void test_fn_010cbd(void) {
+    printf("fn_010cbd (0x010cbd): DPMI real-mode call block + result flag\n");
+    uintptr_t saved = g_dat_53c5c;
+    static uint8_t buf[16];
+    memset(buf, 0xaa, sizeof buf);
+    g_dat_53c5c = (uintptr_t)buf;
+    int32_t r = fn_010cbd();
+    check(r == 1, "  template flag (block+3 & 0x200) clear -> returns 1");
+    check(buf[1] == 0xaa && buf[15] == 0xaa, "  mem_copy count EBX=1: only 1 byte written");
+
+    /* A different far-pointer value changes the paragraph field split (blk+0x0e = fp & 0xf,
+     * blk+0x10 = fp >> 4) but not the flag, and the 1-byte write follows the pointer. */
+    memset(buf, 0xaa, sizeof buf);
+    g_dat_53c5c = (uintptr_t)(buf + 3);
+    r = fn_010cbd();
+    check(r == 1, "  field split does not feed the flag read");
+    check(buf[4] == 0xaa && buf[15] == 0xaa, "  1-byte write lands at the far pointer");
+    g_dat_53c5c = saved;
+}
+
 static void test_fn_010927(void) {
     printf("fn_010927 (CD/MSCDEX root-directory read)\n");
     heap_arena_init();
@@ -8128,6 +8148,7 @@ int main(void) {
     test_fn_04247a();
     test_fn_04285c();
     test_fn_010927();
+    test_fn_010cbd();
     test_fn_0440a9();
     test_cased_trio();
     test_fn_0112fd();

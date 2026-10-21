@@ -262,9 +262,11 @@ typedef struct {
 } res_reader;   /* 16-bit node layout: pos/end/remaining/id are 32-bit */
 
 /* Internal state of the callback-based streaming printf (FUN_00044c23), as
- * seen by its byte-sink callback. pos is at offset 0x0, count at 0x10. */
+ * seen by its byte-sink callback. Raw 32-bit descriptor layout (matches the
+ * byte-array fn_044c23 passes to cb, and fmt_emit's disasm: pos=[st+0x00]
+ * 32-bit flat addr, `inc DWORD [st+0x10]`). pos is a 32-bit flat address. */
 typedef struct {
-    uint8_t *pos;   /* 0x0: write position         */
+    uint32_t pos;   /* 0x0: write position (32-bit flat addr)  */
     int32_t  width; /* 0x4: field width            */
     int32_t  slen;  /* 0x8: field/string length    */
     int32_t  zeros; /* 0xc: leading-zero count     */
@@ -330,6 +332,7 @@ void     tmp_filename(char *out, uint32_t index);   // 0x427f3 L1: "t<ticks4>_<i
 /* Byte-sink callback for the streaming printf: store `byte` at st->pos,
  * advance st->pos, increment st->count.  orig: 0x0428e5 */
 void     fmt_emit(fmt_state *st, uint8_t byte);
+uint32_t fn_0428f8(uint8_t *buf, const uint8_t *fmt, uint8_t **src); /* 0x0428f8: streaming sprintf -> buf, NUL-terminate, return n */
 
 /* ---- input + compare + no-op (batch 5) ---- */
 

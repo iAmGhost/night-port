@@ -339,13 +339,42 @@ static void test_digit_chr(void) {
 
 static void test_fmt_emit(void) {
     printf("fmt_emit (0x0428e5)\n");
-    uint8_t dst[32] = {0};
-    fmt_state st = { .pos = dst, .width = 0, .slen = 0, .zeros = 0, .count = 0 };
+    /* The output buffer lives in the heap arena: fmt_state.pos is a 32-bit
+     * g_heap_base-relative offset (the port's uniform pointer convention). */
+    heap_arena_init();
+    uint32_t off = heap_arena_alloc(32);
+    uint8_t *dst = (uint8_t *)g_heap_base + off;
+    fmt_state st = { .pos = off, .width = 0, .slen = 0, .zeros = 0, .count = 0 };
     fmt_emit(&st, 'H');
     fmt_emit(&st, 'i');
     check(dst[0] == 'H' && dst[1] == 'i', "bytes written in order");
-    check(st.pos == dst + 2, "pos advanced");
+    check(st.pos == off + 2, "pos advanced (heap offset)");
     check(st.count == 2, "count == 2");
+}
+
+/* fn_0428f8 (0x0428f8): streaming sprintf -> buf via fmt_emit, NUL-terminate, return n */
+static void test_fn_0428f8(void) {
+    printf("fn_0428f8 (0x0428f8): streaming sprintf (fn_044c23+fmt_emit), NUL-terminate\n");
+    /* buf lives in the heap arena (pos is a g_heap_base-relative offset). */
+    heap_arena_init();
+    uint32_t boff = heap_arena_alloc(64);
+    uint8_t *buf = (uint8_t *)g_heap_base + boff;
+    /* plain: "AB" -> "AB\0", returns 2, no varargs consumed */
+    uint8_t *cur0 = NULL; uint8_t **src0 = &cur0;
+    uint32_t n0 = fn_0428f8(buf, (const uint8_t *)"AB", src0);
+    check(n0 == 2 && buf[0] == 'A' && buf[1] == 'B' && buf[2] == 0, "plain 'AB' -> 'AB\\0', n=2");
+    /* %c: stream[0]='Z' -> "AZ\0", n=2, *src advanced by 4 */
+    uint8_t s1[8] = {0}; s1[0] = 'Z';
+    uint8_t *cur1 = s1; uint8_t **src1 = &cur1;
+    uint32_t n1 = fn_0428f8(buf, (const uint8_t *)"A%c", src1);
+    check(n1 == 2 && buf[0] == 'A' && buf[1] == 'Z' && buf[2] == 0, "%c -> 'AZ\\0', n=2");
+    check((uint32_t)(cur1 - s1) == 4, "%c: *src advanced by 4");
+    /* %u: stream[0..3]=100 -> "Q100\0", n=4 */
+    uint8_t s2[8] = {0}; *(uint32_t *)s2 = 100;
+    uint8_t *cur2 = s2; uint8_t **src2 = &cur2;
+    uint32_t n2 = fn_0428f8(buf, (const uint8_t *)"Q%u", src2);
+    check(n2 == 4 && buf[0] == 'Q' && buf[1] == '1' && buf[2] == '0' && buf[3] == '0' && buf[4] == 0,
+          "%u -> 'Q100\\0', n=4");
 }
 
 static void test_canary(void) {    printf("canary (0x0418e6 / 0x0418ee / 0x041901)\n");
@@ -7637,6 +7666,7 @@ int main(void) {
     test_res_consume();
     test_digit_chr();
     test_fmt_emit();
+    test_fn_0428f8();
     test_get_key();
     test_mem_cmp();
     test_cb_noop2();

@@ -2028,16 +2028,31 @@ int digit_chr(int d) {
 }
 
 /* fmt_emit  orig: 0x0428e5
- *   pos = st->pos; st->pos = pos + 1; *pos = byte; st->count++
+ *   pos = [st+0x00]; [st+0x00] = pos + 1; *pos = byte; inc [st+0x10]
  * The byte-sink callback used by the streaming printf (FUN_00044c23): for
- * each output byte it stores it at the current write position, advances the
- * position, and increments the byte count (the printf's return value).
+ * each output byte it stores it at the current write position (a 32-bit flat
+ * address stored at st+0x00 as a g_heap_base-relative offset (the port's
+ * uniform 32-bit pointer convention, cf. the heap subsystem), advances it, and
+ * increments the byte count at st+0x10 (the printf's return value). The
+ * descriptor is the raw 32-bit byte-array fn_044c23 passes to cb.
  */
 void fmt_emit(fmt_state *st, uint8_t byte) {
-    uint8_t *p = st->pos;
-    st->pos = p + 1;
+    uint8_t *p = (uint8_t *)g_heap_base + st->pos;
+    st->pos = st->pos + 1;
     *p = byte;
     st->count++;
+}
+
+/* fn_0428f8  orig: 0x0428f8 (L5, 18 insns)
+ * Streaming sprintf: run the callback printf (fn_044c23) with fmt_emit as the
+ * sink, then NUL-terminate the buffer at the emitted length and return that
+ * length. register-ABI: EAX=buf, EDX=fmt, EBX=src (uint8_t**; the varargs
+ * cursor), ECX=0x428e5 (fmt_emit). fn_044c23 returns st[0x10] = emitted count.
+ */
+uint32_t fn_0428f8(uint8_t *buf, const uint8_t *fmt, uint8_t **src) {
+    uint32_t n = fn_044c23(src, (void (*)(uint8_t *, uint8_t))fmt_emit, buf, fmt);
+    buf[n] = 0;                                    /* 0x04291d MOV BYTE [buf+n],0 */
+    return n;
 }
 
 /* =================================================================== */
@@ -4405,7 +4420,7 @@ uint32_t fn_044c23(uint8_t **src, void (*cb)(uint8_t *st, uint8_t ch),
     uint8_t st[0x20];               /* ESP+0x28: descriptor (cb receives &st) */
     uint8_t alt[8] = {0};           /* ESP+0x48: empty fallback string */
 
-    *(uint32_t *)(st + 0x00) = (uint32_t)(uintptr_t)buf;
+    *(uint32_t *)(st + 0x00) = (uint32_t)(buf - (uint8_t *)g_heap_base);  /* 0x0: out cursor (heap-offset convention) */
     *(uint32_t *)(st + 0x10) = 0;
     st[0x14] = 0;
     st[0x15] = 0;

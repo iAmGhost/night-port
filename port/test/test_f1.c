@@ -5574,6 +5574,65 @@ static void test_fn_043a7f(void) {
           "  two %d: first stores 10, the whitespace branch eats the next word");
 }
 
+/* fn_0439fd (0x0439fd, untracked helper reached via the 0x041ffc put-back callback) + fn_041ffc /
+ * fn_042023 (0x041ffc / 0x042023): the stream scan front end for the 0x043a7f format scanner. */
+static uint8_t fd_node[0x20];
+static uint32_t *fd_n = (uint32_t *)fd_node;
+static void fd_mk(const char *txt, uint8_t f0, uint8_t f1) {
+    uint32_t boff = heap_malloc(64);
+    uint8_t *buf = (uint8_t *)g_heap_base + boff;
+    memcpy(buf, txt, strlen(txt) + 1);
+    memset(fd_node, 0, sizeof fd_node);
+    fd_n[0] = boff; fd_n[1] = (uint32_t)strlen(txt); fd_n[2] = boff; fd_n[5] = 64;
+    fd_node[0x0c] = f0; fd_node[0x0d] = f1;
+}
+
+static void test_fn_0439fd_041ffc(void) {
+    printf("fn_0439fd / fn_041ffc / fn_042023: io-node put-back + stream scan front end\n");
+    uint32_t v1, v2;
+    uintptr_t slots[4];
+
+    /* fn_0439fd: put one char back one slot before the cursor */
+    fd_mk("abc", 0x01, 0x00);
+    fd_n[0] = fd_n[2] + 1; fd_n[1] = 2;
+    check(fn_0439fd('x', fd_node) == 'x', "  put-back stores and returns the char");
+    check(fd_n[0] == fd_n[2], "  put-back: cursor moved back one slot");
+    check(fd_n[1] == 3, "  put-back: byte count grew by one");
+    check(*(uint8_t *)(g_heap_base + fd_n[2]) == 'x', "  put-back: buffer byte rewritten");
+    check((fd_node[0x0c] & 0x04) != 0, "  put-back: mismatch (a != x) sets flag bit 2");
+    fd_mk("abc", 0x00, 0x00);
+    check((int32_t)fn_0439fd('x', fd_node) == -1, "  put-back refused when the read flag is clear");
+    fd_mk("abc", 0x01, 0x10);
+    check((int32_t)fn_0439fd('x', fd_node) == -1, "  put-back refused when f13 bit 4 is set");
+    fd_mk("abc", 0x01, 0x00);
+    fd_n[0] = fd_n[2]; fd_n[1] = 1;
+    check((int32_t)fn_0439fd('x', fd_node) == -1, "  put-back refused when the cursor sits at the base");
+    fd_mk("abc", 0x01, 0x00);
+    fd_n[1] = 0;
+    check(fn_0439fd('q', fd_node) == 'q' && fd_n[1] == 1 && (fd_node[0x0c] & 0x04),
+          "  put-back with count 0: stores at the cursor, count := 1, flag bit 2 set");
+    fd_mk("abc", 0x01, 0x00);
+    check((int32_t)fn_0439fd(-1, fd_node) == -1 && fd_n[1] == 3,
+          "  ch == -1 returns at once without touching the node");
+
+    /* fn_042023 / fn_041ffc: scan a stream node through the 0x043a7f format scanner */
+    fd_mk("42 255", 0x01, 0x00);
+    v1 = v2 = 0; slots[0] = (uintptr_t)&v1; slots[1] = (uintptr_t)&v2;
+    int32_t r = fn_042023(fd_node, "%d%d", slots);
+    check(r == 2 && v1 == 42, "  \"%d%d\" over \"42 255\": two conversions, first value 42");
+    check(v2 == 255, "  the put-back callback lets the second %d re-read the skipped space");
+
+    fd_mk("xy", 0x01, 0x00);
+    v1 = 0; slots[0] = (uintptr_t)&v1;
+    r = fn_042023(fd_node, "%c", slots);
+    check(r == 1 && v1 == 'x' && fd_n[1] == 1, "  \"%c\": one char consumed through the node cursor");
+
+    fd_mk("n=7", 0x01, 0x00);
+    v1 = 0; slots[0] = (uintptr_t)&v1;
+    r = fn_042023(fd_node, "n=%d", slots);
+    check(r == 1 && v1 == 7, "  literal chars match the stream, then %d stores 7");
+}
+
 /* fn_049e80 (0x049e80, 547 B): the printf-style float formatter, sole caller 0x045c79
  * (W=0x27, M=3, E=precision default 6). Vectors pin the exact field contents the port
  * produces plus the untouched byte after the field, so regressions and overruns both show up.
@@ -8792,6 +8851,7 @@ int main(void) {
     test_fn_0438a3();
     test_fn_042d2a();
     test_fn_048fe6();
+    test_fn_0439fd_041ffc();
     test_fn_043a7f();
     test_fn_049e80();
     test_fn_045c79();

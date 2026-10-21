@@ -2878,6 +2878,115 @@ int32_t fn_043a7f(struct emit_ctx *ctx, const char *fmt, uintptr_t **pos)
     return conv;
 }
 
+/* ---- 0x0439fd + the 0x041ffc scan front-end (untracked callbacks included) ---- */
+/* 0x0439fd (not a tracked function; reached only through the 0x041ffc emit callback) -- push one
+ * character back into an io node's buffer.
+ * reg-ABI: EAX = char to put back (or -1), EDX = node (io node: f0 = cursor as a heap offset, f4 =
+ * bytes left, f8 = buffer base as a heap offset, +0x14 = capacity, f12 flags byte0 / f13 byte1).
+ * Returns the char stored (0..0xff), or -1 when the put-back is refused. */
+uint32_t fn_0439fd(int32_t ch, uint8_t *node)
+{
+    uint32_t *n = (uint32_t *)node;
+    uint32_t put = (uint32_t)ch;
+
+    if (ch == -1) return put;                        /* 0x43a02-05 */
+    if (node[0x0d] & 0x10) return 0xffffffffu;       /* 0x43a0b-16 */
+    if ((node[0x0c] & 0x01) == 0) return 0xffffffffu; /* 0x43a18-1c */
+    if (n[2] == 0) fn_042a43(node);                  /* 0x43a1e-26: allocate the buffer first */
+
+    if (n[1] != 0) {                                 /* 0x43a2e: bytes already counted */
+        if (n[0] == n[2]) return 0xffffffffu;        /* 0x43a4c-4f: cursor at the base -> full */
+        uint32_t cur = n[0] - 1;                     /* 0x43a56 */
+        n[1] = n[1] + 1;                             /* 0x43a57 */
+        n[0] = cur;
+        uint32_t got = *(uint8_t *)(g_heap_base + cur) & 0xff;  /* 0x43a5c-5e */
+        if (got != (put & 0xff)) node[0x0c] |= 0x04;  /* 0x43a63-65: mismatch -> mark unreliable */
+    } else {
+        /* 0x43a32-38: the original computes buffer_base + capacity - 1 here and then throws the
+         * value away (dead computation, kept as a comment for faithfulness). */
+        (void)(n[2] + n[5] - 1);
+        node[0x0c] |= 0x04;                          /* 0x43a3b */
+        n[1] = 1;                                    /* 0x43a41 */
+    }
+    *(uint8_t *)(g_heap_base + n[0]) = (uint8_t)put;  /* 0x43a6d */
+    node[0x0c] &= (uint8_t)~0x10;                    /* 0x43a6f */
+    return put & 0xff;                               /* 0x43a73-79 */
+}
+
+/* The context object 0x041ffc builds on its stack. The original stores three dwords (next, emit,
+ * node at +0x08) and leaves the count (+0x0c) and flags (+0x10) words that the emit/parse callees
+ * read completely UNINITIALISED (stack residue) -- an original latent bug; the port zeroes them and
+ * documents the difference. The port's ctx model widens the two callback slots to 8 bytes, so the
+ * shared callees own the +0x00..+0x18 window (they write num/count/flags there); the node pointer
+ * therefore moves to a tail field that no callee touches. Layout clash noted per the widened-pointer
+ * hazard (2nd/3rd occurrence class). */
+struct scan_ctx {
+    uint16_t (*next)(struct emit_ctx *);           /* +0x00 */
+    void (*emit)(uint16_t, struct emit_ctx *);     /* +0x08 */
+    uint32_t _r2;                                  /* +0x10 (orig ctx+0x08 window) */
+    uint32_t count;                                /* +0x14 (orig +0x0c) */
+    uint8_t  flags;                                /* +0x18 (orig +0x10) */
+    uint8_t *node;                                 /* +0x20 tail: orig ctx+0x08 = incoming EAX */
+};
+
+/* 0x041fa6 (untracked) -- ctx->next() for the 0x041ffc scan: read the next character straight out
+ * of the io node's buffer, falling back to fn_041c8f (getch) when the buffer is empty or when the
+ * byte is CR / EOF. Sets ctx flags bit 1 (stop) on EOF, which is how the scanner terminates. */
+static uint16_t scan_next(struct emit_ctx *ec)
+{
+    struct scan_ctx *c = (struct scan_ctx *)ec;
+    uint8_t *node = c->node;
+    uint32_t *n = (uint32_t *)node;
+    uint32_t r;
+
+    if ((int32_t)n[1] > 0 && (node[0x0c] & 0x04) == 0) {   /* 0x41fae-41fb8 */
+        uint8_t b = *(uint8_t *)(g_heap_base + n[0]);      /* 0x41fbc */
+        if (b == 0x0d || b == 0x1a) {                      /* 0x41fbe-41fc6 */
+            r = fn_041c8f(node);                           /* 0x41fcb */
+        } else {
+            n[1] = n[1] - 1;                               /* 0x41fd2 */
+            uint32_t cur = n[0]; n[0] = cur + 1;           /* 0x41fd5-41fd d */
+            r = *(uint8_t *)(g_heap_base + cur);           /* 0x41fdf-41fe1 */
+        }
+    } else {
+        r = fn_041c8f(node);                               /* 0x41fcb */
+    }
+    if (r == 0xffffffffu) ec->flags |= 0x02;               /* 0x41fe5-41fea */
+    return (uint16_t)r;                                    /* 0x41fee-41ff3 */
+}
+
+/* 0x041ff4 (untracked) -- ctx->emit() (put-back) for the 0x041ffc scan: tail call to fn_0439fd
+ * with EDX = the node. */
+static void scan_emit(uint16_t ch, struct emit_ctx *ec)
+{
+    struct scan_ctx *c = (struct scan_ctx *)ec;
+    fn_0439fd((int32_t)(uint32_t)ch, c->node);             /* 0x41ff4-41ff7: jmp 0x439fd */
+}
+
+/* fn_041ffc  orig: 0x041ffc (38 B) -- the stream-scan front end: build the fixed scan context
+ * (next = 0x041fa6, emit = 0x041ff4, node = incoming EAX) on the stack and run the format scanner
+ * with the caller's EDX (format string) and EBX (position-slot stream) passed straight through. */
+int32_t fn_041ffc(uint8_t *node, const char *fmt, uintptr_t **pos)
+{
+    struct scan_ctx sc;
+    sc.next  = scan_next;                                 /* 0x42001: mov ecx,0x31fa6 */
+    sc.emit  = scan_emit;                                 /* 0x42006: mov esi,0x31ff4 */
+    sc._r2   = 0;                                         /* original: uninitialised residue */
+    sc.count = 0;                                         /* original: uninitialised residue */
+    sc.flags = 0;                                         /* original: uninitialised residue */
+    sc.node  = node;                                      /* 0x4200b: [ESP+8] = EAX (tail field) */
+    return fn_043a7f((struct emit_ctx *)&sc, fmt, pos);    /* 0x4200f-42018 */
+}
+
+/* fn_042023  orig: 0x042023 (32 B) -- scanf-style entry: EAX = arg1 (io node), EDX = arg2 (format
+ * string) and EBX = &arg3, i.e. the first stack argument, which is the array of destination-slot
+ * addresses the conversions write through. */
+int32_t fn_042023(uint8_t *node, const char *fmt, uintptr_t *slots)
+{
+    uintptr_t *pos = slots;                               /* 0x42034: [ESP] = EBX (= caller args)  */
+    return fn_041ffc(node, fmt, &pos);                    /* 0x42037-42039 */
+}
+
 /* 0x0440a9: stream token parser -> list append (241 insns, 733 B).
  *
  * Reads one whitespace-delimited token from an emit_ctx stream reader, parses

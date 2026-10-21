@@ -139,6 +139,7 @@ extern int32_t  g_dat_530b4;                    /* DAT_000530b4: timer rate mult
 extern int32_t  g_dat_530b8;                    /* DAT_000530b8: timer rate multiplier #2 (fn_035b91) */
 extern int32_t  g_dat_530bc[16];                /* DAT_000530bc: 16-entry command table (fn_035b0c writes [a0&0xf]) */
 extern uint32_t g_dat_63304;                    /* DAT_00063304: timer divisor (fn_03565a denominator) */
+extern int32_t  g_dat_63308;                    /* DAT_00063308: rate/scale word (fn_0353d0 cmd 0x51 path writes it) */
 extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick value */
 extern uint32_t g_dat_63324;                    /* DAT_00063324: IRQ/device enabled flag (gate + cleared by fn_034eb0) */
 extern uint32_t g_dat_63334;                    /* DAT_00063334: IRQ8 handler offset (isr_set arg) */
@@ -610,6 +611,14 @@ uint32_t fn_041340(uint32_t cmd);  /* 0x041340: ready-gated outb(base+0xc, cmd) 
 uint32_t fn_040efd(void);  /* 0x040efd: thin wrapper -> fn_041340(0xd0) */
 uint32_t fn_0413e7(void);  /* 0x0413e7: thin wrapper -> fn_041340(0xd1) */
 uint32_t fn_041410(void);  /* 0x041410: thin wrapper -> fn_041340(0xd3) */
+/* 0x0353d0 device-command queue: arg is a cursor struct; head = orig 4-B pointer widened to 8 B
+ * (pointer-width adaptation -> f4/f5 shift from orig offset 4/5 to 8/9). */
+struct dev_cmd_ctx {
+    uint8_t *head;  /* read cursor (uint8_t*) */
+    uint8_t f4;     /* orig +0x04 */
+    uint8_t f5;     /* orig +0x05 */
+};
+void fn_0353d0(uint8_t cmd, struct dev_cmd_ctx *arg); /* 0x0353d0: queue-based device command dispatcher */
 int32_t  fn_035c2d(uint8_t arg);  /* 0x035c2d: thin wrapper -> fn_0358c7((uint8)arg) */
 int32_t  fn_035a19(int32_t a0, int32_t a1, int32_t a2);  /* 0x035a19: 3-byte write (a0,a1,a2-if>=0) via fn_0358c7; -1 on first timeout */
 void     fn_035329(uint8_t *a0, uint8_t *a1);  /* 0x035329: scan 0xe-byte records (tag@+0x5,val@+0xa) for min -> a1{+0x10 cur,+0x14 idx,+0x20 flag}; a0/a1 raw ptrs */

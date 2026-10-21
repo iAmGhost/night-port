@@ -632,6 +632,7 @@ int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) 
 int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
 int32_t  g_dat_530bc[16]; /* DAT_000530bc: 16-entry command table; fn_035b0c writes [a0&0xf]=a2 */
 uint32_t g_dat_63304 = 0;  /* DAT_00063304: timer divisor (denominator in fn_03565a) */
+int32_t  g_dat_63308 = 0;  /* DAT_00063308: rate/scale word (written by fn_0353d0 cmd-0x51 path) */
 uint32_t g_dat_63330 = 0;  /* DAT_00063330: last timer tick value (written by fn_0356ba) */
 uint32_t g_dat_63324 = 0;  /* DAT_00063324: IRQ/device enabled flag (gate + cleared by fn_034eb0) */
 uint32_t g_dat_63334 = 0;  /* DAT_00063334: IRQ8 handler offset (isr_set arg) */
@@ -9474,6 +9475,50 @@ int32_t fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2) {
     uint8_t b    = (uint8_t)q;                                  /* low byte of quotient */
     if (b > 0x7f) b = 0x7f;                                     /* clamp */
     return fn_035a19((int32_t)a0, (int32_t)a1, (int32_t)b);     /* write a0,a1,clamped */
+}
+
+/* 0x0353d0 (L14, 158 insns): queue-based device-command dispatcher. Args: cmd=AL, arg=EDX (a
+ * dev_cmd_ctx*). arg->head is a byte-read cursor (orig 4-B ptr widened to 8 B; f4/f5 shift 4/5->8/9).
+ * Independent branch: if cmd<0xf0: arg->f4=cmd. Then: if cmd==0xff { c=*head++; r=fn_0351dc(&head);
+ *   if c==0x2f { f5=0x2f; f4=f5; } else if c==0x51 { v=fn_03510b(head)>>8; g_dat_63308=v; fn_03565a(v); }
+ *   head += r; } else { op=cmd&0xf0; dispatch: op in {0x80,0x90,0xa0,0xb0,0xe0} -> read2 (b1,b2=*head++,
+ *   fn_035b0c(cmd,b1,b2)); op in {0xc0,0xd0} -> read1 (b=*head++, fn_035bf4(cmd,b)); op==0xf0 -> readN
+ *   (n=fn_0351dc(&head), fn_035c2d(cmd), for i<n: b=*head++, fn_035c2d(b)); else no-op. } */
+void fn_0353d0(uint8_t cmd, struct dev_cmd_ctx *arg) {
+    (void)canary_id(0, 0x40);                                             /* PUSH 0x40;CALL 0x418ee */
+    if (cmd < 0xf0) {                                                     /* 0x353ef-0x353ff */
+        arg->f4 = cmd;
+    }
+    if (cmd == 0xff) {                                                    /* 0x35407-0x3548d */
+        uint8_t  c = *arg->head++;                                        /* 0x35412-0x3541e */
+        uint32_t r = fn_0351dc(&arg->head);                               /* 0x35421-0x35429 */
+        if (c == 0x2f) {                                                  /* 0x35475-0x35479 -> 0x35434 */
+            arg->f5 = 0x2f;
+            arg->f4 = arg->f5;
+        } else if (c == 0x51) {                                           /* 0x3547b-0x3547f -> 0x35449 */
+            uint32_t v = fn_03510b(arg->head) >> 8;
+            g_dat_63308 = (int32_t)v;
+            fn_03565a((int32_t)v);
+        }
+        arg->head += r;                                              /* 0x35485-0x3548b */
+    } else {                                                              /* 0x35492-0x355de */
+        uint32_t op = (uint32_t)cmd & 0xf0u;
+        if (op == 0x80 || op == 0x90 || op == 0xa0 || op == 0xb0 || op == 0xe0) {   /* 0x354a4 */
+            uint8_t b1 = *arg->head++;
+            uint8_t b2 = *arg->head++;
+            fn_035b0c(cmd, b1, b2);
+        } else if (op == 0xc0 || op == 0xd0) {                             /* 0x354db */
+            uint8_t b = *arg->head++;
+            fn_035bf4(cmd, b);
+        } else if (op == 0xf0) {                                          /* 0x354fc */
+            uint32_t n = fn_0351dc(&arg->head);
+            fn_035c2d(cmd);
+            for (uint32_t i = 0; i < n; i++) {
+                uint8_t b = *arg->head++;
+                fn_035c2d(b);
+            }
+        } /* else: default no-op (0x35542) */
+    }
 }
 
 /* 0x035b0c (L13, 132 B): device-command dispatcher. Args a0=EAX(AL), a1=EDX(DL),

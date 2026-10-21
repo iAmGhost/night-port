@@ -7040,6 +7040,44 @@ static void test_fn_03df96(void) {
     #undef SETREC
 }
 
+static void test_fn_0353d0(void) {
+    printf("fn_0353d0 (0x0353d0): queue-based device-command dispatcher\n");
+    uint8_t buf[16];
+    struct dev_cmd_ctx ctx;
+    /* T1: cmd=0xb0, buf=[7,0x42] -> f4=0xb0 (cmd<0xf0); op=0xb0 -> case_read2 -> fn_035b0c(0xb0,7,0x42) -> g_dat_530bc[0]=0x42; head+=2 */
+    memset(buf,0,sizeof buf); buf[0]=7; buf[1]=0x42;
+    ctx.head=buf; ctx.f4=0; ctx.f5=0; g_dat_530bc[0]=0;
+    fn_0353d0(0xb0, &ctx);
+    check(g_dat_530bc[0]==0x42, "  T1 cmd=0xb0 [7,0x42] -> case_read2 -> g_dat_530bc[0]=0x42");
+    check(ctx.head==buf+2, "  T1: head advanced 2 bytes");
+
+    /* T2: cmd=0x15 (<0xf0) -> f4=0x15; op=0x10 -> default (no-op); head unchanged */
+    memset(buf,0,sizeof buf);
+    ctx.head=buf; ctx.f4=0; ctx.f5=0;
+    fn_0353d0(0x15, &ctx);
+    check(ctx.f4==0x15, "  T2 cmd=0x15 (<0xf0) -> f4=0x15");
+    check(ctx.head==buf, "  T2: op=0x10 default, head unchanged");
+
+    /* T3: cmd=0xff, buf=[0x2f,0x00] -> c=0x2f, r=LEB128(0x00)=0 -> f5=0x2f,f4=f5=0x2f; head = 1(c)+1(LEB)+0(r) = 2 */
+    memset(buf,0,sizeof buf); buf[0]=0x2f; buf[1]=0x00;
+    ctx.head=buf; ctx.f4=0; ctx.f5=0;
+    fn_0353d0(0xff, &ctx);
+    check(ctx.f4==0x2f && ctx.f5==0x2f, "  T3 cmd=0xff [0x2f,..] -> f4=f5=0x2f");
+    check(ctx.head==buf+2, "  T3: head advanced 2 (c byte + 1 LEB byte, r=0)");
+
+    /* T4: cmd=0xc0, buf=[0x77] -> f4=0xc0; op=0xc0 -> case_read1 -> fn_035bf4(0xc0,0x77); head+=1 */
+    memset(buf,0,sizeof buf); buf[0]=0x77;
+    ctx.head=buf; ctx.f4=0; ctx.f5=0;
+    fn_0353d0(0xc0, &ctx);
+    check(ctx.head==buf+1, "  T4 cmd=0xc0 [0x77] -> case_read1, head advanced 1");
+
+    /* T5: cmd=0xf0, buf=[0x01,0xAA] -> op=0xf0 -> case_readN: n=LEB128(0x01)=1; fn_035c2d(cmd); b=0xAA; fn_035c2d(b); head=1(LEB)+1=2 */
+    memset(buf,0,sizeof buf); buf[0]=0x01; buf[1]=0xAA;
+    ctx.head=buf; ctx.f4=0; ctx.f5=0;
+    fn_0353d0(0xf0, &ctx);
+    check(ctx.head==buf+2, "  T5 cmd=0xf0 [0x01,0xAA] -> case_readN n=1, head advanced 2");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7380,6 +7418,7 @@ int main(void) {
     test_fn_0137c1();
     test_fn_0383a4();
     test_fn_03df96();
+    test_fn_0353d0();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

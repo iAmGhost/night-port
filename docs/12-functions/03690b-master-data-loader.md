@@ -110,3 +110,37 @@ is Ghidra's reg-ABI artifact).
   from the text (values + row stride), `DAT_63358 == 0`, return value 1.
 - Split the port into three slices so the suite stays green: (A) open + index + 10 key tables +
   3 act tables + aliases, (B) sound loop + `.spr`/`.act` tables, (C) `exptab.dat` + tail.
+
+## Attempt log (2026-07-13h): port written, reverted because the open chain SEGVs
+
+A complete port (globals + `kVocNames[100]` + the three guard helpers + the linear body) was landed
+into `f.c`/`f.h` and compiled cleanly, but its unit test crashed and the change was reverted to keep
+the tree green (`1905 PASS`). The insertion script that regenerates the port verbatim is kept at
+`scratch/ins3690b.py` (scratch is git-ignored; re-run it to re-land the port).
+
+Failure chain (ASan, stable across attempts):
+
+```
+fn_03690b -> fn_04270d("night.res","rb") -> fn_0426f2 -> fn_044ab5 -> fn_04262a
+          -> fn_04488b -> fn_0492d0 (read of g_dat_53730 == NULL)
+          -> store_arr53730 (write of g_arr_53730 == NULL)
+```
+
+Seeding the whole `test_fn_0426f2_04270d` recipe (0x53800 pool arena as `g_ndpool`, `g_dat_53730`
+**and** `g_arr_53730` both pointed at an 8-dword table, `g_dat_536dc = 8`, `g_dat_53619 = 0`,
+`g_dat_536d8 = 0`, `sys_ioctl_dx/cf = 0`, `sys_open_ret = 0`) did not stop it: the fault moved but
+stayed inside `fn_04488b`. Two port-model warts were confirmed on the way and are worth fixing
+independently:
+
+1. `DAT_00053730` exists twice in the port as unrelated C variables (`g_dat_53730` used by
+   `fn_0492d0`, `g_arr_53730` used by `store_arr53730`), so any caller must keep both in sync -- the
+   existing tests already do this by hand ("Both reference DAT_00053730 via two C aliases").
+   Unify them (one variable + an alias reference) before wiring real CD state.
+2. `fn_04488b` has no non-CD / in-memory file path: it assumes a DOS handle with the device-table
+   entry and `ioctl_device` succeeding, so `fn_04262a` cannot open anything in the unit harness.
+
+**Consequence for the plan:** `0x03690b` is no longer a standalone function port; it is gated on the
+CD/resource backend (mid-subsystems task). Order of work: (1) unify the `DAT_53730` aliases,
+(2) give `sys_file_open/read/lseek` + `fn_04488b` a real handle model (a memory or file-backed
+resource reader over `NIGHT/NIGHT.RES` / `TG_NIGHT.IMG`), (3) re-run `scratch/ins3690b.py`, add the
+structural test (its body is in this file's history and worked up to the open), then mark the row.

@@ -620,6 +620,7 @@ struct dev_cmd_ctx {
 };
 void fn_0353d0(uint8_t cmd, struct dev_cmd_ctx *arg); /* 0x0353d0: MIDI/device command dispatcher (offset cursor) */
 void fn_035263(uint8_t *base, uint8_t *ctx);          /* 0x035263: MIDI sequencer step -- advance min track (idx=ctx[0x14]), re-find min via fn_035329 */
+void fn_034e3c(void);                                  /* 0x034e3c: MIDI sequencer control loop -- advance tracks while ctx[0xc]>=ctx[0x10], then parse-next (fn_034f31) or teardown (fn_034eb0) */
 int32_t  fn_035c2d(uint8_t arg);  /* 0x035c2d: thin wrapper -> fn_0358c7((uint8)arg) */
 int32_t  fn_035a19(int32_t a0, int32_t a1, int32_t a2);  /* 0x035a19: 3-byte write (a0,a1,a2-if>=0) via fn_0358c7; -1 on first timeout */
 void     fn_035329(uint8_t *a0, uint8_t *a1);  /* 0x035329: scan 0xe-byte records (tag@+0x5,val@+0xa) for min -> a1{+0x10 cur,+0x14 idx,+0x20 flag}; a0/a1 raw ptrs */

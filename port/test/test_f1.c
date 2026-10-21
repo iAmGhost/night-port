@@ -7120,6 +7120,60 @@ static void test_fn_035263(void) {
     check(g_dat_530bc[0]==0x42, "  T3: read2 -> g_530bc[0]=0x42");
 }
 
+static void test_fn_034e3c(void) {
+    printf("fn_034e3c (0x034e3c): MIDI sequencer control loop\n");
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    /* T1 loop: 1 track f5=0x2f -> exactly 1 iteration -> cur=0x7fffffff, exit; flag=0 (no exit path) */
+    heap_arena_init(); memset(hb + 0x63200, 0, 0x200);
+    uint32_t data_off = heap_arena_alloc(16); uint8_t *data = hb + data_off;
+    data[0]=0x07; data[1]=0x42; data[2]=0x00;
+    uint8_t *rec = hb + 0x63220;
+    *(uint32_t*)(rec+0)=data_off; rec[4]=0xb0; rec[5]=0x2f;   /* head_off, f4=0xb0, f5=0x2f(tag) */
+    *(int32_t*)(hb+0x6330c)=5;        /* target */
+    *(int32_t*)(hb+0x63310)=0;        /* cur */
+    *(uint32_t*)(hb+0x63314)=0;       /* idx */
+    *(uint32_t*)(hb+0x6331c)=1;       /* count */
+    hb[0x63320]=0;                    /* flag */
+    g_dat_530bc[0]=0;
+    fn_034e3c();
+    check(*(int32_t*)(hb+0x63310)==0x7fffffff, "  T1 loop: 1 iter -> cur=0x7fffffff (f5=0x2f)");
+    check(*(int32_t*)(rec+0xa)==0x7fffffff, "  T1: track acc=0x7fffffff");
+    check(g_dat_530bc[0]==0x42, "  T1: read2 (0xb0) -> g_530bc[0]=0x42");
+
+    /* T2 exit fn_034f31: loop skipped (target<cur), flag=1, v<limit -> parse MThd into ctx (dst=hb+0x63300) */
+    heap_arena_init(); memset(hb + 0x63200, 0, 0x200);
+    uint32_t mthd_off = heap_arena_alloc(0x40);
+    const uint8_t midi[38] = {
+        0x4d,0x54,0x68,0x64, 0x00,0x00,0x00,0x06, 0x00,0x00, 0x00,0x02, 0x00,0xf0,
+        0x4d,0x54,0x72,0x6b, 0x00,0x00,0x00,0x04, 0x00, 0x90,0x40,0x30,
+        0x4d,0x54,0x72,0x6b, 0x00,0x00,0x00,0x04, 0x81,0x01, 0x90,0x45,
+    };
+    memcpy(hb + mthd_off, midi, sizeof(midi));
+    *(int32_t*)(hb+0x6330c)=0;        /* target < cur -> loop skipped */
+    *(int32_t*)(hb+0x63310)=100;
+    hb[0x63320]=1;                    /* flag */
+    *(int32_t*)(hb+0x63328)=0;        /* v=0 */
+    *(int32_t*)(hb+0x530b0)=100;      /* limit (0 < 100 -> fn_034f31) */
+    *(uint32_t*)(hb+0x63300)=mthd_off; /* ctx[0] = MThd src off */
+    fn_034e3c();
+    check(*(int32_t*)(hb+0x63328)==1, "  T2 exit: hb[0x63328] incremented to 1");
+    check(*(uint32_t*)(hb+0x63308)==0x7a120, "  T2: fn_034f31 wrote ctx[0x8]=0x7a120");
+    check(*(uint32_t*)(hb+0x6331c)==2, "  T2: fn_034f31 wrote ctx[0x1c]=ntrks 2");
+
+    /* T3 exit fn_034eb0: loop skipped, flag=1, v>=limit -> teardown */
+    heap_arena_init(); memset(hb + 0x63200, 0, 0x200);
+    *(int32_t*)(hb+0x6330c)=0;
+    *(int32_t*)(hb+0x63310)=100;
+    hb[0x63320]=1;                    /* flag */
+    *(int32_t*)(hb+0x63328)=50;       /* v=50 */
+    *(int32_t*)(hb+0x530b0)=10;       /* limit (50 >= 10 -> fn_034eb0) */
+    g_dat_63324=1; g_dat_6333c=0;
+    fn_034e3c();
+    check(*(int32_t*)(hb+0x63328)==51, "  T3 exit: hb[0x63328] incremented to 51");
+    check(g_dat_63324==0, "  T3: fn_034eb0 cleared g_63324");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7462,6 +7516,7 @@ int main(void) {
     test_fn_03df96();
     test_fn_0353d0();
     test_fn_035263();
+    test_fn_034e3c();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

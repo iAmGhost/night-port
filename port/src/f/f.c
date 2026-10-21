@@ -9552,6 +9552,29 @@ void fn_035263(uint8_t *base, uint8_t *ctx) {
     fn_035329(base, ctx);                                                 /* 0x35316-0x3531c */
 }
 
+/* 0x034e3c (L16, 36 insns): MIDI sequencer control loop. All 0x63xxx values are g_heap_base-relative
+ * offsets (flat model: data-seg == heap; fn_034f31 does hb+a1/hb+a2). The ctx is at hb+0x63300 (fields:
+ * [0]=MThd src off, [0xc]=target time, [0x10]=cur (min acc, set by fn_035329), [0x14]=idx, [0x1c]=count,
+ * [0x20]=flag byte), record array at hb+0x63220. Loop: while (target>=cur) fn_035263(base,ctx). Then if
+ * flag!=0: v=hb[0x63328], hb[0x63328]++; if (v<hb[0x530b0]) fn_034f31(ctx[0],0x63220,0x63300) else
+ * fn_034eb0(). No return value. */
+void fn_034e3c(void) {
+    (void)canary_id(0, 0x1c);                                             /* PUSH 0x1c;CALL 0x418ee */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    while (*(int32_t *)(hb + 0x6330c) >= *(int32_t *)(hb + 0x63310)) {    /* 0x34e54-0x34e5f */
+        fn_035263(hb + 0x63220, hb + 0x63300);                            /* 0x34e61-0x34e6b */
+    }
+    if (hb[0x63320] != 0) {                                               /* 0x34e72-0x34e79 */
+        int32_t v = *(int32_t *)(hb + 0x63328);                           /* 0x34e7b */
+        *(int32_t *)(hb + 0x63328) = v + 1;                               /* 0x34e80: INC */
+        if (v < *(int32_t *)(hb + 0x530b0)) {                             /* 0x34e86-0x34e8c */
+            fn_034f31(*(int32_t *)(hb + 0x63300), 0x63220, 0x63300);      /* 0x34e8e-0x34e9d */
+        } else {                                                          /* 0x34ea4 */
+            fn_034eb0();
+        }
+    }
+}
+
 /* 0x035b0c (L13, 132 B): device-command dispatcher. Args a0=EAX(AL), a1=EDX(DL),
  * a2=EBX(BL). If (a0&0xf0)==0xb0 && a1==7: store a2 into the command table
  * g_dat_530bc[a0&0xf] (a 32-bit slot) then call fn_035b91(a0,a1,a2); else call

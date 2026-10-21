@@ -4337,6 +4337,46 @@ void fn_036190(const char *name, uint8_t *dest) {
     }
 }
 
+/* 0x03628e (L11, 393 B): screen RLE loader writing into the VIDEO window (0xa0000).
+ * Same prologue/table/RLE structure as fn_036417 but the destination is the fixed video
+ * base (local_18 = 0xa0000, never advanced) and the write offset wraps at 0x10000; each
+ * wrap bumps a chunk counter that is fed to the VGA palette setter fn_03f3be (a loading
+ * fade). reg-ABI: EAX = name, DL = flag (1 -> board_out of the >>2 table). LATENT QUIRK
+ * (replicated faithfully): the loop writes 0x4b000 (307200) bytes into a 0x10000 window,
+ * so the image wraps ~4.7 times and only the last pass over each offset survives. */
+void fn_03628e(const char *name, uint32_t dl) {
+    (void)canary_id((uintptr_t)name, 0x44);                        /* 0x3628e-93 */
+    uint32_t chunk = 0;                                            /* 0x362ab  [ebp-0xc] */
+    uint32_t off   = 0;                                            /* 0x362b0  [ebp-0x10] */
+    uint32_t pos   = 0;                                            /* 0x362b8  [ebp-0x14] */
+    uint8_t *base  = g_video_ram;                                  /* 0x362be  [ebp-0x18] = 0xa0000 */
+    fn_0367c9(name);                                               /* 0x362c8 */
+    fn_036853(name, 0xfffffd00, 2);                                /* 0x362da */
+    fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);           /* 0x362f4: 768 B table */
+    for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x36311-1b */
+    if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);           /* 0x36322-3b */
+    fn_036853(name, 0x80, 0);                                       /* 0x36348 */
+    fn_03f3be(chunk);                                               /* 0x36350: fade start */
+    while (pos < 0x4b000) {                                         /* 0x36355 */
+        uint32_t byte = fn_041c8f((uint8_t *)g_639b8) & 0xff;       /* 0x36367 */
+        if ((byte & 0xc0) == 0xc0) {                                /* 0x36381: FILL */
+            uint32_t count = byte & 0x3f;                           /* 0x36386 */
+            uint32_t value = fn_041c8f((uint8_t *)g_639b8);         /* 0x36391 */
+            for (;;) {                                              /* 0x36399-9c: dec/cmp -1 */
+                if (--count == 0xffffffffu) break;
+                base[off++] = (uint8_t)value;                       /* 0x363a2-ae */
+                pos++;                                              /* 0x363b0-13 */
+                if (off < 0x10000) continue;                        /* 0x363b6-3bd */
+                off = 0; chunk++; fn_03f3be(chunk);                 /* 0x363bf-3cf */
+            }
+        } else {                                                    /* 0x363d8: literal */
+            base[off++] = (uint8_t)byte;                            /* 0x363d8-3e4 */
+            pos++;                                                  /* 0x363e6-3e9 */
+            if (off >= 0x10000) { off = 0; chunk++; fn_03f3be(chunk); }  /* 0x363ec-405 */
+        }
+    }
+}
+
 /* 0x036417 (L11, ~85 insns / 288 B): screen RLE loader into a caller buffer, 0x4b000 bound.
  * Like fn_036190 but 3-arg (dl in EBX low byte, reg-ABI) + board_out if dl==1; writes to dest
  * until pos=0x4b000 (311296 B); table -> g_dat_636b8 (>>2, shared w/ 0x035f1b/0x036041). RLE:

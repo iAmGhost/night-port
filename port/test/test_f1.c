@@ -7790,6 +7790,52 @@ static void test_fn_036190(void) {
     check(dest[10] == 0x77 && dest[63990] == 0x77, "  FILL10: dest[10]=dest[63990]=0x77");
 }
 
+static void test_fn_03628e(void) {
+    printf("fn_03628e (0x03628e): screen RLE loader into the video window (0x10000 wrap + palette fade)\n");
+    heap_arena_init();                       /* runs after test_fn_041e94_04123d, so re-init is safe */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;                         /* empty resource table -> fn_0367c9/fn_036853 no-op */
+
+    /* Source: 768 B table (0xF0), then 4876 FILL-63 runs (0xFF = 0xC0|63) whose fill value
+     * is the run index, then FILL-12 (0xCC) of 0xEE -> exactly 4876*63+12 = 0x4b000 bytes. */
+    const uint32_t nruns = 4876;             /* 4876*63 = 307188; +12 = 307200 = 0x4b000 */
+    const uint32_t data_len = 0x300 + nruns * 2 + 2;
+    uint32_t data_off = heap_arena_alloc(data_len + 4);
+    uint8_t *data = hb + data_off;
+    for (uint32_t i = 0; i < 0x300; i++) data[i] = 0xF0;
+    uint32_t p = 0x300;
+    for (uint32_t k = 0; k < nruns; k++) { data[p++] = 0xFF; data[p++] = (uint8_t)k; }
+    data[p++] = 0xCC; data[p++] = 0xEE;
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = data_len; *(uint32_t *)(node + 8) = data_off;
+    node[0xc] = 0x41;                        /* bit0 valid, bit6 set -> no CR translation in fn_041c8f */
+    g_639b8 = (res_reader *)node;
+
+    uint8_t *vsave = (uint8_t *)calloc(1, 0x10000);
+    if (!vsave) { check(0, "  video save buffer (SKIP)"); return; }
+    memcpy(vsave, g_video_ram, 0x10000);
+    memset(g_video_ram, 0, 0x10000);
+    uint32_t s_e5c = g_dat_63e5c, s_e4c = g_dat_63e4c, s_e50 = g_dat_63e50[0];
+    g_dat_63e5c = 0; g_dat_63e4c = 0; g_dat_63e50[0] = 0x99;
+
+    fn_03628e("NORES", 0);                   /* dl = 0 -> board_out path skipped */
+    check(g_dat_636b8[0] == 0x3C, "  table[0] = 0xF0>>2 = 0x3C");
+
+    /* Absolute write index i lands at video offset i % 0x10000, so the surviving byte at an
+     * offset is the largest i < 0x4b000 congruent to it (i.e. +0x40000 below 0xb000). */
+    #define EXP(i) ((i) < nruns * 63 ? (uint8_t)((i) / 63) : 0xEE)
+    check(g_video_ram[0] == EXP(0x40000), "  wrap: video[0] holds the byte from absolute 0x40000");
+    check(g_video_ram[0xa000] == EXP(0x4a000), "  video[0xa000] from absolute 0x4a000");
+    check(g_video_ram[0xafff] == 0xEE, "  final write (absolute 0x4afff, the FILL-12) lands at video[0xafff]");
+    check(g_video_ram[0xb000] == EXP(0x3b000), "  offsets >= 0xb000 keep the 0x30000-pass byte");
+    check(g_dat_63e50[0] == 4, "  palette fade: fn_03f3be ends at chunk counter 4 (4 wraps)");
+    #undef EXP
+
+    memcpy(g_video_ram, vsave, 0x10000); free(vsave);
+    g_dat_63e5c = s_e5c; g_dat_63e4c = s_e4c; g_dat_63e50[0] = s_e50;
+}
+
 static void test_fn_036417(void) {
     printf("fn_036417 (0x036417): screen RLE loader into caller buffer, 0x4b000 bound, dl->board_out\n");
     heap_arena_init();
@@ -8284,6 +8330,7 @@ int main(void) {
     test_fn_036041();
     test_fn_036190();
     test_fn_036417();
+    test_fn_03628e();
     test_fn_03fc1d();
     test_fn_03e0a0();
     test_fn_03fb0e();

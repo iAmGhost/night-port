@@ -114,12 +114,35 @@ void sys_dos_ioctl(uint32_t handle, uint32_t *out_dx, uint32_t *out_cf) {
 }
 void sys_dos_realmode_setup(void) { /* OS handles disk/segment management */ }
 
+/* Sequential stand-in stream (see sys.h). Installed by tests / the future CD backend. */
+static const uint8_t *s_img = 0;
+static uint32_t s_img_len = 0, s_img_pos = 0;
+void sys_file_image_set(const uint8_t *img, uint32_t len) {
+    s_img = img; s_img_len = len; s_img_pos = 0;
+}
 int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
-    (void)handle; (void)buf; (void)count; return 0;   /* no CD backend: 0 bytes */
+    (void)handle;
+    if (s_img == 0) return 0;                          /* no backend: 0 bytes */
+    if (s_img_pos >= s_img_len) return 0;              /* EOF */
+    uint32_t n = s_img_len - s_img_pos;
+    if (n > count) n = count;
+    for (uint32_t i = 0; i < n; i++) ((uint8_t *)buf)[i] = s_img[s_img_pos + i];
+    s_img_pos += n;
+    return (int32_t)n;
 }
 int32_t sys_file_lseek_pos = 0;   /* test knob: position a tell (whence==1) reports */
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence) {
     (void)handle;
+    /* With the stand-in image installed the position is real, so the resource loaders' seeks
+     * (fn_04247a / fn_0367c9 / fn_036853) land on the per-resource body offsets of the index. */
+    if (s_img != 0) {
+        int32_t np = (whence == 1) ? (int32_t)s_img_pos + offset
+                     : (whence == 2) ? (int32_t)s_img_len + offset
+                                     : offset;
+        if (np < 0) np = 0;
+        s_img_pos = (uint32_t)np;
+        return np;
+    }
     /* no CD backend yet: a tell reports the seedable position (default 0, i.e. unchanged), so
      * tests can reproduce the invariant the real reader keeps (handle position == buffered start). */
     if (whence == 1) return sys_file_lseek_pos;

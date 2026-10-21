@@ -176,3 +176,23 @@ bytes) the test binary spins: the loader never returns within 90 s. The most lik
 `for (i = 0; (int32_t)block[0] > i; i++)` loops in `0x032464`/`0x010010` run for a huge count reading
 nothing. Needs a short diagnosis (print the count word) before the loader can be verified; a live CD
 backend makes it moot.
+
+## Resolved (later the same day): the loader is ported and verified
+
+Both blockers were worked around without touching the loader's semantics:
+
+- **Blocker B (hang) -- fixed.** The spin was `fn_032464` looping on a garbage entry count, because
+  every read returned 0 bytes and the recycled heap block kept whatever its previous owner left
+  there. The sys layer now has a sequential stand-in stream: `sys_file_image_set(img, len)` feeds
+  `sys_file_read`, and `sys_file_lseek` tracks a real position while an image is installed (it keeps
+  the old knob-driven behaviour when none is). The test builds a synthetic NIGHT.RES with a real
+  126-entry index (name[12] / size / offset, delta-encoded the way `0x0366a4` expects, including the
+  `b[0] ^ 0x20` first-byte rule) and one body per resource at its own offset -- which is how
+  `fn_0367c9` addresses resources (it seeks to the entry's offset field) and how `fn_036853`
+  (offset+size) does. Result: the loader returns in microseconds and all 15 checks pass.
+- **Blocker A (heap) -- still open, no longer blocking.** `heap_acquire_region` hands back 4 bytes
+  less than requested and `heap_grow` (0x04322c) is a stub, so a single large request fails; the test
+  provisions the heap with three freed 0x4000 regions instead. Porting `0x043071` faithfully remains
+  a follow-up for anything that allocates aggressively.
+
+`0x03690b` is now `[x]` in STATUS.md (L15 2/5, TOTALS 446/528, suite 1921 PASS).

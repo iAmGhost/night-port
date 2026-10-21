@@ -982,6 +982,27 @@ extern int32_t  g_dat_51c98;   /* DAT_00051c98 (collision mode flag: 1=reinit->2
 extern int32_t  g_dat_53c90;   /* DAT_00053c90 (player-event latch) */
 extern int32_t  g_dat_53c68;   /* DAT_00053c68 (entity count) */
 extern uint32_t g_dat_53c88;   /* DAT_00053c88 (cleared by fn_03237b conditional drain) */
+extern uint8_t *g_dat_62aa0;   /* DAT_00062aa0: "gun.key" text table (fn_032464 block) */
+extern uint8_t *g_dat_62aa4;   /* DAT_00062aa4: "gun1.key" */
+extern uint8_t *g_dat_62aa8;   /* DAT_00062aa8: "gun2.key" */
+extern uint8_t *g_dat_62aac;   /* DAT_00062aac: "gun3.key" */
+extern uint8_t *g_dat_62ab0;   /* DAT_00062ab0: "gun4.key" */
+extern uint8_t *g_dat_62ab4;   /* DAT_00062ab4: "catch.key" */
+extern uint8_t *g_dat_62ab8;   /* DAT_00062ab8: "catch1.key" */
+extern uint8_t *g_dat_62abc;   /* DAT_00062abc: "catch2.key" */
+extern uint8_t *g_dat_62ac0;   /* DAT_00062ac0: "catch3.key" */
+extern uint8_t *g_dat_62ac4;   /* DAT_00062ac4: "catch4.key" */
+extern uint8_t *g_dat_62a98;   /* DAT_00062a98: active key table (alias of g_dat_62aa0) */
+extern uint8_t *g_dat_62a9c;   /* DAT_00062a9c: active catch table (alias of g_dat_62ab4) */
+extern uint32_t *g_dat_53c28;  /* DAT_00053c28: "gun.act" record container (fn_010010) */
+extern uint32_t *g_dat_53c2c;  /* DAT_00053c2c: "gun1.act" */
+extern uint32_t *g_dat_53c30;  /* DAT_00053c30: "gun2.act" */
+extern uint32_t *g_dat_53818;  /* DAT_00053818: active action table (alias of g_dat_53c28) */
+extern uint32_t *g_dat_63e08;  /* DAT_00063e08: "over.spr" struct (fn_03d8d4) */
+extern uint32_t *g_dat_63e0c;  /* DAT_00063e0c: "pause.spr" struct (fn_03d8d4) */
+extern uint8_t  *g_dat_53d0c[100]; /* DAT_00053d0c: 100 sound-slot buffers ("1.voc".."100.voc") */
+extern uint32_t  g_dat_53c94[30];  /* DAT_00053c94: 6x5 experience table from exptab.dat */
+uint32_t fn_03690b(void);          /* 0x03690b: master data loader (NIGHT.RES -> all runtime tables) */
 extern uint32_t *g_dat_639c0;  /* 0x639c0: struct host-ptr (destructed by fn_03d999) */
 extern uint32_t *g_dat_53c8c;  /* 0x53c8c: struct host-ptr (fn_03d999) */
 extern uint32_t *g_dat_63e00;  /* 0x63e00: struct host-ptr (fn_03d999) */
@@ -1102,9 +1123,12 @@ void     prng_seed(uint32_t seed);
 char    *itoa32s(int32_t value, char *buf, uint32_t base);
 /* 0x0494a2: same as itoa32s but calls itoa32_tbl (0x49459) instead of itoa32. */
 char    *itoa32s_tbl(int32_t value, char *buf, uint32_t base);
-/* Store value|0x40000 into g_arr_53730[index] (sets bit 22 as a "set" flag).
- *  orig: 0x049325 (store [0x53730 + index*4] = value | 0x40000) */
-extern uint32_t *g_arr_53730;
+/* Store value|0x40000 into the DAT_00053730 table at [index] (sets bit 22 as a "set" flag).
+ *  orig: 0x049325 (store [0x53730 + index*4] = value | 0x40000)
+ * DAT_00053730 has ONE table; the port once modelled it twice (g_dat_53730 read by fn_0492d0,
+ * g_arr_53730 written by store_arr53730), which let the two halves drift apart. g_arr_53730 is now
+ * a macro alias of g_dat_53730 so there is a single table pointer. */
+#define g_arr_53730 g_dat_53730
 void store_arr53730(uint32_t index, uint32_t value);
 /* No-op (single RET).  orig: 0x049109 */
 void noop_9109(void);

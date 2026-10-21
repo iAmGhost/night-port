@@ -2156,6 +2156,11 @@ static void test_fn_042717(void) {
     pool[48+0x8] = region; /* heap region to be freed */
     pool[48+0xd] = 0;      /* no flush / no temp-delete */
     pool[48+0x10] = 0;     /* id 0 (lseek/close no-op) */
+    /* fn_044bec's close path writes the DAT_00053730 device table (store_arr53730), so the table
+     * must be attached for this call; the port keeps one table pointer for that DAT. */
+    static uint32_t devtab[8];
+    uint32_t *s_dev = g_dat_53730;
+    memset(devtab, 0, sizeof devtab); g_dat_53730 = devtab;
     check(fn_042717(48) == 48, "042717: found in active (flags&0x3) returns rec");
     check(pool[48+0x8] == 0, "042717: destruct freed+nulled rec region via fn_04285c");
 
@@ -2172,6 +2177,7 @@ static void test_fn_042717(void) {
     uint32_t sv = g_dat_64008;
     check(fn_042717(0x999) == 0, "042717: not found returns 0");
     check(g_dat_64008 == 4, "042717: not found sets g_64008=4");
+    g_dat_53730 = s_dev;
     g_dat_64008 = sv;
 }
 
@@ -2586,7 +2592,14 @@ static void test_fn_044807(void) {
 
 static void test_fn_044bec(void) {
     printf("fn_044bec (0x044bec)\n");
+    /* fn_044bec marks the closed handle's slot in the DAT_00053730 device table (store_arr53730);
+     * attach a table so the store is observable (the DAT is BSS-backed in the original). */
+    static uint32_t tab[8];
+    uint32_t *sv_tab = g_dat_53730; uint32_t sv_bound = g_dat_536dc;
+    memset(tab, 0, sizeof tab); g_dat_53730 = tab; g_dat_536dc = 8;
     check(fn_044bec(7) == 0, "  close success (sys stub) -> returns 0");
+    check((tab[7] & 0x40000u) != 0, "  slot 7 marked with bit 22 (store_arr53730)");
+    g_dat_53730 = sv_tab; g_dat_536dc = sv_bound;
 }
 
 static void test_fn_04574a_date_cluster(void) {
@@ -3240,7 +3253,7 @@ static void test_fn_0426f2_04270d(void) {
     static uint32_t tbl[8];
     uint8_t *s_pool = g_ndpool;
     uint32_t s_act = g_node_list_active, s_done = g_node_list_done, s_err = g_dat_64008;
-    uint32_t s_t30 = (uint32_t)(uintptr_t)g_dat_53730, s_a30 = (uint32_t)(uintptr_t)g_arr_53730;
+    uint32_t *s_t30 = g_dat_53730;   /* DAT_53730 is one table now (g_arr_53730 is a macro alias) */
     uint32_t s_dc = g_dat_536dc, s_19 = g_dat_53619, s_d8 = g_dat_536d8;
     uint32_t s_dx = sys_ioctl_dx, s_cf = sys_ioctl_cf; int32_t s_or = sys_open_ret;
     uint8_t *arena = (uint8_t *)calloc(1, 0x53800);
@@ -3277,7 +3290,7 @@ static void test_fn_0426f2_04270d(void) {
 
     g_ndpool = s_pool; g_node_list_active = s_act; g_node_list_done = s_done;
     g_dat_64008 = s_err; g_dat_536dc = s_dc; g_dat_53619 = s_19; g_dat_536d8 = s_d8;
-    g_dat_53730 = (uint32_t *)(uintptr_t)s_t30; g_arr_53730 = (uint32_t *)(uintptr_t)s_a30;
+    g_dat_53730 = s_t30;
     sys_ioctl_dx = s_dx; sys_ioctl_cf = s_cf; sys_open_ret = s_or;
     free(arena);
 }
@@ -8118,6 +8131,193 @@ static uint32_t tdrd(const uint8_t *p, uint32_t i) { uint32_t v; memcpy(&v, p + 
 /* fn_0366a4 (0x0366a4, 293 B): the resource-index loader -- reads the obfuscated file table from a
  * resource stream into the back-screen scratch, unmangles it (descending b[i] ^= b[i-1], then
  * b[0] ^= 0x20) and expands it into g_tab_5d884, which fn_036626 / fn_0367c9 / fn_036853 use. */
+/* fn_03690b (0x03690b, 2555 B): the master data loader. The sys layer has no CD/resource backend
+ * yet (sys_file_read / sys_file_lseek are stubs), so the resource stream yields nothing here: the
+ * test pins the structural behaviour -- which blocks are allocated into which global, the alias
+ * assignments, the NULL-on-failure convention and the empty-table results -- not payload bytes.
+ * Content-level verification belongs to the CD-backend task. */
+/* fn_03690b (0x03690b, 2555 B): the master data loader. NIGHT.RES is fed through the sys layer's
+ * sequential stand-in stream (sys_file_image_set), because the real CD/.IMG backend is still a todo.
+ * The synthetic image carries a real 100-entry resource index plus every table body in load order,
+ * so this exercises the whole chain: index de-mangling, the ten 0x032464 key tables, the 0x010010
+ * action containers, the 100 "N.voc" sound slots (0x036626 + 0x0417f3), the 0x03d8d4 sprite structs
+ * and the exptab.dat scan rows. */
+static void test_fn_03690b(void) {
+    printf("fn_03690b (0x03690b): master data loader over a synthetic NIGHT.RES stream\n");
+
+    /* ---- build the stream: a real index (name / size / offset per resource) plus one body per
+     * resource at its own offset, which is how NIGHT.RES is addressed (fn_0367c9 seeks to the
+     * entry's offset field, fn_036853 seeks to offset+size). ---- */
+    static const char *kKey[10] = { "gun.key", "gun1.key", "gun2.key", "gun3.key", "gun4.key",
+                                    "catch.key", "catch1.key", "catch2.key", "catch3.key",
+                                    "catch4.key" };
+    static const char *kAct[5]  = { "gun.act", "gun1.act", "gun2.act", "mark.act", "dust.act" };
+    static const char *kSpr[10] = { "pause.spr", "system.spr", "system2.spr", "over.spr",
+                                    "face.spr", "gage.spr", "exp.spr", "gun.spr", "mark.spr",
+                                    "dust.spr" };
+    static const char kExptab[] = "11 12 13 14 15\n21 22 23 24 25\n31 32 33 34 35\n"
+                                  "41 42 43 44 45\n51 52 53 54 55\n61 62 63 64 65\n";
+    const uint32_t nVoc = 100;
+    const uint32_t nEnt = 10 + 5 + 10 + nVoc + 1;             /* 126 entries, table holds 128 */
+    const uint32_t rawLen = nEnt * 0x14u;
+    const char *nm[128]; uint32_t sz[128], bl[128], of[128];
+    uint32_t ne = 0;
+    for (uint32_t i = 0; i < 10; i++) { nm[ne] = kKey[i]; sz[ne] = 0; bl[ne] = 2; ne++; }
+    for (uint32_t i = 0; i < 3; i++)  { nm[ne] = kAct[i]; sz[ne] = 0; bl[ne] = 4; ne++; }
+    nm[ne++] = "pause.spr"; sz[ne-1] = 0; bl[ne-1] = 4;
+    const uint32_t vocStart = ne;
+    for (uint32_t i = 0; i < nVoc; i++) { nm[ne] = 0; sz[ne] = 0x1a; bl[ne] = 0x1a; ne++; }
+    for (uint32_t i = 3; i < 5; i++)   { nm[ne] = kAct[i]; sz[ne] = 0; bl[ne] = 4; ne++; }
+    for (uint32_t i = 1; i < 10; i++)  { nm[ne] = kSpr[i]; sz[ne] = 0; bl[ne] = 4; ne++; }
+    nm[ne] = "exptab.dat"; sz[ne] = (uint32_t)sizeof kExptab - 1; bl[ne] = sz[ne]; ne++;
+    check(ne == nEnt && ne <= 128, "  synthetic resource table built (126 entries)");
+
+    uint32_t cursor = 4 + rawLen;
+    for (uint32_t i = 0; i < ne; i++) {
+        of[i] = cursor;
+        cursor += (bl[i] == 0x1a) ? 0x20u : ((bl[i] > 0x40) ? 0x100u : 0x10u);
+    }
+    uint32_t imgLen = cursor;
+    uint8_t *img = (uint8_t *)calloc(1, imgLen);
+    if (img == 0) { check(0, "  image alloc (SKIP)"); return; }
+
+    img[0] = (uint8_t)ne;                                  /* index entry count (LE u32) */
+    /* records are delta-encoded back-to-front (fn_0366a4): plain[k] = raw[k] ^ raw[k-1] and
+     * plain[0] = raw[0] ^ 0x20, so the raw form is a forward XOR chain over the plain bytes. */
+    uint8_t *rec = img + 4;
+    uint8_t prev = 0x20;                              /* b[0] is un-mangled with ^0x20        */
+    for (uint32_t i = 0; i < ne; i++) {
+        uint8_t t[0x14];
+        memset(t, 0, sizeof t);
+        char nbuf[16];
+        if (nm[i] != 0) snprintf(nbuf, sizeof nbuf, "%s", nm[i]);
+        else            snprintf(nbuf, sizeof nbuf, "%u.voc", i - vocStart + 1);
+        memcpy(t, nbuf, strlen(nbuf));                     /* name[12] */
+        t[12] = (uint8_t)(sz[i]); t[13] = (uint8_t)(sz[i] >> 8);       /* size (+13) */
+        t[16] = (uint8_t)(of[i]); t[17] = (uint8_t)(of[i] >> 8);       /* offset (+17) */
+        for (int k = 0; k < 0x14; k++) {
+            uint8_t raw = (uint8_t)(t[k] ^ prev);
+            rec[i * 0x14 + k] = raw; prev = raw;
+        }
+    }
+    for (uint32_t i = 0; i < ne; i++) {
+        if (nm[i] != 0 && bl[i] == 2) { img[of[i]] = '0'; img[of[i] + 1] = '\n'; }
+        else if (nm[i] == 0)          { memset(img + of[i], 0xa5, 0x1a); }   /* voc header */
+        else if (bl[i] <= 4)          { memset(img + of[i], 0, 4); }         /* count 0 */
+        else                          { memcpy(img + of[i], kExptab, bl[i]); }
+    }
+
+    /* ---- environment: heap, pool, device table, open/ioctl knobs ---- */
+    heap_arena_init();
+    uint32_t seed[3];
+    for (int i = 0; i < 3; i++) seed[i] = heap_malloc(0x4000);
+    for (int i = 0; i < 3; i++) if (seed[i]) heap_free_host(seed[i]);
+
+    res_reader *saved_rd = g_639b8;
+    uint32_t saved_n = g_dat_633a0;
+    uint8_t *tab_save = (uint8_t *)malloc(sizeof g_tab_5d884);
+    memcpy(tab_save, g_tab_5d884, sizeof g_tab_5d884);
+    uint8_t *gk[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
+                        g_dat_62ab4, g_dat_62ab8, g_dat_62abc, g_dat_62ac0, g_dat_62ac4 };
+    uint8_t *s_a98 = g_dat_62a98, *s_a9c = g_dat_62a9c;
+    uint32_t *s_c28 = g_dat_53c28, *s_c2c = g_dat_53c2c, *s_c30 = g_dat_53c30, *s_818 = g_dat_53818;
+    uint32_t *s_e08 = g_dat_63e08, *s_e0c = g_dat_63e0c, *s_c90 = g_dat_639c0, *s_c94 = g_dat_639c4;
+    uint32_t *s_c8c = g_dat_53c8c, *s_e00 = g_dat_63e00, *s_ec = g_dat_639ec, *s_d10 = g_dat_63d10;
+    uint32_t *s_b3c = g_dat_53b3c, *s_dd4 = g_dat_63dd4, *s_c00 = g_dat_53c00;
+    uint8_t *s_e04 = g_dat_63e04, *s_358 = g_dat_63358;
+    uint8_t *voc_save[100];
+    memcpy(voc_save, g_dat_53d0c, sizeof g_dat_53d0c);
+    uint32_t exp_save[30];
+    memcpy(exp_save, g_dat_53c94, sizeof exp_save);
+    static uint8_t pool[0x53800];
+    memset(pool, 0, sizeof pool);
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_dx = sys_ioctl_dx, saved_cf = sys_ioctl_cf;
+    int32_t saved_open = sys_open_ret, saved_lseek = sys_file_lseek_pos;
+    memset(dev_tab, 0, sizeof dev_tab);
+    g_dat_53730 = dev_tab; g_dat_536dc = 8;
+    g_dat_53619 = 0; g_dat_536d8 = 0;
+    /* fn_0366a4 stages the raw index block in the back screen, so the scratch base must be mapped. */
+    uint32_t saved_b0 = g_dat_633b0;
+    g_dat_633b0 = SCREEN_BASE;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0;
+    sys_file_lseek_pos = 0;              /* the stand-in stream sits at its start (fn_04247a rewind) */
+    sys_file_image_set(img, imgLen);
+
+    uint32_t r = fn_03690b();
+
+    check(r == 1, "  returns 1 (reg-ABI EAX) after loading every table");
+    check(g_dat_633a0 == nEnt, "  index loaded through fn_0366a4 (126 entries)");
+    check(fn_036626("50.voc") == 0x1a, "  index usable: fn_036626(\"50.voc\") = 0x1a");
+
+    uint8_t *keys[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
+                          g_dat_62ab4, g_dat_62ab8, g_dat_62abc, g_dat_62ac0, g_dat_62ac4 };
+    int keys_ok = 1;
+    for (int i = 0; i < 10; i++) {
+        if (keys[i] == 0) keys_ok = 0;
+        else if ((uint8_t *)g_heap_base > keys[i] ||
+                 keys[i] >= (uint8_t *)g_heap_base + (1u << 20)) keys_ok = 0;
+    }
+    check(keys_ok, "  ten 0x4b4-byte key tables allocated inside the heap arena");
+    check(g_dat_62aa0 != g_dat_62aa4 && g_dat_62ab4 != g_dat_62ac4,
+          "  the key tables are distinct blocks");
+    int counts0 = 1;
+    for (int i = 0; i < 10; i++) if (keys[i] == 0 || *(const uint32_t *)keys[i] != 0) counts0 = 0;
+    check(counts0, "  every key table parsed with an entry count of 0");
+    check(g_dat_62a98 == g_dat_62aa0 && g_dat_62a9c == g_dat_62ab4,
+          "  aliases: DAT_62a98 = gun.key, DAT_62a9c = catch.key");
+    check(g_dat_53c28 && g_dat_53c2c && g_dat_53c30 && *(const uint32_t *)g_dat_53c28 == 0,
+          "  three .act containers loaded with 0 records");
+    check(g_dat_53818 == g_dat_53c28, "  alias: DAT_53818 = the active gun action table");
+    uint32_t *spr[11] = { g_dat_63e0c, g_dat_639c0, g_dat_639c4, g_dat_63e08, g_dat_53c8c,
+                          g_dat_63e00, g_dat_63e04, g_dat_639ec, g_dat_63d10, g_dat_63dd4,
+                          (uint32_t *)0 };
+    int spr_ok = 1;
+    for (int i = 0; i < 10; i++) if (spr[i] == 0 || spr[i][0] != 0) spr_ok = 0;
+    check(spr_ok, "  ten 0x3c-byte sprite structs loaded (pause/system/system2/over/face/gage/exp/gun/mark/dust)");
+    check(g_dat_53b3c && g_dat_53c00 && g_dat_53b3c[0] == 0 && g_dat_53c00[0] == 0,
+          "  mark.act and dust.act containers loaded with 0 records");
+
+    int voc_ok = 1;
+    for (int i = 0; i < 100; i++) {
+        if (g_dat_53d0c[i] == 0) voc_ok = 0;
+        else if (i && g_dat_53d0c[i] == g_dat_53d0c[i - 1]) voc_ok = 0;
+    }
+    check(voc_ok, "  100 sound slots allocated as distinct buffers (size 0x1a*2 each)");
+
+    int exp_ok = 1;
+    for (uint32_t i = 0; i < 30; i++) if (g_dat_53c94[i] != (i / 5 + 1) * 10 + (i % 5) + 1) exp_ok = 0;
+    check(exp_ok, "  exptab.dat: 6 rows x 5 values parsed into DAT_53c94");
+    check(g_dat_63358 == 0, "  tail: DAT_63358 cleared");
+
+    sys_file_image_set(0, 0);
+    g_639b8 = saved_rd; g_dat_633a0 = saved_n;
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_633b0 = saved_b0;
+    g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+    sys_ioctl_dx = saved_dx; sys_ioctl_cf = saved_cf; sys_open_ret = saved_open;
+    sys_file_lseek_pos = saved_lseek;
+    memcpy(g_tab_5d884, tab_save, sizeof g_tab_5d884); free(tab_save);
+    g_dat_62aa0 = gk[0]; g_dat_62aa4 = gk[1]; g_dat_62aa8 = gk[2]; g_dat_62aac = gk[3];
+    g_dat_62ab0 = gk[4]; g_dat_62ab4 = gk[5]; g_dat_62ab8 = gk[6]; g_dat_62abc = gk[7];
+    g_dat_62ac0 = gk[8]; g_dat_62ac4 = gk[9];
+    g_dat_62a98 = s_a98; g_dat_62a9c = s_a9c;
+    g_dat_53c28 = s_c28; g_dat_53c2c = s_c2c; g_dat_53c30 = s_c30; g_dat_53818 = s_818;
+    g_dat_63e08 = s_e08; g_dat_63e0c = s_e0c; g_dat_639c0 = s_c90; g_dat_639c4 = s_c94;
+    g_dat_53c8c = s_c8c; g_dat_63e00 = s_e00; g_dat_639ec = s_ec; g_dat_63d10 = s_d10;
+    g_dat_53b3c = s_b3c; g_dat_63dd4 = s_dd4; g_dat_53c00 = s_c00;
+    g_dat_63e04 = s_e04; g_dat_63358 = s_358;
+    memcpy(g_dat_53d0c, voc_save, sizeof g_dat_53d0c);
+    memcpy(g_dat_53c94, exp_save, sizeof exp_save);
+    free(img);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_0366a4(void) {
     printf("fn_0366a4 (0x0366a4): obfuscated resource-index loader -> g_tab_5d884\n");
     heap_arena_init();
@@ -9206,6 +9406,7 @@ int main(void) {
     test_fn_040fb3();
     test_fn_040d09();
     test_fn_03658d();
+    test_fn_03690b();
     test_fn_0366a4();
     test_fn_03d8d4_03d9cf();
     test_fn_010010();

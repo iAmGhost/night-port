@@ -90,6 +90,10 @@ extern int32_t sys_open_ret;    /* test knob: sys_file_open return (default 0=su
 extern int32_t sys_file_lseek_pos; /* test knob: position reported by a tell (whence==1); default 0 */
 extern int32_t sys_create_ret;  /* test knob: sys_file_create return (default 0=success, handle 0) */
 void sys_file_open_queue(const int32_t *vals, int n);  /* test: enqueue N open results, then fall back to sys_open_ret */
+/* Sequential stand-in resource stream: install an image whose bytes sys_file_read serves in order
+ * (NULL/0 restores the historical "0 bytes" stub). Seeks stay no-ops, matching the old backend, so
+ * the stream cursor only moves forward -- enough to drive the resource loaders byte-faithfully. */
+void sys_file_image_set(const uint8_t *img, uint32_t len);
 void sys_file_open_reset(void);                          /* test: clear the queued open results */
 
 #endif

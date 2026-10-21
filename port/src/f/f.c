@@ -1897,6 +1897,145 @@ void fn_0366a4(uint8_t *node)
     }
 }                                                               /* 0x367c0-cc */
 
+/* The master loader's destination globals (host pointers; NULL when the load failed). */
+uint8_t *g_dat_62aa0, *g_dat_62aa4, *g_dat_62aa8, *g_dat_62aac, *g_dat_62ab0;
+uint8_t *g_dat_62ab4, *g_dat_62ab8, *g_dat_62abc, *g_dat_62ac0, *g_dat_62ac4;
+uint8_t *g_dat_62a98, *g_dat_62a9c;
+uint32_t *g_dat_53c28, *g_dat_53c2c, *g_dat_53c30, *g_dat_53818;
+uint32_t *g_dat_63e08, *g_dat_63e0c;
+
+/* DAT_000525a8: the 100 sound-slot name pointers. The image table is exactly the strings
+ * "1.voc" .. "100.voc" (verified by dumping 0x0525a8), so the port expands it as literals. */
+static const char *const kVocNames[100] = {
+    "1.voc", "2.voc", "3.voc", "4.voc", "5.voc",
+    "6.voc", "7.voc", "8.voc", "9.voc", "10.voc",
+    "11.voc", "12.voc", "13.voc", "14.voc", "15.voc",
+    "16.voc", "17.voc", "18.voc", "19.voc", "20.voc",
+    "21.voc", "22.voc", "23.voc", "24.voc", "25.voc",
+    "26.voc", "27.voc", "28.voc", "29.voc", "30.voc",
+    "31.voc", "32.voc", "33.voc", "34.voc", "35.voc",
+    "36.voc", "37.voc", "38.voc", "39.voc", "40.voc",
+    "41.voc", "42.voc", "43.voc", "44.voc", "45.voc",
+    "46.voc", "47.voc", "48.voc", "49.voc", "50.voc",
+    "51.voc", "52.voc", "53.voc", "54.voc", "55.voc",
+    "56.voc", "57.voc", "58.voc", "59.voc", "60.voc",
+    "61.voc", "62.voc", "63.voc", "64.voc", "65.voc",
+    "66.voc", "67.voc", "68.voc", "69.voc", "70.voc",
+    "71.voc", "72.voc", "73.voc", "74.voc", "75.voc",
+    "76.voc", "77.voc", "78.voc", "79.voc", "80.voc",
+    "81.voc", "82.voc", "83.voc", "84.voc", "85.voc",
+    "86.voc", "87.voc", "88.voc", "89.voc", "90.voc",
+    "91.voc", "92.voc", "93.voc", "94.voc", "95.voc",
+    "96.voc", "97.voc", "98.voc", "99.voc", "100.voc"
+};
+
+/* DAT_00053d0c: sound effect buffers (host pointers into the heap arena; NULL when the allocation
+ * failed, exactly as the original stores the raw heap address or 0). */
+uint8_t *g_dat_53d0c[100];
+/* DAT_00053c94: the 6 x 5 experience table parsed out of exptab.dat (row stride 0x14 bytes). */
+uint32_t g_dat_53c94[30];
+
+/* The loader body repeats one guard pattern ~24 times (allocate a STRUCT-sized block, load it, and
+ * store NULL when the allocation failed). The three helpers below are that triplicated pattern; the
+ * block sizes are the struct sizes, not data sizes: 0x4b4 for the fn_032464 key tables, 8 for the
+ * fn_010010 action containers and 0x3c for the fn_03d8d4 sprite structs. */
+static uint8_t *key_block(const char *name)
+{
+    uint32_t p = heap_malloc(0x4b4);                   /* 0x041bdc wrapper (size 0 -> 1) */
+    if (p == 0) return 0;
+    return fn_032464((uint8_t *)g_heap_base + p, name);
+}
+static uint32_t *act_block(const char *name)
+{
+    uint32_t p = heap_malloc(8);
+    if (p == 0) return 0;
+    fn_010010((uint8_t *)g_heap_base + p, name);
+    return (uint32_t *)((uint8_t *)g_heap_base + p);
+}
+static uint32_t *spr_block(const char *name)
+{
+    uint32_t p = heap_malloc(0x3c);
+    if (p == 0) return 0;
+    return fn_03d8d4((uint32_t *)((uint8_t *)g_heap_base + p), name);
+}
+
+/* fn_03690b  orig: 0x03690b (L13, 2555 B) -- THE master data loader: opens NIGHT.RES and turns it
+ * into the game's runtime tables. Fully linear; every load is guarded by its allocation.
+ * See docs/12-functions/03690b-master-data-loader.md for the field-level walkthrough.
+ * The sprite/action name arguments of the last group come from pointer cells in the image
+ * (0x51d88 "gun.spr", 0x520ac "mark.spr", 0x524bc "mark.act", 0x52170 "dust.spr",
+ * 0x52580 "dust.act"); the port passes the literals. */
+uint32_t fn_03690b(void)
+{
+    (void)canary_id(0, 0x1c8);                                        /* 0x3690b-910 */
+
+    g_639b8 = fn_04270d((const uint8_t *)"night.res", "rb");           /* 0x36915-.. */
+    if (g_639b8 == 0) {
+        /* The original does NOT return here; it falls through into fn_0366a4 with a NULL reader. */
+        fn_036537((uint8_t *)"NIGHT.RES File Not Found!!!\n");         /* 0x36941 */
+    }
+    fn_0366a4((uint8_t *)g_639b8);                                    /* the file index */
+
+    /* key-binding tables (0x032464 blocks) */
+    g_dat_62aa0 = key_block("gun.key");
+    g_dat_62aa4 = key_block("gun1.key");
+    g_dat_62aa8 = key_block("gun2.key");
+    g_dat_62aac = key_block("gun3.key");
+    g_dat_62ab0 = key_block("gun4.key");
+    g_dat_62ab4 = key_block("catch.key");
+    g_dat_62ab8 = key_block("catch1.key");
+    g_dat_62abc = key_block("catch2.key");
+    g_dat_62ac0 = key_block("catch3.key");
+    g_dat_62ac4 = key_block("catch4.key");
+
+    /* action containers (0x010010 blocks) */
+    g_dat_53c28 = act_block("gun.act");
+    g_dat_53c2c = act_block("gun1.act");
+    g_dat_53c30 = act_block("gun2.act");
+
+    /* the "currently selected" indirections */
+    g_dat_62a98 = g_dat_62aa0;
+    g_dat_62a9c = g_dat_62ab4;
+
+    g_dat_63e0c = spr_block("pause.spr");
+
+    /* the 100 sound slots: size from the index table, buffer of size*2, then the payload */
+    for (uint32_t i = 0; i < 100; i = i + 1) {
+        int32_t size = fn_036626(kVocNames[i]);
+        uint32_t off = heap_malloc((uint32_t)size * 2u);
+        g_dat_53d0c[i] = (off == 0) ? 0 : (uint8_t *)g_heap_base + off;
+        fn_0417f3(kVocNames[i], g_dat_53d0c[i]);                       /* skips the 0x1a header */
+    }
+
+    /* HUD / sprite tables (0x03d8d4 structs) and their action containers */
+    g_dat_639c0 = spr_block("system.spr");
+    g_dat_639c4 = (struct blit_ctl *)spr_block("system2.spr");
+    g_dat_63e08 = spr_block("over.spr");
+    g_dat_53c8c = spr_block("face.spr");
+    g_dat_63e00 = spr_block("gage.spr");
+    g_dat_63e04 = (uint8_t *)spr_block("exp.spr");
+    g_dat_639ec = spr_block("gun.spr");
+    g_dat_53818 = g_dat_53c28;                                        /* active action table */
+    g_dat_63d10 = spr_block("mark.spr");
+    g_dat_53b3c = act_block("mark.act");
+    g_dat_63dd4 = spr_block("dust.spr");
+    g_dat_53c00 = act_block("dust.act");
+
+    /* exptab.dat: 6 rows of 5 numbers, then the row's newline */
+    fn_0367c9("exptab.dat");
+    for (uint32_t i = 0; i < 6; i = i + 1) {
+        for (uint32_t j = 0; j < 5; j = j + 1) {
+            uintptr_t slot = (uintptr_t)&g_dat_53c94[i * 5u + j];
+            fn_042023((uint8_t *)g_639b8, "%d ", &slot);
+        }
+        uintptr_t unused = 0;                                         /* no slot for the literal */
+        fn_042023((uint8_t *)g_639b8, "\n", &unused);
+    }
+
+    g_dat_63358 = 0;                                                  /* 0x36..: DAT_00063358 = 0 */
+    return 1;
+}
+
 /* 0x036626: case-insensitive lookup of s in the 0x5d884 table (bound g_dat_633a0),
  * returning the matched entry's int32 value (offset 13) or 0. s=EAX. The match
  * compares str_len(s) bytes via str_icmp (0x423e5); a shorter query that is a
@@ -5088,7 +5227,12 @@ const char *fn_049b84(const char *s, uint32_t *out) {
 }
 
 uint32_t g_dat_536dc = 0;                 /* DAT_000536dc: node index bound */
-uint32_t *g_dat_53730 = NULL;            /* DAT_00053730: node table */
+/* DAT_00053730 is a data-segment table in the original (it sits in the BSS block right after
+ * DAT_000536dc), not a heap allocation, so the port backs it with a static array by default.
+ * Tests may still point it at their own table; the earlier NULL default made fn_044bec and
+ * fn_0492d0 fault for callers that never touched the table. */
+static uint32_t s_dev53730[256];
+uint32_t *g_dat_53730 = s_dev53730;      /* DAT_00053730: node/device table (4B each; byte1=flags) */
 uint32_t g_dat_53780 = 0;                /* DAT_00053780: TZ range diff */
 uint32_t g_dat_53784 = 0;                /* DAT_00053784: TZ has-second-part flag */
 uint32_t g_dat_53788 = 0;                /* DAT_00053788: TZ time prefix buf (4B) */
@@ -8382,7 +8526,8 @@ char *itoa32s_tbl(int32_t value, char *buf, uint32_t base) {
     itoa32_tbl(u, buf, base);
     return p;
 }
-uint32_t *g_arr_53730 = NULL;                /* DAT_00053730 */
+/* DAT_00053730 is the single table behind g_dat_53730 (read by fn_0492d0); store_arr53730 below
+ * writes it through the g_arr_53730 macro alias (f.h). */
 void store_arr53730(uint32_t index, uint32_t value)   /* 0x49325 */
 {
     g_arr_53730[index] = value | 0x40000;    /* OR DH,0x40 sets bit22 */

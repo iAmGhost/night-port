@@ -898,6 +898,12 @@ extern uint32_t g_dat_63fac;   /* DAT_00063fac: 24-bit DMA address byte-sent to 
 extern uint32_t g_dat_63f8c;   /* DAT_00063f8c: transfer-armed flag (0xffff) */
 void fn_04097e(uint8_t *hdr, uint32_t total);  /* 0x04097e: arm+start a device transfer: hdr[0]->fn_040948, hdr[1] selects g_dat_63f9c, then the DMA chunk body */
 void fn_040b83(uint8_t *src, uint32_t unused_edx);  /* 0x040b83: one DMA chunk: fill 0x80 + mem_copy + DMA port burst + 3x fn_041340 */
+uint32_t fn_040fb3(void);               /* 0x040fb3: save+hook INT 0x0a/0x0b/0x0d/0x0f/0x72, remask PIC 0x21/0xa1, probe cmd 0xf2, wait, restore; returns DAT_00063f84 */
+extern uint32_t g_dat_63f5c; extern uint16_t g_dat_63f60;   /* 0x040fb3: saved INT 0x0a offset/segment */
+extern uint32_t g_dat_63f64; extern uint16_t g_dat_63f68;   /* 0x040fb3: saved INT 0x0b offset/segment */
+extern uint32_t g_dat_63f6c; extern uint16_t g_dat_63f70;   /* 0x040fb3: saved INT 0x0d offset/segment */
+extern uint32_t g_dat_63f74; extern uint16_t g_dat_63f78;   /* 0x040fb3: saved INT 0x0f offset/segment */
+extern uint32_t g_dat_63f7c; extern uint16_t g_dat_63f80;   /* 0x040fb3: saved INT 0x72 offset/segment */
 int32_t  fn_0350aa(const uint8_t *a, const uint8_t *b);           /* 0x0350aa: 4-byte prefix equal? 1/-1 */
 uint64_t fn_0408c5(const uint8_t *p);       /* 0x0408c5: little-endian 24-bit (3-byte) read */
 void fn_03cad3(const uint8_t *p);           /* 0x03cad3: struct -> g_dat_639dc/e0/e4 */

@@ -6011,6 +6011,65 @@ uint8_t  *g_dat_63fa8;      /* DAT_00063fa8: DMA source cursor */
 uint8_t  *g_dat_63fb4;      /* DAT_00063fb4: device buffer (0x10000-byte window) */
 uint32_t  g_dat_63fac;      /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
 
+/* fn_040fb3  orig: 0x040fb3 (L12, 550 B) -- device interrupt-hook install + presence probe.
+ * No args (canary PUSH 0x2c). Saves and replaces FIVE interrupt vectors with the device's own
+ * handlers, re-masks the two 8259s, submits device command 0xf2, then waits (countdown from
+ * 0x7fff) for the handler to answer, and finally restores the original vectors in reverse
+ * order, returning DAT_00063f84.
+ *   vector -> handler:  0x0a->0x41439  0x0b->0x41486  0x0d->0x414d3  0x0f->0x41520  0x72->0x4156d
+ *   (only 0x41439 is a Ghidra function / ported fn_041439; the others are labels inside that
+ *   same code block, so -- like the port already does for 0x3ee88 / 0x3fd40 -- they are
+ *   referenced by offset, and CS is the flat selector 0x1f from `mov eax, cs`.)
+ *   Old vectors are saved as (offset dword, segment word) pairs at 63f5c/60, 63f64/68,
+ *   63f6c/70, 63f74/78, 63f7c/80.
+ *   PIC masks: inb(0x21) & 0x53 and inb(0xa1) & 0xfb are written back (0x53 unmasked keeps
+ *   IRQ 2/4/6 (master) and 0xfb keeps everything but IRQ 5 (slave) -- i.e. it un-masks the
+ *   device's line and leaves the rest as found).  fn_041340(0xf2) is the probe command; the
+ *   handler fn_041439 answers by setting DAT_00063f84 = 2, which ends the countdown. In the
+ *   flat model nothing answers, so the countdown simply expires and 0 is returned unless the
+ *   caller (or a test) pre-set DAT_00063f84.
+ * Interrupt ABI read off the disassembly: isr_get(EAX=vec) -> EAX=offset, EDX=segment;
+ * isr_set(EAX=vec, EBX=offset, ECX=segment). */
+uint16_t g_dat_63f60;     /* DAT_00063f60: saved INT 0x0a segment */
+uint32_t g_dat_63f5c;     /* DAT_00063f5c: saved INT 0x0a offset */
+uint16_t g_dat_63f68;     /* DAT_00063f68: saved INT 0x0b segment */
+uint32_t g_dat_63f64;     /* DAT_00063f64: saved INT 0x0b offset */
+uint16_t g_dat_63f70;     /* DAT_00063f70: saved INT 0x0d segment */
+uint32_t g_dat_63f6c;     /* DAT_00063f6c: saved INT 0x0d offset */
+uint16_t g_dat_63f78;     /* DAT_00063f78: saved INT 0x0f segment */
+uint32_t g_dat_63f74;     /* DAT_00063f74: saved INT 0x0f offset */
+uint16_t g_dat_63f80;     /* DAT_00063f80: saved INT 0x72 segment */
+uint32_t g_dat_63f7c;     /* DAT_00063f7c: saved INT 0x72 offset */
+uint32_t fn_040fb3(void) {
+    (void)canary_id(0, 0x2c);                                          /* 0x40fb8 */
+    int32_t countdown = 0x7fff;                                        /* [ebp-4] */
+    uint64_t v;
+    v = isr_get(0x0a); g_dat_63f5c = (uint32_t)v; g_dat_63f60 = (uint16_t)(v >> 32);
+    isr_set(0x0a, 0x41439, 0x1f);                                      /* 0x41003 */
+    v = isr_get(0x0b); g_dat_63f64 = (uint32_t)v; g_dat_63f68 = (uint16_t)(v >> 32);
+    isr_set(0x0b, 0x41486, 0x1f);                                      /* 0x41039 */
+    v = isr_get(0x0d); g_dat_63f6c = (uint32_t)v; g_dat_63f70 = (uint16_t)(v >> 32);
+    isr_set(0x0d, 0x414d3, 0x1f);                                      /* 0x4106f */
+    v = isr_get(0x0f); g_dat_63f74 = (uint32_t)v; g_dat_63f78 = (uint16_t)(v >> 32);
+    isr_set(0x0f, 0x41520, 0x1f);                                      /* 0x410a5 */
+    v = isr_get(0x72); g_dat_63f7c = (uint32_t)v; g_dat_63f80 = (uint16_t)(v >> 32);
+    isr_set(0x72, 0x4156d, 0x1f);                                      /* 0x410db */
+    uint32_t m21 = inb(0x21), ma1 = inb(0xa1);                         /* 0x410e5 / 0x410f2 */
+    outb(0x21, (uint8_t)(m21 & 0x53));                                 /* 0x41105 */
+    outb(0xa1, (uint8_t)(ma1 & 0xfb));                                 /* 0x41118 */
+    fn_041340(0xf2);                                                   /* 0x41122 */
+    do {                                                               /* 0x41127-137 */
+        countdown--;
+        if (countdown == -1) break;
+    } while (g_dat_63f84 == 0);
+    isr_set(0x72, g_dat_63f7c, g_dat_63f80);                           /* 0x41150 */
+    isr_set(0x0f, g_dat_63f74, g_dat_63f78);                           /* 0x4116c */
+    isr_set(0x0d, g_dat_63f6c, g_dat_63f70);                           /* 0x41188 */
+    isr_set(0x0b, g_dat_63f64, g_dat_63f68);                           /* 0x411a4 */
+    isr_set(0x0a, g_dat_63f5c, g_dat_63f60);                           /* 0x411c0 */
+    return g_dat_63f84;                                                /* 0x411c5 */
+}
+
 /* fn_04097e  orig: 0x04097e (L13, 500 B) -- ARM a device transfer and run its first chunk.
  * reg-ABI: EAX = header buffer, EDX = total length. byte0 of the header is handed to
  * fn_040948 (a two-command device handshake: 0x40 then byte0); byte1 selects the transfer

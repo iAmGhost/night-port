@@ -8100,6 +8100,30 @@ static void test_fn_03ace9(void) {
     free(cb); free(obj4); free(obj8); free(obj34); free(rle);
 }
 
+static void test_fn_040fb3(void) {
+    printf("fn_040fb3 (0x040fb3): device IRQ-hook install + presence probe\n");
+    uint32_t s34 = g_dat_53334, sf84 = g_dat_63f84;
+    uint8_t p21 = sys_inb(0x21), pa1 = sys_inb(0xa1), p0c = sys_inb(0x30c);
+    g_dat_53334 = 0x300;                             /* device cmd/status port = 0x30c */
+    sys_port_set(0x21, 0xff); sys_port_set(0xa1, 0xff); sys_port_set(0x30c, 0);
+    g_dat_63f5c = 1; g_dat_63f60 = 1; g_dat_63f64 = 1; g_dat_63f68 = 1; g_dat_63f6c = 1;
+    g_dat_63f70 = 1; g_dat_63f74 = 1; g_dat_63f78 = 1; g_dat_63f7c = 1; g_dat_63f80 = 1;
+    g_dat_63f84 = 3;                                 /* "handler already answered" */
+    uint32_t r = fn_040fb3();
+    check(r == 3, "  returns DAT_00063f84 (answer posted -> countdown not needed)");
+    check(sys_inb(0x30c) == 0xf2, "  probe command 0xf2 written to the device port");
+    check(sys_inb(0x21) == 0x53, "  master PIC: outb(0x21, inb(0x21) & 0x53)");
+    check(sys_inb(0xa1) == 0xfb, "  slave PIC: outb(0xa1, inb(0xa1) & 0xfb)");
+    check((g_dat_63f5c | g_dat_63f60 | g_dat_63f64 | g_dat_63f68 | g_dat_63f6c |
+           g_dat_63f70 | g_dat_63f74 | g_dat_63f78 | g_dat_63f7c | g_dat_63f80) == 0,
+          "  all five old-vector (offset,segment) pairs were saved before being hooked");
+    g_dat_63f84 = 0;
+    r = fn_040fb3();
+    check(r == 0, "  no answer: the 0x7fff countdown expires and the probe reports 0");
+    g_dat_53334 = s34; g_dat_63f84 = sf84;
+    sys_port_set(0x21, p21); sys_port_set(0xa1, pa1); sys_port_set(0x30c, p0c);
+}
+
 static void test_fn_036417(void) {
     printf("fn_036417 (0x036417): screen RLE loader into caller buffer, 0x4b000 bound, dl->board_out\n");
     heap_arena_init();
@@ -8599,6 +8623,7 @@ int main(void) {
     test_fn_04097e();
     test_fn_03f885();
     test_fn_03ace9();
+    test_fn_040fb3();
     test_fn_010181();
     test_fn_03fc1d();
     test_fn_03e0a0();

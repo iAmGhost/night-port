@@ -7370,6 +7370,40 @@ static void test_fn_036041(void) {
     check(g_video_ram[10] == 0x55 && g_video_ram[63990] == 0x55, "  FILL10: video[10]=video[63990]=0x55");
 }
 
+static void test_fn_036190(void) {
+    printf("fn_036190 (0x036190): screen RLE loader into caller buffer (no board_out)\n");
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;   /* empty table -> fn_0367c9/fn_036853 no-op, g_639b8 unchanged */
+    /* RLE: [768 table (0xF0)] + [FILL4 0xAB][FILL3 0x5A][lit 0x10][lit 0x20][lit 0x30] + [6399 FILL10 0x77] -> 64000 */
+    const uint32_t rlen = 2 + 2 + 1 + 1 + 1 + 6399 * 2;   /* 12805 */
+    const uint32_t data_len = 0x300 + rlen;               /* 13573 */
+    uint32_t data_off = heap_arena_alloc(data_len + 4);
+    uint8_t *data = hb + data_off;
+    for (uint32_t i = 0; i < 0x300; i++) data[i] = 0xF0;
+    uint32_t p = 0x300;
+    data[p++] = 0xC4; data[p++] = 0xAB;   /* FILL 4 x 0xAB (0xC0|4) */
+    data[p++] = 0xC3; data[p++] = 0x5A;   /* FILL 3 x 0x5A (0xC0|3) */
+    data[p++] = 0x10;                     /* literal */
+    data[p++] = 0x20;                     /* literal */
+    data[p++] = 0x30;                     /* literal */
+    for (uint32_t k = 0; k < 6399; k++) { data[p++] = 0xCA; data[p++] = 0x77; }  /* FILL 10 x 0x77 */
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = data_len; *(uint32_t *)(node + 8) = data_off;
+    node[0xc] = 0x41;
+    g_639b8 = (res_reader *)node;
+    uint32_t dest_off = heap_arena_alloc(0xfa00 + 4);   /* 64000-byte dest (heap, large) */
+    uint8_t *dest = hb + dest_off;
+    memset(dest, 0, 0xfa00);
+    fn_036190("NORES", dest);
+    check(g_dat_633b8[0] == 0x3C, "  table[0]=0xF0>>2=0x3C");
+    check(dest[0] == 0xAB && dest[3] == 0xAB, "  FILL4: dest[0..3]=0xAB");
+    check(dest[4] == 0x5A && dest[6] == 0x5A, "  FILL3: dest[4..6]=0x5A");
+    check(dest[7] == 0x10 && dest[8] == 0x20 && dest[9] == 0x30, "  literal: dest[7..9]=0x10,0x20,0x30");
+    check(dest[10] == 0x77 && dest[63990] == 0x77, "  FILL10: dest[10]=dest[63990]=0x77");
+}
+
 static void test_fn_03e0a0(void) {
     printf("fn_03e0a0 (0x03e0a0): build + append doubly-linked list node (offset model)\n");
     heap_arena_init();
@@ -7795,6 +7829,7 @@ int main(void) {
     test_fn_03fa3b();
     test_fn_035f1b();
     test_fn_036041();
+    test_fn_036190();
     test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();

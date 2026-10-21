@@ -4198,6 +4198,30 @@ void fn_036041(const char *name, uint32_t dl) {
     if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);          /* 0x36167-180 */
 }
 
+/* 0x036190 (L11, ~75 insns / 254 B): screen RLE loader into a CALLER BUFFER. Same shape as
+ * fn_035f1b but: no board_out (no dl arg); writes to a caller-provided 64000-byte dest base
+ * (2nd arg EDX, a host buffer -- NOT 0xa0000 video); table -> g_dat_633b8 (>>2). RLE: FILL
+ * (byte&0xc0==0xc0: count=byte&0x3f, value, write value count times) + literal; no 0xff-skip. */
+void fn_036190(const char *name, uint8_t *dest) {
+    (void)canary_id((uintptr_t)name, 0x2c);                        /* 0x36190-95 */
+    fn_0367c9(name);                                               /* 0x361b7 */
+    fn_036853(name, 0xfffffd00, 2);                                /* 0x361c9 */
+    fn_04192e(g_dat_633b8, 3, 0x100, (uint8_t *)g_639b8);          /* 0x361e3: 768 B table */
+    for (uint32_t i = 0; i < 0x300; i++) g_dat_633b8[i] >>= 2;      /* 0x361f1-203 */
+    fn_036853(name, 0x80, 0);                                      /* 0x36216 */
+    uint32_t pos = 0;                                              /* 0x3621b */
+    while (pos < 0xfa00) {
+        uint32_t byte = fn_041c8f((uint8_t *)g_639b8);             /* 0x36229 */
+        if ((byte & 0xc0) == 0xc0) {                               /* 0x36239-43: FILL */
+            uint32_t count = byte & 0x3f;                          /* 0x36248 */
+            uint32_t value = fn_041c8f((uint8_t *)g_639b8);        /* 0x36253 */
+            for (uint32_t c = count; c; c--) dest[pos++] = (uint8_t)value;  /* 0x3625b-70 */
+        } else {                                                   /* 0x36276: literal */
+            dest[pos++] = (uint8_t)byte;
+        }
+    }
+}
+
 /* 0x03fb0e (L10): load a screen image from an I/O node into the screen (g_dat_51a0c).
  * ABI (disasm-verified): EAX=node (host ptr, passed straight to fn_04192e), EDX=count (bytes).
  * canary_id(node, 0x20) preserves EAX/EDX. buf_off=heap_malloc(count); g_dat_63e7c=buf_off;
@@ -4857,6 +4881,7 @@ uint8_t *g_dat_51a0c = g_video_ram;
 uint32_t g_dat_63e7c;
 uint32_t g_dat_63e78;
 uint8_t g_dat_636b8[0x300];   /* 0x636b8: 768 B font/glyph table loaded+>>2 by fn_035f1b */
+uint8_t g_dat_633b8[0x300];   /* 0x633b8: 768 B font/glyph table loaded+>>2 by fn_036190 */
 
 /* 0x03c65b (L10, 143 B): video flatten. EAX = a0 (packed-records dest buffer).
  * For each of the 200 interval lists (i = 0..0xc7) seeded at fn_034990, walk the

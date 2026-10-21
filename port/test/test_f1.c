@@ -7280,6 +7280,29 @@ static void test_fn_03fb73(void) {
     }
 }
 
+static void test_fn_03fb0e(void) {
+    printf("fn_03fb0e (0x03fb0e): load 64000 B screen image from I/O node into g_dat_51a0c\n");
+    heap_arena_init();
+    (void)heap_malloc(0x10000);   /* pre-seed free-list (fresh heap_malloc has a 4-byte shortfall) */
+    uint32_t data_off = heap_arena_alloc(0xfa00);
+    uint8_t *data = (uint8_t *)g_heap_base + data_off;
+    for (uint32_t i = 0; i < 0xfa00; i++) data[i] = (uint8_t)(i * 7 + 3);
+    static uint8_t screen[0xfa00];
+    memset(screen, 0, sizeof(screen));
+    g_dat_51a0c = screen;
+    uint8_t node[0x20]; memset(node, 0, sizeof(node));   /* fn_04192e node */
+    *(uint32_t *)(node + 0x0) = data_off;                 /* cursor (heap off) */
+    *(uint32_t *)(node + 0x4) = 0xfa00;                   /* remaining */
+    *(uint32_t *)(node + 0x8) = data_off;                 /* buffer (heap off) */
+    node[0xc] = 0x41;                                     /* bulk + open */
+    g_dat_63e7c = 0;
+    fn_03fb0e(node, 0xfa00);
+    check(g_dat_63e7c != 0, "  g_dat_63e7c got a buffer offset");
+    check(screen[0] == data[0] && screen[1] == data[1], "  first 2 bytes match source");
+    check(screen[0x5000] == data[0x5000], "  mid byte matches source");
+    check(screen[0xfa00 - 1] == data[0xfa00 - 1], "  last byte matches source");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7625,6 +7648,7 @@ int main(void) {
     test_fn_034e3c();
     test_fn_04192e();
     test_fn_03fb73();
+    test_fn_03fb0e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

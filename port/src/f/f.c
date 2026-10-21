@@ -4067,6 +4067,23 @@ void fn_03fb73(uint8_t *node, uint32_t size) {
     heap_free_host(g_dat_63e7c);                                   /* 0x3fc0b-10 */
 }
 
+/* 0x03fb0e (L10): load a screen image from an I/O node into the screen (g_dat_51a0c).
+ * ABI (disasm-verified): EAX=node (host ptr, passed straight to fn_04192e), EDX=count (bytes).
+ * canary_id(node, 0x20) preserves EAX/EDX. buf_off=heap_malloc(count); g_dat_63e7c=buf_off;
+ * fn_04192e(g_heap_base+buf_off, count, 1, node) reads `count` bytes from the node into buf;
+ * then CLD; MOV ECX,0x3e80; REP MOVSD copies 0x3e80 dwords (64000 B) from buf to g_dat_51a0c;
+ * heap_free_host(buf_off). */
+void fn_03fb0e(uint8_t *node, uint32_t count) {
+    (void)canary_id((uintptr_t)node, 0x20);
+    uint32_t buf_off = heap_malloc(count);                          /* 0x3fb3d CALL 0x41af8 */
+    g_dat_63e7c = buf_off;                                          /* 0x3fb42 MOV [0x63e7c],EAX */
+    fn_04192e((uint8_t *)(g_heap_base + buf_off), count, 1, node);  /* 0x3fb54 CALL 0x4192e */
+    uint32_t *si = (uint32_t *)(g_heap_base + buf_off);             /* 0x3fb5e ESI=[0x63e7c] */
+    uint32_t *di = (uint32_t *)g_dat_51a0c;                         /* 0x3fb62 EDI=[0x51a0c] */
+    for (uint32_t i = 0; i < 0x3e80; i++) di[i] = si[i];            /* 0x3fb6c REP MOVSD (16000 dw) */
+    heap_free_host(buf_off);                                        /* 0x3fb71 CALL 0x41c31 */
+}
+
 uint32_t fn_043234(uint32_t mask) {
     uint8_t *base = g_ndpool;
     uint32_t cur = g_node_list_active;            /* 0x43239 EDX=[0x63ffc] */

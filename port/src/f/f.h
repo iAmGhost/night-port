@@ -712,6 +712,7 @@ int32_t fn_041d18(uint8_t *node, uint32_t param_2); /* 0x041d18: pull one byte f
 int32_t fn_041d47(uint8_t *node, uint32_t param_2); /* 0x041d47: I/O fill step (key-echo or device read into node buffer) */
 uint32_t fn_04192e(uint8_t *dest, uint32_t count, uint32_t mult, uint8_t *node); /* 0x04192e: stream read node->dest (byte/bulk); \r\n + 0x1a handling; returns total_read/count */
 void fn_03fb73(uint8_t *node, uint32_t size); /* 0x03fb73: RLE screen-block expander into video (g_dat_51a0c); fills buf via fn_04192e */
+void fn_03fb0e(uint8_t *node, uint32_t count); /* 0x03fb0e: load 64000 B screen image from I/O node into g_dat_51a0c via heap buf + fn_04192e */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),
  * '0' -> out+0x16 = '0'. Stops at the first other character.  orig: 0x044fd7 */

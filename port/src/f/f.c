@@ -6011,6 +6011,56 @@ uint8_t  *g_dat_63fa8;      /* DAT_00063fa8: DMA source cursor */
 uint8_t  *g_dat_63fb4;      /* DAT_00063fb4: device buffer (0x10000-byte window) */
 uint32_t  g_dat_63fac;      /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
 
+/* fn_040d09  orig: 0x040d09 (388 B) -- device bring-up chain: locate the controller, probe it,
+ * read its id, allocate the transfer buffer, hook its interrupt vector and mark it ready.
+ * No args (canary PUSH 0x30). Strict short-circuit chain, each failure returning 0:
+ *   DAT_53334 = fn_040f4f()            port-base scan; 0x210 means "not our device" -> 0
+ *   DAT_63f84 = fn_040fb3()            IRQ-hook presence probe; 0 -> return 0
+ *   DAT_63f88 = fn_0411d9()            device id (2 bytes combined); 0 -> return 0
+ *   DAT_63fb4 = fn_040788(&DAT_63fb0, 0xffff)   64 KB transfer buffer; 0 -> return 0
+ * Then the ISA DMA address fixup: DAT_63fac = DAT_63fb4, and if the DMA address' bits 16-23
+ * are zero (i.e. the buffer sits below 64K, which would wrap the 24-bit DMA counter), it
+ * re-bases by the DS linear base ((uint16)DS << 4 -- 0 in the flat model) plus
+ * delta = 0x10000 - (addr & 0xffff), adding the same amount to DAT_63fb4 so the buffer
+ * pointer follows the DMA address. Finally: irq vector = (DAT_63f84 == 10) ? 0x72 :
+ * DAT_63f84 + 8, its old vector saved to 63f54/63f58, the device handler 0x415c9 installed
+ * (a label inside the 0x41439 handler block, so passed by offset like the other four),
+ * fn_0413e7() (device command 0xd1), DAT_63f90 = 1 (device initialised), return 1.
+ * Port note: fn_00040788 is the documented DPMI-alloc stub returning 0, so on this host the
+ * chain stops at the allocation and the fixup arithmetic is never reached; it is kept 1:1. */
+uint32_t g_dat_63f88;     /* DAT_00063f88: device id (fn_0411d9, (hi<<8)|lo) */
+uint32_t g_dat_63f90;     /* DAT_00063f90: device initialised flag */
+uint32_t g_dat_63f54;     /* DAT_00063f54: saved device-ISR offset (0x040d09) */
+uint16_t g_dat_63f58;     /* DAT_00063f58: saved device-ISR segment (0x040d09) */
+uint32_t fn_040d09(void) {
+    (void)canary_id(0, 0x30);                                          /* 0x40d0e */
+    g_dat_53334 = fn_040f4f();                                         /* 0x40d21-26 */
+    if (g_dat_53334 == 0x210) return 0;                                /* 0x40d2b */
+    g_dat_63f84 = fn_040fb3();                                         /* 0x40d43-48 */
+    if (g_dat_63f84 == 0) return 0;
+    g_dat_63f88 = fn_0411d9();                                         /* 0x40d62-67 */
+    if (g_dat_63f88 == 0) return 0;
+    g_dat_63fb4 = (uint8_t *)(uintptr_t)fn_00040788();                 /* 0x40d8b-90 */
+    if (g_dat_63fb4 == 0) return 0;
+    g_dat_63fac = (uint32_t)(uintptr_t)g_dat_63fb4;                    /* 0x40db4 */
+    if (((g_dat_63fac >> 16) & 0xff) == 0) {                           /* 0x40db4 test byte */
+        uint16_t segs[6]; sys_get_segments(segs);                      /* ES,CS,SS,DS,FS,GS */
+        uint32_t ds_lin = (uint32_t)(uint16_t)segs[3] << 4;            /* mov ax,ds; shl 4 */
+        g_dat_63fac = (uint32_t)(uintptr_t)g_dat_63fb4 + ds_lin;
+        uint32_t delta = 0x10000u - (g_dat_63fac & 0xffffu);
+        g_dat_63fac += delta;
+        g_dat_63fb4 = (uint8_t *)(uintptr_t)((uint32_t)(uintptr_t)g_dat_63fb4 + ds_lin);
+        g_dat_63fb4 = (uint8_t *)(uintptr_t)((uint32_t)(uintptr_t)g_dat_63fb4 + delta);
+    }
+    uint32_t vec = (g_dat_63f84 == 10) ? 0x72u : g_dat_63f84 + 8;      /* 0x40e1c-36 */
+    uint64_t v = isr_get((uint8_t)vec);
+    g_dat_63f54 = (uint32_t)v; g_dat_63f58 = (uint16_t)(v >> 32);      /* 0x40e45-4c */
+    isr_set((uint8_t)vec, 0x415c9, 0x1f);                              /* 0x40e66 */
+    fn_0413e7();                                                       /* 0x40e6b */
+    g_dat_63f90 = 1;                                                   /* 0x40e70 */
+    return 1;                                                          /* 0x40e7a */
+}
+
 /* fn_040fb3  orig: 0x040fb3 (L12, 550 B) -- device interrupt-hook install + presence probe.
  * No args (canary PUSH 0x2c). Saves and replaces FIVE interrupt vectors with the device's own
  * handlers, re-masks the two 8259s, submits device command 0xf2, then waits (countdown from

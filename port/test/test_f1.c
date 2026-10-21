@@ -8124,6 +8124,51 @@ static void test_fn_040fb3(void) {
     sys_port_set(0x21, p21); sys_port_set(0xa1, pa1); sys_port_set(0x30c, p0c);
 }
 
+static void test_fn_040d09(void) {
+    printf("fn_040d09 (0x040d09): device bring-up chain (base scan -> probe -> id -> buffer -> ISR hook)\n");
+    /* save everything the chain touches */
+    uint32_t s34 = g_dat_53334, sf84 = g_dat_63f84, sf88 = g_dat_63f88, sf90 = g_dat_63f90;
+    const uint16_t ports[] = { 0x20a, 0x20c, 0x20e, 0x21a, 0x21c, 0x21e,
+                               0x30a, 0x30c, 0x30e, 0x21, 0xa1 };
+    uint8_t saved[sizeof ports / sizeof ports[0]];
+    for (unsigned i = 0; i < sizeof ports / sizeof ports[0]; i++) saved[i] = sys_inb(ports[i]);
+    for (unsigned i = 0; i < sizeof ports / sizeof ports[0]; i++) sys_port_set(ports[i], 0);
+
+    /* --- A: fn_040f4f finds the base 0x210 -> "not our controller", bail out immediately --- */
+    g_dat_53334 = 0x200;  sys_port_set(0x20e, 0x80); sys_port_set(0x20a, 0xab);
+    sys_port_set(0x21e, 0x80); sys_port_set(0x21a, 0xaa);
+    g_dat_63f84 = 0x77;                                   /* sentinel: must stay untouched */
+    uint32_t r = fn_040d09();
+    check(r == 0 && g_dat_53334 == 0x210, "  A: base scan landing on 0x210 aborts with 0");
+    check(g_dat_63f84 == 0x77, "  A: probe never reached (DAT_63f84 untouched)");
+
+    /* --- B: probe answers 0 (no device) -> stop before reading the id --- */
+    g_dat_53334 = 0x300; sys_port_set(0x30e, 0x80); sys_port_set(0x30a, 0xaa);
+    g_dat_63f84 = 0; g_dat_63f88 = 0x1234;                /* sentinel */
+    r = fn_040d09();
+    check(r == 0, "  B: probe returning 0 aborts with 0");
+    check(sys_inb(0x30c) == 0xf2, "  B: the probe command 0xf2 was written before waiting");
+    check(g_dat_63f88 == 0x1234, "  B: id read (fn_0411d9) not reached");
+
+    /* --- C: probe answers, but the flat port model then blocks the id command ---
+     * fn_041390 reads the ready bit from base+0xc while fn_041340 WRITES the command to the
+     * same port, so in this model the status register is latched at the last command byte
+     * (0xf2, bit7 set = busy). Real hardware has a write-only command register there, so the
+     * chain would continue; a real device backend (mid-subsystems task) has to split the
+     * read/write sides of the device ports. */
+    g_dat_53334 = 0x300; sys_port_set(0x30e, 0x80); sys_port_set(0x30a, 0xaa);
+    sys_port_set(0x30c, 0x00);
+    g_dat_63f84 = 3; g_dat_63f88 = 0; g_dat_63f90 = 0;
+    r = fn_040d09();
+    check(sys_inb(0x30c) == 0xf2, "  C: status port latched at the probe command (model artifact)");
+    check(r == 0 && g_dat_63f88 == 0,
+          "  C: id command blocked by that latch -> chain stops in fn_0411d9 (needs a device backend)");
+    check(g_dat_63f90 == 0, "  C: device not marked initialised on any failing path");
+
+    g_dat_53334 = s34; g_dat_63f84 = sf84; g_dat_63f88 = sf88; g_dat_63f90 = sf90;
+    for (unsigned i = 0; i < sizeof ports / sizeof ports[0]; i++) sys_port_set(ports[i], saved[i]);
+}
+
 static void test_fn_036417(void) {
     printf("fn_036417 (0x036417): screen RLE loader into caller buffer, 0x4b000 bound, dl->board_out\n");
     heap_arena_init();
@@ -8624,6 +8669,7 @@ int main(void) {
     test_fn_03f885();
     test_fn_03ace9();
     test_fn_040fb3();
+    test_fn_040d09();
     test_fn_010181();
     test_fn_03fc1d();
     test_fn_03e0a0();

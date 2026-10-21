@@ -899,6 +899,11 @@ extern uint32_t g_dat_63f8c;   /* DAT_00063f8c: transfer-armed flag (0xffff) */
 void fn_04097e(uint8_t *hdr, uint32_t total);  /* 0x04097e: arm+start a device transfer: hdr[0]->fn_040948, hdr[1] selects g_dat_63f9c, then the DMA chunk body */
 void fn_040b83(uint8_t *src, uint32_t unused_edx);  /* 0x040b83: one DMA chunk: fill 0x80 + mem_copy + DMA port burst + 3x fn_041340 */
 uint32_t fn_040fb3(void);               /* 0x040fb3: save+hook INT 0x0a/0x0b/0x0d/0x0f/0x72, remask PIC 0x21/0xa1, probe cmd 0xf2, wait, restore; returns DAT_00063f84 */
+uint32_t fn_040d09(void);               /* 0x040d09: device bring-up chain (fn_040f4f base scan -> fn_040fb3 probe -> fn_0411d9 id -> 64KB buffer -> hook ISR 0x415c9 -> fn_0413e7 -> DAT_63f90=1) */
+extern uint32_t g_dat_63f88;            /* DAT_00063f88: device id ((hi<<8)|lo) from fn_0411d9 */
+extern uint32_t g_dat_63f90;            /* DAT_00063f90: device initialised flag */
+extern uint32_t g_dat_63f54;            /* DAT_00063f54: saved device-ISR offset (0x040d09) */
+extern uint16_t g_dat_63f58;            /* DAT_00063f58: saved device-ISR segment (0x040d09) */
 extern uint32_t g_dat_63f5c; extern uint16_t g_dat_63f60;   /* 0x040fb3: saved INT 0x0a offset/segment */
 extern uint32_t g_dat_63f64; extern uint16_t g_dat_63f68;   /* 0x040fb3: saved INT 0x0b offset/segment */
 extern uint32_t g_dat_63f6c; extern uint16_t g_dat_63f70;   /* 0x040fb3: saved INT 0x0d offset/segment */

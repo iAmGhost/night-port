@@ -3575,6 +3575,25 @@ static void test_fn_049192(void) {
     check(node[0x0c] & 0x20, "  error: f12 byte0 bit5 set");
 }
 
+static void test_fn_0446c3(void) {
+    printf("fn_0446c3 (0x0446c3): printf-to-node sink (fn_044c23 + fn_0446b2)\n");
+    heap_arena_init();
+    (void)heap_malloc(0x400);                       /* pre-seed free-list */
+    uint32_t node_off = heap_malloc(0x20);
+    uint32_t buf_off  = heap_malloc(32);
+    uint8_t *node = (uint8_t *)g_heap_base + node_off;
+    uint8_t *buf  = (uint8_t *)g_heap_base + buf_off;
+    uint32_t *n = (uint32_t *)node;
+    memset(node, 0, 0x20); memset(buf, 0, 32);
+    n[0] = buf_off; n[1] = 0; n[2] = buf_off; n[3] = 0x2; n[5] = 16;  /* f8 nonzero, f12 byte1=0 (no flush) */
+    /* plain "AB": emits 'A','B' into the node buffer via fn_049192; ret = emitted count */
+    uint8_t *cur = NULL; uint8_t **src = &cur;
+    int32_t r = fn_0446c3((io_state_t *)node, (const uint8_t *)"AB", src);
+    check(r == 2, "  plain 'AB': returns emitted count 2");
+    check(buf[0] == 'A' && buf[1] == 'B', "  node buffer receives 'A','B'");
+    check(n[1] == 2, "  node write counter (f4) == 2");
+}
+
 static void test_fn_0446b2(void) {
     printf("fn_0446b2 (putc + write-counter)\n");
     /* Node first so the buffer offset is nonzero (n[2]==0 would trigger
@@ -7812,6 +7831,7 @@ int main(void) {
     test_fn_041c8f();
     test_fn_049192();
     test_fn_0446b2();
+    test_fn_0446c3();
     test_fn_041d18();
     test_fn_041d47();
     test_fn_0358c7();

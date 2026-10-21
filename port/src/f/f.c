@@ -3913,6 +3913,39 @@ uint32_t fn_0446b2(uint8_t *p, uint32_t ch)
     return r;
 }
 
+/* fn_0446c3  orig: 0x0446c3 (L7, 133 B) -- printf-to-node sink.
+ * reg-ABI: EAX=node (io_state_t*), EDX=fmt, EBX=src (uint8_t**); returns EAX.
+ * Temporarily masks node f12 bits 0x10/0x20, inits the node buffer (fn_042a43)
+ * if empty, and if f13 bit2 is set flips it to bit0 for the emit and flushes
+ * (fn_044748) after. Runs the streaming printf (fn_044c23) with the node-putc
+ * sink fn_0446b2, so each emitted char is written into the node's own buffer.
+ * Returns the emitted count (st[0x10]), or fn_044748's result when flushing, or
+ * -1 if node f12 bit5 is set; then restores the saved f12 bits 0x10/0x20. */
+int32_t fn_0446c3(io_state_t *node, const uint8_t *fmt, uint8_t **src) {
+    uint8_t *n = (uint8_t *)node;
+    uint32_t saved = *(uint32_t *)(n + 0xc) & 0x30;   /* 0x446c9/0x446d5 ebp=[f12]&0x30 */
+    n[0xc] = (uint8_t)(n[0xc] & 0xcf);                /* 0x446cc-0x446d8 flags &= 0xcf */
+    if (node->f8 == 0) fn_042a43(n);                  /* 0x446cf-0x446e3 if f8==0 init */
+    int flush = 0;
+    if (n[0xd] & 4) {                                 /* 0x446e6-0x44704 f13 bit2 */
+        uint8_t v = n[0xd] & 0xfa;
+        n[0xd] = v;                                   /* clear bits 0,2 */
+        n[0xd] = (uint8_t)(v | 1);                     /* set bit0 for the emit */
+        flush = 1;
+    }
+    uint32_t r = fn_044c23(src, (void (*)(uint8_t *, uint8_t))fn_0446b2, n, fmt); /* 0x4470b EAX=buf=node,ECX=cb */
+    int32_t ret = (int32_t)r;                          /* 0x44710 MOV EDX,EAX */
+    if (flush) {
+        uint8_t v = n[0xd] & 0xfa;
+        n[0xd] = v;
+        n[0xd] = (uint8_t)(v | 4);                     /* 0x44721 restore bit2 */
+        ret = fn_044748(node);                         /* 0x44729 flush; result via EDX */
+    }
+    if (n[0xc] & 0x20) ret = -1;                       /* 0x4472e-0x44734 f12 bit5 -> -1 */
+    *(uint32_t *)(n + 0xc) |= saved;                   /* 0x44739-0x44740 restore bits 4,5 */
+    return ret;
+}
+
 /* 0x041c8f (136 B): getch -- read one char from a node I/O buffer (with
  * CR-consume and EOF handling). reg-ABI: node in EAX (copied to EDX); returns the
  * byte (0-255) or -1 (0xffffffff) in EAX. f0 (node[+0]) is a heap offset

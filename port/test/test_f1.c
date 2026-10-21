@@ -8112,6 +8112,82 @@ static void test_fn_03628e(void) {
  * fn_010181. The name lookup is neutralised with an empty g_tab_5d884 (g_dat_633a0 = 0). */
 static uint8_t tb_byte(uint32_t k) { return (uint8_t)(0x20 + (k % 0xc0)); }  /* never 0x0d / 0x1a */
 
+static void td32(uint8_t *p, uint32_t i, uint32_t v) { memcpy(p + i, &v, 4); }
+static uint32_t tdrd(const uint8_t *p, uint32_t i) { uint32_t v; memcpy(&v, p + i, 4); return v; }
+
+/* fn_03d8d4 + fn_03d9cf: clear the 0x3c-byte struct, then a two-pass table load. Pass 1 totals the
+ * variable payloads through the record headers; fn_03de85 allocates the 14 sub-objects; pass 2
+ * re-reads the 12 header dwords per entry (into s[1..5,9,6,10,7,11,8,12] -- the original's read
+ * order), the running record offset into s[13] and the concatenated payload into s[14].
+ * The port's CD tell/seek helpers are stubs, so the internal fn_036853 re-open cannot reposition a
+ * real stream: the test feeds the pass-2 image as a second section of the same stream instead. */
+static void test_fn_03d8d4_03d9cf(void) {
+    printf("fn_03d8d4 / fn_03d9cf (0x03d8d4 / 0x03d9cf): two-pass parallel-array table loader\n");
+    heap_arena_init();
+    (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    const uint32_t cnt = 2, l0 = 3, l1 = 2;
+    const uint32_t rec1a = 0x30 + 4 + l0, rec1b = 0x30 + 4 + l1;
+    const uint32_t total = 4 + rec1a + rec1b + rec1a + rec1b;
+    uint32_t data_off = heap_arena_alloc(total + 8);
+    uint8_t *d = hb + data_off;
+    memset(d, 0xa5, total);
+    td32(d, 0, cnt);                                        /* entry count */
+    td32(d, 4 + 0x30, l0);                                  /* pass-1 record 0 */
+    d[4 + 0x34] = 'X'; d[5 + 0x34] = 'Y'; d[6 + 0x34] = 'Z';
+    td32(d, 4 + rec1a + 0x30, l1);                          /* pass-1 record 1 */
+    d[4 + rec1a + 0x34] = 'P'; d[5 + rec1a + 0x34] = 'Q';
+    uint32_t q = 4 + rec1a + rec1b;                         /* pass-2 image */
+    for (uint32_t k = 0; k < 12; k++) td32(d, q + k * 4, 0x1000 + k);
+    td32(d, q + 0x30, l0);
+    d[q + 0x34] = 0x11; d[q + 0x35] = 0x12; d[q + 0x36] = 0x13;
+    q += rec1a;
+    for (uint32_t k = 0; k < 12; k++) td32(d, q + k * 4, 0x2000 + k);
+    td32(d, q + 0x30, l1);
+    d[q + 0x34] = 0x21; d[q + 0x35] = 0x22;
+
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    memset(node, 0, 0x20);
+    td32(node, 0, data_off); td32(node, 4, total); td32(node, 8, data_off);
+    node[0xc] = 0x41;                       /* valid; bits 1/2 clear for fn_04247a; no CR mapping */
+
+    res_reader *saved = g_639b8;
+    uint32_t saved_n = g_dat_633a0;
+    g_639b8 = (res_reader *)node;
+    g_dat_633a0 = 0;                        /* fn_0367c9 / fn_036853: no match, no seek */
+
+    uint32_t *s = (uint32_t *)calloc(16, 4);
+    s[0] = 0xdeadbeefu;                     /* only s[1..14] are cleared by 0x03d8d4 */
+    uint32_t *ret = fn_03d8d4(s, "QQ");
+
+    check(ret == s, "  returns the caller's struct (EAX pass-through)");
+    check(s[0] == cnt, "  leading dword -> s[0] entry count = 2");
+    int alloc_ok = 1;
+    for (int k = 1; k <= 14; k++) if (s[k] == 0) alloc_ok = 0;
+    check(alloc_ok, "  fn_03de85 allocated all 14 sub-objects (13 x count*4, then payload)");
+    const uint32_t *idx = (const uint32_t *)(hb + s[13]);
+    check(idx[0] == 0 && idx[1] == l0, "  s[13] keeps the running record offsets 0 / 3");
+    check(tdrd(hb + s[1], 0) == 0x1000 && tdrd(hb + s[2], 0) == 0x1001
+          && tdrd(hb + s[3], 0) == 0x1002 && tdrd(hb + s[4], 0) == 0x1003
+          && tdrd(hb + s[5], 0) == 0x1004, "  header dwords 0-4 -> s[1..5]");
+    check(tdrd(hb + s[9], 0) == 0x1005 && tdrd(hb + s[6], 0) == 0x1006
+          && tdrd(hb + s[10], 0) == 0x1007 && tdrd(hb + s[7], 0) == 0x1008
+          && tdrd(hb + s[11], 0) == 0x1009 && tdrd(hb + s[8], 0) == 0x100a
+          && tdrd(hb + s[12], 0) == 0x100b, "  header dwords 5-11 use the scrambled slot order");
+    check(tdrd(hb + s[1], 4) == 0x2000 && tdrd(hb + s[12], 4) == 0x200b,
+          "  entry 1 headers land at index 1 of the same arrays");
+    const uint8_t *pay = hb + s[14];
+    check(pay[0] == 0x11 && pay[1] == 0x12 && pay[2] == 0x13
+          && pay[3] == 0x21 && pay[4] == 0x22, "  s[14] holds both payloads concatenated (5 B)");
+    check(tdrd(node, 4) == 0, "  the whole stream was consumed by both passes");
+
+    g_639b8 = saved; g_dat_633a0 = saved_n;
+    free(s);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_010010(void) {
     printf("fn_010010 (0x010010): record-table loader over fn_010181\n");
     heap_arena_init();
@@ -9054,6 +9130,7 @@ int main(void) {
     test_fn_040fb3();
     test_fn_040d09();
     test_fn_03658d();
+    test_fn_03d8d4_03d9cf();
     test_fn_010010();
     test_fn_010181();
     test_fn_03fc1d();

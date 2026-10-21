@@ -6109,6 +6109,62 @@ uint32_t *fn_03d999(uint32_t *a0, uint32_t a1) {
     return a0;
 }
 
+/* fn_03d9cf  orig: 0x03d9cf (L12, 750 B) -- parallel-array table loader for the 0x3c-byte struct
+ * built by 0x03d8d4. ABI: EAX = struct (host pointer; s[0] is the entry count, s[1]..s[14] the
+ * sub-object heap offsets written by fn_03de85), EDX = resource name (fn_0367c9 opens it into
+ * g_639b8). Returns 1.
+ * Pass 1 walks the record headers to total the variable-length payloads (skip 0x30, read the length
+ * dword, skip the payload); fn_03de85 then allocates the 14 sub-objects for count + total; the
+ * original re-opens/seeks the resource with fn_036853(name,4,0) and pass 2 re-reads every entry:
+ * 12 dwords of the 0x30-byte header (into s[1..5,9,6,10,7,11,8,12] in that scrambled stream order),
+ * the running record offset into s[13], the length dword, then the payload bytes appended into s[14].
+ * NOTE: the port's CD tell/seek helpers (fn_044848/fn_044807) are stubs, so the internal re-seek
+ * degenerates; the test feeds the pass-2 image as a second stream section. */
+int32_t fn_03d9cf(uint32_t *s, const char *name)
+{
+    static const int kSlot[12] = { 1, 2, 3, 4, 5, 9, 6, 10, 7, 11, 8, 12 };
+
+    (void)canary_id((uintptr_t)s, 0x38);                     /* 0x3d9cf-9d4: guard, EAX/EDX pass */
+    fn_0367c9(name);                                         /* 0x3d9dc-df */
+    fn_04192e((uint8_t *)s, 1, 4, (uint8_t *)g_639b8);       /* 0x3d9e4-f2: entry count -> s[0] */
+
+    uint32_t total = 0;                                      /* local_30 */
+    for (uint32_t i = 0; (int32_t)i < (int32_t)s[0]; i = i + 1) {   /* 0x3d9f5-0x3da5e */
+        fn_04247a(g_639b8, 0x30, 1);                         /* 0x3da0a: skip the header */
+        uint32_t len = 0;                                    /* local_24 */
+        fn_04192e((uint8_t *)&len, 1, 4, (uint8_t *)g_639b8); /* 0x3da1c-27 */
+        fn_04247a(g_639b8, (int32_t)len, 1);                 /* 0x3da31-3c: skip the payload */
+        total = total + len;                                 /* 0x3da41-4b */
+    }
+
+    fn_03de85(s, s[0], total);                               /* 0x3da64-73: allocate 14 sub-objects */
+    fn_036853(name, 4, 0);                                   /* 0x3da78-82: re-open at the data */
+
+    total = 0;                                               /* 0x3da87: local_30 = 0 */
+    for (uint32_t i = 0; (int32_t)i < (int32_t)s[0]; i = i + 1) {   /* 0x3da8d-0x3dcf0 */
+        ((uint32_t *)((uint8_t *)g_heap_base + s[0x0d]))[i] = total;  /* running record offset */
+        for (int k = 0; k < 12; k = k + 1) {                 /* 12 header dwords, stream order */
+            fn_04192e((uint8_t *)g_heap_base + s[kSlot[k]] + i * 4, 1, 4, (uint8_t *)g_639b8);
+        }
+        uint32_t len = 0;
+        fn_04192e((uint8_t *)&len, 1, 4, (uint8_t *)g_639b8);
+        fn_04192e((uint8_t *)g_heap_base + s[14] + total, len, 1, (uint8_t *)g_639b8);
+        total = total + len;
+    }
+    return 1;                                                /* 0x3dcf5-0x3dcff */
+}
+
+/* fn_03d8d4  orig: 0x03d8d4 (L11, 197 B) -- clear the 0x3c-byte parallel-array struct and load it.
+ * ABI: EAX = caller block (through the 0x0418ee guard, frame 0x24), EDX = resource name. Clears
+ * s[1]..s[14] (+0x04..+0x38, leaving s[0] alone), calls fn_03d9cf, returns the block. */
+uint32_t *fn_03d8d4(uint32_t *s, const char *name)
+{
+    (void)canary_id((uintptr_t)s, 0x24);                     /* 0x3d8d4-8d9: guard, EAX/EDX pass */
+    for (int k = 1; k <= 14; k = k + 1) s[k] = 0;             /* 0x3d8f1-976 */
+    fn_03d9cf(s, name);                                      /* 0x3d97d-83 */
+    return s;                                                /* 0x3d988-8e */
+}
+
 /* 0x03de85 (L11, 272B): re-entrant struct CONSTRUCTOR (pair of fn_03dcbd).
  * arg1 = struct ptr (uint32_t*); arg2 = sub-object dword-count (each sub-obj
  * size = arg2*4); arg3 = last sub-object size. Frees old sub-objects

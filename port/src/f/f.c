@@ -4080,6 +4080,38 @@ void fn_03fb73(uint8_t *node, uint32_t size) {
     heap_free_host(g_dat_63e7c);                                   /* 0x3fc0b-10 */
 }
 
+/* 0x03fa3b (L10, 163 B): 200-row RLE screen decoder into video. ABI: EAX=node, EDX=size (bytes to
+ * read). buf=heap_malloc(size); g_dat_63e7c=buf; fn_04192e(buf,size,1,node). Then 200 rows
+ * (g_dat_63e78=200), each row: op_count byte, then op_count ops. op: ctl<0x80 -> FILL (write ctl
+ * copies of next byte); ctl>=0x80 -> COPY (copy (256-ctl) literal bytes). Video row base advances
+ * +0x140 each row (g_dat_51a0c). Then heap_free_host. Sibling of 0x03fb73 but a different RLE
+ * (per-row op count, inverted ctl convention, no per-op dest skip). */
+void fn_03fa3b(uint8_t *node, uint32_t size) {
+    canary_id((uintptr_t)node, 0x30);                              /* 0x3fa3b-40 */
+    uint32_t buf_off = heap_malloc(size);                          /* 0x3fa5f-67 */
+    g_dat_63e7c = buf_off;
+    fn_04192e((uint8_t *)(g_heap_base + buf_off), size, 1, node);  /* 0x3fa6c-7c */
+    g_dat_63e78 = 200;                                             /* 0x3fa81: [0x63e78]=0xc8 */
+    const uint8_t *rle = (const uint8_t *)(g_heap_base + buf_off); /* 0x3fa8b ESI=[0x63e7c] */
+    uint8_t *video_row = g_dat_51a0c;                              /* 0x3fa91/98 EDX=EDI=[0x51a0c] */
+    do {                                                           /* 0x3fa9c row top */
+        uint8_t *dst = video_row;                                  /* 0x3fa9c EDI=EDX */
+        uint32_t b = *rle++;                                       /* 0x3fa9e LODSB: op count */
+        for (; b != 0; b--) {                                      /* 0x3faa5/0x3fabd */
+            uint8_t ctl = *rle++;                                  /* LODSB: control */
+            if ((int8_t)ctl < 0) {                                 /* 0x3faa8 JS -> COPY */
+                uint32_t count = (uint8_t)(-(int8_t)ctl);          /* 0x3fab5 NEG AL = 256-ctl */
+                for (uint32_t i = 0; i < count; i++) *dst++ = *rle++;  /* 0x3fab9 MOVSB.REP */
+            } else {                                               /* ctl<0x80: FILL */
+                uint8_t val = *rle++;                              /* 0x3faac LODSB: value */
+                for (uint32_t i = 0; i < ctl; i++) *dst++ = val;   /* 0x3faad STOSB.REP (CX=ctl) */
+            }
+        }
+        video_row += 0x140;                                        /* 0x3fabf ADD DX,0x140 */
+    } while (--g_dat_63e78 != 0);                                  /* 0x3fac4-9a DEC[0x63e78];JNZ */
+    heap_free_host(g_dat_63e7c);                                   /* 0x3facc-ad1 */
+}
+
 /* 0x03fb0e (L10): load a screen image from an I/O node into the screen (g_dat_51a0c).
  * ABI (disasm-verified): EAX=node (host ptr, passed straight to fn_04192e), EDX=count (bytes).
  * canary_id(node, 0x20) preserves EAX/EDX. buf_off=heap_malloc(count); g_dat_63e7c=buf_off;

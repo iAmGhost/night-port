@@ -7280,6 +7280,35 @@ static void test_fn_03fb73(void) {
     }
 }
 
+static void test_fn_03fa3b(void) {
+    printf("fn_03fa3b (0x03fa3b): 200-row RLE screen decoder into video\n");
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_51a0c = g_video_ram;
+    (void)heap_malloc(0x400);   /* pre-seed free-list (fresh heap_malloc 4-byte shortfall) */
+    /* 200 rows: even rows FILL 2 bytes (val=r&0xff) -> [1][2][val]; odd rows COPY 1 byte -> [1][0xff][val]. */
+    uint32_t node_off = heap_arena_alloc(0x400);
+    uint8_t *nb = hb + node_off;
+    int o = 0;
+    for (uint32_t r = 0; r < 200; r++) {
+        uint8_t val = (uint8_t)(r & 0xff);
+        nb[o++] = 0x01;                                  /* op_count = 1 */
+        if (r & 1) { nb[o++] = 0xff; nb[o++] = val; }     /* COPY 1 (256-0xff=1) */
+        else       { nb[o++] = 0x02; nb[o++] = val; }     /* FILL 2 */
+    }
+    int rle = o;
+    memset(g_video_ram, 0, sizeof(g_video_ram));
+    uint8_t node[0x20]; memset(node, 0, sizeof(node));
+    node[0x0c] = 0x41; *(uint32_t *)(node+0x08) = node_off; *(uint32_t *)(node+0x00) = node_off;
+    *(uint32_t *)(node+0x04) = (uint32_t)rle;
+    fn_03fa3b(node, (uint32_t)rle);
+    check(g_video_ram[0x140*2] == 0x02 && g_video_ram[0x140*2+1] == 0x02, "  row2 FILL: video[0x280..1]=0x02 (2 B)");
+    check(g_video_ram[0x140*1] == 0x01, "  row1 COPY: video[0x140]=0x01");
+    check(g_video_ram[0x140*1+1] == 0x00, "  row1 COPY: video[0x140+1] untouched (count=1)");
+    check(g_video_ram[0x140*100] == 0x64 && g_video_ram[0x140*100+1] == 0x64, "  row100 FILL: video=0x64 (2 B)");
+    check(g_video_ram[0x140*199] == 0xc7, "  row199 COPY: video=0xc7");
+}
+
 static void test_fn_03fb0e(void) {
     printf("fn_03fb0e (0x03fb0e): load 64000 B screen image from I/O node into g_dat_51a0c\n");
     heap_arena_init();
@@ -7670,6 +7699,7 @@ int main(void) {
     test_fn_034e3c();
     test_fn_04192e();
     test_fn_03fb73();
+    test_fn_03fa3b();
     test_fn_03fb0e();
     test_fn_03a1b3();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

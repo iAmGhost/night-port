@@ -5547,6 +5547,49 @@ static void chk_49e80(const char *label, double d, int32_t E, int32_t plus, int3
     chk_49e80x(label, d, E, plus, W, P, M, radix, fmt, exp, 1);
 }
 
+/* fn_045c79 (0x045c79, 220 B): the printf engine's float conversion handler (dispatch-table
+ * entry). Vectors use the realistic caller shape: rec[0x15]=fmt char, rec[8]=precision,
+ * 0x27-byte field, argument stream cursor. Strings are what the port produces end to end
+ * (0x049e80 field + leading-space skip + 0x045d56 scientific tidy-up). */
+static void chk_45c79(const char *label, char fch, int32_t prec, double v,
+                      const char *exp, int32_t exp_prec, char exp_star)
+{
+    uint8_t rec[0x30]; memset(rec, 0, sizeof rec);
+    rec[0x15] = (uint8_t)fch; *(int32_t *)(rec + 8) = prec;
+    static uint8_t buf[96];
+    memset(buf, '.', sizeof buf);
+    buf[64] = 0;                    /* bound the %s in the message below */
+    static uint8_t args[16];
+    memcpy(args, &v, 8);
+    uint8_t *ap = args;
+    uint8_t *r = fn_045c79(buf, rec, &ap);
+    char msg[200];
+    snprintf(msg, sizeof msg, "  %%%c prec=%-3d %-11g -> \"%s\" (rec8=%d rec16=%02x adv=%ld)",
+             fch, prec, v, (char *)r, *(int32_t *)(rec + 8), rec[0x16], (long)(ap - args));
+    int ok = strcmp((char *)r, exp) == 0 && *(int32_t *)(rec + 8) == exp_prec &&
+             rec[0x16] == (uint8_t)exp_star;
+    if (fch != 'x') ok = ok && (ap - args) == 8;
+    check(ok, msg);
+}
+
+static void test_fn_045c79(void) {
+    printf("fn_045c79 (0x045c79): printf float conversion handler (E/F/G/e/f/g)\n");
+    chk_45c79("g", 'g', 6, 1.5,          "1.5",          6, 0);
+    chk_45c79("g0", 'g', 0, 1.5,         "2",            1, 0);   /* g: precision 0 -> 1 */
+    chk_45c79("g-1", 'g', -1, 123456.789,"123457",       6, 0);   /* -1 -> default 6, rounds */
+    chk_45c79("G4", 'G', 4, 1234.5,      "1234",         4, 0);
+    chk_45c79("e6", 'e', 6, 1.5,         "1.500000e+000", 6, 0);  /* radix 'e' inserted */
+    chk_45c79("E2", 'E', 2, 0.001,       "0.00E-001",    2, 0);   /* small-value digit quirk */
+    chk_45c79("f3", 'f', 3, 123.456,     "123.456",      3, 0);
+    chk_45c79("F0", 'F', 0, 42.5,        "42",           0, 0);
+    chk_45c79("g6big", 'g', 6, 1e20,     "1e+020",       6, 0);
+    chk_45c79("g-2", 'g', -2, 1e10,      "***************************************", -2, '*');
+    chk_45c79("x", 'x', 6, 1.5,
+              "................................"     /* unhandled fmt char: nothing written,
+                                                      * cursor untouched */
+              "................................", 6, 0);
+}
+
 static void test_fn_049e80(void) {
     printf("fn_049e80 (0x049e80): printf-style float formatter (G/E/F, '*' overflow)\n");
     /* 'G' chooses fixed style ('F') from log10(|d|) */
@@ -8699,6 +8742,7 @@ int main(void) {
     test_fn_042d2a();
     test_fn_048fe6();
     test_fn_049e80();
+    test_fn_045c79();
     test_fn_04a32b();
     test_fn_04a3a8();
     test_fn_048053();

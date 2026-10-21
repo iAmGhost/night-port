@@ -573,6 +573,7 @@ int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, uint32_t *arg3, ui
 char *fn_04a48f(double d, uint32_t width, uint32_t *p_cnt, uint32_t *p_flag, uint32_t format, char *out); /* 0x04a48f: double -> fixed/exponent decimal-ASCII string; returns out */
 int32_t fn_049e80(uint8_t *dest, const double *srcp, int32_t E, int32_t plus, int32_t W,
                   int32_t P, int32_t M, uint32_t radix, uint32_t fmt); /* 0x049e80: printf-style float formatter (G/E/F, '*' overflow, right-align) */
+uint8_t *fn_045c79(uint8_t *dest, uint8_t *rec, uint8_t **argp); /* 0x045c79: printf float conversion handler (E/F/G/e/f/g via 0x049e80 + 0x045d56) */
 
 /* Event-dispatch table (DAT_000537dc): 10 entries of {flag(2=done), key, fn}.
  * fn pointers reference game handlers (wired when those are ported; NULL until

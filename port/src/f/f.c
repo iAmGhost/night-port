@@ -10287,6 +10287,52 @@ int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, uint32_t *arg3, ui
     return fn_04a814(arg2, arg3);                              /* MOV EAX,ECX; MOV EDX,EBX; CALL 0x04a814 (updated arg3) */
 }
 
+/* fn_045c79  orig: 0x045c79 (220 B) -- the printf engine's floating-point conversion handler
+ * (reached through the conversion dispatch table, which is why Ghidra reports no callers).
+ * ABI: EAX = dest buffer (0x28 bytes, the caller's 0x27+1 scratch field), EBX = rec (printf state
+ * record), EDX = pointer to the argument-stream cursor.
+ *   rec[8]    precision: -1 means unset -> 6; for 'g'/'G' a 0 precision becomes 1
+ *   rec[0xc]  cleared here
+ *   rec[0x15] format char (only 'E','F','G','e','f','g' are handled; others are a no-op)
+ *   rec[0x16] set to '*' when the converted field came back all '*'
+ * 'G'/'g' additionally passes (fmt char - 2) as the radix char to 0x049e80, which is where the
+ * 'e' of a scientific result comes from. Eight bytes are consumed from the argument stream,
+ * leading spaces are skipped, then 0x045d56 tidies scientific notation in place.
+ * The original also loads DS (g_ds_segment) into EDX on every return path; the flat model has no
+ * segment semantics, so that is noted rather than modelled. */
+uint8_t *fn_045c79(uint8_t *dest, uint8_t *rec, uint8_t **argp)
+{
+    *(uint32_t *)(rec + 0xc) = 0;                                 /* 0x45c84 */
+    uint8_t cl = rec[0x15];                                       /* 0x45c8f */
+    uint32_t P = 0;                                               /* EBX */
+    switch (cl) {
+    case 0x45: case 0x65:                                         /* 'E' 'e' -> 0x45cd3 */
+        P = 1;
+        break;
+    case 0x46: case 0x66:                                         /* 'F' 'f' -> 0x45cd8 */
+        P = 0;
+        break;
+    case 0x47: case 0x67:                                         /* 'G' 'g' -> 0x45cc3 */
+        if (*(int32_t *)(rec + 8) == 0) *(int32_t *)(rec + 8) = 1;
+        cl = (uint8_t)(cl - 2);                                   /* 'G'->'E', 'g'->'e' */
+        P = 1;
+        break;
+    default:                                                      /* 0x45d4a: untouched */
+        return dest;
+    }
+    uint8_t *ap = *argp + 8; *argp = ap;                          /* 0x45cd8-dd */
+    double d; memcpy(&d, ap - 8, 8);                              /* 0x45ce2-e8 */
+    if (*(int32_t *)(rec + 8) == -1) *(int32_t *)(rec + 8) = 6;   /* 0x45cec-f2 */
+    uint32_t fmt = (uint32_t)(rec[0x15] & 0x5f);                  /* 0x45cf9-45d03 */
+    int32_t E = *(int32_t *)(rec + 8);                            /* 0x45d16 */
+    (void)fn_049e80(dest, &d, E, 0, 0x27, (int32_t)P, 3, cl, fmt); /* 0x45d0c-19 */
+    if (dest[0] == '*') rec[0x16] = '*';                          /* 0x45d1e-25 */
+    dest[0x27] = 0;                                               /* 0x45d28 */
+    while (dest[0] == ' ') dest++;                                /* 0x45d2c-32 */
+    float_str_sci((char *)dest, rec);                             /* 0x45d38 */
+    return dest;                                                  /* 0x45d41 */
+}
+
 /* fn_049e80  orig: 0x049e80 (547 B) -- the printf-style float formatter; the sole caller of
  * the x87 floor helper 0x04a32b and of 0x04a48f (double -> ASCII digits).
  * ABI (from the prologue; no canary): EAX = dest byte buffer, EDX = pointer to the double,

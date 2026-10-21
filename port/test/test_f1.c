@@ -8107,6 +8107,63 @@ static void test_fn_03628e(void) {
     g_dat_63e5c = s_e5c; g_dat_63e4c = s_e4c; g_dat_63e50[0] = s_e50;
 }
 
+/* fn_010010 (0x010010, 201 B): record-table loader -- reads a dword count from the resource stream,
+ * allocates a dword array of record offsets, then parses one 0x79-byte record per entry with
+ * fn_010181. The name lookup is neutralised with an empty g_tab_5d884 (g_dat_633a0 = 0). */
+static uint8_t tb_byte(uint32_t k) { return (uint8_t)(0x20 + (k % 0xc0)); }  /* never 0x0d / 0x1a */
+
+static void test_fn_010010(void) {
+    printf("fn_010010 (0x010010): record-table loader over fn_010181\n");
+    heap_arena_init();
+    (void)heap_malloc(0x2000);                  /* deterministic pre-seeded region */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    const uint32_t nrec = 2, rec_bytes = 129;   /* 109 base + n*2 + n*4 + n*4 with record count n=2 */
+    const uint32_t total = 4 + nrec * rec_bytes;
+    uint32_t data_off = heap_arena_alloc(total + 8);
+    uint8_t *data = hb + data_off;
+    for (uint32_t k = 0; k < total; k++) data[k] = tb_byte(k);
+    data[0] = nrec; data[1] = data[2] = data[3] = 0;               /* table count */
+    data[4] = 2; data[5] = data[6] = data[7] = 0;                  /* record 0 count */
+    data[4 + rec_bytes] = 2;
+    data[5 + rec_bytes] = data[6 + rec_bytes] = data[7 + rec_bytes] = 0; /* record 1 count */
+
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    memset(node, 0, 0x20);
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = total; *(uint32_t *)(node + 8) = data_off;
+    node[0xc] = 0x41;                           /* valid, bit6 set -> no CR translation */
+
+    res_reader *saved = g_639b8;
+    uint32_t saved_n = g_dat_633a0;
+    g_639b8 = (res_reader *)node;
+    g_dat_633a0 = 0;                            /* fn_0367c9: no match, no-op */
+
+    uint8_t *block = (uint8_t *)calloc(0x100, 1);
+    uint8_t *ret = fn_010010(block, "zz");
+
+    check(ret == block, "  returns the caller's block (EAX pass-through)");
+    check(*(uint32_t *)block == nrec, "  leading dword from the stream -> block[0] = 2");
+    uint32_t arr = *(uint32_t *)(block + 4);
+    check(arr != 0, "  fn_041af8(count*4) -> array offset at block[4]");
+    uint32_t r0 = *(uint32_t *)(hb + arr), r1 = *(uint32_t *)(hb + arr + 4);
+    check(r0 != 0 && r1 != 0 && r0 != r1, "  one 0x79-byte heap record block per entry");
+    check(*(uint32_t *)(hb + r0) == 2 && *(uint32_t *)(hb + r1) == 2,
+          "  each record parsed its own leading count = 2");
+    check(*(uint32_t *)(hb + r0 + 0x6d) != 0 && *(uint32_t *)(hb + r0 + 0x71) != 0
+          && *(uint32_t *)(hb + r0 + 0x75) != 0, "  record 0 built its three heap arrays");
+    uint32_t a0 = *(uint32_t *)(hb + r0 + 0x6d), a1 = *(uint32_t *)(hb + r1 + 0x6d);
+    check(hb[a0] == tb_byte(4 + 109) && hb[a0 + 1] == tb_byte(4 + 110),
+          "  record 0 array A comes from stream bytes 113/114");
+    check(hb[a1] == tb_byte(4 + rec_bytes + 109),
+          "  record 1 array A continues where record 0 left the stream");
+    check(*(uint32_t *)(node + 4) == 0, "  the stream was consumed exactly (4 + 2*129 bytes)");
+
+    g_639b8 = saved; g_dat_633a0 = saved_n;
+    free(block);
+    heap_arena_init(); (void)heap_malloc(0x400);    /* hand on the known heap state */
+}
+
 static void test_fn_010181(void) {
     printf("fn_010181 (0x010181): resource-record deserializer (fixed layout + 3 heap arrays)\n");
     heap_arena_init();      /* runs after test_fn_041e94_04123d; the port's heap_malloc has no
@@ -8997,6 +9054,7 @@ int main(void) {
     test_fn_040fb3();
     test_fn_040d09();
     test_fn_03658d();
+    test_fn_010010();
     test_fn_010181();
     test_fn_03fc1d();
     test_fn_03e0a0();

@@ -6584,6 +6584,35 @@ void fn_040b83(uint8_t *src, uint32_t unused_edx) {
     fn_041340((g_dat_63f98 >> 8) & 0xff);                          /* 0x40cfc */
 }
 
+/* fn_010010  orig: 0x010010 (L10, 201 B) -- resource record-table loader.
+ * ABI: EAX = caller-allocated block (it passes straight through the 0x0418ee stack guard, frame
+ * size 0x38), EDX = resource name handed to fn_0367c9, which opens the resource into g_639b8.
+ * Returns the block. block[0] = record count, block[4] = heap offset of a dword array of record
+ * offsets (one 0x79-byte record block per entry, parsed by fn_010181 straight out of the stream).
+ * The array holds heap OFFSETS (the original stores the raw heap addresses). A record block that
+ * cannot be allocated stores 0 (the 0x041bdc wrapper's failure path, whose grow/free callbacks are
+ * folded into the port's heap_malloc). */
+uint8_t *fn_010010(uint8_t *block, const char *name)
+{
+    (void)canary_id((uintptr_t)block, 0x38);                 /* 0x10010-10015: guard, EAX/EDX pass */
+    fn_0367c9(name);                                         /* 0x1002d-30 */
+    fn_04192e(block, 1, 4, (uint8_t *)g_639b8);              /* 0x10035-48: count -> block[0] */
+
+    uint32_t arr = heap_malloc(*(const uint32_t *)block << 2); /* 0x1004d-55: 0x041af8 */
+    *(uint32_t *)(block + 4) = arr;                          /* 0x1005c-5f */
+
+    for (uint32_t i = 0; (int32_t)i < (int32_t)*(const uint32_t *)block; i = i + 1) {
+        uint32_t rec = heap_malloc(0x79);                     /* 0x1007b-80: 0x041bdc (size 0 -> 1) */
+        int32_t v = 0;                                        /* 0x1008e-92: NULL -> 0 */
+        if (rec != 0) {
+            fn_010181((uint8_t *)g_heap_base + rec, (uint8_t *)g_639b8);  /* 0x10094-9d */
+            v = (int32_t)rec;                                 /* 0x100a2-ab: fn_010181 returns p */
+        }
+        *(int32_t *)((uint8_t *)g_heap_base + arr + i * 4) = v;  /* 0x100b3-c4 */
+    }
+    return block;                                             /* 0x100c8-d1 */
+}
+
 /* fn_010181  orig: 0x010181 (L10, 501 B) -- resource-record deserializer.
  * reg-ABI: EAX = record buffer (>= 0x79 bytes), EDX = resource node (res_reader).
  * Reads one fixed field layout straight out of the stream with the bulk reader fn_04192e

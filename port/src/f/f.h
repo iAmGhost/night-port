@@ -170,6 +170,7 @@ void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O 
 void     fn_10570(const uint8_t *buf, uint32_t len);   /* 0x010570: DPMI real-mode read via 0x103e0 (no-op) */
 void     fn_0105f7(uint8_t al);                  /* 0x0105f7: build 24-byte DMA cmd from DAT_00051a14 + g_dat_53c5c patch; write al to byte 0 of *g_dat_53c5c (far-pointer buffer); submit via fn_10570 (no-op) */
 void     fn_01072f(void);                         /* 0x01072f: build 26-byte cmd from DAT_00051a58; g_dat_53c4c[0]=4; round-trip 9 bytes staging<->*g_dat_53c5c; submit via fn_10570 (no-op) */
+uint8_t *fn_010010(uint8_t *block, const char *name); /* 0x010010: record-table loader (count + dword array of 0x79-byte record blocks via fn_010181) */
 uint8_t *fn_010181(uint8_t *p, uint8_t *node);   /* 0x010181: resource-record deserializer (fixed field layout via fn_04192e/fn_041c8f + 3 heap arrays sized by the leading count) */
 int32_t  fn_010cbd(void);                         /* 0x010cbd: 24-byte DPMI call block from DAT_00051b38 + paragraph-split far ptr fields; 1-byte mem_copy (uninit src, latent); !(block[3]&0x200) */
 uint32_t fn_03e14c(uint32_t a0, uint32_t a1);     /* 0x03e14c: 2-node prev/next swap (0x51/0x55) gated by g_dat_63e14 counter; return a0 */

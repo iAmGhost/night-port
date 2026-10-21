@@ -831,6 +831,123 @@ void fn_00035c5c(void) {
     }
 }
 
+/* fn_010efc  orig: 0x00010efc (L10, 1025 B) -- THE ENTITY (ACTOR) CONSTRUCTOR.
+ * Called by the stage/entity loaders (0x0376c8, 0x0374ad) with a block they allocated
+ * (0x147 bytes in the original) and initialises every field, then appends the block to the
+ * global entity list (head DAT_00053c70, tail DAT_00053c74, count DAT_00053c68) and bumps the
+ * per-entity spawn jitter from the PRNG. No loops; only three calls (the 0x0418ee stack guard,
+ * the 0x041e20 fill and the 0x041e9f PRNG step), so the whole body is observable.
+ *
+ * ABI (capstone over the prologue; Ghidra mangled the register arguments into extraout_*):
+ *   EAX = block (also the return value), EDX/EBX/ECX = the three values stored at +1/+5/+9,
+ *   [EBP+0x10] = type index (stored at +0xd, drives every table lookup, compared with
+ *   DAT_00063370), [EBP+0x14] = a byte stored at +0x00. `RET 8` cleans the two stack args.
+ *
+ * Port-model notes:
+ *  - The link fields follow the widening convention already fixed by fn_0112fd/fn_013aad:
+ *    next @ +0x13f (8 B, orig 4 B) and prev @ +0x147 (8 B, orig 0x143 shifted +4), so the port
+ *    needs 0x14f bytes for a block the original allocated as 0x147.
+ *  - DAT_00053e9c is the entity-type table (entry stride 0x88, indexed by the type index).
+ *    g_dat_53e9c is a stand-in array for that DS region; it overlaps the region already modelled
+ *    separately as g_dat_53ea8 (same table, base +0xc) -- the port keeps one array per observed
+ *    base, so a future writer of the table must fill both views (latent model split, documented).
+ *  - DAT_000639ec is an ARRAY of per-type sprite-struct pointers (element 0 is the "gun.spr"
+ *    block the master loader stores); modelled as g_dat_639ec[], host pointers.
+ *  - Quirk kept: the branch tests the raw type index (== 0, and 1..9), while the table lookups
+ *    use the same value re-read from block+0xd after it was stored.
+ */
+uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg_ecx,
+                   int32_t type_idx, uint8_t kind)
+{
+    (void)canary_id((uintptr_t)block, 0x24);                     /* 0x10efc-01 */
+    if ((uint32_t)type_idx == g_dat_63370) {                     /* 0x10f1d-26 */
+        g_dat_53c80 = block;                                     /* 0x10f28-2b */
+    }
+    block[0x00] = kind;                                          /* 0x10f30-36 */
+    *(uint32_t *)(block + 0x01) = (uint32_t)arg_edx;             /* 0x10f38-3e */
+    *(uint32_t *)(block + 0x05) = (uint32_t)arg_ebx;             /* 0x10f41-47 */
+    *(uint32_t *)(block + 0x09) = (uint32_t)arg_ecx;             /* 0x10f4a-50 */
+    *(uint32_t *)(block + 0x0d) = (uint32_t)type_idx;            /* 0x10f53-59 */
+    *(uint32_t *)(block + 0x11) = 0;                             /* 0x10f5c-5f */
+    block[0x15] = 0;                                             /* 0x10f66-69 */
+    block[0x16] = 0;                                             /* 0x10f6d-70 */
+    *(uint32_t *)(block + 0x17) = 0;                             /* 0x10f74-77 */
+    *(uint32_t *)(block + 0x1b) = 0;                             /* 0x10f7e-81 */
+    *(uint32_t *)(block + 0x1f) = 0;                             /* 0x10f88-8b */
+    const uint8_t *ent = g_dat_53e9c + (size_t)(uint32_t)type_idx * 0x88u;  /* 0x10f95 imul 0x88 */
+    block[0x25] = ent[0x04];                                     /* 0x10f9c-a5, DAT_00053ea0 */
+    block[0x26] = 0;                                             /* 0x10fab */
+    block[0x27] = 0;                                             /* 0x10fb2 */
+    block[0x28] = 0;                                             /* 0x10fb9 */
+    *(uint16_t *)(block + 0x29) = *(const uint16_t *)(ent + 0x08);  /* 0x10fc0-d1, DAT_00053ea4 */
+    *(uint32_t *)(block + 0x2b) = 0;                             /* 0x10fd5-d8 */
+    block[0x30] = 0;                                             /* 0x10fdf */
+    block[0x31] = 0;                                             /* 0x10fe6 */
+    fn_041e20(block + 0x32, 0, 0x14);                            /* 0x10ff4-ff: 20 B of zero */
+    *(uint32_t *)(block + 0x46) = 0;                             /* 0x11002 */
+    *(uint32_t *)(block + 0x4a) = 0;                             /* 0x1100c */
+    block[0x4e] = 0;                                             /* 0x11016 */
+    block[0x4f] = 0;                                             /* 0x1101d */
+    *(uint16_t *)(block + 0x50) = 0;                             /* 0x11024 */
+    *(uint32_t *)(block + 0x52) = 0;                             /* 0x1102d */
+    *(uint32_t *)(block + 0x56) = 0;                             /* 0x11037 */
+    *(uint16_t *)(block + 0x23) = 0;                             /* 0x11041 */
+    block[0x5a] = 0;                                             /* 0x1104a */
+    if (type_idx == 0) {                                         /* 0x1104e */
+        *(uint32_t *)(block + 0x56) = *(const uint32_t *)ent;    /* 0x11057-67, DAT_00053e9c dword */
+    } else {                                                     /* 0x1106c */
+        *(uint16_t *)(block + 0x23) = *(const uint16_t *)ent;    /* 0x11076-80, same address as WORD */
+        if (type_idx >= 1 && type_idx <= 9) {                    /* 0x11084-8e (JL / JLE, signed) */
+            *(uint32_t *)(block + 0x56) = 0x30c;                 /* 0x11092 */
+        }
+    }
+    *(uint32_t *)(block + 0x123) = g_dat_53818[(size_t)(uint32_t)type_idx];  /* 0x1109c-ab */
+    const uint8_t *spr = g_dat_639ec[(size_t)(uint32_t)type_idx];           /* 0x110b4-bd, DAT_000639ec[] */
+    *(uint32_t *)(block + 0x127) = *(const uint32_t *)(spr + 0x38);         /* 0x110c3-c9 */
+    *(uint32_t *)(block + 0x12b) = *(const uint32_t *)(spr + 0x04);         /* 0x110d8-e4 */
+    *(uint32_t *)(block + 0x12f) = *(const uint32_t *)(spr + 0x08);         /* 0x110f0-ff */
+    *(uint32_t *)(block + 0x133) = *(const uint32_t *)(spr + 0x34);         /* 0x1110e-1a */
+    *(uint32_t *)(block + 0x137) = *(const uint32_t *)(spr + 0x0c);         /* 0x11129-35 */
+    *(uint32_t *)(block + 0x13b) = *(const uint32_t *)(spr + 0x10);         /* 0x11144-50 */
+    if (g_dat_53c70 == NULL) {                                   /* 0x11156-5d: first entity */
+        g_dat_53c70 = block;                                     /* 0x1115f */
+        g_dat_53c74 = block;                                     /* 0x1116a */
+        *(uint8_t **)(block + 0x147) = NULL;                     /* 0x11172 (orig +0x143, widened) */
+        *(uint8_t **)(block + 0x13f) = NULL;                     /* 0x1117c */
+    } else {                                                     /* 0x1118b: append at the tail */
+        *(uint8_t **)(g_dat_53c74 + 0x13f) = block;              /* 0x11194: old tail's next */
+        *(uint8_t **)(block + 0x147) = g_dat_53c74;              /* 0x111a3: this prev (orig +0x143) */
+        *(uint8_t **)(block + 0x13f) = NULL;                     /* 0x111ac */
+        g_dat_53c74 = block;                                     /* 0x111b9 */
+    }
+    g_dat_53c68 = g_dat_53c68 + 1;                               /* 0x111be */
+    *(uint32_t *)(block + 0x8b) = 0;                             /* 0x111c7 */
+    *(uint32_t *)(block + 0x8f) = 0;                             /* 0x111d4 */
+    *(uint32_t *)(block + 0xab) = 0;                             /* 0x111e1 */
+    *(uint32_t *)(block + 0xaf) = 4;                             /* 0x111ee */
+    *(uint32_t *)(block + 0xbb) = 0;                             /* 0x111fb */
+    *(uint32_t *)(block + 0xc7) = 1;                             /* 0x11208 */
+    *(uint32_t *)(block + 0x63) = 0;                             /* 0x11215 */
+    *(uint32_t *)(block + 0xff) = 0xffffffffu;                   /* 0x1122c */
+    *(uint32_t *)(block + 0x5f) = 0;                             /* 0x11236 */
+    *(uint32_t *)(block + 0x6b) = 0;                             /* 0x11240 */
+    *(uint32_t *)(block + 0x6f) = 0;                             /* 0x1124a */
+    *(uint32_t *)(block + 0x113) = 0;                            /* 0x11257 */
+    *(uint32_t *)(block + 0xd3) = 0;                             /* 0x11264 */
+    *(int32_t *)(block + 0x73) =
+        (int32_t)*(uint32_t *)(block + 0x56)
+        + (int32_t)*(int16_t *)(block + 0x23)
+        + (int32_t)*(int16_t *)(block + 0x29);                   /* 0x1126e-7c */
+    *(uint32_t *)(block + 0x77) = *(uint32_t *)(block + 0x73);   /* 0x11288 */
+    *(uint32_t *)(block + 0x7b) = 0;                             /* 0x1128e */
+    *(uint32_t *)(block + 0x7f) = 0;                             /* 0x11298 */
+    *(uint32_t *)(block + 0x10b) = 0;                            /* 0x112a2 */
+    *(uint32_t *)(block + 0x107) = *(uint32_t *)(block + 0x10b); /* 0x112b5-b8 */
+    *(uint32_t *)(block + 0x103) = *(uint32_t *)(block + 0x107); /* 0x112c1-ca */
+    *(int32_t *)(block + 0x11f) = (int32_t)prng_next() % 20;     /* 0x112d0-112e6: IDIV remainder */
+    return block;                                                /* 0x112ef-2f2, RET 8 */
+}
+
 /* fn_0112fd  orig: 0x000112fd (L10, 233B)
  *   Entity doubly-linked list REMOVE. Removes `node` (arg1) from the entity
  *   list (head=g_dat_53c70, tail=g_dat_53c74, count=g_dat_53c68); head/tail/
@@ -2014,7 +2131,7 @@ uint32_t fn_03690b(void)
     g_dat_53c8c = spr_block("face.spr");
     g_dat_63e00 = spr_block("gage.spr");
     g_dat_63e04 = (uint8_t *)spr_block("exp.spr");
-    g_dat_639ec = spr_block("gun.spr");
+    g_dat_639ec[0] = spr_block("gun.spr");
     g_dat_53818 = g_dat_53c28;                                        /* active action table */
     g_dat_63d10 = spr_block("mark.spr");
     g_dat_53b3c = act_block("mark.act");
@@ -6483,6 +6600,7 @@ uint8_t *g_dat_53c80 = 0;      /* 0x53c80 */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
 uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
+uint8_t  g_dat_53e9c[0x88 * 0x20]; /* 0x53e9c: entity-type table, entry stride 0x88 (+0 dword/word, +4 byte, +8 word); overlaps the g_dat_53ea8 view of the same DS region */
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
@@ -6490,7 +6608,7 @@ uint32_t g_dat_53c88 = 0;      /* 0x53c88 (cleared by fn_03237b conditional drai
 uint32_t *g_dat_639c0 = 0;     /* 0x639c0 */
 uint32_t *g_dat_53c8c = 0;     /* 0x53c8c */
 uint32_t *g_dat_63e00 = 0;     /* 0x63e00 */
-uint32_t *g_dat_639ec = 0;     /* 0x639ec */
+uint8_t *g_dat_639ec[0x20] = {0}; /* 0x639ec: per-type sprite-struct pointer array (element 0 = "gun.spr") */
 uint32_t *g_dat_63d10 = 0;     /* 0x63d10 */
 uint32_t *g_dat_53b3c = 0;     /* 0x53b3c */
 uint32_t *g_dat_63dd4 = 0;     /* 0x63dd4 */
@@ -6514,7 +6632,7 @@ void fn_037922(void) {
     if (g_dat_639c0) { fn_03d999(g_dat_639c0, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_639c0)); g_dat_639c0 = 0; }
     if (g_dat_53c8c) { fn_03d999(g_dat_53c8c, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_53c8c)); g_dat_53c8c = 0; }
     if (g_dat_63e00) { fn_03d999(g_dat_63e00, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_63e00)); g_dat_63e00 = 0; }
-    if (g_dat_639ec) { fn_03d999(g_dat_639ec, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_639ec)); g_dat_639ec = 0; }
+    if (g_dat_639ec[0]) { fn_03d999(g_dat_639ec[0], 0); heap_free_guard(host_to_off(g_dat_639ec[0])); g_dat_639ec[0] = 0; }
     if (g_dat_63d10) { fn_03d999(g_dat_63d10, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_63d10)); g_dat_63d10 = 0; }
     if (g_dat_53b3c) { fn_0100d9(g_dat_53b3c); heap_free_guard(host_to_off((uint8_t *)g_dat_53b3c)); g_dat_53b3c = 0; }
     if (g_dat_63dd4) { fn_03d999(g_dat_63dd4, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_63dd4)); g_dat_63dd4 = 0; }

@@ -7053,7 +7053,7 @@ static void test_fn_037922(void) {
     heap_arena_init();
     heap_acquire_region(0x4000);
     /* defensive: ensure the 8 globals start unset */
-    g_dat_639c0 = g_dat_53c8c = g_dat_63e00 = g_dat_639ec = 0;
+    g_dat_639c0 = g_dat_53c8c = g_dat_63e00 = 0; g_dat_639ec[0] = 0;
     g_dat_63d10 = g_dat_63dd4 = g_dat_53c00 = g_dat_53b3c = 0;
     for (uint32_t i = 0; i < 100; i++) g_pool_53d0c[i] = 0;
     /* pool[0] = a valid offset; two struct/container globals set */
@@ -7066,7 +7066,7 @@ static void test_fn_037922(void) {
     check(g_dat_639c0 == 0, "  g_639c0 cleared");
     check(g_dat_53c8c == 0, "  g_53c8c cleared");
     check(g_dat_63e00 == 0, "  g_63e00 cleared");
-    check(g_dat_639ec == 0, "  g_639ec cleared");
+    check(g_dat_639ec[0] == 0, "  g_639ec cleared");
     check(g_dat_63d10 == 0, "  g_63d10 cleared");
     check(g_dat_53b3c == 0, "  g_53b3c cleared");
     check(g_dat_63dd4 == 0, "  g_63dd4 cleared");
@@ -8267,7 +8267,7 @@ static void test_fn_03690b(void) {
     uint8_t *s_a98 = g_dat_62a98, *s_a9c = g_dat_62a9c;
     uint32_t *s_c28 = g_dat_53c28, *s_c2c = g_dat_53c2c, *s_c30 = g_dat_53c30, *s_818 = g_dat_53818;
     uint32_t *s_e08 = g_dat_63e08, *s_e0c = g_dat_63e0c, *s_c90 = g_dat_639c0, *s_c94 = g_dat_639c4;
-    uint32_t *s_c8c = g_dat_53c8c, *s_e00 = g_dat_63e00, *s_ec = g_dat_639ec, *s_d10 = g_dat_63d10;
+    uint32_t *s_c8c = g_dat_53c8c, *s_e00 = g_dat_63e00, *s_ec = (uint32_t *)g_dat_639ec[0], *s_d10 = g_dat_63d10;
     uint32_t *s_b3c = g_dat_53b3c, *s_dd4 = g_dat_63dd4, *s_c00 = g_dat_53c00;
     uint8_t *s_e04 = g_dat_63e04, *s_358 = g_dat_63358;
     uint8_t *voc_save[100];
@@ -8320,7 +8320,7 @@ static void test_fn_03690b(void) {
           "  three .act containers loaded with 0 records");
     check(g_dat_53818 == g_dat_53c28, "  alias: DAT_53818 = the active gun action table");
     uint32_t *spr[11] = { g_dat_63e0c, g_dat_639c0, g_dat_639c4, g_dat_63e08, g_dat_53c8c,
-                          g_dat_63e00, g_dat_63e04, g_dat_639ec, g_dat_63d10, g_dat_63dd4,
+                          g_dat_63e00, g_dat_63e04, (uint32_t *)g_dat_639ec[0], g_dat_63d10, g_dat_63dd4,
                           (uint32_t *)0 };
     int spr_ok = 1;
     for (int i = 0; i < 10; i++) if (spr[i] == 0 || spr[i][0] != 0) spr_ok = 0;
@@ -8354,7 +8354,7 @@ static void test_fn_03690b(void) {
     g_dat_62a98 = s_a98; g_dat_62a9c = s_a9c;
     g_dat_53c28 = s_c28; g_dat_53c2c = s_c2c; g_dat_53c30 = s_c30; g_dat_53818 = s_818;
     g_dat_63e08 = s_e08; g_dat_63e0c = s_e0c; g_dat_639c0 = s_c90; g_dat_639c4 = s_c94;
-    g_dat_53c8c = s_c8c; g_dat_63e00 = s_e00; g_dat_639ec = s_ec; g_dat_63d10 = s_d10;
+    g_dat_53c8c = s_c8c; g_dat_63e00 = s_e00; g_dat_639ec[0] = (uint8_t *)s_ec; g_dat_63d10 = s_d10;
     g_dat_53b3c = s_b3c; g_dat_63dd4 = s_dd4; g_dat_53c00 = s_c00;
     g_dat_63e04 = s_e04; g_dat_63358 = s_358;
     memcpy(g_dat_53d0c, voc_save, sizeof g_dat_53d0c);
@@ -8731,6 +8731,94 @@ static void mk_resnode(uint8_t *data, uint32_t data_off, uint8_t *nd, uint32_t n
 /* fn_03f80d (0x03f80d, 120 B): the resource-op block gate. The ops it drives use opcode 0xd
  * (fn_03fade), which consumes only its 6-byte header, so the byte accounting through the node is
  * exact and observable. */
+/* fn_010efc (0x010efc, 1025 B): the entity constructor. Driven directly with hand-built entity-type
+ * table (DAT_53e9c, stride 0x88) and per-type sprite struct (DAT_639ec[]) rows, so every field the
+ * constructor derives from them is pinned. Blocks come from the arena (0x160 bytes: the original
+ * allocated 0x147, the port's widened link fields need 0x14f). */
+static uint32_t t_actab[0x20];
+
+static void test_fn_010efc(void) {
+    printf("fn_010efc (0x010efc): entity constructor (type table + entity list append)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    int32_t s_cnt = g_dat_53c68; uint32_t s_370 = g_dat_63370;
+    uint32_t *s_tab = g_dat_53818; uint8_t *s_spr0 = g_dat_639ec[0], *s_spr2 = g_dat_639ec[2];
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+
+    memset(g_dat_53e9c, 0, 0x88 * 0x20);
+    uint8_t *e2 = g_dat_53e9c + 2u * 0x88u;
+    *(uint32_t *)(e2 + 0x00) = 0x113344u;      /* +0: dword (type 0) / word (types != 0) */
+    e2[0x04] = 0xab;                           /* +4: byte -> block+0x25 */
+    *(uint16_t *)(e2 + 0x08) = 0x8001;         /* +8: word -> block+0x29 (negative as int16) */
+    uint8_t *e20 = g_dat_53e9c + 20u * 0x88u;
+    *(uint16_t *)(e20 + 0x00) = 0x0064;
+    uint8_t *e0 = g_dat_53e9c;
+    *(uint32_t *)(e0 + 0x00) = 0x9abc0011u;
+
+    for (uint32_t i = 0; i < 0x20; i++) t_actab[i] = 0x1000u + i;
+    g_dat_53818 = t_actab;
+
+    uint32_t sp_off = heap_arena_alloc(0x40); uint8_t *sp = hb + sp_off; memset(sp, 0, 0x40);
+    *(uint32_t *)(sp + 0x04) = 0x0404; *(uint32_t *)(sp + 0x08) = 0x0808;
+    *(uint32_t *)(sp + 0x0c) = 0x0c0c; *(uint32_t *)(sp + 0x10) = 0x1010;
+    *(uint32_t *)(sp + 0x34) = 0x3434; *(uint32_t *)(sp + 0x38) = 0x3838;
+    g_dat_639ec[2] = sp;
+
+    uint32_t b1_off = heap_arena_alloc(0x160); uint8_t *b1 = hb + b1_off;
+    memset(b1, 0xa5, 0x160);
+    g_dat_63370 = 2;                            /* matches type_idx 2 -> DAT_53c80 latch */
+    uint8_t *r = fn_010efc(b1, (int32_t)0xffffffe2u, 7, 9, 2, 0x11);
+    check(r == b1, "  returns the block");
+    check(g_dat_53c80 == b1, "  type index == DAT_63370: published to DAT_53c80");
+    check(b1[0x00] == 0x11 && *(uint32_t *)(b1 + 1) == 0xffffffe2u
+          && *(uint32_t *)(b1 + 5) == 7 && *(uint32_t *)(b1 + 9) == 9
+          && *(uint32_t *)(b1 + 0xd) == 2, "  the four register args + the byte arg stored verbatim");
+    check(b1[0x25] == 0xab && *(uint16_t *)(b1 + 0x29) == 0x8001,
+          "  type table: byte at entry+4, word at entry+8");
+    check(*(uint16_t *)(b1 + 0x23) == 0x3344u && *(uint32_t *)(b1 + 0x56) == 0x30c,
+          "  non-zero type: WORD at entry+0 -> +0x23, and 1..9 -> +0x56 = 0x30c");
+    check(*(uint32_t *)(b1 + 0x73) == (int32_t)(0x30c + (int16_t)0x3344 + (int16_t)0x8001)
+          && *(uint32_t *)(b1 + 0x77) == *(uint32_t *)(b1 + 0x73),
+          "  +0x73 = +0x56 + (short)+0x23 + (short)+0x29, copied to +0x77");
+    check(*(uint32_t *)(b1 + 0x123) == 0x1002u, "  +0x123 = action table[type]");
+    check(*(uint32_t *)(b1 + 0x127) == 0x3838 && *(uint32_t *)(b1 + 0x12b) == 0x0404
+          && *(uint32_t *)(b1 + 0x12f) == 0x0808 && *(uint32_t *)(b1 + 0x133) == 0x3434
+          && *(uint32_t *)(b1 + 0x137) == 0x0c0c && *(uint32_t *)(b1 + 0x13b) == 0x1010,
+          "  the six sprite-struct fields (0x38/0x04/0x08/0x34/0x0c/0x10)");
+    int z = 1;
+    for (uint32_t i = 0x32; i < 0x46; i++) if (b1[i] != 0) z = 0;
+    check(z && b1[0x46] == 0, "  the 20-byte zero fill at +0x32 (fn_041e20)");
+    check(*(uint32_t *)(b1 + 0xaf) == 4 && *(uint32_t *)(b1 + 0xc7) == 1
+          && *(uint32_t *)(b1 + 0xff) == 0xffffffffu, "  the non-zero defaults (+0xaf=4, +0xc7=1, +0xff=-1)");
+    int16_t jit = (int16_t)*(uint32_t *)(b1 + 0x11f);
+    check(jit >= 0 && jit < 20, "  +0x11f = PRNG value % 20");
+    check(g_dat_53c70 == b1 && g_dat_53c74 == b1 && g_dat_53c68 == 1
+          && *(uint8_t **)(b1 + 0x13f) == 0 && *(uint8_t **)(b1 + 0x147) == 0,
+          "  first entity: head == tail == block, links clear, count 1");
+
+    uint32_t b2_off = heap_arena_alloc(0x160); uint8_t *b2 = hb + b2_off; memset(b2, 0, 0x160);
+    g_dat_639ec[20] = sp;
+    (void)fn_010efc(b2, 0, 0, 0, 20, 0);
+    check(*(uint32_t *)(b2 + 0x56) == 0 && *(uint16_t *)(b2 + 0x23) == 0x0064,
+          "  type 20 (outside 1..9): +0x56 stays 0, +0x23 still taken from entry+0");
+    check(g_dat_53c70 == b1 && g_dat_53c74 == b2 && g_dat_53c68 == 2
+          && *(uint8_t **)(b1 + 0x13f) == b2 && *(uint8_t **)(b2 + 0x147) == b1,
+          "  append: old tail next -> block, block prev -> old tail, tail updated");
+
+    uint32_t b3_off = heap_arena_alloc(0x160); uint8_t *b3 = hb + b3_off; memset(b3, 0, 0x160);
+    g_dat_639ec[0] = sp; g_dat_63370 = 0xffffffffu;
+    (void)fn_010efc(b3, 0, 0, 0, 0, 0);
+    check(*(uint32_t *)(b3 + 0x56) == 0x9abc0011u && *(uint16_t *)(b3 + 0x23) == 0,
+          "  type 0: the DWORD at entry+0 goes to +0x56 and +0x23 stays clear");
+    check(g_dat_53c80 == b1, "  type index != DAT_63370: DAT_53c80 not overwritten");
+
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_63370 = s_370; g_dat_53818 = s_tab; g_dat_639ec[0] = s_spr0; g_dat_639ec[2] = s_spr2;
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03f80d(void) {
     printf("fn_03f80d (0x03f80d): resource-op block gate (tag 0xf1fa + int16 count)\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
@@ -9490,6 +9578,7 @@ int main(void) {
     test_fn_04097e();
     test_fn_03f885();
     test_fn_03f80d();
+    test_fn_010efc();
     test_fn_03ace9();
     test_fn_040fb3();
     test_fn_040d09();

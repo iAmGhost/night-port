@@ -9477,48 +9477,79 @@ int32_t fn_035b91(uint8_t a0, uint8_t a1, uint8_t a2) {
     return fn_035a19((int32_t)a0, (int32_t)a1, (int32_t)b);     /* write a0,a1,clamped */
 }
 
-/* 0x0353d0 (L14, 158 insns): queue-based device-command dispatcher. Args: cmd=AL, arg=EDX (a
- * dev_cmd_ctx*). arg->head is a byte-read cursor (orig 4-B ptr widened to 8 B; f4/f5 shift 4/5->8/9).
- * Independent branch: if cmd<0xf0: arg->f4=cmd. Then: if cmd==0xff { c=*head++; r=fn_0351dc(&head);
+/* 0x0353d0 (L14, 158 insns): MIDI/device command dispatcher. Args: cmd=AL, arg=EDX (a dev_cmd_ctx*,
+ * which is a MIDI track record: head_off=rec[0] a 4-byte g_heap_base-relative OFFSET cursor, f4=rec[4]
+ * cmd, f5=rec[5] tag). The cursor is resolved to a local ptr `head` (hb+head_off), all pointer
+ * arithmetic runs on it (as in the orig 32-bit code), then stored back (head_off=head-hb) at the end.
+ * Independent branch: if cmd<0xf0: f4=cmd. Then: if cmd==0xff { c=*head++; r=fn_0351dc(&head);
  *   if c==0x2f { f5=0x2f; f4=f5; } else if c==0x51 { v=fn_03510b(head)>>8; g_dat_63308=v; fn_03565a(v); }
- *   head += r; } else { op=cmd&0xf0; dispatch: op in {0x80,0x90,0xa0,0xb0,0xe0} -> read2 (b1,b2=*head++,
- *   fn_035b0c(cmd,b1,b2)); op in {0xc0,0xd0} -> read1 (b=*head++, fn_035bf4(cmd,b)); op==0xf0 -> readN
- *   (n=fn_0351dc(&head), fn_035c2d(cmd), for i<n: b=*head++, fn_035c2d(b)); else no-op. } */
+ *   head += r; } else { op=cmd&0xf0; dispatch: op in {0x80,0x90,0xa0,0xb0,0xe0} -> read2 (b1,b2);
+ *   op in {0xc0,0xd0} -> read1 (b); op==0xf0 -> readN (n, fn_035c2d per byte); else no-op. } */
 void fn_0353d0(uint8_t cmd, struct dev_cmd_ctx *arg) {
     (void)canary_id(0, 0x40);                                             /* PUSH 0x40;CALL 0x418ee */
+    uint8_t  *hb   = (uint8_t *)g_heap_base;
+    uint8_t  *head = hb + arg->head_off;                                  /* offset -> real ptr */
     if (cmd < 0xf0) {                                                     /* 0x353ef-0x353ff */
         arg->f4 = cmd;
     }
     if (cmd == 0xff) {                                                    /* 0x35407-0x3548d */
-        uint8_t  c = *arg->head++;                                        /* 0x35412-0x3541e */
-        uint32_t r = fn_0351dc(&arg->head);                               /* 0x35421-0x35429 */
+        uint8_t  c = *head++;                                             /* 0x35412-0x3541e */
+        uint32_t r = fn_0351dc(&head);                                    /* 0x35421-0x35429 */
         if (c == 0x2f) {                                                  /* 0x35475-0x35479 -> 0x35434 */
             arg->f5 = 0x2f;
             arg->f4 = arg->f5;
         } else if (c == 0x51) {                                           /* 0x3547b-0x3547f -> 0x35449 */
-            uint32_t v = fn_03510b(arg->head) >> 8;
+            uint32_t v = fn_03510b(head) >> 8;
             g_dat_63308 = (int32_t)v;
             fn_03565a((int32_t)v);
         }
-        arg->head += r;                                              /* 0x35485-0x3548b */
+        head += r;                                                        /* 0x35485-0x3548b */
     } else {                                                              /* 0x35492-0x355de */
         uint32_t op = (uint32_t)cmd & 0xf0u;
         if (op == 0x80 || op == 0x90 || op == 0xa0 || op == 0xb0 || op == 0xe0) {   /* 0x354a4 */
-            uint8_t b1 = *arg->head++;
-            uint8_t b2 = *arg->head++;
+            uint8_t b1 = *head++;
+            uint8_t b2 = *head++;
             fn_035b0c(cmd, b1, b2);
         } else if (op == 0xc0 || op == 0xd0) {                             /* 0x354db */
-            uint8_t b = *arg->head++;
+            uint8_t b = *head++;
             fn_035bf4(cmd, b);
         } else if (op == 0xf0) {                                          /* 0x354fc */
-            uint32_t n = fn_0351dc(&arg->head);
+            uint32_t n = fn_0351dc(&head);
             fn_035c2d(cmd);
             for (uint32_t i = 0; i < n; i++) {
-                uint8_t b = *arg->head++;
+                uint8_t b = *head++;
                 fn_035c2d(b);
             }
         } /* else: default no-op (0x35542) */
     }
+    arg->head_off = (uint32_t)(head - hb);                                 /* store back offset */
+}
+
+/* 0x035263 (L15, 66 insns): MIDI sequencer step. base=EAX = 0xe-stride record array (each record is
+ * a dev_cmd_ctx: head_off@+0, f4/cmd@+4, f5/tag@+5, acc@+0xa); ctx=EDX = scheduler state (idx@+0x14,
+ * count@+0x1c, set by a prior fn_035329). Advances the min track: b=*cursor; if (b&0x80)==0 ->
+ * fn_0353d0(rec->f4, rec); else rec->head_off++, fn_0353d0(b, rec). Then if rec->f5==0x2f -> acc=0x7fffffff;
+ * else acc += fn_0351dc(LEB from cursor). Finally fn_035329(base, ctx) re-finds the min track. */
+void fn_035263(uint8_t *base, uint8_t *ctx) {
+    (void)canary_id(0, 0x28);                                             /* PUSH 0x28;CALL 0x418ee */
+    uint32_t idx = *(uint32_t *)(ctx + 0x14);                             /* 0x35280-0x35286 */
+    struct dev_cmd_ctx *rec = (struct dev_cmd_ctx *)(base + idx * 0xe);   /* 0x35289-0x3528d (stride 0xe) */
+    uint8_t b = *(uint8_t *)(g_heap_base + rec->head_off);                /* 0x35290-0x35294: b=*cursor */
+    if ((b & 0x80) == 0) {                                                /* 0x3529a-0x352a3 */
+        fn_0353d0(rec->f4, rec);                                          /* 0x352a5-0x352bb: cmd=rec[4] */
+    } else {                                                              /* 0x352c2-0x352d7 */
+        rec->head_off++;                                                  /* 0x352c9: INC *rec */
+        fn_0353d0(b, rec);                                                /* cmd=b */
+    }
+    if (rec->f5 == 0x2f) {                                                /* 0x352e3-0x352ee */
+        *(int32_t *)((uint8_t *)rec + 0xa) = 0x7fffffff;                  /* 0x352f7: acc=INT32_MAX */
+    } else {                                                              /* 0x35300-0x35313 */
+        uint8_t  *lc = (uint8_t *)g_heap_base + rec->head_off;
+        uint32_t  r  = fn_0351dc(&lc);
+        *(int32_t *)((uint8_t *)rec + 0xa) += (int32_t)r;
+        rec->head_off = (uint32_t)(lc - (uint8_t *)g_heap_base);
+    }
+    fn_035329(base, ctx);                                                 /* 0x35316-0x3531c */
 }
 
 /* 0x035b0c (L13, 132 B): device-command dispatcher. Args a0=EAX(AL), a1=EDX(DL),

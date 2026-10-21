@@ -614,11 +614,12 @@ uint32_t fn_041410(void);  /* 0x041410: thin wrapper -> fn_041340(0xd3) */
 /* 0x0353d0 device-command queue: arg is a cursor struct; head = orig 4-B pointer widened to 8 B
  * (pointer-width adaptation -> f4/f5 shift from orig offset 4/5 to 8/9). */
 struct dev_cmd_ctx {
-    uint8_t *head;  /* read cursor (uint8_t*) */
-    uint8_t f4;     /* orig +0x04 */
-    uint8_t f5;     /* orig +0x05 */
+    uint32_t head_off;  /* +0: 4-byte g_heap_base-relative cursor (rec[0]) */
+    uint8_t f4;         /* +4: cmd byte  (rec[4]) */
+    uint8_t f5;         /* +5: tag byte  (rec[5]) */
 };
-void fn_0353d0(uint8_t cmd, struct dev_cmd_ctx *arg); /* 0x0353d0: queue-based device command dispatcher */
+void fn_0353d0(uint8_t cmd, struct dev_cmd_ctx *arg); /* 0x0353d0: MIDI/device command dispatcher (offset cursor) */
+void fn_035263(uint8_t *base, uint8_t *ctx);          /* 0x035263: MIDI sequencer step -- advance min track (idx=ctx[0x14]), re-find min via fn_035329 */
 int32_t  fn_035c2d(uint8_t arg);  /* 0x035c2d: thin wrapper -> fn_0358c7((uint8)arg) */
 int32_t  fn_035a19(int32_t a0, int32_t a1, int32_t a2);  /* 0x035a19: 3-byte write (a0,a1,a2-if>=0) via fn_0358c7; -1 on first timeout */
 void     fn_035329(uint8_t *a0, uint8_t *a1);  /* 0x035329: scan 0xe-byte records (tag@+0x5,val@+0xa) for min -> a1{+0x10 cur,+0x14 idx,+0x20 flag}; a0/a1 raw ptrs */

@@ -7174,6 +7174,57 @@ static void test_fn_034e3c(void) {
     check(g_dat_63324==0, "  T3: fn_034eb0 cleared g_63324");
 }
 
+static void test_fn_04192e(void) {
+    printf("fn_04192e (0x04192e): stream read node->dest (byte/bulk)\n");
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    /* T4 (path A, not open): node[0xc]&1==0 -> g_64008=4, node[0xc]|=0x20, return 0 */
+    { uint8_t node[0x20], out[4]; memset(node,0,sizeof(node));
+      uint32_t r = fn_04192e(out, 0, 0, node);
+      check(r == 0, "  T4 path A: return 0");
+      check(node[0x0c] == 0x20, "  T4: node[0xc]|=0x20");
+      check(g_dat_64008 == 4, "  T4: g_64008=4");
+    }
+
+    /* T1 (byte path, \r\n->\n): pre-filled buffer, no refill */
+    { heap_arena_init(); uint8_t node[0x20]; memset(node,0,sizeof(node));
+      uint32_t off = heap_arena_alloc(16);
+      const char data[] = "Hi\r\nthere\x1a"; memcpy(hb+off, data, 11);
+      uint8_t out[16]; memset(out,0,sizeof(out));
+      node[0x0c]=0x1; *(uint32_t*)(node+0x08)=off; *(uint32_t*)(node+0x00)=off; *(uint32_t*)(node+0x04)=11;
+      uint32_t r = fn_04192e(out, 8, 1, node);            /* count=8, mult=1 -> total=8 */
+      check(r == 1, "  T1 byte: return 1 (8/8)");
+      check(memcmp(out,"Hi\nthere",8)==0, "  T1: \r\n->\n, dest=Hi\\nthere");
+      check(*(uint32_t*)(node+0x04)==2, "  T1: node[0x4] 11-9=2");
+    }
+
+    /* T2 (byte path, 0x1a EOF): */
+    { heap_arena_init(); uint8_t node[0x20]; memset(node,0,sizeof(node));
+      uint32_t off = heap_arena_alloc(16);
+      const uint8_t data[] = {'A','B',0x1a,'C','D','E','F','G','H','I','J'}; memcpy(hb+off,data,11);
+      uint8_t out[16]; memset(out,0xAA,sizeof(out));
+      node[0x0c]=0x1; *(uint32_t*)(node+0x08)=off; *(uint32_t*)(node+0x00)=off; *(uint32_t*)(node+0x04)=11;
+      uint32_t r = fn_04192e(out, 10, 1, node);
+      check(r == 0, "  T2 EOF: return 0 (2/10)");
+      check((node[0x0c]&0x10)!=0, "  T2: EOF flag 0x10 set");
+      check(out[0]=='A'&&out[1]=='B', "  T2: dest=AB, stopped at 0x1a");
+      check(*(uint32_t*)(node+0x04)==8, "  T2: node[0x4] 11-3=8");
+    }
+
+    /* T3 (bulk path): memcpy from pre-filled buffer (total satisfied by buffer, no file read) */
+    { heap_arena_init(); uint8_t node[0x20]; memset(node,0,sizeof(node));
+      uint32_t off = heap_arena_alloc(16);
+      for (int i=0;i<16;i++) hb[off+i]=(uint8_t)i;
+      uint8_t out[16]; memset(out,0,sizeof(out));
+      node[0x0c]=0x40|0x1; *(uint32_t*)(node+0x08)=off; *(uint32_t*)(node+0x00)=off;
+      *(uint32_t*)(node+0x04)=16; *(uint32_t*)(node+0x14)=0x1000;
+      uint32_t r = fn_04192e(out, 16, 1, node);
+      check(r == 1, "  T3 bulk: return 1 (16/16)");
+      check(out[0]==0x00&&out[15]==0x0f, "  T3: dest=00..0f");
+      check(*(uint32_t*)(node+0x04)==0, "  T3: node[0x4]=0");
+    }
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7517,6 +7568,7 @@ int main(void) {
     test_fn_0353d0();
     test_fn_035263();
     test_fn_034e3c();
+    test_fn_04192e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

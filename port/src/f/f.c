@@ -3950,6 +3950,83 @@ int32_t fn_041d47(uint8_t *node, uint32_t param_2) {
     return (int32_t)*(uint32_t *)(node + 0x04);                            /* 0x41dea */
 }
 
+/* 0x04192e (L13, ~158 insns): stream read node->dest. ABI: EAX=dest, EDX=count, EBX=mult, ECX=node.
+ * node: [0]=cursor(heap off),[0x4]=remaining,[0x8]=buffer(heap off,0=uninit),[0xc]=flags byte
+ * (0x1=open,0x10=EOF,0x20=err,0x40=bulk),[0xd]=cfg byte(0x4=char/align),[0x10]=handle,[0x14]=size/limit.
+ * total=mult*count. Byte path (no 0x40): read byte-by-byte from buffer; '\r' consumes the next byte (\n);
+ * 0x1a sets the EOF flag and stops. Bulk path (0x40): memcpy from the buffer, then a direct file-read
+ * (fn_042aba) or a buffered refill (fn_041d47) as needed. Returns total_read/count (0x41ae6 DIV). */
+uint32_t fn_04192e(uint8_t *dest, uint32_t count, uint32_t mult, uint8_t *node) {
+    if ((node[0x0c] & 1) == 0) {                                          /* 0x41938-44 */
+        fn_042a0d(4);                                                     /* g_dat_64008 = 4 */
+        node[0x0c] |= 0x20;                                               /* 0x4194e-52 */
+        return 0;
+    }
+    uint32_t total = mult * count;                                        /* 0x41958 IMUL EBX,EDX */
+    if (total == 0) return 0;                                             /* 0x4195b-61 */
+    if (*(uint32_t *)(node + 0x08) == 0) fn_042a43(node);                 /* 0x41966-6e */
+    uint32_t total_read = 0;                                              /* [ESP+0xc] local_10 */
+    uint8_t *dptr = dest;                                                 /* [ESP+0x4] local_18 */
+    if ((node[0x0c] & 0x40) == 0) {                                       /* 0x4197c-7f: byte path */
+        uint8_t *end = dest + total;
+        for (;;) {
+            if (*(uint32_t *)(node + 0x04) == 0) {                        /* 0x41a78-7c */
+                if (fn_041d47(node, 0) == 0) break;
+            }
+            uint32_t o = *(uint32_t *)(node + 0x00);
+            uint8_t *cur = (uint8_t *)(g_heap_base + o);
+            *(uint32_t *)(node + 0x04) -= 1;                              /* 0x41a8f-93 */
+            *(uint32_t *)(node + 0x00) = o + 1;                           /* advance OFFSET (not ptr) */
+            uint8_t c = *cur;
+            if (c == 0x0d) {                                              /* 0x41aa0 '\r' */
+                if (*(uint32_t *)(node + 0x04) == 0) {                    /* 0x41aa5-9 */
+                    if (fn_041d47(node, 0) == 0) break;
+                }
+                o = *(uint32_t *)(node + 0x00);
+                cur = (uint8_t *)(g_heap_base + o);
+                *(uint32_t *)(node + 0x04) -= 1;                          /* 0x41abc-90 */
+                *(uint32_t *)(node + 0x00) = o + 1;
+                c = *cur;
+            }
+            if (c == 0x1a) {                                              /* 0x41acd-ad0 */
+                node[0x0c] |= 0x10;                                       /* EOF flag (LAB_00041a32) */
+                break;
+            }
+            *dptr = c;                                                    /* 0x41ad6 */
+            total_read++;
+            dptr++;
+            if (dptr == end) break;                                       /* 0x41ae2-ae4 */
+        }
+    } else {                                                              /* bulk path (0x40) */
+        for (;;) {                                                        /* outer do..while(iVar2!=0) */
+            for (;;) {                                                    /* inner while(true) */
+                uint32_t rem = *(uint32_t *)(node + 0x04);
+                if (rem != 0) {
+                    uint32_t avail = (total < rem) ? total : rem;
+                    memcpy(dptr, (uint8_t *)(g_heap_base + *(uint32_t *)(node + 0x00)), avail);
+                    dptr += avail;                                        /* local_18 += uVar4 */
+                    total_read += avail;                                  /* local_10 += uVar4 */
+                    total -= avail;                                       /* local_14 -= uVar4 */
+                    *(uint32_t *)(node + 0x00) += avail;                  /* *param_4 += uVar4 */
+                    *(uint32_t *)(node + 0x04) = rem - avail;             /* param_4[1] -= uVar4 */
+                }
+                if (total == 0) return total_read / count;                /* 0x419e8-9ea (LAB_00041ae6) */
+                if (total < *(uint32_t *)(node + 0x14) && (node[0x0d] & 4) == 0) break; /* -> refill */
+                uint32_t rsize = total;
+                if ((node[0x0d] & 4) == 0 && total > 0x200) {
+                    rsize = ((uint32_t)(total >> 8) & 0xfffffeu) << 8;    /* align down to 512 */
+                }
+                int32_t r = fn_042aba(*(uint32_t *)(node + 0x10), dptr, rsize);
+                if (r == -1) { node[0x0c] |= 0x20; return total_read / count; }  /* error */
+                if (r == 0)  { node[0x0c] |= 0x10; return total_read / count; }  /* EOF */
+                dptr += r; total -= r; total_read += r;
+            }
+            if (fn_041d47(node, 0) == 0) return total_read / count;       /* outer while(iVar2!=0) */
+        }
+    }
+    return total_read / count;                                            /* 0x41ae6-aef DIV */
+}
+
 uint32_t fn_043234(uint32_t mask) {
     uint8_t *base = g_ndpool;
     uint32_t cur = g_node_list_active;            /* 0x43239 EDX=[0x63ffc] */

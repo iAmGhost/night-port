@@ -710,6 +710,7 @@ uint32_t fn_0446b2(uint8_t *p, uint32_t ch);      /* 0x0446b2: putc to node@[p]+
 uint32_t fn_041c8f(uint8_t *node);              /* 0x041c8f: getch from node buffer (CR-consume, EOF) */
 int32_t fn_041d18(uint8_t *node, uint32_t param_2); /* 0x041d18: pull one byte from node buffer (fn_041d47 + advance) */
 int32_t fn_041d47(uint8_t *node, uint32_t param_2); /* 0x041d47: I/O fill step (key-echo or device read into node buffer) */
+uint32_t fn_04192e(uint8_t *dest, uint32_t count, uint32_t mult, uint8_t *node); /* 0x04192e: stream read node->dest (byte/bulk); \r\n + 0x1a handling; returns total_read/count */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),
  * '0' -> out+0x16 = '0'. Stops at the first other character.  orig: 0x044fd7 */

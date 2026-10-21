@@ -7836,6 +7836,62 @@ static void test_fn_03628e(void) {
     g_dat_63e5c = s_e5c; g_dat_63e4c = s_e4c; g_dat_63e50[0] = s_e50;
 }
 
+static void test_fn_04097e(void) {
+    printf("fn_04097e (0x04097e): arm a device transfer (hdr[0]/hdr[1] switch) + first DMA chunk\n");
+    uint8_t *dev = (uint8_t *)calloc(1, 0x10000 + 16);
+    uint8_t *hdr = (uint8_t *)calloc(1, 0x10020);
+    if (!dev || !hdr) { check(0, "  heap buffers (SKIP)"); return; }
+    for (uint32_t i = 2; i < 0x10012; i++) hdr[i] = (uint8_t)(i * 3 + 1);
+    uint32_t s8c = g_dat_63f8c, s94 = g_dat_63f94, s98 = g_dat_63f98, s9c = g_dat_63f9c, sac = g_dat_63fac;
+    uint8_t *sa8 = g_dat_63fa8, *sb4 = g_dat_63fb4;
+    uint32_t sport = g_dat_53334;
+    uint8_t p2 = sys_inb(2), p3 = sys_inb(3), p0a = sys_inb(0x0a), p0b = sys_inb(0x0b),
+            p0c = sys_inb(0x0c), p83 = sys_inb(0x83);
+    g_dat_53334 = 0x300; g_dat_63fb4 = dev; g_dat_63fac = 0x034567;
+
+    /* --- 1: hdr[1]=1 -> g_dat_63f9c=0x75; small transfer -> 0x80 fill + whole remainder --- */
+    memset(dev, 0, 0x10010);
+    hdr[0] = 0x20; hdr[1] = 1;
+    sys_port_set(0x30c, 0);
+    fn_04097e(hdr, 6);                              /* payload = 6-2 = 4 bytes */
+    check(g_dat_63f9c == 0x75, "  hdr[1]=1 -> g_dat_63f9c = 0x75 (jump table)");
+    check(dev[0]==hdr[2] && dev[1]==hdr[3] && dev[2]==hdr[4] && dev[3]==hdr[5],
+          "  payload (hdr+2) copied into the device buffer");
+    check(dev[4]==0x80 && dev[0xfffe]==0x80 && dev[0xffff]==0x00, "  0x80 pre-fill over 0xffff bytes");
+    check(g_dat_63f8c == 0xffff, "  armed flag g_dat_63f8c = 0xffff");
+    check(g_dat_63f94 == 0 && g_dat_63f98 == 3 && g_dat_63fa8 == hdr + 6,
+          "  count = total-2, cursor = hdr+2 advanced by len, device count = len-1");
+    check(sys_inb(0x30c) == 0x00,
+          "  all three cmds land (0x75/0x03/0x00 all have bit7 clear) -> port holds the count high 0x00");
+
+    /* --- 2: hdr[1]=0 -> 0x14; total > 0x10001 -> 0xffff chunk, no fill --- */
+    memset(dev, 0, 0x10010);
+    hdr[0] = 0x21; hdr[1] = 0;
+    sys_port_set(0x30c, 0);
+    fn_04097e(hdr, 0x10003);                        /* payload 0x10001 -> chunk 0xffff */
+    check(g_dat_63f9c == 0x14, "  hdr[1]=0 -> g_dat_63f9c = 0x14");
+    check(g_dat_63f94 == 2 && g_dat_63f98 == 0xfffe, "  chunk 0xffff leaves 2 pending, device count 0xfffe");
+    check(dev[0xfff0] == hdr[2 + 0xfff0] && dev[0xffff] == 0x00, "  exactly 0xffff bytes copied, no 0x80 fill");
+    check(sys_inb(3) == 0xff && sys_inb(0x83) == 0x03, "  DMA count high + page register (addr 0x034567)");
+    check(sys_inb(0x30c) == 0xfe,
+          "  cmds 0x14 then 0xfe accepted; 0xfe (bit7 set) gates off the count-high cmd");
+
+    /* --- 3: remaining switch arms + the default (sel > 3) leaving the selector alone --- */
+    hdr[0] = 0x22; hdr[1] = 2; sys_port_set(0x30c, 0); fn_04097e(hdr, 2 + 1);
+    check(g_dat_63f9c == 0x77, "  hdr[1]=2 -> 0x77");
+    hdr[0] = 0x23; hdr[1] = 3; sys_port_set(0x30c, 0); fn_04097e(hdr, 2 + 1);
+    check(g_dat_63f9c == 0x17, "  hdr[1]=3 -> 0x17");
+    g_dat_63f9c = 0x99;
+    hdr[0] = 0x24; hdr[1] = 5; sys_port_set(0x30c, 0); fn_04097e(hdr, 2 + 1);
+    check(g_dat_63f9c == 0x99, "  hdr[1]>3 -> default arm leaves g_dat_63f9c untouched");
+
+    g_dat_63f8c = s8c; g_dat_63f94 = s94; g_dat_63f98 = s98; g_dat_63f9c = s9c; g_dat_63fac = sac;
+    g_dat_63fa8 = sa8; g_dat_63fb4 = sb4; g_dat_53334 = sport;
+    sys_port_set(2, p2); sys_port_set(3, p3); sys_port_set(0x0a, p0a); sys_port_set(0x0b, p0b);
+    sys_port_set(0x0c, p0c); sys_port_set(0x83, p83); sys_port_set(0x30c, 0);
+    free(dev); free(hdr);
+}
+
 static void test_fn_040b83(void) {
     printf("fn_040b83 (0x040b83): one DMA transfer chunk (0x80 fill + copy + DMA port burst + device cmds)\n");
     uint8_t *dev = (uint8_t *)calloc(1, 0x10000 + 16);
@@ -8392,6 +8448,7 @@ int main(void) {
     test_fn_036417();
     test_fn_03628e();
     test_fn_040b83();
+    test_fn_04097e();
     test_fn_03fc1d();
     test_fn_03e0a0();
     test_fn_03fb0e();

@@ -874,6 +874,8 @@ extern uint32_t g_dat_63f9c;   /* DAT_00063f9c: device command selector (0x14 sp
 extern uint8_t *g_dat_63fa8;   /* DAT_00063fa8: DMA source cursor (host ptr in the port) */
 extern uint8_t *g_dat_63fb4;   /* DAT_00063fb4: device buffer, 0x10000-byte window (host ptr) */
 extern uint32_t g_dat_63fac;   /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
+extern uint32_t g_dat_63f8c;   /* DAT_00063f8c: transfer-armed flag (0xffff) */
+void fn_04097e(uint8_t *hdr, uint32_t total);  /* 0x04097e: arm+start a device transfer: hdr[0]->fn_040948, hdr[1] selects g_dat_63f9c, then the DMA chunk body */
 void fn_040b83(uint8_t *src, uint32_t unused_edx);  /* 0x040b83: one DMA chunk: fill 0x80 + mem_copy + DMA port burst + 3x fn_041340 */
 int32_t  fn_0350aa(const uint8_t *a, const uint8_t *b);           /* 0x0350aa: 4-byte prefix equal? 1/-1 */
 uint64_t fn_0408c5(const uint8_t *p);       /* 0x0408c5: little-endian 24-bit (3-byte) read */

@@ -5888,12 +5888,61 @@ uint8_t *fn_041e20(uint8_t *dest, uint8_t byte, uint32_t count) {  /* 0x041e20: 
  * DAT_00063fb4 / DAT_00063fa8 hold flat 32-bit buffer addresses in the original; the port
  * keeps them as host pointers because they are only ever used as copy source/destination
  * (a 32-bit mirror would truncate on 64-bit hosts). */
+uint32_t  g_dat_63f8c;      /* DAT_00063f8c: transfer-in-progress flag (0xffff while arming) */
 uint32_t  g_dat_63f94;      /* DAT_00063f94: bytes still to transfer */
 uint32_t  g_dat_63f98;      /* DAT_00063f98: length of the last transfer chunk */
 uint32_t  g_dat_63f9c;      /* DAT_00063f9c: device command selector (0x14 special-cased) */
 uint8_t  *g_dat_63fa8;      /* DAT_00063fa8: DMA source cursor */
 uint8_t  *g_dat_63fb4;      /* DAT_00063fb4: device buffer (0x10000-byte window) */
 uint32_t  g_dat_63fac;      /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
+
+/* fn_04097e  orig: 0x04097e (L13, 500 B) -- ARM a device transfer and run its first chunk.
+ * reg-ABI: EAX = header buffer, EDX = total length. byte0 of the header is handed to
+ * fn_040948 (a two-command device handshake: 0x40 then byte0); byte1 selects the transfer
+ * command via a 4-entry jump table at 0x409f8 (cmp > 3 -> default leaves g_dat_63f9c
+ * untouched, 0x409f5): 0->0x14, 1->0x75, 2->0x77, 3->0x17. The payload starts at header+2
+ * (the source cursor DAT_00063fa8 = header+2) and the byte count is EDX-2 (2 header bytes).
+ * g_dat_63f8c is set to 0xffff (transfer armed). The remainder of the body is a verbatim
+ * duplicate of fn_040b83's chunk/transfer block (the original compiles the same source block
+ * into both functions; it is kept duplicated here for 1:1 fidelity), except that the first
+ * device command is g_dat_63f9c directly -- no 0x14 comparison. */
+void fn_04097e(uint8_t *hdr, uint32_t total) {
+    uint32_t b0 = hdr[0];                                          /* 0x4099b-a5 */
+    uint32_t b1 = hdr[1];                                          /* 0x409a8-b2 */
+    fn_040948(b0);                                                 /* 0x409b8 */
+    switch (b1) {                                                  /* 0x40a08 cmp/ja + table */
+    case 0: g_dat_63f9c = 0x14; break;                             /* 0x409c5 */
+    case 1: g_dat_63f9c = 0x75; break;                             /* 0x409d1 */
+    case 2: g_dat_63f9c = 0x77; break;                             /* 0x409dd */
+    case 3: g_dat_63f9c = 0x17; break;                             /* 0x409e9 */
+    default: break;                                                /* 0x409f5: keep old */
+    }
+    g_dat_63fa8 = hdr + 2;                                         /* 0x40a1b-23 */
+    g_dat_63f94 = total - 2;                                       /* 0x40a23-29 */
+    g_dat_63f8c = 0xffff;                                          /* 0x40a2e */
+    if (g_dat_63f94 > 0xffffu) {                                   /* 0x40a38 jle */
+        g_dat_63f98 = 0xffff;                                      /* 0x40a44 */
+    } else {
+        g_dat_63f98 = g_dat_63f94;                                 /* 0x40a50-55 */
+        fn_041e20(g_dat_63fb4, 0x80, 0xffff);                      /* 0x40a5a-6e */
+    }
+    mem_copy(g_dat_63fb4, g_dat_63fa8, g_dat_63f98);               /* 0x40a7f */
+    g_dat_63f94 = g_dat_63f94 - g_dat_63f98;                       /* 0x40a84-89 */
+    g_dat_63fa8 = g_dat_63fa8 + g_dat_63f98;                       /* 0x40a8f-94 */
+    g_dat_63f98 = g_dat_63f98 - 1;                                 /* 0x40a9a */
+    outb(0x0a, 5);                                                 /* 0x40aaa */
+    outb(0x0c, 0);                                                 /* 0x40ab6 */
+    outb(0x0b, 0x49);                                              /* 0x40ac5 */
+    outb(0x02, g_dat_63fac & 0xff);                                /* 0x40adb */
+    outb(0x02, (g_dat_63fac >> 8) & 0xff);                         /* 0x40af4 */
+    outb(0x83, (g_dat_63fac >> 0x10) & 0xff);                      /* 0x40b0d */
+    outb(0x03, g_dat_63f98 & 0xff);                                /* 0x40b23 */
+    outb(0x03, (g_dat_63f98 >> 8) & 0xff);                         /* 0x40b3c */
+    outb(0x0a, 1);                                                 /* 0x40b4b */
+    fn_041340(g_dat_63f9c);                                        /* 0x40b55: no 0x14 test */
+    fn_041340(g_dat_63f98 & 0xff);                                 /* 0x40b65 */
+    fn_041340((g_dat_63f98 >> 8) & 0xff);                          /* 0x40b7a */
+}
 
 /* fn_040b83  orig: 0x040b83 (L12, 390 B) -- one DMA transfer chunk of a device load.
  * reg-ABI: EAX = source buffer, EDX = saved to [ebp-4] but NEVER read (dead arg, kept

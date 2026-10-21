@@ -7467,6 +7467,31 @@ static void test_fn_03e0a0(void) {
     check(*(uint32_t *)(hb + n2 + 0x51) == 0, "  n2->next = 0");
 }
 
+static void test_fn_03fc1d(void) {
+    printf("fn_03fc1d (0x03fc1d): VGA-palette DAC load (4B hdr + table -> board_out)\n");
+    heap_arena_init();
+    const uint32_t size = 0x104;            /* 4 B header + 256 B table */
+    uint32_t data_off = heap_arena_alloc(size + 4);
+    uint8_t *data = (uint8_t *)g_heap_base + data_off;
+    memset(data, 0, size);
+    data[0] = 0x11; data[1] = 0x22;         /* hdr[0], hdr[1] unused */
+    data[2] = 0xfe;                          /* hdr[2] -> DAC control + stream count 0x100-hdr[2]=2 */
+    data[3] = 0x05;                          /* hdr[3] (cnt discarded by original) */
+    for (uint32_t i = 0; i < 256; i++) data[4 + i] = (uint8_t)(0x40 + i);
+    uint8_t node[0x20]; memset(node, 0, sizeof(node));
+    *(uint32_t *)(node + 0x0) = data_off;    /* cursor */
+    *(uint32_t *)(node + 0x4) = size;        /* remaining */
+    *(uint32_t *)(node + 0x8) = data_off;    /* buffer */
+    node[0xc] = 0x41;                         /* bulk + open */
+    sys_ports_reset();
+    fn_03fc1d(node, size);
+    check(sys_inb(0x3c8) == 0xfe, "  DAC control byte hdr[2]=0xfe written to 0x3C8");
+    uint8_t seen[8];
+    int n = sys_hist(seen, 8);
+    check(n == 6, "  streams (0x100-0xfe)*3 = 6 bytes to 0x3C9");
+    check(n == 6 && memcmp(seen, data + 4, 6) == 0, "  streamed bytes == table[0..5]");
+}
+
 static void test_fn_03fb0e(void) {
     printf("fn_03fb0e (0x03fb0e): load 64000 B screen image from I/O node into g_dat_51a0c\n");
     heap_arena_init();
@@ -7862,6 +7887,7 @@ int main(void) {
     test_fn_036041();
     test_fn_036190();
     test_fn_036417();
+    test_fn_03fc1d();
     test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();

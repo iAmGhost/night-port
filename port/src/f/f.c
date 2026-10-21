@@ -4247,6 +4247,23 @@ void fn_036417(const char *name, uint8_t *dest, uint32_t dl) {
     if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);          /* 0x3650f-28 */
 }
 
+/* 0x03fc1d (L10, 160 B): VGA-palette DAC load. ABI: EAX=node, EDX=size.
+ * canary_id(node,0x338); fn_04192e(hdr,4,1,node) reads a 4-byte header; fn_04192e(tab,size-4,1,node)
+ * reads size-4 bytes into a 768-B local table; board_out(hdr[2], (0x100-hdr[2])&0xffff, tab) pushes
+ * the DAC index hdr[2] then writes (0x100-hdr[2]) palette entries (3 bytes each) to port 0x3c9.
+ * LATENT: [ebp-0xc] cnt = hdr[3]==0&&hdr[2]==0?0x100:hdr[3] is COMPUTED BUT DISCARDED (the 2nd read
+ * uses size-4, not cnt) -- kept faithfully with (void). */
+void fn_03fc1d(uint8_t *node, uint32_t size) {
+    (void)canary_id((uintptr_t)node, 0x338);                       /* 0x3fc1d-22 */
+    uint8_t hdr[4];                                                /* [ebp-0x14] */
+    fn_04192e(hdr, 4, 1, node);                                    /* 0x3fc4a: header */
+    uint32_t cnt = ((hdr[2] | hdr[3]) == 0) ? 0x100u : (uint32_t)hdr[3];  /* [ebp-0xc] DISCARDED */
+    (void)cnt;
+    uint8_t tab[0x300];                                            /* [ebp-0x314] (768 B) */
+    fn_04192e(tab, size - 4, 1, node);                             /* 0x3fc82: table */
+    board_out(hdr[2], (int)((0x100 - (uint32_t)hdr[2]) & 0xffff), tab);  /* 0x3fcad CALL 0x40042 */
+}
+
 /* 0x03fb0e (L10): load a screen image from an I/O node into the screen (g_dat_51a0c).
  * ABI (disasm-verified): EAX=node (host ptr, passed straight to fn_04192e), EDX=count (bytes).
  * canary_id(node, 0x20) preserves EAX/EDX. buf_off=heap_malloc(count); g_dat_63e7c=buf_off;

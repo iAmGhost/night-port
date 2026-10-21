@@ -717,6 +717,7 @@ void fn_03fa3b(uint8_t *node, uint32_t size); /* 0x03fa3b: 200-row RLE screen de
 void fn_035f1b(const char *name, uint32_t dl); /* 0x035f1b: screen + 768 B font-table loader (fn_04192e table >>2; RLE via fn_041c8f into g_video_ram) */
 void fn_036041(const char *name, uint32_t dl); /* 0x036041: screen loader w/ 0xff-skip RLE (FILL value==0xff / literal 0xff skip) */
 void fn_036190(const char *name, uint8_t *dest); /* 0x036190: screen RLE loader into caller 64000-byte dest buffer (no board_out); table g_dat_633b8 */
+void fn_036417(const char *name, uint8_t *dest, uint32_t dl); /* 0x036417: screen RLE loader into caller 0x4b000-byte dest; dl->board_out; table g_dat_636b8 */
 void fn_03fb0e(uint8_t *node, uint32_t count); /* 0x03fb0e: load 64000 B screen image from I/O node into g_dat_51a0c via heap buf + fn_04192e */
 /* Parse a modifier-prefix string into a flags byte at out+0x14 (and out+0x16):
  * '-' |=0x8, '#' |=0x1, '+' |=0x4 & &=~0x2, ' ' |=0x2 (only if 0x4 unset),

@@ -4222,6 +4222,31 @@ void fn_036190(const char *name, uint8_t *dest) {
     }
 }
 
+/* 0x036417 (L11, ~85 insns / 288 B): screen RLE loader into a caller buffer, 0x4b000 bound.
+ * Like fn_036190 but 3-arg (dl in EBX low byte, reg-ABI) + board_out if dl==1; writes to dest
+ * until pos=0x4b000 (311296 B); table -> g_dat_636b8 (>>2, shared w/ 0x035f1b/0x036041). RLE:
+ * FILL (byte&0xc0==0xc0: count=byte&0x3f) + literal; no 0xff-skip. */
+void fn_036417(const char *name, uint8_t *dest, uint32_t dl) {
+    (void)canary_id((uintptr_t)name, 0x38);                        /* 0x36417-1c */
+    fn_0367c9(name);                                               /* 0x36440 */
+    fn_036853(name, 0xfffffd00, 2);                                /* 0x36452 */
+    fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);          /* 0x36463: 768 B table */
+    for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x3646d-84 */
+    fn_036853(name, 0x80, 0);                                      /* 0x36490 */
+    uint32_t pos = 0;                                              /* 0x36498 */
+    while (pos < 0x4b000) {
+        uint32_t byte = fn_041c8f((uint8_t *)g_639b8);             /* 0x364a0 */
+        if ((byte & 0xc0) == 0xc0) {                               /* 0x364b3: FILL */
+            uint32_t count = byte & 0x3f;
+            uint32_t value = fn_041c8f((uint8_t *)g_639b8);
+            for (uint32_t c = count; c; c--) dest[pos++] = (uint8_t)value;
+        } else {                                                   /* literal */
+            dest[pos++] = (uint8_t)byte;
+        }
+    }
+    if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);          /* 0x3650f-28 */
+}
+
 /* 0x03fb0e (L10): load a screen image from an I/O node into the screen (g_dat_51a0c).
  * ABI (disasm-verified): EAX=node (host ptr, passed straight to fn_04192e), EDX=count (bytes).
  * canary_id(node, 0x20) preserves EAX/EDX. buf_off=heap_malloc(count); g_dat_63e7c=buf_off;

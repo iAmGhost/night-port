@@ -4970,6 +4970,22 @@ res_reader *fn_04262a(const uint8_t *name, const char *modestr, res_reader *node
     return node;                                                /* 0x0426ed mov eax,ecx */
 }
 
+/* fn_0417f3  orig: 0x0417f3 (L11, 106 B) -- load one resource entry's payload.
+ * reg-ABI: EAX = name, EDX = dest; always returns 1. Sequence (callees all ported):
+ *   fn_0367c9(name)                 seek g_639b8 to entry@17          (0x041813)
+ *   fn_036626(name) - 0x1a          payload size = entry@13 - 0x1a     (0x04181b/23)
+ *   fn_036853(name, 0x1a, 0)        seek past the 0x1a-byte header     (0x041831, EBX=0)
+ *   fn_04192e(dest, count, 1, g_639b8)  read the payload               (0x041847)
+ * i.e. the entry's value (@13) counts a 0x1a-byte header that is skipped. The
+ * PUSH 0x28 / CALL 0x418ee canary prologue is not replicated (port convention). */
+int32_t fn_0417f3(const char *name, uint8_t *dest) {
+    fn_0367c9(name);                                          /* 0x041813 */
+    int32_t count = fn_036626(name) - 0x1a;                   /* 0x041823 add -0x1a */
+    fn_036853(name, 0x1a, 0);                                 /* 0x041827-31 */
+    fn_04192e(dest, (uint32_t)count, 1, (uint8_t *)g_639b8);  /* 0x041836-47 */
+    return 1;                                                 /* 0x04184c */
+}
+
 /* fn_0426f2  orig: 0x0426f2 (L7, 26 B) -- allocate an io record, then open a file into it.
  * reg-ABI: EAX = name (saved in ESI), EDX = mode string, EBX = extra bits -- EDX/EBX
  * pass straight through to fn_04262a. The record comes from fn_044ab5 (no arg); if it

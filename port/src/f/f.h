@@ -784,6 +784,7 @@ uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode pars
 res_reader *fn_04262a(const uint8_t *name, const char *modestr, res_reader *node, uint8_t extra); /* 0x04262a: open file into 0x18-byte io node; NULL on failure */
 res_reader *fn_0426f2(const uint8_t *name, const char *modestr, uint8_t extra); /* 0x0426f2: alloc record (fn_044ab5) + open */
 res_reader *fn_04270d(const uint8_t *name, const char *modestr); /* 0x04270d: fn_0426f2 with extra=0 */
+int32_t fn_0417f3(const char *name, uint8_t *dest); /* 0x0417f3: resource payload (skips 0x1a header) */
 
 /* ---- L10 trivial accessors (canary prologue not replicated) ---- */
 extern uint32_t g_dat_53c60;    /* DAT_00053c60 */

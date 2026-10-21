@@ -3195,6 +3195,46 @@ static void test_fn_04262a(void) {
     g_dat_64008 = s_err; g_node_list_active = s_act;
 }
 
+static void test_fn_0417f3(void) {
+    printf("fn_0417f3 (0x0417f3): resource payload load through the 4-callee chain\n");
+    /* No heap_arena_init(): a later test relies on the live arena. */
+    uint32_t n_saved = g_dat_633a0;
+    res_reader *g_saved = g_639b8;
+    memset(g_tab_5d884, 0, sizeof g_tab_5d884);
+    uint8_t *ent = g_tab_5d884;                    /* 21-byte entry: name[12], val@13, ofs@17 */
+    memcpy(ent, "RES", 4);                         /* zero-padded name field */
+    *(uint32_t *)(ent + 13) = 0x1a + 6;            /* entry value = header + 6 payload bytes */
+    *(int32_t *)(ent + 17) = -0xc0;                /* entry offset, chosen for the seek model below */
+    g_dat_633a0 = 1;
+
+    uint32_t data_off = heap_arena_alloc(0x200);
+    uint8_t *data = (uint8_t *)g_heap_base + data_off;
+    for (int i = 0; i < 0x200; i++) data[i] = (uint8_t)i;
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = (uint8_t *)g_heap_base + node_off;
+    *(uint32_t *)(node + 0) = data_off;            /* pos */
+    *(uint32_t *)(node + 4) = 0x100;               /* remaining */
+    *(uint32_t *)(node + 8) = data_off + 0x40;     /* end */
+    node[0xc] = 0x41;                              /* bulk + open (cf. fn_03a1b3 test) */
+    g_639b8 = (res_reader *)node;
+
+    /* sys_file_lseek is a stub (no CD backend, always 0), so fn_04247a's mode-0 seek
+     * consumes (value - (cur - remaining)) = value + remaining bytes of the chunk.
+     * entry@17 = -0xC0 keeps BOTH seeks inside the prefetched chunk: seek(-0xC0)
+     * consumes 0x100-0xC0 = 0x40 (pos -> end, remaining 0xC0), then fn_036853's
+     * seek to entry@17 + 0x1a = -0xA6 consumes 0x1a more. fn_04192e (bulk path) then
+     * copies exactly entry@13 - 0x1a = 6 bytes from data + 0x5a. */
+    uint8_t dest[32]; memset(dest, 0, sizeof dest);
+    int32_t r = fn_0417f3("RES", dest);
+    check(r == 1, "  returns 1");
+    check(dest[0] == 0x5a && dest[5] == 0x5f, "  6 payload bytes read via fn_04192e");
+    check(dest[6] == 0, "  exactly entry@13 - 0x1a bytes read");
+    check(*(uint32_t *)(node + 0) == data_off + 0x60 && *(uint32_t *)(node + 4) == 0xa0,
+          "  node pos/remaining reflect both seeks plus the 6-byte read");
+
+    g_dat_633a0 = n_saved; g_639b8 = g_saved;
+}
+
 static void test_fn_0426f2_04270d(void) {
     printf("fn_0426f2 / fn_04270d (0x0426f2 / 0x04270d): alloc record + open\n");
     static uint32_t tbl[8];
@@ -7986,6 +8026,7 @@ int main(void) {
     test_fn_044748();
     test_fn_04488b();
     test_fn_04262a();
+    test_fn_0417f3();
     test_fn_0426f2_04270d();
     test_fn_04589e();
     test_fn_044867();

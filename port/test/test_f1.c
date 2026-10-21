@@ -5523,6 +5523,59 @@ static void test_fn_048fe6(void) {
     check(fn_048fe6(0, 0x1234) == 0, "  fn_048fe6: arg2-only returns 0");
 }
 
+/* fn_049e80 (0x049e80, 547 B): the printf-style float formatter, sole caller 0x045c79
+ * (W=0x27, M=3, E=precision default 6). Vectors pin the exact field contents the port
+ * produces plus the untouched byte after the field, so regressions and overruns both show up.
+ * The odd digit/exponent values (e.g. 1e-7 -> "0000.00-004", a sign dropped by the 0x049e15
+ * space-fill) are the original's own quirks, reproduced 1:1 -- see the f.c comment block. */
+static void chk_49e80x(const char *label, double d, int32_t E, int32_t plus, int32_t W,
+                       int32_t P, int32_t M, uint32_t radix, uint32_t fmt, const char *exp,
+                       int guard_tail)
+{
+    static uint8_t b[96];
+    memset(b, '.', sizeof b);
+    int32_t r = fn_049e80(b, &d, E, plus, W, P, M, radix, fmt);
+    char msg[160];
+    snprintf(msg, sizeof msg, "  %-14s -> [%.*s] ret=%d", label, W, (char *)b, r);
+    check(memcmp(b, exp, (size_t)W) == 0 && (!guard_tail || b[W] == '.'), msg);
+}
+
+/* tail-guarded wrapper: nothing may be written past the W-wide field */
+static void chk_49e80(const char *label, double d, int32_t E, int32_t plus, int32_t W,
+                      int32_t P, int32_t M, uint32_t radix, uint32_t fmt, const char *exp)
+{
+    chk_49e80x(label, d, E, plus, W, P, M, radix, fmt, exp, 1);
+}
+
+static void test_fn_049e80(void) {
+    printf("fn_049e80 (0x049e80): printf-style float formatter (G/E/F, '*' overflow)\n");
+    /* 'G' chooses fixed style ('F') from log10(|d|) */
+    chk_49e80("0 G",        0.0,    6, 0, 20, 6, 3, 0, 'G', "             .000000");
+    chk_49e80("1.5 G",      1.5,    6, 0, 20, 6, 3, 0, 'G', "             1.50000");
+    chk_49e80("1234.5 G",   1234.5, 6, 0, 20, 6, 3, 0, 'G', "             1234.50");
+    chk_49e80("9.99 G",     9.99,   6, 0, 20, 6, 3, 0, 'G', "             9.99000");
+    chk_49e80("-7 G",       -7.0,   6, 0, 20, 6, 3, 0, 'G', "            -7.00000");
+    chk_49e80("-0.5 G",     -0.5,   6, 0, 20, 6, 3, 0, 'G', "           0.5000000");
+    /* 'F': P=0 -> no scaling, P!=0 -> value scaled by 10^P before digit extraction */
+    chk_49e80("-123.456 F", -123.456, 6, 0, 20, 0, 3, 0, 'F', "         -123.456000");
+    chk_49e80("42 F plus",  42.0,   6, 1, 20, 0, 3, 0, 'F', "          +42.000000");
+    chk_49e80("123.456 F6", 123.456, 6, 0, 20, 6, 3, 0, 'F', "    123456000.000000");
+    /* scientific: mantissa + 3-digit exponent field (M=3) */
+    chk_49e80("2.5 E",      2.5,    6, 0, 20, 3, 3, 0, 'E', "        250.0000-002");
+    chk_49e80("1e10 G sci", 1e10,   6, 0, 20, 2, 3, 0, 'G', "         10.0000+009");
+    chk_49e80("1e-7 G P4",  1e-7,   6, 0, 20, 4, 3, 0, 'G', "         0000.00-004");
+    /* overflow guards: exponent outside the precision, and a field too small */
+    chk_49e80("1e10 G P=10", 1e10,  6, 0, 12, 10, 3, 0, 'G', "************");
+    /* the scientific path writes the mantissa BEFORE the width is checked, so a too-small
+     * field has already been overwritten past its end (the real caller 0x045c79 always gives
+     * a 0x27-byte buffer); only the field itself is asserted here. */
+    chk_49e80x("1e10 W=4",  1e10,   6, 0,  4, 6, 3, 0, 'G', "****", 0);
+    /* non-finite path: name from fx_double_naninf, then pad or fill */
+    chk_49e80("inf W=12",   1.0/0.0, 6, 0, 12, 6, 3, 0, 'G', "         inf");
+    chk_49e80("inf W=2",    1.0/0.0, 6, 0,  2, 6, 3, 0, 'G', "**");
+    { double nan = 0.0; nan = nan / nan; chk_49e80("nan W=12", nan, 6, 0, 12, 6, 3, 0, 'G', "         nan"); }
+}
+
 static void test_fn_04a32b(void) {
     printf("fn_04a32b (0x04a32b, x87 floor: rndint(a) minus 1 when the fraction is negative)\n");
     /* Re-derived from the disassembly (PORT BUG FIX, see f.c): 0x04a7fa stores rndint(a) into
@@ -8645,6 +8698,7 @@ int main(void) {
     test_fn_0438a3();
     test_fn_042d2a();
     test_fn_048fe6();
+    test_fn_049e80();
     test_fn_04a32b();
     test_fn_04a3a8();
     test_fn_048053();

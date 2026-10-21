@@ -10287,6 +10287,115 @@ int32_t fn_04a367(uint32_t arg0, uint32_t arg1, int32_t arg2, uint32_t *arg3, ui
     return fn_04a814(arg2, arg3);                              /* MOV EAX,ECX; MOV EDX,EBX; CALL 0x04a814 (updated arg3) */
 }
 
+/* fn_049e80  orig: 0x049e80 (547 B) -- the printf-style float formatter; the sole caller of
+ * the x87 floor helper 0x04a32b and of 0x04a48f (double -> ASCII digits).
+ * ABI (from the prologue; no canary): EAX = dest byte buffer, EDX = pointer to the double,
+ * EBX = E (significant-digit / exponent budget), CL = '+' flag, then stack args
+ *   [EBP+8]   W      field width (hard output limit)
+ *   [EBP+0xc] P      fractional digits / exponent field size (mutable local copy in EBP)
+ *   [EBP+0x10] M     exponent-field width handed to fmt_int_signed
+ *   [EBP+0x14] radix separator char (0 = none)
+ *   [EBP+0x18] fmt  'G' (0x47) / 'E' (0x45) / 'F'
+ * EBX (E) and the stack slot P are kept as separate variables because the original keeps them
+ * separate: 'G' may zero P but only ever adjusts E, and P is what the later calls read.
+ * Deviation (behaviour-preserving): buf[20] ([EBP-0x44]) is zeroed here; the original leaves
+ * that frame slot uninitialised and fmt_decimal can read past the digits 0x04a48f produced,
+ * padding from whatever the stack held -- zeroing makes that deterministic in the port.
+ * Returns the number of characters produced: the original leaves the last helper's EAX in EAX,
+ * and both possible last helpers (fn_049e15 / fn_041e20) are void-style. */
+int32_t fn_049e80(uint8_t *dest, const double *srcp, int32_t E, int32_t plus,
+                  int32_t W, int32_t P, int32_t M, uint32_t radix, uint32_t fmt)
+{
+    uint8_t buf[20];                       /* [EBP-0x44]: nan/inf name, else digit string */
+    memset(buf, 0, sizeof buf);            /* see the deviation note above                */
+    uint8_t style = (uint8_t)fmt;          /* [EBP-0xc] 'G'/'E'/'F' actually used        */
+    int32_t exp10 = 0;                     /* [EBP-0x18] decimal exponent                */
+    double val = *srcp;                    /* qword at [EBP-0x28] (may be rescaled)      */
+    int32_t len;                           /* ESI on the common tail                     */
+
+    /* 0x49e91-9c: fx_double_naninf(d, buf): non-zero when d is not finite. */
+    if (fx_double_naninf(*srcp, (char *)buf) != 0) {
+        uint8_t *p = dest;                 /* 0x49ea5 */
+        int32_t i = 0;                     /* 0x49ea8 */
+        for (;;) {
+            uint8_t ch = buf[i];           /* 0x49eb4 */
+            if (ch == 0) break;            /* 0x49eb8 */
+            if (i < W) *p = ch;            /* 0x49eac-b0: capped by the field width */
+            p++; i++;                      /* 0x49eb2-93 */
+        }
+        len = i;                           /* name length, may exceed W */
+        goto tail;
+    }
+
+    /* 0x49ec1-ec9: 'G' picks scientific or fixed from log10(|d|). */
+    if (fmt == 0x47) {
+        double a = fabs(*srcp);            /* 0x49ecf-d3 FLD/FABS/FSTP [EBP-0x30] */
+        uint64_t ab; memcpy(&ab, &a, 8);
+        if (((uint32_t)(ab >> 32) & 0x7fffffffu) == 0 && (uint32_t)ab == 0) {
+            P = 0; style = 0x46;           /* 0x49f3b-42: +/-0 -> plain, no exponent */
+        } else {
+            /* 0x49ee7-f0: FLDLG2(log10(2)) + FXCH + FYL2X = log10(2)*log2(a) = log10(|d|) */
+            a = 0.3010299956639812 * log2(a);
+            exp10 = (int32_t)fpu_rndint(fn_04a32b(a, 0.0));  /* 0x49efb-05: floor -> FRNDINT -> FISTP */
+            if (exp10 < -4 || E <= exp10) {
+                style = 0x45;              /* 0x49f14: scientific */
+            } else {
+                if (a >= 0.0) exp10 += 1;  /* 0x49f1a-27: FLDZ/FCOMP/SAHF/JA */
+                P = 0;                     /* 0x49f2d-31 */
+                style = 0x46;              /* 0x49f34 */
+                E = E - exp10;             /* 0x49f37 */
+            }
+        }
+    }
+
+    /* 0x49f45-5b: a scientific result whose exponent does not fit the precision is all '*'. */
+    if (style == 0x45 && (-E >= P || E + 2 <= P)) { (void)fn_041e20(dest, 0x2a, (uint32_t)W); return W; }
+
+    /* 0x49f71-8b: effective exponent budget Ee (keyed on the ORIGINAL fmt char, not style). */
+    int32_t Ee = E;
+    if (fmt == 0x45) {                     /* 'E' */
+        if (P > 0) Ee = E + 1;
+        else if (P < 0) Ee = P + E;
+    }
+
+    /* 0x49f8b-c2: copy the double; for a non-zero, non-scientific value with P != 0 scale it
+     * by 10^P (fn_04a3a8) and keep the scaled value as the formatter input. */
+    uint64_t vb; memcpy(&vb, srcp, 8);
+    if ((((uint32_t)(vb >> 32) & 0x7fffffffu) != 0 || (uint32_t)vb != 0)
+        && style != 0x45 && P != 0)
+        val = fn_04a3a8(*srcp, P);         /* 0x49fb1-bf: FSTP overwrites [EBP-0x28] */
+
+    /* 0x49fc2-fe0: double -> digit string; p_flag = sign, p_cnt = digit count. */
+    uint32_t flag = 0, cnt = 0;
+    (void)fn_04a48f(val, (uint32_t)Ee, &cnt, &flag, style, (char *)buf);
+
+    /* 0x49fe5-ffd: sign prefix written straight into dest. */
+    uint8_t *cur = dest;
+    if (flag != 0) { *cur = '-'; cur = dest + 1; }
+    else if (plus != 0) { *cur = '+'; cur = dest + 1; }
+
+    if (style == 0x45) {
+        /* 0x4a005-0f: mantissa "d.ddd" with P fraction digits. */
+        uint8_t *e1 = fmt_decimal(cur, P, Ee - P, buf);
+        len = (int32_t)(e1 - dest);
+        if (radix != 0 && len < W) { *e1 = (uint8_t)radix; e1 += 1; len += 1; }  /* 0x4a01d-2e */
+        if (val != 0.0) cnt -= (uint32_t)P;               /* 0x4a030-41 */
+        len += fmt_int_signed(e1, M, W - len, (int32_t)cnt);  /* 0x4a047-58 */
+    } else if (W < (int32_t)cnt + 1 + Ee + (int32_t)(cur - dest)) {
+        len = W + 1;                       /* 0x4a06f: does not fit -> all '*' tail */
+    } else {
+        /* 0x4a074-81: plain fixed point, Ee fraction digits. */
+        uint8_t *e2 = fmt_decimal(cur, (int32_t)cnt, Ee, buf);
+        len = (int32_t)(e2 - dest);
+    }
+
+tail:
+    /* 0x4a087-96: too long -> fill the field with '*'; else right-align/pad in place. */
+    if (len > W) { (void)fn_041e20(dest, 0x2a, (uint32_t)W); return W; }
+    fn_049e15((char *)dest, len, W);
+    return len;
+}
+
 /* ---- 0x04a48f: double -> fixed/exponent decimal-ASCII string formatter (485 B, 192 insns) ----
  * ABI (7 stack args, all read from the stack; return = out in every path):
  *   d      = the input double (A1:A2 as lo:hi dwords)

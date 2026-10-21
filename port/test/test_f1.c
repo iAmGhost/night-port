@@ -6745,6 +6745,47 @@ static void test_fn_03f462(void) {
     g_dat_531f4 = W0; g_dat_63e64 = P0;
 }
 
+static void test_fn_03a5f7(void) {
+    printf("fn_03a5f7 (0x03a5f7): progressive horizontal reveal of 200-row source into A0000\n");
+    uint8_t *scr = g_video_ram;         /* dst via video_map(0xa0000+off) */
+    uint8_t *b = (uint8_t *)calloc(0x10000, 1);   /* source buffer (>= 0xd000 needed) */
+    uint32_t dv0 = g_dat_53104;
+    for (uint32_t i = 0; i < 0x10000; i++) b[i] = (uint8_t)(i & 0xff);
+
+    /* T1: g_dat_53104=0x46 -> n=7, 80 outer iters (colAcc 0..316); last (316) wins.
+     *  EVEN row r: scr[320r+3 .. 320r+319] = b[320r .. 320r+316]   (tail of row r)
+     *  ODD  row r: scr[320r .. 320r+316]   = b[320r+3 .. 320r+319] (head of row r)
+     *  row0(even) -> scr[3..319]   = b[0..316]
+     *  row1(odd)  -> scr[320..636] = b[323..639]
+     *  row2(even) -> scr[643..959] = b[640..956]
+     *  gap bytes scr[0,1,2], scr[637,638,639] never written. */
+    g_dat_53104 = 0x46;
+    memset(scr, 0, 0x10000);
+    fn_03a5f7(b);
+    int ok1 = scr[3]  == 0x00 && scr[13] == 0x0a && scr[203] == 0xc8 && scr[319] == 0x3c;
+    check(ok1, "  T1 row0(even) tail: scr[3,13,203,319]=b[0,10,200,316]=00,0a,c8,3c");
+    int ok2 = scr[320] == 0x43 && scr[330] == 0x4d && scr[636] == 0x7f;
+    check(ok2, "  T1 row1(odd) head: scr[320,330,636]=b[323,333,639]=43,4d,7f");
+    int ok3 = scr[643] == 0x80 && scr[743] == 0xe4;
+    check(ok3, "  T1 row2(even) tail: scr[643,743]=b[640,740]=80,e4");
+    int ok4 = scr[0] == 0x00 && scr[1] == 0x00 && scr[2] == 0x00 &&
+              scr[637] == 0x00 && scr[638] == 0x00 && scr[639] == 0x00;
+    check(ok4, "  T1 gap bytes unwritten (row0 head [0,1,2], row1 tail [637..639])");
+    check(g_dat_63e24 == (uint32_t)(int32_t)(-560), "  T1 g_dat_63e24 = 0-80*7 = -560 (0xFFFFFDF8)");
+
+    /* T2: n=0 gate (g_dat_53104=0x1eb -> 490/491=0). Inner loop skipped; no writes;
+     *     g_dat_63e24 stays 0. */
+    g_dat_53104 = 0x1eb;
+    memset(scr, 0x5a, 0x10000);
+    fn_03a5f7(b);
+    int ok5 = scr[3] == 0x5a && scr[320] == 0x5a && scr[319] == 0x5a;
+    check(ok5, "  T2 n=0: no writes (scr untouched 0x5a)");
+    check(g_dat_63e24 == 0, "  T2 n=0: g_dat_63e24 stays 0");
+
+    g_dat_53104 = dv0;
+    free(b);
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7079,6 +7120,7 @@ int main(void) {
     test_fn_03ce0b();
     test_fn_03rle();
     test_fn_03f462();
+    test_fn_03a5f7();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

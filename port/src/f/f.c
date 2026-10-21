@@ -9297,6 +9297,9 @@ void fn_040e8d(void) {
 
 uint32_t g_dat_63f88 = 0;  /* DAT_00063f88: 16-bit device value (0x0411d9 combines two status bytes) */
 
+uint32_t g_dat_53104 = 0x46;  /* DAT_00053104: row-progress divisor (set to 0x46 by 0x03a829 VESA setup).
+ * Defined LAST to avoid shifting the data-segment layout of earlier globals (see fn_01435f OOB). */
+
 /* 0x0411d9 (L12, 99 B): read a 16-bit device value. If fn_041340(0xe1) (write cmd 0xe1)
  * succeeds (ready), read two status bytes via fn_0412a3 (first=high, second=low), combine
  * (hi<<8)|lo, store to DAT_00063f88, and return it; else return 0. */
@@ -9519,4 +9522,53 @@ int32_t fn_03565a(int32_t input) {
     }
     fn_000356ba((uint32_t)r);                                   /* CALL 0x0356ba (PIT setup) */
     return r;                                                   /* divisor (incidental EAX) */
+}
+
+/* fn_03a5f7  orig: 0x03a5f7 (L10, 278 B) -- progressive horizontal reveal of a 200-row
+ * (0x140=320-byte) source buffer into the A0000 video arena.  base (EAX, from caller
+ * g_dat_633b0) = source sprite buffer.
+ *
+ *   outer: colAcc = 0,4,8,...,316 (colAcc < 0x140, +4; 80 iters)
+ *           n = (int)(0x1ea / g_dat_53104)                      ; signed IDIV (default n=7)
+ *           if (n > g_dat_63e24):                               ; CMP/JLE
+ *             for row = 0..0xc7:
+ *               EVEN row: dst=0xa0000+(row+1)*0x140-colAcc-1,  src=base+row*0x140,
+ *                         cnt=colAcc+1                          ; video_map(dst)
+ *               ODD  row: dst=0xa0000+row*0x140,                src=base+(row+1)*0x140-colAcc-1,
+ *                         cnt=colAcc+1
+ *           g_dat_63e24 -= n; colAcc += 4
+ *
+ * BEHAVIORAL NOTE: the original has a VBLANK-sync busy-wait (0x03a6d9 `JG 0x03a6c0`) that spins
+ * while n > g_dat_63e24, waiting for a timer/VBLANK interrupt to advance g_dat_63e24. Without
+ * that hardware it never terminates; the port models it as a no-op (it has no effect on the
+ * memory-copy sequence -- g_dat_63e24 only feeds the gate, and with n>0 the gate is satisfied).
+ * mem_copy operand order (EAX=dst, EDX=src, EBX=cnt) is taken from raw disasm -- the decompiler's
+ * EAX:EDX 64-bit merge swaps dst/src. */
+void fn_03a5f7(const uint8_t *base) {
+    (void)canary_id((uintptr_t)base, 0x28);                    /* PUSH 0x28;CALL 0x418ee */
+    uint8_t *b = (uint8_t *)base;                               /* [EBP-0x4] = base (source buffer, host ptr) */
+    int32_t colAcc = 0;                                         /* [EBP-0x8] */
+    g_dat_63e24 = 0;                                            /* 0x03a619 */
+    for (;;) {
+        int32_t n = (int32_t)((uint32_t)0x1ea / g_dat_53104);   /* 0x03a623: IDIV [0x53104] (signed) */
+        if (n > (int32_t)g_dat_63e24) {                          /* 0x03a636/c: CMP/JLE */
+            for (int32_t row = 0; row < 0xc8; row++) {
+                if ((row & 1) == 0) {
+                    /* EVEN: 0x03a698  dst=0xa0000+(row+1)*0x140-colAcc-1, src=base+row*0x140 */
+                    mem_copy(video_map(0xa0000u + (uint32_t)(row + 1) * 0x140u - (uint32_t)colAcc - 1u),
+                             b + (uint32_t)row * 0x140u,
+                             (uint32_t)colAcc + 1u);
+                } else {
+                    /* ODD: 0x03a66e  dst=0xa0000+row*0x140, src=base+(row+1)*0x140-colAcc-1 */
+                    mem_copy(video_map(0xa0000u + (uint32_t)row * 0x140u),
+                             b + (uint32_t)(row + 1) * 0x140u - (uint32_t)colAcc - 1u,
+                             (uint32_t)colAcc + 1u);
+                }
+            }
+        }
+        /* busy-wait (0x03a6d9 JG 0x03a6c0) omitted -- VBLANK sync, see note above. */
+        g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24 - n);      /* 0x03a6ee: SUB [0x63e24], n */
+        colAcc += 4;                                             /* 0x03a6f4 */
+        if (!(colAcc < 0x140)) break;                            /* 0x03a6f8/f: CMP/JL */
+    }
 }

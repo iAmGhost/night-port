@@ -8169,6 +8169,56 @@ static void test_fn_040d09(void) {
     for (unsigned i = 0; i < sizeof ports / sizeof ports[0]; i++) sys_port_set(ports[i], saved[i]);
 }
 
+static void test_fn_03658d(void) {
+    printf("fn_03658d (0x03658d): master bring-up (audio/CD/device/screens)\n");
+    uint32_t s34 = g_dat_53334, s370 = g_dat_63370, s40010 = g_dat_40010;
+    uint32_t s2c = g_dat_63e2c, s30 = g_dat_63e30, s48 = g_dat_63e48;
+    uint32_t s44 = g_dat_63e44, s4a = g_dat_63e4a;
+    uint32_t sf84 = g_dat_63f84, sf88 = g_dat_63f88, sf90 = g_dat_63f90;
+    uint32_t sb0 = g_dat_633b0, sb4 = g_dat_633b4;
+    uint16_t ports[32]; int np = 0;
+    ports[np++] = 0x3c2; ports[np++] = 0x43;
+    for (uint16_t base = 0; base < 0x80; base += 0x10) {
+        ports[np++] = (uint16_t)(base + 0xa); ports[np++] = (uint16_t)(base + 0xc);
+        ports[np++] = (uint16_t)(base + 0xe);
+    }
+    uint8_t saved[32];
+    for (int i = 0; i < np; i++) saved[i] = sys_inb(ports[i]);
+    for (int i = 0; i < np; i++) sys_port_set(ports[i], 0);
+    ports[np] = 0x21; ports[np + 1] = 0xa1;      /* PIC masks touched by fn_040fb3 */
+    saved[np] = sys_inb(0x21); saved[np + 1] = sys_inb(0xa1);
+    np += 2;
+
+    g_dat_53334 = 0; g_dat_63370 = 0; g_dat_63e4a = 0;   /* allow the tick install to run */
+    g_dat_63f84 = 0; g_dat_63f88 = 0; g_dat_63f90 = 0;
+    /* fn_0104c7's DPMI alloc is a documented stub, so the CD far-pointer DAT_53c5c that
+     * fn_010927 writes must be supplied by the caller (a real CD backend, mid-subsystems). */
+    static uint8_t cd_rsp[7];
+    uintptr_t s5c = g_dat_53c5c; uint32_t s60 = g_dat_53c60, s64 = g_dat_53c64;
+    g_dat_53c5c = (uintptr_t)cd_rsp;
+    uint32_t r = fn_03658d();
+    g_dat_53c5c = s5c;
+
+    check(r == 0, "  returns 0");
+    check(g_dat_63370 == 1, "  DAT_63370 initialised flag set");
+    check(sys_inb(0x3c2) == 0xe3, "  outb(0x3c2, 0xe3) PIT ch2/speaker latch");
+    check(g_dat_40010 == 0x140, "  fn_040631(0x140) stores the screen pitch");
+    check(g_dat_63e2c == 0x982 && sys_inb(0x43) == 0x36,
+          "  fn_03ef29(0x982): divisor stored + PIT ch0 mode 0x36 written");
+    check(g_dat_53334 == 0 && g_dat_63f90 == 0,
+          "  device bring-up ran: no 0xaa signature -> base 0, device not marked ready");
+    check(g_dat_633b0 == SCREEN_BASE && g_dat_633b4 == SCREEN_BASE + SCREEN_SIZE,
+          "  the two 64000 B screens are (re)assigned -- modelled by the g_screen_ram arena");
+
+    g_dat_53334 = s34; g_dat_63370 = s370; g_dat_40010 = s40010;
+    g_dat_63e2c = (uint16_t)s2c; g_dat_63e30 = (uint16_t)s30; g_dat_63e48 = (uint16_t)s48;
+    g_dat_63e44 = s44; g_dat_63e4a = s4a;
+    g_dat_63f84 = sf84; g_dat_63f88 = sf88; g_dat_63f90 = sf90;
+    g_dat_633b0 = sb0; g_dat_633b4 = sb4;
+    g_dat_53c60 = s60; g_dat_53c64 = s64;
+    for (int i = 0; i < np; i++) sys_port_set(ports[i], saved[i]);
+}
+
 static void test_fn_036417(void) {
     printf("fn_036417 (0x036417): screen RLE loader into caller buffer, 0x4b000 bound, dl->board_out\n");
     heap_arena_init();
@@ -8670,6 +8720,7 @@ int main(void) {
     test_fn_03ace9();
     test_fn_040fb3();
     test_fn_040d09();
+    test_fn_03658d();
     test_fn_010181();
     test_fn_03fc1d();
     test_fn_03e0a0();

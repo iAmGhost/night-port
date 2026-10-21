@@ -6011,6 +6011,44 @@ uint8_t  *g_dat_63fa8;      /* DAT_00063fa8: DMA source cursor */
 uint8_t  *g_dat_63fb4;      /* DAT_00063fb4: device buffer (0x10000-byte window) */
 uint32_t  g_dat_63fac;      /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
 
+/* fn_03658d  orig: 0x03658d (153 B) -- the master bring-up (audio/CD/device/screens).
+ * No args (canary PUSH 0x20), returns 0. Sequence straight off the disassembly:
+ *   fn_03feb8()          IRQ 9 + timer/DMA channel state                0x365a5
+ *   fn_000405a7()        DPMI real-mode call {0x13} (flat-model no-op)  0x365aa
+ *   fn_040d09()          device bring-up: port base, probe, id, buffer  0x365af
+ *   fn_000104c7()        DPMI mem alloc + DAT_53c58/5c setup (no-op)    0x365b4
+ *   fn_10664()           CD request build + DPMI read (EAX = 0xa0)      0x365be
+ *   fn_010927()          CD/MSCDEX root-directory read                  0x365c3
+ *   fn_040631(0x140)     screen pitch 0x140 -> g_dat_40010              0x365cd
+ *   outb(0x3c2, 0xe3)    PIT ch2/speaker control latch                  0x365dc
+ *   fn_03ef29(0x982)     PIT ch0 divisor 0x982 + INT 0x1c tick hook     0x365e6
+ *   DAT_00063370 = 1     "initialised" flag                             0x365eb
+ *   DAT_633b0 = heap_malloc(64000); DAT_633b4 = heap_malloc(64000)      0x365fa/0x36609
+ * The two allocations ARE performed here (so the heap side effects are preserved), but the
+ * returned blocks are not used as the screen pointers: fn_03bb42/fn_03bebb resolve their base
+ * through video_map(), so the port keeps DAT_633b0/DAT_633b4 pointing at the fixed
+ * g_screen_ram arena (flat SCREEN_BASE..). This is the same deviation as g_dat_51a0c. */
+uint32_t g_dat_63370;      /* DAT_00063370: master-init done flag */
+uint32_t fn_03658d(void) {
+    (void)canary_id(0, 0x20);                                          /* 0x36592 */
+    fn_03feb8();                                                       /* 0x365a5 */
+    fn_000405a7();                                                     /* 0x365aa */
+    fn_040d09();                                                       /* 0x365af */
+    fn_000104c7();                                                     /* 0x365b4 */
+    fn_10664();                            /* 0x365be: EAX = 0xa0 (stub ignores it) */
+    fn_010927();                                                         /* 0x365c3 */
+    fn_040631(0x140);                                                      /* 0x365cd */
+    outb(0x3c2, 0xe3);                                                   /* 0x365dc */
+    fn_03ef29(0x982);                                                      /* 0x365e6 */
+    g_dat_63370 = 1;                                                     /* 0x365eb */
+    uint32_t s0 = heap_malloc(0xfa00);                                   /* 0x365fa */
+    uint32_t s1 = heap_malloc(0xfa00);                                   /* 0x36609 */
+    (void)s0; (void)s1;         /* stored into 633b0/633b4 in the original; see the note above */
+    g_dat_633b0 = SCREEN_BASE;
+    g_dat_633b4 = SCREEN_BASE + SCREEN_SIZE;
+    return 0;                                                            /* 0x36613 */
+}
+
 /* fn_040d09  orig: 0x040d09 (388 B) -- device bring-up chain: locate the controller, probe it,
  * read its id, allocate the transfer buffer, hook its interrupt vector and mark it ready.
  * No args (canary PUSH 0x30). Strict short-circuit chain, each failure returning 0:

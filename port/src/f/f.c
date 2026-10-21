@@ -1864,6 +1864,39 @@ int str_icmp(const char *a, const char *b, int n) {
 uint32_t g_dat_633a0 = 0;
 uint8_t  g_tab_5d884[128 * 21];
 res_reader *g_639b8 = NULL;   /* resource-reader node pointer (0x639b8) */
+static inline uint8_t *video_map(uint32_t va);   /* forward use of the video-window mapper (defined below) */
+
+/* fn_0366a4  orig: 0x0366a4 (L10, 293 B) -- resource-index loader: reads the obfuscated file table
+ * out of a resource stream, unmangles it in place and expands it into the 21-byte g_tab_5d884 table
+ * that fn_036626 / fn_0367c9 / fn_036853 look names up in.
+ * ABI: EAX = reader node (the caller hands g_639b8); no return value.
+ * Stream: a dword entry count into g_dat_633a0, then count * 0x14 raw bytes read into the BACK SCREEN
+ * scratch (DAT_000633b0 -> video_map(g_dat_633b0) in the port model). Raw entry layout:
+ *   +0x00 name[12]   +0x0c value dword   +0x10 offset dword
+ * Mangling: for i = count*0x14-1 down to 1: b[i] ^= b[i-1]; then b[0] ^= 0x20 (the inverse is
+ * e[0] = p[0]^0x20, e[i] = p[i]^e[i-1] ascending).
+ * Expansion copies 12 name bytes to g_tab_5d884+i*0x15, then the two dwords to +0x0d and +0x11 -- the
+ * byte at +0x0c of the entry is never written (kept as-is, as in the original). */
+void fn_0366a4(uint8_t *node)
+{
+    (void)canary_id((uintptr_t)node, 0x24);                     /* 0x366a4-a9: guard, EAX passes */
+    fn_04247a((res_reader *)node, 0, 0);                        /* 0x366bf-c6: rewind the stream */
+    fn_04192e((uint8_t *)&g_dat_633a0, 1, 4, node);             /* 0x366cb-dd: entry count */
+
+    uint8_t *b = video_map(g_dat_633b0);                        /* 0x366e2-f5: raw image buffer */
+    fn_04192e(b, 0x14, g_dat_633a0, node);
+
+    for (int32_t i = (int32_t)(g_dat_633a0 * 0x14u) - 1; i > 0; i = i - 1)   /* 0x366fa-0x36729 */
+        b[i] = b[i] ^ b[i - 1];
+    b[0] = b[0] ^ 0x20;                                         /* 0x3672b-30 */
+
+    for (uint32_t i = 0; i < g_dat_633a0; i = i + 1) {          /* 0x3673c-0x367bb */
+        mem_copy(g_tab_5d884 + i * 0x15,      b + i * 0x14,      0xc);
+        mem_copy(g_tab_5d884 + i * 0x15 + 13, b + i * 0x14 + 12, 4);
+        mem_copy(g_tab_5d884 + i * 0x15 + 17, b + i * 0x14 + 16, 4);
+    }
+}                                                               /* 0x367c0-cc */
+
 /* 0x036626: case-insensitive lookup of s in the 0x5d884 table (bound g_dat_633a0),
  * returning the matched entry's int32 value (offset 13) or 0. s=EAX. The match
  * compares str_len(s) bytes via str_icmp (0x423e5); a shorter query that is a

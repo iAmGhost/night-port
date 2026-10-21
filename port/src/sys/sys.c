@@ -117,8 +117,14 @@ void sys_dos_realmode_setup(void) { /* OS handles disk/segment management */ }
 int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
     (void)handle; (void)buf; (void)count; return 0;   /* no CD backend: 0 bytes */
 }
+int32_t sys_file_lseek_pos = 0;   /* test knob: position a tell (whence==1) reports */
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence) {
-    (void)handle; (void)offset; (void)whence; return 0;   /* no CD backend: pos 0 */
+    (void)handle;
+    /* no CD backend yet: a tell reports the seedable position (default 0, i.e. unchanged), so
+     * tests can reproduce the invariant the real reader keeps (handle position == buffered start). */
+    if (whence == 1) return sys_file_lseek_pos;
+    (void)offset; (void)whence;
+    return 0;   /* no CD backend: pos 0 */
 }
 int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count) {
     (void)handle; (void)buf; return (int32_t)count;        /* no backend: write to the void, report count */

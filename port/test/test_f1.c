@@ -8115,6 +8115,82 @@ static uint8_t tb_byte(uint32_t k) { return (uint8_t)(0x20 + (k % 0xc0)); }  /* 
 static void td32(uint8_t *p, uint32_t i, uint32_t v) { memcpy(p + i, &v, 4); }
 static uint32_t tdrd(const uint8_t *p, uint32_t i) { uint32_t v; memcpy(&v, p + i, 4); return v; }
 
+/* fn_0366a4 (0x0366a4, 293 B): the resource-index loader -- reads the obfuscated file table from a
+ * resource stream into the back-screen scratch, unmangles it (descending b[i] ^= b[i-1], then
+ * b[0] ^= 0x20) and expands it into g_tab_5d884, which fn_036626 / fn_0367c9 / fn_036853 use. */
+static void test_fn_0366a4(void) {
+    printf("fn_0366a4 (0x0366a4): obfuscated resource-index loader -> g_tab_5d884\n");
+    heap_arena_init();
+    (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t plain[2 * 0x14];
+    memset(plain, 0, sizeof plain);
+    memcpy(plain + 0x00, "StageOne", 8);
+    td32(plain, 0x0c, 0x1234); td32(plain, 0x10, 0x200);
+    memcpy(plain + 0x14, "PaKfile", 7);
+    td32(plain, 0x14 + 0x0c, 0x5678); td32(plain, 0x14 + 0x10, 0x400);
+
+    uint8_t enc[2 * 0x14];                       /* inverse of the descending self-XOR mangle */
+    enc[0] = plain[0] ^ 0x20;
+    for (uint32_t i = 1; i < sizeof enc; i++) enc[i] = plain[i] ^ enc[i - 1];
+
+    const uint32_t total = 4 + (uint32_t)sizeof enc;
+    uint32_t data_off = heap_arena_alloc(total + 8);
+    uint8_t *d = hb + data_off;
+    td32(d, 0, 2);
+    memcpy(d + 4, enc, sizeof enc);
+
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    memset(node, 0, 0x20);
+    td32(node, 0, data_off); td32(node, 4, total); td32(node, 8, data_off);
+    node[0xc] = 0x41;
+
+    res_reader *saved_rd = g_639b8;
+    uint32_t saved_n = g_dat_633a0;
+    uint32_t saved_b0 = g_dat_633b0;
+    int32_t saved_lseek = sys_file_lseek_pos;
+    uint8_t *tab_save = (uint8_t *)malloc(sizeof g_tab_5d884);
+    memcpy(tab_save, g_tab_5d884, sizeof g_tab_5d884);
+    memset(g_tab_5d884, 0, sizeof g_tab_5d884);
+    g_dat_633a0 = 99;
+    /* The port's CD backend is still a stub whose tell reports sys_file_lseek_pos; seeding it with the
+     * byte count makes fn_04247a(node,0,0) resolve to amount = 0, which is what a real reader gets
+     * when its handle already sits at the start of the buffered block. */
+    sys_file_lseek_pos = (int32_t)total;
+    g_639b8 = (res_reader *)node;
+
+    /* video_map() is private to f.c; for the off-screen back buffer it resolves to the flat
+     * g_screen_ram arena, which is what the scratch lands in. */
+    uint8_t *scr = g_screen_ram + (g_dat_633b0 - SCREEN_BASE);
+    uint8_t scr_save[0x40];
+    memcpy(scr_save, scr, sizeof scr_save);
+
+    fn_0366a4(node);
+
+    check(g_dat_633a0 == 2, "  leading dword -> g_dat_633a0 entry count = 2");
+    check(scr[0] == plain[0] && scr[13] == plain[13] && scr[39] == plain[39],
+          "  the scratch (back screen) image unmangles to the plain table");
+    check(memcmp(g_tab_5d884, "StageOne", 8) == 0 && g_tab_5d884[8] == 0,
+          "  entry 0 name (12 B copy) into g_tab_5d884");
+    check(tdrd(g_tab_5d884, 13) == 0x1234 && tdrd(g_tab_5d884, 17) == 0x200,
+          "  entry 0 value @+0x0d and offset @+0x11");
+    check(memcmp(g_tab_5d884 + 21, "PaKfile", 7) == 0
+          && tdrd(g_tab_5d884, 21 + 13) == 0x5678 && tdrd(g_tab_5d884, 21 + 17) == 0x400,
+          "  entry 1 lands at +0x15 with its own value/offset");
+    check(fn_036626("stageone") == 0x1234 && fn_036626("PAKFILE") == 0x5678,
+          "  the freshly loaded table answers the case-insensitive lookup");
+    check(tdrd(node, 4) == 0, "  the stream was consumed by the two reads");
+
+    memcpy(scr, scr_save, sizeof scr_save);
+    memcpy(g_tab_5d884, tab_save, sizeof g_tab_5d884);
+    free(tab_save);
+    g_639b8 = saved_rd; g_dat_633a0 = saved_n; g_dat_633b0 = saved_b0;
+    sys_file_lseek_pos = saved_lseek;
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 /* fn_03d8d4 + fn_03d9cf: clear the 0x3c-byte struct, then a two-pass table load. Pass 1 totals the
  * variable payloads through the record headers; fn_03de85 allocates the 14 sub-objects; pass 2
  * re-reads the 12 header dwords per entry (into s[1..5,9,6,10,7,11,8,12] -- the original's read
@@ -9130,6 +9206,7 @@ int main(void) {
     test_fn_040fb3();
     test_fn_040d09();
     test_fn_03658d();
+    test_fn_0366a4();
     test_fn_03d8d4_03d9cf();
     test_fn_010010();
     test_fn_010181();

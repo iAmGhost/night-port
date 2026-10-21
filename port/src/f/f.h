@@ -150,6 +150,10 @@ extern uint32_t g_dat_6333c;                    /* DAT_0006333c: memory block fr
 void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
 void fn_0003f592(void);                         /* 0x0003f592: VGA vline to A0000 + palette (no-op, unmodeled buffer) */
 void fn_0003c7d7(uint8_t *s);                   /* 0x0003c7d7: zero 6 struct fields + memset DAT_0005d08c/5d0a0 */
+void fn_03c853(uint8_t *node, uint8_t *io);   /* 0x03c853: recursive stage/room node loader (stream -> 0x354 B node + geometry blocks; chains via +0x34c/+0x354, gate ++DAT_6335c == DAT_639d8) */
+extern uint32_t g_dat_639e8;   /* DAT_000639e8: stage-node index counter */
+extern uint32_t g_dat_6335c;   /* DAT_0006335c: loaded-room counter (fn_03c853 gate) */
+extern uint32_t g_dat_639d8;   /* DAT_000639d8: room count of the current stage chain */
 uint8_t *fn_03c6ec(uint8_t *s);                 /* 0x03c6ec: reset one node (fn_03c7d7 + zero +0x44), return s */
 uint32_t fn_03d88f(void);                       /* 0x03d88f: reset every node in list at g_dat_63350 (next=+0x34c) */
 extern uint8_t *g_dat_63350;                    /* DAT_00063350: reset-list head */

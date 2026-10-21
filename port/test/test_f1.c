@@ -7107,9 +7107,9 @@ static void test_fn_03d0c0(void) {
     *(uint32_t *)(ent + 0x00) = 0x100;  *(uint32_t *)(ent + 0x04) = 20;
     *(uint32_t *)(ent + 0x1a) = 0x140;  *(uint32_t *)(ent + 0x348) = 0xa0000;
     *(uint32_t *)(ent + 0x1e) = 0x5678; *(uint32_t *)(ent + 0x22) = 0xabcd;
-    /* The port widens ent[0x34c] and ent[0x350] to 8-byte host pointers (cf. fn_03ce0b),
-     * so the two fields OVERLAP (they are 4 bytes apart in the original): only one can
-     * hold a pointer at a time. Each branch therefore sets the sibling it reads. */
+    /* The port widens the node links to 8-byte host pointers; the second link therefore
+     * moves from the original +0x350 to +0x354 (the widened +0x34c slot covers 0x34c-0x353,
+     * and the two original fields are only 4 bytes apart). */
     memset(sibA, 0, 0x400); memset(sibB, 0, 0x400);
     *(uint32_t *)(sibA + 0x00) = 0x80;   *(uint32_t *)(sibA + 0x04) = 30;
     *(uint32_t *)(sibA + 0x1a) = 0x100;  *(uint32_t *)(sibA + 0x348) = 0xa1000;
@@ -7133,7 +7133,7 @@ static void test_fn_03d0c0(void) {
 
     /* B1: g0 < ent[4] -> primary then the ent[0x350] sibling */
     RESET_IV(); g_dat_639e4 = 1; g_dat_639e0 = 10;              /* 10 < 20 */
-    *(uint64_t *)(ent + 0x350) = (uintptr_t)sibA;
+    *(uint64_t *)(ent + 0x354) = (uintptr_t)sibA;   /* widened-slot shift: orig +0x350 */
     fn_03d0c0(ent);
     check(g_dat_62d64 == 4400, "  B1: two builds (cursor 4400)");
     check(nstart(0) == (int32_t)0xa0000, "  B1: primary c_init = ent[0x348]");
@@ -7207,7 +7207,7 @@ static void test_fn_03ce0b(void) {
     *(uint32_t *)(sib0 + 0x4)   = 0;
     *(uint32_t *)(sib0 + 0x1a)  = 0x140;
     *(uint32_t *)(sib0 + 0x348) = 0xa0000;
-    *(uint64_t *)(ent + 0x350) = (uint64_t)(uintptr_t)sib0;   /* sibling pointer (64-bit) */
+    *(uint64_t *)(ent + 0x354) = (uint64_t)(uintptr_t)sib0;   /* sibling pointer (64-bit; orig slot +0x350) */
     g_dat_63360 = 7;
     fn_03ce0b(ent, dst);
     check(*(uint32_t *)(ent + 0x22) == 0, "  B1: epilogue clears ent[0x22]");
@@ -8819,6 +8819,75 @@ static void test_fn_010efc(void) {
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
+/* fn_03c853 (0x03c853, 639 B): the recursive stage/room node loader. Two rooms are loaded from one
+ * synthetic stream with DAT_639d8 = 2, which pins the recursion gate exactly: room 1 chains to room
+ * 2 and room 2 terminates the chain. */
+static void test_fn_03c853(void) {
+    printf("fn_03c853 (0x03c853): recursive stage/room node loader (2-room chain)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t s_35c = g_dat_6335c, s_9d8 = g_dat_639d8, s_9e8 = g_dat_639e8;
+
+    uint32_t d_off = heap_arena_alloc(0x1000); uint8_t *d = hb + d_off; memset(d, 0, 0x1000);
+    uint32_t n_off = heap_arena_alloc(0x20);   uint8_t *nd = hb + n_off;
+    mk_resnode(d, d_off, nd, n_off, 0, 0, 0x1000);      /* first 6 bytes set afterwards */
+    size_t p = 0;
+    #define PUT32(v) do { *(uint32_t *)(d + p) = (uint32_t)(v); p += 4; } while (0)
+    d[0] = 0x00; d[1] = 0x77; p = 2;                   /* node[0x10] = 0 -> rows branch, node[0x11] */
+    PUT32(0); PUT32(5); PUT32(1); PUT32(9);            /* +0, +4, +8 (rows = 1), +0xc */
+    PUT32(0x11223344); PUT32(0x55667788);              /* +0x12, +0x16 */
+    memset(d + p, 0xee, 200); d[p] = 0xab; d[p + 199] = 0xcd; p += 200;    /* rows * 0xc8 geometry */
+    memset(d + p, 0x11, 768); d[p] = 0x22; d[p + 0x2ff] = 0x33; p += 768;  /* 3 x 0x100 tables */
+    PUT32(3);                                          /* +0x3c -> 2*3 byte payload */
+    memset(d + p, 0x44, 6); d[p] = 0x99; p += 6;
+    d[p++] = 0x00; d[p++] = 0x66;                      /* room 2: rows branch again */
+    PUT32(1); PUT32(2); PUT32(2); PUT32(8);            /* rows = 0 ... careful: +8=2, +0=1 -> rows 1 */
+    PUT32(0xaabbccdd); PUT32(0x13572468);
+    memset(d + p, 0x55, 200); d[p] = 0x6a; p += 200;
+    memset(d + p, 0x12, 768); d[p + 0x100] = 0x7b; p += 768;
+    PUT32(0);                                          /* room 2 has no +0x3c payload */
+    #undef PUT32
+
+    uint32_t b1_off = heap_arena_alloc(0x360); uint8_t *b1 = hb + b1_off; memset(b1, 0xa5, 0x360);
+    uint32_t b2_off = heap_arena_alloc(0x360); uint8_t *b2 = hb + b2_off; memset(b2, 0, 0x360);
+    /* The loader allocates the child itself; to observe the chain we instead let it allocate and
+     * then read back through the parent link, so b2 is only used for the "no chain" case below. */
+    (void)b2; (void)b2_off;
+
+    g_dat_639e8 = 4; g_dat_6335c = 0; g_dat_639d8 = 2;
+    fn_03c853(b1, nd);
+
+    check(*(uint32_t *)(b1 + 0x40) == 4 && g_dat_639e8 == 6, "  node index from DAT_639e8, counter bumped once per node");
+    check(b1[0x10] == 0 && b1[0x11] == 0x77 && *(uint32_t *)(b1 + 0x26) == 1,
+          "  the two stream bytes (+0x10/+0x11) and +0x26 = 1");
+    check(*(uint32_t *)(b1 + 0x00) == 0 && *(uint32_t *)(b1 + 0x04) == 5
+          && *(uint32_t *)(b1 + 0x08) == 1 && *(uint32_t *)(b1 + 0x0c) == 9
+          && *(uint32_t *)(b1 + 0x12) == 0x11223344u && *(uint32_t *)(b1 + 0x16) == 0x55667788u,
+          "  the six stream dwords land at +0/+4/+8/+c/+12/+16");
+    check(*(int32_t *)(b1 + 0x1a) == 1, "  +0x1a = +8 - +0 (row count)");
+    uint32_t geo = *(uint32_t *)(b1 + 0x348);
+    check(geo != 0 && hb[geo] == 0xab && hb[geo + 199] == 0xcd,
+          "  rows*0xc8 block allocated (offset at +0x348) and loaded from the stream");
+    check(b1[0x48] == 0x22 && b1[0x48 + 0x2ff] == 0x33 && b1[0x48 + 0x100] == 0x11,
+          "  the 3 x 0x100 byte tables land at +0x48");
+    check(*(uint32_t *)(b1 + 0x3c) == 3, "  +0x3c read as a dword");
+    uint32_t pal = *(uint32_t *)(b1 + 0x44);
+    check(pal != 0 && hb[pal] == 0x99 && hb[pal + 5] == 0x44,
+          "  +0x3c != 0 -> 2*N block at +0x44 loaded (2 items of N bytes)");
+    check(g_dat_6335c == 2, "  the room counter advanced once per node (gate uses it)");
+    uint8_t *kid = *(uint8_t **)(b1 + 0x34c);
+    check(kid != 0 && *(uint8_t **)(kid + 0x354) == b1,
+          "  chained child at +0x34c, back pointer at +0x354 (orig +0x350)");
+    check(kid != 0 && *(uint32_t *)(kid + 0x40) == 5 && *(uint32_t *)(kid + 0x12) == 0xaabbccddu
+          && *(int32_t *)(kid + 0x1a) == 1 && kid[0x11] == 0x66,
+          "  room 2 loaded off the same stream (index 5, its own dwords)");
+    check(kid != 0 && *(uint8_t **)(kid + 0x34c) == 0,
+          "  DAT_6335c == DAT_639d8 terminates the chain (next clear)");
+
+    g_dat_639e8 = s_9e8; g_dat_6335c = s_35c; g_dat_639d8 = s_9d8;
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03f80d(void) {
     printf("fn_03f80d (0x03f80d): resource-op block gate (tag 0xf1fa + int16 count)\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
@@ -9579,6 +9648,7 @@ int main(void) {
     test_fn_03f885();
     test_fn_03f80d();
     test_fn_010efc();
+    test_fn_03c853();
     test_fn_03ace9();
     test_fn_040fb3();
     test_fn_040d09();

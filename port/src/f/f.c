@@ -697,11 +697,90 @@ uint8_t *fn_03c6ec(uint8_t *s) {
     return s;                               /* 0xc71f */
 }
 
+/* fn_03c853  orig: 0x0003c853 (L12, 639 B) -- the STAGE / ROOM node loader (recursive chain).
+ * Loads one 0x354-byte stage node off the resource stream and, unless it is the last room,
+ * allocates the next node, links the two and recurses; the recursion terminates on the counter
+ * test `++DAT_0006335c == DAT_000639d8` (DAT_639d8 = room count, set by the stage loader 0x037b03).
+ * It is what fills the entity-type-adjacent stage geometry the sprite path (fn_03ce0b) later reads.
+ *
+ * ABI (capstone): EAX = stage node (saved [EBP-8]), EDX = io node ([EBP-4]); guard
+ * PUSH 0x30; CALL 0x0418ee. Reads go through fn_041c8f (single bytes) and fn_04192e(dest, EDX =
+ * count, EBX = element size, ECX = io node).
+ *
+ * Port model notes:
+ *  - The allocation results (0x041af8 = heap_malloc, 0x041bdc = the same wrapper) are kept in the
+ *    node as heap OFFSETS (+0x348, +0x44) per the port's struct-field offset convention, and the
+ *    stream reads are aimed at g_heap_base + off.
+ *  - The chain links are host pointers: next at +0x34c (as fn_03d88f already reads it) and the back
+ *    pointer at +0x354 (original +0x350; shifted because widening +0x34c to 8 bytes covers
+ *    0x34c-0x353 -- third occurrence of the widening clash, resolved like the entity list). Node
+ *    blocks therefore need 0x35c bytes in the port.
+ *  - Latent original bug kept in mind but NOT replicated: if the 0x354 allocation fails the
+ *    original stores through the null child (a DOS low-memory write at DS:0x350) and recurses with
+ *    a null node. The port has no DOS low-memory mirror, so the store and the null recursion are
+ *    skipped; the normal path is byte-for-byte equivalent.
+ */
+void fn_03c853(uint8_t *node, uint8_t *io)
+{
+    (void)canary_id((uintptr_t)node, 0x30);                        /* 0x3c853-58 */
+    *(uint32_t *)(node + 0x40) = g_dat_639e8;                      /* 0x3c870-79 */
+    g_dat_639e8 = g_dat_639e8 + 1;                                 /* 0x3c87c */
+    *(uint32_t *)(node + 0x26) = 1;                                /* 0x3c885 */
+    node[0x10] = (uint8_t)fn_041c8f(io);                           /* 0x3c88c-97 */
+    node[0x11] = (uint8_t)fn_041c8f(io);                           /* 0x3c89a-a5 */
+    fn_04192e(node + 0x00, 1, 4, io);                              /* 0x3c8a8-b8 */
+    fn_04192e(node + 0x04, 1, 4, io);                              /* 0x3c8c0-d0 */
+    fn_04192e(node + 0x08, 1, 4, io);                              /* 0x3c8d8-e8 */
+    fn_04192e(node + 0x0c, 1, 4, io);                              /* 0x3c8f0-00 */
+    fn_04192e(node + 0x12, 1, 4, io);                              /* 0x3c908-18 */
+    fn_04192e(node + 0x16, 1, 4, io);                              /* 0x3c920-30 */
+    int32_t rows = (int32_t)(*(uint32_t *)(node + 0x08) - *(uint32_t *)(node + 0x00));
+    *(int32_t *)(node + 0x1a) = rows;                              /* 0x3c938-43 */
+    if (node[0x10] == 0) {                                         /* 0x3c949-53 */
+        int32_t n = rows;
+        uint32_t off = heap_malloc((uint32_t)n * 0xc8u);           /* 0x3c958-66 */
+        *(uint32_t *)(node + 0x348) = off;                         /* 0x3c970 */
+        fn_04192e((uint8_t *)g_heap_base + off, (uint32_t)n, 0xc8, io);  /* 0x3c994 */
+    } else {                                                       /* 0x3c99e */
+        int32_t n = (int32_t)(*(uint32_t *)(node + 0x0c) - *(uint32_t *)(node + 0x04));
+        uint32_t off = heap_malloc((uint32_t)n * 0x140u);          /* 0x3c9ad */
+        *(uint32_t *)(node + 0x348) = off;                         /* 0x3c9b7 */
+        fn_04192e((uint8_t *)g_heap_base + off, (uint32_t)n, 0x140, io);  /* 0x3c9dc */
+    }
+    fn_04192e(node + 0x48, 3, 0x100, io);                          /* 0x3c9e1-f4: 768 B */
+    fn_04192e(node + 0x3c, 1, 4, io);                              /* 0x3c9f9-0c */
+    if (*(uint32_t *)(node + 0x3c) != 0) {                         /* 0x3ca14 */
+        uint32_t n = *(uint32_t *)(node + 0x3c);
+        uint32_t off = heap_malloc(n * 2u);                        /* 0x3ca22 */
+        *(uint32_t *)(node + 0x44) = off;                          /* 0x3ca2c */
+        fn_04192e((uint8_t *)g_heap_base + off, 2, n, io);          /* 0x3ca43 */
+    }
+    g_dat_6335c = g_dat_6335c + 1;                                 /* 0x3ca48 */
+    if (g_dat_6335c == g_dat_639d8) {                              /* 0x3ca4e-59 */
+        *(uint8_t **)(node + 0x34c) = NULL;                        /* 0x3ca5e: last room in the chain */
+    } else {
+        /* 0x3ca6f: the 0x041bdc wrapper. The original asks for 0x354 bytes; the port asks for
+         * 0x35c because the back pointer moved to +0x354 (8 bytes) after the link widening. */
+        uint32_t child_off = heap_malloc(0x35c);
+        uint8_t *child = (child_off == 0) ? NULL : (uint8_t *)g_heap_base + child_off;
+        if (child != NULL) child = fn_03c6ec(child);               /* 0x3ca86 */
+        *(uint8_t **)(node + 0x34c) = child;                       /* 0x3caa2 */
+        if (child != NULL) {
+            *(uint8_t **)(child + 0x354) = node;                   /* 0x3cab4: orig +0x350, shifted */
+            fn_03c853(child, io);                                  /* 0x3cac6: EAX = child */
+        }
+    }
+}
+
+
 /* 0x03d88f: reset every node in the linked list rooted at DAT_00063350. canary
  * prologue PUSH 0x20; CALL 0x418ee, no args. Walks next = node+0x34c from
  * g_dat_63350, calling fn_0003c7d7(node) on each; at loop exit EAX holds the null
  * next pointer, so it returns 0. POINTER-WIDTH: the original 4-byte next field at
  * +0x34c is read as a full 64-bit pointer in the flat port (cf. fn_0003b5c0). */
+uint32_t g_dat_639e8 = 0;   /* DAT_000639e8: stage-node index counter (fn_03c853) */
+uint32_t g_dat_6335c = 0;   /* DAT_0006335c: loaded-room counter (fn_03c853 recursion gate) */
+uint32_t g_dat_639d8 = 0;   /* DAT_000639d8: total rooms in the current stage chain */
 uint8_t *g_dat_63350 = NULL;  /* DAT_00063350: reset-list head */
 uint32_t fn_03d88f(void) {
     (void)canary_id(0, 0x20);                    /* 0xd88f-0xd894 */
@@ -5800,10 +5879,10 @@ res_reader *fn_04270d(const uint8_t *name, const char *modestr) {
  *                                      pitch here, unlike B2 -- faithful)           0x3d1fb-222
  * Tail (all paths): ent[0x22] = 0 and ent[0x1e] = 0. The PUSH 0x20 / CALL 0x418ee
  * canary prologue is not replicated (port convention).
- * PORT HAZARD (flagged): ent[0x34c] and ent[0x350] are 4 bytes apart in the original, so
- * after widening them to 8-byte host pointers (the fn_03ce0b convention) the two fields
- * OVERLAP -- an entity can carry only one sibling pointer in the port model until the
- * entity structs get a proper 32-bit handle/translation scheme. */
+ * PORT HAZARD (resolved): ent[0x34c] and ent[0x350] are 4 bytes apart in the original, so after
+ * widening them to 8-byte host pointers they would overlap. The second link therefore lives at
+ * +0x354 in the port (fn_03c853 writes it there when it chains stage nodes), and the reads here
+ * follow that shift. */
 void fn_03d0c0(uint8_t *ent) {
     uint8_t *e = ent;
     uint32_t g0 = g_dat_639e0;
@@ -5813,7 +5892,7 @@ void fn_03d0c0(uint8_t *ent) {
                   *(uint32_t *)(e + 0x1a));                            /* 0x3d102 */
     } else if (g0 < *(uint32_t *)(e + 0x4)) {                           /* 0x3d118 */
         fn_03ba2c(*(uint32_t *)(e + 0x348), *(uint32_t *)(e + 0x1a));   /* 0x3d129 */
-        uint8_t *s = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x350);    /* 0x3d131 */
+        uint8_t *s = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x354);    /* 0x3d131: orig slot +0x350, shifted to +0x354 because the widened node link at +0x34c occupies 0x34c-0x353 */
         uint32_t inc = *(uint32_t *)(s + 0x1a);
         uint32_t ci  = *(uint32_t *)(s + 0x348) + base - *(uint32_t *)(s + 0x0)
                      + (0xc8u - (*(uint32_t *)(s + 0x4) - g0)) * inc;   /* 0x3d137-7c */
@@ -6057,7 +6136,7 @@ void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
         uint32_t sa = base + *(uint32_t *)(e + 0x348) - *(uint32_t *)(e + 0x0);
         blt_rows(video_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
     } else if (g0 < *(uint32_t *)(e + 0x4)) {          /* B1 */
-        uint8_t *s1 = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x350);   /* ent[0x350] = sibling ptr (64-bit) */
+        uint8_t *s1 = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x354);   /* orig ent[0x350] = sibling ptr, shifted to +0x354 (widened +0x34c link) */
         uint32_t sp1 = *(uint32_t *)(s1 + 0x1a);
         uint32_t h1a = 0xc8 - (*(uint32_t *)(e + 0x4) - g0);
         uint32_t do1a = (uint32_t)((int)(0xc8 - (g0 - *(uint32_t *)(s1 + 0x4))) * (int)0x140);

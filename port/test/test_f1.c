@@ -7836,6 +7836,49 @@ static void test_fn_03628e(void) {
     g_dat_63e5c = s_e5c; g_dat_63e4c = s_e4c; g_dat_63e50[0] = s_e50;
 }
 
+static void test_fn_010181(void) {
+    printf("fn_010181 (0x010181): resource-record deserializer (fixed layout + 3 heap arrays)\n");
+    heap_arena_init();      /* runs after test_fn_041e94_04123d; the port's heap_malloc has no
+                             * grow path, so (like test_fn_03c72b) the test owns a deterministic
+                             * heap: init + a big pre-seed region, restored at the end */
+    (void)heap_malloc(0x2000);                      /* pre-seed one big free region */
+    const uint32_t n = 3;
+    const uint32_t total = 139;      /* 4+4+24+24+6+6+6+12+6+1+6+6+1+2+1 + n*2 + n*4 + n*4 */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t data_off = heap_arena_alloc(total + 8);
+    uint8_t *data = hb + data_off;
+    for (uint32_t i = 0; i < total; i++) data[i] = (uint8_t)(0x30 + i);
+    data[0] = (uint8_t)n; data[1] = 0; data[2] = 0; data[3] = 0;    /* count (LE dword) */
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = total; *(uint32_t *)(node + 8) = data_off;
+    node[0xc] = 0x41;                            /* valid, bit6 set -> no CR translation */
+    uint8_t *rec = (uint8_t *)calloc(1, 0x80);
+    if (!rec) { check(0, "  record buffer (SKIP)"); return; }
+
+    uint8_t *r = fn_010181(rec, node);
+    check(r == rec, "  returns the record pointer (EAX)");
+    check(*(uint32_t *)(rec + 0x00) == n, "  +0x00 count dword");
+    check(rec[0x04] == 0x34 && rec[0x07] == 0x37, "  +0x04 2x2 field");
+    check(rec[0x08] == 0x38 && rec[0x1f] == 0x4f, "  +0x08 2x0xc field");
+    check(rec[0x20] == 0x50 && rec[0x37] == 0x67, "  +0x20 4x6 field");
+    check(rec[0x56] == 0x86 && rec[0x5b] == 0x8b, "  +0x56 1x6 field");
+    check(rec[0x5c] == 0x8c, "  +0x5c single byte via fn_041c8f (stream byte 92)");
+    check(rec[0x5d] == 0x8d && rec[0x63] == 0x93, "  +0x5d and +0x63 1x6 fields");
+    check(rec[0x69] == 0x99, "  +0x69 single byte (stream byte 105)");
+    check(rec[0x6a] == 0x9a && rec[0x6b] == 0x9b, "  +0x6a 1x2 field");
+    check(rec[0x6c] == 0x9c, "  +0x6c single byte (stream byte 108)");
+    uint32_t a = *(uint32_t *)(rec + 0x6d), b = *(uint32_t *)(rec + 0x71), c = *(uint32_t *)(rec + 0x75);
+    check(a != 0 && b != 0 && c != 0 && a != b && b != c, "  3 heap blocks (n*2, n<<2, n<<2) allocated");
+    const uint8_t *A = hb + a, *B = hb + b, *C = hb + c;
+    check(A[0] == 0x9d && A[5] == 0xa2, "  array A = 3 x 2 bytes (stream 109..114)");
+    check(B[0] == 0xa3 && B[11] == 0xae, "  array B = 3 x 4 bytes (stream 115..126)");
+    check(C[0] == 0xaf && C[11] == 0xba, "  array C = 3 x 4 bytes (stream 127..138)");
+    check(*(uint32_t *)(node + 4) == 0, "  stream consumed exactly 139 bytes");
+    heap_arena_init(); (void)heap_malloc(0x400);    /* hand on the known heap state */
+    free(rec);
+}
+
 static void test_fn_04097e(void) {
     printf("fn_04097e (0x04097e): arm a device transfer (hdr[0]/hdr[1] switch) + first DMA chunk\n");
     uint8_t *dev = (uint8_t *)calloc(1, 0x10000 + 16);
@@ -8449,6 +8492,7 @@ int main(void) {
     test_fn_03628e();
     test_fn_040b83();
     test_fn_04097e();
+    test_fn_010181();
     test_fn_03fc1d();
     test_fn_03e0a0();
     test_fn_03fb0e();

@@ -5985,6 +5985,44 @@ void fn_040b83(uint8_t *src, uint32_t unused_edx) {
     fn_041340((g_dat_63f98 >> 8) & 0xff);                          /* 0x40cfc */
 }
 
+/* fn_010181  orig: 0x010181 (L10, 501 B) -- resource-record deserializer.
+ * reg-ABI: EAX = record buffer (>= 0x79 bytes), EDX = resource node (res_reader).
+ * Reads one fixed field layout straight out of the stream with the bulk reader fn_04192e
+ * (count, mult) and three single-byte fn_041c8f fetches, in stream order:
+ *   +0x00 dword count | +0x04 2x2 | +0x08 2x0xc | +0x20 4x6 | +0x38 1x6 | +0x3e 1x6
+ *   | +0x44 1x6 | +0x4a 2x6 | +0x56 1x6 | +0x5c byte | +0x5d 1x6 | +0x63 1x6
+ *   | +0x69 byte | +0x6a 1x2 | +0x6c byte
+ * Then THREE heap blocks sized by the leading count -- count*2, count<<2, count<<2 (in that
+ * order, 0x102e5-0x1031a) -- stored as heap offsets at +0x6d/+0x71/+0x75 (unaligned dwords,
+ * as in the original), and each is filled from the same stream with count elements of 2, 4
+ * and 4 bytes. Returns the record pointer (EAX). No error checking anywhere in the original
+ * (a failed heap_malloc would be passed straight to fn_04192e) -- kept faithful. */
+uint8_t *fn_010181(uint8_t *p, uint8_t *node) {
+    fn_04192e(p + 0x00, 4, 1, node);                            /* 0x101ae */
+    fn_04192e(p + 0x04, 2, 2, node);                            /* 0x101c6 */
+    fn_04192e(p + 0x08, 2, 0xc, node);                          /* 0x101de */
+    fn_04192e(p + 0x20, 4, 6, node);                            /* 0x101f6 */
+    fn_04192e(p + 0x38, 1, 6, node);                            /* 0x1020e */
+    fn_04192e(p + 0x3e, 1, 6, node);                            /* 0x10226 */
+    fn_04192e(p + 0x44, 1, 6, node);                            /* 0x1023e */
+    fn_04192e(p + 0x4a, 2, 6, node);                            /* 0x10256 */
+    fn_04192e(p + 0x56, 1, 6, node);                            /* 0x1026e */
+    p[0x5c] = (uint8_t)fn_041c8f(node);                         /* 0x10276-7e */
+    fn_04192e(p + 0x5d, 1, 6, node);                            /* 0x10294 */
+    fn_04192e(p + 0x63, 1, 6, node);                            /* 0x102ac */
+    p[0x69] = (uint8_t)fn_041c8f(node);                         /* 0x102b4-2bc */
+    fn_04192e(p + 0x6a, 1, 2, node);                            /* 0x102d2 */
+    p[0x6c] = (uint8_t)fn_041c8f(node);                         /* 0x102da-2e2 */
+    uint32_t count = *(uint32_t *)(p + 0x00);                    /* 0x102e5-2e8 */
+    *(uint32_t *)(p + 0x6d) = heap_malloc(count * 2);            /* 0x102ec-2f4 */
+    *(uint32_t *)(p + 0x71) = heap_malloc(count << 2);           /* 0x102ff-307 */
+    *(uint32_t *)(p + 0x75) = heap_malloc(count << 2);           /* 0x10312-31a */
+    fn_04192e((uint8_t *)(g_heap_base + *(uint32_t *)(p + 0x6d)), 2, count, node);  /* 0x10330 */
+    fn_04192e((uint8_t *)(g_heap_base + *(uint32_t *)(p + 0x71)), 4, count, node);  /* 0x10348 */
+    fn_04192e((uint8_t *)(g_heap_base + *(uint32_t *)(p + 0x75)), 4, count, node);  /* 0x10360 */
+    return p;                                                   /* 0x10365-375 */
+}
+
 int32_t fn_0350aa(const uint8_t *a, const uint8_t *b) {            /* 0x0350aa: 4-byte prefix equal? (a=EAX,b=EDX) -> 1/-1 */
     for (int i = 0; i < 4; i++) { if (a[i] != b[i]) return -1; }
     return 1;

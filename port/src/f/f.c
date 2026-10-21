@@ -4970,6 +4970,23 @@ res_reader *fn_04262a(const uint8_t *name, const char *modestr, res_reader *node
     return node;                                                /* 0x0426ed mov eax,ecx */
 }
 
+/* fn_0426f2  orig: 0x0426f2 (L7, 26 B) -- allocate an io record, then open a file into it.
+ * reg-ABI: EAX = name (saved in ESI), EDX = mode string, EBX = extra bits -- EDX/EBX
+ * pass straight through to fn_04262a. The record comes from fn_044ab5 (no arg); if it
+ * fails EAX is already 0 so the function returns NULL without opening. */
+res_reader *fn_0426f2(const uint8_t *name, const char *modestr, uint8_t extra) {
+    res_reader *node = (res_reader *)fn_044ab5();                   /* 0x0426f8 */
+    if (node == NULL) return NULL;                                  /* 0x042701 je */
+    return fn_04262a(name, modestr, node, extra);                   /* 0x042705 */
+}
+
+/* fn_04270d  orig: 0x04270d (L8, 27 B) -- fn_0426f2 with extra = 0.
+ * The whole body is push ebx / xor ebx,ebx / call 0x426f2 / pop ebx / ret, i.e. it
+ * clears EBX (the extra open-mode bits) and forwards EAX/EDX unchanged. */
+res_reader *fn_04270d(const uint8_t *name, const char *modestr) {
+    return fn_0426f2(name, modestr, 0);
+}
+
 /* fn_04589e  orig: 0x04589e (L6, 188 B) -- build a tokenized command line in the heap.
  * Copies DAT_00053388 (a heap-offset string) into a fresh block, appends the dword
  * DAT_0005338c, then a token-pointer array, and tokenizes the copy IN PLACE.

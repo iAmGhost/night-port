@@ -3195,6 +3195,53 @@ static void test_fn_04262a(void) {
     g_dat_64008 = s_err; g_node_list_active = s_act;
 }
 
+static void test_fn_0426f2_04270d(void) {
+    printf("fn_0426f2 / fn_04270d (0x0426f2 / 0x04270d): alloc record + open\n");
+    static uint32_t tbl[8];
+    uint8_t *s_pool = g_ndpool;
+    uint32_t s_act = g_node_list_active, s_done = g_node_list_done, s_err = g_dat_64008;
+    uint32_t s_t30 = (uint32_t)(uintptr_t)g_dat_53730, s_a30 = (uint32_t)(uintptr_t)g_arr_53730;
+    uint32_t s_dc = g_dat_536dc, s_19 = g_dat_53619, s_d8 = g_dat_536d8;
+    uint32_t s_dx = sys_ioctl_dx, s_cf = sys_ioctl_cf; int32_t s_or = sys_open_ret;
+    uint8_t *arena = (uint8_t *)calloc(1, 0x53800);
+    if (!arena) { check(0, "  arena alloc (SKIP)"); return; }
+    g_ndpool = arena;
+    g_dat_53730 = tbl; g_arr_53730 = tbl; g_dat_536dc = 8;
+    memset(tbl, 0, sizeof tbl);
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    g_dat_53619 = 0; g_dat_536d8 = 0;
+    static const char m_r[4] = { 'r', 0, 0, 0 };
+
+    /* (1) record alloc + open succeed: first pool record, "r" -> flags 1. */
+    g_node_list_done = 0; g_node_list_active = 0;
+    sys_file_open_reset(); sys_open_ret = 0;
+    res_reader *r = fn_0426f2((const uint8_t *)"NIGHT.DAT", m_r, 0);
+    check(r == (res_reader *)(arena + 0x53410), "  record taken from the pool head");
+    check(r && r->flags == 0x01, "  \"r\": flags = (0x3 & 0xfc) | 1");
+    check(r && r->id == 0, "  handle stored at +0x10");
+    check(g_node_list_active != 0, "  record wired onto the active list");
+
+    /* (2) open fails -> fn_04262a deactivates the record and returns NULL. */
+    g_node_list_done = 0; g_node_list_active = 0;
+    sys_file_open_reset(); sys_open_ret = -1;
+    r = fn_0426f2((const uint8_t *)"NIGHT.DAT", m_r, 0);
+    check(r == NULL, "  open-fail: returns NULL");
+
+    /* (3) fn_04270d == fn_0426f2 with the extra bits cleared (EBX = 0). */
+    g_node_list_done = 0; g_node_list_active = 0;
+    sys_file_open_reset(); sys_open_ret = 5;
+    r = fn_04270d((const uint8_t *)"NIGHT.DAT", m_r);
+    check(r >= (res_reader *)(arena + 0x53410) && r < (res_reader *)(arena + 0x53600),
+          "  04270d: same alloc+open, extra=0 (record from the pool)");
+    check(r && r->flags == 0x01 && r->id == 5, "  04270d: flags 1, handle 5");
+
+    g_ndpool = s_pool; g_node_list_active = s_act; g_node_list_done = s_done;
+    g_dat_64008 = s_err; g_dat_536dc = s_dc; g_dat_53619 = s_19; g_dat_536d8 = s_d8;
+    g_dat_53730 = (uint32_t *)(uintptr_t)s_t30; g_arr_53730 = (uint32_t *)(uintptr_t)s_a30;
+    sys_ioctl_dx = s_dx; sys_ioctl_cf = s_cf; sys_open_ret = s_or;
+    free(arena);
+}
+
 static void test_fn_04589e(void) {
     printf("fn_04589e (0x04589e): tokenize command line into a heap block\n");
     /* No heap_arena_init() here: it would wipe free-list state a later test
@@ -7939,6 +7986,7 @@ int main(void) {
     test_fn_044748();
     test_fn_04488b();
     test_fn_04262a();
+    test_fn_0426f2_04270d();
     test_fn_04589e();
     test_fn_044867();
     test_fn_043234();

@@ -4970,6 +4970,54 @@ res_reader *fn_04262a(const uint8_t *name, const char *modestr, res_reader *node
     return node;                                                /* 0x0426ed mov eax,ecx */
 }
 
+/* fn_04589e  orig: 0x04589e (L6, 188 B) -- build a tokenized command line in the heap.
+ * Copies DAT_00053388 (a heap-offset string) into a fresh block, appends the dword
+ * DAT_0005338c, then a token-pointer array, and tokenizes the copy IN PLACE.
+ * Disasm: EBX=ESP is the tokenize end_out (tokenize ABI: EAX=s, EDX=out, EBX=end_out);
+ * EBP = count+1; ECX = (end - src) + 1 = source bytes incl. NUL; the array is
+ * (count+1)*4 bytes; total alloc = array + 4 + ECX. The ES:=DS far copy (push es /
+ * mov es,ds / rep movsd+movsb) is one flat memcpy in the port.
+ * Publishes DAT_00053378 = count+1, DAT_0005337c = the appended-dword position,
+ * and copies both to DAT_00064090 / DAT_00064094 (even on allocation failure, where
+ * the two node globals are cleared but DAT_00064090 still gets count+1). */
+uint32_t g_dat_53388 = 0;   /* DAT_00053388: source command line (heap offset) */
+uint32_t g_dat_5338c = 0;   /* DAT_0005338c: dword appended after the copy */
+uint32_t g_dat_53378 = 0;   /* DAT_00053378: token count + 1 */
+uint32_t g_dat_5337c = 0;   /* DAT_0005337c: heap offset of the appended dword */
+uint32_t g_dat_64090 = 0;   /* DAT_00064090: published count + 1 */
+uint32_t g_dat_64094 = 0;   /* DAT_00064094: published dword position */
+void fn_04589e(void) {
+    char *src = (char *)flat_ofs(g_dat_53388);                    /* 0x0458a9 */
+    char *endp = NULL;                                            /* [ESP] via EBX */
+    uint32_t n = tokenize(src, NULL, &endp);                      /* 0x0458b0 (EDX=0) */
+    uint32_t cnt1 = n + 1;                                        /* 0x0458b8 lea ebp,[eax+1] */
+    uint32_t nbytes = (uint32_t)(endp - src) + 1;                 /* 0x0458c3-88 */
+    /* The original reserved (count+1)*4 bytes for the token-pointer array and wrote
+     * the terminating 0 at tail + (count+1)*4, i.e. exactly out[count]. The port's
+     * pointers are 8 bytes, so the array area widens to (count+1)*sizeof(char*);
+     * the terminator is still written at out[count] (same 32->64 adaptation used for
+     * pointer fields elsewhere in this port). */
+    uint32_t arr = cnt1 * (uint32_t)sizeof(char *);               /* [ESP+4] array bytes */
+    uint32_t buf_off = heap_malloc(arr + 4u + nbytes);            /* 0x0458d2 */
+    if (buf_off == 0) {                                           /* 0x0458db -> 0x045937 */
+        g_dat_5337c = 0;
+        g_dat_53378 = 0;
+    } else {
+        uint8_t *buf = flat_ofs(buf_off);
+        memcpy(buf, src, nbytes);                                 /* 0x0458ec-f0 (flat) */
+        uint8_t *tail = buf + nbytes;                             /* 0x0458e3 DAT_0005337c */
+        g_dat_5337c = (uint32_t)(tail - (uint8_t *)g_heap_base);
+        *(uint32_t *)tail = g_dat_5338c;                          /* 0x04590f */
+        char *endp2 = NULL;
+        char **toks = (char **)(tail + 4);                        /* 0x045916 out array */
+        tokenize((char *)buf, toks, &endp2);                      /* 0x04591c in-place */
+        g_dat_53378 = cnt1;                                       /* 0x045929 */
+        toks[cnt1 - 1] = NULL;                                    /* 0x04592f out[count] = 0 */
+    }
+    g_dat_64090 = cnt1;                                           /* 0x045946 */
+    g_dat_64094 = g_dat_5337c;                                    /* 0x04594c */
+}
+
 /* ---- L10 trivial accessors (the canary prologue PUSH 0x20;CALL 0x418ee is not replicated) ---- */
 uint32_t g_dat_53c60 = 0;
 uint32_t g_dat_40010 = 0;

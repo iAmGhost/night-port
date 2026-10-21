@@ -1143,6 +1143,13 @@ char *config_value_ptr(const char *key);   // 0x4a24d L1: ptr after '=' in match
  * Returns the token count. */
 uint32_t tokenize(char *s, char **out, char **end_out);
 
+/* 0x04589e (L6): build a tokenized command line in the heap from DAT_00053388
+ * (heap offset); publishes DAT_00053378 (count+1) / DAT_0005337c (appended-dword
+ * offset) and copies them to DAT_00064090 / DAT_00064094. */
+extern uint32_t g_dat_53388, g_dat_5338c, g_dat_53378, g_dat_5337c;
+extern uint32_t g_dat_64090, g_dat_64094;
+void fn_04589e(void);
+
 /* ---- L0 batch K ---- */
 /* DOS date/time packer (orig: 0x045687). Fills a struct from the DOS clock:
  * f4=day, f8=month, f14=low8(minute*256+second-0x76c), f20=0xffffffff, f0=fc=0,

@@ -3195,6 +3195,30 @@ static void test_fn_04262a(void) {
     g_dat_64008 = s_err; g_node_list_active = s_act;
 }
 
+static void test_fn_04589e(void) {
+    printf("fn_04589e (0x04589e): tokenize command line into a heap block\n");
+    /* No heap_arena_init() here: it would wipe free-list state a later test
+     * (test_fn_041e94_04123d) relies on. The arena is already initialised. */
+    uint32_t src_off = heap_malloc(32);
+    check(src_off != 0, "  heap source block allocated");
+    if (src_off == 0) return;
+    char *src = (char *)flat_ofs(src_off);
+    memcpy(src, "ABC DEF", 8);
+    g_dat_53388 = src_off;
+    g_dat_5338c = 0x11223344;
+    fn_04589e();
+    check(g_dat_53378 == 3, "  DAT_53378 = token count + 1 = 3");
+    uint8_t *tail = flat_ofs(g_dat_5337c);          /* block + 8 (source bytes incl. NUL) */
+    check(memcmp(tail - 8, "ABC\0DEF", 7) == 0, "  copy tokenized in place (space -> NUL)");
+    check(*(uint32_t *)tail == 0x11223344u, "  DAT_5338c dword appended at DAT_5337c");
+    char **tok = (char **)(tail + 4);               /* token-pointer array */
+    check(tok[0] == (char *)tail - 8 && tok[1] == (char *)tail - 4,
+          "  array holds the 2 in-place token pointers");
+    check(tok[2] == NULL, "  out[count] terminator written");
+    check(g_dat_64090 == 3 && g_dat_64094 == g_dat_5337c,
+          "  DAT_64090/DAT_64094 mirror the node globals");
+}
+
 static void test_fn_04488b(void) {
     printf("fn_04488b (0x04488b)\n");
     static uint32_t tbl[8];
@@ -7915,6 +7939,7 @@ int main(void) {
     test_fn_044748();
     test_fn_04488b();
     test_fn_04262a();
+    test_fn_04589e();
     test_fn_044867();
     test_fn_043234();
     test_fn_041e94_04123d();

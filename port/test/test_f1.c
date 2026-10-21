@@ -5523,6 +5523,57 @@ static void test_fn_048fe6(void) {
     check(fn_048fe6(0, 0x1234) == 0, "  fn_048fe6: arg2-only returns 0");
 }
 
+/* fn_043a7f (0x043a7f, 544 B): the format-string scanner of the emit/parse subsystem (a
+ * scanf-like mini language: literal chars must match the stream, %<conv> specifiers transfer
+ * values through the position stream). Expectations are the port's measured behaviour; the
+ * destination/flag conventions come from the callee docs (ctx flags bit0 = write, bit1 = stop). */
+static const char *fa_src; static int fa_si, fa_put, fa_used;
+static uint16_t fa_next(struct emit_ctx *c) {
+    (void)c;
+    uint16_t v = (fa_si < (int)strlen(fa_src)) ? (uint16_t)(unsigned char)fa_src[fa_si++] : 0xffff;
+    if (v != 0xffff) fa_used++;
+    return v;
+}
+static void fa_emit(uint16_t c, struct emit_ctx *ctx) { (void)ctx; fa_put = c; }
+static struct emit_ctx fa_ctx;
+static uint32_t fa_v1, fa_v2, fa_cnt;
+static uintptr_t fa_slots[4];
+static uintptr_t *fa_cur;
+static int32_t fa_run(const char *fmt, const char *stream, uint8_t initflags) {
+    memset(&fa_ctx, 0, sizeof fa_ctx);
+    fa_ctx.next = fa_next; fa_ctx.emit = fa_emit; fa_ctx.count = 0x100000u; fa_ctx.flags = initflags;
+    fa_v1 = fa_v2 = fa_cnt = 0;
+    fa_slots[0] = (uintptr_t)&fa_v1; fa_slots[1] = (uintptr_t)&fa_v2;
+    fa_slots[2] = (uintptr_t)&fa_cnt; fa_slots[3] = 0;
+    fa_cur = fa_slots;
+    fa_src = stream; fa_si = 0; fa_put = -1; fa_used = 0;
+    return fn_043a7f(&fa_ctx, fmt, &fa_cur);
+}
+
+static void test_fn_043a7f(void) {
+    printf("fn_043a7f (0x043a7f): format-string scanner of the emit/parse family\n");
+    check(fa_run("ab", "ab", 0x1) == 0 && fa_used == 2 && fa_put == -1,
+          "  literal run: both chars matched, no conversion, no putback");
+    check(fa_run("a", "b", 0x1) == 0 && fa_put == 'b',
+          "  literal mismatch: the stream char is put back through ctx->emit");
+    check(fa_run("%d", "42 ", 0x1) == 1 && fa_v1 == 42 && fa_cur == fa_slots + 1,
+          "  %d: stores 42 at the destination held in slot 0, cursor +1");
+    check(fa_run("%x", "ff ", 0x1) == 1 && fa_v1 == 255, "  %x: base 16, sign allowed");
+    check(fa_run("%u", "7 ", 0x1) == 1 && fa_v1 == 7, "  %u: base 10, no sign");
+    check(fa_run("%i", "07 ", 0x1) == 1 && fa_v1 == 7, "  %i: base 0 (auto -> octal 07)");
+    check(fa_run("%o", "17 ", 0x1) == 1 && fa_v1 == 15, "  %o: base 8");
+    check(fa_run("%c", "xy", 0x1) == 1 && fa_v1 == 'x', "  %c: emit_chars stores one char");
+    check(fa_run("%%", "%", 0x1) == 0 && fa_used == 1 && fa_put == -1,
+          "  %%: one literal percent matched through ctx->next");
+    check(fa_run("%d", "zz ", 0x1) == 0 && fa_v1 == 0 && fa_put == 'z',
+          "  %d against a non-numeric stream: nothing stored, first char put back");
+    check(fa_run("%s", "hi there", 0x1) == 1, "  %s: one string conversion");
+    /* a space in the format counts a stream word (kCharClass bit 0x02), so the second
+     * conversion runs against the exhausted stream: still two conversions, two slots. */
+    check(fa_run("%d %d", "10 20", 0x1) == 2 && fa_v1 == 10 && fa_cur == fa_slots + 2,
+          "  two %d: first stores 10, the whitespace branch eats the next word");
+}
+
 /* fn_049e80 (0x049e80, 547 B): the printf-style float formatter, sole caller 0x045c79
  * (W=0x27, M=3, E=precision default 6). Vectors pin the exact field contents the port
  * produces plus the untouched byte after the field, so regressions and overruns both show up.
@@ -8741,6 +8792,7 @@ int main(void) {
     test_fn_0438a3();
     test_fn_042d2a();
     test_fn_048fe6();
+    test_fn_043a7f();
     test_fn_049e80();
     test_fn_045c79();
     test_fn_04a32b();

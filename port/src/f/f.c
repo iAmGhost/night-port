@@ -2761,6 +2761,123 @@ epilogue:                                            /* 0x44fd */
     return skip + have_digit;                        /* 0x4512/0x4575 */
 }
 
+/* fn_043a7f  orig: 0x043a7f (544 B) -- the format-string scanner that drives the whole
+ * emit/parse family. It walks a format string, matches literal characters against the stream,
+ * and turns %<conv> specifiers into value transfers (a scanf-like mini-language, not printf).
+ * ABI: EAX = ctx (the stream object: next() at +0x00, emit() at +0x04, count at +0x0c, flags at
+ * +0x10 -- same layout as struct cmd_ctx, so the struct is cast where a callee expects it),
+ * EDX = format string, EBX = pos (the position-stream cursor, passed as EDX to the converters).
+ * Entry clears the ctx stop flag (flags &= ~0x02). Then per character:
+ *   - if the NEXT character's class (kCharClass[(c+1)&0xff]) has bit 0x02 (whitespace), the
+ *     word is consumed by cmdline_count() and added to the running character total;
+ *   - a literal character must come back equal from ctx->next(); a mismatch putbacks through
+ *     ctx->emit() unless the stop flag is already set, then the scan ends;
+ *   - '%' runs cmdline_parse() over the flag/width part and dispatches on the conversion char:
+ *       e f g E F G -> fn_0440a9            d -> fn_044387(base 10, sign ok)
+ *       i           -> fn_044387(base 0, sign ok = auto base)
+ *       o           -> fn_044387(base 8, sign ok)
+ *       u           -> fn_044387(base 10, no sign)
+ *       x X p       -> fn_044387(base 16, sign ok)
+ *       c -> emit_chars      n -> emit_value(ctx, pos, chars_so_far)
+ *       s -> fn_043e34       [ -> fn_043fc3 (EBX = address of the format cursor, as the
+ *                                            original pushes its own stack slot)
+ *       % -> literal '%' via ctx->next(); any other conversion char is ignored (not consumed)
+ *   - a converter that returns <= 0 ends the scan; otherwise the character total grows and the
+ *     conversion counter increments only when ctx flags bit 0 is set;
+ *   - the loop repeats until ctx flags bit 1 (stop) is set, in which case a trailing "%n" is
+ *     still honoured before returning.
+ * Returns the number of conversions performed, or -1 when there were none and the stop flag is
+ * set. */
+int32_t fn_043a7f(struct emit_ctx *ctx, const char *fmt, uintptr_t **pos)
+{
+    const uint8_t *p = (const uint8_t *)fmt;            /* [ESP] format cursor   */
+    int32_t conv = 0;                                   /* [ESP+4] conversions   */
+    int32_t chars = 0;                                  /* EBP chars so far      */
+
+    ctx->flags &= (uint8_t)~0x02;                       /* 0x43a8d-9b */
+
+    for (;;) {
+        uint8_t ch = *p++;                              /* 0x43a9e-ab */
+        if (ch == 0) break;                             /* 0x43aaf */
+
+        if (kCharClass[(uint8_t)(ch + 1) & 0xff] & 0x2) { /* 0x43ab5-c5: whitespace ahead */
+            chars += (int32_t)cmdline_count(ctx);         /* 0x43ac9 */
+            goto cont;                                  /* 0x43c4c */
+        }
+
+        if (ch != '%') {                                /* 0x43ad5: literal match */
+            uint32_t got = ctx->next(ctx);              /* 0x43adc: call [ESI] */
+            if (got == ch) { chars++; goto cont; }      /* 0x43ade-43c4b */
+            if (!(ctx->flags & 0x2)) ctx->emit((uint16_t)got, ctx);  /* 0x43ae6-af2 */
+            break;                                      /* 0x43c80 */
+        }
+
+        /* 0x43afa: '%' conversion; cmdline_parse advances past flags/width. */
+        p = (const uint8_t *)cmdline_parse((const char *)p, (struct cmd_ctx *)ctx);
+        uint8_t cv = *p;                                /* 0x43b08 */
+        if (cv != 0) p++;                               /* 0x43b0c-13 */
+        int32_t r;
+        switch (cv) {
+        case 'e': case 'f': case 'g': case 'E': case 'G':  /* 0x43b1b / 0x43b9b */
+            r = (int32_t)fn_0440a9(ctx, pos);
+            goto conv_tail;
+        case 'd':                                        /* 0x43b86 */
+            r = fn_044387(ctx, pos, 10, 1);
+            goto conv_tail;
+        case 'i':                                        /* 0x43bca */
+            r = fn_044387(ctx, pos, 0, 1);
+            goto conv_tail;
+        case 'o':                                        /* 0x43bd7 */
+            r = fn_044387(ctx, pos, 8, 1);
+            goto conv_tail;
+        case 'u':                                        /* 0x43bde */
+            r = fn_044387(ctx, pos, 10, 0);
+            goto conv_tail;
+        case 'x': case 'X': case 'p':                    /* 0x43beb */
+            r = fn_044387(ctx, pos, 16, 1);
+            goto conv_tail;
+        case 'c':                                        /* 0x43c15 */
+            r = (int32_t)emit_chars(ctx, pos);
+            goto conv_tail;
+        case 'n':                                        /* 0x43c32: no return check */
+            emit_value(ctx, pos, (uint32_t)chars);
+            goto cont;
+        case 's':                                        /* 0x43bfd */
+            r = (int32_t)fn_043e34(ctx, *pos);
+            goto conv_tail;
+        case '[':                                        /* 0x43c08: EBX = &format cursor */
+            r = (int32_t)fn_043fc3(ctx, pos, &p);
+            goto conv_tail;
+        case '%':                                        /* 0x43c3f */
+            if (ctx->next(ctx) != '%') {                /* 0x43c41-45 */
+                if (!(ctx->flags & 0x2)) ctx->emit(0x25, ctx);
+                break;
+            }
+            chars++;
+            goto cont;
+        default:                                        /* ignored conversion */
+            goto cont;
+        }
+    conv_tail:
+        if (r <= 0) break;                              /* 0x43c1e-20 */
+        chars += r;                                     /* 0x43c25 */
+        if (ctx->flags & 0x1) conv++;                   /* 0x43c27-2c */
+    cont:
+        if (!(ctx->flags & 0x2)) continue;              /* 0x43c4c-50 */
+        /* 0x43c56: stopped early, but a trailing "%n" is still processed. */
+        if (*p != '%') break;
+        p++;
+        p = (const uint8_t *)cmdline_parse((const char *)p, (struct cmd_ctx *)ctx);
+        if (*p != 'n') break;
+        emit_value(ctx, pos, (uint32_t)chars);           /* 0x43c7b */
+        break;
+    }
+
+    /* 0x43c80-98 */
+    if (conv == 0 && (ctx->flags & 0x2)) return -1;
+    return conv;
+}
+
 /* 0x0440a9: stream token parser -> list append (241 insns, 733 B).
  *
  * Reads one whitespace-delimited token from an emit_ctx stream reader, parses

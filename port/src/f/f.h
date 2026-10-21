@@ -553,6 +553,7 @@ uint32_t emit_step(struct emit_ctx *ctx);
 int fn_044387(struct emit_ctx *ctx, uintptr_t **pos, int base, int allow_sign);
 uint32_t fn_043fc3(struct emit_ctx *ctx, uintptr_t **pos, const uint8_t **src);
 uint32_t fn_043e34(struct emit_ctx *ctx, uintptr_t *pos);
+int32_t fn_043a7f(struct emit_ctx *ctx, const char *fmt, uintptr_t **pos); /* 0x043a7f: format-string scanner driving the emit/parse family (%d %i %o %u %x %c %n %s %[ %e/%f/%g) */
 /* 0x0440a9: stream token parser -> list append (241 insn). Reads a
  * whitespace-delimited token from ctx, parses int/frac/exp/sign, appends a
  * 4/8-byte element to the *pos list-pool cursor, returns the char count.

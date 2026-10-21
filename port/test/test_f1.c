@@ -3140,6 +3140,61 @@ static void test_fn_044748(void) {
     g_dat_53730 = NULL; g_arr_53730 = NULL;
 }
 
+/* 0x04262a: file open into the 0x18-byte io node. The sys open stub is
+ * scriptable (sys_open_ret), and fn_045a82 always yields -1, so both the
+ * success and the node_deactivate/NULL branch are deterministic. */
+static void test_fn_04262a(void) {
+    printf("fn_04262a (0x04262a): open file into io node\n");
+    static uint32_t tbl[8];
+    g_dat_53730 = tbl; g_arr_53730 = tbl; g_dat_536dc = 8;
+    uint32_t s_dx = sys_ioctl_dx, s_cf = sys_ioctl_cf;
+    int32_t s_or = sys_open_ret, s_cr = sys_create_ret;
+    uint32_t s19 = g_dat_53619, s_d8 = g_dat_536d8, s_bb = g_dat_533bb;
+    uint32_t s_err = g_dat_64008, s_act = g_node_list_active;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0; sys_create_ret = 0;
+    g_dat_53619 = 0; g_dat_536d8 = 0; g_node_list_active = 0;
+    memset(tbl, 0, sizeof tbl);
+
+    /* The node is a plain 0x18-byte io node (no heap-buffer deref on these paths),
+     * so a static buffer avoids disturbing the heap arena other tests rely on. */
+    static uint8_t node_buf[0x20];
+    res_reader *node = (res_reader *)node_buf;
+    /* fn_042576 reads modestr[1] and [2] unguarded (harmless in the original, where
+     * mode strings live in the data segment), so the test's mode strings are padded. */
+    static const char m_r[4] = { 'r', 0, 0, 0 };
+    static const char m_a[4] = { 'a', 0, 0, 0 };
+
+    /* (1) "r": fn_042576 bits = 1 -> node[0xc] |= 1; handle 0 stored at +0x10. */
+    memset(node, 0, 0x20);
+    sys_file_open_reset(); sys_open_ret = 0;
+    res_reader *r = fn_04262a((const uint8_t *)"NIGHT.DAT", m_r, node, 0);
+    check(r == node, "  \"r\": returns the node");
+    check(node->flags == 0x01, "  \"r\": node[0x0c] |= mode bits (1)");
+    check(node->id == 0, "  \"r\": handle stored at +0x10");
+
+    /* (2) "a": fn_042576 bits = 0x82; +4/+8/+0x14 zeroed FIRST, then the 'a'
+     *     seek fn_04247a(node,0,2) -> pos=end(=0), remaining=0, flags &= 0xeb. */
+    memset(node, 0, 0x20);
+    node->pos = 5; node->remaining = 7; node->end = 9;
+    sys_file_open_reset(); sys_open_ret = 3;
+    r = fn_04262a((const uint8_t *)"NIGHT.DAT", m_a, node, 0);
+    check(r == node && node->id == 3, "  \"a\": handle 3 stored at +0x10");
+    check(node->flags == (0x82u & 0xebu), "  \"a\": 0x82 then seek clears 0x10/0x4/0x2 -> 0x80");
+    check(node->pos == 0 && node->end == 0 && node->remaining == 0,
+          "  \"a\": +4/+8 zeroed before the mode-2 seek (pos=end=0)");
+
+    /* (3) open fails -> fn_045a82 -> -1 -> node_deactivate + NULL. */
+    memset(node, 0, 0x20);
+    sys_file_open_reset(); sys_open_ret = -1;
+    r = fn_04262a((const uint8_t *)"NIGHT.DAT", m_r, node, 0);
+    check(r == NULL, "  open-fail: returns NULL");
+    check(node->id == (uint32_t)-1, "  open-fail: node[+0x10] = -1");
+
+    sys_ioctl_dx = s_dx; sys_ioctl_cf = s_cf; sys_open_ret = s_or; sys_create_ret = s_cr;
+    g_dat_53619 = s19; g_dat_536d8 = s_d8; g_dat_533bb = s_bb;
+    g_dat_64008 = s_err; g_node_list_active = s_act;
+}
+
 static void test_fn_04488b(void) {
     printf("fn_04488b (0x04488b)\n");
     static uint32_t tbl[8];
@@ -7859,6 +7914,7 @@ int main(void) {
     test_fn_044a50_049236();
     test_fn_044748();
     test_fn_04488b();
+    test_fn_04262a();
     test_fn_044867();
     test_fn_043234();
     test_fn_041e94_04123d();

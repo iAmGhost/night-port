@@ -776,12 +776,12 @@ void fn_036537(uint8_t *varargs);                       /* 0x036537: boot/consol
 /* 0x04488b: reg-ABI, 4 stack args (name, mode, extra, val). File open/create with
  * node-table registration; returns handle (16-bit) or fn_045a82(-1) on error. */
 int32_t fn_04488b(const uint8_t *name, uint16_t mode, uint8_t extra, uint32_t val);
-
 /* 0x044867: 4 stack args (p1, p2, name, val); p1/p2 unused. Thin wrapper ->
  * fn_04488b(name, 0, val&0xff, val). */
 int32_t fn_044867(uint32_t p1, uint32_t p2, const uint8_t *name, uint32_t val);
 uint64_t fn_045a76(uint32_t param_1, uint32_t param_2); /* 0x045a76: fn_045a82 thunk (param_2==0 -> 0) */
 uint64_t fn_042576(const char *s, uint32_t param_2); /* 0x042576: file-mode parser (r/w/a + +/-/b/t) */
+res_reader *fn_04262a(const uint8_t *name, const char *modestr, res_reader *node, uint8_t extra); /* 0x04262a: open file into 0x18-byte io node; NULL on failure */
 
 /* ---- L10 trivial accessors (canary prologue not replicated) ---- */
 extern uint32_t g_dat_53c60;    /* DAT_00053c60 */

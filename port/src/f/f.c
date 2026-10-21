@@ -4926,6 +4926,50 @@ uint64_t fn_042576(const char *s, uint32_t param_2) {
     return ((uint64_t)param_2 << 32) | ebx;
 }
 
+/* fn_04262a  orig: 0x04262a (L6, 200 B) -- open a file into an io node.
+ * reg-ABI: EAX = name, EDX = mode string ("r"/"w"/"a"[+bt]), ECX = io node,
+ * EBX = extra open-mode bits; returns the node (EAX=ECX) or NULL on open failure.
+ * The node is the 0x18-byte io node: the res_reader core plus a dword at +0x14
+ * (this function zeroes it; cf. fn_049192 which uses it as the buffer capacity).
+ * Mode-word derivation is verbatim from the disasm (AL=access bits, AH=1/2 from
+ * the node's 0x40 flag), and the pushed 4th arg to fn_04488b is 0 for "r" and
+ * 0x180 otherwise. */
+res_reader *fn_04262a(const uint8_t *name, const char *modestr, res_reader *node,
+                      uint8_t extra)
+{
+    uint8_t *n = (uint8_t *)node;
+    n[0x0c] &= 0xfc;                                            /* 0x04262e */
+    uint32_t mbits = (uint32_t)fn_042576(modestr,               /* 0x042634 (EAX=EDX) */
+                                         (uint32_t)(uintptr_t)modestr);
+    *(uint32_t *)(n + 0x0c) |= mbits;                           /* 0x042639-40 */
+
+    int dl = to_lower(modestr[0]);                              /* 0x042643-4a */
+    uint32_t mode_word, val;
+    if (dl == 'r') {                                            /* 0x04264c */
+        mode_word = (n[0x0c] & 2) ? 2u : 0u;                    /* 0x042650-5a */
+        mode_word |= (n[0x0c] & 0x40) ? 0x200u : 0x100u;         /* 0x04265f-68: or ah,2/1 */
+        val = 0;                                                /* 0x04266d push 0 */
+    } else {
+        mode_word = ((n[0x0c] & 1) != 0) + 0x21u;               /* 0x042671-7d */
+        mode_word |= (dl == 'a') ? 0x10u : 0x40u;               /* 0x042680-89 */
+        mode_word |= (n[0x0c] & 0x40) ? 0x200u : 0x100u;        /* 0x04268b-96 */
+        val = 0x180;                                            /* 0x042699 push 0x180 */
+    }
+
+    int32_t handle = fn_04488b(name, (uint16_t)mode_word, extra, val);  /* 0x0426a1 */
+    *(int32_t *)(n + 0x10) = handle;                            /* 0x0426a9 */
+    if (handle == -1) {                                         /* 0x0426ac-10 */
+        node_deactivate((uint32_t)(uintptr_t)node);             /* 0x0426b4 */
+        return NULL;
+    }
+    *(uint32_t *)(n + 0x04) = 0;                                /* 0x0426be-cf */
+    *(uint32_t *)(n + 0x08) = 0;
+    *(uint32_t *)(n + 0x14) = 0;
+    if (dl == 'a') fn_04247a(node, 0, 2);                       /* 0x0426d3-e1: seek to end */
+    fn_044bb4(node);                                            /* 0x0426e8 */
+    return node;                                                /* 0x0426ed mov eax,ecx */
+}
+
 /* ---- L10 trivial accessors (the canary prologue PUSH 0x20;CALL 0x418ee is not replicated) ---- */
 uint32_t g_dat_53c60 = 0;
 uint32_t g_dat_40010 = 0;

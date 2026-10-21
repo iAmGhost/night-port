@@ -9643,6 +9643,32 @@ void fn_0137c1(uint8_t *entity, uint32_t base) {
     }
 }
 
+/* fn_0383a4  orig: 0x0383a4 (L11, 166 B) -- render an integer's digits left-to-right (font-table + RLE blit).
+ * Simplest member of the 0x038c23/0x038b30 font family: NO pad loop, NO rotate; just draws the len
+ * digits starting at col0 with 8-col spacing.
+ * ABI (raw disasm; same as 0x038c23: EAX=base,EDX=font,EBX=col0,ECX=start_row,[stk]=number):
+ *   itoa32s(number, buf, 10); len = str_len(buf);
+ *   for (i = 0; i < len; i++) {
+ *     d = buf[i]; glyph_off = *(char_table - 0x40 + d*4);
+ *     fn_03bb42(base, i*8 + col0, start_row, col=7, rows=7, rle_base + glyph_off, mode=0);
+ *   }
+ * font[0x34]/[0x38] widened to 8B host ptrs at 0x34/0x3c (pointer-width adaptation, cf. 0x038c23).
+ * glyph_off = char_table - 0x40 + d*4 (SAME convention as 0x038c23). */
+void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number) {
+    (void)canary_id(0, 0x40);                                     /* PUSH 0x40;CALL 0x418ee */
+    char buf[16];
+    itoa32s(number, buf, 10);                                     /* 0x0383c5-d0 */
+    int len = str_len(buf);                                       /* 0x0383d5-dd */
+    uintptr_t char_table = *(uintptr_t *)(font + 0x34);
+    uintptr_t rle_base   = *(uintptr_t *)(font + 0x3c);   /* orig +0x38, widened to 0x3c (8-byte ptr) */
+    for (int i = 0; i < len; i++) {                               /* 0x0383ef-43b (digit glyphs, 8-col spacing) */
+        uint32_t d = (uint32_t)(uint8_t)buf[i];                   /* 0x0383fa-406 */
+        uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + d * 4); /* 0x03840b-419 */
+        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+        fn_03bb42(base, i * 8 + col0, start_row, 7, 7, rle, 0);
+    }
+}
+
 /* fn_038b30  orig: 0x038b30 (L11, 242 B) -- render an integer as a 5-glyph right-justified
  * number field (left blank-pad + digit glyphs), font-table + RLE blit. Generalization of
  * 0x038c23: variable width with blank padding instead of a fixed 2-glyph rotate.

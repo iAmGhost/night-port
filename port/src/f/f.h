@@ -114,6 +114,7 @@ void fn_03a5f7(const uint8_t *base); /* 0x03a5f7: progressive horizontal reveal 
 void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038c23: render 0..99 as 2 digit glyphs */
 void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038b30: render int as 5-glyph right-justified field */
 void fn_0137c1(uint8_t *entity, uint32_t base); /* 0x0137c1: HUD countdown number display (global font 0x63e04, tick 0x63360) */
+void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x0383a4: render integer digits left-to-right (8-col spacing) */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
 void fn_0003fade(void);                         /* 0x0003fade: zero DAT_000a0000[64000] (DPMI region, no-op) */

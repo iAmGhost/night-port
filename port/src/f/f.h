@@ -831,6 +831,25 @@ void fn_03bebb(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                uint32_t row_count, const uint8_t *rle, int32_t mode, uint8_t fill_byte);
 void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                uint32_t row_count, const uint8_t *rle, int32_t mode);
+/* Off-screen 64000 B screens (DAT_000633b0 / DAT_000633b4), modelled as a flat arena right
+ * above the A0000 video window so fn_03bb42/fn_03bebb base arithmetic resolves the same way. */
+#define SCREEN_BASE  0xb0000u                       /* VIDEO_BASE + VIDEO_SIZE */
+#define SCREEN_SIZE  0xfa00u                        /* 64000 B */
+extern uint8_t  g_screen_ram[2 * SCREEN_SIZE];
+extern uint32_t g_dat_633b0;                        /* DAT_000633b0: back screen (flat addr) */
+extern uint32_t g_dat_633b4;                        /* DAT_000633b4: working screen (flat addr) */
+/* DAT_000639c4 HUD blit control block. The original keeps its four pointer fields 4 bytes
+ * apart (+4, +8, +0x34, +0x38); widening them in place would OVERLAP, so the port models the
+ * block as this struct (field order = original order). The dwords inside the referenced
+ * objects (+0x2c / +0x30) stay 32-bit and are still read by byte offset. */
+struct blit_ctl {
+    uint8_t *col_obj;   /* orig +0x04: column dwords   @+0x2c / @+0x30 */
+    uint8_t *row_obj;   /* orig +0x08: row-count dwords @+0x2c / @+0x30 */
+    uint8_t *off_obj;   /* orig +0x34: RLE byte offsets @+0x2c / @+0x30 */
+    uint8_t *rle_base;  /* orig +0x38: base of the RLE streams */
+};
+extern struct blit_ctl *g_dat_639c4;                /* DAT_000639c4: HUD blit control block */
+void fn_03ace9(void);                               /* 0x03ace9: 20-frame HUD composite (633b0/633b4 + 2 sprites via fn_03bb42) */
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */
 void     fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p);  /* 0x03ba86: nested-list builder from byte stream */
 void     fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count);  /* 0x03a594: copy bytes != 0xff */

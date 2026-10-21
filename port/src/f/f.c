@@ -5321,8 +5321,27 @@ static inline void     node_flag_set(uint32_t o, uint8_t v){ s_node_arena[o+10]=
 #define VIDEO_BASE   0xa0000u
 #define VIDEO_SIZE   0x10000u
 uint8_t g_video_ram[VIDEO_SIZE];
+
+/* DAT_000633b0 / DAT_000633b4: the two off-screen 64000-byte screens. The original
+ * heap_malloc(64000) each of them in the master-data init (0x03658d, not yet ported) and
+ * stores the resulting LINEAR addresses here, so a blit helper such as fn_03bb42 writes to
+ * base + row*0x140 directly. The port models them as flat addresses in a dedicated arena
+ * immediately above the video window, which the same video_map() resolves -- the same
+ * "pointer global -> flat arena" deviation already used for g_dat_51a0c. SCREEN_BASE /
+ * SCREEN_SIZE are declared in f.h (0xb0000 = VIDEO_BASE + VIDEO_SIZE, 0xfa00 = 64000 B). */
+uint8_t g_screen_ram[2 * SCREEN_SIZE];
+uint32_t g_dat_633b0 = SCREEN_BASE;                 /* DAT_000633b0: back screen */
+uint32_t g_dat_633b4 = SCREEN_BASE + SCREEN_SIZE;   /* DAT_000633b4: working screen */
+
+/* DAT_000639c4: control block for the HUD/screen blits (assigned by the unported master data
+ * loader 0x03690b); its four pointer-ish fields live 4 bytes apart in the original, so the
+ * port uses a named struct (see f.h) instead of byte-offset access. */
+struct blit_ctl *g_dat_639c4;
+
 static inline uint8_t *video_map(uint32_t va) {
-    uint32_t off = va - VIDEO_BASE;
+    uint32_t off = va - SCREEN_BASE;
+    if (off < (uint32_t)sizeof g_screen_ram) return g_screen_ram + off;   /* off-screen screens */
+    off = va - VIDEO_BASE;
     if (off >= VIDEO_SIZE) off = 0;
     return g_video_ram + off;
 }
@@ -5593,6 +5612,56 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
             db += 0x140;
         }
     }
+}
+
+/* fn_03ace9  orig: 0x03ace9 (L11, 421 B) -- 20-frame HUD/screen composite (double buffer).
+ * No register args (only canary PUSH 0x2c). Per frame (0x14 = 20 iterations):
+ *   mem_copy(633b4 <- 633b0, 0xfa00)                                    0x3ad2a
+ *   fn_03bb42(633b4, i*5-0x34, 0x35, col@+0x2c, rowcnt@+0x2c, rle@+0x2c, 0)   0x3ad70
+ *   fn_03bb42(633b4, 0x115-i*5, 0x35, col@+0x30, rowcnt@+0x30, rle@+0x30, 0)  0x3adbb
+ *   fn_00035ec2()          VGA 0x3DA ready-wait (port stub)              0x3adc0
+ *   mem_copy(A0000 <- 633b4, 0xfa00)                                    0x3add5
+ * i drives the two sprites' destination columns in opposite directions (+/-5 px per frame,
+ * from -0x34 / 0x115). Then 0x400 calls of the 0x042958 thunk (JMP 0x4564f = delay_units(1))
+ * -- a ~1024-unit pause -- and two final blits of the same two sprites into 633b0 at fixed
+ * columns 0x30 / 0xb1, i.e. the resting position is written back to the back screen.
+ * Argument order verified against the disassembly: the three stack args are pushed
+ *   mode, rle, row_count  (0x3ad31/46/4f) so cdecl sees row_count, rle, mode; the register
+ * args are EAX=base, EDX=dest_off, EBX=0x35 (start_row), ECX=col.
+ * Control block DAT_000639c4: +0x38 (RLE base address) + [off_obj+0x2c/0x30] byte offset = the
+ * RLE pointer; [row_obj+0x2c/0x30] = row count; [col_obj+0x2c/0x30] = column. */
+void fn_03ace9(void) {
+    (void)canary_id(0, 0x2c);                                          /* 0x3acee */
+    struct blit_ctl *cb = g_dat_639c4;
+
+    for (int32_t i = 0; i < 0x14; i++) {
+        mem_copy(video_map(g_dat_633b4), video_map(g_dat_633b0), 0xfa00);      /* 0x3ad2a */
+        /* 0x3ad70: push 0; push rle; push row_count; EAX=633b4 EDX=i*5-0x34 EBX=0x35 ECX=col */
+        fn_03bb42(g_dat_633b4, i * 5 - 0x34, 0x35,
+                  (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x2c),
+                  *(uint32_t *)(void *)(cb->row_obj + 0x2c),
+                  cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x2c), 0);
+        /* 0x3adbb: same shape with the +0x30 fields and dest_off = 0x115 - i*5 */
+        fn_03bb42(g_dat_633b4, 0x115 - i * 5, 0x35,
+                  (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x30),
+                  *(uint32_t *)(void *)(cb->row_obj + 0x30),
+                  cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x30), 0);
+        fn_00035ec2();                                                        /* 0x3adc0 */
+        mem_copy(video_map(VIDEO_BASE), video_map(g_dat_633b4), 0xfa00);      /* 0x3add5 */
+    }
+
+    for (int32_t i = 0; i < 0x400; i++)
+        delay_units(1);                        /* 0x3adfc: CALL 0x42958 (JMP 0x4564f) */
+
+    /* 0x3ae3f / 0x3ae80: same two sprites, now into the BACK screen at fixed columns */
+    fn_03bb42(g_dat_633b0, 0x30, 0x35,
+              (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x2c),
+              *(uint32_t *)(void *)(cb->row_obj + 0x2c),
+              cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x2c), 0);
+    fn_03bb42(g_dat_633b0, 0xb1, 0x35,
+              (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x30),
+              *(uint32_t *)(void *)(cb->row_obj + 0x30),
+              cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x30), 0);
 }
 
 /* fn_03f462  orig: 0x03f462 (L11, 303 B) -- row-wrap fill into the A0000 video arena.

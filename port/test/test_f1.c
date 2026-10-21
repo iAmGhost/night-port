@@ -8044,6 +8044,62 @@ static void test_fn_03f885(void) {
     free(hist);
 }
 
+static void test_fn_03ace9(void) {
+    printf("fn_03ace9 (0x03ace9): 20-frame HUD composite (633b0/633b4 double buffer)\n");
+    uint8_t *back = g_screen_ram;                       /* flat SCREEN_BASE */
+    uint8_t *work = g_screen_ram + SCREEN_SIZE;         /* flat SCREEN_BASE + SCREEN_SIZE */
+    memset(back, 0x55, sizeof g_screen_ram);
+    memset(g_video_ram, 0x00, sizeof g_video_ram);
+
+    /* control block: the port models DAT_000639c4 as a struct (the original's four pointer
+     * fields sit 4 bytes apart, which cannot be widened in place) */
+    struct blit_ctl *cb = (struct blit_ctl *)calloc(1, sizeof *cb);
+    uint8_t *obj4  = (uint8_t *)calloc(1, 0x40);
+    uint8_t *obj8  = (uint8_t *)calloc(1, 0x40);
+    uint8_t *obj34 = (uint8_t *)calloc(1, 0x40);
+    uint8_t *rle   = (uint8_t *)calloc(1, 0x100);
+    if (!cb || !obj4 || !obj8 || !obj34 || !rle) { check(0, "  control buffers (SKIP)"); return; }
+    /* two 2-row streams, each row "[N=1][gap=0][len=4][data x4]"; sprite B sits at rle+0x20 */
+    rle[0] = 1; rle[1] = 0; rle[2] = 4;
+    rle[3] = 0xAA; rle[4] = 0xBB; rle[5] = 0xCC; rle[6] = 0xDD;
+    rle[7] = 1; rle[8] = 0; rle[9] = 4;
+    rle[10] = 0xAA; rle[11] = 0xBB; rle[12] = 0xCC; rle[13] = 0xDD;
+    rle[0x20] = 1; rle[0x21] = 0; rle[0x22] = 4;
+    rle[0x23] = 0x11; rle[0x24] = 0x22; rle[0x25] = 0x33; rle[0x26] = 0x44;
+    rle[0x27] = 1; rle[0x28] = 0; rle[0x29] = 4;
+    rle[0x2a] = 0x11; rle[0x2b] = 0x22; rle[0x2c] = 0x33; rle[0x2d] = 0x44;
+    *(uint32_t *)(void *)(obj4 + 0x2c)  = 0x10;         /* col (sprite A) */
+    *(uint32_t *)(void *)(obj4 + 0x30)  = 0x20;         /* col (sprite B) */
+    *(uint32_t *)(void *)(obj8 + 0x2c)  = 2;            /* row count A */
+    *(uint32_t *)(void *)(obj8 + 0x30)  = 2;            /* row count B */
+    *(uint32_t *)(void *)(obj34 + 0x2c) = 0x00;         /* RLE offset A */
+    *(uint32_t *)(void *)(obj34 + 0x30) = 0x20;         /* RLE offset B */
+    cb->col_obj = obj4; cb->row_obj = obj8; cb->off_obj = obj34; cb->rle_base = rle;
+    g_dat_639c4 = cb;
+
+    fn_03ace9();
+
+    /* each stream holds two rows, so rows 0x35 and 0x36 of the target are written */
+    #define SROW(buf, r) ((buf) + (r) * 0x140)
+    check(memcmp(SROW(back, 0x35) + 0x30, "\xAA\xBB\xCC\xDD", 4) == 0,
+          "  final write-back: sprite A lands at back-screen row 0x35, column 0x30");
+    check(memcmp(SROW(back, 0x35) + 0xb1, "\x11\x22\x33\x44", 4) == 0,
+          "  final write-back: sprite B lands at back-screen row 0x35, column 0xb1 (+0x20 RLE)");
+    check(memcmp(SROW(back, 0x36) + 0x30, "\xAA\xBB\xCC\xDD", 4) == 0,
+          "  row_count 2 -> second row written at row 0x36");
+    /* last animated frame (i=19) put sprite A at dest_off 19*5-0x34 = 0x2b in the WORK buffer */
+    check(memcmp(SROW(work, 0x35) + 0x2b, "\xAA\xBB\xCC\xDD", 4) == 0,
+          "  frame 19: sprite A at dest_off 19*5-0x34 = 0x2b of the work screen");
+    check(memcmp(SROW(work, 0x35) + 0x115 - 19 * 5, "\x11\x22\x33\x44", 4) == 0,
+          "  frame 19: sprite B at dest_off 0x115-19*5 (opposite sweep)");
+    check(memcmp(work, g_video_ram, SCREEN_SIZE) == 0,
+          "  work screen mirrored into A0000 by the per-frame mem_copy");
+    check(memcmp(SROW(back, 0x35) + 0x2b, "\x55\x55\x55\x55", 4) == 0,
+          "  animated frames never touch the back screen (only the write-back does)");
+    #undef SROW
+    free(cb); free(obj4); free(obj8); free(obj34); free(rle);
+}
+
 static void test_fn_036417(void) {
     printf("fn_036417 (0x036417): screen RLE loader into caller buffer, 0x4b000 bound, dl->board_out\n");
     heap_arena_init();
@@ -8542,6 +8598,7 @@ int main(void) {
     test_fn_040b83();
     test_fn_04097e();
     test_fn_03f885();
+    test_fn_03ace9();
     test_fn_010181();
     test_fn_03fc1d();
     test_fn_03e0a0();

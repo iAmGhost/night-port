@@ -111,6 +111,7 @@ void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (
 void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */
 void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count, const uint8_t *src); /* 0x03f462: row-wrap fill into A0000 */
 void fn_03a5f7(const uint8_t *base); /* 0x03a5f7: progressive horizontal reveal of 200-row source into A0000 */
+void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038c23: render 0..99 as 2 digit glyphs */
 void fn_03f410(uint32_t color);                /* 0x03f410: VGA palette-set, index 0x63e58 (color in EAX) */
 void fn_1053f(void);                            /* 0x01053f: DPMI INT 0x31 AX=0x101 (no-op) */
 void fn_0003fade(void);                         /* 0x0003fade: zero DAT_000a0000[64000] (DPMI region, no-op) */

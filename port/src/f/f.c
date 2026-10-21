@@ -9572,3 +9572,33 @@ void fn_03a5f7(const uint8_t *base) {
         if (!(colAcc < 0x140)) break;                            /* 0x03a6f8/f: CMP/JL */
     }
 }
+
+/* fn_038c23  orig: 0x038c23 (L11, 186 B) -- render a 0..99 integer as 2 digit glyphs.
+ * ABI (raw disasm; sibling 0x03bebb convention EAX=base/EDX=dest_off/EBX=start_row/ECX=col
+ * for the fn_03bb42 blit; this fn's own regs: EAX=base,EDX=font,EBX=col0,ECX=start_row,[stk]=number):
+ *   itoa32s(number, buf, 10);
+ *   if (number < 10) { buf[1]='0'; buf[2]=0; }                 // pad single digit -> "d0"
+ *   else { buf[2]=buf[0]; buf[0]=buf[1]; buf[1]=buf[2]; }       // 3-elem rotate (draw order)
+ *   char_table = *(font+0x34); rle_base = *(font+0x38);          // host pointers (port model)
+ *   for (i = 1; i >= 0; i--) {                                  // draw buf[1] then buf[0]
+ *     digit = buf[i];
+ *     glyph_off = *(uint32*)(char_table - 0x40 + digit*4);
+ *     rle = rle_base + glyph_off;
+ *     fn_03bb42(base, (1-i)*7 + col0, start_row, col=6, rows=7, rle, mode=0);
+ *   }
+ * font[0x34]/[0x38] are modeled as 64-bit host pointers (like the viewport ent[] ptr fields). */
+void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number) {
+    (void)canary_id(0, 0x3c);                                     /* PUSH 0x3c;CALL 0x418ee */
+    char buf[16];
+    itoa32s(number, buf, 10);                                     /* 0x038c4f */
+    if (number < 10) { buf[1] = 0x30; buf[2] = 0; }               /* 0x038c5a/5e (pad) */
+    else { buf[2] = buf[0]; buf[0] = buf[1]; buf[1] = buf[2]; }   /* 0x038c64-73 (rotate: uses updated buf[2]) */
+    uintptr_t char_table = *(uintptr_t *)(font + 0x34);
+    uintptr_t rle_base   = *(uintptr_t *)(font + 0x3c);   /* orig +0x38, widened to 0x3c (8-byte ptr) */
+    for (int i = 1; i >= 0; i--) {                                /* 0x038c76..cd4 */
+        uint32_t digit = (uint32_t)(uint8_t)buf[i];               /* 0x038c91: AL=buf[i];AND 0xff */
+        uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + digit * 4); /* 0x038ca2-cad */
+        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+        fn_03bb42(base, (1 - i) * 7 + col0, start_row, 6, 7, rle, 0);
+    }
+}

@@ -6786,6 +6786,44 @@ static void test_fn_03a5f7(void) {
     free(b);
 }
 
+static void test_fn_038c23(void) {
+    printf("fn_038c23 (0x038c23): render 0..99 as 2 digit glyphs (font-table + RLE blit)\n");
+    uint8_t *scr = g_video_ram;
+    static uint32_t char_map[256];          /* char_map[ascii] = glyph RLE offset */
+    static uint8_t  rle_buf[10 * 28];       /* 10 glyphs x 7 rows x 4 bytes */
+    static uint8_t  font[0x44];
+    for (uint32_t c = '0'; c <= '9'; c++) char_map[c] = (c - '0') * 28;
+    for (int d = 0; d < 10; d++)            /* each glyph: 7 rows of [1,0,1,X_d] */
+        for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
+    *(uint64_t *)(font + 0x34) = (uint64_t)(uintptr_t)(char_map + 16);   /* font+0x34 = char_table (8B); +16 elem = 0x40 bytes so (ct-0x40)=char_map */
+    *(uint64_t *)(font + 0x3c) = (uint64_t)(uintptr_t)rle_buf;            /* font+0x3c = rle_base (8B, orig 0x38) */
+    uint32_t base = 0xa0000u;
+    int col0 = 100, row = 5;
+
+    /* T1: number=42 -> itoa32s "42" -> rotate -> buf={'2','4','4'}; draw buf[1]='4' @col0, buf[0]='2' @col0+7.
+     *   glyph '4' X=0xa4 at dest_off=100, glyph '2' X=0xa2 at dest_off=107; 7 rows each. */
+    memset(scr, 0, 0x10000);
+    fn_038c23(base, font, col0, row, 42);
+    int ok1 = 1;
+    for (int r = 0; r < 7; r++) {
+        if (scr[(row+r)*0x140 + 100] != 0xa4) ok1 = 0;
+        if (scr[(row+r)*0x140 + 107] != 0xa2) ok1 = 0;
+    }
+    check(ok1, "  T1 42: '4'@col100 + '2'@col107 (X=0xa4/0xa2) over 7 rows");
+    check(scr[row*0x140 + 99] == 0 && scr[row*0x140 + 106] == 0 && scr[row*0x140 + 108] == 0,
+          "  T1 42: adjacent columns (99,106,108) untouched");
+
+    /* T2: number=5 (single digit) -> buf={'5','0',0}; draw buf[1]='0'@col0 (X=0xa0), buf[0]='5'@col0+7 (X=0xa5) => "05". */
+    memset(scr, 0, 0x10000);
+    fn_038c23(base, font, col0, row, 5);
+    int ok2 = 1;
+    for (int r = 0; r < 7; r++) {
+        if (scr[(row+r)*0x140 + 100] != 0xa0) ok2 = 0;
+        if (scr[(row+r)*0x140 + 107] != 0xa5) ok2 = 0;
+    }
+    check(ok2, "  T2 5: '0'@col100 (X=0xa0) + '5'@col107 (X=0xa5) => leading-zero pad");
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -7121,6 +7159,7 @@ int main(void) {
     test_fn_03rle();
     test_fn_03f462();
     test_fn_03a5f7();
+    test_fn_038c23();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

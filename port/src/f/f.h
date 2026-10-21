@@ -757,6 +757,8 @@ typedef struct {
 /* 0x044748: reg-ABI EAX=io_state_t*. Flush (f13 bit4) or seek-back (else); tail sets f0=f8, f4=0. */
 int32_t fn_044748(io_state_t *in);
 int32_t fn_0446c3(io_state_t *node, const uint8_t *fmt, uint8_t **src); /* 0x0446c3: printf-to-node sink (fn_044c23 + fn_0446b2); reg-ABI EAX=node,EDX=fmt,EBX=src */
+extern io_state_t g_dat_5342a;                          /* DAT_0005342a: global console printf io node */
+void fn_042394(const uint8_t *fmt, uint8_t *varargs);   /* 0x042394: fixed-node printf wrapper -> fn_0446c3(&g_dat_5342a,...) */
 
 /* 0x04488b: reg-ABI, 4 stack args (name, mode, extra, val). File open/create with
  * node-table registration; returns handle (16-bit) or fn_045a82(-1) on error. */

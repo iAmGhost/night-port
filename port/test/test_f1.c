@@ -3575,6 +3575,22 @@ static void test_fn_049192(void) {
     check(node[0x0c] & 0x20, "  error: f12 byte0 bit5 set");
 }
 
+static void test_fn_042394(void) {
+    printf("fn_042394 (0x042394): fixed-node printf wrapper (fn_0446c3 on g_dat_5342a)\n");
+    /* Empty fmt -> no emit bytes -> exercises the f13-bit2 flush path (fn_044748)
+     * whose tail sets node f0=f8, f4=0 (observable on the global console node).
+     * (Emit is not exercised: the fixed node is a static global, not heap-resident,
+     * so the node-putc heap-offset deref would target a bogus address.) */
+    memset(&g_dat_5342a, 0, sizeof(g_dat_5342a));
+    g_dat_5342a.f8 = 0x1234;        /* sentinel: fn_044748 tail copies f8 -> f0 */
+    g_dat_5342a.f4 = 0x99;
+    uint8_t *fb = (uint8_t *)&g_dat_5342a;
+    fb[0xd] |= 0x04;                /* f13 bit2 -> flush path */
+    fn_042394((const uint8_t *)"", (uint8_t *)"xx");
+    check(g_dat_5342a.f0 == 0x1234, "  flush tail: node f0 <- f8");
+    check(g_dat_5342a.f4 == 0, "  flush tail: node f4 = 0");
+}
+
 static void test_fn_0446c3(void) {
     printf("fn_0446c3 (0x0446c3): printf-to-node sink (fn_044c23 + fn_0446b2)\n");
     heap_arena_init();
@@ -7832,6 +7848,7 @@ int main(void) {
     test_fn_049192();
     test_fn_0446b2();
     test_fn_0446c3();
+    test_fn_042394();
     test_fn_041d18();
     test_fn_041d47();
     test_fn_0358c7();

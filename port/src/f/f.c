@@ -3946,6 +3946,17 @@ int32_t fn_0446c3(io_state_t *node, const uint8_t *fmt, uint8_t **src) {
     return ret;
 }
 
+/* fn_042394  orig: 0x042394 (L11, 34 B) -- fixed-node printf wrapper.
+ * Calls fn_0446c3 on the global console io node DAT_0005342a. reg+cdecl: EDX =
+ * fmt (the format string, read from [ESP+0x10]); EBX = pointer to a stack slot
+ * holding the varargs-array base -> the printf src cursor. local_c (0x042399)
+ * is the fmt-args descriptor built from the caller's varargs. */
+io_state_t g_dat_5342a;                                /* DAT_0005342a: global console printf io node */
+void fn_042394(const uint8_t *fmt, uint8_t *varargs) {
+    uint8_t *cur = varargs;                            /* 0x042399 lea ebx,[ESP+0x14] (varargs base) */
+    fn_0446c3(&g_dat_5342a, fmt, &cur);                /* 0x0423ab CALL 0x446c3, EAX=0x5342a */
+}
+
 /* 0x041c8f (136 B): getch -- read one char from a node I/O buffer (with
  * CR-consume and EOF handling). reg-ABI: node in EAX (copied to EDX); returns the
  * byte (0-255) or -1 (0xffffffff) in EAX. f0 (node[+0]) is a heap offset

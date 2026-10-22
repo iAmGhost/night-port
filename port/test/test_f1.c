@@ -7930,6 +7930,168 @@ static void test_fn_01cf64(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x01df8b: behaviour-0x06 (the entity[0x5f] phase latch) ---- */
+static void test_fn_01df8b(void)
+{
+    printf("fn_01df8b (0x01df8b, behaviour-0x06 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 7;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;
+    *(int32_t *)(cfg + 0x80) = 4;
+    *(int32_t *)(cfg + 0x14) = 20;
+    *(int32_t *)(cfg + 0x18) = 100;
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 40;   /* script row byte 0 = the hide offset */
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the shared speed word selection */
+    e[0x17] = 3; e[0x1f] = 0x02; e[0x8b] = 1; *(int32_t *)(e + 0x6f) = 0;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_01df8b(e);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "01df8b speed word +0x04 for state < 0x0a");
+
+    /* (B) latch 0 -> a script-byte side spot next to the player, and the latch flips */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 0; e[0x113] = 0; e[0x6f] = 0;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+    fn_01df8b(e);
+    int32_t sx = *(int32_t *)(e + 0xbf), slot = *(int32_t *)(e + 0xff);
+    check(slot == 0 || slot == 1, "01df8b latch 0 draws one of the two script-byte sides");
+    check(sx == 200 - 40 || sx == 200 + 40, "01df8b the side spot is script[row][0] px from the player");
+    check(*(int32_t *)(e + 0xc3) == 120, "01df8b the side spot is level with the player");
+    check(*(int32_t *)(e + 0x5f) == 1, "01df8b latch 0 raises entity[0x5f]");
+    check(*(int32_t *)(e + 0x6f) == 1, "01df8b slots 0/1 set the record +0x80 speed flag");
+
+    /* (C) latch 1 -> one of the four ABSOLUTE jitter rectangles, and the latch drops */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 1; e[0x113] = 0; e[0x6f] = 0;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+    fn_01df8b(e);
+    slot = *(int32_t *)(e + 0xff);
+    sx = *(int32_t *)(e + 0xbf);
+    int32_t sy = *(int32_t *)(e + 0xc3);
+    check(slot >= 6 && slot <= 9, "01df8b latch 1 draws an absolute slot (prng()%4 + 6)");
+    check(sx >= TJ_XLO(slot) && sx <= TJ_XHI(slot) && sy >= TJ_YLO(slot) && sy <= TJ_YHI(slot),
+          "01df8b the absolute spot is drawn inside its jitter rectangle (no player offset)");
+    check(*(int32_t *)(e + 0x5f) == 0, "01df8b latch 1 clears entity[0x5f] again");
+    check(*(int32_t *)(e + 0x6f) == 0, "01df8b an absolute slot clears the +0x80 speed flag");
+    check(*(int32_t *)(e + 0xc7) == 0, "01df8b an accepted spot clears entity[0xc7]");
+
+    /* (D) the phase latch really alternates: draw after draw the handler flips the source */
+    {
+        int saw_side = 0, saw_abs = 0;
+        e[0x5f] = 0;
+        for (int k = 0; k < 6; k++) {
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x113] = 0;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_01df8b(e);
+            int32_t s = *(int32_t *)(e + 0xff);
+            if (s == 0 || s == 1) saw_side++; else if (s >= 6) saw_abs++;
+        }
+        check(saw_side > 0 && saw_abs > 0,
+              "01df8b successive frames alternate between the side spots and the absolute slots");
+    }
+
+    /* (E) the screen clamp is OUTSIDE the entity[0xc7] gate: with no spot drawn at all it still
+     *     corrects an out-of-range entity[0xbf] */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 1; e[0x113] = 0;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0x5555; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 0;                       /* chooser body skipped entirely */
+    fn_01df8b(e);
+    check(*(int32_t *)(e + 0xbf) == 0x12c,
+          "01df8b the clamp runs even when entity[0xc7] is not armed (it sits outside the gate)");
+
+    /* (F) the clamp runs AFTER the too-close test, so a restored spot is re-clamped. Note the
+     * re-roll loop re-reads the latch it has just written, so a rejected slot 0 re-draws in the
+     * ABSOLUTE phase -- the original's own quirk (pinned by test G below). Park the entity in the
+     * middle of the slot-8 rectangle with the player 20 px away, so both phases can land on it,
+     * and sweep seeds until a frame rejects the spot. */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 20;
+    {
+        int32_t cx = (TJ_XLO(8) + TJ_XHI(8)) / 2, cy = (TJ_YLO(8) + TJ_YHI(8)) / 2;
+        int found = 0;
+        for (uint32_t sd = 1; sd <= 200u && !found; sd++) {
+            prng_seed(sd);
+            *(int32_t *)(pl + 0x01) = cx + 20; *(int32_t *)(pl + 0x09) = cy;
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 0; e[0x113] = 0;
+            *(int32_t *)(e + 0x01) = cx; *(int32_t *)(e + 0x09) = cy;
+            *(int32_t *)(e + 0xbf) = -100; *(int32_t *)(e + 0xc3) = 30;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0;
+            fn_01df8b(e);
+            if (*(int32_t *)(e + 0xc7) == 1) found = 1;
+        }
+        check(found == 1, "01df8b a spot landing on the entity is rejected");
+        check(*(int32_t *)(e + 0xbf) == 0x14,
+              "01df8b a too-close spot restores the old X and the clamp then catches it (0x14)");
+    }
+
+    /* (G) the re-roll quirk: the latch is written INSIDE the loop, so a rejected slot 0 redraws in
+     *     the absolute phase instead of staying on the sides. */
+    {
+        int abs_after_reject = 0;
+        for (uint32_t sd = 1; sd <= 24u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 0; e[0x113] = 0;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0;   /* slot 0 is always rejected */
+            fn_01df8b(e);
+            if (*(int32_t *)(e + 0xff) >= 6) abs_after_reject++;
+        }
+        check(abs_after_reject > 12,
+              "01df8b a rejected slot 0 redraws in the absolute phase (the latch is set inside the loop)");
+    }
+
+    /* (H) the shared state machine: the scripted walk (case 0xb) and its timeout (case 0xc) */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;   /* (F) moved the player */
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 122;
+    fn_01df8b(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "01df8b case 0xb runs the scripted state (same walk as the siblings)");
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_01df8b(e);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a,
+          "01df8b case 0xc timeout -> state 0x32, action 0x0a");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -13038,6 +13200,7 @@ int main(void) {
     test_fn_01aec8();
     test_fn_01bea8();
     test_fn_01cf64();
+    test_fn_01df8b();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

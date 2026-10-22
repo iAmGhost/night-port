@@ -914,6 +914,12 @@ void sys_key_spin(void);           /* the port's stand-in for a keyboard busy-wa
 extern uint8_t g_dat_63eb2;        /* DAT_00063eb2: key byte (the "any key" set of the help/title screens) */
 extern uint8_t g_dat_63ebe;        /* DAT_00063ebe: key byte (same set) */
 
+extern uint8_t *g_dat_53dd4;       /* DAT_00053dd4: the title attract command cursor */
+extern uint8_t *g_dat_53ddc;       /* DAT_00053ddc: the title "start" command cursor */
+extern uint8_t  g_dat_63ed0;       /* DAT_00063ed0: select-held key byte (title menu) */
+extern uint8_t  g_dat_63ed8;       /* DAT_00063ed8: mirrored select-held key byte */
+
+int32_t fn_03a224(void);   /* 0x03a224: THE TITLE SCREEN -- wipe-in, attract stream, a two-entry menu (buf[0]/buf[1]) with DAT_63ed0/63ed8, returns 0/1 (entry) or 3 (quit/timeout). */
 void fn_038cde(void);   /* 0x038cde: THE HELP / INSTRUCTIONS SCREEN -- pages help%d.pcx (10..0x23) with DAT_63ed3/63ed5, three animated palette bands every 3rd frame, fades in/out with 50 DAC frames. */
 void fn_03a70e(void);   /* 0x03a70e: THE PICTURE / CG SLIDE-SHOW DRIVER -- plays na<stage>%04d.pcx one picture per key press, count from DAT_52f08[stage], then wipes with the progressive reveal and restores the tick counters + keyboard pump. */
 extern uint32_t g_dat_52f08[0x40];   /* DAT_00052f08[]: picture count per stage */

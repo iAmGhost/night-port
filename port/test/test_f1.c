@@ -2494,6 +2494,99 @@ static int node0_len(void) {
 /* 0x0381d7 -- THE PLAYER STEP-ANIMATION LOOP (walk cycle + paced redraw per step). */
 /* 0x03a70e -- THE PICTURE / CG SLIDE-SHOW DRIVER (na<stage>%04d.pcx strip). */
 /* 0x038cde -- THE HELP / INSTRUCTIONS SCREEN (paged help%d.pcx + animated palette bands). */
+/* 0x03a224 -- THE TITLE SCREEN (wipe-in, two-entry menu, returns the selection). */
+static void test_fn_03a224(void) {
+    printf("fn_03a224 (0x03a224): the title screen (wipe + menu, returns the choice)\n");
+    uint8_t s_c1 = g_dat_63ec1, s_a4 = g_dat_63ea4, s_a5 = g_dat_63ea5, s_c0 = g_dat_63ec0;
+    uint8_t s_89 = g_dat_63e89, s_d0 = g_dat_63ed0, s_d8 = g_dat_63ed8;
+    uint32_t s_3a0 = g_dat_633a0, s_f08 = g_dat_63f08, s_w = g_dat_531f4, s_p = g_dat_63e64;
+    res_reader *s_rd = g_639b8;
+    uint8_t *s_d4 = g_dat_53dd4, *s_d8c = g_dat_53dd8, *s_dc = g_dat_53ddc;
+
+    heap_arena_init();
+    heap_arena_cap_set(0x2000000);           /* four 0x4b000 title buffers + the picture streams */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;                         /* no resource index: the loaders read straight from g_639b8 */
+    g_dat_531f4 = 0x10000; g_dat_63e64 = 0x280;/* the wrap modulus (A0000 window size) and pitch fn_03f462 uses for a 640x480 screen */
+
+    /* three title pages, consumed in call order: title3.pcx -> title4.pcx -> title1.pcx.
+     * Each = [768 B ramp table][30720 FILL-10 runs of the page value] = 307200 pixels. */
+    const uint32_t page = 0x300 + 30720 * 2;
+    uint8_t px[3] = { 0x33, 0x44, 0x11 };
+    uint32_t data_off = heap_arena_alloc(page * 3 + 4);
+    uint8_t *data = hb + data_off;
+    for (int p = 0; p < 3; p++) {
+        uint32_t q = (uint32_t)p * page;
+        for (uint32_t i = 0; i < 0x300; i++) data[q++] = (uint8_t)((i * 4) & 0xff);
+        for (uint32_t k = 0; k < 30720; k++) { data[q++] = 0xCA; data[q++] = px[p]; }
+    }
+    uint32_t nd_off[2];
+    for (int s = 0; s < 2; s++) {
+        nd_off[s] = heap_arena_alloc(0x20);
+        uint8_t *nd = hb + nd_off[s];
+        *(uint32_t *)(nd + 0) = data_off;
+        *(uint32_t *)(nd + 4) = page * 3;
+        *(uint32_t *)(nd + 8) = data_off + page * 3;
+        nd[0xc] = 0x41;
+    }
+    /* empty command records for the attract / blip / start streams */
+    uint32_t rec_off = heap_arena_alloc(0x10);
+    uint8_t *rec = hb + rec_off;
+    rec[0] = 0; rec[1] = 0; rec[2] = 0; rec[3] = 0;   /* kind 0, 24-bit length 0 */
+    g_dat_53dd4 = rec; g_dat_53dd8 = rec; g_dat_53ddc = rec;
+
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    sys_ports_reset();
+
+    /* ---- scenario A: one menu toggle, then an exit key that KEEPS the selection ---- */
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    g_dat_63e89 = g_dat_63ed0 = g_dat_63ed8 = 0;
+    g_dat_63f08 = 0x999;
+    g_639b8 = (res_reader *)(hb + nd_off[0]);
+    sys_key_script_clear();
+    sys_key_script_add(5, &g_dat_63ec1, 1);   /* ends the wipe after 5 row-pairs */
+    sys_key_script_add(6, &g_dat_63ec1, 0);   /* release: the drain lets go */
+    sys_key_script_add(7, &g_dat_63ed0, 1);   /* select held: the menu flips 0 -> 1 */
+    sys_key_script_add(8, &g_dat_63ed0, 0);
+    sys_key_script_add(8, &g_dat_63ea4, 1);   /* a non-abort key: leave the menu with the choice kept */
+
+    int32_t sel = fn_03a224();
+    check(sel == 1, "the title screen returns the menu selection it was left on (0 -> 1 after one held select)");
+    check(g_video_ram[0] == 0x44 && g_video_ram[0xffff] == 0x44,
+          "the last menu blit drew buf[1] (the second title%d.pcx, page value 0x44) into the A0000 window");
+    check(g_dat_63f08 == 0, "the attract counter DAT_63f08 is cleared before the attract stream starts");
+
+    uint8_t *hist = (uint8_t *)calloc(1, 0x20000);
+    int n = hist ? sys_hist(hist, 0x20000) : 0;
+    int tail_zero = n >= 39168;
+    for (int i = n - 768; i < n && tail_zero; i++) if (hist[i] != 0) tail_zero = 0;
+    check(n >= 39168 && tail_zero,
+          "the screen ends with fn_0406f5's 51-frame fade-out whose last DAC frame is all zeros");
+    free(hist);
+    sys_key_script_clear();
+
+    /* ---- scenario B: abort forces the quit selection (3) ---- */
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    g_dat_63e89 = g_dat_63ed0 = g_dat_63ed8 = 0;
+    g_639b8 = (res_reader *)(hb + nd_off[1]);
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    sys_key_script_clear();
+    sys_key_script_add(1, &g_dat_63ec1, 1);   /* break the wipe on the first row-pair */
+    sys_key_script_add(2, &g_dat_63ec1, 0);
+    sys_key_script_add(3, &g_dat_63e89, 1);   /* abort: DAT_63e89 forces selection 3 */
+
+    int32_t sel2 = fn_03a224();
+    check(sel2 == 3, "an abort (DAT_63e89) returns 3 -- the quit/timeout selection");
+    check(g_video_ram[0] == 0x11 && g_video_ram[0x8000] == 0x11,
+          "the first wipe pass paints the flipped title picture (buf[3] = title1.pcx, page value 0x11) via vline_set");
+
+    heap_arena_cap_set(0x100000);
+    g_dat_63ec1 = s_c1; g_dat_63ea4 = s_a4; g_dat_63ea5 = s_a5; g_dat_63ec0 = s_c0;
+    g_dat_63e89 = s_89; g_dat_63ed0 = s_d0; g_dat_63ed8 = s_d8;
+    g_dat_633a0 = s_3a0; g_dat_63f08 = s_f08; g_dat_531f4 = s_w; g_dat_63e64 = s_p;
+    g_639b8 = s_rd; g_dat_53dd4 = s_d4; g_dat_53dd8 = s_d8c; g_dat_53ddc = s_dc;
+}
+
 static void test_fn_038cde(void) {
     printf("fn_038cde (0x038cde): the help / instructions screen\n");
     uint8_t s_b2 = g_dat_63eb2, s_be = g_dat_63ebe, s_89 = g_dat_63e89, s_a4 = g_dat_63ea4;
@@ -12022,6 +12115,7 @@ int main(void) {
     test_fn_0381d7();
     test_fn_03a70e();
     test_fn_038cde();
+    test_fn_03a224();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

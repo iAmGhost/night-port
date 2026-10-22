@@ -13835,3 +13835,104 @@ void fn_038cde(void)
 
     fn_0406f5(g_dat_636b8, 0x32);                                  /* 0x38f25-2f 50-frame fade-out */
 }
+
+uint8_t *g_dat_53dd4 = 0;          /* DAT_00053dd4: the title screen's "attract" command cursor */
+uint8_t *g_dat_53ddc = 0;          /* DAT_00053ddc: the title screen's "start" command cursor */
+uint8_t  g_dat_63ed0 = 0;          /* 0x63ed0: select-held key byte (title menu) */
+uint8_t  g_dat_63ed8 = 0;          /* 0x63ed8: the mirrored select-held key byte */
+
+/* fn_03a224  orig: 0x0003a224 (L12, 879 B) -- THE TITLE SCREEN, returning the menu choice.
+ *   fn_03f645(); four 0x4b000 blocks through fn_041af8: buf[3] and the scratch buffer, then in a
+ *   2-iteration loop sprintf("title%d.pcx", i+3) -> buf[0] = title3.pcx, buf[1] = title4.pcx (loaded
+ *   with fn_036417 name/dest/dl=0); buf[3] gets "title1.pcx" with dl=1 (its palette is pushed with
+ *   board_out). buf[2] is NEVER allocated -- a latent dead menu slot (sel only ever takes 0, 1 or 3).
+ *   THE WIPE: for row = 0,2,4,...,0x1de: for every column, draw a vertical line in the scratch buffer
+ *   (vline_set scratch, stride 0x280, column, start 0, height 0x1e0-row) using the single pixel
+ *   title3? no: buf[3][(0x1df-row)*0x280 + col] -- i.e. the vertically flipped title picture; then
+ *   mem_copy(scratch + (0x1df-row)*0x280, buf[3] + (0x1df-row)*0x280, row*0x280) copies a growing
+ *   block of the flipped picture over it, and fn_03f462(0,0,0x280,0x1e0,scratch) blits the whole thing
+ *   to A0000. Any key in DAT_63ec1 / DAT_63ea4 / DAT_63ea5 / DAT_63ec0 aborts the wipe.
+ *   Otherwise 0x400 rounds of delay_units(1) (same key check), then the release drain on those four
+ *   bytes.
+ *   DAT_63f08 = 0; fn_010b1d(9) (the CD track read; the port ignores EAX); fn_04185e(DAT_53dd4) starts
+ *   the attract stream. THE MENU: loop until a key in DAT_63ea4/ec1/ea5/ec0/e89: if DAT_63ed0 or
+ *   DAT_63ed8 is held and the hold counter is 0, selection = 1 - selection, counter = 1 and the blip
+ *   stream DAT_53dd8 plays; the counter latches to 0x13 when neither is held, else ++ and wraps 0x14 ->
+ *   0; fn_035ec2(); blit buf[selection]; if DAT_63f08 > 0xc4e the demo times out -> selection = 3.
+ *   Exit: DAT_63e89 (abort) forces selection = 3; any other selection plays the start stream
+ *   DAT_53ddc. Then the 51-frame fade-out fn_0406f5(DAT_636b8, 0x32), the four frees (fn_041c31 =
+ *   heap_free_host), fn_0010dde(), fn_000405a7(), and the function RETURNS the selection in EAX
+ *   (0/1 = which menu entry, 3 = quit/timeout). */
+int32_t fn_03a224(void)
+{
+    (void)canary_id(0, 0x68);                                      /* 0x3a224-29 */
+    int32_t sel = 0, hold = 0;                                     /* [EBP-8], [EBP-4] */
+    uint32_t buf[4] = { 0, 0, 0, 0 };                              /* [EBP-0x24] (buf[2] never allocated) */
+    uint32_t scratch = 0;                                          /* [EBP-0x14] */
+    uint8_t name[16];                                              /* [EBP-0x34] */
+
+    fn_0003f645();                                                 /* 0x3a24c (orig EAX = 0) */
+    buf[3]   = heap_malloc(0x4b000);                               /* 0x3a251-5b */
+    scratch  = heap_malloc(0x4b000);                               /* 0x3a25e-68 */
+    for (int32_t i = 0; i < 2; i++) {                              /* 0x3a26b-c5 */
+        int32_t arg = i + 3;
+        uint8_t *cur = (uint8_t *)&arg;
+        fn_0428f8(name, (const uint8_t *)"title%d.pcx", &cur);      /* 0x5169b = "title%d.pcx" */
+        buf[i] = heap_malloc(0x4b000);                             /* 0x3a299-a3 */
+        fn_036417((const char *)name, (uint8_t *)g_heap_base + buf[i], 0);  /* 0x3a2af-bf */
+    }
+    fn_036417("title1.pcx", (uint8_t *)g_heap_base + buf[3], 1);    /* 0x3a2c5-d2 (0x516a7) */
+
+    for (int32_t row = 0; row < 0x1e0; row += 2) {                 /* 0x3a2d7-eb wipe */
+        sys_key_spin();
+        uint8_t *sc = (uint8_t *)g_heap_base + scratch;
+        uint8_t *tp = (uint8_t *)g_heap_base + buf[3];
+        for (int32_t col = 0; col < 0x280; col++)                  /* 0x3a2f8-345 */
+            vline_set(sc, 0x280, col, 0, 0x1e0 - row,
+                      tp[(0x1df - row) * 0x280 + col]);
+        mem_copy(sc + (0x1df - row) * 0x280,                       /* 0x3a347-70 */
+                 tp + (0x1df - row) * 0x280, (uint32_t)(row * 0x280));
+        fn_03f462(0, 0, 0x280, 0x1e0, sc);                         /* 0x3a375-87 */
+        if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 ||
+            g_dat_63ea5 != 0 || g_dat_63ec0 != 0) break;           /* 0x3a38c-b4 */
+    }
+    if (!(g_dat_63ec1 != 0 || g_dat_63ea4 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0)) {
+        for (int32_t i = 0; i < 0x400; i++) {                      /* 0x3a3bb-407 */
+            delay_units(1);                                        /* 0x3a3d3-d8 (thunk 0x42958 -> 0x4564f) */
+            if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 ||
+                g_dat_63ea5 != 0 || g_dat_63ec0 != 0) break;
+        }
+    }
+    while (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 ||
+           g_dat_63ea5 != 0 || g_dat_63ec0 != 0)                   /* 0x3a409-431 release drain */
+        sys_key_spin();
+
+    g_dat_63f08 = 0;                                               /* 0x3a433 */
+    fn_10b1d();                                                    /* 0x3a43d-42 (orig EAX = 9) */
+    fn_04185e(g_dat_53dd4);                                        /* 0x3a447-4c attract stream */
+    for (;;) {                                                     /* 0x3a451-524 the menu */
+        sys_key_spin();
+        if (g_dat_63ea4 != 0 || g_dat_63ec1 != 0 || g_dat_63ea5 != 0 ||
+            g_dat_63ec0 != 0 || g_dat_63e89 != 0) break;
+        if ((g_dat_63ed0 != 0 || g_dat_63ed8 != 0) && hold == 0) {  /* 0x3a489-4ba */
+            sel = 1 - sel;
+            hold = 1;
+            fn_04185e(g_dat_53dd8);                                /* the selection blip */
+        }
+        if (g_dat_63ed0 == 0 && g_dat_63ed8 == 0) hold = 0x13;      /* 0x3a4bf-4e6 */
+        else if (++hold == 0x14) hold = 0;
+        fn_00035ec2();                                             /* 0x3a4ed */
+        fn_03f462(0, 0, 0x280, 0x1e0, (const uint8_t *)g_heap_base + buf[sel]);  /* 0x3a4f2-50a */
+        if ((int32_t)g_dat_63f08 > 0xc4e) { sel = 3; break; }       /* 0x3a50f-522 demo timeout */
+    }
+    if (g_dat_63e89 != 0) sel = 3;                                 /* 0x3a529-532 */
+    if (sel != 3) fn_04185e(g_dat_53ddc);                           /* 0x3a539-544 the start stream */
+    fn_0406f5(g_dat_636b8, 0x32);                                  /* 0x3a549-53 51-frame fade-out */
+    heap_free_host(buf[3]);                                        /* 0x3a558-5b (0x041c31 takes the heap offset) */
+    heap_free_host(buf[0]);                                        /* 0x3a560-63 */
+    heap_free_host(buf[1]);                                        /* 0x3a568-6b */
+    heap_free_host(scratch);                                       /* 0x3a570-73 */
+    fn_00010dde();                                                 /* 0x3a578 */
+    fn_000405a7();                                                 /* 0x3a57d */
+    return sel;                                                    /* 0x3a582-88 */
+}

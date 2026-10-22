@@ -2490,6 +2490,64 @@ static int node0_len(void) {
     return (int16_t)((uint16_t)a[8] | ((uint16_t)a[9] << 8));
 }
 /* 0x0113e7 -- THE THREE-ACTOR ESCORT SPAWN (+ the type-selected device command stream). */
+/* 0x038098 -- THE PACED FRAME PUMP (frame-budget-gated composite + tick accounting). */
+static void test_fn_038098(void) {
+    printf("fn_038098 (0x038098): the paced frame pump\n");
+    uint8_t  *r_save = g_dat_63354, *head_save = g_dat_53c70;
+    uint32_t cnt_save = g_dat_53c68, tick_save = g_dat_63e24, div_save = g_dat_53104;
+    uint32_t d88_save = g_dat_53c88; uintptr_t hud_save = g_dat_53c84;
+    uint32_t tick0_save = g_dat_63360, n_save = g_dat_62a90, lock_save = g_dat_639e4;
+
+    uint8_t *room = (uint8_t *)calloc(1, 0x400);
+    *(uint32_t *)(room + 0x1a) = 0x140;             /* background pitch */
+    *(uint32_t *)(room + 0x348) = SCREEN_BASE;      /* the background plane */
+    g_dat_63354 = room; g_dat_53c70 = NULL; g_dat_53c68 = 0;
+    g_dat_53c84 = 0; g_dat_53c88 = 0;
+    g_dat_639dc = 0; g_dat_639e0 = 0; g_dat_639e4 = 0;
+    g_dat_63360 = 3; g_dat_62a90 = 0;
+
+    uint32_t work = SCREEN_BASE + SCREEN_SIZE;      /* the work screen */
+    uint8_t *scr = g_screen_ram + SCREEN_SIZE;
+    g_dat_53104 = 10;                               /* budget n = 0x1ea/10 = 49 */
+
+    /* --- the budget is ahead of the tick: the frame draws, then the tick pays for it --------- */
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    memset(g_screen_ram, 0x5c, SCREEN_SIZE);        /* the room's background plane */
+    g_dat_63e24 = 0;
+    fn_038098(work);
+    check(scr[0] == 0x5c && scr[SCREEN_SIZE - 1] == 0x5c,
+          "with 0x1ea/DAT_53104 ahead of DAT_63e24 the room plane is laid on the work screen");
+    check(g_video_ram[0] == 0x5c && g_video_ram[SCREEN_SIZE - 1] == 0x5c && g_video_ram[SCREEN_SIZE] == 0,
+          "and cpy_dw pushes exactly 0x3e80 dwords of it into the A0000 window");
+    check(g_dat_63e24 == 0u - 49u,
+          "the frame budget is subtracted from the tick (recomputed, dword wrap kept)");
+
+    /* --- the tick is ahead: nothing is drawn, the tick still pays -------------------------------- */
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    memset(g_screen_ram, 0x7a, SCREEN_SIZE);
+    g_dat_63e24 = 1000;
+    fn_038098(work);
+    check(g_video_ram[0] == 0 && scr[0] == 0,
+          "once DAT_63e24 catches up with the budget the whole draw is skipped");
+    check(g_dat_63e24 == 951, "but DAT_63e24 is still decremented by the budget");
+
+    /* --- gate boundary: a divisor so large the budget is zero ---------------------------------- */
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    memset(g_screen_ram, 0x5c, SCREEN_SIZE);
+    g_dat_53104 = 0x7fffffff;                       /* n = 0x1ea / 0x7fffffff = 0 */
+    g_dat_63e24 = 0;
+    fn_038098(work);
+    check(g_video_ram[0] == 0 && g_dat_63e24 == 0,
+          "the gate is the signed comparison n > DAT_63e24, so a zero budget draws nothing");
+
+    free(room);
+    g_dat_63354 = r_save; g_dat_53c70 = head_save; g_dat_53c68 = cnt_save;
+    g_dat_63e24 = tick_save; g_dat_53104 = div_save; g_dat_53c88 = d88_save;
+    g_dat_53c84 = hud_save; g_dat_63360 = tick0_save; g_dat_62a90 = n_save; g_dat_639e4 = lock_save;
+}
+
 static void test_fn_0113e7(void) {
     printf("fn_0113e7 (0x0113e7): the three-actor escort spawn\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
@@ -11755,6 +11813,7 @@ int main(void) {
     test_fn_03801b();
     test_fn_013908();
     test_fn_0113e7();
+    test_fn_038098();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

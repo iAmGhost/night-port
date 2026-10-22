@@ -13532,3 +13532,51 @@ void fn_0113e7(uint8_t *e)
     else if (t >= 0x4c && t <= 0x4f)        fn_04185e(g_dat_53e24[8]);
     else if (t >  0x50 && t <  0x55)        fn_04185e(g_dat_53e24[9]);
 }
+
+/* =================================================================== */
+/*  the paced room/HUD frame pump (0x038098)                            */
+/* =================================================================== */
+
+/* fn_038098  orig: 0x00038098 (L12, 318 B) -- THE PACED FRAME PUMP: the frame-rate-limited sibling of
+ * the one-frame composite fn_03801b.
+ * ABI: EAX = the work-screen base (kept as [EBP-4] and handed to the draws in EDX or EAX as each callee
+ * expects).
+ *   1. fn_013aad(DAT_53c70) -- depth-sort the entity list by node+0x9 (draw order).
+ *   2. n = 0x1ea IDIV DAT_53104 (the same frame budget the progressive reveal fn_03a5f7 uses);
+ *      only while n > DAT_63e24 (the tick counter the RTC pump advances) does this frame draw:
+ *        fn_03ce0b(DAT_63354, base)  the room's background plane,
+ *        fn_03203d / fn_03df96 / fn_03b953  the entity sweeps, glyph blits and number displays,
+ *        fn_01348f(DAT_53c84, base, 0) + fn_0137c1(DAT_53c84, base)  the player's gauge panel + countdown,
+ *        fn_01348f(DAT_53c88, base, 1)  the second (slot 1) gauge panel when present,
+ *        cpy_dw(base, 0x3e80, 0xa0000)  push the 64000 B work screen to the VGA window.
+ *   3. then it WAITS for the tick to catch up (0x3819a `JG`, a VBLANK/RTC busy-wait) -- modelled as a
+ *      no-op spin here, exactly as in fn_03a5f7, because nothing in the port advances DAT_63e24 from
+ *      hardware; the wait has no memory effect, it only gates timing.
+ *   4. finally DAT_63e24 -= 0x1ea / DAT_53104 (recomputed, dword wrap kept).
+ * Stack slots [EBP-8]/[EBP-0xc]/[EBP-0x10] are three copies of a loop counter the Watcom codebook
+ * increments in each branch (drawn / skipped / waiting) and never reads -- dead bookkeeping, noted and
+ * dropped. Latent kept: DAT_53104 == 0 is a divide fault; DAT_63e24 is subtracted unconditionally.
+ */
+void fn_038098(uint32_t base)
+{
+    (void)canary_id((uintptr_t)base, 0x38);                     /* 0x38098-9d probe (0x38) */
+    fn_013aad((uint32_t)(uintptr_t)g_dat_53c70);                /* 0x380c6-cb (EAX = entity list head) */
+    int32_t n = (int32_t)(0x1eau / g_dat_53104);                /* 0x380d0-dd (signed idiv) */
+    if (n > (int32_t)g_dat_63e24) {                             /* 0x380e3-e9 CMP/JLE */
+        fn_03ce0b(g_dat_63354, video_map(base));                     /* 0x380ef-f7 (EAX=room, EDX=base) */
+        fn_03203d(base);                                        /* 0x380fc-ff */
+        fn_03df96(base);                                        /* 0x38104-07 */
+        fn_03b953(base);                                        /* 0x3810c-0f */
+        if (g_dat_53c84 != 0) {                                 /* 0x38114-1b */
+            fn_01348f((uint8_t *)g_dat_53c84, base, 0);          /* 0x3811d-27 */
+            fn_0137c1((uint8_t *)g_dat_53c84, base);             /* 0x3812c-34 */
+        }
+        if (g_dat_53c88 != 0) {                                 /* 0x38139-40 */
+            fn_01348f((uint8_t *)(uintptr_t)g_dat_53c88, base, 1); /* 0x38142-4f */
+        }
+        cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x38154-68 */
+    }
+    while (n > (int32_t)g_dat_63e24) { break; }                  /* 0x3819a-197 VBLANK busy-wait (no-op) */
+    g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24
+                             - (int32_t)(0x1eau / g_dat_53104));  /* 0x381b5-c8 recomputed, dword sub */
+}

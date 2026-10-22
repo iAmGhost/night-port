@@ -906,6 +906,8 @@ extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment blo
 #define g_tab_51c24   ((const uint32_t *)g_blk_51c24) /* DS 0x51c24: entity type -> sound-slot index */
 
 void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
+void fn_038098(uint32_t base);   /* 0x038098: THE PACED FRAME PUMP -- sort the entity list, draw the room plane + entity sweeps + both gauge panels and push the work screen to VGA, but only while the frame budget 0x1ea/DAT_53104 is ahead of the tick DAT_63e24; then wait and subtract the budget. */
+
 void fn_0113e7(uint8_t *ent);
                                           /* 0x0113e7: THE THREE-ACTOR ESCORT SPAWN -- spawns three type-0xfa actors flanking the source (x -0xc/-0x2c/+0x16, or mirrored), stamps +0x1b/+0x30/+0x17, then starts a device command stream chosen by the source's entity type. */
 

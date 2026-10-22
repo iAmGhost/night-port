@@ -7655,6 +7655,142 @@ static void test_fn_01aec8(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x01bea8: the behaviour-0x04 handler (the split slot draw) ---- */
+/* The jitter/spot table lives at DS 0x51c9c = g_blk_51c24 + 0x78, stride 0x10:
+ * (x lo, y lo, x hi, y hi). f.c has private J4_* macros; the test reads it directly. */
+#define TJ_XLO(j) (*(const int32_t *)(g_blk_51c24 + 0x78u + (size_t)(j) * 0x10u + 0u))
+#define TJ_YLO(j) (*(const int32_t *)(g_blk_51c24 + 0x78u + (size_t)(j) * 0x10u + 4u))
+#define TJ_XHI(j) (*(const int32_t *)(g_blk_51c24 + 0x78u + (size_t)(j) * 0x10u + 8u))
+#define TJ_YHI(j) (*(const int32_t *)(g_blk_51c24 + 0x78u + (size_t)(j) * 0x10u + 12u))
+
+static void test_fn_01bea8(void)
+{
+    printf("fn_01bea8 (0x01bea8, behaviour-0x04 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x40);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 5;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;
+    *(int32_t *)(cfg + 0x80) = 4;
+    *(int32_t *)(cfg + 0x14) = 20;
+    *(int32_t *)(cfg + 0x18) = 100;
+    *(int32_t *)(cfg + 0x84) = 40;
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 100; *(int32_t *)(pl + 0x09) = 50;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the shared speed word selection */
+    e[0x17] = 3; e[0x1f] = 0x02; *(int32_t *)(e + 0x6f) = 0;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_01bea8(e);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "01bea8 speed word +0x04 for state < 0x0a");
+
+    /* (B) the split slot draw: half the time the player-relative slots, half the absolute ones */
+    {
+        int seen_low = 0, seen_high = 0, seen_sub = 0, bad = 0;
+        for (uint32_t sd = 1; sd <= 60u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0xff] = 0xffffffffu; e[0x6f] = 0;
+            *(int32_t *)(e + 0x01) = 200; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1;
+            fn_01bea8(e);
+            int j = (int)*(int32_t *)(e + 0xff);
+            if (j < 0 || j > 9) bad++;
+            if (j == 0 || j == 1) seen_low++;
+            if (j >= 2) seen_high++;
+            if (j == 3 || j == 5) seen_sub++;      /* only reachable through the 2/3 sub-draws */
+        }
+        check(bad == 0, "01bea8 every drawn slot is in 0..9");
+        check(seen_low > 0 && seen_high > 0,
+              "01bea8 the draw splits between slots 0/1 and slots 2..9 (v %% 100 < 0x32)");
+        check(seen_sub > 0, "01bea8 the 2/3 sub-draws can lift a slot to 3 or 5");
+    }
+
+    /* (C) an accepted absolute slot lands inside its own table rectangle */
+    {
+        int jfound = -1;
+        for (uint32_t sd = 1; sd <= 60u && jfound < 6; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0xff] = 0xffffffffu;
+            *(int32_t *)(e + 0x01) = 200; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1;
+            fn_01bea8(e);
+            jfound = (int)*(int32_t *)(e + 0xff);
+        }
+        int x = (int)*(int32_t *)(e + 0xbf), y = (int)*(int32_t *)(e + 0xc3);
+        check(jfound >= 6, "01bea8 an absolute slot (>= 6) is reachable");
+        check(x >= TJ_XLO(jfound) && x <= TJ_XHI(jfound) &&
+              y >= TJ_YLO(jfound) && y <= TJ_YHI(jfound),
+              "01bea8 the absolute spot is drawn inside its table rectangle (no player offset)");
+        check(*(int32_t *)(e + 0xc7) == 0, "01bea8 an accepted spot clears entity[0xc7]");
+    }
+
+    /* (D) the slots-0/1 quirk: the player Y is parked in entity[0xc3] BEFORE keep_y is saved, so a
+     *  rejected slot 0/1 restores the PLAYER's Y; and the clamp runs after, catching the restored X. */
+    {
+        *(int32_t *)(pl + 0x01) = 70;  *(int32_t *)(pl + 0x09) = 50;
+        int found = 0;
+        for (uint32_t sd = 1; sd <= 200u && !found; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0xff] = 0xffffffffu; e[0x6f] = 0;
+            *(int32_t *)(e + 0x01) = 20; *(int32_t *)(e + 0x09) = 50;      /* right where a slot 0/1 lands */
+            *(int32_t *)(e + 0xbf) = 0x5555; *(int32_t *)(e + 0xc3) = 0x2222;
+            *(int32_t *)(e + 0xc7) = 1;
+            fn_01bea8(e);
+            int j = (int)*(int32_t *)(e + 0xff);
+            if ((j == 0 || j == 1) && *(int32_t *)(e + 0xc7) == 1) found = 1;
+        }
+        check(found == 1, "01bea8 a slot 0/1 spot right on top of the entity is rejected");
+        check(*(int32_t *)(e + 0xc3) == 50,
+              "01bea8 the rejected slot 0/1 restores the PLAYER Y (0x01c27e ran before keep_y)");
+        check(*(int32_t *)(e + 0xbf) == 0x12c,
+              "01bea8 the screen clamp runs after the test and catches the restored X (LAB 0x01c475)");
+        check(*(int32_t *)(e + 0x6f) == 1, "01bea8 slots 0/1 set the record +0x80 speed flag");
+    }
+
+    /* (E) the shared state machine */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(pl + 0x01) = 100; *(int32_t *)(pl + 0x09) = 50;
+    *(int32_t *)(e + 0x01) = 105; *(int32_t *)(e + 0x09) = 52;
+    fn_01bea8(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "01bea8 case 0xb runs the scripted state");
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_01bea8(e);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a,
+          "01bea8 case 0xc timeout -> state 0x32, action 0x0a");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -12761,6 +12897,7 @@ int main(void) {
     test_fn_018e88();
     test_fn_019e48();
     test_fn_01aec8();
+    test_fn_01bea8();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

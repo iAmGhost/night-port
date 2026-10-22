@@ -126,6 +126,14 @@ either; that inconsistency is what made the copies look right. Before declaring 
 grep its disassembly for `cmp dword ptr [eax + 0x8b], 0`, and do NOT preset entity[0x8b] = 1 in every
 test case -- pin both frames instead (see test_fn_029709's recon-gate checks).
 
+### Ported: 0x02adf5 (behaviour-0x24)
+The cheapest sibling job so far (97.8% of its instructions matched 0x024bf9): only 37 new instructions to
+read, all in the swing -- a frame-1 facing latch (entity[0x1b] -> entity[0x87]) and the facing-consistency
+veto at 0x0002b317-0x0002b37f.  Two family-wide facts this pinned: the ambush gate is armed by sprite
+state 5, but that arm ends in a `return`, so the gate is evaluated only on a LATER frame; and when the
+gate fires it stores entity[0xab] = 0 and enters state 0x0e, whose rung decrements it in the same frame,
+so the '0' sprite (0x30) appears immediately.
+
 ### Ported: 0x024bf9 (behaviour-0x20)
 Generated from fn_02319c; only two regions needed a fresh read (the six-slot chooser 0x0002549f-0x0002571e
 and the swing's frame-0 latch/window).  Family facts it adds: the DS 0x51c9c approach rectangles are

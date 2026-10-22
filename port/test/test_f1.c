@@ -9425,6 +9425,147 @@ static void test_fn_024bf9(void)
     #undef F20_BASE
 }
 
+
+/* ---- 0x02adf5: behaviour-0x24 (facing-vetoed swing on top of the 0x024bf9 body) ---- */
+static void test_fn_02adf5(void)
+{
+    printf("fn_02adf5 (0x02adf5, behaviour-0x24 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 25;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 40; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+    row0[0] = 40;
+
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+    #define F24_BASE(st_, fr_) do { e[0x17] = (st_); e[0x11] = (fr_); e[0x1f] = 6; e[0xaf] = 1; \
+        e[0x8b] = 1; } while (0)
+
+    /* (1) frame 1 latches the facing word and does nothing else */
+    F24_BASE(0x2c, 1);
+    *(int32_t *)(e + 0x1b) = 1; *(int32_t *)(e + 0x87) = 0;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    fn_02adf5(e);
+    check(*(int32_t *)(e + 0x87) == 1 && *(int32_t *)(e + 0xd3) == 0 && *(int32_t *)(e + 0xd7) == 0,
+          "02adf5 entity frame 1 latches entity[0x1b] into entity[0x87] without latching anchors");
+
+    /* (2) frame 0x48 latches the anchors; facing left vetoes a rightward X velocity */
+    F24_BASE(0x2c, 0x48);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 20;
+    *(int32_t *)(e + 0x87) = 1;
+    fn_02adf5(e);
+    {
+        float sl, ex, ey; memcpy(&sl, e + 0xdb, 4); memcpy(&ex, e + 0xe3, 4); memcpy(&ey, e + 0xe7, 4);
+        check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xd7) == 20 &&
+              *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
+              "02adf5 frame 0x48 latches the entity and player anchors");
+        check(ex == 0.0f && sl == 100000.0f && ey == 4.0f,
+              "02adf5 the facing veto zeroes entity[0xe3] and makes entity[0xdb] the 100000.0f sentinel");
+    }
+    /* (3) facing right keeps the velocity (dx = +100, so entity[0xe3] = 100/31) */
+    F24_BASE(0x2c, 0x48);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 20;
+    *(int32_t *)(e + 0x87) = 0;
+    fn_02adf5(e);
+    {
+        float ex, ey; memcpy(&ex, e + 0xe3, 4); memcpy(&ey, e + 0xe7, 4);
+        check(ex == (100.0f / 31.0f) && ey == 4.0f,
+              "02adf5 facing right keeps the derived entity[0xe3] = dx / 31.0 and the 4 px Y step");
+    }
+    /* (4) the window is frames 0x49..0x71 */
+    F24_BASE(0x2c, 0x48);
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 30;
+    *(int32_t *)(e + 0x87) = 0;
+    fn_02adf5(e);
+    F24_BASE(0x2c, 0x60);
+    int32_t bx = *(int32_t *)(e + 0x01), by = *(int32_t *)(e + 0x09);
+    fn_02adf5(e);
+    check(*(int32_t *)(e + 0x01) != bx || *(int32_t *)(e + 0x09) != by,
+          "02adf5 frame 0x60 walks the fitted line");
+    F24_BASE(0x2c, 0x72);
+    bx = *(int32_t *)(e + 0x01); by = *(int32_t *)(e + 0x09);
+    fn_02adf5(e);
+    check(*(int32_t *)(e + 0x01) == bx && *(int32_t *)(e + 0x09) == by,
+          "02adf5 frame 0x72 is past the swing window (0x49..0x71)");
+
+    /* (5) the 0x024bf9 chooser body carries over: slots 0..5, no repeat, DS 0x51c9c rectangles */
+    {
+        int seen_lo = 0, seen_hi = 0, repeats = 0, bad = 0, i;
+        for (i = 0; i < 400; i++) {
+            int32_t prev;
+            F24_BASE(2, 1);
+            e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0xc7] = 1;
+            e[0x113] = 0; e[0x11b] = 0;
+            prev = *(int32_t *)(e + 0xff);
+            fn_02adf5(e);
+            {
+                int32_t slot = *(int32_t *)(e + 0xff);
+                if (slot == prev) repeats++;
+                if (slot < 0 || slot > 5) bad++;
+                if (slot <= 1) { seen_lo = 1; if (*(int32_t *)(e + 0xc3) != 120) bad++; }
+                else {
+                    static const int x0[6] = { 0, 0, -80, 50, -80, 50 };
+                    static const int y0[6] = { 0, 0, -30, -30, 20, 20 };
+                    static const int x1[6] = { 0, 0, -50, 80, -50, 80 };
+                    static const int y1[6] = { 0, 0, -20, -20, 30, 30 };
+                    int32_t rx = *(int32_t *)(e + 0xbf) - 200, ry = *(int32_t *)(e + 0xc3) - 120;
+                    seen_hi = 1;
+                    if (rx < x0[slot] || rx > x1[slot] || ry < y0[slot] || ry > y1[slot]) bad++;
+                }
+            }
+        }
+        check(seen_lo && seen_hi && !repeats && !bad,
+              "02adf5 keeps 0x024bf9's six-slot chooser with the DS 0x51c9c rectangles");
+    }
+
+    /* (6) the ambush gate is 60 px wide (0x024bf9: 70) */
+    /* the sprite-state section returns early, so the gate is armed on an earlier frame (sprite state 5
+     * sets entity[0x7f]) and evaluated on a frame with an ordinary sprite state; state 0x0e then counts
+     * entity[0xab] down from the zero the gate stored, so the '0' rung expires in the same frame */
+    e[0x17] = 2; e[0x11] = 1; e[0x1f] = 0; e[0xaf] = 1; e[0x7f] = 1; e[0xab] = 99; e[0x8b] = 1;
+    *(int32_t *)(e + 0x01) = 255; *(int32_t *)(e + 0x09) = 120;      /* 55 px: inside 60 */
+    fn_02adf5(e);
+    check(*(int32_t *)(e + 0xaf) == 0x0a && *(int32_t *)(e + 0x17) == 0x30 &&
+          *(int32_t *)(e + 0xab) == -1 && *(int32_t *)(e + 0x7f) == 0,
+          "02adf5 the ambush gate fires at 55 px and its state-0x0e rung expires at once");
+    e[0x17] = 2; e[0x11] = 1; e[0x1f] = 0; e[0xaf] = 1; e[0x7f] = 1; e[0xab] = 99; e[0x8b] = 1;
+    *(int32_t *)(e + 0x01) = 265; *(int32_t *)(e + 0x09) = 120;      /* 65 px: outside the 60 px limit */
+    fn_02adf5(e);
+    check(*(int32_t *)(e + 0x1f) == 4 && *(int32_t *)(e + 0x17) == 2 &&
+          *(int32_t *)(e + 0x7f) == 0,
+          "02adf5 the ambush gate stays closed at 65 px: the state falls to 4, no '0' rung (0x024bf9 fires here)");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+    #undef F24_BASE
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -14543,6 +14684,7 @@ int main(void) {
     test_fn_02fe1e();
     test_fn_02319c();
     test_fn_024bf9();
+    test_fn_02adf5();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

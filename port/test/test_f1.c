@@ -10258,7 +10258,7 @@ static void test_real_res_container(void) {
     sys_file_image_set(0, 0);
     sys_file_real_dir(dir);
     uint32_t saved_cap = heap_arena_cap();
-    heap_arena_init(); heap_arena_cap_set(24u << 20); (void)heap_malloc(0x4000);
+    heap_arena_init(); heap_arena_cap_set(48u << 20); (void)heap_malloc(0x4000);
 
     g_639b8 = fn_04270d((const uint8_t *)"NIGHT.RES", "rb");
     check(g_639b8 != 0, "NIGHT.RES opens through fn_04270d on the real-file backend");
@@ -10354,7 +10354,13 @@ static void test_real_master_load(void) {
     sys_file_image_set(0, 0);
     sys_file_real_dir(dir);
     uint32_t saved_cap = heap_arena_cap();
-    heap_arena_init(); heap_arena_cap_set(24u << 20); (void)heap_malloc(0x4000);
+    heap_arena_init(); heap_arena_cap_set(48u << 20); (void)heap_malloc(0x4000);
+    /* The per-type tables are cross-test state as well: fn_037347 walks slots 1..0x103 and frees
+     * whatever it finds, so stale slots from earlier tests would be freed as if they were real
+     * stage data. Start from the empty tables a fresh boot has, and put them back afterwards. */
+    static uint8_t *pt_spr[0x104]; static uint32_t pt_act[0x104];
+    for (int t = 0; t < 0x104; t++) { pt_spr[t] = g_dat_639ec[t]; g_dat_639ec[t] = 0;
+                                      pt_act[t] = g_dat_53818[t]; g_dat_53818[t] = 0; }
 
     uint32_t r = fn_03690b();
 
@@ -10403,7 +10409,17 @@ static void test_real_master_load(void) {
     g_dat_5d0b4 = recbuf; g_dat_63370 = 1;                  /* stage number 1 */
     g_dat_639ec[32] = 0; g_dat_53818[32] = 0;               /* type 32 must be freshly loaded */
     cache_reset();
-    fn_037b03(0);
+    /* ... and the stage pointers themselves (DAT_63dfc stage sprite, DAT_6334c room chain,
+     * DAT_63354 current room, DAT_63358, DAT_6335c room counter, DAT_62a90 record count): the
+     * transition frees what it finds there, so a stale value from an earlier test would be freed. */
+    void *sv_6dfc = g_dat_63dfc, *sv_34c = g_dat_6334c, *sv_354 = g_dat_63354, *sv_358 = g_dat_63358;
+    uint32_t sv_35c = g_dat_6335c, sv_a90 = g_dat_62a90;
+    g_dat_63dfc = 0; g_dat_6334c = 0; g_dat_63354 = 0; g_dat_63358 = 0;
+    g_dat_6335c = 0; g_dat_62a90 = 0;
+    uint8_t *s_cfg_real = g_dat_53c7c;
+    uint8_t *cfg_real = (uint8_t *)calloc(1, 0x40);
+    g_dat_53c7c = cfg_real;
+    fn_0374ad();                  /* the real stage-entry transition: teardown + fn_037b03 + DAT_63354 + cfg seed */
 
     check(g_dat_639d8 == 4, "stage1.wal: 4 rooms (real room count)");
     check(g_dat_6334c != 0, "the real room chain head exists");
@@ -10437,11 +10453,23 @@ static void test_real_master_load(void) {
     fn_0376c8();
     check(g_dat_53c7c != 0, "fn_0376c8 spawned the player entity from real stage data");
     check(g_dat_53c84 == (uint32_t)(uintptr_t)g_dat_53c7c, "DAT_53c84 mirrors the entity");
-    check(g_dat_63354 == g_dat_6334c || g_dat_63358 != 0,
-          "the current-room pointer tracks the real room chain");
+    check(g_dat_63354 != 0 && g_dat_63354 == g_dat_6334c,
+          "fn_0374ad set the current-room pointer to the real room chain head");
+    check(cfg_real[0x17] == 1 && cfg_real[0x11] == 0,
+          "the player config block is seeded by the transition (+0x17=1, +0x11=0)");
+
+    /* NOT run (open item, docs/15-real-stage-load.md): fn_037347 over the real stage data crashes in
+     * heap_free. The per-slot dry run (scratch/real_act_free.c) shows every sprite sub-object offset
+     * and every action record offset valid, so the fault is heap-metadata corruption (a double free)
+     * rather than a bogus offset -- left as a targeted follow-up, with the repro committed. */
 
     g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370;
     g_dat_639ec[32] = s_spr32; g_dat_53818[32] = s_act32; g_dat_53c7c = s_ent;
+    free(cfg_real);
+    g_dat_63dfc = (uint8_t *)sv_6dfc; g_dat_6334c = (uint8_t *)sv_34c;
+    g_dat_63354 = (uint8_t *)sv_354; g_dat_63358 = (uint8_t *)sv_358;
+    g_dat_6335c = sv_35c; g_dat_62a90 = sv_a90;
+    for (int t = 0; t < 0x104; t++) { g_dat_639ec[t] = pt_spr[t]; g_dat_53818[t] = pt_act[t]; }
     cache_restore();
     free(recbuf);
 

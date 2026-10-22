@@ -48,6 +48,26 @@ never be created — and now expresses its intent explicitly with `heap_arena_ca
 Corollary: `heap_arena_cap_set` now accepts caps down to the arena granularity (`0x40`) instead of
 clamping to 4096.
 
+## Second finding: the whole stage state is cross-test state — and the teardown frees what it finds
+
+Not just the record cache: `DAT_63dfc` (stage sprite struct), `DAT_6334c` (room chain), `DAT_63354`
+(current room), `DAT_63358`, `DAT_6335c` (room counter), `DAT_62a90` (record count) and the per-type tables
+`DAT_639ec[0x104]` / `DAT_53818[0x104]`. `fn_0374ad` / `fn_037347` **free whatever they find there**, so a
+stale value from an earlier test is freed as if it were live stage data → heap-metadata corruption and a
+wild write (observed as SIGBUS inside `heap_free`). The real-data test now saves and zeroes all of it, i.e.
+starts from the clean slate a fresh boot has, and restores it afterwards.
+
+A concrete consequence of not doing that: the per-type slot dump first appeared to show stage 1 loading type
+`09` with an action table but no sprite — that was a **leftover from an earlier test**. With clean tables the
+real stage 1 fills exactly nine slots, all paired:
+
+```
+01 SA   0b SA   1f SA   20 SA   24 SA   25 SA   29 SA   2a SA   2e SA
+```
+
+(the counts are real: slots `1f/24/29/2e` carry 266-entry sprites and 192-record action tables — those types
+name `gun.spr`/`gun.act`, so the loader loads a fresh copy per record rather than sharing the type-0 one).
+
 ## Second finding: the record cache is cross-test state
 
 `DAT_63e14/63e18/63e1c/63e20` (the stage record cache: count / list head / tail / cursor) survive between
@@ -69,12 +89,10 @@ is a write to `DS:0x51/0x55` (below the data area), in the port into the reserve
 | `st1s.spr` stage sprite struct | loaded, header `7` / `0x63` (99) |
 | `stage1.stg` record count (`DAT_63e14`) | **88** |
 | `night1.chr` entry 0 first word | **100** (2-byte header skipped, 116-byte records) |
-| per-type slots filled by stage 1 | `01 SA · 09 -A · 0b SA · 1f SA · 20 SA · 24 SA · 25 SA · 29 SA · 2a SA · 2e SA` |
+| per-type slots filled by stage 1 | `01 0b 1f 20 24 25 29 2a 2e`, each with both `.spr` and `.act` |
+| action record counts | 56 / 52 / 192 / 53 / 192 / 51 / 192 / 51 / 192 (1031 records total) |
 | hero spawn (`fn_0376c8`) | `DAT_53c7c` != 0, `DAT_53c84` mirrors it |
-
-Note the asymmetry at **type 0x09: an action table with no sprite struct**. That comes out of the real
-kind-1 record walk (the loader loads whatever the record names), so some types legitimately have one
-without the other — the earlier "sprite and action come in pairs" assumption only held for the fixture.
+| config seed (`fn_0374ad`) | `DAT_53c7c[0x17] == 1`, `DAT_53c7c[0x11] == 0`, `DAT_63354 == DAT_6334c` |
 
 ## Master-load facts (real container)
 
@@ -90,10 +108,30 @@ numeric text loader (`0x032464` + `0x043a7f` + `0x041ffc`) parses the shipped te
 pass-1 totals computed by `fn_03d9cf` byte for byte — the "0x30 header + length + payload" sprite model is
 confirmed against real data, not just inferred from the disassembly.
 
+## Open item: teardown over real data (`fn_037347`) faults in `heap_free`
+
+`fn_037347` after a real stage load crashes (`heap_free` → wild write, SIGBUS / ASan BUS). It is *not*
+caused by bogus offsets — a dry run of the teardown loop (`scratch/real_act_free.c`, committed as the
+repro) prints, for the real stage 1 data:
+
+* all 9 sprite structs with 14 valid sub-object offsets each, and
+* all **1031** action records with valid `+0x6d` / `+0x71` / `+0x75` sub-object offsets, none zero
+  (`heap_malloc` inside `fn_010181` never failed once the region sizing was fixed).
+
+So the fault is **heap bookkeeping** — most plausibly a double free: `fn_037347` frees each slot's sprite
+struct (`fn_03d999` + the struct itself) and its action container (`fn_0100d9` + the container), and one of
+those was already freed (candidates: the `fn_0376c8` "resume" reload path re-entering `fn_037b03`, or
+`fn_03de85`'s free-old-sub-objects step interacting with the `.spr`/`.act` pairing). The test therefore
+does not call `fn_037347` on real data yet; the check is documented in place.
+
+Next step for it: run `heap_verify` after each free phase (sprite sub-objects, sprite struct, action
+records, action array, action container, room chain) and find the first invariant break.
+
 ## Suite
 
-`make -C port test`: **2139 PASS, 0 FAIL** (was 2110), ASan clean. `TOTALS` unchanged (466/528 — this is
-integration, not new functions).
+`make -C port test`: **2140 PASS, 0 FAIL** (was 2110), ASan clean. `TOTALS` unchanged (466/528 — this is
+integration, not new functions). The real-data tests raise the heap cap to 48 MiB (physical arena is now
+64 MiB); the default usable cap stays 1 MiB so every older test is unaffected.
 
 ## Next
 
@@ -101,4 +139,6 @@ integration, not new functions).
   the real stage (types 0x01/0x0b/0x1f/0x20/0x24/0x25/0x29/0x2a/0x2e are the ones stage 1 actually spawns).
 * `heap_grow` (`0x04322c`) is still a stub — with the sizing fix it is no longer needed for stage 1, but it
   should still be ported before the arena cap is treated as a hard limit.
-* `fn_037347` teardown over real data (frees the real chains) — the natural follow-up check.
+* `fn_037347` teardown over real data — see "Open item" above (repro: `scratch/real_act_free.c`).
+* Then the playable chain continues: the entity frame dispatchers and the AI handlers on the real stage 1
+  types (01/0b/1f/20/24/25/29/2a/2e).

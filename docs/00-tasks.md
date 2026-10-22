@@ -38,9 +38,11 @@ See `docs/12-functions/STATUS.md` for per-function status.
 - [x] **Real-file resource backend installed** (`sys_file_real_dir`, 1-based DOS handles) and verified
       against the shipped 51 MB `NIGHT.RES` (444 entries, real sizes/offsets, block-cached re-seeks):
       `docs/14-real-resource-backend.md`
-- [x] **Real stage loads end-to-end**: `fn_03690b` -> `fn_037b03(0)` -> `fn_0376c8` (hero spawn) over the
-      shipped container, 29 checks; required fixing the heap region-sizing bug (fresh regions were smaller
-      than the request that created them) -- `docs/15-real-stage-load.md`
+- [x] **Real stage-entry chain**: `fn_03690b` -> `fn_0374ad` (transition: teardown + `fn_037b03` + DAT_63354
+      + cfg seed) -> `fn_0376c8` (hero spawn) over the shipped container, 30 checks; required fixing the heap
+      region-sizing bug (fresh regions were smaller than the request that created them) -- `docs/15-real-stage-load.md`
+- [ ] `fn_037347` teardown over real data faults in `heap_free` (repro `scratch/real_act_free.c`; all record /
+      sub-object offsets verified valid, so it is a double-free in the free pairing -- run heap_verify per phase)
 - [ ] `fn_037347` teardown over real data (frees the real chains) + the entity/AI path on real stage 1
 - [ ] `heap_grow` (0x04322c) is still a stub (no longer needed for stage 1 -- region sizing fixed)
       (real data runs raise the cap with `heap_arena_cap_set`; arena grown to 32 MiB, cap default 1 MiB)

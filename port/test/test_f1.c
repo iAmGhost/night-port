@@ -2492,6 +2492,50 @@ static int node0_len(void) {
 /* 0x0113e7 -- THE THREE-ACTOR ESCORT SPAWN (+ the type-selected device command stream). */
 /* 0x038098 -- THE PACED FRAME PUMP (frame-budget-gated composite + tick accounting). */
 /* 0x0381d7 -- THE PLAYER STEP-ANIMATION LOOP (walk cycle + paced redraw per step). */
+/* 0x03a70e -- THE PICTURE / CG SLIDE-SHOW DRIVER (na<stage>%04d.pcx strip). */
+static void test_fn_03a70e(void) {
+    printf("fn_03a70e (0x03a70e): the picture / CG slide-show driver\n");
+    uint32_t s24 = g_dat_63e24, s28 = g_dat_63e28, s370 = g_dat_63370, sb0 = g_dat_633b0;
+    uint8_t s89 = g_dat_63e89, sec1 = g_dat_63ec1, sea4 = g_dat_63ea4, sea5 = g_dat_63ea5;
+    uint8_t sec0 = g_dat_63ec0, spump = g_dat_52ff8;
+    uint32_t cnt0 = g_dat_52f08[1];
+    uint32_t div_save = g_dat_53104;
+
+    g_dat_53104 = 0x46;                   /* the frame budget the reveal uses (n = 7) */
+    g_dat_633b0 = SCREEN_BASE;
+    g_dat_63370 = 1;                     /* stage 1 -> pictures na10001.pcx, na10002.pcx, ... */
+    g_dat_52f08[1] = 0;                  /* zero pictures requested: the do-while still shows one */
+    g_dat_63e24 = 0x1234; g_dat_63e28 = 0x5678;
+    g_dat_63ec1 = 0; g_dat_63ea4 = 0; g_dat_63ea5 = 0; g_dat_63ec0 = 0;
+    g_dat_63e89 = 1;                     /* abort: the show leaves after the first picture */
+    g_dat_52ff8 = 1;
+
+    memset(g_screen_ram, 0x33, sizeof g_screen_ram);
+    memset(g_video_ram, 0, sizeof g_video_ram);
+
+    fn_03a70e();
+
+    check(g_video_ram[0xa8c0] == 0x33 && g_video_ram[0xa8c5] == 0x33,
+          "the 0x5140-byte filtered copy of the previous picture lands in the A0000 window at +0xa8c0");
+    check(g_video_ram[3] == 0x33 && g_video_ram[319] == 0x33 && g_video_ram[320] == 0x33,
+          "the show ends with fn_03a5f7's progressive reveal wiping the work screen into the window");
+    check(g_dat_63e24 == 0x1234 && g_dat_63e28 == 0x5678,
+          "both tick counters are saved at entry and restored after the wipe");
+    check(g_dat_52ff8 == 1, "the keyboard pump is turned back on when the show ends");
+
+    /* the data-segment format pointer: 0x16b2 + 0x50000 = 0x516b2 -> "na%d%04d.pcx" (see docs/17) */
+    uint8_t args[8]; uint32_t a0 = 1, a1 = 1;
+    memcpy(args, &a0, 4); memcpy(args + 4, &a1, 4);
+    uint8_t *cur = args, name[24];
+    fn_0428f8(name, (const uint8_t *)"na%d%04d.pcx", &cur);
+    check(memcmp(name, "na10001.pcx", 12) == 0,
+          "the picture name is na<stage>%04d.pcx, i.e. the first show picture is na10001.pcx");
+
+    g_dat_63e24 = s24; g_dat_63e28 = s28; g_dat_63370 = s370; g_dat_633b0 = sb0;
+    g_dat_63e89 = s89; g_dat_63ec1 = sec1; g_dat_63ea4 = sea4; g_dat_63ea5 = sea5;
+    g_dat_63ec0 = sec0; g_dat_52ff8 = spump; g_dat_52f08[1] = cnt0; g_dat_53104 = div_save;
+}
+
 static void test_fn_0381d7(void) {
     printf("fn_0381d7 (0x0381d7): the player step-animation loop\n");
     uint8_t  *p_save = g_dat_53c7c, *r_save = g_dat_63354, *head_save = g_dat_53c70;
@@ -11880,6 +11924,7 @@ int main(void) {
     test_fn_0113e7();
     test_fn_038098();
     test_fn_0381d7();
+    test_fn_03a70e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

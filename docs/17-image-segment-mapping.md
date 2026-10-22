@@ -34,6 +34,33 @@ Already extracted this way (in `port/src/f/f.c`):
   which both dropped every constant in the region and placed the colour table 0x40 bytes too high
   (`0x51cc0` instead of `0x51c90`).
 
+## The 0x50000 data-segment base inside instructions (unblocks "unmapped pointer" blockers)
+
+Capstone prints raw instruction operands, Ghidra prints them with the data-segment base folded in, so the
+same operand looks different:
+
+```
+capstone : a1 703c0000   mov eax, dword ptr [0x3c70]
+ghidra   : DAT_00053c70
+```
+
+The rule is **data-segment operands and data-segment immediates carry an implicit base of 0x50000**:
+
+    flat VA = operand + 0x50000        (and then file = flat VA - 0x7600)
+
+Verified against the shipped file:
+
+| immediate | flat VA | file | string |
+|---|---|---|---|
+| `0x15fe` | `0x515fe` | `0x49ffe` | `help%d.pcx` |
+| `0x1609` | `0x51609` | `0x4a009` | `help%d.pcx` |
+| `0x16b2` | `0x516b2` | `0x4a0b2` | `na%d%04d.pcx` |
+
+`0x16b2` had been recorded as a blocker for the picture/CG slide-show driver `0x03a70e` ("unmapped both
+in the file and in Ghidra") -- it is a plain data-segment pointer, so that function is unblocked.
+When a port hits an immediate below the code segment (below `0x2600`) that looks like a pointer, add
+`0x50000` and read it through the data mapping before calling it unmapped.
+
 ## Caution for future ports
 
 A DS symbol that (a) is never written anywhere in the analyzed set and (b) reads as zero in the port is

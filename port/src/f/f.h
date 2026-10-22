@@ -776,6 +776,8 @@ uint32_t fn_03f6bc(const char *name);   /* 0x03f6bc: THE TIMED EVENT PLAYER -- 0
 extern uint32_t g_tab_53200[0x3d];      /* 0x53200: the timed-event tick table (61 dwords; DAT_53200 + 61*4 = DAT_532f4 exactly); no producer inside the EXE -- seedable, awaits the CD backend */
 extern uint8_t  g_tab_532f4[0x44];      /* 0x532f4: byte table of DAT_53d0c sound-slot indices (68 bytes, up to DAT_53338); no producer inside the EXE -- seedable */
 extern uint8_t  g_dat_63ec1;            /* 0x63ec1: key-pressed byte (spin/abort in the picture + timed-event drivers) */
+extern uint8_t  g_dat_63ea5;   /* DAT_00063ea5: third key byte (key waits in 0x03a224 / 0x038cde) */
+extern uint8_t  g_dat_63ec0;   /* DAT_00063ec0: fourth key byte (same key waits) */
 extern uint8_t  g_dat_63ea4;            /* 0x63ea4: second key byte (same gates) */
 extern uint8_t  g_dat_63e89;            /* 0x63e89: abort/quit byte (unwinds the slide show and the timed event play) */
 uint32_t fn_03f80d(res_reader *node);  /* 0x03f80d: resource-op block gate (16 B header, tag 0xf1fa at +4, int16 count at +6 -> fn_03f885 N times; 0 on tag mismatch) */
@@ -906,6 +908,10 @@ extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment blo
 #define g_tab_51c24   ((const uint32_t *)g_blk_51c24) /* DS 0x51c24: entity type -> sound-slot index */
 
 void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
+void fn_03a70e(void);   /* 0x03a70e: THE PICTURE / CG SLIDE-SHOW DRIVER -- plays na<stage>%04d.pcx one picture per key press, count from DAT_52f08[stage], then wipes with the progressive reveal and restores the tick counters + keyboard pump. */
+extern uint32_t g_dat_52f08[0x40];   /* DAT_00052f08[]: picture count per stage */
+extern uint8_t *g_dat_53dd8;        /* DAT_00053dd8: the slide-show command cursor */
+
 void fn_0381d7(uint32_t base, int32_t dx, int32_t dy, int32_t steps, int32_t facing);   /* 0x0381d7: THE PLAYER STEP-ANIMATION LOOP -- walks the player block N steps (x +/- dx by the facing arg, y += dy, frame index +0x11 wrapping at the action's frame count) and redraws the paced composite after every step. */
 
 void fn_038098(uint32_t base);   /* 0x038098: THE PACED FRAME PUMP -- sort the entity list, draw the room plane + entity sweeps + both gauge panels and push the work screen to VGA, but only while the frame budget 0x1ea/DAT_53104 is ahead of the tick DAT_63e24; then wait and subtract the budget. */

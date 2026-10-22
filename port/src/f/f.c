@@ -7456,6 +7456,8 @@ uint32_t g_tab_53200[0x3d] = {0};   /* 0x53200: timed-event tick table (61 dword
 uint8_t  g_tab_532f4[0x44] = {0};   /* 0x532f4: DAT_53d0c sound-slot indices, 68 bytes */
 uint8_t  g_dat_63ec1 = 0;           /* 0x63ec1: key-pressed byte */
 uint8_t  g_dat_63ea4 = 0;           /* 0x63ea4: second key byte */
+uint8_t  g_dat_63ea5 = 0;           /* 0x63ea5: third key byte (key waits in 0x03a224 / 0x038cde) */
+uint8_t  g_dat_63ec0 = 0;           /* 0x63ec0: fourth key byte (same key waits) */
 uint8_t  g_dat_63e89 = 0;           /* 0x63e89: abort/quit byte */
 uint8_t g_dat_53338 = 0;   /* DAT_00053338: sound/music enable byte (gates fn_04185e) */
 uint8_t g_dat_63fb8 = 0;   /* DAT_00063fb8: device-command-stream started flag */
@@ -13648,4 +13650,70 @@ void fn_0381d7(uint32_t base, int32_t dx, int32_t dy, int32_t steps, int32_t fac
                                  - (int32_t)(0x1eau / g_dat_53104));            /* 0x3836b-7e */
     }
     *(uint32_t *)(p + 0x17) = saved17;                          /* 0x38390-9a */
+}
+
+/* =================================================================== */
+/*  the picture / CG slide-show driver (0x03a70e)                       */
+/* =================================================================== */
+
+uint32_t  g_dat_52f08[0x40] = {0};  /* DAT_00052f08[]: picture count per stage (indexed by DAT_63370) */
+uint8_t  *g_dat_53dd8 = 0;          /* DAT_00053dd8: the show's device command cursor (BSS; no writer in the analyzed set) */
+
+/* fn_03a70e  orig: 0x0003a70e (L12, 282 B) -- THE PICTURE / CG SLIDE-SHOW DRIVER: plays the "na" picture
+ * strip for the current stage (the opening / intermission slides), one picture per key press.
+ *   save DAT_63e24 / DAT_63e28 (the two tick counters), clear DAT_52ff8 (keyboard pump OFF for the show);
+ *   picture count = g_dat_52f08[DAT_63370];
+ *   do (ALWAYS at least one picture):
+ *     name = sprintf("na%d%04d.pcx", DAT_63370, index+1)      (the format immediate 0x16b2 is a
+ *        data-segment pointer: 0x16b2 + 0x50000 = 0x516b2, i.e. file 0x4a0b2 -- an earlier note calling
+ *        it "unmapped" missed the implicit 0x50000 DS base, see docs/17-image-segment-mapping.md);
+ *     fn_03a594(0xaa8c0, DAT_633b0 + 0xa8c0, 0x5140)          (filtered byte copy, 0xff skipped: keep the
+ *        previous picture where the new one is transparent -- 0x5140 = 20800 bytes, not a full screen);
+ *     fn_036041(name, 0)                                      load the picture into the A0000 window;
+ *     wait for a key press (DAT_63ec1 / DAT_63ea4) or an abort (DAT_63e89);
+ *     if aborting, leave the show;
+ *     if index != count, play the show command stream DAT_53dd8 through fn_04185e;
+ *     wait for the key to be RELEASED (spin while DAT_63ec1 != 0, repeat while DAT_63ea4 != 0);
+ *     index++;
+ *   while index < count;
+ *   fn_03a5f7(DAT_633b0) (the progressive reveal wipe of the last picture), restore the two tick counters,
+ *   and turn the keyboard pump back on (DAT_52ff8 = 1).
+ * Busy-waits: the key-wait loops are faithful spins -- the port has no interrupt to change the key bytes
+ * (and the original turns the keyboard pump OFF for the whole show), so a test can only walk the abort
+ * path; documented rather than stubbed. */
+void fn_03a70e(void)
+{
+    (void)canary_id(0, 0x3c);                                      /* 0x3a70e-13 probe */
+    int32_t idx = 0;                                               /* [EBP-0xc] */
+    uint32_t save24 = g_dat_63e24;                                 /* [EBP-4] = DAT_63e24 */
+    uint32_t save28 = g_dat_63e28;                                 /* [EBP-8] = DAT_63e28 */
+    g_dat_52ff8 = 0;                                               /* 0x3a73d */
+    int32_t count = (int32_t)g_dat_52f08[g_dat_63370 & 0x3fu];      /* 0x3a7c5: [&DAT_52f08 + stage*4] */
+
+    do {
+        uint8_t name[24];                                          /* [EBP-0x20] */
+        uint8_t args[8];                                           /* the pushed pair: stage, index+1 */
+        uint32_t a0 = g_dat_63370, a1 = (uint32_t)(idx + 1);
+        memcpy(args, &a0, 4); memcpy(args + 4, &a1, 4);
+        uint8_t *cur = args;                                       /* 0x3a744-59 */
+        fn_0428f8(name, (const uint8_t *)"na%d%04d.pcx", &cur);
+
+        fn_03a594(video_map(0xaa8c0u),                             /* 0x3a764-77 (dest, src, 0x5140) */
+                  video_map((uint32_t)g_dat_633b0 + 0xa8c0u), 0x5140u);
+        fn_036041((const char *)name, 0);                          /* 0x3a77e-84 */
+
+        for (;;) {                                                 /* 0x3a789-9f key wait */
+            if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0) break;
+            if (g_dat_63e89 != 0) break;                           /* loop tail: while (DAT_63e89 == 0) */
+        }
+        if (g_dat_63e89 != 0) break;                               /* 0x3a7a1-a9 abort the whole show */
+        if (idx != count) fn_04185e(g_dat_53dd8);                  /* 0x3a7ad-bf */
+        do { while (g_dat_63ec1 != 0) { } } while (g_dat_63ea4 != 0);  /* 0x3a7c4-cf key release wait */
+        idx++;                                                     /* 0x3a7d0-*/
+    } while (idx < count);                                         /* 0x3a7d8-e5 */
+
+    fn_03a5f7(video_map((uint32_t)g_dat_633b0));                   /* 0x3a7e7-f0 progressive reveal */
+    g_dat_63e24 = save24;                                          /* 0x3a7f2-*/
+    g_dat_63e28 = save28;
+    g_dat_52ff8 = 1;                                               /* keyboard pump back on */
 }

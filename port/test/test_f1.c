@@ -9219,6 +9219,89 @@ static void test_fn_0376c8(void) {
  * Records are [kind][24-bit len][payload]; kind 0 ends, 1 arms a transfer (fn_04097e), 2 is a DMA
  * chunk (fn_040b83, exercised by its own test), anything else skips its payload and keeps walking. */
 /* fn_01545e (1037 B): the Y-axis move with wall bands + trigger areas -- the Y mirror of fn_01586b. */
+/* fn_016b8f (1117 B): the three-phase step/return walk (approach -> pause -> walk back). */
+static void test_fn_016b8f(void) {
+    printf("fn_016b8f: three-phase step walk (phase 0 approach / 1 pause / 2 walk back)\n");
+    uint8_t *s_node = g_dat_63354;
+    uint32_t s_dc = g_dat_639dc;
+    uint8_t *node = (uint8_t *)calloc(1, 0x40);
+    *(int32_t *)(node + 0x12) = 100;  *(int32_t *)(node + 0x16) = 300;   /* mid-Y = 100 + 100 = 200 */
+    g_dat_63354 = node; g_dat_639dc = 1000;
+
+    uint8_t *e = (uint8_t *)calloc(1, 0x200);
+    int32_t oa = 0xdead, ob = 0xbeef, r;
+#define F(off) *(int32_t *)(e + (off))
+/* NOTE: [0x8f] == 0 re-aims (it resets [0x93]/[0xa3]/[0xa7]), so the phase-specific cases below
+ * must pre-latch [0x8f] = 1 and set the direction words [0x9b]/[0x9f] themselves. */
+#define RESETW() do { memset(e, 0, 0x200); F(1) = 1050; F(0x11f) = 100; F(0x97) = 5; \
+                      F(0xb3) = 80; F(0xb7) = 150; } while (0)
+
+    RESETW();
+    r = fn_016b8f(e, 7, 80, 250, &oa, &ob);          /* ECX 250 >= mid 200, EBX 80 > 50 */
+    check(F(0x17) == 2 && F(0x8f) == 1 && F(0x9f) == 1 && F(0x9b) == 1 && F(0x93) == 0,
+          "  first call: [0x17]=2, aim latch [0x8f]=1, direction [0x9f] from ECX vs room mid-Y, [0x9b] from Y-vs-EBX");
+    check(r == 0 && oa == 7 && ob == -7,
+          "  phase 0 writes out_a = +step ([0x9b] > 0) and out_b = -step ([0x9f] >= 0 -- asymmetric, as in the orig)");
+    check(F(0x97) == 4 && F(0xa3) == 7 && F(0xa7) == -7,
+          "  the budget [0x97] is spent and both accumulators take the two out values");
+
+    RESETW();
+    oa = ob = 0;
+    r = fn_016b8f(e, 7, 10, 150, &oa, &ob);          /* ECX < mid -> [0x9f]=-1; Y 50 !< EBX 10 -> [0x9b]=-1 */
+    check(F(0x9f) == -1 && F(0x9b) == -1 && oa == -7 && ob == 7,
+          "  reversed directions negate out_a and leave out_b positive");
+
+    RESETW();
+    F(0x97) = -1; oa = ob = 0;
+    r = fn_016b8f(e, 7, 80, 250, &oa, &ob);
+    check(r == 1 && F(0x97) == -1 && oa == 7 && F(0xa3) == 0 && F(0xa7) == 0,
+          "  a negative budget [0x97] still writes the out params but returns 1 and spends nothing");
+
+    RESETW(); F(0x8f) = 1; F(0x9b) = 1; F(0x9f) = 1; F(0x93) = 0; F(0xa3) = 200;
+    r = fn_016b8f(e, 7, 80, 250, &oa, &ob);
+    check(r == 0 && F(0x93) == 1 && F(0xa3) == 0 && F(0xa7) == 0 && F(0x8f) == 1,
+          "  abs([0xa3]) >= ([0x11f]>>1)+0xf ends phase 0 -> phase 1, accumulators cleared, aim kept");
+
+    RESETW(); F(0x8f) = 1; F(0x9b) = 1; F(0x9f) = 1; F(0x93) = 1; F(0xa3) = 10; F(0x97) = 3;
+    oa = ob = 0;
+    r = fn_016b8f(e, 7, 85, 152, &oa, &ob);          /* inside the (b3+-0x28, b7+-7) box */
+    check(r == 0 && ob == 0 && F(0xa3) == 17 && F(0xa7) == 0 && F(0x97) == 2 && F(0x93) == 1,
+          "  phase 1 forces out_b = 0, accumulates only [0xa3], and stays in phase 1 inside the box");
+
+    RESETW(); F(0x8f) = 1; F(0x9b) = 1; F(0x9f) = 1; F(0x93) = 1; F(0xa3) = 10; F(0x97) = 3;
+    r = fn_016b8f(e, 7, 200, 152, &oa, &ob);         /* EBX outside b3 +- 0x28 */
+    check(r == 1 && F(0x93) == 1 && F(0x8f) == 0 && F(0x97) == 2,
+          "  leaving the (EBX,ECX) box during phase 1 abandons the walk: [0x8f] cleared, returns 1");
+
+    RESETW(); F(0x8f) = 1; F(0x9b) = 1; F(0x9f) = 0; F(0x93) = 1; F(0xa3) = 10; F(0x97) = 3;
+    r = fn_016b8f(e, 7, 200, 152, &oa, &ob);
+    check(r == 0 && F(0x8f) == 1, "  [0x9f] == 0 disables the phase-1 box check entirely");
+
+    RESETW(); F(0x8f) = 1; F(0x9b) = 1; F(0x9f) = 1; F(0x93) = 1; F(0xa3) = 100;
+    r = fn_016b8f(e, 7, 85, 152, &oa, &ob);
+    check(r == 0 && F(0x93) == 2 && F(0xa3) == 0 && F(0xa7) == 0,
+          "  abs([0xa3]) >= 0x3c ends the pause -> phase 2");
+
+    RESETW(); F(0x8f) = 1; F(0x93) = 2; F(0x9b) = -1; F(0x9f) = 1; F(0x97) = 4; F(0xa7) = 0x5a5a;
+    oa = ob = 0;
+    r = fn_016b8f(e, 7, 85, 152, &oa, &ob);
+    check(r == 0 && oa == -7 && ob == 7 && F(0xa3) == -7 && F(0xa7) == 0x5a5a,
+          "  phase 2 flips the [0x9f] polarity (no negation) and never accumulates [0xa7] (orig quirk)");
+
+    RESETW(); F(0x8f) = 1; F(0x93) = 2; F(0xa3) = -200;
+    r = fn_016b8f(e, 7, 85, 152, &oa, &ob);
+    check(r == 1 && F(0x93) == 1 && F(0x8f) == 0,
+          "  phase 2 completing resets [0x8f] (so the next pass re-aims) and returns 1");
+
+    RESETW(); F(0x8f) = 1; F(0x93) = 3; F(0xa3) = 5;
+    r = fn_016b8f(e, 7, 85, 152, &oa, &ob);
+    check(r == 0 && F(0x93) == 3 && F(0xa3) == 5, "  an unknown phase does nothing but set [0x17] = 2");
+#undef RESETW
+#undef F
+    free(e); free(node);
+    g_dat_63354 = s_node; g_dat_639dc = s_dc;
+}
+
 static void test_fn_01545e(void) {
     printf("fn_01545e: Y-axis move, wall bands (g_tab_5c8bc) and trigger latch\n");
     uint32_t s_dc = g_dat_639dc, s_n = g_dat_62a8c, s_64 = g_dat_63364, s_68 = g_dat_63368;
@@ -10130,6 +10213,7 @@ int main(void) {
     test_fn_037b03();
     test_fn_0374ad();
     test_fn_0376c8();
+    test_fn_016b8f();
     test_fn_01545e();
     test_fn_040839_04185e();
     test_fn_03ace9();

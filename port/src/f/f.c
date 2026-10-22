@@ -7817,6 +7817,116 @@ void fn_01545e(uint8_t *e, int32_t d)
     }
 }
 
+/* fn_016b8f  orig: 0x00016b8f (L11, 1117 B) -- THE THREE-PHASE STEP/RETURN WALK (a flying/returning
+ * entity: approach, pause, walk back). Direct callee of 20 unported per-type handlers.
+ *   EAX = entity, EDX = step (the per-frame amount), EBX / ECX = comparison values supplied by the
+ *   caller (EBX is compared against fn_01519f(entity) = [e+1] - DAT_639dc, i.e. the entity's Y
+ *   relative to the room centre; ECX against the room's mid-Y), and TWO stack out parameters --
+ *   the original reads them at [ebp+0x10] / [ebp+0x14] (stack args 3 and 4; args 1-2 are unused):
+ *   out_a accumulates into [e+0xa3] and out_b into [e+0xa7].
+ *   Entry always writes [e+0x17] = 2 (the same value fn_01545e uses to widen the room band).
+ *   If [e+0x8f] == 0 the walk is (re)initialised:
+ *     mid    = [63354+0x12] + (([63354+0x16] - [63354+0x12]) >> 1)      ; the room's mid-Y, sar 1
+ *     [e+0x9f] = (ECX <  mid) ? -1 : 1
+ *     [e+0x9b] = (fn_01519f(e) < EBX) ? 1 : -1
+ *     [e+0x93] = [e+0xa3] = [e+0xa7] = 0                                ; phase = 0 (approach)
+ *   Phase 0 (approach) runs while abs([e+0xa3]) < ([e+0x11f] >> 1) + 0xf, i.e. while the distance
+ *   walked so far has not reached half the entity's range plus a 15 px tolerance; then out_a =
+ *   +-step by [e+0x9b] (negative when [e+0x9b] < 0) and out_b = +-step with the OPPOSITE rule
+ *   (negated when [e+0x9f] >= 0 -- the original really is asymmetric: 0x16cc5-0x16ce6).
+ *   A negative [e+0x97] is the "out of budget" flag: the out parameters are still written, but the
+ *   function returns 1 WITHOUT decrementing the budget. Otherwise the budget is decremented and the
+ *   two accumulators take the two out values.
+ *   Phase 1 (pause) runs while abs([e+0xa3]) < 0x3c: out_b is forced to 0, only [e+0xa3]
+ *   accumulates, and if [e+0x9f] != 0 and the caller's (EBX, ECX) has left the box
+ *   [e+0xb3]+-0x28 / [e+0xb7]+-7 the walk is abandoned: [e+0x93] = 1, [e+0x8f] = 0, return 1
+ *   ([e+0x9f] == 0 disables that check entirely). Otherwise -> phase 2 when the pause expires.
+ *   Phase 2 (walk back) ends when abs([e+0xa3]) >= ([e+0x11f] >> 1) + 0xf, which resets
+ *   [e+0x8f] = 0 (so the next pass re-aim) and returns 1; while walking back the [e+0x9f]
+ *   polarity is FLIPPED relative to phase 0 (< 0 -> negate) and [e+0xa7] is NOT accumulated even
+ *   though out_b is written -- a latent original quirk, kept as-is.
+ */
+int32_t fn_016b8f(uint8_t *e, int32_t step, int32_t cmp_ebx, int32_t cmp_ecx,
+                  int32_t *out_a, int32_t *out_b)
+{
+    (void)canary_id(0, 0x2c);                                                /* 0x16b8f-94 */
+    *(int32_t *)(e + 0x17) = 2;                                              /* 0x16bb0-13 */
+    if (*(int32_t *)(e + 0x8f) == 0) {                                       /* 0x16bba-c4 */
+        int32_t mid = *(int32_t *)(g_dat_63354 + 0x12)
+                    + ((*(int32_t *)(g_dat_63354 + 0x16)
+                      - *(int32_t *)(g_dat_63354 + 0x12)) >> 1);             /* 0x16bca-16be9 */
+        *(int32_t *)(e + 0x8f) = 1;                                          /* 0x16bec-16bef */
+        *(int32_t *)(e + 0x9f) = (cmp_ecx < mid) ? -1 : 1;                   /* 0x16bf9-16c13 */
+        *(int32_t *)(e + 0x9b) = ((int32_t)fn_01519f(e) < cmp_ebx) ? 1 : -1; /* 0x16c1d-16c3c */
+        *(int32_t *)(e + 0x93) = 0;                                          /* 0x16c46-49 */
+        *(int32_t *)(e + 0xa3) = 0;                                          /* 0x16c53-56 */
+        *(int32_t *)(e + 0xa7) = 0;                                          /* 0x16c60-63 */
+    }
+    int32_t phase = *(int32_t *)(e + 0x93);                                  /* 0x16c6d-79 */
+    if (phase == 0) {                                                        /* 0x16c7e */
+        int32_t half = *(int32_t *)(e + 0x11f) >> 1;                          /* 0x16c81-87 */
+        if (abs32(*(int32_t *)(e + 0xa3)) < half + 0xf) {                     /* 0x16c92-16c9c */
+            if (*(int32_t *)(e + 0x9b) < 0) { *out_a = step; *out_a = -*out_a; }  /* 0x16ca5-16cbb */
+            else                             { *out_a = step; }                  /* 0x16cbd-16cc3 */
+            if (*(int32_t *)(e + 0x9f) < 0)  { *out_b = step; }                  /* 0x16cc5-16cd9 */
+            else                             { *out_b = step; *out_b = -*out_b; } /* 0x16cdb-16ce6 */
+            if (*(int32_t *)(e + 0x97) < 0) return 1;                           /* 0x16ceb-16cfb */
+            (*(int32_t *)(e + 0x97))--;                                        /* 0x16d03 */
+            *(int32_t *)(e + 0xa3) += *out_a;                                  /* 0x16d09-16d11 */
+            *(int32_t *)(e + 0xa7) += *out_b;                                  /* 0x16d17-16d1f */
+        } else {
+            *(int32_t *)(e + 0x93) = 1;                                        /* 0x16d27-16d44 */
+            *(int32_t *)(e + 0xa3) = 0;
+            *(int32_t *)(e + 0xa7) = 0;
+        }
+        return 0;
+    }
+    if (phase == 1) {                                                        /* 0x16d53 */
+        if (abs32(*(int32_t *)(e + 0xa3)) < 0x3c) {                           /* 0x16d5c-16d64 */
+            if (*(int32_t *)(e + 0x9b) < 0) { *out_a = step; *out_a = -*out_a; }  /* 0x16d6d-16d83 */
+            else                             { *out_a = step; }                  /* 0x16d85-16d8b */
+            *out_b = 0;                                                      /* 0x16d8d-16d90 */
+            *(int32_t *)(e + 0xa3) += *out_a;                                 /* 0x16d96-16d9e */
+            if (*(int32_t *)(e + 0x97) < 0) return 1;                         /* 0x16da4-16db7 */
+            (*(int32_t *)(e + 0x97))--;                                       /* 0x16dbf */
+            int32_t f9f = *(int32_t *)(e + 0x9f);
+            if (f9f != 0) {                                                  /* 0x16dc8-16e50 */
+                int32_t b3 = *(int32_t *)(e + 0xb3), b7 = *(int32_t *)(e + 0xb7);
+                if (cmp_ebx < b3 - 0x28 || b3 + 0x28 < cmp_ebx
+                    || cmp_ecx < b7 - 7 || b7 + 7 < cmp_ecx) {               /* 0x16dd5-16e19 */
+                    *(int32_t *)(e + 0x93) = 1;                               /* 0x16e1b-16e2b */
+                    *(int32_t *)(e + 0x8f) = 0;
+                    return 1;                                                /* 0x16e35-16e3c */
+                }
+            }
+        } else {
+            *(int32_t *)(e + 0x93) = 2;                                       /* 0x16ec4-16ee1 */
+            *(int32_t *)(e + 0xa3) = 0;
+            *(int32_t *)(e + 0xa7) = 0;
+        }
+        return 0;
+    }
+    if (phase == 2) {                                                        /* 0x16ef0 */
+        int32_t half = *(int32_t *)(e + 0x11f) >> 1;                          /* 0x16ef3-16ef9 */
+        if (abs32(*(int32_t *)(e + 0xa3)) >= half + 0xf) {                    /* 0x16f04-16f0e */
+            *(int32_t *)(e + 0x93) = 1;                                       /* 0x16f8b-16f9b */
+            *(int32_t *)(e + 0x8f) = 0;
+            return 1;                                                        /* 0x16fa5-16fac */
+        }
+        if (*(int32_t *)(e + 0x9b) < 0) { *out_a = step; *out_a = -*out_a; }  /* 0x16f14-16f2d */
+        else                             { *out_a = step; }                  /* 0x16f2f-16f35 */
+        if (*(int32_t *)(e + 0x9f) < 0)  { *out_b = step; *out_b = -*out_b; } /* 0x16f37-16f50 */
+        else                             { *out_b = step; }                  /* 0x16f52-16f58 */
+        if (*(int32_t *)(e + 0x97) < 0) return 1;                             /* 0x16f5a-16f6d */
+        (*(int32_t *)(e + 0x97))--;                                           /* 0x16f75 */
+        *(int32_t *)(e + 0xa3) += *out_a;                                     /* 0x16f7b-16f83:
+                                                                              * [e+0xa7] is NOT
+                                                                              * accumulated here */
+        return 0;
+    }
+    return 0;                                                                /* 0x16fb2-16fd8: other phase */
+}
+
 void fn_01586b(uint8_t *a0, uint32_t a1) {
     (void)canary_id(0, 0x2c);                                /* 0x1586b/15870 */
     int32_t d = (int32_t)a1;

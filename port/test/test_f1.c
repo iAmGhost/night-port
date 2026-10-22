@@ -4032,11 +4032,11 @@ static void test_fn_03c72b(void) {
     uint8_t *c = flat_ofs(child), *g = flat_ofs(gc);
     memset(c, 0, 0x360); memset(g, 0, 0x360);
     *(uint32_t *)(g + 0x44) = heap_malloc(0x20);
-    *(uint32_t *)(c + 0x34c) = gc;
-    *(uint32_t *)(e + 0x34c) = child;
+    *(uint8_t **)(c + 0x34c) = g;      /* +0x34c is a host pointer in the port layout */
+    *(uint8_t **)(e + 0x34c) = c;
     fn_03c72b(ent);
     check(*(uint32_t *)(g + 0x44) == 0, "  depth-2 recursion freed the grandchild's +0x44");
-    check(*(uint32_t *)(e + 0x34c) == child, "  child link left intact (faithful)");
+    check(*(uint8_t **)(e + 0x34c) == c, "  child link left intact (faithful)");
     heap_arena_init();                               /* hand on the known heap state */
     (void)heap_malloc(0x400);
 }
@@ -7055,6 +7055,14 @@ static void test_fn_017218(void) {
     check(*(int32_t*)(A+0xab) == -1, "017218 cnt unchanged when <0");
 }
 
+/* NOTE (learned the hard way, 2026-07-13): the AI-handler tests below must NOT call
+ * heap_arena_init(). A handful of stage globals (DAT_63e14/18/1c/20, g_dat_639ec[],
+ * g_dat_53818[]) keep heap OFFSETS that earlier real-resource tests allocated, so resetting the
+ * arena mid-suite turns those cached offsets into dangling ones; the later teardowns then free
+ * garbage and the run dies with an intermittent SIGBUS/SIGSEGV (intermittent because whether the
+ * wild offset lands in a mapped page depends on ASLR). These tests therefore allocate from the
+ * existing arena after raising the cap, and restore the cap, the region floor and every stage
+ * global they claim. */
 /* ---- 0x017f13: the behaviour-0x00 AI handler ---- */
 static uint8_t *h13_alloc(int n)
 {
@@ -7067,10 +7075,16 @@ static uint8_t *h13_alloc(int n)
 static void test_fn_017f13(void)
 {
     printf("fn_017f13 (0x017f13, behaviour-0x00 entity AI handler)\n");
-    heap_arena_init();
-    (void)heap_malloc(0x2000);                 /* keep the bump allocator away from the floor */
+    /* Test hygiene (see the note above): this test re-inits the arena and claims
+     * stage globals, so save everything it touches and hand it back afterwards. */
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_63370 = g_dat_63370;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);          /* room for three entity blocks + slack */
     heap_region_floor_set(0x400);
-
     uint8_t *pl = h13_alloc(0x14f);            /* the player entity */
     uint8_t *e  = h13_alloc(0x14f);            /* the thinker */
     uint8_t *room = h13_alloc(0x40);           /* the current room node (clamp band) */
@@ -7197,16 +7211,49 @@ static void test_fn_017f13(void)
     e[0x1f] = 0x11; *(int32_t *)(e + 0xab) = 0;
     fn_017f13(e);
     check(*(int32_t *)(e + 0x1f) == 0x11, "017f13 default state leaves the state alone");
+    /* hand the shared state back (the later real-resource tests own it) */
+    for (int t = 0; t < 1; t++) {
+        uint8_t *c = g_dat_53e9c + (size_t)(1 + t) * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)(1 + t) * 0x88u + b] = 0;
+    }
+    g_dat_53c7c  = (uint8_t *)save_pl;
+    g_dat_63354  = save_room;
+    g_dat_639dc  = save_cx; g_dat_639e0 = save_cy;
+    g_dat_63370  = save_63370;
+    heap_arena_init();
+
+    /* hand the shared state back (the later real-resource tests own it) */
+    for (int t = 0; t < 1; t++) {
+        uint8_t *c = g_dat_53e9c + (size_t)(1 + t) * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)(1 + t) * 0x88u + b] = 0;
+    }
+    g_dat_53c7c  = (uint8_t *)save_pl;
+    g_dat_63354  = save_room;
+    g_dat_639dc  = save_cx; g_dat_639e0 = save_cy;
+    g_dat_63370  = save_63370;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+
 }
 
 /* ---- 0x018e88: the behaviour-0x01 handler (fn_017f13's near-clone) ---- */
 static void test_fn_018e88(void)
 {
     printf("fn_018e88 (0x018e88, behaviour-0x01 entity AI handler)\n");
-    heap_arena_init();
-    (void)heap_malloc(0x2000);
+    /* Test hygiene (see the note above): this test re-inits the arena and claims
+     * stage globals, so save everything it touches and hand it back afterwards. */
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_63370 = g_dat_63370;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);          /* room for three entity blocks + slack */
     heap_region_floor_set(0x400);
-
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x40);
@@ -7305,6 +7352,162 @@ static void test_fn_018e88(void)
     fn_018e88(e);
     check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a &&
           *(int32_t *)(e + 0x1f) == 0, "018e88 case 0xc timeout -> state 0x32, action 0x0a, state 0");
+    /* hand the shared state back (the later real-resource tests own it) */
+    for (int t = 0; t < 1; t++) {
+        uint8_t *c = g_dat_53e9c + (size_t)(1 + t) * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)(1 + t) * 0x88u + b] = 0;
+    }
+    g_dat_53c7c  = (uint8_t *)save_pl;
+    g_dat_63354  = save_room;
+    g_dat_639dc  = save_cx; g_dat_639e0 = save_cy;
+    g_dat_63370  = save_63370;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+
+}
+
+
+/* ---- 0x019e48: the behaviour-0x02 handler (the fn_018e88 skeleton, ten slots) ---- */
+static void test_fn_019e48(void)
+{
+    printf("fn_019e48 (0x019e48, behaviour-0x02 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x40);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 3;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;              /* speed float 0.75 */
+    *(int32_t *)(cfg + 0x80) = 4;              /* speed float 1.25 */
+    *(int32_t *)(cfg + 0x14) = 20;
+    *(int32_t *)(cfg + 0x18) = 100;
+    *(int32_t *)(cfg + 0x84) = 40;
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 100; *(int32_t *)(pl + 0x09) = 50;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the same two speed words as fn_018e88 */
+    e[0x17] = 3; e[0x1f] = 0x02; *(int32_t *)(e + 0x6f) = 0;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_019e48(e);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "019e48 speed word +0x04 for state < 0x0a");
+
+    /* (B) the 1-in-6 draw that arms the spot chooser (0x01a0a4), made deterministic with prng_seed */
+    {
+        uint32_t seed = 0x1234;
+        prng_seed(seed);
+        int forced = ((int32_t)prng_next() % 6 == 1);
+        prng_seed(seed);
+        e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 0x0a;
+        fn_019e48(e);
+        check(*(int32_t *)(e + 0x113) < 10, "019e48 the script row comes from prng % 10");
+        if (forced) {
+            /* the forced action 4 is picked up by the SAME pass: the chooser runs immediately,
+             * so the state ends as 2/8 (or 3) rather than 4. */
+            check(*(int32_t *)(e + 0xaf) == 4, "019e48 prng % 6 == 1 forces action 4");
+            check(*(int32_t *)(e + 0x1f) == 2 || *(int32_t *)(e + 0x1f) == 8 ||
+                  *(int32_t *)(e + 0x1f) == 3, "019e48 the forced action runs the chooser at once");
+        } else {
+            check(*(int32_t *)(e + 0xaf) == 0x0a, "019e48 prng % 6 != 1 leaves action 0x0a");
+            check(*(int32_t *)(e + 0x1f) == 4, "019e48 state 0 re-arm sets state 4");
+        }
+    }
+
+    /* (C) the ten-slot draw: slots 0..5 are player-relative, 6..9 absolute screen spots */
+    const int xlo[10] = {-55,40,-80,50,-80,50,  71, 71, 21,256};
+    const int xhi[10] = {-40,55,-50,80,-50,80, 256,256, 71,308};
+    const int ylo[10] = { -5,-5,-30,-30, 20,20,  80,164, 80, 80};
+    const int yhi[10] = {  5, 5,-20,-20, 30,30, 143,196,196,196};
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; *(int32_t *)(e + 0x8f) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0;
+    *(int32_t *)(e + 0xbf) = 0x7777; *(int32_t *)(e + 0xc3) = 0x7777;
+    *(int32_t *)(e + 0x01) = 0; *(int32_t *)(e + 0x09) = 0;
+    fn_019e48(e);
+    int j = (int)*(int32_t *)(e + 0xff);
+    int bx = (int)*(int32_t *)(e + 0xbf), by = (int)*(int32_t *)(e + 0xc3);
+    check(j >= 1 && j <= 9, "019e48 the spot draw runs over ten slots and re-rolls repeats");
+    check((j < 6) ? (bx >= 100 + (xlo[j] < xhi[j] ? xlo[j] : xhi[j]) &&
+                     bx <= 100 + (xlo[j] > xhi[j] ? xlo[j] : xhi[j]))
+                  : (bx >= xlo[j] && bx <= xhi[j]),
+          "019e48 slots 0..5 offset from the player, slots 6..9 are absolute screen spots");
+    check((j < 2) ? by == 50
+                  : ((j < 6) ? (by >= 50 + (ylo[j] < yhi[j] ? ylo[j] : yhi[j]) &&
+                                by <= 50 + (ylo[j] > yhi[j] ? ylo[j] : yhi[j]))
+                             : (by >= ylo[j] && by <= yhi[j])),
+          "019e48 slots 0/1 sit level with the player (Y overwritten after the jitter draw)");
+    check(*(int32_t *)(e + 0xc7) == 0, "019e48 the spot is far enough: entity[0xc7] cleared");
+    check(*(int32_t *)(e + 0x1f) == 2 || *(int32_t *)(e + 0x1f) == 8,
+          "019e48 state 0 ends in the approach states 2/8");
+
+    /* (D) the screen clamp runs AFTER the too-close test (LAB 0x01a3d9): with every jitter slot off
+     * screen to the left, the unclamped distance test must fail (entity[0xc7] cleared) and the
+     * clamp must then pin entity[0xbf] to 0x14. */
+    {
+        int32_t saved[10][4];
+        for (int t = 0; t < 10; t++)
+            for (int k = 0; k < 4; k++)
+                saved[t][k] = *(int32_t *)(g_blk_51c24 + 0x78u + (size_t)t * 0x10u + (size_t)k * 4u);
+        for (int t = 0; t < 10; t++) {
+            *(int32_t *)(g_blk_51c24 + 0x78u + (size_t)t * 0x10u + 0u)  = -500;  /* x lo */
+            *(int32_t *)(g_blk_51c24 + 0x78u + (size_t)t * 0x10u + 4u)  = -50;   /* y lo */
+            *(int32_t *)(g_blk_51c24 + 0x78u + (size_t)t * 0x10u + 8u)  = -499;  /* x hi */
+            *(int32_t *)(g_blk_51c24 + 0x78u + (size_t)t * 0x10u + 12u) = -49;   /* y hi */
+        }
+        *(int32_t *)(pl + 0x09) = 0;           /* player Y 0 -> the spot Y lands on -50 */
+        *(int32_t *)(e + 0x01) = 20;           /* the entity is right where a CLAMPED spot would be */
+        *(int32_t *)(e + 0x09) = -50;
+        *(int32_t *)(e + 0xc7) = 1;
+        e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4;
+        fn_019e48(e);
+        check(*(int32_t *)(e + 0xbf) == 0x14, "019e48 the off-screen spot is clamped to 0x14");
+        check(*(int32_t *)(e + 0xc7) == 0,
+              "019e48 the distance test saw the UNCLAMPED spot (no restore) -- clamp comes after");
+        for (int t = 0; t < 10; t++)
+            for (int k = 0; k < 4; k++)
+                *(int32_t *)(g_blk_51c24 + 0x78u + (size_t)t * 0x10u + (size_t)k * 4u) = saved[t][k];
+    }
+
+    /* (E) the shared state machine still behaves: case 0x0c countdown/timeout, case 0x0b script */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(pl + 0x01) = 100; *(int32_t *)(pl + 0x09) = 50;
+    *(int32_t *)(e + 0x01) = 105; *(int32_t *)(e + 0x09) = 52;
+    fn_019e48(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "019e48 case 0xb runs the scripted state");
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_019e48(e);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a,
+          "019e48 case 0xc timeout -> state 0x32, action 0x0a");
+
+    /* hand the shared state back */
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
 }
 
 static void test_fn_013aad(void) {
@@ -12411,6 +12614,7 @@ int main(void) {
     test_fn_017218();
     test_fn_017f13();
     test_fn_018e88();
+    test_fn_019e48();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

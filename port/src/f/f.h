@@ -434,6 +434,8 @@ uint32_t heap_arena_cap(void);
  * acquires whole blocks (FUN_00043071) far larger than the request, so real data loads raise this to
  * avoid one region per allocation. */
 void     heap_region_floor_set(uint32_t bytes);
+uint32_t heap_arena_cap_get(void);
+uint32_t heap_region_floor_get(void);
 uint32_t heap_region_floor(void);
 
 /* Unlink a region from the all-blocks chain: advance head/cursor if it is the
@@ -1148,6 +1150,7 @@ int32_t  fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   
 int32_t  fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2);      /* 0x017927: 2D move/AI (double-deref bounds) */
 void     fn_017f13(uint8_t *e);
 void     fn_018e88(uint8_t *e);   /* 0x018e88: THE BEHAVIOUR-0x01 ENTITY AI HANDLER -- fn_017f13's near-clone: two speed-index words (record +0x04 / +0x80, the latter forced by entity[0x6f]), no entity[0x8b] recon block, and a six-slot hiding-spot draw (j = prng%4 with a +prng%2 sub-draw for 2/3) whose jitter pairs live at DS 0x51c9c/0x51ca0/0x51ca4/0x51ca8 stride 0x10 */   /* 0x017f13: THE BEHAVIOUR-0x00 ENTITY AI HANDLER -- speed bookkeeping on the float field e[0x63], the fn_015a1f proximity latch, then a switch on e[0x1f] (0..0x16) over the twelve action routines with the family's register ABI (EAX=e, EDX=speed, EBX/ECX=player screen x/y, two stack out slots); the two deltas feed fn_01545e / fn_01586b and e[0x1b] tracks facing */
+void     fn_019e48(uint8_t *e);   /* 0x019e48: THE BEHAVIOUR-0x02 ENTITY AI HANDLER -- the fn_018e88 skeleton with: a 1-in-6 PRNG draw that forces action 4 when state 0 re-arms, a TEN-slot spot draw (slots 0..5 player-relative, slots 6..9 absolute screen positions), the slots-0/1 Y overwrite after the Y jitter draw, and the screen clamp moved AFTER the too-close test */
 void     fn_032158(void);              /* 0x032158: entity list -> set targets to player + prng jitter */
 int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */

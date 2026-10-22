@@ -2500,6 +2500,9 @@ uint32_t heap_arena_cap(void) { return s_arena_cap; }
  * per-request granularity is an artifact of the arena substitution, not of the game's allocator. */
 static uint32_t s_region_floor = 0;
 void     heap_region_floor_set(uint32_t bytes) { s_region_floor = bytes; }
+/* Test-support knobs: read back the two arena knobs so a test can restore them. */
+uint32_t heap_arena_cap_get(void) { return s_arena_cap; }
+uint32_t heap_region_floor_get(void) { return s_region_floor; }
 uint32_t heap_region_floor(void) { return s_region_floor; }
 
 uintptr_t g_heap_base      = 0;
@@ -6314,12 +6317,21 @@ void fn_03d0c0(uint8_t *ent) {
  * replicated (port convention). */
 uint32_t fn_03c72b(uint32_t ent_off) {
     uint8_t *ent = flat_ofs(ent_off);
-    if (*(uint32_t *)(ent + 0x34c) != 0) {                      /* 0x3c74b-52 */
-        uint32_t child = *(uint32_t *)(ent + 0x34c);            /* 0x3c757-5d [ebp-0x14] */
-        if (child != 0) {                                       /* 0x3c760-64 (faithful re-test) */
-            uint32_t r = fn_03c72b(child);                      /* 0x3c76b (EDX=0) */
-            heap_free_guard(r);                                 /* 0x3c770 free the child */
-        }                                                       /* 0x3c775 [ebp-0x10] unused */
+    /* LAYOUT RECONCILIATION (fourth occurrence of the widened-pointer clash). The original kept a
+     * 4-byte flat pointer in the sibling/chain slot +0x34c and handed it to the free wrappers,
+     * which the port addresses by HEAP OFFSET. Every other ported reader/writer of this slot
+     * (fn_03d88f's list walk, fn_03d0c0's B2 sibling, the fn_03d8d4 room-chain builder at 0x3ca5e
+     * and 0x3caa2, whose nodes fn_037347 feeds straight into this function) stores a 64-bit HOST
+     * pointer, because the entity/room blocks were widened to host size. Reading the low 32 bits
+     * as an offset -- the first version of this port -- produced wild child offsets such as
+     * 0x051db5b4 (the low half of an arena address), which made the real stage teardown crash at
+     * random: the arena sits at a different address on every run. Read the pointer, convert. */
+    uint8_t *child_p = *(uint8_t **)(ent + 0x34c);              /* 0x3c74b-52 (the != 0 test) */
+    if (child_p) {
+        uint32_t child = (uint32_t)(child_p - (uint8_t *)g_heap_base);   /* 0x3c757-5d [ebp-0x14] */
+        uint32_t r = fn_03c72b(child);                          /* 0x3c76b (EDX=0) */
+        heap_free_guard(r);                                     /* 0x3c770 free the child */
+                                                                /* 0x3c775 [ebp-0x10] unused */
     }
     if (*(uint32_t *)(ent + 0x348) != 0) {                      /* 0x3c784-8b */
         heap_free_host(*(uint32_t *)(ent + 0x348));             /* 0x3c796 */
@@ -14646,6 +14658,351 @@ void fn_018e88(uint8_t *e)
                         *(int32_t *)(e + 0xc3) = (uint32_t)keep_y;
                     } else {
                         *(int32_t *)(e + 0xc7) = 0;
+                    }
+                }
+                /* LAB 0x019392: clamp the chosen spot into the current room band */
+                if (*(int32_t *)(e + 0xc3) <= *(const int32_t *)(g_dat_63354 + 0x12))
+                    *(int32_t *)(e + 0xc3) = (uint32_t)(*(const int32_t *)(g_dat_63354 + 0x12) + 1);
+                if (*(const int32_t *)(g_dat_63354 + 0x16) <= *(int32_t *)(e + 0xc3))
+                    *(int32_t *)(e + 0xc3) = (uint32_t)(*(const int32_t *)(g_dat_63354 + 0x16) - 1);
+
+                int32_t x_hi, x_lo, y_hi, y_lo;                  /* [EBP-0x70..-0x64] */
+                if ((int32_t)fn_01519f(e) < *(int32_t *)(e + 0xbf)) {
+                    x_hi = *(int32_t *)(e + 0xbf); x_lo = (int32_t)fn_01519f(e);
+                } else {
+                    x_hi = (int32_t)fn_01519f(e); x_lo = *(int32_t *)(e + 0xbf);
+                }
+                if ((int32_t)fn_0151d5(e) < *(int32_t *)(e + 0xc3)) {
+                    y_hi = *(int32_t *)(e + 0xc3); y_lo = (int32_t)fn_0151d5(e);
+                } else {
+                    y_hi = (int32_t)fn_0151d5(e); y_lo = *(int32_t *)(e + 0xc3);
+                }
+                int32_t ex = (int32_t)fn_01519f(e);              /* [EBP-0x60] */
+                int32_t ey = (int32_t)fn_0151d5(e);              /* [EBP-0x5c] */
+
+                if (abs32(*(int32_t *)(e + 0xbf) - ex) < 5) {    /* 0x01948f: reached the spot? */
+                    if (5 < abs32(*(int32_t *)(e + 0xc3) - ey) &&
+                        p_y < y_hi && y_lo < p_y &&
+                        ex - 8 < p_x && p_x < ex + 8) {
+                        *(int32_t *)(e + 0xcb) = (uint32_t)ex;
+                        *(int32_t *)(e + 0xeb) = *(uint32_t *)(e + 0xcb);
+                        *(int32_t *)(e + 0xcf) = (uint32_t)ey;
+                        *(int32_t *)(e + 0xef) = *(uint32_t *)(e + 0xcf);
+                        *(int32_t *)(e + 0x1f) = 0x14;
+                        *(int32_t *)(e + 0x8b) = 0;
+                        return;
+                    }
+                }
+                if (abs32(*(int32_t *)(e + 0xc3) - ey) < 10) {   /* 0x019542: ambush spot */
+                    if (5 < abs32(*(int32_t *)(e + 0xbf) - ex) &&
+                        p_y < ey + 8 && ey - 8 < p_y &&
+                        x_lo < p_x && p_x < x_hi) {
+                        *(int32_t *)(e + 0xcb) = (uint32_t)ex;
+                        *(int32_t *)(e + 0xeb) = *(uint32_t *)(e + 0xcb);
+                        *(int32_t *)(e + 0xcf) = (uint32_t)ey;
+                        *(int32_t *)(e + 0xef) = *(uint32_t *)(e + 0xcf);
+                        int32_t mid = *(const int32_t *)(g_dat_63354 + 0x12) +
+                                      ((*(const int32_t *)(g_dat_63354 + 0x16) -
+                                        *(const int32_t *)(g_dat_63354 + 0x12)) >> 1);
+                        if (*(int32_t *)(e + 0xcf) < mid) {
+                            if (*(int32_t *)(e + 0xcf) < *(int32_t *)(e + 0xc3))
+                                *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) -
+                                    (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                            else
+                                *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) +
+                                    (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                        } else if (*(int32_t *)(e + 0xcf) < *(int32_t *)(e + 0xc3)) {
+                            *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) +
+                                (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                        } else {
+                            *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) -
+                                (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                        }
+                        *(int32_t *)(e + 0x1f) = 0x15;
+                        *(int32_t *)(e + 0x8b) = 0;
+                        return;
+                    }
+                }
+                if (p_y < y_hi && y_lo < p_y) {                  /* 0x0196b0-0x019758 */
+                    if (p_x <= (int32_t)fn_01519f(e) - 8 ||
+                        (int32_t)fn_01519f(e) + 8 <= p_x) {
+                        *(int32_t *)(e + 0x1f) = 2;
+                    } else {
+                        *(int32_t *)(e + 0x1f) = 8;
+                    }
+                } else {
+                    *(int32_t *)(e + 0x1f) = 2;
+                }
+                *(int32_t *)(e + 0x8b) = 0;
+                if (p_x < x_hi && x_lo < p_x &&
+                    *(int32_t *)(e + 0xc3) - 8 < p_y && p_y < *(int32_t *)(e + 0xc3) + 8) {
+                    *(int32_t *)(e + 0x1f) = 8;
+                } else {
+                    *(int32_t *)(e + 0x1f) = 2;
+                }
+                *(int32_t *)(e + 0x8b) = 0;
+            }
+        }
+        if (*(int32_t *)(e + 0xaf) == 2) {
+            *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x14) >> 1;
+            *(int32_t *)(e + 0x1f) = 5;
+            *(int32_t *)(e + 0x8b) = 0;
+        } else if (*(int32_t *)(e + 0xaf) == 8) {
+            *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x14) >> 1;
+            *(int32_t *)(e + 0x1f) = 9;
+            *(int32_t *)(e + 0x8b) = 0;
+        }
+        break;
+    case 0x01:
+        if (fn_017218(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 1; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x02:
+        if (fn_016a60(e, v_spd, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 2; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x03:
+        if (fn_016b8f(e, v_spd, p_x, p_y, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 3; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x04: {
+        int32_t r = fn_016fec(e, v_spd);                         /* [EBP-0x58] */
+        if (r == 2) {
+            *(int32_t *)(e + 0x1f) = 1;  *(int32_t *)(e + 0xab) = 0x0a;
+        } else if (r == 1) {
+            *(int32_t *)(e + 0xaf) = 4;  *(int32_t *)(e + 0x1f) = 0;
+        } else if (r == 3) {
+            *(int32_t *)(e + 0xaf) = 4;  *(int32_t *)(e + 0x1f) = 0x0c; *(int32_t *)(e + 0xab) = 0x1e;
+        }
+        break;
+    }
+    case 0x05:
+        if (fn_016959(e, v_spd, &mv_a) != 0) {
+            *(int32_t *)(e + 0xaf) = 5; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x06:
+        if (fn_01730b(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 6; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x07:
+        if (fn_0174a2(e, v_spd, &mv_a) != 0) {
+            *(int32_t *)(e + 0xaf) = 4; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x08:
+        if (fn_017530(e, v_spd, &mv_a) != 0) {
+            *(int32_t *)(e + 0xaf) = 8; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x09:
+        if (fn_017637(e, v_spd, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 9; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x0a:
+        if (*(int32_t *)(e + 0x10f) == 1) {
+            *(int32_t *)(e + 0xaf)  = 0x0a;
+            *(int32_t *)(e + 0x1f)  = 0x0b;
+            *(int32_t *)(e + 0x11b) = 1;
+            *(int32_t *)(e + 0xab)  = ai_rec_i32(ty, 0x84);
+        }
+        if (*(int32_t *)(e + 0x10f) == 2) {
+            *(int32_t *)(e + 0xaf)  = 0x0a;
+            *(int32_t *)(e + 0x1f)  = 0x0b;
+            *(int32_t *)(e + 0x11b) = 1;
+            *(int32_t *)(e + 0xab)  = ai_rec_i32(ty, 0x84) >> 1;
+        }
+        break;
+    case 0x0b: {
+        if (*(int32_t *)(e + 0xab) < 0) {
+            uint8_t cell = ai_script_byte(ty, *(int32_t *)(e + 0x113), 0);
+            if (abs32((int32_t)fn_01519f(e) - p_x) < (int32_t)cell &&
+                abs32((int32_t)fn_0151d5(e) - p_y) < 6) {
+                uint8_t st = ai_script_byte(ty, *(int32_t *)(e + 0x113), *(int32_t *)(e + 0x11b));
+                if (st != 0 && *(int32_t *)(e + 0x11b) < 0x0a) {
+                    *(int32_t *)(e + 0x17)  = st;
+                    *(int32_t *)(e + 0x11)  = 0;
+                    (*(int32_t *)(e + 0x11b))++;
+                } else {
+                    *(int32_t *)(e + 0xaf) = 0x0a;
+                    *(int32_t *)(e + 0x1f) = 0;
+                }
+            } else if ((int32_t)prng_next() % 0x14 == 2) {
+                *(int32_t *)(e + 0xaf) = 4;  *(int32_t *)(e + 0x1f) = 0;
+            } else {
+                *(int32_t *)(e + 0xaf) = 0x0a; *(int32_t *)(e + 0x1f) = 0;
+            }
+        } else {
+            *(int32_t *)(e + 0xab) = (uint32_t)(*(int32_t *)(e + 0xab) - 1);
+            *(int32_t *)(e + 0x17) = 1;
+        }
+        break;
+    }
+    case 0x0c:
+        *(int32_t *)(e + 0xab) = (uint32_t)(*(int32_t *)(e + 0xab) - 1);
+        if (*(int32_t *)(e + 0xab) < 0) {
+            *(int32_t *)(e + 0x17) = 0x32;
+            *(int32_t *)(e + 0x11) = 0;
+            *(int32_t *)(e + 0xaf) = 0x0a;
+            *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x14:
+        if (fn_01776f(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 0x14; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x15:
+        if (fn_017927(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 0x15; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x16:
+        if (fn_017ca6(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 0x16; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    default:
+        break;
+    }
+
+    /* --- tail (0x019e00-0x019e46): same shape as fn_017f13 --- */
+    if (mv_a != 0) fn_01545e(e, mv_a);
+    if (mv_b != 0) fn_01586b(e, (uint32_t)mv_b);
+    if ((int32_t)fn_01519f(e) > p_x) *(int32_t *)(e + 0x1b) = 1;
+    if ((int32_t)fn_01519f(e) < p_x) *(int32_t *)(e + 0x1b) = 0;
+}
+
+/* =====================================================================
+ * 0x019e48 -- THE BEHAVIOUR-0x02 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
+ *
+ * Third handler; generated from the fn_018e88 skeleton because the two are 87 % identical
+ * (pseudo-level diff). Everything shared -- the prologue, the two speed-index config words
+ * (+0x04 / +0x80 with entity[0x6f] forcing the latter), the fn_015a1f latch, the state gates,
+ * the twelve action routines with the family ABI, the state 0x0b script walk, the tail --
+ * stays as documented on fn_017f13 / fn_018e88. The differences:
+ *   1. When state 0 re-arms the action machine (0x01a0a4) it makes ONE extra PRNG draw and,
+ *      with probability 1/6, forces entity[0xaf] = 4 -- i.e. the next frame goes straight to
+ *      the hiding-spot chooser instead of walking the approach states.
+ *   2. The spot draw is over TEN slots (`prng % 10`, same 2/3 sub-draws as fn_018e88).
+ *      Slots 0..5 are player-relative exactly as before; slots 6..9 are ABSOLUTE positions
+ *      read from the same table with no player offset (in the shipped data those rows are
+ *      screen rectangles: x 71..256 / 71..256 / 21..71 / 256..308, y 80..143 / 164..196 /
+ *      80..196 / 80..196).
+ *   3. Slots 0 and 1 overwrite entity[0xc3] with the player's Y AFTER the Y jitter has already
+ *      been drawn (0x01a35a), so that PRNG step is spent anyway -- faithful.
+ *   4. The screen clamp (`< 0` -> 0x14, `> 0x13f` -> 0x12c) sits at LAB_0001a3d9, AFTER the
+ *      "is the spot too close to me" test, whereas fn_018e88 clamps BEFORE it. So an
+ *      off-screen spot is compared unclamped here -- test (D) pins that ordering.
+ */
+void fn_019e48(uint8_t *e)
+{
+    uint8_t *pl = g_dat_53c7c;
+    if (e == pl) return;
+
+    int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
+    int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x44] */
+    (void)fn_01519f(e);                                          /* [EBP-0x28]: computed, unused */
+    (void)fn_0151d5(e);                                          /* [EBP-0x24]: computed, unused */
+
+    int32_t ty  = *(const int32_t *)(e + 0x0d);
+    int32_t st0 = *(const int32_t *)(e + 0x1f);
+    int32_t spd_idx = (st0 < 0x0a || st0 > 0x13) ? ai_rec_i32(ty, 0x04) : ai_rec_i32(ty, 0x80);
+    if (*(const int32_t *)(e + 0x6f) == 1) spd_idx = ai_rec_i32(ty, 0x80);
+    float   sp = AI_SPEED_TAB(spd_idx);
+    int32_t v_spd = (int32_t)fpu_rndint((double)sp);             /* [EBP-0x40] */
+    int32_t v_sum = (int32_t)fpu_rndint((double)ai_fget(e, 0x63) + (double)sp); /* [EBP-0x4c] */
+    int32_t v_cur = (int32_t)fpu_rndint((double)ai_fget(e, 0x63));              /* [EBP-0x50] */
+    if (v_cur + v_spd < v_sum) v_spd++;
+    ai_fput(e, 0x63, (float)((double)sp + (double)ai_fget(e, 0x63)));
+
+    int32_t mv_a = 0, mv_b = 0;                                  /* [EBP-0x3c] / [EBP-0x38] */
+
+    int32_t ps = *(const int32_t *)(pl + 0x17);
+    if (ps != 0x15 && ps != 0x16 && ps != 0x17 && ps != 0x18 &&
+        ps != 0x1a && ps != 0x1d && ps != 0x1e && ps != 0x20) {
+        int32_t r = fn_015a1f(e);                                /* [EBP-0x34] */
+        if (r != 0) {
+            *(int32_t *)(e + 0x10f) = (uint32_t)r;
+            *(int32_t *)(e + 0x1f)  = 0x0a;
+        }
+    }
+    if (*(int32_t *)(e + 0x17) != 2 && *(int32_t *)(e + 0x17) != 1) return;
+    if ((uint32_t)e[0] != 1u) return;
+
+    switch (*(int32_t *)(e + 0x1f)) {
+    case 0x00:
+        if (*(int32_t *)(e + 0xaf) != 4) {
+            if (*(int32_t *)(e + 0xaf) == 0x0a) {
+                *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x18) >> 1;
+            } else {
+                int32_t j = (int32_t)prng_next() % 0x32;         /* [EBP-0x30] */
+                *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x18) + j;
+            }
+            *(int32_t *)(e + 0x1f)  = 4;
+            if ((int32_t)prng_next() % 6 == 1) *(int32_t *)(e + 0xaf) = 4;   /* 0x01a0a4: one draw in six arms the spot chooser */
+            *(int32_t *)(e + 0x113) = (int32_t)prng_next() % 10;
+        }
+        if (*(int32_t *)(e + 0xaf) == 4) {
+            if (*(int32_t *)(e + 0x8f) == 1) {
+                *(int32_t *)(e + 0x97) = ai_rec_i32(ty, 0x14) >> 1;
+                *(int32_t *)(e + 0x1f) = 3;
+            } else {
+                if ((int32_t)fn_01519f(e) < 0 || (int32_t)fn_01519f(e) > 0x13f) {
+                    *(int32_t *)(e + 0x1f) = 7;                  /* 0x019161: state 7, then return */
+                    return;
+                }
+                *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x14) >> 1;
+                if (*(int32_t *)(e + 0xc7) == 1) {
+                    int32_t j;
+                    do {                                         /* ten-slot draw, 0x01a180-0x01a1e3 */
+                        j = (int32_t)prng_next() % 10;
+                        if (j == 2) {
+                            j += (int32_t)prng_next() % 2;
+                        } else if (j == 3) {
+                            j = 4 + (int32_t)prng_next() % 2;
+                        }
+                    } while (j == *(int32_t *)(e + 0xff));
+                    *(int32_t *)(e + 0x6f) = (j == 0 || j == 1) ? 1u : 0u;
+                    *(int32_t *)(e + 0xff) = (uint32_t)j;
+                    int32_t keep_x = *(int32_t *)(e + 0xbf);     /* [EBP-0x78] */
+                    int32_t keep_y = *(int32_t *)(e + 0xc3);     /* [EBP-0x74] */
+                    if (j < 6) {                                 /* player-relative spot (0x01a235-0x01a2c9) */
+                        int32_t span   = J4_XHI(j) - J4_XLO(j);
+                        int32_t rr     = (int32_t)prng_next() % span;
+                        *(int32_t *)(e + 0xbf) = (uint32_t)(J4_XLO(j) + p_x + abs32(rr));
+                        int32_t span_y = J4_YHI(j) - J4_YLO(j);
+                        int32_t rr_y   = (int32_t)prng_next() % span_y;
+                        *(int32_t *)(e + 0xc3) = (uint32_t)(J4_YLO(j) + p_y + abs32(rr_y));
+                    } else {                                     /* absolute spot, no player offset (0x01a2ce-0x01a354) */
+                        int32_t span   = J4_XHI(j) - J4_XLO(j);
+                        int32_t rr     = (int32_t)prng_next() % span;
+                        *(int32_t *)(e + 0xbf) = (uint32_t)(J4_XLO(j) + abs32(rr));
+                        int32_t span_y = J4_YHI(j) - J4_YLO(j);
+                        int32_t rr_y   = (int32_t)prng_next() % span_y;
+                        *(int32_t *)(e + 0xc3) = (uint32_t)(J4_YLO(j) + abs32(rr_y));
+                    }
+                    /* 0x01a35a: slots 0 and 1 sit level with the player, and the jitter draw above is
+                     * spent anyway -- faithful, it consumes one PRNG step. */
+                    if (j == 0 || j == 1) *(int32_t *)(e + 0xc3) = (uint32_t)p_y;
+                    if (abs32(*(int32_t *)(e + 0xbf) - (int32_t)fn_01519f(e)) < 10 &&
+                        abs32(*(int32_t *)(e + 0xc3) - (int32_t)fn_0151d5(e)) < 5) {
+                        *(int32_t *)(e + 0xbf) = (uint32_t)keep_x;   /* too close: keep the old spot */
+                        *(int32_t *)(e + 0xc3) = (uint32_t)keep_y;
+                    } else {
+                        *(int32_t *)(e + 0xc7) = 0;
+                    }
+                    /* LAB 0x01a3d9: unlike fn_018e88 the screen clamp runs AFTER the distance test,
+                     * so an out-of-screen spot is compared unclamped. */
+                    if (*(int32_t *)(e + 0xbf) < 0) {
+                        *(int32_t *)(e + 0xbf) = 0x14;
+                    } else if (*(int32_t *)(e + 0xbf) > 0x13f) {
+                        *(int32_t *)(e + 0xbf) = 0x12c;
                     }
                 }
                 /* LAB 0x019392: clamp the chosen spot into the current room band */

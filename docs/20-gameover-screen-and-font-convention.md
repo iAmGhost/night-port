@@ -51,3 +51,24 @@ so the glyph table is indexed from `'0'` at index 0 (`- 0xc0`, not `- 0x40`), an
 addresses. An earlier pass of the port had widened those two cells to 8-byte host pointers at `+0x34` /
 `+0x3c`, which no production loader could satisfy; that is now corrected, and `test_fn_038445` proves
 the whole chain (a real `number3.spr` two-pass load feeding a real digit blit) works.
+
+## Follow-up: the same convention in fn_038b30, fn_038c23 and fn_0137c1
+
+Porting `fn_038f3d` (the level-up screen) forced the issue, because it renders numbers with
+`fn_038b30` / `fn_038c23` using `number1.spr` / `number2.spr` structs produced by `fn_03d8d4`.
+Reading the machine code:
+
+| function | glyph index | cells |
+|---|---|---|
+| `fn_0383a4` | `[char_table + d*4 - 0xc0]` (0x0003840b-0x00038419) | `font+0x34`, `font+0x38` dwords |
+| `fn_038b30` | `[char_table + d*4 - 0xc0]` (0x00038be6-0x00038bf4) | same |
+| `fn_038c23` | `[char_table + d*4 - 0xc0]` (0x00038c9f-0x00038cad) | same |
+| `fn_0137c1` | `[char_table + d*4 - 0xbc]` (0x00013884-0x00013891) | same |
+
+An earlier pass had widened those two dwords into 64-bit host pointers at `+0x34` / `+0x3c` and used
+`-0x40` / `-0x3c` indices, which no `fn_03d9cf`-produced struct can satisfy (it stores heap offsets in
+`s[13]` / `s[14]`). All four now resolve the two cells through `g_heap_base`.
+
+Quirk worth knowing: with the `-0xc0` form, `char_table[0]` is BOTH the blank pad glyph of `fn_038b30`
+and the digit `'0'`; with `-0xbc`, `char_table[1]` is BOTH the blank pad of `fn_0137c1` and the digit
+`'1'`. That is what the original does, and the tests now say so.

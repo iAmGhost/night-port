@@ -6985,7 +6985,7 @@ static void test_fn_03d67c(void) {
     A[3]=2; A[4]=2; A[5]=2;
     A[6]=3; A[7]=3; A[8]=3;
     A[9]=4; A[10]=4; A[11]=4;
-    fn_03d67c(a0, 1, 3);   /* move element 3 to index 1 */
+    fn_03d67c((uint8_t *)g_heap_base + a0, 1, 3);   /* move element 3 to index 1 */
     check(A[0]==1 && A[1]==1 && A[2]==1, "03d67c e0 unchanged {1,1,1}");
     check(A[3]==4 && A[4]==4 && A[5]==4, "03d67c e1 = moved {4,4,4}");
     check(A[6]==2 && A[7]==2 && A[8]==2, "03d67c e2 = old e1 {2,2,2}");
@@ -7008,8 +7008,8 @@ static void test_fn_03d606(void) {
     uint32_t eo = heap_arena_alloc(0x10);
     uint8_t *E = (uint8_t *)(g_heap_base + eo);
     for (int e = 0; e < 3; e++) for (int b = 0; b < 3; b++) E[e * 3 + b] = e + 1;
-    fn_03d67c(eo, P[0], P[1]);
-    fn_03d67c(eo, P[2], P[3]);
+    fn_03d67c((uint8_t *)g_heap_base + eo, P[0], P[1]);
+    fn_03d67c((uint8_t *)g_heap_base + eo, P[2], P[3]);
     fn_03d606(a0);
     int ok = 1;
     for (int i = 0; i < 9; i++) if (S[0x48 + i] != E[i]) ok = 0;
@@ -11735,14 +11735,18 @@ static void test_fn_03a5f7(void) {
 static void test_fn_038c23(void) {
     printf("fn_038c23 (0x038c23): render 0..99 as 2 digit glyphs (font-table + RLE blit)\n");
     uint8_t *scr = g_video_ram;
-    static uint32_t char_map[256];          /* char_map[ascii] = glyph RLE offset */
-    static uint8_t  rle_buf[10 * 28];       /* 10 glyphs x 7 rows x 4 bytes */
     static uint8_t  font[0x44];
+    uint32_t cm_off = heap_arena_alloc(sizeof(uint32_t) * 256);   /* the font struct's cells are heap */
+    uint32_t rb_off = heap_arena_alloc(10 * 28);                  /* offsets, so both tables live there */
+    uint32_t *char_map = (uint32_t *)((uint8_t *)g_heap_base + cm_off);
+    uint8_t  *rle_buf  = (uint8_t *)g_heap_base + rb_off;
+    memset(char_map, 0, sizeof(uint32_t) * 256); memset(rle_buf, 0, 10 * 28);
     for (uint32_t c = '0'; c <= '9'; c++) char_map[c] = (c - '0') * 28;
     for (int d = 0; d < 10; d++)            /* each glyph: 7 rows of [1,0,1,X_d] */
         for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
-    *(uint64_t *)(font + 0x34) = (uint64_t)(uintptr_t)(char_map + 16);   /* font+0x34 = char_table (8B); +16 elem = 0x40 bytes so (ct-0x40)=char_map */
-    *(uint64_t *)(font + 0x3c) = (uint64_t)(uintptr_t)rle_buf;            /* font+0x3c = rle_base (8B, orig 0x38) */
+    memset(font, 0, sizeof font);
+    *(uint32_t *)(font + 0x34) = cm_off + 0x30u * 4u;   /* char_table: [ct + d*4 - 0xc0] == char_map[d] */
+    *(uint32_t *)(font + 0x38) = rb_off;                /* rle_base (orig +0x38, a dword heap offset) */
     uint32_t base = 0xa0000u;
     int col0 = 100, row = 5;
 
@@ -12020,16 +12024,21 @@ static void test_fn_03b718(void) {
 static void test_fn_038b30(void) {
     printf("fn_038b30 (0x038b30): render integer as 5-glyph right-justified field (pad + digits)\n");
     uint8_t *scr = g_video_ram;
-    static uint32_t char_map[256];          /* char_map[ascii] = glyph RLE offset */
-    static uint8_t  rle_buf[11 * 28];       /* 10 digit glyphs + 1 pad glyph */
     static uint8_t  font[0x44];
+    uint32_t cm_off = heap_arena_alloc(sizeof(uint32_t) * 256);
+    uint32_t rb_off = heap_arena_alloc(11 * 28);
+    uint32_t *char_map = (uint32_t *)((uint8_t *)g_heap_base + cm_off);
+    uint8_t  *rle_buf  = (uint8_t *)g_heap_base + rb_off;
+    memset(char_map, 0, sizeof(uint32_t) * 256); memset(rle_buf, 0, 11 * 28);
     for (uint32_t c = '0'; c <= '9'; c++) char_map[c] = (c - '0') * 28;
     for (int d = 0; d < 10; d++)            /* digit glyph d: 7 rows of [1,0,1,X_d] */
         for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
     for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + 10*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=0xb0; } /* pad glyph = 0xb0 */
-    char_map[16] = 10 * 28;                 /* pad glyph (char_table[0]) -> 0xb0 */
-    *(uint64_t *)(font + 0x34) = (uint64_t)(uintptr_t)(char_map + 16);   /* char_table; +16 elem = 0x40 bytes so (ct-0x40)=char_map */
-    *(uint64_t *)(font + 0x3c) = (uint64_t)(uintptr_t)rle_buf;            /* rle_base (orig +0x38) */
+    char_map['0'] = 10 * 28;                /* the blank pad reads char_table[0] -- the SAME element as
+                                             * digit '0' (0x00038b9d vs 0x00038bf4): original quirk */
+    memset(font, 0, sizeof font);
+    *(uint32_t *)(font + 0x34) = cm_off + 0x30u * 4u;   /* char_table == char_map + '0' */
+    *(uint32_t *)(font + 0x38) = rb_off;
     uint32_t base = 0xa0000u;
     int col0 = 100, row = 5;                /* field slot k (0..4) occupies cols col0+k*7 .. +6; byte at col0+k*7 */
 
@@ -12063,25 +12072,30 @@ static void test_fn_038b30(void) {
     int ok3 = 1;
     for (int r = 0; r < 7; r++) {
         for (int k = 0; k < 4; k++) if (scr[(row+r)*0x140 + (100 + k*7)] != 0xb0) ok3 = 0;
-        if (scr[(row+r)*0x140 + 128] != 0xa0) ok3 = 0;
+        if (scr[(row+r)*0x140 + 128] != 0xb0) ok3 = 0;   /* digit '0' shares char_table[0] with the pad */
     }
-    check(ok3, "  T3 0: 4 blanks(0xb0)@100..121 + '0'@128(0xa0) => edge number=0");
+    check(ok3, "  T3 0: 4 blanks(0xb0)@100..121 + '0'@128 also 0xb0 (pad and digit '0' read one cell)");
 }
 
 static void test_fn_0137c1(void) {
     printf("fn_0137c1 (0x0137c1): HUD countdown number display (global font 0x63e04 + tick 0x63360)\n");
     uint8_t *scr = g_video_ram;
-    static uint32_t char_map[256];
-    static uint8_t  rle_buf[11 * 28];
     static uint8_t  font[0x44];
-    /* digit ascii c -> char_map[1+c] = (c-'0')*28 (port reads char_table-0x3c+c*4 = char_map[1+c]); blank -> char_map[17] = 10*28 (0xb0) */
+    uint32_t cm_off = heap_arena_alloc(sizeof(uint32_t) * 256);
+    uint32_t rb_off = heap_arena_alloc(11 * 28);
+    uint32_t *char_map = (uint32_t *)((uint8_t *)g_heap_base + cm_off);
+    uint8_t  *rle_buf  = (uint8_t *)g_heap_base + rb_off;
+    memset(char_map, 0, sizeof(uint32_t) * 256); memset(rle_buf, 0, 11 * 28);
+    /* digit ascii c -> char_map[1+c] (the port reads [char_table + c*4 - 0xbc] = char_map[c+1]); the
+     * blank pad reads char_table[1] == char_map['1'], the same element as digit '1' (verified quirk) */
     for (uint32_t c = '0'; c <= '9'; c++) char_map[1 + c] = (c - '0') * 28;
     for (int d = 0; d < 10; d++)
         for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
     for (int r = 0; r < 7; r++) { uint8_t *p = rle_buf + 10*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=0xb0; }
-    char_map[17] = 10 * 28;
-    *(uint64_t *)(font + 0x34) = (uint64_t)(uintptr_t)(char_map + 16);   /* char_table (byte +0x40) */
-    *(uint64_t *)(font + 0x3c) = (uint64_t)(uintptr_t)rle_buf;           /* rle_base */
+    char_map['1'] = 10 * 28;                /* blank = char_table[1] == digit '1' (original quirk) */
+    memset(font, 0, sizeof font);
+    *(uint32_t *)(font + 0x34) = cm_off + 0x30u * 4u;   /* char_table == char_map + '0' */
+    *(uint32_t *)(font + 0x38) = rb_off;
     g_dat_63e04 = font;
     uint32_t base = 0xa0000u;
     static uint8_t ent[0x60];
@@ -12135,6 +12149,155 @@ static void test_fn_0137c1(void) {
     g_dat_63360 = save_tick;               /* restore tick for later tests */
 }
 
+
+
+
+/* ---- 0x038f3d: the level-up / status screen ---- */
+static void test_fn_038f3d(void)
+{
+    printf("fn_038f3d (0x038f3d, level-up / status screen)\n");
+    uint8_t *s_pc = g_dat_53c7c;
+    uint32_t s_100 = g_dat_53100, s_3a4 = g_dat_633a4, s_ec3 = g_dat_63ec3, s_e89 = g_dat_63e89;
+    uint8_t s_ea4 = g_dat_63ea4, s_eb2 = g_dat_63eb2, s_ebe = g_dat_63ebe, s_ec1 = g_dat_63ec1;
+    uint8_t s_ea5 = g_dat_63ea5, s_ec0 = g_dat_63ec0, s_ed0 = g_dat_63ed0, s_ed8 = g_dat_63ed8;
+    uint8_t s_ed3 = g_dat_63ed3, s_ed5 = g_dat_63ed5;
+    uint32_t s_e38 = g_dat_63e38; int32_t s_c48 = g_dat_53c48;
+    res_reader *s_rd = g_639b8; uint32_t s_3a0 = g_dat_633a0;
+    uint32_t s_a98 = (uint32_t)(uintptr_t)g_dat_62a98, s_a9c = (uint32_t)(uintptr_t)g_dat_62a9c;
+    uint32_t s_818 = g_dat_53818[0];
+    uint32_t cost_save[30]; memcpy(cost_save, g_dat_53c94, sizeof cost_save);
+
+    heap_arena_init();
+    heap_arena_cap_set(0x400000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;
+    g_dat_531f4 = 0x10000; g_dat_63e64 = 0x280;
+
+    /* the player block: 0x147 bytes, exp pending folded in on entry */
+    uint32_t p_off = heap_malloc(0x147);
+    uint8_t *P = hb + p_off;
+    memset(P, 0, 0x147);
+    g_dat_53c7c = P;
+    *(uint32_t *)(P + 0x2b) = 5000;                        /* experience total */
+    *(uint32_t *)(P + 0x52) = 300;                         /* experience pending */
+    P[0x27] = 0; P[0x28] = 1; P[0x26] = 0; P[0x25] = 0;
+    *(uint16_t *)(P + 0x23) = 0x1234;
+
+    for (int i = 0; i < 30; i++) g_dat_53c94[i] = 0;
+    g_dat_53c94[0 * 5 + 0] = 300;                          /* row 0, column 0 costs 300 */
+    g_dat_53c94[5 + 1] = 1000;                             /* row 0, column 1 */
+    g_tab_52738[1] = 0x1234;                               /* the ship table the row-1 refund tests */
+    g_dat_53100 = 3;
+    g_dat_53c48 = 0x7fffffff;                              /* never re-seek the CD track */
+
+    /* one resource stream: three 26-record spr blocks (two passes each), then levelup2.pcx, help1.pcx */
+    const uint32_t recs = 26, glen = 28;
+    uint32_t spr = 4 + recs * (0x30 + 4 + glen) + recs * (0x30 + 4 + glen);
+    const uint32_t pcx = 0x300 + 2 * 1008;
+    uint32_t total = 3 * spr + 2 * pcx;
+    uint32_t data_off = heap_arena_alloc(total + 8);
+    uint8_t *d = hb + data_off;
+    memset(d, 0, total);
+    uint32_t q = 0;
+    for (int b = 0; b < 3; b++) {
+        *(uint32_t *)(d + q) = recs; q += 4;
+        for (uint32_t i = 0; i < recs; i++) {              /* pass 1: header + length + payload */
+            *(uint32_t *)(d + q + 0x30) = glen;
+            for (uint32_t k = 0; k < glen; k++) d[q + 0x34 + k] = 0x5a;
+            q += 0x30 + 4 + glen;
+        }
+        for (uint32_t i = 0; i < recs; i++) {              /* pass 2: 12 header dwords + length + glyph RLE */
+            for (uint32_t k = 0; k < 12; k++) *(uint32_t *)(d + q + k * 4) = 0;
+            *(uint32_t *)(d + q + 0x30) = glen;
+            for (uint32_t r = 0; r < 7; r++) {
+                uint8_t *p = d + q + 0x34 + r * 4;
+                p[0] = 1; p[1] = 0; p[2] = 1; p[3] = (uint8_t)(0xa0 + (i & 0x1f));
+            }
+            q += 0x30 + 4 + glen;
+        }
+    }
+    const uint8_t fill[2] = { 0x62, 0x68 };                /* levelup2.pcx, help1.pcx */
+    for (int p = 0; p < 2; p++) {
+        for (uint32_t i = 0; i < 0x300; i++) d[q++] = (uint8_t)((i * 4) & 0xff);
+        uint32_t left = 0xfa00;
+        while (left) {
+            uint32_t c = left > 63 ? 63 : left;
+            d[q++] = (uint8_t)(0xc0 | c); d[q++] = fill[p];
+            left -= c;
+        }
+    }
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    memset(node, 0, 0x20);
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = total;
+    *(uint32_t *)(node + 8) = data_off + total; node[0xc] = 0x41;
+    g_639b8 = (res_reader *)node;
+    g_dat_53dd8 = g_dat_53ddc = g_dat_53de0 = g_dat_53de4 = 0;
+
+    uint8_t dac[0x400]; g_dat_63354 = dac;
+    memset(g_video_ram, 0, 0x10000);
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    g_dat_633b0 = SCREEN_BASE;
+    sys_ports_reset();
+
+    /* ---- scenario A: the loop is left at once, so only the set-up and the teardown run ---- */
+    g_dat_63ec3 = 0; g_dat_633a4 = 0;                      /* help1.pcx is shown first, then latched */
+    sys_key_script_clear();
+    sys_key_script_add(1, &g_dat_63e89, 1);                /* leave the frame loop after one frame */
+    sys_key_script_add(2, &g_dat_63e89, 0);                /* ... and clear it for the release drain */
+    g_dat_63e89 = 0; g_dat_63eb2 = g_dat_63ebe = 0;
+    g_dat_63ea4 = g_dat_63ec1 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    g_dat_63ed0 = g_dat_63ed8 = g_dat_63ed3 = g_dat_63ed5 = 0;
+
+    fn_038f3d(1);
+
+    check(*(uint32_t *)(P + 0x2b) == 5300 && *(uint32_t *)(P + 0x52) == 0,
+          "038f3d folds the pending experience into the total (5000 + 300) and clears the accumulator");
+    check(g_dat_633a4 == 1,
+          "038f3d shows help1.pcx once and latches DAT_000633a4, so a later visit fades in directly");
+    {   /* the frame composite: the loaded picture lands in DAT_000633b0 and is pushed to A0000 */
+        int nonblank = 0;
+        for (uint32_t o = 0; o < 0xfa00; o += 0x37) if (g_video_ram[o] != 0) { nonblank = 1; break; }
+        check(nonblank,
+              "038f3d ran a frame composite (the video window was zeroed before the call and is non-blank after)");
+    }
+    check(*(const uint32_t *)(node + 4) == 0,
+          "038f3d consumed levelup.spr + number1.spr + number2.spr (two passes each) + levelup2.pcx + help1.pcx");
+    check(P[0x27] == 0 && P[0x28] == 1 && P[0x26] == 0 && P[0x25] == 0,
+          "038f3d writes the four selection bytes back unchanged when no key was held (rows stay as loaded)");
+
+    /* ---- scenario B: one frame with the confirm key held, then the loop is left ---- */
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = total;
+    *(uint32_t *)(node + 8) = data_off + total;
+    g_dat_63e89 = 0; g_dat_63eb2 = g_dat_63ebe = 0;
+    g_dat_633a4 = 1;                                       /* now the picture fades in without help1 */
+    *(uint32_t *)(P + 0x2b) = 5000; *(uint32_t *)(P + 0x52) = 0;
+    P[0x27] = 0;
+    sys_key_script_clear();
+    sys_key_script_add(1, &g_dat_63ea4, 1);                /* confirm held */
+    sys_key_script_add(2, &g_dat_63ea4, 0);                /* ... released (the drain needs this) */
+    sys_key_script_add(3, &g_dat_63e89, 1);                /* leave the frame loop */
+    sys_key_script_add(4, &g_dat_63e89, 0);                /* ... and clear it for the release drain */
+
+    fn_038f3d(1);
+
+    check(P[0x27] == 1,
+          "038f3d advances row 0 (DAT_00063ea4 confirm) and commits the selection to player[+0x27]");
+    check(*(uint32_t *)(P + 0x2b) == 5000 - 300,
+          "038f3d spends the row-0/column-0 cost from the exptab table DAT_00053c94 (5000 - 300)");
+
+    for (int i = 0; i < 30; i++) g_dat_53c94[i] = cost_save[i];
+    g_dat_53c7c = s_pc; g_dat_53100 = s_100; g_dat_633a4 = (uint8_t)s_3a4;
+    g_dat_63ec3 = (uint8_t)s_ec3; g_dat_63e89 = (uint8_t)s_e89;
+    g_dat_63ea4 = s_ea4; g_dat_63eb2 = s_eb2; g_dat_63ebe = s_ebe; g_dat_63ec1 = s_ec1;
+    g_dat_63ea5 = s_ea5; g_dat_63ec0 = s_ec0; g_dat_63ed0 = s_ed0; g_dat_63ed8 = s_ed8;
+    g_dat_63ed3 = s_ed3; g_dat_63ed5 = s_ed5; g_dat_63e38 = s_e38; g_dat_53c48 = s_c48;
+    g_639b8 = s_rd; g_dat_633a0 = s_3a0;
+    g_dat_62a98 = (uint8_t *)(uintptr_t)s_a98; g_dat_62a9c = (uint8_t *)(uintptr_t)s_a9c;
+    g_dat_53818[0] = s_818;
+    sys_ports_reset();
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
 
 /* ---- 0x038445: the game-over / CONTINUE screen loop ---- */
 static void test_fn_038445(void)
@@ -15470,21 +15633,19 @@ static void test_fn_03801b(void) {
     g_dat_63354 = room; g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_639dc = 0;
     g_dat_53c70 = NULL; g_dat_53c68 = 0; g_dat_62a90 = 0; g_dat_63360 = 3;
 
-    /* countdown font (DAT_63e04): the port keeps its two table pointers widened at +0x34 / +0x3c */
+    /* countdown font (DAT_63e04): +0x34 / +0x38 are heap offsets (fn_03d9cf's convention) */
     uint8_t *font = (uint8_t *)calloc(1, 0x40);
-    static uint8_t glyphs[64];                 /* one glyph stream reused by every cell */
-    for (int r = 0; r < 7; r++) { glyphs[r * 4] = 1; glyphs[r * 4 + 1] = 0; glyphs[r * 4 + 2] = 1;
-                                   glyphs[r * 4 + 3] = 0xee; }
-    static uint8_t chartab[0x100];
-    *(uint32_t *)(chartab + 0x04) = 0;         /* blank glyph  */
-    *(uint32_t *)(chartab + 0x84) = 0;         /* '0' glyph    */
-    *(uintptr_t *)(font + 0x34) = (uintptr_t)chartab;
-    *(uintptr_t *)(font + 0x3c) = (uintptr_t)glyphs;
     g_dat_63e04 = font;
 
     /* face.spr / gage.spr structs for the gauge panel (one record each, all heap offsets) */
     heap_arena_init();
     uint8_t *hb = (uint8_t *)g_heap_base;
+    {   uint32_t g38o = heap_malloc(64), g34o = heap_malloc(0x100);
+        uint8_t *gly = hb + g38o, *cht = hb + g34o;
+        for (int r = 0; r < 7; r++) { gly[r*4] = 1; gly[r*4+1] = 0; gly[r*4+2] = 1; gly[r*4+3] = 0xee; }
+        *(uint32_t *)(font + 0x34) = g34o + 0x30u * 4u;   /* char_table == chartab + '0' */
+        *(uint32_t *)(font + 0x38) = g38o;
+    }
     uint32_t f_hdr = heap_malloc(0x3c), g_hdr = heap_malloc(0x3c);
     uint32_t *Fh = (uint32_t *)(hb + f_hdr), *Gh = (uint32_t *)(hb + g_hdr);
     uint32_t fc = heap_malloc(4), fr = heap_malloc(4), fo = heap_malloc(4), fl = heap_malloc(16);
@@ -15909,6 +16070,7 @@ int main(void) {
     test_fn_038c23();
     test_fn_038b30();
     test_fn_0137c1();
+    test_fn_038f3d();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

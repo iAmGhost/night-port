@@ -193,7 +193,7 @@ void     fn_03ee0a(void);                          /* 0x03ee0a: destroy prev-lis
 uint32_t fn_03e0a0(uint32_t node_off, uint8_t *io_node);  /* 0x03e0a0: build+append doubly-linked node (offset model); node[0]=fn_041c8f, node[1..80]=fn_04192e; return node_off */
 uint32_t fn_01435f(uint32_t a0, uint8_t a1, uint8_t a2);  /* 0x01435f: find first straddling interval i (0..5); return 0 iff a1==a0->0x17 && a2==i else 1 */
 void     fn_031f5f(uint32_t a0);     /* 0x031f5f: remove first array element (shift left by one), save slot0 to a0->0x17, set g_dat_63364/63368 from P2[a0->0x17] */
-void     fn_03d67c(uint32_t a0, uint32_t a1, uint32_t a2);  /* 0x03d67c: move element a2 to index a1 of a 3-byte-stride array (shift [a1,a2-1] right) */
+void     fn_03d67c(uint8_t *a0, uint32_t a1, uint32_t a2);   /* a0 = HOST pointer (callers holding a heap offset add g_heap_base) */  /* 0x03d67c: move element a2 to index a1 of a 3-byte-stride array (shift [a1,a2-1] right) */
 void     fn_03d606(uint32_t a0);  /* 0x03d606: loop i< a0->0x3c: fn_03d67c(a0+0x48, pairs[i*2], pairs[i*2+1]) (pairs at heap-off a0->0x44) */
 int32_t  fn_017218(uint8_t *a, int32_t a1, int32_t *o1, int32_t *o2);  /* 0x017218: set *o1/*o2 to a sign-combo of a1 by idx=a->0xbb (0..3); then a->0xab-- (ret 1 if it was <0). Args are host pointers: the caller (0x017f13) passes the addresses of its own stack locals */
 int32_t  fn_034f31(uint32_t a0, uint32_t a1, uint32_t a2);  /* 0x034f31: MIDI RIFF deserializer (MThd header + N MTrk tracks) -> a2 struct; a0/a1/a2 heap offsets */
@@ -1121,6 +1121,12 @@ extern uint32_t *g_dat_63e08;  /* DAT_00063e08: "over.spr" struct (fn_03d8d4) */
 extern uint32_t *g_dat_63e0c;  /* DAT_00063e0c: "pause.spr" struct (fn_03d8d4) */
 extern uint8_t *g_dat_53e24[10];   /* DAT_00053e24..0x53e48: ten device-command-stream cursors picked by entity type (fn_0113e7); BSS, no writer in the analyzed set yet */
 extern uint8_t *g_dat_53d0c[100]; /* DAT_00053d0c: 100 sound-slot buffers ("1.voc".."100.voc") */
+extern uint8_t  g_dat_63ec3;   /* DAT_00063ec3: level-up screen "help pages showing" mode byte */
+extern uint8_t  g_dat_633a4;   /* DAT_000633a4: level-up screen "help already shown" flag */
+extern uint8_t *g_dat_53de0;   /* DAT_00053de0: "selection committed" command-cursor record */
+extern uint8_t *g_dat_53de4;   /* DAT_00053de4: "screen entered" command-cursor record */
+void fn_038f3d(int32_t variant);   /* 0x038f3d: THE LEVEL-UP / STATUS SCREEN (6 rows, exp spending,
+                                      help pages, DAT_00053c94 cost table, parallax-free composite) */
 extern uint32_t  g_dat_53c94[30];  /* DAT_00053c94: 6x5 experience table from exptab.dat */
 uint32_t fn_03690b(void);          /* 0x03690b: master data loader (NIGHT.RES -> all runtime tables) */
 extern uint32_t *g_dat_639c0;  /* 0x639c0: struct host-ptr (destructed by fn_03d999) */

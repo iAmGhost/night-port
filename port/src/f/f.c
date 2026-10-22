@@ -1701,9 +1701,11 @@ void fn_031f5f(uint32_t a0) {
  * i = a2-1 down to a1: element[i+1] = element[i] (right-shift, high->low so the source
  * is read before the dest is overwritten), then element[a1] = the saved element.
  * a0 is a heap offset (base at g_heap_base + a0); a1 < a2. */
-void fn_03d67c(uint32_t a0, uint32_t a1, uint32_t a2) {
+void fn_03d67c(uint8_t *a, uint32_t a1, uint32_t a2) {
     (void)canary_id(0, 0x30);
-    uint8_t *a = (uint8_t *)g_heap_base + a0;
+    /* The original passes a flat segment address; this port passes the resolved HOST pointer, so a
+     * caller holding a heap offset adds g_heap_base itself (cf. fn_03d606) and a caller naming a DS
+     * static palette table (DAT_000636b8 / DAT_000633b8) passes the array directly. */
     uint8_t b0 = a[a2 * 3 + 0];   /* save element[a2] */
     uint8_t b1 = a[a2 * 3 + 1];
     uint8_t b2 = a[a2 * 3 + 2];
@@ -1730,7 +1732,7 @@ void fn_03d606(uint32_t a0) {
     for (int32_t i = 0; i < count; i++) {
         uint32_t a1 = pairs[i * 2 + 0];                         /* 0x3d65e: EDX = a1 */
         uint32_t a2 = pairs[i * 2 + 1];                         /* 0x3d648: EBX = a2 */
-        fn_03d67c(a0 + 0x48, a1, a2);                           /* 0x3d66c */
+        fn_03d67c((uint8_t *)g_heap_base + a0 + 0x48, a1, a2);   /* 0x3d66c (a0 is a heap offset) */
     }
 }
 /* 0x017218: set the sign of an output value pair by a 2-bit index. Args: a0 (heap
@@ -12491,26 +12493,25 @@ void fn_03a5f7(const uint8_t *base) {
  *   itoa32s(number, buf, 10);
  *   if (number < 10) { buf[1]='0'; buf[2]=0; }                 // pad single digit -> "d0"
  *   else { buf[2]=buf[0]; buf[0]=buf[1]; buf[1]=buf[2]; }       // 3-elem rotate (draw order)
- *   char_table = *(font+0x34); rle_base = *(font+0x38);          // host pointers (port model)
+ *   char_table = *(font+0x34); rle_base = *(font+0x38);   // heap OFFSETS in this port (fn_03d9cf)
  *   for (i = 1; i >= 0; i--) {                                  // draw buf[1] then buf[0]
  *     digit = buf[i];
- *     glyph_off = *(uint32*)(char_table - 0x40 + digit*4);
+ *     glyph_off = char_table[digit - 0x30];                     // [char_table + d*4 - 0xc0] (0x00038ca2-cad)
  *     rle = rle_base + glyph_off;
  *     fn_03bb42(base, (1-i)*7 + col0, start_row, col=6, rows=7, rle, mode=0);
- *   }
- * font[0x34]/[0x38] are modeled as 64-bit host pointers (like the viewport ent[] ptr fields). */
+ *   } */
 void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number) {
     (void)canary_id(0, 0x3c);                                     /* PUSH 0x3c;CALL 0x418ee */
     char buf[16];
     itoa32s(number, buf, 10);                                     /* 0x038c4f */
     if (number < 10) { buf[1] = 0x30; buf[2] = 0; }               /* 0x038c5a/5e (pad) */
     else { buf[2] = buf[0]; buf[0] = buf[1]; buf[1] = buf[2]; }   /* 0x038c64-73 (rotate: uses updated buf[2]) */
-    uintptr_t char_table = *(uintptr_t *)(font + 0x34);
-    uintptr_t rle_base   = *(uintptr_t *)(font + 0x3c);   /* orig +0x38, widened to 0x3c (8-byte ptr) */
-    for (int i = 1; i >= 0; i--) {                                /* 0x038c76..cd4 */
-        uint32_t digit = (uint32_t)(uint8_t)buf[i];               /* 0x038c91: AL=buf[i];AND 0xff */
-        uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + digit * 4); /* 0x038ca2-cad */
-        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+    const uint32_t *char_table = (const uint32_t *)((uint8_t *)g_heap_base + *(const uint32_t *)(font + 0x34));
+    const uint8_t *rle_base = (const uint8_t *)g_heap_base + *(const uint32_t *)(font + 0x38);
+    for (int i = 1; i >= 0; i--) {                                /* 0x00038c76-cd4 */
+        uint32_t digit = (uint32_t)(uint8_t)buf[i];               /* 0x00038c91: AL=buf[i];AND 0xff */
+        uint32_t glyph_off = char_table[digit - 0x30];            /* 0x00038c9f-cad */
+        const uint8_t *rle = rle_base + glyph_off;
         fn_03bb42(base, (1 - i) * 7 + col0, start_row, 6, 7, rle, 0);
     }
 }
@@ -12524,25 +12525,26 @@ void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
  *   for (i<len) fn_03bb42(base, (i+pad)*6+0x41, 0x14, 5, 7, rle_base+*(char_table-0x3c+buf[i]*4), 0);
  *   if (entity[0x52]!=0 && DAT_00063360 even) { entity[0x2b]++; entity[0x52]--; }   // tick-gated (every 2 frames)
  *   if (entity[0x56]!=0) { *(int16*)(entity+0x23)++; entity[0x56]--; }               // per-frame
- * font[0x34]/[0x38] widened to 8B host ptrs at 0x34/0x3c (pointer-width adaptation, cf. 0x038b30).
- * NOTE: glyph offsets differ from 0x038b30 -- blank=char_table[1] (+4), digit=char_table-0x3c+d*4
- * (one element earlier); slots are 6 cols wide at col 0x41 (vs 7 cols from col0). */
+ * font[0x34]/[0x38] are heap OFFSETS resolved through g_heap_base (as fn_03d9cf leaves them).
+ * NOTE: glyph offsets differ from 0x038b30 -- blank=char_table[1] (+4, verified 0x00013833), digit =
+ * char_table[d*4 - 0xbc] i.e. index d-0x2f, so digit '0' and the blank pad read the SAME element
+ * (original quirk, kept); slots are 6 cols wide at col 0x41 (vs 7 cols from col0). */
 void fn_0137c1(uint8_t *entity, uint32_t base) {
     (void)canary_id(0, 0x44);                                     /* PUSH 0x44;CALL 0x418ee */
     char buf[16];
     itoa32s(*(int32_t *)(entity + 0x2b), buf, 10);                /* 0x0137e6-ec */
     int len = str_len(buf);                                       /* 0x0137f1-79 */
     int pad = 5 - len;                                            /* 0x0137fc-04 */
-    uintptr_t char_table = *(uintptr_t *)(g_dat_63e04 + 0x34);
-    uintptr_t rle_base   = *(uintptr_t *)(g_dat_63e04 + 0x3c);    /* orig +0x38, widened to 0x3c */
-    for (int i = 0; i < pad; i++) {                               /* 0x013807-52 (blank glyphs) */
-        uint32_t glyph_off = *(uint32_t *)(char_table + 4);       /* blank = char_table[1] */
-        fn_03bb42(base, i * 6 + 0x41, 0x14, 5, 7, (const uint8_t *)(rle_base + glyph_off), 0);
+    const uint32_t *char_table = (const uint32_t *)((uint8_t *)g_heap_base + *(const uint32_t *)(g_dat_63e04 + 0x34));
+    const uint8_t *rle_base = (const uint8_t *)g_heap_base + *(const uint32_t *)(g_dat_63e04 + 0x38);
+    for (int i = 0; i < pad; i++) {                               /* 0x00013807-52 (blank glyphs) */
+        uint32_t glyph_off = char_table[1];                       /* 0x00013833: blank = [char_table + 4] */
+        fn_03bb42(base, i * 6 + 0x41, 0x14, 5, 7, rle_base + glyph_off, 0);
     }
     for (int i = 0; i < len; i++) {                               /* 0x013854-ba (digit glyphs) */
         uint32_t d = (uint32_t)(uint8_t)buf[i];
-        uint32_t glyph_off = *(uint32_t *)(char_table - 0x3c + d * 4); /* char_map[d+1] under test model */
-        fn_03bb42(base, (i + pad) * 6 + 0x41, 0x14, 5, 7, (const uint8_t *)(rle_base + glyph_off), 0);
+        uint32_t glyph_off = char_table[d - 0x2f];                /* 0x00013884-91: [ct + d*4 - 0xbc] */
+        fn_03bb42(base, (i + pad) * 6 + 0x41, 0x14, 5, 7, rle_base + glyph_off, 0);
     }
     if (*(int32_t *)(entity + 0x52) != 0 && (int32_t)g_dat_63360 % 2 == 0) {  /* 0x0138ba-dc (even tick) */
         *(int32_t *)(entity + 0x2b) = *(int32_t *)(entity + 0x2b) + 1;
@@ -12811,30 +12813,33 @@ void fn_03d4e4(uint8_t *room) {
  * ABI (raw disasm; fn_03bb42 blit convention EAX=base/EDX=dest_off/EBX=start_row/ECX=col;
  * this fn's own regs: EAX=base,EDX=font,EBX=col0,ECX=start_row,[stk]=number):
  *   itoa32s(number, buf, 10); len = str_len(buf); pad = 5 - len;
- *   char_table = *(font+0x34); rle_base = *(font+0x38);          // host pointers (port model)
+ *   char_table = *(font+0x34); rle_base = *(font+0x38);   // FLAT addrs in the original == heap
+ *                                                        // OFFSETS in this port (fn_03d9cf fills them)
  *   for (i = 0; i < pad; i++)            // blank glyphs (glyph at char_table[0])
- *     fn_03bb42(base, i*7 + col0, start_row, col=6, rows=7, rle_base + *char_table, mode=0);
+ *     fn_03bb42(base, i*7 + col0, start_row, col=6, rows=7, rle_base + char_table[0], mode=0);
  *   for (i = 0; i < len; i++)            // digits, right-justified from column (5-len)
  *     fn_03bb42(base, (i+pad)*7 + col0, start_row, 6, 7,
- *               rle_base + *(char_table - 0x40 + buf[i]*4), 0);
- * font[0x34]/[0x38] modeled as 64-bit host pointers (rle_base widened to +0x3c). */
+ *               rle_base + char_table[buf[i] - 0x30], 0);
+ * FIDELITY (verified at 0x00038be6-0x00038bf4): the digit index is [char_table + d*4 - 0xc0], i.e.
+ * indexed from '0' at index 0 -- an earlier pass of this port had -0x40 and 64-bit pointer cells at
+ * +0x34/+0x3c, neither of which any fn_03d9cf-produced struct can satisfy. */
 void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number) {
     (void)canary_id(0, 0x44);                                     /* PUSH 0x44;CALL 0x418ee */
     char buf[16];
     itoa32s(number, buf, 10);                                     /* 0x038b51-5c */
     int len = str_len(buf);                                       /* 0x038b61-69 */
     int pad = 5 - len;                                            /* 0x038b6c-74 */
-    uintptr_t char_table = *(uintptr_t *)(font + 0x34);
-    uintptr_t rle_base   = *(uintptr_t *)(font + 0x3c);   /* orig +0x38, widened to 0x3c (8-byte ptr) */
+    const uint32_t *char_table = (const uint32_t *)((uint8_t *)g_heap_base + *(const uint32_t *)(font + 0x34));
+    const uint8_t *rle_base = (const uint8_t *)g_heap_base + *(const uint32_t *)(font + 0x38);
     for (int i = 0; i < pad; i++) {                               /* 0x038b80-bb9 (pad/blank glyphs) */
-        uint32_t glyph_off = *(uint32_t *)char_table;             /* 0x038b94-b9d: rle_base + *char_table */
-        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+        uint32_t glyph_off = char_table[0];                       /* 0x00038b91-9d: rle_base + [char_table] */
+        const uint8_t *rle = rle_base + glyph_off;
         fn_03bb42(base, i * 7 + col0, start_row, 6, 7, rle, 0);
     }
     for (int i = 0; i < len; i++) {                               /* 0x038bc4-c19 (digit glyphs) */
         uint32_t d = (uint32_t)(uint8_t)buf[i];                   /* 0x038bd5-bd8: AL=buf[i];AND 0xff */
-        uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + d * 4); /* 0x038be6-bf4 */
-        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+        uint32_t glyph_off = char_table[d - 0x30];          /* 0x00038be6-f4: [char_table + d*4 - 0xc0] */
+        const uint8_t *rle = rle_base + glyph_off;
         fn_03bb42(base, (i + pad) * 7 + col0, start_row, 6, 7, rle, 0);
     }
 }
@@ -13808,7 +13813,6 @@ void fn_038cde(void)
     int32_t up_ctr = 0, down_ctr = 0, frame = 0;                   /* [EBP-4], [EBP-0x10], [EBP-8] */
     int32_t page = 10;                                             /* [EBP-0xc] */
     uint8_t name[16];                                              /* [EBP-0x20] */
-    uint32_t tbl_off = (uint32_t)((uintptr_t)g_dat_636b8 - (uintptr_t)g_heap_base);
 
     fn_035f1b("help10.pcx", 0);                                    /* 0x38d12-19 */
     fn_040660(g_dat_636b8, 0x32);                                  /* 0x38d1e-28 */
@@ -13840,9 +13844,9 @@ void fn_038cde(void)
 
         fn_00035ec2();                                             /* 0x38e65 */
         if (frame % 3 == 0) {                                      /* 0x38e6a-7c IDIV 3 */
-            fn_03d67c(tbl_off, 0x40, 0x4f);                        /* 0x38e7e-8d */
-            fn_03d67c(tbl_off, 0x50, 0x5f);                        /* 0x38e92-a1 */
-            fn_03d67c(tbl_off, 0x60, 0x6f);                        /* 0x38ea6-b5 */
+            fn_03d67c(g_dat_636b8, 0x40, 0x4f);   /* DAT_000636b8 as a host pointer (was a bogus heap offset)                        /* 0x38e7e-8d */
+            fn_03d67c(g_dat_636b8, 0x50, 0x5f);   /* DAT_000636b8 as a host pointer (was a bogus heap offset)                        /* 0x38e92-a1 */
+            fn_03d67c(g_dat_636b8, 0x60, 0x6f);   /* DAT_000636b8 as a host pointer (was a bogus heap offset)                        /* 0x38ea6-b5 */
             board_out(0, 0xff, g_dat_636b8);                       /* 0x38eba-c9 (fn_040042) */
         }
         frame++;                                                   /* 0x38ed1-d4 */
@@ -23300,8 +23304,8 @@ blink_next:
         fn_00035ec2();                                                   /* 0x000387d8 */
 
         if (scroll % 3 == 0) {                                         /* 0x000387dd-0x0003882d: rotate two palette rows */
-            fn_03d67c((uint32_t)(uintptr_t)g_dat_633b8, 0x70, 0x7f);
-            fn_03d67c((uint32_t)(uintptr_t)g_dat_633b8, 0x40, 0x4f);
+            fn_03d67c(g_dat_633b8, 0x70, 0x7f);
+            fn_03d67c(g_dat_633b8, 0x40, 0x4f);
             board_out(0, 0xff, g_dat_633b8);
         }
         mem_copy(video_map(0xa0000), video_map(g_dat_633b0), 0xfa00);    /* 0x00038830-40: present */
@@ -23343,4 +23347,307 @@ slide:
         fn_00010dde();                                                 /* 0x000389f9 */
         return (toggle == 0) ? 2 : 0;                                  /* 0x000389fe-0x00038a17 */
     }
+}
+
+/* =================================================================== */
+/*  the level-up / status screen (0x038f3d)                             */
+/* =================================================================== */
+
+uint8_t  g_dat_63ec3 = 0;    /* 0x63ec3: "the help pages are being shown" mode byte */
+uint8_t  g_dat_633a4 = 0;    /* 0x633a4: the level-up screen's "help already shown once" flag */
+uint8_t *g_dat_53de0 = 0;    /* DAT_00053de0: the "selection committed" command-cursor record */
+uint8_t *g_dat_53de4 = 0;    /* DAT_00053de4: the "screen entered" command-cursor record */
+
+/* DS 0x53150 .. 0x531e0: the six per-row layout tables of the level-up screen (6 dwords each).
+ * Extracted from NIGHT.EXE file 0x4bb50 with scripts/extract_ds.py 0x53150 0x0090.
+ *   0x53150 -> row-number start_row (EBX)      0x53168 -> row-number dest_off (EDX)
+ *   0x53180 -> bar start_row (EBX)             0x53198 -> bar dest_off (EDX)
+ *   0x531b0 -> highest selectable column      0x531c8 -> glyph-index base of the bar */
+static uint32_t g_tab_53150[6] = { 0x3d, 0x56, 0x70, 0x84, 0x98, 0xac };
+static uint32_t g_tab_53168[6] = { 0x18, 0x1a, 0x1b, 0x1b, 0x1b, 0x1b };
+static uint32_t g_tab_53180[6] = { 0x45, 0x5e, 0x6f, 0x83, 0x97, 0xaa };
+static uint32_t g_tab_53198[6] = { 0x12, 0x12, 0x55, 0x7a, 0x7a, 0x7a };
+static uint32_t g_tab_531b0[6] = { 0x04, 0x04, 0x02, 0x01, 0x01, 0x01 };
+static uint32_t g_tab_531c8[6] = { 0x06, 0x06, 0x0a, 0x0c, 0x0c, 0x0c };
+
+/* fn_038f3d  orig: 0x00038f3d (L16, 3270 B) -- THE LEVEL-UP / STATUS SCREEN.
+ * ABI: EAX at entry is a variant flag kept at [EBP-4]: 0 = the short page set (rows 0..3, page 5 is
+ * skipped and the CD track is not touched), 1 = the full set (rows 0..5). Callers: fn_039c03 passes 0,
+ * fn_03af18 and fn_03d244 pass 1.
+ *
+ * Set-up: copy the six DS layout tables (0x00038f89-0x00038ff3); fold the pending experience into the
+ * total and clear the accumulator (`P[+0x2b] += P[+0x52]; P[+0x52] = 0` at 0x00038fff-0x0003900b);
+ * snapshot the four player selection bytes P[+0x27] (weapon group), P[+0x28] (ship), P[+0x26] (action
+ * group), P[+0x25] into the local sel[6] (0x00039019-0x00039062 -- rows 4/5 stay 0); load levelup.spr,
+ * number1.spr and number2.spr through fn_03d8d4 into three 0x3c blocks; load levelup.pcx (variant 0)
+ * or levelup2.pcx (variant 1) into one 0xfa00 buffer; clear DAT_000636b8 and push it as the palette
+ * (fn_040042 = board_out(0, 0x100, .)). The first frame is a fade-in: when DAT_000633a4 == 1 the
+ * picture goes straight to the A0000 window and fades, otherwise help1.pcx is shown first, the flag is
+ * latched, and only then the level-up picture is copied and faded in.
+ *
+ * Main loop (0x0003920a-0x00039a51), left while DAT_63e89 / DAT_63eb2 / DAT_63ebe are all clear:
+ *  - DAT_00063ec3 selects the HELP-PAGE branch: page 0 shows help10.pcx and then an inner frame loop
+ *    that walks the page counter through 10..0x23 with DAT_63ed3 / DAT_63ed5 (repeat guards count to
+ *    0x13 when the key is released, otherwise wrap at 0x14), reloading help%d.pcx each time and
+ *    rotating palette slots 0x40..0x6f every 3rd frame; any other page just (re)loads help<page+1>.pcx.
+ *  - the CONFIRM key set (DAT_63ea4 / DAT_63ec1 / DAT_63ea5 / DAT_63ec0) spends experience on the
+ *    current row: `P[+0x2b] >= g_dat_53c94[row*5 + sel[row]]` and `sel[row] < selMax[row]` are
+ *    required -- otherwise help8.pcx (a cheaper option exists) or help9.pcx (the row is maxed) is shown
+ *    and nothing is spent. Row 5 is the extra-life row and increments DAT_00053100 instead. For rows 4
+ *    and 1 the ship table DAT_00052738[sel[1]*4] is compared against P[+0x23] (word): on a match the
+ *    cost is added straight back (the refund quirk), and P[+0x23] / P[+0x30] are re-armed.
+ *  - DAT_63ed0 / DAT_63ed8 move the row cursor (wrap 0<->5, and in variant 0 the wrap steps skip rows
+ *    4/5 -> page 3 / page 0), each with its own 0x13/0x14 repeat guard.
+ *  - the frame composite: DAT_000633b0 <- the level-up picture; fn_038b30 writes the experience total
+ *    (col 0x49, row 0x19) with number1.spr and the row cost (col 0x5e, row 0x26) with number2.spr;
+ *    fn_038c23 writes the CONTINUE counter DAT_00053100 (col 0x68, row 0xac) with number1.spr; one
+ *    fn_03bb42 blit per row plus, for rows 0/1 only, a second bar image indexed +0xc (12) further.
+ *    Palette slots 0x40..0x5f rotate every 4th frame, then the screen is presented and (variant 1) the
+ *    CD track is re-seeked every 0x1ea frames past DAT_00053c48.
+ *
+ * Teardown: the four selection bytes are written back, and only when they CHANGED the corresponding
+ * resource tables are re-selected (DAT_62a98/DAT_62a9c from the ten .key/.catch slots at DAT_00062aa0
+ * (index sel[0]) and DAT_00062ab4 (= slot 5 + sel[0]); DAT_00053818 (type 0 = the gun) from the three
+ * .act containers at DAT_00053c28 + sel[2], mirrored into P[+0x123]); a last sound record, a 50-step
+ * fade-out, the release drain on DAT_63e89/DAT_63eb2/DAT_63ebe, then the picture buffer and the three
+ * spr blocks are freed (fn_03d999 + fn_041c28). Variant 1 ends with fn_010dde.
+ *
+ * Quirks kept: the six tables are copied by value (the originals are never re-read); sel[4] is written
+ * but only used as a scratch latch (set to 0 when row 4 is advanced); the help-mode inner loop and
+ * every key-release drain are true busy-waits, so the loop is only left through DAT_63e89/63eb2/63ebe;
+ * the CD re-seek test is `DAT_63e38 / 0x1ea > DAT_00053c48` (the IDIV remainder in EDX is discarded --
+ * Ghidra's "% 0x1ea" rendering is wrong, verified at 0x00039a20-0x00039a3b). */
+void fn_038f3d(int32_t variant)
+{
+    (void)canary_id(0, 0x168);                                          /* 0x00038f3d-42 */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *P = g_dat_53c7c;                                           /* DAT_00053c7c */
+
+    int32_t page = 0;                                                   /* [EBP-0x60] the row cursor */
+    int32_t up_ctr = 0, down_ctr = 0;                                   /* [EBP-0x5c] [EBP-0x58] */
+    int32_t frame = 0;                                                  /* [EBP-0x70] */
+    int32_t help_up = 0, help_down = 0;                                 /* [EBP-0x74] [EBP-0x48] */
+    int32_t pal_ctr = 0;                                                /* [EBP-0x68] */
+    int32_t help_page = 0;      /* [EBP-0x6c] never zeroed in the original; assigned before use */
+    int32_t rowY[6], rowX[6], barY[6], barX[6], selMax[6], gbase[6];
+    for (int k = 0; k < 6; k = k + 1) {                                 /* 0x00038f89-0x00038ff3 */
+        rowY[k]   = (int32_t)g_tab_53150[k];
+        rowX[k]   = (int32_t)g_tab_53168[k];
+        barY[k]   = (int32_t)g_tab_53180[k];
+        barX[k]   = (int32_t)g_tab_53198[k];
+        selMax[k] = (int32_t)g_tab_531b0[k];
+        gbase[k]  = (int32_t)g_tab_531c8[k];
+    }
+    int32_t sel[6];                                                     /* [EBP-0x11c .. -0x108] */
+
+    *(int32_t *)(P + 0x2b) = *(int32_t *)(P + 0x2b) + *(int32_t *)(P + 0x52);  /* 0x00038fff-0x00039003 */
+    *(int32_t *)(P + 0x52) = 0;                                         /* 0x0003900b */
+    for (int k = 0; k < 6; k = k + 1) sel[k] = 0;                       /* 0x00039012-19 fn_041e20(.,0,0x18) */
+    sel[0] = (int32_t)P[0x27];                                          /* 0x00039019-0x00039062 */
+    sel[1] = (int32_t)P[0x28];
+    sel[2] = (int32_t)P[0x26];
+    sel[3] = (int32_t)P[0x25];
+
+    uint32_t o_lvl = heap_malloc(0x3c), o_n1 = heap_malloc(0x3c), o_n2 = heap_malloc(0x3c);
+    uint32_t *lvl = 0, *num1 = 0, *num2 = 0;      /* the spr structs: host pointers (0x00039069-0x00039106) */
+    if (o_lvl != 0) lvl  = fn_03d8d4((uint32_t *)(hb + o_lvl), "levelup.spr");
+    if (o_n1  != 0) num1 = fn_03d8d4((uint32_t *)(hb + o_n1),  "number1.spr");
+    if (o_n2  != 0) num2 = fn_03d8d4((uint32_t *)(hb + o_n2),  "number2.spr");
+    uint32_t o_pcx = heap_malloc(0xfa00);                               /* 0x000390fd-0x00039133 (fn_041af8) */
+    fn_036190((variant == 0) ? "levelup.pcx" : "levelup2.pcx", hb + o_pcx);   /* 0x00039134-55 */
+    for (int k = 0; k < 0x300; k = k + 1) g_dat_636b8[k] = 0;           /* 0x0003915a-66 fn_041e20 */
+    board_out(0, 0x100, g_dat_636b8);                                   /* 0x0003916b-7f (fn_040042) */
+    if ((int32_t)g_dat_633a4 == 1) {                                    /* 0x00039182-af */
+        mem_copy(video_map(0xa0000), hb + o_pcx, 0xfa00);
+        fn_040660(g_dat_633b8, 0x32);
+    } else {
+        fn_035f1b("help1.pcx", 0);                                      /* 0x000391b1-b8 */
+        fn_040660(g_dat_633b8, 0x32);                                   /* 0x000391bd-c5 */
+        g_dat_633a4 = 1;                                                /* 0x000391cd */
+        fn_00035d5d();                                                  /* 0x000391d3 */
+        mem_copy(video_map(0xa0000), hb + o_pcx, 0xfa00);               /* 0x000391d8-f0 */
+    }
+    if (variant == 1) fn_10b1d();                                       /* 0x000391f5-0x000391fa */
+    fn_04185e(g_dat_53de4);                                             /* 0x000391fd-0x0003920a */
+
+    uint8_t namebuf[0x10];                                              /* [EBP-0x134] */
+    while (g_dat_63e89 == 0 && g_dat_63eb2 == 0 && g_dat_63ebe == 0) {  /* 0x0003920a-31 */
+        if (g_dat_63ec3 != 0) {                                         /* 0x0003923b: the help-page branch */
+            fn_04185e(g_dat_53dd8);                                     /* 0x00039241 */
+            if (page == 0) {                                            /* 0x00039249 */
+                help_page = 10;                                         /* 0x00039251 */
+                fn_035f1b("help10.pcx", 1);                             /* 0x00039257-61 */
+                while (g_dat_63eb2 == 0 && g_dat_63ebe == 0 && g_dat_63e89 == 0 &&
+                       g_dat_63ea4 == 0 && g_dat_63ec1 == 0 &&
+                       g_dat_63ea5 == 0 && g_dat_63ec0 == 0) {          /* 0x00039266-95 */
+                    sys_key_spin();
+                    if (g_dat_63ed3 != 0 && help_up == 0) {             /* 0x0003929b-af */
+                        help_page = (help_page == 10) ? 0x23 : help_page - 1;
+                        uint8_t *cur = (uint8_t *)&help_page;
+                        (void)fn_0428f8(namebuf, (const uint8_t *)"help%d.pcx", &cur);
+                        fn_035f1b((const char *)namebuf, 1);            /* 0x000392f3-f9 */
+                        help_up = 1;                                    /* 0x00039304 */
+                    }
+                    if (g_dat_63ed3 == 0) help_up = 0x13;               /* 0x0003930b-2f */
+                    else if (++help_up == 0x14) help_up = 0;
+                    if (g_dat_63ed5 != 0 && help_down == 0) {           /* 0x00039334-48 */
+                        help_page = (help_page == 0x23) ? 10 : help_page + 1;
+                        uint8_t *cur = (uint8_t *)&help_page;
+                        (void)fn_0428f8(namebuf, (const uint8_t *)"help%d.pcx", &cur);
+                        fn_035f1b((const char *)namebuf, 1);            /* 0x0003936e-74 */
+                        help_down = 1;                                  /* 0x0003937f
+                                     */
+                    }
+                    if (g_dat_63ed5 == 0) help_down = 0x13;             /* 0x00039386-aa */
+                    else if (++help_down == 0x14) help_down = 0;
+                    fn_00035ec2();                                      /* 0x000393aa */
+                    if (pal_ctr % 3 == 0) {                             /* 0x000393b5-0x00039411 */
+                        fn_03d67c(g_dat_636b8, 0x40, 0x4f);
+                        fn_03d67c(g_dat_636b8, 0x50, 0x5f);
+                        fn_03d67c(g_dat_636b8, 0x60, 0x6f);
+                        board_out(0, 0xff, g_dat_636b8);                /* 0x0003940e (fn_040042) */
+                    }
+                    pal_ctr = pal_ctr + 1;                              /* 0x00039416-20 */
+                }
+                while (g_dat_63ec1 != 0) sys_key_spin();                /* 0x00039425-2d */
+                while (g_dat_63ea4 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0 ||
+                       g_dat_63eb2 != 0 || g_dat_63ebe != 0 || g_dat_63e89 != 0) sys_key_spin();
+            } else {                                                    /* 0x00039467-91 */
+                int32_t np = page + 1;
+                uint8_t *cur = (uint8_t *)&np;
+                (void)fn_0428f8(namebuf, (const uint8_t *)"help%d.pcx", &cur);
+                fn_035f1b((const char *)namebuf, 1);
+                fn_00035d5d();                                          /* 0x00039496 */
+            }
+            fn_04185e(g_dat_53dd8);                                     /* 0x0003949b-0x000394a0 */
+            continue;
+        }
+
+        if (g_dat_63ea4 != 0 || g_dat_63ec1 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0) {
+            int32_t cost = (int32_t)g_dat_53c94[(uint32_t)page * 5u + (uint32_t)sel[page]];
+            if (*(int32_t *)(P + 0x2b) < cost || selMax[page] <= sel[page]) {  /* 0x000394d2-0x00039520 */
+                if (sel[page] < selMax[page]) fn_035f1b("help8.pcx", 1);       /* 0x00039625-2f */
+                else                          fn_035f1b("help9.pcx", 1);       /* 0x00039610-1b */
+                fn_04185e(g_dat_53de0);                                    /* 0x00039640-4a */
+                fn_00035d5d();                                             /* 0x0003964f */
+            } else {
+                *(int32_t *)(P + 0x2b) = *(int32_t *)(P + 0x2b) - cost;  /* 0x0003952a-34 */
+                if (page == 5) {                                         /* 0x000395f5-0x00039607 */
+                    g_dat_53100 = g_dat_53100 + 1;                       /* one CONTINUE credit */
+                    fn_04185e(g_dat_53ddc);
+                } else {
+                    sel[page] = sel[page] + 1;                           /* 0x00039542-47 */
+                    if (page == 4 || page == 1) {                        /* 0x0003954f-0x000395cf */
+                        if (page == 4) sel[4] = 0;                       /* 0x00039557 */
+                        int32_t ship = (int32_t)g_tab_52738[(uint32_t)sel[1] * 4u];
+                        if ((int32_t)(int16_t)*(uint16_t *)(P + 0x23) == ship) {
+                            *(int32_t *)(P + 0x2b) = *(int32_t *)(P + 0x2b)
+                                                   + (int32_t)g_dat_53c94[(uint32_t)sel[page] * 4u
+                                                                         + (uint32_t)page * 0x14u];
+                            fn_04185e(g_dat_53de0);                      /* 0x000395a5-b6 */
+                        } else {
+                            fn_04185e(g_dat_53ddc);                      /* 0x000395c2 */
+                        }
+                        *(uint16_t *)(P + 0x23) = (uint16_t)ship;        /* 0x000395d0-0x000395e2 */
+                        P[0x30] = 0;                                     /* 0x000395e9 */
+                    } else {
+                        fn_04185e(g_dat_53ddc);                          /* 0x000395f0 */
+                    }
+                }
+            }
+            while (g_dat_63ea4 != 0) sys_key_spin();                     /* 0x00039654-61 */
+            while (g_dat_63ec1 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0) sys_key_spin();
+        }
+
+        if (g_dat_63ed0 != 0 && up_ctr == 0) {                           /* 0x000396a0-0x000396cc */
+            page = (page == 0) ? 5 : page - 1;
+            if (variant == 0 && page == 5) page = 3;
+            up_ctr = 1;
+            fn_04185e(g_dat_53dd8);
+        }
+        if (g_dat_63ed0 == 0) up_ctr = 0x13;                             /* 0x000396d4-0x000396f8 */
+        else if (++up_ctr == 0x14) up_ctr = 0;
+        if (g_dat_63ed8 != 0 && down_ctr == 0) {                         /* 0x0003970f-0x0003973b */
+            page = (page == 5) ? 0 : page + 1;
+            if (variant == 0 && page == 4) page = 0;
+            down_ctr = 1;
+            fn_04185e(g_dat_53dd8);
+        }
+        if (g_dat_63ed8 == 0) down_ctr = 0x13;                           /* 0x00039743-0x00039767 */
+        else if (++down_ctr == 0x14) down_ctr = 0;
+
+        int32_t cost = (int32_t)g_dat_53c94[(uint32_t)page * 5u + (uint32_t)sel[page]];  /* re-read per frame */
+        mem_copy(video_map(g_dat_633b0), hb + o_pcx, 0xfa00);            /* 0x00039762-67 */
+        fn_038b30(g_dat_633b0, (uint8_t *)num1, 0x49, 0x19, *(int32_t *)(P + 0x2b));  /* 0x0003976c-89 */
+        fn_038b30(g_dat_633b0, (uint8_t *)num2, 0x5e, 0x26, cost);       /* 0x0003978e-0x000397bc */
+
+        {   /* the row-number image (0x000397c1-0x0003981f); s[1]/s[2]/s[13]/s[14] are heap offsets */
+            const uint32_t *s4 = lvl ? (const uint32_t *)(hb + lvl[1])  : (const uint32_t *)hb;
+            const uint32_t *s8 = lvl ? (const uint32_t *)(hb + lvl[2])  : (const uint32_t *)hb;
+            const uint32_t *so = lvl ? (const uint32_t *)(hb + lvl[13]) : (const uint32_t *)hb;
+            fn_03bb42(g_dat_633b0, rowX[page], rowY[page], (int32_t)s4[page],
+                      s8[page], hb + lvl[14] + so[page], 0);
+        }
+        fn_038c23(g_dat_633b0, (uint8_t *)num1, 0x68, 0xac, (int32_t)g_dat_53100);  /* 0x0003981f-3f */
+
+        for (int32_t i = 0; i < 6; i = i + 1) {                          /* 0x00039848-0x000399a2 */
+            const uint32_t *s4 = lvl ? (const uint32_t *)(hb + lvl[1])  : (const uint32_t *)hb;
+            const uint32_t *s8 = lvl ? (const uint32_t *)(hb + lvl[2])  : (const uint32_t *)hb;
+            const uint32_t *so = lvl ? (const uint32_t *)(hb + lvl[13]) : (const uint32_t *)hb;
+            int32_t n = sel[page], shown = sel[page];
+            if (frame % 0x32 > 0x19 && i == page && shown < selMax[i]) n = shown + 1;
+            if (n != 0) {
+                int32_t idx = gbase[i] + n - 1;
+                fn_03bb42(g_dat_633b0, barX[i], barY[i], (int32_t)s4[idx],
+                          s8[idx], hb + lvl[14] + so[idx], 0);
+            }
+            if (i < 2 && shown != 0) {
+                int32_t idx = shown + 12;                                /* +0x30 dwords: the marker row */
+                fn_03bb42(g_dat_633b0, 0x8a, i * 0x19 + 0x38, (int32_t)s4[idx],
+                          s8[idx], hb + lvl[14] + so[idx], 0);
+            }
+        }
+
+        if (frame % 4 == 0) {                                            /* 0x000399cf-0x000399e3 */
+            fn_03d67c(g_dat_633b8, 0x40, 0x4f);
+            fn_03d67c(g_dat_633b8, 0x50, 0x5f);
+        }
+        fn_00035ec2();
+        board_out(0, 0x100, g_dat_633b8);                                /* 0x000399e8-0x000399fc (fn_040042) */
+        mem_copy(video_map(0xa0000), video_map(g_dat_633b0), 0xfa00);    /* 0x000399ff-0x00039a0f */
+        frame = frame + 1;                                               /* 0x00039a14-17 */
+        sys_key_spin();     /* the port's per-frame input pump: the key bytes here are written by the
+                                INT 09 handler / keyboard pump between frames (cf. fn_038cde) */
+        if (variant == 1 && (int32_t)g_dat_63e38 / 0x1ea > g_dat_53c48) {  /* 0x00039a1a-0x00039a4c */
+            g_dat_63e38 = 0;                                             /* signed IDIV: the remainder is dropped */
+            fn_10b1d();
+        }
+    }
+
+    if ((int32_t)P[0x27] != sel[0]) {                                    /* 0x00039a56-0x00039ab0 */
+        uint8_t *keys[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
+                              g_dat_62ab4, g_dat_62ab8, g_dat_62abc, g_dat_62ac0, g_dat_62ac4 };
+        g_dat_62a98 = keys[(uint32_t)sel[0]];                            /* (&DAT_00062aa0)[sel] */
+        g_dat_62a9c = keys[5u + (uint32_t)sel[0]];                       /* (&DAT_00062ab4)[sel] */
+        P[0x27] = (uint8_t)sel[0];
+    }
+    P[0x28] = (uint8_t)sel[1];                                           /* 0x00039ab5-bf */
+    if ((int32_t)P[0x26] != sel[2]) {                                    /* 0x00039ac5-0x00039b10 */
+        P[0x26] = (uint8_t)sel[2];
+        uint32_t *acts[3] = { g_dat_53c28, g_dat_53c2c, g_dat_53c30 };
+        uint32_t a = (uint32_t)((uint8_t *)acts[(uint32_t)sel[2]] - hb);
+        g_dat_53818[0] = a;                                              /* type 0 = the gun's action table */
+        *(uint32_t *)(P + 0x123) = a;
+    }
+    P[0x25] = (uint8_t)sel[3];
+    fn_04185e(g_dat_53ddc);                                              /* 0x00039b11-16 */
+    fn_0406f5(g_dat_633b8, 0x32);                                        /* 0x00039b20-25 */
+    while (g_dat_63e89 != 0) sys_key_spin();                             /* 0x00039b2e-0x00039b44 */
+    while (g_dat_63eb2 != 0 || g_dat_63ebe != 0) sys_key_spin();
+
+    heap_free_host(o_pcx);                                               /* 0x00039b49-4d (fn_041c31) */
+    if (num2 != 0) { (void)fn_03d999(num2, 0); heap_free_guard(o_n2); }
+    if (num1 != 0) { (void)fn_03d999(num1, 0); heap_free_guard(o_n1); }
+    if (lvl  != 0) { (void)fn_03d999(lvl,  0); heap_free_guard(o_lvl); }
+    if (variant == 1) fn_00010dde();                                     /* 0x00039bfa */
 }

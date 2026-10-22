@@ -126,6 +126,14 @@ either; that inconsistency is what made the copies look right. Before declaring 
 grep its disassembly for `cmp dword ptr [eax + 0x8b], 0`, and do NOT preset entity[0x8b] = 1 in every
 test case -- pin both frames instead (see test_fn_029709's recon-gate checks).
 
+### Ported: 0x031a8e + 0x0322f5 (the dispatcher and the sweep)
+The behaviour selector is `ai_rec_i32(ty, 0x10)` and the 40-entry jump table lives at 0x00031e50 with
+each target stored MINUS the 0x10000 image base (add 0x10000 to decode).  Real entries: 0x00-0x0b,
+0x15, 0x1f-0x27; holes: 0x0c-0x14, 0x16-0x1e, and behaviour > 0x27 exits before the table.  0x05/0x09/
+0x0a share fn_01cf64 with mode 2/0/1; every other arm passes edx but the handlers ignore it.
+OPEN: the slow 1000-frame state-3 timeout miscompiles around the 3-byte-aligned entity[0x6b] dword
+(use one local: read, +1, store, compare the local) -- see the STATUS journal entry.
+
 ### Ported: 0x02e2cc (behaviour-0x26)
 95.6% of its 1815 instructions align with 0x02c838, so it was generated from that body; the deltas are
 the 0x2c drop (latch frame 1, k = frame, 20.0 at DS 0x5007c, window 2..0x14), the 0x2d swing over 55.0

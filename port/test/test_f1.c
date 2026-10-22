@@ -10046,6 +10046,161 @@ static void test_fn_02e2cc(void)
     #undef PUT26
 }
 
+
+/* ---- 0x031a8e / 0x0322f5: the per-type AI dispatcher and its list sweep ---- */
+static void test_fn_031a8e(void)
+{
+    printf("fn_031a8e / fn_0322f5 (0x031a8e, per-type AI dispatcher + sweep)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354, *save_head = g_dat_53c70, *save_cur = g_dat_53c78;
+    int32_t   save_cnt  = g_dat_53c68, save_reaim = (int32_t)g_dat_53c6c;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get(), save_floor = heap_region_floor_get();
+    uint32_t  save_tab   = g_dat_62a8c;
+    heap_arena_cap_set(0x800000); heap_region_floor_set(0x400); g_dat_62a8c = 0;
+
+    uint8_t *pl = h13_alloc(0x14f), *e = h13_alloc(0x14f), *room = h13_alloc(0x120);
+    uint8_t *e2 = h13_alloc(0x14f), *e3 = h13_alloc(0x14f);
+    g_dat_53c7c = pl; g_dat_63354 = room; g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000; *(int32_t *)(room + 0x16) = 1000;
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+
+    const int32_t TY = 29;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 3; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 40; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    *(int32_t *)(cfg + 0x10) = 0x28;   /* behaviour > 0x27: no handler, so the state arms are observed alone */
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY; e[0x17] = 5; e[0x1f] = 6; e[0xaf] = 1; e[0x8b] = 1;
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
+
+    /* (1) state 2 every 8th frame, position unchanged -> the entity gives up walking */
+    e[0x17] = 2; e[0x103] = 7; *(int32_t *)(e + 0x107) = 100; *(int32_t *)(e + 0x10b) = 60;
+    fn_031a8e(e);
+    check(e[0x17] == 1 && *(int32_t *)(e + 0x1f) == 0 && *(int32_t *)(e + 0xaf) == 1 &&
+          *(int32_t *)(e + 0xc7) == 1 && *(int32_t *)(e + 0x103) == 0,
+          "031a8e state 2 on the 8th frame with the same screen position gives up (sprite 1, state 0, action 1, chooser latch)");
+    /* (2) same frame count but the position moved -> only the stored position updates */
+    e[0x17] = 2; e[0x103] = 7; *(int32_t *)(e + 0x107) = 3; *(int32_t *)(e + 0x10b) = 4;
+    fn_031a8e(e);
+    check(e[0x17] == 2 && *(int32_t *)(e + 0x107) == 100 && *(int32_t *)(e + 0x10b) == 60 &&
+          *(int32_t *)(e + 0xc7) == 1 && *(int32_t *)(e + 0xaf) == 1,
+          "031a8e state 2 with a moved position just re-stores entity[0x107]/[0x10b]");
+    /* (3) the check is gated on the counter reaching 8 */
+    e[0x17] = 2; e[0x103] = 0; *(int32_t *)(e + 0x107) = 100; *(int32_t *)(e + 0x10b) = 60;
+    fn_031a8e(e);
+    check(e[0x17] == 2 && *(int32_t *)(e + 0x103) == 1,
+          "031a8e state 2 only checks every 8th frame (entity[0x103] counts)");
+
+    /* (4) state 3 with the timer at 0 starts it only inside 200 px of X */
+    e[0x17] = 3; e[0x6b] = 0;
+    *(int32_t *)(e + 0x01) = 100;                                /* p_x 200 -> 100 px away */
+    fn_031a8e(e);
+    check(*(int32_t *)(e + 0x6b) == 1 && e[0x17] == 3,
+          "031a8e state 3 starts the approach timer when the entity is within 200 px of X");
+    *(int32_t *)(e + 0x01) = -50;                                /* 250 px away */
+    e[0x6b] = 0;
+    fn_031a8e(e);
+    check(*(int32_t *)(e + 0x6b) == 0 && e[0x17] == 3,
+          "031a8e state 3 leaves the timer at 0 outside the 200 px band");
+    /* (5) the timer increments on every frame below the threshold (the 1000-frame slow timeout is
+     *     deferred: see docs/18 "open" for the entity[0x6b] punning bug found here). */
+    *(int32_t *)(cfg + 0x10) = 0x0c;                              /* a table hole: no handler, and < 0x1f */
+    e[0x17] = 3; e[0x6b] = 5; *(int32_t *)(e + 0x01) = 1000;     /* outside both proximity triggers */
+    *(int32_t *)(e + 0x09) = 1000;
+    fn_031a8e(e);
+    check(e[0x17] == 3 && *(int32_t *)(e + 0x6b) == 6,
+          "031a8e the running state-3 timer increments without timing out (field 0x10 < 0x1f, 6 < 1000)");
+    /* (6) ... but after only 100 frames when the type's field 0x10 is >= 0x1f */
+    *(int32_t *)(cfg + 0x10) = 0x21;                             /* >= 0x1f and also a handler selector */
+    e[0x17] = 3; e[0x6b] = 99; *(int32_t *)(e + 0x01) = 1000; *(int32_t *)(e + 0x09) = 1000;
+    fn_031a8e(e);
+    check(e[0x17] == 6 && *(int32_t *)(e + 0x6b) == 100,
+          "031a8e the timeout drops to 100 frames when config field 0x10 is >= 0x1f");
+    /* (7) the 0x50 x 0x28 box around the player also jumps to sprite 6 */
+    *(int32_t *)(cfg + 0x10) = 0x28;
+    e[0x17] = 3; e[0x6b] = 1; *(int32_t *)(e + 0x01) = 160; *(int32_t *)(e + 0x09) = 100;
+    fn_031a8e(e);
+    check(e[0x17] == 6 && *(int32_t *)(e + 0x11) == 0,
+          "031a8e the 0x50x0x28 box around the player sends state 3 to sprite 6");
+    /* (8) and so does the X-only 10 px trigger, even far on Y */
+    e[0x17] = 3; e[0x6b] = 1; *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 1000;
+    fn_031a8e(e);
+    check(e[0x17] == 6, "031a8e the 10 px X trigger fires regardless of the Y gap");
+
+    /* (9) the player record itself is never dispatched, but states 0xb5..0xb9 clear player[0x4a] */
+    pl[0x17] = 0xb6; *(int32_t *)(pl + 0x4a) = 5;
+    e[0x17] = 5; e[0x6b] = 0; *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
+    fn_031a8e(e);
+    check(*(int32_t *)(pl + 0x4a) == 0, "031a8e a player in sprite 0xb5..0xb9 gets player[0x4a] cleared");
+    *(int32_t *)(pl + 0x4a) = 5;
+    fn_031a8e(pl);                                               /* e == player: returns at 0x00031cba */
+    check(*(int32_t *)(pl + 0x4a) == 5, "031a8e returns before the fix-up and the table when the entity IS the player");
+    pl[0x17] = 0x0a;
+
+    /* (10) the behaviour table: every selector below runs A handler (the shared preamble advances the
+     *      entity[0x63] speed accumulator), while the holes and the > 0x27 bound run none. */
+    {
+        static const int32_t sel[] = { 0,1,2,3,4,5,6,7,8,9,0x0a,0x0b,0x15,
+                                       0x1f,0x20,0x21,0x22,0x23,0x24,0x25,0x26,0x27 };
+        int missing = 0;
+        for (unsigned k = 0; k < sizeof sel / sizeof *sel; k++) {
+            *(int32_t *)(cfg + 0x10) = sel[k];
+            e[0x17] = 5; e[0x1f] = 6; e[0x6b] = 0; e[0x103] = 0;
+            *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
+            memset(e + 0x63, 0, 4);
+            fn_031a8e(e);
+            float acc; memcpy(&acc, e + 0x63, 4);
+            if (acc == 0.0f) missing |= 1 << k;
+        }
+        check(missing == 0, "031a8e all 22 table entries (0x00-0x0b, 0x15, 0x1f-0x27) reach a ported handler");
+        int ran = 0;
+        static const int32_t hole[] = { 0x0c, 0x14, 0x16, 0x1e, 0x28, 0x100 };
+        for (unsigned k = 0; k < sizeof hole / sizeof *hole; k++) {
+            *(int32_t *)(cfg + 0x10) = hole[k];
+            e[0x17] = 5; e[0x1f] = 6; e[0x6b] = 0;
+            *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
+            memset(e + 0x63, 0, 4);
+            fn_031a8e(e);
+            float acc; memcpy(&acc, e + 0x63, 4);
+            if (acc != 0.0f) ran++;
+        }
+        check(ran == 0, "031a8e the table holes 0x0c-0x14/0x16-0x1e and behaviour > 0x27 run no handler");
+    }
+
+    /* (11) the sweep walks the +0x13f list, skipping the player and any record with byte 0 == 2 */
+    {
+        memset(e2, 0, 0x14f); memset(e3, 0, 0x14f);
+        e2[0] = 1; e3[0] = 2;                                   /* e3 is not live -> skipped */
+        *(int32_t *)(e2 + 0x0d) = TY; e2[0x17] = 5; e2[0x1f] = 6; e2[0xaf] = 1;
+        *(int32_t *)(e2 + 0x01) = 100; *(int32_t *)(e2 + 0x09) = 60;
+        *(int32_t *)(e2 + 0x103) = 0; e2[0x103] = 0;
+        pl[0x103] = 0; pl[0x17] = 2;                            /* the player is in the list but skipped */
+        *(uint8_t **)(pl + 0x13f) = e2;                          /* the flat model stores host pointers */
+        *(uint8_t **)(e2 + 0x13f) = e3;
+        *(uint8_t **)(e3 + 0x13f) = 0;
+        g_dat_53c70 = pl; g_dat_53c68 = 3; g_dat_53c6c = 0;
+        *(int32_t *)(cfg + 0x10) = 0x00;                        /* fn_017f13 runs for the live entity only */
+        memset(e2 + 0x63, 0, 4); memset(pl + 0x63, 0, 4);
+        fn_0322f5();
+        float a2, ap; memcpy(&a2, e2 + 0x63, 4); memcpy(&ap, pl + 0x63, 4);
+        check(a2 != 0.0f && ap == 0.0f && e3[0x63] == 0 && pl[0x103] == 0,
+          "0322f5 the sweep dispatches every live non-player record in the +0x13f list and skips byte0 == 2");
+    }
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_53c70 = save_head; g_dat_53c78 = save_cur;
+    g_dat_53c68 = save_cnt; g_dat_53c6c = (uint32_t)save_reaim;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy; g_dat_62a8c = save_tab;
+    heap_arena_cap_set(save_cap); heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -15168,6 +15323,7 @@ int main(void) {
     test_fn_027bec();
     test_fn_02c838();
     test_fn_02e2cc();
+    test_fn_031a8e();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

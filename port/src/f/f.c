@@ -22425,3 +22425,147 @@ ai_tail:
     if ((int32_t)fn_01519f(e) > p_x) *(int32_t *)(e + 0x1b) = 1;
     if ((int32_t)fn_01519f(e) < p_x) *(int32_t *)(e + 0x1b) = 0;
 }
+
+/* 0x00031a8e: THE PER-TYPE ENTITY AI DISPATCHER (1153 B, called only from the fn_0322f5 sweep).
+ *
+ * Two shared state arms run for every entity, then a 40-entry jump table selects the per-type handler:
+ *
+ *   state 2 (0x00031aa9-0x00031b58): a "stuck" check that runs once every 8 frames (entity[0x103] counts
+ *     them and is cleared when it hits 8).  If the SCREEN position (fn_01519f/fn_0151d5) still equals the
+ *     stored entity[0x107]/entity[0x10b], the entity gives up walking: sprite 1, state 0, action 1 and the
+ *     chooser latch entity[0xc7] = 1.  Otherwise the position is stored for the next check.
+ *
+ *   state 3 (0x00031b78-0x00031cb6): the approach timer entity[0x6b].  With the timer at 0 the timer only
+ *     STARTS if the entity is within 200 px of the player on X (0x00031b8e-0x00031bbf); an entity outside
+ *     that band leaves the timer at 0 and falls through.  Once running, the timer increments and the
+ *     entity bails to sprite 6 (frame 0) when it overflows -- after 1000 frames normally, but after only
+ *     100 when the type's config field 0x10 (DS 0x53eac + ty*0x88) is >= 0x1f.  Two proximity triggers in
+ *     the same arm also jump to sprite 6: inside the 0x50 x 0x28 box around the player, and within 10 px
+ *     of the player's column.  Note the 10 px trigger tests X only, and both run only when the timer path
+ *     was taken (the two early exits jump past them).
+ *
+ *   0x00031cba: the player record is never dispatched (the sweep skips it too), but a player whose sprite
+ *     is 0xb5..0xb9 gets entity[0x4a] cleared first.  Then behaviour = ai_rec_i32(ty, 0x10); behaviour >
+ *     0x27 and the holes 0x0c..0x14, 0x16..0x1e run no handler at all.  0x05/0x09/0x0a share fn_01cf64
+ *     with mode 2/0/1; 0x1f passes edx = 2 to fn_02319c, which (like every other arm) ignores it.
+ */
+void fn_031a8e(uint8_t *e)
+{
+    uint8_t *pl = g_dat_53c7c;
+
+    if (*(const int32_t *)(e + 0x17) == 2) {                       /* 0x00031aa9: state 2 */
+        (*(int32_t *)(e + 0x103))++;                               /* 0x00031ab9 */
+        if (*(int32_t *)(e + 0x103) == 8) {                        /* 0x00031ac2 */
+            *(int32_t *)(e + 0x103) = 0;
+            if ((int32_t)fn_01519f(e) == *(const int32_t *)(e + 0x107) &&
+                (int32_t)fn_0151d5(e) == *(const int32_t *)(e + 0x10b)) {
+                *(int32_t *)(e + 0x17)  = 1;                       /* 0x00031b08: stuck -- give up */
+                *(int32_t *)(e + 0x1f)  = 0;
+                *(int32_t *)(e + 0xaf)  = 1;
+                *(int32_t *)(e + 0xc7)  = 1;
+            } else {
+                *(int32_t *)(e + 0x107) = (uint32_t)fn_01519f(e);  /* 0x00031b38: remember the spot */
+                *(int32_t *)(e + 0x10b) = (uint32_t)fn_0151d5(e);
+            }
+        }
+    }
+
+    int32_t p_x = (int32_t)fn_01519f(pl);                          /* [EBP-0xc] */
+    int32_t p_y = (int32_t)fn_0151d5(pl);                          /* [EBP-0x8] */
+
+    if (*(const int32_t *)(e + 0x17) == 3) {                       /* 0x00031b7b: state 3 */
+        int32_t ty = *(const int32_t *)(e + 0x0d);
+        if (*(const int32_t *)(e + 0x6b) == 0) {                   /* 0x00031b88 */
+            int32_t x = (int32_t)fn_01519f(e);
+            if (p_x + 0xc8 > x && p_x - 0xc8 < x) {                /* 0x00031b8e-0x00031bb6 */
+                (*(int32_t *)(e + 0x6b))++;                        /* 0x00031bbf: the timer starts here */
+                goto ai_disp_player;                               /* 0x00031cba, past both triggers */
+            }
+        }
+        if (*(int32_t *)(e + 0x6b) != 0) {                         /* 0x00031bc7 */
+            (*(int32_t *)(e + 0x6b))++;
+            if (ai_rec_i32(ty, 0x10) < 0x1f) {                     /* 0x00031be4: the type's fast flag */
+                if (*(int32_t *)(e + 0x6b) >= 0x3e8) {             /* 0x00031bf0 */
+                    *(int32_t *)(e + 0x17) = 6;
+                    *(int32_t *)(e + 0x11) = 0;
+                }
+            } else {
+                if (*(int32_t *)(e + 0x6b) >= 0x64) {              /* 0x00031c12 */
+                    *(int32_t *)(e + 0x17) = 6;
+                    *(int32_t *)(e + 0x11) = 0;
+                }
+            }
+        }
+        {
+            int32_t x = (int32_t)fn_01519f(e);                     /* 0x00031c2c: the 0x50 x 0x28 box */
+            if (x + 0x50 > p_x && x - 0x50 < p_x) {
+                int32_t y = (int32_t)fn_0151d5(e);
+                if (y + 0x28 > p_y && y - 0x28 < p_y) {
+                    *(int32_t *)(e + 0x17) = 6;
+                    *(int32_t *)(e + 0x11) = 0;
+                }
+            }
+            x = (int32_t)fn_01519f(e);                             /* 0x00031c84: 10 px of the column */
+            if (x + 10 > p_x && x - 10 < p_x) {
+                *(int32_t *)(e + 0x17) = 6;
+                *(int32_t *)(e + 0x11) = 0;
+            }
+        }
+    }
+
+ai_disp_player:
+    if (e == pl) return;                                           /* 0x00031cba */
+    {
+        uint32_t ps = *(const uint32_t *)(pl + 0x17);              /* 0x00031cc9: player states 0xb5..0xb9 */
+        if (ps >= 0xb5 && ps <= 0xb9) *(int32_t *)(pl + 0x4a) = 0;
+    }
+
+    int32_t ty = *(const int32_t *)(e + 0x0d);
+    int32_t behaviour = ai_rec_i32(ty, 0x10);                      /* [EBP-0x10] = DS 0x53eac + ty*0x88 */
+    if ((uint32_t)behaviour > 0x27u) return;                       /* 0x00031ef0-0xf4: table bound */
+    switch (behaviour) {                                           /* 0x00031f00 jump table at 0x00031e50 */
+    case 0x00: fn_017f13(e); break;
+    case 0x01: fn_018e88(e); break;
+    case 0x02: fn_019e48(e); break;
+    case 0x03: fn_01aec8(e); break;
+    case 0x04: fn_01bea8(e); break;
+    case 0x05: fn_01cf64(e, 2); break;
+    case 0x06: fn_01df8b(e); break;
+    case 0x07: fn_01f064(e); break;
+    case 0x08: fn_020170(e); break;
+    case 0x09: fn_01cf64(e, 0); break;
+    case 0x0a: fn_01cf64(e, 1); break;
+    case 0x0b: fn_02119c(e); break;
+    case 0x15: fn_0221b8(e); break;
+    case 0x1f: fn_02319c(e); break;                               /* 0x00031dc0: edx = 2, unused */
+    case 0x20: fn_024bf9(e); break;
+    case 0x21: fn_0265ac(e); break;
+    case 0x22: fn_027bec(e); break;
+    case 0x23: fn_029709(e); break;
+    case 0x24: fn_02adf5(e); break;
+    case 0x25: fn_02c838(e); break;
+    case 0x26: fn_02e2cc(e); break;
+    case 0x27: fn_02fe1e(e); break;
+    default: break;                                                /* 0x00031e48: holes 0x0c..0x14, 0x16..0x1e */
+    }
+}
+
+/* 0x000322f5: THE PER-FRAME AI SWEEP.  fn_032158 re-aims the waiting entities first, then the list is
+ * walked from g_dat_53c70 through the +0x13f links into the g_dat_53c78 cursor; the player record and any
+ * entity whose record byte 0 is 2 (dead/not-live) are skipped, everything else goes to fn_031a8e.  The
+ * count g_dat_53c68 is re-read on every iteration, exactly as in the fn_03203d draw sweep. */
+void fn_0322f5(void)
+{
+    (void)canary_id(0, 0x20);                                      /* 0x000322f5-0x000322fa */
+    fn_032158();                                                   /* 0x0003230d */
+    g_dat_53c78 = g_dat_53c70;                                     /* 0x00032312-0x00032317 */
+    for (int32_t i = 0; ; i = i + 1) {                             /* 0x0003231c / 0x00032325 */
+        if (i >= (int32_t)g_dat_53c68) break;                      /* 0x0003232e-0x00032334 */
+        if (g_dat_53c78 == g_dat_53c7c || (uint32_t)g_dat_53c78[0] == 2u) {
+            /* 0x00032336-0x00032352: skipped */
+        } else {
+            fn_031a8e(g_dat_53c78);                                /* 0x0003235b */
+        }
+        g_dat_53c78 = *(uint8_t **)(g_dat_53c78 + 0x13f);          /* 0x00032360-0x0003236b */
+    }
+}

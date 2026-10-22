@@ -26,7 +26,11 @@ verification policy: `docs/12-function-map.md` §3.
 # Phase 2 — Per-function port (in rank order, L0 → L19)
 See `docs/12-functions/STATUS.md` for per-function status.
 
-Current position: **473/528 ported + tested, 3 skipped as non-game entries, 52 pending**
+Current position: **484/528 ported + tested, 3 skipped as non-game entries, 41 pending** (suite 2274 PASS / 0 FAIL).
+
+New this pass: the boot chain (0x038a20 logo, 0x038ae0 opening movie, 0x03ae8e free-memory gate), the title screen 0x03a224, and **0x03f15f the VESA mode set** -- the game runs 640x480x8 (mode 0x101), which sets `DAT_531f4 = 0xa0000`, `DAT_63e64 = 640` pitch, `DAT_63e68 = 480`; **fn_03f3be/fn_03f410 are VBE Set Win A/B Position**, so 640x480 rendering needs A0000 bank switching -- an open item for the SDL video backend.
+
+Next step: port **0x017f13** (behaviour-0x00 AI handler) as the reusable skeleton; `0x018e88`/`0x019e48` are near-clones (same 12 action routines, all already ported). Recon tool: `scratch/fnskel.py`. Map: `docs/18-ai-dispatch-map.md`.
 (`python3 scripts/status_report.py`; suite 2170 checks, 0 failures, ASan clean).
 - Tiers closed: L0-L4, L7-L10, L15 (all stage lifecycle over shipped `NIGHT.RES`).
 - Last ports: `0x01348f` the HUD gauge draw + `0x03801b` the one-frame HUD composite (room background + entity sweep +

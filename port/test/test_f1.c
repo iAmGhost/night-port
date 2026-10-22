@@ -9255,6 +9255,176 @@ static void test_fn_02319c(void)
     #undef F1F_BASE
 }
 
+
+/* ---- 0x024bf9: behaviour-0x20 (frame-0 swing, six-slot chooser, no recon gate) ---- */
+static void test_fn_024bf9(void)
+{
+    printf("fn_024bf9 (0x024bf9, behaviour-0x20 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 24;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 40; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+    row0[0] = 40;
+
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+    #define F20_BASE(st_, fr_) do { e[0x17] = (st_); e[0x11] = (fr_); e[0x1f] = 6; e[0xaf] = 1; \
+        e[0x8b] = 1; } while (0)
+
+    /* (1) the swing latches on entity frame 0 (0x02319c waits for frame 0x48); equal gaps take the
+     *     vertical branch: a 4 px Y step and the X component divided by 31.0 */
+    F20_BASE(0x2e, 0);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 20;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    *(int32_t *)(e + 0xcb) = 0; *(int32_t *)(e + 0xcf) = 0;
+    fn_024bf9(e);
+    float ex, ey; memcpy(&ex, e + 0xe3, 4); memcpy(&ey, e + 0xe7, 4);
+    check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xd7) == 20 &&
+          *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
+          "024bf9 the swing latches the anchors on entity frame 0");
+    check(ex == (100.0f / 31.0f) && ey == 4.0f,
+          "024bf9 a vertical swing steps 4 px in Y and divides entity[0xe3] by the 31.0 pool");
+
+    /* (2) an X-dominant gap instead: a 7 px X step signed by the direction */
+    F20_BASE(0x2e, 0);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 118;
+    fn_024bf9(e);
+    memcpy(&ex, e + 0xe3, 4); memcpy(&ey, e + 0xe7, 4);
+    check(ex == 7.0f && ey == (2.0f / 31.0f),
+          "024bf9 a horizontal swing signs the 7 px X step by the direction to the player");
+
+    /* (3) the walk window is frames 1..0x46 */
+    F20_BASE(0x2e, 0x46);
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 30;
+    fn_024bf9(e);                          /* latch at 0x46? no: latch is frame 0 only, so this frame
+                                            * is inside the window and moves the entity */
+    int32_t bx = *(int32_t *)(e + 0x01), by = *(int32_t *)(e + 0x09);
+    F20_BASE(0x2e, 0x47);
+    fn_024bf9(e);
+    check(*(int32_t *)(e + 0x01) == bx && *(int32_t *)(e + 0x09) == by,
+          "024bf9 frame 0x47 is past the swing window (1..0x46)");
+
+    /* (4) NO recon gate: the first frame already runs the action dispatch */
+    F20_BASE(2, 1);
+    e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 0; e[0xc7] = 1; e[0xab] = 0;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0xbf) = 0x7777; *(int32_t *)(e + 0xc3) = 0x7777;
+    fn_024bf9(e);
+    check(*(int32_t *)(e + 0xab) == 20 && *(int32_t *)(e + 0xbf) != 0x7777,
+          "024bf9 has no recon gate: the first frame picks entity[0xab] = config 0x14 >> 1 and a spot");
+
+    /* (5) the chooser spans slots 0..5, never repeats entity[0xff], and slots >= 2 come from the
+     *     DS 0x51c9c approach rectangles on BOTH axes */
+    {
+        int seen_lo = 0, seen_hi = 0, repeats = 0, bad = 0, i;
+        for (i = 0; i < 400; i++) {
+            int32_t prev;
+            F20_BASE(2, 1);
+            e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0xc7] = 1;
+            e[0x113] = 0; e[0x11b] = 0;
+            prev = *(int32_t *)(e + 0xff);
+            fn_024bf9(e);
+            {
+                int32_t slot = *(int32_t *)(e + 0xff);
+                if (slot == prev) repeats++;
+                if (slot < 0 || slot > 5) bad++;
+                if (slot <= 1) {
+                    seen_lo = 1;
+                    if (*(int32_t *)(e + 0xc3) != 120) bad++;      /* side slots keep y = p_y */
+                    if (*(int32_t *)(e + 0x6f) != 1) bad++;
+                } else {
+                    seen_hi = 1;
+                    if (*(int32_t *)(e + 0x6f) != 0) bad++;
+                    /* slot 2/3 -> x in [-80,-50] rel. player, y in [-30,-20]; slot 4/5 -> mirrored */
+                    {
+                        static const int x0[6] = { 0, 0, -80, 50, -80, 50 };
+                        static const int y0[6] = { 0, 0, -30, -30, 20, 20 };
+                        static const int x1[6] = { 0, 0, -50, 80, -50, 80 };
+                        static const int y1[6] = { 0, 0, -20, -20, 30, 30 };
+                        int32_t rx = *(int32_t *)(e + 0xbf) - 200, ry = *(int32_t *)(e + 0xc3) - 120;
+                        if (rx < x0[slot] || rx > x1[slot] || ry < y0[slot] || ry > y1[slot]) bad++;
+                    }
+                }
+            }
+        }
+        check(seen_lo && seen_hi && !repeats && !bad,
+              "024bf9 the chooser draws 0..5 without repeating entity[0xff] and jitters slots 2..5 inside the DS 0x51c9c rectangles");
+    }
+
+    /* (6) slot 0 uses the script-row offset with the (off>>1) < 60 rule */
+    {
+        int found = 0, i, ok = 1;
+        for (i = 0; i < 400 && !found; i++) {
+            F20_BASE(2, 1);
+            e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0xc7] = 1;
+            e[0x113] = 0; e[0x11b] = 0;
+            fn_024bf9(e);
+            if (*(int32_t *)(e + 0xff) == 0) { found = 1; ok = (*(int32_t *)(e + 0xbf) == 200 - 40); }
+        }
+        check(found && ok, "024bf9 slot 0 puts the spot 40 px left of the player (off 40, half is 20 < 60)");
+        row0[0] = 0x78;                        /* 120: half is 60, so the +1 form applies */
+        found = 0; ok = 1;
+        for (i = 0; i < 400 && !found; i++) {
+            F20_BASE(2, 1);
+            e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0xc7] = 1;
+            e[0x113] = 0; e[0x11b] = 0;
+            fn_024bf9(e);
+            if (*(int32_t *)(e + 0xff) == 0) { found = 1; ok = (*(int32_t *)(e + 0xbf) == 200 - 60 + 1); }
+        }
+        check(found && ok, "024bf9 a 120 px row offset takes the p_x - (off>>1) + 1 form");
+        row0[0] = 40;
+    }
+
+    /* (7) the walk keeps the family's six-pixel Y tolerance and does not re-latch the anchors */
+    row0[0] = 7; row0[1] = 0;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0xcb) = 0x5555; *(int32_t *)(e + 0xcf) = 0x5555;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 125;      /* 5 px of Y error */
+    fn_024bf9(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1 &&
+          *(int32_t *)(e + 0xcb) == 0x5555 && *(int32_t *)(e + 0xcf) == 0x5555,
+          "024bf9 a walk row advances on five pixels of Y error without re-latching the anchors");
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 128;      /* 8 px: over the six-pixel limit */
+    fn_024bf9(e);
+    check(*(int32_t *)(e + 0x1f) == 0 &&
+          (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
+          "024bf9 eight pixels of Y error misses the row (six-pixel tolerance)");
+    row0[0] = 40;
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+    #undef F20_BASE
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -14372,6 +14542,7 @@ int main(void) {
     test_fn_029709();
     test_fn_02fe1e();
     test_fn_02319c();
+    test_fn_024bf9();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

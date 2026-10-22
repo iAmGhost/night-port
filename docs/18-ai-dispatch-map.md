@@ -126,6 +126,13 @@ either; that inconsistency is what made the copies look right. Before declaring 
 grep its disassembly for `cmp dword ptr [eax + 0x8b], 0`, and do NOT preset entity[0x8b] = 1 in every
 test case -- pin both frames instead (see test_fn_029709's recon-gate checks).
 
+### Ported: 0x024bf9 (behaviour-0x20)
+Generated from fn_02319c; only two regions needed a fresh read (the six-slot chooser 0x0002549f-0x0002571e
+and the swing's frame-0 latch/window).  Family facts it adds: the DS 0x51c9c approach rectangles are
+{x0,y0,x1,y1} with stride 0x10 -- slot 2 = (-80,-30,-50,-20), 3 = (50,-30,80,-20), 4 = (-80,20,-50,30),
+5 = (50,20,80,30) -- and here BOTH axes take an absolute-valued prng remainder (0x01bea8 left y = p_y).
+It also confirms the recon gate is per-handler: 0x024bf9 has none.
+
 ## Port progress (updated 2026-07-13)
 
 Ported handlers (12 of 18 -- 0x0265ac/behaviour 0x16 added, the first if-chain member. Its shared skeleton was confirmed by an instruction-stream diff against FUN_0001bea8 (693 of 1326 instructions shared once immediates are normalised); the room-band clamp + landing tests + move tail splice verbatim from the fn_01bea8 body, so only ~630 instructions had to be read: the 200px bail to sprite 0x2f, the entity[0x7f] ambush gate that re-enters the range chain in the same frame, the '2'/'1'/'0' countdown ladder (states 0x0c/0x0d/0x0e -> sprites 0x32/0x31/0x30), the grid probe forced to 4 by an attacking player (aim 0x46 past the player, state 0x6a), and state 0x6a's re-derivation of the step from the DS 0x51d68 float. NOTE the stack map differs: the per-frame step is [EBP-0x2c] and the grid result [EBP-0x44], so Ghidra's pseudo local names must not be trusted across handlers.

@@ -10093,44 +10093,47 @@ static void test_fn_031a8e(void)
           "031a8e state 2 only checks every 8th frame (entity[0x103] counts)");
 
     /* (4) state 3 with the timer at 0 starts it only inside 200 px of X */
-    e[0x17] = 3; e[0x6b] = 0;
+    e[0x17] = 3; *(int32_t *)(e + 0x6b) = 0;
     *(int32_t *)(e + 0x01) = 100;                                /* p_x 200 -> 100 px away */
     fn_031a8e(e);
     check(*(int32_t *)(e + 0x6b) == 1 && e[0x17] == 3,
           "031a8e state 3 starts the approach timer when the entity is within 200 px of X");
     *(int32_t *)(e + 0x01) = -50;                                /* 250 px away */
-    e[0x6b] = 0;
+    *(int32_t *)(e + 0x6b) = 0;
     fn_031a8e(e);
     check(*(int32_t *)(e + 0x6b) == 0 && e[0x17] == 3,
           "031a8e state 3 leaves the timer at 0 outside the 200 px band");
-    /* (5) the timer increments on every frame below the threshold (the 1000-frame slow timeout is
-     *     deferred: see docs/18 "open" for the entity[0x6b] punning bug found here). */
+    /* (5) the timer runs to 1000 frames (config field 0x10 < 0x1f) before the entity bails to sprite 6 */
     *(int32_t *)(cfg + 0x10) = 0x0c;                              /* a table hole: no handler, and < 0x1f */
-    e[0x17] = 3; e[0x6b] = 5; *(int32_t *)(e + 0x01) = 1000;     /* outside both proximity triggers */
+    e[0x17] = 3; *(int32_t *)(e + 0x6b) = 5; *(int32_t *)(e + 0x01) = 1000;     /* outside both proximity triggers */
     *(int32_t *)(e + 0x09) = 1000;
     fn_031a8e(e);
     check(e[0x17] == 3 && *(int32_t *)(e + 0x6b) == 6,
           "031a8e the running state-3 timer increments without timing out (field 0x10 < 0x1f, 6 < 1000)");
+    e[0x17] = 3; *(int32_t *)(e + 0x6b) = 999; *(int32_t *)(e + 0x11) = 7;
+    fn_031a8e(e);
+    check(e[0x17] == 6 && *(int32_t *)(e + 0x11) == 0 && *(int32_t *)(e + 0x6b) == 1000,
+          "031a8e the state-3 timer times out to sprite 6 with frame 0 after 1000 frames (field 0x10 < 0x1f)");
     /* (6) ... but after only 100 frames when the type's field 0x10 is >= 0x1f */
     *(int32_t *)(cfg + 0x10) = 0x21;                             /* >= 0x1f and also a handler selector */
-    e[0x17] = 3; e[0x6b] = 99; *(int32_t *)(e + 0x01) = 1000; *(int32_t *)(e + 0x09) = 1000;
+    e[0x17] = 3; *(int32_t *)(e + 0x6b) = 99; *(int32_t *)(e + 0x01) = 1000; *(int32_t *)(e + 0x09) = 1000;
     fn_031a8e(e);
     check(e[0x17] == 6 && *(int32_t *)(e + 0x6b) == 100,
           "031a8e the timeout drops to 100 frames when config field 0x10 is >= 0x1f");
     /* (7) the 0x50 x 0x28 box around the player also jumps to sprite 6 */
     *(int32_t *)(cfg + 0x10) = 0x28;
-    e[0x17] = 3; e[0x6b] = 1; *(int32_t *)(e + 0x01) = 160; *(int32_t *)(e + 0x09) = 100;
+    e[0x17] = 3; *(int32_t *)(e + 0x6b) = 1; *(int32_t *)(e + 0x01) = 160; *(int32_t *)(e + 0x09) = 100;
     fn_031a8e(e);
     check(e[0x17] == 6 && *(int32_t *)(e + 0x11) == 0,
           "031a8e the 0x50x0x28 box around the player sends state 3 to sprite 6");
     /* (8) and so does the X-only 10 px trigger, even far on Y */
-    e[0x17] = 3; e[0x6b] = 1; *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 1000;
+    e[0x17] = 3; *(int32_t *)(e + 0x6b) = 1; *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 1000;
     fn_031a8e(e);
     check(e[0x17] == 6, "031a8e the 10 px X trigger fires regardless of the Y gap");
 
     /* (9) the player record itself is never dispatched, but states 0xb5..0xb9 clear player[0x4a] */
     pl[0x17] = 0xb6; *(int32_t *)(pl + 0x4a) = 5;
-    e[0x17] = 5; e[0x6b] = 0; *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
+    e[0x17] = 5; *(int32_t *)(e + 0x6b) = 0; *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
     fn_031a8e(e);
     check(*(int32_t *)(pl + 0x4a) == 0, "031a8e a player in sprite 0xb5..0xb9 gets player[0x4a] cleared");
     *(int32_t *)(pl + 0x4a) = 5;
@@ -10146,7 +10149,7 @@ static void test_fn_031a8e(void)
         int missing = 0;
         for (unsigned k = 0; k < sizeof sel / sizeof *sel; k++) {
             *(int32_t *)(cfg + 0x10) = sel[k];
-            e[0x17] = 5; e[0x1f] = 6; e[0x6b] = 0; e[0x103] = 0;
+            e[0x17] = 5; e[0x1f] = 6; *(int32_t *)(e + 0x6b) = 0; e[0x103] = 0;
             *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
             memset(e + 0x63, 0, 4);
             fn_031a8e(e);
@@ -10158,7 +10161,7 @@ static void test_fn_031a8e(void)
         static const int32_t hole[] = { 0x0c, 0x14, 0x16, 0x1e, 0x28, 0x100 };
         for (unsigned k = 0; k < sizeof hole / sizeof *hole; k++) {
             *(int32_t *)(cfg + 0x10) = hole[k];
-            e[0x17] = 5; e[0x1f] = 6; e[0x6b] = 0;
+            e[0x17] = 5; e[0x1f] = 6; *(int32_t *)(e + 0x6b) = 0;
             *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 60;
             memset(e + 0x63, 0, 4);
             fn_031a8e(e);
@@ -10174,8 +10177,8 @@ static void test_fn_031a8e(void)
         e2[0] = 1; e3[0] = 2;                                   /* e3 is not live -> skipped */
         *(int32_t *)(e2 + 0x0d) = TY; e2[0x17] = 5; e2[0x1f] = 6; e2[0xaf] = 1;
         *(int32_t *)(e2 + 0x01) = 100; *(int32_t *)(e2 + 0x09) = 60;
-        *(int32_t *)(e2 + 0x103) = 0; e2[0x103] = 0;
-        pl[0x103] = 0; pl[0x17] = 2;                            /* the player is in the list but skipped */
+        *(int32_t *)(e2 + 0x103) = 0; *(int32_t *)(e2 + 0x103) = 0;
+        *(int32_t *)(pl + 0x103) = 0; pl[0x17] = 2;                            /* the player is in the list but skipped */
         *(uint8_t **)(pl + 0x13f) = e2;                          /* the flat model stores host pointers */
         *(uint8_t **)(e2 + 0x13f) = e3;
         *(uint8_t **)(e3 + 0x13f) = 0;

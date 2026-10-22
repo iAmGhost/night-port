@@ -131,8 +131,8 @@ The behaviour selector is `ai_rec_i32(ty, 0x10)` and the 40-entry jump table liv
 each target stored MINUS the 0x10000 image base (add 0x10000 to decode).  Real entries: 0x00-0x0b,
 0x15, 0x1f-0x27; holes: 0x0c-0x14, 0x16-0x1e, and behaviour > 0x27 exits before the table.  0x05/0x09/
 0x0a share fn_01cf64 with mode 2/0/1; every other arm passes edx but the handlers ignore it.
-OPEN: the slow 1000-frame state-3 timeout miscompiles around the 3-byte-aligned entity[0x6b] dword
-(use one local: read, +1, store, compare the local) -- see the STATUS journal entry.
+Both entity[0x6b] and entity[0x103] are dwords at 3-byte-aligned record offsets; the port reads, increments
+and writes them through a byte copy and compares the local, matching the original read / inc / compare.
 
 ### Ported: 0x02e2cc (behaviour-0x26)
 95.6% of its 1815 instructions align with 0x02c838, so it was generated from that body; the deltas are

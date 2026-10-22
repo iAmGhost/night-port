@@ -22454,8 +22454,11 @@ void fn_031a8e(uint8_t *e)
     uint8_t *pl = g_dat_53c7c;
 
     if (*(const int32_t *)(e + 0x17) == 2) {                       /* 0x00031aa9: state 2 */
-        (*(int32_t *)(e + 0x103))++;                               /* 0x00031ab9 */
-        if (*(int32_t *)(e + 0x103) == 8) {                        /* 0x00031ac2 */
+        int32_t n;                                                 /* entity[0x103], also unaligned */
+        memcpy(&n, e + 0x103, 4);
+        n = n + 1;                                                 /* 0x00031ab9 */
+        memcpy(e + 0x103, &n, 4);
+        if (n == 8) {                                              /* 0x00031ac2 */
             *(int32_t *)(e + 0x103) = 0;
             if ((int32_t)fn_01519f(e) == *(const int32_t *)(e + 0x107) &&
                 (int32_t)fn_0151d5(e) == *(const int32_t *)(e + 0x10b)) {
@@ -22475,22 +22478,29 @@ void fn_031a8e(uint8_t *e)
 
     if (*(const int32_t *)(e + 0x17) == 3) {                       /* 0x00031b7b: state 3 */
         int32_t ty = *(const int32_t *)(e + 0x0d);
-        if (*(const int32_t *)(e + 0x6b) == 0) {                   /* 0x00031b88 */
+        /* entity[0x6b] sits at a 3-byte-aligned offset in the record, so the timer is read, incremented and
+         * written back through a byte copy and the LOCAL is compared -- exactly the original's read /
+         * `inc dword [eax+0x6b]` / compare sequence, without repeated punned unaligned lvalues. */
+        int32_t timer;                                             /* [EBP-?] = entity[0x6b] */
+        memcpy(&timer, e + 0x6b, 4);
+        if (timer == 0) {                                          /* 0x00031b88 */
             int32_t x = (int32_t)fn_01519f(e);
             if (p_x + 0xc8 > x && p_x - 0xc8 < x) {                /* 0x00031b8e-0x00031bb6 */
-                (*(int32_t *)(e + 0x6b))++;                        /* 0x00031bbf: the timer starts here */
+                timer = timer + 1;                                 /* 0x00031bbf: the timer starts here */
+                memcpy(e + 0x6b, &timer, 4);
                 goto ai_disp_player;                               /* 0x00031cba, past both triggers */
             }
         }
-        if (*(int32_t *)(e + 0x6b) != 0) {                         /* 0x00031bc7 */
-            (*(int32_t *)(e + 0x6b))++;
+        if (timer != 0) {                                          /* 0x00031bc7 */
+            timer = timer + 1;                                     /* 0x00031bd7 */
+            memcpy(e + 0x6b, &timer, 4);
             if (ai_rec_i32(ty, 0x10) < 0x1f) {                     /* 0x00031be4: the type's fast flag */
-                if (*(int32_t *)(e + 0x6b) >= 0x3e8) {             /* 0x00031bf0 */
+                if (timer >= 0x3e8) {                              /* 0x00031bf0 */
                     *(int32_t *)(e + 0x17) = 6;
                     *(int32_t *)(e + 0x11) = 0;
                 }
             } else {
-                if (*(int32_t *)(e + 0x6b) >= 0x64) {              /* 0x00031c12 */
+                if (timer >= 0x64) {                               /* 0x00031c12 */
                     *(int32_t *)(e + 0x17) = 6;
                     *(int32_t *)(e + 0x11) = 0;
                 }

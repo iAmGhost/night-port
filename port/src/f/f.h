@@ -1010,7 +1010,7 @@ extern uint8_t *g_dat_62a9c;   /* DAT_00062a9c: active catch table (alias of g_d
 extern uint32_t *g_dat_53c28;  /* DAT_00053c28: "gun.act" record container (fn_010010) */
 extern uint32_t *g_dat_53c2c;  /* DAT_00053c2c: "gun1.act" */
 extern uint32_t *g_dat_53c30;  /* DAT_00053c30: "gun2.act" */
-extern uint32_t *g_dat_53818;  /* DAT_00053818: active action table (alias of g_dat_53c28) */
+extern uint32_t g_dat_53818[0x65];  /* DAT_00053818: active action table (alias of g_dat_53c28) */
 extern uint32_t *g_dat_63e08;  /* DAT_00063e08: "over.spr" struct (fn_03d8d4) */
 extern uint32_t *g_dat_63e0c;  /* DAT_00063e0c: "pause.spr" struct (fn_03d8d4) */
 extern uint8_t  *g_dat_53d0c[100]; /* DAT_00053d0c: 100 sound-slot buffers ("1.voc".."100.voc") */
@@ -1019,7 +1019,7 @@ uint32_t fn_03690b(void);          /* 0x03690b: master data loader (NIGHT.RES ->
 extern uint32_t *g_dat_639c0;  /* 0x639c0: struct host-ptr (destructed by fn_03d999) */
 extern uint32_t *g_dat_53c8c;  /* 0x53c8c: struct host-ptr (fn_03d999) */
 extern uint32_t *g_dat_63e00;  /* 0x63e00: struct host-ptr (fn_03d999) */
-extern uint8_t *g_dat_639ec[0x20]; /* 0x639ec: per-type sprite-struct pointer ARRAY (element 0 = "gun.spr"; indexed by entity type in fn_010efc) */
+extern uint8_t *g_dat_639ec[0x65]; /* 0x639ec: per-type sprite-struct pointer ARRAY, 0x65 entries (element 0 = "gun.spr"; indexed by entity type in fn_010efc, filled by fn_037b03) */
 extern uint32_t *g_dat_63d10;  /* 0x63d10: struct host-ptr (fn_03d999) */
 extern uint32_t *g_dat_53b3c;  /* 0x53b3c: container host-ptr (fn_0100d9) */
 extern uint32_t *g_dat_63dd4;  /* 0x63dd4: struct host-ptr (fn_03d999) */

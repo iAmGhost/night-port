@@ -2097,7 +2097,8 @@ void fn_0366a4(uint8_t *node)
 uint8_t *g_dat_62aa0, *g_dat_62aa4, *g_dat_62aa8, *g_dat_62aac, *g_dat_62ab0;
 uint8_t *g_dat_62ab4, *g_dat_62ab8, *g_dat_62abc, *g_dat_62ac0, *g_dat_62ac4;
 uint8_t *g_dat_62a98, *g_dat_62a9c;
-uint32_t *g_dat_53c28, *g_dat_53c2c, *g_dat_53c30, *g_dat_53818;
+uint32_t *g_dat_53c28, *g_dat_53c2c, *g_dat_53c30;
+uint32_t g_dat_53818[0x65] = {0};   /* 0x53818: per-type action-table heap offsets (element 0 = gun.act; other slots filled by fn_037b03 kind-1 records) */
 uint32_t *g_dat_63e08, *g_dat_63e0c;
 
 /* DAT_000525a8: the 100 sound-slot name pointers. The image table is exactly the strings
@@ -2211,7 +2212,7 @@ uint32_t fn_03690b(void)
     g_dat_63e00 = spr_block("gage.spr");
     g_dat_63e04 = (uint8_t *)spr_block("exp.spr");
     g_dat_639ec[0] = spr_block("gun.spr");
-    g_dat_53818 = g_dat_53c28;                                        /* active action table */
+    g_dat_53818[0] = g_dat_53c28 ? (uint32_t)((uint8_t *)g_dat_53c28 - (uint8_t *)g_heap_base) : 0;  /* type 0 = the gun action table */                                        /* active action table */
     g_dat_63d10 = spr_block("mark.spr");
     g_dat_53b3c = act_block("mark.act");
     g_dat_63dd4 = spr_block("dust.spr");
@@ -4451,8 +4452,8 @@ stage_records:
     g_dat_62a90 = 0;                                                /* 0x37c92 */
     for (uint32_t i = 0; (int32_t)i < (int32_t)g_dat_63e14; i = i + 1) {   /* 0x37ca5-e57 */
         uint32_t rec_off = heap_malloc(0x59);                       /* 0x37cbf */
-        uint8_t *rec = (rec_off == 0) ? NULL
-                     : (uint8_t *)(uintptr_t)fn_03e0a0(rec_off, (uint8_t *)g_639b8);  /* 0x37cdc */
+        uint32_t nn = (rec_off == 0) ? 0 : fn_03e0a0(rec_off, (uint8_t *)g_639b8);    /* 0x37cdc: offset model */
+        uint8_t *rec = (nn == 0) ? NULL : (uint8_t *)g_heap_base + nn;
         if (rec == NULL) continue;                                  /* latent: orig dereferences NULL */
         if (rec[0] == 1) {                                          /* 0x37cf0 */
             uint32_t t = *(const uint32_t *)(rec + 1);
@@ -6822,7 +6823,7 @@ uint32_t g_dat_53c88 = 0;      /* 0x53c88 (cleared by fn_03237b conditional drai
 uint32_t *g_dat_639c0 = 0;     /* 0x639c0 */
 uint32_t *g_dat_53c8c = 0;     /* 0x53c8c */
 uint32_t *g_dat_63e00 = 0;     /* 0x63e00 */
-uint8_t *g_dat_639ec[0x20] = {0}; /* 0x639ec: per-type sprite-struct pointer array (element 0 = "gun.spr") */
+uint8_t *g_dat_639ec[0x65] = {0}; /* 0x639ec: per-type sprite-struct pointer array, 0x65 entries (DS 0x639ec..0x63b7f; element 0 = "gun.spr"), filled by fn_037b03 */
 uint32_t *g_dat_63d10 = 0;     /* 0x63d10 */
 uint32_t *g_dat_53b3c = 0;     /* 0x53b3c */
 uint32_t *g_dat_63dd4 = 0;     /* 0x63dd4 */

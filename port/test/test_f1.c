@@ -9853,6 +9853,199 @@ static void test_fn_02c838(void)
     #undef PUT25
 }
 
+
+/* ---- 0x02e2cc: behaviour-0x26 (0x2c drop, 0x2d 55-frame line swing, six-slot chooser, ','/'-' walk rows) ---- */
+static void test_fn_02e2cc(void)
+{
+    printf("fn_02e2cc (0x02e2cc, behaviour-0x26 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    uint32_t  save_tab   = g_dat_62a8c;
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+    g_dat_62a8c = 0;                                   /* keep the fn_01545e/01586b moves exact */
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 28;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 40; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+    #define F26_BASE(st_, fr_) do { e[0x17] = (st_); e[0x11] = (fr_); e[0x1f] = 6; e[0xaf] = 1; \
+        e[0x8b] = 1; } while (0)
+    #define PUT26(x_, y_) do { *(int32_t *)(e + 0x01) = (x_); *(int32_t *)(e + 0x09) = (y_); } while (0)
+
+    /* (1) the sprite-0x2c drop latches at entity frame 1 (0x02c838 latches at 0x32) */
+    F26_BASE(0x2c, 1); PUT26(100, 60);
+    fn_02e2cc(e);
+    {
+        float ey; memcpy(&ey, e + 0xe7, 4);
+        check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xd7) == 60 &&
+              *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120 && ey == 3.0f,
+              "02e2cc the 0x2c drop latches at frame 1 with a (p_y-own_y)/20.0 closing speed");
+    }
+    /* (2) frame 2 closes SIX px: the step is frame*speed, not (frame-0x32)*speed */
+    F26_BASE(0x2c, 2); PUT26(100, 60);
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0x09) == 66 && *(int32_t *)(e + 0x01) == 100,
+          "02e2cc frame 2 of the drop uses k = entity frame (60 -> 66), and never moves X");
+    /* (3) frame 0x14 is the last frame of the window, 0x15 is past it */
+    F26_BASE(0x2c, 0x14); PUT26(100, 60);
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0x09) == 120, "02e2cc frame 0x14 still drops (60 + 20*3)");
+    F26_BASE(0x2c, 0x15); PUT26(100, 60);
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0x09) == 60, "02e2cc frame 0x15 is past the drop window (2..0x14)");
+
+    /* (4) the sprite-0x2d swing latches at frame 1 and stores the line */
+    F26_BASE(0x2d, 1); PUT26(100, 60);
+    fn_02e2cc(e);
+    {
+        float sl, ic; memcpy(&sl, e + 0xdb, 4); memcpy(&ic, e + 0xe3, 4);
+        check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xcf) == 120 &&
+              fabsf(sl - 0.6f) < 1e-5f && fabsf(ic) < 1e-3f,
+              "02e2cc the 0x2d swing stores slope 0.6 in entity[0xdb] and the Y intercept in entity[0xe3]");
+    }
+    /* (5) the segment is walked over 55 frames, so frame 28 sits at 100 + 100*28/55 = 150.9 -> 151,
+     *     with Y read off the line from the UNROUNDED X: 150.909*0.6 = 90.5 -> 91. */
+    F26_BASE(0x2d, 28);
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0x01) == 151 && *(int32_t *)(e + 0x09) == 91,
+          "02e2cc frame 28 of the swing lands on the 55.0 interpolation (151,91), not the 50.0 one");
+    /* (6) frame 0x38 is past the 2..0x37 window */
+    F26_BASE(0x2d, 0x38);
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0x01) == 151 && *(int32_t *)(e + 0x09) == 91,
+          "02e2cc frame 0x38 is past the swing window (2..0x37)");
+    /* (7) the zero-slope sentinel in the vertical branch pins the target X to 100 (0x0002e852) */
+    F26_BASE(0x2d, 10); PUT26(140, 80);
+    *(int32_t *)(e + 0xcb) = 140; *(int32_t *)(e + 0xd3) = 140;
+    *(int32_t *)(e + 0xcf) = 80;  *(int32_t *)(e + 0xd7) = 80;
+    { float z = 0.0f;   memcpy(e + 0xdb, &z, 4); z = 120.0f; memcpy(e + 0xe3, &z, 4); }
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0x01) == 100 && *(int32_t *)(e + 0x09) == 80,
+          "02e2cc a zero slope in the vertical branch pins the target X to 100 instead of dividing");
+
+    /* (8) the one-shot ambush gate closes at 0x46 px of X (0x3c in 0x02c838).  The gate hands the frame to
+     *     state 0x0e and that state's own rung runs in the SAME call, so only the gate effect is checked. */
+    F26_BASE(2, 1); PUT26(131, 120);                /* 69 px */
+    e[0x7f] = 1; e[0xaf] = 1; *(int32_t *)(e + 0xab) = 5;
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0xaf) == 0x0a && e[0x7f] == 0,
+          "02e2cc 69 px of X gap with the close gate armed starts the ambush (0x46 window)");
+    F26_BASE(2, 1); PUT26(129, 120);                /* 71 px */
+    e[0x7f] = 1; e[0xaf] = 1;
+    fn_02e2cc(e);
+    check(*(int32_t *)(e + 0xaf) != 0x0a && e[0x7f] == 0,
+          "02e2cc 71 px of X gap does NOT ambush");
+
+    /* (9)-(11) the walk marker set is {',' (0x2c), '-' (0x2d)}: both close on the X gap alone, and an
+     *          ordinary row also needs the Y gap under ten. */
+    row0[0] = 7;
+    for (int mk = 0; mk < 3; mk++) {
+        static const int mode[3] = { 0x2c, 0x2d, 0x2e };
+        row0[1] = (uint8_t)mode[mk];
+        e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+        e[0x113] = 0; e[0x11b] = 0; PUT26(205, 300);
+        fn_02e2cc(e);
+        int reaches = *(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1;
+        if (mk < 2)
+            check(reaches, "02e2cc a ','/'-' (0x2c/0x2d) walk row reaches on the X gap alone");
+        else
+            check(!reaches && *(int32_t *)(e + 0x1f) == 0 &&
+                  (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
+                  "02e2cc an ordinary walk row misses with 180 px of Y error");
+    }
+    row0[1] = 0;
+
+    /* (12) the chooser: a coin flip picks between an 8-way draw based at 2 (with a 2-way sub-draw on 2/3)
+     *      and a plain 0/1 draw, so only slots 0..5 are ever chosen, and entity[0x6f] marks the 0/1 pair. */
+    row0[0] = 40;
+    int seen_low = 0, seen_high = 0, bad = 0, bad_flag = 0, prev = -1, dup = 0, neg = 0;
+    for (int f = 0; f < 60; f++) {
+        e[0x1f] = 0; e[0xaf] = 4; e[0x8f] = 0; e[0xc7] = 1; e[0x17] = 2; e[0x8b] = 1;
+        *(int32_t *)(e + 0xab) = -5;
+        PUT26(100, 60);
+        fn_02e2cc(e);
+        /* entity[0xab] is re-armed to 20 (cfg 0x14 >> 1) only on a frame that reached the chooser block,
+         * which the fn_0161f9 probe (state 0x0a) can legitimately skip. */
+        if (*(int32_t *)(e + 0xab) != 20) continue;
+        int slot = *(int32_t *)(e + 0xff);
+        /* the remainder of a signed prng draw is negative when the draw is, so the base-2 draw can hand
+         * back a slot as low as -5, which the 2..5 arm then reads several rectangle strides early (as
+         * the draw, so the base-2 draw spans -5..9 and prng % 2 spans -1..1; a negative slot makes the
+         * 2..5 arm read the rectangles before slot 0, and both rectangle arms are live. */
+        if (slot > 9 || slot < -5) bad++;
+        if (slot < 0) neg++;
+        /* col 0 = 40 is under twice 0x3c, so the side slots mirror the player at +-40 px */
+        if (slot == 0 && (*(int32_t *)(e + 0xbf) != 160 || *(int32_t *)(e + 0xc3) != 120)) bad_flag++;
+        if (slot == 1 && (*(int32_t *)(e + 0xbf) != 240 || *(int32_t *)(e + 0xc3) != 120)) bad_flag++;
+        if (slot == 0 || slot == 1) { seen_low = 1; if (*(int32_t *)(e + 0x6f) != 1) bad_flag++; }
+        else { if (slot >= 2) seen_high = 1; if (*(int32_t *)(e + 0x6f) != 0) bad_flag++; }
+        if (slot == prev) dup++;
+        prev = slot;
+    }
+    check(bad == 0 && seen_low && seen_high && dup == 0 && bad_flag == 0,
+          "02e2cc the chooser spans -5..9 with signed draws and sub-draws on 2/3, flags the 0/1 pair in entity[0x6f], mirrors the side slots at +-40 px and re-rolls a repeat");
+
+    /* (13) the X field clamp runs BEFORE the too-close test (0x0002ee26 then 0x0002ee5d), so a slot-0 spot
+     *      that is out of field but lands next to the entity once clamped is REJECTED: the pre-chooser
+     *      value comes back and entity[0xc7] stays armed.  0x02c838 tests first and would accept it. */
+    {
+        uint8_t *pl2 = h13_alloc(0x14f);
+        uint8_t *e2  = h13_alloc(0x14f);
+        *(uint32_t *)pl2 = 1; pl2[0x17] = 0x0a;
+        *(int32_t *)(pl2 + 0x01) = 20; *(int32_t *)(pl2 + 0x09) = 120;
+        e2[0] = 1; *(int32_t *)(e2 + 0x0d) = TY;
+        g_dat_53c7c = pl2;
+        int frames = 0, hit = 0;
+        for (int f = 0; f < 400 && !hit; f++) {
+            e2[0x1f] = 0; e2[0xaf] = 4; e2[0x8f] = 0; e2[0xc7] = 1; e2[0x17] = 2; e2[0x8b] = 1;
+            *(int32_t *)(e2 + 0x01) = 25; *(int32_t *)(e2 + 0x09) = 120;
+            *(int32_t *)(e2 + 0xbf) = 999; *(int32_t *)(e2 + 0xc3) = 77;
+            *(int32_t *)(e2 + 0xab) = -5;
+            fn_02e2cc(e2);
+            if (*(int32_t *)(e2 + 0xab) == 20 && *(int32_t *)(e2 + 0xff) == 0) {          /* slot 0: p_x - col0 = 20 - 40 = -20 -> clamped to 20 */
+                frames++;
+                if (*(int32_t *)(e2 + 0xbf) == 999 && *(int32_t *)(e2 + 0xc3) == 77 &&
+                    *(int32_t *)(e2 + 0xc7) == 1) hit = 1;
+            }
+        }
+        check(hit && frames >= 1,
+              "02e2cc clamping before the too-close test rejects a slot-0 spot that only gets close after the clamp");
+        g_dat_53c7c = pl;
+    }
+    row0[0] = 40;
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    g_dat_62a8c = save_tab;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+    #undef F26_BASE
+    #undef PUT26
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -14974,6 +15167,7 @@ int main(void) {
     test_fn_02adf5();
     test_fn_027bec();
     test_fn_02c838();
+    test_fn_02e2cc();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

@@ -23740,6 +23740,179 @@ const uint32_t g_tab_52da4[100] = {
 };
 
 
+
+/* DAT_00051a10: the sound-effect enable flag (dword; the title menu's entry 2 toggles it from f[2]).
+ * Nothing in the image writes it, so it holds the initialised value 1. */
+uint32_t g_dat_51a10 = 1;
+/* DS 0x531e0: five dwords, the Y (start_row) of each entry of the title menu drawn by fn_00039c03.
+ * Image data, no producer in the EXE (scripts/extract_ds.py 0x531e0 0x14). */
+const uint32_t g_tab_531e0[5] = { 0x6c, 0x79, 0x87, 0x92, 0x9e };
+
+
+/* fn_039c03  orig: 0x00039c03 (L17, 1456 B) -- THE TITLE / ATTRACT MENU LOOP: the five-entry setup
+ * screen drawn from "pause.spr" (DAT_00063e0c), navigated with the select/direction keys, that ends by
+ * handing control to either the status screen (entry 0), the help screen (entry 1) or the game (2..4).
+ * Frame map, since several of these locals are addressed relative to each other:
+ *   [ebp-4]    mode m (0..4; the key-repeat code also parks it at 0x64 on the "any key" exit)
+ *   [ebp-0x18] / [ebp-0x14] / [ebp-0x10]  auto-repeat counters of the down / up / left-right keys
+ *   [ebp-0x24] five toggle bytes f[0..4] -- f[4] is [ebp-0x20], which is ONE byte past the block that
+ *              fn_041e20 clears, and is initialised to 1; f[3] mirrors DAT_00053338 (music) and f[2]
+ *              mirrors DAT_00051a10 (sound effects)
+ *   [ebp-0x38] five dwords copied out of the image (g_tab_531e0): the Y (start_row) of each entry
+ *   [ebp-0xc] / [ebp-8] the saved DAT_00063e24 / DAT_00063e28 tick counters
+ *   [ebp-0x1c] the return value
+ * Entry: keyboard pump off (DAT_00052ff8 = 0), the title palette stream started (fn_04185e with the
+ * DAT_00053dd4 cursor), and 633b0 copied into 633b4.
+ * Each frame: any of DAT_00063ea4/0x63ec1/0x63ea5/0x63ec0 leaves; any of DAT_00063e89/0x63eb2/0x63ebe
+ * spins until they are clear and leaves with m = 0x64. The down key walks m 0 -> 4 -> 3 -> ... and the
+ * up key walks 4 -> 0 -> 1 -> ... (each press starts the DAT_00053dd8 sound-command stream and arms its
+ * counter for 0x13 frames before auto-repeat resumes); the left/right keys toggle f[m] and only mean
+ * anything for m == 3 (music, writing DAT_00053338 back), m == 2 (sound effects, writing DAT_00051a10
+ * back and either selecting the room's CD track or stopping the CD) and m == 4 (which switches the
+ * DAT_00053ddc stream instead).
+ * Then the frame is composited: 633b4 <- 633b0, the fixed header sprite (column DAT_63e0c[+4][0],
+ * start_row 99, dest 0xbe), the current entry at g_tab_531e0[m] (dest 200), and for entries 2/3/4 the
+ * toggle sub-row of the same sprite (dest 0x100, start_row 0xad, indexed f[m]+6 / f[m]+8); present with
+ * the VGA ready-wait and a 0xfa00 copy to A0000.
+ * Leaving: start the DAT_00053ddc stream, then for m == 0 the status screen (fn_00038f3d with variant 0)
+ * and for m == 1 the help screen (fn_00038cde), each bracketed by a DAC fade-out/fade-in of the room's
+ * table at room+0x48, and both put the frame back on the video window and re-enter this loop. For any
+ * other m: clear the 0x80-byte key table DAT_00062c58, restore the two tick counters, turn the keyboard
+ * pump back on, and return 0 only when m == 4 with the f[4] toggle clear (that path fades the DAC out
+ * first); every other exit returns 1.
+ * The "pause.spr" cells at +0x04 / +0x08 / +0x34 / +0x38 are heap offsets (fn_0003d8d4 fills them with
+ * fn_00041bdc offsets): +0x04 = per-entry columns, +0x08 = per-entry row counts, +0x34 = per-entry byte
+ * offsets into the RLE stream at +0x38. Entry i uses index i+1; index 0 is the header.
+ */
+int32_t fn_039c03(void)
+{
+    (void)canary_id(0, 0x60);                                          /* 0x00039c03-08 */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    int32_t m = 0;                                                     /* 0x00039c1b */
+    int32_t c_down = 0, c_lr = 0, c_up = 0;                            /* 0x00039c22-30 */
+    uint32_t layout[5];                                                /* 0x00039c37-44: rep movsd, 5 dwords */
+    for (int i = 0; i < 5; i++) layout[i] = g_tab_531e0[i];
+    uint32_t save24 = g_dat_63e24, save28 = g_dat_63e28;               /* 0x00039c46-53 */
+
+    g_dat_52ff8 = 0;                                                   /* 0x00039c56: keyboard pump off */
+    uint8_t f[5];
+    fn_041e20(f, 0, 4);                                                /* 0x00039c5d-67: only 4 bytes cleared */
+    if (g_dat_53338 == 0) f[3] = (uint8_t)(1 - g_dat_53338);           /* 0x00039c6c-7f */
+    if (g_dat_51a10 == 0) f[2] = (uint8_t)(1 - (uint8_t)g_dat_51a10);  /* 0x00039c82-93 */
+    f[4] = 1;                                                          /* 0x00039c96: [ebp-0x20] */
+
+    fn_04185e(g_dat_53dd4);                                            /* 0x00039c9a-9f */
+    mem_copy(video_map(g_dat_633b4), video_map(g_dat_633b0), 0xfa00);  /* 0x00039ca4-b4 */
+
+    const uint32_t *S = g_dat_63e0c;                                   /* the "pause.spr" struct */
+    for (;;) {
+        sys_key_spin();                                                /* the port's stand-in for the key pump */
+        if (g_dat_63ea4 != 0 || g_dat_63ec1 != 0                       /* 0x00039cb9-cd6 */
+            || g_dat_63ea5 != 0 || g_dat_63ec0 != 0) {
+            goto leave_menu;
+        }
+        if (g_dat_63e89 != 0 || g_dat_63eb2 != 0 || g_dat_63ebe != 0) { /* 0x00039ce6-d25 */
+            while (g_dat_63e89 != 0 || g_dat_63eb2 != 0 || g_dat_63ebe != 0)
+                sys_key_spin();                                        /* 0x00039d01-1c: re-spin */
+            m = 0x64;
+            goto leave_menu;
+        }
+
+        /* --- down key (DAT_00063ed0): 0 -> 4, otherwise m - 1 ------------------------------------- */
+        if (g_dat_63ed0 != 0 && c_down == 0) {                         /* 0x00039d2a-50 */
+            m = (m == 0) ? 4 : m - 1;
+            c_down = 1;
+            fn_04185e(g_dat_53dd8);                                    /* 0x00039d57-5c */
+        }
+        if (g_dat_63ed0 == 0) c_down = 0x13;                           /* 0x00039d61-7f */
+        else if (++c_down == 0x14) c_down = 0;
+
+        /* --- up key (DAT_00063ed8): 4 -> 0, otherwise m + 1 --------------------------------------- */
+        if (g_dat_63ed8 != 0 && c_up == 0) {                           /* 0x00039d86-ac */
+            m = (m == 4) ? 0 : m + 1;
+            c_up = 1;
+            fn_04185e(g_dat_53dd8);                                    /* 0x00039db3-b8 */
+        }
+        if (g_dat_63ed8 == 0) c_up = 0x13;                             /* 0x00039dbd-db */
+        else if (++c_up == 0x14) c_up = 0;
+
+        /* --- left / right (DAT_00063ed3 / DAT_00063ed5): toggle the entry's own flag -------------- */
+        if ((g_dat_63ed3 != 0 || g_dat_63ed5 != 0) && c_lr == 0) {     /* 0x00039de2-dff */
+            if (m == 3) {                                              /* 0x00039dff-e2a: music */
+                f[3] = (uint8_t)(1 - f[3]);
+                fn_04185e(g_dat_53dd8);
+                g_dat_53338 = (uint8_t)(1 - f[3]);
+            }
+            if (m == 2) {                                              /* 0x00039e30-e96: sound effects */
+                f[2] = (uint8_t)(1 - f[2]);
+                g_dat_51a10 = (uint32_t)(1 - (uint32_t)(f[2] & 0xff));
+                if (f[2] == 0) {
+                    uint32_t track = g_tab_52da4[*(const uint32_t *)(g_dat_63354 + 0x40)
+                                                + ((int32_t)g_dat_63370 - 1) * 0x28 / 4];
+                    (void)track;                                       /* fn_010b1d ignores it here */
+                    fn_10b1d();                                        /* 0x00039e8c */
+                } else {
+                    fn_00010dde();                                     /* 0x00039e69: stop the CD */
+                }
+                fn_04185e(g_dat_53dd8);
+            }
+            if (m == 4) {                                              /* 0x00039e9b-eb6 */
+                f[4] = (uint8_t)(1 - f[4]);
+                fn_04185e(g_dat_53ddc);
+            }
+        }
+        if (g_dat_63ed3 == 0 && g_dat_63ed5 == 0) c_lr = 0x13;         /* 0x00039ebb-e2 */
+        else if (++c_lr == 0x14) c_lr = 0;
+
+        /* --- the composite ------------------------------------------------------------------------ */
+        mem_copy(video_map(g_dat_633b0), video_map(g_dat_633b4), 0xfa00);   /* 0x00039ee9-f9 */
+        const uint32_t *colv = (const uint32_t *)(hb + S[1]);               /* +0x04 columns */
+        const uint32_t *rowv = (const uint32_t *)(hb + S[2]);               /* +0x08 row counts */
+        const uint32_t *offv = (const uint32_t *)(hb + S[13]);              /* +0x34 RLE offsets */
+        const uint8_t *rlebase = hb + S[14];                                /* +0x38 RLE stream */
+        fn_03bb42(g_dat_633b0, 0xbe, 99, (int32_t)colv[0], rowv[0],
+                  rlebase + offv[0], 0);                                    /* 0x00039efe-f38: header */
+        fn_03bb42(g_dat_633b0, 0xc8, (int32_t)layout[m], (int32_t)colv[m + 1], rowv[m + 1],
+                  rlebase + offv[m + 1], 0);                                /* 0x00039f3d-f96: this entry */
+        if (m == 2 || m == 3) {                                             /* 0x00039f9b-3a012: the toggle row */
+            uint32_t k = (uint32_t)f[m] + 6;
+            fn_03bb42(g_dat_633b0, 0x100, 0xad, (int32_t)colv[k], rowv[k], rlebase + offv[k], 0);
+        } else if (m == 4) {                                                /* 0x0003a019-8a */
+            uint32_t k = (uint32_t)f[4] + 8;
+            fn_03bb42(g_dat_633b0, 0x100, 0xad, (int32_t)colv[k], rowv[k], rlebase + offv[k], 0);
+        }
+        fn_00035ec2();                                                      /* 0x0003a08f: VGA ready-wait */
+        mem_copy(video_map(0xa0000), video_map(g_dat_633b0), 0xfa00);       /* 0x0003a094-a9: present what was just drawn */
+        continue;
+
+      leave_menu:
+        fn_04185e(g_dat_53ddc);                                             /* 0x0003a0ae-b3 */
+        if (m == 0) {                                                       /* 0x0003a0bc-0fe: status screen */
+            fn_0406f5(g_dat_63354 + 0x48, 0x32);
+            fn_038f3d(0);
+            mem_copy(video_map(0xa0000), video_map(g_dat_633b4), 0xfa00);
+            fn_040660(g_dat_63354 + 0x48, 0x32);
+            continue;
+        }
+        if (m == 1) {                                                       /* 0x0003a103-147: help screen */
+            fn_0406f5(g_dat_63354 + 0x48, 0x32);
+            fn_038cde();
+            mem_copy(video_map(0xa0000), video_map(g_dat_633b4), 0xfa00);
+            fn_040660(g_dat_63354 + 0x48, 0x32);
+            continue;
+        }
+        fn_041e20(g_dat_62c58, 0, 0x80);                                    /* 0x0003a14c-58 */
+        g_dat_63e24 = save24;                                               /* 0x0003a15d-68 */
+        g_dat_63e28 = save28;
+        g_dat_52ff8 = 1;                                                    /* 0x0003a16d: pump back on */
+        if (m != 4) return 1;                                               /* 0x0003a174-83 */
+        if (f[4] != 0) return 1;                                            /* 0x0003a17a-81 */
+        fn_0406f5(g_dat_63354 + 0x48, 0x32);                                /* 0x0003a185-92 */
+        return 0;
+    }
+}
+
 /* fn_03d244  orig: 0x0003d244 (L17, 672 B) -- THE LEVEL-UP TRANSITION: the room-to-room step that puts
  * the status screen up and then re-seats the player in the next room.
  *   1. drain the conditional entity list (fn_03237b) and fade the DAC out (fn_0406f5 at room+0x48, 50

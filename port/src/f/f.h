@@ -1444,4 +1444,12 @@ const uint32_t g_tab_52da4[100];  /* 0x52da4: per-room CD audio track */
  * g_tab_52c3c, pumps the command list, repaints, picks the CD track and fades back in. */
 void fn_03d244(uint8_t *node);
 
+extern uint32_t g_dat_51a10;              /* 0x51a10: sound-effect enable flag (title menu entry 2) */
+const uint32_t g_tab_531e0[5];          /* 0x531e0: Y of each title-menu entry (fn_00039c03) */
+
+/* 0x039c03: THE TITLE / ATTRACT MENU LOOP -- five entries navigated with select/direction keys over the
+ * "pause.spr" sprite, with music/sound toggles, then status screen (0) / help (1) / start (2..4).
+ * Returns 0 only for entry 4 with its toggle clear, otherwise 1. */
+int32_t fn_039c03(void);
+
 #endif

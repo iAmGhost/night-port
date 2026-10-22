@@ -16016,6 +16016,125 @@ static void test_fn_03d244(void) {
 }
 
 
+static void test_fn_039c03(void) {
+    printf("fn_039c03 (0x039c03): title / attract menu loop (five entries, pause.spr, key toggles)\n");
+    uint32_t *s_spr = g_dat_63e0c; uint8_t *s_room = g_dat_63354;
+    uint8_t s_338 = g_dat_53338, s_ff8 = g_dat_52ff8; uint32_t s_a10 = g_dat_51a10;
+    uint32_t s_24 = g_dat_63e24, s_28 = g_dat_63e28, s_stage = g_dat_63370;
+    uint32_t s_b0 = g_dat_633b0, s_b4 = g_dat_633b4;
+    uint8_t s_keys[7] = { g_dat_63ea4, g_dat_63ea5, g_dat_63ec0, g_dat_63ec1,
+                          g_dat_63e89, g_dat_63eb2, g_dat_63ebe };
+    uint8_t s_nav[4] = { g_dat_63ed0, g_dat_63ed3, g_dat_63ed5, g_dat_63ed8 };
+    uint8_t s_c58[0x80]; memcpy(s_c58, g_dat_62c58, sizeof s_c58);
+    uint8_t *s_d4 = g_dat_53dd4, *s_d8 = g_dat_53dd8, *s_dc = g_dat_53ddc;
+    int32_t s_e68 = g_dat_53c68; uint8_t *s_e70 = g_dat_53c70;
+
+    heap_arena_init(); heap_arena_cap_set(0x400000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    memset(g_video_ram, 0, 0x10000); memset(g_screen_ram, 0, sizeof g_screen_ram);
+    g_dat_633b0 = SCREEN_BASE; g_dat_633b4 = SCREEN_BASE + SCREEN_SIZE;
+    g_dat_53dd4 = g_dat_53dd8 = g_dat_53ddc = NULL;
+    g_dat_53c68 = 0; g_dat_53c70 = NULL;
+
+    /* the room whose DAC table brackets every fade (room+0x48) */
+    static uint8_t room[0x900];
+    memset(room, 0, sizeof room);
+    *(uint32_t *)(room + 0x40) = 3;
+    for (uint32_t i = 0; i < 0x400; i++) room[0x48 + i] = (uint8_t)(i & 0x3f);
+    g_dat_63354 = room; g_dat_63370 = 3;
+
+    /* a "pause.spr" struct: heap offsets at +0x04 (columns) / +0x08 (row counts) /
+       +0x34 (RLE offsets) / +0x38 (RLE stream), 14 entries (0 = header, 1..5 = menu items,
+       6..9 = the toggle sub-rows) */
+    uint32_t spr_off = heap_arena_alloc(0x40);
+    uint32_t col_off = heap_arena_alloc(14 * 4), row_off = heap_arena_alloc(14 * 4),
+             off_off = heap_arena_alloc(14 * 4), rle_off = heap_arena_alloc(0x100);
+    uint32_t *S = (uint32_t *)(hb + spr_off);
+    uint32_t *cv = (uint32_t *)(hb + col_off), *rv = (uint32_t *)(hb + row_off),
+             *ov = (uint32_t *)(hb + off_off);
+    uint8_t *rle = hb + rle_off;
+    memset(S, 0, 0x40);
+    S[1] = col_off; S[2] = row_off; S[13] = off_off; S[14] = rle_off;
+    for (int k = 0; k < 14; k++) { cv[k] = 10; rv[k] = 2; ov[k] = (uint32_t)k * 8; }
+    for (int k = 0; k < 14; k++) {                      /* two one-pixel rows per entry, colour 0x61 */
+        for (int r = 0; r < 2; r++) {
+            uint8_t *p = rle + k * 8 + r * 4;
+            p[0] = 1; p[1] = 0; p[2] = 1; p[3] = 0x61;
+        }
+    }
+    g_dat_63e0c = S;
+    g_dat_53338 = 1; g_dat_51a10 = 1; g_dat_52ff8 = 1;
+    g_dat_63e24 = 0x1111; g_dat_63e28 = 0x2222;
+    memset(g_dat_62c58, 0xa5, 0x80);
+    g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = g_dat_63ec1 = 0;
+    g_dat_63e89 = g_dat_63eb2 = g_dat_63ebe = 0;
+    g_dat_63ed0 = g_dat_63ed3 = g_dat_63ed5 = g_dat_63ed8 = 0;
+    sys_ports_reset(); sys_key_script_clear();
+
+    /* every scenario starts from a clean key state: the previous one leaves its exit key held */
+    #define KEYS_CLEAR() do { g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = g_dat_63ec1 = 0;              \
+                              g_dat_63e89 = g_dat_63eb2 = g_dat_63ebe = 0;                          \
+                              g_dat_63ed0 = g_dat_63ed3 = g_dat_63ed5 = g_dat_63ed8 = 0; } while (0)
+    KEYS_CLEAR();
+    /* --- 1: walk 0 -> 4 -> 3 (down key auto-repeat), toggle music, then sound, leave at entry 2 --- */
+/*     The repeat rate is what sets the frame count: a press arms its counter at 1, the counter counts up
+       and wraps at 0x14, so a held key presses again 19 frames later; releasing parks it at 0x13 and a
+       fresh hold presses two frames later. */
+    sys_key_script_add(1, &g_dat_63ed0, 1);             /* frame 1: entry 0 -> 4 */
+    sys_key_script_add(19, &g_dat_63ed0, 0);            /* out just before the repeat at frame 20 */
+    sys_key_script_add(21, &g_dat_63ed0, 1);            /* frame 22: entry 4 -> 3 */
+    sys_key_script_add(23, &g_dat_63ed0, 0);
+    sys_key_script_add(25, &g_dat_63ed3, 1);            /* frame 25, entry 3: music toggle */
+    sys_key_script_add(27, &g_dat_63ed3, 0);
+    sys_key_script_add(26, &g_dat_63ed0, 1);            /* frame 27: entry 3 -> 2 */
+    sys_key_script_add(28, &g_dat_63ed0, 0);
+    sys_key_script_add(30, &g_dat_63ed5, 1);            /* frame 30, entry 2: sound toggle -> CD stop */
+    sys_key_script_add(32, &g_dat_63ed5, 0);
+    sys_key_script_add(34, &g_dat_63ec0, 1);            /* exit key */
+    int32_t r1 = fn_039c03();
+    check(r1 == 1, "leaving at entry 2 returns 1");
+    check(g_dat_53338 == 0, "the left key at entry 3 turns music off (f[3] -> DAT_00053338)");
+    check(g_dat_51a10 == 0, "the right key at entry 2 turns sound effects off (f[2] -> DAT_00051a10)");
+    {   int hit = 0;
+        for (uint32_t i = 0; i < 0xfa00; i++) if (g_video_ram[i] == 0x61) { hit = 1; break; }
+        check(hit, "the menu sprites reach the video window (the frame presents DAT_000633b0)"); }
+    check(g_dat_52ff8 == 1 && g_dat_63e24 == 0x1111 && g_dat_63e28 == 0x2222,
+          "the keyboard pump is back on and both tick counters are restored from the frame");
+    { int cl = 1; for (int i = 0; i < 0x80; i++) if (g_dat_62c58[i]) cl = 0;
+      check(cl, "leaving the menu clears the 0x80-byte key table DAT_00062c58"); }
+
+    /* --- 2: entry 4 with its toggle cleared -> the fade-out exit returns 0 --- */
+    sys_key_script_clear(); KEYS_CLEAR();
+    g_dat_53338 = 1; g_dat_51a10 = 1;
+    sys_key_script_add(1, &g_dat_63ed0, 1);             /* entry 0 -> 4 */
+    sys_key_script_add(3, &g_dat_63ed0, 0);
+    sys_key_script_add(5, &g_dat_63ed3, 1);             /* left at entry 4: f[4] 1 -> 0 */
+    sys_key_script_add(7, &g_dat_63ed3, 0);
+    sys_key_script_add(9, &g_dat_63ea4, 1);             /* exit key */
+    int32_t r2 = fn_039c03();
+    check(r2 == 0, "entry 4 with f[4] clear takes the DAC fade-out exit and returns 0");
+
+    /* --- 3: the "any key" set parks the mode at 0x64 after spinning --- */
+    sys_key_script_clear(); KEYS_CLEAR();
+    sys_key_script_add(1, &g_dat_63eb2, 1);
+    sys_key_script_add(2, &g_dat_63eb2, 0);
+    int32_t r3 = fn_039c03();
+    check(r3 == 1, "DAT_00063eb2 leaves the menu after the release spin, with mode 0x64 (returns 1)");
+
+    sys_ports_reset();
+    g_dat_63e0c = s_spr; g_dat_63354 = s_room; g_dat_53338 = s_338; g_dat_52ff8 = s_ff8;
+    g_dat_51a10 = s_a10; g_dat_63e24 = s_24; g_dat_63e28 = s_28; g_dat_63370 = s_stage;
+    g_dat_633b0 = s_b0; g_dat_633b4 = s_b4;
+    g_dat_63ea4 = s_keys[0]; g_dat_63ea5 = s_keys[1]; g_dat_63ec0 = s_keys[2]; g_dat_63ec1 = s_keys[3];
+    g_dat_63e89 = s_keys[4]; g_dat_63eb2 = s_keys[5]; g_dat_63ebe = s_keys[6];
+    g_dat_63ed0 = s_nav[0]; g_dat_63ed3 = s_nav[1]; g_dat_63ed5 = s_nav[2]; g_dat_63ed8 = s_nav[3];
+    memcpy(g_dat_62c58, s_c58, sizeof s_c58);
+    g_dat_53dd4 = s_d4; g_dat_53dd8 = s_d8; g_dat_53ddc = s_dc;
+    g_dat_53c68 = s_e68; g_dat_53c70 = s_e70;
+    sys_key_script_clear();
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16401,6 +16520,7 @@ int main(void) {
     test_fn_03e20f();
     test_fn_03ed6f();
     test_fn_03d244();
+    test_fn_039c03();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

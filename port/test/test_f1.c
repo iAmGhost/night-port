@@ -9008,6 +9008,97 @@ static void test_fn_037b03(void) {
 /* fn_0374ad (0x0374ad, 539 B): the stage reset/reload. Reuses the synthetic stage set, calls the
  * loader first, then the reset, and pins both halves: the per-type teardown and the config block
  * (DAT_53c7c) that the fresh room node seeds. */
+static void test_fn_037347(void) {
+    printf("fn_037347 (0x037347): stage data teardown (free only)\n");
+
+    static const char *res[6] = { "stage1.wal", "st1s.spr", "stage1.stg", "night1.chr",
+                                  "ena-1.spr", "ena-1.act" };
+    const uint32_t walLen = 4 + 2 + 24 + 200 + 768, chrLen = 116u * 0x65u;
+    uint32_t len[6] = { walLen, 4, 4 + 2 * 81, chrLen, 4, 4 };
+    const uint32_t rawLen = 6 * 0x14u;
+    uint32_t of[6], cursor = 4 + rawLen;
+    for (int i = 0; i < 6; i++) { of[i] = cursor; cursor += len[i] + 4; }
+    uint8_t *img = (uint8_t *)calloc(1, cursor);
+    if (!img) { check(0, "  image alloc (SKIP)"); return; }
+    img[0] = 6;
+    { uint8_t prev = 0x20;
+      for (int i = 0; i < 6; i++) {
+          uint8_t t[0x14]; memset(t, 0, sizeof t);
+          memcpy(t, res[i], strlen(res[i]));
+          t[16] = (uint8_t)(of[i]); t[17] = (uint8_t)(of[i] >> 8);
+          for (int k = 0; k < 0x14; k++) { uint8_t raw = (uint8_t)(t[k] ^ prev); img[4 + i*0x14 + k] = raw; prev = raw; }
+      } }
+    { uint8_t *w = img + of[0]; *(uint32_t *)(w) = 1; w[4] = 0x00; w[5] = 0x77;
+      *(uint32_t *)(w+6) = 0; *(uint32_t *)(w+10) = 5; *(uint32_t *)(w+14) = 1; *(uint32_t *)(w+18) = 9;
+      *(uint32_t *)(w+22) = 0x11223344; *(uint32_t *)(w+26) = 0x55667788;
+      memset(w + 30, 0xee, 200); w[30] = 0xab; memset(w + 230, 0x11, 768); w[230] = 0x22;
+      *(uint32_t *)(w + 30 + 200 + 768) = 0; }
+    { uint8_t *s = img + of[2]; *(uint32_t *)(s) = 2;
+      s[4] = 5; *(uint32_t *)(s+5) = 0x111;
+      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 32; }
+
+    static uint8_t pool[0x53800];
+    memset(pool, 0, sizeof pool);
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_b0 = g_dat_633b0;
+    memset(dev_tab, 0, sizeof dev_tab);
+    g_dat_53730 = dev_tab; g_dat_536dc = 8; g_dat_53619 = 0; g_dat_536d8 = 0;
+    g_dat_633b0 = SCREEN_BASE;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0;
+    sys_file_lseek_pos = 0;
+    sys_file_image_set(img, cursor);
+    heap_arena_init(); (void)heap_malloc(0x4000);
+    g_639b8 = fn_04270d((const uint8_t *)"night.res", "rb");
+    fn_0366a4((uint8_t *)g_639b8);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *cfg = (uint8_t *)calloc(1, 0x40);
+    uint8_t *s_cfg = g_dat_53c7c; g_dat_53c7c = cfg;
+    uint8_t *s_5d0b4 = g_dat_5d0b4; uint32_t s_370 = g_dat_63370;
+    uint8_t *recbuf = (uint8_t *)calloc(1, 0x14 * 8);
+    g_dat_5d0b4 = recbuf; g_dat_63370 = 1;
+    uint32_t s_52c = g_tab_52c3c[0]; g_tab_52c3c[0] = 0x5a5;   /* room serial 0 of stage 1 */
+    cfg[0x30] = 0x11; cfg[5] = 0x22; cfg[0x11] = 0x33; cfg[0x17] = 0x44;
+
+    fn_037b03(0);                                    /* populate the stage */
+
+    uint8_t *spr32_old = g_dat_639ec[32];
+    uint32_t  act32_old = g_dat_53818[32];
+    uint8_t *room_old = g_dat_6334c;
+    check(spr32_old != 0 && act32_old != 0 && room_old != 0,
+          "  preconditions: type 32 and the room chain are loaded");
+    uint32_t junk = heap_malloc(0x3c); g_dat_639ec[7] = hb + junk;
+    uint32_t orphan = heap_malloc(8); g_dat_53818[9] = orphan; g_dat_639ec[9] = 0;
+    g_dat_53c88 = 5;
+    uint8_t *room_ref = g_dat_63354;
+
+    fn_037347();
+
+    check(g_dat_639ec[32] == NULL && g_dat_53818[32] == 0,
+          "  the per-type sprite struct and its action table are both cleared");
+    check(g_dat_639ec[7] == NULL, "  an unused type slot is cleared too");
+    check(g_dat_53818[9] == orphan,
+          "  latent quirk kept: an .act with an empty .spr slot is neither freed nor cleared");
+    check(g_dat_6334c == NULL, "  the room chain pointer DAT_6334c is cleared");
+    check(g_dat_63354 == room_ref,
+          "  DAT_63354 is left dangling at the freed chain (the original never clears it here)");
+    check(g_dat_53c88 == 0, "  DAT_53c88 is zeroed");
+    fn_037347();
+    check(g_dat_6334c == NULL && g_dat_63dfc == NULL, "  a second call is a no-op (everything already freed)");
+
+    free(recbuf); free(cfg);
+    g_dat_53c7c = s_cfg; g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370; g_tab_52c3c[0] = s_52c;
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+    g_dat_633b0 = saved_b0;
+    free(img);
+}
+
 static void test_fn_0374ad(void) {
     printf("fn_0374ad (0x0374ad): stage reset + reload over the synthetic stage set\n");
     static const char *res[6] = { "stage1.wal", "st1s.spr", "stage1.stg", "night1.chr",
@@ -10247,6 +10338,7 @@ int main(void) {
     test_fn_010efc();
     test_fn_03c853();
     test_fn_037b03();
+    test_fn_037347();
     test_fn_0374ad();
     test_fn_0376c8();
     test_fn_034295_0342ff();

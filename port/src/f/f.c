@@ -4527,6 +4527,48 @@ stage_records:
 uint32_t g_dat_63398 = 0;                    /* DAT_00063398: room orientation byte (room node +0x11) */
 uint32_t g_tab_52c3c[0x104] = {0};           /* DAT_00052c3c: 10 dwords per stage, indexed by the room serial */
 
+/* fn_037347  orig: 0x00037347 (L12, 358 B) -- THE STAGE DATA TEARDOWN (free only, no reload): the
+ * first half of fn_0374ad without the re-load, and WITHOUT its DAT_00053c7c[0x30] write.
+ * Frees every per-type sprite struct (DAT_000639ec[]) and its action table (DAT_00053818[]), the
+ * stage sprite (DAT_00063dfc) and the room chain (DAT_0006334c), clearing each slot as it goes.
+ * Two original behaviours are kept: (a) the whole body for a type is gated on its SPRITE slot being
+ * non-zero, so an action table whose sprite slot is empty is leaked and its slot left set; (b) the
+ * room chain pointer DAT_00063354 is NOT cleared here, so it dangles at freed memory until the next
+ * fn_0374ad/fn_03cad3 re-points it.
+ * The original scans types 1..0x103 skipping 0xc9 and 0xfa; the port model keeps 0x65 real per-type
+ * slots (see fn_0374ad), so the scan is clamped the same way and the two skipped indices are moot.
+ */
+void fn_037347(void)
+{
+    (void)canary_id(0, 0x28);                                                /* 0x37347-4c */
+    fn_03237b();                                                             /* 0x37351 */
+    fn_03ee0a();                                                             /* 0x37356 */
+    g_dat_53c88 = 0;                                                         /* 0x3735b */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    for (uint32_t i = 1; i < 0x65u; i = i + 1) {                             /* 0x37365-0x37429 */
+        if (g_dat_639ec[i] == NULL) continue;                                /* 0x3737f (gates the body) */
+        (void)fn_03d999((uint32_t *)g_dat_639ec[i], 0);                      /* 0x3738a */
+        heap_free_guard((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x3738f */
+        uint32_t ao = g_dat_53818[i];                                        /* 0x3739a */
+        if (ao != 0) {                                                       /* 0x373a3 */
+            (void)fn_0100d9((uint32_t *)(hb + ao));                          /* 0x373ae */
+            heap_free_guard(ao);                                             /* 0x373b3 */
+        }
+        g_dat_639ec[i] = NULL;                                               /* 0x373c6 */
+        g_dat_53818[i] = 0;                                                  /* 0x373d3 */
+    }
+    if (g_dat_63dfc != NULL) {                                               /* 0x373e2 */
+        (void)fn_03d999((uint32_t *)g_dat_63dfc, 0);                         /* 0x373eb */
+        heap_free_guard((uint32_t)((uint8_t *)g_dat_63dfc - hb));            /* 0x373f0 */
+    }
+    g_dat_63dfc = NULL;                                                      /* 0x373fb */
+    if (g_dat_6334c != NULL) {                                               /* 0x37404 */
+        uint32_t r = fn_03c72b((uint32_t)(g_dat_6334c - hb));                /* 0x37411 */
+        heap_free_guard(r);                                                  /* 0x37416 */
+    }
+    g_dat_6334c = NULL;                                                      /* 0x37421 */
+}
+
 void fn_0374ad(void)
 {
     (void)canary_id(0, 0x40);                                                /* 0x374ad-b2 */

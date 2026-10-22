@@ -110,6 +110,7 @@ extern uint8_t *g_dat_6334c;   /* DAT_0006334c: stage room-chain head */
 void fn_037b03(int32_t resume_flag);
 extern uint32_t g_dat_63398;   /* DAT_00063398: room orientation byte (room node +0x11), set by fn_0374ad */
 extern uint32_t g_tab_52c3c[0x104]; /* DAT_00052c3c: 10 dwords per stage, indexed by room serial; no producer in the EXE (read-only: 0x0374ad/0x0376c8/0x03af18/0x03d244) */
+void fn_037347(void);   /* 0x037347: THE STAGE DATA TEARDOWN (free-only half of fn_0374ad): per-type .spr/.act, the stage .spr and the room chain; leaves DAT_63354 dangling by design */
 void fn_0374ad(void);
 extern uint32_t g_dat_53c84;   /* DAT_00053c84: the player entity pointer (second slot), set by fn_0376c8 */
 extern uint32_t g_tab_52738[0x100]; /* DAT_00052738: per-ship dword table indexed by entity +0x28; no producer in the EXE (reads only) */

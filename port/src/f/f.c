@@ -4526,6 +4526,11 @@ stage_records:
  */
 uint32_t g_dat_63398 = 0;                    /* DAT_00063398: room orientation byte (room node +0x11) */
 uint32_t g_tab_52c3c[0x104] = {0};           /* DAT_00052c3c: 10 dwords per stage, indexed by the room serial */
+/* DAT_0005274c: FLOAT table, 10 floats (40 B) per stage, indexed by the room serial.
+ * Effective address = 0x5274c + serial*4 + (DAT_00063370-1)*0x28 (0x03d75c 0x3d854-6f).
+ * Bounded above by the next known global DAT_00052c3c: 0x52c3c-0x5274c = 0x4f0 = 316 floats.
+ * No producer inside the EXE (read-only) -> seedable, awaits the CD/data backend. */
+float g_tab_5274c[0x4f0 / 4] = {0};
 
 /* fn_037347  orig: 0x00037347 (L12, 358 B) -- THE STAGE DATA TEARDOWN (free only, no reload): the
  * first half of fn_0374ad without the re-load, and WITHOUT its DAT_00053c7c[0x30] write.
@@ -12556,6 +12561,62 @@ void fn_03df96(uint32_t base) {
         int32_t row_count = (int32_t)font->rowcount_tbl[g];        /* 0x03e018 */
         const uint8_t *rle = (const uint8_t *)((uintptr_t)font->rle_base + font->char_table[g]);              /* 0x03e005 */
         fn_03bb42(base, dest_off, start_row, col, row_count, rle, mode);
+    }
+}
+
+/* fn_03d75c  orig: 0x0003d75c (L10, 307 B) -- THE STAGE-RECORD FLOAT DECAY LOOP: the sibling of
+ * fn_03df96 over the SAME 0x14-byte record array (g_dat_5d0b4, count g_dat_62a90) and the SAME
+ * record float at +0x10. For every record whose two x-projections land at least partly inside the
+ * 0x140-pixel field (camera g_dat_639dc subtracted), the float is reduced by a per-stage/per-room
+ * rate. This is the per-frame "life/charge remaining" decay behind the sprite-record render.
+ *
+ * Record layout (0x14 B, cf. fn_03df96): +0x00 glyph/entry index, +0x04 x component, +0x08 y
+ * component, +0x0c mode byte, +0x10 float (scale here, life/charge there).
+ * g_dat_63dfc sub-arrays are HEAP OFFSETS (fn_03de85 stores heap_malloc results there; fn_03dcbd
+ * frees them with heap_free_host), so both dereferences add g_heap_base -- unlike the re-packed
+ * `struct hud_font` view used by fn_03df96 (see the note in docs/12-functions/
+ * 03d75c-record-float-decay.md about that layout discrepancy).
+ *
+ * ABI: NO explicit stack args (RET). EAX at entry is an IMPLICIT register argument and is what the
+ * body multiplies by: the 0x0418ee stack check is `XCHG [ESP+4],EAX` (frame size -> EAX for the
+ * checker) then `MOV EAX,[ESP+4]` (caller's EAX **restored**), so the value kept at [ebp-4] is the
+ * CALLER'S EAX, not the frame constant. Both call sites (0x03cbcb / 0x03cc5d inside fn_03cb38) set
+ * `EAX = DAT_000639dc - [ebp-8]`, i.e. **this frame's camera-x scroll delta** -> the decay is
+ * distance-based, not time-based.
+ *
+ *   a = rec[+4] - A[idx] - g_dat_639dc                  ; A = spr[+0x0c]  (0x3d7a2-0x3d7c4)
+ *   b = rec[+4] - A[idx] + B[idx] - g_dat_639dc         ; B = spr[+0x04]  (0x3d7c7-0x3d7fd)
+ *   a += (int)fpu_rndint(rec[+0x10]); b += same          ; FLD/FRNDINT/FISTP x2
+ *   if ((-1 < a && a < 0x140) || (-1 < b && b < 0x140))
+ *       rec[+0x10] = rec[+0x10] - (float)cam_delta * g_tab_5274c[serial + (g_dat_63370-1)*10]
+ *
+ * Quirks kept: the OR test short-circuits the same way (either projection in field decays); the
+ * loop bound is a SIGNED cmp against g_dat_62a90; g_dat_63354 is dereferenced unguarded; the rate
+ * address mixes a `*4` (serial) with a `*0x28` (stage) offset, i.e. 10 floats per stage; a negative
+ * camera delta (scrolling back) ADDS float back (FILD is signed, FSUBR of a negative product). */
+void fn_03d75c(int32_t cam_delta) {
+    int32_t frame = (int32_t)canary_id((uintptr_t)cam_delta, 0x34);  /* 0x3d75c-61: EAX passes through */
+    const uint32_t *spr = (const uint32_t *)g_dat_63dfc;             /* DAT_00063dfc */
+    for (int32_t i = 0; i < (int32_t)g_dat_62a90; i++) {             /* 0x3d777-8f (signed jge) */
+        uint8_t *rec = g_dat_5d0b4 + (uint32_t)i * 0x14;             /* 0x3d795 */
+        int32_t idx = (int32_t)*(const uint32_t *)(rec + 0x00);      /* [ebp-0x10] */
+        uint8_t *a_base = (uint8_t *)g_heap_base + spr[0x0c / 4];    /* spr+0x0c: heap offset */
+        int32_t x = (int32_t)*(const uint32_t *)(rec + 0x04);
+        int32_t a = x - (int32_t)*(const uint32_t *)(a_base + (uint32_t)idx * 4)
+                      - (int32_t)g_dat_639dc;                        /* [ebp-0xc] */
+        uint8_t *b_base = (uint8_t *)g_heap_base + spr[0x04 / 4];    /* spr+0x04: heap offset */
+        int32_t b = a + (int32_t)*(const uint32_t *)(b_base + (uint32_t)idx * 4); /* [ebp-8] (recomputed
+                                                                                  * from the same A[idx]) */
+        a += (int32_t)fpu_rndint((double)*(const float *)(rec + 0x10));           /* 0x3d800-15 */
+        b += (int32_t)fpu_rndint((double)*(const float *)(rec + 0x10));           /* 0x3d818-2d */
+        if (!((a > -1 && a < 0x140) || (b > -1 && b < 0x140))) {     /* 0x3d830-4e */
+            continue;                                               /* 0x3d84e -> loop */
+        }
+        uint32_t addr_off = ((g_dat_63370 - 1) * 0x28)               /* 0x3d854-5b imul 0x28 */
+                          + (*(const uint32_t *)(g_dat_63354 + 0x40) << 2); /* 0x3d85e-67 shl 2 */
+        float rate = g_tab_5274c[addr_off / 4];                      /* 0x3d86f FMUL dword [edx+0x5274c] */
+        float old = *(const float *)(rec + 0x10);                    /* 0x3d875 FSUBR (mem - ST) */
+        *(float *)(rec + 0x10) = old - (float)frame * rate;          /* 0x3d87b FSTP */
     }
 }
 

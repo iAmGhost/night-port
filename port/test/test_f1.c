@@ -10037,6 +10037,61 @@ static void test_fn_03e0a0(void) {
     check(*(uint32_t *)(hb + n2 + 0x51) == 0, "  n2->next = 0");
 }
 
+/* 0x03d75c -- the stage-record float decay loop (camera-delta driven). */
+static void test_fn_03d75c(void) {
+    printf("fn_03d75c (0x03d75c): stage-record float decay, EAX=camera delta, 0..0x13f gate\n");
+    heap_arena_init();
+    static uint8_t recs[5 * 0x14];
+    memset(recs, 0, sizeof recs);
+    uint32_t a_off = heap_arena_alloc(4 * 4);
+    uint32_t b_off = heap_arena_alloc(4 * 4);
+    uint32_t *A = (uint32_t *)((uint8_t *)g_heap_base + a_off);   /* spr+0x0c */
+    uint32_t *B = (uint32_t *)((uint8_t *)g_heap_base + b_off);   /* spr+0x04 */
+    A[0] = 100; A[1] = 0;    A[2] = 500;
+    B[0] = 50;  B[1] = 0xffffff38u; B[2] = 0;                     /* B[1] = -200 */
+    static uint32_t spr[0x40 / 4];
+    spr[0x04 / 4] = b_off; spr[0x0c / 4] = a_off;                 /* fields are HEAP OFFSETS */
+    static uint8_t room[0x44];
+    *(uint32_t *)(room + 0x40) = 3;                               /* room serial */
+    g_dat_5d0b4  = recs;
+    g_dat_63dfc  = (struct hud_font *)spr;
+    g_dat_63354  = room;
+    g_dat_63370  = 2;                                             /* stage 2 -> rate block offset 10 */
+    g_dat_639dc  = 20;                                            /* camera x */
+    for (int i = 0; i < 0x4f0 / 4; i++) g_tab_5274c[i] = 0.0f;
+    g_tab_5274c[3]   = 2.0f;                                      /* stage 1, serial 3 */
+    g_tab_5274c[10 + 3] = 0.5f;                                   /* stage 2, serial 3 -> 7*0.5 = 3.5 */
+#define RF(i) (*(float *)(recs + (i) * 0x14 + 0x10))
+#define SETR(i, idx, x, f) do { *(uint32_t *)(recs + (i) * 0x14 + 0x00) = (uint32_t)(idx); \
+    *(uint32_t *)(recs + (i) * 0x14 + 0x04) = (uint32_t)(x); RF(i) = (f); } while (0)
+    SETR(0, 0, 130, 3.0f);      /* a = 130-100-20 = 10 (+3 -> 13): in field                      */
+    SETR(1, 2, 900, 1.5f);      /* a = b = 380: out of field                                     */
+    SETR(2, 1, 420, 0.0f);      /* a = 400 out, b = 400-200 = 200 in: OR path decays             */
+    SETR(3, 0, 440, -1.0f);     /* a = 320 out; rndint(-1.0) -> 319 in: gate uses the ROUNDED val */
+    SETR(4, 2, 700, 0.0f);      /* a = 700-500-20 = 180 in: proves A[idx] is subtracted          */
+    g_dat_62a90 = 5;
+    fn_03d75c(7);                                               /* EAX = camera delta 7 */
+    check(RF(0) == -0.5f, "  in-field record: 3.0 - 7*0.5 = -0.5");
+    check(RF(1) == 1.5f, "  both projections outside 0..0x13f -> float untouched");
+    check(RF(2) == -3.5f, "  a out but b (a + B[idx]) in -> OR gate still decays");
+    check(RF(3) == -4.5f, "  rndint(float) feeds the gate; store uses the UNROUNDED original");
+    check(RF(4) == -3.5f, "  A[idx] (spr+0x0c) is the value subtracted for a");
+    SETR(0, 0, 130, 3.0f);
+    g_dat_63370 = 1;                                            /* stage 1 -> rate block 0 */
+    fn_03d75c(7);
+    check(RF(0) == -11.0f, "  rate index = serial + (stage-1)*10 (stage 1 -> 2.0 -> 3-14)");
+    g_dat_63370 = 2;
+    SETR(0, 0, 130, 3.0f);
+    fn_03d75c(-7);                                              /* scrolling back adds float */
+    check(RF(0) == 6.5f, "  negative camera delta (signed FILD) increases the float");
+    SETR(0, 0, 130, 3.0f);
+    g_dat_62a90 = 0;
+    fn_03d75c(7);
+    check(RF(0) == 3.0f, "  record count 0 -> loop never runs");
+#undef RF
+#undef SETR
+}
+
 static void test_fn_03fc1d(void) {
     printf("fn_03fc1d (0x03fc1d): VGA-palette DAC load (4B hdr + table -> board_out)\n");
     heap_arena_init();
@@ -10501,6 +10556,7 @@ int main(void) {
     test_fn_010010();
     test_fn_010181();
     test_fn_03fc1d();
+    test_fn_03d75c();
     test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();

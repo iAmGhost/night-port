@@ -914,6 +914,8 @@ struct hud_font {
 extern struct hud_font *g_dat_63dfc;  /* 0x63dfc: sprite blit font ptr (fn_03df96) */
 extern uint32_t g_dat_62a90;          /* 0x62a90: sprite record count (fn_03df96) */
 extern uint8_t *g_dat_5d0b4;          /* 0x5d0b4: sprite record array, 0x14 stride (fn_03df96) */
+extern float g_tab_5274c[0x4f0 / 4];  /* DAT_0005274c: float rates, 10 per stage x room serial; no producer in the EXE (read by 0x03d75c) */
+void fn_03d75c(int32_t cam_delta);      /* 0x03d75c: stage-record float decay (EAX = camera-x delta) */
 uint32_t fn_01519f(const uint8_t *p);    /* 0x01519f: return *(u32*)(p+1) - g_dat_639dc */
 void fn_015295(uint8_t *a0, int32_t a1); /* 0x015295: entity tick -- clamp a0->5, conditional list-insert + accumulator */
 uint32_t fn_0151d5(const uint8_t *p);    /* 0x0151d5: return *(u32*)(p+9) - g_dat_639e0 */

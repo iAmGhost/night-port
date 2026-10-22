@@ -117,7 +117,9 @@ diffs of the same 400-line pattern rather than fresh 1000-instruction ports.
 
 ## Port progress (updated 2026-07-13)
 
-Ported handlers (7 of 18 -- 0x01df8b/behaviour 0x06 added: the entity[0x5f] phase-latch chooser (script-byte side spots alternating with absolute jitter slots 6..9)).
+Ported handlers (8 of 18 -- 0x01f064/behaviour 0x07 added: a four-arm chooser (script-row offsets for slots 0/1, player-relative jitter for 2..5, absolute for 6..9) with the clamp before the distance test and the restore jumping past it).
+
+Older progress: (7 of 18 -- 0x01df8b/behaviour 0x06 added: the entity[0x5f] phase-latch chooser (script-byte side spots alternating with absolute jitter slots 6..9)).
 
 FAMILY TEMPLATE STATUS (scratch/aicases.py, comparing each pending handler's canonical pseudo case-by-case against fn_01bea8): 0x01f064, 0x020170, 0x0221b8 differ ONLY in case 0x00, and 0x02119c also differs in case 0x0b -- so those five are body-generation jobs (pattern: scratch/gen_01df8b.py) rather than fresh reads. 0x02319c, 0x024bf9, 0x0265ac, 0x027bec (and probably the other 6-7 KB entries) have no `switch(` in their pseudo at all -- they use if-chains, so they must be read on their own.
 
@@ -153,7 +155,7 @@ Shared facts confirmed for all three handlers:
   for slots 6..9; no span is ever zero, so the `prng % span` idiv cannot fault.
 - Tail is identical: mv_a -> fn_01545e, mv_b -> fn_01586b, entity[0x1b] = facing vs the player.
 
-Remaining handlers (11): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
+Remaining handlers (10): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
 0x01df8b, 0x01f064, 0x020170, 0x02119c, 0x0221b8, 0x02319c (arg 2), 0x024bf9, 0x0265ac, 0x027bec,
 0x029709, 0x02adf5, 0x02c838, 0x02e2cc, 0x02fe1e, 0x03272f. Then the dispatcher 0x031a8e (1153 B)
 and 0x0322f5 (133 B).

@@ -1151,6 +1151,8 @@ int32_t  fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2);      
 void     fn_017f13(uint8_t *e);
 void     fn_018e88(uint8_t *e);   /* 0x018e88: THE BEHAVIOUR-0x01 ENTITY AI HANDLER -- fn_017f13's near-clone: two speed-index words (record +0x04 / +0x80, the latter forced by entity[0x6f]), no entity[0x8b] recon block, and a six-slot hiding-spot draw (j = prng%4 with a +prng%2 sub-draw for 2/3) whose jitter pairs live at DS 0x51c9c/0x51ca0/0x51ca4/0x51ca8 stride 0x10 */   /* 0x017f13: THE BEHAVIOUR-0x00 ENTITY AI HANDLER -- speed bookkeeping on the float field e[0x63], the fn_015a1f proximity latch, then a switch on e[0x1f] (0..0x16) over the twelve action routines with the family's register ABI (EAX=e, EDX=speed, EBX/ECX=player screen x/y, two stack out slots); the two deltas feed fn_01545e / fn_01586b and e[0x1b] tracks facing */
 void     fn_019e48(uint8_t *e);
+void     fn_01f064(uint8_t *e);
+    /* 0x01f064: THE BEHAVIOUR-0x07 ENTITY AI HANDLER -- fn_01bea8's body with a four-arm chooser: fn_01bea8's split slot draw, but slots 0/1 hide at the script-row byte 0 offset beside the player, slots 2..5 the player-relative jitter, 6..9 the absolute one; the clamp runs before the distance test and the restore jumps past it */
 void     fn_01df8b(uint8_t *e);
     /* 0x01df8b: THE BEHAVIOUR-0x06 ENTITY AI HANDLER -- the fn_01bea8 body with a phase-latch chooser on e[0x5f]: latch 0 -> slot prng()%2 hidden beside the player at the script-row byte 0 offset, latch 1 -> absolute jitter slots 6..9 (prng()%4+6); the player-relative arm (slots 2..5) is unreachable; the too-close test runs before the clamp and the clamp sits outside the e[0xc7] gate */
 void     fn_01cf64(uint8_t *e, int32_t mode);

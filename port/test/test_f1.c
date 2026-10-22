@@ -2489,6 +2489,115 @@ static int node0_len(void) {
     uint8_t *a = nar();
     return (int16_t)((uint16_t)a[8] | ((uint16_t)a[9] << 8));
 }
+/* 0x0113e7 -- THE THREE-ACTOR ESCORT SPAWN (+ the type-selected device command stream). */
+static void test_fn_0113e7(void) {
+    printf("fn_0113e7 (0x0113e7): the three-actor escort spawn\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+
+    /* --- isolate every global the spawn and the dispatch touch ------------------------------- */
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    int32_t  s_cnt = g_dat_53c68;
+    uint8_t *s_sprfa = g_dat_639ec[0xfa]; uint32_t s_actfa = g_dat_53818[0xfa];
+    uint8_t *s_53d0c[100]; for (int i = 0; i < 100; i++) s_53d0c[i] = g_dat_53d0c[i];
+    uint8_t *s_e24[10]; for (int i = 0; i < 10; i++) s_e24[i] = g_dat_53e24[i];
+    uint8_t s_f90 = g_dat_63f90, s_338 = g_dat_53338, s_fb8 = g_dat_63fb8;
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+    g_dat_63370 = 1; g_dat_63364 = 0; g_dat_63368 = 0;
+
+    uint8_t *entab = g_dat_53e9c + 0xfau * 0x88u;
+    static uint8_t saved_ent[0x88]; memcpy(saved_ent, entab, sizeof saved_ent);
+    memset(entab, 0, 0x88);
+    *(uint16_t *)(entab + 0x00) = 0x00aa; entab[0x04] = 0x5c; *(uint16_t *)(entab + 0x08) = 0x1234;
+    uint8_t *sprfa = (uint8_t *)calloc(1, 0x40);
+    *(uint32_t *)(sprfa + 0x04) = 0x1111; *(uint32_t *)(sprfa + 0x38) = 0x2222;
+    g_dat_639ec[0xfa] = sprfa; g_dat_53818[0xfa] = 0;
+
+    /* every command cursor is an empty stream (kind 0 -> fn_040839 returns at once) */
+    static uint8_t empty[4] = {0, 0, 0, 0};
+    for (int i = 0; i < 10; i++)  g_dat_53e24[i] = empty;
+    for (int i = 0; i < 100; i++) g_dat_53d0c[i] = empty;
+    g_dat_63f90 = 1; g_dat_53338 = 1; g_dat_63fb8 = 0;
+
+    uint8_t *src = (uint8_t *)calloc(1, 0x14f);
+    *(uint32_t *)(src + 0x01) = 1000; *(uint32_t *)(src + 0x09) = 2000;
+    *(uint32_t *)(src + 0x0d) = 0x1f;        /* in the first command-slot range */
+    *(uint32_t *)(src + 0x1b) = 0; src[0x30] = 0;
+
+    /* --- forward side ------------------------------------------------------------------------ */
+    fn_0113e7(src);
+    check(g_dat_53c68 == 3 && g_dat_53c70 && g_dat_53c74,
+          "three type-0xfa escort actors are constructed and appended");
+    uint8_t *a = g_dat_53c70, *b = *(uint8_t **)(a + 0x13f), *c = g_dat_53c74;
+    check(a != b && b != c && *(uint32_t *)(a + 0x0d) == 0xfa && *(uint32_t *)(c + 0x0d) == 0xfa,
+          "all three are the shared companion type 0xfa");
+    check(*(int32_t *)(a + 0x01) == 1000 - 0x0c && *(int32_t *)(b + 0x01) == 1000 - 0x2c &&
+          *(int32_t *)(c + 0x01) == 1000 + 0x16,
+          "facing right: x = source-0x0c, source-0x2c, source+0x16");
+    check(*(int32_t *)(a + 0x09) == 2001 && *(int32_t *)(b + 0x05) == 0 &&
+          *(int32_t *)(c + 0x05) == 0,
+          "y = source+0x09 + 1 for all three, EBX (block+0x05) is 0");
+    check(*(uint32_t *)(a + 0x1b) == 0 && *(uint32_t *)(c + 0x1b) == 0 &&
+          a[0x30] == 1 && c[0x30] == 1 &&
+          *(uint32_t *)(a + 0x17) == 2 && *(uint32_t *)(b + 0x17) == 3 && *(uint32_t *)(c + 0x17) == 3,
+          "+0x1b = 0, +0x30 = 1, +0x17 = 2 for the lead actor and 3 for the flank pair");
+    check(g_dat_63fb8 == 0,
+          "the spawn happened with the source's byte +0x30 clear, but no command stream was started");
+
+    /* --- mirrored side ----------------------------------------------------------------------- */
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_63fb8 = 0;
+    *(uint32_t *)(src + 0x1b) = 1;
+    fn_0113e7(src);
+    a = g_dat_53c70; b = *(uint8_t **)(a + 0x13f); c = g_dat_53c74;
+    check(*(int32_t *)(a + 0x01) == 1000 + 0x0c && *(int32_t *)(b + 0x01) == 1000 + 0x2c &&
+          *(int32_t *)(c + 0x01) == 1000 - 0x16,
+          "facing left: the offsets flip to +0x0c, +0x2c, -0x16");
+    check(*(uint32_t *)(a + 0x1b) == 1 && *(uint32_t *)(c + 0x1b) == 1,
+          "and every escort inherits the source's mirror stamp +0x1b = 1");
+
+    /* --- the type -> command-stream ladder, read through the started flag --------------------- */
+    static const int32_t in_rng[]  = {0x0c, 0x11, 0x1f, 0x21, 0x24, 0x27, 0x29, 0x2b, 0x2e, 0x31,
+                                      0x33, 0x36, 0x38, 0x3b, 0x3d, 0x40, 0x47, 0x4a, 0x4c, 0x4f,
+                                      0x51, 0x54};
+    static const int32_t out_rng[] = {0x0b, 0x12, 0x1e, 0x22, 0x2c, 0x32, 0x37, 0x3c, 0x41, 0x46,
+                                      0x4b, 0x50, 0x55, 0x60};
+    int in_ok = 1, out_ok = 1;
+    for (unsigned k = 0; k < sizeof in_rng / sizeof *in_rng; k++) {
+        src[0x30] = 1;                       /* the ladder is gated on the source's +0x30 byte */
+        *(uint32_t *)(src + 0x0d) = (uint32_t)in_rng[k];
+        g_dat_63fb8 = 0;
+        fn_0113e7(src);
+        if (g_dat_63fb8 != 1) in_ok = 0;
+        g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0;
+    }
+    for (unsigned k = 0; k < sizeof out_rng / sizeof *out_rng; k++) {
+        src[0x30] = 1;
+        *(uint32_t *)(src + 0x0d) = (uint32_t)out_rng[k];
+        g_dat_63fb8 = 0;
+        fn_0113e7(src);
+        if (g_dat_63fb8 != 0) out_ok = 0;
+        g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0;
+    }
+    check(in_ok, "every in-range entity type starts its command stream (ladder lower/upper bounds)");
+    check(out_ok, "the gaps in the ladder (0x12-0x1e, 0x22-0x23, 0x32, 0x37, 0x3c, 0x4b, 0x50, 0x55+) start nothing");
+    src[0x30] = 0; *(uint32_t *)(src + 0x0d) = 0x1f; g_dat_63fb8 = 0;
+    fn_0113e7(src);
+    check(g_dat_63fb8 == 0, "the whole dispatch is gated on the source's byte +0x30 == 1");
+
+    /* --- the DS constants the ladder depends on ---------------------------------------------- */
+    check(g_tab_51c24[0x0c] == 92 && g_tab_51c24[0x11] == 94 && g_tab_51c24[0x00] == 39,
+          "the DS 0x51c24 type -> sound-slot table is extracted from the image data segment");
+    check(g_tab_51c90[1] == 0x9c && g_tab_51c90[2] == 0x9d,
+          "the gauge colour table really sits at DS 0x51c90 (block +0x6c), not +0x40");
+
+    free(src);
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_639ec[0xfa] = s_sprfa; g_dat_53818[0xfa] = s_actfa;
+    for (int i = 0; i < 100; i++) g_dat_53d0c[i] = s_53d0c[i];
+    for (int i = 0; i < 10; i++)  g_dat_53e24[i] = s_e24[i];
+    g_dat_63f90 = s_f90; g_dat_53338 = s_338; g_dat_63fb8 = s_fb8;
+    memcpy(entab, saved_ent, sizeof saved_ent);
+}
+
 static void test_fn_013908(void) {
     printf("fn_013908 (0x013908): the entity occupancy register\n");
     uint32_t cx_save = g_dat_639dc, cy_save = g_dat_639e0;
@@ -11645,6 +11754,7 @@ int main(void) {
     test_fn_01348f();
     test_fn_03801b();
     test_fn_013908();
+    test_fn_0113e7();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

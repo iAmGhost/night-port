@@ -4497,6 +4497,81 @@ stage_records:
     }
 }
 
+/* fn_0374ad  orig: 0x000374ad (L15, 539 B) -- THE STAGE RESET / RELOAD (the "new stage" transition).
+ * Frees the previous stage's data, reloads it through fn_037b03, then seeds the player config block
+ * from the fresh room node. Capstone (scripts/vad.py dis 0x374ad 0x21b) confirms the decomp:
+ *   guard PUSH 0x40;CALL 0x418ee ; cfg(DAT_00053c7c)[0x30] byte = 0 ; fn_003237b ; fn_003ee0a ; DAT_00053c88 = 0
+ *   loop i = 1 .. 0x103, skipping i == 0xc9 and i == 0xfa:
+ *     if (DAT_000639ec[i] != 0) {                       ; sprite struct for entity type i
+ *         fn_003d999(DAT_000639ec[i], 0); heap_free_guard(ret);
+ *         fn_00100d9(DAT_00053818[i]);    heap_free_guard(ret);   ; action table for type i
+ *         DAT_000639ec[i] = 0; DAT_00053818[i] = 0;
+ *     }
+ *   then DAT_00063dfc (stage .spr struct) and DAT_0006334c (room chain) are freed the same way,
+ *   fn_037b03(0) reloads, DAT_00063354 = DAT_0006334c, fn_03cad3(that node), and finally the config
+ *   block is written: +0x30 = 0, +1 = DAT_000639dc + (node[0x11] ? 0x15e : -0x1e), +5 = 0,
+ *   +9 = DAT_000639e0 + DAT_00052c3c[(DAT_00063370-1)*0x28 + node[0x40]*4] (bytes: 10 dwords/stage),
+ *   +0x17 = 1, +0x11 = 0.
+ * Port notes:
+ *  - The loop bound 0x104 walks the DS region DAT_000639ec..0x63df8 / DAT_00053818..0x53c24, not a
+ *    typed array: index 0 (the gun), 0xc9 and 0xfa are skipped because those slots ARE other named
+ *    globals -- DAT_00063d10 / DAT_00063dd4 and DAT_00053b3c / DAT_00053c00 (exp/mark/dust data owned
+ *    elsewhere), and 0x104 would be DAT_00063dfc / DAT_00053c28, handled explicitly right after.
+ *    The port iterates the two modelled arrays (types 1..0x64) which covers every slot any ported
+ *    loader ever writes; the excluded indices are exactly the excluded globals.
+ *  - Latent original quirk kept: the ACTION table is freed only when the SPRITE slot is non-zero, so a
+ *    type with an .act but no .spr leaks (and its DAT_53818 slot is left dangling).
+ *  - DAT_00052c3c has no producer anywhere in the EXE (only four reads: here, 0x0376c8, 0x03af18,
+ *    0x03d244), so it is modelled as a zero-initialised global table a test can seed.
+ */
+uint32_t g_dat_63398 = 0;                    /* DAT_00063398: room orientation byte (room node +0x11) */
+uint32_t g_tab_52c3c[0x104] = {0};           /* DAT_00052c3c: 10 dwords per stage, indexed by the room serial */
+
+void fn_0374ad(void)
+{
+    (void)canary_id(0, 0x40);                                                /* 0x374ad-b2 */
+    g_dat_53c7c[0x30] = 0;                                                   /* 0x374ca */
+    fn_03237b();                                                             /* 0x374ce */
+    fn_03ee0a();                                                             /* 0x374d3 */
+    g_dat_53c88 = 0;                                                         /* 0x374d8 */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    for (uint32_t i = 1; i < 0x65u; i = i + 1) {                             /* 0x374e2-375a8 (see notes) */
+        if (g_dat_639ec[i] == NULL) continue;                                /* 0x37522 */
+        (void)fn_03d999((uint32_t *)g_dat_639ec[i], 0);                      /* 0x37542 */
+        heap_free_guard((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x37547 */
+        uint32_t ao = g_dat_53818[i];                                        /* 0x3755e */
+        if (ao != 0) {                                                       /* 0x3756b */
+            (void)fn_0100d9((uint32_t *)(hb + ao));                          /* 0x37572 */
+            heap_free_guard(ao);                                             /* 0x37577 */
+        }
+        g_dat_639ec[i] = NULL;                                               /* 0x3758e */
+        g_dat_53818[i] = 0;                                                  /* 0x3759e */
+    }
+    if (g_dat_63dfc != NULL) {                                               /* 0x375b9 */
+        (void)fn_03d999((uint32_t *)g_dat_63dfc, 0);                         /* 0x375c0 */
+        heap_free_guard((uint32_t)((uint8_t *)g_dat_63dfc - hb));            /* 0x375c5 */
+    }
+    g_dat_63dfc = NULL;                                                      /* 0x375d6 */
+    if (g_dat_6334c != NULL) {                                               /* 0x375e8 */
+        uint32_t r = fn_03c72b((uint32_t)(g_dat_6334c - hb));                /* 0x375f3 */
+        heap_free_guard(r);                                                  /* 0x375f8 */
+    }
+    g_dat_6334c = NULL;                                                      /* 0x37609 */
+    fn_037b03(0);                                                            /* 0x37615 full reload */
+    g_dat_63354 = g_dat_6334c;                                               /* 0x3761f */
+    fn_03cad3(g_dat_63354);                                                  /* 0x37629 */
+    g_dat_63398 = g_dat_63354[0x11];                                         /* 0x37633-3b (zero-extended byte) */
+    if (g_dat_63398 == 0) *(int32_t *)(g_dat_53c7c + 1) = (int32_t)g_dat_639dc - 0x1e;    /* 0x37649-57 */
+    else                  *(int32_t *)(g_dat_53c7c + 1) = (int32_t)g_dat_639dc + 0x15e;   /* 0x3765c-6d */
+    *(uint32_t *)(g_dat_53c7c + 5) = 0;                                      /* 0x37675 */
+    *(int32_t *)(g_dat_53c7c + 9) =                                          /* 0x3767c-9f */
+        (int32_t)(g_dat_639e0 +
+                  g_tab_52c3c[(g_dat_63370 - 1) * 0xa + *(const uint32_t *)(g_dat_63354 + 0x40)]);
+    *(uint32_t *)(g_dat_53c7c + 0x17) = 1;                                   /* 0x376ac */
+    *(uint32_t *)(g_dat_53c7c + 0x11) = 0;                                   /* 0x376b8 */
+}
+
+
 
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */

@@ -107,7 +107,10 @@ void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_
 void fn_03eff2(void);                          /* 0x03eff2: install IRQ 0x1c (FPU) handler (flag-guarded) */
 void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handler (flag-guarded) */
 extern uint8_t *g_dat_6334c;   /* DAT_0006334c: stage room-chain head */
-void fn_037b03(int32_t resume_flag);   /* 0x037b03: THE STAGE LOADER -- stage%d.wal (room chain via fn_03c853), st%ds.spr, stage%d.stg (0x59 B records; kind 1 loads a type's .spr/.act, kind 5 the DAT_5d0b4 array), night%d.chr (the 101-entry entity-type table) */
+void fn_037b03(int32_t resume_flag);
+extern uint32_t g_dat_63398;   /* DAT_00063398: room orientation byte (room node +0x11), set by fn_0374ad */
+extern uint32_t g_tab_52c3c[0x104]; /* DAT_00052c3c: 10 dwords per stage, indexed by room serial; no producer in the EXE (read-only: 0x0374ad/0x0376c8/0x03af18/0x03d244) */
+void fn_0374ad(void);   /* 0x0374ad: THE STAGE RESET/RELOAD -- frees the previous stage's per-type .spr/.act, stage .spr and room chain, reloads via fn_037b03, then seeds the player config block (DAT_53c7c) from the new room node */   /* 0x037b03: THE STAGE LOADER -- stage%d.wal (room chain via fn_03c853), st%ds.spr, stage%d.stg (0x59 B records; kind 1 loads a type's .spr/.act, kind 5 the DAT_5d0b4 array), night%d.chr (the 101-entry entity-type table) */
 void fn_037306(void);                          /* 0x037306: cleanup -- if g_639b8: fn_0427a3(g_639b8); fn_00040570; fn_03ffab; fn_03eff2 */
 void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (divisor in EAX) */
 void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */

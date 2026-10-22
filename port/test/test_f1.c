@@ -9005,6 +9005,105 @@ static void test_fn_037b03(void) {
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
+/* fn_0374ad (0x0374ad, 539 B): the stage reset/reload. Reuses the synthetic stage set, calls the
+ * loader first, then the reset, and pins both halves: the per-type teardown and the config block
+ * (DAT_53c7c) that the fresh room node seeds. */
+static void test_fn_0374ad(void) {
+    printf("fn_0374ad (0x0374ad): stage reset + reload over the synthetic stage set\n");
+    static const char *res[6] = { "stage1.wal", "st1s.spr", "stage1.stg", "night1.chr",
+                                  "ena-1.spr", "ena-1.act" };
+    const uint32_t walLen = 4 + 2 + 24 + 200 + 768, chrLen = 116u * 0x65u;
+    uint32_t len[6] = { walLen, 4, 4 + 2 * 81, chrLen, 4, 4 };
+    const uint32_t rawLen = 6 * 0x14u;
+    uint32_t of[6], cursor = 4 + rawLen;
+    for (int i = 0; i < 6; i++) { of[i] = cursor; cursor += len[i] + 4; }
+    uint8_t *img = (uint8_t *)calloc(1, cursor);
+    if (!img) { check(0, "  image alloc (SKIP)"); return; }
+    img[0] = 6;
+    { uint8_t prev = 0x20;
+      for (int i = 0; i < 6; i++) {
+          uint8_t t[0x14]; memset(t, 0, sizeof t);
+          memcpy(t, res[i], strlen(res[i]));
+          t[16] = (uint8_t)(of[i]); t[17] = (uint8_t)(of[i] >> 8);
+          for (int k = 0; k < 0x14; k++) { uint8_t raw = (uint8_t)(t[k] ^ prev); img[4 + i*0x14 + k] = raw; prev = raw; }
+      } }
+    { uint8_t *w = img + of[0]; *(uint32_t *)(w) = 1; w[4] = 0x00; w[5] = 0x77;
+      *(uint32_t *)(w+6) = 0; *(uint32_t *)(w+10) = 5; *(uint32_t *)(w+14) = 1; *(uint32_t *)(w+18) = 9;
+      *(uint32_t *)(w+22) = 0x11223344; *(uint32_t *)(w+26) = 0x55667788;
+      memset(w + 30, 0xee, 200); w[30] = 0xab; memset(w + 230, 0x11, 768); w[230] = 0x22;
+      *(uint32_t *)(w + 30 + 200 + 768) = 0; }
+    { uint8_t *s = img + of[2]; *(uint32_t *)(s) = 2;
+      s[4] = 5; *(uint32_t *)(s+5) = 0x111;
+      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 32; }
+
+    static uint8_t pool[0x53800];
+    memset(pool, 0, sizeof pool);
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_b0 = g_dat_633b0;
+    memset(dev_tab, 0, sizeof dev_tab);
+    g_dat_53730 = dev_tab; g_dat_536dc = 8; g_dat_53619 = 0; g_dat_536d8 = 0;
+    g_dat_633b0 = SCREEN_BASE;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0;
+    sys_file_lseek_pos = 0;
+    sys_file_image_set(img, cursor);
+    heap_arena_init(); (void)heap_malloc(0x4000);
+    g_639b8 = fn_04270d((const uint8_t *)"night.res", "rb");
+    fn_0366a4((uint8_t *)g_639b8);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *cfg = (uint8_t *)calloc(1, 0x40);
+    uint8_t *s_cfg = g_dat_53c7c; g_dat_53c7c = cfg;
+    uint8_t *s_5d0b4 = g_dat_5d0b4; uint32_t s_370 = g_dat_63370;
+    uint8_t *recbuf = (uint8_t *)calloc(1, 0x14 * 8);
+    g_dat_5d0b4 = recbuf; g_dat_63370 = 1;
+    uint32_t s_52c = g_tab_52c3c[0]; g_tab_52c3c[0] = 0x5a5;   /* room serial 0 of stage 1 */
+    cfg[0x30] = 0x11; cfg[5] = 0x22; cfg[0x11] = 0x33; cfg[0x17] = 0x44;
+
+    fn_037b03(0);                                    /* populate the stage */
+    uint8_t *spr32_old = g_dat_639ec[32];
+    uint32_t  act32_old = g_dat_53818[32];
+    uint8_t *room_old = g_dat_6334c;
+    check(spr32_old != 0 && act32_old != 0 && room_old != 0, "  preconditions: type 32 and the room chain are loaded");
+    /* a slot the stage set never loads, to watch the teardown clear it */
+    uint32_t junk = heap_malloc(0x3c); g_dat_639ec[7] = hb + junk;
+    /* the documented leak: an action table with no sprite slot is never freed */
+    uint32_t orphan = heap_malloc(8); g_dat_53818[9] = orphan; g_dat_639ec[9] = 0;
+
+    fn_0374ad();
+
+    check(g_dat_639ec[7] == 0, "  teardown cleared the unused type slot DAT_639ec[7]");
+    check(g_dat_53818[9] == orphan,
+          "  latent quirk kept: an .act with an empty .spr slot is neither freed nor cleared");
+    (void)spr32_old; (void)act32_old; (void)room_old;   /* the arena reuses the freed offsets, so block identity proves nothing */
+    check(g_dat_639ec[32] != 0 && *(uint32_t *)g_dat_639ec[32] == 0,
+          "  type 32 was torn down and re-loaded (slot non-zero again, parsed empty)");
+    check(g_dat_53818[32] != 0 && *(uint32_t *)(hb + g_dat_53818[32]) == 0,
+          "  its action table was torn down and re-loaded");
+    check(g_dat_6334c != 0 && g_dat_63354 == g_dat_6334c
+          && *(uint32_t *)(g_dat_6334c + 0x12) == 0x11223344u,
+          "  the room chain was freed and reloaded from the stream; DAT_63354 aliases the new head");
+    check(g_dat_63398 == 0x77, "  DAT_63398 = the new room node's +0x11 byte");
+    check(cfg[0x30] == 0 && cfg[5] == 0 && cfg[0x11] == 0 && cfg[0x17] == 1,
+          "  config block: +0x30/+5/+0x11 cleared, +0x17 = 1");
+    check(*(int32_t *)(cfg + 1) == (int32_t)g_dat_639dc + 0x15e,
+          "  config +1 = DAT_639dc + 0x15e (the orientation byte was non-zero)");
+    check(*(int32_t *)(cfg + 9) == (int32_t)g_dat_639e0 + 0x5a5,
+          "  config +9 = DAT_639e0 + DAT_52c3c[(stage-1)*0x28 + serial*4]");
+
+    g_dat_53c7c = s_cfg; g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370; g_tab_52c3c[0] = s_52c;
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+    g_dat_633b0 = saved_b0;
+    sys_file_image_set(0, 0);
+    free(recbuf); free(img); free(cfg);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03f80d(void) {
     printf("fn_03f80d (0x03f80d): resource-op block gate (tag 0xf1fa + int16 count)\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
@@ -9767,6 +9866,7 @@ int main(void) {
     test_fn_010efc();
     test_fn_03c853();
     test_fn_037b03();
+    test_fn_0374ad();
     test_fn_03ace9();
     test_fn_040fb3();
     test_fn_040d09();

@@ -2496,6 +2496,36 @@ static int node0_len(void) {
 /* 0x038cde -- THE HELP / INSTRUCTIONS SCREEN (paged help%d.pcx + animated palette bands). */
 /* 0x03a224 -- THE TITLE SCREEN (wipe-in, two-entry menu, returns the selection). */
 /* 0x03f15f -- THE VESA MODE SET (mode 0x101) and the geometry globals every blit reads. */
+/* 0x038a20 -- the company-logo screen; 0x038ae0 -- the opening-movie step. */
+static void test_fn_038a20_038ae0(void) {
+    printf("fn_038a20 / fn_038ae0 (0x038a20 / 0x038ae0): the logo screen and the opening step\n");
+    uint32_t s_f4 = g_dat_531f4, s_3a0 = g_dat_633a0;
+    uint8_t s_tab[0x300];
+    memcpy(s_tab, g_dat_633b8, sizeof s_tab);
+    for (int i = 0; i < 0x300; i++) g_dat_633b8[i] = (uint8_t)(i * 3);
+    g_dat_633a0 = 0;                       /* no resource index: logo.pcx / opening.fli are not found */
+    sys_ports_reset();
+
+    fn_038a20();
+    check(g_dat_531f4 == 0xa0000, "the logo screen sets the VESA mode first (DAT_531f4 = 640<<10)");
+    int allzero = 1; for (int i = 0; i < 0x300; i++) if (g_dat_633b8[i]) allzero = 0;
+    check(allzero, "fn_041e20 clears the 768-byte DAT_633b8 palette table before the DAC push");
+    uint8_t *hist = (uint8_t *)calloc(1, 0x20000);
+    int n = hist ? sys_hist(hist, 0x20000) : 0;
+    /* board_out(0,0x100,table) + fade-in 50*768 + fade-out 50*768 */
+    check(n == 768 + 50 * 768 + 51 * 768,
+          "the DAC stream is board_out's 256-entry (768 B) black push, fn_040660's 50 ascending frames and fn_0406f5's 51 descending frames");
+    free(hist);
+
+    sys_ports_reset();
+    g_dat_531f4 = 0;
+    fn_038ae0();
+    check(g_dat_531f4 == 0xa0000, "the opening step restores the 640x480 mode after the .fli player");
+
+    g_dat_531f4 = s_f4; g_dat_633a0 = s_3a0;
+    memcpy(g_dat_633b8, s_tab, sizeof s_tab);
+}
+
 static void test_fn_03f15f(void) {
     printf("fn_03f15f (0x03f15f): the VESA mode set (640x480x8) and the blit geometry\n");
     uint32_t s_4c = g_dat_63e4c, s_58 = g_dat_63e58, s_5c = g_dat_63e5c, s_60 = g_dat_63e60;
@@ -12177,6 +12207,7 @@ int main(void) {
     test_fn_038cde();
     test_fn_03a224();
     test_fn_03f15f();
+    test_fn_038a20_038ae0();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

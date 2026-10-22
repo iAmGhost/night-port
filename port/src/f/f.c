@@ -14038,3 +14038,37 @@ int32_t fn_03f15f(void)
     }
     return (int32_t)ok;                              /* 0x3f3b2- */
 }
+
+/* fn_038a20  orig: 0x00038a20 (L12, 191 B) -- THE COMPANY-LOGO SCREEN (boot sequence step 1).
+ *   Sets the VESA mode (fn_03f15f), clears the 768-byte DAT_633b8 palette table with fn_041e20 and
+ *   pushes it out through board_out(0, 0x100, ...) -- i.e. the DAC goes black before the picture is
+ *   decoded -- loads "logo.pcx" (DS 0x15de) with the wrapping screen loader fn_03628e, fades the
+ *   DAT_636b8 table IN over 0x32 frames (fn_040660), idles 0x400 delay_units(1), fades OUT
+ *   (fn_0406f5) and idles another 0x400 units. No arguments, no return. The pair of idle loops is the
+ *   logo hold; the fades are the same ascending/descending DAC ramp pair used by the title screen. */
+void fn_038a20(void)
+{
+    fn_03f15f();                                     /* 0x38a38 */
+    fn_041e20(g_dat_633b8, 0, 0x300);                /* 0x38a49 (EAX=DS 0x133b8, EDX=0, EBX=0x300) */
+    board_out(0, 0x100, g_dat_633b8);                /* 0x38a5d push DAT_633b8 / 0x100 / 0 */
+    fn_03628e("logo.pcx", 0);                        /* 0x38a6c (DS 0x15de) */
+    fn_040660(g_dat_636b8, 0x32);                    /* 0x38a7b fade-in, 0x32 frames */
+    for (int32_t i = 0; i < 0x400; i++) delay_units(1);   /* 0x38a80-a9e */
+    fn_0406f5(g_dat_636b8, 0x32);                    /* 0x38aae fade-out, 0x32 frames */
+    for (int32_t i = 0; i < 0x400; i++) delay_units(1);   /* 0x38ab3-ad5 */
+}
+
+/* fn_038ae0  orig: 0x00038ae0 (L12, 79 B) -- THE OPENING MOVIE STEP (boot sequence step 2).
+ *   fn_000405a7 (the DPMI real-mode call {0x13}), fn_010b1d with EAX = 1 (the CD track/TOC read that
+ *   starts track 1), then THE TIMED EVENT PLAYER fn_03f6bc on "opening.fli" (DS 0x15e7) -- the call
+ *   site also hands EDX = 0, EBX = 0x46 and ECX = 0x48 plus a pushed 0, which the port's
+ *   name-only signature of 0x03f6bc does not read. fn_00010dde, and FINALLY the VESA mode set again:
+ *   the .fli player leaves the card in its own mode, so the game restores 640x480 right after it. */
+void fn_038ae0(void)
+{
+    fn_000405a7();                                   /* 0x38af8 */
+    fn_10b1d();                                      /* 0x38b02 (orig EAX = 1) */
+    fn_03f6bc("opening.fli");                        /* 0x38b1a (DS 0x15e7; EDX=0, EBX=0x46, ECX=0x48, push 0) */
+    fn_00010dde();                                   /* 0x38b1f */
+    fn_03f15f();                                     /* 0x38b24 */
+}

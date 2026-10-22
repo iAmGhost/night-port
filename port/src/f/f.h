@@ -320,6 +320,8 @@ extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03
 extern uint32_t g_dat_63e60;               /* DAT_00063e60: VBE bytes per line (ModeInfoBlock +0x10) */
 extern uint32_t g_dat_63e68;               /* DAT_00063e68: VBE y resolution (ModeInfoBlock +0x14) */
 extern uint32_t g_dat_531f8;               /* DAT_000531f8: g_dat_531f4 - 1 */
+void fn_038a20(void);   /* 0x038a20: THE COMPANY-LOGO SCREEN -- VESA set, palette clear, logo.pcx, DAC fade in/out with two 0x400-unit holds. */
+void fn_038ae0(void);   /* 0x038ae0: THE OPENING MOVIE STEP -- CD track 1, the opening.fli timed-event player, then the VESA mode is restored. */
 int32_t fn_03f15f(void);   /* 0x03f15f: THE VESA MODE SET (mode 0x101, 640x480x8) -- fills DAT_531f4/531f8/63e4c/63e58/63e5c/63e60/63e64/63e68; returns 1, or 0 with a banner when VESA or the mode set fails. */
 extern uint32_t g_dat_531f4;               /* DAT_000531f4: VESA row width (VBE[0x8]<<10), init'd by 0x03f15f */
 extern uint32_t g_dat_63e64;               /* DAT_00063e64: VESA bytes-per-line/pitch (VBE[0x12]), init'd by 0x03f15f */

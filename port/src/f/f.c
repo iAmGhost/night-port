@@ -13140,3 +13140,108 @@ void fn_03c231(uint32_t dest, int32_t col, int32_t row, int32_t width,
         }
     }
 }
+
+/* fn_012efa  orig: 0x012efa (L11, 1429 B) -- THE ENTITY SPRITE DRAW: turns one entity block into
+ * one or two blits of its current animation frame.
+ * ABI: EAX = entity block, EDX = destination base (flat video/screen address, passed straight to
+ * the blit callees). Frame-selected via the entity's action container:
+ *   P1 = e[0x123] (act container, heap offset) ; P2 = *(P1+4) (per-action record array)
+ *   rec = P2[e[0x17] & 0x7fffffff] ; frames = rec[0] count, rec[+0x6c] fill flag byte,
+ *   rec[+0x6d] = uint16 frame-number array ; fidx = e[0x11] % rec[0] (SIGNED idiv remainder)
+ *   spr = frame[fidx]
+ * Per-sprite parallel arrays live at entity +0x12b widths, +0x12f heights, +0x137 x-hotspot,
+ * +0x13b y-hotspot, +0x133 RLE offsets; the RLE stream is at +0x127 (base) + offs[spr].
+ * Draw gate (0x12f1a-50): entity[0x30] != 1, or DAT_63360 % 0x17 > 5 (signed), or entity[0] >= 2;
+ * otherwise nothing is drawn (kind-1 entities blink 6 frames out of every 23).
+ * Three arms:
+ *   A  entity[0x30] == 2 && DAT_63360 % 0x14 == 0  -> fn_03bebb (fill 0x9c) and RETURN (0x13487).
+ *   B  dword[e+0x1b] == 0 (not mirrored)           -> optional fn_03c231 silhouette (fill 0xd0)
+ *      when rec[+0x6c] == 1, then fn_03bb42.
+ *   C  dword[e+0x1b] != 0 (mirrored)               -> same pair, x anchored at e[1]-(W-X).
+ * The silhouette call halves both the row count (height/2) and the y anchoring (e[5]/2), rounding
+ * toward zero -- (v - (v >> 31)) >> 1 -- because the fill blit draws the interlaced outline.
+ * Latent: a frame count of 0 divides by zero (INT 0 in the original) and every array deref is
+ * unguarded; kept as-is. */
+static int32_t half_div2(int32_t v) { return (v - (v >> 31)) >> 1; }   /* (v-(v>>31))>>1, trunc2 */
+
+void fn_012efa(uint8_t *e, uint32_t base)
+{
+    (void)canary_id((uintptr_t)e, 0x38);                              /* 0x12efa-eff probe */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    /* --- draw gate ---------------------------------------------------------------------------- */
+    if (*(const uint8_t *)(e + 0x30) == 1) {                          /* 0x12f1a-25 kind 1 */
+        int32_t rem = (int32_t)g_dat_63360 % 0x17;                    /* 0x12f2c-3f signed idiv */
+        if (rem <= 5 && *(const uint8_t *)e < 2) return;              /* 0x12f46-50 */
+    }
+
+    /* --- action record / frame number --------------------------------------------------------- */
+    uint32_t p1  = *(const uint32_t *)(e + 0x123);                    /* 0x12f68 */
+    uint32_t p2  = *(const uint32_t *)(hb + p1 + 0x04);               /* 0x12f6e */
+    uint32_t idx = *(const uint32_t *)(e + 0x17) & 0x7fffffffu;       /* 0x12f59-62 */
+    uint32_t rec = *(const uint32_t *)(hb + p2 + 4u * idx);           /* 0x12f71-75 */
+    int32_t  fcnt = (int32_t)*(const uint32_t *)(hb + rec);           /* 0x12f83 */
+    int32_t  fcur = (int32_t)*(const uint32_t *)(e + 0x11);           /* 0x12f7b */
+    int32_t  fidx = fcur % fcnt;                                      /* 0x12f80-86 (signed) */
+    uint32_t frames = *(const uint32_t *)(hb + rec + 0x6d);           /* 0x12f8d */
+    uint32_t spr  = *(const uint16_t *)(hb + frames + 2u * (uint32_t)fidx);  /* 0x12f90-97 */
+
+    /* --- per-sprite parallel arrays (all heap offsets) ---------------------------------------- */
+    uint32_t woff = *(const uint32_t *)(e + 0x12b), hoff = *(const uint32_t *)(e + 0x12f);
+    uint32_t xoff = *(const uint32_t *)(e + 0x137), yoff = *(const uint32_t *)(e + 0x13b);
+    uint32_t roff = *(const uint32_t *)(e + 0x133), rbase = *(const uint32_t *)(e + 0x127);
+    int32_t W = (int32_t)*(const uint32_t *)(hb + woff + 4u * spr);   /* +0x12b */
+    int32_t H = (int32_t)*(const uint32_t *)(hb + hoff + 4u * spr);   /* +0x12f */
+    int32_t X = (int32_t)*(const uint32_t *)(hb + xoff + 4u * spr);   /* +0x137 */
+    int32_t Y = (int32_t)*(const uint32_t *)(hb + yoff + 4u * spr);   /* +0x13b */
+    const uint8_t *rle = hb + rbase + *(const uint32_t *)(hb + roff + 4u * spr);
+    int32_t camX = (int32_t)g_dat_639dc, camY = (int32_t)g_dat_639e0; /* 0x139dc / 0x139e0 */
+    int32_t ex = (int32_t)*(const uint32_t *)(e + 0x01);              /* world x */
+    int32_t ey = (int32_t)*(const uint32_t *)(e + 0x05);              /* world y */
+    int32_t ez = (int32_t)*(const uint32_t *)(e + 0x09);              /* world z / height base */
+    int32_t flipw = (int32_t)*(const int32_t *)(e + 0x1b);            /* mirror selector (dword) */
+    int32_t flip  = (int32_t)*(const uint8_t *)(e + 0x1b);            /* mode byte pushed to callees */
+    uint8_t fill  = *(const uint8_t *)(hb + rec + 0x6c);              /* 0x12fd7 silhouette flag */
+
+    /* --- arm A: the 0x14-frame "solid" pulse, fill blit only ---------------------------------- */
+    if (*(const uint8_t *)(e + 0x30) == 2 && (int32_t)g_dat_63360 % 0x14 == 0) {  /* 0x12f9d-1331b */
+        int32_t x = (flipw == 0) ? ((ex - X) - camX)                 /* 0x133ad-3bd */
+                                 : (ex - (W - X) - camX);             /* 0x1344b-479 */
+        fn_03bebb(base, x, ((ey + ez) - Y) - camY, W, (uint32_t)H, rle, flip, 0x9c);
+        return;                                                       /* 0x13487 */
+    }
+
+    if (flipw == 0) {                                                 /* 0x12fca arm B (forward) */
+        if (fill == 1)                                                /* 0x12fd4-130ba */
+            fn_03c231(base, (ex - X) - camX,
+                      (((ez + half_div2(H)) - Y) - camY) + half_div2(ey),
+                      W, (uint32_t)half_div2(H), rle, flip, 0xd0);
+        fn_03bb42(base, (ex - X) - camX, ((ey + ez) - Y) - camY, W,
+                  (uint32_t)H, rle, flip);                            /* 0x13159 */
+        return;                                                       /* 0x1315e -> 0x13316 */
+    }
+
+    if (fill == 1)                                                    /* 0x13163-1325f arm C */
+        fn_03c231(base, ex - (W - X) - camX,
+                  (((ez + half_div2(H)) - Y) - camY) + half_div2(ey),
+                  W, (uint32_t)half_div2(H), rle, flip, 0xd0);
+    fn_03bb42(base, ex - (W - X) - camX, ((ey + ez) - Y) - camY, W,
+              (uint32_t)H, rle, flip);                                /* 0x13311 */
+}
+
+/* fn_03203d  orig: 0x03203d (L11, 95 B) -- THE ENTITY DRAW SWEEP: runs fn_012efa over the entity
+ * list. ABI: EAX = destination base (flat video/screen address), forwarded as EDX.
+ * Walks DAT_00053c70 (list head) through the +0x13f next links for DAT_00053c68 iterations; the
+ * count is re-read on every test (0x32072), so a callee that adds or removes an entity changes the
+ * trip count mid-sweep. The walk pointer is NOT re-validated: an entity freed by the draw (see
+ * fn_03b953's twin hazard) still links onward through its stale +0x13f. */
+void fn_03203d(uint32_t base)
+{
+    (void)canary_id((uintptr_t)base, 0x28);                          /* 0x3203d-42 probe */
+    uint8_t *cur = g_dat_53c70;                                      /* 0x32058-5d */
+    for (uint32_t i = 0; ; i = i + 1) {                              /* 0x32060 / 0x3206c */
+        if ((int32_t)i >= (int32_t)g_dat_53c68) break;               /* 0x3206f-78 (count re-read) */
+        fn_012efa(cur, base);                                        /* 0x3207a-80 */
+        cur = *(uint8_t **)(cur + 0x13f);                            /* 0x32085-8e */
+    }
+}

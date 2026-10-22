@@ -898,6 +898,11 @@ struct blit_ctl {
 };
 extern struct blit_ctl *g_dat_639c4;                /* DAT_000639c4: HUD blit control block */
 void fn_03ace9(void);                               /* 0x03ace9: 20-frame HUD composite (633b0/633b4 + 2 sprites via fn_03bb42) */
+void fn_012efa(uint8_t *ent, uint32_t base);
+void fn_03203d(uint32_t base);
+                                          /* 0x03203d: THE ENTITY DRAW SWEEP -- fn_012efa over the DAT_53c70 entity list (+0x13f links) for DAT_53c68 iterations, count re-read each pass; EAX = destination base forwarded as EDX. */
+
+                                          /* 0x012efa: THE ENTITY SPRITE DRAW -- resolves the entity's action record (e[0x123] container -> [+4] record array -> [e[0x17]&0x7fffffff]), picks frame e[0x11] %% the record's frame count, then blits via fn_03bebb (kind 2 pulse, fill 0x9c), fn_03c231 (silhouette, fill 0xd0) and/or fn_03bb42 (the sprite itself). blink gate on kind 1, mirror on dword[e+0x1b]. */
 void fn_03c231(uint32_t dest, int32_t col, int32_t row, int32_t width,
                uint32_t rows, const uint8_t *rle, int32_t flip, uint32_t fill_byte);
                                           /* 0x03c231: THE INTERLACED FILL BLIT -- draws a solid silhouette (each run filled with one byte via fn_041e20) from an fn_03bb42-style RLE stream; rows<<1 iterations with only the even ones drawing (odd ones consume a stream row), forward or mirrored (flip byte), with left/right clipping against 0..0x140 and width */

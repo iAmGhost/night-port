@@ -10848,6 +10848,146 @@ static void test_fn_03a1b3(void) {
     check(dest[6] == 0, "  dest[6] untouched");
 }
 
+/* 0x012efa -- THE ENTITY SPRITE DRAW: action record -> frame number -> blit arms. */
+static void test_fn_012efa(void) {
+    printf("fn_012efa (0x012efa): the entity sprite draw\n");
+    uint32_t s60 = g_dat_63360, scx = g_dat_639dc, scy = g_dat_639e0, sb4 = g_dat_633b4;
+
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    /* RLE stream: row0 = [1 run][gap 2][len 3][AA BB CC] ; row1 = [1][gap 0][len 1][DD] */
+    uint32_t rle_off = heap_malloc(0x40);
+    uint8_t *rs = hb + rle_off;
+    rs[0] = 1; rs[1] = 2; rs[2] = 3; rs[3] = 0xAA; rs[4] = 0xBB; rs[5] = 0xCC;
+    rs[6] = 1; rs[7] = 0; rs[8] = 1; rs[9] = 0xDD;
+
+    uint32_t w_off = heap_malloc(64), h_off = heap_malloc(64), x_off = heap_malloc(64),
+             y_off = heap_malloc(64), ro_off = heap_malloc(64);
+    uint32_t *Wa = (uint32_t *)(hb + w_off), *Ha = (uint32_t *)(hb + h_off),
+             *Xa = (uint32_t *)(hb + x_off), *Ya = (uint32_t *)(hb + y_off),
+             *RO = (uint32_t *)(hb + ro_off);
+    for (int i = 0; i < 16; i++) { Wa[i] = 0x20; Ha[i] = 2; Xa[i] = 0; Ya[i] = 0; RO[i] = 0; }
+    Ya[5] = 7;                       /* decoy: sprite 5 must NOT be the one drawn */
+
+    uint32_t fr_off = heap_malloc(8);
+    uint16_t *FR = (uint16_t *)(hb + fr_off);
+    FR[0] = 5; FR[1] = 7; FR[2] = 9; FR[3] = 1;
+    uint32_t rec_off = heap_malloc(0x80);
+    uint8_t *REC = hb + rec_off;
+    *(uint32_t *)(REC + 0x00) = 3;   /* frame count */
+    REC[0x6c] = 0;                   /* silhouette (fill-blit) flag */
+    *(uint32_t *)(REC + 0x6d) = fr_off;
+    uint32_t p2_off = heap_malloc(8);
+    *(uint32_t *)(hb + p2_off + 0) = rec_off;
+    *(uint32_t *)(hb + p2_off + 4) = rec_off;
+    uint32_t cont_off = heap_malloc(8);
+    *(uint32_t *)(hb + cont_off + 0) = 2;
+    *(uint32_t *)(hb + cont_off + 4) = p2_off;
+
+    uint8_t *e = (uint8_t *)calloc(1, 0x150);
+    *(uint32_t *)(e + 0x01) = 10;    /* world x */
+    *(uint32_t *)(e + 0x05) = 20;    /* world y */
+    *(uint32_t *)(e + 0x09) = 0;     /* z */
+    *(uint32_t *)(e + 0x11) = 1;     /* -> fidx 1 -> frame number 7 */
+    *(uint32_t *)(e + 0x17) = 0;     /* action index */
+    *(uint32_t *)(e + 0x1b) = 0;     /* not mirrored */
+    e[0x30] = 0;                     /* entity kind */
+    *(uint32_t *)(e + 0x123) = cont_off;
+    *(uint32_t *)(e + 0x127) = rle_off;
+    *(uint32_t *)(e + 0x12b) = w_off;
+    *(uint32_t *)(e + 0x12f) = h_off;
+    *(uint32_t *)(e + 0x133) = ro_off;
+    *(uint32_t *)(e + 0x137) = x_off;
+    *(uint32_t *)(e + 0x13b) = y_off;
+
+    g_dat_633b4 = SCREEN_BASE;
+    g_dat_639dc = 0; g_dat_639e0 = 0; g_dat_63360 = 0;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_012efa(e, SCREEN_BASE);
+    uint8_t *scr = g_screen_ram;
+    check(scr[20 * 0x140 + 12] == 0xAA && scr[20 * 0x140 + 13] == 0xBB &&
+          scr[20 * 0x140 + 14] == 0xCC, "row 0 of the frame lands at (x-hotspot 0, y 20) + gap 2");
+    check(scr[21 * 0x140 + 10] == 0xDD, "row 1 continues one line down with its own gap");
+    check(scr[13 * 0x140 + 12] == 0, "frame number comes from frames[e[0x11] %% count] (sprite 7, not 5)");
+
+    /* blink gate: kind 1 draws only when DAT_63360 %% 0x17 > 5, or entity[0] >= 2 */
+    e[0x30] = 1; e[0] = 0; g_dat_63360 = 0;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_012efa(e, SCREEN_BASE);
+    check(scr[20 * 0x140 + 12] == 0 && scr[21 * 0x140 + 10] == 0,
+          "kind-1 entity suppressed while frame %% 0x17 <= 5");
+    g_dat_63360 = 6;
+    fn_012efa(e, SCREEN_BASE);
+    check(scr[20 * 0x140 + 12] == 0xAA, "same entity draws once frame %% 0x17 exceeds 5");
+    g_dat_63360 = 0; e[0] = 2;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_012efa(e, SCREEN_BASE);
+    check(scr[20 * 0x140 + 12] == 0xAA, "entity[0] >= 2 bypasses the blink gate");
+    e[0] = 0; e[0x30] = 0;
+
+    /* camera offset shifts the destination */
+    g_dat_639dc = 3; g_dat_639e0 = 5;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_012efa(e, SCREEN_BASE);
+    check(scr[15 * 0x140 + 9] == 0xAA && scr[15 * 0x140 + 10] == 0xBB &&
+          scr[15 * 0x140 + 11] == 0xCC,
+          "DAT_639dc/639e0 (camera) subtract from the destination x and y");
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+
+    /* mirrored arm: x anchored at e[1] - (width - x-hotspot) */
+    *(uint32_t *)(e + 0x1b) = 1;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_012efa(e, SCREEN_BASE);
+    check(scr[20 * 0x140 + 7] == 0xAA && scr[20 * 0x140 + 6] == 0xBB &&
+          scr[20 * 0x140 + 5] == 0xCC,
+          "mirrored entity anchors x at e[1]-(W-X) and runs reverse (fn_03bb42 mode 1)");
+    *(uint32_t *)(e + 0x1b) = 0;
+
+    /* silhouette arm: rec[+0x6c] == 1 adds an interlaced fill (0xd0) at half the height */
+    REC[0x6c] = 1;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_012efa(e, SCREEN_BASE);
+    check(scr[11 * 0x140 + 12] == 0xd0 && scr[11 * 0x140 + 13] == 0xd0,
+          "fill flag draws the 0xd0 silhouette (rows halved, y = z+H/2+e[5]/2)");
+    check(scr[20 * 0x140 + 12] == 0xAA, "the silhouette does not replace the sprite blit");
+    REC[0x6c] = 0;
+
+    /* kind-2 pulse arm: every 0x14th frame uses the 0x9c fill blit INSTEAD of the sprite */
+    g_dat_63360 = 0x14; e[0x30] = 2;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_012efa(e, SCREEN_BASE);
+    check(scr[20 * 0x140 + 12] == 0x9c && scr[21 * 0x140 + 10] == 0x9c,
+          "kind 2 + frame %% 0x14 == 0 -> fn_03bebb fill 0x9c");
+    int sprite_bytes = 0;
+    for (uint32_t i = 0; i < 0x140 * 0xc8; i++) if (scr[i] == 0xAA) sprite_bytes = 1;
+    check(sprite_bytes == 0, "the pulse arm skips the normal sprite blit entirely");
+
+    /* --- the fn_03203d sweep over the entity list ------------------------------------------- */
+    uint8_t *head_save = g_dat_53c70; uint32_t cnt_save = g_dat_53c68;
+    uint8_t *e2 = (uint8_t *)calloc(1, 0x150), *e3 = (uint8_t *)calloc(1, 0x150);
+    memcpy(e2, e, 0x150); memcpy(e3, e, 0x150);
+    *(uint32_t *)(e2 + 0x01) = 20; *(uint32_t *)(e3 + 0x01) = 30;
+    *(uint8_t **)(e + 0x13f) = e2; *(uint8_t **)(e2 + 0x13f) = e3;
+    *(uint8_t **)(e3 + 0x13f) = NULL;
+    g_dat_53c70 = e; g_dat_53c68 = 3;
+    g_dat_63360 = 1;                    /* past the blink window in case a later edit changes kind */
+    e[0x30] = 0;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_03203d(SCREEN_BASE);
+    check(scr[20 * 0x140 + 12] == 0xAA, "sweep draws entity 1 (x 10)");
+    check(scr[20 * 0x140 + 22] == 0xAA, "sweep follows the +0x13f link to entity 2 (x 20)");
+    check(scr[20 * 0x140 + 32] == 0xAA, "sweep reaches entity 3 (x 30)");
+    g_dat_53c68 = 2;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_03203d(SCREEN_BASE);
+    check(scr[20 * 0x140 + 32] == 0, "the trip count is the entity counter, not the list length");
+    g_dat_53c70 = head_save; g_dat_53c68 = cnt_save;
+    free(e3); free(e2);
+    free(e);
+    g_dat_63360 = s60; g_dat_639dc = scx; g_dat_639e0 = scy; g_dat_633b4 = sb4;
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -11252,6 +11392,7 @@ int main(void) {
     test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();
+    test_fn_012efa();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

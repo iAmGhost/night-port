@@ -7011,20 +7011,22 @@ void fn_03ba2c(uint32_t c_init, uint32_t inc) {
     for (uint32_t i = 0; i < 200; i++) { fn_034aba(0, (int32_t)i, 0x140, (int32_t)c_init, 0); c_init += inc; }
 }
 /* 0x03ba86: nested-loop interval-list builder reading a variable-length byte
- * stream. ABI a_base=EAX, idx_base=EDX, row_count=EBX, p=ECX. For each row:
+ * stream. ABI a_base=EAX, idx_base=EDX, row_count=EBX, p=ECX, flag=pushed stack arg. For each row:
  * count=*p++; then count times: acc+=*p++; len=*p++; fn_034aba(a_base+acc,
- * idx_base+row, len, p, flag); p+=len; acc+=len. The flag (5th arg) is read
- * from [EBP+0x10] — the pushed 0x38 canary in the prologue's stack layout —
- * so it is the constant 0x38. Assumes the lists are pre-initialized (non-zero
+ * idx_base+row, len, p, flag); p+=len; acc+=len. The flag (5th arg) is the pushed stack arg at
+ * [EBP+0x10]: the prologue is `push <framesize>; call 0x418ee; push esi; push edi; push ebp;
+ * mov ebp,esp`, so [EBP+0x10] is the CALLER's single pushed argument -- reading it as the constant
+ * 0x38 (the frame-size immediate) was wrong. The only caller in the image is 0x013908, which pushes
+ * the entity's mirror byte. Assumes the lists are pre-initialized (non-zero
  * a would otherwise infinite-loop on an empty node@0). */
-void fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p) {
+void fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p, int32_t flag) {
     for (int32_t row = 0; row < row_count; row++) {
         uint32_t count = *p++;
         int32_t acc = 0;
         for (uint32_t i = 0; i < count; i++) {
             acc += *p++;
             uint32_t len = *p++;
-            fn_034aba(a_base + acc, idx_base + row, (int32_t)len, (int32_t)p, 0x38);
+            fn_034aba(a_base + acc, idx_base + row, (int32_t)len, (int32_t)p, flag);
             p += len;
             acc += (int32_t)len;
         }
@@ -13351,4 +13353,48 @@ void fn_03801b(uint32_t base)
         fn_0137c1((uint8_t *)g_dat_53c84, base);                      /* 0x38073 */
     }
     cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram);  /* 0x38078-8c */
+}
+
+/* fn_013908  orig: 0x013908 (L13, 420 B) -- THE ENTITY OCCUPANCY REGISTER: records the columns the
+ * entity's CURRENT animation frame covers into the per-row interval lists (the same frame resolution
+ * the sprite draw fn_012efa uses, but feeding the interval-list builder fn_03ba86 instead of a blit).
+ * ABI: EAX = entity block. Frame: P1 = e[0x123] -> P2 = *(P1+4) -> rec = P2[e[0x17] & 0x7fffffff];
+ * fidx = e[0x11] % rec[0] (signed); spr = rec[+0x6d][fidx] (uint16). Then the same parallel arrays:
+ * +0x12f heights (row count), +0x137 x-hotspot, +0x13b y-hotspot, +0x133 RLE offsets, +0x127 RLE base.
+ *   forward  (dword[e+0x1b] == 0): x = (e[1] - X) - DAT_639dc
+ *   mirrored (otherwise)         : x = e[1] - (W[spr] - X) - DAT_639dc   (W = +0x12b)
+ *   y        = ((e[5] + e[9]) - Y) - DAT_639e0        -> the first list index
+ * The pushed 5th argument is the entity's mirror BYTE (byte e[0x1b]), which fn_03ba86 stores as the
+ * node flag. No blink gate, no silhouette arm, no destination base: unlike the draw there is no
+ * screen involved. Latent kept: frame count 0 divides by zero; no guard on any array. */
+void fn_013908(uint8_t *e)
+{
+    (void)canary_id((uintptr_t)e, 0x30);                          /* 0x13908-1390d probe (0x30) */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint32_t p1  = *(const uint32_t *)(e + 0x123);                /* 0x13935 */
+    uint32_t p2  = *(const uint32_t *)(hb + p1 + 0x04);            /* 0x1393b */
+    uint32_t idx = *(const uint32_t *)(e + 0x17) & 0x7fffffffu;    /* 0x13926-1392f */
+    uint32_t rec = *(const uint32_t *)(hb + p2 + 4u * idx);        /* 0x13940-42 */
+    int32_t  fcnt = (int32_t)*(const uint32_t *)(hb + rec);        /* 0x13950 */
+    int32_t  fcur = (int32_t)*(const uint32_t *)(e + 0x11);        /* 0x13948 */
+    int32_t  fidx = fcur % fcnt;                                   /* 0x1394d-13955 (signed) */
+    uint32_t frames = *(const uint32_t *)(hb + rec + 0x6d);        /* 0x1395a */
+    uint32_t spr  = *(const uint16_t *)(hb + frames + 2u * (uint32_t)fidx);  /* 0x1395d-64 */
+
+    int32_t H = (int32_t)*(const uint32_t *)(hb + *(const uint32_t *)(e + 0x12f) + 4u * spr);
+    int32_t X = (int32_t)*(const uint32_t *)(hb + *(const uint32_t *)(e + 0x137) + 4u * spr);
+    int32_t Y = (int32_t)*(const uint32_t *)(hb + *(const uint32_t *)(e + 0x13b) + 4u * spr);
+    const uint8_t *rle = hb + *(const uint32_t *)(e + 0x127)
+                          + *(const uint32_t *)(hb + *(const uint32_t *)(e + 0x133) + 4u * spr);
+    int32_t x, y;
+    if (*(const int32_t *)(e + 0x1b) == 0) {                      /* 0x1396a-6e */
+        x = ((int32_t)*(const uint32_t *)(e + 0x01) - X) - (int32_t)g_dat_639dc;
+    } else {                                                      /* 0x13a01 arm */
+        int32_t W = (int32_t)*(const uint32_t *)(hb + *(const uint32_t *)(e + 0x12b) + 4u * spr);
+        x = (int32_t)*(const uint32_t *)(e + 0x01) - (W - X) - (int32_t)g_dat_639dc;
+    }
+    y = (((int32_t)*(const uint32_t *)(e + 0x05) + (int32_t)*(const uint32_t *)(e + 0x09)) - Y)
+        - (int32_t)g_dat_639e0;
+    fn_03ba86(x, y, H, rle, (int32_t)*(const uint8_t *)(e + 0x1b));
 }

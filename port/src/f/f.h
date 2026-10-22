@@ -904,6 +904,9 @@ extern uint8_t g_blk_51c80[0x180];   /* DAT_00051c90/0x51c91 BSS colour bytes li
 #define g_tab_51c90 (g_blk_51c80 + 0x40)   /* gauge fill colours (never written by the image) */
 
 void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
+void fn_013908(uint8_t *ent);
+                                          /* 0x013908: THE ENTITY OCCUPANCY REGISTER -- same action/frame resolution as fn_012efa but feeds the silhouette RLE into the interval-list builder fn_03ba86 (per-row column spans, x = e[1]-xhotspot or e[1]-(width-xhotspot) when mirrored, y = e[5]+e[9]-yhotspot), so collision/occlusion tracks the drawn frame. */
+
 void fn_03801b(uint32_t base);
                                           /* 0x03801b: THE HUD COMPOSITE OF ONE FRAME -- room blit (fn_03ce0b) + entity sweep (fn_03203d) + stage glyphs (fn_03df96) + the player's gauge/countdown (fn_01348f/fn_0137c1), then cpy_dw the whole 64000 B work screen into the A0000 window. EAX = work-screen base. */
 
@@ -918,7 +921,7 @@ void fn_03c231(uint32_t dest, int32_t col, int32_t row, int32_t width,
 void fn_03b953(uint32_t base);                 /* 0x03b953: THE NUMBER-DISPLAY SWEEP -- walk the DAT_639cc entity list (count DAT_639c8) and run fn_03b718 on every node; EAX in = video base passed through as EDX; advances the cursor from node+0x11 AFTER fn_03b718 may have freed the node (faithful latent bug) */
 void fn_03b718(uint8_t *entity, uint32_t base);   /* 0x03b718: THE FLOATING VALUE NUMBER DISPLAY -- itoa32s(entity+1) rendered as RLE digit glyphs relative to the entity (font DAT_639c0 / DAT_639c4 by entity[0]), terminator glyph from the control block, then age entity+5 (DAT_63360 %% 3) and destroy the entity past 0x28 */
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */
-void     fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p);  /* 0x03ba86: nested-list builder from byte stream */
+void     fn_03ba86(int32_t a_base, int32_t idx_base, int32_t row_count, const uint8_t *p, int32_t flag);  /* 0x03ba86: nested-list builder from byte stream */
 void     fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count);  /* 0x03a594: copy bytes != 0xff */
 void     fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag);  /* 0x034aba */
 extern uint32_t g_dat_639dc;    /* DAT_000639dc */

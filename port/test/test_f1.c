@@ -2472,6 +2472,94 @@ static void init_arena_03ba86(void) {
     g_dat_62d64 = 11;             /* cursor just past node@0 */
     memset(g_dat_62d68, 0, sizeof g_dat_62d68);
 }
+/* 0x013908 -- THE ENTITY OCCUPANCY REGISTER (frame silhouette -> interval lists). */
+static int find_span(int start_want, int len_want, int flag_want) {
+    uint8_t *a = nar();
+    for (uint32_t o = 0; o + 11 <= 0x1000; o += 11) {
+        int32_t st = (int32_t)((uint32_t)a[o] | ((uint32_t)a[o+1] << 8) |
+                               ((uint32_t)a[o+2] << 16) | ((uint32_t)a[o+3] << 24));
+        int16_t ln = (int16_t)((uint16_t)a[o+8] | ((uint16_t)a[o+9] << 8));
+        if (st == start_want && ln == (int16_t)len_want && a[o+10] == (uint8_t)flag_want) return 1;
+    }
+    return 0;
+}
+/* The list node that was split at column `col` keeps length == col (fn_034aba's svar2 arithmetic on a
+ * list whose only node covers [0,0x140)), so node@0's length reveals the x the register used. */
+static int node0_len(void) {
+    uint8_t *a = nar();
+    return (int16_t)((uint16_t)a[8] | ((uint16_t)a[9] << 8));
+}
+static void test_fn_013908(void) {
+    printf("fn_013908 (0x013908): the entity occupancy register\n");
+    uint32_t cx_save = g_dat_639dc, cy_save = g_dat_639e0;
+
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint32_t rec = heap_malloc(0x80);
+    *(uint32_t *)(hb + rec) = 1;                       /* one frame in the action */
+    uint32_t fr = heap_malloc(4);
+    *(uint16_t *)(hb + fr) = 2;                        /* frame 0 -> sprite number 2 */
+    *(uint32_t *)(hb + rec + 0x6d) = fr;
+    uint32_t p2 = heap_malloc(4);
+    *(uint32_t *)(hb + p2) = rec;
+    uint32_t cont = heap_malloc(8);
+    *(uint32_t *)(hb + cont + 4) = p2;
+
+    uint32_t w = heap_malloc(16), h = heap_malloc(16), xo = heap_malloc(16), yo = heap_malloc(16),
+             ro = heap_malloc(16), rl = heap_malloc(32);
+    ((uint32_t *)(hb + w))[2] = 0x14;                  /* W[2] = 20 */
+    ((uint32_t *)(hb + h))[2] = 2;                     /* H[2] = 2 rows */
+    ((uint32_t *)(hb + xo))[2] = 6;                    /* x-hotspot */
+    ((uint32_t *)(hb + yo))[2] = 3;                    /* y-hotspot */
+    ((uint32_t *)(hb + ro))[2] = 0;
+    uint8_t *st = hb + rl;                             /* [count][gap][len][len payload] */
+    st[0] = 1; st[1] = 3; st[2] = 2; st[3] = 0; st[4] = 0;
+    st[5] = 1; st[6] = 0; st[7] = 1; st[8] = 0;
+
+    uint8_t *e = (uint8_t *)calloc(1, 0x150);
+    *(uint32_t *)(e + 0x01) = 100; *(uint32_t *)(e + 0x05) = 20; *(uint32_t *)(e + 0x09) = 5;
+    *(uint32_t *)(e + 0x11) = 0;   *(uint32_t *)(e + 0x17) = 0;
+    *(uint32_t *)(e + 0x123) = cont; *(uint32_t *)(e + 0x127) = rl;
+    *(uint32_t *)(e + 0x12b) = w;    *(uint32_t *)(e + 0x12f) = h;
+    *(uint32_t *)(e + 0x133) = ro;   *(uint32_t *)(e + 0x137) = xo; *(uint32_t *)(e + 0x13b) = yo;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+
+    init_arena_03ba86();
+    uint32_t cur0 = g_dat_62d64;
+    *(uint32_t *)(e + 0x1b) = 0;                       /* forward arm */
+    fn_013908(e);
+    check(g_dat_62d64 > cur0, "the register allocates interval nodes for the frame's spans");
+    check(find_span((int32_t)(uintptr_t)(st + 3), 2, 0),
+          "the run's length and payload pointer become the new list node (row 0)");
+    check(node0_len() == 100 - 6,
+          "forward arm x = e[1]-xhotspot: the last row's column is where the list is split");
+
+    /* y selects the list: with the camera pushing x below zero, fn_034aba takes its "extend the head"
+     * path, so the two rows of the frame become the heads of lists y and y+1 (and nothing else). */
+    init_arena_03ba86();
+    g_dat_639dc = 108;                                 /* x = 100 - 6 - 108 = -14 */
+    fn_013908(e);
+    check(g_dat_62d68[22] != 0 && g_dat_62d68[23] != 0 &&
+          g_dat_62d68[21] == 0 && g_dat_62d68[24] == 0,
+          "y = e[5]+e[9]-yhotspot picks the list, one per frame row");
+    g_dat_639dc = 0;
+
+    init_arena_03ba86();
+    *(uint32_t *)(e + 0x1b) = 7;                       /* mirrored arm, mirror byte 7 */
+    fn_013908(e);
+    check(find_span((int32_t)(uintptr_t)(st + 3), 2, 7),
+          "mirrored arm: the mirror byte becomes the node flag");
+    check(node0_len() == 100 - (0x14 - 6),
+          "mirrored arm anchors x at e[1]-(W-xhotspot)");
+    check(find_span((int32_t)(uintptr_t)(st + 8), 1, 7), "and every row of the frame is registered");
+    check(!find_span((int32_t)(uintptr_t)(st + 3), 2, 0x38),
+          "the node flag is the entity mirror byte, not the old 0x38 stack guess");
+
+    free(e);
+    g_dat_639dc = cx_save; g_dat_639e0 = cy_save;
+}
+
 static void test_fn_03ba86(void) {
     printf("fn_03ba86 (0x03ba86)\n");
     /* byte stream: row0: count=2 [(off5,len3,AA BB CC),(off2,len4,DD EE FF 11)];
@@ -2482,7 +2570,7 @@ static void test_fn_03ba86(void) {
     };
     uint8_t s1[0x1000], s2[0x1000];
     init_arena_03ba86();
-    fn_03ba86(0x100, 0, 2, stream);
+    fn_03ba86(0x100, 0, 2, stream, 0x38);
     memcpy(s1, nar(), 0x1000); uint32_t c1 = g_dat_62d64;
     init_arena_03ba86();
     const uint8_t *p = stream;
@@ -11556,6 +11644,7 @@ int main(void) {
     test_fn_012efa();
     test_fn_01348f();
     test_fn_03801b();
+    test_fn_013908();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

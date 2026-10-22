@@ -9722,6 +9722,137 @@ static void test_fn_027bec(void)
     #undef F22_BASE
 }
 
+
+/* ---- 0x02c838: behaviour-0x25 (0x2a drop, 0x2c line-interpolation swing, ',' walk rows) ---- */
+static void test_fn_02c838(void)
+{
+    printf("fn_02c838 (0x02c838, behaviour-0x25 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    uint32_t  save_tab   = g_dat_62a8c;
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+    g_dat_62a8c = 0;                                   /* keep the fn_01545e/01586b moves exact */
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 27;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 40; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+    row0[0] = 7;
+
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+    #define F25_BASE(st_, fr_) do { e[0x17] = (st_); e[0x11] = (fr_); e[0x1f] = 6; e[0xaf] = 1; \
+        e[0x8b] = 1; } while (0)
+    #define PUT25(x_, y_) do { *(int32_t *)(e + 0x01) = (x_); *(int32_t *)(e + 0x09) = (y_); } while (0)
+
+    /* (1) the sprite-0x2a drop latches at entity frame 0x32 and plans Y only, over the double 20.0 */
+    F25_BASE(0x2a, 0x32); PUT25(100, 60);
+    fn_02c838(e);
+    {
+        float ey; memcpy(&ey, e + 0xe7, 4);
+        check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xd7) == 60 &&
+              *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120 && ey == 3.0f,
+              "02c838 the 0x2a drop latches at frame 0x32 with a (p_y-own_y)/20.0 closing speed");
+    }
+    /* (2) frame 0x33 closes 3 px of Y and leaves X alone */
+    F25_BASE(0x2a, 0x33);
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0x09) == 63 && *(int32_t *)(e + 0x01) == 100,
+          "02c838 the drop moves Y only (60 -> 63), never X");
+    /* (3) frame 0x47 is past the 0x33..0x46 window */
+    F25_BASE(0x2a, 0x47);
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0x09) == 63 && *(int32_t *)(e + 0x01) == 100,
+          "02c838 frame 0x47 is past the drop window (0x33..0x46)");
+
+    /* (4) the sprite-0x2c swing latches at frame 1 and stores the LINE (slope + intercept) */
+    F25_BASE(0x2c, 1); PUT25(100, 60);
+    fn_02c838(e);
+    {
+        float sl, ic; memcpy(&sl, e + 0xdb, 4); memcpy(&ic, e + 0xe3, 4);
+        check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xcf) == 120 &&
+              fabsf(sl - 0.6f) < 1e-5f && fabsf(ic) < 1e-3f,
+              "02c838 the 0x2c swing stores slope 0.6 in entity[0xdb] and the Y intercept in entity[0xe3]");
+    }
+    /* (5) the horizontal branch interpolates the anchor->player segment over 50 frames: at frame 25 the
+     *     entity sits on the midpoint of the line, and Y comes off the UNROUNDED X. */
+    F25_BASE(0x2c, 25);
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0x01) == 150 && *(int32_t *)(e + 0x09) == 90,
+          "02c838 frame 25 of the swing lands on the midpoint (150,90) via the 50.0 divisor");
+    /* (6) frame 0x33 is past the 2..0x32 window */
+    F25_BASE(0x2c, 0x33);
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0x01) == 150 && *(int32_t *)(e + 0x09) == 90,
+          "02c838 frame 0x33 is past the swing window (2..0x32)");
+    /* (7) the zero-slope sentinel in the vertical branch pins the target X to 100 (0x0002cdf7).  The
+     *     anchors are equal, so |dx| <= |dy| picks the vertical branch, and entity[0xdb] is forced to
+     *     +0.0 -- the branch the 100000.0f sentinel would otherwise never reach. */
+    F25_BASE(0x2c, 10); PUT25(140, 80);
+    *(int32_t *)(e + 0xcb) = 140; *(int32_t *)(e + 0xd3) = 140;
+    *(int32_t *)(e + 0xcf) = 80;  *(int32_t *)(e + 0xd7) = 80;
+    { float z = 0.0f;   memcpy(e + 0xdb, &z, 4); z = 120.0f; memcpy(e + 0xe3, &z, 4); }
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0x01) == 100 && *(int32_t *)(e + 0x09) == 80,
+          "02c838 a zero slope in the vertical branch pins the target X to 100 instead of dividing");
+    /* (8) the one-shot ambush gate closes at 0x3c px of X, not 0x46 */
+    F25_BASE(2, 1); PUT25(141, 120);
+    e[0x7f] = 1; e[0xaf] = 1; *(int32_t *)(e + 0xab) = 5;
+    fn_02c838(e);
+    /* the gate hands the entity to state 0x0e; the state machine of THAT frame then runs the ambush
+     * state itself, so only the gate effect (entity[0xaf] = 0x0a, gate consumed) is asserted here */
+    check(*(int32_t *)(e + 0xaf) == 0x0a && e[0x7f] == 0,
+          "02c838 59 px of X gap with the close gate armed starts the ambush (state 0x0e)");
+    F25_BASE(2, 1); PUT25(130, 120);                /* 70 px: inside 0x46, outside 0x3c */
+    e[0x7f] = 1; e[0xaf] = 1;
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0xaf) != 0x0a && e[0x7f] == 0,
+          "02c838 70 px of X gap does NOT ambush (the 0x027bec handler would at 0x46)");
+    /* (9) ',' (0x2c) marks a marker row: the X gap alone closes it.  '.' (0x2b) does not here. */
+    row0[0] = 7; row0[1] = 0x2c;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0; PUT25(205, 300);
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "02c838 a ',' (0x2c) walk row reaches on the X gap alone");
+    row0[1] = 0x2b;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0; PUT25(205, 300);
+    fn_02c838(e);
+    check(*(int32_t *)(e + 0x1f) == 0 &&
+          (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
+          "02c838 a '.' (0x2b) row is an ordinary row here: 180 px of Y error misses");
+    row0[0] = 40;
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    g_dat_62a8c = save_tab;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+    #undef F25_BASE
+    #undef PUT25
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -14842,6 +14973,7 @@ int main(void) {
     test_fn_024bf9();
     test_fn_02adf5();
     test_fn_027bec();
+    test_fn_02c838();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

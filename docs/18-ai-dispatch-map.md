@@ -126,6 +126,14 @@ either; that inconsistency is what made the copies look right. Before declaring 
 grep its disassembly for `cmp dword ptr [eax + 0x8b], 0`, and do NOT preset entity[0x8b] = 1 in every
 test case -- pin both frames instead (see test_fn_029709's recon-gate checks).
 
+### Ported: 0x02c838 (behaviour-0x25)
+The swing region is NOT a constant variant here: sprite 0x2a plans Y only ((player_y-own_y)/20.0, DS
+0x5005c, latch at entity frame 0x32, window 0x33..0x46) and sprite 0x2c keeps the *line* through the
+player -- entity[0xdb] slope, entity[0xe3] intercept -- stepping the anchor->player segment over 50
+frames (DS 0x50064/0x5006c/0x50074) and reading the other axis off that line.  Both use new pool
+doubles; scratch/aidd.py annotates call targets and DS constants (data file offset = VA - 0x7600).
+Ambush distance and the walk marker byte are per-handler (0x3c / ',' here).
+
 ### Ported: 0x027bec (behaviour-0x22)
 The DS 0x51c9c rectangles do double duty: slots 2..5 add them to the player, slots 6..9 are used as
 absolute field regions -- 6=(71,80,256,143), 7=(71,164,256,196), 8=(21,80,71,196), 9=(256,80,308,196).

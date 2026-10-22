@@ -8533,6 +8533,161 @@ static void test_fn_0221b8(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x02119c: behaviour-0x0b (half-of-screen latch chooser, walk without the coin flip) ---- */
+static void test_fn_02119c(void)
+{
+    printf("fn_02119c (0x02119c, behaviour-0x0b entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 11;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;
+    *(int32_t *)(cfg + 0x80) = 4;
+    *(int32_t *)(cfg + 0x14) = 20;
+    *(int32_t *)(cfg + 0x18) = 100;
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 40;
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the shared speed word selection */
+    e[0x17] = 3; e[0x1f] = 0x02; e[0x8b] = 1; *(int32_t *)(e + 0x6f) = 0;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_02119c(e);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "02119c speed word +0x04 for state < 0x0a");
+
+    /* (B) latch 0: a side slot, its rectangle offset by the player, Y forced to the player's Y */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 0; e[0x113] = 0; e[0x6f] = 0; e[0x8b] = 1;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+    fn_02119c(e);
+    int sl = *(int32_t *)(e + 0xff), sx = *(int32_t *)(e + 0xbf);
+    check(sl == 0 || sl == 1, "02119c latch 0 draws one of the two side slots");
+    check(sx >= TJ_XLO(sl) + 200 && sx <= TJ_XHI(sl) + 200,
+          "02119c the latch-0 spot is the slot's rectangle offset by the player");
+    check(*(int32_t *)(e + 0xc3) == 120, "02119c the slots 0/1 pre-write levels the spot with the player");
+    check(*(int32_t *)(e + 0x5f) == 1 && *(int32_t *)(e + 0x6f) == 1,
+          "02119c latch 0 raises entity[0x5f] and sets the +0x80 speed flag");
+
+    /* (C) latch 1 with the player in the LEFT half: absolute slot 0xb */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 1; e[0x113] = 0; e[0x6f] = 0; e[0x8b] = 1;
+    *(int32_t *)(pl + 0x01) = 0xa0; *(int32_t *)(pl + 0x09) = 120;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+    fn_02119c(e);
+    sl = *(int32_t *)(e + 0xff); sx = *(int32_t *)(e + 0xbf);
+    check(sl == 0x0b, "02119c latch 1 with the player at x <= 0xa0 picks slot 0xb");
+    check(sx >= TJ_XLO(0x0b) && sx <= TJ_XHI(0x0b) &&
+          *(int32_t *)(e + 0xc3) >= TJ_YLO(0x0b) && *(int32_t *)(e + 0xc3) <= TJ_YHI(0x0b),
+          "02119c the latch-1 spot comes from the ABSOLUTE rectangle (no player offset)");
+    check(*(int32_t *)(e + 0x5f) == 0 && *(int32_t *)(e + 0x6f) == 0,
+          "02119c latch 1 clears entity[0x5f] and the speed flag");
+
+    /* (D) latch 1 with the player in the RIGHT half: absolute slot 0xa */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 1; e[0x113] = 0; e[0x8b] = 1;
+    *(int32_t *)(pl + 0x01) = 0xa1; *(int32_t *)(pl + 0x09) = 120;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+    fn_02119c(e);
+    check(*(int32_t *)(e + 0xff) == 0x0a, "02119c latch 1 with the player at x > 0xa0 picks slot 0xa");
+
+    /* (E) the 1-in-6 forced action 4 IS present here (unlike 0x020170 / 0x0221b8) */
+    {
+        int became4 = 0;
+        for (uint32_t sd = 1; sd <= 200u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 0; e[0x5f] = 0; e[0x113] = 0; e[0x8b] = 1;
+            *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_02119c(e);
+            if (*(int32_t *)(e + 0xaf) == 4) became4++;
+        }
+        check(became4 > 0, "02119c keeps the 1-in-6 chance of forcing action 4");
+    }
+
+    /* (F) clamp before the distance test: the restore jumps past it, so the old X survives */
+    *(int32_t *)(room + 0x12) = -100000; *(int32_t *)(room + 0x16) = 100000;
+    {
+        int found = 0;
+        int32_t cx = (TJ_XLO(0x0b) + TJ_XHI(0x0b)) / 2, cy = (TJ_YLO(0x0b) + TJ_YHI(0x0b)) / 2;
+        for (uint32_t sd = 1; sd <= 400u && !found; sd++) {
+            prng_seed(sd);
+            *(int32_t *)(pl + 0x01) = 0x50; *(int32_t *)(pl + 0x09) = cy;
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 1; e[0x113] = 0; e[0x8b] = 1;
+            *(int32_t *)(e + 0x01) = cx; *(int32_t *)(e + 0x09) = cy;
+            *(int32_t *)(e + 0xbf) = 0x5555; *(int32_t *)(e + 0xc3) = 0x2222;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_02119c(e);
+            if (*(int32_t *)(e + 0xc7) == 1) found = 1;
+        }
+        check(found == 1, "02119c a spot landing on the entity is rejected");
+        check(*(int32_t *)(e + 0xbf) == 0x5555,
+              "02119c the restore jumps past the clamp, so the old X survives unclamped");
+    }
+    *(int32_t *)(room + 0x12) = -1000; *(int32_t *)(room + 0x16) = 1000;
+
+    /* (G) case 0x0b: the walk runs when the target is reached, and falling short NEVER rolls
+     *     for action 4 (the siblings' prng()%0x14 == 2 arm is absent) */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 122;
+    fn_02119c(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "02119c case 0xb runs the scripted state when the target is reached");
+    {
+        int bad = 0, wrong = 0;
+        for (uint32_t sd = 1; sd <= 120u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+            *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+            *(int32_t *)(e + 0x01) = 600; *(int32_t *)(e + 0x09) = 900;   /* far from the target */
+            fn_02119c(e);
+            if (*(int32_t *)(e + 0xaf) != 0x0a) bad++;
+            if (*(int32_t *)(e + 0x1f) != 0) wrong++;
+        }
+        check(bad == 0 && wrong == 0,
+              "02119c a failed walk always ends in action 0x0a / state 0 (no prng()%0x14 coin flip)");
+    }
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_02119c(e);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a,
+          "02119c case 0xc timeout -> state 0x32, action 0x0a");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -13645,6 +13800,7 @@ int main(void) {
     test_fn_01f064();
     test_fn_020170();
     test_fn_0221b8();
+    test_fn_02119c();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

@@ -1151,6 +1151,8 @@ int32_t  fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2);      
 void     fn_017f13(uint8_t *e);
 void     fn_018e88(uint8_t *e);   /* 0x018e88: THE BEHAVIOUR-0x01 ENTITY AI HANDLER -- fn_017f13's near-clone: two speed-index words (record +0x04 / +0x80, the latter forced by entity[0x6f]), no entity[0x8b] recon block, and a six-slot hiding-spot draw (j = prng%4 with a +prng%2 sub-draw for 2/3) whose jitter pairs live at DS 0x51c9c/0x51ca0/0x51ca4/0x51ca8 stride 0x10 */   /* 0x017f13: THE BEHAVIOUR-0x00 ENTITY AI HANDLER -- speed bookkeeping on the float field e[0x63], the fn_015a1f proximity latch, then a switch on e[0x1f] (0..0x16) over the twelve action routines with the family's register ABI (EAX=e, EDX=speed, EBX/ECX=player screen x/y, two stack out slots); the two deltas feed fn_01545e / fn_01586b and e[0x1b] tracks facing */
 void     fn_019e48(uint8_t *e);
+void     fn_02119c(uint8_t *e);
+    /* 0x02119c: THE BEHAVIOUR-0x0b ENTITY AI HANDLER -- template body with two rewritten cases: an entity[0x5f] phase latch (player-offset rect for slots 0/1, absolute rect of slot 0xa/0xb picked by the player's screen half, signed remainder) and a scripted walk with no prng()%0x14 coin flip when the target is not reached */
 void     fn_0221b8(uint8_t *e);
     /* 0x0221b8: THE BEHAVIOUR-0x15 ENTITY AI HANDLER -- fn_01bea8's body; 0x020170's draw (prng()%4 + 2/3 sub-draws, no 1-in-6) but a single spot arm: X = the slot's jitter rectangle offset by the player, Y = the player's Y for every slot */
 void     fn_020170(uint8_t *e);

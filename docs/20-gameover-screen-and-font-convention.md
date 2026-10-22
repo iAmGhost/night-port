@@ -33,14 +33,21 @@
 Resource names are image strings reached as `const + 0x50000` with the DS file delta: 0x15aa
 `number3.spr`, 0x15b6 `gameove%d.pcx`, 0x15c4 `continue.pcx`, 0x15d1 `gameove1.pcx`.
 
-## Open item: who owns the font pointer fields
+## Resolved: the font pointer fields (fixed with this port)
 
-`fn_0383a4` (the integer-digit renderer) reads its glyph table and RLE base from `font+0x34` and
-`font+0x3c`, treating both as host pointers, and indexes the glyph table at
-`(font+0x34) - 0x40 + ASCII*4` -- sixteen dwords *below* the array. The blocks actually handed to it
-come from `fn_03d8d4` / `fn_03d9cf`, whose `s[13]` / `s[14]` fields (offsets `0x34` / `0x38`) hold
-4-byte heap offsets allocated by `fn_03de85`. So the widened-pointer convention in `fn_0383a4` and the
-offset convention in the loader do not agree, and the -0x40 index needs the block slack that the
-original's heap provided. `fn_038445` is ported faithfully (it passes the block through unchanged);
-the convention has to be settled once, in `fn_0383a4` plus its four test fixtures, before the digit
-paths (`fn_038445`, the HUD score, the title menu) can be tested against real resource streams.
+`fn_0383a4` (the integer-digit renderer) takes the spr struct that `fn_03d8d4` filled, and at
+`0x0003840b-0x00038419` it does
+
+```
+edx = d * 4                      ; d = the ASCII digit
+eax = [font + 0x34]              ; s[13]
+edx += eax                       ; char_table + d*4
+eax = [font + 0x38]              ; s[14]
+eax += [edx - 0xc0]              ; glyph_off = offsets[d - 0x30]
+```
+
+so the glyph table is indexed from `'0'` at index 0 (`- 0xc0`, not `- 0x40`), and both cells are the
+`s[13]` / `s[14]` cells that `fn_03de85` fills during `fn_03d9cf` -- heap offsets in this port, not host
+addresses. An earlier pass of the port had widened those two cells to 8-byte host pointers at `+0x34` /
+`+0x3c`, which no production loader could satisfy; that is now corrected, and `test_fn_038445` proves
+the whole chain (a real `number3.spr` two-pass load feeding a real digit blit) works.

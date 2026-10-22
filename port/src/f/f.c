@@ -12570,12 +12570,16 @@ void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
     char buf[16];
     itoa32s(number, buf, 10);                                     /* 0x0383c5-d0 */
     int len = str_len(buf);                                       /* 0x0383d5-dd */
-    uintptr_t char_table = *(uintptr_t *)(font + 0x34);
-    uintptr_t rle_base   = *(uintptr_t *)(font + 0x3c);   /* orig +0x38, widened to 0x3c (8-byte ptr) */
+    /* 0x0003840b-0x00038419: font+0x34 / font+0x38 are the s[13] / s[14] cells of the spr struct that
+     * fn_03de85 allocated (see fn_03d9cf), i.e. heap OFFSETS in this port, not host addresses -- the
+     * original held raw heap addresses there. The glyph cell is addressed as [char_table + d*4 - 0xc0],
+     * so the array is indexed from '0' at index 0. */
+    const uint8_t *char_table = (const uint8_t *)g_heap_base + *(const uint32_t *)(font + 0x34);
+    const uint8_t *rle_base   = (const uint8_t *)g_heap_base + *(const uint32_t *)(font + 0x38);
     for (int i = 0; i < len; i++) {                               /* 0x0383ef-43b (digit glyphs, 8-col spacing) */
         uint32_t d = (uint32_t)(uint8_t)buf[i];                   /* 0x0383fa-406 */
-        uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + d * 4); /* 0x03840b-419 */
-        const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
+        uint32_t glyph_off = *(const uint32_t *)(char_table - 0xc0 + d * 4); /* 0x0003840b-0x00038419: [edx-0xc0] */
+        const uint8_t *rle = rle_base + glyph_off;
         fn_03bb42(base, i * 8 + col0, start_row, 7, 7, rle, 0);
     }
 }
@@ -23225,8 +23229,9 @@ int32_t fn_038445(void)
 
     for (int32_t i = 0; i < 3; i = i + 1) {                            /* 0x000384ee-0x00038540: load the three screens */
         bufp[i] = heap_malloc(0xfa00);
-        uint32_t arg = (uint32_t)i + 1u;
-        (void)fn_0428f8(namebuf, (const uint8_t *)"gameove%d.pcx", (uint8_t **)&arg);
+        uintptr_t arg = (uintptr_t)i + 1u;    /* the pushed vararg slot (the original pushes i+1 as a dword) */
+        uint8_t *cur = (uint8_t *)&arg;       /* fn_0428f8's cursor: a pointer that it advances per conversion */
+        (void)fn_0428f8(namebuf, (const uint8_t *)"gameove%d.pcx", &cur);
         fn_036190((const char *)namebuf, hb + bufp[i]);
     }
     mem_copy(video_map(0xa0000), hb + bufp[0], 0xfa00);                 /* 0x00038542-54: seed the video window */
@@ -23234,15 +23239,15 @@ int32_t fn_038445(void)
     const uint32_t *spr = g_dat_63e08;                                 /* DAT_00063e08: the "over.spr" struct */
 
     for (int32_t i = 0; i < 6; i = i + 1) {                            /* 0x00038554-0x000385ce: the first composite, straight to the video window */
-        const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
-        const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+        const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
+        const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
         uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
                       + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
         fn_03bb42(0xa0000, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1], hb + roff, 0);
     }
     {                                                                  /* 0x000385ce-0x00038601: the digit row onto the video window */
-        const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
-        const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+        const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
+        const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
         fn_03bb42(0xa0000, 0xc8, (int32_t)p4[0], toggle * 0x12 + 0x5a, p8[0],
                   (const uint8_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
     }
@@ -23278,16 +23283,16 @@ blink_next:
         }
 
         for (int32_t i = 0; i < 6; i = i + 1) {                        /* 0x00038709-0x00038781: the six layers onto the back screen */
-            const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
-            const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+            const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
+            const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
             uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
                           + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
             fn_03bb42(g_dat_633b0, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1],
                       hb + roff, 0);
         }
         {                                                              /* 0x00038783-0x000387b6: the digit row */
-            const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
-            const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+            const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
+            const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
             fn_03bb42(g_dat_633b0, 0xc8, (int32_t)p4[0], toggle * 0x12 + 0x5a, p8[0],
                       (const uint8_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
         }
@@ -23312,19 +23317,20 @@ gameover:
         fn_04185e(g_dat_53ddc);                                        /* 0x00038881-86 */
         if (toggle == 0) fn_036190("continue.pcx", video_map(g_dat_633b0));   /* 0x0003888b-a1 */
         else             fn_036190("gameove1.pcx", video_map(g_dat_633b0));   /* 0x000388a3-b1 */
-        scroll = scroll + 1;                                           /* 0x000388b3-b6 */
+slide:
+        scroll = scroll + 1;                                           /* 0x000388b3-b6: the slide loop re-enters here */
         fn_00035ec2();                                                   /* 0x000388b9 */
         mem_copy(video_map(0xa0000), video_map(g_dat_633b0), 0xfa00);   /* 0x000388be-ce */
         for (int32_t i = 0; i < 6; i = i + 1) {                        /* 0x000388d3-0x0003897b */
-            const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
-            const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+            const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
+            const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
             uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
                           + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
             fn_03bb42(0xa0000, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1], hb + roff, 0);
             if (i % 2 == 0) offv[i] = offv[i] - 9;                     /* 0x0003894f-7b: creep the layers apart */
             else            offv[i] = offv[i] + 9;
         }
-        if (offv[4] > -0x3c) goto gameover;                            /* 0x00038980-8a: keep sliding */
+        if (offv[4] > -0x3c) goto slide;                               /* 0x00038980-8a: keep sliding (re-enters AFTER the reload) */
 
         fn_0406f5(g_dat_633b8, 0x32);                                  /* 0x0003898a-94: fade out */
         if (digits != 0) {                                             /* 0x00038999-0x000389ba */

@@ -502,8 +502,9 @@ static void palette_set(uint32_t index, uint32_t color)
     uint32_t v = color << (g_dat_63e4c & 0x1f);          /* 0x3f3f8 */
     if (v != g_dat_63e50[index]) {                       /* 0x3f3fa-fc */
         g_dat_63e50[index] = v;                          /* 0x3f3fe */
-        /* INT 0x10 AX=0x4f05 (EBX=index, EDX=v): VGA set-palette-register. */
-        /* No-op in the flat model (no VGA); only the cache update is real. */
+        /* INT 0x10 AX=0x4F05 (EBX=bank index, EDX=frame): VBE Set Win A/B Position. */
+        /* No-op in the flat model: the port has one 64 KiB A0000 window, so switching the
+         * 640x480 frame buffer's banks has no effect yet (open item for the SDL backend). */
     }
 }
 void fn_03f3be(uint32_t color) { palette_set(g_dat_63e5c, color); }
@@ -1990,7 +1991,7 @@ uint32_t g_dat_63e5c = 0;   /* DAT_00063e5c: palette index (fn_03f3be) */
 uint32_t g_dat_63e58 = 0;   /* DAT_00063e58: palette index (fn_03f410) */
 uint32_t g_dat_531f4 = 0x140; /* DAT_000531f4: VESA row width (init'd at runtime by 0x03f15f) */
 uint32_t g_dat_63e64 = 0x140; /* DAT_00063e64: VESA bytes-per-line/pitch (init'd at runtime by 0x03f15f) */
-uint8_t  g_dat_63e4c = 0;   /* DAT_00063e4c: palette color shift amount */
+uint32_t g_dat_63e4c = 0;   /* DAT_00063e4c: palette color shift amount (a DWORD in the original: 0x3f2ea incs it as a dword) */
 void fn_03ee88(void)
 {
     seg_ds_load();                          /* 0x3ee98 */
@@ -13935,4 +13936,105 @@ int32_t fn_03a224(void)
     fn_00010dde();                                                 /* 0x3a578 */
     fn_000405a7();                                                 /* 0x3a57d */
     return sel;                                                    /* 0x3a582-88 */
+}
+
+uint32_t g_dat_63e60 = 0;   /* DAT_00063e60: VBE ModeInfoBlock +0x10 (bytes per line) */
+uint32_t g_dat_63e68 = 0;   /* DAT_00063e68: VBE ModeInfoBlock +0x14 (Y resolution) */
+uint32_t g_dat_531f8 = 0;   /* DAT_000531f8: DAT_000531f4 - 1 (the modulus mask of the linear screen model) */
+
+/* fn_03f15f  orig: 0x0003f15f (L12, 606 B) -- THE VESA MODE SET: it puts the screen in VBE mode
+ *   0x101 (640x480x8) and fills the geometry globals every blit in the game reads.
+ *   PUSH 0x54 / CALL 0x0418ee is the Watcom stack probe (no C analogue). fn_041df2 fills the
+ *   real-mode segment struct. INT 0x31 AX=0x0100 allocates 0x21 DOS code paragraphs (0x200 bytes),
+ *   the returned selector is stored in the block's first word and the block address +2 becomes the
+ *   real-mode buffer; the register block (AX=0x4F00) goes through fn_00103e0 (a real-mode INT 0x10).
+ *   The reply's first four bytes must be "VESA" (DS 0x1728) or "VBE2" (DS 0x172d) -- compared with
+ *   mem_cmp (0x0429a8); otherwise the banner "\nYour Vga Card Not Support VesaMode!!!\n" (DS 0x1732)
+ *   goes through fn_042394 and the function returns 0. The code segment is freed (AX=0x0101, DX = the
+ *   stored selector), a 0x11-paragraph DOS DATA segment is allocated the same way, and INT 0x10
+ *   AX=0x4F01 CX=0x101 fetches the ModeInfoBlock.
+ *   From that block: ModeAttributes low byte &3 == 3 -> DAT_63e58 = 0, &5 == 5 -> DAT_63e5c = 0, and
+ *   the high byte &3 == 3 / &5 == 5 set them to 1 (the four tests run in sequence, the second pair
+ *   wins); DAT_63e4c = 0 then a bit search: while (0x40 >> (DAT_63e4c & 0x1f)) != (short)block[4] it
+ *   increments, stopping once DAT_63e4c is no longer < 0xe. Then DAT_63e60 = block[0x10] (bytes per
+ *   line), DAT_63e64 = block[0x12] (x res, the pitch every blit uses), DAT_63e68 = block[0x14] (y res)
+ *   and **DAT_531f4 = block[6] << 10** (x res * 1024 = 0xa0000 for mode 0x101) with DAT_531f8 = that
+ *   minus 1 -- the wrap modulus fn_03f462/fn_03f3be address the framebuffer with.
+ *   The data segment is freed, INT 0x10 AX=0x4F02 BX=0x101 sets the mode through fn_0041e51, and if
+ *   the reply's AH == 1 the banner "\nMode Setting Error!!!\n" (DS 0x175a) prints and it returns 0;
+ *   otherwise it returns 1. The DPMI/VESA plumbing is modelled by sys_dos_seg_alloc/free and
+ *   sys_vesa_* (the SDL backend would answer from a real adapter). */
+int32_t fn_03f15f(void)
+{
+    uint16_t rm[8];                                  /* [EBP-0x18] real-mode segment struct */
+    uint8_t  regs[0x14];                             /* [EBP-0x34] reg block: +0 AX, +4 BX, +8 CX */
+    uint32_t ok;                                     /* [EBP-0xc] */
+
+    /* 0x3f15f-64: PUSH 0x54; CALL 0x0418ee -- the Watcom stack probe, no C analogue. */
+    seg_save(rm);                                    /* 0x3f177-7a fn_041df2 */
+
+    uint16_t sel1 = 0;                               /* 0x3f17f-9f: BX=(0x200>>4)+1, INT 31 AX=0x0100 */
+    uint8_t *blk1 = sys_dos_seg_alloc(0x21, &sel1);
+    if (!blk1) return 0;
+    *(uint16_t *)blk1 = sel1;                        /* 0x3f199 mov word [seg*16], dx */
+    uint8_t *vbe = blk1 + 2;                         /* 0x3f19c-9f [EBP-8] */
+
+    memset(regs, 0, sizeof regs);
+    *(uint16_t *)(regs + 0) = 0x4f00;                /* 0x3f1a2 AX = VBE Get SuperVGA Information */
+    fn_103e0();                                      /* 0x3f1c9 real-mode INT 0x10 (EAX=0x10) */
+    sys_vesa_info(vbe);                              /* ...the effect the port models */
+
+    if (mem_cmp(vbe, "VESA", 4) != 0 &&              /* 0x3f1ce-df DS 0x1728 */
+        mem_cmp(vbe, "VBE2", 4) != 0) {              /* 0x3f1e4-f1 DS 0x172d */
+        fn_042394((const uint8_t *)"\nYour Vga Card Not Support VesaMode!!!\n", 0);  /* DS 0x1732 */
+        return 0;                                    /* 0x3f20a-11 [EBP-0xc] = 0 */
+    }
+
+    sys_dos_seg_free(sel1);                          /* 0x3f216-23 INT 31 AX=0x0101, DX = word[buf-2] */
+
+    uint16_t sel2 = 0;                               /* 0x3f225-45: BX=(0x100>>4)+1, INT 31 AX=0x0110 */
+    uint8_t *blk2 = sys_dos_seg_alloc(0x11, &sel2);
+    if (!blk2) return 0;
+    *(uint16_t *)blk2 = sel2;
+    uint8_t *mi = blk2 + 2;                          /* [EBP-4] the ModeInfoBlock */
+
+    memset(regs, 0, sizeof regs);
+    *(uint16_t *)(regs + 0) = 0x4f01;                /* 0x3f248 AX = VBE Get Mode Information */
+    *(uint16_t *)(regs + 8) = 0x101;                 /* 0x3f24e CX = mode 0x101 (640x480x8) */
+    fn_103e0();                                      /* 0x3f275 */
+    sys_vesa_mode_info(0x101, mi);                   /* ...modelled reply */
+
+    if ((mi[2] & 3) == 3) g_dat_63e58 = 0;           /* 0x3f27a-8c ModeAttributes low byte */
+    if ((mi[2] & 5) == 5) g_dat_63e5c = 0;           /* 0x3f296-a8 */
+    if ((mi[3] & 3) == 3) g_dat_63e58 = 1;           /* 0x3f2b2-c4 high byte */
+    if ((mi[3] & 5) == 5) g_dat_63e5c = 1;           /* 0x3f2ce-e0 */
+
+    g_dat_63e4c = 0;                                 /* 0x3f2ea bit search over block[4] */
+    for (;;) {
+        int32_t wv = (int32_t)(int16_t)(uint16_t)(mi[4] | ((uint16_t)mi[5] << 8));
+        if ((int32_t)(0x40 >> (g_dat_63e4c & 0x1f)) == wv) break;
+        if ((int32_t)g_dat_63e4c < 0xe) { g_dat_63e4c++; continue; }
+        break;
+    }
+
+    g_dat_63e60 = (int32_t)(int16_t)(uint16_t)(mi[0x10] | ((uint16_t)mi[0x11] << 8));  /* 0x3f321-28 */
+    g_dat_63e64 = (int32_t)(int16_t)(uint16_t)(mi[0x12] | ((uint16_t)mi[0x13] << 8));  /* 0x3f32d-34 */
+    g_dat_63e68 = (int32_t)(int16_t)(uint16_t)(mi[0x14] | ((uint16_t)mi[0x15] << 8));  /* 0x3f339-40 */
+    g_dat_531f4 = (uint32_t)((int32_t)(int16_t)(uint16_t)(mi[6] | ((uint16_t)mi[7] << 8)) << 10); /* 0x3f345-4f */
+    g_dat_531f8 = g_dat_531f4 - 1;                   /* 0x3f354-5a */
+
+    sys_dos_seg_free(sel2);                          /* 0x3f35f-6c INT 31 AX=0x0101 */
+
+    memset(regs, 0, sizeof regs);
+    *(uint16_t *)(regs + 0) = 0x4f02;                /* 0x3f36e AX = VBE Set Mode */
+    *(uint16_t *)(regs + 4) = 0x101;                 /* 0x3f374 BX = mode 0x101 */
+    fn_041e51(0x10, (uint32_t)(uintptr_t)regs, (uint32_t)(uintptr_t)regs, 0);  /* 0x3f385 */
+    *(uint16_t *)(regs + 0) = (uint16_t)((sys_vesa_set_mode(0x101) << 8) | 0x10);  /* the reply's AX */
+    if (regs[1] == 1) {                              /* 0x3f38a-92 [EBP-0x33] = AH */
+        fn_042394((const uint8_t *)"\nMode Setting Error!!!\n", 0);   /* DS 0x175a */
+        ok = 0;                                      /* 0x3f3a2 */
+    } else {
+        ok = 1;                                      /* 0x3f3ab */
+    }
+    return (int32_t)ok;                              /* 0x3f3b2- */
 }

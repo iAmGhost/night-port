@@ -101,4 +101,24 @@ void sys_file_open_reset(void);                          /* test: clear the queu
 void sys_file_real_dir(const char *dir);
 uint32_t sys_file_real_opened(void);                     /* successful real opens since install */
 
+
+/* DPMI DOS-segment stand-in: paragraphs -> a block in the real-mode memory
+ * image, plus the selector the original stores in its first word. */
+uint8_t *sys_dos_seg_alloc(uint32_t paragraphs, uint16_t *selector);
+void     sys_dos_seg_free(uint16_t selector);
+extern uint32_t sys_dos_segs_allocated;
+
+/* INT 10h AX=4F00 / 4F01 / 4F02 stand-ins (VESA VBE). Tunable for tests. */
+extern uint8_t  sys_vesa_signature[4];      /* "VESA" / "VBE2"; anything else -> no VESA */
+extern uint16_t sys_vesa_mode_attributes;   /* ModeAttributes word */
+extern uint16_t sys_vesa_hw_state;          /* the word DAT_63e4c searches for a bit index in */
+extern uint16_t sys_vesa_bytes_per_line;    /* ModeInfoBlock +0x10 */
+extern uint16_t sys_vesa_xres;              /* ModeInfoBlock +0x06 / +0x12 */
+extern uint16_t sys_vesa_yres;              /* ModeInfoBlock +0x14 */
+extern uint16_t sys_vesa_bpp;
+extern uint16_t sys_vesa_set_mode_ah;       /* 0 = mode set ok, 1 = error */
+void sys_vesa_info(uint8_t *buf);
+void sys_vesa_mode_info(uint16_t mode, uint8_t *buf);
+uint16_t sys_vesa_set_mode(uint16_t mode);
+
 #endif

@@ -225,3 +225,74 @@ struct dos_date sys_date = { 40, 1, 1, 1 };
 struct dos_time sys_time = { 0, 0, 0, 0 };
 struct dos_date sys_getdate(void) { return sys_date; }
 struct dos_time sys_gettime(void) { return sys_time; }
+
+/* ------------------------------------------------------------------ *
+ * DPMI DOS-segment + VESA shims (used by the video-mode init 0x03f15f).
+ *
+ * The original allocates REAL-mode DOS paragraphs through DPMI (INT 0x31
+ * AX=0x0100 code / AX=0x0110 data), stores the returned selector in the first
+ * word of the block, then uses seg*16+2 as a linear pointer into it, and calls
+ * INT 0x10 AX=0x4F00 / 0x4F01 / 0x4F02 in real mode through fn_00103e0 /
+ * fn_0041e51. A flat process has no real mode, so the block comes out of a
+ * fixed real-mode memory image and the VBE calls are answered from the tunable
+ * fields below (the SDL backend would fill them from a real adapter).
+ * ------------------------------------------------------------------ */
+#define SYS_REALMEM 0x2000u
+static uint8_t  g_real_mem[SYS_REALMEM];
+static uint32_t g_real_mem_used;
+static uint16_t g_real_mem_sel = 0x1000;
+
+uint8_t  sys_vesa_signature[4] = { 'V', 'E', 'S', 'A' };  /* INT 10h/4F00h: VesaSignatureString */
+uint16_t sys_vesa_mode_attributes = 0x0503;               /* ModeAttributes word */
+uint16_t sys_vesa_hw_state = 1;                           /* the value the DAT_63e4c bit search looks for */
+uint16_t sys_vesa_bytes_per_line = 640;                   /* ModeInfoBlock +0x10 */
+uint16_t sys_vesa_xres = 640;                             /* ModeInfoBlock +0x06 / +0x12 */
+uint16_t sys_vesa_yres = 480;                             /* ModeInfoBlock +0x14 */
+uint16_t sys_vesa_bpp = 8;
+uint16_t sys_vesa_set_mode_ah = 0;                        /* 0 = mode set ok, 1 = error */
+uint32_t sys_dos_segs_allocated = 0;
+
+uint8_t *sys_dos_seg_alloc(uint32_t paragraphs, uint16_t *selector)
+{
+    uint32_t need = paragraphs * 16u;
+    if (g_real_mem_used + need > SYS_REALMEM) return 0;   /* DPMI would fail here */
+    uint8_t *p = g_real_mem + g_real_mem_used;
+    g_real_mem_used += need;
+    if (selector) *selector = g_real_mem_sel++;
+    sys_dos_segs_allocated++;
+    return p;
+}
+
+void sys_dos_seg_free(uint16_t selector)
+{
+    (void)selector;      /* bump image: nothing to reclaim */
+}
+
+void sys_vesa_info(uint8_t *buf)
+{
+    buf[0] = sys_vesa_signature[0]; buf[1] = sys_vesa_signature[1];
+    buf[2] = sys_vesa_signature[2]; buf[3] = sys_vesa_signature[3];
+}
+
+/* VBE 2.0 ModeInfoBlock layout for the fields the game reads:
+ *   +0x02/+0x03 ModeAttributes bytes, +0x04 hardware-state word (bit search),
+ *   +0x06 XResolution, +0x10 BytesPerLine, +0x12 XResolution, +0x14 YResolution. */
+void sys_vesa_mode_info(uint16_t mode, uint8_t *buf)
+{
+    (void)mode;
+    uint16_t w;
+    w = sys_vesa_mode_attributes; buf[2] = (uint8_t)w; buf[3] = (uint8_t)(w >> 8);
+    w = sys_vesa_hw_state;        buf[4] = (uint8_t)w; buf[5] = (uint8_t)(w >> 8);
+    w = sys_vesa_xres;            buf[6] = (uint8_t)w; buf[7] = (uint8_t)(w >> 8);
+    buf[8] = (uint8_t)sys_vesa_yres; buf[9] = (uint8_t)(sys_vesa_yres >> 8);
+    buf[0x0b] = (uint8_t)sys_vesa_bpp;
+    w = sys_vesa_bytes_per_line;  buf[0x10] = (uint8_t)w; buf[0x11] = (uint8_t)(w >> 8);
+    w = sys_vesa_xres;            buf[0x12] = (uint8_t)w; buf[0x13] = (uint8_t)(w >> 8);
+    w = sys_vesa_yres;            buf[0x14] = (uint8_t)w; buf[0x15] = (uint8_t)(w >> 8);
+}
+
+uint16_t sys_vesa_set_mode(uint16_t mode)
+{
+    (void)mode;
+    return sys_vesa_set_mode_ah;   /* AH of the INT 10h/4F02h reply */
+}

@@ -2495,6 +2495,63 @@ static int node0_len(void) {
 /* 0x03a70e -- THE PICTURE / CG SLIDE-SHOW DRIVER (na<stage>%04d.pcx strip). */
 /* 0x038cde -- THE HELP / INSTRUCTIONS SCREEN (paged help%d.pcx + animated palette bands). */
 /* 0x03a224 -- THE TITLE SCREEN (wipe-in, two-entry menu, returns the selection). */
+/* 0x03f15f -- THE VESA MODE SET (mode 0x101) and the geometry globals every blit reads. */
+static void test_fn_03f15f(void) {
+    printf("fn_03f15f (0x03f15f): the VESA mode set (640x480x8) and the blit geometry\n");
+    uint32_t s_4c = g_dat_63e4c, s_58 = g_dat_63e58, s_5c = g_dat_63e5c, s_60 = g_dat_63e60;
+    uint32_t s_64 = g_dat_63e64, s_68 = g_dat_63e68, s_f4 = g_dat_531f4, s_f8 = g_dat_531f8;
+    uint8_t  sig0 = sys_vesa_signature[0], sig1 = sys_vesa_signature[1];
+    uint8_t  sig2 = sys_vesa_signature[2], sig3 = sys_vesa_signature[3];
+    uint16_t s_attr = sys_vesa_mode_attributes, s_hw = sys_vesa_hw_state;
+    uint16_t s_bpl = sys_vesa_bytes_per_line, s_x = sys_vesa_xres, s_y = sys_vesa_yres;
+    uint16_t s_ah = sys_vesa_set_mode_ah;
+
+    /* the shipped shim answers like a VBE 2.0 card in mode 0x101 (640x480x8) */
+    g_dat_63e58 = g_dat_63e5c = 0xffffffffu;
+    int32_t r = fn_03f15f();
+    check(r == 1, "the mode set succeeds on a VESA card");
+    check(g_dat_531f4 == 0xa0000 && g_dat_531f8 == 0x9ffff,
+          "DAT_531f4 = xres << 10 = 640<<10 = 0xa0000 and DAT_531f8 = that - 1 (the linear screen modulus)");
+    check(g_dat_63e64 == 640 && g_dat_63e68 == 480 && g_dat_63e60 == 640,
+          "the geometry the blits use: DAT_63e64 = 640 (pitch), DAT_63e68 = 480 (lines), DAT_63e60 = 640 (bytes/line)");
+    check(g_dat_63e4c == 6,
+          "DAT_63e4c is the bit index found by the 0x40>>i search over the hardware-state word (1 -> 6): the palette/window shift");
+    check(g_dat_63e58 == 0 && g_dat_63e5c == 1,
+          "ModeAttributes 0x0503: low byte 3 clears DAT_63e58 (its high byte has no bit0|bit1), high byte 5 sets DAT_63e5c -- the four mask tests run in sequence, not as else-ifs");
+    sys_vesa_mode_attributes = 0x0703;
+    fn_03f15f();
+    check(g_dat_63e58 == 1 && g_dat_63e5c == 1,
+          "attributes 0x0703 (low &3==3, high &3==3 and &5==5) ends with both window flags at 1");
+    sys_vesa_mode_attributes = 0x0503;
+
+    sys_vesa_signature[0] = 'V'; sys_vesa_signature[1] = 'B';
+    sys_vesa_signature[2] = 'E'; sys_vesa_signature[3] = '2';
+    check(fn_03f15f() == 1, "the VBE 1.1 'VESA' and VBE 2 'VBE2' signatures are both accepted");
+
+    sys_vesa_signature[0] = 'N'; sys_vesa_signature[1] = 'O';
+    sys_vesa_signature[2] = 'P'; sys_vesa_signature[3] = 'E';
+    check(fn_03f15f() == 0, "a card whose signature is neither prints the no-VESA banner and returns 0");
+    sys_vesa_signature[0] = 'V'; sys_vesa_signature[1] = 'E';
+    sys_vesa_signature[2] = 'S'; sys_vesa_signature[3] = 'A';
+
+    sys_vesa_set_mode_ah = 1;
+    check(fn_03f15f() == 0, "INT 10h/4F02h replying AH=1 prints the mode-error banner and returns 0");
+    sys_vesa_set_mode_ah = 0;
+
+    sys_vesa_xres = 320; sys_vesa_yres = 200; sys_vesa_bytes_per_line = 320;
+    r = fn_03f15f();
+    check(r == 1 && g_dat_531f4 == 0x50000 && g_dat_63e64 == 320 && g_dat_63e68 == 200,
+          "the globals follow the reported mode (320<<10 = 0x50000, pitch 320, 200 lines)");
+
+    g_dat_63e4c = s_4c; g_dat_63e58 = s_58; g_dat_63e5c = s_5c; g_dat_63e60 = s_60;
+    g_dat_63e64 = s_64; g_dat_63e68 = s_68; g_dat_531f4 = s_f4; g_dat_531f8 = s_f8;
+    sys_vesa_signature[0] = sig0; sys_vesa_signature[1] = sig1;
+    sys_vesa_signature[2] = sig2; sys_vesa_signature[3] = sig3;
+    sys_vesa_mode_attributes = s_attr; sys_vesa_hw_state = s_hw;
+    sys_vesa_bytes_per_line = s_bpl; sys_vesa_xres = s_x; sys_vesa_yres = s_y;
+    sys_vesa_set_mode_ah = s_ah;
+}
+
 static void test_fn_03a224(void) {
     printf("fn_03a224 (0x03a224): the title screen (wipe + menu, returns the choice)\n");
     uint8_t s_c1 = g_dat_63ec1, s_a4 = g_dat_63ea4, s_a5 = g_dat_63ea5, s_c0 = g_dat_63ec0;
@@ -2507,7 +2564,10 @@ static void test_fn_03a224(void) {
     heap_arena_cap_set(0x2000000);           /* four 0x4b000 title buffers + the picture streams */
     uint8_t *hb = (uint8_t *)g_heap_base;
     g_dat_633a0 = 0;                         /* no resource index: the loaders read straight from g_639b8 */
-    g_dat_531f4 = 0x10000; g_dat_63e64 = 0x280;/* the wrap modulus (A0000 window size) and pitch fn_03f462 uses for a 640x480 screen */
+    /* fn_03f15f really reports DAT_531f4 = 640<<10 = 0xa0000 and pitch 0x280; the port still has a
+     * single 64 KiB A0000 window (VBE Win A/B switching is not wired), so the wrap modulus here is
+     * the window size -- otherwise video_map clamps every offset past 0xffff to 0. */
+    g_dat_531f4 = 0x10000; g_dat_63e64 = 0x280;
 
     /* three title pages, consumed in call order: title3.pcx -> title4.pcx -> title1.pcx.
      * Each = [768 B ramp table][30720 FILL-10 runs of the page value] = 307200 pixels. */
@@ -12116,6 +12176,7 @@ int main(void) {
     test_fn_03a70e();
     test_fn_038cde();
     test_fn_03a224();
+    test_fn_03f15f();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

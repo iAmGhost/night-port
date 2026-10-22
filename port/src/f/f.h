@@ -317,10 +317,14 @@ extern uint32_t g_dat_63318;               /* DAT_00063318: PIT ch0 divisor */
 extern uint32_t g_dat_63e50[256];          /* DAT_00063e50: per-register palette cache */
 extern uint32_t g_dat_63e5c;               /* DAT_00063e5c: palette index (fn_03f3be) */
 extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03f410) */
+extern uint32_t g_dat_63e60;               /* DAT_00063e60: VBE bytes per line (ModeInfoBlock +0x10) */
+extern uint32_t g_dat_63e68;               /* DAT_00063e68: VBE y resolution (ModeInfoBlock +0x14) */
+extern uint32_t g_dat_531f8;               /* DAT_000531f8: g_dat_531f4 - 1 */
+int32_t fn_03f15f(void);   /* 0x03f15f: THE VESA MODE SET (mode 0x101, 640x480x8) -- fills DAT_531f4/531f8/63e4c/63e58/63e5c/63e60/63e64/63e68; returns 1, or 0 with a banner when VESA or the mode set fails. */
 extern uint32_t g_dat_531f4;               /* DAT_000531f4: VESA row width (VBE[0x8]<<10), init'd by 0x03f15f */
 extern uint32_t g_dat_63e64;               /* DAT_00063e64: VESA bytes-per-line/pitch (VBE[0x12]), init'd by 0x03f15f */
 extern uint32_t g_dat_53104;               /* DAT_00053104: row-progress divisor (0x46 default, fn_03a5f7) */
-extern uint8_t  g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
+extern uint32_t g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
 extern uintptr_t g_dat_53c5c;               /* DAT_00053c5c: DPMI far-pointer (debug-reg) */
 extern uint8_t  g_dat_53c4c[9];            /* DAT_00053c4c: 9-byte real-mode command staging area */
 extern uint8_t  g_dat_63e88[0x80];          /* DAT_00063e88: DMA/channel status (IRQ9 install) */

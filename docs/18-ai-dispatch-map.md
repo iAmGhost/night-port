@@ -129,6 +129,19 @@ Older progress: (8 of 18 -- 0x01f064/behaviour 0x07 added: a four-arm chooser (s
 
 Older progress: (7 of 18 -- 0x01df8b/behaviour 0x06 added: the entity[0x5f] phase-latch chooser (script-byte side spots alternating with absolute jitter slots 6..9)).
 
+HANDLER FRONTIER (recomputed with a corrected pending/callee scan, scratch/frontier-style): every one of
+the 9 remaining handlers is gated ONLY on folded helpers (0x0418ee canary prologue, 0x041e9f prng,
+0x041f76 abs, 0x041f7e modulo) plus 0x01586b / 0x017927, which are BOTH already ported. None of them is
+waiting on real work, so the AI campaign is a straight reading queue, ordered cheapest first:
+0x0265ac 5695, 0x029709 5867, 0x024bf9 6578, 0x02adf5 6722, 0x02319c 6748 (takes arg 2), 0x02c838 6803,
+0x027bec 6940, 0x02e2cc 6993, 0x03272f 7013, 0x02fe1e 7279. Markers show they are the same family with
+an if-chain instead of a switch: all 9 call the same 12 action helpers, all have the single
+`entity[0xc7] == 1` chooser gate and the `entity[0xff]` slot store, all read the script rows far more
+heavily than the switch family (9-13 DAT_00053eb8 reads vs 3), and 0x0265ac additionally uses the
+entity[0x5f] latch (4 reads). Downstream of them sit 0x031a8e (needs all of them) then 0x0322f5 (133 B
+per-frame AI loop) and 0x03a829 (the frame driver), so the handler queue is the critical path to a
+loading stage.
+
 FAMILY TEMPLATE STATUS (scratch/aicases.py, comparing each pending handler's canonical pseudo case-by-case against fn_01bea8): 0x01f064, 0x020170, 0x0221b8 differ ONLY in case 0x00, and 0x02119c also differs in case 0x0b -- so those five are body-generation jobs (pattern: scratch/gen_01df8b.py) rather than fresh reads. 0x02319c, 0x024bf9, 0x0265ac, 0x027bec (and probably the other 6-7 KB entries) have no `switch(` in their pseudo at all -- they use if-chains, so they must be read on their own.
 
 Older progress: (6 of 18 -- 0x01cf64/behaviours 0x05+0x09+0x0a added: the MODE-in-EDX handler, a recon gate, and a script-row-based spot chooser; use `scratch/aicases.py` to diff the family per switch-case, and `scratch/gen_01cf64.py` shows the body-generation pattern).

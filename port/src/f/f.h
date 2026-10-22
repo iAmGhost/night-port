@@ -1472,4 +1472,15 @@ void fn_012616(uint8_t *e);
  * count DAT_00053c68 is re-read per iteration, so spawns made during the sweep are stepped too. */
 void fn_03209c(void);
 
+/* 0x03272f: THE PLAYER ACTION-CHAIN RESOLVER (EAX = the .act chain table of the current action).
+ * State x frame x key state machine for the player, then the 100-slot chain-table match against the
+ * DAT_00063f14/63f1e/63f28 key ring. The table is host memory laid out as struct-of-arrays:
+ * +0x000 count, +0x004 len bytes, +0x068 code pointers, +0x1f8 level pointers, +0x388 target words,
+ * +0x450 required-weapon-level bytes. */
+void fn_03272f(uint8_t *tbl);
+extern uint32_t g_tab_52ffc[0x41]; /* DAT_00052ffc..DAT_00053100: walk step per (frame%4)*3 + gun slot */
+extern uint32_t g_dat_62d58;       /* DAT_00062d58: state id of the action being chained */
+extern uint32_t g_dat_6339c;       /* DAT_0006339c: countdown that forces state 0x28 at 500 */
+extern uint8_t  g_dat_63eb4;       /* DAT_00063eb4: dash/attack key latch */
+
 #endif

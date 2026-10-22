@@ -24611,3 +24611,414 @@ void fn_03e20f(uint8_t *rec)
         break;
     }
 }
+
+/* =================================================================== */
+/*  the player action-chain resolver (0x03272f)                        */
+/* =================================================================== */
+
+/* DAT_00052ffc..DAT_00053100 (DS): walk/step deltas indexed by (frame % 4) * 3 + gun-slot byte.
+ * Filled by the stage data load; no EXE producer writes it directly. */
+uint32_t g_tab_52ffc[0x41] = {0};
+uint32_t g_dat_62d58 = 0;   /* DAT_00062d58: the state id of the action currently being chained */
+uint32_t g_dat_6339c = 0;   /* DAT_0006339c: forced-transition countdown (500 -> state 0x28) */
+uint8_t  g_dat_63eb4 = 0;   /* DAT_00063eb4: key byte, the "dash/attack" key latch */
+
+#define PL32(o) (*(int32_t  *)((pl) + (o)))
+#define PL16(o) (*(uint16_t *)((pl) + (o)))
+#define PL8(o)  ((pl)[(o)])
+
+/* The record of the player's new state latches the element event DAT_63364/DAT_63368 from its
+ * +0x69/+0x6a pair -- the same pair fn_031f5f reads when a saved state is popped. */
+static void record_event_latch(uint8_t *pl)
+{
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t p1 = *(const uint32_t *)(pl + 0x123);
+    uint32_t p2 = *(const uint32_t *)(hb + p1 + 0x4);
+    uint32_t idx = *(const uint32_t *)(pl + 0x017);
+    const uint8_t *rec = hb + *(const uint32_t *)(hb + p2 + idx * 4);
+    if (rec[0x69] != 0) {
+        g_dat_63364 = rec[0x69];
+        g_dat_63368 = *(const uint16_t *)(rec + 0x6a);
+    }
+}
+
+/* LAB_0003284e (0x0003284e) -- the walking/running body, shared by states 1, 2 and 0x28. */
+static void lab_0003284e(uint8_t *pl)
+{
+    uint8_t key = fn_03493e();                                    /* 0x0003284e-54 */
+    if (g_dat_63ed8 != 0 || g_dat_63ed0 != 0 ||                    /* 0x00032854-87 */
+        g_dat_63ed3 != 0 || g_dat_63ed5 != 0) {
+        int32_t step = (int32_t)g_tab_52ffc[(((int32_t)g_dat_63360 % 4) * 3) + PL8(0x25)];
+        if (g_dat_63ed0 == 0) {                                   /* 0x000328b2-cc */
+            if (g_dat_63ed8 != 0) fn_01586b(pl, step);
+        } else {
+            fn_01586b(pl, -step);
+        }
+        if (g_dat_63ed3 == 0) {                                   /* 0x000328cc-0x000328f4 */
+            if (g_dat_63ed5 != 0) { fn_01545e(pl, step); PL32(0x1b) = 0; }
+        } else {
+            fn_01545e(pl, -step); PL32(0x1b) = 1;
+        }
+        if (PL32(0x17) != 2) { PL32(0x11) = 0; PL32(0x17) = 2; }   /* 0x000328f4-0x00032914 */
+    }
+    if ((g_dat_63ec1 != 0 || g_dat_63eb4 != 0) && PL8(0x27) != 0) { /* 0x00032914-0x00032965 */
+        PL32(0x11) = 0; PL16(0x50) = 0; PL32(0x17) = 0x97; PL32(0x42) = 0;
+        fn_0348e2();
+    }
+    if (key == '*' || key == '6') {                                /* 0x00032965-0x000329d0 */
+        PL32(0x11) = 0;
+        if (g_dat_63ed3 == 0 && g_dat_63ed5 == 0) {
+            PL32(0x17) = 0x83; PL32(0x42) = 0; g_dat_62d58 = 0x83;
+        } else {
+            PL32(0x17) = 0x84; g_dat_62d58 = 0x84;
+        }
+        fn_0348e2();
+    }
+}
+
+/* LAB_0003358f (0x0003358f) -- the "jump to the .act chain" body, shared by states 0x98..0x9b. */
+static void lab_0003358f(uint8_t *pl)
+{
+    uint8_t key = fn_03493e();                                     /* 0x0003358f-95 */
+    if (key == '8') {                                              /* 0x00033595-0x000335cf */
+        PL8(0x31) = 1;
+        PL32(0x32) = (PL8(0x27) == 4) ? 0x2e : 0x2d;
+    }
+}
+
+/* The 0x83 / 0x84 / 0x85 attack-ready bodies differ only in the slot sound call, in the secondary
+ * state they fall through to, and in the extra sub-attack of 0x83; kept as one helper with the
+ * differences passed in so the three copies cannot drift apart. */
+static void lab_attack_ready(uint8_t *pl, int st, uint8_t key)
+{
+    if (PL32(0x11) == 0x3e) { fn_0348e2(); PL8(0x31) = 0; }         /* 0x00032fa2-0x00032fc4 */
+    if (key == 'g' && PL32(0x11) < 0x1c) PL32(0x11f) = 0x1fffff;    /* charged-shot request */
+    if (st == 0x83)      fn_0342ff(2);                              /* 0x00032fdf */
+    else if (st == 0x84) fn_034295(3);                              /* 0x00033178 */
+    else                 fn_034295(1);                              /* 0x00033331 */
+    if (key == '8' || key == '\x1d') {                              /* the two sub-attacks */
+        if (0xb < PL32(0x11) && PL32(0x11) < 0x33) {
+            PL32(0x3e) = PL32(0x17); PL32(0x42) = PL32(0x11); PL32(0x11) = 0;
+            if (key == '\x1d') { PL32(0x17) = 0x88; fn_0348e2(); }
+            else if (key == '8') {
+                PL32(0x17) = (st == 0x83) ? 0x89 : 0x8a; fn_0348e2();
+            }
+        }
+    } else if ((key == 'g' || PL32(0x11f) == 0x1fffff) && PL32(0x11) == 0x1c && 1 < PL8(0x27)) {
+        PL32(0x3e) = PL32(0x17);                                    /* the charged shot */
+        if (st == 0x85) { PL32(0x17) = 0x8d; }
+        else PL32(0x17) = (PL8(0x26) == 2) ? 0x8d : 0x8c;
+        PL32(0x11f) = 0; fn_0348e2();
+    } else if (st == 0x83 && key == 'i' && 3 < PL8(0x27) &&           /* 0x83 only: the wide sweep */
+               0xb < PL32(0x11) && PL32(0x11) < 0x33) {
+        PL32(0x3e) = PL32(0x17); PL32(0x42) = PL32(0x11); PL32(0x11) = 0;
+        PL32(0x17) = 0x8b; fn_0348e2();
+    }
+}
+
+/* fn_03272f  orig: 0x0003272f (L10, 7014 B) -- THE PLAYER ACTION-CHAIN RESOLVER, the other half of
+ * the player input layer (the per-frame entity stepper fn_012616 does the movement, this decides
+ * which action record the player switches to). EAX/param = the .act chain table of the current
+ * action; DAT_00053c7c is the player entity.
+ *
+ * Two halves:
+ *  1. a state machine on player+0x17 (state) x player+0x11 (frame) x the current key byte
+ *     (fn_03493e) that starts attacks, charged shots, dashes and hit reactions; and
+ *  2. the CHAIN MATCH at LAB_000339c5: the table is a struct of arrays over 100 slots --
+ *        +0x000 dword  entry count
+ *        +0x004 byte   chain length (steps)
+ *        +0x068 dword*  -> chain step key codes      (raw pointer)
+ *        +0x1f8 dword*  -> chain step level bytes    (raw pointer)
+ *        +0x388 word    target state id
+ *        +0x450 byte    required weapon level (player+0x27)
+ *     and it is matched against the 10-slot ring buffer DAT_00063f14 (key codes), DAT_00063f1e
+ *     (slot already consumed) and DAT_00063f28 (per-slot level) written by fn_0348e2 / fn_034353,
+ *     relative to the current slot DAT_00063f50 (mod 10, wrapped by hand). A match retargets
+ *     player+0x17 (directly, or through the saved-state push fn_031f10) and remembers the pair
+ *     (DAT_00062d58 = target state, DAT_00062d5c = chain level byte), gated by the per-id tables
+ *     DAT_00062b90 (chain level of an id) and DAT_00062ac8 (its group).
+ */
+void fn_03272f(uint8_t *tbl)
+{
+    (void)canary_id((uintptr_t)tbl, 0x3c);                          /* 0x00032734 probe (push 0x3c) */
+    uint8_t *pl = g_dat_53c7c;                                      /* 0x0003274a */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    if (PL8(0x30) == 1) return;                                     /* 0x0003274f-0x00032759 dying */
+    if (g_dat_6339c == 500) { PL32(0x17) = 0x28; PL32(0x11) = 0; }   /* 0x00032759-0x00032779 */
+
+    uint8_t key;
+    if (PL32(0x17) == 0x66 &&                                       /* 0x00032779-0x0003280e the pair break */
+        (key = fn_03493e(), key == '*' || key == '6')) {
+        uint8_t *pair = hb + *(const uint32_t *)(pl + 0x4a);   /* heap offset; 0 = no pair (not guarded) */
+        *(int32_t *)(pair + 0x17) = 1;  *(int32_t *)(pair + 0x11) = 0;
+        *(uint32_t *)(pair + 0x4a) = 0; *(uint16_t *)(pair + 0x50) = 0;
+        PL32(0x17) = 1; PL32(0x11) = 0; *(uint32_t *)(pl + 0x4a) = 0; PL16(0x50) = 0;
+        fn_0348e2();
+        return;
+    }
+    if (PL32(0x17) == 0x66 || PL32(0x17) == 0x70) goto lab_chain;    /* 0x0003280e-0x00032828 */
+
+    uint32_t st = PL32(0x17);
+    if (st < 0x47) {
+        if (st < 0x15) {
+            if (st < 3) {
+                if (st != 0) lab_0003284e(pl);                      /* states 1, 2 */
+            } else if (st < 4) {                                    /* state 3: 0x000329d0-0x00032acc */
+                key = fn_03493e();
+                if ((key == '8' || key == '\x1d') && PL8(0x27) != 0) {
+                    PL32(0x11) = 0; PL32(0x17) = 0xa3; g_dat_62d58 = 0xa3; fn_0348e2();
+                }
+                if ((key == '*' || key == '6') && PL8(0x27) != 0) {
+                    PL32(0x17) = 0x85; g_dat_62d58 = 0x85; PL32(0x11) = 0; fn_0348e2();
+                }
+                if (PL32(0x1b) == 0) {                              /* facing up: the other vertical key */
+                    if (g_dat_63ed5 == 0 && (PL32(0x11) == 0x13 || PL32(0x11) == 0x2d)) {
+                        PL32(0x17) = 4; PL32(0x11) = 0;
+                    }
+                } else if (g_dat_63ed3 == 0 &&
+                           (PL32(0x11) == 0x13 || PL32(0x11) == 0x2d)) {
+                    PL32(0x17) = 4; PL32(0x11) = 0;
+                }
+            } else if (st == 5) {                                   /* state 5: 0x00032acc-0x00032b49 */
+                key = fn_03493e();
+                if (PL32(0x11) == 8) {
+                    if (key == '8' && PL8(0x27) != 0) {
+                        PL32(0x17) = 0x9c; PL32(0x11) = 0; PL8(0x31) = 0;
+                        PL16(0x50) = 0; PL8(0x31) = 0; fn_0348e2();
+                    }
+                } else if (PL32(0x11) == 0x11) { PL8(0x31) = 0; fn_0348e2(); }
+            }
+        } else if (st < 0x16) {                                     /* state 0x15: 0x00032b49-0x00032bf4 */
+            key = fn_03493e();
+            if (PL32(0x11) < 0x32 && (key == '*' || key == '6')) {
+                if ((PL16(0x23) != 0 || PL16(0x29) != 0) && PL8(0x27) != 0) {
+                    PL32(0x17) = 0x98; PL8(0x31) = 0; PL16(0x50) = 0;
+                    if (PL16(0x23) == 0 && PL8(0x30) == 1) PL8(0x30) = 2;
+                }
+                fn_0348e2();
+            } else if (PL32(0x11) < 0x56 && (key == '*' || key == '6')) {
+                PL16(0x50) = 0;
+            }
+        } else if (st < 0x1e) {
+            if (st == 0x16) {                                       /* state 0x16: 0x00032bf4-0x00032cb5 */
+                key = fn_03493e();
+                if (PL32(0x11) < 0x1e && (key == '*' || key == '6')) {
+                    if ((PL16(0x23) != 0 || PL16(0x29) != 0) && PL8(0x27) != 0) {
+                        PL32(0x17) = 0x9b; PL8(0x31) = 0; PL16(0x50) = 0;
+                        if (PL16(0x23) == 0 && PL8(0x30) == 1) PL8(0x30) = 2;
+                        fn_0348e2();
+                    }
+                } else if (PL32(0x11) < 0x44 && (key == '*' || key == '6')) {
+                    PL16(0x50) = 0; fn_0348e2();
+                }
+            }
+        } else if (st < 0x1f) {                                     /* state 0x1e: 0x00032cb5-0x00032d0b */
+            key = fn_03493e();
+            if (9 < PL32(0x11) && PL32(0x11) < 0x3b && (key == '*' || key == '6') &&
+                PL8(0x30) != 1) {
+                PL16(0x50) = 0;
+            }
+        } else if (0x27 < st) {
+            if (st < 0x29) lab_0003284e(pl);                        /* state 0x28 */
+            else if (st == 0x29 &&                                  /* 0x00032d44-0x00032d94 */
+                     (key = fn_03493e(), key == '*' || key == '6') && PL8(0x27) != 0) {
+                PL32(0x17) = 0x85; g_dat_62d58 = 0x85; PL32(0x11) = 0; fn_0348e2();
+            }
+        }
+    } else if (st < 0x48) {                                         /* state 0x47: 0x00032d94-0x00032de4 */
+        key = fn_03493e();
+        if ((key == '*' || key == '6') && PL8(0x27) != 0) {
+            PL32(0x17) = 0x85; g_dat_62d58 = 0x85; PL32(0x11) = 0; fn_0348e2();
+        }
+    } else if (st < 0x88) {
+        if (st < 0x84) {
+            if (st == 0x83) lab_attack_ready(pl, 0x83, key = fn_03493e());
+        } else if (st < 0x85) {
+            lab_attack_ready(pl, 0x84, key = fn_03493e());
+        } else if (st == 0x85) {
+            lab_attack_ready(pl, 0x85, key = fn_03493e());
+        }
+    } else if (st < 0x8e) {                                         /* 0x88..0x8d: 0x000333d1-0x000334cc */
+        if (PL32(0x17) == 0x8c && PL32(0x11) == 0x67) { fn_0348e2(); PL8(0x31) = 0; }
+        if (PL32(0x17) != 0x8c || PL32(0x11) < 0x35) {
+            if (PL32(0x17) == 0x8d && PL32(0x11) == 0x62) { fn_0348e2(); PL8(0x31) = 0; }
+            if (PL32(0x17) != 0x8d || PL32(0x11) < 0x2f) {
+                if (PL32(0x3e) == 0x83)      fn_0342ff(2);
+                else if (PL32(0x3e) == 0x84) fn_034295(3);
+                else if (PL32(0x3e) == 0x85) fn_034295(1);
+                if (PL32(0x42) == 0x39 && PL32(0x17) != 0x8c && PL32(0x17) != 0x8d) {
+                    PL32(0x17) = PL32(0x3e); PL32(0x11) = 0x39;      /* back to the attack it interrupted */
+                }
+            }
+        }
+    } else if (st < 0x98) {
+        if (st == 0x97) {                                           /* 0x000334cc-0x0003358f the dash */
+            fn_03493e();
+            if ((g_dat_63ec1 != 0 || g_dat_63eb4 != 0) && 0x13 < PL32(0x11)) {
+                PL32(0x11) = PL32(0x11) - 1; PL32(0x42) = PL32(0x42) + 1;
+            }
+            if (g_dat_63ea5 != 0 && 0x14 < (uint32_t)(PL32(0x11) + PL32(0x42)) && PL8(0x27) != 0) {
+                g_dat_63364 = 0x26; g_dat_63368 = 0;
+                PL32(0x11) = 0; PL32(0x17) = 0xa8; fn_0348e2();
+            }
+            if (g_dat_63ec0 != 0 && 0x14 < (uint32_t)(PL32(0x11) + PL32(0x42)) && 1 < PL8(0x27)) {
+                g_dat_63364 = 0x21; g_dat_63368 = 0;
+                PL32(0x11) = 0; PL32(0x17) = 0xa9; fn_0348e2();
+            }
+        }
+    } else if (st < 0x99) {
+        lab_0003358f(pl);                                           /* state 0x98 */
+    } else if (0x9a < st) {
+        if (st < 0x9c) lab_0003358f(pl);                            /* states 0x99, 0x9a, 0x9b */
+        if (st == 0xa5 && 5 < PL32(0x11) && g_dat_63ea5 == 0) {      /* 0x0003362a-0x000336d8 the finisher */
+            g_dat_63364 = 0x20; g_dat_63368 = 0;
+            if (PL32(0x11) < 0 || PL32(0x11) > 0x1e) {
+                if (PL32(0x11) < 0x1f || PL32(0x11) > 0x3c) {
+                    if (PL32(0x11) < 0x3d || PL32(0x11) > 0x50) {
+                        if (0x50 < PL32(0x11) && PL32(0x11) < 0x65) PL32(0x17) = 0x2b;
+                    } else PL32(0x17) = 0x2a;
+                } else PL32(0x17) = 0x29;
+            } else PL32(0x17) = 0xa6;
+            PL32(0x11) = 0;
+        }
+    }
+
+    /* 0x000336d8-0x000337f0: the "get hit / get knocked out" override, valid for the neutral,
+     * walking, hurt and window states. */
+    if ((10 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0x14) ||
+        (0x32 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0x51) ||
+        PL32(0x17) == 0xa4 || PL32(0x17) == 0xa6 ||
+        PL32(0x17) == 0xa7 || PL32(0x17) == 0x2f ||
+        (0xaa < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0xae) ||
+        (0xb4 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0xb9)) {
+        key = fn_03493e();
+        if ((g_dat_63ec1 != 0 || g_dat_63eb4 != 0) && PL8(0x27) != 0) {
+            PL32(0x11) = 0; PL16(0x50) = 0; PL32(0x17) = 0x97; PL32(0x42) = 0; PL8(0x31) = 0;
+            fn_0348e2();
+        }
+        if (key == '*' || key == '6') {
+            PL32(0x11) = 0;
+            if (g_dat_63ed3 == 0 && g_dat_63ed5 == 0) {
+                PL32(0x17) = 0x83; PL32(0x42) = 0; g_dat_62d58 = 0x83;
+            } else {
+                PL32(0x17) = 0x84; g_dat_62d58 = 0x84;
+            }
+            PL16(0x50) = 0; fn_0348e2(); PL8(0x31) = 0;
+        }
+    }
+    if (g_dat_63ed8 == 0 && g_dat_63ed0 == 0 && g_dat_63ed3 == 0 &&
+        g_dat_63ed5 == 0 && (uint32_t)PL32(0x17) < 3) {              /* 0x0003383f-0x00033885 idle */
+        PL32(0x17) = 1;
+    }
+
+lab_chain:
+    /* LAB_000339c5: the .act chain match -- see the header comment for the table layout. */
+    if (!((uint32_t)PL32(0x17) < 0x15 || (uint32_t)PL32(0x17) > 0x1e) && PL32(0x17) != 5) return;
+    uint32_t count = *(const uint32_t *)(tbl + 0x00);                /* 0x00033a06 */
+    for (uint32_t i = 0; i < count; i = i + 1) {
+        uint8_t len = tbl[0x004 + i];                                /* 0x00033a11-17 */
+        int32_t s1 = (int32_t)g_dat_63f50 - (int32_t)len;            /* 0x00033a1c-0x00033a44 */
+        int32_t s2 = (int32_t)g_dat_63f50 - 1;
+        if (s1 < 0) s1 = s1 + 10;
+        if (s2 < 0) s2 = s2 + 10;
+        const uint8_t *codes = hb + *(const uint32_t *)(tbl + 0x068 + i * 4);   /* stored as heap offsets */
+        const uint8_t *lvls  = hb + *(const uint32_t *)(tbl + 0x1f8 + i * 4);
+        if (g_dat_63f14[s1] != codes[0]) continue;                   /* 0x00033a57-5f */
+        if (g_dat_63f1e[s2] == 1) continue;                          /* 0x00033a61-72 */
+        uint32_t k = 1;                                              /* 0x00033a79-0x00033b18 */
+        for (; k < (uint32_t)len; k = k + 1) {
+            s1 = (s1 == 9) ? 0 : s1 + 1;
+            if (g_dat_63f14[s1] != codes[k]) break;
+            if ((uint32_t)lvls[k - 1] < g_dat_63f28[s1]) break;
+        }
+        if (!((uint32_t)len == k)) continue;                          /* 0x00033b1f-0x00033b34 */
+        if (tbl[0x450 + i] > PL8(0x27)) continue;
+        uint16_t target = *(const uint16_t *)(tbl + 0x388 + i * 2);
+        uint8_t *pair = hb + *(const uint32_t *)(pl + 0x4a);
+        if (target == 0x70) {                                        /* 0x00033b5c-0x00033b6c the pair link */
+            int32_t *pc = (int32_t *)(pair + 0x52);
+            *pc = *pc + 1;
+        }
+        if (*(const uint32_t *)(pl + 0x4a) != 0 && *(int32_t *)(pair + 0x52) == 5 &&
+            target == 0x70) {
+            if (g_dat_62d58 == 0x71) {                               /* 0x00033b8f-0x00033c42 both ready */
+                g_dat_63f1e[s2] = 1;
+            } else {
+                uint8_t lv;
+                if (PL8(0x31) == 0) {
+                    g_dat_63f1e[s2] = 1;
+                    PL32(0x17) = 0x71; PL16(0x50) = 0; PL32(0x11) = 0;
+                    lv = lvls[k - 1];
+                } else {
+                    g_dat_63f1e[s2] = 1;
+                    fn_031f10(pl, 0x71);
+                    PL16(0x50) = 0;
+                    lv = lvls[k - 1];
+                }
+                g_dat_62d5c = lv; g_dat_62d58 = 0x71;
+            }
+            *(int32_t *)(pair + 0x52) = 0;
+            return;
+        }
+        if (((10 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0x14) ||
+             (0x32 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0x51) ||
+             PL32(0x17) == 0xa4 || PL32(0x17) == 0xa6 ||
+             PL32(0x17) == 0xa7 || PL32(0x17) == 0x2f ||
+             (0xaa < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0xae) ||
+             (0xb4 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0xb9)) &&
+            (target == 0x65 || target == 0x30 || target == 0x31)) {   /* 0x00033c42-0x00033cd8 direct */
+            g_dat_63f1e[s2] = 1;
+            PL32(0x17) = target; PL16(0x50) = 0; PL32(0x11) = 0; PL8(0x31) = 0;
+            g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+            return;
+        }
+        if (10 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0x15) {  /* 0x00033cd8-0x00033d6a hurt */
+            if (target != 0x99) { fn_0348e2(); return; }
+            g_dat_63f1e[s2] = 1;
+            PL32(0x17) = target;
+            record_event_latch(pl);                                  /* 0x00033d11-0x00033d3b */
+            PL16(0x50) = 0; PL32(0x11) = 0;
+            g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+            return;
+        }
+        if (lvls[len - 1] == 0) fn_0348e2();                          /* 0x00033d6a-0x00033d7d */
+        if (PL32(0x17) == 1 || PL32(0x17) == 2 || PL32(0x17) == 0x66) { /* 0x00033d7d-0x00033e3c idle chain */
+            if (g_dat_62b90[target] < 2 ||
+                g_dat_62b90[g_dat_62d58] == (uint32_t)g_dat_62b90[target] - 1) {
+                g_dat_63f1e[s2] = 1;
+                PL32(0x17) = target;
+                record_event_latch(pl);                              /* 0x00033dee-0x00033e08 */
+                PL16(0x50) = 0; PL32(0x11) = 0;
+                g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+                return;
+            }
+        } else if (PL32(0x17) == 0x70) {                              /* 0x00033e3c-0x00033e96 pair chain */
+            if (PL8(0x31) < 5) {
+                if (g_dat_62d58 != 0x71) {
+                    g_dat_63f1e[s2] = 1;
+                    fn_031f10(pl, target);
+                    PL16(0x50) = 0;
+                    g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+                    return;
+                }
+                fn_0348e2();
+            }
+        } else if (g_dat_62ac8[g_dat_62d58] == g_dat_62ac8[target] &&    /* 0x00033e96-0x00033f68 same group */
+                   (uint32_t)target != (uint32_t)PL32(0x17)) {
+            if (g_dat_62b90[target] <= g_dat_62b90[g_dat_62d58]) { fn_0348e2(); return; }
+            if (g_dat_62b90[g_dat_62d58] != (uint32_t)g_dat_62b90[target] - 1) return;
+            if (PL8(0x31) < 5) {
+                g_dat_63f1e[s2] = 1;
+                fn_031f10(pl, target);
+                PL16(0x50) = 0;
+                g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+                return;
+            }
+        }
+    }
+    return;
+}
+
+#undef PL32
+#undef PL16
+#undef PL8

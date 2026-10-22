@@ -16539,6 +16539,211 @@ static void test_fn_03209c(void) {
 }
 
 
+static void test_fn_03272f(void) {
+    printf("fn_03272f (0x03272f): the player action-chain resolver (states + the .act chain match)\n");
+    /* --- save every global this function can touch ------------------------------- */
+    uint8_t *s_pl = g_dat_53c7c, *s_room = g_dat_63354;
+    uint8_t s_ring[10], s_arm[10]; uint32_t s_lvl[16];
+    memcpy(s_ring, g_dat_63f14, 10); memcpy(s_arm, g_dat_63f1e, 10); memcpy(s_lvl, g_dat_63f28, 40);
+    uint8_t s_f50 = g_dat_63f50, s_f08 = g_dat_63f08;
+    uint32_t s_2d58 = g_dat_62d58, s_2d5c = g_dat_62d5c, s_339c = g_dat_6339c;
+    uint32_t s_3364 = g_dat_63364, s_3368 = g_dat_63368, s_3360 = g_dat_63360;
+    uint32_t s_3370 = g_dat_63370, s_39dc = g_dat_639dc, s_2a8c = g_dat_62a8c;
+    uint8_t s_ec1 = g_dat_63ec1, s_eb4 = g_dat_63eb4, s_ea5 = g_dat_63ea5, s_ec0 = g_dat_63ec0;
+    uint8_t s_ed0 = g_dat_63ed0, s_ed3 = g_dat_63ed3, s_ed5 = g_dat_63ed5, s_ed8 = g_dat_63ed8;
+    uint8_t s_b90a = g_dat_62b90[0x31], s_b90b = g_dat_62b90[0x32];
+    uint8_t s_ac8a = g_dat_62ac8[0x31], s_ac8b = g_dat_62ac8[0x32];
+    uint32_t s_step = g_tab_52ffc[5];
+
+    /* deliberately NO heap_arena_init(): the .act chain table is built in recycled blocks and a reset
+     * arena would hand those blocks back to the stage-teardown tests that still reference them */
+    uint32_t s_floor = heap_region_floor(); heap_region_floor_set(0x10000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *room = (uint8_t *)calloc(1, 0x400);
+    *(uint32_t *)(room + 0x12) = 100; *(uint32_t *)(room + 0x16) = 5000;
+    g_dat_63354 = room; g_dat_63370 = 1; g_dat_639dc = 1000; g_dat_62a8c = 0;
+
+    /* an action container so the record latch (rec+0x69/+0x6a) resolves */
+    uint32_t p1 = heap_malloc(0x20);
+    *(uint32_t *)(hb + p1 + 4) = heap_malloc(0x100 * 4);
+    uint32_t p2 = *(uint32_t *)(hb + p1 + 4);
+    uint32_t defr = heap_malloc(0x90);
+    *(uint32_t *)(hb + defr + 0x00) = 100;
+    for (int i = 0; i < 0x100; i++) *(uint32_t *)(hb + p2 + (size_t)i * 4) = defr;
+
+    uint32_t pl_o = heap_malloc(0x14f); uint8_t *pl = hb + pl_o;
+    g_dat_53c7c = pl;
+#define RESET() do { memset((pl), 0, 0x14f); *(uint32_t *)(pl + 0x123) = p1;      \
+        *(int32_t *)(pl + 0x01) = 1200; *(int32_t *)(pl + 0x09) = 300;            \
+        memset(g_dat_63f14, 0, 10); memset(g_dat_63f1e, 0, 10);                   \
+        memset(g_dat_63f28, 0, 0x28); g_dat_63f50 = 0; g_dat_63f08 = 0;           \
+        g_dat_62d58 = 0; g_dat_62d5c = 0; g_dat_6339c = 0; g_dat_63364 = 0;       \
+        g_dat_63368 = 0; g_dat_63360 = 5; g_dat_63ec1 = 0; g_dat_63eb4 = 0;       \
+        g_dat_63ea5 = 0; g_dat_63ec0 = 0; g_dat_63ed0 = 0; g_dat_63ed3 = 0;       \
+        g_dat_63ed5 = 0; g_dat_63ed8 = 0; g_tab_52ffc[5] = 0; } while (0)
+#define ST(v)   (*(uint32_t *)(pl + 0x17) = (v))
+#define FR(v)   (*(uint32_t *)(pl + 0x11) = (v))
+    uint8_t empty[8] = { 0, 0, 0, 0 };                       /* count 0 chain table */
+
+    RESET(); ST(0x66); FR(9); g_dat_63f50 = 1; g_dat_63f14[0] = '*';
+    pl[0x30] = 1;
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x66 && g_dat_63f50 == 1,
+          "a dying player (entity+0x30 == 1) is returned from before anything else runs");
+
+    RESET(); g_dat_6339c = 500; ST(1); FR(7);
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x28 && *(uint32_t *)(pl + 0x11) == 0,
+          "the DAT_6339c countdown at 500 forces state 0x28 with the frame reset");
+
+    /* walking: the step comes from g_tab_52ffc[(frame % 4) * 3 + gun slot] */
+    RESET(); ST(1); FR(4); pl[0x25] = 2; g_tab_52ffc[5] = 7; g_dat_63ed8 = 1; g_dat_63ed5 = 1;
+    fn_03272f(empty);
+    check(*(int32_t *)(pl + 0x09) == 307 && *(int32_t *)(pl + 0x01) == 1207 &&
+          *(uint32_t *)(pl + 0x17) == 2 && *(uint32_t *)(pl + 0x11) == 0 && pl[0x1b] == 0,
+          "state 1 with the horizontal + vertical keys walks by the DAT_52ffc step and becomes state 2");
+
+    /* attack start: the previous ring slot carries the attack key */
+    RESET(); ST(1); FR(4); g_dat_63f50 = 1; g_dat_63f14[0] = '*'; pl[0x27] = 2;
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x83 && g_dat_62d58 == 0x83 && g_dat_63f50 == 2,
+          "the attack key moves the player to state 0x83, remembers it in DAT_62d58 and consumes a ring slot");
+
+    RESET(); ST(1); FR(4); g_dat_63f50 = 1; g_dat_63f14[0] = '6'; g_dat_63ed3 = 1; pl[0x27] = 2;
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x84 && g_dat_62d58 == 0x84,
+          "with the reversed vertical key held the same attack starts state 0x84 instead of 0x83");
+
+    /* charged shot out of 0x83 */
+    RESET(); ST(0x83); FR(0x1c); pl[0x27] = 2; pl[0x26] = 1; g_dat_63f50 = 1; g_dat_63f14[0] = 'g';
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x8c && *(uint32_t *)(pl + 0x3e) == 0x83,
+          "frame 0x1c with the charge key goes to the charged shot 0x8c and remembers 0x83 in +0x3e");
+    RESET(); ST(0x83); FR(0x1c); pl[0x27] = 2; pl[0x26] = 2; g_dat_63f50 = 1; g_dat_63f14[0] = 'g';
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x8d,
+          "the second weapon (entity+0x26 == 2) charges to 0x8d instead");
+
+    RESET(); ST(0x83); FR(0x10); g_dat_63f50 = 1; g_dat_63f14[0] = '8';
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x89 && *(uint32_t *)(pl + 0x42) == 0x10 &&
+          *(uint32_t *)(pl + 0x11) == 0,
+          "the sub-attack key between frames 0xc and 0x32 interrupts with 0x89, saving the frame in +0x42");
+
+    /* the interrupted attack is restored once the secondary frame reaches 0x39 */
+    RESET(); ST(0x88); FR(3); pl[0x3e] = 0x84; pl[0x42] = 0x39;
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x84 && *(uint32_t *)(pl + 0x11) == 0x39,
+          "state 0x88 with +0x42 == 0x39 snaps back to the interrupted state with that frame");
+
+    /* the dash state 0x97 runs its two exit keys */
+    RESET(); ST(0x97); FR(0x15); pl[0x27] = 2; g_dat_63ec1 = 1; g_dat_63ea5 = 1;
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0xa8 && g_dat_63364 == 0x26 && g_dat_63368 == 0,
+          "the dash backs its frame up while the key is held, then leaves through 0xa8 with event 0x26");
+    RESET(); ST(0x97); FR(0x15); pl[0x27] = 2; g_dat_63ec0 = 1;
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0xa9 && g_dat_63364 == 0x21,
+          "the other dash key (DAT_63ec0, weapon level above 1) leaves through 0xa9 with event 0x21");
+
+    /* the hit-reaction override */
+    RESET(); ST(0x10); FR(4); pl[0x27] = 2; g_dat_63ec1 = 1;
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 0x97 && *(uint32_t *)(pl + 0x11) == 0 &&
+          *(uint32_t *)(pl + 0x42) == 0 && pl[0x31] == 0,
+          "a neutral or walking state with the dash key falls into the dash state 0x97");
+
+    RESET(); ST(0);
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 1,
+          "with every direction key released a state below 3 is pulled back to the idle state 1");
+
+    /* ---- the .act chain table (struct of arrays, heap offsets) ---- */
+    uint32_t tbl_o = heap_malloc(0x4b4); uint8_t *tbl = hb + tbl_o;
+#define MKT(LEN, TGT, REQ, C0, C1, L0, L1) do {                                     \
+        memset(tbl, 0, 0x4b4); *(uint32_t *)(tbl + 0x000) = 1;                      \
+        tbl[0x004] = (LEN);                                                         \
+        uint32_t c = heap_malloc(8); *(uint32_t *)(tbl + 0x068) = c;                \
+        hb[c] = (C0); hb[c + 1] = (C1);                                             \
+        uint32_t v = heap_malloc(8); *(uint32_t *)(tbl + 0x1f8) = v;                \
+        hb[v] = (L0); hb[v + 1] = (L1);                                             \
+        *(uint16_t *)(tbl + 0x388) = (TGT); tbl[0x450] = (REQ); } while (0)
+
+    /* two-step chain ending in the direct-fire window states */
+    RESET(); ST(0x40); FR(2); pl[0x27] = 2;
+    MKT(2, 0x65, 0, 'q', 'r', 1, 3);
+    g_dat_63f14[8] = 'q'; g_dat_63f14[9] = 'r';           /* ring: slot 8 then 9, current slot 0 */
+    fn_03272f(tbl);
+    check(*(uint32_t *)(pl + 0x17) == 0x65 && g_dat_62d58 == 0x65 && g_dat_62d5c == 3 &&
+          g_dat_63f1e[9] == 1 && *(uint32_t *)(pl + 0x11) == 0,
+          "a two-key chain ending in the window states retargets the state, arms the ring slot and remembers the chain level");
+
+    RESET(); ST(0x40); FR(2); pl[0x27] = 2;
+    MKT(2, 0x65, 0, 'q', 'x', 1, 3);                     /* second code wrong */
+    g_dat_63f14[8] = 'q'; g_dat_63f14[9] = 'r';
+    fn_03272f(tbl);
+    check(*(uint32_t *)(pl + 0x17) == 0x40 && g_dat_62d58 == 0,
+          "the chain needs every step to match the ring, a wrong second key rejects it");
+
+    RESET(); ST(0x40); FR(2); pl[0x27] = 1;
+    MKT(2, 0x65, 2, 'q', 'r', 1, 3);                     /* needs weapon level 2 */
+    g_dat_63f14[8] = 'q'; g_dat_63f14[9] = 'r';
+    fn_03272f(tbl);
+    check(*(uint32_t *)(pl + 0x17) == 0x40,
+          "the chain's required weapon level (+0x450) gates it against entity+0x27");
+
+    /* same-group chain: pushed through the saved-state queue instead of written directly */
+    RESET(); ST(0x30); FR(2); pl[0x27] = 2;
+    MKT(1, 0x32, 0, 'q', 0, 4, 0);
+    g_dat_63f14[9] = 'q'; g_dat_62d58 = 0x31;
+    g_dat_62ac8[0x31] = 5; g_dat_62ac8[0x32] = 5;
+    g_dat_62b90[0x31] = 1; g_dat_62b90[0x32] = 2;
+    fn_03272f(tbl);
+    check(pl[0x31] == 1 && *(uint32_t *)(pl + 0x32) == 0x32 && g_dat_62d58 == 0x32 &&
+          g_dat_62d5c == 4 && *(uint32_t *)(pl + 0x17) == 0x30,
+          "a chain to the next level of the same group is queued with fn_031f10 instead of switching at once");
+
+    /* the pair chain: the partner's +0x52 counter decides when both are ready */
+    uint32_t pr_o = heap_malloc(0x14f); uint8_t *pr = hb + pr_o;
+    RESET(); ST(0x20); FR(3); pl[0x27] = 2;
+    MKT(1, 0x70, 0, 'q', 0, 6, 0);
+    g_dat_63f14[9] = 'q'; *(uint32_t *)(pl + 0x4a) = pr_o; *(int32_t *)(pr + 0x52) = 4;
+    fn_03272f(tbl);
+    check(*(uint32_t *)(pl + 0x17) == 0x71 && g_dat_62d58 == 0x71 && g_dat_62d5c == 6 &&
+          *(int32_t *)(pr + 0x52) == 0,
+          "the 0x70 chain counts the partner's +0x52 and, at five, switches both to the joint action 0x71");
+
+    /* 0x66 with a partner: the pair is broken by the attack key */
+    RESET(); ST(0x66); FR(4); *(uint32_t *)(pl + 0x4a) = pr_o;
+    *(uint32_t *)(pr + 0x17) = 0x6f; *(uint32_t *)(pr + 0x11) = 9; *(int32_t *)(pr + 0x50) = 7;
+    g_dat_63f50 = 1; g_dat_63f14[0] = '*';
+    fn_03272f(empty);
+    check(*(uint32_t *)(pl + 0x17) == 1 && *(uint32_t *)(pl + 0x4a) == 0 &&
+          *(uint32_t *)(pr + 0x17) == 1 && *(uint32_t *)(pr + 0x4a) == 0 &&
+          *(uint16_t *)(pr + 0x50) == 0,
+          "state 0x66 with the attack key releases both halves of the pair and resets their holds");
+
+#undef MKT
+#undef ST
+#undef FR
+#undef RESET
+    /* restore */
+    g_dat_53c7c = s_pl; g_dat_63354 = s_room;
+    memcpy(g_dat_63f14, s_ring, 10); memcpy(g_dat_63f1e, s_arm, 10); memcpy(g_dat_63f28, s_lvl, 40);
+    g_dat_63f50 = s_f50; g_dat_63f08 = s_f08;
+    g_dat_62d58 = s_2d58; g_dat_62d5c = s_2d5c; g_dat_6339c = s_339c;
+    g_dat_63364 = s_3364; g_dat_63368 = s_3368; g_dat_63360 = s_3360;
+    g_dat_63370 = s_3370; g_dat_639dc = s_39dc; g_dat_62a8c = s_2a8c;
+    g_dat_63ec1 = s_ec1; g_dat_63eb4 = s_eb4; g_dat_63ea5 = s_ea5; g_dat_63ec0 = s_ec0;
+    g_dat_63ed0 = s_ed0; g_dat_63ed3 = s_ed3; g_dat_63ed5 = s_ed5; g_dat_63ed8 = s_ed8;
+    g_dat_62b90[0x31] = s_b90a; g_dat_62b90[0x32] = s_b90b;
+    g_dat_62ac8[0x31] = s_ac8a; g_dat_62ac8[0x32] = s_ac8b;
+    g_tab_52ffc[5] = s_step;
+    heap_region_floor_set(s_floor);
+    free(room);
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16928,6 +17133,7 @@ int main(void) {
     test_fn_01194c();
     test_fn_012616();
     test_fn_03209c();
+    test_fn_03272f();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

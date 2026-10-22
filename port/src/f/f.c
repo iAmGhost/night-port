@@ -14198,7 +14198,7 @@ static uint8_t ai_script_byte(int32_t ty, int32_t slot, int32_t step)
                        (size_t)(uint32_t)slot * 10u + (size_t)(uint32_t)step];
 }
 /* Constants inside g_blk_51c24 (DS 0x51c24); memcpy because the fields are unaligned. */
-uint8_t g_ds_low0040[0x90] = {0};   /* DS 0x40..0xcf, see f.h */
+uint8_t g_ds_low0040[0x98] = {0};   /* DS 0x40..0xd7, see f.h (0xcc + 8 needs the extra bytes) */
 static double  ds_low_f64(size_t off) { double d; memcpy(&d, g_ds_low0040 + off, 8); return d; }
 static float   ai_blk_f32(size_t off)  { float f;   memcpy(&f, g_blk_51c24 + off, 4); return f; }
 static int32_t ai_blk_i32(size_t off)  { int32_t v; memcpy(&v, g_blk_51c24 + off, 4); return v; }

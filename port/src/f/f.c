@@ -23651,3 +23651,251 @@ void fn_038f3d(int32_t variant)
     if (lvl  != 0) { (void)fn_03d999(lvl,  0); heap_free_guard(o_lvl); }
     if (variant == 1) fn_00010dde();                                     /* 0x00039bfa */
 }
+
+
+/* DS 0x528b4: per-stage entity caps read by fn_0003e20f opcode 1 -- 10 columns (indexed by the room's
+ * +0x40 dword) x 18 rows (indexed by stage-1), stride 0x28. Stages 1-9 mostly cap at 9 with a few 5s;
+ * the later rows are 1000, i.e. effectively no cap. No producer exists in the EXE: this is image data
+ * (scripts/extract_ds.py 0x528b4 0x2d0). */
+const uint32_t g_tab_528b4[180] = {
+    0x0009, 0x0009, 0x0009, 0x0005, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0005, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0005, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0005, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0005, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0005, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0009, 0x0005, 0x0009, 0x0009,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x0019, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x0004, 0x0019, 0x000a, 0x0004,
+    0x000c, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x000f, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x03e8, 0x03e8, 0x03e8, 0x03e8, 0x03e8,
+    0x0018, 0x0011, 0x0005, 0x001f, 0x0009,
+    0x0020, 0x000d, 0x03e8, 0x03e8, 0x03e8,
+};
+
+/* fn_03e20f  orig: 0x0003e20f (L16, 2862 B) -- THE SCRIPT-COMMAND PUMP: applies one command record
+ * from the room's command list (fn_0003ed6f pumps the list through DAT_00063e18) to the room, and
+ * clears the record's opcode byte in place once it has been consumed.
+ *
+ * Record layout (dwords at +1 modulo 4, read through the flat address like everywhere else here):
+ *   +1 entity type   +5 sub-command / trigger slot   +9 X   +0d Y   +0x11 spawn gate   +0x15 camera
+ *   gate   +0x19 fifth value
+ *
+ * Opcode 1 (0x0003e237) spawns an entity for a trigger zone: fn_00041bdc(0x147) then fn_010efc with
+ *   the X anchor in EDX, 0 in EBX, the record Y in ECX, the record type and kind 1 on the stack; the
+ *   new entity's +0x1b gets the record's sub-command and, when the camera gate (rec+0x15) is 1, its
+ *   +0x17 becomes 3. The two halves are keyed on the room byte +0x11: when it is clear a spawn gate
+ *   of 1 tests the DAT_5d08c/90/94/98 box (armed by opcode 4), otherwise -- and with the polarity
+ *   swapped when the byte is set -- the test is the per-stage entity cap g_tab_528b4[(stage-1)*0x28 +
+ *   room[0x40]*4] against the live count DAT_53c68, and the anchor comes from the camera instead
+ *   (DAT_639dc - 0x1e for sub-command 0, + 0x15e for 1). A camera gate of 1 spawns at the record's own
+ *   X. Two of the bands ABORT the whole call (`return`, record left armed) when the record X is past
+ *   the camera band: DAT_639dc - 0x32 < X in the left-hand cases, DAT_639dc + 0x172 < X in the right.
+ * Opcode 2 (0x0003e94f) latches the room's edge triggers by sub-command (record +5, 1..6): dword
+ *   writes at room+0x2a / 0x2e / 0x32 / 0x36 and byte 1 at room+0x3a / 0x3b, each behind a STRICT
+ *   camera window DAT_639e0 < Y < DAT_639e0+0xc8 plus the relevant side of the camera X (sub-commands
+ *   3 and 4 also cap it at DAT_639dc + 0x140).
+ * Opcode 3 (0x0003eb8f) appends a wall/clamp entry to g_tab_5c8bc[g_dat_62a8c] (four dwords) and
+ *   bumps the count; opcode 6 (0x0003ec82) arms the DAT_5d0a0..b0 box with five dwords and bumps the
+ *   SAME counter -- an original quirk, kept. Opcode 4 (0x0003ebec) arms DAT_5d08c..98 but only while
+ *   exactly one entity is alive (DAT_53c68 == 1, i.e. the player alone). Opcodes 0 and 5 hit the
+ *   default and leave the record alone.
+ * Kept quirks: every comparison in this function is signed; the record opcode is only cleared when a
+ *   branch actually fires; the entity-block write is unconditional in the original (a failed
+ *   allocation would write through flat 0x1b) and is kept that way, as in fn_011827.
+ */
+static uint8_t *e20f_spawn(int32_t anchor_x, const uint8_t *rec, int stamp_gate)
+{
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t blk = fn_00041bdc(0x14f);                                   /* 0x0003e42b (orig 0x147) */
+    uint8_t *ent = NULL;
+    if (blk != 0) {                                                      /* 0x0003e43e */
+        ent = fn_010efc(hb + blk, anchor_x, 0,
+                        (int32_t)*(const int32_t *)(rec + 0x0d),          /* 0x0003e453: ECX = record Y */
+                        (int32_t)*(const int32_t *)(rec + 0x01), 1);      /* 0x0003e44d: type, kind 1 */
+    }
+    *(uint32_t *)(ent + 0x1b) = *(const uint32_t *)(rec + 0x05);         /* 0x0003e2f6 (null write kept) */
+    if (stamp_gate) *(uint32_t *)(ent + 0x17) = 3;                       /* 0x0003e486 / 0x0003e583 */
+    return ent;
+}
+
+void fn_03e20f(uint8_t *rec)
+{
+    (void)canary_id((uintptr_t)rec, 0xd4);                               /* 0x0003e20f-14 */
+
+    uint8_t *room = g_dat_63354;                                /* 0x0003e249 (written by opcode 2) */
+    const int32_t camx = (int32_t)g_dat_639dc, camy = (int32_t)g_dat_639e0;
+    const int32_t rx = *(int32_t *)(rec + 0x09), ry = *(int32_t *)(rec + 0x0d);
+    const int32_t sub = *(int32_t *)(rec + 0x05);
+    const int32_t gate = *(int32_t *)(rec + 0x11);
+    const int32_t cgate = *(int32_t *)(rec + 0x15);
+
+    switch (rec[0]) {                                                    /* 0x0003ed40 (dec al, >5 -> default) */
+    case 1:
+        if (room[0x11] == 0) {                                           /* 0x0003e24e-58 */
+            if (gate == 1) {                                             /* 0x0003e25e */
+                if ((int32_t)*(const uint32_t *)&g_dat_5d08c[0x00] <= rx
+                    && rx <= (int32_t)*(const uint32_t *)&g_dat_5d08c[0x08]
+                    && (int32_t)*(const uint32_t *)&g_dat_5d08c[0x04] <= ry
+                    && ry <= (int32_t)*(const uint32_t *)&g_dat_5d08c[0x0c]) {
+                    e20f_spawn(camx + (sub == 0 ? -0x1e : 0x15e), rec, 0);
+                    rec[0] = 0;                                          /* 0x0003e367 */
+                }
+            } else if ((int32_t)g_dat_53c68
+                       < (int32_t)g_tab_528b4[(g_dat_63370 - 1) * 10u + *(const uint32_t *)(room + 0x40)]) {
+                if (sub == 0) {                                          /* 0x0003e39f */
+                    if (camy <= ry && ry <= camy + 0xc8
+                        && (int32_t)*(const uint32_t *)(room + 0x00) <= rx
+                        && rx <= (int32_t)*(const uint32_t *)(room + 0x08)) {
+                        int32_t anchor;
+                        if (cgate == 1) anchor = rx;                      /* 0x0003e3f4-fc */
+                        else {
+                            if (camx - 0x32 < rx) return;                 /* 0x0003e408-26: whole call */
+                            anchor = camx - 0x1e;
+                        }
+                        e20f_spawn(anchor, rec, cgate == 1);
+                        rec[0] = 0;
+                    }
+                } else if (camy <= ry && ry <= camy + 0xc8
+                           && (int32_t)*(const uint32_t *)(room + 0x00) <= rx
+                           && rx <= (int32_t)*(const uint32_t *)(room + 0x08)
+                           && camx <= rx && rx <= camx + 0x172) {         /* 0x0003e4a4-0x0003e50f */
+                    e20f_spawn(cgate == 1 ? rx : camx + 0x15e, rec, cgate == 1);
+                    rec[0] = 0;
+                }
+            }
+        } else if (gate == 1) {                                          /* 0x0003e5b0 (room+0x11 set) */
+            if ((int32_t)*(const uint32_t *)&g_dat_5d08c[0x00] <= rx
+                && rx <= (int32_t)*(const uint32_t *)&g_dat_5d08c[0x08]
+                && (int32_t)*(const uint32_t *)&g_dat_5d08c[0x04] <= ry
+                && ry <= (int32_t)*(const uint32_t *)&g_dat_5d08c[0x0c]) {
+                e20f_spawn(camx + (sub == 0 ? -0x1e : 0x15e), rec, 0);
+                rec[0] = 0;                                              /* 0x0003e6c9 */
+            }
+        } else if ((int32_t)g_dat_53c68
+                   < (int32_t)g_tab_528b4[(g_dat_63370 - 1) * 10u + *(const uint32_t *)(room + 0x40)]) {
+            if (sub == 1) {                                              /* 0x0003e6eb (polarity swapped) */
+                if (camy <= ry && ry <= camy + 0xc8
+                    && (int32_t)*(const uint32_t *)(room + 0x00) <= rx
+                    && rx <= (int32_t)*(const uint32_t *)(room + 0x08)) {
+                    int32_t anchor;
+                    if (cgate == 1) anchor = rx;
+                    else {
+                        if (camx + 0x172 < rx) return;                    /* 0x0003e769 */
+                        anchor = camx + 0x15e;
+                    }
+                    e20f_spawn(anchor, rec, cgate == 1);
+                    rec[0] = 0;
+                }
+            } else if (camy <= ry && ry <= camy + 0xc8
+                       && (int32_t)*(const uint32_t *)(room + 0x00) <= rx
+                       && rx <= (int32_t)*(const uint32_t *)(room + 0x08)
+                       && camx - 0x32 <= rx && rx <= camx + 0x140) {       /* 0x0003e825-0x0003e88f */
+                e20f_spawn(cgate == 1 ? rx : camx - 0x1e, rec, cgate == 1);
+                rec[0] = 0;
+            }
+        }
+        break;
+
+    case 2:
+        switch (sub) {                                                   /* 0x0003eb64 (dec, >5 -> break) */
+        case 1:
+            if (camy < ry && ry < camy + 0xc8 && rx < camx) {             /* 0x0003e964-94 */
+                *(uint32_t *)(room + 0x2a) = (uint32_t)rx;                /* 0x0003e9a2 */
+                rec[0] = 0;
+            }
+            break;
+        case 2:
+            if (camy < ry && ry < camy + 0xc8 && camx < rx) {             /* 0x0003e9b0 */
+                *(uint32_t *)(room + 0x2e) = (uint32_t)rx;
+                rec[0] = 0;
+            }
+            break;
+        case 3:
+            if (camy < ry && ry < camy + 0xc8 && camx < rx && rx < camx + 0x140) {  /* 0x0003ea02-a38 */
+                *(uint32_t *)(room + 0x32) = (uint32_t)rx;
+                rec[0] = 0;
+            }
+            break;
+        case 4:
+            if (camy < ry && ry < camy + 0xc8 && camx < rx && rx < camx + 0x140) {  /* 0x0003ea64-a9a */
+                *(uint32_t *)(room + 0x36) = (uint32_t)rx;
+                rec[0] = 0;
+            }
+            break;
+        case 5:
+            if (camy < ry && ry < camy + 0xc8 && camx < rx) {             /* 0x0003eac4 */
+                room[0x3a] = 1;                                          /* 0x0003eaf7 (byte) */
+                rec[0] = 0;
+            }
+            break;
+        case 6:
+            if (camy < ry && ry < camy + 0xc8 && camx < rx) {             /* 0x0003eb0a */
+                room[0x3b] = 1;                                          /* 0x0003eb3d (byte) */
+                rec[0] = 0;
+            }
+            break;
+        default: break;
+        }
+        break;
+
+    case 3:
+        g_tab_5c8bc[g_dat_62a8c].a1_lo = rx;                             /* 0x0003eb9c */
+        g_tab_5c8bc[g_dat_62a8c].v_lo  = ry;                             /* 0x0003ebaf */
+        g_tab_5c8bc[g_dat_62a8c].a1_hi = gate;                           /* 0x0003ebc2 */
+        g_tab_5c8bc[g_dat_62a8c].v_hi  = cgate;                          /* 0x0003ebd5 */
+        g_dat_62a8c = g_dat_62a8c + 1;                                   /* 0x0003ebdb */
+        rec[0] = 0;                                                      /* 0x0003ebe4 */
+        break;
+
+    case 4:
+        if (g_dat_53c68 == 1) {                                          /* 0x0003ebec */
+            if (camx <= rx && rx <= camx + 0x13f && camy <= ry && ry <= camy + 0xc7) {
+                *(uint32_t *)&g_dat_5d08c[0x00] = (uint32_t)rx;           /* 0x0003ec5a */
+                *(uint32_t *)&g_dat_5d08c[0x04] = (uint32_t)ry;
+                *(uint32_t *)&g_dat_5d08c[0x08] = (uint32_t)gate;
+                *(uint32_t *)&g_dat_5d08c[0x0c] = (uint32_t)cgate;
+                rec[0] = 0;
+            }
+        }
+        break;
+
+    case 6:
+        if (camx <= rx && rx <= camx + 0x13f && camy <= ry && ry <= camy + 0xc7) {  /* 0x0003eca6-dd */
+            *(uint32_t *)&g_dat_5d0a0[0x00] = (uint32_t)rx;               /* 0x0003ece6 */
+            *(uint32_t *)&g_dat_5d0a0[0x04] = (uint32_t)ry;
+            *(uint32_t *)&g_dat_5d0a0[0x08] = (uint32_t)gate;
+            *(uint32_t *)&g_dat_5d0a0[0x0c] = (uint32_t)cgate;
+            *(uint32_t *)&g_dat_5d0a0[0x10] = (uint32_t)*(const int32_t *)(rec + 0x19);
+            g_dat_62a8c = g_dat_62a8c + 1;                               /* 0x0003ed17 (opcode 3's counter) */
+            rec[0] = 0;
+        }
+        break;
+
+    default:
+        break;
+    }
+}

@@ -15689,6 +15689,133 @@ static void test_fn_03801b(void) {
     free(hud); free(font); free(room);
 }
 
+static void test_fn_03e20f(void) {
+    printf("fn_03e20f (0x03e20f): script-command pump (trigger spawn, edge latches, armed boxes)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *s_room = g_dat_63354; uint32_t s_stage = g_dat_63370;
+    int32_t s_cnt = g_dat_53c68; uint8_t *s_70 = g_dat_53c70, *s_74 = g_dat_53c74, *s_80 = g_dat_53c80;
+    uint32_t s_camx = g_dat_639dc, s_camy = g_dat_639e0, s_cnt2 = g_dat_62a8c;
+    uint8_t s_box1[0x14], s_box2[0x14];
+    memcpy(s_box1, g_dat_5d08c, 0x14); memcpy(s_box2, g_dat_5d0a0, 0x14);
+    uint8_t *s_spr3 = g_dat_639ec[3]; uint8_t s_ent3[0x88];
+    memcpy(s_ent3, g_dat_53e9c + 3u * 0x88u, 0x88);
+    struct clamp_tab_5c8bc s_clamp0 = g_tab_5c8bc[0];
+
+    static uint8_t room[0x60];
+    memset(room, 0, sizeof room);
+    *(uint32_t *)(room + 0x00) = 100;              /* room X lo / hi (opcode 1 windows) */
+    *(uint32_t *)(room + 0x08) = 2000;             /* wide enough that the camera band decides */
+    *(uint32_t *)(room + 0x40) = 2;                /* cap-table column */
+    g_dat_63354 = room; g_dat_63370 = 1;
+    g_dat_639dc = 1000; g_dat_639e0 = 500;
+    memset(g_dat_5d08c, 0, 0x14); memset(g_dat_5d0a0, 0, 0x14);
+    memset(g_dat_53e9c + 3u * 0x88u, 0, 0x88);
+    g_dat_53818[3] = 0x3003;
+    uint32_t sp3 = heap_arena_alloc(0x40); g_dat_639ec[3] = hb + sp3; memset(hb + sp3, 0, 0x40);
+
+    static uint8_t rec[0x20];
+    #define PUTR(off, v) (*(uint32_t *)(rec + (off)) = (uint32_t)(v))
+    #define RD32(p) (*(const uint32_t *)(p))
+
+    /* opcode 4: arms DAT_5d08c..98 only while exactly one entity is alive */
+    memset(rec, 0, sizeof rec); rec[0] = 4;
+    PUTR(0x09, 1100); PUTR(0x0d, 550); PUTR(0x11, 0x1111); PUTR(0x15, 0x2222);
+    g_dat_53c68 = 2; fn_03e20f(rec);
+    check(rec[0] == 4 && RD32(g_dat_5d08c) == 0,
+          "opcode 4 with two entities alive: nothing armed, the command stays pending");
+    g_dat_53c68 = 1; g_dat_639e0 = 500 + 0xc8;     /* Y one past the +0xc7 limit: outside */
+    fn_03e20f(rec);
+    check(rec[0] == 4 && RD32(g_dat_5d08c) == 0,
+          "opcode 4 with the player alone but Y one past DAT_639e0+0xc7: still outside the window");
+    g_dat_639e0 = 500; fn_03e20f(rec);
+    check(rec[0] == 0 && RD32(g_dat_5d08c) == 1100 && RD32(g_dat_5d08c + 4) == 550
+          && RD32(g_dat_5d08c + 8) == 0x1111 && RD32(g_dat_5d08c + 0xc) == 0x2222,
+          "opcode 4 arms the trigger box (X lo, Y lo, X hi, Y hi) and consumes the record");
+
+    /* opcode 6: five dwords into DAT_5d0a0 and the SAME counter opcode 3 uses */
+    memset(rec, 0, sizeof rec); rec[0] = 6;
+    PUTR(0x09, 1000); PUTR(0x0d, 500); PUTR(0x11, 7); PUTR(0x15, 8); PUTR(0x19, 9);
+    g_dat_62a8c = 0; fn_03e20f(rec);
+    check(rec[0] == 0 && RD32(g_dat_5d0a0) == 1000 && RD32(g_dat_5d0a0 + 4) == 500
+          && RD32(g_dat_5d0a0 + 8) == 7 && RD32(g_dat_5d0a0 + 0xc) == 8 && RD32(g_dat_5d0a0 + 0x10) == 9
+          && g_dat_62a8c == 1,
+          "opcode 6 arms the second box and also bumps g_dat_62a8c (the wall-entry counter -- quirk)");
+
+    /* opcode 3: append a wall/clamp entry */
+    memset(rec, 0, sizeof rec); rec[0] = 3;
+    PUTR(0x09, 21); PUTR(0x0d, 22); PUTR(0x11, 23); PUTR(0x15, 24);
+    g_dat_62a8c = 0; memset(&g_tab_5c8bc[0], 0, sizeof g_tab_5c8bc[0]);
+    fn_03e20f(rec);
+    check(rec[0] == 0 && g_tab_5c8bc[0].a1_lo == 21 && g_tab_5c8bc[0].v_lo == 22
+          && g_tab_5c8bc[0].a1_hi == 23 && g_tab_5c8bc[0].v_hi == 24 && g_dat_62a8c == 1,
+          "opcode 3 appends g_tab_5c8bc[g_dat_62a8c] from the record's four dwords and bumps the count");
+
+    /* opcode 2 sub-command 1: strict camera window on Y, X left of the camera */
+    memset(rec, 0, sizeof rec); rec[0] = 2;
+    PUTR(0x05, 1); PUTR(0x09, 999); PUTR(0x0d, 500);
+    *(uint32_t *)(room + 0x2a) = 0xdead;
+    fn_03e20f(rec);
+    check(rec[0] == 2 && *(uint32_t *)(room + 0x2a) == 0xdead,
+          "opcode 2 sub 1 with Y == DAT_639e0 exactly: the strict DAT_639e0 < Y gate rejects it");
+    PUTR(0x0d, 501); fn_03e20f(rec);
+    check(rec[0] == 0 && *(uint32_t *)(room + 0x2a) == 999,
+          "opcode 2 sub 1 latches room+0x2a with the record X once inside the strict window");
+
+    /* opcode 2 sub-command 5: byte latch at room+0x3a */
+    memset(rec, 0, sizeof rec); rec[0] = 2;
+    PUTR(0x05, 5); PUTR(0x09, 1001); PUTR(0x0d, 501);
+    room[0x3a] = 0; fn_03e20f(rec);
+    check(rec[0] == 0 && room[0x3a] == 1,
+          "opcode 2 sub 5 writes a BYTE 1 at room+0x3a (right edge, camera X exceeded)");
+
+    /* opcode 1, spawn gate == 1: the armed DAT_5d08c box decides, camera-anchored spawn */
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+    *(uint32_t *)&g_dat_5d08c[0x00] = 100; *(uint32_t *)&g_dat_5d08c[0x04] = 200;
+    *(uint32_t *)&g_dat_5d08c[0x08] = 400; *(uint32_t *)&g_dat_5d08c[0x0c] = 600;
+    memset(rec, 0, sizeof rec); rec[0] = 1;
+    PUTR(0x01, 3); PUTR(0x05, 9); PUTR(0x09, 300); PUTR(0x0d, 500); PUTR(0x11, 1);
+    fn_03e20f(rec);
+    uint8_t *e1 = g_dat_53c74;
+    check(rec[0] == 0 && g_dat_53c68 == 1 && e1 && e1[0] == 1
+          && RD32(e1 + 0x01) == 1000 + 0x15e && RD32(e1 + 0x09) == 500 && RD32(e1 + 0x0d) == 3
+          && RD32(e1 + 0x1b) == 9 && RD32(e1 + 0x17) == 0,
+          "opcode 1 gate 1: builds the entity at camera X + 0x15e (sub-command 9), stamps +0x1b, no +0x17");
+
+    /* opcode 1, gate 0: the per-stage cap band, and its abort when X is past the camera band */
+    memset(rec, 0, sizeof rec); rec[0] = 1;
+    PUTR(0x01, 3); PUTR(0x05, 0); PUTR(0x09, 1000 - 0x31); PUTR(0x0d, 550);
+    fn_03e20f(rec);
+    check(rec[0] == 1 && g_dat_53c68 == 1,
+          "opcode 1 gate 0 with X past DAT_639dc-0x32: the record ABORTS the call (stays armed, no entity)");
+    PUTR(0x09, 1000 - 0x40); fn_03e20f(rec);
+    uint8_t *e2 = g_dat_53c74;
+    check(rec[0] == 0 && g_dat_53c68 == 2 && RD32(e2 + 0x01) == 1000 - 0x1e && RD32(e2 + 0x1b) == 0,
+          "opcode 1 gate 0 under the stage cap (g_tab_528b4 row 1 col 2 = 9): spawns at camera X - 0x1e");
+    memset(rec, 0, sizeof rec); rec[0] = 1;
+    PUTR(0x01, 3); PUTR(0x05, 0); PUTR(0x09, 300); PUTR(0x0d, 550); PUTR(0x15, 1);
+    fn_03e20f(rec);
+    uint8_t *e3 = g_dat_53c74;
+    check(rec[0] == 0 && g_dat_53c68 == 3 && RD32(e3 + 0x01) == 300 && RD32(e3 + 0x17) == 3,
+          "opcode 1 with the camera gate set: spawns at the record's own X and stamps entity+0x17 = 3");
+
+    /* opcode 5 (and 0) hit the switch default */
+    memset(rec, 0, sizeof rec); rec[0] = 5; PUTR(0x09, 300); PUTR(0x0d, 550);
+    fn_03e20f(rec);
+    check(rec[0] == 5 && g_dat_53c68 == 3, "opcode 5 falls to the default: no action, record untouched");
+
+    #undef PUTR
+    #undef RD32
+    g_dat_63354 = s_room; g_dat_63370 = s_stage; g_dat_53c68 = s_cnt;
+    g_dat_53c70 = s_70; g_dat_53c74 = s_74; g_dat_53c80 = s_80;
+    g_dat_639dc = s_camx; g_dat_639e0 = s_camy; g_dat_62a8c = s_cnt2;
+    memcpy(g_dat_5d08c, s_box1, 0x14); memcpy(g_dat_5d0a0, s_box2, 0x14);
+    g_dat_639ec[3] = s_spr3; memcpy(g_dat_53e9c + 3u * 0x88u, s_ent3, 0x88);
+    g_tab_5c8bc[0] = s_clamp0;
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16071,6 +16198,7 @@ int main(void) {
     test_fn_038b30();
     test_fn_0137c1();
     test_fn_038f3d();
+    test_fn_03e20f();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

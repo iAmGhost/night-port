@@ -1420,4 +1420,14 @@ uint32_t datetime_pack(struct datetime_pack *out);
  * the result if non-NULL. Verified against the fn_049613 no-op stub (mode=-1). */
 int32_t fn_04297a(int32_t *out);
 
+/* 0x03e20f: THE SCRIPT-COMMAND PUMP -- applies one record of the room's command list (opcode byte +
+ * seven dwords) to the room: 1 spawns a trigger entity (camera-anchored, per-stage entity cap from
+ * g_tab_528b4), 2 latches the six edge triggers, 3 appends a wall/clamp entry, 4 arms the DAT_5d08c
+ * box (only while one entity is alive), 6 arms the DAT_5d0a0 box; the opcode byte is cleared in place
+ * when a branch fires. See docs/21-script-commands.md. */
+void fn_03e20f(uint8_t *rec);
+extern const uint32_t g_tab_528b4[180];   /* DS 0x528b4: per-stage entity caps, 10 columns (room+0x40)
+                                           * x 18 rows (stage-1), stride 0x28: 9/5 in stages 1-9, 1000
+                                           * ("no cap") afterwards */
+
 #endif

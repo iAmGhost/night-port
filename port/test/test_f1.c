@@ -7519,6 +7519,81 @@ static void test_fn_038c23(void) {
     check(ok2, "  T2 5: '0'@col100 (X=0xa0) + '5'@col107 (X=0xa5) => leading-zero pad");
 }
 
+static void test_fn_03b953(void) {
+    printf("fn_03b953 (0x03b953): entity-list sweep of the floating value display\n");
+    uint8_t *scr = g_video_ram;
+    void *s_c0 = (void *)g_dat_639c0, *s_c4 = (void *)g_dat_639c4;
+    uint32_t s_dc = g_dat_639dc, s_e0 = g_dat_639e0; int32_t s_60 = g_dat_63360;
+    void *s_cc = (void *)g_dat_639cc, *s_d0 = (void *)g_dat_639d0, *s_d4 = (void *)g_dat_639d4;
+    int32_t s_c8 = (int32_t)g_dat_639c8;
+    heap_arena_init(); (void)heap_malloc(0x400);
+
+    static uint32_t offs[0x100];
+    static uint8_t rle[10 * 28];
+    static uint8_t obj4[0x40], obj8[0x40];
+    static struct blit_ctl fa, fb;
+    uint8_t *ct = (uint8_t *)(offs + 0x30);
+    for (uint32_t c = '0'; c <= '9'; c++) offs[c] = (c - '0') * 28;
+    for (int d = 0; d < 10; d++)
+        for (int r = 0; r < 7; r++) { uint8_t *p = rle + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
+    *(uint32_t *)(obj4 + 0x2c) = 0; *(uint32_t *)(obj8 + 0x2c) = 0;   /* terminator: 0 rows -> no-op */
+    *(uint32_t *)(ct + 0x2c)   = 0;
+    fa.col_obj = obj4; fa.row_obj = obj8; fa.off_obj = ct; fa.rle_base = rle;
+    fb = fa;
+    g_dat_639c0 = (uint32_t *)(void *)&fa; g_dat_639c4 = &fb;
+    g_dat_639dc = 0; g_dat_639e0 = 0; g_dat_63360 = 1;
+
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t o[3]; uint8_t *n[3];
+    /* allocate first, then link: n[i+1] is still uninitialised in a single combined pass, which
+     * links the list to garbage (this exact bug wild-pointer SEGV'd the first draft of the test) */
+    for (int i = 0; i < 3; i++) { o[i] = heap_malloc(0x40); n[i] = hb + o[i]; memset(n[i], 0, 0x40); }
+    for (int i = 0; i < 3; i++) {
+        *(uint32_t *)(n[i] + 0x01) = (uint32_t)(10 + i);              /* values 10, 11, 12 */
+        *(uint32_t *)(n[i] + 0x09) = (uint32_t)(0x20 + i * 0x30);     /* distinct columns */
+        *(uint32_t *)(n[i] + 0x0d) = 15;                              /* -> start_row 0 (dy - 0xf) */
+        *(uint8_t **)(n[i] + 0x11) = (i < 2) ? n[i+1] : NULL;
+        *(uint8_t **)(n[i] + 0x19) = (i > 0) ? n[i-1] : NULL;
+    }
+    g_dat_639cc = n[0]; g_dat_639d0 = n[2]; g_dat_639c8 = 3;
+
+    memset(scr, 0, 0x10000);
+    fn_03b953(0xa0000u);
+    int okAll = 1;
+    for (int i = 0; i < 3; i++) {
+        uint32_t col = 0x20 + i * 0x30;                               /* dest = i*5 + entity[9] */
+        if (scr[0*0x140 + col] != 0xa1) okAll = 0;                    /* digit '1' */
+        if (scr[0*0x140 + col + 5] != (uint8_t)(0xa0 + i)) okAll = 0; /* second digit differs */
+    }
+    check(okAll, "  every node in the list gets its number drawn (2 digits each)");
+    check(g_dat_639d4 == NULL, "  sweep cursor ends one past the tail (node+0x11 of the last node)");
+    check(g_dat_639cc == n[0] && g_dat_639c8 == 3, "  nothing removed while ages stay under 0x28");
+
+    
+    /* middle node expired: fn_03b718 splices + frees it, the sweep still reaches the tail because it
+     * follows the freed block's stale +0x11 (faithful latent behaviour) */
+    *(uint32_t *)(n[1] + 0x05) = 0x28;
+    g_dat_63360 = 3;                                                  /* age on this sweep */
+    memset(scr, 0, 0x10000);
+    fn_03b953(0xa0000u);
+    check(g_dat_639c8 == 2 && g_dat_639cc == n[0] && g_dat_639d0 == n[2]
+          && *(uint8_t **)(n[0] + 0x11) == n[2] && *(uint8_t **)(n[2] + 0x19) == n[0],
+          "  an expired middle node is spliced out mid-sweep (fn_0003b67e)");
+    /* The trip count re-reads DAT_000639c8 every iteration, and fn_0003b67e decrements it when the
+     * sweep itself removes a node -- so the sweep stops one node EARLY: the tail is never drawn.
+     * (The cursor did cross the freed block, but the loop ran out of iterations first.) */
+    check(scr[0*0x140 + 0x20] == 0xa1 && scr[0*0x140 + 0x80] == 0,
+          "  a mid-sweep removal shortens the sweep: the head is drawn, the tail is skipped (live count)");
+    uint32_t again = heap_malloc(0x40);
+    check(again == o[1], "  and the freed node's block is available again");
+
+    g_dat_639c0 = (uint32_t *)s_c0; g_dat_639c4 = (struct blit_ctl *)s_c4;
+    g_dat_639dc = s_dc; g_dat_639e0 = s_e0; g_dat_63360 = s_60;
+    g_dat_639cc = (uint8_t *)s_cc; g_dat_639d0 = (uint8_t *)s_d0;
+    g_dat_639d4 = (uint8_t *)s_d4; g_dat_639c8 = (uint32_t)s_c8;
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03b718(void) {
     printf("fn_03b718 (0x03b718): floating value number display (digit run + terminator + ageing)\n");
     uint8_t *scr = g_video_ram;
@@ -11046,6 +11121,7 @@ int main(void) {
     test_fn_03rle();
     test_fn_03f462();
     test_fn_03a5f7();
+    test_fn_03b953();
     test_fn_03b718();
     test_fn_038c23();
     test_fn_038b30();

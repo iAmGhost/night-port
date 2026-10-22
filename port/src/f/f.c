@@ -12997,3 +12997,27 @@ void fn_03b718(uint8_t *entity, uint32_t base)
         heap_free_guard(off);                                              /* 0x3b946 */
     }
 }
+
+/* fn_03b953  orig: 0x0003b953 (L12, 100 B) -- THE NUMBER-DISPLAY SWEEP: walks the whole entity list
+ * and runs fn_03b718 (the floating value display) on every node.
+ * ABI (raw disasm 0x3b953-0x3b96b): EAX on entry is an implicit register argument = the video base,
+ * saved at [ebp-4] and re-supplied to fn_03b718 in EDX (0x3b992) on each iteration.
+ *   DAT_000639d4 = DAT_000639cc;                                   0x3b96e-73
+ *   for (i = 0; i < DAT_000639c8; i++) { fn_03b718(DAT_000639d4, base);
+ *       DAT_000639d4 = *(DAT_000639d4 + 0x11); }                   0x3b97f-0x3b9ac
+ * LATENT BUG (faithfully reproduced, and the reason a full sweep of expired entities is fatal in the
+ * original too): the cursor is advanced AFTER fn_03b718 returns, and fn_03b718 frees the node when
+ * its age passes 0x28 -- so the walk reads node+0x11 out of a block that was just released. It only
+ * works because the freed block still holds its old link, and the list count is decremented by
+ * fn_0003b67e so the trip count still matches. Removing the last remaining node additionally
+ * null-derefs inside fn_0003b67e (documented there), so the sweep must never find an all-expired list.
+ */
+void fn_03b953(uint32_t base)
+{
+    (void)canary_id(0x24, 0x24);                                      /* 0x3b953-58 */
+    g_dat_639d4 = g_dat_639cc;                                       /* 0x3b96e-73 */
+    for (int32_t i = 0; i < g_dat_639c8; i++) {                       /* 0x3b978-90 */
+        fn_03b718(g_dat_639d4, base);                                /* 0x3b992-9a */
+        g_dat_639d4 = *(uint8_t **)(g_dat_639d4 + 0x11);              /* 0x3b99f-a7 (post-free read) */
+    }
+}

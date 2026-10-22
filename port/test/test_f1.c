@@ -2491,6 +2491,71 @@ static int node0_len(void) {
 }
 /* 0x0113e7 -- THE THREE-ACTOR ESCORT SPAWN (+ the type-selected device command stream). */
 /* 0x038098 -- THE PACED FRAME PUMP (frame-budget-gated composite + tick accounting). */
+/* 0x0381d7 -- THE PLAYER STEP-ANIMATION LOOP (walk cycle + paced redraw per step). */
+static void test_fn_0381d7(void) {
+    printf("fn_0381d7 (0x0381d7): the player step-animation loop\n");
+    uint8_t  *p_save = g_dat_53c7c, *r_save = g_dat_63354, *head_save = g_dat_53c70;
+    uint32_t cnt_save = g_dat_53c68, tick_save = g_dat_63e24, div_save = g_dat_53104;
+    uintptr_t hud_save = g_dat_53c84;
+    uint32_t camx_save = g_dat_639dc, camy_save = g_dat_639e0, lock_save = g_dat_639e4;
+    uint32_t nrec_save = g_dat_62a90, tick0_save = g_dat_63360;
+
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    /* the player's action container: P1 -> P2 = *(P1+4) -> rec = P2[2], rec[0] = frame count */
+    uint32_t rec  = heap_malloc(0x20); *(uint32_t *)(hb + rec) = 3;      /* 3 frames */
+    uint32_t p2   = heap_malloc(0x10); *(uint32_t *)(hb + p2 + 0x08) = rec;
+    uint32_t cont = heap_malloc(0x10); *(uint32_t *)(hb + cont + 0x04) = p2;
+
+    uint8_t *pl = (uint8_t *)calloc(1, 0x14f);
+    *(uint32_t *)(pl + 0x01) = 1000; *(uint32_t *)(pl + 0x09) = 500;
+    *(uint32_t *)(pl + 0x11) = 0;    *(uint32_t *)(pl + 0x17) = 7;
+    *(uint32_t *)(pl + 0x123) = cont;
+    g_dat_53c7c = pl;
+
+    uint8_t *room = (uint8_t *)calloc(1, 0x400);
+    *(uint32_t *)(room + 0x1a) = 0x140; *(uint32_t *)(room + 0x348) = SCREEN_BASE;
+    g_dat_63354 = room; g_dat_53c70 = NULL; g_dat_53c68 = 0; g_dat_53c84 = 0;
+    g_dat_639dc = 0; g_dat_639e0 = 0; g_dat_639e4 = 0;
+    g_dat_62a90 = 0; g_dat_63360 = 3;                  /* no glyph records to blit */
+    g_dat_53104 = 10;                                  /* budget n = 0x1ea/10 = 49 */
+
+    uint32_t work = SCREEN_BASE + SCREEN_SIZE;
+    uint8_t *scr = g_screen_ram + SCREEN_SIZE;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    memset(g_screen_ram, 0x5c, SCREEN_SIZE);
+    g_dat_63e24 = 0;
+
+    fn_0381d7(work, 6, -2, 4, 0);                      /* 4 steps facing right */
+    check(*(int32_t *)(pl + 0x01) == 1000 + 4 * 6 && *(int32_t *)(pl + 0x09) == 500 - 4 * 2,
+          "facing 0 accumulates +dx and +dy once per step");
+    check(*(uint32_t *)(pl + 0x1b) == 0, "the direction argument is copied to the player's +0x1b");
+    check(*(uint32_t *)(pl + 0x11) == 1,
+          "the frame index +0x11 advances per step and wraps when the action's frame count is reached");
+    check(*(uint32_t *)(pl + 0x17) == 7,
+          "+0x17 is forced to 2 for the walk and restored afterwards");
+    check(g_video_ram[0] == 0x5c && g_video_ram[SCREEN_SIZE - 1] == 0x5c,
+          "every step redraws the room plane and pushes the work screen to the VGA window");
+    check(g_dat_63e24 == 0u - 4u * 49u,
+          "the frame budget is paid once per step (dword wrap kept)");
+
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    *(uint32_t *)(pl + 0x01) = 1000; *(uint32_t *)(pl + 0x09) = 500; *(uint32_t *)(pl + 0x11) = 0;
+    fn_0381d7(work, 6, 0, 3, 1);                       /* 3 steps facing left */
+    check(*(int32_t *)(pl + 0x01) == 1000 - 3 * 6 && *(uint32_t *)(pl + 0x1b) == 1,
+          "a non-zero direction flips the x increment to a subtraction and stamps +0x1b");
+    check(*(uint32_t *)(pl + 0x11) == 0,
+          "the frame index wrap lands on 0 for this step count");
+
+    free(pl); free(room);
+    g_dat_53c7c = p_save; g_dat_63354 = r_save; g_dat_53c70 = head_save;
+    g_dat_53c68 = cnt_save; g_dat_63e24 = tick_save; g_dat_53104 = div_save;
+    g_dat_53c84 = hud_save; g_dat_639dc = camx_save; g_dat_639e0 = camy_save; g_dat_639e4 = lock_save;
+    g_dat_62a90 = nrec_save; g_dat_63360 = tick0_save;
+}
+
 static void test_fn_038098(void) {
     printf("fn_038098 (0x038098): the paced frame pump\n");
     uint8_t  *r_save = g_dat_63354, *head_save = g_dat_53c70;
@@ -11814,6 +11879,7 @@ int main(void) {
     test_fn_013908();
     test_fn_0113e7();
     test_fn_038098();
+    test_fn_0381d7();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

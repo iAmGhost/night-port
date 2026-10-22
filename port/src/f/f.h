@@ -906,6 +906,8 @@ extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment blo
 #define g_tab_51c24   ((const uint32_t *)g_blk_51c24) /* DS 0x51c24: entity type -> sound-slot index */
 
 void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
+void fn_0381d7(uint32_t base, int32_t dx, int32_t dy, int32_t steps, int32_t facing);   /* 0x0381d7: THE PLAYER STEP-ANIMATION LOOP -- walks the player block N steps (x +/- dx by the facing arg, y += dy, frame index +0x11 wrapping at the action's frame count) and redraws the paced composite after every step. */
+
 void fn_038098(uint32_t base);   /* 0x038098: THE PACED FRAME PUMP -- sort the entity list, draw the room plane + entity sweeps + both gauge panels and push the work screen to VGA, but only while the frame budget 0x1ea/DAT_53104 is ahead of the tick DAT_63e24; then wait and subtract the budget. */
 
 void fn_0113e7(uint8_t *ent);

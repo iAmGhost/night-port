@@ -13580,3 +13580,72 @@ void fn_038098(uint32_t base)
     g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24
                              - (int32_t)(0x1eau / g_dat_53104));  /* 0x381b5-c8 recomputed, dword sub */
 }
+
+/* fn_0381d7  orig: 0x000381d7 (L12, 460 B) -- THE PLAYER STEP-ANIMATION LOOP: walks the player block
+ * (DAT_53c7c) a fixed number of animation steps, redrawing the whole scene after every step. This is
+ * what makes a walk cycle look like movement: the position and frame index advance one increment per
+ * iteration, and each iteration runs the same paced composite as fn_038098.
+ * Register ABI (nothing pushed but one argument, RET 4):
+ *   EAX = work-screen base ([EBP-0x10])   EDX = x increment per step ([EBP-0xc])
+ *   EBX = y increment per step ([EBP-8])  ECX = number of steps ([EBP-4])
+ *   [EBP+0x10] = facing/direction dword: copied to player+0x1b, and it selects the sign of the x
+ *                increment (0 -> x += EDX, non-zero -> x -= EDX).
+ * Sequence:
+ *   save player+0x17, force player+0x17 = 2 (the walk action slot), player+0x1b = direction;
+ *   frame count = *(((player[0x123] -> +4) -> +8)) i.e. the third record of the player's action
+ *   container, dereferenced with no guard at all;
+ *   for step = 0 .. steps-1:
+ *     player+0x01 += / -= EDX;  player+0x09 += EBX;  player+0x11++;
+ *     if (frame count <= player+0x11) player+0x11 = 0;          (the frame index wraps)
+ *     fn_013aad(DAT_53c70)                                      (depth-sort the entity list)
+ *     while the budget n = 0x1ea IDIV DAT_53104 is ahead of DAT_63e24: draw the room plane, the entity
+ *       sweeps, the player's gauge panel + countdown, then cpy_dw the 64000 B screen to A0000;
+ *     wait for the tick (VBLANK/RTC busy-wait -- no-op spin here, as in fn_03a5f7/fn_038098);
+ *     DAT_63e24 -= n;
+ *   restore player+0x17.
+ * Compared with fn_038098 this composite omits fn_03b953 (the number-display sweep) and the second
+ * gauge slot DAT_53c88 -- during a walk step those are deliberately not redrawn.
+ * Latent kept: a missing action container (player[0x123] == 0) or a null frame record dereferences
+ * address 8; DAT_53104 == 0 divides by zero; DAT_63e24 is subtracted once per step regardless. Stack
+ * slots [EBP-0x14]/[EBP-0x18]/[EBP-0x1c] are dead copies of the loop counter, as in fn_038098.
+ */
+void fn_0381d7(uint32_t base, int32_t dx, int32_t dy, int32_t steps, int32_t facing)
+{
+    (void)canary_id((uintptr_t)base, 0x44);                     /* 0x381d7-dc probe (0x44) */
+    uint8_t *p = g_dat_53c7c;                                   /* the player block */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint32_t saved17 = *(const uint32_t *)(p + 0x17);           /* 0x38212-1a */
+    *(uint32_t *)(p + 0x17) = 2;                                /* 0x3821d-22 */
+    *(uint32_t *)(p + 0x1b) = (uint32_t)facing;                 /* 0x38229-32 */
+
+    uint32_t p1  = *(const uint32_t *)(p + 0x123);              /* 0x38235-46: P2 = *(P1+4), rec = P2[2] */
+    uint32_t p2  = *(const uint32_t *)(hb + p1 + 0x04);
+    uint32_t rec = *(const uint32_t *)(hb + p2 + 0x08);
+    int32_t fcnt = (int32_t)*(const uint32_t *)(hb + rec);      /* frame count, dereferenced unguarded */
+
+    for (int32_t step = 0; step < steps; step++) {              /* 0x38249-4f */
+        if (facing == 0) *(int32_t *)(p + 0x01) += dx;          /* 0x38255-67 */
+        else             *(int32_t *)(p + 0x01) -= dx;          /* 0x38269-72 */
+        *(int32_t *)(p + 0x09) += dy;                           /* 0x38275-7d */
+        *(int32_t *)(p + 0x11) += 1;                            /* 0x38280-88 */
+        if (fcnt <= *(int32_t *)(p + 0x11))                     /* 0x3828b-95 */
+            *(uint32_t *)(p + 0x11) = 0;
+        fn_013aad((uint32_t)(uintptr_t)g_dat_53c70);            /* 0x38298-9d */
+        int32_t n = (int32_t)(0x1eau / g_dat_53104);            /* 0x382a2-af */
+        if (n > (int32_t)g_dat_63e24) {                         /* 0x382b5-cc */
+            fn_03ce0b(g_dat_63354, video_map(base));            /* 0x382d2-da */
+            fn_03203d(base);                                    /* 0x382e2-e5 */
+            fn_03df96(base);                                    /* 0x382ea-ed */
+            if (g_dat_53c84 != 0) {                             /* 0x382f2-f9 */
+                fn_01348f((uint8_t *)g_dat_53c84, base, 0);     /* 0x38305-0f */
+                fn_0137c1((uint8_t *)g_dat_53c84, base);        /* 0x38314-1c */
+            }
+            cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x3833b-4f */
+        }
+        while (n > (int32_t)g_dat_63e24) { break; }             /* VBLANK busy-wait (no-op) */
+        g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24
+                                 - (int32_t)(0x1eau / g_dat_53104));            /* 0x3836b-7e */
+    }
+    *(uint32_t *)(p + 0x17) = saved17;                          /* 0x38390-9a */
+}

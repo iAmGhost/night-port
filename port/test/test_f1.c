@@ -10384,6 +10384,154 @@ static void test_fn_013c4d(void)
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
+
+/* ---- 0x01441e: the per-entity combat resolution ---- */
+static void test_fn_01441e(void)
+{
+    printf("fn_01441e (0x01441e, per-entity combat resolution)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_dat_53c7c, *s_80 = g_dat_53c80;
+    int32_t  s_cnt = g_dat_53c68;
+    uint32_t s_364 = g_dat_63364, s_368 = g_dat_63368, s_104 = g_dat_53104, s_c88 = g_dat_53c88;
+    uint8_t  s_ed3 = g_dat_63ed3, s_ed5 = g_dat_63ed5;
+    uint8_t *s_spr1 = g_dat_639ec[1], *s_spr2 = g_dat_639ec[2];
+    static uint8_t s_c1[0x88], s_c2[0x88];
+    memcpy(s_c1, g_dat_53e9c + 0x88u, 0x88); memcpy(s_c2, g_dat_53e9c + 2u*0x88u, 0x88);
+    memset(g_dat_53e9c + 0x88u, 0, 0x88); memset(g_dat_53e9c + 2u*0x88u, 0, 0x88);
+
+    /* sprite structs + the eight box arrays for the attacker (type 1) and the victim (type 2) */
+    uint32_t oA = heap_arena_alloc(0x40); uint8_t *sprA = hb + oA; memset(sprA, 0, 0x40);
+    uint32_t oB = heap_arena_alloc(0x40); uint8_t *sprB = hb + oB; memset(sprB, 0, 0x40);
+    g_dat_639ec[1] = sprA; g_dat_639ec[2] = sprB;
+    int32_t *bx14 = (int32_t *)(hb + (*(uint32_t *)(sprB + 0x14) = heap_arena_alloc(0x40)));
+    int32_t *bx18 = (int32_t *)(hb + (*(uint32_t *)(sprB + 0x18) = heap_arena_alloc(0x40)));
+    int32_t *by24 = (int32_t *)(hb + (*(uint32_t *)(sprB + 0x24) = heap_arena_alloc(0x40)));
+    int32_t *by28 = (int32_t *)(hb + (*(uint32_t *)(sprB + 0x28) = heap_arena_alloc(0x40)));
+    int32_t *ax1c = (int32_t *)(hb + (*(uint32_t *)(sprA + 0x1c) = heap_arena_alloc(0x40)));
+    int32_t *ax20 = (int32_t *)(hb + (*(uint32_t *)(sprA + 0x20) = heap_arena_alloc(0x40)));
+    int32_t *ay2c = (int32_t *)(hb + (*(uint32_t *)(sprA + 0x2c) = heap_arena_alloc(0x40)));
+    int32_t *ay30 = (int32_t *)(hb + (*(uint32_t *)(sprA + 0x30) = heap_arena_alloc(0x40)));
+    bx14[3] = -40; bx18[3] = 40; by24[3] = -30; by28[3] = 10;
+    ax1c[3] = -20; ax20[3] = 20; ay2c[3] = -5;  ay30[3] = 5;
+
+    /* the attacker's ACT record: slot 0 covers frame 3, damage 7, attack type 3, event byte 0x2f */
+    uint32_t ce = heap_arena_alloc(0x20); memset(hb + ce, 0, 0x20);
+    uint32_t re = heap_arena_alloc(0x20); memset(hb + re, 0, 0x20);
+    uint32_t ae = heap_arena_alloc(0x80); memset(hb + ae, 0, 0x80);
+    uint32_t fe = heap_arena_alloc(0x20); memset(hb + fe, 0, 0x20);
+    *(uint32_t *)(hb + ce + 4) = re; *(uint32_t *)(hb + re + 4u * 5) = ae;
+    *(uint32_t *)(hb + ae + 0x00) = 4; *(uint32_t *)(hb + ae + 0x6d) = fe;
+    *(uint16_t *)(hb + ae + 0x08) = 0; *(uint16_t *)(hb + ae + 0x0a) = 10;   /* slot 0 */
+    *(uint16_t *)(hb + ae + 0x0c) = 20; *(uint16_t *)(hb + ae + 0x0e) = 30;  /* slot 1 */
+    for (int k = 0; k < 8; k++) *(uint16_t *)(hb + fe + 2u*k) = (uint16_t)k;
+    *(uint32_t *)(hb + ae + 0x20) = 7;         /* damage of slot 0 */
+    *(uint16_t *)(hb + ae + 0x4a) = 0x33;      /* the victim's stun word */
+    hb[ae + 0x38] = 3;                         /* attack type (1..9 class) */
+    hb[ae + 0x56] = 20;                        /* fn_013c4d's Y tolerance */
+    hb[ae + 0x63] = 0x2f;                      /* the event latch byte */
+
+    /* the victim's ACT record (flag byte +0x6c clear, no intangible window) */
+    uint32_t co = heap_arena_alloc(0x20); memset(hb + co, 0, 0x20);
+    uint32_t rn = heap_arena_alloc(0x20); memset(hb + rn, 0, 0x20);
+    uint32_t an = heap_arena_alloc(0x80); memset(hb + an, 0, 0x80);
+    uint32_t fn = heap_arena_alloc(0x20); memset(hb + fn, 0, 0x20);
+    *(uint32_t *)(hb + co + 4) = rn; *(uint32_t *)(hb + rn + 4u * 5) = an;
+    *(uint32_t *)(hb + an + 0x00) = 4; *(uint32_t *)(hb + an + 0x6d) = fn;
+    for (int k = 0; k < 8; k++) *(uint16_t *)(hb + fn + 2u*k) = (uint16_t)k;
+    hb[an + 0x69] = 0x11; *(uint16_t *)(hb + an + 0x6a) = 0x3456;
+
+    uint8_t *E = hb + heap_arena_alloc(0x160); memset(E, 0, 0x160);
+    uint8_t *O = hb + heap_arena_alloc(0x160); memset(O, 0, 0x160);
+    E[0] = 1; O[0] = 3;   /* the hit scan requires DIFFERENT byte0 values, and not 2 */
+    *(uint32_t *)(E + 0x0d) = 1; *(uint32_t *)(O + 0x0d) = 2;
+    *(uint32_t *)(E + 0x123) = ce; *(uint32_t *)(O + 0x123) = co;
+    *(uint32_t *)(E + 0x17) = 5;  *(uint32_t *)(O + 0x17) = 5;
+    *(uint32_t *)(E + 0x11) = 3;  *(uint32_t *)(O + 0x11) = 3;
+    *(uint32_t *)(E + 0x01) = 100; *(uint32_t *)(E + 0x05) = 10; *(uint32_t *)(E + 0x09) = 60;
+    *(uint32_t *)(O + 0x01) = 120; *(uint32_t *)(O + 0x05) = 10; *(uint32_t *)(O + 0x09) = 60;
+    *(uint16_t *)(O + 0x29) = 50;
+    g_dat_53c80 = NULL; g_dat_63364 = 0; g_dat_63368 = 0; g_dat_53c88 = 0;
+    g_dat_63ed3 = 0; g_dat_63ed5 = 0;
+
+    /* the one-element list: E is the attacker and O the only candidate */
+    g_dat_53c70 = E; g_dat_53c74 = O; g_dat_53c68 = 2;
+    *(uint8_t **)(E + 0x13f) = O; *(uint8_t **)(O + 0x13f) = NULL;
+    g_dat_53c7c = NULL;
+
+    /* (1) pass 2 gate: identical X box corners mean an empty attack box */
+    ax1c[3] = 20; ax20[3] = 20;
+    fn_01441e(E);
+    check(O[0x46] == 0 && *(uint32_t *)(O + 0x29) == 50,
+          "01441e equal +0x1c/+0x20 box corners return before any hit is resolved");
+    ax1c[3] = -20; ax20[3] = 20;
+
+    /* (2) pass 2 gate: no slot window covers the current frame */
+    *(uint16_t *)(hb + ae + 0x08) = 20; *(uint16_t *)(hb + ae + 0x0a) = 30;
+    fn_01441e(E);
+    check(O[0x46] == 0 && *(uint32_t *)(O + 0x29) == 50,
+          "01441e an attack animation whose slot windows miss the frame returns");
+    *(uint16_t *)(hb + ae + 0x08) = 0; *(uint16_t *)(hb + ae + 0x0a) = 10;
+
+    /* (3) the hit itself */
+    O[0] = 3; *(uint32_t *)(O + 0x29) = 50;
+    fn_01441e(E);
+    check(*(uint16_t *)(O + 0x29) == 43 && O[0x46] == (uint8_t)(E - hb),
+          "01441e a hit lands: hit points drop by the slot damage and the victim records the attacker");
+    check(O[0x4e] == 5 && O[0x4f] == 0,
+          "01441e victim bytes +0x4e / +0x4f record the attacker state and the attack slot used");
+    check(g_dat_53c88 == (uint32_t)(uintptr_t)(O - hb) && *(uint32_t *)(O + 0x46) == (uint32_t)(uintptr_t)(E - hb),
+          "01441e DAT_53c88 gets the victim and victim+0x46 the attacker (heap-relative)");
+    check(*(uint16_t *)(O + 0x50) == 0x33 && *(uint32_t *)(O + 0x11) == 0,
+          "01441e the non-flagged reaction sets the victim stun word from record+0x4a and clears its frame");
+    check(g_dat_63364 == 0x11 && g_dat_63368 == 0x3456,
+          "01441e the victim's own record byte +0x69 / word +0x6a re-latch the event at the end of the pass");
+    /* (4) the already-recorded pair is skipped */
+    uint32_t hp_before = *(uint32_t *)(O + 0x29);
+    fn_01441e(E);
+    check(*(uint32_t *)(O + 0x29) == hp_before,
+          "01441e a victim already tagged with this state+slot pair is skipped (byte +0x4e / +0x4f)");
+
+    /* (5) a lethal hit: HP floor at 0 plus the inert flag, then the death latch on +0x32 */
+    memset(O, 0, 0x160);
+    O[0] = 3; *(uint32_t *)(O + 0x0d) = 2; *(uint32_t *)(O + 0x123) = co;
+    *(uint32_t *)(O + 0x17) = 5; *(uint32_t *)(O + 0x11) = 3;
+    *(uint32_t *)(O + 0x01) = 120; *(uint32_t *)(O + 0x05) = 10; *(uint32_t *)(O + 0x09) = 60;
+    *(uint16_t *)(O + 0x29) = 3;
+    *(uint32_t *)(g_dat_53ea8 + 2u*0x88u + 0x0c) = 0x777;   /* the type table's +0x0c sound id */
+    g_dat_63364 = 0; g_dat_63368 = 0;
+    fn_01441e(E);
+    check(*(uint16_t *)(O + 0x29) == 0 && O[0x30] == 1 && O[0x5a] == 0,
+          "01441e damage past the last hit point floors the HP word and raises the lethal flag");
+    check(O[0x31] == 0 && *(uint32_t *)(O + 0x32) == 0x777 && *(uint16_t *)(O + 0x50) == 0x78,
+          "01441e a lethal non-player victim takes the type-table sound (record +0x0c) and stun 0x78");
+
+    /* (6) the walking-player bump scan puts the player into state 0x9a */
+    g_dat_53c7c = E; g_dat_63ed5 = 1;
+    E[0x27] = 2; *(uint32_t *)(E + 0x17) = 2; *(uint32_t *)(E + 0x11) = 4;
+    memset(O, 0, 0x160);
+    O[0] = 1; *(uint32_t *)(O + 0x0d) = 2; *(uint32_t *)(O + 0x123) = co;
+    *(uint32_t *)(O + 0x17) = 2; *(uint32_t *)(O + 0x01) = 105; *(uint32_t *)(O + 0x09) = 62;
+    fn_01441e(E);
+    check(*(uint32_t *)(E + 0x17) == 0x9a && *(uint32_t *)(E + 0x11) == 0,
+          "01441e a walking player with DAT_63ed5 set and player[0x27] >= 2 goes to state 0x9a on the bump");
+    /* (7) ... and the reversed flag path needs the victim behind instead */
+    g_dat_63ed5 = 0; g_dat_63ed3 = 1;
+    *(uint32_t *)(E + 0x17) = 2; *(uint32_t *)(E + 0x11) = 4; *(uint32_t *)(E + 0x1b) = 0;
+    *(uint32_t *)(O + 0x01) = 95;
+    fn_01441e(E);
+    check(*(uint32_t *)(E + 0x17) == 0x9a,
+          "01441e with DAT_63ed5 clear a right-facing player still uses the reversed (DAT_63ed3) behind-test");
+    g_dat_63ed3 = s_ed3; g_dat_63ed5 = s_ed5;
+
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c7c = s_pl; g_dat_53c80 = s_80;
+    g_dat_53c68 = s_cnt; g_dat_63364 = s_364; g_dat_63368 = s_368; g_dat_53104 = s_104;
+    g_dat_53c88 = s_c88; g_dat_639ec[1] = s_spr1; g_dat_639ec[2] = s_spr2;
+    memcpy(g_dat_53e9c + 0x88u, s_c1, 0x88); memcpy(g_dat_53e9c + 2u*0x88u, s_c2, 0x88);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -15508,6 +15656,7 @@ int main(void) {
     test_fn_02e2cc();
     test_fn_031a8e();
     test_fn_013c4d();
+    test_fn_01441e();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

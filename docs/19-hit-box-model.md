@@ -57,3 +57,24 @@ A big actor therefore swallows a small one rather than missing it. Both axes mus
   by the reaction.
 * otherwise B is turned to face A (only when that agrees with B's current facing rule) and the function
   returns 1.
+
+## The combat layer on top (fn_01441e)
+
+`fn_01441e` (0x01441e, 3456 B, called from the `fn_0320f5` sweep) is the only caller of `fn_013c4d`. It
+adds the three things a hit test does not cover:
+
+* **Which attack.** The attacker's ACT record holds six slots; slot `i` is live while
+  `word(rec[i*4]+8) <= frame < word(rec[i*4]+0xa)`. The first live slot wins; none means the animation is
+  not on a hit frame and nothing happens. The attack type is `byte(rec + slot + 0x38)`, the damage is
+  `dword(rec + slot*4 + 0x20)`, and `0x0b..0x14` is the "strong" class that unlocks extra reactions.
+* **Damage bookkeeping.** Hit points are the word at `+0x29`; `+0x23` is a debt word and `+0x56` a dword
+  overshoot accumulator for non-players. Byte `+0x30` becomes 1 when a hit is lethal and 2 while the debt
+  word is still draining, and byte `+0x5a` marks the first death so the type-table sound (`+0x0c`) only
+  plays once.
+* **Reactions.** `byte(victim_record + 0x6c)` selects the "flagged" (player-style) reaction: state 0x1e,
+  `-15` off `+5`, frame index `(v5+99)/3` with a mod-3 nudge, and knock-back steps through `fn_01545e`
+  driven by the PRNG. Otherwise the victim just takes a stun word from `word(rec + slot*2 + 0x4a)` and a
+  state from the `DAT_00051b60` attack-type table.
+
+Both `DAT_00051b60` (attack type -> state) and `DAT_00051c68` (entity type -> sound slot, inside the
+existing `g_blk_51c24` block at +0x44) are initialised image data, not runtime tables.

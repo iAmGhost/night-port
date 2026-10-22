@@ -22763,3 +22763,398 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
     }
     return 1;                                                          /* 0x00014346 */
 }
+
+/* DS 0x51b60: attack type -> the sprite state an entity enters when the hit lands (NIGHT.EXE data).
+ * 0 is a no-op entry, 1..0x14 map onto the 0x0b..0x1e hurt states, 0x15..0x1f onto 0x66..0x5b. */
+static const uint32_t g_tab_51b60[0x20] = {
+    0x00, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11,
+    0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+    0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x66, 0x65, 0x64,
+    0x63, 0x62, 0x61, 0x60, 0x5f, 0x5e, 0x5d, 0x5b,
+};
+#define g_tab_51c68 ((const uint32_t *)(g_blk_51c24 + 0x44))   /* DS 0x51c68: entity type -> sound slot */
+
+/* fn_01441e  orig: 0x01441e (L14, 3456 B) -- THE PER-ENTITY COMBAT RESOLUTION. Called only from
+ * fn_0320f5 (the entity-list sweep). ABI: EAX = the entity whose attack is being resolved.
+ *
+ * Three passes:
+ *   1. 0x000144bf-0x0001464f, only for the PLAYER in sprite state 2 (walking): scan the whole entity
+ *      list for an entity that is byte0 == 1, in state 1 or 2, whose own record byte +0x6c is not 1, and
+ *      within 5 px on Y; the X window is 1..0xc px "in front", where "in front" is chosen by the facing
+ *      flags DAT_00063ed5 (plain) / DAT_00063ed3 (reversed) -- a right-facing player whose plain flag is
+ *      clear falls through into the reversed test, exactly as the original's jump does. The first such
+ *      entity ends the pass: with player byte +0x27 >= 2 the player goes to state 0x9a (frame 0) and the
+ *      whole function returns.
+ *   2. the attack-slot scan (0x0001464f): if the entity's two X box corners (+0x1c / +0x20 of its sprite
+ *      struct) coincide the box is empty and the function returns. Otherwise slot i in 0..5 is the first
+ *      whose frame window covers the current frame -- word(rec[i*4]+8) <= frame < word(rec[i*4]+0xa); no
+ *      slot means the attack animation is not covering a hit frame, and the function returns.
+ *   3. the hit scan (0x000146b5): for every entity whose byte0 differs from the attacker's and is not 2,
+ *      skipping pairs already recorded (byte(other+0x4e) == e[0x17] && byte(other+0x4f) == slot), ask
+ *      fn_013c4d. On a hit: remember the victim's hit points, link the pair (other[0x46] = e,
+ *      other[0x4e] = state, other[0x4f] = slot, DAT_00053c88 = other), fire the record's byte +0x63 event
+ *      latch, drop the carried entity if the victim is the player's partner, apply the damage (see below),
+ *      then knock the victim back, and finally handle the pickup (0x00014de1) / death (0x00015003) cases.
+ *
+ * Damage: atype = byte(rec_e + slot + 0x38) selects the strength (0x0b..0x14 is the "strong" class),
+ * dmg = dword(rec_e[slot*4] + 0x20), doubled when the victim is a non-player and tripled while it is in a
+ * 0x33..0x35 (blocking) state; the "flag" (byte of the victim's own record +0x6c, forced to 0 for a
+ * player with +5 == 0 outside states 0x15..0x1e) decides whether the player-style reaction runs.
+ * HP live in two words: +0x29 (hit points) with +0x23 as a carry/debt word and +0x56 (dword) as the
+ * overshoot accumulator for non-players; byte +0x30 becomes 1 on a lethal hit and 2 while the debt word is
+ * still draining. Score is accumulated in e[0xbb] and folded into player[0x52] at the end. */
+void fn_01441e(uint8_t *e)
+{
+    (void)canary_id((uintptr_t)e, 0x5c);                          /* 0x0001441e-23 stack probe (0x5c) */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint32_t rec_e = *(const uint32_t *)(                          /* [EBP-0x10] 0x00014439-59 */
+        hb + *(const uint32_t *)(hb + *(const uint32_t *)(e + 0x123) + 0x04)
+           + 4u * (*(const uint32_t *)(e + 0x17) & 0x7fffffffu));
+    int32_t fi = (int32_t)*(const uint32_t *)(e + 0x11)            /* [EBP-0x40] 0x0001445c-7b */
+                 % (int32_t)*(const uint32_t *)(hb + rec_e);
+    const uint8_t *spr_e = g_dat_639ec[(size_t)*(const uint32_t *)(e + 0x0d)];
+    int32_t xlo = ((const int32_t *)(hb + *(const uint32_t *)(spr_e + 0x1c)))[fi];  /* [EBP-0x38] */
+    int32_t xhi = ((const int32_t *)(hb + *(const uint32_t *)(spr_e + 0x20)))[fi];  /* [EBP-0x34] */
+
+    /* ---- pass 1: the walking player bumping into something ---- */
+    if (e == g_dat_53c7c && *(const int32_t *)(e + 0x17) == 2) {   /* 0x000144bf-0x000144ce */
+        uint8_t *cur = g_dat_53c70;                                /* [EBP-0x8] 0x000144d5 */
+        for (int32_t i = 0; i < (int32_t)g_dat_53c68; i = i + 1) { /* 0x000144dd-0x000144f5 */
+            uint32_t ro = *(const uint32_t *)(                     /* [EBP-0xc] 0x000144fb-1a */
+                hb + *(const uint32_t *)(hb + *(const uint32_t *)(cur + 0x123) + 0x04)
+                   + 4u * (*(const uint32_t *)(cur + 0x17) & 0x7fffffffu));
+            if ((uint32_t)cur[0] == 1u && *(const uint8_t *)(hb + ro + 0x6c) == 1u) goto p1next;
+            if (!((uint32_t)cur[0] == 1u &&                       /* 0x00014541-0x00014564 */
+                  (*(const int32_t *)(cur + 0x17) == 2 ||
+                   *(const int32_t *)(cur + 0x17) == 1))) goto p1next;
+            if (abs32((int32_t)*(const uint32_t *)(e + 0x09)
+                      - (int32_t)*(const uint32_t *)(cur + 0x09)) > 5) goto p1next;  /* 0x00014569-7d */
+            if (*(const int32_t *)(e + 0x1b) == 0) {               /* 0x00014583-95 */
+                if (g_dat_63ed5 != 0) {                           /* 0x0001458c-97 */
+                    int32_t d = (int32_t)*(const uint32_t *)(cur + 0x01)
+                                - (int32_t)*(const uint32_t *)(e + 0x01);
+                    if (!(d <= 0xc && d > 0)) goto p1next;         /* 0x000145a3-0x000145b8 */
+                    if ((uint32_t)g_dat_53c7c[0x27] >= 2u) {       /* 0x000145ba-0x000145d9 */
+                        *(int32_t *)(e + 0x17) = 0x9a;
+                        *(int32_t *)(e + 0x11) = 0;
+                    }
+                    return;                                       /* 0x000145e0 -> 0x00015196 */
+                }
+                /* 0x00014595 falls into the reversed test, as in the original */
+            }
+            if (g_dat_63ed3 == 0) goto p1next;                    /* 0x000145e7-0x000145ee */
+            {
+                int32_t d = (int32_t)*(const uint32_t *)(e + 0x01)
+                            - (int32_t)*(const uint32_t *)(cur + 0x01);
+                if (!(d <= 0xc && d > 0)) goto p1next;             /* 0x000145fc-0x00014611 */
+                if ((uint32_t)g_dat_53c7c[0x27] >= 2u) {           /* 0x00014613-0x00014632 */
+                    *(int32_t *)(e + 0x17) = 0x9a;
+                    *(int32_t *)(e + 0x11) = 0;
+                }
+                return;                                           /* 0x00014639 */
+            }
+p1next:
+            cur = *(uint8_t **)(cur + 0x13f);                      /* 0x0001463e-47 */
+        }
+    }
+
+    /* ---- pass 2: which attack slot covers the current frame ---- */
+    if (xlo == xhi) return;                                        /* 0x0001464f-55: an empty box */
+    int32_t slot = -1;                                             /* [EBP-0x2c] */
+    int32_t i = 0;
+    for (i = 0; i < 6; i = i + 1) {                                /* 0x0001465b-0x000146a9 */
+        uint32_t w1 = *(const uint16_t *)(hb + rec_e + 4u * (uint32_t)i + 0x08);
+        uint32_t w2 = *(const uint16_t *)(hb + rec_e + 4u * (uint32_t)i + 0x0a);
+        int32_t fr = (int32_t)*(const uint32_t *)(e + 0x11);
+        if ((int32_t)w1 <= fr && (int32_t)w2 > fr) { slot = i; break; }
+    }
+    if (i == 6) return;                                            /* 0x000146ab-0x000146af */
+
+    /* ---- pass 3: the hit scan ---- */
+    uint8_t *cur = g_dat_53c70;                                    /* 0x000146b5-ba */
+    for (int32_t n = 0; n < (int32_t)g_dat_53c68; n = n + 1) {     /* 0x000146bd-0x000146d5 */
+        if ((uint32_t)e[0] == (uint32_t)cur[0] || (uint32_t)cur[0] == 2u) goto hitnext;  /* 0x000146db-f6 */
+        if ((uint32_t)*(const uint8_t *)(cur + 0x4e) == *(const uint32_t *)(e + 0x17) &&
+            (uint32_t)*(const uint8_t *)(cur + 0x4f) == (uint32_t)slot) goto hitnext;   /* 0x000146fb-0x00014719 */
+        if (fn_013c4d(e, cur, hb + rec_e, slot) != 1) goto hitnext;                    /* 0x0001471f-33 */
+
+        int32_t hp0 = (int32_t)*(const int16_t *)(cur + 0x29);      /* [EBP-0x18] 0x00014739-40 */
+        uint32_t ro = *(const uint32_t *)(                          /* [EBP-0xc] 0x00014743-63 */
+            hb + *(const uint32_t *)(hb + *(const uint32_t *)(cur + 0x123) + 0x04)
+               + 4u * (*(const uint32_t *)(cur + 0x17) & 0x7fffffffu));
+        rec_e = *(const uint32_t *)(                               /* [EBP-0x10] 0x00014766-86 */
+            hb + *(const uint32_t *)(hb + *(const uint32_t *)(e + 0x123) + 0x04)
+               + 4u * (*(const uint32_t *)(e + 0x17) & 0x7fffffffu));
+
+        /* 0x00014789-0x000147c9: is this a "flagged" (player-style reaction) victim? */
+        int32_t flag;
+        if (cur == g_dat_53c7c) {
+            if (*(const int32_t *)(cur + 0x05) != 0) flag = (int32_t)*(const uint8_t *)(hb + ro + 0x6c);
+            else {
+                int32_t cs = *(const int32_t *)(cur + 0x17);
+                flag = (cs >= 0x15 && cs <= 0x1e) ? (int32_t)*(const uint8_t *)(hb + ro + 0x6c) : 0;
+            }
+        } else {
+            flag = (int32_t)*(const uint8_t *)(hb + ro + 0x6c);
+        }
+
+        g_dat_63364 = (uint32_t)*(const uint8_t *)(hb + rec_e + (uint32_t)slot + 0x63);  /* 0x000147c9-DC */
+        g_dat_63368 = 0;                                           /* 0x000147dc */
+        *(uint8_t *)(cur + 0x31) = 0;                              /* 0x000147e6-e9 */
+        if (cur != g_dat_53c7c) g_dat_53c88 = (uint32_t)(uintptr_t)(cur - hb);  /* 0x000147f0-0xfb */
+        *(uint32_t *)(cur + 0x46) = (uint32_t)(uintptr_t)(e - hb); /* 0x00014800-06 */
+        *(uint8_t  *)(cur + 0x4e) = (uint8_t)*(const uint32_t *)(e + 0x17);  /* 0x00014809-12 */
+        *(uint8_t  *)(cur + 0x4f) = (uint8_t)slot;                 /* 0x00014815-1b */
+        int32_t atype = (int32_t)*(const uint8_t *)(hb + rec_e + (uint32_t)slot + 0x38);  /* [EBP-0x24] */
+        if (cur == g_dat_53c7c && *(const uint32_t *)(g_dat_53c7c + 0x4a) != 0) {  /* 0x0001482c-40 */
+            uint8_t *lk = hb + *(const uint32_t *)(cur + 0x4a);
+            *(uint32_t *)(lk + 0x4a) = 0;                          /* 0x00014844-51 */
+            *(uint16_t *)(lk + 0x50) = 0;                          /* 0x00014851-57 */
+            *(int32_t *)(lk + 0x17) = 1;                           /* 0x0001485d-63 */
+            *(int32_t *)(lk + 0x11) = 0;                           /* 0x0001486a-70 */
+            *(uint32_t *)(cur + 0x4a) = 0;                         /* 0x00014877-7a */
+            *(uint8_t *)(g_dat_53c7c + 0x31) = 0;                  /* 0x00014881-86 */
+        }
+
+        /* damage strength (0x0001488a-0x000148e7) */
+        int32_t dmg;
+        if (flag == 1 && cur != g_dat_53c7c) {
+            int32_t cs = *(const int32_t *)(cur + 0x17);
+            int32_t base = (int32_t)*(const uint32_t *)(hb + rec_e + 4u * (uint32_t)slot + 0x20);
+            dmg = (cs >= 0x33 && cs <= 0x35) ? base * 3 : base * 2;
+        } else {
+            dmg = (int32_t)*(const uint32_t *)(hb + rec_e + 4u * (uint32_t)slot + 0x20);
+        }
+
+        /* the two-word HP model (0x000148e7-0x000149a3) */
+        if ((int16_t)*(const uint16_t *)(cur + 0x23) == 0) {
+            *(uint16_t *)(cur + 0x29) = (uint16_t)((int16_t)*(const uint16_t *)(cur + 0x29) - (int16_t)dmg);
+            if ((int16_t)*(const int16_t *)(cur + 0x29) <= 0) {
+                *(uint16_t *)(cur + 0x29) = 0;
+                *(uint8_t  *)(cur + 0x30) = 1;
+            }
+        } else if (cur == g_dat_53c7c || *(const int32_t *)(cur + 0x56) == 0) {
+            *(uint16_t *)(cur + 0x23) = (uint16_t)((int16_t)*(const uint16_t *)(cur + 0x23) - (int16_t)dmg);
+        } else {
+            *(int32_t *)(cur + 0x56) -= dmg;
+            if (*(const int32_t *)(cur + 0x56) < 0) {
+                *(uint16_t *)(cur + 0x23) = (uint16_t)((int16_t)*(const uint16_t *)(cur + 0x23)
+                                                       + (int16_t)*(const uint16_t *)(cur + 0x56));
+                *(uint32_t *)(cur + 0x56) = 0;
+            }
+        }
+        if ((int16_t)*(const int16_t *)(cur + 0x23) > 0) {
+            /* nothing more */
+        } else {
+            *(uint16_t *)(cur + 0x29) = (uint16_t)((int16_t)*(const uint16_t *)(cur + 0x29)
+                                                   + (int16_t)*(const uint16_t *)(cur + 0x23));
+            *(uint16_t *)(cur + 0x23) = 0;
+            *(uint8_t  *)(cur + 0x30) = 2;
+            if ((int16_t)*(const int16_t *)(cur + 0x29) <= 0) {
+                *(uint8_t  *)(cur + 0x30) = 1;
+                *(uint16_t *)(cur + 0x29) = 0;
+            }
+        }
+
+        if (flag == 1) {                                           /* 0x000149ac-0x00014c07 */
+            *(uint8_t *)(cur + 0x5a) = 0;                          /* 0x000149b6-b9 */
+            fn_031f10(cur, 5);                                     /* 0x000149bd-c5 */
+            if (*(const int32_t *)(cur + 0x05) != 0) {             /* 0x000149ca-d1 */
+                *(uint16_t *)(cur + 0x50) = 0x50;                  /* 0x000149d7-da */
+                if (atype >= 0x0b && atype <= 0x14) *(int32_t *)(cur + 0x42) = 4;  /* 0x000149e0-0x000149f8 */
+                else                                 *(int32_t *)(cur + 0x42) = 1;
+                if (cur == g_dat_53c7c && (uint32_t)cur[0x16] == 0u) {  /* 0x00014a04-0x00014a1c */
+                    *(int32_t *)(cur + 0x17) = 0x1e;                /* 0x00014a23-26 */
+                    *(uint8_t  *)(cur + 0x31) = 0;                  /* 0x00014a2d-30 */
+                    *(uint8_t  *)(cur + 0x16) = 7;                  /* 0x00014a34-37 */
+                    *(int32_t *)(cur + 0x05) -= 0xf;                /* 0x00014a3e-41 */
+                    *(int32_t *)(cur + 0x42) = (atype >= 0x0b && atype <= 0x14) ? 3 : 2;
+                    fn_01545e(cur, *(const int32_t *)(cur + 0x1b) == 0 ? -25 : 25);  /* 0x00014a66-86 */
+                    int32_t v5 = *(const int32_t *)(cur + 0x05);
+                    *(int32_t *)(cur + 0x11) = (v5 + 0x63) / 3;     /* 0x00014a8b-a3 */
+                    if (v5 % 3 != 0) {                             /* 0x00014aab-0x00014ae0 */
+                        int32_t sub = 3 - ((-v5) % 3);
+                        *(int32_t *)(cur + 0x05) -= sub;
+                    }
+                    if (*(const int32_t *)(cur + 0x11) < 0) {       /* 0x00014ae3-0x00014af9 */
+                        *(int32_t *)(cur + 0x11) = 0;
+                        *(int32_t *)(cur + 0x05) = -99;
+                    }
+                    fn_031f10(cur, 5);                              /* 0x00014b00-08 */
+                }
+                *(int32_t *)(cur + 0x3e) = 0;                       /* 0x00014b0d-10 */
+                if ((uint32_t)cur[0x16] <= 1u) {                    /* 0x00014b17-25 */
+                    *(uint8_t *)(cur + 0x16) = 0xb;                 /* 0x00014b27-2a */
+                } else if (atype >= 0x0b && atype <= 0x14) {        /* 0x00014b30-3a */
+                    fn_01545e(cur, *(const int32_t *)(cur + 0x1b) == 0 ? -0x14 : 0x14);
+                } else {                                            /* 0x00014b65-85 */
+                    fn_01545e(cur, *(const int32_t *)(cur + 0x1b) == 0 ? -0x0a : 0x0a);
+                }
+            } else {                                               /* 0x00014b8f */
+                fn_01545e(cur, *(const int32_t *)(cur + 0x1b) == 0 ? -0x0a : 0x0a);  /* 0x00014b8f-af */
+                if (cur != g_dat_53c7c) {                           /* 0x00014bb4 */
+                    fn_015295(cur, -4);                             /* 0x00014bbf-c7 */
+                    *(uint8_t  *)(cur + 0x16) = 5;                  /* 0x00014bcc-cf */
+                    *(int32_t *)(cur + 0x42) = 0;                   /* 0x00014bd3-d6 */
+                    *(int32_t *)(cur + 0x3e) = 1;                   /* 0x00014bdd-e0 */
+                } else {
+                    int32_t p = (int32_t)prng_next();               /* 0x00014be9 */
+                    fn_01586b(cur, (uint32_t)(p % 5 - 2));          /* 0x00014bee-0x00014c02 */
+                }
+            }
+            if ((uint32_t)cur[0x30] == 2u) {                        /* 0x00014c07-15 */
+                *(uint8_t *)(cur + 0x30) = 1;                       /* 0x00014c17-1a */
+                *(uint8_t *)(cur + 0x31) = 0;                       /* 0x00014c1e-21 */
+            }
+            if (e == g_dat_53c7c && *(const int32_t *)(e + 0x17) == 0x8c)
+                *(uint16_t *)(cur + 0x50) = 0x28;                   /* 0x00014c25-41 */
+            goto hitapply_end;                                     /* 0x00014c47 */
+        }
+
+        /* the non-flagged reaction (0x00014c4c-0x00014dd a) */
+        *(uint16_t *)(cur + 0x50) = *(const uint16_t *)(hb + rec_e + 2u * (uint32_t)slot + 0x4a);
+        *(int32_t *)(cur + 0x11) = 0;
+        if (cur == g_dat_53c7c && *(const int32_t *)(cur + 0x17) == 0x97) {   /* 0x00014c6c-0x00014cb4 */
+            if (atype >= 1 && atype <= 9) {
+                *(uint8_t  *)(cur + 0x31) = 0;
+                *(int32_t *)(cur + 0x17) = 0x14;
+            } else {
+                *(int32_t *)(cur + 0x17) = g_tab_51b60[(uint32_t)atype];
+            }
+        }
+        if ((int16_t)*(const uint16_t *)(cur + 0x23) == 0 && atype >= 0x0b && atype <= 0x14) {
+            *(uint8_t *)(cur + 0x30) = 1;                           /* 0x00014cd2 */
+        } else if ((int16_t)*(const int16_t *)(cur + 0x23) == 0
+                   && (int16_t)*(const int16_t *)(cur + 0x29) == 0) {
+            *(uint8_t  *)(cur + 0x30) = 1;                          /* 0x00014d03-06 */
+            *(int32_t *)(cur + 0x17) = 0x15;                        /* 0x00014d0d-10 */
+            *(uint16_t *)(cur + 0x50) = 0x96;                       /* 0x00014d14-17 */
+        }
+        if (atype >= 0x0b && atype <= 0x14) {                       /* 0x00014d1d-0x00014dda */
+            int32_t p = (int32_t)prng_next();
+            if (*(const int32_t *)(cur + 0x1b) == 0) fn_01545e(cur, (-p) % 0x14);
+            else                                    fn_01545e(cur, p % 0x14);
+            if ((uint32_t)cur[0x30] != 1u) {                        /* 0x00014d71-90 */
+                *(uint8_t *)(cur + 0x31) = 0;
+                fn_031f10(cur, 5);
+            }
+            int32_t q = (int32_t)prng_next();
+            fn_01545e(cur, q % 7 - 3);                              /* 0x00014d95-ae */
+            int32_t r = (int32_t)prng_next();
+            *(uint16_t *)(cur + 0x50) = (uint16_t)((int32_t)*(const uint16_t *)(cur + 0x50)
+                                                   + (r % 0x15) - 10);  /* 0x00014db3-0x00014ddd */
+        }
+
+hitapply_end:
+        if (*(const int32_t *)(e + 0x17) == 0x65 ||                 /* 0x00014de1-0x00014dfa */
+            *(const int32_t *)(e + 0x17) == 0x99) {
+            if (flag == 0) {                                       /* 0x00014dfa-0x00014e04: pick the victim up */
+                *(int32_t *)(e + 0x17) = 0x66;
+                *(uint16_t *)(e + 0x50) = *(const uint16_t *)(hb + rec_e + 2u * (uint32_t)slot + 0x4a);
+                *(int32_t *)(e + 0x11) = 0;
+                fn_01545e(cur, -1);                                 /* 0x00014e2b-33 */
+                *(int32_t *)(cur + 0x17) = 0x1f;                    /* 0x00014e38-3b */
+                *(uint32_t *)(cur + 0x4a) = (uint32_t)(uintptr_t)(e - hb);
+                *(uint32_t *)(e + 0x4a)   = (uint32_t)(uintptr_t)(cur - hb);
+                if (*(const int32_t *)(e + 0x1b) == 0) {
+                    int32_t d = (int32_t)*(const uint32_t *)(cur + 0x01)
+                                - (int32_t)*(const uint32_t *)(e + 0x01);
+                    fn_01545e(cur, 0x18 - d);                       /* 0x00014e57-77 */
+                } else {
+                    int32_t d = (int32_t)*(const uint32_t *)(e + 0x01)
+                                - (int32_t)*(const uint32_t *)(cur + 0x01);
+                    fn_01545e(cur, d - 0x18);                       /* 0x00014e7e-96 */
+                }
+                *(int32_t *)(cur + 0x09) = *(const int32_t *)(e + 0x09);   /* 0x00014e9b-a4 */
+                *(int32_t *)(cur + 0x52) = 0;                       /* 0x00014ea7-aa */
+                return;                                            /* 0x00014eb1 */
+            }
+            goto score;                                            /* 0x00014eb6 */
+        }
+        if (*(const int32_t *)(cur + 0x17) == 0x16 && (uint32_t)cur[0] == 1u)
+            *(uint8_t *)cur = 0;                                   /* 0x00014ebb-0x00014ed8 */
+        {
+            int32_t es = *(const int32_t *)(e + 0x17);              /* 0x00014edb-0x00014f17 */
+            if (es == 0x67 || es == 0x68 || es == 0x6f || es == 0x71 || es == 0x73 || es == 0x72) {
+                if (es == 0x67) {                                  /* 0x00014f19 */
+                    (void)fn_0348e2();                             /* 0x00014f22 */
+                    *(int32_t *)(cur + 0x1b) = 1 - *(const int32_t *)(cur + 0x1b);
+                    if ((uint32_t)cur[0] == 1u) *(uint8_t *)cur = 0;
+                }
+                *(uint8_t *)(e + 0x31) = 0;                        /* 0x00014f4d-50 */
+                *(uint32_t *)(hb + *(const uint32_t *)(e + 0x4a) + 0x4a) = 0;
+                *(uint32_t *)(e + 0x4a) = 0;                       /* 0x00014f64 */
+                if (*(const int32_t *)(e + 0x17) == 0x71) *(int32_t *)(cur + 0x52) = 0;  /* 0x00014f6b-77 */
+            }
+        }
+        {
+            uint8_t *lk = hb + *(const uint32_t *)(e + 0x4a);       /* 0x00014f7e */
+            if ((uint32_t)lk[0x30] == 1u) {
+                *(uint32_t *)(hb + *(const uint32_t *)(e + 0x4a) + 0x4a) = 0;
+                *(uint32_t *)(e + 0x4a) = 0;                        /* 0x00014fa1 */
+                if (*(const int32_t *)(e + 0x17) == 0x70) {         /* 0x00014fab */
+                    *(int32_t *)(e + 0x17) = 1;
+                    *(int32_t *)(e + 0x11) = 0;
+                }
+                *(uint8_t *)(e + 0x31) = 0;                        /* 0x00014fc5 */
+                (void)fn_0348e2();                                 /* 0x00014fcc */
+            }
+        }
+
+score:
+        {                                                          /* 0x00014fd1-0x00015003 */
+            int32_t delta = hp0 - (int32_t)*(const int16_t *)(cur + 0x29);
+            if (delta != 0 && e == g_dat_53c7c)
+                *(int32_t *)(g_dat_53c7c + 0xbb) += (uint32_t)delta;
+        }
+        if ((uint32_t)cur[0x30] == 1u) {                           /* 0x00015003-0x00015070 */
+            if (cur != g_dat_53c7c) {
+                if ((uint32_t)cur[0x5a] == 0u &&
+                    (int16_t)*(const int16_t *)(cur + 0x29) != 0) {
+                    *(uint8_t  *)(cur + 0x5a) = 1;
+                    *(uint8_t  *)(cur + 0x31) = 1;
+                    *(uint8_t  *)(cur + 0x30) = 2;
+                    *(uint32_t *)(cur + 0x32) = 5;
+                } else {
+                    *(uint32_t *)(cur + 0x32) =
+                        *(const uint32_t *)(g_dat_53ea8 + (size_t)*(const int32_t *)(cur + 0x0d) * 0x88u + 0x0c);
+                }
+            }
+        }
+        if ((uint32_t)cur[0x30] == 1u) {                           /* 0x00015073-0x000150c4 */
+            if (cur == g_dat_53c7c) {
+                *(uint8_t  *)(cur + 0x31) = 0;
+                *(uint16_t *)(cur + 0x50) = 0xc8;
+                g_dat_63364 = 0x28;
+                g_dat_63368 = 0;
+            } else {
+                *(uint16_t *)(cur + 0x50) = 0x78;
+                *(uint8_t  *)(cur + 0x31) = 0;
+            }
+            if (cur == g_dat_53c80) {                              /* 0x000150c8-0x000150fa */
+                fn_04185e(g_dat_53d0c[g_tab_51c68[*(const uint32_t *)(e + 0x0d)]]);
+                fn_03ee0a();
+                fn_00035c5c();
+                g_dat_53104 = 0x23;
+            }
+        }
+        {                                                          /* 0x00015104-0x0001514b */
+            uint32_t ro2 = *(const uint32_t *)(
+                hb + *(const uint32_t *)(hb + *(const uint32_t *)(cur + 0x123) + 0x04)
+                   + 4u * *(const uint32_t *)(cur + 0x17));        /* note: no 0x7fffffff mask here */
+            uint32_t b69 = (uint32_t)*(const uint8_t *)(hb + ro2 + 0x69);
+            if (b69 != 0) {
+                g_dat_63364 = b69;
+                g_dat_63368 = (uint32_t)*(const uint16_t *)(hb + ro2 + 0x6a);
+            }
+        }
+hitnext:
+        cur = *(uint8_t **)(cur + 0x13f);                          /* 0x00015150-59 */
+    }
+
+    if (e == g_dat_53c7c && *(const int32_t *)(e + 0xbb) != 0) {   /* 0x00015161-0x0001518c */
+        *(int32_t *)(g_dat_53c7c + 0x52) += *(const uint32_t *)(e + 0xbb);
+        *(int32_t *)(e + 0xbb) = 0;
+    }
+}

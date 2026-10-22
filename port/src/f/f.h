@@ -1183,6 +1183,8 @@ void     fn_032158(void);
 void     fn_031a8e(uint8_t *e);   /* 0x00031a8e: THE PER-TYPE ENTITY AI DISPATCHER (state-2 stuck check, state-3 approach timer, 40-entry behaviour jump table) */
 void     fn_0322f5(void);
 int32_t  fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off);
+void     fn_01441e(uint8_t *e);
+                   /* 0x01441e: THE PER-ENTITY COMBAT RESOLUTION (called from fn_0320f5) -- the walking-player bump scan, the attack-slot frame-window scan, then the hit scan through fn_013c4d with the two-word HP/damage model, the player-style reaction, knock-back, pickup/carry handling, death latch and score fold-in */
                    /* 0x013c4d: THE ACTOR HIT TEST -- gates (inert flag, intangible frame window, carry partner, Y overlap), the facing-mirrored hit/hurt boxes off g_dat_639ec[type], the corner-or-straddle overlap test on both axes, then the contact-point spawn of a type-0xc9 actor plus A's reaction states / B's facing fix-up */               /* 0x000322f5: THE PER-FRAME AI SWEEP (list walk -> fn_031a8e, skips the player and byte0==2) */              /* 0x032158: entity list -> set targets to player + prng jitter */
 int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */

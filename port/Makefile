@@ -5,14 +5,15 @@ CC      ?= cc
 CFLAGS  ?= -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter
 SRC_F   = src/f/f.c src/f/fx_04794a.c
 SRC_SYS = src/sys/sys.c
+SRC_CD  = src/cd/cd_iso.c
 T       = test
 
 .PHONY: all test selftest clean
 
 all: test
 
-$(T)/test_f1: $(T)/test_f1.c $(SRC_F) $(SRC_SYS) src/f/f.h src/sys/sys.h
-	$(CC) $(CFLAGS) -o $@ $(T)/test_f1.c $(SRC_F) $(SRC_SYS)
+$(T)/test_f1: $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) src/f/f.h src/sys/sys.h src/cd/cd_iso.h
+	$(CC) $(CFLAGS) -o $@ $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD)
 
 test: $(T)/test_f1
 	./$(T)/test_f1

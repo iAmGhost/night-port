@@ -73,3 +73,43 @@ Everything else that is still pending is genuine game code. The only entry in th
 that mixes game and non-game code in one Ghidra function is this startup block; its only
 *observable* game-visible side effect is the `no78=` command-line counter `DAT_000533b0`, which
 the port models as a plain global (nothing in the game reads it other than the startup).
+
+
+---
+
+# Second ruling: the bundled 8087 numeric-coprocessor emulator (0x0461cc + 0x0473bf)
+
+`0x0461cc` is not game code either: it is the **software 8087/287 emulator** the compiler runtime
+links in for target machines without a numeric coprocessor (classic em8087/MCE shape: an
+instruction decoder, an 8-slot 10-byte `{lo,hi,exp}` register file at `DS:0x3668`, the control/status
+words `DS:0x3650` / `DS:0x3654`, the operand/status ROM tables at `0x45dca..0x45e22`, and two indirect
+handler tables at `0x45e78` / `0x45f38`). Full analysis: `docs/12-functions/0461cc-fpu-emulator.md`;
+decode notes and a port plan: `docs/30-fpu-engine-0461cc-plan.md`.
+
+Evidence that nothing in NIGHT's own code reaches it:
+
+* `analysis/callgraph.tsv` has **zero caller edges** to `0x0461cc` (and none to `0x0473bf`).
+* It is entered through three DPMI exception thunks immediately before it -- `0x04613a` (INT 7 /
+  coprocessor-not-available), `0x04615c`, `0x0461a9` -- none of which is a function in the 528 list
+  (`functions.tsv` has no rows for them), i.e. entry is by CPU exception, never by `call`.
+* The only places in the image that mention its address are (a) the extender's exception-vector table
+  in the image's low region (`0x00e430` / `0x00e980` hold 8-byte records whose second dword is the
+  code-segment offset `0x361cc` = VA `0x461cc`), and (b) `lea edx,[0x361cc]; mov ds:[ebp+0x76],edx`
+  sequences *inside the emulator itself* (at `0x0466a0` and inside `caseD_3` `0x0473bf`), which store
+  the interpreter's own continuation pointer `DAT_000536c2`.
+* Its arithmetic engine -- the 80-bit fx layer (`fx_normalize` 0x04794a, `fn_0478f0`/`fn_0478e2`/
+  `fn_047b4f`/`fn_047d24`, `fx_mul64` 0x047d4e, `fx_compare` 0x047ab6, the `0x048xxx` helpers) -- is a
+  set of real 528-list functions and is **already ported and vector-tested**; those tests are what pin
+  the emulator's value model.
+
+## Ruling
+
+| entry | why not ported |
+|---|---|
+| `0x0461cc` | the FPU emulator's decoder/dispatch body: it intercepts x87 instructions of the *compiled game code* via the extender's exception vectors. The port runs on a host with a working FPU (SDL3/C uses native FP), exactly as it replaces the DPMI extender, so there is nothing for this body to intercept; porting it would mean emulating a coprocessor the modern target has |
+| `0x0473bf` | `caseD_3`, one arm of that body's jump table (it re-arms `DAT_000536c2 = 0x0461cc`) -- inseparable from the ruling above |
+
+With these two, the whole 528-function inventory is accounted for: **523 ported + tested, 5 recorded
+`[-]`** (3 Watcom-extender entries here, 2 the bundled x87 emulator). If a future port ever needs to
+run on an FPU-less target, the decode plan in `docs/30` plus the already-ported fx engine is the
+starting point.

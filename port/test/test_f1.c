@@ -4,6 +4,7 @@
  * Exit 0 = all pass. */
 #include "../src/f/f.h"
 #include "../src/sys/sys.h"
+#include "../src/cd/cd_iso.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17018,6 +17019,57 @@ static uint32_t entry_term_cb(uint32_t a) {
     longjmp(g_entry_escape, 1);
 }
 
+/* ---- the real disc: TG_NIGHT.CUE/IMG as the MSCDEX backend for the TOC reads ---- */
+static void test_cd_iso_real(void) {
+    printf("cd_iso: the shipped TG_NIGHT disc drives fn_010927 / fn_107b9 / the gate fn_010c3e\n");
+    const char *dir = getenv("NIGHT_RES_DIR");
+    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    char cue[700];
+    snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", dir);
+    if (cd_iso_open(cue) != 0) { printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", cue); return; }
+
+    check(cd_iso_track_count() == 15 && cd_iso_first_track() == 1 && cd_iso_last_track() == 15,
+          "the cue lists 15 tracks (TRACK 01 MODE1 + 14 audio), the TOC range fn_010927 reads");
+    check(cd_iso_track_lba(1) == 0, "TRACK 01 starts at disc LBA 0");
+    check(cd_iso_track_lba(2) == 37262 && cd_iso_track_lba(3) == 40415,
+          "the PREGAP 00:02:00 in front of TRACK 02 shifts the audio tracks 150 sectors (37262 / 40415)");
+    check(cd_iso_track_lba(3) - cd_iso_track_lba(2) == 0xc51,
+          "track 3 - track 2 = 0xc51 (3153 sectors) -- the value the disc gate demands");
+
+    /* run the gate itself against the real disc: it must pass on the first poll, with no prompt */
+    uintptr_t s_c5c = g_dat_53c5c;
+    uint32_t s_c60 = g_dat_53c60, s_c64 = g_dat_53c64;
+    uint8_t *vid = (uint8_t *)calloc(1, 0x10000);
+    memcpy(vid, g_video_ram, 0x10000);
+    memset(g_video_ram, 0, 0x10000);
+    uint32_t floor_s = heap_region_floor();
+    heap_arena_init();
+    heap_region_floor_set(0x10000);
+    g_dat_53c64 = 0;
+    g_dat_53c5c = (uintptr_t)g_far7;
+    sys_cd_audio_stop_reset();
+    sys_cd_set_backend(cd_iso_root_header, cd_iso_root_records);
+
+    fn_010c3e();
+    check(g_dat_53c60 == 0xf, "the real TOC gives DAT_00053c60 = 0xf (last - first + 1 = 15 tracks)");
+    {
+        uint8_t *recs = (uint8_t *)g_heap_base + g_dat_53c64;
+        check((int32_t)*(uint32_t *)(recs + 0xb) - (int32_t)*(uint32_t *)(recs + 6) == 0xc51,
+              "the 5-byte TOC records {track, startLBA} carry the 0xc51 gap the gate compares (+6 / +0xb)");
+        check(recs[0] == 1 && *(uint32_t *)(recs + 1) == 0, "record 0 describes TRACK 01 at LBA 0");
+    }
+    check(sys_cd_audio_stop_calls() == 0 && g_video_ram[0] == 0,
+          "the shipped disc passes the gate at once: no cdinsert.pcx, no CD stop");
+
+    sys_cd_set_backend(NULL, NULL);
+    sys_cd_audio_stop_reset();
+    g_dat_53c5c = s_c5c; g_dat_53c60 = s_c60; g_dat_53c64 = s_c64;
+    memcpy(g_video_ram, vid, 0x10000);
+    free(vid);
+    heap_region_floor_set(floor_s);
+    cd_iso_close();
+}
+
 static void test_fn_0445c9(void) {
     printf("fn_0445c9 (0x0445c9): the entry thunk (stack reservation -> DAT_00053640 -> the game main)\n");
     uint32_t s_free = g_dpmi_free_dos_paragraphs, s_640 = g_dat_53640;
@@ -17518,6 +17570,7 @@ int main(void) {
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
     test_fn_0445c9();
+    test_cd_iso_real();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */
     /* test_fn_03a829() is #if 0'd out: see the note above its definition */
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

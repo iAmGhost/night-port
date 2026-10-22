@@ -28,10 +28,13 @@ See `docs/12-functions/STATUS.md` for per-function status.
 
 
 # Known port issues (open)
-- [ ] **Chunked resource reader loses the handle/buffer position invariant** — seeking after reads lands
-      at the wrong offset (off by the bytes read before the current block was filled). Blocks the real
-      CD/.IMG backend and random-access multi-resource loads. Diagnosis + repro:
-      `docs/13-io-reader-positioning-issue.md`, `scratch/io_pos_repro.c`
+- [x] Resource-reader positioning **verified correct** (an earlier "off-by-N seek" suspicion was a test
+      artifact): the reader is block-buffered, backward seeks un-consume inside the block, and stale
+      bytes only appear if the backing image is rewritten mid-block. Semantics + test gotcha + repro:
+      `docs/13-io-reader-block-buffering.md`, `scratch/io_pos_repro.c`
+- [ ] Port the remaining stubs the reader path still needs for a real CD: nothing outstanding in
+      `fn_04247a` / `res_consume` / `fn_041d47`, but `fn_044807`/`fn_044848` must map onto the SDL file
+      layer when the .IMG backend lands
 - [ ] `heap_grow` (0x04322c) is still a stub; `heap_acquire_region` under-provisions by 4 bytes
 - [ ] Seedable tables with no producer inside the EXE still need the CD/data backend:
       `DAT_00052c3c`, `DAT_00052738`, `DAT_00052f08`, `DAT_00053200`, `DAT_000532f4`

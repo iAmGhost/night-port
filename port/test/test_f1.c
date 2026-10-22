@@ -8938,8 +8938,8 @@ static void test_fn_029709(void)
           *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
           "029709 the rope state's first frame latches the self and player anchors");
     float slope; memcpy(&slope, e + 0xe7, 4);
-    check(isinf(slope) && slope > 0.0f,
-          "029709 entity[0xe7] is the anchor gap over the unresolved DS 0x44 double (0 -> +inf)");
+    check(slope == 2.5f,
+          "029709 entity[0xe7] = (player_y - self_y) / 20.0 (the DS 0x50044 double)");
 
     /* (5) the rope climb only runs for entity[0x11] in 2..0x14 */
     e[0x17] = 0x2b; e[0x11] = 0x15; e[0x1f] = 6; e[0xaf] = 1; e[0x8b] = 1;

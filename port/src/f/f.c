@@ -14198,8 +14198,32 @@ static uint8_t ai_script_byte(int32_t ty, int32_t slot, int32_t step)
                        (size_t)(uint32_t)slot * 10u + (size_t)(uint32_t)step];
 }
 /* Constants inside g_blk_51c24 (DS 0x51c24); memcpy because the fields are unaligned. */
-uint8_t g_ds_low0040[0x98] = {0};   /* DS 0x40..0xd7, see f.h (0xcc + 8 needs the extra bytes) */
-static double  ds_low_f64(size_t off) { double d; memcpy(&d, g_ds_low0040 + off, 8); return d; }
+/* The x87 constant pool the AI handlers' climb / rope / swing machines divide by.  CORRECTION to an
+ * earlier note in this file and in docs/18: these are NOT "unresolved DS-low" memory.  Capstone prints
+ * DS-relative displacements WITHOUT Ghidra's +0x50000 image base, so `fdiv qword ptr [0x44]` is
+ * DS 0x50044 -- plain initialised NIGHT.EXE data (scripts/extract_ds.py 0x50010 192).  Values:
+ * DS 0x50014/0x50018/0x5001c/0x50020 = float 31.0 (four consecutive), DS 0x50044 = 20.0,
+ * DS 0x5009c/0xa4/0xac = 30.0, DS 0x500b4/0xbc/0xc4 = 27.0, DS 0x500cc = 20.0. */
+uint8_t g_blk_50010[0xc0] = {   /* DS 0x50010 .. 0x500d0, NIGHT.EXE file 0x48a10 */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41,
+    0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41,
+    0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41,
+    0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41,
+    0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x40,
+    0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0xf8, 0x41,
+    0x00, 0x00, 0xf8, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x40,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x40, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x49, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x49, 0x40,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x34, 0x40, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x80, 0x4b, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x4b, 0x40,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x4b, 0x40, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3e, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x40,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3e, 0x40, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x3b, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3b, 0x40,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3b, 0x40, 0x00, 0x00, 0x00, 0x00,
+};
+static float  blk50_f32(uint32_t va) { float f;   memcpy(&f, g_blk_50010 + (va - 0x50010u), 4); return f; }
+static double blk50_f64(uint32_t va) { double d;  memcpy(&d, g_blk_50010 + (va - 0x50010u), 8); return d; }
 static float   ai_blk_f32(size_t off)  { float f;   memcpy(&f, g_blk_51c24 + off, 4); return f; }
 static int32_t ai_blk_i32(size_t off)  { int32_t v; memcpy(&v, g_blk_51c24 + off, 4); return v; }
 #define AI_SPEED_TAB(i)  ai_blk_f32(0x138u + (size_t)(uint32_t)(i) * 4u)  /* DS 0x51d5c */
@@ -18435,9 +18459,10 @@ ai_tail:
  *      anchors (entity[0xd3]/[0xd7] = self screen position, entity[0xcb]/[0xcf] = the player's) and
  *      stores (player_y - self_y) / <double at DS 0x44> into entity[0xe7]; frames 2..0x14 interpolate
  *      that slope against entity[0x11], round it and shove the entity to the result with fn_01586b.
- *      DEVIATION: DS 0x44 is not initialised image data (under DOS4GW that address is the protected-mode
- *      IVT slot for int 0x11), so the port keeps a zeroed g_ds_low0040 and the slope becomes an
- *      infinity -- the anchor latch and the frame window are faithful, the divisor is unresolved;
+ *      CORRECTION (an earlier version of this comment called it an unresolved external): the divisor is the
+ *      double at DS 0x50044 = 20.0, plain initialised image data -- capstone prints DS-relative
+ *      displacements without Ghidra's +0x50000 image base, which is what made it look like DS-low
+ *      IVT memory.  Everything in this arm is therefore faithful.
  *   3. the hiding-spot chooser loses the entity[0x5f] latch AND both jitter arms: the slot is always
  *      prng()%2 (re-rolled while it repeats entity[0xff]) placed from the script row's col-0 offset,
  *      and the X clamp runs BEFORE the too-close test (0x00029e37), the opposite order to 0x0265ac;
@@ -18508,7 +18533,7 @@ void fn_029709(uint8_t *e)
                 *(int32_t *)(e + 0xcb) = (uint32_t)p_x;
                 *(int32_t *)(e + 0xcf) = (uint32_t)p_y;
                 *(float *)(e + 0xe7) = (float)((double)(*(int32_t *)(e + 0xcf) -
-                                                        *(int32_t *)(e + 0xd7)) / ds_low_f64(4u));
+                                                        *(int32_t *)(e + 0xd7)) / blk50_f64(0x50044u));
             } else if (*(int32_t *)(e + 0x11) > 1 && *(int32_t *)(e + 0x11) <= 0x14) {
                 /* frame 2..0x14: climb the interpolated Y and shove the entity there with fn_01586b */
                 int32_t tgt = (int32_t)fpu_rndint((double)ai_fget(e, 0xe7) *
@@ -18869,10 +18894,10 @@ ai_tail:
  * the too-close test, the room-band clamp, both landing tests and the move tail -- is byte-for-byte the
  * same machine code as 0x029709.
  *
- * DEVIATION (same class as 0x029709's): the eight x87 double divisors this family reads live at DS
- * 0x44..0xcc, below the image, so they are not initialised file data.  The port keeps g_ds_low0040
- * zeroed, which turns those quotients into infinities; the anchor latches, frame windows, thresholds
- * and control flow are faithful.
+ * CORRECTION (an earlier version of this comment called these "unresolved DS-low doubles"): every
+ * divisor is plain initialised image data -- capstone prints DS-relative displacements without
+ * Ghidra's +0x50000 image base, so DS "0x44".."0xcc" are really DS 0x50044 (20.0), 0x5009c/0xa4/0xac
+ * (30.0), 0x500b4/0xbc/0xc4 (27.0) and 0x500cc (20.0), all carried in g_blk_50010.
  */
 
 /* ai_climb_xy -- the rope/climb machine FUN_0002fe1e instantiates TWICE, for sprite states 0x2e
@@ -18948,9 +18973,10 @@ static void ai_climb_xy(uint8_t *e, int32_t p_x, int32_t p_y, int32_t frame_max,
  *      anchors (entity[0xd3]/[0xd7] = self screen position, entity[0xcb]/[0xcf] = the player's) and
  *      stores (player_y - self_y) / <double at DS 0x44> into entity[0xe7]; frames 2..0x14 interpolate
  *      that slope against entity[0x11], round it and shove the entity to the result with fn_01586b.
- *      DEVIATION: DS 0x44 is not initialised image data (under DOS4GW that address is the protected-mode
- *      IVT slot for int 0x11), so the port keeps a zeroed g_ds_low0040 and the slope becomes an
- *      infinity -- the anchor latch and the frame window are faithful, the divisor is unresolved;
+ *      CORRECTION (an earlier version of this comment called it an unresolved external): the divisor is the
+ *      double at DS 0x50044 = 20.0, plain initialised image data -- capstone prints DS-relative
+ *      displacements without Ghidra's +0x50000 image base, which is what made it look like DS-low
+ *      IVT memory.  Everything in this arm is therefore faithful.
  *   3. the hiding-spot chooser loses the entity[0x5f] latch AND both jitter arms: the slot is always
  *      prng()%2 (re-rolled while it repeats entity[0xff]) placed from the script row's col-0 offset,
  *      and the X clamp runs BEFORE the too-close test (0x00029e37), the opposite order to 0x0265ac;
@@ -19018,9 +19044,9 @@ void fn_02fe1e(uint8_t *e)
             /* 0x000300f6-0x00030389 and 0x0003038e-0x00030624: the same climb machine twice, only the
              * frame limit (0x1e / 0x1b) and the three DS double divisors differ. */
             if (*(int32_t *)(e + 0x17) == 0x2e) {
-                ai_climb_xy(e, p_x, p_y, 0x1e, ds_low_f64(0x5c), ds_low_f64(0x64), ds_low_f64(0x6c));
+                ai_climb_xy(e, p_x, p_y, 0x1e, blk50_f64(0x5009cu), blk50_f64(0x500a4u), blk50_f64(0x500acu));
             } else {
-                ai_climb_xy(e, p_x, p_y, 0x1b, ds_low_f64(0x74), ds_low_f64(0x7c), ds_low_f64(0x84));
+                ai_climb_xy(e, p_x, p_y, 0x1b, blk50_f64(0x500b4u), blk50_f64(0x500bcu), blk50_f64(0x500c4u));
             }
         } else if (*(int32_t *)(e + 0x17) == 0x34) {          /* 0x0003062c: the single-axis rope */
             if (*(int32_t *)(e + 0x11) == 1) {
@@ -19029,7 +19055,7 @@ void fn_02fe1e(uint8_t *e)
                 *(int32_t *)(e + 0xcb) = (uint32_t)p_x;
                 *(int32_t *)(e + 0xcf) = (uint32_t)p_y;
                 *(float *)(e + 0xe7) = (float)((double)(*(int32_t *)(e + 0xcf) -
-                                                        *(int32_t *)(e + 0xd7)) / ds_low_f64(0x8cu));
+                                                        *(int32_t *)(e + 0xd7)) / blk50_f64(0x500ccu));
             } else if (*(int32_t *)(e + 0x11) > 1 && *(int32_t *)(e + 0x11) <= 0x14) {
                 int32_t tgt = (int32_t)fpu_rndint((double)ai_fget(e, 0xe7) *
                                                   (double)*(const int32_t *)(e + 0x11) +

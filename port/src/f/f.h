@@ -913,7 +913,7 @@ extern struct blit_ctl *g_dat_639c4;                /* DAT_000639c4: HUD blit co
 void fn_03ace9(void);                               /* 0x03ace9: 20-frame HUD composite (633b0/633b4 + 2 sprites via fn_03bb42) */
 void fn_012efa(uint8_t *ent, uint32_t base);
 void fn_03203d(uint32_t base);
-extern uint8_t g_ds_low0040[0x98];   /* DS 0x0040..0x00d7: the AI handlers read six x87 double divisors out of this range (0x44, 0x9c, 0xa4, 0xac, 0xb4, 0xbc, 0xc4, 0xcc). None of it is initialised file data -- absolute 0x40..0xcf is below the image and is the DOS4GW protected-mode IVT area -- so the port keeps the block zeroed and records the deviation (the quotients become infinities). */
+extern uint8_t g_blk_50010[0xc0];   /* DS 0x50010..0x500cf: the AI handlers' x87 constant pool (float 31.0 at 0x50014..0x50023; doubles 20.0 / 27.0 / 30.0 as climb, rope and swing divisors). See the capstone-base note in f.c. */
 extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment block (see f.c for the map) */
 #define g_blk_51c80   (g_blk_51c24 + 0x5c)          /* DS 0x51c80 view (legacy name) */
 #define g_tab_51c90   (g_blk_51c24 + 0x6c)          /* DS 0x51c90 gauge fill colours; +1 = DAT_00051c91 */

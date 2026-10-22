@@ -141,7 +141,7 @@ and entity[0xe7] instead of entity[0xe7]. The arm is a SWING, not the 0x02fe1e c
     entity[0xdb]=dy/dx; then ax=|dx|, ay=|dy| (fn_041f76); if ax>ay: entity[0xe3] = (dx<0?-7.0f:+7.0f)
     (0xc0e00000/0x40e00000) and entity[0xe7] = (float)dy / <float DS 0x14 or 0x18 by the sign of dx>;
     else: entity[0xe3] = (float)dx / <float DS 0x1c or 0x20 by the sign of dy> and entity[0xe7] =
-    (dy<0?-4.0f:+4.0f) (0xc0800000/0x40800000).  [the four float divisors are DS-low again]
+    (dy<0?-4.0f:+4.0f) (0xc0800000/0x40800000).  [the four float divisors are DS 0x50014/0x50018/0x5001c/0x50020 = 31.0f]
   window frames (0x000236aa-0x00023866): if |entity[0xe7]| < |entity[0xe3]| (fabs/fcomp) then
     tx = rndint((e[0x11]-0x48) * entity[0xe3]); ty = rndint(tx_pre * entity[0xdb]);
     else ty = rndint((e[0x11]-0x48) * entity[0xe7]); tx = rndint(ty_pre / entity[0xdb]);
@@ -178,9 +178,7 @@ port is the sibling body plus four edits. Family variants pinned so far: the X c
 too-close restore in 0x0265ac (both paths clamped) but BEFORE it in 0x029709 (restored X stays raw);
 0x0265ac has an entity[0x5f] two-arm latch (side slots vs absolute jitter 6..9) while 0x029709 draws
 only prng()%2 side slots; a script row whose col-1 byte is '.' (0x2b) drops the walk's 6 px Y
-tolerance in 0x029709. One unresolved external: the double at DS 0x44 (rope slope divisor) is not
-initialised image data -- under DOS4GW absolute 0x44 is the PM IVT slot for int 0x11 -- so the port
-keeps g_ds_low0040 zeroed and the slope becomes +inf (documented deviation).
+tolerance in 0x029709. RESOLVED, do not re-derive: the family's x87 divisors are ordinary initialised image data. Capstone prints DS-relative displacements without Ghidra's +0x50000 image base, so `qword ptr [0x44]` is DS 0x50044. Pool (scripts/extract_ds.py 0x50010 192 -> g_blk_50010): DS 0x50014/0x50018/0x5001c/0x50020 = float 31.0 x4, 0x50044 = 20.0, 0x5009c/0xa4/0xac = 30.0, 0x500b4/0xbc/0xc4 = 27.0, 0x500cc = 20.0.
 
 HANDLER FRONTIER (recomputed with a corrected pending/callee scan, scratch/frontier-style): every one of
 the 9 remaining handlers is gated ONLY on folded helpers (0x0418ee canary prologue, 0x041e9f prng,

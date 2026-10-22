@@ -151,8 +151,19 @@ and entity[0xe7] instead of entity[0xe7]. The arm is a SWING, not the 0x02fe1e c
     (fn_01545e(e, tx-fn_01519f(e)); fn_01586b(e, ty-fn_0151d5(e))).
     NUDGE = fn_01545e(e, sign(tx-entity[0xd3]) * 3) then fn_01586b(e, sign(ty-entity[0xd7]) * 1)
     (only called when the difference is nonzero).
-  STILL TO READ before porting: 0x000248cd-0x00024a00 (the walk reached/not-reached paths), and the small
-  inserts 0x00024822-0x00024837, 0x00024894-0x000248b2. Walk findings so far: the code at 0x00024757 is
+  WALK REGION NOW READ (0x00024712-0x00024a27), so 0x02319c needs no further reading:
+    * the guard at 0x0002474b (`cmp eax,-1` right after `and eax,0xff`) can never match, so the whole
+      block 0x00024757-0x00024840 is DEAD CODE -- the live walk start is LAB 0x00024894;
+    * reached = |screen_x - p_x| < col0 && |screen_y - p_y| < 10 (ten, not the family's six);
+    * on advancing to the next row byte it ALSO latches the player anchors: entity[0x17]=byte,
+      entity[0x11]=0, entity[0xcb]=p_x, entity[0xcf]=p_y, cursor++ (the 0x00024825 insert);
+      otherwise action 0x0a + state 0;
+    * not reached -> fn_041e9f(), `idiv 0x14`, remainder == 2 -> action 4 else action 0x0a, state 0
+      (same 1-in-20 coin flip as fn_029709, no change needed);
+    * entity[0xab] >= 0 -> dec and sprite 1; the 0x0c rung is the shared '2' ladder (sprite 0x32 on
+      expiry, entity[0x11]=0, action 0x0a, state 0).
+  Port recipe: take the fn_029709 body, swap the 0x2b rope arm for the swing above (its four float
+  divisors are the 31.0f constants in g_blk_50010), and swap the walk block for the version above. Walk findings so far: the code at 0x00024757 is
   DEAD (its guard is `cmp eax,-1` right after `and eax,0xff`, so it can never match); the live walk
   start is 0x00024894, which reads the tolerance from col 0 and tests the X gap ONLY; the not-reached
   path (0x00024842) calls fn_041e9f, then `idiv 0x14` and picks action 4 when the remainder == 2 else

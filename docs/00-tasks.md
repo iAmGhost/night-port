@@ -26,6 +26,17 @@ verification policy: `docs/12-function-map.md` §3.
 # Phase 2 — Per-function port (in rank order, L0 → L19)
 See `docs/12-functions/STATUS.md` for per-function status.
 
+Current position: **469/528 ported + tested, 3 skipped as non-game entries, 56 pending**
+(`python3 scripts/status_report.py`; suite 2170 checks, 0 failures, ASan clean).
+- Tiers closed: L0-L4, L7-L10, L15 (all stage lifecycle over shipped `NIGHT.RES`).
+- Last ports: `0x03c231` interlaced fill blit (keystone for the entity frame dispatcher `0x012efa`),
+  `0x03b953` entity-list sweep of the floating number display, `0x03b718` the number display itself.
+- `0x042044` / `0x042046` / `0x0420bc` are the Watcom DOS-extender entry thunk + startup block, not game
+  code — recorded `[-]` with disasm evidence in `docs/16-non-game-image-entries.md`.
+- Biggest remaining levers (all callees already ported): `0x012efa` 1428 B (entity frame dispatch),
+  `0x01348f` 817 B, `0x03f15f` 606 B (VESA mode probe/set — needs an SDL-side substitute), `0x0461cc`
+  5909 B (FPU engine, last L5 function; also gates the 39-fn cluster and `0x0473bf`).
+
 
 # Known port issues (open)
 - [x] Resource-reader positioning **verified correct** (an earlier "off-by-N seek" suspicion was a test

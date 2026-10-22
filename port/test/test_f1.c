@@ -8235,6 +8235,163 @@ static void test_fn_01f064(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x020170: behaviour-0x08 (slots 0..5 only, no absolute arm) ---- */
+static void test_fn_020170(void)
+{
+    printf("fn_020170 (0x020170, behaviour-0x08 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 9;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;
+    *(int32_t *)(cfg + 0x80) = 4;
+    *(int32_t *)(cfg + 0x14) = 20;
+    *(int32_t *)(cfg + 0x18) = 100;
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 40;
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the shared speed word selection */
+    e[0x17] = 3; e[0x1f] = 0x02; e[0x8b] = 1; *(int32_t *)(e + 0x6f) = 0;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_020170(e);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "020170 speed word +0x04 for state < 0x0a");
+
+    /* (B) the draw only ever yields slots 0..5, and the 2/3 sub-draws are what lift it */
+    {
+        int bad = 0, hi = 0, sub = 0, lo = 0;
+        for (uint32_t sd = 1; sd <= 60u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x113] = 0; e[0x8b] = 1;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_020170(e);
+            int s = *(int32_t *)(e + 0xff);
+            if (s < 0 || s > 5) bad++;
+            if (s == 0 || s == 1) lo++;
+            if (s >= 2) hi++;
+            if (s == 3 || s == 5) sub++;
+        }
+        check(bad == 0, "020170 the draw never leaves slots 0..5 (no absolute slots)");
+        check(lo > 0 && hi > 0, "020170 both the side slots and the jitter slots are drawn");
+        check(sub > 0, "020170 the 2/3 sub-draws lift a slot to 3 or 5");
+    }
+
+    /* (C) slots 0/1 hide beside the player at the script-row offset */
+    {
+        int found = 0;
+        for (uint32_t sd = 1; sd <= 60u && !found; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x113] = 0; e[0x6f] = 0; e[0x8b] = 1;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_020170(e);
+            if (*(int32_t *)(e + 0xff) <= 1) found = 1;
+        }
+        check(found == 1, "020170 a side slot (0/1) is reachable");
+        check(*(int32_t *)(e + 0xbf) == 200 - 40 || *(int32_t *)(e + 0xbf) == 200 + 40,
+              "020170 the side spot is script[row][0] px from the player");
+        check(*(int32_t *)(e + 0xc3) == 120 && *(int32_t *)(e + 0x6f) == 1,
+              "020170 the side spot is level with the player and sets the +0x80 speed flag");
+    }
+
+    /* (D) slots 2..5 use the jitter rectangles OFFSET BY THE PLAYER (never the raw rectangles) */
+    {
+        int jf = -1;
+        for (uint32_t sd = 1; sd <= 60u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x113] = 0; e[0x8b] = 1;
+            *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_020170(e);
+            if (*(int32_t *)(e + 0xff) >= 2) { jf = *(int32_t *)(e + 0xff); break; }
+        }
+        int x = *(int32_t *)(e + 0xbf), y = *(int32_t *)(e + 0xc3);
+        check(jf >= 2, "020170 a jitter slot (2..5) is reachable");
+        check(x >= TJ_XLO(jf) + 200 && x <= TJ_XHI(jf) + 200 &&
+              y >= TJ_YLO(jf) + 120 && y <= TJ_YHI(jf) + 120,
+              "020170 the jitter spot is the rectangle offset by the player");
+    }
+
+    /* (E) no 1-in-6 forced action 4: starting from action 0 the action stays 0 every frame */
+    {
+        int became4 = 0;
+        for (uint32_t sd = 1; sd <= 120u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 0; e[0x113] = 0; e[0x8b] = 1;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_020170(e);
+            if (*(int32_t *)(e + 0xaf) == 4) became4++;
+        }
+        check(became4 == 0, "020170 has no 1-in-6 chance of forcing action 4 (unlike fn_01bea8)");
+    }
+
+    /* (F) the clamp runs before the distance test and the restore jumps past it */
+    *(int32_t *)(room + 0x12) = -100000; *(int32_t *)(room + 0x16) = 100000;
+    {
+        int found = 0;
+        for (uint32_t sd = 1; sd <= 300u && !found; sd++) {
+            prng_seed(sd);
+            *(int32_t *)(pl + 0x01) = 300; *(int32_t *)(pl + 0x09) = 120;
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x113] = 0; e[0x8b] = 1;
+            *(int32_t *)(e + 0x01) = 300; *(int32_t *)(e + 0x09) = 120;
+            *(int32_t *)(e + 0xbf) = 0x5555; *(int32_t *)(e + 0xc3) = 0x2222;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_020170(e);
+            if (*(int32_t *)(e + 0xc7) == 1) found = 1;
+        }
+        check(found == 1, "020170 a spot landing on the entity is rejected");
+        check(*(int32_t *)(e + 0xbf) == 0x5555,
+              "020170 the restore jumps past the clamp, so the old X survives unclamped");
+    }
+    *(int32_t *)(room + 0x12) = -1000; *(int32_t *)(room + 0x16) = 1000;
+
+    /* (G) the shared state machine: the scripted walk (case 0xb) and its timeout (case 0xc) */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 122;
+    fn_020170(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "020170 case 0xb runs the scripted state (same walk as the siblings)");
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_020170(e);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a,
+          "020170 case 0xc timeout -> state 0x32, action 0x0a");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -13345,6 +13502,7 @@ int main(void) {
     test_fn_01cf64();
     test_fn_01df8b();
     test_fn_01f064();
+    test_fn_020170();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

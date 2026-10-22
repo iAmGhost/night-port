@@ -1151,6 +1151,8 @@ int32_t  fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2);      
 void     fn_017f13(uint8_t *e);
 void     fn_018e88(uint8_t *e);   /* 0x018e88: THE BEHAVIOUR-0x01 ENTITY AI HANDLER -- fn_017f13's near-clone: two speed-index words (record +0x04 / +0x80, the latter forced by entity[0x6f]), no entity[0x8b] recon block, and a six-slot hiding-spot draw (j = prng%4 with a +prng%2 sub-draw for 2/3) whose jitter pairs live at DS 0x51c9c/0x51ca0/0x51ca4/0x51ca8 stride 0x10 */   /* 0x017f13: THE BEHAVIOUR-0x00 ENTITY AI HANDLER -- speed bookkeeping on the float field e[0x63], the fn_015a1f proximity latch, then a switch on e[0x1f] (0..0x16) over the twelve action routines with the family's register ABI (EAX=e, EDX=speed, EBX/ECX=player screen x/y, two stack out slots); the two deltas feed fn_01545e / fn_01586b and e[0x1b] tracks facing */
 void     fn_019e48(uint8_t *e);
+void     fn_020170(uint8_t *e);
+    /* 0x020170: THE BEHAVIOUR-0x08 ENTITY AI HANDLER -- fn_01bea8's body; draw = prng()%4 with 2/3 sub-draws so only slots 0..5 occur, spot = script-row offset beside the player (0/1) or player-offset jitter rectangles (2..5), no absolute arm, no 1-in-6 forced action 4, clamp before the distance test */
 void     fn_01f064(uint8_t *e);
     /* 0x01f064: THE BEHAVIOUR-0x07 ENTITY AI HANDLER -- fn_01bea8's body with a four-arm chooser: fn_01bea8's split slot draw, but slots 0/1 hide at the script-row byte 0 offset beside the player, slots 2..5 the player-relative jitter, 6..9 the absolute one; the clamp runs before the distance test and the restore jumps past it */
 void     fn_01df8b(uint8_t *e);

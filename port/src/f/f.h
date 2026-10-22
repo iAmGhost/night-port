@@ -195,7 +195,7 @@ uint32_t fn_01435f(uint32_t a0, uint8_t a1, uint8_t a2);  /* 0x01435f: find firs
 void     fn_031f5f(uint32_t a0);     /* 0x031f5f: remove first array element (shift left by one), save slot0 to a0->0x17, set g_dat_63364/63368 from P2[a0->0x17] */
 void     fn_03d67c(uint32_t a0, uint32_t a1, uint32_t a2);  /* 0x03d67c: move element a2 to index a1 of a 3-byte-stride array (shift [a1,a2-1] right) */
 void     fn_03d606(uint32_t a0);  /* 0x03d606: loop i< a0->0x3c: fn_03d67c(a0+0x48, pairs[i*2], pairs[i*2+1]) (pairs at heap-off a0->0x44) */
-int32_t  fn_017218(uint32_t a0, int32_t a1, uint32_t ptr1, uint32_t ptr2);  /* 0x017218: set *ptr1/*ptr2 to a sign-combo of a1 by idx=a0->0xbb (0..3); then a0->0xab-- (ret 1 if it was <0) */
+int32_t  fn_017218(uint8_t *a, int32_t a1, int32_t *o1, int32_t *o2);  /* 0x017218: set *o1/*o2 to a sign-combo of a1 by idx=a->0xbb (0..3); then a->0xab-- (ret 1 if it was <0). Args are host pointers: the caller (0x017f13) passes the addresses of its own stack locals */
 int32_t  fn_034f31(uint32_t a0, uint32_t a1, uint32_t a2);  /* 0x034f31: MIDI RIFF deserializer (MThd header + N MTrk tracks) -> a2 struct; a0/a1/a2 heap offsets */
 uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+checksum (no-op -> 0) */
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
@@ -1146,6 +1146,7 @@ int32_t  fn_017ca6(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   
 int32_t  fn_01730b(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01730b: 2-phase X-then-Y move-toward-target */
 int32_t  fn_01776f(uint8_t *s, int32_t param2, int32_t *out1, int32_t *out2);   /* 0x01776f: 2D movement delta computer */
 int32_t  fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2);      /* 0x017927: 2D move/AI (double-deref bounds) */
+void     fn_017f13(uint8_t *e);   /* 0x017f13: THE BEHAVIOUR-0x00 ENTITY AI HANDLER -- speed bookkeeping on the float field e[0x63], the fn_015a1f proximity latch, then a switch on e[0x1f] (0..0x16) over the twelve action routines with the family's register ABI (EAX=e, EDX=speed, EBX/ECX=player screen x/y, two stack out slots); the two deltas feed fn_01545e / fn_01586b and e[0x1b] tracks facing */
 void     fn_032158(void);              /* 0x032158: entity list -> set targets to player + prng jitter */
 int32_t  fn_015ed1(uint8_t *s);        /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
 int32_t  fn_015d16(uint8_t *s);        /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */            /* 0x034635: keyboard input state machine */

@@ -7033,7 +7033,7 @@ static void test_fn_017218(void) {
         *(uint32_t*)(A+0xbb) = idx;
         *(int32_t*)(A+0xab) = 2;
         *O1 = 0x7777; *O2 = 0x7777;   /* sentinel */
-        int32_t r = fn_017218(a0, 5, p1, p2);
+        int32_t r = fn_017218(A, 5, O1, O2);
         check(*(uint32_t*)(A+0x17) == 2, "017218 a0->0x17 = 2");
         check(*O1 == expect[idx][0], "017218 *ptr1 sign");
         check(*O2 == expect[idx][1], "017218 *ptr2 sign");
@@ -7044,15 +7044,159 @@ static void test_fn_017218(void) {
     *(uint32_t*)(A+0xbb) = 5;
     *(int32_t*)(A+0xab) = 2;
     *O1 = 0xAAAA; *O2 = 0xBBBB;
-    int32_t r = fn_017218(a0, 5, p1, p2);
+    int32_t r = fn_017218(A, 5, O1, O2);
     check(*O1 == 0xAAAA && *O2 == 0xBBBB, "017218 idx>3: no write");
     check(r == 0, "017218 idx>3 ret 0");
     /* negative counter: ret 1, no decrement */
     *(uint32_t*)(A+0xbb) = 0;
     *(int32_t*)(A+0xab) = -1;
-    r = fn_017218(a0, 5, p1, p2);
+    r = fn_017218(A, 5, O1, O2);
     check(r == 1, "017218 ret 1 (cnt<0)");
     check(*(int32_t*)(A+0xab) == -1, "017218 cnt unchanged when <0");
+}
+
+/* ---- 0x017f13: the behaviour-0x00 AI handler ---- */
+static uint8_t *h13_alloc(int n)
+{
+    uint32_t off = heap_malloc((uint32_t)n);
+    uint8_t *p = (uint8_t *)((uint8_t *)g_heap_base + off);
+    for (int i = 0; i < n; i++) p[i] = 0;
+    return p;
+}
+
+static void test_fn_017f13(void)
+{
+    printf("fn_017f13 (0x017f13, behaviour-0x00 entity AI handler)\n");
+    heap_arena_init();
+    (void)heap_malloc(0x2000);                 /* keep the bump allocator away from the floor */
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);            /* the player entity */
+    uint8_t *e  = h13_alloc(0x14f);            /* the thinker */
+    uint8_t *room = h13_alloc(0x40);           /* the current room node (clamp band) */
+    g_dat_53c7c  = pl;
+    g_dat_63354  = room;
+    g_dat_639dc  = 0;                          /* camera offsets: screen == world here */
+    g_dat_639e0  = 0;
+    *(int32_t *)(room + 0x12) = 60;            /* room y lo */
+    *(int32_t *)(room + 0x16) = 200;           /* room y hi */
+
+    const int32_t TY = 1;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;   /* config field k = entry + 0x10 + k */
+    *(int32_t *)(cfg + 0x10) = 0;              /* DAT_00053eac[...] : the x/y gate runs */
+    *(int32_t *)(cfg + 0x14) = 20;             /* DAT_00053eb0[...] : >>1 into 0x97/0xab */
+    *(int32_t *)(cfg + 0x18) = 100;            /* DAT_00053eb4[...] */
+    *(int32_t *)(cfg + 0x80) = 3;              /* DAT_00053f1c[...] : float index (DS 0x51d5c[3] = 1.0) */
+    *(int32_t *)(cfg + 0x84) = 40;             /* DAT_00053f20[...] */
+    g_dat_63370 = 1;
+
+    pl[0] = 1; pl[0x17] = 0x15;                /* player "busy" state: the fn_015a1f probe is skipped */
+    *(int32_t *)(pl + 0x01) = 100;             /* player screen x */
+    *(int32_t *)(pl + 0x09) = 50;              /* player screen y */
+
+    e[0] = 1;                                  /* only type-1 entities think here */
+    *(int32_t *)(e + 0x0d) = TY;
+    *(int32_t *)(e + 0x01) = 105;
+    *(int32_t *)(e + 0x09) = 52;
+    float f0 = 0.25f;
+    memcpy(e + 0x63, &f0, 4);
+
+    /* (A) self == the player: immediate return, the float is untouched */
+    fn_017f13(pl);
+    float chk; memcpy(&chk, pl + 0x63, 4);
+    check(chk == 0.0f, "017f13 self==player returns at once");
+
+    /* (B) state 3 (not 1/2): the float bookkeeping runs, the state machine does not */
+    e[0x17] = 3; e[0x1f] = 0x55;
+    fn_017f13(e);
+    memcpy(&chk, e + 0x63, 4);
+    check(chk == 1.25f, "017f13 speed float 0.25 -> 1.0 + 0.25");
+    check(e[0x1f] == 0x55, "017f13 state 3 skips the state machine");
+
+    /* (C) entity byte 0 must be 1 */
+    e[0] = 0; e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0xab) == 0, "017f13 entity[0] != 1 returns before the switch");
+    e[0] = 1;
+
+    /* (D) case 0x02 -> fn_016a60 hits the room-band guard: delta stays 0, action 2 completes */
+    e[0x17] = 2; e[0x1f] = 0x02;
+    *(int32_t *)(e + 0x09) = 50;               /* F = 50 > X = e[0xc3] = 20, F-1 = 49 <= room lo 60 */
+    *(int32_t *)(e + 0xc3) = 20;
+    *(int32_t *)(e + 0xab) = 3;
+    e[0x1b] = 9;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0xaf) == 2, "017f13 case 2 -> action 2 latched");
+    check(*(int32_t *)(e + 0x1f) == 0, "017f13 case 2 -> state 0");
+    check(*(int32_t *)(e + 0x17) == 2, "017f13 fn_016a60 stamps state 2");
+    check(*(int32_t *)(e + 0x09) == 50, "017f13 zero delta leaves Y unmoved");
+    check(e[0x1b] == 1, "017f13 tail facing: x(105) > player x(100) -> 1");
+
+    /* facing: x > player x sets 0x1b = 1 (tail, 0x018e51-0x018e61) */
+    e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 5; *(int32_t *)(e + 0x01) = 130; e[0x1b] = 0;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x1b) == 1, "017f13 facing 1 when right of the player");
+    check(*(int32_t *)(e + 0xab) == 4, "017f13 case 0xc counts the timer down");
+    *(int32_t *)(e + 0x01) = 70; e[0x1b] = 1;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x1b) == 0, "017f13 facing 0 when left of the player");
+
+    /* (E) case 0x0c reaching zero leaves the entity and re-arms action 0x0a */
+    e[0x17] = 2;
+    *(int32_t *)(e + 0xab) = 0; e[0x1f] = 0x0c;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x17) == 0x32, "017f13 case 0xc timeout -> state 0x32");
+    check(*(int32_t *)(e + 0xaf) == 0x0a, "017f13 case 0xc timeout -> action 0x0a");
+    check(*(int32_t *)(e + 0x1f) == 0, "017f13 case 0xc timeout -> state 0");
+
+    /* (F) case 0x0a picks up the scripted-action entry */
+    e[0x17] = 2; e[0x1f] = 0x0a; *(int32_t *)(e + 0x10f) = 1; *(int32_t *)(e + 0x11b) = 0;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x1f) == 0x0b, "017f13 case 0xa(10f==1) -> state 0x0b");
+    check(*(int32_t *)(e + 0x11b) == 1, "017f13 case 0xa resets the script step to 1");
+    check(*(int32_t *)(e + 0xab) == 40, "017f13 case 0xa timer = DAT_00053f20[...]");
+    e[0x1f] = 0x0a; *(int32_t *)(e + 0x10f) = 2; *(int32_t *)(e + 0xab) = 0;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0xab) == 20, "017f13 case 0xa(10f==2) -> timer = DAT_00053f20 >> 1");
+
+    /* (G) case 0x0b advances the script when the player is close enough */
+    e[0x17] = 2;
+    *(int32_t *)(e + 0xab) = -1;
+    *(int32_t *)(e + 0x113) = 0;               /* script row = DAT_00053eb8 + type*0x88 */
+    *(int32_t *)(e + 0x11b) = 0;
+    /* With entity[0x11b] == 0 the reach cell and the action cell are the SAME byte
+     * (DAT_00053eb8 + type*0x88 + entity[0x113]*10): 7 must both exceed the x distance (5)
+     * and be a non-zero state to run. */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;
+    *(int32_t *)(e + 0x01) = 105; *(int32_t *)(e + 0x09) = 52;
+    e[0x1f] = 0x0b;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x17) == 7, "017f13 case 0xb runs the scripted state");
+    check(*(int32_t *)(e + 0x11b) == 1, "017f13 case 0xb steps the script cursor");
+
+    /* (H) case 0x0b with the player out of reach falls back on the PRNG / action 0x0a */
+    *(int32_t *)(e + 0x09) = 150;              /* |150-50| = 100 >= 6 */
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x1f) == 0, "017f13 case 0xb out of reach -> state 0");
+    check(*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4,
+          "017f13 case 0xb out of reach -> action 4 or 0x0a");
+
+    /* (I) case 0x00 with entity[0x8b] == 0 always arms it and stops */
+    e[0x17] = 2; e[0x1f] = 0; *(int32_t *)(e + 0x8b) = 0; *(int32_t *)(e + 0x01) = 105;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x8b) == 1, "017f13 case 0 arms entity[0x8b]");
+
+    /* (J) the player-state gate lets fn_015a1f run when the player is idle */
+    pl[0x17] = 0;
+    e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 3; *(int32_t *)(e + 0x10f) = 0;
+    fn_017f13(e);
+    check(1, "017f13 the fn_015a1f probe runs on an idle player without faulting");
+
+    /* (K) unknown states (0x0d..0x13, >0x16) do nothing but the tail */
+    e[0x1f] = 0x11; *(int32_t *)(e + 0xab) = 0;
+    fn_017f13(e);
+    check(*(int32_t *)(e + 0x1f) == 0x11, "017f13 default state leaves the state alone");
 }
 
 static void test_fn_013aad(void) {
@@ -12157,6 +12301,7 @@ int main(void) {
     test_fn_03d67c();
     test_fn_03d606();
     test_fn_017218();
+    test_fn_017f13();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

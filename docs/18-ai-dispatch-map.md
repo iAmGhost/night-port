@@ -114,3 +114,35 @@ machine around them (thresholds, extra PRNG draws, which fields get stamped).
 
 Consequence for the campaign: port 0x017f13 first and build the shared skeleton once; the siblings become
 diffs of the same 400-line pattern rather than fresh 1000-instruction ports.
+
+## Port progress (updated 2026-07-13)
+
+Ported handlers (3 of 18): **0x017f13** (behaviour 0x00), **0x018e88** (behaviour 0x01),
+**0x019e48** (behaviour 0x02). The family's shared skeleton is now in `port/src/f/f.c` three times;
+the fastest route to the rest is the pseudo-level diff against the previous handler (see
+`scratch/`-free recipe below), not the instruction diff.
+
+Recipe that worked for 0x018e88 and 0x019e48 (~10x cheaper than reading the whole function):
+1. `python3` normalized diff of `analysis/pseudo/NNN_FUN_000XXXX.c` against the previously ported
+   handler's pseudo (strip the `piStack_84 = (int *)0x...` noise lines and absolute labels first);
+   the ratio is ~0.87 and the surviving hunks are the real differences.
+2. Verify each hunk against `analysis/disasm/FUN_000XXXX.txt` (immediates, divisors, table
+   offsets, and the ORDER of the clamp vs the distance test).
+3. Where the previous handler's C body already matches, generate the new function from its text
+   with targeted replacements (see the 0x019e48 generation), then hand-check the hunks.
+
+Shared facts confirmed for all three handlers:
+- Register/stack ABI: EAX = entity, EDX = rounded speed, EBX/ECX = player screen x/y,
+  `[EBP+0x10]`/`[EBP+0x14]` = addresses of the handler's own two delta locals (mv_a / mv_b).
+- Per-type record base DS 0x53e9c, stride 0x88: +0x04 and +0x80 = speed-float indices into the
+  table at DS 0x51d5c (0.5, 0.75, 0.88, 1.0, 1.25, ...), +0x14/+0x18 = action timers,
+  +0x84 = scripted-action timer, +0x1c..+0x7f = the 100-byte script row (DAT_00053eb8 view).
+- Jitter table DS 0x51c9c, stride 0x10 per slot: (x lo, y lo, x hi, y hi) as signed offsets around
+  the player for slots 0..5 (x spans 15/15/30/30/30/30, y span 10) and absolute screen rectangles
+  for slots 6..9; no span is ever zero, so the `prng % span` idiv cannot fault.
+- Tail is identical: mv_a -> fn_01545e, mv_b -> fn_01586b, entity[0x1b] = facing vs the player.
+
+Remaining handlers (15): 0x01aec8, 0x01bea8, 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
+0x01df8b, 0x01f064, 0x020170, 0x02119c, 0x0221b8, 0x02319c (arg 2), 0x024bf9, 0x0265ac, 0x027bec,
+0x029709, 0x02adf5, 0x02c838, 0x02e2cc, 0x02fe1e, 0x03272f. Then the dispatcher 0x031a8e (1153 B)
+and 0x0322f5 (133 B).

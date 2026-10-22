@@ -2491,7 +2491,7 @@ uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n) {
 #define NIGHT_HEAP_ARENA_MAX (32u << 20)  /* physical arena: 32 MiB (raised by heap_arena_cap_set) */
 static uint8_t s_heap_arena[NIGHT_HEAP_ARENA_MAX];
 static uint32_t s_arena_cap = NIGHT_HEAP_ARENA;
-void     heap_arena_cap_set(uint32_t cap) { s_arena_cap = (cap < 4096) ? 4096 : (cap > NIGHT_HEAP_ARENA_MAX ? NIGHT_HEAP_ARENA_MAX : cap); }
+void     heap_arena_cap_set(uint32_t cap) { s_arena_cap = (cap < 0x40) ? 0x40u : (cap > NIGHT_HEAP_ARENA_MAX ? NIGHT_HEAP_ARENA_MAX : cap); }
 uint32_t heap_arena_cap(void) { return s_arena_cap; }
 
 uintptr_t g_heap_base      = 0;
@@ -2811,9 +2811,18 @@ uint32_t heap_insert_init(uint32_t region) {
 /* Create one usable region (the original's creation pattern). Replaces the
  * DPMI acquirer FUN_00043071 (DPMI -> arena) for the port. */
 uint32_t heap_acquire_region(uint32_t size) {
-    uint32_t data_area = (size + 3) & 0xFFFFFFFCu;        /* round up to 4 */
-    if (data_area < 0xc) data_area = 0xc;
-    uint32_t total  = 0x2c + data_area;                   /* header + data area */
+    /* The region's data area becomes block0 (B_SIZE = total - 0x2c), and heap_alloc (0x042ada)
+     * demands B_SIZE >= its own rounded request  eax = ((size+7) & ~0xff) | ((size+7) & 0xfc)
+     * (a round DOWN of the low byte to 4, i.e. floor4(size+7)). Sizing the area as round4(size) --
+     * as this port used to -- left the new region 4..7 bytes too small for its own request, so every
+     * allocation that needed a fresh region failed (visible once real CD data asked for a 15,776-byte
+     * sprite payload). The DPMI original never hits this: FUN_00043071 grows a whole DPMI block, so a
+     * fresh region is far larger than any single request. */
+    uint32_t t = size + 7;                                  /* 0x42ae4 ADD,7 */
+    uint32_t need = (t & 0xFFFFFF00u) | ((t & 0xFFu) & 0xFCu); /* 0x42ae9 AND AL,0xfc */
+    if (need < 0xc) need = 0xc;                             /* 0x42aeb-42af7 max(eax,0xc) */
+    uint32_t data_area = (need + 3) & 0xFFFFFFFCu;          /* round up to 4 */
+    uint32_t total  = 0x2c + data_area;                     /* header + data area */
     uint32_t region = heap_arena_alloc(total);            /* arena slot */
     if (region == 0) return 0;                            /* no room */
     hw(region)[0] = total;                                /* preset total_size */

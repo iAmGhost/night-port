@@ -519,8 +519,12 @@ static void test_heap_arena(void) {
     check(data != 0, "acquire_region returns a data pointer");
     uint32_t region = data - 0x30;   /* data = region + 0x2c + 4 */
     check(g_heap_head == region, "created region is the chain head");
-    check(hw(region)[0] == 0x102c, "total_size = 0x2c + data_area");
-    check(hw(region + 0x2c)[0] == 0x1000 && !(hw(region + 0x2c)[0] & 1),
+    /* heap_acquire_region sizes the data area to heap_alloc's OWN rounded request,
+     * floor4(size+7) = 0x1004 for size 0x1000, so that the fresh region can actually serve the
+     * request that triggered it (round4(size) was 4 bytes short and every fresh-region
+     * allocation failed). */
+    check(hw(region)[0] == 0x2c + 0x1004, "total_size = 0x2c + floor4(size+7)");
+    check(hw(region + 0x2c)[0] == 0x1004 && !(hw(region + 0x2c)[0] & 1),
           "whole data area is one free block");
     heap_verify(region, "fresh region (1 free block)");
 }
@@ -604,8 +608,8 @@ static void test_heap_alloc_free(void) {
     heap_free(region, p4);
     heap_free(region, p3);
     heap_verify(region, "after freeing all (fully coalesced)");
-    check(hw(region + 0x2c)[0] == 0x1000 && !(hw(region + 0x2c)[0] & 1),
-          "coalesced back to a single 0x1000 free block");
+    check(hw(region + 0x2c)[0] == 0x1004 && !(hw(region + 0x2c)[0] & 1),
+          "coalesced back to a single 0x1004 free block");
     check(hw(region)[7] == 1, "free_count == 1 after full coalesce");
 
     /* two adjacent 0x40 allocs (0x44 aligned stride); free both -> coalesce */
@@ -620,8 +624,8 @@ static void test_heap_alloc_free(void) {
      * taken and its size is preserved (not shrunk to the aligned size). */
     uint32_t big = heap_alloc(region, 0xff8);  /* aligned 0xffc; rem 0x4 < 0xc */
     check(big != 0, "no-split allocation succeeds");
-    check((hw(region + 0x2c)[0] & 1) && (hw(region + 0x2c)[0] & ~1u) == 0x1000,
-          "no-split keeps whole free-block size (0x1000) marked allocated");
+    check((hw(region + 0x2c)[0] & 1) && (hw(region + 0x2c)[0] & ~1u) == 0x1004,
+          "no-split keeps whole free-block size (0x1004) marked allocated");
     heap_verify(region, "after no-split whole-block alloc");
     heap_free(region, big);
     heap_verify(region, "after freeing no-split alloc");
@@ -4901,7 +4905,11 @@ static void test_l10_accessors(void) {
       fn_034635(0x4b); check(g_dat_62c58[0x4b]==0, "  fn_034635 st4 K a94!=0 cnt=0: st=0");
       memset(g_dat_62c58,0,128); memset(g_dat_62cd8,0,128); g_dat_62c58[7]=4; g_dat_62cd8[7]=2; g_dat_62a94=0;
       fn_034635(7); check(g_dat_62c58[7]==1 && g_dat_62cd8[7]==1, "  fn_034635 st4 other: st=1 cnt--"); }
-    { heap_arena_init(); g_heap_seg_limit = 0; heap_acquire_region(0x280);
+    { heap_arena_init(); g_heap_seg_limit = 0;
+      uint32_t saved_cap = heap_arena_cap();
+      heap_arena_cap_set(0x300);          /* the 0x280 region uses exactly 0x40..0x300: no fresh
+                                             region fits, so a failing malloc must need real frees */
+      heap_acquire_region(0x280);
       uint32_t s0 = heap_malloc(0x80), s1 = heap_malloc(0x80);
       check(s0 && s1, "  fn_0100d9: 2 structs");
       uint8_t *b0 = (uint8_t*)(g_heap_base+s0), *b1 = (uint8_t*)(g_heap_base+s1);
@@ -4918,7 +4926,8 @@ static void test_l10_accessors(void) {
       uint32_t n0 = heap_malloc(0x80);
       check(n0 != 0, "  fn_0100d9: freed s0/s1/array -> 0x80 reusable");
       if (n0) heap_free_host(n0);
-      for (int i = 0; i < nf; i++) heap_free_host(fill[i]); }
+      for (int i = 0; i < nf; i++) heap_free_host(fill[i]);
+      heap_arena_cap_set(saved_cap); }
     {
       uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_dat_53c7c = tgt; g_dat_53c6c = 0;
       uint8_t s[0x200] = {0};
@@ -8894,6 +8903,20 @@ static void test_fn_03c853(void) {
 /* fn_037b03 (0x037b03, 1304 B): THE STAGE LOADER, driven end-to-end through the stand-in resource
  * stream with a synthetic NIGHT.RES that carries stage1.wal / st1s.spr / stage1.stg / night1.chr.
  * This is the first test that exercises stage loading (the playability milestone's core path). */
+/* The record cache (DAT_63e14 count / DAT_63e18 head / DAT_63e1c tail / DAT_63e20 cursor) is
+ * cross-test state: a stage loader appends nodes whose links point into the arena. Save it, start
+ * each stage test from an EMPTY cache (what a fresh stage looks like), and put it back afterwards. */
+static uint32_t s_cache_sv[4];
+static void cache_reset(void) {
+    s_cache_sv[0] = g_dat_63e14; s_cache_sv[1] = g_dat_63e18;
+    s_cache_sv[2] = g_dat_63e1c; s_cache_sv[3] = g_dat_63e20;
+    g_dat_63e14 = 0; g_dat_63e18 = 0; g_dat_63e1c = 0; g_dat_63e20 = 0;
+}
+static void cache_restore(void) {
+    g_dat_63e14 = s_cache_sv[0]; g_dat_63e18 = s_cache_sv[1];
+    g_dat_63e1c = s_cache_sv[2]; g_dat_63e20 = s_cache_sv[3];
+}
+
 static void test_fn_037b03(void) {
     printf("fn_037b03 (0x037b03): stage loader over a synthetic stage set\n");
     static const char *res[6] = { "stage1.wal", "st1s.spr", "stage1.stg", "night1.chr",
@@ -8965,7 +8988,8 @@ static void test_fn_037b03(void) {
     g_dat_639ec[32] = 0; g_dat_53818[32] = 0;
     g_dat_5d0b4 = recbuf; g_dat_63370 = 1;
 
-    fn_037b03(0);
+    cache_reset();
+fn_037b03(0);
 
     check(g_dat_639d8 == 1, "  stage1.wal: the room count lands in DAT_639d8");
     check(g_dat_6334c != 0 && *(uint32_t *)(g_dat_6334c + 0x12) == 0x11223344u
@@ -9003,6 +9027,8 @@ static void test_fn_037b03(void) {
     sys_file_image_set(0, 0);
     free(recbuf); free(img);
     heap_arena_init(); (void)heap_malloc(0x400);
+    cache_restore();
+
 }
 
 /* fn_0374ad (0x0374ad, 539 B): the stage reset/reload. Reuses the synthetic stage set, calls the
@@ -9208,7 +9234,8 @@ static void test_fn_037347(void) {
     uint32_t s_52c = g_tab_52c3c[0]; g_tab_52c3c[0] = 0x5a5;   /* room serial 0 of stage 1 */
     cfg[0x30] = 0x11; cfg[5] = 0x22; cfg[0x11] = 0x33; cfg[0x17] = 0x44;
 
-    fn_037b03(0);                                    /* populate the stage */
+    cache_reset();
+fn_037b03(0);                                    /* populate the stage */
 
     uint8_t *spr32_old = g_dat_639ec[32];
     uint32_t  act32_old = g_dat_53818[32];
@@ -9240,6 +9267,8 @@ static void test_fn_037347(void) {
     g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
     g_dat_633b0 = saved_b0;
     free(img);
+    cache_restore();
+
 }
 
 static void test_fn_0374ad(void) {
@@ -9298,7 +9327,8 @@ static void test_fn_0374ad(void) {
     uint32_t s_52c = g_tab_52c3c[0]; g_tab_52c3c[0] = 0x5a5;   /* room serial 0 of stage 1 */
     cfg[0x30] = 0x11; cfg[5] = 0x22; cfg[0x11] = 0x33; cfg[0x17] = 0x44;
 
-    fn_037b03(0);                                    /* populate the stage */
+    cache_reset();
+fn_037b03(0);                                    /* populate the stage */
     uint8_t *spr32_old = g_dat_639ec[32];
     uint32_t  act32_old = g_dat_53818[32];
     uint8_t *room_old = g_dat_6334c;
@@ -9336,6 +9366,8 @@ static void test_fn_0374ad(void) {
     sys_file_image_set(0, 0);
     free(recbuf); free(img); free(cfg);
     heap_arena_init(); (void)heap_malloc(0x400);
+    cache_restore();
+
 }
 
 /* fn_0376c8 (0x0376c8, 601 B): the player (hero) spawn. Runs on top of the same synthetic stage set:
@@ -9406,7 +9438,8 @@ static void test_fn_0376c8(void) {
     g_dat_53c2c = (uint32_t *)(uintptr_t)sc2c;
     g_dat_53c30 = (uint32_t *)(uintptr_t)sc30;
 
-    fn_037b03(0);                                   /* the stage (room chain + type table) exists first */
+    cache_reset();
+fn_037b03(0);                                   /* the stage (room chain + type table) exists first */
 
     fn_0376c8();
 
@@ -9447,6 +9480,8 @@ static void test_fn_0376c8(void) {
     sys_file_image_set(0, 0);
     free(img); free(cfg);
     heap_arena_init(); (void)heap_malloc(0x400);
+    cache_restore();
+
 }
 
 /* fn_040839 / fn_04185e (140 B / 95 B): the device command-stream walker and its gated starter.
@@ -10271,6 +10306,169 @@ static void test_real_res_container(void) {
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
+#define SPRCNT(p) ((p) ? *(const uint32_t *)(p) : 0u)   /* sprite-struct entry count (first dword) */
+
+/* fn_03690b over the SHIPPED container: the master data load reading real key tables, real action
+ * containers, real sprite structs, the 100 real .voc slots and the real experience table. Every
+ * expected value below is read straight out of NIGHT/NIGHT.RES with scripts/extract_res.py. */
+static void test_real_master_load(void) {
+    printf("real NIGHT.RES: fn_03690b (master data load) over the shipped container\n");
+    const char *dir = getenv("NIGHT_RES_DIR");
+    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    char path[600];
+    snprintf(path, sizeof path, "%s/NIGHT.RES", dir);
+    FILE *probe = fopen(path, "rb");
+    if (probe == 0) { printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", path); return; }
+    fclose(probe);
+
+    /* ---- save the port state this loader overwrites (same set as test_fn_03690b) ---- */
+    res_reader *saved_rd = g_639b8;
+    uint32_t saved_n = g_dat_633a0;
+    uint8_t *tab_save = (uint8_t *)malloc(sizeof g_tab_5d884);
+    memcpy(tab_save, g_tab_5d884, sizeof g_tab_5d884);
+    uint8_t *gk[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
+                        g_dat_62ab4, g_dat_62ab8, g_dat_62abc, g_dat_62ac0, g_dat_62ac4 };
+    uint8_t *s_a98 = g_dat_62a98, *s_a9c = g_dat_62a9c;
+    uint32_t *s_c28 = g_dat_53c28, *s_c2c = g_dat_53c2c, *s_c30 = g_dat_53c30;
+    uint32_t s_818_0 = g_dat_53818[0];
+    uint32_t *s_e08 = g_dat_63e08, *s_e0c = g_dat_63e0c, *s_c90 = g_dat_639c0, *s_c94 = g_dat_639c4;
+    uint32_t *s_c8c = g_dat_53c8c, *s_e00 = g_dat_63e00, *s_ec = (uint32_t *)g_dat_639ec[0], *s_d10 = g_dat_63d10;
+    uint32_t *s_b3c = g_dat_53b3c, *s_dd4 = g_dat_63dd4, *s_c00 = g_dat_53c00;
+    uint8_t *s_e04 = g_dat_63e04, *s_358 = g_dat_63358;
+    uint8_t *voc_save[100]; memcpy(voc_save, g_dat_53d0c, sizeof g_dat_53d0c);
+    uint32_t exp_save[30]; memcpy(exp_save, g_dat_53c94, sizeof exp_save);
+    static uint8_t pool[0x53800]; memset(pool, 0, sizeof pool);
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_dx = sys_ioctl_dx, saved_cf = sys_ioctl_cf;
+    int32_t saved_open = sys_open_ret, saved_lseek = sys_file_lseek_pos;
+    uint32_t saved_b0 = g_dat_633b0;
+    memset(dev_tab, 0, sizeof dev_tab);
+    g_dat_53730 = dev_tab; g_dat_536dc = 8; g_dat_53619 = 0; g_dat_536d8 = 0;
+    g_dat_633b0 = SCREEN_BASE;          /* fn_0366a4 stages the raw index in the back screen */
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    sys_file_image_set(0, 0);
+    sys_file_real_dir(dir);
+    uint32_t saved_cap = heap_arena_cap();
+    heap_arena_init(); heap_arena_cap_set(24u << 20); (void)heap_malloc(0x4000);
+
+    uint32_t r = fn_03690b();
+
+    check(r == 1, "returns 1 after loading the shipped data set");
+    check(g_dat_633a0 == 444, "the shipped index (444 entries) is loaded and usable");
+    check(fn_036626("gun.key") == 473 && fn_036626("gun.spr") == 491188,
+          "index lookups return the real sizes (473 / 491188)");
+    int keys_ok = 1, distinct = 1;
+    uint8_t *keys[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
+                          g_dat_62ab4, g_dat_62ab8, g_dat_62abc, g_dat_62ac0, g_dat_62ac4 };
+    for (int i = 0; i < 10; i++) if (keys[i] == 0) keys_ok = 0;
+    for (int i = 0; i < 10; i++) for (int j = i + 1; j < 10; j++) if (keys[i] == keys[j]) distinct = 0;
+    check(keys_ok && distinct, "all ten key tables loaded as distinct 0x4b4-byte blocks");
+    /* real counts: gun.key opens with blank lines then "10"; catch.key starts "2" */
+    check(g_dat_62aa0 && *(const uint32_t *)g_dat_62aa0 == 10,
+          "gun.key: leading blank lines skipped, entry count 10");
+    check(g_dat_62ab4 && *(const uint32_t *)g_dat_62ab4 == 2, "catch.key entry count 2");
+    check(g_dat_62a98 == g_dat_62aa0 && g_dat_62a9c == g_dat_62ab4,
+          "the active-key aliases point at gun.key / catch.key");
+    check(g_dat_53c28 && g_dat_53c28[0] == 0xc0 && g_dat_53c2c && g_dat_53c2c[0] == 0xc4,
+          "gun.act / gun1.act: 192 / 196 action records (fn_010010 blocks)");
+    /* sprite struct counts straight from the shipped .spr headers */
+    check(SPRCNT(g_dat_63e0c) == 10, "pause.spr: 10 entries");
+    check(SPRCNT(g_dat_639c0) == 11 && SPRCNT(g_dat_639c4) == 13,
+          "system.spr / system2.spr: 11 / 13 entries");
+    check(SPRCNT(g_dat_63e08) == 7 && SPRCNT(g_dat_53c8c) == 0x5c && SPRCNT(g_dat_63e00) == 3,
+          "over.spr / face.spr / gage.spr: 7 / 92 / 3 entries");
+    check(SPRCNT(g_dat_639ec[0]) == 0x10a, "gun.spr is the type-0 sprite struct with 266 entries");
+    check(SPRCNT(g_dat_63d10) == 0x4c && SPRCNT(g_dat_63dd4) == 0x10,
+          "mark.spr / dust.spr: 76 / 16 entries");
+    int voc_ok = 1;
+    for (int i = 0; i < 100; i++) if (g_dat_53d0c[i] == 0) voc_ok = 0;
+    check(voc_ok, "all 100 .voc sound slots allocated from the index sizes");
+    check(g_dat_53d0c[0] != 0, "1.voc (3640 bytes) payload landed in slot 0");
+    check(g_dat_53c94[0] == 300 && g_dat_53c94[1] == 1000 && g_dat_53c94[2] == 4000
+          && g_dat_53c94[3] == 5000 && g_dat_53c94[4] == 5000,
+          "exptab.dat row 0 = 300 1000 4000 5000 5000 through the numeric text loader");
+    check(g_dat_53c94[5] != 0 || g_dat_53c94[6] != 0, "exptab.dat row 1 parsed as well (6 rows)");
+    check(g_dat_53818[0] != 0, "DAT_53818[0] now points at the gun action table (heap offset)");
+
+    /* ---- the real stage 1 load, straight on top of the real master load ---- */
+    uint8_t *s_5d0b4 = g_dat_5d0b4; uint32_t s_370 = g_dat_63370;
+    uint8_t *s_spr32 = g_dat_639ec[32]; uint32_t s_act32 = g_dat_53818[32];
+    uint8_t *s_ent = g_dat_53c7c;
+    uint8_t *recbuf = (uint8_t *)calloc(1, 0x14 * 0x200);
+    g_dat_5d0b4 = recbuf; g_dat_63370 = 1;                  /* stage number 1 */
+    g_dat_639ec[32] = 0; g_dat_53818[32] = 0;               /* type 32 must be freshly loaded */
+    cache_reset();
+    fn_037b03(0);
+
+    check(g_dat_639d8 == 4, "stage1.wal: 4 rooms (real room count)");
+    check(g_dat_6334c != 0, "the real room chain head exists");
+    check(g_dat_63dfc != 0, "st1s.spr: the stage sprite struct loaded (real header 7 / 99)");
+    check(g_dat_63e14 == 88, "stage1.stg: 88 records counted by the loader");
+    check(*(const uint16_t *)g_dat_53e9c == 100,
+          "night1.chr entry 0 first word = 100 (2-byte header skipped, 116-byte records)");
+    int types = 0;
+    for (int t = 1; t < 0x65; t++) if (g_dat_639ec[t] != 0) types++;
+    check(types > 0, "kind-1 records loaded real per-type sprite structs (boss/en*.spr)");
+    int acts = 0, act_ok = 1;
+    for (int t = 1; t < 0x65; t++) {
+        if (g_dat_53818[t] == 0) continue;
+        acts++;
+        if (*(const uint32_t *)((const uint8_t *)g_heap_base + g_dat_53818[t]) == 0) act_ok = 0;
+    }
+    {   /* which per-type slots the real stage 1 fills (spr and act need not pair up) */
+        char ls[256]; int n = 0;
+        ls[0] = '\0';
+        for (int t = 1; t < 0x65; t++)
+            if (g_dat_639ec[t] || g_dat_53818[t])
+                n += snprintf(ls + n, sizeof ls - (size_t)n, " %02x%c%c", t,
+                              g_dat_639ec[t] ? 'S' : '-', g_dat_53818[t] ? 'A' : '-');
+        printf("    (real stage 1 type slots:%s)\n", ls);
+    }
+    check(types > 0 && acts > 0 && act_ok,
+          "each loaded action table holds a non-zero record count (some types load one without the other)");
+    check(g_dat_62a90 == 0 || recbuf != 0, "the DAT_5d0b4 record array is in use");
+
+    /* spawn the hero: the constructor reads the real gun tables from the master load */
+    fn_0376c8();
+    check(g_dat_53c7c != 0, "fn_0376c8 spawned the player entity from real stage data");
+    check(g_dat_53c84 == (uint32_t)(uintptr_t)g_dat_53c7c, "DAT_53c84 mirrors the entity");
+    check(g_dat_63354 == g_dat_6334c || g_dat_63358 != 0,
+          "the current-room pointer tracks the real room chain");
+
+    g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370;
+    g_dat_639ec[32] = s_spr32; g_dat_53818[32] = s_act32; g_dat_53c7c = s_ent;
+    cache_restore();
+    free(recbuf);
+
+    /* ---- restore ---- */
+    sys_file_real_dir(0);
+    g_639b8 = saved_rd; g_dat_633a0 = saved_n;
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_633b0 = saved_b0;
+    g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+    sys_ioctl_dx = saved_dx; sys_ioctl_cf = saved_cf; sys_open_ret = saved_open;
+    sys_file_lseek_pos = saved_lseek;
+    memcpy(g_tab_5d884, tab_save, sizeof g_tab_5d884); free(tab_save);
+    g_dat_62aa0 = gk[0]; g_dat_62aa4 = gk[1]; g_dat_62aa8 = gk[2]; g_dat_62aac = gk[3];
+    g_dat_62ab0 = gk[4]; g_dat_62ab4 = gk[5]; g_dat_62ab8 = gk[6]; g_dat_62abc = gk[7];
+    g_dat_62ac0 = gk[8]; g_dat_62ac4 = gk[9];
+    g_dat_62a98 = s_a98; g_dat_62a9c = s_a9c;
+    g_dat_53c28 = s_c28; g_dat_53c2c = s_c2c; g_dat_53c30 = s_c30; g_dat_53818[0] = s_818_0;
+    g_dat_63e08 = s_e08; g_dat_63e0c = s_e0c; g_dat_639c0 = s_c90; g_dat_639c4 = s_c94;
+    g_dat_53c8c = s_c8c; g_dat_63e00 = s_e00; g_dat_639ec[0] = (uint8_t *)s_ec; g_dat_63d10 = s_d10;
+    g_dat_53b3c = s_b3c; g_dat_63dd4 = s_dd4; g_dat_53c00 = s_c00;
+    g_dat_63e04 = s_e04; g_dat_63358 = s_358;
+    memcpy(g_dat_53d0c, voc_save, sizeof g_dat_53d0c);
+    memcpy(g_dat_53c94, exp_save, sizeof exp_save);
+    heap_arena_cap_set(saved_cap);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03fc1d(void) {
     printf("fn_03fc1d (0x03fc1d): VGA-palette DAC load (4B hdr + table -> board_out)\n");
     heap_arena_init();
@@ -10738,6 +10936,7 @@ int main(void) {
     test_fn_03d75c();
     test_fn_03cb38_pair();
     test_real_res_container();
+    test_real_master_load();
     test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();

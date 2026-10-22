@@ -79,3 +79,25 @@ Notes for the ports:
   session; the disassembly alone is ~900-1700 instructions each.
 * Once at least one handler per needed behaviour exists, `0x031a8e` itself can be ported (it also
   unblocks `0x0322f5`, 133 B).
+
+## Recon pass: 0x017f13 (behaviour 0x00) -- ready to port
+
+`scratch/fnskel.py 17f13 0f64` (condensed skeleton; keep the script for the other 17 handlers).
+
+* 3940 B, **978 instructions**, **55 calls**, and **every callee is already ported** -- confirmed
+  against the STATUS `[x]` rows: `fn_01519f`/`fn_0151d5` (entity get-x / get-y), `fn_041f76` (abs32),
+  `fn_041f7e`, `fn_041e9f` (PRNG), `fn_015a1f`, and the twelve action routines it dispatches to:
+  `0x016959, 0x016a60, 0x016b8f, 0x016fec, 0x017218, 0x01730b, 0x0174a2, 0x017530, 0x017637, 0x01776f,
+  0x017927, 0x017ca6`. So this handler is a pure composition of ported pieces -- no new leaves needed.
+* Globals touched: only **DAT_00053c7c** (the player entity, 11 reads) and **DAT_00063354** (the current
+  room node, 8 reads) -- everything else is entity-field access.
+* Hottest entity fields: `+0x1f` x33, `+0xaf` x24, `+0xc3` x17, `+0xd` x13 (type), `+0x17` x13 (state),
+  `+0xbf` x12, `+0x8b` x10, `+0xab` x8, `+0xc7`/`+0xcb`, `+0x113`/`+0x11b`, `+0xcf`; the type-config
+  table is reached as `DAT_53eac + [e+0xd]*0x88` (fields `+0x3eac..+0x3f20` relative to the entity base
+  register in the listing, i.e. the 0x88-stride record), and another table at `+0x1c9c/+0x1d5c`.
+* Shape: a state machine over `[e+0x17]` that loads four register args (EAX/EDX/EBX/ECX) from stack
+  locals `[EBP-0x54..-0x28]` before each action-routine call (same 4-arg ABI as `fn_016b8f`, which also
+  returns two `int32_t *` out params at `[EBP+0x10]`/`[EBP+0x14]` -- re-check that per callee).
+* Test angle that worked for the sibling handlers: drive one entity + the player (`DAT_53c7c`) and the
+  current room (`DAT_63354`), pin the PRNG, then step the handler and assert the entity fields above
+  rather than the screen.

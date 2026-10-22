@@ -908,6 +908,13 @@ extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment blo
 #define g_tab_51c24   ((const uint32_t *)g_blk_51c24) /* DS 0x51c24: entity type -> sound-slot index */
 
 void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
+void sys_key_script_clear(void);   /* reset the scripted key timeline + tick counter */
+void sys_key_script_add(uint32_t tick, uint8_t *slot, int value); /* set *slot on the Nth sys_key_spin() */
+void sys_key_spin(void);           /* the port's stand-in for a keyboard busy-wait: SDL pumps input, tests run the script */
+extern uint8_t g_dat_63eb2;        /* DAT_00063eb2: key byte (the "any key" set of the help/title screens) */
+extern uint8_t g_dat_63ebe;        /* DAT_00063ebe: key byte (same set) */
+
+void fn_038cde(void);   /* 0x038cde: THE HELP / INSTRUCTIONS SCREEN -- pages help%d.pcx (10..0x23) with DAT_63ed3/63ed5, three animated palette bands every 3rd frame, fades in/out with 50 DAC frames. */
 void fn_03a70e(void);   /* 0x03a70e: THE PICTURE / CG SLIDE-SHOW DRIVER -- plays na<stage>%04d.pcx one picture per key press, count from DAT_52f08[stage], then wipes with the progressive reveal and restores the tick counters + keyboard pump. */
 extern uint32_t g_dat_52f08[0x40];   /* DAT_00052f08[]: picture count per stage */
 extern uint8_t *g_dat_53dd8;        /* DAT_00053dd8: the slide-show command cursor */

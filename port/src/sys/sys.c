@@ -13,9 +13,16 @@
 static uint8_t port_val[PORT_MAX];
 /* write history for 0x3C9 (board data port) — lets tests replay the
  * OUTSB stream the original hardware would have seen */
-#define HIST_MAX 0x10000   /* grown: a multi-frame VGA blit (0x3C9 OUTSB, 0x300/frame) exceeds 256 */
-static uint8_t hist[HIST_MAX];
+#define HIST_MAX 0x40000   /* grown: a whole interactive screen (fade-in + page loads + fade-out, ~80 KB of 0x3C9 bytes) must fit without saturating */
+/* Heap-allocated on purpose: a 256 KB BSS array shifts the image layout and collides with the
+ * fixed-address arena mapping the real-data tests use (SIGBUS inside the arena). */
+static uint8_t *hist;
 static int hist_n;
+
+static uint8_t *hist_buf(void) {
+    if (!hist) hist = (uint8_t *)calloc(1, HIST_MAX);
+    return hist;
+}
 
 void sys_ports_reset(void) {
     memset(port_val, 0, sizeof port_val);
@@ -23,16 +30,18 @@ void sys_ports_reset(void) {
 }
 
 int sys_hist(void *buf, int max) {            /* returns history length */
+    uint8_t *hb = hist_buf();
     if (hist_n > max) hist_n = max;
-    memcpy(buf, hist, (size_t)hist_n);
+    if (hb) memcpy(buf, hb, (size_t)hist_n);
     return hist_n;
 }
 
 void sys_outb(uint16_t port, uint8_t v) {
     if (port < PORT_MAX) {
         port_val[port] = v;
-        if (port == 0x3c9 && hist_n < HIST_MAX)
-            hist[hist_n++] = v;
+        uint8_t *hb;
+        if (port == 0x3c9 && hist_n < HIST_MAX && (hb = hist_buf()) != 0)
+            hb[hist_n++] = v;
     }
     /* other ports: no-op (no real hardware in the port) */
 }

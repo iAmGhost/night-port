@@ -2493,6 +2493,102 @@ static int node0_len(void) {
 /* 0x038098 -- THE PACED FRAME PUMP (frame-budget-gated composite + tick accounting). */
 /* 0x0381d7 -- THE PLAYER STEP-ANIMATION LOOP (walk cycle + paced redraw per step). */
 /* 0x03a70e -- THE PICTURE / CG SLIDE-SHOW DRIVER (na<stage>%04d.pcx strip). */
+/* 0x038cde -- THE HELP / INSTRUCTIONS SCREEN (paged help%d.pcx + animated palette bands). */
+static void test_fn_038cde(void) {
+    printf("fn_038cde (0x038cde): the help / instructions screen\n");
+    uint8_t s_b2 = g_dat_63eb2, s_be = g_dat_63ebe, s_89 = g_dat_63e89, s_a4 = g_dat_63ea4;
+    uint8_t s_c1 = g_dat_63ec1, s_a5 = g_dat_63ea5, s_c0 = g_dat_63ec0;
+    uint8_t s_d3 = g_dat_63ed3, s_d5 = g_dat_63ed5;
+    uint32_t s_3a0 = g_dat_633a0;
+    res_reader *s_rd = g_639b8;
+
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;                       /* no resource index: fn_0367c9/fn_036853 no-op */
+
+    /* Three pages worth of stream, consumed one per fn_035f1b call: help10.pcx (first),
+     * help35.pcx (the up press wraps 10 -> 0x23) and help10.pcx again (the down press wraps back).
+     * Each page = [768 B palette 0xF0 -> >>2 = 0x3C][6399 runs of 10 = 63990 px][10 literals]. */
+    const uint32_t page_len = 0x300 + 6399 * 2 + 10;
+    uint8_t page_px[3] = { 0x11, 0x22, 0x11 };
+    uint32_t data_off = heap_arena_alloc(page_len * 3 + 4);
+    uint8_t *data = hb + data_off;
+    for (int pg = 0; pg < 3; pg++) {
+        uint32_t p = (uint32_t)pg * page_len;   /* relative to data (the node stores the absolute heap offset) */
+        for (uint32_t i = 0; i < 0x300; i++) data[p++] = (uint8_t)((i * 4) & 0xff);  /* ramp: >>2 -> i & 0x3f */
+        for (uint32_t k = 0; k < 6399; k++) { data[p++] = 0xCA; data[p++] = page_px[pg]; }
+        for (uint32_t i = 0; i < 10; i++) data[p++] = page_px[pg];
+    }
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *nd = hb + node_off;
+    *(uint32_t *)(nd + 0) = data_off;
+    *(uint32_t *)(nd + 4) = page_len * 3;
+    *(uint32_t *)(nd + 8) = data_off + page_len * 3;
+    nd[0xc] = 0x41;
+    g_639b8 = (res_reader *)nd;
+
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    memset(g_dat_636b8, 0, sizeof g_dat_636b8);
+    sys_ports_reset();                     /* restart the 0x3C9 (DAC data) write history */
+
+    g_dat_63eb2 = g_dat_63ebe = g_dat_63e89 = g_dat_63ea4 = 0;
+    g_dat_63ec1 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    g_dat_63ed3 = g_dat_63ed5 = 0;
+
+    /* the scripted keyboard: the hold counters start at 0, so a held key on the first
+     * iteration is what triggers a page change; the counters then latch to 0x13 */
+    sys_key_script_clear();
+    sys_key_script_add(1, &g_dat_63ed3, 1);   /* up held   -> page 10 -> 0x23, load help35.pcx */
+    sys_key_script_add(1, &g_dat_63ed5, 1);   /* down held -> page 0x23 -> 10, load help10.pcx */
+    sys_key_script_add(2, &g_dat_63ed3, 0);
+    sys_key_script_add(2, &g_dat_63ed5, 0);
+    sys_key_script_add(3, &g_dat_63ec1, 1);   /* a key press ends the loop */
+    sys_key_script_add(4, &g_dat_63ec1, 0);   /* released: the drain lets go */
+
+    fn_038cde();
+
+    uint8_t *hist = (uint8_t *)calloc(1, 0x20000);
+    int n = hist ? sys_hist(hist, 0x20000) : 0;
+
+    /* fade-in 50*768, two page loads (dl==1 -> board_out 0xff -> 765 each), one palette refresh
+     * (only frame 0 of the 3 iterations is divisible by 3), fade-out 51*768 */
+    check(n == 50 * 768 + 2 * 765 + 765 + 51 * 768,
+          "the DAC stream is exactly: 50 fade-in frames + 2 page-change palette pushes + 1 every-3rd-frame refresh + 51 fade-out frames");
+    check(g_video_ram[0] == 0x11 && g_video_ram[0xfa00 - 1] == 0x11,
+          "the last picture on screen is the third page (the down press wraps page 0x23 back to 10)");
+    check(g_dat_636b8[0] == 0 && g_dat_636b8[0x2ff] == 0x3f,
+          "every picture load reloads the 768-byte table and scales it >>2 (ramp i*4 -> i & 0x3f)");
+
+    int tail_zero = 1;
+    for (int i = n - 768; i < n; i++) if (hist[i] != 0) tail_zero = 0;
+    check(tail_zero, "the fade-out ends with the all-zero DAC frame (fn_0406f5 counts down to i == 0)");
+    /* The refresh pushes the table after fn_03d67c moved the last element of each band
+     * ([0x40,0x4f], [0x50,0x5f], [0x60,0x6f] -- stride 3) to the front of that band. */
+    /* Order of the 765-byte palette pushes: the up-page load (dl==1), then the down-page load,
+     * then the every-3rd-frame refresh. */
+    const uint32_t ld = 50 * 768;                              /* first page-load palette push */
+    const uint32_t rf = 50 * 768 + 2 * 765;                    /* the refresh push */
+    int rot_ok = hist[rf + 3*0x40 + 0] == (uint8_t)((3*0x4f + 0) & 0x3f)
+              && hist[rf + 3*0x40 + 2] == (uint8_t)((3*0x4f + 2) & 0x3f)
+              && hist[rf + 3*0x50 + 1] == (uint8_t)((3*0x5f + 1) & 0x3f)
+              && hist[rf + 3*0x60 + 2] == (uint8_t)((3*0x6f + 2) & 0x3f);
+    check(rot_ok, "the every-3rd-frame refresh rotates the three animated palette bands: each band's last element moves to the band front (fn_03d67c, stride 3)");
+    check(hist[rf + 3*0x30] == (uint8_t)((3*0x30) & 0x3f) && hist[rf + 3*0x70] == (uint8_t)((3*0x70) & 0x3f),
+          "bytes outside the three animated bands keep their scaled ramp value (only [0x40-0x4f], [0x50-0x5f], [0x60-0x6f] rotate)");
+    check(hist[ld + 3*0x40] == (uint8_t)((3*0x40) & 0x3f) && hist[ld + 764] == (uint8_t)(764 & 0x3f),
+          "each dl==1 page load pushes its freshly loaded table before the screen is redrawn from it");
+
+    check(g_dat_63ec1 == 0 && g_dat_63ed3 == 0 && g_dat_63ed5 == 0,
+          "the release drain only exits once every key byte is clear again");
+
+    free(hist);
+    sys_key_script_clear();
+    g_dat_63eb2 = s_b2; g_dat_63ebe = s_be; g_dat_63e89 = s_89; g_dat_63ea4 = s_a4;
+    g_dat_63ec1 = s_c1; g_dat_63ea5 = s_a5; g_dat_63ec0 = s_c0;
+    g_dat_63ed3 = s_d3; g_dat_63ed5 = s_d5;
+    g_dat_633a0 = s_3a0; g_639b8 = s_rd;
+}
+
 static void test_fn_03a70e(void) {
     printf("fn_03a70e (0x03a70e): the picture / CG slide-show driver\n");
     uint32_t s24 = g_dat_63e24, s28 = g_dat_63e28, s370 = g_dat_63370, sb0 = g_dat_633b0;
@@ -11925,6 +12021,7 @@ int main(void) {
     test_fn_038098();
     test_fn_0381d7();
     test_fn_03a70e();
+    test_fn_038cde();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

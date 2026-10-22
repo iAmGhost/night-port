@@ -13717,3 +13717,121 @@ void fn_03a70e(void)
     g_dat_63e28 = save28;
     g_dat_52ff8 = 1;                                               /* keyboard pump back on */
 }
+
+/* =================================================================== */
+/*  the port's input spin hook                                         */
+/* =================================================================== */
+
+/* The original waits for keyboard state by spinning on DS bytes that the keyboard
+ * IRQ handler / the keyboard pump (fn_0347e3, gated by DAT_52ff8) updates asynchronously.
+ * The port has no interrupt source during those spins, so every faithful spin calls
+ * sys_key_spin(): in the SDL build this pumps input events (and runs the pump), in tests
+ * it advances a scripted key timeline. Each call represents "one unit of waiting".
+ * Events fire when the running tick reaches .tick; add them in non-decreasing tick order. */
+typedef struct { uint32_t tick; uint8_t *slot; int value; } key_evt;
+static key_evt  g_key_evt[32];
+static int      g_key_evt_n = 0, g_key_evt_i = 0;
+static uint32_t g_key_tick = 0;
+
+void sys_key_script_clear(void) { g_key_evt_n = 0; g_key_evt_i = 0; g_key_tick = 0; }
+void sys_key_script_add(uint32_t tick, uint8_t *slot, int value)
+{
+    if (g_key_evt_n >= (int)(sizeof g_key_evt / sizeof g_key_evt[0])) return;
+    int i = g_key_evt_n++;
+    while (i > 0 && g_key_evt[i - 1].tick > tick) { g_key_evt[i] = g_key_evt[i - 1]; i--; }
+    g_key_evt[i] = (key_evt){ tick, slot, value };
+}
+void sys_key_spin(void)
+{
+    g_key_tick++;
+    while (g_key_evt_i < g_key_evt_n && g_key_evt[g_key_evt_i].tick <= g_key_tick) {
+        *g_key_evt[g_key_evt_i].slot = (uint8_t)g_key_evt[g_key_evt_i].value;
+        g_key_evt_i++;
+    }
+}
+
+uint8_t g_dat_63eb2 = 0;           /* 0x63eb2: key byte (the help/title screens' "any key" set) */
+uint8_t g_dat_63ebe = 0;           /* 0x63ebe: key byte (same set) */
+
+/* =================================================================== */
+/*  the help / instructions screen (0x038cde)                           */
+/* =================================================================== */
+
+/* fn_038cde  orig: 0x00038cde (L12, 606 B) -- THE HELP / INSTRUCTIONS SCREEN: pages through the
+ * help pictures with the up/down keys until any key is pressed, then fades out.
+ *   fn_035f1b("help10.pcx", 0)                       (0x15f3 + 0x50000 = 0x515f3 = file 0x49ff3);
+ *   fn_040660(DAT_636b8, 0x32)                       50-frame DAC fade-in from the loaded table;
+ *   while every one of DAT_63eb2 / DAT_63ebe / DAT_63e89 / DAT_63ea4 / DAT_63ec1 / DAT_63ea5 /
+ *         DAT_63ec0 is clear:
+ *     if (DAT_63ed3 (up held) && up_ctr == 0):        page = (page == 10) ? 0x23 : page-1
+ *                                                    then sprintf("help%d.pcx", page) + fn_035f1b(page, 1)
+ *                                                    and up_ctr = 1;
+ *     if (!DAT_63ed3) up_ctr = 0x13; else if (++up_ctr == 0x14) up_ctr = 0;   (repeat-rate hold: 0x13
+ *        means "not counting", 1..0x13 counts down the auto-repeat delay, 0x14 wraps to 0)
+ *     the mirrored block for DAT_63ed5 (down held): page = (page == 0x23) ? 10 : page+1, same loader,
+ *        with its own counter;
+ *     fn_035ec2() (VGA sequencer ready wait);
+ *     if (frame % 3 == 0): rotate the palette slots fn_03d67c(DAT_636b8, 0x40, 0x4f), (.,0x50,0x5f),
+ *        (.,0x60,0x6f) -- three animated palette bands (the blinking text) -- then board_out the whole
+ *        table with fn_040042(0, 0xff, DAT_636b8);
+ *     frame++;
+ *   then the release drain: spin until ALL of DAT_63ec1 / DAT_63ea4 / DAT_63ea5 / DAT_63ec0 /
+ *   DAT_63eb2 / DAT_63ebe / DAT_63e89 is clear (the drain order differs from the loop's: ec1 first,
+ *   eb2/ebe/e89 last -- kept as disassembled), and finally fn_0406f5(DAT_636b8, 0x32) fades out.
+ * Port ABI note: fn_03d67c takes its table as a heap-offset in this port, while the original passes
+ * the flat DAT_636b8 address (heap allocations in the original ARE flat addresses in the same
+ * segment), so the table pointer is passed as a round-trip offset against g_heap_base.
+ * Spins: sys_key_spin() is called once per loop iteration (the port's stand-in for the pump updating
+ * the key bytes between frames) and inside the release drain. */
+void fn_038cde(void)
+{
+    (void)canary_id(0, 0x48);                                      /* 0x38cde-e3 */
+    int32_t up_ctr = 0, down_ctr = 0, frame = 0;                   /* [EBP-4], [EBP-0x10], [EBP-8] */
+    int32_t page = 10;                                             /* [EBP-0xc] */
+    uint8_t name[16];                                              /* [EBP-0x20] */
+    uint32_t tbl_off = (uint32_t)((uintptr_t)g_dat_636b8 - (uintptr_t)g_heap_base);
+
+    fn_035f1b("help10.pcx", 0);                                    /* 0x38d12-19 */
+    fn_040660(g_dat_636b8, 0x32);                                  /* 0x38d1e-28 */
+
+    while (g_dat_63eb2 == 0 && g_dat_63ebe == 0 && g_dat_63e89 == 0 &&
+           g_dat_63ea4 == 0 && g_dat_63ec1 == 0 &&
+           g_dat_63ea5 == 0 && g_dat_63ec0 == 0) {                 /* 0x38d2d-76 */
+        sys_key_spin();                                            /* input progresses between frames */
+
+        if (g_dat_63ed3 != 0 && up_ctr == 0) {                     /* 0x38d7b-8a up key */
+            page = (page == 10) ? 0x23 : page - 1;                 /* 0x38d8c-9b wrap to the last page */
+            uint8_t *cur = (uint8_t *)&page;                       /* 0x38da1-af */
+            fn_0428f8(name, (const uint8_t *)"help%d.pcx", &cur);
+            fn_035f1b((const char *)name, 1);                      /* 0x38db7-bf */
+            up_ctr = 1;                                            /* 0x38dc4 */
+        }
+        if (g_dat_63ed3 == 0) up_ctr = 0x13;                       /* 0x38dcb-eb */
+        else if (++up_ctr == 0x14) up_ctr = 0;
+
+        if (g_dat_63ed5 != 0 && down_ctr == 0) {                   /* 0x38df0-ff down key */
+            page = (page == 0x23) ? 10 : page + 1;                 /* 0x38e01-13 */
+            uint8_t *cur = (uint8_t *)&page;                       /* 0x38e16-24 */
+            fn_0428f8(name, (const uint8_t *)"help%d.pcx", &cur);
+            fn_035f1b((const char *)name, 1);                      /* 0x38e2c-34 */
+            down_ctr = 1;                                          /* 0x38e39 */
+        }
+        if (g_dat_63ed5 == 0) down_ctr = 0x13;                     /* 0x38e40-5e */
+        else if (++down_ctr == 0x14) down_ctr = 0;
+
+        fn_00035ec2();                                             /* 0x38e65 */
+        if (frame % 3 == 0) {                                      /* 0x38e6a-7c IDIV 3 */
+            fn_03d67c(tbl_off, 0x40, 0x4f);                        /* 0x38e7e-8d */
+            fn_03d67c(tbl_off, 0x50, 0x5f);                        /* 0x38e92-a1 */
+            fn_03d67c(tbl_off, 0x60, 0x6f);                        /* 0x38ea6-b5 */
+            board_out(0, 0xff, g_dat_636b8);                       /* 0x38eba-c9 (fn_040042) */
+        }
+        frame++;                                                   /* 0x38ed1-d4 */
+    }
+
+    while (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0 ||
+           g_dat_63eb2 != 0 || g_dat_63ebe != 0 || g_dat_63e89 != 0)  /* 0x38edc-f21 release drain */
+        sys_key_spin();
+
+    fn_0406f5(g_dat_636b8, 0x32);                                  /* 0x38f25-2f 50-frame fade-out */
+}

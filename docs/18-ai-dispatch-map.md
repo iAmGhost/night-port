@@ -115,6 +115,17 @@ machine around them (thresholds, extra PRNG draws, which fields get stamped).
 Consequence for the campaign: port 0x017f13 first and build the shared skeleton once; the siblings become
 diffs of the same 400-line pattern rather than fresh 1000-instruction ports.
 
+## SHARED FEATURE: THE RECON GATE (found the hard way -- check it on every handler)
+
+Three of the if-chain handlers -- 0x029709, 0x02fe1e and 0x02319c -- open the action-dispatch region
+with a gate the first porting pass dropped: `if (entity[0x8b] == 0) { entity[0x8b] = 1; goto tail; }`
+at 0x00029b42 / 0x0003078d / 0x00023902. Effect: the first frame in that state does NOTHING except
+raise the flag -- no chooser, no walk start, no entity[0xab] bookkeeping -- then jumps to the move
+tail. 0x01bea8 and 0x0265ac genuinely have no gate (they only clear the flag), and 0x024bf9 has none
+either; that inconsistency is what made the copies look right. Before declaring a handler understood,
+grep its disassembly for `cmp dword ptr [eax + 0x8b], 0`, and do NOT preset entity[0x8b] = 1 in every
+test case -- pin both frames instead (see test_fn_029709's recon-gate checks).
+
 ## Port progress (updated 2026-07-13)
 
 Ported handlers (12 of 18 -- 0x0265ac/behaviour 0x16 added, the first if-chain member. Its shared skeleton was confirmed by an instruction-stream diff against FUN_0001bea8 (693 of 1326 instructions shared once immediates are normalised); the room-band clamp + landing tests + move tail splice verbatim from the fn_01bea8 body, so only ~630 instructions had to be read: the 200px bail to sprite 0x2f, the entity[0x7f] ambush gate that re-enters the range chain in the same frame, the '2'/'1'/'0' countdown ladder (states 0x0c/0x0d/0x0e -> sprites 0x32/0x31/0x30), the grid probe forced to 4 by an attacking player (aim 0x46 past the player, state 0x6a), and state 0x6a's re-derivation of the step from the DS 0x51d68 float. NOTE the stack map differs: the per-frame step is [EBP-0x2c] and the grid result [EBP-0x44], so Ghidra's pseudo local names must not be trusted across handlers.

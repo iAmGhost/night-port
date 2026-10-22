@@ -2098,7 +2098,7 @@ uint8_t *g_dat_62aa0, *g_dat_62aa4, *g_dat_62aa8, *g_dat_62aac, *g_dat_62ab0;
 uint8_t *g_dat_62ab4, *g_dat_62ab8, *g_dat_62abc, *g_dat_62ac0, *g_dat_62ac4;
 uint8_t *g_dat_62a98, *g_dat_62a9c;
 uint32_t *g_dat_53c28, *g_dat_53c2c, *g_dat_53c30;
-uint32_t g_dat_53818[0x65] = {0};   /* 0x53818: per-type action-table heap offsets (element 0 = gun.act; other slots filled by fn_037b03 kind-1 records) */
+uint32_t g_dat_53818[0x104] = {0};  /* 0x53818: per-type action-table heap offsets, 0x104 (260) slots -- one per entity type 0..0x103. Proof of the span: the array ends exactly at DAT_00053c28 (0x53818 + 0x104*4 = 0x53c28), the gun action table it also holds. Slots 0xc9 and 0xfa are shared tables that the per-type teardown must skip; only slots 0..0x64 have names in the stage loader. Element 0 = gun.act. */
 uint32_t *g_dat_63e08, *g_dat_63e0c;
 
 /* DAT_000525a8: the 100 sound-slot name pointers. The image table is exactly the strings
@@ -4535,8 +4535,9 @@ uint32_t g_tab_52c3c[0x104] = {0};           /* DAT_00052c3c: 10 dwords per stag
  * non-zero, so an action table whose sprite slot is empty is leaked and its slot left set; (b) the
  * room chain pointer DAT_00063354 is NOT cleared here, so it dangles at freed memory until the next
  * fn_0374ad/fn_03cad3 re-points it.
- * The original scans types 1..0x103 skipping 0xc9 and 0xfa; the port model keeps 0x65 real per-type
- * slots (see fn_0374ad), so the scan is clamped the same way and the two skipped indices are moot.
+ * The scan covers types 1..0x103 skipping 0xc9 and 0xfa, exactly as the original does: the per-type
+ * arrays really do span all 260 types (they end at DAT_00063dfc / DAT_00053c28), the two skipped
+ * slots being shared tables, and only 0..0x64 are ever filled by the stage loader.
  */
 void fn_037347(void)
 {
@@ -4545,7 +4546,8 @@ void fn_037347(void)
     fn_03ee0a();                                                             /* 0x37356 */
     g_dat_53c88 = 0;                                                         /* 0x3735b */
     uint8_t *hb = (uint8_t *)g_heap_base;
-    for (uint32_t i = 1; i < 0x65u; i = i + 1) {                             /* 0x37365-0x37429 */
+    for (uint32_t i = 1; i < 0x104u; i = i + 1) {                            /* 0x37365-0x37429 */
+        if (i == 0xc9u || i == 0xfau) continue;                              /* 0x373xx: shared tables */
         if (g_dat_639ec[i] == NULL) continue;                                /* 0x3737f (gates the body) */
         (void)fn_03d999((uint32_t *)g_dat_639ec[i], 0);                      /* 0x3738a */
         heap_free_guard((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x3738f */
@@ -4577,7 +4579,8 @@ void fn_0374ad(void)
     fn_03ee0a();                                                             /* 0x374d3 */
     g_dat_53c88 = 0;                                                         /* 0x374d8 */
     uint8_t *hb = (uint8_t *)g_heap_base;
-    for (uint32_t i = 1; i < 0x65u; i = i + 1) {                             /* 0x374e2-375a8 (see notes) */
+    for (uint32_t i = 1; i < 0x104u; i = i + 1) {                            /* 0x374e2-375a8 */
+        if (i == 0xc9u || i == 0xfau) continue;                              /* shared tables, never freed */
         if (g_dat_639ec[i] == NULL) continue;                                /* 0x37522 */
         (void)fn_03d999((uint32_t *)g_dat_639ec[i], 0);                      /* 0x37542 */
         heap_free_guard((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x37547 */
@@ -7030,7 +7033,7 @@ uint8_t *g_dat_53c80 = 0;      /* 0x53c80 */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
 uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
-uint8_t  g_dat_53e9c[0x88 * 0x65]; /* 0x53e9c: entity-type table, 0x65 (101) entries of stride 0x88 (+0 dword/word, +4 byte, +8 word, +0x1c 100 B, +0x80/+0x84 word), filled by fn_037b03 from night%d.chr; overlaps the g_dat_53ea8/53eb8 views of the same DS region */
+uint8_t  g_dat_53e9c[0x88 * 0x104]; /* 0x53e9c: entity-type table, 0x104 (260) entries of stride 0x88 -- fn_010efc indexes it by entity type (0..0x103) with no bound check, and fn_037b03 only fills the 0x65 named entries from night%d.chr; (+0 dword/word, +4 byte, +8 word, +0x1c 100 B, +0x80/+0x84 word), filled by fn_037b03 from night%d.chr; overlaps the g_dat_53ea8/53eb8 views of the same DS region */
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
@@ -7038,7 +7041,7 @@ uint32_t g_dat_53c88 = 0;      /* 0x53c88 (cleared by fn_03237b conditional drai
 uint32_t *g_dat_639c0 = 0;     /* 0x639c0 */
 uint32_t *g_dat_53c8c = 0;     /* 0x53c8c */
 uint32_t *g_dat_63e00 = 0;     /* 0x63e00 */
-uint8_t *g_dat_639ec[0x65] = {0}; /* 0x639ec: per-type sprite-struct pointer array, 0x65 entries (DS 0x639ec..0x63b7f; element 0 = "gun.spr"), filled by fn_037b03 */
+uint8_t *g_dat_639ec[0x104] = {0}; /* 0x639ec: per-type sprite-struct pointer array, 0x104 (260) slots -- one per entity type, spanning DS 0x639ec..0x63dfb and ending exactly at DAT_00063dfc (the stage sprite). Slots 0xc9/0xfa are skipped by the per-type teardown; only 0..0x64 have names in the stage loader. Element 0 = "gun.spr", filled by fn_037b03. */
 uint32_t *g_dat_63d10 = 0;     /* 0x63d10 */
 uint32_t *g_dat_53b3c = 0;     /* 0x53b3c */
 uint32_t *g_dat_63dd4 = 0;     /* 0x63dd4 */
@@ -12582,5 +12585,62 @@ void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
         uint32_t glyph_off = *(uint32_t *)(char_table - 0x40 + d * 4); /* 0x038be6-bf4 */
         const uint8_t *rle = (const uint8_t *)(rle_base + glyph_off);
         fn_03bb42(base, (i + pad) * 7 + col0, start_row, 6, 7, rle, 0);
+    }
+}
+
+/* =================================================================== */
+/*  the mirrored companion spawn (0x011827)                             */
+/* =================================================================== */
+
+/* fn_011827  orig: 0x00011827 (L11, 293 B) -- THE MIRRORED COMPANION SPAWN.
+ * Register ABI (four register args + one stack arg, cleaned with RET 4):
+ *   EAX = source entity block (host pointer), EDX = x delta, EBX = handed straight to the
+ *   constructor (its +0x05 field), ECX = y delta, [ebp+0x10] = value copied to new+0x17.
+ * It allocates a fresh actor block and builds a TYPE 0xfa (250) entity whose position is the
+ * source's, offset by +/-dx in x (the sign is taken from the source's own +0x1b facing byte:
+ * 0 -> +dx and the copy's +0x1b = 0, non-zero -> -dx and +0x1b = 1) and +dy in y. Type 0xfa is one
+ * of the two slots the per-type teardown skips -- it is the shared companion/effect type, so this
+ * is how a stage object spawns its paired child (a shadow / muzzle / mirrored sprite) without
+ * touching per-type resource tables.
+ * Then: new+0x30 = 1 (byte), new+0x17 = the stack arg, and unless the SOURCE's +0x17 is 4 the pair
+ * DAT_00063364 / DAT_00063368 is set to 0x13 / 0 -- the same "element event" latch fn_031f5f uses.
+ * Failure model kept: if the block allocation returns 0 the original still writes through the null
+ * result (+0x1b and +0x30), so the port writes through NULL as well rather than guarding.
+ */
+void fn_011827(uint8_t *src, int32_t dx, int32_t arg_ebx, int32_t dy, uint32_t stack_arg)
+{
+    (void)canary_id(0, 0x4c);                                                /* 0x011827-2c */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *ent = NULL;
+    if (*(const int32_t *)(src + 0x1b) == 0) {                               /* 0x01184b-4f */
+        uint32_t blk = fn_00041bdc(0x14f);                                   /* 0x011851-56 (orig 0x147) */
+        if (blk != 0) {                                                      /* 0x011864-68 */
+            ent = fn_010efc(hb + blk,
+                            (int32_t)(*(const int32_t *)(src + 0x01) + dx),  /* 0x011884-87 */
+                            arg_ebx,
+                            (int32_t)(*(const int32_t *)(src + 0x09) + dy),  /* 0x01187b-7e */
+                            0xfa, 2);                                        /* 0x01186a-70 */
+        } else {
+            ent = NULL;                                                      /* 0x01189d-a0 */
+        }
+        *(uint32_t *)(ent + 0x1b) = 0;                                       /* 0x0118ac (null write kept) */
+    } else {                                                                 /* 0x0118b5 */
+        uint32_t blk = fn_00041bdc(0x14f);                                   /* 0x0118b5-ba */
+        if (blk != 0) {                                                      /* 0x0118cc */
+            ent = fn_010efc(hb + blk,
+                            (int32_t)(*(const int32_t *)(src + 0x01) - dx),  /* 0x0118e8-eb: SUB, not ADD */
+                            arg_ebx,
+                            (int32_t)(*(const int32_t *)(src + 0x09) + dy),  /* 0x0118dc-df */
+                            0xfa, 2);                                        /* 0x0118ce-d4 */
+        } else {
+            ent = NULL;                                                      /* 0x011901-04 */
+        }
+        *(uint32_t *)(ent + 0x1b) = 1;                                       /* 0x011910 */
+    }
+    ent[0x30] = 1;                                                           /* 0x01191a: byte store */
+    *(uint32_t *)(ent + 0x17) = stack_arg;                                   /* 0x01191e-24 */
+    if (*(const int32_t *)(src + 0x17) != 4) {                               /* 0x01192a-2e */
+        g_dat_63364 = 0x13;                                                  /* 0x011930 */
+        g_dat_63368 = 0;                                                     /* 0x01193a */
     }
 }

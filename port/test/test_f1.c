@@ -9008,6 +9008,77 @@ static void test_fn_037b03(void) {
 /* fn_0374ad (0x0374ad, 539 B): the stage reset/reload. Reuses the synthetic stage set, calls the
  * loader first, then the reset, and pins both halves: the per-type teardown and the config block
  * (DAT_53c7c) that the fresh room node seeds. */
+static void test_fn_011827(void) {
+    printf("fn_011827 (0x011827): the mirrored type-0xfa companion spawn\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    int32_t s_cnt = g_dat_53c68;
+    uint32_t s_370 = g_dat_63370, s_364 = g_dat_63364, s_368 = g_dat_63368;
+    uint8_t *s_sprfa = g_dat_639ec[0xfa]; uint32_t s_actfa = g_dat_53818[0xfa];
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+    g_dat_63370 = 1; g_dat_63364 = 0; g_dat_63368 = 0;
+
+    uint8_t *entab = g_dat_53e9c + 0xfau * 0x88u;      /* the companion type's table entry */
+    static uint8_t saved_ent[0x88]; memcpy(saved_ent, entab, sizeof saved_ent);
+    memset(entab, 0, 0x88);
+    *(uint16_t *)(entab + 0x00) = 0x00aa;              /* -> block+0x23 (type != 0: WORD read) */
+    entab[0x04] = 0x5c;                                /* -> block+0x25 */
+    *(uint16_t *)(entab + 0x08) = 0x1234;              /* -> block+0x29 */
+
+    /* type 0xfa is a SHARED sprite table: fn_010efc dereferences DAT_639ec[type] with no guard,
+       which is exactly why the per-type teardown skips 0xc9 and 0xfa. */
+    uint8_t *sprfa = (uint8_t *)calloc(1, 0x40);
+    *(uint32_t *)(sprfa + 0x04) = 0x1111; *(uint32_t *)(sprfa + 0x38) = 0x2222;
+    g_dat_639ec[0xfa] = sprfa; g_dat_53818[0xfa] = 0;
+
+    uint8_t *src = (uint8_t *)calloc(1, 0x14f);
+    *(uint32_t *)(src + 0x01) = 1000; *(uint32_t *)(src + 0x09) = 2000;
+    *(uint32_t *)(src + 0x17) = 1;    *(uint32_t *)(src + 0x1b) = 0;
+
+    fn_011827(src, 30, 7, 50, 0xbeef);
+
+    check(g_dat_53c68 == 1 && g_dat_53c70 != NULL && g_dat_53c74 == g_dat_53c70,
+          "  the companion was constructed and appended to the entity list");
+    uint8_t *e = g_dat_53c70;
+    check(e[0x00] == 2 && *(uint32_t *)(e + 0x0d) == 0xfa,
+          "  kind 2, entity type 0xfa (the shared companion type)");
+    check(*(int32_t *)(e + 0x01) == 1030 && *(int32_t *)(e + 0x09) == 2050 && *(int32_t *)(e + 0x05) == 7,
+          "  x = source+0x01 + dx (source+0x1b == 0), y = source+0x09 + dy, EBX handed to +0x05");
+    check(*(uint32_t *)(e + 0x1b) == 0 && e[0x30] == 1 && *(uint32_t *)(e + 0x17) == 0xbeef,
+          "  +0x1b = 0, +0x30 = 1 (byte), +0x17 = the caller's stack arg");
+    check(e[0x25] == 0x5c && *(uint16_t *)(e + 0x29) == 0x1234 && *(uint16_t *)(e + 0x23) == 0x00aa,
+          "  the type-0xfa table entry fed +0x25 / +0x29 / +0x23");
+    check(*(uint32_t *)(e + 0x127) == 0x2222 && *(uint32_t *)(e + 0x12b) == 0x1111,
+          "  the shared type-0xfa sprite struct was read unguarded (hence the teardown skip)");
+    check(g_dat_63364 == 0x13 && g_dat_63368 == 0,
+          "  source+0x17 != 4 -> the element event DAT_63364 = 0x13, DAT_63368 = 0");
+    check(g_dat_53c80 == 0, "  DAT_53c80 untouched: the type is not the current stage number");
+
+    *(uint32_t *)(src + 0x1b) = 1;                     /* mirrored side */
+    fn_011827(src, 30, 7, 50, 0x17);
+    uint8_t *e2 = g_dat_53c74;
+    check(g_dat_53c68 == 2 && e2 != e && *(uint8_t **)(e + 0x13f) == e2 && *(uint8_t **)(e2 + 0x147) == e,
+          "  a second companion is appended to the tail with both list links");
+    check(*(int32_t *)(e2 + 0x01) == 970 && *(uint32_t *)(e2 + 0x1b) == 1,
+          "  the mirror SUBTRACTS dx and stamps +0x1b = 1 (the sign comes from the source's facing byte)");
+
+    g_dat_63364 = 0x99; g_dat_63368 = 0x77;
+    *(uint32_t *)(src + 0x17) = 4;
+    fn_011827(src, 5, 0, 0, 0);
+    check(g_dat_63364 == 0x99 && g_dat_63368 == 0x77,
+          "  source+0x17 == 4 -> the event latch is left alone");
+    check(g_dat_53c68 == 3 && *(int32_t *)(g_dat_53c74 + 0x01) == 995,
+          "  the third spawn still mirrors: the source's facing byte is sticky (1000 - 5)");
+
+    memcpy(entab, saved_ent, 0x88);
+    g_dat_639ec[0xfa] = s_sprfa; g_dat_53818[0xfa] = s_actfa;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_63370 = s_370; g_dat_63364 = s_364; g_dat_63368 = s_368;
+    free(sprfa); free(src);
+}
+
 static void test_fn_037347(void) {
     printf("fn_037347 (0x037347): stage data teardown (free only)\n");
 
@@ -10338,6 +10409,7 @@ int main(void) {
     test_fn_010efc();
     test_fn_03c853();
     test_fn_037b03();
+    test_fn_011827();
     test_fn_037347();
     test_fn_0374ad();
     test_fn_0376c8();

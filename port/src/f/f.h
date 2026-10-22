@@ -1006,6 +1006,8 @@ extern uint8_t *g_dat_53c74;   /* DAT_00053c74 (entity list tail; prev at +0x147
 void fn_013aad(uint32_t a0);   /* 0x013aad: entity-list bubble-sort (ascending by node->+0x9) */
 uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg_ecx,
                    int32_t type_idx, uint8_t kind);              /* 0x010efc: THE ENTITY CONSTRUCTOR: fills the 0x147 B (0x14f here) actor block from the entity-type table (DAT_53e9c, stride 0x88) + per-type sprite struct (DAT_639ec[]), appends it to the entity list, PRNG jitter */
+void fn_011827(uint8_t *src, int32_t dx, int32_t arg_ebx, int32_t dy, uint32_t stack_arg);
+                   /* 0x011827: THE MIRRORED COMPANION SPAWN -- builds a type-0xfa entity offset +/-dx in x from a source entity (sign chosen by source+0x1b), copies source+0x17 to the gate, marks +0x30, and raises the 0x13 element event unless the source's +0x17 is 4 */
 extern uint8_t g_dat_53e9c[];                                   /* 0x53e9c: entity-type table (stride 0x88; +0 dword/word, +4 byte, +8 word) */
 uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2);   /* 0x0112fd: entity-list REMOVE (head/tail/middle); returns node */
 extern int32_t  g_dat_51c98;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
@@ -1027,7 +1029,7 @@ extern uint8_t *g_dat_62a9c;   /* DAT_00062a9c: active catch table (alias of g_d
 extern uint32_t *g_dat_53c28;  /* DAT_00053c28: "gun.act" record container (fn_010010) */
 extern uint32_t *g_dat_53c2c;  /* DAT_00053c2c: "gun1.act" */
 extern uint32_t *g_dat_53c30;  /* DAT_00053c30: "gun2.act" */
-extern uint32_t g_dat_53818[0x65];  /* DAT_00053818: active action table (alias of g_dat_53c28) */
+extern uint32_t g_dat_53818[0x104]; /* DAT_00053818: per-type action-table heap-offset ARRAY, 0x104 (260) slots -- one per entity type 0..0x103, ending exactly at DAT_00053c28 (slot 0 = the gun action table); slots 0xc9/0xfa are shared tables the teardown skips */
 extern uint32_t *g_dat_63e08;  /* DAT_00063e08: "over.spr" struct (fn_03d8d4) */
 extern uint32_t *g_dat_63e0c;  /* DAT_00063e0c: "pause.spr" struct (fn_03d8d4) */
 extern uint8_t  *g_dat_53d0c[100]; /* DAT_00053d0c: 100 sound-slot buffers ("1.voc".."100.voc") */
@@ -1036,7 +1038,7 @@ uint32_t fn_03690b(void);          /* 0x03690b: master data loader (NIGHT.RES ->
 extern uint32_t *g_dat_639c0;  /* 0x639c0: struct host-ptr (destructed by fn_03d999) */
 extern uint32_t *g_dat_53c8c;  /* 0x53c8c: struct host-ptr (fn_03d999) */
 extern uint32_t *g_dat_63e00;  /* 0x63e00: struct host-ptr (fn_03d999) */
-extern uint8_t *g_dat_639ec[0x65]; /* 0x639ec: per-type sprite-struct pointer ARRAY, 0x65 entries (element 0 = "gun.spr"; indexed by entity type in fn_010efc, filled by fn_037b03) */
+extern uint8_t *g_dat_639ec[0x104]; /* 0x639ec: per-type sprite-struct pointer ARRAY, 0x104 (260) slots -- one per entity type 0..0x103, ending exactly at DAT_00063dfc (element 0 = "gun.spr"; indexed by entity type in fn_010efc, filled by fn_037b03) */
 extern uint32_t *g_dat_63d10;  /* 0x63d10: struct host-ptr (fn_03d999) */
 extern uint32_t *g_dat_53b3c;  /* 0x53b3c: container host-ptr (fn_0100d9) */
 extern uint32_t *g_dat_63dd4;  /* 0x63dd4: struct host-ptr (fn_03d999) */

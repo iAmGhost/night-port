@@ -1,0 +1,42 @@
+000322f5  6820000000               push 0x20
+000322fa  e8eff50000               call 0x418ee
+000322ff  53                       push ebx
+00032300  51                       push ecx
+00032301  52                       push edx
+00032302  56                       push esi
+00032303  57                       push edi
+00032304  55                       push ebp
+00032305  89e5                     mov ebp, esp
+00032307  81ec04000000             sub esp, 4
+0003230d  e846feffff               call 0x32158
+00032312  a1703c0000               mov eax, dword ptr [0x3c70]
+00032317  a3783c0000               mov dword ptr [0x3c78], eax
+0003231c  c745fc00000000           mov dword ptr [ebp - 4], 0
+00032323  eb06                     jmp 0x3232b
+00032325  8b45fc                   mov eax, dword ptr [ebp - 4]
+00032328  ff45fc                   inc dword ptr [ebp - 4]
+0003232b  8b45fc                   mov eax, dword ptr [ebp - 4]
+0003232e  3b05683c0000             cmp eax, dword ptr [0x3c68]
+00032334  7d3c                     jge 0x32372
+00032336  a1783c0000               mov eax, dword ptr [0x3c78]
+0003233b  3b057c3c0000             cmp eax, dword ptr [0x3c7c]
+00032341  7411                     je 0x32354
+00032343  a1783c0000               mov eax, dword ptr [0x3c78]
+00032348  8a00                     mov al, byte ptr [eax]
+0003234a  25ff000000               and eax, 0xff
+0003234f  83f802                   cmp eax, 2
+00032352  7502                     jne 0x32356
+00032354  eb0a                     jmp 0x32360
+00032356  a1783c0000               mov eax, dword ptr [0x3c78]
+0003235b  e82ef7ffff               call 0x31a8e
+00032360  a1783c0000               mov eax, dword ptr [0x3c78]
+00032365  8b803f010000             mov eax, dword ptr [eax + 0x13f]
+0003236b  a3783c0000               mov dword ptr [0x3c78], eax
+00032370  ebb3                     jmp 0x32325
+00032372  89ec                     mov esp, ebp
+00032374  5d                       pop ebp
+00032375  5f                       pop edi
+00032376  5e                       pop esi
+00032377  5a                       pop edx
+00032378  59                       pop ecx
+00032379  5b                       pop ebx

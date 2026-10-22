@@ -14072,3 +14072,52 @@ void fn_038ae0(void)
     fn_00010dde();                                   /* 0x38b1f */
     fn_03f15f();                                     /* 0x38b24 */
 }
+
+uint32_t g_dat_533a4 = 0;                    /* DAT_000533a4: a key already consumed / input pending */
+uint32_t g_dpmi_free_dos_paragraphs = 0x10000; /* the DPMI 0x0031 "Get Free DOS Memory" reply the flat model cannot produce */
+
+/* fn_04295d (a mid-code entry, not one of the 528): consume the pending-input latch and, if there was
+ * none, wait for one keystroke.  Original: xchg(DAT_533a4, 0) then, when it was zero,
+ * INT 21h AH=08h (character input without echo, result discarded).  The port models that console read
+ * as the keyboard spin, waiting for any key byte to arrive. */
+static void fn_04295d_keywait(void)
+{
+    uint32_t pending = g_dat_533a4;                          /* 0x42960-65 */
+    g_dat_533a4 = 0;
+    if (pending != 0) return;                                /* 0x4296b-6f */
+    do { sys_key_spin(); }                                   /* 0x4296f-73 INT 21h AH=08h */
+    while (g_dat_63ec1 == 0 && g_dat_63ea4 == 0 &&
+           g_dat_63ea5 == 0 && g_dat_63ec0 == 0);
+}
+
+/* fn_03ae8e  orig: 0x0003ae8e (L12, 137 B) -- THE FREE-MEMORY GATE at startup.
+ *   Builds a DPMI real-mode call frame: the register block [EBP-0x28] gets the function number 0x31,
+ *   a 12-byte scratch block [EBP-0xc] is zeroed through fn_041e20 and gets the SS selector stamped
+ *   into its low word (the odd MOV chain at 0x3aebc-ec9 is Watcom building a far pointer), the
+ *   real-mode structure pointer [EBP-0x58] is also saved at [EBP-0x14], then fn_00041e38 runs DPMI
+ *   0x0031 (Get Free DOS Memory). The reply dword is read back at [EBP-0x48] = the structure's +0x10
+ *   slot (the register block's CX word) and compared against 0x17c.
+ *   Enough memory (>= 0x17c, unsigned) -> return silently. Not enough -> set the VESA mode
+ *   (fn_03f15f), paint "ram.pcx" (DS 0x16bf) with the wrapping screen loader fn_03628e and dl=1, wait
+ *   for one keystroke through the 0x04295d helper, and terminate through fn_0423b7 (which dispatches
+ *   the registered DAT_5336c / DAT_53370 callbacks). Flat model: the DPMI reply cannot be produced, so
+ *   it is supplied through g_dpmi_free_dos_paragraphs (documented stand-in, ample by default). */
+void fn_03ae8e(void)
+{
+    uint32_t dblk = 0x500;                                   /* [EBP-0x28] the DPMI function number */
+    uint8_t  rmcb[0x40];                                     /* [EBP-0x58] real-mode call structure */
+    uint8_t  aux[12];                                        /* [EBP-0xc] */
+
+    memset(rmcb, 0, sizeof rmcb);
+    fn_041e20(aux, 0, sizeof aux);                           /* 0x3aead-b7 */
+    *(uint16_t *)aux = (uint16_t)sys_ss();                   /* 0x3aebc-ec9 */
+    fn_041e38(0x31, (uint32_t)(uintptr_t)&dblk, (uintptr_t)rmcb, 0);  /* 0x3aee1 (orig EDX=EBX=&dblk, ECX=aux) */
+    *(uint32_t *)(rmcb + 0x10) = g_dpmi_free_dos_paragraphs; /* the reply lands in the CX slot */
+
+    if (*(uint32_t *)(rmcb + 0x10) >= 0x17c) return;         /* 0x3aeed jae -> return */
+
+    fn_03f15f();                                             /* 0x3aeef */
+    fn_03628e("ram.pcx", 1);                                 /* 0x3af03 (DS 0x16bf) */
+    fn_04295d_keywait();                                     /* 0x3af03 (call 0x4295d) */
+    fn_0423b7(0, 0, 0, 0);                                   /* 0x3af0a (orig EAX=0, pushed 0) */
+}

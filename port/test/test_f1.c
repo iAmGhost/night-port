@@ -2497,6 +2497,51 @@ static int node0_len(void) {
 /* 0x03a224 -- THE TITLE SCREEN (wipe-in, two-entry menu, returns the selection). */
 /* 0x03f15f -- THE VESA MODE SET (mode 0x101) and the geometry globals every blit reads. */
 /* 0x038a20 -- the company-logo screen; 0x038ae0 -- the opening-movie step. */
+static int g_term_cb_calls;
+static uint32_t term_cb_stub(uint32_t v) { g_term_cb_calls++; return v; }
+
+/* 0x03ae8e -- the startup free-memory gate. */
+static void test_fn_03ae8e(void) {
+    printf("fn_03ae8e (0x03ae8e): the free-memory gate (ram.pcx + terminate when DOS memory is low)\n");
+    uint32_t s_f4 = g_dat_531f4, s_3a0 = g_dat_633a0, s_a4 = g_dat_533a4;
+    uint32_t s_free = g_dpmi_free_dos_paragraphs;
+    uint8_t s_c1 = g_dat_63ec1, s_a5 = g_dat_63ea5, s_a4k = g_dat_63ea4, s_c0 = g_dat_63ec0;
+    u32_cb_fn s_6c = g_dat_5336c, s_70 = g_dat_53370, s_74 = g_dat_53374;
+
+    g_dat_533a4 = 0; g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    g_dat_633a0 = 0;                       /* no resource index: ram.pcx cannot be loaded */
+    sys_ports_reset();
+    sys_key_script_clear();
+
+    /* A: plenty of memory -> the gate is silent */
+    g_dpmi_free_dos_paragraphs = 0x10000;
+    g_dat_531f4 = 0;
+    fn_03ae8e();
+    check(g_dat_531f4 == 0, "with ample memory the gate returns without touching the video mode");
+    uint8_t *hist = (uint8_t *)calloc(1, 0x4000);
+    check(hist == 0 || sys_hist(hist, 0x4000) == 0, "and it writes nothing to the DAC");
+    free(hist);
+
+    /* B: below the 0x17c threshold -> mode set, ram.pcx request, the latch consumed */
+    sys_ports_reset();
+    g_dpmi_free_dos_paragraphs = 0x100;
+    g_dat_5336c = g_dat_53370 = g_dat_53374 = term_cb_stub;   /* fn_0423b7's terminate callbacks */
+    g_term_cb_calls = 0;
+    g_dat_533a4 = 1;                        /* an already-pending key: the INT 21h/08h wait is skipped */
+    g_dat_531f4 = 0;
+    sys_key_script_clear();
+    fn_03ae8e();
+    check(g_dat_531f4 == 0xa0000, "below the threshold it re-sets the VESA mode (DAT_531f4 = 640<<10)");
+    check(g_dat_533a4 == 0, "the 0x04295d helper consumes the pending-input latch DAT_533a4 (no keystroke needed)");
+    check(g_term_cb_calls >= 2, "fn_0423b7 runs the registered terminate callbacks (DAT_5336c/53370/53374) -- the low-memory path ends the program");
+
+    g_dat_531f4 = s_f4; g_dat_633a0 = s_3a0; g_dat_533a4 = s_a4;
+    g_dpmi_free_dos_paragraphs = s_free;
+    g_dat_63ec1 = s_c1; g_dat_63ea5 = s_a5; g_dat_63ea4 = s_a4k; g_dat_63ec0 = s_c0;
+    g_dat_5336c = s_6c; g_dat_53370 = s_70; g_dat_53374 = s_74;
+    sys_key_script_clear();
+}
+
 static void test_fn_038a20_038ae0(void) {
     printf("fn_038a20 / fn_038ae0 (0x038a20 / 0x038ae0): the logo screen and the opening step\n");
     uint32_t s_f4 = g_dat_531f4, s_3a0 = g_dat_633a0;
@@ -12208,6 +12253,7 @@ int main(void) {
     test_fn_03a224();
     test_fn_03f15f();
     test_fn_038a20_038ae0();
+    test_fn_03ae8e();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

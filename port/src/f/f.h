@@ -320,6 +320,9 @@ extern uint32_t g_dat_63e58;               /* DAT_00063e58: palette index (fn_03
 extern uint32_t g_dat_63e60;               /* DAT_00063e60: VBE bytes per line (ModeInfoBlock +0x10) */
 extern uint32_t g_dat_63e68;               /* DAT_00063e68: VBE y resolution (ModeInfoBlock +0x14) */
 extern uint32_t g_dat_531f8;               /* DAT_000531f8: g_dat_531f4 - 1 */
+extern uint32_t g_dat_533a4;                /* DAT_000533a4: pending-input latch (0x04295d consumes it) */
+extern uint32_t g_dpmi_free_dos_paragraphs; /* the DPMI 0x0031 free-memory reply (flat-model stand-in) */
+void fn_03ae8e(void);   /* 0x03ae8e: THE FREE-MEMORY GATE -- DPMI 0x0031 reply < 0x17c -> set the mode, paint ram.pcx, wait for a key, terminate. */
 void fn_038a20(void);   /* 0x038a20: THE COMPANY-LOGO SCREEN -- VESA set, palette clear, logo.pcx, DAC fade in/out with two 0x400-unit holds. */
 void fn_038ae0(void);   /* 0x038ae0: THE OPENING MOVIE STEP -- CD track 1, the opening.fli timed-event player, then the VESA mode is restored. */
 int32_t fn_03f15f(void);   /* 0x03f15f: THE VESA MODE SET (mode 0x101, 640x480x8) -- fills DAT_531f4/531f8/63e4c/63e58/63e5c/63e60/63e64/63e68; returns 1, or 0 with a banner when VESA or the mode set fails. */

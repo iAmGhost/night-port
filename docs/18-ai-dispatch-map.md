@@ -117,7 +117,9 @@ diffs of the same 400-line pattern rather than fresh 1000-instruction ports.
 
 ## Port progress (updated 2026-07-13)
 
-Ported handlers (9 of 18 -- 0x020170/behaviour 0x08 added: draw prng()%4 + 2/3 sub-draws (slots 0..5 only), script-row offsets for 0/1, player-offset jitter for 2..5, NO absolute arm, no 1-in-6, clamp before the distance test).
+Ported handlers (10 of 18 -- 0x0221b8/behaviour 0x15 added: 0x020170's draw with a SINGLE spot arm (X = the slot's jitter rectangle offset by the player, Y = the player's own Y); the entity[0xc3] pre-write for slots 0/1 is redundant but faithful).
+
+Older progress: (9 of 18 -- 0x020170/behaviour 0x08 added: draw prng()%4 + 2/3 sub-draws (slots 0..5 only), script-row offsets for 0/1, player-offset jitter for 2..5, NO absolute arm, no 1-in-6, clamp before the distance test).
 
 Tail equivalence method: a mnemonic-only stream comparison of the disasm from the room-band clamp on (257 instructions, FUN_00020170 @0x206f5 vs FUN_0001bea8 @0x1c4bb) shows ZERO differences, which is what licenses reusing the fn_01bea8 C body verbatim for the shared part of a family handler.
 
@@ -159,7 +161,7 @@ Shared facts confirmed for all three handlers:
   for slots 6..9; no span is ever zero, so the `prng % span` idiv cannot fault.
 - Tail is identical: mv_a -> fn_01545e, mv_b -> fn_01586b, entity[0x1b] = facing vs the player.
 
-Remaining handlers (9): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
+Remaining handlers (8): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
 0x01df8b, 0x01f064, 0x020170, 0x02119c, 0x0221b8, 0x02319c (arg 2), 0x024bf9, 0x0265ac, 0x027bec,
 0x029709, 0x02adf5, 0x02c838, 0x02e2cc, 0x02fe1e, 0x03272f. Then the dispatcher 0x031a8e (1153 B)
 and 0x0322f5 (133 B).

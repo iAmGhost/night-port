@@ -17333,3 +17333,331 @@ void fn_020170(uint8_t *e)
     if ((int32_t)fn_01519f(e) > p_x) *(int32_t *)(e + 0x1b) = 1;
     if ((int32_t)fn_01519f(e) < p_x) *(int32_t *)(e + 0x1b) = 0;
 }
+
+/* =====================================================================
+ * 0x0221b8 -- THE BEHAVIOUR-0x15 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
+ *
+ * Tenth of the 18; scratch/aicases.py again shows only case 0x00 differing from fn_01bea8, and the
+ * 257-instruction mnemonic stream from the room-band clamp on (FUN_000221b8 @0x226f4 vs
+ * FUN_0001bea8 @0x1c4bb) is identical, so the body is the template with the chooser re-derived from
+ * analysis/disasm/FUN_000221b8.txt (generator: scratch/gen_0221b8.py). Its draw matches 0x020170
+ * (prng()%4 with the 2/3 sub-draws, slots 0..5, no 1-in-6 forced action 4), but the spot has a
+ * SINGLE arm for every slot: X from the slot's jitter rectangle offset by the player, Y always the
+ * player's own Y (0x0002263b) -- no script-row offset arm and no absolute arm at all. The
+ * entity[0xc3] pre-write for slots 0/1 (0x000225a4) is redundant against that unconditional Y write;
+ * it is kept because the original writes it. The clamp runs before the distance test with the
+ * restore jumping past it (LAB 0x000226e5).
+ */
+void fn_0221b8(uint8_t *e)
+{
+    uint8_t *pl = g_dat_53c7c;
+    if (e == pl) return;
+
+    int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
+    int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x44] */
+    (void)fn_01519f(e);                                          /* [EBP-0x28]: computed, unused */
+    (void)fn_0151d5(e);                                          /* [EBP-0x24]: computed, unused */
+
+    int32_t ty  = *(const int32_t *)(e + 0x0d);
+    int32_t st0 = *(const int32_t *)(e + 0x1f);
+    int32_t spd_idx = (st0 < 0x0a || st0 > 0x13) ? ai_rec_i32(ty, 0x04) : ai_rec_i32(ty, 0x80);
+    if (*(const int32_t *)(e + 0x6f) == 1) spd_idx = ai_rec_i32(ty, 0x80);
+    float   sp = AI_SPEED_TAB(spd_idx);
+    int32_t v_spd = (int32_t)fpu_rndint((double)sp);             /* [EBP-0x40] */
+    int32_t v_sum = (int32_t)fpu_rndint((double)ai_fget(e, 0x63) + (double)sp); /* [EBP-0x4c] */
+    int32_t v_cur = (int32_t)fpu_rndint((double)ai_fget(e, 0x63));              /* [EBP-0x50] */
+    if (v_cur + v_spd < v_sum) v_spd++;
+    ai_fput(e, 0x63, (float)((double)sp + (double)ai_fget(e, 0x63)));
+
+    int32_t mv_a = 0, mv_b = 0;                                  /* [EBP-0x3c] / [EBP-0x38] */
+
+    int32_t ps = *(const int32_t *)(pl + 0x17);
+    if (ps != 0x15 && ps != 0x16 && ps != 0x17 && ps != 0x18 &&
+        ps != 0x1a && ps != 0x1d && ps != 0x1e && ps != 0x20) {
+        int32_t r = fn_015a1f(e);                                /* [EBP-0x34] */
+        if (r != 0) {
+            *(int32_t *)(e + 0x10f) = (uint32_t)r;
+            *(int32_t *)(e + 0x1f)  = 0x0a;
+        }
+    }
+    if (*(int32_t *)(e + 0x17) != 2 && *(int32_t *)(e + 0x17) != 1) return;
+    if ((uint32_t)e[0] != 1u) return;
+
+    switch (*(int32_t *)(e + 0x1f)) {
+    case 0x00:
+        if (*(int32_t *)(e + 0xaf) != 4) {
+            if (*(int32_t *)(e + 0xaf) == 0x0a) {
+                *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x18) >> 1;
+            } else {
+                int32_t j = (int32_t)prng_next() % 0x32;         /* 0x0002243f-0x00022453 */
+                *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x18) + j;
+            }
+            *(int32_t *)(e + 0x1f)  = 4;
+            *(int32_t *)(e + 0x113) = (int32_t)prng_next() % 10;  /* no 1-in-6 forced action 4 */
+        }
+        if (*(int32_t *)(e + 0xaf) == 4) {
+            if (*(int32_t *)(e + 0x8f) == 1) {
+                *(int32_t *)(e + 0x97) = ai_rec_i32(ty, 0x14) >> 1;
+                *(int32_t *)(e + 0x1f) = 3;
+            } else {
+                if ((int32_t)fn_01519f(e) < 0 || (int32_t)fn_01519f(e) > 0x13f) {
+                    *(int32_t *)(e + 0x1f) = 7;                  /* 0x000224f3: off screen, give up */
+                    return;
+                }
+                *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x14) >> 1;
+                if (*(int32_t *)(e + 0xc7) == 1) {
+                    int32_t slot;                                /* [EBP-0x58] */
+                    do {                                         /* 0x00022524-0x00022587: same draw as
+                         * 0x020170 -- prng()%4 with 2 -> +prng()%2 and 3 -> 4+prng()%2, slots 0..5 */
+                        slot = (int32_t)prng_next() % 4;
+                        if (slot == 2) {
+                            slot += (int32_t)prng_next() % 2;
+                        } else if (slot == 3) {
+                            slot = 4 + (int32_t)prng_next() % 2;
+                        }
+                    } while (slot == *(int32_t *)(e + 0xff));
+                    if (slot == 0 || slot == 1) *(int32_t *)(e + 0xc3) = (uint32_t)p_y;
+                    *(int32_t *)(e + 0x6f) = (slot == 0 || slot == 1) ? 1u : 0u;
+                    *(int32_t *)(e + 0xff) = (uint32_t)slot;
+                    int32_t keep_x = *(int32_t *)(e + 0xbf);     /* [EBP-0x70] */
+                    int32_t keep_y = *(int32_t *)(e + 0xc3);     /* [EBP-0x6c] */
+                    /* 0x000225f0-0x00022641: ONE arm for every slot -- the jitter rectangle of the
+                     * slot offset by the player in X, and the player's own Y. No script-row offset and
+                     * no absolute arm; the entity[0xc3] pre-write above is redundant against the
+                     * unconditional Y below, but the original really does it twice. */
+                    int32_t span = J4_XHI(slot) - J4_XLO(slot);
+                    int32_t rr   = (int32_t)prng_next() % span;
+                    *(int32_t *)(e + 0xbf) = (uint32_t)(J4_XLO(slot) + p_x + abs32(rr));
+                    *(int32_t *)(e + 0xc3) = (uint32_t)p_y;
+                    /* 0x00022647: clamp before the distance test; the restore jumps past it
+                     * (LAB 0x000226e5), so a rejected spot keeps its raw value. */
+                    if (*(int32_t *)(e + 0xbf) < 0) {
+                        *(int32_t *)(e + 0xbf) = 0x14;
+                    } else if (*(int32_t *)(e + 0xbf) > 0x13f) {
+                        *(int32_t *)(e + 0xbf) = 0x12c;
+                    }
+                    if (abs32(*(int32_t *)(e + 0xbf) - (int32_t)fn_01519f(e)) < 10 &&
+                        abs32(*(int32_t *)(e + 0xc3) - (int32_t)fn_0151d5(e)) < 5) {
+                        *(int32_t *)(e + 0xbf) = (uint32_t)keep_x;   /* too close: keep the old spot */
+                        *(int32_t *)(e + 0xc3) = (uint32_t)keep_y;
+                    } else {
+                        *(int32_t *)(e + 0xc7) = 0;
+                    }
+                }
+                /* LAB 0x019392: clamp the chosen spot into the current room band */
+                if (*(int32_t *)(e + 0xc3) <= *(const int32_t *)(g_dat_63354 + 0x12))
+                    *(int32_t *)(e + 0xc3) = (uint32_t)(*(const int32_t *)(g_dat_63354 + 0x12) + 1);
+                if (*(const int32_t *)(g_dat_63354 + 0x16) <= *(int32_t *)(e + 0xc3))
+                    *(int32_t *)(e + 0xc3) = (uint32_t)(*(const int32_t *)(g_dat_63354 + 0x16) - 1);
+
+                int32_t x_hi, x_lo, y_hi, y_lo;                  /* [EBP-0x70..-0x64] */
+                if ((int32_t)fn_01519f(e) < *(int32_t *)(e + 0xbf)) {
+                    x_hi = *(int32_t *)(e + 0xbf); x_lo = (int32_t)fn_01519f(e);
+                } else {
+                    x_hi = (int32_t)fn_01519f(e); x_lo = *(int32_t *)(e + 0xbf);
+                }
+                if ((int32_t)fn_0151d5(e) < *(int32_t *)(e + 0xc3)) {
+                    y_hi = *(int32_t *)(e + 0xc3); y_lo = (int32_t)fn_0151d5(e);
+                } else {
+                    y_hi = (int32_t)fn_0151d5(e); y_lo = *(int32_t *)(e + 0xc3);
+                }
+                int32_t ex = (int32_t)fn_01519f(e);              /* [EBP-0x60] */
+                int32_t ey = (int32_t)fn_0151d5(e);              /* [EBP-0x5c] */
+
+                if (abs32(*(int32_t *)(e + 0xbf) - ex) < 5) {    /* 0x01948f: reached the spot? */
+                    if (5 < abs32(*(int32_t *)(e + 0xc3) - ey) &&
+                        p_y < y_hi && y_lo < p_y &&
+                        ex - 8 < p_x && p_x < ex + 8) {
+                        *(int32_t *)(e + 0xcb) = (uint32_t)ex;
+                        *(int32_t *)(e + 0xeb) = *(uint32_t *)(e + 0xcb);
+                        *(int32_t *)(e + 0xcf) = (uint32_t)ey;
+                        *(int32_t *)(e + 0xef) = *(uint32_t *)(e + 0xcf);
+                        *(int32_t *)(e + 0x1f) = 0x14;
+                        *(int32_t *)(e + 0x8b) = 0;
+                        return;
+                    }
+                }
+                if (abs32(*(int32_t *)(e + 0xc3) - ey) < 10) {   /* 0x019542: ambush spot */
+                    if (5 < abs32(*(int32_t *)(e + 0xbf) - ex) &&
+                        p_y < ey + 8 && ey - 8 < p_y &&
+                        x_lo < p_x && p_x < x_hi) {
+                        *(int32_t *)(e + 0xcb) = (uint32_t)ex;
+                        *(int32_t *)(e + 0xeb) = *(uint32_t *)(e + 0xcb);
+                        *(int32_t *)(e + 0xcf) = (uint32_t)ey;
+                        *(int32_t *)(e + 0xef) = *(uint32_t *)(e + 0xcf);
+                        int32_t mid = *(const int32_t *)(g_dat_63354 + 0x12) +
+                                      ((*(const int32_t *)(g_dat_63354 + 0x16) -
+                                        *(const int32_t *)(g_dat_63354 + 0x12)) >> 1);
+                        if (*(int32_t *)(e + 0xcf) < mid) {
+                            if (*(int32_t *)(e + 0xcf) < *(int32_t *)(e + 0xc3))
+                                *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) -
+                                    (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                            else
+                                *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) +
+                                    (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                        } else if (*(int32_t *)(e + 0xcf) < *(int32_t *)(e + 0xc3)) {
+                            *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) +
+                                (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                        } else {
+                            *(int32_t *)(e + 0xcb) = (uint32_t)(*(int32_t *)(e + 0xcb) -
+                                (*(int32_t *)(e + 0xc3) - *(int32_t *)(e + 0xcf)));
+                        }
+                        *(int32_t *)(e + 0x1f) = 0x15;
+                        *(int32_t *)(e + 0x8b) = 0;
+                        return;
+                    }
+                }
+                if (p_y < y_hi && y_lo < p_y) {                  /* 0x0196b0-0x019758 */
+                    if (p_x <= (int32_t)fn_01519f(e) - 8 ||
+                        (int32_t)fn_01519f(e) + 8 <= p_x) {
+                        *(int32_t *)(e + 0x1f) = 2;
+                    } else {
+                        *(int32_t *)(e + 0x1f) = 8;
+                    }
+                } else {
+                    *(int32_t *)(e + 0x1f) = 2;
+                }
+                *(int32_t *)(e + 0x8b) = 0;
+                if (p_x < x_hi && x_lo < p_x &&
+                    *(int32_t *)(e + 0xc3) - 8 < p_y && p_y < *(int32_t *)(e + 0xc3) + 8) {
+                    *(int32_t *)(e + 0x1f) = 8;
+                } else {
+                    *(int32_t *)(e + 0x1f) = 2;
+                }
+                *(int32_t *)(e + 0x8b) = 0;
+            }
+        }
+        if (*(int32_t *)(e + 0xaf) == 2) {
+            *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x14) >> 1;
+            *(int32_t *)(e + 0x1f) = 5;
+            *(int32_t *)(e + 0x8b) = 0;
+        } else if (*(int32_t *)(e + 0xaf) == 8) {
+            *(int32_t *)(e + 0xab) = ai_rec_i32(ty, 0x14) >> 1;
+            *(int32_t *)(e + 0x1f) = 9;
+            *(int32_t *)(e + 0x8b) = 0;
+        }
+        break;
+    case 0x01:
+        if (fn_017218(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 1; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x02:
+        if (fn_016a60(e, v_spd, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 2; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x03:
+        if (fn_016b8f(e, v_spd, p_x, p_y, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 3; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x04: {
+        int32_t r = fn_016fec(e, v_spd);                         /* [EBP-0x58] */
+        if (r == 2) {
+            *(int32_t *)(e + 0x1f) = 1;  *(int32_t *)(e + 0xab) = 0x0a;
+        } else if (r == 1) {
+            *(int32_t *)(e + 0xaf) = 4;  *(int32_t *)(e + 0x1f) = 0;
+        } else if (r == 3) {
+            *(int32_t *)(e + 0xaf) = 4;  *(int32_t *)(e + 0x1f) = 0x0c; *(int32_t *)(e + 0xab) = 0x1e;
+        }
+        break;
+    }
+    case 0x05:
+        if (fn_016959(e, v_spd, &mv_a) != 0) {
+            *(int32_t *)(e + 0xaf) = 5; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x06:
+        if (fn_01730b(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 6; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x07:
+        if (fn_0174a2(e, v_spd, &mv_a) != 0) {
+            *(int32_t *)(e + 0xaf) = 4; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x08:
+        if (fn_017530(e, v_spd, &mv_a) != 0) {
+            *(int32_t *)(e + 0xaf) = 8; *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x09:
+        if (fn_017637(e, v_spd, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 9; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x0a:
+        if (*(int32_t *)(e + 0x10f) == 1) {
+            *(int32_t *)(e + 0xaf)  = 0x0a;
+            *(int32_t *)(e + 0x1f)  = 0x0b;
+            *(int32_t *)(e + 0x11b) = 1;
+            *(int32_t *)(e + 0xab)  = ai_rec_i32(ty, 0x84);
+        }
+        if (*(int32_t *)(e + 0x10f) == 2) {
+            *(int32_t *)(e + 0xaf)  = 0x0a;
+            *(int32_t *)(e + 0x1f)  = 0x0b;
+            *(int32_t *)(e + 0x11b) = 1;
+            *(int32_t *)(e + 0xab)  = ai_rec_i32(ty, 0x84) >> 1;
+        }
+        break;
+    case 0x0b: {
+        if (*(int32_t *)(e + 0xab) < 0) {
+            uint8_t cell = ai_script_byte(ty, *(int32_t *)(e + 0x113), 0);
+            if (abs32((int32_t)fn_01519f(e) - p_x) < (int32_t)cell &&
+                abs32((int32_t)fn_0151d5(e) - p_y) < 6) {
+                uint8_t st = ai_script_byte(ty, *(int32_t *)(e + 0x113), *(int32_t *)(e + 0x11b));
+                if (st != 0 && *(int32_t *)(e + 0x11b) < 0x0a) {
+                    *(int32_t *)(e + 0x17)  = st;
+                    *(int32_t *)(e + 0x11)  = 0;
+                    (*(int32_t *)(e + 0x11b))++;
+                } else {
+                    *(int32_t *)(e + 0xaf) = 0x0a;
+                    *(int32_t *)(e + 0x1f) = 0;
+                }
+            } else if ((int32_t)prng_next() % 0x14 == 2) {
+                *(int32_t *)(e + 0xaf) = 4;  *(int32_t *)(e + 0x1f) = 0;
+            } else {
+                *(int32_t *)(e + 0xaf) = 0x0a; *(int32_t *)(e + 0x1f) = 0;
+            }
+        } else {
+            *(int32_t *)(e + 0xab) = (uint32_t)(*(int32_t *)(e + 0xab) - 1);
+            *(int32_t *)(e + 0x17) = 1;
+        }
+        break;
+    }
+    case 0x0c:
+        *(int32_t *)(e + 0xab) = (uint32_t)(*(int32_t *)(e + 0xab) - 1);
+        if (*(int32_t *)(e + 0xab) < 0) {
+            *(int32_t *)(e + 0x17) = 0x32;
+            *(int32_t *)(e + 0x11) = 0;
+            *(int32_t *)(e + 0xaf) = 0x0a;
+            *(int32_t *)(e + 0x1f) = 0;
+        }
+        break;
+    case 0x14:
+        if (fn_01776f(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 0x14; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x15:
+        if (fn_017927(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 0x15; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    case 0x16:
+        if (fn_017ca6(e, v_spd, &mv_a, &mv_b) != 0) {
+            *(int32_t *)(e + 0xaf) = 0x16; *(int32_t *)(e + 0x1f) = 0; *(int32_t *)(e + 0xc7) = 1;
+        }
+        break;
+    default:
+        break;
+    }
+
+    /* --- tail (0x019e00-0x019e46): same shape as fn_017f13 --- */
+    if (mv_a != 0) fn_01545e(e, mv_a);
+    if (mv_b != 0) fn_01586b(e, (uint32_t)mv_b);
+    if ((int32_t)fn_01519f(e) > p_x) *(int32_t *)(e + 0x1b) = 1;
+    if ((int32_t)fn_01519f(e) < p_x) *(int32_t *)(e + 0x1b) = 0;
+}

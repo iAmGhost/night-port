@@ -101,3 +101,16 @@ Notes for the ports:
 * Test angle that worked for the sibling handlers: drive one entity + the player (`DAT_53c7c`) and the
   current room (`DAT_63354`), pin the PRNG, then step the handler and assert the entity fields above
   rather than the screen.
+
+## Campaign shortcut: the handlers are near-clones
+
+`fnskel.py` on 0x018e88 (4031 B, 1067 insns, 59 calls) and 0x019e48 (4223 B, 1052 insns, 60 calls)
+shows the **same** opening (get-x/get-y of self and of `DAT_53c7c`, three `fn_041f7e` sign tests,
+`fn_015a1f`, PRNG `fn_041e9f`), the **same** twelve action-routine calls with the same 4-register ABI in
+the **same order** (0x017218, 0x016a60, 0x016b8f, 0x016fec, 0x016959, 0x01730b, 0x0174a2, 0x017530,
+0x017637, 0x01776f, 0x017927, 0x017ca6), and the same tail (`DAT_53eac + type*0x88` byte lookup,
+abs32 distance tests, then `fn_01545e` for movement in the 0x01 case). Differences are in the state
+machine around them (thresholds, extra PRNG draws, which fields get stamped).
+
+Consequence for the campaign: port 0x017f13 first and build the shared skeleton once; the siblings become
+diffs of the same 400-line pattern rather than fresh 1000-instruction ports.

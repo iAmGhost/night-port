@@ -26,6 +26,17 @@ verification policy: `docs/12-function-map.md` §3.
 # Phase 2 — Per-function port (in rank order, L0 → L19)
 See `docs/12-functions/STATUS.md` for per-function status.
 
+
+# Known port issues (open)
+- [ ] **Chunked resource reader loses the handle/buffer position invariant** — seeking after reads lands
+      at the wrong offset (off by the bytes read before the current block was filled). Blocks the real
+      CD/.IMG backend and random-access multi-resource loads. Diagnosis + repro:
+      `docs/13-io-reader-positioning-issue.md`, `scratch/io_pos_repro.c`
+- [ ] `heap_grow` (0x04322c) is still a stub; `heap_acquire_region` under-provisions by 4 bytes
+- [ ] Seedable tables with no producer inside the EXE still need the CD/data backend:
+      `DAT_00052c3c`, `DAT_00052738`, `DAT_00052f08`, `DAT_00053200`, `DAT_000532f4`
+- [ ] `0x03a70e` (picture slide-show) is analyzed but not portable yet: its format immediate `0x16b2`
+      is unmapped both in the file and in Ghidra → needs a runtime capture
 # Phase 3 — Integration verification
 - [ ] Deterministic input script + per-frame framebuffer capture
 - [ ] Pixel diff vs DOSBox-staging runs until zero (or documented diffs)

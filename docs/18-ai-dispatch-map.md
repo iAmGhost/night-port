@@ -151,3 +151,39 @@ Remaining handlers (13): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
 0x01df8b, 0x01f064, 0x020170, 0x02119c, 0x0221b8, 0x02319c (arg 2), 0x024bf9, 0x0265ac, 0x027bec,
 0x029709, 0x02adf5, 0x02c838, 0x02e2cc, 0x02fe1e, 0x03272f. Then the dispatcher 0x031a8e (1153 B)
 and 0x0322f5 (133 B).
+
+## Recon: 0x01cf64 (behaviours 0x05 / 0x09 / 0x0a) -- the next handler to port
+
+Derived facts (from `analysis/disasm/FUN_0001cf64.txt`, size 4134, 1080 insns):
+
+* **It takes a second argument that the other handlers do not.** The dispatcher sets **EDX** to the
+  behaviour index flavour before the call: behaviour 0x05 -> `mov edx, 2` (0x00031d4c), behaviour
+  0x09 -> `xor edx, edx` (0x00031d85), behaviour 0x0a -> `mov edx, 1` (0x00031d94); EAX = entity in
+  all three. The handler stores it at `[EBP-0x04]` (0x0001cf7e) and reads it only at
+  0x0001d32a / 0x0001d339 / 0x0001d348. So the port ABI is `fn_01cf64(uint8_t *e, int32_t mode)`
+  and EDX is *not* the usual rounded speed here.
+* Prologue matches the family: entity via 0x418ee, player screen x/y into `[EBP-0x30]`/`[EBP-0x2C]`,
+  and (unlike most siblings) the entity's own screen x/y into `[EBP-0x10]`/`[EBP-0x0C]` are live.
+* **The chooser (case 0x00, `e[0xaf] == 4`, `e[0x8f] != 1`, entity screen x in 0..0x13f, `e[0xc7] == 1`)
+  is mode-driven, not jitter-table driven** (0x0001d32a-0x0001d436):
+  - mode 0 -> local_64 = 0; mode 1 -> local_64 = 1; mode 2 -> `do { local_64 = (int)prng() % 2; }
+    while (local_64 == e[0xff]); e[0xff] = local_64;`
+  - `e[0x6f] = (local_64 == 0 || local_64 == 1)`; keep_x/keep_y = e[0xbf], e[0xc3];
+  - local_64 == 0: `e[0xbf] = p_x - (uint8_t) g_dat_53eb8[ty*0x88 + e[0x113]*10 + 0]`
+    local_64 == 1: `e[0xbf] = p_x + (uint8_t) g_dat_53eb8[ty*0x88 + e[0x113]*10 + 0]`
+    (both then `e[0xc3] = p_y`) -- the offset comes from the type's SCRIPT ROW, not the jitter table.
+  - clamp `< 0 -> 0x14`, `>= 0x140 -> 0x12c` (0x0001d436), then the usual too-close test
+    (|dx| < 10 && |dy| < 5) restoring keep_x/keep_y, otherwise clearing the e[0xc7] dword.
+* **case 0x00 opens with an entity[0x8b]-gated recon block** that the fn_018e88/019e48/01bea8
+  siblings lack: `if (e[0x8b] == 0) { if (cfg(record +0x10) == 0) { four position calls with the
+  arguments (p_x - 0x41) - v, p_x + v + 0x41, (p_y - 10) - v % 5, v % 5 + p_y + 10 } ... break; }`
+  (disasm 0x0001d150-0x0001d250 -- read that range before porting).
+* The rest of the state machine is the family's: the pseudo of 0x01cf64 contains exactly one
+  `e[0xaf] =` assignment for each of 1, 2, 3, 4(x4), 5, 6, 8, 9, 10(x2), 0x14, 0x15, 0x16, i.e. all
+  twelve action routines are reached with the same register ABI, and the tail (mv_a -> 0x1545e,
+  mv_b -> 0x1586b, facing vs the player) is the same. case 0x0c differs from the siblings (no
+  `prng % 0x14 == 2` split there -- see the 0x0001d.. case-0x0c block).
+* Tooling for the next pass: `python3 scratch/aicdiff.py <addrA> <addrB>` canonicalizes Ghidra local
+  names per function and drops rename-only hunks (it reduced 0x01bea8 vs 0x01aec8 to the chooser
+  alone); for handlers that diverge as much as this one, prefer
+  `uv run --quiet --with capstone python3 scratch/fnskel.py <addr>` and diff the condensed skeletons.

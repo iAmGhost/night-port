@@ -9104,6 +9104,117 @@ static void test_fn_0374ad(void) {
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
+/* fn_0376c8 (0x0376c8, 601 B): the player (hero) spawn. Runs on top of the same synthetic stage set:
+ * load the stage, give type 0 its sprite struct, then spawn and pin the entity + table selection. */
+static void test_fn_0376c8(void) {
+    printf("fn_0376c8 (0x0376c8): player spawn on the synthetic stage set\n");
+    static const char *res[6] = { "stage1.wal", "st1s.spr", "stage1.stg", "night1.chr",
+                                  "ena-1.spr", "ena-1.act" };
+    const uint32_t walLen = 4 + 2 + 24 + 200 + 768, chrLen = 116u * 0x65u;
+    uint32_t len[6] = { walLen, 4, 4 + 2 * 81, chrLen, 4, 4 };
+    const uint32_t rawLen = 6 * 0x14u;
+    uint32_t of[6], cursor = 4 + rawLen;
+    for (int i = 0; i < 6; i++) { of[i] = cursor; cursor += len[i] + 4; }
+    uint8_t *img = (uint8_t *)calloc(1, cursor);
+    if (!img) { check(0, "  image alloc (SKIP)"); return; }
+    img[0] = 6;
+    { uint8_t prev = 0x20;
+      for (int i = 0; i < 6; i++) {
+          uint8_t t[0x14]; memset(t, 0, sizeof t);
+          memcpy(t, res[i], strlen(res[i]));
+          t[16] = (uint8_t)(of[i]); t[17] = (uint8_t)(of[i] >> 8);
+          for (int k = 0; k < 0x14; k++) { uint8_t raw = (uint8_t)(t[k] ^ prev); img[4 + i*0x14 + k] = raw; prev = raw; }
+      } }
+    { uint8_t *w = img + of[0]; *(uint32_t *)(w) = 1; w[4] = 0x00; w[5] = 0x00;   /* orientation byte 0 */
+      *(uint32_t *)(w+6) = 0; *(uint32_t *)(w+10) = 5; *(uint32_t *)(w+14) = 1; *(uint32_t *)(w+18) = 9;
+      *(uint32_t *)(w+22) = 0x11223344; *(uint32_t *)(w+26) = 0x55667788;
+      memset(w + 30, 0xee, 200); memset(w + 230, 0x11, 768);
+      *(uint32_t *)(w + 30 + 200 + 768) = 0; }
+    { uint8_t *s = img + of[2]; *(uint32_t *)(s) = 0; }   /* no .stg records: keep the spawn isolated */
+
+    static uint8_t pool[0x53800];
+    memset(pool, 0, sizeof pool);
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_b0 = g_dat_633b0;
+    memset(dev_tab, 0, sizeof dev_tab);
+    g_dat_53730 = dev_tab; g_dat_536dc = 8; g_dat_53619 = 0; g_dat_536d8 = 0;
+    g_dat_633b0 = SCREEN_BASE;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0;
+    sys_file_lseek_pos = 0;
+    sys_file_image_set(img, cursor);
+    heap_arena_init(); (void)heap_malloc(0x4000);
+    g_639b8 = fn_04270d((const uint8_t *)"night.res", "rb");
+    fn_0366a4((uint8_t *)g_639b8);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *cfg = (uint8_t *)calloc(1, 0x40);
+    uint8_t *s_cfg = g_dat_53c7c; g_dat_53c7c = cfg;
+    uint32_t s_370 = g_dat_63370; g_dat_63370 = 1;
+    uint32_t save_52c = g_tab_52c3c[0], save_28 = g_tab_52738[3];
+    g_tab_52c3c[0] = 0x77; g_tab_52738[3] = 0x123456;
+    uint32_t s_374 = g_dat_63374, s_378 = g_dat_63378, s_37c = g_dat_6337c, s_380 = g_dat_63380, s_384 = g_dat_63384;
+    uint32_t s_398 = g_dat_63398, s_c84 = g_dat_53c84;
+    uint8_t *s_358 = g_dat_63358;
+    uint8_t *s_key98 = g_dat_62a98, *s_key9c = g_dat_62a9c;
+    uint32_t s_818_0 = g_dat_53818[0];
+    uint8_t *s_spr0 = g_dat_639ec[0];
+    g_dat_63374 = 0x2b2b; g_dat_63378 = 2; g_dat_6337c = 1; g_dat_63380 = 3; g_dat_63384 = 3;
+    g_dat_63398 = 0; g_dat_63358 = 0;
+    uint32_t spr0_off = heap_malloc(0x3c); g_dat_639ec[0] = hb + spr0_off;   /* "gun.spr" stand-in */
+    uint8_t *sc28 = hb + heap_malloc(8), *sc2c = hb + heap_malloc(8), *sc30 = hb + heap_malloc(8);
+    uint8_t *s_c28 = (uint8_t *)g_dat_53c28, *s_c2c = (uint8_t *)g_dat_53c2c, *s_c30 = (uint8_t *)g_dat_53c30;
+    g_dat_53c28 = (uint32_t *)(uintptr_t)sc28;
+    g_dat_53c2c = (uint32_t *)(uintptr_t)sc2c;
+    g_dat_53c30 = (uint32_t *)(uintptr_t)sc30;
+
+    fn_037b03(0);                                   /* the stage (room chain + type table) exists first */
+
+    fn_0376c8();
+
+    check(g_dat_53c7c != 0 && g_dat_53c84 == (uint32_t)(uintptr_t)g_dat_53c7c,
+          "  DAT_53c7c / DAT_53c84 hold the new player entity");
+    check(g_dat_53c7c[0x28] == 3 && *(uint32_t *)(g_dat_53c7c + 0x56) == 0x3456,
+          "  +0x28 = DAT_63384 and +0x56 = the low half of DAT_52738[+0x28]");
+    check(*(const uint16_t *)(g_dat_53c7c + 0x23) == 0
+          && *(const uint16_t *)(g_dat_53c7c + 0x29) == *(const uint16_t *)(g_dat_53e9c + 8),
+          "  +0x23 cleared, +0x29 = DAT_53ea4 (type-0 table +8)");
+    check(g_dat_53c88 == 0 && g_dat_63354 == g_dat_6334c,
+          "  DAT_53c88 cleared; DAT_63354 = DAT_6334c while DAT_63358 is empty");
+    check(g_dat_62a98 == g_dat_62aa8 && g_dat_62a9c == g_dat_62abc,
+          "  active key/catch tables picked from the DAT_62aa0 region by DAT_63378");
+    check(g_dat_53818[0] != 0 && (hb + g_dat_53818[0]) == (uint8_t *)g_dat_53c2c
+          && *(uint32_t *)(g_dat_53c7c + 0x123) == g_dat_53818[0],
+          "  DAT_53818[0] = the DAT_53c28 container chosen by DAT_6337c, mirrored into entity+0x123");
+    check(*(const uint32_t *)(g_dat_53c7c + 0x2b) == 0x2b2b
+          && g_dat_53c7c[0x27] == 2 && g_dat_53c7c[0x26] == 1 && g_dat_53c7c[0x25] == 3,
+          "  entity +0x2b / +0x27 / +0x26 / +0x25 mirror DAT_63374/78/7c/80");
+    check(*(int32_t *)(g_dat_53c7c + 1) == (int32_t)g_dat_639dc - 0x1e
+          && *(uint32_t *)(g_dat_53c7c + 0x1b) == 0,
+          "  DAT_63398 == 0 -> +1 = DAT_639dc - 0x1e, +0x1b = 0");
+    check(*(int32_t *)(g_dat_53c7c + 9) == (int32_t)g_dat_639e0 + 0x77,
+          "  +9 = DAT_639e0 + DAT_52c3c[(stage-1)*0x28 + serial*4]");
+    check(*(uint32_t *)(g_dat_53c7c + 0x17) == 1 && *(uint32_t *)(g_dat_53c7c + 0x11) == 0,
+          "  entity +0x17 = 1, +0x11 = 0");
+
+    g_dat_53c7c = s_cfg; g_dat_63370 = s_370; g_tab_52c3c[0] = save_52c; g_tab_52738[3] = save_28;
+    g_dat_63374 = s_374; g_dat_63378 = s_378; g_dat_6337c = s_37c; g_dat_63380 = s_380; g_dat_63384 = s_384;
+    g_dat_63398 = s_398; g_dat_53c84 = s_c84; g_dat_63358 = s_358;
+    g_dat_62a98 = s_key98; g_dat_62a9c = s_key9c; g_dat_53818[0] = s_818_0; g_dat_639ec[0] = s_spr0;
+    g_dat_53c28 = (uint32_t *)(uintptr_t)s_c28; g_dat_53c2c = (uint32_t *)(uintptr_t)s_c2c;
+    g_dat_53c30 = (uint32_t *)(uintptr_t)s_c30;
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+    g_dat_633b0 = saved_b0;
+    sys_file_image_set(0, 0);
+    free(img); free(cfg);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03f80d(void) {
     printf("fn_03f80d (0x03f80d): resource-op block gate (tag 0xf1fa + int16 count)\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
@@ -9867,6 +9978,7 @@ int main(void) {
     test_fn_03c853();
     test_fn_037b03();
     test_fn_0374ad();
+    test_fn_0376c8();
     test_fn_03ace9();
     test_fn_040fb3();
     test_fn_040d09();

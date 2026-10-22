@@ -4571,6 +4571,104 @@ void fn_0374ad(void)
     *(uint32_t *)(g_dat_53c7c + 0x11) = 0;                                   /* 0x376b8 */
 }
 
+/* fn_0376c8  orig: 0x000376c8 (L15, 601 B) -- THE PLAYER (hero) SPAWN.
+ * Capstone + decomp agree on the sequence (guards PUSH 0x44/0x4a/0x4f/0x59/0x377e3/0x3788e around the
+ * calls are the Watcom EH frame, not data):
+ *   fn_03d88f (reset the clamp-bounds list) ; fn_03237b ; fn_03ee0a
+ *   block = fn_00041bdc(0x147)
+ *   player = block ? fn_010efc(block, -30, 0, DAT_00052c3c[roomSerial*4 + (stage-1)*0x28], 0, 0) : 0
+ *            (0xffffffe2 = -30 is the hero's spawn-kind argument; the two stack args are pushed as 0,
+ *             so entity type index = 0 = the gun type and entity kind = 0)
+ *   DAT_00053c7c = player                       ; DAT_53c7c is THE PLAYER ENTITY POINTER
+ *   word[player+0x23] = 0
+ *   byte[player+0x28] = DAT_00063384
+ *   byte[player+0x28] == 0 -> dword[player+0x56] = (word)DAT_00053e9c            (type-0 table, +0)
+ *   else                    -> dword[player+0x56] = (word)DAT_00052738[b*4]      (per-ship table)
+ *   word[player+0x29] = (word)DAT_00053ea4                                       (type-0 table, +8)
+ *   DAT_00053c88 = 0 ; DAT_00053c84 = player
+ *   fn_037b03(1)                                  ; RESUME load: skips the room chain + stage .spr
+ *   DAT_00063354 = DAT_00063358 ? DAT_00063358 : DAT_0006334c
+ *   DAT_00062a98 = (&DAT_00062aa0)[DAT_00063378]   ; active key table  (0x62aa0..0x62ac8 = 10 slots)
+ *   DAT_00062a9c = (&DAT_00062ab4)[DAT_00063378]   ; active catch table (same region, index 5+)
+ *   DAT_00053818   = (&DAT_00053c28)[DAT_0006337c] ; active action table (three .act containers)
+ *   dword[player+0x123] = DAT_00053818 ; dword[player+0x2b] = DAT_00063374
+ *   byte[player+0x27] = DAT_00063378 ; byte[player+0x26] = DAT_0006337c ; byte[player+0x25] = DAT_00063380
+ *   fn_03cad3(DAT_00063354)
+ *   DAT_00063398 == 0 -> dword[player+1] = DAT_000639dc - 0x1e ; dword[player+0x1b] = 0
+ *   else              -> dword[player+1] = DAT_000639dc + 0x15e ; dword[player+0x1b] = 1
+ *   dword[player+9]  = DAT_000639e0 + DAT_00052c3c[DAT_00063354[0x40]*4 + (DAT_00063370-1)*0x28]
+ *   dword[player+0x17] = 1 ; dword[player+0x11] = 0
+ * Port-model notes:
+ *  - DAT_00053e9c (the entity-type table base) and DAT_00053ea4 are read as scalars here; the port
+ *    reads them through the g_dat_53e9c array view (+0 / +8 of entry 0), so no duplicate globals.
+ *  - DAT_00062aa0/0x62ab4 and DAT_00053c28 are indexed as arrays in the original; the port keeps them
+ *    as separate named globals, so it rebuilds the contiguous DS arrays locally (0x62aa0..0x62ac8 is
+ *    exactly ten pointer slots, 0x53c28..0x53c30 exactly three).
+ *  - DAT_00052c3c and DAT_00052738 have no producer anywhere in the EXE (reads only: 0x0374ad,
+ *    0x0376c8, 0x03af18, 0x03d244, ...), so both are zero-initialised seedable globals.
+ *  - The allocation is 0x147 in the original; the port asks for 0x14f because of the widened entity
+ *    link pair (see fn_010efc).
+ */
+uint32_t g_dat_53c84 = 0;                    /* DAT_00053c84: the player entity, second slot */
+uint32_t g_tab_52738[0x100] = {0};           /* DAT_00052738: per-ship dword table, indexed by entity +0x28 */
+
+void fn_0376c8(void)
+{
+    (void)canary_id(0, 0x44);                                                /* 0x376c8-cd */
+    fn_03d88f();                                                             /* 0x376e5 */
+    fn_03237b();                                                             /* 0x376ea */
+    fn_03ee0a();                                                             /* 0x376ef */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t blk = fn_00041bdc(0x14f);                                       /* 0x376f9: orig 0x147 (+8 widened links) */
+    uint8_t *player = NULL;
+    if (blk != 0) {                                                          /* 0x37702 */
+        int32_t tbl = (int32_t)g_tab_52c3c[*(const uint32_t *)(g_dat_63354 + 0x40)
+                                           + (g_dat_63370 - 1) * 0xa];       /* 0x3770d-29 */
+        player = fn_010efc(hb + blk, (int32_t)0xffffffe2, 0, (int32_t)tbl, 0, 0);  /* 0x37733 (EAX,EDX,EBX,ECX + two pushed 0s) */
+    }
+    g_dat_53c7c = player;                                                    /* 0x3774c: the player entity */
+    *(uint16_t *)(g_dat_53c7c + 0x23) = 0;                                   /* 0x37756 */
+    g_dat_53c7c[0x28] = (uint8_t)g_dat_63384;                                /* 0x37761-67 */
+    if (g_dat_53c7c[0x28] == 0) {                                            /* 0x37779 */
+        *(uint32_t *)(g_dat_53c7c + 0x56) = *(const uint16_t *)(g_dat_53e9c + 0x00);  /* 0x377a1-3e: DAT_53e9c low half */
+    } else {
+        *(uint32_t *)(g_dat_53c7c + 0x56)
+            = g_tab_52738[(uint32_t)g_dat_53c7c[0x28]] & 0xffffu;            /* 0x3778b-3779c */
+    }
+    *(uint16_t *)(g_dat_53c7c + 0x29) = *(const uint16_t *)(g_dat_53e9c + 0x08);  /* 0x377ba-c1: DAT_53ea4 */
+    g_dat_53c88 = 0;                                                         /* 0x377c5 */
+    g_dat_53c84 = (uint32_t)(uintptr_t)g_dat_53c7c;                          /* 0x377d4 */
+    fn_037b03(1);                                                            /* 0x377de: resume-style load */
+    g_dat_63354 = (g_dat_63358 != NULL) ? g_dat_63358 : g_dat_6334c;         /* 0x377e3-37802 */
+    uint8_t *keytab[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
+                            g_dat_62ab4, g_dat_62ab8, g_dat_62abc, g_dat_62ac0, g_dat_62ac4 };
+    uint8_t *acttab[3]  = { (uint8_t *)g_dat_53c28, (uint8_t *)g_dat_53c2c, (uint8_t *)g_dat_53c30 };
+    uint32_t ki = g_dat_63378;                                               /* 0x37802-10 */
+    if (ki < 10u) g_dat_62a98 = keytab[ki];
+    if (ki + 5u < 10u) g_dat_62a9c = keytab[ki + 5u];
+    uint32_t ai = g_dat_6337c;                                               /* 0x37828-36 */
+    g_dat_53818[0] = (ai < 3u && acttab[ai] != NULL)
+                   ? (uint32_t)(acttab[ai] - hb) : 0;
+    *(uint32_t *)(g_dat_53c7c + 0x123) = g_dat_53818[0];                     /* 0x37846 */
+    *(uint32_t *)(g_dat_53c7c + 0x2b) = g_dat_63374;                         /* 0x37857 */
+    g_dat_53c7c[0x27] = (uint8_t)g_dat_63378;                                /* 0x37865 */
+    g_dat_53c7c[0x26] = (uint8_t)g_dat_6337c;                                /* 0x37873 */
+    g_dat_53c7c[0x25] = (uint8_t)g_dat_63380;                                /* 0x3787f */
+    fn_03cad3(g_dat_63354);                                                  /* 0x3788e */
+    if (g_dat_63398 == 0) {                                                  /* 0x37893 */
+        *(int32_t *)(g_dat_53c7c + 1)  = (int32_t)g_dat_639dc - 0x1e;
+        *(uint32_t *)(g_dat_53c7c + 0x1b) = 0;
+    } else {
+        *(int32_t *)(g_dat_53c7c + 1)  = (int32_t)g_dat_639dc + 0x15e;
+        *(uint32_t *)(g_dat_53c7c + 0x1b) = 1;
+    }
+    *(int32_t *)(g_dat_53c7c + 9) = (int32_t)(g_dat_639e0
+        + g_tab_52c3c[*(const uint32_t *)(g_dat_63354 + 0x40) + (g_dat_63370 - 1) * 0xa]);  /* 0x378d3-9f */
+    *(uint32_t *)(g_dat_53c7c + 0x17) = 1;                                   /* 0x378e1 */
+    *(uint32_t *)(g_dat_53c7c + 0x11) = 0;                                   /* 0x378ed */
+}
+
+
 
 
 int g_dat_53390 = 0;                                    /* DAT_00053390 */

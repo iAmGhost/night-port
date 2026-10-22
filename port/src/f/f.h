@@ -1483,4 +1483,10 @@ extern uint32_t g_dat_62d58;       /* DAT_00062d58: state id of the action being
 extern uint32_t g_dat_6339c;       /* DAT_0006339c: countdown that forces state 0x28 at 500 */
 extern uint8_t  g_dat_63eb4;       /* DAT_00063eb4: dash/attack key latch */
 
+/* 0x03a829: THE ROOM PLAY LOOP -- one stage room from the CD track request to the transition that leaves
+ * it. Returns 0 = game over, 1 = the player died, 2 = continued, -1 = aborted back to the title. */
+int32_t fn_03a829(void);
+extern const uint8_t g_tab_52b84[90]; /* 0x52b84: 1 = the room is entered offset by 120 px (9 stages x 10) */
+extern uint32_t g_tab_53d08[101];     /* 0x53d08: device command stream per element-event id */
+
 #endif

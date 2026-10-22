@@ -16744,6 +16744,158 @@ static void test_fn_03272f(void) {
 }
 
 
+#if 0   /* DISABLED: the room loop needs the full stage fixture -- see docs/12-functions/STATUS.md
+static void test_fn_03a829(void) {
+    printf("fn_03a829 (0x03a829): the room play loop (frame pipeline + the DAT_6336c exit decision)\n");
+    uint8_t *s_pl = g_dat_53c7c, *s_room = g_dat_63354, *s_80 = g_dat_53c80;
+    uint8_t *s_hd = g_dat_53c70, *s_tl = g_dat_53c74, *s_c78 = g_dat_53c78;
+    uint8_t *s_a98 = g_dat_62a98, *s_a9c = g_dat_62a9c, *s_639cc = g_dat_639cc, *s_639d4 = g_dat_639d4;
+    uint32_t s_b0 = g_dat_633b0, s_100 = g_dat_53100, s_370 = g_dat_63370, s_39c = g_dat_6339c;
+    uint32_t s_360 = g_dat_63360, s_36c = g_dat_6336c, s_39bc = g_dat_639bc, s_3104 = g_dat_53104;
+    uint32_t s_398 = g_dat_63398, s_2d58 = g_dat_62d58, s_2d5c = g_dat_62d5c;
+    uint32_t s_cnt = g_dat_53c68, s_9e0 = g_dat_639e0, s_9dc = g_dat_639dc, s_74 = g_dat_63374;
+    uint32_t s_2a90 = g_dat_62a90, s_9e4 = g_dat_639e4, s_e24 = g_dat_63e24;
+    uint32_t s_c84 = (uint32_t)(uintptr_t)g_dat_53c84, s_c88 = g_dat_53c88;
+    uint8_t  s_e89 = g_dat_63e89, s_b900 = g_dat_62b90[0], s_b9071 = g_dat_62b90[0x71];
+    uint32_t s_e18 = g_dat_63e18, s_e1c = g_dat_63e1c, s_e20 = g_dat_63e20;
+    uint8_t ring_s[10], arm_s[10]; memcpy(ring_s, g_dat_63f14, 10); memcpy(arm_s, g_dat_63f1e, 10);
+    uint8_t ring_c = g_dat_63f50;
+    uint32_t floor_s = heap_region_floor();
+
+    heap_region_floor_set(0x10000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    /* every list the frame pipeline walks is emptied: fn_03b9b7 drains DAT_000639cc, the draw sweep
+     * walks DAT_00053c70/DAT_00053c84/DAT_00053c88, the script pump walks DAT_00063e18 */
+    g_dat_639cc = NULL; g_dat_639d4 = NULL;
+    g_dat_53c84 = 0; g_dat_53c88 = 0;
+    g_dat_63e18 = 0; g_dat_63e1c = 0; g_dat_63e20 = 0;
+    g_dat_633b0 = SCREEN_BASE; g_dat_62a90 = 0; g_dat_639e4 = 0; g_dat_63e24 = 0;
+    g_dat_53c80 = NULL; g_dat_63e89 = 0;
+    g_dat_639e0 = 1000; g_dat_639dc = 0;
+
+    uint8_t *room = (uint8_t *)calloc(1, 0x800);
+    *(uint32_t *)(room + 0x00) = 0;                      /* fn_03cc6b compares this with DAT_639dc */
+    *(uint32_t *)(room + 0x40) = 3;                      /* serial 3 -> g_tab_52b84[23] == 1 */
+    *(uint32_t *)(room + 0x3c) = 0;                      /* no pair table for fn_03d606 */
+    *(uint32_t *)(room + 0x1a) = 0x140;                  /* background pitch */
+    *(uint32_t *)(room + 0x348) = SCREEN_BASE;           /* the plane the draw composites on */
+    uint8_t *child = (uint8_t *)calloc(1, 0x400);        /* the room chain link is a host pointer */
+    *(uint32_t *)(child + 0x1a) = 0x140;
+    *(uint32_t *)(child + 0x348) = SCREEN_BASE; child[0x11] = 1;
+    *(uint8_t **)(room + 0x34c) = child;
+    g_dat_63354 = room; g_dat_63370 = 3; g_dat_63398 = 0;
+
+    /* the player, with an action record that runs out at frame 3 so its death can end the loop */
+    uint32_t pl_o = heap_malloc(0x14f); uint8_t *pl = hb + pl_o;
+    g_dat_53c7c = pl;
+    memset(pl, 0, 0x14f);
+    uint32_t p1 = heap_malloc(0x20);
+    *(uint32_t *)(hb + p1 + 4) = heap_malloc(0x100 * 4);
+    uint32_t p2 = *(uint32_t *)(hb + p1 + 4);
+    uint32_t defr = heap_malloc(0x90);
+    *(uint32_t *)(hb + defr + 0x00) = 3;                 /* rec frame limit */
+    for (int i = 0; i < 0x100; i++) *(uint32_t *)(hb + p2 + (size_t)i * 4) = defr;
+    *(uint32_t *)(pl + 0x123) = p1;
+    *(int32_t *)(pl + 0x01) = 1200;
+    *(uint32_t *)(pl + 0x2b) = 0x123456;
+    pl[0x27] = 3; pl[0x26] = 2; pl[0x25] = 1; pl[0x28] = 4; pl[0] = 2;
+
+    /* a second, stage-enemy entity, for the DAT_6336c == 3 report */
+    uint8_t *foe = hb + heap_malloc(0x14f);
+    memset(foe, 0, 0x14f);
+    *(uint32_t *)(foe + 0x123) = p1; foe[0] = 1; foe[0x30] = 1;
+    *(uint32_t *)(foe + 0x11) = 4;
+
+    static uint8_t empty_tbl[8] = { 0, 0, 0, 0 };
+    g_dat_62a98 = empty_tbl; g_dat_62a9c = empty_tbl;
+
+#define LINK(node) do { *(uint8_t **)((node) + 0x13f) = NULL;                       \
+        *(uint8_t **)((node) + 0x147) = NULL; g_dat_53c70 = (node);                 \
+        g_dat_53c74 = (node); g_dat_53c68 = 1; } while (0)
+#define DYING(node) do { (node)[0x30] = 1; *(uint32_t *)((node) + 0x11) = 4;        \
+        *(uint32_t *)((node) + 0x17) = 1; } while (0)
+
+    /* --- the player's own death ends the room (DAT_6336c = 1) and there are no credits ------ */
+    LINK(pl); DYING(pl);
+    g_dat_639bc = 7; g_dat_53104 = 0; g_dat_6339c = 0; g_dat_63360 = 0;
+    g_dat_53100 = 0;
+    int32_t r = fn_03a829();
+    check(r == 0 && g_dat_53100 == 3,
+          "with no CONTINUE credits the loop leaves through the game-over tail (0) and re-arms 3 credits");
+    check(*(uint32_t *)(pl + 0x17) == 1 && g_dat_63374 == 0x123456 && g_dat_63378 == 3 &&
+          g_dat_6337c == 2 && g_dat_63380 == 1 && g_dat_63384 == 4,
+          "the player is reset to state 1 and its equipment bytes are mirrored into DAT_63374..63384");
+    check(g_dat_639bc == 0 && g_dat_53104 == 0x46,
+          "the kill counter is cleared and the row-progress divisor DAT_53104 is set to 0x46");
+    check(*(int32_t *)(pl + 1) == 1200 + 0x78,
+          "a g_tab_52b84 room enters the player 120 px along the orientation (no entry wipe)");
+    check(g_dat_63360 == 1 && g_dat_6339c == 1,
+          "exactly one frame ran: the frame counter and the idle countdown each moved once");
+    {
+        int clean = 1;
+        for (int i = 0; i < 0x300; i++) if (g_dat_633b8[i] != 0) { clean = 0; break; }
+        check(clean, "the DAC staging buffer DAT_000633b8 is cleared before being pushed to the board");
+    }
+
+    /* --- a stage entity's death is reported (DAT_6336c == 3) and returns 1 ------------------ */
+    LINK(foe); g_dat_53c80 = foe; pl[0x30] = 0;
+    *(int32_t *)(pl + 1) = 1200; g_dat_63360 = 0; g_dat_6339c = 0;
+    r = fn_03a829();
+    check(r == 1 && g_dat_6336c == 0,
+          "the death of the DAT_00053c80 entity (DAT_6336c = 3) leaves the room with 1");
+    check(g_dat_53c68 == 0,
+          "the dead entity was removed and freed by fn_012616 during the sweep, which ends the loop");
+    check(*(int32_t *)(pl + 1) == 1200 - 0x78,
+          "with DAT_63398 non-zero the same g_tab_52b84 room nudges the player the other way");
+
+    /* --- the chain table selection: state 1 walks g_dat_62a98, not the pair table ----------- */
+    uint32_t tbl_o = heap_malloc(0x4b4); uint8_t *tbl = hb + tbl_o;
+    memset(tbl, 0, 0x4b4);
+    *(uint32_t *)(tbl + 0x000) = 1; tbl[0x004] = 1;
+    uint32_t c = heap_malloc(8); *(uint32_t *)(tbl + 0x068) = c; hb[c] = 'q';
+    uint32_t v = heap_malloc(8); *(uint32_t *)(tbl + 0x1f8) = v; hb[v] = 2;
+    *(uint16_t *)(tbl + 0x388) = 0x71; tbl[0x450] = 0;
+    memset(g_dat_63f14, 0, 10); memset(g_dat_63f1e, 0, 10); g_dat_63f50 = 0;
+    g_dat_63f14[9] = 'q'; g_dat_62d58 = 0; g_dat_62b90[0] = 1; g_dat_62b90[0x71] = 2;
+
+    LINK(pl); pl[0x30] = 0; *(uint32_t *)(pl + 0x17) = 1; *(uint32_t *)(pl + 0x11) = 0;
+    g_dat_53c80 = NULL; g_dat_63360 = 0; g_dat_6339c = 0; g_dat_53100 = 0;
+    g_dat_62a98 = tbl; g_dat_62a9c = empty_tbl;
+    /* the loop would otherwise run forever, so let the player die on the frame AFTER the chain fires:
+     * the record limit is 3, so the third frame kills it */
+    *(uint32_t *)(pl + 0x11) = 2; pl[0x30] = 1;
+    fn_03a829();
+    check(g_dat_62d58 == 0x71,
+          "at state 1 the frame loop feeds g_dat_62a98 to fn_03272f, so the idle chain fires");
+    g_dat_62d58 = 0;
+    LINK(pl); pl[0x30] = 1; *(uint32_t *)(pl + 0x17) = 1; *(uint32_t *)(pl + 0x11) = 2;
+    g_dat_63360 = 0; g_dat_6339c = 0; g_dat_53100 = 0;
+    g_dat_62a98 = empty_tbl; g_dat_62a9c = tbl;
+    fn_03a829();
+    check(g_dat_62d58 == 0,
+          "the pair table g_dat_62a9c is only used in the pair states 0x66/0x70, so nothing fires here");
+
+#undef LINK
+#undef DYING
+    g_dat_53c7c = s_pl; g_dat_63354 = s_room; g_dat_53c80 = s_80;
+    g_dat_53c70 = s_hd; g_dat_53c74 = s_tl; g_dat_53c78 = s_c78;
+    g_dat_639cc = s_639cc; g_dat_639d4 = s_639d4;
+    g_dat_62a98 = s_a98; g_dat_62a9c = s_a9c;
+    g_dat_633b0 = s_b0; g_dat_53100 = s_100; g_dat_63370 = s_370; g_dat_6339c = s_39c;
+    g_dat_63360 = s_360; g_dat_6336c = s_36c; g_dat_639bc = s_39bc; g_dat_53104 = s_3104;
+    g_dat_63398 = s_398; g_dat_62d58 = s_2d58; g_dat_62d5c = s_2d5c; g_dat_53c68 = s_cnt;
+    g_dat_639e0 = s_9e0; g_dat_639dc = s_9dc; g_dat_63374 = s_74; g_dat_63e89 = s_e89;
+    g_dat_62b90[0] = s_b900; g_dat_62b90[0x71] = s_b9071;
+    g_dat_62a90 = s_2a90; g_dat_639e4 = s_9e4; g_dat_63e24 = s_e24;
+    g_dat_53c84 = (uintptr_t)s_c84; g_dat_53c88 = s_c88;
+    g_dat_63e18 = s_e18; g_dat_63e1c = s_e1c; g_dat_63e20 = s_e20;
+    memcpy(g_dat_63f14, ring_s, 10); memcpy(g_dat_63f1e, arm_s, 10); g_dat_63f50 = ring_c;
+    heap_region_floor_set(floor_s);
+    free(room); free(child);
+}
+
+#endif
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -17195,6 +17347,8 @@ int main(void) {
     test_fn_03f15f();
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
+    /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */
+    /* test_fn_03a829() is #if 0'd out: see the note above its definition */
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

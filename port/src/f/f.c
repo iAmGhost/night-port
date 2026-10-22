@@ -21419,6 +21419,154 @@ ai_tail:
     if ((int32_t)fn_01519f(e) < p_x) *(int32_t *)(e + 0x1b) = 0;
 }
 
+/* =================================================================== */
+/*  the room play loop (0x03a829)                                      */
+/* =================================================================== */
+
+/* DAT_00052b84 (DS, 90 bytes = 9 stages x 10 room slots): 1 marks a room the player enters OFFSET by
+ * 120 px (no entry wipe), 0 a room that wipes in from the previous one. No EXE producer: image data. */
+const uint8_t g_tab_52b84[90] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 1 */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 2 */
+    0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 3 */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 4 */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 5 */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 6 */
+    0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 7 */
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,   /* stage 8 */
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,   /* stage 9 */
+};
+
+/* DAT_00053d08 (DS, 101 dwords, zero in the image): the device command stream to start for each element
+ * event id (DAT_00063364). No producer found in the analysed set, so it stays zero-initialised. */
+uint32_t g_tab_53d08[101] = {0};
+
+/* fn_03a829  orig: 0x0003a829 (L9, 1216 B) -- THE ROOM PLAY LOOP: the body of one stage room, from the
+ * CD track request to the transition that leaves the room. Called by fn_03af18 once per room.
+ *
+ * Opening: request the room CD track (g_tab_52da4), drain the entity list (fn_03b9b7), reset the player to
+ * state 1 and mirror its equipment bytes into DAT_00063374/78/7c/80/84, clear the DAC staging buffer
+ * (DAT_000633b8) and push it to the input board (board_out), run the script pump (fn_03ed6f) and the screen
+ * blit (fn_03801b), fade in the room palette (fn_040660), then either nudge the player by 120 px
+ * (g_tab_52b84 == 1) or wipe it in over 0x78 steps (g_tab_52b84 == 0 -> fn_0381d7).
+ *
+ * The frame loop: the CG slide-show trigger (fn_03a70e, once per room, armed when the DAT_00053c80 entity
+ * sits inside the camera band), the abort latch (DAT_00063e89 -> fn_039c03, the title menu), then the frame
+ * pipeline fn_0322f5 (per-type AI) -> fn_03209c (entity action step) -> fn_0347e3 (keyboard) -> fn_03272f
+ * (the player action chain, from g_dat_62a98, or g_dat_62a9c in the pair states 0x66/0x70) -> fn_0320f5
+ * (hit test) -> fn_03d4e4 (camera) -> fn_03ed6f (scripts) -> fn_038098 (sort, draw, frame pacing), the
+ * pending element event (DAT_00063364 with its DAT_00063368 delay), the frame counter, the idle countdown
+ * DAT_0006339c, and every tenth frame fn_03d606 (the room pair table).
+ *
+ * Exit is decided by the event request DAT_0006336c (see fn_012616 / fn_03272f): 1 = the player is gone
+ * (game over), 3 = report the death, 2 = the exit rectangle was reached (wipe, take the child room
+ * orientation, fn_03d244 loads the next room), 4 = the kill quota was met (the same reload, no wipe). With
+ * the entity list down to one node the room clear counters (room+0x32/+0x36) are zeroed, and fn_010d47
+ * keeps the CD refreshed. Returns 0 = game over, 1 = died, 2 = continued, -1 = aborted to the title.
+ */
+int32_t fn_03a829(void)
+{
+    (void)canary_id(0, 0x3c);                                          /* 0x0003a82e probe (push 0x3c) */
+    uint8_t *pl = g_dat_53c7c;
+    uint8_t *room = g_dat_63354;
+    int32_t showed = 0;                                                /* local_20: the slide-show is done */
+    int32_t col = *(const int32_t *)(room + 0x40) + ((int32_t)g_dat_63370 - 1) * 10;
+
+    g_dat_639bc = 0;                                                   /* 0x0003a845 kill counter */
+    g_dat_53104 = 0x46;                                                /* 0x0003a84f row-progress divisor */
+    (void)g_tab_52da4[*(const int32_t *)(room + 0x40) +               /* 0x0003a863-86: the CD track handed */
+                      ((int32_t)g_dat_63370 - 1) * 10];                /* to fn_10b1d (no-op in flat model) */
+    fn_10b1d();                                                        /* 0x0003a882 */
+    fn_03b9b7();                                                       /* 0x0003a887 drain the entity list */
+    *(int32_t *)(pl + 0x17) = 1;                                       /* 0x0003a88c-94 idle state */
+    g_dat_63374 = *(const uint32_t *)(pl + 0x2b);                      /* 0x0003a894-0x0003a8c2 equipment */
+    g_dat_63378 = pl[0x27];
+    g_dat_6337c = pl[0x26];
+    g_dat_63380 = pl[0x25];
+    g_dat_63384 = pl[0x28];
+    fn_041e20(g_dat_633b8, 0, 0x300);                                  /* 0x0003a8f4-0x0003a903 DAC staging */
+    board_out(0, 0x100, g_dat_633b8);                                  /* 0x0003a903 push it to the board */
+    g_dat_63360 = 1;                                                   /* 0x0003a908 */
+    if (g_tab_52b84[col] == 1) {                                       /* 0x0003a90d-0x0003a93c entry nudge */
+        if (g_dat_63398 == 0) *(int32_t *)(pl + 1) = *(int32_t *)(pl + 1) + 0x78;
+        else                *(int32_t *)(pl + 1) = *(int32_t *)(pl + 1) - 0x78;
+    }
+    fn_03ed6f();                                                       /* 0x0003a941 script pump */
+    fn_03801b(g_dat_633b0);                                            /* 0x0003a946 screen blit */
+    fn_040660(room + 0x48, 0x32);                                      /* 0x0003a951 palette fade-in */
+    g_dat_6336c = 0; g_dat_63360 = 0; g_dat_63e28 = 0; g_dat_63e24 = 0; /* 0x0003a95a-0x0003a984 */
+    if (g_tab_52b84[col] == 0)                                         /* 0x0003a989-0x0003a9dc the wipe-in */
+        fn_0381d7(g_dat_633b0, 1, 0, 0x78, (int32_t)g_dat_63398);
+    g_dat_6336c = 0; g_dat_63360 = 0; g_dat_63e28 = 0; g_dat_63e24 = 0; /* 0x0003a9e1-0x0003aa04 */
+    fn_0348e2();                                                       /* 0x0003aa0e one ring slot */
+    fn_041e20(g_dat_62c58, 0, 0x80);                                   /* 0x0003aa1f per-key flags */
+    fn_041e20(g_dat_62cd8, 0, 0x80);                                   /* 0x0003aa30 per-key counters */
+
+    for (;;) {
+        /* 0x0003aa3b-0x0003aa9a: the optional CG slide-show, once per room, armed when the DAT_00053c80
+         * entity is inside the camera band. */
+        if (showed == 0 && g_dat_53c80 != NULL &&
+            (int32_t)g_dat_639e0 <= *(const int32_t *)(g_dat_53c80 + 9) &&
+            *(const int32_t *)(g_dat_53c80 + 9) < (int32_t)g_dat_639e0 + 200 &&
+            (int32_t)g_dat_639dc + 0x32 <= *(const int32_t *)(g_dat_53c80 + 1) &&
+            *(const int32_t *)(g_dat_53c80 + 1) <= (int32_t)g_dat_639dc + 0x10e) {
+            fn_03a70e();
+            showed = 1;
+        }
+        if (g_dat_63e89 != 0 && pl[0x30] != 1) {                       /* 0x0003aa9f-0x0003aac6 the abort */
+            while (g_dat_63e89 != 0) { break; }                        /* busy-wait (no-op here): the byte is
+                                                                        * cleared by the input backend */
+            if (fn_039c03() == 0) return -1;
+        }
+        fn_0322f5();                                                   /* 0x0003aadb per-type AI sweep */
+        fn_03209c();                                                   /* 0x0003aae0 entity action step */
+        fn_0347e3();                                                   /* 0x0003aae5 keyboard dispatch */
+        fn_03272f((*(const int32_t *)(pl + 0x17) == 0x66 ||            /* 0x0003aaea-0x0003ab13 the player */
+                   *(const int32_t *)(pl + 0x17) == 0x70)
+                      ? g_dat_62a9c : g_dat_62a98);
+        fn_0320f5();                                                   /* 0x0003ab18 hit test */
+        fn_03d4e4(room);                                               /* 0x0003ab22 camera policy */
+        fn_03ed6f();                                                   /* 0x0003ab27 script pump */
+        fn_038098(g_dat_633b0);                                        /* 0x0003ab31 sort, draw, pace */
+        if (g_dat_63364 != 0) {                                        /* 0x0003ab36-0x0003ab67 element event */
+            if (g_dat_63368 == 0) {
+                fn_04185e((uint8_t *)(uintptr_t)g_tab_53d08[g_dat_63364]);
+                g_dat_63364 = 0;
+            } else {
+                g_dat_63368 = g_dat_63368 - 1;
+            }
+        }
+        g_dat_63360 = g_dat_63360 + 1;                                 /* 0x0003ab6c-74 frame counter */
+        if (*(const int32_t *)(pl + 0x17) == 1) g_dat_6339c = g_dat_6339c + 1;
+        else g_dat_6339c = 0;                                          /* 0x0003ab79-0x0003ab8b idle timer */
+        /* 0x0003ab90-0x0003abb4: the /10 quotient is discarded, only the %10 test matters (as in fn_03d244). */
+        if (g_dat_63360 % 10 == 0) fn_03d606((uint32_t)(uintptr_t)room);
+        if (g_dat_6336c == 1) break;                                   /* 0x0003abc0 gone for good */
+        if (g_dat_6336c == 3) { g_dat_6336c = 0; return 1; }           /* 0x0003abca-0x0003abdd died */
+        if (g_dat_6336c == 2) {                                        /* 0x0003ac2a-0x0003ac7b exit rect */
+            fn_0381d7(g_dat_633b0, 1, 0, 0x50, (int32_t)g_dat_63398);
+            /* the room chain link at +0x34c is a widened host pointer in this port (cf. fn_03cc6b) */
+            g_dat_63398 = *(const uint8_t *)(*(uint8_t **)(room + 0x34c) + 0x11);
+            g_dat_6336c = 0;
+            fn_03d244(room);
+        } else if (g_dat_6336c == 4) {                                 /* 0x0003ac80-0x0003accd quota met */
+            g_dat_63398 = *(const uint8_t *)(*(uint8_t **)(room + 0x34c) + 0x11);
+            g_dat_6336c = 0;
+            fn_03d244(room);
+        }
+        if (g_dat_53c68 == 1) {                                        /* 0x0003acd2-0x0003ace1 all clear */
+            *(uint32_t *)(room + 0x32) = 0;
+            *(uint32_t *)(room + 0x36) = 0;
+        }
+        fn_010d47();                                                   /* 0x0003ace6 (EAX = the discarded /10) */
+    }
+
+    g_dat_6336c = 0;                                                   /* 0x0003aeb2 */
+    if (g_dat_53100 == 0) { g_dat_53100 = 3; return 0; }                /* 0x0003aeb7-0x0003aec8 no credits */
+    if (fn_038445() == 0) { g_dat_53100 = 3; return 0; }                /* 0x0003aecf-0x0003aee1 game over */
+    return 2;                                                          /* 0x0003aee1 continued */
+}
+
 /* =====================================================================
  * 0x02c838 -- THE BEHAVIOUR-0x25 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *

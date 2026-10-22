@@ -23178,3 +23178,163 @@ hitnext:
         *(int32_t *)(e + 0xbb) = 0;
     }
 }
+/* DS 0x53100..0x53150 (NIGHT.EXE initialized data): the game-over / CONTINUE screen layer tables.
+ * Copied into the stack frame on every entry, then scrolled in place. */
+uint32_t g_dat_53100 = 3;                                       /* DAT_00053100: CONTINUE countdown, decremented once per game-over pass */
+static uint32_t g_tab_53108[6] = { 0x46, 0xa5, 0xd3, 0xe4, 0xe5, 0xd9 };  /* DS 0x53108: per-layer destination offset */
+static uint32_t g_tab_53120[6] = { 0x1d, 0x1d, 0x44, 0x5a, 0x6c, 0xae };  /* DS 0x53120: per-layer column width */
+static uint32_t g_tab_53138[6] = { 0x00, 0x01, 0x02, 0x02, 0x01, 0x00 };  /* DS 0x53138: scroll phase -> which of the three screens */
+
+/* fn_038445  orig: 0x038445 (L12, 1498 B) -- THE GAME-OVER / CONTINUE SCREEN LOOP. Called from fn_03af18.
+ * It is an INFINITE loop over the frame gates: it loads three "gameove<N>.pcx" screens into three
+ * 64000-byte buffers once, then keeps compositing them (parallax layers from the "over.spr" struct in
+ * DAT_00063e08, drawn through fn_03bb42) until a key flag lets it leave, and returns 2 for the CONTINUE
+ * path (the countdown cell DAT_00053100 still being the "play again" one) or 0 for the plain game-over
+ * path. The layers creep +-9 px per frame and the loop ends when layer 4's offset has slid past -60.
+ *
+ * Local frame layout, as in the original: three 6-dword layer tables ([EBP-0x78]/[EBP-0x60]/[EBP-0x90]),
+ * the three screen buffers ([EBP-0x38], from fn_041bdc(0xfa00)), the 60-byte "number3.spr" digit block
+ * ([EBP-0x18]), a scroll counter ([EBP-0x28]), the half-screen toggle ([EBP-0x2c]) and a blink counter
+ * ([EBP-4]). Key flags: DAT_00063ea4/63ea5 (the CONTINUE / GAME-OVER choices) and DAT_00063ec0/63ec1
+ * (their confirm flags) decide which branch runs; DAT_00063ed0/63ed8 (the select/exit keys) freeze or
+ * advance the blink counter, and DAT_00053dd8 / DAT_00053ddc (the slide-show / "start" command cursors)
+ * are armed through fn_04185e when the animation restarts or ends. */
+int32_t fn_038445(void)
+{
+    (void)canary_id(0, 0xbc);                                          /* 0x00038445-4a */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    int32_t toggle = 0;                                                /* [EBP-0x2c] 0x0003845d */
+    int32_t scroll = 0;                                                /* [EBP-0x28] 0x00038464 */
+    int32_t offv[6], colw[6], which[6];                                /* 0x0003846b-99: REP MOVSD from DS 0x53108/0x53120/0x53138 */
+    for (int k = 0; k < 6; k = k + 1) {
+        offv[k] = (int32_t)g_tab_53108[k];
+        colw[k] = (int32_t)g_tab_53120[k];
+        which[k] = (int32_t)g_tab_53138[k];
+    }
+    int32_t blink = 0;                                                 /* [EBP-4] byte 0x0003849b */
+    uint32_t bufp[3] = { 0, 0, 0 };                                    /* [EBP-0x38] */
+    uint8_t namebuf[0x10];                                             /* [EBP-0x48] */
+
+    fn_0406f5(g_dat_63354 + 0x48, 0x32);                               /* 0x0003849f-ac: 50-step DAC fade-out */
+    uint32_t sp = heap_malloc(0x3c);   /* 0x041bdc wrapper == heap_malloc */                                     /* 0x000384b1-bb: the 60-byte digit block */
+    if (sp != 0) {                                                     /* 0x000384c4-d7 */
+        (void)fn_03d8d4((uint32_t *)(hb + sp), "number3.spr");
+    }
+    uint32_t digits = sp;                                              /* [EBP-0x18] 0x000384e8 */
+
+    for (int32_t i = 0; i < 3; i = i + 1) {                            /* 0x000384ee-0x00038540: load the three screens */
+        bufp[i] = heap_malloc(0xfa00);
+        uint32_t arg = (uint32_t)i + 1u;
+        (void)fn_0428f8(namebuf, (const uint8_t *)"gameove%d.pcx", (uint8_t **)&arg);
+        fn_036190((const char *)namebuf, hb + bufp[i]);
+    }
+    mem_copy(video_map(0xa0000), hb + bufp[0], 0xfa00);                 /* 0x00038542-54: seed the video window */
+
+    const uint32_t *spr = g_dat_63e08;                                 /* DAT_00063e08: the "over.spr" struct */
+
+    for (int32_t i = 0; i < 6; i = i + 1) {                            /* 0x00038554-0x000385ce: the first composite, straight to the video window */
+        const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
+        const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+        uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
+                      + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
+        fn_03bb42(0xa0000, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1], hb + roff, 0);
+    }
+    {                                                                  /* 0x000385ce-0x00038601: the digit row onto the video window */
+        const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
+        const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+        fn_03bb42(0xa0000, 0xc8, (int32_t)p4[0], toggle * 0x12 + 0x5a, p8[0],
+                  (const uint8_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
+    }
+    fn_0383a4(g_dat_633b0, hb + digits, 0x118, 0xae, g_dat_53100);      /* 0x00038606-22: the countdown number */
+    fn_040660(g_dat_633b8, 0x32);                                      /* 0x00038623-32: 50-step DAC fade-in */
+    fn_10b1d();                                                        /* 0x00038632-37 */
+
+    for (;;) {
+        /* ---- the frame gate: which branch runs (0x0003863c-0x00038664) ---- */
+        if ((uint32_t)g_dat_63ea4 != 0u || (uint32_t)g_dat_63ec1 != 0u ||
+            (uint32_t)g_dat_63ea5 != 0u || (uint32_t)g_dat_63ec0 != 0u) goto gameover;   /* 0x0003864e-64 */
+
+        /* ---- the scrolling attract loop ---- */
+        if ((uint32_t)g_dat_63ed0 != 0u || (uint32_t)g_dat_63ed8 != 0u) {   /* 0x00038669-79 */
+            if (blink != 0) {                                          /* 0x0003867b-84 */
+                goto blink_next;
+            }
+            toggle = 1 - toggle;                                       /* 0x00038686-91 */
+            blink = 1;
+            fn_04185e(g_dat_53dd8);                                    /* 0x00038695-9a */
+        }
+blink_next:
+        if ((uint32_t)g_dat_63ed0 != 0u || (uint32_t)g_dat_63ed8 != 0u) {   /* 0x0003869f-af */
+            blink = blink + 1;                                         /* 0x000386b1-b4: INC BYTE [EBP-4] */
+            if ((blink & 0xff) == 0x14) blink = 0;                     /* 0x000386bc-c1 */
+        } else {
+            blink = 0x13;                                              /* 0x000386c7 */
+        }
+
+        {                                                              /* 0x000386cb-0x00038709: pick the screen for this phase */
+            int32_t phase = (scroll % 0x4e) / 0xd;                     /* signed IDIV, as in the original */
+            mem_copy(video_map(g_dat_633b0), hb + bufp[which[phase]], 0xfa00);
+        }
+
+        for (int32_t i = 0; i < 6; i = i + 1) {                        /* 0x00038709-0x00038781: the six layers onto the back screen */
+            const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
+            const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+            uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
+                          + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
+            fn_03bb42(g_dat_633b0, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1],
+                      hb + roff, 0);
+        }
+        {                                                              /* 0x00038783-0x000387b6: the digit row */
+            const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
+            const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+            fn_03bb42(g_dat_633b0, 0xc8, (int32_t)p4[0], toggle * 0x12 + 0x5a, p8[0],
+                      (const uint8_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
+        }
+        fn_0383a4(g_dat_633b0, hb + digits, 0x118, 0xae, g_dat_53100); /* 0x000387bb-ce: the countdown number */
+        fn_00035ec2();                                                   /* 0x000387d8 */
+
+        if (scroll % 3 == 0) {                                         /* 0x000387dd-0x0003882d: rotate two palette rows */
+            fn_03d67c((uint32_t)(uintptr_t)g_dat_633b8, 0x70, 0x7f);
+            fn_03d67c((uint32_t)(uintptr_t)g_dat_633b8, 0x40, 0x4f);
+            board_out(0, 0xff, g_dat_633b8);
+        }
+        mem_copy(video_map(0xa0000), video_map(g_dat_633b0), 0xfa00);    /* 0x00038830-40: present */
+
+        scroll = scroll + 1;                                           /* 0x00038845-48 */
+        if (g_dat_63e38 / 0x1ea > g_dat_53c48) {                       /* 0x0003884b-66: CD refresh watchdog */
+            g_dat_63e38 = 0;
+            fn_10b1d();                                                /* 0x00038872-77 */
+        }
+        continue;                                                      /* 0x0003887c -> 0x0003863c */
+
+gameover:
+        fn_04185e(g_dat_53ddc);                                        /* 0x00038881-86 */
+        if (toggle == 0) fn_036190("continue.pcx", video_map(g_dat_633b0));   /* 0x0003888b-a1 */
+        else             fn_036190("gameove1.pcx", video_map(g_dat_633b0));   /* 0x000388a3-b1 */
+        scroll = scroll + 1;                                           /* 0x000388b3-b6 */
+        fn_00035ec2();                                                   /* 0x000388b9 */
+        mem_copy(video_map(0xa0000), video_map(g_dat_633b0), 0xfa00);   /* 0x000388be-ce */
+        for (int32_t i = 0; i < 6; i = i + 1) {                        /* 0x000388d3-0x0003897b */
+            const uint32_t *p4 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x04);
+            const uint32_t *p8 = (const uint32_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x08);
+            uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
+                          + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
+            fn_03bb42(0xa0000, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1], hb + roff, 0);
+            if (i % 2 == 0) offv[i] = offv[i] - 9;                     /* 0x0003894f-7b: creep the layers apart */
+            else            offv[i] = offv[i] + 9;
+        }
+        if (offv[4] > -0x3c) goto gameover;                            /* 0x00038980-8a: keep sliding */
+
+        fn_0406f5(g_dat_633b8, 0x32);                                  /* 0x0003898a-94: fade out */
+        if (digits != 0) {                                             /* 0x00038999-0x000389ba */
+            (void)fn_03d999((uint32_t *)(hb + digits), 0);
+            heap_free_guard(digits);
+        }
+        digits = 0;                                                    /* 0x000389c6 */
+        for (int32_t i = 0; i < 3; i = i + 1) heap_free_host(bufp[i]); /* 0x000389cd-0x000389f1 */
+        g_dat_53100 = g_dat_53100 - 1;                                 /* 0x000389f3 */
+        fn_00010dde();                                                 /* 0x000389f9 */
+        return (toggle == 0) ? 2 : 0;                                  /* 0x000389fe-0x00038a17 */
+    }
+}

@@ -415,6 +415,7 @@ extern uint32_t  g_dat_63e14;      /* DAT_00063e14: 2-node swap counter (fn_03e1
 extern uint32_t  g_dat_63e18;      /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
 extern uint32_t  g_dat_63e1c;      /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
 extern uint32_t  g_dat_63364;      /* DAT_00063364: removed-element flag byte (fn_031f5f) */
+extern uint32_t  g_dat_53100;      /* DAT_00053100: CONTINUE countdown (fn_038445) */
 extern uint32_t  g_dat_63388;      /* DAT_00063388: cleared at the top of every combat sweep (fn_0320f5) */
 extern uint32_t  g_dat_63368;      /* DAT_00063368: removed-element value word (fn_031f5f) */
 extern uint32_t  g_dat_63e20;      /* DAT_00063e20: 3rd cache slot (zeroed, not read) */
@@ -1186,6 +1187,8 @@ void     fn_0322f5(void);
 int32_t  fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off);
 void     fn_01441e(uint8_t *e);
                    /* 0x01441e: THE PER-ENTITY COMBAT RESOLUTION (called from fn_0320f5) -- the walking-player bump scan, the attack-slot frame-window scan, then the hit scan through fn_013c4d with the two-word HP/damage model, the player-style reaction, knock-back, pickup/carry handling, death latch and score fold-in */
+int32_t  fn_038445(void);
+                   /* 0x038445: THE GAME-OVER / CONTINUE SCREEN LOOP (called from fn_03af18) -- loads gameove<N>.pcx x3 + number3.spr, composites the six parallax layers of DAT_00063e08 through fn_03bb42, blinks the countdown (DAT_00053100) through fn_0383a4, and returns 2 (CONTINUE) or 0 once the key flags release it */
 void     fn_0320f5(void);
                    /* 0x0320f5: THE PER-FRAME COMBAT SWEEP -- clear DAT_00063388, then every entity in the list (no filter) goes through fn_01441e */
                    /* 0x013c4d: THE ACTOR HIT TEST -- gates (inert flag, intangible frame window, carry partner, Y overlap), the facing-mirrored hit/hurt boxes off g_dat_639ec[type], the corner-or-straddle overlap test on both axes, then the contact-point spawn of a type-0xc9 actor plus A's reaction states / B's facing fix-up */

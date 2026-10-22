@@ -95,5 +95,10 @@ void sys_file_open_queue(const int32_t *vals, int n);  /* test: enqueue N open r
  * the stream cursor only moves forward -- enough to drive the resource loaders byte-faithfully. */
 void sys_file_image_set(const uint8_t *img, uint32_t len);
 void sys_file_open_reset(void);                          /* test: clear the queued open results */
+/* Real-file backend: install a directory whose files DOS open calls resolve to ("<dir>/<name>").
+ * Handles become 1-based and read/lseek/close route through stdio; the stand-in image (handle 0) and
+ * all existing tests are unaffected. Pass NULL/"" to disable (also closes any open files). */
+void sys_file_real_dir(const char *dir);
+uint32_t sys_file_real_opened(void);                     /* successful real opens since install */
 
 #endif

@@ -414,6 +414,12 @@ extern uint32_t  g_ds_segment;     /* DPMI DS selector (flat model: 0) */
 /* Arena support (the original grows via DPMI; the port uses a static arena). */
 void     heap_arena_init(void);    /* set up the static arena + globals */
 uint32_t heap_arena_alloc(uint32_t size); /* 64-byte-aligned region slot, or 0 */
+/* The original grows the DPMI heap on demand (heap_grow 0x04322c, still a stub in the port). The port
+ * arena is a fixed static block; the *usable* cap starts at NIGHT_HEAP_ARENA (1 MiB) so the historical
+ * "arena full" behaviour of existing tests is preserved, and can be raised for real CD data (a stage's
+ * .wal alone is ~0.8 MiB) up to the physical arena size. */
+void     heap_arena_cap_set(uint32_t cap);
+uint32_t heap_arena_cap(void);
 
 /* Unlink a region from the all-blocks chain: advance head/cursor if it is the
  * node, then prev->next = next AND next->prev = prev, each NULL-guarded

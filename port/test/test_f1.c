@@ -10192,6 +10192,85 @@ static void test_fn_03cb38_pair(void) {
 #undef INFIELD
 }
 
+/* The port's io layer against the SHIPPED resource container (NIGHT/NIGHT.RES, 51 MB, 444 assets).
+ * Everything asserted here is cross-checked with scripts/extract_res.py, which decodes the container
+ * independently. Skips cleanly when the container is not next to the tree (NIGHT_RES_DIR overrides). */
+static void test_real_res_container(void) {
+    printf("real NIGHT.RES: the port's resource io over the shipped container\n");
+    const char *dir = getenv("NIGHT_RES_DIR");
+    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    char path[600];
+    snprintf(path, sizeof path, "%s/NIGHT.RES", dir);
+    FILE *probe = fopen(path, "rb");
+    if (probe == 0) { printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", path); return; }
+    fclose(probe);
+
+    /* same environment the synthetic stage tests install: node pool, device table, screen scratch
+     * base (fn_0366a4 stages the raw index there), io knobs -- but with the REAL file backend. */
+    static uint8_t pool[0x53800];
+    memset(pool, 0, sizeof pool);
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_b0 = g_dat_633b0;
+    memset(dev_tab, 0, sizeof dev_tab);
+    g_dat_53730 = dev_tab; g_dat_536dc = 8; g_dat_53619 = 0; g_dat_536d8 = 0;
+    g_dat_633b0 = SCREEN_BASE;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    sys_file_image_set(0, 0);
+    sys_file_real_dir(dir);
+    uint32_t saved_cap = heap_arena_cap();
+    heap_arena_init(); heap_arena_cap_set(24u << 20); (void)heap_malloc(0x4000);
+
+    g_639b8 = fn_04270d((const uint8_t *)"NIGHT.RES", "rb");
+    check(g_639b8 != 0, "NIGHT.RES opens through fn_04270d on the real-file backend");
+    check(sys_file_real_opened() == 1, "the open went through the real-file backend (1 handle)");
+    fn_0366a4((uint8_t *)g_639b8);
+    check(g_dat_633a0 == 444, "the shipped index decodes to 444 entries (XOR chain + fn_0366a4)");
+    check(fn_036626("stage1.wal") != 0, "the decoded name table resolves stage1.wal");
+
+    uint32_t v = 0;
+    check(fn_0367c9("stage1.wal") == 1, "fn_0367c9 seeks to stage1.wal");
+    v = 0; fn_04192e((uint8_t *)&v, 1, 4, (uint8_t *)g_639b8);
+    check(v == 4, "stage1.wal room count = 4 (extract_res.py cross-check)");
+    check(fn_0367c9("stage1.stg") == 1, "fn_0367c9 seeks to stage1.stg");
+    v = 0; fn_04192e((uint8_t *)&v, 1, 4, (uint8_t *)g_639b8);
+    check(v == 88, "stage1.stg record count = 88");
+    check(fn_0367c9("st1s.spr") == 1, "fn_0367c9 seeks to st1s.spr");
+    uint32_t s0 = 0, s1 = 0;
+    fn_04192e((uint8_t *)&s0, 1, 4, (uint8_t *)g_639b8);
+    fn_04192e((uint8_t *)&s1, 1, 4, (uint8_t *)g_639b8);
+    check(s0 == 7 && s1 == 0x63, "st1s.spr header dwords 7 / 0x63 (99 sub-entries)");
+    check(fn_0367c9("night1.chr") == 1, "fn_0367c9 seeks to night1.chr");
+    uint8_t hdr[8] = { 0 };
+    fn_04192e(hdr, 8, 1, (uint8_t *)g_639b8);
+    check(hdr[0] == 0x67 && hdr[1] == 0 && hdr[2] == 0x64 && hdr[3] == 0,
+          "night1.chr leading bytes 67 00 64 00 (103 / 100 counts)");
+    check(fn_0367c9("nosuch.res") == 0, "an unknown resource name returns 0");
+    /* the port's own decoder yields the same absolute body offsets as scripts/extract_res.py */
+    check(fn_036626("night1.chr") == 11950, "decoded index size of night1.chr == 11950 = 2 + 103*116 (extract_res cross-check)");
+    check(fn_036626("stage1.wal") == 835254, "decoded index size of stage1.wal == 835254 (0xcb856)");
+    /* night1.chr holds 2 + 103*116 = 11950 bytes, i.e. 103 records, while the loader (0x37e9a
+     * `CMP [ebp-0x14], 0x65`) consumes only 101 -- the last two records are simply never read.
+     * The port's 0x65 bound is faithful (verified in the disasm), so this is a container quirk. */
+
+    /* the block-buffered reader is faithful over a 51 MB file too: seeking back to a record already
+     * inside the buffered block re-reads the same bytes */
+    check(fn_0367c9("stage1.stg") == 1, "re-seek to stage1.stg (block-cached backward seek)");
+    v = 0; fn_04192e((uint8_t *)&v, 1, 4, (uint8_t *)g_639b8);
+    check(v == 88, "the re-seek lands on the record count again");
+
+    sys_file_real_dir(0);
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+    g_dat_633b0 = saved_b0;
+    heap_arena_cap_set(saved_cap);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03fc1d(void) {
     printf("fn_03fc1d (0x03fc1d): VGA-palette DAC load (4B hdr + table -> board_out)\n");
     heap_arena_init();
@@ -10658,6 +10737,7 @@ int main(void) {
     test_fn_03fc1d();
     test_fn_03d75c();
     test_fn_03cb38_pair();
+    test_real_res_container();
     test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();

@@ -35,7 +35,13 @@ See `docs/12-functions/STATUS.md` for per-function status.
 - [ ] Port the remaining stubs the reader path still needs for a real CD: nothing outstanding in
       `fn_04247a` / `res_consume` / `fn_041d47`, but `fn_044807`/`fn_044848` must map onto the SDL file
       layer when the .IMG backend lands
+- [x] **Real-file resource backend installed** (`sys_file_real_dir`, 1-based DOS handles) and verified
+      against the shipped 51 MB `NIGHT.RES` (444 entries, real sizes/offsets, block-cached re-seeks):
+      `docs/14-real-resource-backend.md`
+- [ ] Load a real stage end-to-end: `fn_03690b` -> `fn_037b03(0)` -> `fn_0376c8` -> `fn_037347` over the
+      real container (the io plumbing, index and arena head-room are now in place)
 - [ ] `heap_grow` (0x04322c) is still a stub; `heap_acquire_region` under-provisions by 4 bytes
+      (workaround for real data: `heap_arena_cap_set`, arena grown to 32 MiB, cap default 1 MiB)
 - [ ] Seedable tables with no producer inside the EXE still need the CD/data backend:
       `DAT_00052c3c`, `DAT_00052738`, `DAT_00052f08`, `DAT_00053200`, `DAT_000532f4`
 - [ ] `0x03a70e` (picture slide-show) is analyzed but not portable yet: its format immediate `0x16b2`

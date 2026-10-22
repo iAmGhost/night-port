@@ -120,7 +120,26 @@ static uint32_t s_img_len = 0, s_img_pos = 0;
 void sys_file_image_set(const uint8_t *img, uint32_t len) {
     s_img = img; s_img_len = len; s_img_pos = 0;
 }
+/* Real-file backend -- the foundation of the CD/.IMG resource layer.
+ * Installing a directory makes DOS open calls resolve to real files: sys_file_open builds
+ * "<dir>/<name>", and read / lseek / close then route through the FILE*. Handles are 1-based, so the
+ * legacy stand-in image (handle 0) and every existing test keep working unchanged. Opening a name that
+ * does not exist returns -1, which is the DOS error value the loaders (fn_04270d / fn_036853) expect. */
+#define SYS_FILE_MAX 16
+static FILE *s_files[SYS_FILE_MAX];
+static char s_real_dir[512];
+static uint32_t s_real_opens = 0;
+void sys_file_real_dir(const char *dir) {
+    s_real_dir[0] = '\0';
+    for (int i = 0; i < SYS_FILE_MAX; i++) { if (s_files[i]) { fclose(s_files[i]); s_files[i] = 0; } }
+    if (dir != 0) { snprintf(s_real_dir, sizeof s_real_dir, "%s", dir); }
+    s_real_opens = 0;
+}
+uint32_t sys_file_real_opened(void) { return s_real_opens; }
+
 int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
+    if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0)   /* real file */
+        return (int32_t)fread(buf, 1, count, s_files[handle - 1]);
     (void)handle;
     if (s_img == 0) return 0;                          /* no backend: 0 bytes */
     if (s_img_pos >= s_img_len) return 0;              /* EOF */
@@ -132,7 +151,11 @@ int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
 }
 int32_t sys_file_lseek_pos = 0;   /* test knob: position a tell (whence==1) reports */
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence) {
-    (void)handle;
+    if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0) {  /* real file */
+        int base = (whence == 1) ? SEEK_CUR : (whence == 2) ? SEEK_END : SEEK_SET;
+        if (fseek(s_files[handle - 1], (long)offset, base) != 0) return -1;
+        return (int32_t)ftell(s_files[handle - 1]);
+    }
     /* With the stand-in image installed the position is real, so the resource loaders' seeks
      * (fn_04247a / fn_0367c9 / fn_036853) land on the per-resource body offsets of the index. */
     if (s_img != 0) {
@@ -152,7 +175,13 @@ int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence) {
 int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count) {
     (void)handle; (void)buf; return (int32_t)count;        /* no backend: write to the void, report count */
 }
-int32_t sys_file_close(uint32_t handle) { (void)handle; return 0; }   /* AH=3e: success */
+int32_t sys_file_close(uint32_t handle) {
+    if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0) {
+        fclose(s_files[handle - 1]); s_files[handle - 1] = 0;
+        return 0;                                      /* AH=3e: success */
+    }
+    (void)handle; return 0;
+}
 int32_t sys_open_ret = 0;    /* AH=3d default: success, handle 0 */
 int32_t sys_create_ret = 0;  /* AH=3c default: success, handle 0 */
 static int32_t s_open_seq[8];
@@ -163,8 +192,21 @@ void sys_file_open_queue(const int32_t *vals, int n) {
     s_open_top = 0;
 }
 void sys_file_open_reset(void) { s_open_top = 0; s_open_n = 0; }
-int32_t sys_file_open(const char *name, uint32_t mode) { (void)name; (void)mode;
+int32_t sys_file_open(const char *name, uint32_t mode) { (void)mode;
     if (s_open_top < s_open_n) return s_open_seq[s_open_top++];   /* queued (test) */
+    if (s_real_dir[0] != '\0' && name != 0) {                     /* real-file backend */
+        char path[600];
+        snprintf(path, sizeof path, "%s/%s", s_real_dir, name);
+        for (int i = 0; i < SYS_FILE_MAX; i++) {
+            if (s_files[i] == 0) {
+                FILE *f = fopen(path, "rb");
+                if (f == 0) return -1;                            /* DOS not-found error */
+                s_files[i] = f; s_real_opens++;
+                return (int32_t)i + 1;                            /* 1-based DOS handle */
+            }
+        }
+        return -1;                                                /* no free handle */
+    }
     return sys_open_ret; }   /* AH=3d */
 int32_t sys_file_create(const char *name, uint32_t mode) { (void)name; (void)mode; return sys_create_ret; } /* AH=3c */
 int32_t sys_file_delete(const char *name) { (void)name; return 0; }

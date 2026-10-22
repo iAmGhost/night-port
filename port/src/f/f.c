@@ -2487,8 +2487,12 @@ uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n) {
  * byte layout and uses offsets as the faithful 32->64-bit pointer adaptation.
  */
 
-#define NIGHT_HEAP_ARENA (1u << 20)   /* 1 MiB static arena */
-static uint8_t s_heap_arena[NIGHT_HEAP_ARENA];
+#define NIGHT_HEAP_ARENA (1u << 20)   /* default usable cap: 1 MiB */
+#define NIGHT_HEAP_ARENA_MAX (32u << 20)  /* physical arena: 32 MiB (raised by heap_arena_cap_set) */
+static uint8_t s_heap_arena[NIGHT_HEAP_ARENA_MAX];
+static uint32_t s_arena_cap = NIGHT_HEAP_ARENA;
+void     heap_arena_cap_set(uint32_t cap) { s_arena_cap = (cap < 4096) ? 4096 : (cap > NIGHT_HEAP_ARENA_MAX ? NIGHT_HEAP_ARENA_MAX : cap); }
+uint32_t heap_arena_cap(void) { return s_arena_cap; }
 
 uintptr_t g_heap_base      = 0;
 uint32_t  g_heap_head      = 0;   /* DAT_00053350 */
@@ -2545,7 +2549,7 @@ void heap_arena_init(void) {
 uint32_t heap_arena_alloc(uint32_t size) {
     uint32_t a   = (size + 0x3f) & ~0x3fu;
     uint32_t off = s_arena_used;
-    if (off + a > NIGHT_HEAP_ARENA) return 0;
+    if (off + a > s_arena_cap) return 0;
     s_arena_used = off + a;
     memset(s_heap_arena + off, 0, a);
     return off;

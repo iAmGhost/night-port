@@ -7519,6 +7519,100 @@ static void test_fn_038c23(void) {
     check(ok2, "  T2 5: '0'@col100 (X=0xa0) + '5'@col107 (X=0xa5) => leading-zero pad");
 }
 
+static void test_fn_03b718(void) {
+    printf("fn_03b718 (0x03b718): floating value number display (digit run + terminator + ageing)\n");
+    uint8_t *scr = g_video_ram;
+    void *s_c0 = (void *)g_dat_639c0, *s_c4 = (void *)g_dat_639c4;
+    uint32_t s_dc = g_dat_639dc, s_e0 = g_dat_639e0; int32_t s_60 = g_dat_63360;
+    void *s_cc = (void *)g_dat_639cc, *s_d0 = (void *)g_dat_639d0; int32_t s_c8 = (int32_t)g_dat_639c8;
+    heap_arena_init(); (void)heap_malloc(0x400);
+
+    /* Each font control block points at three objects: the column list (+0x2c = the terminator's
+     * col), the row list (+0x2c = its row count) and the glyph-offset list, which the digit loop
+     * indexes as char_table - 0xc0 + ascii*4 and the terminator reads at char_table + 0x2c. */
+    static uint32_t offA[0x100], offB[0x100];
+    static uint8_t rleA[0x310], rleB[0x310];
+    static uint8_t obj4[0x40], obj8[0x40];
+    static struct blit_ctl fa, fb;
+    uint8_t *ctA = (uint8_t *)(offA + 0x30), *ctB = (uint8_t *)(offB + 0x30);   /* +0xc0 bytes */
+    for (uint32_t c = '0'; c <= '9'; c++) { offA[c] = (c - '0') * 28; offB[c] = (c - '0') * 48; }
+    for (int d = 0; d < 10; d++)                        /* font A: 7 rows of one pixel 0xa0+d */
+        for (int r = 0; r < 7; r++) { uint8_t *p = rleA + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
+    for (int d = 0; d < 10; d++)                        /* font B: 12 rows of one pixel 0xb0+d */
+        for (int r = 0; r < 12; r++) { uint8_t *p = rleB + d*48 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xb0+d); }
+    for (int r = 0; r < 2; r++) {                       /* terminator glyph, same offset in both banks */
+        uint8_t *pa = rleA + 0x300 + r*4, *pb = rleB + 0x300 + r*4;
+        pa[0]=1; pa[1]=0; pa[2]=1; pa[3]=0xaf;
+        pb[0]=1; pb[1]=0; pb[2]=1; pb[3]=0xbf;
+    }
+    memset(obj4, 0, sizeof obj4); memset(obj8, 0, sizeof obj8);
+    *(uint32_t *)(obj4 + 0x2c) = 3;                     /* terminator col  (orig +0x28) */
+    *(uint32_t *)(obj8 + 0x2c) = 2;                     /* terminator rows (orig +0x28) */
+    *(uint32_t *)(ctA + 0x2c)  = 0x300;                 /* terminator glyph offset */
+    *(uint32_t *)(ctB + 0x2c)  = 0x300;
+    fa.col_obj = obj4; fa.row_obj = obj8; fa.off_obj = ctA; fa.rle_base = rleA;
+    fb.col_obj = obj4; fb.row_obj = obj8; fb.off_obj = ctB; fb.rle_base = rleB;
+    g_dat_639c0 = (uint32_t *)(void *)&fa;
+    g_dat_639c4 = &fb;
+    g_dat_639dc = 0x100; g_dat_639e0 = 0x40;
+    g_dat_63360 = 1;                                    /* %3 != 0: no ageing */
+
+    uint8_t ent[0x20]; memset(ent, 0, sizeof ent);
+    *(uint32_t *)(ent + 0x01) = 12345;
+    *(uint32_t *)(ent + 0x09) = 0x100 + 100;            /* ex - DAT_639dc = 100 */
+    *(uint32_t *)(ent + 0x0d) = 0x040 + 15;             /* ey = 15 -> start_row 0 */
+
+    memset(scr, 0, 0x10000);
+    fn_03b718(ent, 0xa0000u);
+    int okA = 1;
+    for (int r = 0; r < 7; r++)
+        for (int i = 0; i < 5; i++)
+            if (scr[r*0x140 + 100 + i*5] != (uint8_t)(0xa1 + i)) okA = 0;
+    check(okA, "  A (entity[0]==0): 12345 -> five digit glyphs, 5 px advance, 7 rows");
+    int okT = 1;
+    for (int r = 0; r < 2; r++) if (scr[(1 + r)*0x140 + (100 - 0xf)] != 0xaf) okT = 0;
+    check(okT, "  A: terminator glyph from the control block at dest-0xf, 2 rows (rows/col from +0x2c)");
+
+    memset(scr, 0, 0x10000);
+    ent[0] = 1;                                         /* font B: 0xb advance, 12 rows, col 10 */
+    fn_03b718(ent, 0xa0000u);
+    int okB = 1;
+    for (int r = 0; r < 12; r++)
+        for (int i = 0; i < 5; i++)
+            if (scr[r*0x140 + 100 + i*0xb] != (uint8_t)(0xb1 + i)) okB = 0;
+    check(okB, "  B (entity[0]!=0): same number in the second font, 0xb advance, 12 rows");
+    int okTb = 1;
+    for (int r = 0; r < 2; r++) if (scr[(2 + r)*0x140 + (100 - 0x18)] != 0xbf) okTb = 0;
+    check(okTb, "  B: terminator at dest-0x18 with start_row-0xd (rows 2, col from +0x2c)");
+    ent[0] = 0;
+
+    check(*(uint32_t *)(ent + 0x05) == 0, "  DAT_63360 %% 3 != 0 leaves the age counter alone");
+    g_dat_63360 = 3;
+    fn_03b718(ent, 0xa0000u);
+    check(*(uint32_t *)(ent + 0x05) == 1, "  DAT_63360 %% 3 == 0 increments entity+5");
+
+    /* destroy path: the entity must be a heap node inside the DAT_639cc list */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t oa = heap_malloc(0x40), ob = heap_malloc(0x40);
+    uint8_t *A = hb + oa, *B = hb + ob;
+    memset(A, 0, 0x40); memset(B, 0, 0x40);
+    *(uint32_t *)(A + 0x01) = 7; *(uint32_t *)(A + 0x05) = 0x28;
+    *(uint8_t **)(A + 0x11) = B; *(uint8_t **)(A + 0x19) = NULL;
+    *(uint8_t **)(B + 0x11) = NULL; *(uint8_t **)(B + 0x19) = A;
+    g_dat_639cc = A; g_dat_639d0 = B; g_dat_639c8 = 2;
+    g_dat_63360 = 3;                                    /* ages A to 0x29 > 0x28 -> remove + free */
+    fn_03b718(A, 0xa0000u);
+    check(g_dat_639cc == B && *(uint8_t **)(B + 0x19) == NULL && g_dat_639c8 == 1,
+          "  entity past 0x28 is removed from the DAT_639cc list (fn_0003b67e)");
+    uint32_t again = heap_malloc(0x40);
+    check(again == oa, "  and its heap block is released (fn_00041c28)");
+
+    g_dat_639c0 = (uint32_t *)s_c0; g_dat_639c4 = (struct blit_ctl *)s_c4;
+    g_dat_639dc = s_dc; g_dat_639e0 = s_e0; g_dat_63360 = s_60;
+    g_dat_639cc = (uint8_t *)s_cc; g_dat_639d0 = (uint8_t *)s_d0; g_dat_639c8 = (uint32_t)s_c8;
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_038b30(void) {
     printf("fn_038b30 (0x038b30): render integer as 5-glyph right-justified field (pad + digits)\n");
     uint8_t *scr = g_video_ram;
@@ -10952,6 +11046,7 @@ int main(void) {
     test_fn_03rle();
     test_fn_03f462();
     test_fn_03a5f7();
+    test_fn_03b718();
     test_fn_038c23();
     test_fn_038b30();
     test_fn_0137c1();

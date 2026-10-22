@@ -12930,3 +12930,70 @@ uint32_t fn_03f6bc(const char *name)
         if (fn_03f80d(g_639b8) == 0) return 1;                                /* 0x3f7cb-e4 */
     }
 }
+
+/* fn_03b718  orig: 0x0003b718 (L12, 571 B) -- THE FLOATING VALUE NUMBER DISPLAY: renders the signed
+ * dword at entity+1 as a run of RLE digit glyphs positioned relative to the entity, then ages the
+ * entity and destroys it when its counter runs out. Two fonts: DAT_000639c0 for entity[0]==0
+ * (5-pixel advance, 7 rows, col 4) and DAT_000639c4 otherwise (0xb advance, 0xc rows, col 10); both
+ * end with a terminator glyph taken from the control block's last interval entry.
+ * ABI (raw disasm, 0x3b72f-0x3b743): EAX = entity, EDX = video base for the blits; no stack args.
+ *   itoa32s(*(int32 *)(entity+1), buf, 10); len = str_len(buf);           0x3b735-0x3b750
+ *   branch A (entity[0]==0, 0x3b75f fallthrough) for i in 0..len-1:
+ *     fn_03bb42(base, i*5 + entity[9] - DAT_639dc,
+ *               entity[0xd] - entity[5] - DAT_639e0 - 0xf, 4, 7,
+ *               rle_base + *(char_table - 0xc0 + (uint8)buf[i]*4), 0);
+ *   terminator A (0x3b7e2-0x3b83b): rows = *(row_obj+0x2c), col = *(col_obj+0x2c),
+ *     rle = rle_base + *(off_obj+0x2c), dest = entity[9] - DAT_639dc - 0xf,
+ *     start_row = entity[0xd] - entity[5] - DAT_639e0 - 0xe
+ *   branch B (0x3b840-0x3b914): same with DAT_639c4, i*0xb, rows 0xc, col 10; terminator
+ *     dest -0x18, start_row -0xd.
+ *   if (DAT_00063360 % 3 == 0) entity[5]++;                                 0x3b91d-0x3b927
+ *   if (entity[5] > 0x28) { fn_0003b67e(entity); heap_free_guard(off); }     0x3b936-0x3b946
+ * The control blocks are modelled as struct blit_ctl (cf. fn_03ace9): the original's four pointer
+ * fields (+0x04 col list, +0x08 row list, +0x34 glyph offsets, +0x38 RLE base) sit 4 bytes apart and
+ * cannot be widened in place; the +0x28 dwords inside the pointed-to objects are the port's +0x2c.
+ * The original also stores the dead constants 0x3b946/0x3b94b into the stack scratch before the last
+ * two calls (leftover from the record fields written in the loops); they are never read.
+ */
+void fn_03b718(uint8_t *entity, uint32_t base)
+{
+    (void)canary_id(0, 0x54);                                                /* 0x3b718-1d */
+    char buf[16];
+    itoa32s((int32_t)*(uint32_t *)(entity + 0x01), buf, 10);                 /* 0x3b735-43 */
+    int32_t len = (int32_t)str_len(buf);                                     /* 0x3b748-50 */
+
+    const struct blit_ctl *fa = (const struct blit_ctl *)(void *)g_dat_639c0;
+    const struct blit_ctl *fb = g_dat_639c4;
+    const struct blit_ctl *f = ((uint32_t)entity[0] == 0u) ? fa : fb;        /* 0x3b753-5f */
+    int32_t adv  = (f == fa) ? 5 : 0xb;                                      /* 0x3b7cc / 0x3b8a2 */
+    int32_t rows = (f == fa) ? 7 : 0xc;                                      /* 0x3b7aa / 0x3b885 */
+    int32_t col  = (f == fa) ? 4 : 10;                                       /* 0x3b7ac / 0x3b899 */
+
+    uintptr_t char_table = (uintptr_t)f->off_obj;
+    const uint8_t *rle_base = f->rle_base;
+    int32_t ex = (int32_t)*(uint32_t *)(entity + 0x09);                      /* entity +9 */
+    int32_t ey = (int32_t)*(uint32_t *)(entity + 0x0d)
+               - (int32_t)*(uint32_t *)(entity + 0x05);                      /* +0xd - +5 */
+    int32_t dy = ey - (int32_t)g_dat_639e0;                                 /* 0x3b7bd */
+
+    for (int32_t i = 0; i < len; i++) {                                     /* 0x3b765-0x3b7e0 */
+        uint32_t digit = (uint32_t)(uint8_t)buf[i];                          /* 0x3b782-86 */
+        uint32_t glyph = *(const uint32_t *)(void *)(char_table - 0xc0 + digit * 4); /* 0x3b7a3 */
+        fn_03bb42(base, i * adv + ex - (int32_t)g_dat_639dc,
+                  dy - 0xf, col, rows, rle_base + glyph, 0);                /* 0x3b7db */
+    }
+
+    fn_03bb42(base, ex - (int32_t)g_dat_639dc - ((f == fa) ? 0xf : 0x18),
+              dy - ((f == fa) ? 0xe : 0xd),
+              (int32_t)*(const uint32_t *)(void *)(f->col_obj + 0x2c),
+              *(const uint32_t *)(void *)(f->row_obj + 0x2c),
+              rle_base + *(const uint32_t *)(void *)(f->off_obj + 0x2c), 0); /* 0x3b83b / 0x3b914 */
+
+    uint32_t off = (uint32_t)(entity - (const uint8_t *)g_heap_base);        /* arg of 0x041c28 */
+    if (g_dat_63360 % 3 == 0)                                              /* 0x3b91d-27 */
+        *(uint32_t *)(entity + 0x05) = *(uint32_t *)(entity + 0x05) + 1;
+    if ((int32_t)*(uint32_t *)(entity + 0x05) > 0x28) {                     /* 0x3b936-3a */
+        fn_0003b67e(entity);                                               /* 0x3b941 */
+        heap_free_guard(off);                                              /* 0x3b946 */
+    }
+}

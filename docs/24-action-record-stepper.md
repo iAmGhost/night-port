@@ -62,3 +62,14 @@ link, `+0x4a` pair entity (heap offset), `+0x50` hold countdown (WORD), `+0x123`
   (up to 0x52c3c) is wrong -- 0x5274c stops where 0x52a1c starts.
 * `DAT_00053c88` holds an entity pointer (compared against the stepped entity at 0x00012a10); the port keeps
   it as a `uint32_t`, so the comparison goes through a cast until its producer is ported.
+
+## The sweep that calls it (0x03209c)
+
+`fn_0003209c` is the per-frame entity sweep: `cur = DAT_00053c70`, and for `i = 0 .. DAT_00053c68-1` (count
+**re-read every iteration**) it calls `fn_00012616(cur)` then `cur = cur[+0x13f]`. Two consequences are part
+of the model rather than accidents: a companion spawned by `fn_01194c` inside one step is stepped in the same
+sweep, and an entity that `fn_012616` removes+frees leaves the sweep reading its freed `+0x13f` and, because
+the count just dropped, skipping the node after it.
+
+For the sweep to be meaningful, the spawned type-0xfa companion needs `DAT_00053818[0xfa]` (its `+0x123`
+action container) to point at a real record set -- `fn_010efc` copies it there with no guard.

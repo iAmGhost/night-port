@@ -22611,6 +22611,22 @@ void fn_0320f5(void)
     }
 }
 
+/* fn_03209c  orig: 0x0003209c (L10, 89 B) -- THE PER-FRAME ENTITY SWEEP: walk the entity list from
+ * DAT_00053c70 through the +0x13f "next" links and run fn_012616 on every node. The trip count is
+ * DAT_00053c68 re-read at every iteration (0x000320ce), so entities spawned by the step (fn_01194c ->
+ * fn_011827 / fn_0113e7) are stepped in the SAME sweep; entities that fn_012616 frees are still walked
+ * through their dangling +0x13f, which is what the original does.
+ */
+void fn_03209c(void)
+{
+    (void)canary_id(0, 0x24);                                         /* 0x000320a1 probe (push 0x24) */
+    uint8_t *cur = g_dat_53c70;                                       /* 0x000320b4-b9 */
+    for (int32_t i = 0; i < (int32_t)g_dat_53c68; i = i + 1) {         /* 0x000320bc-0x000320d4 */
+        fn_012616(cur);                                               /* 0x000320d9 */
+        cur = *(uint8_t **)(cur + 0x13f);                             /* 0x000320de-e7 */
+    }
+}
+
 /* =================================================================== */
 /*  the actor-vs-actor hit test (0x013c4d)                              */
 /* =================================================================== */

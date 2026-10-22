@@ -16454,6 +16454,91 @@ static void test_fn_012616(void) {
 }
 
 
+static void test_fn_03209c(void) {
+    printf("fn_03209c (0x03209c): the per-frame entity sweep (every node through fn_012616)\n");
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    uint8_t *s_7c = g_dat_53c7c, *s_54 = g_dat_63354;
+    int32_t s_cnt = g_dat_53c68; uint32_t s_370 = g_dat_63370, s_39bc = g_dat_639bc;
+    uint8_t *s_sprfa = g_dat_639ec[0xfa];
+    uint32_t s_dc = g_dat_639dc, s_nb = g_dat_62a8c, s_floor = heap_region_floor();
+    uint8_t entab_save[0x88]; memcpy(entab_save, g_dat_53e9c + 0xfau * 0x88u, sizeof entab_save);
+
+    heap_arena_init(); (void)heap_malloc(0x2000); heap_region_floor_set(0x10000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *room = (uint8_t *)calloc(1, 0x400);
+    *(uint32_t *)(room + 0x12) = 100; *(uint32_t *)(room + 0x16) = 5000;
+    g_dat_63354 = room; g_dat_63370 = 1; g_dat_639dc = 1000; g_dat_62a8c = 0;
+    g_dat_53c7c = NULL; g_dat_53c80 = NULL; g_dat_6336c = 0; g_dat_639bc = 0;
+    memset(g_dat_5d0a0, 0, sizeof g_dat_5d0a0);
+
+    /* one shared inert action record for every state, as in the fn_012616 test */
+    uint32_t p1 = heap_malloc(0x20);
+    *(uint32_t *)(hb + p1 + 4) = heap_malloc(0x100 * 4);
+    uint32_t p2 = *(uint32_t *)(hb + p1 + 4);
+    uint32_t defr = heap_malloc(0x90);
+    uint32_t defY = heap_malloc(0x40 * 4), defX = heap_malloc(0x40 * 4);
+    *(uint32_t *)(hb + defr + 0x00) = 100;
+    *(uint32_t *)(hb + defr + 0x71) = defY; *(uint32_t *)(hb + defr + 0x75) = defX;
+    for (int i = 0; i < 0x100; i++) *(uint32_t *)(hb + p2 + (size_t)i * 4) = defr;
+
+    uint32_t ea_o = heap_malloc(0x14f), eb_o = heap_malloc(0x14f), ec_o = heap_malloc(0x14f);
+    uint8_t *ea = hb + ea_o, *eb = hb + eb_o, *ec = hb + ec_o;
+#define MKE(n) do { memset((n), 0, 0x14f); *(uint32_t *)((n) + 0x123) = p1;      \
+        *(int32_t *)((n) + 0x01) = 1200; *(int32_t *)((n) + 0x09) = 300;         \
+        *(uint32_t *)((n) + 0x17) = 1; *(uint32_t *)((n) + 0x11) = 4;            \
+        (n)[0] = 2; } while (0)
+    MKE(ea); MKE(eb); MKE(ec);
+    *(uint8_t **)(ea + 0x13f) = eb; *(uint8_t **)(eb + 0x147) = ea;
+    *(uint8_t **)(eb + 0x13f) = ec; *(uint8_t **)(ec + 0x147) = eb;
+    *(uint8_t **)(ec + 0x13f) = NULL;
+    g_dat_53c70 = ea; g_dat_53c74 = ec; g_dat_53c68 = 3;
+    fn_03209c();
+    check(*(uint32_t *)(ea + 0x11) == 5 && *(uint32_t *)(eb + 0x11) == 5 && *(uint32_t *)(ec + 0x11) == 5,
+          "all three nodes of the list were stepped once (frame 4 -> 5 each)");
+
+    g_dat_53c70 = NULL; g_dat_53c74 = NULL; g_dat_53c68 = 0;
+    fn_03209c();
+    check(g_dat_53c68 == 0, "an empty list (count 0) is a no-op");
+
+    /* the count is re-read per iteration: a spawn made during the step is stepped in the same sweep */
+    uint8_t *entab = g_dat_53e9c + 0xfau * 0x88u;
+    memset(entab, 0, 0x88);
+    uint8_t *sprfa = (uint8_t *)calloc(1, 0x40);
+    g_dat_639ec[0xfa] = sprfa;
+    g_dat_53818[0xfa] = p1;              /* fn_010efc wires the companion's +0x123 from this table: without a
+                                          * valid action container the companion's step reads a wild record
+                                          * and it dies on the spot (observed, hence wired here) */
+    MKE(ea); *(uint8_t **)(ea + 0x13f) = NULL; *(uint8_t **)(ea + 0x147) = NULL;
+    ea[0] = 1;                                   /* kind < 2, so fn_01194c runs first */
+    *(uint32_t *)(ea + 0x17) = 0x16;             /* state 0x16 with action 0x22 -> the nudge + spawn */
+    *(uint32_t *)(ea + 0x11) = 0x22;
+    g_dat_53c70 = ea; g_dat_53c74 = ea; g_dat_53c68 = 1;
+    fn_03209c();
+    check(g_dat_53c68 == 2 && g_dat_53c74 != ea,
+          "the companion spawned inside fn_012616 is appended and the re-read count visits it too");
+    check(*(uint32_t *)(g_dat_53c74 + 0x11) == 1 && *(uint32_t *)(g_dat_53c74 + 0x17) == 4,
+          "the new companion is stepped in the same sweep (frame 0 -> 1, state 4 from the spawn)");
+
+    /* a node freed during its own step is still walked through its +0x13f (original behaviour) */
+    MKE(ea); *(uint8_t **)(ea + 0x13f) = eb; *(uint8_t **)(eb + 0x147) = ea;
+    *(uint8_t **)(eb + 0x13f) = NULL;
+    MKE(eb); *(uint8_t **)(eb + 0x13f) = NULL; *(uint8_t **)(eb + 0x147) = ea;
+    ea[0] = 1; ea[0x30] = 1; *(uint32_t *)(ea + 0x11) = 100;   /* dies: fn_0112fd + free */
+    g_dat_53c70 = ea; g_dat_53c74 = eb; g_dat_53c68 = 2;
+    fn_03209c();
+    check(g_dat_53c68 == 1 && g_dat_53c70 == eb && *(uint32_t *)(eb + 0x11) == 4,
+          "the dying node is removed and freed; the re-read count has dropped, so the next node is NOT stepped");
+
+#undef MKE
+    heap_region_floor_set(s_floor);
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c7c = s_7c;
+    g_dat_63354 = s_54; g_dat_53c68 = s_cnt; g_dat_63370 = s_370; g_dat_639bc = s_39bc;
+    g_dat_639ec[0xfa] = s_sprfa; g_dat_639dc = s_dc; g_dat_62a8c = s_nb;
+    memcpy(g_dat_53e9c + 0xfau * 0x88u, entab_save, sizeof entab_save);
+    free(room); free(sprfa);
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16842,6 +16927,7 @@ int main(void) {
     test_fn_039c03();
     test_fn_01194c();
     test_fn_012616();
+    test_fn_03209c();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

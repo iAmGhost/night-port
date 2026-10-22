@@ -1468,4 +1468,8 @@ extern uint32_t g_tab_52a1c[0x4ec/4]; /* DAT_00052a1c: kill quota per room, 10 d
  * (fn_015295 / fn_01586b) driven by the record's +0x71 / +0x75 delta arrays. */
 void fn_012616(uint8_t *e);
 
+/* 0x03209c: THE PER-FRAME ENTITY SWEEP -- every node of the DAT_00053c70 list goes through fn_012616; the
+ * count DAT_00053c68 is re-read per iteration, so spawns made during the sweep are stepped too. */
+void fn_03209c(void);
+
 #endif

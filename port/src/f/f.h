@@ -112,7 +112,7 @@ extern uint32_t g_dat_63398;   /* DAT_00063398: room orientation byte (room node
 extern uint32_t g_tab_52c3c[0x104]; /* DAT_00052c3c: 10 dwords per stage, indexed by room serial; no producer in the EXE (read-only: 0x0374ad/0x0376c8/0x03af18/0x03d244) */
 void fn_037347(void);   /* 0x037347: THE STAGE DATA TEARDOWN (free-only half of fn_0374ad): per-type .spr/.act, the stage .spr and the room chain; leaves DAT_63354 dangling by design */
 void fn_0374ad(void);
-extern uint32_t g_dat_53c84;   /* DAT_00053c84: the player entity pointer (second slot), set by fn_0376c8 */
+extern uintptr_t g_dat_53c84; /* DAT_00053c84: the player (HUD) ENTITY POINTER (second slot), set by fn_0376c8; widened from a dword so the 64-bit host pointer survives (the original keeps a flat dword address) */
 extern uint32_t g_tab_52738[0x100]; /* DAT_00052738: per-ship dword table indexed by entity +0x28; no producer in the EXE (reads only) */
 void fn_0376c8(void);   /* 0x0376c8: THE PLAYER SPAWN -- builds the hero entity (fn_010efc type 0) into DAT_53c7c, picks the active key/catch/action tables from DAT_63378/6337c, resume-loads stage data, then seeds the entity position/orientation */   /* 0x0374ad: THE STAGE RESET/RELOAD -- frees the previous stage's per-type .spr/.act, stage .spr and room chain, reloads via fn_037b03, then seeds the player config block (DAT_53c7c) from the new room node */   /* 0x037b03: THE STAGE LOADER -- stage%d.wal (room chain via fn_03c853), st%ds.spr, stage%d.stg (0x59 B records; kind 1 loads a type's .spr/.act, kind 5 the DAT_5d0b4 array), night%d.chr (the 101-entry entity-type table) */
 void fn_037306(void);                          /* 0x037306: cleanup -- if g_639b8: fn_0427a3(g_639b8); fn_00040570; fn_03ffab; fn_03eff2 */
@@ -900,6 +900,15 @@ extern struct blit_ctl *g_dat_639c4;                /* DAT_000639c4: HUD blit co
 void fn_03ace9(void);                               /* 0x03ace9: 20-frame HUD composite (633b0/633b4 + 2 sprites via fn_03bb42) */
 void fn_012efa(uint8_t *ent, uint32_t base);
 void fn_03203d(uint32_t base);
+extern uint8_t g_blk_51c80[0x180];   /* DAT_00051c90/0x51c91 BSS colour bytes live at +0x40 / +0x41 */
+#define g_tab_51c90 (g_blk_51c80 + 0x40)   /* gauge fill colours (never written by the image) */
+
+void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
+void fn_03801b(uint32_t base);
+                                          /* 0x03801b: THE HUD COMPOSITE OF ONE FRAME -- room blit (fn_03ce0b) + entity sweep (fn_03203d) + stage glyphs (fn_03df96) + the player's gauge/countdown (fn_01348f/fn_0137c1), then cpy_dw the whole 64000 B work screen into the A0000 window. EAX = work-screen base. */
+
+                                          /* 0x01348f: THE HUD GAUGE DRAW -- one player's status-bar panel: splits the int16 gauge words at entity+0x23/+0x29 (/100,%100 for the player, /200 and half%100 otherwise, colour 0x95 past index 5/4), blits face.spr + gage.spr records via fn_03bb42 and paints the bars with rect_fill/vline_set. EBX = HUD slot (0xaa px wide). */
+
                                           /* 0x03203d: THE ENTITY DRAW SWEEP -- fn_012efa over the DAT_53c70 entity list (+0x13f links) for DAT_53c68 iterations, count re-read each pass; EAX = destination base forwarded as EDX. */
 
                                           /* 0x012efa: THE ENTITY SPRITE DRAW -- resolves the entity's action record (e[0x123] container -> [+4] record array -> [e[0x17]&0x7fffffff]), picks frame e[0x11] %% the record's frame count, then blits via fn_03bebb (kind 2 pulse, fill 0x9c), fn_03c231 (silhouette, fill 0xd0) and/or fn_03bb42 (the sprite itself). blink gate on kind 1, mirror on dword[e+0x1b]. */

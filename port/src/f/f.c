@@ -4685,7 +4685,7 @@ void fn_0374ad(void)
  *  - The allocation is 0x147 in the original; the port asks for 0x14f because of the widened entity
  *    link pair (see fn_010efc).
  */
-uint32_t g_dat_53c84 = 0;                    /* DAT_00053c84: the player entity, second slot */
+uintptr_t g_dat_53c84 = 0;                   /* DAT_00053c84: the player entity (second slot); widened to a pointer-width integer */
 uint32_t g_tab_52738[0x100] = {0};           /* DAT_00052738: per-ship dword table, indexed by entity +0x28 */
 
 void fn_0376c8(void)
@@ -4713,7 +4713,7 @@ void fn_0376c8(void)
     }
     *(uint16_t *)(g_dat_53c7c + 0x29) = *(const uint16_t *)(g_dat_53e9c + 0x08);  /* 0x377ba-c1: DAT_53ea4 */
     g_dat_53c88 = 0;                                                         /* 0x377c5 */
-    g_dat_53c84 = (uint32_t)(uintptr_t)g_dat_53c7c;                          /* 0x377d4 */
+    g_dat_53c84 = (uintptr_t)g_dat_53c7c;                               /* 0x377d4 */
     fn_037b03(1);                                                            /* 0x377de: resume-style load */
     g_dat_63354 = (g_dat_63358 != NULL) ? g_dat_63358 : g_dat_6334c;         /* 0x377e3-37802 */
     uint8_t *keytab[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
@@ -13244,4 +13244,111 @@ void fn_03203d(uint32_t base)
         fn_012efa(cur, base);                                        /* 0x3207a-80 */
         cur = *(uint8_t **)(cur + 0x13f);                            /* 0x32085-8e */
     }
+}
+
+/* DAT_00051c90 / DAT_00051c91: two BSS byte tables read (only here, in fn_01348f) to pick the gauge
+ * fill colour. Nothing in the image writes them, so they hold whatever the zero-filled BSS has: model
+ * them as one zero block with slack on both sides -- the player branch indexes them with
+ * entity[+0x23]/100 WITHOUT a bounds check (latent OOB in the original), and the block keeps small
+ * negative or oversized indices inside the object instead of faulting. */
+uint8_t g_blk_51c80[0x180];   /* see f.h: g_tab_51c90 = g_blk_51c80 + 0x40 */
+
+/* fn_01348f  orig: 0x01348f (L11, 818 B) -- THE HUD GAUGE DRAW: renders one player's face + gauge
+ * panel of the status bar.
+ * ABI: EAX = entity (player block), EDX = destination base (flat video/screen addr), EBX = HUD slot
+ * (panels are 0xaa pixels wide: slot 0 / slot 1).
+ * Gauge split: for the PLAYER entity (EAX == DAT_00053c7c) the two int16 values entity[+0x23] and
+ * entity[+0x29] are split /100 and %100 (signed idiv); for any other entity they are split /200 and
+ * (half toward zero)%100, and the colour table lookups become bounded: index>5 -> 0x95, index>4 ->
+ * 0x95 (the player path has no bound -- kept).
+ * Branch on entity[+0x0d] (gauge sprite index) and entity[+0x56]:
+ *   empty (either is 0): face.spr (DAT_53c8c) record [+0x0d] at (slot*0xaa+4, row 3) and gage.spr
+ *     (DAT_63e00) record 0 at (slot*0xaa+0x13, row 0x1d) via fn_03bb42; then rect_fill (fn_04052c)
+ *     of a 0x64 x 2 bar when the /100 or /200 part is non-zero, a second rect_fill (width = the
+ *     remainder part) and a vline_set (fn_040506) marker in 0xd0 at column slot*0xaa+0x17+remainder.
+ *   armed: if 0 < entity[+0x0d] < 10 the split values are REPLACED by entity[+0x56]/3, colour 0x9e
+ *     and index 1; then one gage.spr blit at (0x20, 0xb3) plus one rect_fill (0x20, 0xbb).
+ * All struct fields are heap offsets (fn_03d9cf layout: [+4] columns, [+8] row counts, [+0x34] RLE
+ * offsets, [+0x38] RLE base). Latent: the second gage blit uses record 0 with NO offset-array
+ * indexing (rle = struct[+0x38] directly); kept. */
+void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
+{
+    (void)canary_id((uintptr_t)e, 0x50);                          /* 0x1348f-94 probe */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint8_t *scr = video_map(base);                               /* the rect/vline helpers want a host ptr */
+
+    int32_t q1, r1, q2, r2, c14, c10;                             /* [ebp-0x24..-0x10] */
+    int32_t a = (int32_t)*(const int16_t *)(e + 0x23);            /* 0x134bc / 0x13535 */
+    int32_t b = (int32_t)*(const int16_t *)(e + 0x29);            /* 0x134e8 / 0x1356c */
+    if (e == g_dat_53c7c) {                                       /* 0x134b1-b7 the player itself */
+        q1 = a / 100; r1 = a % 100;                               /* 0x134c0-134e2 */
+        q2 = b / 100; r2 = b % 100;                               /* 0x134e5-1350e */
+        c10 = (int32_t)g_tab_51c90[(uint32_t)q1 + 1];             /* 0x13511-1c  DAT_00051c91[q1] */
+        c14 = (int32_t)g_tab_51c90[(uint32_t)q1];                 /* 0x1351f-2a  DAT_00051c90[q1] */
+    } else {                                                      /* 0x13532 */
+        q1 = a / 200; r1 = half_div2(a) % 100;                    /* 0x13539-13566 */
+        q2 = b / 200; r2 = half_div2(b) % 100;                    /* 0x13569-1359d */
+        c14 = (q1 <= 5) ? (int32_t)g_tab_51c90[(uint32_t)q1]     /* 0x135a0-135ba 0x95 past 5 */
+                        : 0x95;
+        c10 = (q1 <= 4) ? (int32_t)g_tab_51c90[(uint32_t)q1 + 1] /* 0x135bd-135d7 0x95 past 4 */
+                        : 0x95;
+    }
+
+    uint32_t *face = g_dat_53c8c;                                 /* 0x53c8c face.spr struct */
+    uint32_t *gage = g_dat_63e00;                                 /* 0x63e00 gage.spr struct */
+    uint32_t gi   = *(const uint32_t *)(e + 0x0d);                /* gauge sprite index */
+    int32_t  amt  = (int32_t)*(const int32_t *)(e + 0x56);
+
+    if (gi == 0 || amt == 0) {                                    /* 0x135dd-135ec empty panel */
+        fn_03bb42(base, slot * 0xaa + 4, 3,
+                  (int32_t)*(const uint32_t *)(hb + face[1] + 4u * gi),
+                  *(const uint32_t *)(hb + face[2] + 4u * gi),
+                  hb + face[14] + *(const uint32_t *)(hb + face[13] + 4u * gi), 0);   /* 0x13702 */
+        fn_03bb42(base, slot * 0xaa + 0x13, 0x1d,
+                  (int32_t)*(const uint32_t *)(hb + gage[1]),
+                  *(const uint32_t *)(hb + gage[2]),
+                  hb + gage[14], 0);                              /* 0x13738 (no offset indexing) */
+        if (q1 != 0)                                              /* 0x1373d-13763 */
+            rect_fill(scr, 0x1f, slot * 0xaa + 0x17, 0x64, 2, (uint8_t)c14);
+        if (r1 != 0) {                                            /* 0x13766-137b7 */
+            rect_fill(scr, 0x1f, slot * 0xaa + 0x17, (uint32_t)r1, 2, (uint8_t)c10);
+            vline_set(scr, 0x140, slot * 0xaa + 0x17 + r1, 0x1e, 4, 0xd0);
+        }
+        return;                                                   /* 0x137ba */
+    }
+
+    if (amt != 0) {                                               /* reached only when gi != 0 too */
+        if ((int32_t)gi > 0 && (int32_t)gi < 10) {                /* 0x135f1-13601 (jl/jle) */
+            q1 = amt / 3;                                         /* 0x13605-1361b */
+            r1 = 0x9e;                                            /* 0x1361e */
+            r2 = 1;                                               /* 0x13625 */
+        }
+        fn_03bb42(base, 0x20, 0xb3,
+                  (int32_t)*(const uint32_t *)(hb + gage[1] + 4u * (uint32_t)r2),
+                  *(const uint32_t *)(hb + gage[2] + 4u * (uint32_t)r2),
+                  hb + gage[14] + *(const uint32_t *)(hb + gage[13] + 4u * (uint32_t)r2), 0); /* 0x1367b */
+        rect_fill(scr, 0x20, 0xbb, (uint32_t)q1, 3, (uint8_t)r1);  /* 0x13697 */
+    }
+}
+
+/* fn_03801b  orig: 0x03801b (L12, 125 B) -- THE STATUS-BAR / HUD COMPOSITE of one frame: builds the
+ * off-screen work screen and pushes it to the VGA window. ABI: EAX = work-screen base (flat addr).
+ *   fn_03ce0b(DAT_63354, dst)   the current room's background/geometry blit (host-ptr callee)
+ *   fn_03203d(base)             every entity sprite
+ *   fn_03df96(base)             the stage's per-record sprite glyphs
+ *   if (DAT_53c84) { fn_01348f(player, base, 0); fn_0137c1(player, base); }   gauge + countdown
+ *   cpy_dw(base, 0x3e80, 0xa0000)   16000 dwords = the whole 64000 B screen into the A0000 window
+ * Only ONE HUD slot is drawn here (EBX = 0), so DAT_53c84 is the only HUD entity. Latent: the copy
+ * runs even if nothing was drawn, and DAT_63354 is dereferenced without a guard. */
+void fn_03801b(uint32_t base)
+{
+    (void)canary_id((uintptr_t)base, 0x2c);                          /* 0x3801b-20 probe */
+    fn_03ce0b(g_dat_63354, video_map(base));                         /* 0x38036-3e */
+    fn_03203d(base);                                                 /* 0x38046 */
+    fn_03df96(base);                                                 /* 0x3804e */
+    if (g_dat_53c84 != 0) {                                          /* 0x38053-5a */
+        fn_01348f((uint8_t *)g_dat_53c84, base, 0);                   /* 0x38066 */
+        fn_0137c1((uint8_t *)g_dat_53c84, base);                      /* 0x38073 */
+    }
+    cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram);  /* 0x38078-8c */
 }

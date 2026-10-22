@@ -9687,7 +9687,7 @@ static void test_fn_0376c8(void) {
     uint32_t save_52c = g_tab_52c3c[0], save_28 = g_tab_52738[3];
     g_tab_52c3c[0] = 0x77; g_tab_52738[3] = 0x123456;
     uint32_t s_374 = g_dat_63374, s_378 = g_dat_63378, s_37c = g_dat_6337c, s_380 = g_dat_63380, s_384 = g_dat_63384;
-    uint32_t s_398 = g_dat_63398, s_c84 = g_dat_53c84;
+    uint32_t s_398 = g_dat_63398; uintptr_t s_c84 = g_dat_53c84;
     uint8_t *s_358 = g_dat_63358;
     uint8_t *s_key98 = g_dat_62a98, *s_key9c = g_dat_62a9c;
     uint32_t s_818_0 = g_dat_53818[0];
@@ -9706,7 +9706,7 @@ fn_037b03(0);                                   /* the stage (room chain + type 
 
     fn_0376c8();
 
-    check(g_dat_53c7c != 0 && g_dat_53c84 == (uint32_t)(uintptr_t)g_dat_53c7c,
+    check(g_dat_53c7c != 0 && g_dat_53c84 == (uintptr_t)g_dat_53c7c,
           "  DAT_53c7c / DAT_53c84 hold the new player entity");
     check(g_dat_53c7c[0x28] == 3 && *(uint32_t *)(g_dat_53c7c + 0x56) == 0x3456,
           "  +0x28 = DAT_63384 and +0x56 = the low half of DAT_52738[+0x28]");
@@ -10721,7 +10721,7 @@ static void test_real_master_load(void) {
     /* spawn the hero: the constructor reads the real gun tables from the master load */
     fn_0376c8();
     check(g_dat_53c7c != 0, "fn_0376c8 spawned the player entity from real stage data");
-    check(g_dat_53c84 == (uint32_t)(uintptr_t)g_dat_53c7c, "DAT_53c84 mirrors the entity");
+    check(g_dat_53c84 == (uintptr_t)g_dat_53c7c, "DAT_53c84 mirrors the entity");
     check(g_dat_63354 != 0 && g_dat_63354 == g_dat_6334c,
           "fn_0374ad set the current-room pointer to the real room chain head");
     check(cfg_real[0x17] == 1 && cfg_real[0x11] == 0,
@@ -10986,6 +10986,167 @@ static void test_fn_012efa(void) {
     free(e3); free(e2);
     free(e);
     g_dat_63360 = s60; g_dat_639dc = scx; g_dat_639e0 = scy; g_dat_633b4 = sb4;
+}
+
+/* 0x01348f -- THE HUD GAUGE DRAW (status-bar panel of one player). */
+static void test_fn_01348f(void) {
+    printf("fn_01348f (0x01348f): the HUD gauge draw\n");
+    uint32_t sb4 = g_dat_633b4, st = (uint32_t)g_video_stride;
+    uint32_t *face_s = g_dat_53c8c, *gage_s = g_dat_63e00;
+    uint8_t *pl = g_dat_53c7c;
+    uint8_t tab_save[0x10];
+    memcpy(tab_save, g_tab_51c90, sizeof tab_save);
+
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint32_t f_hdr = heap_malloc(0x3c);
+    uint32_t *F = (uint32_t *)(hb + f_hdr);
+    uint32_t f_col = heap_malloc(4), f_row = heap_malloc(4), f_off = heap_malloc(4), f_rle = heap_malloc(16);
+    F[1] = f_col; F[2] = f_row; F[13] = f_off; F[14] = f_rle;
+    *(uint32_t *)(hb + f_col) = 0x20; *(uint32_t *)(hb + f_row) = 2; *(uint32_t *)(hb + f_off) = 0;
+    uint8_t *fs = hb + f_rle;
+    fs[0] = 1; fs[1] = 1; fs[2] = 2; fs[3] = 0xA1; fs[4] = 0xA2;
+
+    uint32_t g_hdr = heap_malloc(0x3c);
+    uint32_t *G = (uint32_t *)(hb + g_hdr);
+    uint32_t g_col = heap_malloc(8), g_row = heap_malloc(8), g_off = heap_malloc(8), g_rle = heap_malloc(32);
+    G[1] = g_col; G[2] = g_row; G[13] = g_off; G[14] = g_rle;
+    *(uint32_t *)(hb + g_col + 0) = 0x10; *(uint32_t *)(hb + g_col + 4) = 0x10;
+    *(uint32_t *)(hb + g_row + 0) = 1;    *(uint32_t *)(hb + g_row + 4) = 1;
+    *(uint32_t *)(hb + g_off + 0) = 0;    *(uint32_t *)(hb + g_off + 4) = 4;
+    uint8_t *gs = hb + g_rle;
+    gs[0] = 1; gs[1] = 0; gs[2] = 1; gs[3] = 0xB7;      /* record 0 (used raw, no offset indexing) */
+    gs[4] = 1; gs[5] = 2; gs[6] = 1; gs[7] = 0xC9;      /* record 1 */
+
+    g_dat_53c8c = F; g_dat_63e00 = G;
+    g_dat_633b4 = SCREEN_BASE; g_video_stride = 0x140;
+    for (int i = 0; i < 8; i++) g_tab_51c90[i] = 0;
+    g_tab_51c90[3] = 0x33; g_tab_51c90[4] = 0x44;
+    uint8_t *scr = g_screen_ram;
+    const int32_t slot = 0;
+
+    /* --- the player entity, empty gauge (entity[+0x0d] == 0) ---------------------------------- */
+    uint8_t *e = (uint8_t *)calloc(1, 0x150);
+    *(int16_t *)(e + 0x23) = 350;                       /* q1 = 3, r1 = 50 */
+    *(int16_t *)(e + 0x29) = 120;                       /* q2 = 1, r2 = 20 */
+    *(uint32_t *)(e + 0x0d) = 0;
+    *(uint32_t *)(e + 0x56) = 7;
+    g_dat_53c7c = e;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_01348f(e, SCREEN_BASE, slot);
+    check(scr[3 * 0x140 + 5] == 0xA1 && scr[3 * 0x140 + 6] == 0xA2,
+          "face.spr record blits at (slot*0xaa+4, row 3)");
+    check(scr[0x1d * 0x140 + 0x13] == 0xB7,
+          "gage.spr record 0 blits at (slot*0xaa+0x13, row 0x1d) with NO offset-array indexing");
+    check(scr[0x17 * 0x140 + 0x1f + 50] == 0x33,
+          "the /100 bar (0x64 wide) uses the +0x51c90 colour at index q1");
+    check(scr[0x17 * 0x140 + 0x1f] == 0x44 && scr[0x17 * 0x140 + 0x1f + 49] == 0x44,
+          "the %%100 bar (r1 wide) overwrites it with the +0x51c91 colour");
+    check(scr[0x1e * 0x140 + 0x49] == 0xd0 && scr[0x21 * 0x140 + 0x49] == 0xd0 &&
+          scr[0x22 * 0x140 + 0x49] == 0,
+          "the 0xd0 marker is a 4-pixel vline at column slot*0xaa+0x17+r1");
+
+    /* --- a non-player entity: /200 split, colour 0x95 past index 4, no remainder bar ---------- */
+    uint8_t *e2 = (uint8_t *)calloc(1, 0x150);
+    *(int16_t *)(e2 + 0x23) = 1200;                     /* q1 = 6 -> colours 0x95, r1 = 600%%100 = 0 */
+    *(uint32_t *)(e2 + 0x0d) = 0;
+    *(uint32_t *)(e2 + 0x56) = 0;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_01348f(e2, SCREEN_BASE, slot);
+    check(scr[0x17 * 0x140 + 0x1f] == 0x95 && scr[0x17 * 0x140 + 0x1f + 0x63] == 0x95,
+          "non-player split (/200) and the 0x95 fallback colour past the table bounds");
+    check(scr[0x1e * 0x140 + 0x49] == 0, "r1 == 0 suppresses the remainder bar and the marker");
+
+    /* --- armed gauge: 0 < entity[+0x0d] < 10 replaces the split with value/3 + 0x9e ------------ */
+    *(uint32_t *)(e2 + 0x0d) = 5;
+    *(uint32_t *)(e2 + 0x56) = 9;                       /* q1 = 3, colour 0x9e, record index 1 */
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    fn_01348f(e2, SCREEN_BASE, slot);
+    check(scr[0xb3 * 0x140 + 0x22] == 0xC9,
+          "armed gauge blits gage.spr record 1 at (0x20, 0xb3) through the offset array");
+    check(scr[0xbb * 0x140 + 0x20] == 0x9e && scr[0xbb * 0x140 + 0x22] == 0x9e &&
+          scr[0xbb * 0x140 + 0x23] == 0,
+          "the armed bar is value/3 wide in 0x9e at (0x20, 0xbb)");
+
+    free(e2); free(e);
+    memcpy(g_tab_51c90, tab_save, sizeof tab_save);
+    g_dat_53c8c = face_s; g_dat_63e00 = gage_s; g_dat_53c7c = pl;
+    g_dat_633b4 = sb4; g_video_stride = (int32_t)st;
+}
+
+/* 0x03801b -- THE HUD COMPOSITE OF ONE FRAME (room + entities + stage glyphs + player HUD, then push). */
+static void test_fn_03801b(void) {
+    printf("fn_03801b (0x03801b): the one-frame HUD composite\n");
+    uint8_t *r_save = g_dat_63354, *e04_save = g_dat_63e04;
+    uint8_t *head_save = g_dat_53c70; uint32_t cnt_save = g_dat_53c68;
+    uint32_t tick_save = g_dat_63360, n_save = g_dat_62a90, lock_save = g_dat_639e4;
+    uintptr_t hud_save = g_dat_53c84;
+
+    /* room node for the unlocked-camera arm (fn_03ce0b B0): the whole 320x200 background plane lives
+     * at the flat address in room[+0x348], with pitch room[+0x1a] and the camera at DAT_639dc. */
+    uint8_t *room = (uint8_t *)calloc(1, 0x400);
+    *(uint32_t *)(room + 0x1a) = 0x140;          /* background pitch */
+    *(uint32_t *)(room + 0x348) = SCREEN_BASE;   /* background plane = the DAT_633b0 screen */
+    g_dat_63354 = room; g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_639dc = 0;
+    g_dat_53c70 = NULL; g_dat_53c68 = 0; g_dat_62a90 = 0; g_dat_63360 = 3;
+
+    /* countdown font (DAT_63e04): the port keeps its two table pointers widened at +0x34 / +0x3c */
+    uint8_t *font = (uint8_t *)calloc(1, 0x40);
+    static uint8_t glyphs[64];                 /* one glyph stream reused by every cell */
+    for (int r = 0; r < 7; r++) { glyphs[r * 4] = 1; glyphs[r * 4 + 1] = 0; glyphs[r * 4 + 2] = 1;
+                                   glyphs[r * 4 + 3] = 0xee; }
+    static uint8_t chartab[0x100];
+    *(uint32_t *)(chartab + 0x04) = 0;         /* blank glyph  */
+    *(uint32_t *)(chartab + 0x84) = 0;         /* '0' glyph    */
+    *(uintptr_t *)(font + 0x34) = (uintptr_t)chartab;
+    *(uintptr_t *)(font + 0x3c) = (uintptr_t)glyphs;
+    g_dat_63e04 = font;
+
+    /* face.spr / gage.spr structs for the gauge panel (one record each, all heap offsets) */
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t f_hdr = heap_malloc(0x3c), g_hdr = heap_malloc(0x3c);
+    uint32_t *Fh = (uint32_t *)(hb + f_hdr), *Gh = (uint32_t *)(hb + g_hdr);
+    uint32_t fc = heap_malloc(4), fr = heap_malloc(4), fo = heap_malloc(4), fl = heap_malloc(16);
+    uint32_t gc = heap_malloc(4), gr = heap_malloc(4), go = heap_malloc(4), gl = heap_malloc(16);
+    Fh[1] = fc; Fh[2] = fr; Fh[13] = fo; Fh[14] = fl;
+    Gh[1] = gc; Gh[2] = gr; Gh[13] = go; Gh[14] = gl;
+    *(uint32_t *)(hb + fc) = 0x20; *(uint32_t *)(hb + fr) = 1; *(uint32_t *)(hb + fo) = 0;
+    *(uint32_t *)(hb + gc) = 0x10; *(uint32_t *)(hb + gr) = 1; *(uint32_t *)(hb + go) = 0;
+    uint8_t *fs = hb + fl, *gs = hb + gl;
+    fs[0] = 1; fs[1] = 3; fs[2] = 1; fs[3] = 0xa1;      /* face record 0 */
+    gs[0] = 1; gs[1] = 0; gs[2] = 1; gs[3] = 0xb7;      /* gage record 0 */
+    uint32_t *face_s = g_dat_53c8c, *gage_s = g_dat_63e00;
+    g_dat_53c8c = Fh; g_dat_63e00 = Gh;
+
+    uint8_t *hud = (uint8_t *)calloc(1, 0x150);   /* the HUD entity: countdown 0, no gauge word */
+    *(uint32_t *)(hud + 0x2b) = 0;
+    g_dat_53c84 = (uintptr_t)hud;
+
+    uint32_t work = SCREEN_BASE + SCREEN_SIZE;      /* the work screen (DAT_633b4) */
+    uint8_t *scr = g_screen_ram + SCREEN_SIZE;
+    memset(g_screen_ram, 0, sizeof g_screen_ram);
+    memset(g_video_ram, 0, sizeof g_video_ram);
+    memset(g_screen_ram, 0x5c, SCREEN_SIZE);        /* the background plane the room blit reads */
+
+    fn_03801b(work);
+    check(scr[0] == 0x5c && scr[SCREEN_SIZE - 1] == 0x5c,
+          "fn_03ce0b lays the room's background plane down on the work screen first");
+    check(g_video_ram[0] == 0x5c && g_video_ram[SCREEN_SIZE - 1] == 0x5c,
+          "cpy_dw pushes the whole 64000 B work screen into the A0000 window");
+    check(g_video_ram[SCREEN_SIZE] == 0, "the push is exactly 0x3e80 dwords long");
+    check(scr[3 * 0x140 + 7] == 0xa1 && scr[0x1d * 0x140 + 0x13] == 0xb7,
+          "the player's face/gage panel records are drawn into the composite");
+    check(scr[0x14 * 0x140 + 0x41] == 0xee,
+          "the player HUD entity's countdown digits are part of the composite");
+    check(g_video_ram[0x14 * 0x140 + 0x41] == 0xee, "and reach the VGA window with it");
+
+    uint32_t camx_save = g_dat_639dc;
+    g_dat_63354 = r_save; g_dat_63e04 = e04_save; g_dat_53c70 = head_save; g_dat_53c68 = cnt_save;
+    g_dat_63360 = tick_save; g_dat_62a90 = n_save; g_dat_639e4 = lock_save; g_dat_53c84 = hud_save;
+    g_dat_639dc = camx_save; g_dat_53c8c = face_s; g_dat_63e00 = gage_s;
+    free(hud); free(font); free(room);
 }
 
 int main(void) {
@@ -11393,6 +11554,8 @@ int main(void) {
     test_fn_03fb0e();
     test_fn_03a1b3();
     test_fn_012efa();
+    test_fn_01348f();
+    test_fn_03801b();
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);
     return failures != 0;
 }

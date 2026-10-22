@@ -126,6 +126,13 @@ either; that inconsistency is what made the copies look right. Before declaring 
 grep its disassembly for `cmp dword ptr [eax + 0x8b], 0`, and do NOT preset entity[0x8b] = 1 in every
 test case -- pin both frames instead (see test_fn_029709's recon-gate checks).
 
+### Ported: 0x027bec (behaviour-0x22)
+The DS 0x51c9c rectangles do double duty: slots 2..5 add them to the player, slots 6..9 are used as
+absolute field regions -- 6=(71,80,256,143), 7=(71,164,256,196), 8=(21,80,71,196), 9=(256,80,308,196).
+The entity[0x5f] phase latch (0x01df8b's trick) is back, written inside the re-roll loop, and the signed
+remainder can yield slot -1 (read one stride early, faithful).  Its too-close test precedes the X clamp.
+Testing note: a successful draw CLEARS entity[0xc7], so any chooser loop must re-arm it each frame.
+
 ### Ported: 0x02adf5 (behaviour-0x24)
 The cheapest sibling job so far (97.8% of its instructions matched 0x024bf9): only 37 new instructions to
 read, all in the swing -- a frame-1 facing latch (entity[0x1b] -> entity[0x87]) and the facing-consistency

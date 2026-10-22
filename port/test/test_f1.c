@@ -9566,6 +9566,162 @@ static void test_fn_02adf5(void)
     #undef F24_BASE
 }
 
+
+/* ---- 0x027bec: behaviour-0x22 (short 0x2b swing, phase-latch chooser, '.' walk rows) ---- */
+static void test_fn_027bec(void)
+{
+    printf("fn_027bec (0x027bec, behaviour-0x22 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 26;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 40; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+    row0[0] = 40;
+
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+    #define F22_BASE(st_, fr_) do { e[0x17] = (st_); e[0x11] = (fr_); e[0x1f] = 6; e[0xaf] = 1; \
+        e[0x8b] = 1; } while (0)
+
+    /* (1) the swing latches on entity frame 0 and divides by the 31.0f pool at DS 0x50034..0x50040 */
+    F22_BASE(0x2b, 0);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 20;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    fn_027bec(e);
+    {
+        float ex, ey; memcpy(&ex, e + 0xe3, 4); memcpy(&ey, e + 0xe7, 4);
+        check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xd7) == 20 &&
+              *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120 &&
+              ex == (100.0f / 31.0f) && ey == 4.0f,
+              "027bec the swing latches on frame 0 and takes the 4 px vertical branch");
+    }
+    /* (2) the window is frames 1..0x10 */
+    F22_BASE(0x2b, 1);
+    int32_t bx = *(int32_t *)(e + 0x01), by = *(int32_t *)(e + 0x09);
+    fn_027bec(e);
+    check(*(int32_t *)(e + 0x01) != bx || *(int32_t *)(e + 0x09) != by,
+          "027bec frame 1 walks the fitted line");
+    F22_BASE(0x2b, 0x11);
+    bx = *(int32_t *)(e + 0x01); by = *(int32_t *)(e + 0x09);
+    fn_027bec(e);
+    check(*(int32_t *)(e + 0x01) == bx && *(int32_t *)(e + 0x09) == by,
+          "027bec frame 0x11 is past the swing window (1..0x10)");
+
+    /* (3) NO recon gate: the very first dispatch frame already picks entity[0xab] and a spot */
+    F22_BASE(2, 1);
+    e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 0; e[0xc7] = 1; e[0xab] = 0; e[0x5f] = 0;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0xbf) = 0x7777;
+    fn_027bec(e);
+    check(*(int32_t *)(e + 0xab) == 20 && *(int32_t *)(e + 0xbf) != 0x7777,
+          "027bec has no recon gate: the first dispatch frame runs the chooser");
+
+    /* (4) the entity[0x5f] phase latch alternates side slots (0/1) with rectangle slots (6..9);
+     *     the rectangle slots are ABSOLUTE field coordinates, not player offsets */
+    {
+        static const int x0[10] = { 0,0,-80,50,-80,50, 71, 71, 21,256 };
+        static const int y0[10] = { 0,0,-30,-30,20,20, 80,164, 80, 80 };
+        static const int x1[10] = { 0,0,-50,80,-50,80,256,256, 71,308 };
+        static const int y1[10] = { 0,0,-20,-20,30,30,143,196,196,196 };
+        int bad = 0, alt = 0, side = 0, absol = 0, i;
+        *(int32_t *)(e + 0x5f) = 0;
+        for (i = 0; i < 60; i++) {
+            int32_t phase = *(int32_t *)(e + 0x5f), slot, nx, ny;
+            /* entity[0xc7] is cleared by a successful draw, so the gate must be re-armed each frame */
+            e[0x17] = 2; e[0x11] = 1; e[0xc7] = 1; e[0x8b] = 1; e[0x113] = 0; e[0x11b] = 0;
+            e[0x1f] = 0; e[0xaf] = 4;
+            slot = -1;
+            fn_027bec(e);
+            slot = *(int32_t *)(e + 0xff);
+            nx = *(int32_t *)(e + 0xbf); ny = *(int32_t *)(e + 0xc3);
+            /* the remainder is SIGNED, as everywhere in this family (0x02119c pins it), so a negative
+             * draw can land on slot -1 (the arm then reads the rectangle one stride early) */
+            if (slot < -1 || slot > 9) bad++;
+            else if (slot >= 2 && slot < 6 &&
+                     (nx - 200 < x0[slot] || nx - 200 > x1[slot] ||
+                      ny - 120 < y0[slot] || ny - 120 > y1[slot])) bad++;
+            else if (slot >= 6 && (nx < x0[slot] || nx > x1[slot] || ny < y0[slot] || ny > y1[slot])) bad++;
+            if (slot <= 1) side++; else if (slot >= 6) absol++;
+            if (*(int32_t *)(e + 0x5f) > 1) bad++;
+            (void)phase;
+        }
+        check(!bad && side && absol,
+              "027bec the entity[0x5f] latch alternates side slots with absolute rectangle slots 6..9 inside DS 0x51c9c");
+    }
+    /* (5) an accepted spot outside the 0..0x140 field is clamped to 0x12c; the large-offset form of the
+     * side slots ((off>>1) >= 60) is what puts it there (the too-close test itself runs first, see the
+     * comment in f.c -- an observable case for that order would need the entity outside the field, which
+     * makes the handler bail at state 7 before the chooser). */
+    {
+        int found = 0, i;
+        row0[0] = 0x78;                                   /* 120: half is 60, the +-60 forms apply */
+        *(int32_t *)(pl + 0x01) = 300; *(int32_t *)(pl + 0x09) = 120;
+        for (i = 0; i < 600 && !found; i++) {
+            e[0x17] = 2; e[0x11] = 1; e[0x1f] = 0; e[0xaf] = 4; e[0xc7] = 1; e[0x8b] = 1;
+            e[0x113] = 0; e[0x11b] = 0;
+            *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 120;
+            fn_027bec(e);
+            if (*(int32_t *)(e + 0xff) == 1) { found = 1; break; }
+        }
+        check(found && *(int32_t *)(e + 0xbf) == 0x12c && *(int32_t *)(e + 0xc3) == 120,
+              "027bec slot 1 with a 120 px offset lands at 300+60-1, outside the field, and clamps to 0x12c");
+        row0[0] = 40;
+        *(int32_t *)(pl + 0x01) = 200;
+    }
+    /* (6) '.' marker rows close on the X gap alone; other rows need ten pixels of Y */
+    row0[0] = 7; row0[1] = 0x2b;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 300;    /* 170 px of Y error */
+    fn_027bec(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "027bec a '.' (0x2b) walk row reaches on the X gap alone");
+    row0[1] = 0;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 128;    /* 8 px of Y: under ten */
+    fn_027bec(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "027bec an ordinary walk row reaches within ten pixels of Y");
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 131;    /* 11 px: over ten */
+    fn_027bec(e);
+    check(*(int32_t *)(e + 0x1f) == 0 &&
+          (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
+          "027bec eleven pixels of Y error misses an ordinary walk row");
+    row0[0] = 40;
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+    #undef F22_BASE
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -14685,6 +14841,7 @@ int main(void) {
     test_fn_02319c();
     test_fn_024bf9();
     test_fn_02adf5();
+    test_fn_027bec();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

@@ -522,6 +522,7 @@ uint32_t g_dat_63e20 = 0;   /* DAT_00063e20: 3rd cache slot (zeroed, not read) *
 uint32_t g_dat_62a8c = 0;   /* DAT_00062a8c: zeroed by fn_03ee0a (list-destroy) */
 uint32_t g_dat_63364 = 0;   /* DAT_00063364: removed-element flag byte (fn_031f5f) */
 uint32_t g_dat_63368 = 0;   /* DAT_00063368: removed-element value word (fn_031f5f) */
+uint32_t g_dat_63388 = 0;   /* DAT_00063388: cleared at the top of every combat sweep (fn_0320f5) */
 uint8_t g_dat_53c4c[9] = {0};   /* DAT_00053c4c: 9-byte real-mode command staging area */
 uintptr_t g_dat_53c5c = 0;   /* DAT_00053c5c: DPMI far-pointer (debug-reg source) */
 void fn_1053f(void)
@@ -22577,6 +22578,25 @@ void fn_0322f5(void)
             fn_031a8e(g_dat_53c78);                                /* 0x0003235b */
         }
         g_dat_53c78 = *(uint8_t **)(g_dat_53c78 + 0x13f);          /* 0x00032360-0x0003236b */
+    }
+}
+
+/* fn_0320f5  orig: 0x0320f5 (98 B) -- THE PER-FRAME COMBAT SWEEP. Clears the DAT_00063388 latch and then
+ * hands every entity in the list (in list order, exactly g_dat_53c68 of them) to fn_01441e, which resolves
+ * that entity's own attack for this frame. Unlike fn_0322f5 there is no player / byte-0==2 filter: every
+ * record, the player included, goes through the combat pass.
+ *
+ * The DAT_00063388 clear is the only side effect outside the loop; the pair latch that fn_01441e writes
+ * (DAT_00063364 / DAT_00063368) is deliberately NOT cleared here, so a hit recorded early in the sweep is
+ * still visible to the entity processed later in the same frame. */
+void fn_0320f5(void)
+{
+    (void)canary_id(0, 0x24);                                      /* 0x000320f5-f9 */
+    uint8_t *cur = g_dat_53c70;                                    /* 0x0003210d-15 */
+    g_dat_63388 = 0;                                               /* 0x00032115-1f */
+    for (int32_t i = 0; i < (int32_t)g_dat_53c68; i = i + 1) {      /* 0x0003211f-0x00032137 */
+        fn_01441e(cur);                                            /* 0x00032139-41 */
+        cur = *(uint8_t **)(cur + 0x13f);                          /* 0x00032141-4d */
     }
 }
 

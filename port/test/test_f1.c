@@ -15816,6 +15816,47 @@ static void test_fn_03e20f(void) {
 }
 
 
+static void test_fn_03ed6f(void) {
+    printf("fn_03ed6f (0x03ed6f): command-list pump (apply, keep pending, unlink+free consumed)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint32_t s_18 = g_dat_63e18, s_1c = g_dat_63e1c, s_20 = g_dat_63e20, s_14 = g_dat_63e14;
+    uint32_t s_cnt = g_dat_62a8c, s_stage = g_dat_63370;
+    struct clamp_tab_5c8bc s_c0 = g_tab_5c8bc[0], s_c1 = g_tab_5c8bc[1];
+
+    /* three records chained prev/next at +0x51 / +0x55; the walk starts at DAT_63e18 (n3) */
+    uint32_t n1 = heap_malloc(0x58), n2 = heap_malloc(0x58), n3 = heap_malloc(0x58);
+    memset(hb + n1, 0, 0x58); memset(hb + n2, 0, 0x58); memset(hb + n3, 0, 0x58);
+    *(uint32_t *)(hb + n1 + 0x51) = 0;  *(uint32_t *)(hb + n1 + 0x55) = n2;
+    *(uint32_t *)(hb + n2 + 0x51) = n1; *(uint32_t *)(hb + n2 + 0x55) = n3;
+    *(uint32_t *)(hb + n3 + 0x51) = n2; *(uint32_t *)(hb + n3 + 0x55) = 0;
+    hb[n3] = 3;                                          /* consumed: appends a wall row */
+    *(uint32_t *)(hb + n3 + 0x09) = 11; *(uint32_t *)(hb + n3 + 0x0d) = 12;
+    *(uint32_t *)(hb + n3 + 0x11) = 13; *(uint32_t *)(hb + n3 + 0x15) = 14;
+    hb[n2] = 5;                                          /* opcode 5: default, stays pending */
+    hb[n1] = 3;
+    *(uint32_t *)(hb + n1 + 0x09) = 21; *(uint32_t *)(hb + n1 + 0x0d) = 22;
+    *(uint32_t *)(hb + n1 + 0x11) = 23; *(uint32_t *)(hb + n1 + 0x15) = 24;
+
+    g_dat_63e18 = n3; g_dat_63e1c = n1; g_dat_63e14 = 0; g_dat_62a8c = 0; g_dat_63370 = 1;
+    memset(&g_tab_5c8bc[0], 0, 2 * sizeof g_tab_5c8bc[0]);
+    fn_03ed6f();
+
+    check(g_tab_5c8bc[0].a1_lo == 11 && g_tab_5c8bc[0].v_hi == 14
+          && g_tab_5c8bc[1].a1_lo == 21 && g_tab_5c8bc[1].v_hi == 24 && g_dat_62a8c == 2,
+          "both consumed records reach g_tab_5c8bc in walk order (DAT_63e18 backwards through +0x51)");
+    check(hb[n2] == 5, "the record fn_0003e20f left armed stays in the list (not unlinked, not freed)");
+    check(g_dat_63e20 == 0, "the walk cursor DAT_00063e20 ends at the list terminator");
+    check(g_dat_63e18 == n2 && g_dat_63e1c == n2,
+          "unlinking the two ends moves both list caches (DAT_63e18 / DAT_63e1c) onto the survivor");
+
+    g_dat_63e18 = s_18; g_dat_63e1c = s_1c; g_dat_63e20 = s_20; g_dat_63e14 = s_14;
+    g_dat_62a8c = s_cnt; g_dat_63370 = s_stage;
+    g_tab_5c8bc[0] = s_c0; g_tab_5c8bc[1] = s_c1;
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16199,6 +16240,7 @@ int main(void) {
     test_fn_0137c1();
     test_fn_038f3d();
     test_fn_03e20f();
+    test_fn_03ed6f();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

@@ -1430,4 +1430,9 @@ extern const uint32_t g_tab_528b4[180];   /* DS 0x528b4: per-stage entity caps, 
                                            * x 18 rows (stage-1), stride 0x28: 9/5 in stages 1-9, 1000
                                            * ("no cap") afterwards */
 
+/* 0x03ed6f: THE COMMAND-LIST PUMP -- walks the room script's command list from DAT_00063e18 through
+ * the +0x51 links, applies each record with fn_0003e20f, and unlinks + frees only the records whose
+ * opcode byte was consumed. See docs/21-script-commands.md. */
+void fn_03ed6f(void);
+
 #endif

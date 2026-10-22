@@ -23696,6 +23696,36 @@ const uint32_t g_tab_528b4[180] = {
     0x0020, 0x000d, 0x03e8, 0x03e8, 0x03e8,
 };
 
+
+/* fn_03ed6f  orig: 0x0003ed6f (L17, 155 B) -- THE COMMAND-LIST PUMP: walks the room's script-command
+ * list (the same doubly-linked list fn_0003e0a0 appends to, +0x51 = prev / +0x55 = next, cached in
+ * DAT_00063e18 / DAT_00063e1c) from DAT_00063e18 backwards through +0x51, hands each record to
+ * fn_0003e20f, and unlinks + frees the record only if the interpreter consumed it (opcode byte cleared).
+ * A pending record -- including one whose band test made fn_0003e20f return early -- stays in the list
+ * and is retried on the next call; the walk itself still continues past it.
+ * Kept quirks: the walk takes the next link BEFORE the unlink/free, so it never follows a freed node's
+ * link; DAT_00063e20 (the walk cursor, a third cache slot) is left at 0 afterwards; the free is the
+ * standard fn_0003e14c (unlink) + fn_00041c28 (heap_free) pair.
+ */
+void fn_03ed6f(void)
+{
+    (void)canary_id(0, 0x2c);                                              /* 0x0003ed6f-74 */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_63e20 = g_dat_63e18;                                            /* 0x0003ed87-8c */
+    while (g_dat_63e20 != 0) {                                            /* 0x0003ed91-98 */
+        fn_03e20f(hb + g_dat_63e20);                                      /* 0x0003ed9f */
+        if (*(const uint8_t *)(hb + g_dat_63e20) == 0) {                  /* 0x0003eda4-ab */
+            uint32_t next = *(const uint32_t *)(hb + g_dat_63e20 + 0x51); /* 0x0003edb4-bc */
+            uint32_t cur = g_dat_63e20;                                   /* 0x0003edbf-c4 */
+            if (cur != 0)                                                 /* 0x0003edc7 */
+                (void)heap_free_guard(fn_03e14c(cur, 0));                 /* 0x0003edd2 / 0x0003edd7 */
+            g_dat_63e20 = next;                                           /* 0x0003ede1-e8 */
+        } else {
+            g_dat_63e20 = *(const uint32_t *)(hb + g_dat_63e20 + 0x51);    /* 0x0003edf2-fa */
+        }
+    }
+}
+
 /* fn_03e20f  orig: 0x0003e20f (L16, 2862 B) -- THE SCRIPT-COMMAND PUMP: applies one command record
  * from the room's command list (fn_0003ed6f pumps the list through DAT_00063e18) to the room, and
  * clears the record's opcode byte in place once it has been consumed.

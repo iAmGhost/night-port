@@ -131,6 +131,35 @@ Older progress: (8 of 18 -- 0x01f064/behaviour 0x07 added: a four-arm chooser (s
 
 Older progress: (7 of 18 -- 0x01df8b/behaviour 0x06 added: the entity[0x5f] phase-latch chooser (script-byte side spots alternating with absolute jitter slots 6..9)).
 
+READ-IN-PROGRESS NOTES -- 0x02319c (behaviour 0x1f, 6748 B, dispatcher arg 2). 98.9% of its 1746
+instructions are shared with 0x029709 in order; only 9 substitutions and 9 inserts (252 insns), so it is
+a body-generation job. Substitutions (all inside the rope arm, whose sprite is 0x2c not 0x2b): the state
+counter is compared against 0x48 instead of 1 (latch frame = 0x48, window 0x49..0x71), the numerator is
+player_x - self_x, and the floats land in entity[0xdb] (slope dy/dx, 100000.0f when dx==0), entity[0xe3]
+and entity[0xe7] instead of entity[0xe7]. The arm is a SWING, not the 0x02fe1e climb:
+  latch frame (0x0002348b-0x0002368b): latch entity[0xd3]/[0xd7]=self, [0xcb]/[0xcf]=player, slope
+    entity[0xdb]=dy/dx; then ax=|dx|, ay=|dy| (fn_041f76); if ax>ay: entity[0xe3] = (dx<0?-7.0f:+7.0f)
+    (0xc0e00000/0x40e00000) and entity[0xe7] = (float)dy / <float DS 0x14 or 0x18 by the sign of dx>;
+    else: entity[0xe3] = (float)dx / <float DS 0x1c or 0x20 by the sign of dy> and entity[0xe7] =
+    (dy<0?-4.0f:+4.0f) (0xc0800000/0x40800000).  [the four float divisors are DS-low again]
+  window frames (0x000236aa-0x00023866): if |entity[0xe7]| < |entity[0xe3]| (fabs/fcomp) then
+    tx = rndint((e[0x11]-0x48) * entity[0xe3]); ty = rndint(tx_pre * entity[0xdb]);
+    else ty = rndint((e[0x11]-0x48) * entity[0xe7]); tx = rndint(ty_pre / entity[0xdb]);
+    then tx += entity[0xd3]; ty += entity[0xd7].
+  containment (0x00023762): if (tx<0 && entity[0xd3]>0xa) || (tx>=0x140 && entity[0xd3]<0x136) -> NUDGE;
+    else if (room[0x12]+g_dat_639e0 > ty) || !(room[0x16]+g_dat_639e0 >= ty) -> NUDGE; else full move
+    (fn_01545e(e, tx-fn_01519f(e)); fn_01586b(e, ty-fn_0151d5(e))).
+    NUDGE = fn_01545e(e, sign(tx-entity[0xd3]) * 3) then fn_01586b(e, sign(ty-entity[0xd7]) * 1)
+    (only called when the difference is nonzero).
+  STILL TO READ before porting: 0x000248cd-0x00024a00 (the walk reached/not-reached paths), and the small
+  inserts 0x00024822-0x00024837, 0x00024894-0x000248b2. Walk findings so far: the code at 0x00024757 is
+  DEAD (its guard is `cmp eax,-1` right after `and eax,0xff`, so it can never match); the live walk
+  start is 0x00024894, which reads the tolerance from col 0 and tests the X gap ONLY; the not-reached
+  path (0x00024842) calls fn_041e9f, then `idiv 0x14` and picks action 4 when the remainder == 2 else
+  action 0x0a (so this handler keeps a 1-in-20 coin flip with a different helper than 0x02119c).
+  CAUTION when reading the listing: `mov eax, dword ptr [ebp-8]` lines are load-bearing (they restore the
+  entity pointer between table-indexed accesses) -- do not filter them out when re-reading.
+
 INSTRUCTION-STREAM TOOL (scratch/aidiff_insns.py, use this instead of the pseudo diff): pass two VAs.
 It disassembles both with capstone, masks EVERY immediate/displacement, and SequenceMatchers the
 mnemonic stream (so stack-slot renames and branch-target shifts vanish); `--consts` then re-compares

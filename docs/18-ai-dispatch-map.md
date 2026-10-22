@@ -126,6 +126,15 @@ either; that inconsistency is what made the copies look right. Before declaring 
 grep its disassembly for `cmp dword ptr [eax + 0x8b], 0`, and do NOT preset entity[0x8b] = 1 in every
 test case -- pin both frames instead (see test_fn_029709's recon-gate checks).
 
+### In progress: 0x02e2cc (behaviour-0x26)
+Analysis is written up in `scratch/NOTES_02e2cc.md` (untracked scratch, regenerate from this note's
+addresses if lost): 95.6% of its 1815 instructions align with 0x02c838, the sprite/distance/window
+constants are tabulated, and four structural deltas are located -- a prng%100<50 chooser that draws
+six slots, the X clamp moved BEFORE the too-close test, a new transition-flag value 4 whose arm aims
+entity[0xb3]/[0xb7] at the player +-50 and jumps to state 0x6a, and an extra '-' (0x2d) script-marker
+gate.  After it, only 0x03272f (11.4% outlier) stands between the handler set and the dispatcher
+0x031a8e + 0x0322f5.
+
 ### Ported: 0x02c838 (behaviour-0x25)
 The swing region is NOT a constant variant here: sprite 0x2a plans Y only ((player_y-own_y)/20.0, DS
 0x5005c, latch at entity frame 0x32, window 0x33..0x46) and sprite 0x2c keeps the *line* through the

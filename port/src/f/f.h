@@ -913,7 +913,7 @@ extern struct blit_ctl *g_dat_639c4;                /* DAT_000639c4: HUD blit co
 void fn_03ace9(void);                               /* 0x03ace9: 20-frame HUD composite (633b0/633b4 + 2 sprites via fn_03bb42) */
 void fn_012efa(uint8_t *ent, uint32_t base);
 void fn_03203d(uint32_t base);
-extern uint8_t g_ds_low0040[0x10];   /* DS 0x0040..0x004f: the original reads a double at DS 0x44 (FUN_00029709's rope divisor). Absolute 0x44 is NOT initialised file data -- under DOS4GW it is the protected-mode IVT slot for int 0x11 -- so the port keeps it zero and documents the deviation. */
+extern uint8_t g_ds_low0040[0x90];   /* DS 0x0040..0x00cf: the AI handlers read six x87 double divisors out of this range (0x44, 0x9c, 0xa4, 0xac, 0xb4, 0xbc, 0xc4, 0xcc). None of it is initialised file data -- absolute 0x40..0xcf is below the image and is the DOS4GW protected-mode IVT area -- so the port keeps the block zeroed and records the deviation (the quotients become infinities). */
 extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment block (see f.c for the map) */
 #define g_blk_51c80   (g_blk_51c24 + 0x5c)          /* DS 0x51c80 view (legacy name) */
 #define g_tab_51c90   (g_blk_51c24 + 0x6c)          /* DS 0x51c90 gauge fill colours; +1 = DAT_00051c91 */
@@ -1152,6 +1152,8 @@ int32_t  fn_017927(uint8_t *s, int32_t val, int32_t *out1, int32_t *out2);      
 void     fn_017f13(uint8_t *e);
 void     fn_018e88(uint8_t *e);   /* 0x018e88: THE BEHAVIOUR-0x01 ENTITY AI HANDLER -- fn_017f13's near-clone: two speed-index words (record +0x04 / +0x80, the latter forced by entity[0x6f]), no entity[0x8b] recon block, and a six-slot hiding-spot draw (j = prng%4 with a +prng%2 sub-draw for 2/3) whose jitter pairs live at DS 0x51c9c/0x51ca0/0x51ca4/0x51ca8 stride 0x10 */   /* 0x017f13: THE BEHAVIOUR-0x00 ENTITY AI HANDLER -- speed bookkeeping on the float field e[0x63], the fn_015a1f proximity latch, then a switch on e[0x1f] (0..0x16) over the twelve action routines with the family's register ABI (EAX=e, EDX=speed, EBX/ECX=player screen x/y, two stack out slots); the two deltas feed fn_01545e / fn_01586b and e[0x1b] tracks facing */
 void     fn_019e48(uint8_t *e);
+void     fn_02fe1e(uint8_t *e);
+    /* 0x02fe1e: THE BEHAVIOUR-0x27 ENTITY AI HANDLER -- contains all 1509 instructions of 0x029709 in order plus two inserts (a twice-instantiated sprite-0x2e/0x31 anchor-climb machine and a three-marker walk test) and five constant substitutions (rope sprite 0x34 with divisor DS 0xcc, proximity 0x48/0xc) */
 void     fn_029709(uint8_t *e);
     /* 0x029709: THE BEHAVIOUR-0x17 ENTITY AI HANDLER -- 0x0265ac's closest sibling (1213 of 1342 instructions shared): fn_0161f9 probe, a sprite-0x2b rope arm that latches anchors and interpolates entity[0xe7], a chooser reduced to prng()%2 side slots with the X clamp before the too-close test, and a walk row whose col-1 byte '.' drops the Y tolerance */
 void     fn_0265ac(uint8_t *e);

@@ -8984,6 +8984,122 @@ static void test_fn_029709(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x02fe1e: behaviour-0x27 (0x029709 + the twice-instantiated anchor climb + 3-marker walk) ---- */
+static void test_fn_02fe1e(void)
+{
+    printf("fn_02fe1e (0x02fe1e, behaviour-0x27 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 23;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 20; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+    row0[0] = 40;
+
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+    /* a run that reaches the sprite-state chain without touching the move tail */
+    #define FE_BASE(st_, fr_) do { e[0x17] = (st_); e[0x11] = (fr_); e[0x1f] = 6; e[0xaf] = 1; \
+        e[0x8b] = 1; } while (0)
+
+    /* (1) state 0x2e, frame 1: latch the anchors and fit a line through them */
+    FE_BASE(0x2e, 1);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 20;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    *(int32_t *)(e + 0xcb) = 0; *(int32_t *)(e + 0xcf) = 0;
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xd7) == 20 &&
+          *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
+          "02fe1e state 0x2e frame 1 latches the self and player anchors");
+    float f_slope, f_off; memcpy(&f_slope, e + 0xdb, 4); memcpy(&f_off, e + 0xe3, 4);
+    check(f_slope == 1.0f && f_off == 80.0f,
+          "02fe1e the fitted line is slope (player_y-self_y)/(player_x-self_x), offset player_x*slope-player_y");
+
+    /* (2) a vertical line stores the 100000.0f slope instead of dividing */
+    FE_BASE(0x2e, 1);
+    *(int32_t *)(e + 0x01) = 200; *(int32_t *)(e + 0x09) = 40;
+    fn_02fe1e(e);
+    float f_v; memcpy(&f_v, e + 0xdb, 4);
+    check(f_v == 100000.0f, "02fe1e dx == 0 stores the 100000.0f slope (0x47c35000)");
+
+    /* (3) the two climb arms have different frame windows: 0x2e runs to 0x1e, 0x31 only to 0x1b */
+    FE_BASE(0x2e, 1);
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 30;
+    fn_02fe1e(e);                                     /* latch: dx=140 dy=90 -> slope 0.642... */
+    FE_BASE(0x2e, 0x1c);
+    int32_t bx = *(int32_t *)(e + 0x01), by = *(int32_t *)(e + 0x09);
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0x01) != bx || *(int32_t *)(e + 0x09) != by,
+          "02fe1e state 0x2e still climbs at frame 0x1c (window is 2..0x1e)");
+    FE_BASE(0x31, 0x1c);
+    bx = *(int32_t *)(e + 0x01); by = *(int32_t *)(e + 0x09);
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0x01) == bx && *(int32_t *)(e + 0x09) == by,
+          "02fe1e state 0x31 has stopped climbing by frame 0x1c (window is 2..0x1b)");
+
+    /* (4) the single-axis rope now belongs to sprite 0x34 (0x2b is ordinary again) */
+    FE_BASE(0x34, 1);
+    *(int32_t *)(e + 0x01) = 90; *(int32_t *)(e + 0x09) = 70;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    memset(e + 0xe7, 0, 4);
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0xd3) == 90 && *(int32_t *)(e + 0xd7) == 70 &&
+          *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
+          "02fe1e sprite 0x34 frame 1 latches the anchors for the single-axis rope");
+    FE_BASE(0x2b, 1);
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0xd3) == 0 && *(int32_t *)(e + 0xd7) == 0,
+          "02fe1e no longer treats sprite 0x2b as the rope (0x029709 does)");
+
+    /* (5) three walk markers drop the Y tolerance: '1' (0x31), '4' (0x34), '.' (0x2e) */
+    row0[0] = 7; row0[1] = 0x31;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 300;
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "02fe1e a '1' walk row advances on the X gap alone");
+    row0[1] = 0x39;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 300;
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0x1f) == 0 &&
+          (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
+          "02fe1e an unmarked walk row still needs the six-pixel Y match");
+    row0[0] = 40; row0[1] = 0;
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+    #undef FE_BASE
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -14099,6 +14215,7 @@ int main(void) {
     test_fn_02119c();
     test_fn_0265ac();
     test_fn_029709();
+    test_fn_02fe1e();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

@@ -131,6 +131,14 @@ Older progress: (8 of 18 -- 0x01f064/behaviour 0x07 added: a four-arm chooser (s
 
 Older progress: (7 of 18 -- 0x01df8b/behaviour 0x06 added: the entity[0x5f] phase-latch chooser (script-byte side spots alternating with absolute jitter slots 6..9)).
 
+INSTRUCTION-STREAM TOOL (scratch/aidiff_insns.py, use this instead of the pseudo diff): pass two VAs.
+It disassembles both with capstone, masks EVERY immediate/displacement, and SequenceMatchers the
+mnemonic stream (so stack-slot renames and branch-target shifts vanish); `--consts` then re-compares
+the matched pairs with only branch/call targets masked, i.e. prints the genuine constant
+substitutions. Measured: 0x02fe1e contains 100% of 0x029709's 1509 instructions (2 inserts, 5
+substitutions); 0x02e2cc/0x02319c 98.9%; 0x02c838 96.2%; 0x027bec 95.7%; 0x02adf5/0x024bf9 93.8-93.9%;
+only 0x03272f is an outlier (11.4%). Read the inserts and substitutions only.
+
 SIBLING-DIFF SHORTCUT (used for 0x029709, use it for the rest): the if-chain handlers are near-clones.
 Normalise each disassembly to `mnemonic + operands-with-immediates-masked`, run difflib
 SequenceMatcher against an already-ported sibling, then read ONLY (a) inserted blocks, (b) deleted

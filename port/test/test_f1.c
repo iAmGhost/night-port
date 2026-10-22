@@ -16257,6 +16257,203 @@ static void test_fn_01194c(void) {
 }
 
 
+static void test_fn_012616(void) {
+    printf("fn_012616 (0x012616): the action-record stepper (frame, state windows, death, moves)\n");
+    uint8_t *s_54 = g_dat_63354, *s_7c = g_dat_53c7c, *s_80 = g_dat_53c80;
+    uint32_t s_88 = g_dat_53c88, s_370 = g_dat_63370, s_36c = g_dat_6336c, s_398 = g_dat_63398;
+    uint32_t s_360 = g_dat_63360, s_364 = g_dat_63364, s_368 = g_dat_63368, s_39bc = g_dat_639bc;
+    uint32_t s_dc = g_dat_639dc, s_de0 = g_dat_639e0, s_nb = g_dat_62a8c;
+    uint8_t s_ed3 = g_dat_63ed3, s_ed5 = g_dat_63ed5, s_box[0x14];
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74; int32_t s_cnt = g_dat_53c68;
+    uint32_t s_floor = heap_region_floor();
+    memcpy(s_box, g_dat_5d0a0, sizeof s_box);
+    uint32_t quota_save = g_tab_52a1c[2];
+
+    heap_arena_init(); (void)heap_malloc(0x2000); heap_region_floor_set(0x10000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *room = (uint8_t *)calloc(1, 0x400);
+    *(uint32_t *)(room + 0x10) = 0;                        /* fn_01586b: no child room -> use +0x16 */
+    *(uint32_t *)(room + 0x12) = 100; *(uint32_t *)(room + 0x16) = 5000;
+    *(uint32_t *)(room + 0x40) = 2;                        /* room serial 2, stage 1 -> g_tab_52a1c[2] */
+    uint8_t *room2 = (uint8_t *)calloc(1, 0x400);
+    uint8_t saves[4] = {0};                                /* only used to make +0x34c non-NULL */
+    g_dat_63354 = room; g_dat_63370 = 1;
+    g_dat_639dc = 1000; g_dat_639e0 = 0; g_dat_62a8c = 0;
+    g_dat_53c7c = NULL; g_dat_53c80 = NULL; g_dat_53c88 = 0;
+    g_dat_6336c = 0; g_dat_639bc = 0; g_dat_63364 = 0; g_dat_63368 = 0;
+    g_dat_63398 = 0; g_dat_63ed3 = 0; g_dat_63ed5 = 0; g_dat_63360 = 7;
+    memset(g_dat_5d0a0, 0, sizeof g_dat_5d0a0);
+    g_tab_52a1c[2] = 1;
+
+    /* P1 -> P2 (record array) -> records; every state shares one inert default record */
+    uint32_t p1 = heap_malloc(0x20);
+    *(uint32_t *)(hb + p1 + 4) = heap_malloc(0x100 * 4);
+    uint32_t p2 = *(uint32_t *)(hb + p1 + 4);
+    uint32_t defr = heap_malloc(0x90);
+    uint32_t defY = heap_malloc(0x40 * 4), defX = heap_malloc(0x40 * 4);
+    *(uint32_t *)(hb + defr + 0x00) = 100;                 /* frame count */
+    *(uint32_t *)(hb + defr + 0x71) = defY;
+    *(uint32_t *)(hb + defr + 0x75) = defX;
+    for (int i = 0; i < 0x100; i++) *(uint32_t *)(hb + p2 + (size_t)i * 4) = defr;
+    int32_t *dY = (int32_t *)(hb + defY), *dX = (int32_t *)(hb + defX);
+
+    uint32_t eoff = heap_malloc(0x14f);
+    uint8_t *e = hb + eoff;
+    uint32_t pairoff = heap_malloc(0x14f);
+    uint8_t *pair = hb + pairoff;
+#define RESET_ENT() do { memset(e, 0, 0x14f); memset(pair, 0, 0x14f);                        \
+        memset((void *)dY, 0, 0x40 * 4); memset((void *)dX, 0, 0x40 * 4);                    \
+        memset(g_dat_5d0a0, 0, sizeof g_dat_5d0a0);                                          \
+        *(uint32_t *)(e + 0x123) = p1; *(int32_t *)(e + 0x01) = 1200; *(int32_t *)(e + 0x09) = 300; \
+        *(uint32_t *)(e + 0x17) = 1; *(uint32_t *)(e + 0x11) = 2; e[0] = 2;                  \
+        g_dat_53c70 = NULL; g_dat_53c74 = NULL; g_dat_53c68 = 0;                             \
+        g_dat_53c7c = NULL; g_dat_53c80 = NULL; g_dat_53c88 = 0;                             \
+        g_dat_6336c = 0; g_dat_639bc = 0; g_dat_63364 = 0; g_dat_63368 = 0;                  \
+        g_dat_63398 = 0; g_dat_63ed3 = 0; g_dat_63ed5 = 0;                                   \
+        *(uint32_t *)(room + 0x1e) = 0; *(uint32_t *)(room + 0x22) = 0;                      \
+        *(uint8_t **)(room + 0x34c) = NULL; } while (0)
+
+    /* 1: the plain frame step */
+    RESET_ENT();
+    fn_012616(e);
+    check(*(uint32_t *)(e + 0x11) == 3 && *(int32_t *)(e + 0x01) == 1200 && *(int32_t *)(e + 0x09) == 300,
+          "frame 2 -> 3 with zero deltas: the record's frame count (100) is not reached");
+
+    /* 2: the chained state window 0xab..0xad */
+    RESET_ENT();
+    *(uint32_t *)(e + 0x17) = 0xab; *(uint32_t *)(e + 0x11) = 5;
+    fn_012616(e);
+    check(*(uint32_t *)(e + 0x17) == 0xac && *(uint32_t *)(e + 0x11) == 0,
+          "state 0xab with frame >= record+0x17 (hold length) walks to 0xac and restarts the frame");
+
+    /* 3+4: the Y delta array (with the player's room accumulation) and the X delta array */
+    RESET_ENT();
+    dY[3] = 7; dX[3] = 5; g_dat_53c7c = e;   /* frame 2 has already become 3 at the top of the call */
+    fn_012616(e);
+    check(*(int32_t *)(e + 0x01) == 1207 && *(int32_t *)(e + 0x09) == 305,
+          "record+0x71[frame] moves Y through fn_01545e and +0x75[frame] moves X through fn_01586b");
+    check(*(uint32_t *)(room + 0x1e) == 7,
+          "the player's Y delta is also accumulated into room+0x1e (the camera drag)");
+
+    /* 5: rec+0x6c == 1 replaces the X move with the fn_015295 pair and the e+0x42 jitter */
+    RESET_ENT();
+    uint32_t r6c = heap_malloc(0x90);
+    *(uint32_t *)(hb + r6c + 0x00) = 100;
+    *(uint32_t *)(hb + r6c + 0x71) = defY; *(uint32_t *)(hb + r6c + 0x75) = defX;
+    hb[r6c + 0x6c] = 1;
+    *(uint32_t *)(hb + p2 + 0x50u * 4) = r6c;
+    *(uint32_t *)(e + 0x17) = 0x50; *(uint32_t *)(e + 0x3e) = 0x84; *(int32_t *)(e + 0x42) = 4;
+    e[0x16] = 1; dX[3] = 9;
+    fn_012616(e);
+    check(*(int32_t *)(e + 0x01) == 1196 && *(int32_t *)(e + 0x09) == 300,
+          "rec+0x6c == 1: the entity is nudged by -(e+0x42) and fn_01586b is skipped");
+    check(*(int32_t *)(e + 5) == 0 && e[0x16] == 0,
+          "fn_015295 folds e+0x3e into e+5 (clamped to 0) and the non-zero X delta clears e+0x16");
+
+    /* 6: the hold countdown path */
+    RESET_ENT();
+    *(uint16_t *)(e + 0x50) = 5; *(uint32_t *)(e + 0x11) = 99;
+    fn_012616(e);
+    check(*(uint16_t *)(e + 0x50) == 4 && *(uint32_t *)(e + 0x11) == 99,
+          "e+0x50 != 0: at the frame limit the WORD counter ticks down instead of the frame");
+
+    /* 7: the pair link is dropped when the countdown ends, and the interval link decays */
+    RESET_ENT();
+    *(uint16_t *)(e + 0x50) = 1; *(uint32_t *)(e + 0x11) = 99;
+    *(uint32_t *)(e + 0x4a) = pairoff; *(uint32_t *)(pair + 0x4a) = 0x1234;
+    *(uint32_t *)(e + 0x46) = eoff; e[0x4e] = 0x55; e[0x4f] = 0x55;
+    fn_012616(e);
+    check(*(uint32_t *)(e + 0x4a) == 0 && *(uint32_t *)(pair + 0x4a) == 0,
+          "countdown reaching 0 clears the pair link on BOTH entities (e+0x4a and pair+0x4a)");
+    check(*(uint32_t *)(e + 0x46) == 0 && *(uint16_t *)(e + 0x4e) == 0,
+          "fn_01435f reporting no straddle clears the interval link e+0x46 and the interval indices e+0x4e/4f");
+
+    /* 8: states 0x84 / 0x85 move by (state - 0x82), mirrored by the facing dword */
+    RESET_ENT();
+    *(uint32_t *)(e + 0x17) = 0x85; *(uint32_t *)(e + 0x1b) = 1;
+    fn_012616(e);
+    check(*(int32_t *)(e + 0x01) == 1197, "state 0x85 facing 1: Y += (0x82 - 0x85) = -3");
+
+    /* 9: states 0x88..0x8b read the record of e+0x3e and count e+0x42 */
+    RESET_ENT();
+    *(uint32_t *)(e + 0x17) = 0x89; *(uint32_t *)(e + 0x3e) = 0x84;
+    fn_012616(e);
+    check(*(uint32_t *)(e + 0x42) == 1 && *(int32_t *)(e + 0x01) == 1202,
+          "state 0x89 with e+0x3e = 0x84: e+0x42 counts up and the Y delta is the fixed 2");
+
+    RESET_ENT();
+    *(uint32_t *)(e + 0x17) = 0x88; *(uint32_t *)(e + 0x3e) = 0x85; *(uint32_t *)(e + 0x42) = 200;
+    fn_012616(e);
+    check(*(uint32_t *)(e + 0x17) == 1 && *(uint32_t *)(e + 0x11) == 0 && *(int32_t *)(e + 0x01) == 1200,
+          "the e+0x42 count passing the secondary record's frame count resets the action to state 1 / frame 0");
+
+    /* 10: fn_031f5f -- the saved state queue takes over when the frame limit is reached */
+    RESET_ENT();
+    uint32_t rr = heap_malloc(0x90);
+    *(uint32_t *)(hb + rr + 0x00) = 3;                     /* frame count reached at frame >= 3 */
+    hb[rr + 0x17] = 50;                                    /* hold length: keeps the outer test true */
+    *(uint32_t *)(hb + rr + 0x71) = defY; *(uint32_t *)(hb + rr + 0x75) = defX;
+    hb[r6c + 0x69] = 0x13; *(uint16_t *)(hb + r6c + 0x6a) = 7;   /* fn_031f5f latches from the record of the NEW state */
+    *(uint32_t *)(hb + p2 + 1u * 4) = rr;
+    e[0x31] = 2; *(uint32_t *)(e + 0x32) = 0x50; *(uint32_t *)(e + 0x36) = 0x60;
+    *(uint32_t *)(e + 0x11) = 5;
+    fn_012616(e);
+    check(*(uint32_t *)(e + 0x17) == 0x50 && *(uint32_t *)(e + 0x11) == 0 && e[0x31] == 1
+          && *(uint32_t *)(e + 0x32) == 0x60,
+          "e+0x31 != 0: fn_031f5f pops the saved queue (state -> 0x50, slot array shifts left, count 2 -> 1)");
+    check(g_dat_63364 == 0x13 && g_dat_63368 == 7,
+          "the popped record's +0x69/+0x6a latch the element event DAT_63364/63368");
+
+    /* 11: the exit rectangle published by script opcode 6 (g_dat_5d0a0) */
+    RESET_ENT();
+    g_dat_53c7c = e; *(uint32_t *)(e + 0x17) = 2; *(uint32_t *)(e + 0x11) = 5; dX[6] = 20;
+    *(uint32_t *)&g_dat_5d0a0[0x00] = 1000; *(uint32_t *)&g_dat_5d0a0[0x04] = 250;
+    *(uint32_t *)&g_dat_5d0a0[0x08] = 1300; *(uint32_t *)&g_dat_5d0a0[0x0c] = 400;
+    g_dat_63ed5 = 1; g_dat_63398 = 1; *(uint8_t **)(room + 0x34c) = room2;
+    fn_012616(e);
+    check(g_dat_6336c == 2 && g_dat_63398 == 0,
+          "player in state 2 inside the opcode-6 rectangle with DAT_63ed5: DAT_6336c = 2 and DAT_63398 = 0");
+    check(*(uint32_t *)(room + 0x22) == 20,
+          "the same branch accumulates the X delta into room+0x22 even before the rectangle test");
+
+    RESET_ENT();
+    g_dat_53c7c = e; *(uint32_t *)(e + 0x17) = 2; *(uint32_t *)(e + 0x11) = 5;
+    *(uint32_t *)&g_dat_5d0a0[0x00] = 1000; *(uint32_t *)&g_dat_5d0a0[0x04] = 250;
+    *(uint32_t *)&g_dat_5d0a0[0x08] = 1300; *(uint32_t *)&g_dat_5d0a0[0x0c] = 400;
+    *(uint32_t *)&g_dat_5d0a0[0x10] = 7; g_dat_63ed3 = 1;
+    *(uint8_t **)(room + 0x34c) = room2;              /* the orientation is only rewritten with a child room */
+    fn_012616(e);
+    check(g_dat_6336c == 2 && g_dat_63398 == 1,
+          "with the rectangle's mode word non-zero the other key (DAT_63ed3) sets DAT_63398 = 1 instead");
+
+    /* 12: the wake-up and the death announcement (the entity is freed here) */
+    RESET_ENT();
+    e[0] = 0; *(uint32_t *)(e + 0x17) = 0x1d; *(uint32_t *)(e + 0x11) = 0x2e;
+    fn_012616(e);
+    check(e[0] == 1, "a sleeping entity (kind 0) in state 0x1d past action 0x2d wakes up");
+
+    RESET_ENT();
+    e[0] = 1; e[0x30] = 1; *(uint32_t *)(e + 0x11) = 100;   /* the frame limit is reached -> the reset path */
+    g_dat_53c70 = e; g_dat_53c74 = e; g_dat_53c68 = 1;
+    fn_012616(e);
+    check(g_dat_639bc == 1 && g_dat_6336c == 4,
+          "kind 1 dying: the kill counter (DAT_639bc) increments and meeting the g_tab_52a1c quota sets DAT_6336c = 4");
+    check(g_dat_53c68 == 0 && g_dat_53c70 == NULL,
+          "the dying entity is removed from the list (fn_0112fd) and freed (fn_00041c28)");
+
+#undef RESET_ENT
+    heap_region_floor_set(s_floor);
+    g_dat_63354 = s_54; g_dat_53c7c = s_7c; g_dat_53c80 = s_80; g_dat_53c88 = s_88;
+    g_dat_63370 = s_370; g_dat_6336c = s_36c; g_dat_63398 = s_398; g_dat_63360 = s_360;
+    g_dat_63364 = s_364; g_dat_63368 = s_368; g_dat_639bc = s_39bc;
+    g_dat_639dc = s_dc; g_dat_639e0 = s_de0; g_dat_62a8c = s_nb;
+    g_dat_63ed3 = s_ed3; g_dat_63ed5 = s_ed5; g_dat_53c70 = s_head; g_dat_53c74 = s_tail;
+    g_dat_53c68 = s_cnt; memcpy(g_dat_5d0a0, s_box, sizeof s_box); g_tab_52a1c[2] = quota_save;
+    free(room); free(room2); (void)saves;
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16644,6 +16841,7 @@ int main(void) {
     test_fn_03d244();
     test_fn_039c03();
     test_fn_01194c();
+    test_fn_012616();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

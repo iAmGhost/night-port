@@ -1435,7 +1435,6 @@ extern const uint32_t g_tab_528b4[180];   /* DS 0x528b4: per-stage entity caps, 
  * opcode byte was consumed. See docs/21-script-commands.md. */
 void fn_03ed6f(void);
 
-extern uint8_t g_dat_639bc;
 const uint8_t  g_tab_52be0[100];   /* 0x52be0: rooms entered by walking in (per stage x 10 room slots) */
 const uint32_t g_tab_52da4[100];  /* 0x52da4: per-room CD audio track */
 
@@ -1456,5 +1455,17 @@ int32_t fn_039c03(void);
  * entity+0x0d (type) and entity+0x11 (action), whose leaves are a random-Y nudge + trail spawn
  * (fn_01545e + fn_011827), a plain spawn (fn_011827) or the three-way spray (fn_0113e7). */
 void fn_01194c(uint8_t *e);
+
+extern uint32_t g_dat_6336c;   /* DAT_0006336c: stage/scene event request -- 1 = player died, 2 = exit rectangle reached,
+                     * 3 = the DAT_53c80 entity died, 4 = the room kill quota (g_tab_52a1c) was met */
+extern uint32_t g_dat_639bc;   /* DAT_000639bc: entities killed this room (dword; inc'd by 0x00012616, cleared by
+                     * fn_03a829 and by the room transition fn_03d244) */
+extern uint32_t g_tab_52a1c[0x4ec/4]; /* DAT_00052a1c: kill quota per room, 10 dwords per stage indexed by room serial
+                     * (0x52a1c..0x52f08, bounded by the next DS global DAT_00052f08); no producer in the EXE */
+
+/* 0x012616: THE ACTION-RECORD STEPPER -- advances one entity's action by a frame: state windows 0xab/0xb5/0xbf,
+ * the death announcement + remove/free, the hold countdown, then the Y move (fn_01545e) and the X move
+ * (fn_015295 / fn_01586b) driven by the record's +0x71 / +0x75 delta arrays. */
+void fn_012616(uint8_t *e);
 
 #endif

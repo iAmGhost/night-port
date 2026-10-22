@@ -520,7 +520,8 @@ uint32_t g_dat_63e18 = 0;   /* DAT_00063e18: cached prev-node offset (fn_03e14c)
 uint32_t g_dat_63e1c = 0;   /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
 uint32_t g_dat_63e20 = 0;   /* DAT_00063e20: 3rd cache slot (zeroed, not read) */
 uint32_t g_dat_62a8c = 0;
-uint8_t  g_dat_639bc = 0;   /* DAT_000639bc: cleared by the room transition (0x0003d4d1) */   /* DAT_00062a8c: zeroed by fn_03ee0a (list-destroy) */
+uint32_t g_dat_6336c = 0;   /* DAT_0006336c: stage/scene event request (1 player died, 2 exit reached, 3 DAT_53c80 died, 4 kill quota met) */
+uint32_t g_dat_639bc = 0;   /* DAT_000639bc: kill counter, inc'd at 0x00012a33, cleared by the room transition (0x0003d4d1) */   /* DAT_00062a8c: zeroed by fn_03ee0a (list-destroy) */
 uint32_t g_dat_63364 = 0;   /* DAT_00063364: removed-element flag byte (fn_031f5f) */
 uint32_t g_dat_63368 = 0;   /* DAT_00063368: removed-element value word (fn_031f5f) */
 uint32_t g_dat_63388 = 0;   /* DAT_00063388: cleared at the top of every combat sweep (fn_0320f5) */
@@ -4560,6 +4561,7 @@ stage_records:
  *    0x03d244), so it is modelled as a zero-initialised global table a test can seed.
  */
 uint32_t g_dat_63398 = 0;                    /* DAT_00063398: room orientation byte (room node +0x11) */
+uint32_t g_tab_52a1c[0x4ec/4];  /* DAT_00052a1c: kill quota per room, 10 dwords/stage by room serial; no producer in the EXE */
 uint32_t g_tab_52c3c[0x104] = {0};           /* DAT_00052c3c: 10 dwords per stage, indexed by the room serial */
 /* DAT_0005274c: FLOAT table, 10 floats (40 B) per stage, indexed by the room serial.
  * Effective address = 0x5274c + serial*4 + (DAT_00063370-1)*0x28 (0x03d75c 0x3d854-6f).
@@ -23894,6 +23896,232 @@ void fn_01194c(uint8_t *e)
 #undef RY
 #undef RYMV
 #undef SND
+}
+
+
+/* fn_012616  orig: 0x00012616 (L14, 2276 B) -- THE ACTION-RECORD STEPPER: given an entity (EAX), advance
+ * its current action one frame. This is the function that turns the .act records into motion, and it is
+ * what every per-frame entity loop ends with, so the whole entity layer sits on top of it.
+ *
+ * Record resolution (the port's heap-offset convention, cf. fn_031f5f / fn_01435f / fn_012efa):
+ *   P1 = e[+0x123]              the entity's action container (heap offset)
+ *   P2 = *(P1 + 4)              the record-pointer array  (heap offset)
+ *   rec = *(P2 + state*4)       the action record of state e[+0x17] (heap offset)
+ *   rec[+0x00] = frame count, rec[+0x17] = byte "hold" length, rec[+0x6c] = byte flag,
+ *   rec[+0x71] / rec[+0x75] = Y / X delta arrays (heap offsets of `count` dwords, filled by fn_010010).
+ *
+ * Shape: (1) normalise state 0x29; (2) wake a sleeping entity (kind 0 -> 1) when its state/action pair has
+ * run long enough (0x1d with action > 0x2d, or 0x16 with action > 0x12 -- never for the player);
+ * (3) kind < 2 goes through fn_01194c first; (4) drop the interval link e[+0x46] when fn_01435f reports it
+ * no longer straddles; (5) if the hold counter e[+0x50] (WORD) is 0, advance the frame counter and test the
+ * three chained state windows (0xab..0xad, 0xb5..0xb8, 0xbf..0xc7 -- the "level chain" that fn_03d244 also
+ * walks), then either loop the action back to its start state, hand the list to fn_031f5f, or -- when
+ * e[+0x30] == 1 -- announce the death (DAT_6336c = 1 for the player, 3 for DAT_53c80, 4 when the room's
+ * kill quota g_tab_52a1c is met) and remove+free the entity; (6) if the hold counter is running instead,
+ * step the frame or tick the counter down, with a 3-frame breathing jitter for states 0x0b..0x14 and
+ * clearing the pair link (e[+0x4a]) when the countdown reaches 0; (7) compute the Y delta and move through
+ * fn_01545e (mirrored by e[+0x1b], and the player's delta is also accumulated into room[+0x1e]); (8) move X
+ * through fn_015295 / fn_01586b depending on rec[+0x6c]; (9) if the player stands in state 2 inside the
+ * exit rectangle published by script opcode 6 (g_dat_5d0a0), request the transition (DAT_6336c = 2) and set
+ * the orientation DAT_63398.
+ *
+ * Note the deliberate side effect inside the last condition: room[+0x22] is accumulated *before* the
+ * rectangle test, so a player in state 2 always pays the X delta even when it is outside the box.
+ */
+void fn_012616(uint8_t *e)
+{
+    (void)canary_id((uintptr_t)e, 0x30);                                 /* 0x0001261b probe (push 0x30) */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    const uint32_t ptbl = *(const uint32_t *)(e + 0x123);                /* P1: action container */
+    const uint32_t rarr = *(const uint32_t *)(hb + ptbl + 4);            /* P2: record array */
+#define RECST(idx) (hb + *(const uint32_t *)(hb + rarr + (uint32_t)(idx) * 4u))
+#define YARR(r) ((const int32_t *)(hb + *(const uint32_t *)((r) + 0x71)))   /* the record's Y delta array */
+#define XARR(r) ((const int32_t *)(hb + *(const uint32_t *)((r) + 0x75)))   /* the record's X delta array */
+
+    if (*(int32_t *)(e + 0x17) == 0x29)                                  /* 0x00012625-45 */
+        *(uint32_t *)(e + 0x17) = 0x29;                                  /* four byte stores == dword */
+
+    if (e != g_dat_53c7c && e[0] == 0) {                                 /* 0x0001264b: wake-up, never the player */
+        if (*(int32_t *)(e + 0x17) == 0x1d && 0x2d < *(int32_t *)(e + 0x11)) e[0] = 1;
+        if (*(int32_t *)(e + 0x17) == 0x16 && 0x12 < *(int32_t *)(e + 0x11)) e[0] = 1;
+    }
+    if (e[0] < 2) fn_01194c(e);                                          /* 0x0001269b-126a5 */
+
+    uint8_t *rec = RECST(*(int32_t *)(e + 0x17));                        /* [ebp-0xc] */
+    uint8_t *rec2 = NULL;                                                /* [ebp-8]: the e[+0x3e] record */
+
+    if (*(const uint32_t *)(e + 0x46) != 0                              /* 0x000126ee: interval link decay */
+        && fn_01435f(*(uint32_t *)(e + 0x46), e[0x4e], e[0x4f]) == 1) {
+        *(uint32_t *)(e + 0x46) = 0;
+        *(uint16_t *)(e + 0x4e) = 0;
+    }
+
+    if (*(const int16_t *)(e + 0x50) == 0) {                             /* 0x0001271e: no hold countdown */
+        *(int32_t *)(e + 0x11) = *(int32_t *)(e + 0x11) + 1;
+        if (((int32_t)*(const uint8_t *)(rec + 0x17) <= *(const int32_t *)(e + 0x11))
+            && (0xaa < *(const uint32_t *)(e + 0x17)) && (*(const uint32_t *)(e + 0x17) < 0xae)) {
+            *(int32_t *)(e + 0x17) = *(int32_t *)(e + 0x17) + 1;         /* 0x00012775 */
+            *(uint32_t *)(e + 0x11) = 0;
+        }
+        if (((int32_t)*(const uint8_t *)(rec + 0x17) <= *(const int32_t *)(e + 0x11))
+            && (0xb4 < *(const uint32_t *)(e + 0x17)) && (*(const uint32_t *)(e + 0x17) < 0xb9)) {
+            *(int32_t *)(e + 0x17) = *(int32_t *)(e + 0x17) + 1;         /* 0x000127b1 */
+            *(uint32_t *)(e + 0x11) = 0;
+        }
+        if (((int32_t)*(const uint8_t *)(rec + 0x17) <= *(const int32_t *)(e + 0x11))
+            && (0xbe < *(const uint32_t *)(e + 0x17)) && (*(const uint32_t *)(e + 0x17) < 200)) {
+            *(int32_t *)(e + 0x17) = *(int32_t *)(e + 0x17) + 1;         /* 0x000127ed */
+            *(uint32_t *)(e + 0x11) = 0;
+        }
+        if (e[0x31] == 0 || *(const int32_t *)(e + 0x11) < (int32_t)*(const uint8_t *)(rec + 0x17)) {
+            if ((int32_t)*(const uint32_t *)(rec + 0x00) <= *(const int32_t *)(e + 0x11)) {
+                if (*(int32_t *)(e + 0x17) == 0x6f || *(int32_t *)(e + 0x17) == 0x71) {  /* 0x000127f4 */
+                    *(uint32_t *)(e + 0x4a) = 0;                         /* the pair link */
+                    e[0x31] = 0;
+                    *(uint32_t *)(e + 0x17) = 1;
+                    *(uint32_t *)(e + 0x11) = 0;
+                }
+                if (e[0x31] == 0) {
+                    if (!(e[0] == 1 && *(const int32_t *)(e + 0x17) == 3)) {
+                        if (*(int32_t *)(e + 0x17) == 5)                  /* 0x00012865: the four +0x05 bytes */
+                            *(uint32_t *)(e + 5) = 0;
+                        if (*(int32_t *)(e + 0x17) == 3) {                /* 0x00012871 */
+                            *(uint32_t *)(e + 0x17) = 3;
+                        } else if (*(int32_t *)(e + 0x17) == 0x70) {      /* 0x00012880: hand the pair over */
+                            uint8_t *pair = hb + *(const uint32_t *)(e + 0x4a);
+                            if (pair[0x30] != 1) {
+                                *(uint32_t *)(e + 0x17) = 0x66;
+                                *(uint16_t *)(e + 0x50) = 200;            /* 0x00012930 */
+                                *(uint32_t *)(pair + 0x17) = 0x1f;
+                                *(uint32_t *)(pair + 0x11) = 0;
+                                *(uint16_t *)(pair + 0x50) = 200;         /* 0x00012956 */
+                            }
+                        } else if (*(int32_t *)(e + 0x17) != 2) {         /* 0x00012961 */
+                            if (*(int32_t *)(e + 0x17) == 0x28) *(uint32_t *)(e + 0x17) = 0x28;
+                            else *(uint32_t *)(e + 0x17) = 1;
+                        }
+                    }
+                    *(uint32_t *)(e + 0x11) = 0;                          /* 0x000129b2 */
+                } else {
+                    fn_031f5f((uint32_t)(e - hb));                        /* 0x00012837 */
+                    rec = RECST(*(int32_t *)(e + 0x17));
+                }
+                if (e[0x30] == 1) {                                       /* 0x000129c4: the entity dies here */
+                    if (e == g_dat_53c7c) g_dat_6336c = 1;
+                    else if (e == g_dat_53c80) g_dat_6336c = 3;
+                    else if ((const uint8_t *)(uintptr_t)g_dat_53c88 == e) g_dat_53c88 = 0;
+                    if (e[0] == 1) {                                      /* 0x00012a24 (unsigned byte) */
+                        g_dat_639bc = g_dat_639bc + 1;                    /* 0x00012a33 (dword) */
+                        const int32_t quota = (int32_t)g_tab_52a1c[
+                            *(const uint32_t *)(g_dat_63354 + 0x40)
+                            + (uint32_t)((int32_t)g_dat_63370 - 1) * 10u];
+                        if (quota <= (int32_t)g_dat_639bc) g_dat_6336c = 4;   /* 0x00012a55 jl */
+                    }
+                    fn_0112fd(e, 0);                                      /* 0x00012a6c */
+                    heap_free_guard((uint32_t)(e - hb));                  /* 0x00012a71 (fn_00041c28) */
+                    return;
+                }
+            }
+        } else if (e == g_dat_53c7c
+                   && (*(const int32_t *)(e + 0x17) == 0x6f
+                       || *(const int32_t *)(e + 0x17) == 0x71)) {
+            e[0x31] = 0;                                                  /* 0x00012904 */
+        } else {
+            fn_031f5f((uint32_t)(e - hb));                                /* 0x000129a7 */
+            rec = RECST(*(int32_t *)(e + 0x17));
+        }
+    } else if (*(const int32_t *)(e + 0x11) < (int32_t)*(const uint32_t *)(rec + 0x00) - 1) {
+        *(int32_t *)(e + 0x11) = *(int32_t *)(e + 0x11) + 1;              /* 0x00012a80 */
+    } else {
+        *(int16_t *)(e + 0x50) = (int16_t)(*(const int16_t *)(e + 0x50) - 1);  /* 0x00012a95 dec word */
+        if ((10 < *(const uint32_t *)(e + 0x17)) && (*(const uint32_t *)(e + 0x17) < 0x15)
+            && g_dat_63360 % 3 == 0) {                                    /* 0x00012aa1: breathing jitter */
+            if (g_dat_63360 % 6 == 0) fn_01545e(e, -1);
+            else fn_01545e(e, 1);
+        }
+        if (*(const int16_t *)(e + 0x50) == 0 && *(const uint32_t *)(e + 0x4a) != 0) {  /* 0x00012b00 */
+            *(uint32_t *)(hb + *(const uint32_t *)(e + 0x4a) + 0x4a) = 0; /* the pair forgets this entity */
+            *(uint32_t *)(e + 0x4a) = 0;
+        }
+    }
+
+    int32_t mv;                                                           /* [ebp-0x10] */
+    if (*(const int32_t *)(e + 0x17) == 0x84 || *(const int32_t *)(e + 0x17) == 0x85) {
+        if (*(const int32_t *)(e + 0x1b) == 0) fn_01545e(e, *(const int32_t *)(e + 0x17) - 0x82);
+        else fn_01545e(e, 0x82 - *(const int32_t *)(e + 0x17));
+    } else {
+        if (*(const uint32_t *)(e + 0x17) < 0x88 || 0x8b < *(const uint32_t *)(e + 0x17)) {
+            if ((*(const int32_t *)(e + 0x17) == 0x8c || *(const int32_t *)(e + 0x17) == 0x8d)
+                && *(const int32_t *)(e + 0x11) < 0x35) {                 /* 0x00012b9d */
+                mv = (*(const int32_t *)(e + 0x3e) == 0x84) ? 2
+                   : (*(const int32_t *)(e + 0x3e) == 0x85) ? 3 : 0;
+            } else {
+                mv = YARR(rec)[*(const int32_t *)(e + 0x11)];
+            }
+        } else {
+            rec2 = RECST(*(int32_t *)(e + 0x3e));                         /* 0x00012b90 */
+            *(int32_t *)(e + 0x42) = *(int32_t *)(e + 0x42) + 1;
+            mv = (*(const int32_t *)(e + 0x3e) == 0x84) ? 2
+               : (*(const int32_t *)(e + 0x3e) == 0x85) ? 3 : 0;
+            if ((uint32_t)*(const uint32_t *)(rec2 + 0x00) - 1u <= *(const uint32_t *)(e + 0x42)) {
+                *(uint32_t *)(e + 0x11) = 0;                              /* 0x00012c52 */
+                *(uint32_t *)(e + 0x17) = 1;
+                fn_0348e2();
+                mv = 0;
+            }
+        }
+        if (*(const int32_t *)(e + 0x1b) == 0) {                          /* 0x00012cc2 */
+            fn_01545e(e, mv);
+            if (e == g_dat_53c7c)
+                *(int32_t *)(g_dat_63354 + 0x1e) = *(int32_t *)(g_dat_63354 + 0x1e) + mv;
+        } else fn_01545e(e, -mv);
+    }
+
+    if (*(const uint8_t *)(RECST(*(int32_t *)(e + 0x17)) + 0x6c) == 1) {  /* 0x00012d0f */
+        if (e[0x16] != 0) {                                               /* 0x00012d23 */
+            if (*(const int32_t *)(e + 0x1b) == 0) fn_01545e(e, -(int32_t)*(const int32_t *)(e + 0x42));
+            else fn_01545e(e, *(int32_t *)(e + 0x42));
+            fn_015295(e, *(int32_t *)(e + 0x3e));
+        }
+        if ((int32_t)e[0x16] < 2) {                                       /* 0x00012d69 jle */
+            int32_t mv2;
+            if (*(const uint32_t *)(e + 0x17) < 0x88 || 0x8b < *(const uint32_t *)(e + 0x17))
+                mv2 = XARR(rec)[*(const int32_t *)(e + 0x11)];
+            else
+                mv2 = XARR(rec2)[*(const int32_t *)(e + 0x42)];
+            fn_015295(e, mv2);
+        } else {
+            *(int32_t *)(e + 0x11) = *(int32_t *)(e + 0x11) - 1;          /* 0x00012d79 */
+            e[0x16] = e[0x16] - 1;
+        }
+        if ((-1 < *(const int32_t *)(e + 5))                              /* 0x00012de0 */
+            && XARR(rec)[*(const int32_t *)(e + 0x11)] != 0)
+            e[0x16] = 0;
+    } else {
+        fn_01586b(e, XARR(rec)[*(const int32_t *)(e + 0x11)]);            /* 0x00012e01 */
+    }
+
+    if (e == g_dat_53c7c && *(int32_t *)(g_dat_53c7c + 0x17) == 2) {      /* 0x00012e4f */
+        *(int32_t *)(g_dat_63354 + 0x22)
+            = *(int32_t *)(g_dat_63354 + 0x22) + XARR(rec)[*(const int32_t *)(e + 0x11)];
+        if ((int32_t)*(const int32_t *)&g_dat_5d0a0[0x00] <= *(const int32_t *)(e + 0x01)
+            && *(const int32_t *)(e + 0x01) <= (int32_t)*(const int32_t *)&g_dat_5d0a0[0x08]
+            && (int32_t)*(const int32_t *)&g_dat_5d0a0[0x04] <= *(const int32_t *)(e + 0x09)
+            && *(const int32_t *)(e + 0x09) <= (int32_t)*(const int32_t *)&g_dat_5d0a0[0x0c]) {
+            if (*(const int32_t *)&g_dat_5d0a0[0x10] == 0) {
+                if (g_dat_63ed5 != 0) {                                   /* 0x00012eb2 */
+                    if (*(uint8_t *const *)(g_dat_63354 + 0x34c) != NULL) g_dat_63398 = 0;
+                    g_dat_6336c = 2;
+                }
+            } else if (g_dat_63ed3 != 0) {                                /* 0x00012ed3 */
+                if (*(uint8_t *const *)(g_dat_63354 + 0x34c) != NULL) g_dat_63398 = 1;
+                g_dat_6336c = 2;
+            }
+        }
+    }
+#undef RECST
+#undef YARR
+#undef XARR
 }
 
 /* fn_039c03  orig: 0x00039c03 (L17, 1456 B) -- THE TITLE / ATTRACT MENU LOOP: the five-entry setup

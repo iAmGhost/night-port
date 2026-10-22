@@ -7199,6 +7199,114 @@ static void test_fn_017f13(void)
     check(*(int32_t *)(e + 0x1f) == 0x11, "017f13 default state leaves the state alone");
 }
 
+/* ---- 0x018e88: the behaviour-0x01 handler (fn_017f13's near-clone) ---- */
+static void test_fn_018e88(void)
+{
+    printf("fn_018e88 (0x018e88, behaviour-0x01 entity AI handler)\n");
+    heap_arena_init();
+    (void)heap_malloc(0x2000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x40);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;         /* wide band: the spot clamp stays out of the way */
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 2;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;              /* DAT_00053ea0: speed float index (0.75) */
+    *(int32_t *)(cfg + 0x80) = 4;              /* DAT_00053f1c: speed float index (1.25) */
+    *(int32_t *)(cfg + 0x14) = 20;             /* DAT_00053eb0 */
+    *(int32_t *)(cfg + 0x18) = 100;            /* DAT_00053eb4 */
+    *(int32_t *)(cfg + 0x84) = 40;             /* DAT_00053f20 */
+
+    pl[0] = 1; pl[0x17] = 0x15;                /* player busy: the fn_015a1f probe is skipped */
+    *(int32_t *)(pl + 0x01) = 100;
+    *(int32_t *)(pl + 0x09) = 50;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A)-(D) which speed word is used, read back through the entity[0x63] float */
+    struct { int32_t st, slow_flag; float want; const char *msg; } sp[] = {
+        { 0x02, 0, 0.75f, "018e88 speed word +0x04 for state < 0x0a" },
+        { 0x0c, 0, 1.25f, "018e88 speed word +0x80 for 0x0a <= state <= 0x13" },
+        { 0x02, 1, 1.25f, "018e88 entity[0x6f]==1 forces speed word +0x80" },
+        { 0x14, 0, 0.75f, "018e88 speed word +0x04 for state > 0x13" },
+    };
+    for (unsigned k = 0; k < sizeof(sp)/sizeof(sp[0]); k++) {
+        e[0x17] = 3;                           /* returns at the state gate, float work still runs */
+        e[0x1f] = sp[k].st;
+        *(int32_t *)(e + 0x6f) = (uint32_t)sp[k].slow_flag;
+        float z = 0.0f; memcpy(e + 0x63, &z, 4);
+        fn_018e88(e);
+        float got; memcpy(&got, e + 0x63, 4);
+        check(got == sp[k].want, sp[k].msg);
+    }
+
+    /* (E) the six-slot hiding-spot draw (state 0, action 4, entity[0xc7]==1) */
+    const int xlo[6] = {-55, 40, -80, 50, -80, 50}, xhi[6] = {-40, 55, -50, 80, -50, 80};
+    const int ylo[6] = {-5, -5, -30, -30, 20, 20}, yhi[6] = {5, 5, -20, -20, 30, 30};
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; *(int32_t *)(e + 0x8f) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0;
+    *(int32_t *)(e + 0xbf) = 0x7777; *(int32_t *)(e + 0xc3) = 0x7777;
+    *(int32_t *)(e + 0x01) = 0; *(int32_t *)(e + 0x09) = 0;
+    *(int32_t *)(e + 0xab) = 0; *(int32_t *)(e + 0x8b) = 0;
+    fn_018e88(e);
+    int j = (int)*(int32_t *)(e + 0xff);
+    check(j >= 1 && j <= 5, "018e88 six-slot draw re-rolls entity[0xff]");
+    check((int)*(int32_t *)(e + 0x6f) == (j < 2), "018e88 entity[0x6f] mirrors j<2");
+    check(*(int32_t *)(e + 0xab) == 10, "018e88 entity[0xab] = DAT_00053eb0 >> 1");
+    int bx = (int)*(int32_t *)(e + 0xbf);
+    check(bx >= 100 + (xlo[j] < xhi[j] ? xlo[j] : xhi[j]) &&
+          bx <= 100 + (xlo[j] > xhi[j] ? xlo[j] : xhi[j]),
+          "018e88 entity[0xbf] jittered inside the DS 0x51c9c/0x51ca4 pair");
+    int by = (int)*(int32_t *)(e + 0xc3);
+    check((j < 2) ? by == 50
+                  : (by >= 50 + (ylo[j] < yhi[j] ? ylo[j] : yhi[j]) &&
+                     by <= 50 + (ylo[j] > yhi[j] ? ylo[j] : yhi[j])),
+          "018e88 entity[0xc3] = player Y for j<2, jittered from DS 0x51ca0/0x51ca8 otherwise");
+    check(*(int32_t *)(e + 0xc7) == 0, "018e88 the spot is far enough: entity[0xc7] cleared");
+    check(*(int32_t *)(e + 0x1f) == 2 || *(int32_t *)(e + 0x1f) == 8,
+          "018e88 state 0 ends in the approach states 2/8");
+    check(*(int32_t *)(e + 0x8b) == 0, "018e88 state 0 disarms entity[0x8b]");
+
+    /* (F) unlike fn_017f13 there is no entity[0x8b]==0 recon block: action 0x0a re-arms directly */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 0x0a; *(int32_t *)(e + 0x8b) = 0;
+    *(int32_t *)(e + 0xab) = 0; *(int32_t *)(e + 0x113) = 99;
+    fn_018e88(e);
+    check(*(int32_t *)(e + 0xab) == 50, "018e88 action 0x0a -> entity[0xab] = DAT_00053eb4 >> 1");
+    check(*(int32_t *)(e + 0x1f) == 4, "018e88 action 0x0a -> state 4");
+    check(*(int32_t *)(e + 0x113) < 10, "018e88 the script row is re-drawn with prng % 10");
+    check(*(int32_t *)(e + 0x8b) == 0, "018e88 entity[0x8b] stays cleared (no recon block here)");
+
+    /* (G) case 0x0b runs the scripted state when the player is in reach */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;  /* reach cell == action cell when the cursor is 0 */
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(e + 0x01) = 105; *(int32_t *)(e + 0x09) = 52;
+    fn_018e88(e);
+    check(*(int32_t *)(e + 0x17) == 7, "018e88 case 0xb runs the scripted state");
+    check(*(int32_t *)(e + 0x11b) == 1, "018e88 case 0xb steps the script cursor");
+
+    /* (H) case 0x0a picks up the scripted action with the halved timer */
+    e[0x17] = 2; e[0x1f] = 0x0a; *(int32_t *)(e + 0x10f) = 2; *(int32_t *)(e + 0xab) = 0;
+    fn_018e88(e);
+    check(*(int32_t *)(e + 0x1f) == 0x0b, "018e88 case 0xa(10f==2) -> state 0x0b");
+    check(*(int32_t *)(e + 0xab) == 20, "018e88 case 0xa(10f==2) -> timer = DAT_00053f20 >> 1");
+
+    /* (I) case 0x0c timeout, then the facing tail */
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 5; *(int32_t *)(e + 0x01) = 130; e[0x1b] = 0;
+    fn_018e88(e);
+    check(*(int32_t *)(e + 0xab) == 4, "018e88 case 0xc counts down");
+    check(*(int32_t *)(e + 0x1b) == 1, "018e88 tail facing 1 right of the player");
+    *(int32_t *)(e + 0xab) = 0; e[0x1f] = 0x0c;
+    fn_018e88(e);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a &&
+          *(int32_t *)(e + 0x1f) == 0, "018e88 case 0xc timeout -> state 0x32, action 0x0a, state 0");
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -12302,6 +12410,7 @@ int main(void) {
     test_fn_03d606();
     test_fn_017218();
     test_fn_017f13();
+    test_fn_018e88();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

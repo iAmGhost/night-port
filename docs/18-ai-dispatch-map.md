@@ -117,7 +117,9 @@ diffs of the same 400-line pattern rather than fresh 1000-instruction ports.
 
 ## Port progress (updated 2026-07-13)
 
-Ported handlers (5 of 18 -- 0x01bea8/behaviour 0x04 added: a split slot draw `v%%100<0x32 -> v%%8+2 (2..9)` else `prng%%2 (0/1)`, and the player-Y write parked before keep_x/keep_y):
+Ported handlers (6 of 18 -- 0x01cf64/behaviours 0x05+0x09+0x0a added: the MODE-in-EDX handler, a recon gate, and a script-row-based spot chooser; use `scratch/aicases.py` to diff the family per switch-case, and `scratch/gen_01cf64.py` shows the body-generation pattern).
+
+Older progress: (5 of 18 -- 0x01bea8/behaviour 0x04 added: a split slot draw `v%%100<0x32 -> v%%8+2 (2..9)` else `prng%%2 (0/1)`, and the player-Y write parked before keep_x/keep_y):
   Use `python3 scratch/aicdiff.py <addrA> <addrB>` -- it canonicalizes Ghidra local names per function and drops rename/declaration-only hunks, which is the whole trick: a 45-hunk raw diff becomes the 1-2 hunks that actually differ.
 
 Older progress: (4 of 18): **0x017f13** (behaviour 0x00), **0x018e88** (behaviour 0x01),
@@ -147,12 +149,12 @@ Shared facts confirmed for all three handlers:
   for slots 6..9; no span is ever zero, so the `prng % span` idiv cannot fault.
 - Tail is identical: mv_a -> fn_01545e, mv_b -> fn_01586b, entity[0x1b] = facing vs the player.
 
-Remaining handlers (13): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
+Remaining handlers (12): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
 0x01df8b, 0x01f064, 0x020170, 0x02119c, 0x0221b8, 0x02319c (arg 2), 0x024bf9, 0x0265ac, 0x027bec,
 0x029709, 0x02adf5, 0x02c838, 0x02e2cc, 0x02fe1e, 0x03272f. Then the dispatcher 0x031a8e (1153 B)
 and 0x0322f5 (133 B).
 
-## Recon: 0x01cf64 (behaviours 0x05 / 0x09 / 0x0a) -- the next handler to port
+## Ported: 0x01cf64 (behaviours 0x05 / 0x09 / 0x0a) -- the first non-clone handler
 
 Derived facts (from `analysis/disasm/FUN_0001cf64.txt`, size 4134, 1080 insns):
 
@@ -177,7 +179,10 @@ Derived facts (from `analysis/disasm/FUN_0001cf64.txt`, size 4134, 1080 insns):
 * **case 0x00 opens with an entity[0x8b]-gated recon block** that the fn_018e88/019e48/01bea8
   siblings lack: `if (e[0x8b] == 0) { if (cfg(record +0x10) == 0) { four position calls with the
   arguments (p_x - 0x41) - v, p_x + v + 0x41, (p_y - 10) - v % 5, v % 5 + p_y + 10 } ... break; }`
-  (disasm 0x0001d150-0x0001d250 -- read that range before porting).
+  (disasm 0x0001d150-0x0001d250). Ported polarity: the probes chain requires `p_x-0x41-r <= screen_x <= p_x+0x41+r`
+  and `screen_y >= p_y-10-r%5`; the fourth probe runs but its result is discarded and its compare
+  (0x0001d1ea) is dead code; `[EBP-0x18]` is never written on that path (uninitialised in the
+  original, pinned to 0).
 * The rest of the state machine is the family's: the pseudo of 0x01cf64 contains exactly one
   `e[0xaf] =` assignment for each of 1, 2, 3, 4(x4), 5, 6, 8, 9, 10(x2), 0x14, 0x15, 0x16, i.e. all
   twelve action routines are reached with the same register ABI, and the tail (mv_a -> 0x1545e,

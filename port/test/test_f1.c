@@ -7791,6 +7791,145 @@ static void test_fn_01bea8(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x01cf64: behaviour-0x05/0x09/0x0a (the MODE argument and the recon gate) ---- */
+static void test_fn_01cf64(void)
+{
+    printf("fn_01cf64 (0x01cf64, behaviour-0x05/0x09/0x0a entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 6;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;      /* speed index, state < 0x0a */
+    *(int32_t *)(cfg + 0x80) = 4;
+    *(int32_t *)(cfg + 0x14) = 20;     /* the "walk to spot" step */
+    *(int32_t *)(cfg + 0x18) = 100;    /* the wander step */
+    *(int32_t *)(cfg + 0x10) = 0;      /* recon probe allowed */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 60;   /* script row byte 0 = the spot offset */
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 100;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the shared speed word selection */
+    e[0x17] = 3; e[0x1f] = 0x02; *(int32_t *)(e + 0x6f) = 0; e[0x8b] = 1;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_01cf64(e, 0);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "01cf64 speed word +0x04 for state < 0x0a");
+
+    /* (B) the recon gate: the first frame only raises the latch */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 0; e[0x8b] = 0; e[0x113] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 100;   /* right next to the player */
+    fn_01cf64(e, 0);
+    check(*(int32_t *)(e + 0x8b) == 1, "01cf64 the first frame raises the entity[0x8b] recon latch");
+    check(*(int32_t *)(e + 0x1f) == 0 && *(int32_t *)(e + 0x113) == 0,
+          "01cf64 the recon frame picks no state and no script row (breaks straight to the tail)");
+
+    /* (C) mode 0: the spot is script_row_byte0 pixels LEFT of the player, level with it */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0x6f] = 0; e[0x113] = 0;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0x7777; *(int32_t *)(e + 0xc3) = 0x7777;
+    *(int32_t *)(e + 0xc7) = 1;
+    fn_01cf64(e, 0);
+    check(*(int32_t *)(e + 0xbf) == 200 - 60, "01cf64 mode 0 puts the spot at player_x - script[row][0]");
+    check(*(int32_t *)(e + 0xc3) == 100, "01cf64 the mode 0 spot is level with the player");
+    check(*(int32_t *)(e + 0x6f) == 1, "01cf64 a 0/1 mode sets the record +0x80 speed flag");
+    check(*(int32_t *)(e + 0xc7) == 0, "01cf64 an accepted spot clears entity[0xc7]");
+
+    /* (D) mode 1 mirrors it, and neither mode touches entity[0xff] */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0x113] = 0; *(int32_t *)(e + 0xff) = (int32_t)0xffffffffu;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1;
+    fn_01cf64(e, 1);
+    check(*(int32_t *)(e + 0xbf) == 200 + 60, "01cf64 mode 1 puts the spot at player_x + script[row][0]");
+    check(*(int32_t *)(e + 0xff) == 0xffffffffu, "01cf64 only mode 2 records the side in entity[0xff]");
+
+    /* (E) mode 2 draws a side and never repeats the previous one */
+    {
+        int left = 0, right = 0, bad = 0;
+        for (uint32_t sd = 1; sd <= 40u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0x113] = 0; e[0x6f] = 0;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffffu;
+            fn_01cf64(e, 2);
+            int32_t s = *(int32_t *)(e + 0xff);
+            if (s != 0 && s != 1) bad++;
+            if (*(int32_t *)(e + 0xbf) == 200 - 60) left++;
+            else if (*(int32_t *)(e + 0xbf) == 200 + 60) right++;
+            else bad++;
+        }
+        check(bad == 0, "01cf64 mode 2 always lands on one of the two sides");
+        check(left > 0 && right > 0, "01cf64 mode 2 flips between the two sides");
+    }
+
+    /* (F) the clamp runs BEFORE the too-close test, so the restored spot is left unclamped */
+    *(int32_t *)(room + 0x12) = -100000; *(int32_t *)(room + 0x16) = 100000;
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 200;          /* p_x + 200 = 400 > 0x13f -> clamp */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 1; e[0x113] = 0;
+    *(int32_t *)(e + 0x01) = 300; *(int32_t *)(e + 0x09) = 100;   /* entity right where the clamp lands */
+    *(int32_t *)(e + 0xbf) = 0x5555; *(int32_t *)(e + 0xc3) = 0x2222;
+    *(int32_t *)(e + 0xc7) = 1;
+    fn_01cf64(e, 1);
+    check(*(int32_t *)(e + 0xbf) == 0x5555,
+          "01cf64 the clamp runs first, so a too-close spot restores the UNCLAMPED old X");
+    check(*(int32_t *)(e + 0xc3) == 0x2222, "01cf64 the rejected spot restores the old Y too");
+    check(*(int32_t *)(e + 0xc7) == 1, "01cf64 a rejected spot leaves entity[0xc7] armed");
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 60;
+    *(int32_t *)(room + 0x12) = -1000; *(int32_t *)(room + 0x16) = 1000;
+
+    /* (G) the shared state machine: the scripted walk (case 0xb) and its timeout (case 0xc) */
+    /* As in the sibling handlers, with the script cursor at 0 the reach cell and the state cell are
+     * the SAME byte: it has to exceed the x-distance and be a valid state. 7 does both (dx = 5). */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;             /* reach cell == scripted state */
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 100;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 102;
+    fn_01cf64(e, 0);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "01cf64 case 0xb runs the scripted state (same walk as the siblings)");
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_01cf64(e, 0);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a,
+          "01cf64 case 0xc timeout -> state 0x32, action 0x0a");
+
+    /* (H) the shared facing tail */
+    e[0x17] = 2; e[0x1f] = 0x99; e[0x8b] = 1;
+    *(int32_t *)(e + 0x01) = 300; *(int32_t *)(e + 0x09) = 100;
+    *(int32_t *)(pl + 0x01) = 200;
+    fn_01cf64(e, 0);
+    check(*(int32_t *)(e + 0x1b) == 1,
+          "01cf64 the shared tail faces the entity toward the player (entity right -> +0x1b = 1)");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -12898,6 +13037,7 @@ int main(void) {
     test_fn_019e48();
     test_fn_01aec8();
     test_fn_01bea8();
+    test_fn_01cf64();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

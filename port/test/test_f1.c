@@ -13476,6 +13476,117 @@ static void test_fn_04097e(void) {
     free(dev); free(hdr);
 }
 
+/* ---- fn_010c3e fixture: a modern CD backend (see src/sys/sys.h) ---- */
+static uint8_t  g_far7[8];                 /* the DAT_00053c5c far buffer */
+static int      g_cd_polls, g_cd_ready_at;
+static uint8_t *g_cd_recs; static uint32_t g_cd_rec_n;
+static uint32_t g_cd_node_off, g_cd_data_off, g_cd_data_len;
+static uint8_t  g_cd_flags;
+
+static void cd_header(uint8_t *hdr7) {
+    g_cd_polls++;
+    memset(hdr7, 0, 7);
+    if (g_cd_polls >= g_cd_ready_at) { hdr7[1] = 1; hdr7[2] = 15; }   /* DAT_53c60 = 15-1+1 = 0xf */
+    else                             { hdr7[1] = 0; hdr7[2] = 2; }   /* DAT_53c60 = 3 */
+}
+static void cd_records(uint8_t *recs, uint32_t n) {
+    g_cd_recs = recs; g_cd_rec_n = n;
+    memset(recs, 0, (size_t)n * 5 + 5);
+    if (g_cd_polls >= g_cd_ready_at) {
+        *(uint32_t *)(recs + 6)  = 0x1000;
+        *(uint32_t *)(recs + 0xb) = 0x1000 + 0xc51;                  /* the gap the gate wants */
+    } else {
+        *(uint32_t *)(recs + 6)  = 0x1000;
+        *(uint32_t *)(recs + 0xb) = 0x1000 + 0xc50;                  /* one byte short */
+    }
+    /* re-arm the "cdinsert.pcx" reader for this frame: the cursor, the remaining length and the
+     * end-of-file flag byte all have to go back, the reader consumes them as it runs */
+    uint8_t *hb = (uint8_t *)g_heap_base, *node = hb + g_cd_node_off;
+    *(uint32_t *)(node + 0) = g_cd_data_off;
+    *(uint32_t *)(node + 4) = g_cd_data_len;
+    *(uint32_t *)(node + 8) = g_cd_data_off;
+    node[0xc] = 0x41;
+}
+
+static void test_fn_010c3e(void) {
+    printf("fn_010c3e (0x010c3e): the disc-present gate (cdinsert.pcx until the root read looks right)\n");
+    uintptr_t s_c5c = g_dat_53c5c;
+    uint32_t s_c60 = g_dat_53c60, s_c64 = g_dat_53c64;
+    uint32_t s_a0 = g_dat_633a0, s_e50 = g_dat_63e50[0], s_e5c = g_dat_63e5c, s_e4c = g_dat_63e4c;
+    uint32_t s_1f4 = g_dat_531f4, s_1f8 = g_dat_531f8, s_e58 = g_dat_63e58, s_e60 = g_dat_63e60;
+    uint32_t s_e64 = g_dat_63e64, s_e68 = g_dat_63e68;
+    uintptr_t s_b8 = (uintptr_t)g_639b8;
+    uint8_t  pal_s[0x300]; memcpy(pal_s, g_dat_636b8, 0x300);
+    uint8_t *vid = (uint8_t *)calloc(1, 0x10000);
+    uint32_t floor_s = heap_region_floor();
+
+    heap_arena_init();
+    heap_region_floor_set(0x10000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    memcpy(vid, g_video_ram, 0x10000);
+    memset(g_video_ram, 0, 0x10000);
+
+    /* the "cdinsert.pcx" RLE stream: 768 palette bytes (0xF0), then 4876 FILL-63 runs of 0x5a
+     * and a closing FILL-12 of 0xEE -> 4876*63 + 12 = 0x4b000 bytes, one full screen set */
+    const uint32_t nruns = 4876;
+    const uint32_t data_len = 0x300 + nruns * 2 + 2;
+    g_cd_data_len = data_len;
+    g_cd_data_off = heap_arena_alloc(data_len + 4);
+    uint8_t *data = hb + g_cd_data_off;
+    for (uint32_t i = 0; i < 0x300; i++) data[i] = 0xF0;
+    uint32_t p = 0x300;
+    for (uint32_t k = 0; k < nruns; k++) { data[p++] = 0xFF; data[p++] = 0x5a; }
+    data[p++] = 0xCC; data[p++] = 0xEE;
+    g_cd_node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + g_cd_node_off;
+    *(uint32_t *)(node + 0) = g_cd_data_off; *(uint32_t *)(node + 4) = data_len;
+    *(uint32_t *)(node + 8) = g_cd_data_off; node[0xc] = 0x41;
+    g_639b8 = (res_reader *)node;
+    g_dat_633a0 = 0;                              /* empty resource table -> fn_0367c9/036853 no-op */
+
+    g_dat_53c64 = 0;                              /* stale offsets would be freed against the fresh arena */
+    g_dat_53c5c = (uintptr_t)g_far7;         /* the far buffer fn_010927 reads back */
+    memset(g_far7, 0, sizeof g_far7);
+    g_cd_polls = 0; g_cd_recs = NULL; g_cd_rec_n = 0;
+    sys_cd_audio_stop_reset();
+    sys_cd_set_backend(cd_header, cd_records);
+
+    /* --- the disc is right on the first poll: no prompt, no CD stop -------------------------- */
+    g_cd_ready_at = 1;
+    fn_010c3e();
+    check(g_cd_polls == 1 && g_dat_53c60 == 0xf,
+          "the gate polls the root read once and accepts DAT_00053c60 = 0xf");
+    check(g_cd_rec_n == 0xf && g_cd_recs != NULL,
+          "the record array is handed out with the reported entry count");
+    check(sys_cd_audio_stop_calls() == 0 && g_video_ram[0] == 0,
+          "when the disc is in on the first try nothing is drawn and the CD audio is not stopped");
+
+    /* --- the disc looks wrong twice, then right: the prompt runs and the audio is stopped ---- */
+    memset(g_video_ram, 0, 0x10000);
+    g_cd_polls = 0;
+    g_cd_ready_at = 3;                            /* polls 1-2: count 3, then the 0xc50 gap */
+    fn_010c3e();
+    check(g_cd_polls == 3,
+          "an entry count that is not 0xf and a record gap of 0xc50 both fail, so it retries (3 polls)");
+    check(g_dat_636b8[0] == 0x3C,
+          "each failed poll reloads cdinsert.pcx: the palette staging buffer is filled (0xF0>>2)");
+    check(g_video_ram[0] == 0x5a && g_video_ram[0xafff] == 0xee,
+          "and the whole 0x4b000 RLE screen lands in the A0000 window with the 0x10000 wrap");
+    check(sys_cd_audio_stop_calls() == 1,
+          "having shown the prompt once, the gate stops the CD audio (fn_000405a7) on the way out");
+
+    sys_cd_set_backend(NULL, NULL);
+    sys_cd_audio_stop_reset();
+    g_dat_53c5c = s_c5c; g_dat_53c60 = s_c60; g_dat_53c64 = s_c64;
+    g_dat_633a0 = s_a0; g_dat_63e50[0] = s_e50; g_dat_63e5c = s_e5c; g_dat_63e4c = s_e4c;
+    g_dat_531f4 = s_1f4; g_dat_531f8 = s_1f8; g_dat_63e58 = s_e58; g_dat_63e60 = s_e60;
+    g_dat_63e64 = s_e64; g_dat_63e68 = s_e68; g_639b8 = (res_reader *)(uintptr_t)s_b8;
+    memcpy(g_dat_636b8, pal_s, 0x300);
+    memcpy(g_video_ram, vid, 0x10000);
+    free(vid);
+    heap_region_floor_set(floor_s);
+}
+
 static void test_fn_040b83(void) {
     printf("fn_040b83 (0x040b83): one DMA transfer chunk (0x80 fill + copy + DMA port burst + device cmds)\n");
     uint8_t *dev = (uint8_t *)calloc(1, 0x10000 + 16);
@@ -17300,6 +17411,7 @@ int main(void) {
     test_fn_036190();
     test_fn_036417();
     test_fn_03628e();
+    test_fn_010c3e();
     test_fn_040b83();
     test_fn_04097e();
     test_fn_03f885();

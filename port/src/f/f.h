@@ -736,6 +736,7 @@ void     fn_04933a(void);            /* 0x04933a: rebuild active node list from 
 extern uint32_t g_dat_53c60;         /* DAT_00053c60: directory entry count */
 extern uint32_t g_dat_53c64;         /* DAT_00053c64: dir-entry buffer heap offset */
 void     fn_010927(void);            /* 0x010927: CD/MSCDEX root-directory read */
+void     fn_010c3e(void);            /* 0x010c3e: the disc-present gate (15 root entries + the 0xc51 record gap), "cdinsert.pcx" until it passes */
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

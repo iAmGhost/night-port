@@ -549,8 +549,10 @@ void fn_0003fade(void) {}
 void fn_00040570(void) {}
 
 /* fn_000405a7  orig: 0x000405a7 (L10, 54B)
- *   Same as fn_00040570 but the request struct word0=0x13. Flat-model no-op. */
-void fn_000405a7(void) {}
+ *   Same as fn_00040570 but the request struct word0=0x13 -- the MSCDEX "stop audio"
+ *   real-mode request. Flat-model no-op, except that the modern CD backend is told (and
+ *   counts it) so callers such as the disc gate fn_010c3e stay observable. */
+void fn_000405a7(void) { sys_cd_audio_stop(); }
 
 /* fn_000407f8  orig: 0x000407f8 (L10, 64B)
  *   DPMI real-mode request: builds a stack struct (dword0=0x101, +canary) and
@@ -4786,6 +4788,7 @@ void fn_010927(void) {
     mem_copy(bufB, g_rom_51ad4, 26);                             /* 0x010950-5a */
     mem_copy(rsp, bufA, 7);                                      /* 0x010977-84: *g_dat_53c5c <- bufA */
     fn_10570(bufB, 7);                                           /* 0x010989-91 (no-op) */
+    sys_cd_root_header(rsp);           /* PORT SEAM: the real-mode MSCDEX reply, see sys.h */
     mem_copy(bufA, rsp, 7);                                      /* 0x010996-a4: bufA <- *g_dat_53c5c */
     g_dat_53c60 = (uint32_t)bufA[2] - (uint32_t)bufA[1] + 1u;    /* 0x0109a9-b6 */
     if (g_dat_53c64 != 0) heap_free_guard(g_dat_53c64);          /* 0x0109bc-ca */
@@ -4795,8 +4798,41 @@ void fn_010927(void) {
         (void)(g_dat_53c64 + i * 5);                             /* dest (discarded) */
         fn_107b9();                                              /* 0x0107b9 no-op */
     }
+    sys_cd_root_records((uint8_t *)g_heap_base + g_dat_53c64, g_dat_53c60);
+                                                                 /* PORT SEAM: the records the
+     * per-entry real-mode reads (fn_107b9) would have filled; see sys.h */
     uint32_t val = (uint32_t)bufA[3] + (uint32_t)bufA[4]*0x4b + (uint32_t)bufA[5]*0x1194 - 0x96u;
     *(uint32_t *)(g_heap_base + g_dat_53c64 + g_dat_53c60 * 5 + 1) = val;  /* 0x010a18-4a */
+}
+
+/* fn_010c3e  orig: 0x010c3e (L9, 127 B) -- THE DISC-PRESENT GATE. Polls the MSCDEX root
+ * directory read (fn_010927) until the disc looks right: DAT_00053c60 (the entry count that
+ * read reports) has to be 0xf, and two dwords of the DAT_00053c64 record array -- the dword
+ * at +1 of records 2 and 1, read raw at +0xb and +6 -- have to differ by 0xc51 (3153 bytes).
+ * Until then: re-set the VESA mode (fn_03f15f), paint "cdinsert.pcx" (fn_03628e with dl = 1,
+ * which also pushes the palette through board_out) and wait on the CD/DMA busy flags
+ * (fn_035d5d, a degenerate spin in this port). On the way out, if the prompt was shown at
+ * least once, the CD audio is stopped (fn_000405a7).
+ * PORT SEAM: the real-mode MSCDEX read behind fn_010927 is inert in a flat process, so the
+ * modern CD backend installed with sys_cd_set_backend() fills the header and the record array
+ * that this gate reads (see ../sys/sys.h). Without a backend the gate stays unsatisfied, which
+ * reproduces the inert DOS behaviour the CD-family tests pin. */
+void fn_010c3e(void) {
+    (void)canary_id(0, 0x20);                                     /* 0x010c3e-43 */
+    uint32_t shown = 0;                                           /* 0x010c56 */
+    for (;;) {
+        fn_010927();                                              /* 0x010c5d */
+        if (g_dat_53c60 == 0xf) {                                 /* 0x010c62 */
+            uint8_t *recs = (uint8_t *)g_heap_base + g_dat_53c64; /* 0x010c6b-70 */
+            if ((int32_t)*(uint32_t *)(recs + 0xb) - (int32_t)*(uint32_t *)(recs + 6) == 0xc51)
+                break;                                            /* 0x010c81 */
+        }
+        shown = 1;                                                /* 0x010c87 */
+        fn_03f15f();                                              /* 0x010c8e */
+        fn_03628e("cdinsert.pcx", 1);                             /* 0x010c93-9d (EAX = 0x50004) */
+        fn_00035d5d();                                             /* 0x010ca2 */
+    }
+    if (shown == 1) fn_000405a7();                                /* 0x010ca9-af */
 }
 
 /* DAT_00051b38: 24-byte DPMI real-mode call template (extracted from the binary).

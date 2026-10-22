@@ -252,20 +252,49 @@ uint16_t sys_vesa_bpp = 8;
 uint16_t sys_vesa_set_mode_ah = 0;                        /* 0 = mode set ok, 1 = error */
 uint32_t sys_dos_segs_allocated = 0;
 
+/* The original releases these DPMI DOS segments again (INT 31h AX=0101h / 0301h), so the pool
+ * must reclaim: fn_03f15f (the VESA mode set) spends ~0x320 bytes per call and is called again on
+ * every disc-retry and mode change, which a bump-only image could not survive. A small first-fit
+ * block table stands in for the DPMI allocator. */
+#define SYS_REALMEM_BLOCKS 24
+typedef struct { uint32_t off, size; uint16_t sel; uint8_t used; } sys_realblk;
+static sys_realblk g_real_blks[SYS_REALMEM_BLOCKS];
+
 uint8_t *sys_dos_seg_alloc(uint32_t paragraphs, uint16_t *selector)
 {
-    uint32_t need = paragraphs * 16u;
-    if (g_real_mem_used + need > SYS_REALMEM) return 0;   /* DPMI would fail here */
-    uint8_t *p = g_real_mem + g_real_mem_used;
-    g_real_mem_used += need;
+    uint32_t need = (paragraphs * 16u + 15u) & ~15u;              /* paragraph granularity */
+    if (paragraphs == 0 || need > SYS_REALMEM) return 0;
+
+    uint32_t off;
+    int free_slot = -1;                                           /* first-fit over freed blocks */
+    for (int i = 0; i < SYS_REALMEM_BLOCKS; i++)
+        if (!g_real_blks[i].used && g_real_blks[i].size >= need) { free_slot = i; break; }
+
+    int slot = -1;
+    for (int i = 0; i < SYS_REALMEM_BLOCKS; i++)
+        if (!g_real_blks[i].used && g_real_blks[i].size == 0) { slot = i; break; }
+    if (slot < 0) return 0;                                       /* table full: DPMI would fail */
+
+    if (free_slot >= 0) {
+        off = g_real_blks[free_slot].off;                         /* carve the head of the hole */
+        g_real_blks[free_slot].off  += need;
+        g_real_blks[free_slot].size -= need;
+    } else {
+        off = g_real_mem_used;
+        if (off + need > SYS_REALMEM) return 0;                   /* DPMI would fail here */
+        g_real_mem_used = off + need;
+    }
+    g_real_blks[slot].off = off; g_real_blks[slot].size = need;
+    g_real_blks[slot].sel = g_real_mem_sel; g_real_blks[slot].used = 1;
     if (selector) *selector = g_real_mem_sel++;
     sys_dos_segs_allocated++;
-    return p;
+    return g_real_mem + off;
 }
 
 void sys_dos_seg_free(uint16_t selector)
 {
-    (void)selector;      /* bump image: nothing to reclaim */
+    for (int i = 0; i < SYS_REALMEM_BLOCKS; i++)
+        if (g_real_blks[i].used && g_real_blks[i].sel == selector) { g_real_blks[i].used = 0; return; }
 }
 
 void sys_vesa_info(uint8_t *buf)
@@ -296,3 +325,21 @@ uint16_t sys_vesa_set_mode(uint16_t mode)
     (void)mode;
     return sys_vesa_set_mode_ah;   /* AH of the INT 10h/4F02h reply */
 }
+
+/* ---- CD-ROM (MSCDEX) backend seam: see sys.h for the contract ---- */
+static sys_cd_header_fn  g_cd_header;
+static sys_cd_records_fn g_cd_records;
+static uint32_t          g_cd_stops;
+
+void sys_cd_set_backend(sys_cd_header_fn header, sys_cd_records_fn records)
+{
+    g_cd_header  = header;
+    g_cd_records = records;
+}
+
+void sys_cd_root_header(uint8_t *hdr7)  { if (g_cd_header)  g_cd_header(hdr7); }
+void sys_cd_root_records(uint8_t *recs, uint32_t n) { if (g_cd_records) g_cd_records(recs, n); }
+
+void     sys_cd_audio_stop(void)       { g_cd_stops++; }
+uint32_t sys_cd_audio_stop_calls(void) { return g_cd_stops; }
+void     sys_cd_audio_stop_reset(void) { g_cd_stops = 0; }

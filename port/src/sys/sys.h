@@ -121,4 +121,27 @@ void sys_vesa_info(uint8_t *buf);
 void sys_vesa_mode_info(uint16_t mode, uint8_t *buf);
 uint16_t sys_vesa_set_mode(uint16_t mode);
 
+/* --- CD-ROM (MSCDEX) backend -------------------------------------------------
+ * The original reached MSCDEX through DPMI real-mode call structures (fn_10570 /
+ * fn_107b9 / fn_041e51), all inert in a flat process. The disc-present gate fn_010c3e
+ * depends on the two buffers that call filled, so a modern backend can be installed:
+ *   header(hdr7)    fills the 7-byte root-directory header at the far buffer DAT_00053c5c;
+ *                   fn_010927 then derives the entry count DAT_53c60 = hdr[2] - hdr[1] + 1.
+ *   records(recs,n) fills the n 5-byte records of the DAT_00053c64 array; fn_010c3e compares
+ *                   the raw dwords at recs+0xb and recs+6 (the dword at +1 of records 2 and 1)
+ *                   and requires the difference 0xc51 (3153 bytes).
+ * With no backend installed both entry points do nothing, which is the inert DOS behaviour
+ * the existing CD-family tests pin. */
+typedef void (*sys_cd_header_fn)(uint8_t *hdr7);
+typedef void (*sys_cd_records_fn)(uint8_t *recs, uint32_t n);
+void sys_cd_set_backend(sys_cd_header_fn header, sys_cd_records_fn records);
+void sys_cd_root_header(uint8_t *hdr7);
+void sys_cd_root_records(uint8_t *recs, uint32_t n);
+
+/* The MSCDEX "stop audio" request behind fn_000405a7 (real-mode request 0x13). Counted so
+ * callers become observable in tests. */
+void     sys_cd_audio_stop(void);
+uint32_t sys_cd_audio_stop_calls(void);
+void     sys_cd_audio_stop_reset(void);
+
 #endif

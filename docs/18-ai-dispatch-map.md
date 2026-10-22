@@ -117,7 +117,9 @@ diffs of the same 400-line pattern rather than fresh 1000-instruction ports.
 
 ## Port progress (updated 2026-07-13)
 
-Ported handlers (11 of 18 -- 0x02119c/behaviour 0x0b added: entity[0x5f] latch WITHOUT a re-roll loop (player-offset rect for slots 0/1; slot 0xb/0xa chosen by the player's screen half and drawn from the absolute rect with a SIGNED remainder), and a case-0x0b walk with no prng()%0x14 coin flip on failure).
+Ported handlers (12 of 18 -- 0x0265ac/behaviour 0x16 added, the first if-chain member. Its shared skeleton was confirmed by an instruction-stream diff against FUN_0001bea8 (693 of 1326 instructions shared once immediates are normalised); the room-band clamp + landing tests + move tail splice verbatim from the fn_01bea8 body, so only ~630 instructions had to be read: the 200px bail to sprite 0x2f, the entity[0x7f] ambush gate that re-enters the range chain in the same frame, the '2'/'1'/'0' countdown ladder (states 0x0c/0x0d/0x0e -> sprites 0x32/0x31/0x30), the grid probe forced to 4 by an attacking player (aim 0x46 past the player, state 0x6a), and state 0x6a's re-derivation of the step from the DS 0x51d68 float. NOTE the stack map differs: the per-frame step is [EBP-0x2c] and the grid result [EBP-0x44], so Ghidra's pseudo local names must not be trusted across handlers.
+
+Older: (11 of 18 -- 0x02119c/behaviour 0x0b added: entity[0x5f] latch WITHOUT a re-roll loop (player-offset rect for slots 0/1; slot 0xb/0xa chosen by the player's screen half and drawn from the absolute rect with a SIGNED remainder), and a case-0x0b walk with no prng()%0x14 coin flip on failure).
 
 Older progress: (10 of 18 -- 0x0221b8/behaviour 0x15 added: 0x020170's draw with a SINGLE spot arm (X = the slot's jitter rectangle offset by the player, Y = the player's own Y); the entity[0xc3] pre-write for slots 0/1 is redundant but faithful).
 
@@ -133,7 +135,7 @@ HANDLER FRONTIER (recomputed with a corrected pending/callee scan, scratch/front
 the 9 remaining handlers is gated ONLY on folded helpers (0x0418ee canary prologue, 0x041e9f prng,
 0x041f76 abs, 0x041f7e modulo) plus 0x01586b / 0x017927, which are BOTH already ported. None of them is
 waiting on real work, so the AI campaign is a straight reading queue, ordered cheapest first:
-0x0265ac 5695, 0x029709 5867, 0x024bf9 6578, 0x02adf5 6722, 0x02319c 6748 (takes arg 2), 0x02c838 6803,
+0x029709 5867, 0x024bf9 6578, 0x02adf5 6722, 0x02319c 6748 (takes arg 2), 0x02c838 6803,
 0x027bec 6940, 0x02e2cc 6993, 0x03272f 7013, 0x02fe1e 7279. Markers show they are the same family with
 an if-chain instead of a switch: all 9 call the same 12 action helpers, all have the single
 `entity[0xc7] == 1` chooser gate and the `entity[0xff]` slot store, all read the script rows far more
@@ -176,7 +178,7 @@ Shared facts confirmed for all three handlers:
   for slots 6..9; no span is ever zero, so the `prng % span` idiv cannot fault.
 - Tail is identical: mv_a -> fn_01545e, mv_b -> fn_01586b, entity[0x1b] = facing vs the player.
 
-Remaining handlers (7): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
+Remaining handlers (6 of the table + 0x03272f): 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
 0x01df8b, 0x01f064, 0x020170, 0x02119c, 0x0221b8, 0x02319c (arg 2), 0x024bf9, 0x0265ac, 0x027bec,
 0x029709, 0x02adf5, 0x02c838, 0x02e2cc, 0x02fe1e, 0x03272f. Then the dispatcher 0x031a8e (1153 B)
 and 0x0322f5 (133 B).

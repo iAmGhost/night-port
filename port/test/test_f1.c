@@ -8688,6 +8688,170 @@ static void test_fn_02119c(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x0265ac: behaviour-0x16 (if-chain family: bail, ambush gate, countdown ladder, latch chooser) ---- */
+static void test_fn_0265ac(void)
+{
+    printf("fn_0265ac (0x0265ac, behaviour-0x16 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 22;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;                  /* DS 0x51d5c[1] = 0.75 */
+    *(int32_t *)(cfg + 0x80) = 3;                  /* DS 0x51d5c[3] = 1.0  */
+    *(int32_t *)(cfg + 0x14) = 20;
+    *(int32_t *)(cfg + 0x18) = 100;
+    *(int32_t *)(cfg + 0x84) = 40;
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 40;      /* script row 0 col 0: the side-spot offset */
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the shared speed-float accumulation, index word +0x04 for state < 0x0a */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 0; e[0x8b] = 1; e[0x6f] = 0;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_0265ac(e);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "0265ac speed float comes from DS 0x51d5c[record+0x04]");
+
+    /* (B) the walked-too-far bail: sprite 0x2f, or silence when entity[0x7b] exceeds 10 */
+    e[0x17] = 2; e[0x1f] = 6; e[0xaf] = 1; e[0x8b] = 1;
+    *(int16_t *)(e + 0x23) = 100; *(int16_t *)(e + 0x29) = 0; *(int32_t *)(e + 0x56) = 0;
+    *(int32_t *)(e + 0x73) = 400; *(int32_t *)(e + 0x77) = 900;   /* -> entity[0x7b] = 800 */
+    fn_0265ac(e);
+    check(*(int32_t *)(e + 0x73) == 100 && *(int32_t *)(e + 0x7b) == 800 && e[0x17] == 2,
+          "0265ac the bail snaps entity[0x73] but stays silent once entity[0x7b] passes 10");
+    *(int32_t *)(e + 0x73) = 400; *(int32_t *)(e + 0x77) = 100; *(int32_t *)(e + 0x7b) = 5;
+    fn_0265ac(e);
+    check(e[0x17] == 0x2f && *(int32_t *)(e + 0x11) == 0 && *(int32_t *)(e + 0x73) == 100,
+          "0265ac a short-budget bail swaps the sprite to 0x2f and resets its frame counter");
+
+    /* (C) sprite state 5 arms the one-shot close gate and returns */
+    e[0x17] = 5; e[0x1f] = 6; e[0xaf] = 1; e[0x7f] = 0; e[0x8b] = 1;
+    fn_0265ac(e);
+    check(e[0x17] == 5 && *(int32_t *)(e + 0x7f) == 1 && *(int32_t *)(e + 0x1f) == 6,
+          "0265ac sprite state 5 arms entity[0x7f] and leaves the state alone");
+
+    /* (D) the armed gate jumps to the countdown when the player is within 0x46 x 10 */
+    e[0x17] = 2; e[0x1f] = 6; e[0xaf] = 1; e[0x7f] = 1; e[0x8b] = 1; e[0xab] = 0x55;
+    *(int32_t *)(e + 0x01) = 220; *(int32_t *)(e + 0x09) = 123;
+    fn_0265ac(e);
+    check(*(int32_t *)(e + 0xaf) == 0x0a && e[0x17] == 0x30 && *(int32_t *)(e + 0x1f) == 0 &&
+          *(int32_t *)(e + 0xab) == -1 && *(int32_t *)(e + 0x7f) == 0,
+          "0265ac the ambush gate lands in state 0x0e and the same frame runs its '0' rung");
+    e[0x17] = 2; e[0x1f] = 6; e[0xaf] = 1; e[0x7f] = 1; e[0xab] = 0x55;
+    *(int32_t *)(e + 0x01) = 400; *(int32_t *)(e + 0x09) = 120;
+    fn_0265ac(e);
+    check(*(int32_t *)(e + 0x1f) == 6 && *(int32_t *)(e + 0xaf) == 1 && *(int32_t *)(e + 0x7f) == 0,
+          "0265ac a distant player only disarms entity[0x7f]");
+
+    /* (E) the countdown ladder shows '2' (0x0c), '1' (0x0d) and '0' (0x0e) */
+    struct { uint32_t st; uint32_t spr; } lad[3] = { {0x0c,0x32}, {0x0d,0x31}, {0x0e,0x30} };
+    int bad = 0;
+    for (int i = 0; i < 3; i++) {
+        e[0x17] = 2; e[0x1f] = (int32_t)lad[i].st; e[0xaf] = 0x0a; e[0xab] = 0; e[0x8b] = 1;
+        fn_0265ac(e);
+        if (e[0x17] != (uint8_t)lad[i].spr || *(int32_t *)(e + 0x1f) != 0 ||
+            *(int32_t *)(e + 0xaf) != 0x0a) bad++;
+    }
+    check(bad == 0, "0265ac states 0x0c-0x0e are the '2'/'1'/'0' countdown rungs ending in state 0");
+
+    /* (F) the latch chooser: script-row side spots for latch 0, absolute jitter for latch 1 */
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 0; e[0x6f] = 0; e[0x8b] = 1; e[0x113] = 0;
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+    fn_0265ac(e);
+    int sl = *(int32_t *)(e + 0xff), sx = *(int32_t *)(e + 0xbf);
+    check(sl == 0 || sl == 1, "0265ac latch 0 draws one of the two script-row side slots");
+    check((sl == 0 && sx == 200 - 40) || (sl == 1 && sx == 200 + 40),
+          "0265ac the side spot is the script row's col-0 offset left/right of the player");
+    check(*(int32_t *)(e + 0xc3) == 120 && *(int32_t *)(e + 0x6f) == 1 && *(int32_t *)(e + 0x5f) == 1,
+          "0265ac the side spot is level with the player and raises the latch / speed flag");
+
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x6f] = 0; e[0x8b] = 1; e[0x113] = 0;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+    fn_0265ac(e);                                          /* latch is 1 now: the absolute arm */
+    sl = *(int32_t *)(e + 0xff); sx = *(int32_t *)(e + 0xbf);
+    check(sl >= 6 && sl <= 9, "0265ac latch 1 draws one of the four absolute jitter slots");
+    check(sx >= TJ_XLO(sl) && sx <= TJ_XHI(sl) &&
+          *(int32_t *)(e + 0xc3) >= TJ_YLO(sl) && *(int32_t *)(e + 0xc3) <= TJ_YHI(sl),
+          "0265ac the absolute arm ignores the player and uses the slot's own rectangle");
+    check(*(int32_t *)(e + 0x5f) == 0 && *(int32_t *)(e + 0x6f) == 0,
+          "0265ac latch 1 clears the latch and the +0x80 speed flag");
+
+    /* (G) unlike 0x01bea8 / 0x01df8b / 0x01f064 / 0x02119c there is no 1-in-6 forced action 4 */
+    {
+        int became4 = 0;
+        for (uint32_t sd = 1; sd <= 300u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 0; e[0x5f] = 0; e[0x113] = 0; e[0x8b] = 1;
+            *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_0265ac(e);
+            if (*(int32_t *)(e + 0xaf) == 4) became4++;
+        }
+        check(became4 == 0, "0265ac the chooser prologue never rolls the 1-in-6 action-4 arm");
+    }
+
+    /* (H) state 4's grid probe is forced to 4 while the player attacks: aim 0x46 past the player */
+    pl[0x17] = 0x15;
+    e[0x17] = 2; e[0x1f] = 4; e[0xaf] = 1; e[0x8b] = 1;
+    *(int32_t *)(e + 0x01) = 260; *(int32_t *)(e + 0x09) = 120;
+    *(int32_t *)(e + 0xb3) = 0; *(int32_t *)(e + 0xb7) = 0;
+    fn_0265ac(e);
+    check(*(int32_t *)(e + 0x1f) == 0x6a && *(int32_t *)(e + 0xaf) == 0,
+          "0265ac an attacking player forces grid-probe result 4 and state 0x6a");
+    check(*(int32_t *)(e + 0xb3) == 200 + 0x46 && *(int32_t *)(e + 0xb7) == 120,
+          "0265ac result 4 aims entity[0xb3]/[0xb7] 0x46 past the player, away from the entity");
+
+    /* (I) state 0x6a re-derives the step from speed slot 3 (DS 0x51d68 = 1.0) */
+    e[0x17] = 2; e[0x1f] = 0x6a; e[0xaf] = 0; e[0x8b] = 1;
+    float q = 0.25f; memcpy(e + 0x63, &q, 4);
+    fn_0265ac(e);
+    float got2; memcpy(&got2, e + 0x63, 4);
+    check(got2 == 2.0f,
+          "0265ac state 0x6a adds the DS 0x51d68 float (slot 3) on top of the prologue's slot +0x04 float");
+
+    /* (J) state 0x0a is driven by the entity[0x10f] probe result */
+    e[0x17] = 2; e[0x1f] = 0x0a; e[0xaf] = 0; e[0x10f] = 1; e[0x11b] = 0; e[0xab] = 0; e[0x8b] = 1;
+    fn_0265ac(e);
+    check(*(int32_t *)(e + 0x1f) == 0x0b && *(int32_t *)(e + 0xaf) == 0x0a &&
+          *(int32_t *)(e + 0x11b) == 1 && *(int32_t *)(e + 0xab) == 40,
+          "0265ac probe result 1 starts the scripted walk with the full record +0x84 countdown");
+    e[0x17] = 2; e[0x1f] = 0x0a; e[0xaf] = 0; e[0x10f] = 2; e[0x11b] = 0; e[0xab] = 0; e[0x8b] = 1;
+    fn_0265ac(e);
+    check(*(int32_t *)(e + 0xab) == 20, "0265ac probe result 2 halves that countdown");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -13801,6 +13965,7 @@ int main(void) {
     test_fn_020170();
     test_fn_0221b8();
     test_fn_02119c();
+    test_fn_0265ac();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

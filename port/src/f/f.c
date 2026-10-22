@@ -13021,3 +13021,122 @@ void fn_03b953(uint32_t base)
         g_dat_639d4 = *(uint8_t **)(g_dat_639d4 + 0x11);              /* 0x3b99f-a7 (post-free read) */
     }
 }
+
+/* fn_03c231  orig: 0x0003c231 (L12, 1066 B) -- THE INTERLACED FILL BLIT (mask/shape draw, optionally
+ * mirrored). Unlike fn_03bb42 this blitter does not copy source bytes: every run is FILLED with a
+ * single byte (fn_00041e20), i.e. it draws a solid silhouette. The row loop runs `rows << 1`
+ * iterations and only the EVEN ones draw -- the odd ones consume a stream row without drawing, so the
+ * shape is painted on every other screen line (the interlace the original uses for its scaled/lit
+ * sprites), while each drawn row still advances the destination by a full 0x140.
+ * ABI (raw disasm 0x3c246-52, ret 0x10 at 0x3c658):
+ *   EAX = destination linear address, EDX = col, EBX = row, ECX = width (run clip bound),
+ *   [ebp+0x10] = row count, [ebp+0x14] = RLE stream, [ebp+0x18] = flip byte (0 forward, !=0 mirrored),
+ *   [ebp+0x1c] = fill byte.
+ * Guards (0x3c259-84): col > 0x140, col+width < 0, row > 0xc8 or row+rows < 0 abort everything.
+ * Row pre-advance (0x3c289-0x3c312): for row < 0 it skips -row stream rows with the same
+ *   `n = *p; p += 2; for (j<n) p += *p + 2; p -= 1` arithmetic as fn_03bb42 (which only lands on the
+ *   next row when the first run's gap byte is 0 -- a latent original quirk, kept), then
+ *   rows += row; row = 0. For row >= 0 the count is clamped so row+rows <= 0xc8.
+ * Stream row format (same as fn_03bb42): [n] then n x [gap][len][len filler bytes]; the data bytes are
+ *   never read here (fill mode) -- they only have to be present so the cursor advances.
+ * Forward (0x3c31f-0x3c465): dest += row*0x140 + col; left = (col<0 ? -col : 0);
+ *   if (col+width > 0x140) width = 0x140-col; per run with col_acc:
+ *     left  > col_acc        -> t = left-col_acc; if (len-t > 0) fill(dest+left,   fill, len-t)
+ *     col_acc+len > width    -> ovf = col_acc+len-width; if (ovf < len) fill(dest+col_acc, fill, len-ovf)
+ *     otherwise              -> fill(dest+col_acc, fill, len)
+ * Mirrored (0x3c4b5-0x3c608): dest += row*0x140 + col + width - 1 (draw right-to-left);
+ *   if (col+width > 0x140) left = col+width-0x140; else if (col < 0) width += col;
+ *   the three clip arms are the same tests but the fill address is dest-col_acc-len+1 /
+ *   dest-width+1 / dest-len-col_acc+1 (i.e. the run is placed at the mirrored column).
+ */
+void fn_03c231(uint32_t dest, int32_t col, int32_t row, int32_t width,
+               uint32_t rows, const uint8_t *rle, int32_t flip, uint32_t fill_byte)
+{
+    (void)canary_id(0x3c, 0x3c);                                      /* 0x3c231-36 */
+    if (col > 0x140) return;                                          /* 0x3c259-60 */
+    if (col + width < 0) return;                                      /* 0x3c262-6a */
+    if (row > 0xc8) return;                                           /* 0x3c271-78 */
+    if ((int32_t)(row + (int32_t)rows) < 0) return;                   /* 0x3c27a-82 */
+
+    const uint8_t *p = rle;
+    if (row < 0) {                                                    /* 0x3c289-0x3c2f1 */
+        for (int32_t i = 0; i < -row; i++) {
+            uint32_t n = p[0]; p += 2;
+            for (uint32_t j = 0; j < n; j++) p += (uint32_t)p[0] + 2;
+            p -= 1;
+        }
+        rows += (uint32_t)row; row = 0;
+    } else {
+        if ((uint32_t)(row + (int32_t)rows) > 0xc8) rows = 0xc8 - (uint32_t)row;  /* 0x3c2fa-0x3c30f */
+    }
+
+    int32_t left = 0;                                                 /* [ebp-0x14] */
+    if (((uint8_t)(uintptr_t)flip) == 0) {          /* mov al,[ebp+0x18]; test eax,eax; jne */
+        dest += (uint32_t)(row * 0x140 + col);                        /* 0x3c31f-29 */
+        if (col < 0) left = -col;                                     /* 0x3c32c-3b */
+        if (col + width > 0x140) width = 0x140 - col;                 /* 0x3c33d-52 */
+        rows <<= 1;                                                   /* 0x3c355 */
+        for (uint32_t k = 0; k < rows; k++) {                         /* 0x3c358-0x3c4b0 */
+            if ((int)(k % 2) == 0) {                                  /* signed idiv by 2 */
+                uint32_t n = *p; p += 1;                              /* 0x3c38b-95 */
+                int32_t col_acc = 0;
+                for (uint32_t j = 0; j < n; j++) {                    /* 0x3c3a6-0x3c465 */
+                    col_acc += (int32_t)(p[0] & 0xffu); p += 1;       /* 0x3c3ba-3c7 */
+                    uint32_t len = p[0]; p += 1;                      /* 0x3c3ca-3d4 */
+                    if (left > col_acc) {                             /* 0x3c3d7-44f */
+                        int32_t t = left - col_acc;
+                        if ((int32_t)len != t && (int32_t)(len - (uint32_t)t) > 0)
+                            fn_041e20(video_map(dest + (uint32_t)left), (uint8_t)fill_byte,
+                                      len - (uint32_t)t);
+                    } else if (col_acc + (int32_t)len > width) {      /* 0x3c3df-424 */
+                        int32_t ovf = col_acc + (int32_t)len - width;
+                        if (ovf < (int32_t)len)
+                            fn_041e20(video_map(dest + (uint32_t)col_acc), (uint8_t)fill_byte,
+                                      len - (uint32_t)ovf);
+                    } else {                                          /* 0x3c3ea-3f8 */
+                        fn_041e20(video_map(dest + (uint32_t)col_acc), (uint8_t)fill_byte, len);
+                    }
+                    p += len; col_acc += (int32_t)len;                /* 0x3c454-45d */
+                }
+                dest += 0x140;                                        /* 0x3c465 */
+            } else {                                                  /* 0x3c46e-0x3c4a9 */
+                uint32_t n = *p; p += 1;
+                for (uint32_t j = 0; j < n; j++) p += (uint32_t)p[1] + 2;
+            }
+        }
+    } else {
+        dest += (uint32_t)(row * 0x140 + col + width - 1);            /* 0x3c4b5-4c3 */
+        if (col + width > 0x140) left = col + width - 0x140;          /* 0x3c4c6-4e1 */
+        else if (col < 0) width += col;                               /* 0x3c4e3-ec */
+        rows <<= 1;                                                   /* 0x3c4ef */
+        for (uint32_t k = 0; k < rows; k++) {                         /* 0x3c4f2-0x3c60f */
+            if ((int)(k % 2) == 0) {
+                uint32_t n = *p; p += 1;                              /* 0x3c525-2f */
+                int32_t col_acc = 0;
+                for (uint32_t j = 0; j < n; j++) {                    /* 0x3c540-0x3c608 */
+                    col_acc += (int32_t)(p[0] & 0xffu); p += 1;       /* 0x3c554-561 */
+                    uint32_t len = p[0]; p += 1;                      /* 0x3c564-56e */
+                    if (left > col_acc) {                             /* 0x3c571-5f2 */
+                        int32_t t = left - col_acc;
+                        if ((int32_t)len != t && (int32_t)(len - (uint32_t)t) > 0)
+                            fn_041e20(video_map(dest - (uint32_t)col_acc - len + 1),
+                                      (uint8_t)fill_byte, len - (uint32_t)t);
+                    } else if (col_acc + (int32_t)len > width) {      /* 0x3c579-5c3 */
+                        int32_t ovf = col_acc + (int32_t)len - width;
+                        if (ovf < (int32_t)len)
+                            fn_041e20(video_map(dest - (uint32_t)width + 1),
+                                      (uint8_t)fill_byte, len - (uint32_t)ovf);
+                    } else {                                          /* 0x3c584-596 */
+                        fn_041e20(video_map(dest - (uint32_t)col_acc - len + 1),
+                                  (uint8_t)fill_byte, len);
+                    }
+                    p += len; col_acc += (int32_t)len;                /* 0x3c5f7-600 */
+                }
+                dest += 0x140;                                        /* 0x3c608 */
+            } else {                                                  /* 0x3c611+ */
+                uint32_t n = *p; p += 1;
+                for (uint32_t j = 0; j < n; j++) p += (uint32_t)p[1] + 2;
+            }
+        }
+    }
+}

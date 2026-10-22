@@ -898,6 +898,9 @@ struct blit_ctl {
 };
 extern struct blit_ctl *g_dat_639c4;                /* DAT_000639c4: HUD blit control block */
 void fn_03ace9(void);                               /* 0x03ace9: 20-frame HUD composite (633b0/633b4 + 2 sprites via fn_03bb42) */
+void fn_03c231(uint32_t dest, int32_t col, int32_t row, int32_t width,
+               uint32_t rows, const uint8_t *rle, int32_t flip, uint32_t fill_byte);
+                                          /* 0x03c231: THE INTERLACED FILL BLIT -- draws a solid silhouette (each run filled with one byte via fn_041e20) from an fn_03bb42-style RLE stream; rows<<1 iterations with only the even ones drawing (odd ones consume a stream row), forward or mirrored (flip byte), with left/right clipping against 0..0x140 and width */
 void fn_03b953(uint32_t base);                 /* 0x03b953: THE NUMBER-DISPLAY SWEEP -- walk the DAT_639cc entity list (count DAT_639c8) and run fn_03b718 on every node; EAX in = video base passed through as EDX; advances the cursor from node+0x11 AFTER fn_03b718 may have freed the node (faithful latent bug) */
 void fn_03b718(uint8_t *entity, uint32_t base);   /* 0x03b718: THE FLOATING VALUE NUMBER DISPLAY -- itoa32s(entity+1) rendered as RLE digit glyphs relative to the entity (font DAT_639c0 / DAT_639c4 by entity[0]), terminator glyph from the control block, then age entity+5 (DAT_63360 %% 3) and destroy the entity past 0x28 */
 void     fn_03ba2c(uint32_t c_init, uint32_t inc);  /* 0x03ba2c: build 200 interval lists */

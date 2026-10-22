@@ -7519,6 +7519,84 @@ static void test_fn_038c23(void) {
     check(ok2, "  T2 5: '0'@col100 (X=0xa0) + '5'@col107 (X=0xa5) => leading-zero pad");
 }
 
+static void test_fn_03c231(void) {
+    printf("fn_03c231 (0x03c231): interlaced fill blit (solid silhouette, forward/mirrored, clipped)\n");
+    uint8_t *scr = g_video_ram;
+    const uint32_t B = 0xa0000u;
+    const uint8_t F = 0xcd;
+
+    /* [n] then n x [gap][len][len filler bytes]; the filler is never read (fill mode) */
+    static const uint8_t A[] = { 2, 2,4,0x11,0x22,0x33,0x44, 1,3,0xaa,0xbb,0xcc };   /* runs: c2 len4, c7 len3 */
+    static const uint8_t Bk[]= { 1, 0,1,0x99 };                                      /* skipped stream row */
+    static const uint8_t C[] = { 2, 2,5,0x11,0x22,0x33,0x44,0x55, 1,3,0xaa,0xbb,0xcc }; /* c2 len5, c8 len3 */
+    static const uint8_t D[] = { 0 };                                                /* empty row */
+    /* ONE contiguous stream: the blitter walks rows sequentially, so the test must lay them out
+     * back to back (passing three separate arrays read whatever sat after the first one) */
+    static uint8_t s1[64]; size_t so = 0;
+    memcpy(s1 + so, A, sizeof A);  so += sizeof A;
+    memcpy(s1 + so, Bk, sizeof Bk); so += sizeof Bk;
+    memcpy(s1 + so, C, sizeof C);  so += sizeof C;
+    memcpy(s1 + so, D, sizeof D);  so += sizeof D;
+
+    memset(scr, 0, 0x10000);
+    fn_03c231(B, 0, 0, 0x20, 2, s1, 0, F);          /* rows<<1 = 4 stream rows: A draw, Bk skip, C draw, D */
+    int ok1 = 1;
+    for (int c = 2; c <= 5; c++) if (scr[c] != F) ok1 = 0;
+    for (int c = 7; c <= 9; c++) if (scr[c] != F) ok1 = 0;
+    check(ok1 && scr[0] == 0 && scr[1] == 0 && scr[6] == 0 && scr[10] == 0,
+          "  forward: runs filled solid at col_acc 2 (len 4) and 7 (len 3), gaps untouched");
+    int ok2 = 1;
+    for (int c = 2; c <= 6; c++) if (scr[0x140 + c] != F) ok2 = 0;
+    for (int c = 8; c <= 10; c++) if (scr[0x140 + c] != F) ok2 = 0;
+    check(ok2 && scr[0x140 + 7] == 0 && scr[0x140 + 11] == 0,
+          "  interlace: the 2nd drawn row comes from the 3rd stream row (odd rows are skipped, dest += 0x140)");
+    check(scr[0x280] == 0 && scr[0x281] == 0, "  nothing drawn beyond the row count");
+
+    memset(scr, 0, 0x10000);
+    fn_03c231(B, -4, 0, 0x20, 1, s1, 0, F);         /* left clip: left = 4 */
+    check(scr[0] == F && scr[1] == F && scr[2] == 0 && scr[3] == F && scr[4] == F && scr[5] == F && scr[6] == 0,
+          "  col<0 clips the first run (fills screen cols 0-1) and shifts the second to 3-5");
+
+    memset(scr, 0, 0x10000);
+    fn_03c231(B, 0, 0, 8, 1, s1, 0, F);             /* right clip at width 8 */
+    check(scr[2] == F && scr[5] == F && scr[7] == F && scr[8] == 0 && scr[9] == 0,
+          "  width clip trims the second run to one pixel (col_acc 7, len 3 -> 1)");
+
+    memset(scr, 0, 0x10000);
+    fn_03c231(B, 0, 0, 0x20, 1, s1, 1, F);          /* mirrored: dest = base + col + width - 1 */
+    int ok3 = 1;
+    for (int c = 0x1a; c <= 0x1d; c++) if (scr[c] != F) ok3 = 0;
+    for (int c = 0x16; c <= 0x18; c++) if (scr[c] != F) ok3 = 0;
+    check(ok3 && scr[0x1e] == 0 && scr[0x19] == 0 && scr[0x15] == 0,
+          "  flip=1 mirrors right-to-left: runs land at 0x1a..0x1d and 0x16..0x18");
+
+    memset(scr, 0, 0x10000);
+    fn_03c231(B, 0x130, 0, 0x20, 1, s1, 1, F);      /* col+width = 0x150 > 0x140 -> left = 0x10 */
+    int none = 1;
+    for (int c = 0; c < 0x280; c++) if (scr[c]) none = 0;
+    check(none, "  mirrored left clip (left=0x10) drops runs shorter than the overflow entirely");
+
+    memset(scr, 0, 0x10000);
+    fn_03c231(B, 0x141, 0, 0x20, 1, s1, 0, F);
+    fn_03c231(B, 0, 0xc9, 0x20, 1, s1, 0, F);
+    fn_03c231(B, 0, 0, 0x20, 0, s1, 0, F);          /* rows 0 -> rows<<1 = 0 */
+    none = 1; for (int c = 0; c < 0x280; c++) if (scr[c]) none = 0;
+    check(none, "  guards: col>0x140, row>0xc8 and rows==0 all draw nothing");
+
+    static const uint8_t N0[] = { 1, 0,1,0x99 };
+    static const uint8_t N1[] = { 1, 8,5,0x11,0x22,0x33,0x44,0x55 };
+    static uint8_t negstream[64];
+    memcpy(negstream, N0, sizeof N0);
+    memcpy(negstream + sizeof N0, N1, sizeof N1);
+    memcpy(negstream + sizeof N0 + sizeof N1, N0, sizeof N0);
+    memset(scr, 0, 0x10000);
+    fn_03c231(B, 0, -1, 0x20, 2, negstream, 0, F);  /* skips 1 stream row, rows becomes 1 */
+    int ok4 = 1;
+    for (int c = 8; c <= 12; c++) if (scr[c] != F) ok4 = 0;
+    check(ok4 && scr[7] == 0 && scr[13] == 0 && scr[0] == 0,
+          "  row<0 skips -row stream rows (the gap=0 arithmetic) and shortens the count");
+}
+
 static void test_fn_03b953(void) {
     printf("fn_03b953 (0x03b953): entity-list sweep of the floating value display\n");
     uint8_t *scr = g_video_ram;
@@ -11121,6 +11199,7 @@ int main(void) {
     test_fn_03rle();
     test_fn_03f462();
     test_fn_03a5f7();
+    test_fn_03c231();
     test_fn_03b953();
     test_fn_03b718();
     test_fn_038c23();

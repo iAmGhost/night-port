@@ -4362,6 +4362,141 @@ void fn_037306(void) {
     fn_03eff2();
 }
 
+/* fn_037b03  orig: 0x00037b03 (L13, 1304 B) -- THE STAGE LOADER.
+ * Builds the four stage resource names from the stage number in DAT_00063370 with the streaming
+ * sprintf fn_0428f8, then loads them in order off the resource stream (g_639b8):
+ *   "stage%d.wal"  the room chain: one 0x354 B node + fn_03c853 recursion (its room count is read
+ *                  straight into DAT_000639d8, and DAT_0006335c/DAT_000639e8 are reset first)
+ *   "st%ds.spr"    the stage sprite struct (a 0x3c B fn_03d8d4 block) -> DAT_00063dfc
+ *   "stage%d.stg"  a dword record count (DAT_00063e14) then that many 0x59 B records (fn_03e0a0);
+ *                  record kind 1 = "load this entity type now" (per-type .spr + .act into
+ *                  DAT_000639ec[type] / DAT_00053818[type]), kind 5 = a 5-dword entry appended to
+ *                  the DAT_0005d0b4 record array (stride 0x14) and counted in DAT_00062a90
+ *   "night%d.chr"  the entity-type table: 0x65 (101) entries of stride 0x88 -- exactly the layout
+ *                  fn_010efc reads, i.e. this file is the per-type enemy data the AI dispatch uses
+ * EAX (the guard passes it through) selects "full load" (0) versus "resume" (non-zero: skips the
+ * .wal room chain and the .spr struct).
+ *
+ * Port notes:
+ *  - The 101 per-type resource names are image constants (DS pointer arrays at 0x51d88 / 0x52198);
+ *    they are reproduced verbatim below (the "gun.spr/gun.act" fillers are genuine: unused types
+ *    reuse the gun sprite).
+ *  - DAT_00053818[type] keeps a heap OFFSET (the port's struct-field offset convention), while
+ *    DAT_000639ec[type] keeps a host pointer (see fn_010efc).
+ *  - The original pushes the VALUE of DAT_00063370 as fn_0428f8's vararg cursor; the port passes a
+ *    cursor pointing at the global so the number actually renders. Faithful in structure, pinned in
+ *    the test -- the original's cursor convention for this site is the one place where the real
+ *    vararg ABI stays ambiguous (DAT_63370 only ever holds small integers 1..N).
+ *  - Latent original bugs kept in mind, guarded in the port: a NULL allocation result is
+ *    dereferenced (record node) / stored (sprite struct) by the original.
+ */
+static const char *const kTypeSprNames[0x65] = {
+    "gun.spr","boss1.spr","boss2.spr","boss3-1.spr","boss3-2.spr","boss3-3.spr","boss4.spr","boss5.spr","boss6.spr","boss7.spr",
+    "gun.spr","mboss1-1.spr","mboss1-2.spr","mboss2.spr","mboss3.spr","mboss4.spr","mboss5.spr","mboss6.spr","gun.spr","gun.spr",
+    "gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr",
+    "ena-1.spr","ena-2.spr","ena-3.spr","gun.spr","gun.spr","enb-1.spr","enb-2.spr","enb-3.spr","enb-4.spr","gun.spr",
+    "enc-1.spr","enc-2.spr","enc-3.spr","gun.spr","gun.spr","end-1.spr","end-2.spr","end-3.spr","end-4.spr","gun.spr",
+    "ene-1.spr","ene-2.spr","ene-3.spr","ene-4.spr","gun.spr","enf-1.spr","enf-2.spr","enf-3.spr","gun.spr","gun.spr",
+    "eng-1.spr","eng-2.spr","eng-3.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr",
+    "enh-1.spr","enh-2.spr","enh-3.spr","gun.spr","gun.spr","eni-1.spr","eni-2.spr","eni-3.spr","eni-4.spr","gun.spr",
+    "enj-1.spr","enj-2.spr","enj-3.spr","enj-4.spr","gun.spr","enk-1.spr","enk-2.spr","enk-3.spr","gun.spr","gun.spr",
+    "enl-1.spr","enl-2.spr","enl-3.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr"
+};
+static const char *const kTypeActNames[0x65] = {
+    "gun.act","boss1.act","boss2.act","boss3-1.act","boss3-2.act","boss3-3.act","boss4.act","boss5.act","boss6.act","boss7.act",
+    "gun.act","mboss1-1.act","mboss1-2.act","mboss2.act","mboss3.act","mboss4.act","mboss5.act","mboss6.act","gun.act","gun.act",
+    "gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act",
+    "ena-1.act","ena-2.act","ena-3.act","gun.act","gun.act","enb-1.act","enb-2.act","enb-3.act","enb-4.act","gun.act",
+    "enc-1.act","enc-2.act","enc-3.act","gun.act","gun.act","end-1.act","end-2.act","end-3.act","end-4.act","gun.act",
+    "ene-1.act","ene-2.act","ene-3.act","ene-4.act","gun.act","enf-1.act","enf-2.act","enf-3.act","enf-4.act","gun.act",
+    "eng-1.act","eng-2.act","eng-3.act","eng-4.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act",
+    "enh-1.act","enh-2.act","enh-3.act","enh-4.act","gun.act","eni-1.act","eni-2.act","eni-3.act","eni-4.act","gun.act",
+    "enj-1.act","enj-2.act","enj-3.act","enj-4.act","gun.act","enk-1.act","enk-2.act","enk-3.act","enk-4.act","gun.act",
+    "enl-1.act","enl-2.act","enl-3.act","enl-4.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act"
+};
+
+uint8_t *g_dat_6334c = NULL;   /* DAT_0006334c: room-chain head (the first stage node) */
+
+void fn_037b03(int32_t resume_flag)
+{
+    (void)canary_id((uintptr_t)resume_flag, 0xa4);                  /* 0x37b03-08 */
+    g_dat_62a8c = 0;                                                /* 0x37b1e */
+    g_dat_62a90 = 0;                                                /* 0x37b28 */
+    fn_041e20(g_dat_5d08c, 0, 0x14);                                /* 0x37b3e */
+    g_dat_53c80 = 0;                                                /* 0x37b43 */
+    uint8_t name[0x20];                                             /* [EBP-0x4c] */
+    uint8_t *cur = (uint8_t *)&g_dat_63370;                         /* vararg cursor (see header) */
+    if (resume_flag != 0) goto stage_records;                       /* 0x37b4d-51 */
+    g_dat_63358 = (uint8_t *)0;                                     /* 0x37b57 */
+    fn_0428f8(name, (const uint8_t *)"stage%d.wal", &cur);           /* 0x37b61-71 */
+    uint32_t node_off = heap_malloc(0x35c);                         /* 0x37b7e: orig 0x354 (+8, widened back link) */
+    uint8_t *node = (node_off == 0) ? NULL : fn_03c6ec((uint8_t *)g_heap_base + node_off);  /* 0x37b95 */
+    g_dat_6334c = node;                                             /* 0x37bae */
+    fn_0367c9((const char *)name);                                  /* 0x37bb6 */
+    g_dat_6335c = 0;                                                /* 0x37bbb */
+    fn_04192e((uint8_t *)&g_dat_639d8, 1, 4, (uint8_t *)g_639b8);   /* 0x37bda: room count */
+    g_dat_639e8 = 0;                                                /* 0x37bdf */
+    fn_03c853(g_dat_6334c, (uint8_t *)g_639b8);                     /* 0x37bf4 */
+    fn_03cad3(g_dat_6334c);                                         /* 0x37bfe */
+    cur = (uint8_t *)&g_dat_63370;
+    fn_0428f8(name, (const uint8_t *)"st%ds.spr", &cur);             /* 0x37c03-13 */
+    uint32_t s_off = heap_malloc(0x3c);                             /* 0x37c20 */
+    g_dat_63dfc = (s_off == 0) ? NULL
+        : (struct hud_font *)fn_03d8d4((uint32_t *)((uint8_t *)g_heap_base + s_off), (const char *)name); /* 0x37c3a/53 */
+stage_records:
+    cur = (uint8_t *)&g_dat_63370;
+    fn_0428f8(name, (const uint8_t *)"stage%d.stg", &cur);           /* 0x37c58-68 */
+    fn_0367c9((const char *)name);                                  /* 0x37c73 */
+    fn_04192e((uint8_t *)&g_dat_63e14, 1, 4, (uint8_t *)g_639b8);   /* 0x37c8d */
+    g_dat_62a90 = 0;                                                /* 0x37c92 */
+    for (uint32_t i = 0; (int32_t)i < (int32_t)g_dat_63e14; i = i + 1) {   /* 0x37ca5-e57 */
+        uint32_t rec_off = heap_malloc(0x59);                       /* 0x37cbf */
+        uint8_t *rec = (rec_off == 0) ? NULL
+                     : (uint8_t *)(uintptr_t)fn_03e0a0(rec_off, (uint8_t *)g_639b8);  /* 0x37cdc */
+        if (rec == NULL) continue;                                  /* latent: orig dereferences NULL */
+        if (rec[0] == 1) {                                          /* 0x37cf0 */
+            uint32_t t = *(const uint32_t *)(rec + 1);
+            if (t < 0x65u && g_dat_639ec[t] == NULL) {              /* 0x37d05 */
+                int32_t pos = fn_042928((uint8_t *)g_639b8);        /* 0x37d2c: remember stream pos */
+                uint32_t a = heap_malloc(0x3c);                     /* 0x37d39 */
+                g_dat_639ec[t] = (a == 0) ? NULL
+                    : (uint8_t *)fn_03d8d4((uint32_t *)((uint8_t *)g_heap_base + a), kTypeSprNames[t]);
+                uint32_t b = heap_malloc(8);                        /* 0x37d86 */
+                g_dat_53818[t] = b;                                 /* 0x37da9: heap offset */
+                if (b != 0) (void)fn_010010((uint8_t *)g_heap_base + b, kTypeActNames[t]);
+                fn_04247a(g_639b8, pos, 0);                         /* 0x37dd8: restore stream pos */
+            }
+        } else if (rec[0] == 5) {                                   /* 0x37dec */
+            uint8_t *r = g_dat_5d0b4 + (size_t)g_dat_62a90 * 0x14u;
+            *(uint32_t *)(r + 0x00) = *(const uint32_t *)(rec + 1);
+            *(uint32_t *)(r + 0x04) = *(const uint32_t *)(rec + 9);
+            *(uint32_t *)(r + 0x08) = *(const uint32_t *)(rec + 0xd);
+            *(uint32_t *)(r + 0x0c) = *(const uint32_t *)(rec + 5);
+            *(uint32_t *)(r + 0x10) = 0;                            /* 0x37e4b */
+            g_dat_62a90 = g_dat_62a90 + 1;
+            rec[0] = 0;                                             /* 0x37e54 */
+        }
+    }
+    cur = (uint8_t *)&g_dat_63370;
+    fn_0428f8(name, (const uint8_t *)"night%d.chr", &cur);           /* 0x37e5c-6c */
+    fn_0367c9((const char *)name);                                  /* 0x37e77 */
+    fn_036853((const char *)name, 2, 0);                            /* 0x37e86 */
+    for (uint32_t i = 0; i < 0x65u; i = i + 1) {                    /* 0x37e94-003: the entity-type table */
+        uint8_t *e = g_dat_53e9c + (size_t)i * 0x88u;               /* 0x37eb4 imul 0x88 */
+        fn_04192e(e + 0x00, 1, 2, (uint8_t *)g_639b8);
+        *(uint32_t *)(e + 0x04) = fn_041c8f((uint8_t *)g_639b8);    /* 0x37ecc (dword store) */
+        fn_04192e(e + 0x08, 1, 2, (uint8_t *)g_639b8);
+        fn_04192e(e + 0x0c, 1, 2, (uint8_t *)g_639b8);
+        *(uint32_t *)(e + 0x10) = fn_041c8f((uint8_t *)g_639b8);    /* 0x37f2f */
+        fn_04192e(e + 0x14, 1, 2, (uint8_t *)g_639b8);
+        fn_04192e(e + 0x18, 1, 2, (uint8_t *)g_639b8);
+        fn_04192e(e + 0x1c, 10, 10, (uint8_t *)g_639b8);            /* 100-byte per-type table */
+        fn_04192e(e + 0x80, 1, 2, (uint8_t *)g_639b8);
+        fn_04192e(e + 0x84, 1, 2, (uint8_t *)g_639b8);
+    }
+}
+
+
 int g_dat_53390 = 0;                                    /* DAT_00053390 */
 uint32_t (*g_cb_53644)(void) = NULL;                    /* DAT_00053644 */
 int get_dat_53390(void) { return g_dat_53390; }         /* 0x44be6 */
@@ -6679,7 +6814,7 @@ uint8_t *g_dat_53c80 = 0;      /* 0x53c80 */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
 uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
-uint8_t  g_dat_53e9c[0x88 * 0x20]; /* 0x53e9c: entity-type table, entry stride 0x88 (+0 dword/word, +4 byte, +8 word); overlaps the g_dat_53ea8 view of the same DS region */
+uint8_t  g_dat_53e9c[0x88 * 0x65]; /* 0x53e9c: entity-type table, 0x65 (101) entries of stride 0x88 (+0 dword/word, +4 byte, +8 word, +0x1c 100 B, +0x80/+0x84 word), filled by fn_037b03 from night%d.chr; overlaps the g_dat_53ea8/53eb8 views of the same DS region */
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */

@@ -12620,6 +12620,142 @@ void fn_03d75c(int32_t cam_delta) {
     }
 }
 
+/* fn_03cb38  orig: 0x0003cb38 (L11, 160 B) -- THE CAMERA SCROLL-RIGHT STEP (the right half of the
+ * camera-follow pair; fn_03cbd9 is the left half).
+ * ABI: EAX = the "subject" struct -- callers pass DAT_00063354, the current ROOM record, whose +0x00
+ * is the room's left x and +0x08 its right edge (both dwords). DAT_00053c7c is the player entity
+ * (+0x01 = x dword, +0x17 = state dword).
+ *
+ *   prev = DAT_000639dc                                       ; camera x
+ *   if (DAT_000639e4 == 0) {                                  ; camera not locked (fn_03cc6b latch)
+ *       if ((int)player[+0x17] == 3) {                        ; "fast" follow state
+ *           if (subj[+8] - 0x142 > cam) cam += 3;
+ *           else                          cam = subj[+8] - 0x140;   ; snap to the screen's right edge
+ *       } else {
+ *           if (subj[+8] - 0x140 > cam) cam += 1;             ; one pixel per frame
+ *       }
+ *   }
+ *   if (cam != prev) fn_03d75c(cam - prev);                   ; EAX = the travel delta -> record decay
+ *
+ * All compares are signed (JLE/JG). The subject field is read as a DWORD even though the room record
+ * mixes byte fields -- keep it a dword read. */
+void fn_03cb38(uint8_t *subj) {
+    (void)canary_id((uintptr_t)subj, 0x24);                        /* 0x3cb38-3d */
+    int32_t prev = (int32_t)g_dat_639dc;                           /* [ebp-8] (0x3cb53-58) */
+    if (g_dat_639e4 == 0) {                                        /* 0x3cb5b-64 */
+        if ((int32_t)*(const uint32_t *)(g_dat_53c7c + 0x17) == 3) {  /* 0x3cb66-6f */
+            int32_t right = (int32_t)*(const uint32_t *)(subj + 0x08);
+            if (right - 0x142 > (int32_t)g_dat_639dc) {            /* 0x3cb71-82 */
+                g_dat_639dc = (uint32_t)((int32_t)g_dat_639dc + 3);
+            } else {                                               /* 0x3cb8d-98 */
+                g_dat_639dc = (uint32_t)(right - 0x140);
+            }
+        } else {                                                   /* 0x3cb9f-bb */
+            if ((int32_t)*(const uint32_t *)(subj + 0x08) - 0x140 > (int32_t)g_dat_639dc) {
+                g_dat_639dc = (uint32_t)((int32_t)g_dat_639dc + 1);
+            }
+        }
+    }
+    if (prev != (int32_t)g_dat_639dc)                              /* 0x3cbb8-c2 */
+        fn_03d75c((int32_t)g_dat_639dc - prev);                    /* 0x3cbc3-cb */
+}
+
+/* fn_03cbd9  orig: 0x0003cbd9 (L11, 145 B) -- THE CAMERA SCROLL-LEFT STEP, exact mirror of
+ * fn_03cb38: the subject field is +0x00 (room left x) and the camera moves DOWN.
+ *
+ *   prev = cam;
+ *   if (DAT_000639e4 == 0) {
+ *       if ((int)player[+0x17] == 3) {
+ *           if (subj[+0] + 2 < cam) cam -= 3;
+ *           else                    cam = subj[+0];         ; snap to the screen's left edge
+ *       } else {
+ *           if (cam > subj[+0]) cam -= 1;
+ *       }
+ *   }
+ *   if (cam != prev) fn_03d75c(cam - prev);               ; negative delta -> the float INCREASES
+ *
+ * Note the snap branch reads subj[+0] with NO screen-width offset (unlike the right half's -0x140),
+ * and the fast/slow tests use JGE/JLE in the opposite direction from the right half. */
+void fn_03cbd9(uint8_t *subj) {
+    (void)canary_id((uintptr_t)subj, 0x24);                        /* 0x3cbd9-de */
+    int32_t prev = (int32_t)g_dat_639dc;                           /* 0x3cbf4-f9 */
+    if (g_dat_639e4 == 0) {                                        /* 0x3cbfc-c05 */
+        if ((int32_t)*(const uint32_t *)(g_dat_53c7c + 0x17) == 3) {  /* 0x3cc07-10 */
+            int32_t left = (int32_t)*(const uint32_t *)(subj + 0x00);
+            if (left + 2 < (int32_t)g_dat_639dc) {                 /* 0x3cc12-20 */
+                g_dat_639dc = (uint32_t)((int32_t)g_dat_639dc - 3);
+            } else {                                               /* 0x3cc2b-30 */
+                g_dat_639dc = (uint32_t)left;
+            }
+        } else {                                                   /* 0x3cc37-44 */
+            if ((int32_t)g_dat_639dc > (int32_t)*(const uint32_t *)(subj + 0x00)) {
+                g_dat_639dc = (uint32_t)((int32_t)g_dat_639dc - 1);
+            }
+        }
+    }
+    if (prev != (int32_t)g_dat_639dc)                              /* 0x3cc4a-53 */
+        fn_03d75c((int32_t)g_dat_639dc - prev);                    /* 0x3cc55-5d */
+}
+
+/* fn_03d4e4  orig: 0x0003d4e4 (L12, 289 B) -- THE CAMERA POLICY STEP: decides whether the horizontal
+ * camera may scroll right / left this frame, then runs the vertical room state machine.
+ * ABI: EAX = the room record (same struct as DAT_00063354; the two scroll helpers are always called
+ * with DAT_00063354 itself, freshly loaded).
+ * Room fields: +0x2a / +0x2e = left / right "stop" bounds (0 = none), +0x32 / +0x36 = a second pair
+ * that only applies when DAT_00053c68 == 1, +0x3a / +0x3b = disable-left / disable-right bytes.
+ *
+ *   if (room[+0x3b] == 0 && player[+1] - cam > 0xbe) {          ; player near the right edge
+ *       if (room[+0x2e] == 0 || cam + 0x140 <= room[+0x2e]) {
+ *           if (room[+0x36] == 0 || cam + 0x140 <= room[+0x36]) fn_03cb38(DAT_63354);
+ *           else if (DAT_00053c68 == 1) fn_03cb38(DAT_63354);
+ *       }
+ *   }
+ *   if (room[+0x3a] == 0 && player[+1] - cam < 0x82) {          ; player near the left edge
+ *       if (room[+0x2a] == 0 || cam >= room[+0x2a]) {
+ *           if (room[+0x32] == 0 || cam >= room[+0x32]) fn_03cbd9(DAT_63354);
+ *           else if (DAT_00053c68 == 1) fn_03cbd9(DAT_63354);
+ *       }
+ *   }
+ *   if (DAT_000639e0 + 0xc2 > player[+9]) fn_03cc6b(DAT_63354) ; vertical follow / room change
+ *
+ * Quirk kept: the two bound pairs are tested in sequence, so a non-zero +0x2e/+0x2a can veto the move
+ * entirely while the second pair (+0x36/+0x32) only downgrades it to "allowed when DAT_53c68 == 1". */
+void fn_03d4e4(uint8_t *room) {
+    (void)canary_id((uintptr_t)room, 0x20);                        /* 0x3d4e4-e9 */
+    if (room[0x3b] == 0) {                                         /* 0x3d4ff-50c */
+        int32_t px = (int32_t)*(const uint32_t *)(g_dat_53c7c + 0x01);
+        if (px - (int32_t)g_dat_639dc > 0xbe) {                    /* 0x3d512-25 */
+            int32_t right = (int32_t)g_dat_639dc + 0x140;
+            uint32_t stop = *(const uint32_t *)(room + 0x2e);
+            if (!(stop != 0 && right > (int32_t)stop)) {           /* 0x3d527-42 (JG -> skip) */
+                uint32_t stop2 = *(const uint32_t *)(room + 0x36);
+                if (stop2 == 0 || right <= (int32_t)stop2) {       /* 0x3d544-5f */
+                    fn_03cb38(g_dat_63354);
+                } else if (g_dat_53c68 == 1) {                     /* 0x3d563-6a */
+                    fn_03cb38(g_dat_63354);
+                }
+            }
+        }
+    }
+    if (room[0x3a] == 0) {                                         /* 0x3d576-83 */
+        int32_t px = (int32_t)*(const uint32_t *)(g_dat_53c7c + 0x01);
+        if (px - (int32_t)g_dat_639dc < 0x82) {                    /* 0x3d585-98 */
+            int32_t left = (int32_t)g_dat_639dc;
+            uint32_t stop = *(const uint32_t *)(room + 0x2a);
+            if (!(stop != 0 && left < (int32_t)stop)) {            /* 0x3d59a-af (JL -> skip) */
+                uint32_t stop2 = *(const uint32_t *)(room + 0x32);
+                if (stop2 == 0 || left >= (int32_t)stop2) {        /* 0x3d5b1-5c6 */
+                    fn_03cbd9(g_dat_63354);
+                } else if (g_dat_53c68 == 1) {                     /* 0x3d5ca-5d1 */
+                    fn_03cbd9(g_dat_63354);
+                }
+            }
+        }
+    }
+    if ((int32_t)g_dat_639e0 + 0xc2 > (int32_t)*(const uint32_t *)(g_dat_53c7c + 0x09))
+        fn_03cc6b(g_dat_63354);                                    /* 0x3d5dd-f8 */
+}
+
 /* fn_038b30  orig: 0x038b30 (L11, 242 B) -- render an integer as a 5-glyph right-justified
  * number field (left blank-pad + digit glyphs), font-table + RLE blit. Generalization of
  * 0x038c23: variable width with blank padding instead of a fixed 2-glyph rotate.

@@ -10092,6 +10092,106 @@ static void test_fn_03d75c(void) {
 #undef SETR
 }
 
+/* 0x03cb38 / 0x03cbd9 / 0x03d4e4 -- the camera follow pair and the policy that gates them. */
+static void test_fn_03cb38_pair(void) {
+    printf("fn_03cb38/03cbd9/03d4e4: camera follow pair (scroll right/left) + camera policy\n");
+    heap_arena_init();
+    static uint8_t recs[0x14]; memset(recs, 0, sizeof recs);
+    uint32_t a_off = heap_arena_alloc(4 * 4), b_off = heap_arena_alloc(4 * 4);
+    uint32_t *A = (uint32_t *)((uint8_t *)g_heap_base + a_off);
+    uint32_t *B = (uint32_t *)((uint8_t *)g_heap_base + b_off);
+    A[0] = 0; B[0] = 0;
+    static uint32_t spr[0x40 / 4]; spr[0x04 / 4] = b_off; spr[0x0c / 4] = a_off;
+    static uint8_t room[0x354]; memset(room, 0, sizeof room);
+    *(uint32_t *)(room + 0x00) = 100;                              /* room left x */
+    *(uint32_t *)(room + 0x08) = 1000;                             /* room right edge */
+    static uint8_t player[0x20]; memset(player, 0, sizeof player);
+    *(uint32_t *)(player + 0x01) = 300;                            /* player x */
+    *(uint32_t *)(player + 0x17) = 1;                              /* follow state */
+    g_dat_5d0b4 = recs; g_dat_62a90 = 1;
+    g_dat_63dfc = (struct hud_font *)spr;
+    g_dat_63354 = room; g_dat_53c7c = player; g_dat_63370 = 1;
+    g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_53c68 = 0;
+    for (int i = 0; i < 0x4f0 / 4; i++) g_tab_5274c[i] = 0.0f;
+    g_tab_5274c[0] = 1.0f;                                        /* serial 0, stage 1 -> rate 1.0 */
+    *(uint32_t *)(recs + 0x00) = 0;                               /* record idx 0 */
+#define F (*(float *)(recs + 0x10))
+#define INFIELD(cam) (*(uint32_t *)(recs + 0x04) = (uint32_t)((int32_t)(cam) + 100))
+    /* ---- fn_03cb38: scroll right, slow path ---- */
+    g_dat_639dc = 300; INFIELD(301); F = 0.0f;
+    fn_03cb38(room);
+    check(g_dat_639dc == 301, "slow right: room[+8]-0x140 (680) > cam -> cam++");
+    check(F == -1.0f, "fn_03d75c receives EAX = cam - prev = +1 (rate 1.0 -> float -1)");
+    g_dat_639dc = 900; INFIELD(900); F = 0.0f;
+    fn_03cb38(room);
+    check(g_dat_639dc == 900 && F == 0.0f, "room right edge reached -> no move and NO decay call");
+    *(uint32_t *)(player + 0x17) = 3;                             /* fast follow state */
+    g_dat_639dc = 300; INFIELD(303); F = 0.0f;
+    fn_03cb38(room);
+    check(g_dat_639dc == 303 && F == -3.0f, "state 3: room[+8]-0x142 > cam -> cam += 3, delta 3 decays");
+    g_dat_639dc = 860; INFIELD(1000 - 0x140); F = 0.0f;
+    fn_03cb38(room);
+    check(g_dat_639dc == 1000 - 0x140, "state 3 snaps cam to room[+8]-0x140 (680), a BACKWARD jump");
+    check(F == 180.0f, "snap delta (680-860 = -180) -> the float grows by 180");
+    *(uint32_t *)(player + 0x17) = 1;
+    g_dat_639e4 = 1;                                              /* camera locked */
+    g_dat_639dc = 300; INFIELD(301); F = 0.0f;
+    fn_03cb38(room);
+    check(g_dat_639dc == 300 && F == 0.0f, "DAT_639e4 != 0 (camera locked) -> no move, no decay");
+    g_dat_639e4 = 0;
+    /* ---- fn_03cbd9: scroll left, mirror ---- */
+    g_dat_639dc = 300; INFIELD(299); F = 0.0f;
+    fn_03cbd9(room);
+    check(g_dat_639dc == 299 && F == 1.0f, "slow left: cam > room[+0] -> cam-- and the float grows");
+    *(uint32_t *)(player + 0x17) = 3;
+    g_dat_639dc = 300; INFIELD(297); F = 0.0f;
+    fn_03cbd9(room);
+    check(g_dat_639dc == 297 && F == 3.0f, "state 3: room[+0]+2 < cam -> cam -= 3");
+    g_dat_639dc = 101; INFIELD(100); F = 0.0f;
+    fn_03cbd9(room);
+    check(g_dat_639dc == 100 && F == 1.0f, "state 3 snaps cam to room[+0] exactly (no -0x140 offset)");
+    *(uint32_t *)(player + 0x17) = 1;
+    /* ---- fn_03d4e4: the policy that gates the pair ---- */
+    uint8_t *vert = room + 0x100;                                 /* the a0->0x34c target (fn_03cc6b) */
+    *(uint64_t *)(room + 0x34c) = (uint64_t)(uintptr_t)vert;
+    *(uint32_t *)(vert + 0x00) = 0x9999;                          /* != cam -> the e4==0 first branch is skipped */
+    *(uint32_t *)(vert + 0x04) = 0;                               /* 0-1 = -1 != g_dat_639e0 (0) */
+    *(uint32_t *)(vert + 0x0c) = 0xc9;                            /* 0xc9-0xc8 = 1 > 0 -> e0++ */
+    *(uint32_t *)(recs + 0x04) = 0; F = 0.0f;                     /* out of field: no decay noise */
+    g_dat_639dc = 100;                                            /* player 300 - cam 100 = 200 > 0xbe */
+    fn_03d4e4(room);
+    check(g_dat_639dc == 101, "player near the right edge (> 0xbe) -> fn_03cb38 ran (cam++)");
+    *(uint32_t *)(room + 0x2e) = 200;                             /* cam+0x140 = 240 > 200 -> veto */
+    g_dat_639dc = 100;
+    fn_03d4e4(room);
+    check(g_dat_639dc == 100, "room[+0x2e] stop (240 > 200) vetoes the right scroll entirely");
+    *(uint32_t *)(room + 0x2e) = 0; *(uint32_t *)(room + 0x36) = 200;
+    g_dat_53c68 = 0; g_dat_639dc = 100;
+    fn_03d4e4(room);
+    check(g_dat_639dc == 100, "second pair: 240 > room[+0x36] needs DAT_53c68 == 1 (0 -> no scroll)");
+    g_dat_53c68 = 1; g_dat_639dc = 100;
+    fn_03d4e4(room);
+    check(g_dat_639dc == 101, "second pair allows the scroll when DAT_53c68 == 1");
+    g_dat_53c68 = 0;
+    *(uint32_t *)(room + 0x36) = 0;
+    room[0x3b] = 1;                                               /* disable right */
+    g_dat_639dc = 100;
+    fn_03d4e4(room);
+    check(g_dat_639dc == 100, "room[+0x3b] != 0 disables the right scroll");
+    room[0x3b] = 0; room[0x3a] = 0;
+    g_dat_639e0 = 0;                                              /* vertical state */
+    g_dat_639dc = 200;                                            /* 300-200 = 100 < 0x82 -> left runs */
+    fn_03d4e4(room);
+    check(g_dat_639dc == 199, "player near the left edge (< 0x82) -> fn_03cbd9 ran (cam--)");
+    check(g_dat_639e0 == 1, "DAT_639e0+0xc2 > player[+9] -> fn_03cc6b ran (its g_639e0++ branch)");
+    g_dat_639e0 = 0; *(uint32_t *)(player + 0x09) = 0x200;         /* 0xc2 > 0x200 false */
+    g_dat_639dc = 150;                                            /* 300-150 = 150: between both gates */
+    fn_03d4e4(room);
+    check(g_dat_639e0 == 0 && g_dat_639dc == 150, "between the two x thresholds and below the vertical threshold -> nothing moves");
+#undef F
+#undef INFIELD
+}
+
 static void test_fn_03fc1d(void) {
     printf("fn_03fc1d (0x03fc1d): VGA-palette DAC load (4B hdr + table -> board_out)\n");
     heap_arena_init();
@@ -10557,6 +10657,7 @@ int main(void) {
     test_fn_010181();
     test_fn_03fc1d();
     test_fn_03d75c();
+    test_fn_03cb38_pair();
     test_fn_03e0a0();
     test_fn_03fb0e();
     test_fn_03a1b3();

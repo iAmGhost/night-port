@@ -970,6 +970,10 @@ extern uint32_t g_dat_6337c;   /* 0x6337c: = (byte)g_dat_53c7c->0x26 (0x03cc6b) 
 extern uint32_t g_dat_63380;   /* 0x63380: = (byte)g_dat_53c7c->0x25 (0x03cc6b) */
 extern uint32_t g_dat_63384;   /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) */
 void fn_03cc6b(uint8_t *a0);   /* 0x03cc6b: state machine (g_639e4 toggle, g_63354/58, kb-config copy, g_639e0++) */
+void fn_034295(int32_t amount);  /* 0x034295: the player's STATE-GATED vertical move (DAT_63ed3 reversed / DAT_63ed5 plain, plus [player+0x1b] must be 0 / 1) */
+extern uint8_t g_dat_63ed3;      /* DAT_00063ed3: reversed vertical-direction flag */
+extern uint8_t g_dat_63ed5;      /* DAT_00063ed5: plain vertical-direction enable */
+void fn_0342ff(int32_t amount);  /* 0x0342ff: the player's UNGATED vertical move (same direction sources, no state gate) */
 void fn_01545e(uint8_t *e, int32_t d);  /* 0x01545e: THE Y-AXIS MOVE + WALL BANDS + TRIGGER AREAS -- Y mirror of fn_01586b over g_tab_5c8bc; rewrites the delta to stop on a band edge, fires the DAT_63364/63368 latch and puts caught entities to sleep, then hard-clamps Y to the room band (with a prng jitter). Unblocks 21 pending functions. */
 int32_t fn_016b8f(uint8_t *e, int32_t step, int32_t cmp_ebx, int32_t cmp_ecx, int32_t *out_a, int32_t *out_b);  /* 0x016b8f: THE THREE-PHASE STEP/RETURN WALK (EAX=entity, EDX=step, EBX/ECX=caller comparison values, two stack out params at [ebp+0x10]/[ebp+0x14]); phases 0 approach / 1 pause / 2 walk back over [e+0x93], budget [e+0x97], accumulators [e+0xa3]/[e+0xa7]. Unblocks 20 pending functions. */
 void fn_01586b(uint8_t *a0, uint32_t a1);  /* 0x01586b: clamp a0[9] to [min,max] after adding a1, g_tab_5c8bc pre-pass */

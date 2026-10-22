@@ -7729,6 +7729,42 @@ uint32_t g_dat_63384 = 0;      /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) 
  * value on the clamp path), so the return value is incidental -> void. a0 fields:
  * a0[0] byte, a0[1]/a0[9] unaligned s32 (cf. fn_0151d5 = *(s32*)(p+9)). */
 struct clamp_tab_5c8bc g_tab_5c8bc[512];   /* 0x5c8bc ROM clamp table; count = g_dat_62a8c (struct def in f.h) */
+/* fn_034295  orig: 0x00034295 (L11, 106 B) -- THE PLAYER'S STATE-GATED VERTICAL MOVE.
+ * EAX = the amount (a signed step). DAT_00063ed3 selects the "reversed" direction (used while
+ * flying/floating); the plain direction needs DAT_00063ed5. Both paths additionally require the
+ * player's state word [DAT_53c7c+0x1b] to match: the reversed move only when it is 0, the plain
+ * move only when it is 1 -- so a state mismatch silently drops the move.
+ */
+void fn_034295(int32_t amount)
+{
+    (void)canary_id(0, 0x20);                                                /* 0x34295-9a */
+    if (g_dat_63ed3 != 0) {                                                  /* 0x342b0-b7 */
+        if (*(int32_t *)(g_dat_53c7c + 0x1b) == 0)                           /* 0x342be-c2 */
+            fn_01545e(g_dat_53c7c, -amount);                                 /* 0x342c4-1545e call */
+    } else {
+        if (g_dat_63ed5 == 0) return;                                        /* 0x342d5-dc */
+        if (*(int32_t *)(g_dat_53c7c + 0x1b) == 1)                           /* 0x342e3-e7 */
+            fn_01545e(g_dat_53c7c, amount);                                   /* 0x342e9-342f1 */
+    }
+}
+
+uint8_t g_dat_63ed3 = 0;   /* DAT_00063ed3: reversed vertical-direction flag (also read by 0x012616) */
+uint8_t g_dat_63ed5 = 0;   /* DAT_00063ed5: plain vertical-direction enable */
+
+/* fn_0342ff  orig: 0x000342ff (L11, 84 B) -- THE PLAYER'S UNGATED VERTICAL MOVE: the same two
+ * direction sources as fn_034295 but without the [player+0x1b] state gate.
+ */
+void fn_0342ff(int32_t amount)
+{
+    (void)canary_id(0, 0x20);                                                /* 0x342ff-34304 */
+    if (g_dat_63ed3 != 0) {                                                  /* 0x3431a-34321 */
+        fn_01545e(g_dat_53c7c, -amount);                                     /* 0x34323-3432d */
+    } else {
+        if (g_dat_63ed5 == 0) return;                                        /* 0x34334-3433b */
+        fn_01545e(g_dat_53c7c, amount);                                      /* 0x3433d-34345 */
+    }
+}
+
 /* fn_01545e  orig: 0x0001545e (L11, 1037 B) -- THE Y-AXIS MOVE WITH WALL BANDS AND TRIGGER AREAS.
  * The Y mirror of fn_01586b (which does the X axis over the same 0x5c8bc table).
  *   EAX = entity, EDX = d, the Y delta (d == 0 -> the whole function does nothing).

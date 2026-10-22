@@ -9220,6 +9220,42 @@ static void test_fn_0376c8(void) {
  * chunk (fn_040b83, exercised by its own test), anything else skips its payload and keeps walking. */
 /* fn_01545e (1037 B): the Y-axis move with wall bands + trigger areas -- the Y mirror of fn_01586b. */
 /* fn_016b8f (1117 B): the three-phase step/return walk (approach -> pause -> walk back). */
+/* fn_034295 / fn_0342ff (106 B / 84 B): the player's gated and ungated vertical moves. */
+static void test_fn_034295_0342ff(void) {
+    printf("fn_034295 + fn_0342ff: player vertical move (gated / ungated)\n");
+    uint8_t *s_player = g_dat_53c7c;
+    uint32_t s_dc = g_dat_639dc, s_n = g_dat_62a8c;
+    uint8_t s_e3 = g_dat_63ed3, s_e5 = g_dat_63ed5;
+    g_dat_639dc = 1000; g_dat_62a8c = 0;                 /* band: 1010 .. 1302, no wall bands */
+    uint8_t *pl = (uint8_t *)calloc(1, 0x200);
+    *(int32_t *)(pl + 0xd) = 1;                          /* default band */
+    g_dat_53c7c = pl;
+
+#define RESETY() (*(int32_t *)(pl + 1) = 1100)
+    g_dat_63ed3 = 1; g_dat_63ed5 = 1; *(int32_t *)(pl + 0x1b) = 1;
+    RESETY(); fn_0342ff(15);
+    check(*(int32_t *)(pl + 1) == 1085, "  fn_0342ff: DAT_63ed3 set -> the move is reversed (-amount)");
+    g_dat_63ed3 = 0; RESETY(); fn_0342ff(15);
+    check(*(int32_t *)(pl + 1) == 1115, "  fn_0342ff: DAT_63ed3 clear and DAT_63ed5 set -> +amount");
+    g_dat_63ed5 = 0; RESETY(); fn_0342ff(15);
+    check(*(int32_t *)(pl + 1) == 1100, "  fn_0342ff: neither flag set -> no move at all");
+
+    g_dat_63ed3 = 1; *(int32_t *)(pl + 0x1b) = 0;
+    RESETY(); fn_034295(15);
+    check(*(int32_t *)(pl + 1) == 1085, "  fn_034295: reversed move needs [player+0x1b] == 0");
+    *(int32_t *)(pl + 0x1b) = 1; RESETY(); fn_034295(15);
+    check(*(int32_t *)(pl + 1) == 1100, "  fn_034295: a state mismatch silently drops the reversed move");
+    g_dat_63ed3 = 0; g_dat_63ed5 = 1; *(int32_t *)(pl + 0x1b) = 1;
+    RESETY(); fn_034295(15);
+    check(*(int32_t *)(pl + 1) == 1115, "  fn_034295: the plain move needs [player+0x1b] == 1");
+    *(int32_t *)(pl + 0x1b) = 2; RESETY(); fn_034295(15);
+    check(*(int32_t *)(pl + 1) == 1100, "  fn_034295: any other state drops the plain move too");
+#undef RESETY
+    free(pl);
+    g_dat_53c7c = s_player; g_dat_639dc = s_dc; g_dat_62a8c = s_n;
+    g_dat_63ed3 = s_e3; g_dat_63ed5 = s_e5;
+}
+
 static void test_fn_016b8f(void) {
     printf("fn_016b8f: three-phase step walk (phase 0 approach / 1 pause / 2 walk back)\n");
     uint8_t *s_node = g_dat_63354;
@@ -10213,6 +10249,7 @@ int main(void) {
     test_fn_037b03();
     test_fn_0374ad();
     test_fn_0376c8();
+    test_fn_034295_0342ff();
     test_fn_016b8f();
     test_fn_01545e();
     test_fn_040839_04185e();

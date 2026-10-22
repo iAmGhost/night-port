@@ -9008,6 +9008,78 @@ static void test_fn_037b03(void) {
 /* fn_0374ad (0x0374ad, 539 B): the stage reset/reload. Reuses the synthetic stage set, calls the
  * loader first, then the reset, and pins both halves: the per-type teardown and the config block
  * (DAT_53c7c) that the fresh room node seeds. */
+/* One self-contained run of fn_03f6bc over a fresh one-entry NIGHT.RES stand-in: the port's
+   resource seek is only reliable from a freshly opened stream, so every case rebuilds it. */
+static uint32_t f6bc_run(uint16_t magic, uint16_t count, int keywhich, uint32_t *tick_out)
+{
+    const uint32_t rawLen = 0x14u, of0 = 4 + rawLen, cursor = of0 + 0x80u + 4u;
+    uint8_t *img = (uint8_t *)calloc(1, cursor);
+    if (!img) return 0;
+    img[0] = 1;
+    { uint8_t t2[0x14]; memset(t2, 0, sizeof t2);
+      memcpy(t2, "ev1.dat", 7);
+      t2[16] = (uint8_t)of0; t2[17] = (uint8_t)(of0 >> 8);
+      uint8_t prev = 0x20;
+      for (int k = 0; k < 0x14; k++) { uint8_t raw = (uint8_t)(t2[k] ^ prev); img[4 + k] = raw; prev = raw; } }
+    uint8_t *h = img + of0;
+    *(uint16_t *)(h + 0x04) = magic;
+    *(uint16_t *)(h + 0x06) = count;
+
+    static uint8_t pool[0x53800];
+    memset(pool, 0, sizeof pool);
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    g_dat_53730 = dev_tab; g_dat_536dc = 8; g_dat_53619 = 0; g_dat_536d8 = 0;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0; sys_open_ret = 0; sys_file_lseek_pos = 0;
+    sys_file_image_set(img, cursor);
+    heap_arena_init(); (void)heap_malloc(0x4000);
+    g_639b8 = fn_04270d((const uint8_t *)"night.res", "rb");
+    fn_0366a4((uint8_t *)g_639b8);
+
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63e89 = 0;
+    if (keywhich == 1) g_dat_63ec1 = 1;
+    if (keywhich == 2) g_dat_63ea4 = 1;
+    if (keywhich == 3) g_dat_63e89 = 1;
+    g_dat_63e3c = 0x55; g_dat_63e40 = 0x55;
+
+    uint32_t r = fn_03f6bc("ev1.dat");
+    *tick_out = (g_dat_63e3c << 8) | (g_dat_63e40 & 0xff);
+    free(img);
+    return r;
+}
+
+static void test_fn_03f6bc(void) {
+    printf("fn_03f6bc (0x03f6bc): the timed event player (tag / MOVsx count / key cut)\n");
+    uint8_t sp_pool = 0; (void)sp_pool;
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_3c = g_dat_63e3c, saved_40 = g_dat_63e40;
+    uint8_t saved_ec1 = g_dat_63ec1, saved_ea4 = g_dat_63ea4, saved_e89 = g_dat_63e89;
+    res_reader *saved_9b8 = g_639b8;
+    uint32_t tick = 0;
+
+    check(f6bc_run(0x1234, 4, 0, &tick) == 0, "  tag at +0x04 != 0xaf11 -> 0, nothing played");
+    check(tick == 0x5555, "  the tick pair is only zeroed once the tag matches");
+
+    check(f6bc_run(0xaf11, 0, 0, &tick) == 0, "  count 0 -> 0 (the index compare runs before the frame wait)");
+    check(tick == 0, "  DAT_63e3c / DAT_63e40 are zeroed on entry to the play");
+
+    check(f6bc_run(0xaf11, 0xffff, 0, &tick) == 0,
+          "  the count is MOVsx: 0xffff reads as -1, so a big unsigned count still ends at once");
+
+    check(f6bc_run(0xaf11, 3, 2, &tick) == 1, "  a held key (DAT_63ea4) cuts the play with 1");
+    check(f6bc_run(0xaf11, 3, 3, &tick) == 1, "  the abort byte DAT_63e89 cuts it the same way");
+    check(f6bc_run(0xaf11, 3, 1, &tick) == 1, "  DAT_63ec1 is the third gate byte");
+
+    g_639b8 = saved_9b8;
+    g_dat_63e3c = saved_3c; g_dat_63e40 = saved_40;
+    g_dat_63ec1 = saved_ec1; g_dat_63ea4 = saved_ea4; g_dat_63e89 = saved_e89;
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+}
+
 static void test_fn_011827(void) {
     printf("fn_011827 (0x011827): the mirrored type-0xfa companion spawn\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
@@ -10409,6 +10481,7 @@ int main(void) {
     test_fn_010efc();
     test_fn_03c853();
     test_fn_037b03();
+    test_fn_03f6bc();
     test_fn_011827();
     test_fn_037347();
     test_fn_0374ad();

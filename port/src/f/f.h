@@ -760,6 +760,12 @@ void fn_036190(const char *name, uint8_t *dest); /* 0x036190: screen RLE loader 
 void fn_036417(const char *name, uint8_t *dest, uint32_t dl); /* 0x036417: screen RLE loader into caller 0x4b000-byte dest; dl->board_out; table g_dat_636b8 */
 void fn_03628e(const char *name, uint32_t dl);               /* 0x03628e: screen RLE loader into the 0xa0000 video window (wraps at 0x10000, fn_03f3be fade per wrap); dl->board_out */
 void fn_03fb0e(uint8_t *node, uint32_t count); /* 0x03fb0e: load 64000 B screen image from I/O node into g_dat_51a0c via heap buf + fn_04192e */
+uint32_t fn_03f6bc(const char *name);   /* 0x03f6bc: THE TIMED EVENT PLAYER -- 0x80 B header tagged 0xaf11 at +4, MOVsx count word at +6, frame waits on DAT_63e40, per-tick sound-slot starts via DAT_53200/DAT_532f4 -> DAT_53d0c -> fn_04185e, resource ops through fn_03f80d; 0 = tag/count, 1 = key cut or op stream done */
+extern uint32_t g_tab_53200[0x3d];      /* 0x53200: the timed-event tick table (61 dwords; DAT_53200 + 61*4 = DAT_532f4 exactly); no producer inside the EXE -- seedable, awaits the CD backend */
+extern uint8_t  g_tab_532f4[0x44];      /* 0x532f4: byte table of DAT_53d0c sound-slot indices (68 bytes, up to DAT_53338); no producer inside the EXE -- seedable */
+extern uint8_t  g_dat_63ec1;            /* 0x63ec1: key-pressed byte (spin/abort in the picture + timed-event drivers) */
+extern uint8_t  g_dat_63ea4;            /* 0x63ea4: second key byte (same gates) */
+extern uint8_t  g_dat_63e89;            /* 0x63e89: abort/quit byte (unwinds the slide show and the timed event play) */
 uint32_t fn_03f80d(res_reader *node);  /* 0x03f80d: resource-op block gate (16 B header, tag 0xf1fa at +4, int16 count at +6 -> fn_03f885 N times; 0 on tag mismatch) */
 void fn_03f885(res_reader *node);              /* 0x03f885: resource-op dispatcher (6B header: dword size + word opcode -> palette/screen handlers; default fn_04247a(node,size-6,1)) */
 void fn_03fc1d(uint8_t *node, uint32_t size); /* 0x03fc1d: VGA-palette DAC load (read 4B hdr + size-4 B table; board_out(hdr[2], 0x100-hdr[2], table)) */

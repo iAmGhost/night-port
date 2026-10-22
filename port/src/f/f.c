@@ -7419,6 +7419,11 @@ void fn_040839(uint8_t *cursor)
     }
 }
 
+uint32_t g_tab_53200[0x3d] = {0};   /* 0x53200: timed-event tick table (61 dwords, ends exactly at DAT_532f4) */
+uint8_t  g_tab_532f4[0x44] = {0};   /* 0x532f4: DAT_53d0c sound-slot indices, 68 bytes */
+uint8_t  g_dat_63ec1 = 0;           /* 0x63ec1: key-pressed byte */
+uint8_t  g_dat_63ea4 = 0;           /* 0x63ea4: second key byte */
+uint8_t  g_dat_63e89 = 0;           /* 0x63e89: abort/quit byte */
 uint8_t g_dat_53338 = 0;   /* DAT_00053338: sound/music enable byte (gates fn_04185e) */
 uint8_t g_dat_63fb8 = 0;   /* DAT_00063fb8: device-command-stream started flag */
 
@@ -12642,5 +12647,63 @@ void fn_011827(uint8_t *src, int32_t dx, int32_t arg_ebx, int32_t dy, uint32_t s
     if (*(const int32_t *)(src + 0x17) != 4) {                               /* 0x01192a-2e */
         g_dat_63364 = 0x13;                                                  /* 0x011930 */
         g_dat_63368 = 0;                                                     /* 0x01193a */
+    }
+}
+
+/* =================================================================== */
+/*  the timed event / CG playback driver (0x03f6bc)                     */
+/* =================================================================== */
+
+/* fn_03f6bc  orig: 0x0003f6bc (L12, 337 B) -- THE TIMED EVENT PLAYER.
+ * EAX = resource name. It opens the resource (fn_0367c9), reads a 0x80-byte header from the shared
+ * resource node DAT_000639b8, and requires the tag WORD at +0x04 (zero-extended) to be 0xaf11.
+ * The WORD at +0x06 is the event count, read with MOVsx -- a value of 0x8000..0xffff is NEGATIVE, so
+ * such a header ends the play immediately (0).
+ * The play loop is driven by the coarse tick counter DAT_00063e40 (zeroed here along with its fine
+ * partner DAT_00063e3c; the RTC/tick handler raises them):
+ *   - the index (low 16 bits of a free-running counter, post-incremented in the compare) is checked
+ *     against the count first -> 0 when exhausted;
+ *   - any of the key/abort bytes DAT_00063ec1 / DAT_00063ea4 / DAT_00063e89 -> 1 (the show was cut);
+ *   - otherwise it SPINS until DAT_00063e40 exceeds the index -- this is a frame wait;
+ *   - when the index equals the next entry of the tick table DAT_00053200, it starts the device
+ *     command stream for the sound slot named by the byte table DAT_000532f4 (an index into the
+ *     100-entry DAT_00053d0c sound-slot array) and advances the table cursor;
+ *   - then one resource-op block runs through fn_03f80d; when that returns 0 the block stream is
+ *     finished and the play returns 1.
+ * Table layout proof: DAT_00053200 + 61*4 = DAT_000532f4 exactly, and DAT_000532f4 + 0x44 =
+ * DAT_00053338 (the sound-enable byte), so the tick table has 61 dwords and the slot table 68 bytes.
+ * Neither table has a producer inside the EXE (only these reads), so -- like DAT_00052c3c /
+ * DAT_00052738 / DAT_00052f08 -- they are modelled as seedable zeroed tables awaiting the CD backend.
+ * The frame-wait spin cannot be exited in a unit test (nothing raises DAT_00063e40 there), so the
+ * tests cover the tag, the MOVsx count, the entry zeroing and the key-cut return.
+ */
+uint32_t fn_03f6bc(const char *name)
+{
+    (void)canary_id(0, 0x1b8);                                                /* 0x3f6bc-c1 */
+    uint8_t hdr[0x80];                                                        /* [ebp-0x1a0] */
+    fn_0367c9(name);                                                          /* 0x3f6e7 */
+    fn_04192e(hdr, 0x80, 1, g_639b8);                                         /* 0x3f6ec-f2 */
+    if (*(const uint16_t *)(hdr + 0x04) != 0xaf11u) {                         /* 0x3f709-15 (MOV AX, zero-ext) */
+        return 0;                                                             /* 0x3f717 */
+    }
+    uint32_t cursor = 0;                                                      /* [ebp-0x18] */
+    int32_t idx = 0;                                                          /* [ebp-0x14] */
+    g_dat_63e3c = 0;                                                          /* 0x3f72d */
+    g_dat_63e40 = 0;                                                          /* 0x3f737 */
+    for (;;) {
+        int32_t count = *(const int16_t *)(hdr + 0x06);                       /* 0x3f741 MOVsx word */
+        uint32_t i = (uint32_t)idx;                                           /* 0x3f748 */
+        idx = idx + 1;                                                        /* 0x3f74b INC in place */
+        i &= 0xffff;                                                          /* 0x3f74e */
+        if ((int32_t)i >= count) return 0;                                    /* 0x3f753-55 JGE */
+        if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 || g_dat_63e89 != 0) {       /* 0x3f75b-76 */
+            return 1;                                                         /* 0x3f778 */
+        }
+        while ((int32_t)(uint32_t)(uint16_t)idx >= (int32_t)g_dat_63e40) {}   /* 0x3f787-93: frame wait */
+        if ((uint32_t)(uint16_t)idx == g_tab_53200[cursor]) {                 /* 0x3f795-a1 (table dword) */
+            fn_04185e(g_dat_53d0c[(uint32_t)g_tab_532f4[cursor]]);            /* 0x3f7a9-c0 (byte -> slot array) */
+            cursor = cursor + 1;                                              /* 0x3f7c5-c8 */
+        }
+        if (fn_03f80d(g_639b8) == 0) return 1;                                /* 0x3f7cb-e4 */
     }
 }

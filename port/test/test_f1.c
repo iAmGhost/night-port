@@ -9218,6 +9218,98 @@ static void test_fn_0376c8(void) {
 /* fn_040839 / fn_04185e (140 B / 95 B): the device command-stream walker and its gated starter.
  * Records are [kind][24-bit len][payload]; kind 0 ends, 1 arms a transfer (fn_04097e), 2 is a DMA
  * chunk (fn_040b83, exercised by its own test), anything else skips its payload and keeps walking. */
+/* fn_01545e (1037 B): the Y-axis move with wall bands + trigger areas -- the Y mirror of fn_01586b. */
+static void test_fn_01545e(void) {
+    printf("fn_01545e: Y-axis move, wall bands (g_tab_5c8bc) and trigger latch\n");
+    uint32_t s_dc = g_dat_639dc, s_n = g_dat_62a8c, s_64 = g_dat_63364, s_68 = g_dat_63368;
+    uint8_t *s_player = g_dat_53c7c;
+    struct clamp_tab_5c8bc s_t0 = g_tab_5c8bc[0];
+    g_dat_639dc = 1000;                       /* default band: lo = 1010, hi = 1302 */
+    g_dat_62a8c = 0;
+    g_dat_63364 = 0; g_dat_63368 = 0; g_dat_53c7c = NULL;
+
+    uint8_t *e = (uint8_t *)calloc(1, 0x100);
+#define RESET(kind, y_, x_, f17, f11) do { memset(e, 0, 0x100); e[0] = (kind); \
+        *(int32_t *)(e + 1) = (y_); *(int32_t *)(e + 9) = (x_); *(int32_t *)(e + 0xd) = 1; \
+        *(int32_t *)(e + 0x17) = (f17); *(int32_t *)(e + 0x11) = (f11); *(int32_t *)(e + 5) = 0x5a5a5a5a; } while (0)
+
+    RESET(0, 1050, 150, 0, 0);
+    fn_01545e(e, 0);
+    check(*(int32_t *)(e + 1) == 1050 && g_dat_63364 == 0, "  d == 0 -> nothing moves and nothing latches");
+
+    RESET(2, 2000, 150, 0, 0);
+    fn_01545e(e, 50);
+    check(*(int32_t *)(e + 1) == 2050, "  old Y outside the room band -> moved by d with no clamp");
+
+    RESET(2, 1015, 150, 0, 0);
+    fn_01545e(e, -100);
+    check(*(int32_t *)(e + 1) == 1010, "  inside the band -> hard clamp to lo = DAT_639dc + 0xa, no trigger");
+
+    g_dat_63364 = 0; g_dat_63368 = 0;
+    RESET(0, 1015, 150, 0x16, 5);
+    fn_01545e(e, -100);
+    check(*(int32_t *)(e + 1) >= 1010 - 20 && *(int32_t *)(e + 1) <= 1010 + 20,
+          "  a caught entity clamped at lo is jittered by (prng % 0x29) - 0x14 (-20..+20)");
+    check(g_dat_63364 == 0x12 && g_dat_63368 == 1, "  the catch sets the level latch DAT_63364 = 0x12 / DAT_63368 = 1");
+    check(*(int32_t *)(e + 0x17) == 0x20 && *(int32_t *)(e + 0x11) == 0 && *(int32_t *)(e + 5) == 0,
+          "  the catch writes [0x17]/[0x11]/[5] as DWORDS (0x5a5a5a5a -> 0)");
+    check(e[0] == 1, "  a sleeping entity (kind 0) is woken to 1 by the catch");
+
+    g_dat_63364 = 0; g_dat_63368 = 0;
+    g_dat_53c7c = e;
+    RESET(0, 1015, 150, 0x16, 5);
+    fn_01545e(e, -100);
+    check(*(int32_t *)(e + 1) == 1010 && g_dat_63364 == 0 && *(int32_t *)(e + 0x17) == 0x16,
+          "  the player is clamped exactly to lo and is never caught");
+    g_dat_53c7c = NULL;
+
+    g_tab_5c8bc[0].v_lo = 100; g_tab_5c8bc[0].v_hi = 200;      /* the X gate ([e+9]) */
+    g_tab_5c8bc[0].a1_lo = 1075; g_tab_5c8bc[0].a1_hi = 1200;  /* the Y band ([e+1] + d) */
+    g_dat_62a8c = 1;
+    RESET(0, 1050, 150, 0, 0);
+    fn_01545e(e, 40);
+    check(*(int32_t *)(e + 1) == 1075,
+          "  a downward move into a wall band stops exactly on a1_lo (the delta is rewritten)");
+
+    RESET(0, 1150, 150, 0, 0);
+    fn_01545e(e, -60);
+    check(*(int32_t *)(e + 1) == 1200,
+          "  an upward (d <= 0) move whose proposal lands in the band is rewritten to a1_hi - Y, i.e. it stops on a1_hi");
+
+    RESET(2, 1050, 150, 0, 0);                /* kind > 1: the table is not consulted */
+    fn_01545e(e, 40);
+    check(*(int32_t *)(e + 1) == 1090, "  kind byte > 1 -> the wall band is skipped entirely");
+
+    RESET(0, 1050, 300, 0, 0);                /* X outside v_lo..v_hi */
+    fn_01545e(e, 40);
+    check(*(int32_t *)(e + 1) == 1090, "  X outside the band column -> the move is not blocked");
+
+    g_dat_62a8c = 0;
+    RESET(0, 1050, 150, 0, 0);
+    fn_01545e(e, 40);
+    check(*(int32_t *)(e + 1) == 1090, "  g_dat_62a8c = 0 (no bands) -> the move is not blocked");
+
+    /* the [e+0x0d] == 0 band: lo = centre + 0xf, hi = lo + 0x122 */
+    RESET(2, 1100, 150, 0, 0);
+    *(int32_t *)(e + 0xd) = 0;
+    fn_01545e(e, 500);
+    check(*(int32_t *)(e + 1) == 1015 + 0x122, "  [e+0x0d] == 0 -> clamped to the +0xf/+0x122 band top");
+    RESET(2, 1000, 150, 0, 0);
+    *(int32_t *)(e + 0xd) = 0;
+    fn_01545e(e, 500);
+    check(*(int32_t *)(e + 1) == 1500,
+          "  an entity already outside the band is moved by d with NO clamp at all (the clamp needs the OLD Y inside)");
+    /* the [e+0x17] == 2 band: lo = centre - 0x64, hi = lo + 0x208 */
+    RESET(2, 1000, 150, 2, 0);
+    *(int32_t *)(e + 0xd) = 1;
+    fn_01545e(e, -500);
+    check(*(int32_t *)(e + 1) == (1000 - 0x64), "  [e+0x17] == 2 -> clamped to the -0x64/+0x208 band bottom");
+#undef RESET
+    free(e);
+    g_dat_639dc = s_dc; g_dat_62a8c = s_n; g_dat_63364 = s_64; g_dat_63368 = s_68;
+    g_dat_53c7c = s_player; g_tab_5c8bc[0] = s_t0;
+}
+
 static void test_fn_040839_04185e(void) {
     printf("fn_040839 + fn_04185e: device command stream (kind/len/payload)\n");
     uint32_t s_base = g_dat_53334, s_f8c = g_dat_63f8c, s_f90 = g_dat_63f90;
@@ -10038,6 +10130,7 @@ int main(void) {
     test_fn_037b03();
     test_fn_0374ad();
     test_fn_0376c8();
+    test_fn_01545e();
     test_fn_040839_04185e();
     test_fn_03ace9();
     test_fn_040fb3();

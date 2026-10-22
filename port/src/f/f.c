@@ -7729,6 +7729,94 @@ uint32_t g_dat_63384 = 0;      /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) 
  * value on the clamp path), so the return value is incidental -> void. a0 fields:
  * a0[0] byte, a0[1]/a0[9] unaligned s32 (cf. fn_0151d5 = *(s32*)(p+9)). */
 struct clamp_tab_5c8bc g_tab_5c8bc[512];   /* 0x5c8bc ROM clamp table; count = g_dat_62a8c (struct def in f.h) */
+/* fn_01545e  orig: 0x0001545e (L11, 1037 B) -- THE Y-AXIS MOVE WITH WALL BANDS AND TRIGGER AREAS.
+ * The Y mirror of fn_01586b (which does the X axis over the same 0x5c8bc table).
+ *   EAX = entity, EDX = d, the Y delta (d == 0 -> the whole function does nothing).
+ *   Play bounds come from the room Y centre DAT_000639dc, selected by the entity:
+ *     [e+0x0d] == 0   -> lo = centre + 0xf,  hi = lo + 0x122
+ *     [e+0x17] == 2   -> lo = centre - 0x64, hi = lo + 0x208
+ *     otherwise       -> lo = centre + 0xa,  hi = lo + 0x12c
+ *   If the kind byte e[0] <= 1 the trigger/wall table g_tab_5c8bc[0..g_dat_62a8c) is scanned; an
+ *   entry qualifies when it straddles the entity's X ([e+9] strictly inside v_lo..v_hi) AND the
+ *   PROPOSED Y ([e+1]+d strictly inside a1_lo..a1_hi). Then the delta is rewritten so the move
+ *   lands exactly on the near edge of that band: d = a1_lo - [e+1] for d > 0, a1_hi - [e+1] for
+ *   d <= 0. d is a loop variable, so the LAST matching entry wins and the rewritten delta is what
+ *   the position update at the end uses.
+ *   Any entity with [e+0x17] == 0x16, that is not the player (DAT_00053c7c), and with
+ *   0 <= [e+0x11] <= 0x15 is then "caught": the level-event latch DAT_00063364 = 0x12 /
+ *   DAT_00063368 = 1 is set, [e+0x17] = 0x20, [e+0x11] = 0 and [e+5] = 0 -- all three are DWORD
+ *   stores, so the bytes Ghidra shows separately as 0x18/0x19/0x1a, 0x12..0x14 and 6..8 zero only
+ *   as a side effect -- and a sleeping entity (e[0] == 0) is woken to 1 (never the player).
+ *   Finally Y is applied: when the old Y is already outside [lo,hi] it is simply moved by d;
+ *   otherwise it is moved and then hard-clamped to the bound, and a clamped entity meeting the
+ *   same "caught" conditions is additionally nudged by (prng % 0x29) - 0x14 (the original signed
+ *   idiv: jitter -20..+20).
+ */
+void fn_01545e(uint8_t *e, int32_t d)
+{
+    (void)canary_id(0, 0x2c);                                                /* 0x1545e-63 */
+    if (d == 0) return;                                                      /* 0x1547b-7f */
+
+    int32_t lo, hi;                                                          /* 0x15485-0x154da */
+    if (*(int32_t *)(e + 0xd) == 0)      { lo = (int32_t)g_dat_639dc + 0xf;  hi = lo + 0x122; }
+    else if (*(int32_t *)(e + 0x17) == 2){ lo = (int32_t)g_dat_639dc - 0x64; hi = lo + 0x208; }
+    else                                 { lo = (int32_t)g_dat_639dc + 0xa;  hi = lo + 0x12c; }
+
+    if ((int32_t)e[0] <= 1) {                                                /* 0x154dd-0x154ea */
+        for (uint32_t i = 0; i < g_dat_62a8c; i++) {                         /* 0x154f0-0x15508 */
+            struct clamp_tab_5c8bc *t = &g_tab_5c8bc[i];
+            int32_t x = *(int32_t *)(e + 9);                                 /* 0x15515 */
+            if (!(x > t->v_lo && x < t->v_hi)) continue;                     /* 0x15518-0x15530 */
+            int32_t y = *(int32_t *)(e + 1) + d;                             /* 0x15544-47 / 0x15608-0b */
+            if (!(y > t->a1_lo && y < t->a1_hi)) continue;                   /* 0x1554e-0x15569 / 0x15612-0x1562d */
+            d = (d > 0) ? (t->a1_lo - *(int32_t *)(e + 1))                    /* 0x15574-0x15580 */
+                        : (t->a1_hi - *(int32_t *)(e + 1));                  /* 0x15638-0x15644 */
+            if (*(int32_t *)(e + 0x17) != 0x16) continue;                    /* 0x15586 / 0x1564a */
+            if (e == g_dat_53c7c) continue;                                  /* 0x1558f / 0x15653 */
+            if (*(int32_t *)(e + 0x11) < 0 || *(int32_t *)(e + 0x11) > 0x15) continue; /* 0x1559c-0x155a9 */
+            g_dat_63364 = 0x12;                                              /* 0x155ad */
+            g_dat_63368 = 1;                                                 /* 0x155b7 */
+            *(int32_t *)(e + 0x17) = 0x20;                                   /* 0x155c1 */
+            *(int32_t *)(e + 0x11) = 0;                                      /* 0x155ce */
+            *(int32_t *)(e + 5) = 0;                                         /* 0x155d8 */
+            if (e != g_dat_53c7c && (int32_t)e[0] == 0) e[0] = 1;            /* 0x155df-0x155fd */
+        }
+    }
+
+    if ((int32_t)*(uint32_t *)(e + 1) < lo || hi < (int32_t)*(uint32_t *)(e + 1)) {
+        *(int32_t *)(e + 1) += d;                                            /* 0x156c9-0x156e5: no clamp */
+        return;                                                             /* 0x156e8 */
+    }
+    *(int32_t *)(e + 1) += d;                                                /* 0x156ed-0x156f3 */
+    if ((int32_t)*(uint32_t *)(e + 1) < lo) {                                 /* 0x156f6-0x156ff */
+        *(int32_t *)(e + 1) = lo;                                             /* 0x15705-0x1570b */
+        if (*(int32_t *)(e + 0x17) == 0x16 && e != g_dat_53c7c
+            && *(int32_t *)(e + 0x11) >= 0 && *(int32_t *)(e + 0x11) <= 0x15) { /* 0x15711-0x15737 */
+            g_dat_63364 = 0x12;                                              /* 0x1573b */
+            g_dat_63368 = 1;                                                 /* 0x15745 */
+            *(int32_t *)(e + 0x17) = 0x20;                                   /* 0x1574f */
+            *(int32_t *)(e + 0x11) = 0;                                      /* 0x15759 */
+            *(int32_t *)(e + 5) = 0;                                         /* 0x15760 */
+            int32_t r = (int32_t)prng_next();                                 /* 0x1576d-0x15772 */
+            *(int32_t *)(e + 1) += (r % 0x29) - 0x14;                         /* 0x15774-0x15786: signed idiv */
+            if (e != g_dat_53c7c && (int32_t)e[0] == 0) e[0] = 1;             /* 0x15789-0x157a7 */
+        }
+    } else if ((int32_t)*(uint32_t *)(e + 1) > hi) {                          /* 0x157af-0x157b8 */
+        *(int32_t *)(e + 1) = hi;                                             /* 0x157be-0x157c4 */
+        if (*(int32_t *)(e + 0x17) == 0x16 && e != g_dat_53c7c
+            && *(int32_t *)(e + 0x11) >= 0 && *(int32_t *)(e + 0x11) <= 0x15) { /* 0x157ca-0x157f0 */
+            g_dat_63364 = 0x12;                                              /* 0x157f4 */
+            g_dat_63368 = 1;                                                 /* 0x157fe */
+            *(int32_t *)(e + 0x17) = 0x20;                                   /* 0x15808 */
+            *(int32_t *)(e + 0x11) = 0;                                      /* 0x15812 */
+            *(int32_t *)(e + 5) = 0;                                         /* 0x15819 */
+            int32_t r = (int32_t)prng_next();                                 /* 0x15826-2b */
+            *(int32_t *)(e + 1) += (r % 0x29) - 0x14;                         /* 0x1582d-0x1583f */
+            if (e != g_dat_53c7c && (int32_t)e[0] == 0) e[0] = 1;             /* 0x15842-0x15860 */
+        }
+    }
+}
+
 void fn_01586b(uint8_t *a0, uint32_t a1) {
     (void)canary_id(0, 0x2c);                                /* 0x1586b/15870 */
     int32_t d = (int32_t)a1;

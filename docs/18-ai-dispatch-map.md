@@ -117,8 +117,10 @@ diffs of the same 400-line pattern rather than fresh 1000-instruction ports.
 
 ## Port progress (updated 2026-07-13)
 
-Ported handlers (3 of 18): **0x017f13** (behaviour 0x00), **0x018e88** (behaviour 0x01),
-**0x019e48** (behaviour 0x02). The family's shared skeleton is now in `port/src/f/f.c` three times;
+Ported handlers (4 of 18): **0x017f13** (behaviour 0x00), **0x018e88** (behaviour 0x01),
+**0x019e48** (behaviour 0x02), **0x01aec8** (behaviour 0x03 -- the chooser alternates on entity[0x5f]
+instead of drawing a slot, and its screen clamp runs before the too-close test: sibling ordering
+must always be re-derived from disasm). The family's shared skeleton is now in `port/src/f/f.c` three times;
 the fastest route to the rest is the pseudo-level diff against the previous handler (see
 `scratch/`-free recipe below), not the instruction diff.
 
@@ -142,7 +144,7 @@ Shared facts confirmed for all three handlers:
   for slots 6..9; no span is ever zero, so the `prng % span` idiv cannot fault.
 - Tail is identical: mv_a -> fn_01545e, mv_b -> fn_01586b, entity[0x1b] = facing vs the player.
 
-Remaining handlers (15): 0x01aec8, 0x01bea8, 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
+Remaining handlers (14): 0x01bea8, 0x01cf64 (shared by behaviours 5/9/10, arg 2/0/1),
 0x01df8b, 0x01f064, 0x020170, 0x02119c, 0x0221b8, 0x02319c (arg 2), 0x024bf9, 0x0265ac, 0x027bec,
 0x029709, 0x02adf5, 0x02c838, 0x02e2cc, 0x02fe1e, 0x03272f. Then the dispatcher 0x031a8e (1153 B)
 and 0x0322f5 (133 B).

@@ -7510,6 +7510,151 @@ static void test_fn_019e48(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x01aec8: the behaviour-0x03 handler (the alternating two-phase chooser) ---- */
+static void test_fn_01aec8(void)
+{
+    printf("fn_01aec8 (0x01aec8, behaviour-0x03 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x40);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 4;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1;              /* speed float 0.75 */
+    *(int32_t *)(cfg + 0x80) = 4;              /* speed float 1.25 */
+    *(int32_t *)(cfg + 0x14) = 20;
+    *(int32_t *)(cfg + 0x18) = 100;
+    *(int32_t *)(cfg + 0x84) = 40;
+
+    pl[0] = 1; pl[0x17] = 0x15;
+    *(int32_t *)(pl + 0x01) = 100; *(int32_t *)(pl + 0x09) = 50;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (A) the shared speed word selection */
+    e[0x17] = 3; e[0x1f] = 0x02; *(int32_t *)(e + 0x6f) = 0;
+    float z = 0.0f; memcpy(e + 0x63, &z, 4);
+    fn_01aec8(e);
+    float got; memcpy(&got, e + 0x63, 4);
+    check(got == 0.75f, "01aec8 speed word +0x04 for state < 0x0a");
+
+    /* (B) phase one (entity[0x5f] == 0): a short player-relative step, level with the player */
+    {
+        int ok_step = 1, ok_y = 1, all_short = 1;
+        for (int t = 0; t < 12; t++) {
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 0; e[0x6f] = 0;
+            /* on screen (the chooser bails to state 7 outside 0..0x13f) but far from the spot */
+            *(int32_t *)(e + 0x01) = 200; *(int32_t *)(e + 0x09) = 300;
+            *(int32_t *)(e + 0xc7) = 1;
+            fn_01aec8(e);
+            int s = (int)*(int32_t *)(e + 0xff);
+            int x = (int)*(int32_t *)(e + 0xbf), y = (int)*(int32_t *)(e + 0xc3);
+            if (s != 0 && s != 1) all_short = 0;
+            int lo = (s == 0) ? -55 : 40, hi = (s == 0) ? -40 : 55;
+            if (!(x >= 100 + lo && x <= 100 + hi)) ok_step = 0;
+            if (y != 50) ok_y = 0;
+        }
+        check(all_short, "01aec8 phase one draws only slots 0/1 (prng % 2)");
+        check(ok_step, "01aec8 phase one steps 40..55 px from the player (x -55..-40 / +40..+55)");
+        check(ok_y, "01aec8 phase one puts the spot level with the player (no Y draw)");
+        check(e[0x5f] == 1, "01aec8 phase one raises the entity[0x5f] phase flag");
+        check(*(int32_t *)(e + 0x6f) == 1, "01aec8 slots 0/1 set the record +0x80 speed flag");
+    }
+
+    /* (C) phase two (entity[0x5f] != 0): jump to the FAR side of the screen, no slot draw */
+    {
+        *(int32_t *)(pl + 0x01) = 100;                       /* player on the left half */
+        e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 1; e[0x6f] = 1; e[0xff] = 0;
+        *(int32_t *)(e + 0x01) = 200; *(int32_t *)(e + 0x09) = 300;
+        *(int32_t *)(e + 0xc7) = 1;
+        fn_01aec8(e);
+        int x = (int)*(int32_t *)(e + 0xbf), y = (int)*(int32_t *)(e + 0xc3);
+        check(*(int32_t *)(e + 0xff) == 0x0b,
+              "01aec8 player_x < 0xa1 picks slot 0x0b (the right-hand rectangle)");
+        check(x >= 254 && x <= 304 && y >= 133 && y <= 195,
+              "01aec8 slot 0x0b is an ABSOLUTE screen rectangle (x 254..304, y 133..195)");
+        check(e[0x5f] == 0, "01aec8 phase two clears the phase flag (the hop alternates)");
+        check(*(int32_t *)(e + 0x6f) == 0, "01aec8 the far slots clear the +0x80 speed flag");
+
+        *(int32_t *)(pl + 0x01) = 300;                       /* player on the right half */
+        e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 1; e[0xff] = 11;
+        *(int32_t *)(e + 0x01) = 200; *(int32_t *)(e + 0x09) = 300;
+        *(int32_t *)(e + 0xc7) = 1;
+        fn_01aec8(e);
+        check(*(int32_t *)(e + 0xff) == 10 &&
+              *(int32_t *)(e + 0xbf) >= 20 && *(int32_t *)(e + 0xbf) <= 64 &&
+              *(int32_t *)(e + 0xc3) >= 135 && *(int32_t *)(e + 0xc3) <= 195,
+              "01aec8 player_x >= 0xa1 picks slot 10 (x 20..64, y 135..195)");
+    }
+
+    /* (D) the clamp runs BEFORE the too-close test and the restore jumps past it: an off-screen
+     *  short step is clamped to 0x14, found too close, and the saved spot comes back unclamped. */
+    {
+        *(int32_t *)(pl + 0x01) = 0;  *(int32_t *)(pl + 0x09) = 60;
+        /* pin the slot draw to 0 (the left-hand step) so the spot lands off screen */
+        uint32_t sd = 1;
+        while (prng_seed(sd), (prng_next() % 2u) != 0u) sd++;
+        prng_seed(sd);
+        e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = 0;
+        *(int32_t *)(e + 0x01) = 15; *(int32_t *)(e + 0x09) = 60;
+        *(int32_t *)(e + 0xbf) = 0x5555; *(int32_t *)(e + 0xc3) = 960;   /* keep_y inside the band */
+        *(int32_t *)(e + 0xc7) = 1;
+        fn_01aec8(e);
+        check(*(int32_t *)(e + 0xbf) == 0x5555,
+              "01aec8 the too-close restore keeps the OLD spot and skips the screen clamp (0x01b3d6)");
+        check(*(int32_t *)(e + 0xc3) == 960,
+              "01aec8 the restored Y survives: the restore jumps past the screen clamp");
+        check(*(int32_t *)(e + 0xc7) == 1, "01aec8 the too-close path leaves entity[0xc7] set");
+        check(e[0x5f] == 1, "01aec8 the phase flag flips even when the spot is rejected");
+        e[0x5f] = 1;                            /* the band clamp also caps an out-of-band spot */
+        *(int32_t *)(e + 0xc3) = 5000;
+        *(int32_t *)(e + 0xbf) = 200;           /* far from the entity: the spot is accepted */
+        *(int32_t *)(e + 0x01) = 20; *(int32_t *)(e + 0x09) = 20;
+        e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4;
+        fn_01aec8(e);                           /* phase two: slot 10, y 135..195 -- in band */
+        check(*(int32_t *)(e + 0xc3) >= 135 && *(int32_t *)(e + 0xc3) <= 195,
+              "01aec8 an accepted spot stays where it was drawn (band clamp no-op)");
+        check(*(int32_t *)(e + 0xc7) == 0, "01aec8 an accepted spot clears entity[0xc7]");
+    }
+
+    /* (E) the shared state machine, plus the 0x28 re-arm modulus */
+    g_dat_53eb8[(size_t)TY * 0x88u + 0] = 7;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1;
+    *(int32_t *)(e + 0x113) = 0; *(int32_t *)(e + 0x11b) = 0;
+    *(int32_t *)(pl + 0x01) = 100; *(int32_t *)(pl + 0x09) = 50;
+    *(int32_t *)(e + 0x01) = 105; *(int32_t *)(e + 0x09) = 52;
+    fn_01aec8(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "01aec8 case 0xb runs the scripted state");
+    e[0x17] = 2; e[0x1f] = 0x0c; *(int32_t *)(e + 0xab) = 0;
+    fn_01aec8(e);
+    check(*(int32_t *)(e + 0x17) == 0x32 && *(int32_t *)(e + 0xaf) == 0x0a,
+          "01aec8 case 0xc timeout -> state 0x32, action 0x0a");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -12615,6 +12760,7 @@ int main(void) {
     test_fn_017f13();
     test_fn_018e88();
     test_fn_019e48();
+    test_fn_01aec8();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

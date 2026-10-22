@@ -7347,6 +7347,52 @@ void fn_040b83(uint8_t *src, uint32_t unused_edx) {
     fn_041340((g_dat_63f98 >> 8) & 0xff);                          /* 0x40cfc */
 }
 
+
+/* fn_040839  orig: 0x00040839 (L12, 140 B) -- the device COMMAND-STREAM WALKER (EAX = cursor).
+ * Records are [kind:byte][len:24-bit via fn_0408c5][payload:len]:
+ *   DAT_00063f8c = 0                      ; clear the transfer-armed flag
+ *   loop: kind = *cursor++; len = fn_0408c5(cursor); cursor += 3;
+ *         kind == 0 -> return (end of stream)
+ *         kind == 1 -> fn_04097e(cursor, len) then return   ; arm + start a transfer
+ *         kind == 2 -> fn_040b83(cursor, len) then return   ; one DMA chunk
+ *         else      -> cursor += len and continue          ; skip this record
+ * Only the three terminal kinds stop the walk; unknown kinds skip their payload and keep going,
+ * so the record length is what carries the cursor forward.
+ */
+void fn_040839(uint8_t *cursor)
+{
+    (void)canary_id((uintptr_t)cursor, 0x2c);                         /* 0x40839-3e */
+    g_dat_63f8c = 0;                                                  /* 0x40862 */
+    for (;;) {                                                        /* 0x4086c-0x408ba */
+        uint32_t kind = *cursor;        cursor += 1;                  /* 0x4086f-76 (inc then read) */
+        uint32_t len  = (uint32_t)fn_0408c5(cursor);                  /* 0x4087c: 24-bit length */
+        cursor += 3;                                                  /* 0x40884 */
+        if (kind == 0) return;                                        /* 0x4088c */
+        if (kind == 1) { fn_04097e(cursor, len); return; }             /* 0x4089a */
+        if (kind == 2) { fn_040b83(cursor, len); return; }             /* 0x408ad */
+        cursor += len;                                                /* 0x408b7 */
+    }
+}
+
+uint8_t g_dat_53338 = 0;   /* DAT_00053338: sound/music enable byte (gates fn_04185e) */
+uint8_t g_dat_63fb8 = 0;   /* DAT_00063fb8: device-command-stream started flag */
+
+/* fn_04185e  orig: 0x0004185e (L12, 95 B) -- START THE DEVICE COMMAND STREAM (EAX = cursor passed
+ * straight to fn_040839). Guarded by the device-initialised flag DAT_00063f90 AND the enable byte
+ * DAT_00053338; on the SECOND call (DAT_00063fb8 == 1) it first sends the stop/reset command 0xd0
+ * through the ready-gated fn_041340, then walks the stream and latches DAT_00063fb8 = 1.
+ */
+void fn_04185e(uint8_t *cursor)
+{
+    (void)canary_id((uintptr_t)cursor, 0x20);                         /* 0x4185e-63 */
+    if (g_dat_63f90 == 0) return;                                     /* 0x41879-80 */
+    if (g_dat_53338 == 0) return;                                     /* 0x41884-8b */
+    if (g_dat_63fb8 == 1) (void)fn_041340(0xd0);                      /* 0x41891-418a0 */
+    fn_040839(cursor);                                                /* 0x418a8 (EAX passed through) */
+    g_dat_63fb8 = 1;                                                  /* 0x418ad */
+}
+
+
 /* fn_010010  orig: 0x010010 (L10, 201 B) -- resource record-table loader.
  * ABI: EAX = caller-allocated block (it passes straight through the 0x0418ee stack guard, frame
  * size 0x38), EDX = resource name handed to fn_0367c9, which opens the resource into g_639b8.

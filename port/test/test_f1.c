@@ -9215,6 +9215,65 @@ static void test_fn_0376c8(void) {
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
+/* fn_040839 / fn_04185e (140 B / 95 B): the device command-stream walker and its gated starter.
+ * Records are [kind][24-bit len][payload]; kind 0 ends, 1 arms a transfer (fn_04097e), 2 is a DMA
+ * chunk (fn_040b83, exercised by its own test), anything else skips its payload and keeps walking. */
+static void test_fn_040839_04185e(void) {
+    printf("fn_040839 + fn_04185e: device command stream (kind/len/payload)\n");
+    uint32_t s_base = g_dat_53334, s_f8c = g_dat_63f8c, s_f90 = g_dat_63f90;
+    uint32_t s_f94 = g_dat_63f94, s_f9c = g_dat_63f9c;
+    uint8_t *s_fa8 = g_dat_63fa8;
+    uint8_t s_338 = g_dat_53338, s_fb8 = g_dat_63fb8;
+    g_dat_53334 = 0x100; g_dat_63f9c = 0x14;
+    uint8_t *xdbuf = (uint8_t *)calloc(1, 0x10000);      /* fn_04097e memsets 0xffff bytes of the transfer buffer */
+    uint8_t *s_fb4 = g_dat_63fb4; g_dat_63fb4 = xdbuf;
+    sys_port_set(0x100 + 0xc, 0x00);                 /* the device is always ready */
+
+    uint8_t arm[8] = { 1, 0x02, 0x00, 0x00, 0x00, 0x01, 0, 0 };   /* kind 1, len 2, hdr {0,1} */
+    g_dat_63f8c = 0;
+    fn_040839(arm);
+    check(g_dat_63f8c == 0xffff && g_dat_63f94 == 0,
+          "  kind 1 -> fn_04097e arms the transfer (DAT_63f8c = 0xffff, DAT_63f94 = len-2)");
+    check(g_dat_63fa8 == arm + 4 + 2, "  DAT_63fa8 = the payload after the 1+3 byte header");
+
+    uint8_t endsonly[8] = { 0, 1, 0x02, 0x00, 0x00, 0, 1, 0 };    /* kind 0 first: stops at once */
+    g_dat_63f8c = 0x1234;
+    fn_040839(endsonly);
+    check(g_dat_63f8c == 0, "  DAT_63f8c is cleared on entry and kind 0 stops before any record");
+
+    uint8_t skip[16] = { 3, 0x04, 0, 0, 0xaa, 0xbb, 0xcc, 0xdd,   /* unknown kind, len 4 */
+                         1, 0x02, 0, 0, 0, 1, 0, 0 };
+    g_dat_63f8c = 0;
+    fn_040839(skip);
+    check(g_dat_63f8c == 0xffff,
+          "  an unknown kind skips exactly its payload (1+3+4) and the walk reaches the kind-1 record");
+
+    g_dat_63f90 = 0; g_dat_53338 = 1; g_dat_63fb8 = 0;
+    g_dat_63f8c = 0x55;
+    fn_04185e(arm);
+    check(g_dat_63f8c == 0x55 && g_dat_63fb8 == 0, "  DAT_63f90 == 0 -> the stream is never started");
+    g_dat_63f90 = 1; g_dat_53338 = 0;
+    fn_04185e(arm);
+    check(g_dat_63f8c == 0x55 && g_dat_63fb8 == 0, "  DAT_53338 == 0 -> the stream is never started");
+
+    g_dat_53338 = 1; g_dat_63f8c = 0;
+    sys_port_set(0x100 + 0xc, 0x00);
+    fn_04185e(arm);
+    check(g_dat_63f8c == 0xffff && g_dat_63fb8 == 1,
+          "  first start: the stream runs and DAT_63fb8 latches to 1");
+
+    uint8_t onlyend[4] = { 0, 0, 0, 0 };
+    g_dat_63fb8 = 1;
+    sys_port_set(0x100 + 0xc, 0x00);
+    fn_04185e(onlyend);
+    check(inb(0x100 + 0xc) == 0xd0,
+          "  re-entry (DAT_63fb8 == 1) sends command 0xd0 through the ready-gated fn_041340 first");
+
+    g_dat_53334 = s_base; g_dat_63f8c = s_f8c; g_dat_63f90 = s_f90; g_dat_63f94 = s_f94;
+    g_dat_63f9c = s_f9c; g_dat_63fa8 = s_fa8; g_dat_53338 = s_338; g_dat_63fb8 = s_fb8;
+    g_dat_63fb4 = s_fb4; free(xdbuf);
+}
+
 static void test_fn_03f80d(void) {
     printf("fn_03f80d (0x03f80d): resource-op block gate (tag 0xf1fa + int16 count)\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
@@ -9979,6 +10038,7 @@ int main(void) {
     test_fn_037b03();
     test_fn_0374ad();
     test_fn_0376c8();
+    test_fn_040839_04185e();
     test_fn_03ace9();
     test_fn_040fb3();
     test_fn_040d09();

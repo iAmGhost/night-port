@@ -737,6 +737,15 @@ extern uint32_t g_dat_53c60;         /* DAT_00053c60: directory entry count */
 extern uint32_t g_dat_53c64;         /* DAT_00053c64: dir-entry buffer heap offset */
 void     fn_010927(void);            /* 0x010927: CD/MSCDEX root-directory read */
 void     fn_010c3e(void);            /* 0x010c3e: the disc-present gate (15 root entries + the 0xc51 record gap), "cdinsert.pcx" until it passes */
+void     fn_0445c9(void);            /* 0x0445c9: the entry thunk (stack reservation, DAT_00053640, the game main, terminate) */
+extern uint32_t  g_dat_5339c;       /* DAT_0005339c: stack reservation offset for the entry thunk */
+extern uintptr_t g_dat_533a0;       /* DAT_000533a0: the reserved stack base recorded by the entry thunk */
+void     fn_03af18(void);            /* 0x03af18: THE GAME MAIN (menu loop, stage cycle, room-clear/continue/game-over/abort routing, slide shows) */
+extern uint32_t g_tab_52f2c[0xa];   /* DAT_00052f2c: per-stage "%ds%d.pcx" start slide count (DS image) */
+extern uint32_t g_tab_52f90[0xa];   /* DAT_00052f90: per-stage "%de%d.pcx" end slide count (DS image) */
+extern uint32_t g_dat_52fb4;        /* DAT_00052fb4: the stage-9 ending slide-show gate (DS image, 3) */
+extern uint32_t g_dat_633a8;        /* DAT_000633a8 / DAT_000633ac: varargs of the Thank-You print */
+extern uint32_t g_dat_633ac;
 /* Global set by the DOS4GW entry (0x420bc) during startup init; returned by
  * get_dat_53390.  orig: DAT_00053390 */
 extern int g_dat_53390;

@@ -25206,3 +25206,249 @@ lab_chain:
 #undef PL32
 #undef PL16
 #undef PL8
+
+/* DAT_00052f2c / DAT_00052f90 / DAT_00052fb4: DS image constants read by the entry chain
+ * (extracted from NIGHT.EXE, DS 0x52f2c..0x52fb8). Indexed by stage (DAT_00063370, 1..9);
+ * slot 0 is never addressed by the game. */
+uint32_t g_tab_52f2c[0xa] = { 0x16, 0x3, 0x2, 0x6, 0x0, 0x0, 0x3, 0x0, 0x1, 0x3 };
+uint32_t g_tab_52f90[0xa] = { 0x0, 0x1, 0x1, 0x2, 0x0, 0x4, 0x3, 0x1, 0x1, 0x3 };
+uint32_t g_dat_52fb4 = 3;              /* DAT_00052fb4: the stage-9 ending slide-show gate */
+uint32_t g_dat_633a8 = 0;              /* the two varargs of the "Thank You" print (no conversions) */
+uint32_t g_dat_633ac = 0;
+
+/* fn_03af18  orig: 0x03af18 (L9, 1702 B) -- THE GAME MAIN (the stage/cycle driver above the room
+ * loop). Sequence: the free-memory gate, the master inits, the disc gate, then the menu loop
+ * (fn_03a224: 1 = quit, 3 = redraw and ask again, anything else = start), the first stage load
+ * (fn_037b03(0)) with the player built from g_tab_52c3c[room serial + (stage-1)*10] and placed at
+ * DAT_000639dc - 0x1e or + 0x15e depending on the room orientation byte, and from there the cycle
+ * label (DAT_0003b05a): VESA mode set, the "%ds%d.pcx" start slide-show (g_tab_52f2c[stage] slides,
+ * CD track 11), "stage%d.pcx" with a 0xc00-unit hold that the abort latch (DAT_00063e89) can cut
+ * short, then the room loop over fn_03a829:
+ *   1  -> the room clear path (fn_03ace9, the "%de%d.pcx" end slides from g_tab_52f90[stage], the
+ *         next stage via fn_0374ad, or for stage 9 the "end%04d.pcx" ending and back to the menu),
+ *   2  -> CONTINUE: rebuild the player (fn_0376c8) and re-enter the room,
+ *   0  -> game over: stage back to 1, the stage data teardown, back to the menu,
+ *  -1  -> the abort latch: back to the title, print the Thank-You line, return.
+ * The "%de%d.pcx" loop exists twice in the original (the stage!=9 copy at 0x03b46b and the copy the
+ * stage==9 branch jumps into at 0x03b237); it is factored into room_end_slideshow() here.
+ * PORT NOTE: fn_000405a7's argument in the decompile (iVar3) is a Ghidra artefact -- the original
+ * pushes nothing (real-mode request 0x13, no arguments). */
+static void room_end_slideshow(uint32_t *slide) {
+    uint8_t name[0x10];                                       /* local_58 */
+    do {
+        /* cdecl varargs: the original pushed the stage first (higher frame slot) and the slide
+         * index second, so the cursor reads stage then index (cf. fn_037b03's single-arg form) */
+        uint32_t args[2] = { g_dat_63370, *slide + 1 };
+        uint8_t *cur = (uint8_t *)args;
+        fn_0428f8(name, (const uint8_t *)"%de%d.pcx", &cur);   /* 0x03b4c0 / 0x03b251 */
+        fn_03628e((const char *)name, 0);                     /* 0x03b4cd / 0x03b25e */
+        fn_040660(g_dat_636b8, 0x19);                         /* 0x03b4dc / 0x03b26d */
+        if (fn_00035dfc() == 1) {                             /* 0x03b4e1 / 0x03b272 */
+            fn_0406f5(g_dat_636b8, 0x19);
+            return;
+        }
+        fn_0406f5(g_dat_636b8, 0x19);
+        *slide += 1;
+    } while (*slide < g_tab_52f90[g_dat_63370]);
+}
+
+void fn_03af18(void) {
+    (void)canary_id(0, 0x74);                                          /* 0x03af18-23 */
+    int32_t probe = 0;                                                 /* local_3c (unused result) */
+    uint32_t slide;                                                    /* local_48 */
+
+    fn_03ae8e();                                                       /* 0x03af45 */
+    fn_03658d();                                                       /* 0x03af4a */
+    fn_03690b();                                                       /* 0x03af4f */
+    fn_010c3e();                                                       /* 0x03af54 */
+    int32_t seed = fn_04297a(&probe);   /* 0x03af59 */
+    prng_seed((uint32_t)seed);   /* 0x03af5e: fn_041ec3 seeds from EAX = fn_04297a's result */
+
+menu_loop:                                                             /* LAB_0003af69 */
+    for (;;) {
+        fn_038a20();                                                   /* 0x03af6e */
+        fn_038ae0();                                                   /* 0x03af73 */
+        int32_t m = fn_03a224();                                       /* 0x03af78 */
+        if (m == 1) { fn_037306(); return; }                           /* 0x03af86-95 */
+        if (m != 3) break;                                             /* 0x03af98 */
+    }
+
+    fn_037b03(0);                                                      /* 0x03af98 */
+    g_dat_63354 = g_dat_6334c;                                         /* 0x03afa3 */
+    g_dat_63350 = g_dat_6334c;
+    g_dat_63398 = *(const uint8_t *)(g_dat_6334c + 0x11);              /* the room orientation byte */
+
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t blk = fn_00041bdc(0x14f);                                 /* 0x03afc8: orig 0x147 */
+    uint8_t *player = NULL;
+    if (blk != 0) {                                                    /* 0x03afd3 */
+        int32_t tbl = (int32_t)g_tab_52c3c[*(const uint32_t *)(g_dat_63354 + 0x40)
+                                           + (g_dat_63370 - 1) * 0xa]; /* 0x03afe8-f9 */
+        player = fn_010efc(hb + blk, (int32_t)0xffffffe2, 0, tbl, 0, 0);  /* 0x03b007 */
+    }
+    g_dat_53c7c = player;                                              /* 0x03b021-2c */
+    g_dat_53c84 = (uintptr_t)player;
+    if (g_dat_63398 == 0) *(int32_t *)(player + 0x01) = (int32_t)g_dat_639dc - 0x1e;
+    else                  *(int32_t *)(player + 0x01) = (int32_t)g_dat_639dc + 0x15e;
+
+room_start:                                                            /* LAB_0003b05a */
+    slide = 0;
+    if (fn_03f15f() == 1) {                                            /* 0x03b066 */
+        if (g_tab_52f2c[g_dat_63370] != 0) {                           /* 0x03b072 */
+            fn_10b1d();   /* track 11 in EAX; the flat-model read is inert */                                            /* 0x03b08e: CD track 11 */
+            fn_041e20(g_dat_636b8, 0, 0x300);                          /* 0x03b09f */
+            board_out(0, 0x100, g_dat_636b8);                          /* 0x03b0b3 (fn_040042) */
+            do {
+                uint8_t name[0x10];
+                uint32_t args[2] = { g_dat_63370, slide + 1 };
+                uint8_t *cur = (uint8_t *)args;
+                fn_0428f8(name, (const uint8_t *)"%ds%d.pcx", &cur);   /* 0x03b0d0 */
+                fn_03628e((const char *)name, 0);                      /* 0x03b0dd */
+                fn_040660(g_dat_636b8, 0x19);                          /* 0x03b0ec */
+                if (fn_00035dfc() == 1) {                              /* 0x03b0f1 */
+                    fn_0406f5(g_dat_636b8, 0x19);
+                    goto hold;                                         /* 0x03b105 */
+                }
+                fn_0406f5(g_dat_636b8, 0x19);                          /* 0x03b116 */
+                slide += 1;
+            } while (slide < g_tab_52f2c[g_dat_63370]);
+        }
+    hold:
+        fn_00010dde();                                                 /* 0x03b135 */
+        {
+            uint8_t name[0x10];
+            uint8_t *cur = (uint8_t *)&g_dat_63370;
+            fn_0428f8(name, (const uint8_t *)"stage%d.pcx", &cur);      /* 0x03b14a */
+            fn_03628e((const char *)name, 0);                          /* 0x03b157 */
+        }
+        fn_040660(g_dat_636b8, 0x32);                                  /* 0x03b166 */
+        for (uint32_t k = 0; k < 0xc00; k++) {                         /* 0x03b17c-99 */
+            delay_units(1);
+            if (g_dat_63e89 != 0) {
+                while (g_dat_63e89 != 0) { }                           /* LAB_0003b191 */
+                break;
+            }
+        }
+        fn_0406f5(g_dat_636b8, 0x32);                                  /* LAB_0003b19e */
+    }
+    fn_000405a7();                                                     /* LAB_0003b1ad */
+
+    for (;;) {                                                         /* 0x03b1b7 */
+        int32_t r = fn_03a829();
+        fn_00010dde();
+        if (r == 1) break;                                             /* room clear */
+        if (r != 2) {
+            if (r != 0) {
+                if (r == -1) {                                         /* 0x03b597: aborted to the title */
+                    fn_00010dde();
+                    fn_037306();
+                    uint32_t va[2] = { g_dat_633ac, g_dat_633a8 };
+                    fn_042394((const uint8_t *)"\nThank You For Playing NIGHT\n",
+                              (uint8_t *)va);                          /* 0x03b5b3 */
+                    return;
+                }
+                goto room_start;                                       /* 0x03b05a */
+            }
+            g_dat_63370 = 1;                                           /* 0x03b578: game over */
+            fn_037347();
+            g_dat_63398 = 0;
+            goto menu_loop;
+        }
+        fn_0376c8();                                                   /* 0x03b55e: CONTINUE */
+    }
+
+    fn_03ace9();                                                       /* 0x03b1ce */
+    if (g_dat_63370 == 9) {                                            /* 0x03b1d4: the game is through */
+        slide = 0;
+        if (g_dat_52fb4 != 0 && fn_03f15f() == 1) {
+            fn_10b1d();   /* track 12 in EAX */                                            /* 0x03b20f: CD track 12 */
+            fn_041e20(g_dat_636b8, 0, 0x300);
+            board_out(0, 0x100, g_dat_636b8);
+            room_end_slideshow(&slide);                                /* LAB_0003b237 */
+        }
+        goto ending;                                                   /* LAB_0003b2b1 */
+    }
+
+    fn_0406f5(g_dat_63354 + 0x48, 0x32);                               /* 0x03b44a */
+    slide = 0;
+    if (g_tab_52f90[g_dat_63370] != 0 && fn_03f15f() == 1) {            /* 0x03b46b */
+        fn_10b1d();   /* track 12 in EAX */
+        fn_041e20(g_dat_636b8, 0, 0x300);
+        board_out(0, 0x100, g_dat_636b8);
+        room_end_slideshow(&slide);
+    }
+    g_dat_63370 += 1;                                                  /* 0x03b52b: next stage */
+    fn_00010dde();
+    fn_000405a7();
+    if (g_dat_53c7c[0x30] != 1) fn_038f3d(1);                          /* 0x03b54c */
+    fn_0374ad();
+    goto room_start;
+
+ending:                                                                /* LAB_0003b2b1 */
+    slide = 0;
+    if (fn_03f15f() == 1) {                                            /* 0x03b2bd */
+        fn_10b1d();   /* track 10 in EAX */                                                 /* 0x03b2d0: CD track 10 */
+        fn_041e20(g_dat_636b8, 0, 0x300);
+        board_out(0, 0x100, g_dat_636b8);
+        do {
+            uint8_t name[0x20];
+            uint32_t n = slide + 1;
+            /* the full-equipment run uses the alternate ending slide set */
+            if (g_dat_53c7c[0x25] == 1 && g_dat_53c7c[0x26] == 2 &&
+                g_dat_53c7c[0x27] == 4 && g_dat_53c7c[0x28] == 4) {
+                uint8_t *cur = (uint8_t *)&n;
+                fn_0428f8(name, (const uint8_t *)"2end%04d.pcx", &cur); /* 0x03b35a */
+            } else {
+                uint8_t *cur = (uint8_t *)&n;
+                fn_0428f8(name, (const uint8_t *)"end%04d.pcx", &cur);  /* 0x03b373 */
+            }
+            fn_03628e((const char *)name, 0);                          /* 0x03b380 */
+            fn_040660(g_dat_636b8, 0x32);                              /* 0x03b38f */
+            for (uint32_t k = 0; k < 12000; k++) {                      /* 0x03b39a-cc */
+                delay_units(1);
+                if (g_dat_63ec3 != 0) { fn_0406f5(g_dat_636b8, 0x32); break; }
+            }
+            fn_0406f5(g_dat_636b8, 0x32);                              /* 0x03b3dc */
+            slide += 1;
+        } while (slide < 10);
+    }
+    fn_000405a7();
+    g_dat_63370 = 1;                                                   /* 0x03b3f1 */
+    if (g_dat_53c7c != NULL) {
+        fn_0112fd(g_dat_53c7c, 0);                                     /* 0x03b413: entity remove */
+        heap_free_guard((uint32_t)(g_dat_53c7c - (uint8_t *)g_heap_base));   /* 0x03b418 (fn_041c28) */                                                 /* 0x03b418: heap free */
+    }
+    fn_037347();
+    g_dat_63398 = 0;
+    goto menu_loop;
+}
+
+/* DAT_0005339c / DAT_000533a0: the stack-reservation pair written by the entry thunk fn_0445c9
+ * (DS image: both 0; DAT_0005339c comes from the DOS4GW startup). */
+uint32_t  g_dat_5339c = 0;
+uintptr_t g_dat_533a0 = 0;
+
+/* fn_0445c9  orig: 0x0445c9 (L9, 79 B) -- THE ENTRY THUNK AROUND THE GAME MAIN (the last step of
+ * the DOS4GW startup chain). It asks how much stack is in use (fn_04917e: EAX = ESP - DAT_00053394),
+ * and if the high half is below the low half it moves the nominal stack pointer down by that amount
+ * and stores it in DAT_000533a0 (otherwise DAT_000533a0 = 0); DAT_000533a0 then takes
+ * DAT_0005339c into account. Then the DOS data-size request fn_049187 (DAT_00053640 = 0x8000), the
+ * game main fn_03af18, and -- when the main returns -- the terminate path fn_0423b7.
+ * PORT NOTE: the original's high half (EDX) is undefined at that point, so the port feeds 0; with a
+ * live stack the original takes the same "reserve" side of the branch. */
+void fn_0445c9(void) {
+    uint8_t frame;                                                       /* &stack0xfffffff8 */
+    uint32_t eax = stack_depth();                                        /* 0x0445d8 (fn_04917e) */
+    uint32_t edx = 0;
+    uint8_t *sp = &frame;
+    if (edx < eax) {                                                     /* 0x0445e2-0445f0 */
+        sp = sp + (uint32_t)(-(int32_t)edx);
+        g_dat_533a0 = (uintptr_t)sp;
+    } else {
+        g_dat_533a0 = 0;
+    }
+    g_dat_533a0 = g_dat_533a0 + g_dat_5339c;                             /* 0x0445f4 */
+    set_53640();                                                         /* 0x0445fe */
+    fn_03af18();                                                         /* 0x04460e */
+    fn_0423b7(0, 0, 0, 0);                                               /* 0x044613 */
+}

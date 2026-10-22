@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
+#include <setjmp.h>
 #include "../../scratch/fp_047f54_vectors.h"
 #include "../../scratch/fp_04794a_ctest.h"
 #include "../../scratch/vectors_0485eb.h"
@@ -2481,6 +2482,7 @@ static int find_span(int start_want, int len_want, int flag_want) {
         int16_t ln = (int16_t)((uint16_t)a[o+8] | ((uint16_t)a[o+9] << 8));
         if (st == start_want && ln == (int16_t)len_want && a[o+10] == (uint8_t)flag_want) return 1;
     }
+
     return 0;
 }
 /* The list node that was split at column `col` keeps length == col (fn_034aba's svar2 arithmetic on a
@@ -17007,6 +17009,62 @@ static void test_fn_03a829(void) {
 
 #endif
 
+/* ---- fn_0445c9 / fn_03af18: the entry thunk escapes through the terminate path ---- */
+static jmp_buf  g_entry_escape;
+static int      g_entry_term_calls;
+static uint32_t entry_term_cb(uint32_t a) {
+    (void)a;
+    g_entry_term_calls++;
+    longjmp(g_entry_escape, 1);
+}
+
+static void test_fn_0445c9(void) {
+    printf("fn_0445c9 (0x0445c9): the entry thunk (stack reservation -> DAT_00053640 -> the game main)\n");
+    uint32_t s_free = g_dpmi_free_dos_paragraphs, s_640 = g_dat_53640;
+    uint32_t s_39c = g_dat_5339c; uintptr_t s_3a0 = g_dat_533a0;
+    u32_cb_fn s_c = g_dat_5336c, s_70 = g_dat_53370, s_74 = g_dat_53374;
+    uint32_t s_a0 = g_dat_633a0, s_f4 = g_dat_531f4, s_a4 = g_dat_533a4;
+    uint8_t s_c1 = g_dat_63ec1, s_a4k = g_dat_63ea4, s_a5 = g_dat_63ea5, s_c0 = g_dat_63ec0;
+    uint32_t bound_s = g_stack_bound;
+
+    /* the free-memory gate (fn_03ae8e, the first thing the game main calls) terminates the program
+     * below the 0x17c paragraph threshold; longjmp out of its terminate callbacks and inspect what
+     * the thunk established on the way in. */
+    g_dat_633a0 = 0; g_dat_533a4 = 1;                    /* no resource index, key wait skipped */
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    g_dpmi_free_dos_paragraphs = 0x100;
+    g_dat_5336c = g_dat_53370 = g_dat_53374 = entry_term_cb;
+    g_dat_5339c = 0x1000;
+    g_dat_533a0 = 0;
+    g_dat_53640 = 0;
+    g_entry_term_calls = 0;
+
+    uint8_t ref_local = 0;
+    if (setjmp(g_entry_escape) == 0) {
+        fn_0445c9();
+        check(0, "the entry thunk leaves through the terminate path (it returned instead)");
+    } else {
+        check(g_entry_term_calls >= 1,
+              "fn_0445c9 -> fn_03af18 -> the free-memory gate ends the program through fn_0423b7");
+    }
+    check(g_dat_53640 == 0x8000,
+          "the thunk runs fn_049187 (DAT_00053640 = 0x8000) before entering the game main");
+    {
+        uintptr_t ref = (uintptr_t)&ref_local;
+        check(g_dat_533a0 != 0 &&
+              (g_dat_533a0 > ref ? g_dat_533a0 - ref : ref - g_dat_533a0) < 0x2000,
+              "DAT_000533a0 records the thunk's own stack frame plus the DAT_0005339c offset");
+    }
+    check(g_dat_533a0 >= 0x1000, "the recorded base includes the DAT_0005339c reservation");
+
+    g_dpmi_free_dos_paragraphs = s_free; g_dat_53640 = s_640;
+    g_dat_5339c = s_39c; g_dat_533a0 = s_3a0;
+    g_dat_5336c = s_c; g_dat_53370 = s_70; g_dat_53374 = s_74;
+    g_dat_633a0 = s_a0; g_dat_531f4 = s_f4; g_dat_533a4 = s_a4;
+    g_dat_63ec1 = s_c1; g_dat_63ea4 = s_a4k; g_dat_63ea5 = s_a5; g_dat_63ec0 = s_c0;
+    g_stack_bound = bound_s;
+}
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -17459,6 +17517,7 @@ int main(void) {
     test_fn_03f15f();
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
+    test_fn_0445c9();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */
     /* test_fn_03a829() is #if 0'd out: see the note above its definition */
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

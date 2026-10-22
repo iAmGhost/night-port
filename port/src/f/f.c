@@ -519,7 +519,8 @@ uint32_t g_dat_63e14 = 0;   /* DAT_00063e14: 2-node swap counter (fn_03e14c) */
 uint32_t g_dat_63e18 = 0;   /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
 uint32_t g_dat_63e1c = 0;   /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
 uint32_t g_dat_63e20 = 0;   /* DAT_00063e20: 3rd cache slot (zeroed, not read) */
-uint32_t g_dat_62a8c = 0;   /* DAT_00062a8c: zeroed by fn_03ee0a (list-destroy) */
+uint32_t g_dat_62a8c = 0;
+uint8_t  g_dat_639bc = 0;   /* DAT_000639bc: cleared by the room transition (0x0003d4d1) */   /* DAT_00062a8c: zeroed by fn_03ee0a (list-destroy) */
 uint32_t g_dat_63364 = 0;   /* DAT_00063364: removed-element flag byte (fn_031f5f) */
 uint32_t g_dat_63368 = 0;   /* DAT_00063368: removed-element value word (fn_031f5f) */
 uint32_t g_dat_63388 = 0;   /* DAT_00063388: cleared at the top of every combat sweep (fn_0320f5) */
@@ -23696,6 +23697,123 @@ const uint32_t g_tab_528b4[180] = {
     0x0020, 0x000d, 0x03e8, 0x03e8, 0x03e8,
 };
 
+
+
+/* DS 0x52be0 / 0x52da4: per-room transition tables, 10 entries per stage indexed by the room's +0x40
+ * "serial" column and (stage-1)*10 (byte) / (stage-1)*0x28 (dword). g_tab_52be0 marks the rooms entered
+ * by walking in (fn_0003d244 then nudges the player +/- 0x78 and skips the in-place step animation);
+ * g_tab_52da4 gives the CD audio track for the room (fn_010b1d). No producer in the EXE (image data,
+ * scripts/extract_ds.py 0x52be0 0x64 / 0x52da4 0x190). */
+const uint8_t  g_tab_52be0[100] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+    0x00, 0x00, 0xac, 0x00, 0x00, 0x00, 0xac, 0x00, 0x00, 0x00
+};
+const uint32_t g_tab_52da4[100] = {
+    0x0002, 0x0002, 0x0002, 0x0008, 0x0002,
+    0x0002, 0x0002, 0x0002, 0x0002, 0x0002,
+    0x0003, 0x0003, 0x0003, 0x0008, 0x0003,
+    0x0003, 0x0003, 0x0003, 0x0003, 0x0003,
+    0x0009, 0x0009, 0x0009, 0x0009, 0x0009,
+    0x0009, 0x0008, 0x0009, 0x0009, 0x0009,
+    0x0004, 0x0008, 0x0004, 0x0004, 0x0004,
+    0x0004, 0x0004, 0x0004, 0x0004, 0x0004,
+    0x0005, 0x0005, 0x0005, 0x0005, 0x0005,
+    0x0005, 0x0005, 0x0005, 0x0005, 0x0005,
+    0x0006, 0x0006, 0x0006, 0x0008, 0x0006,
+    0x0006, 0x0006, 0x0006, 0x0006, 0x0006,
+    0x0007, 0x0007, 0x0008, 0x0007, 0x0007,
+    0x0007, 0x0007, 0x0007, 0x0007, 0x0007,
+    0x0008, 0x0008, 0x0008, 0x0008, 0x0008,
+    0x0008, 0x0008, 0x0008, 0x0008, 0x0008,
+    0x0002, 0x0002, 0x0002, 0x0002, 0x0002,
+    0x0002, 0x0002, 0x0008, 0x0002, 0x0002,
+    0x0005, 0x0006, 0x0006, 0x0006, 0x0004,
+    0x0003, 0x0009, 0x0003, 0x0016, 0x0003
+};
+
+
+/* fn_03d244  orig: 0x0003d244 (L17, 672 B) -- THE LEVEL-UP TRANSITION: the room-to-room step that puts
+ * the status screen up and then re-seats the player in the next room.
+ *   1. drain the conditional entity list (fn_03237b) and fade the DAC out (fn_0406f5 at room+0x48, 50
+ *      rows) BEFORE the switch;
+ *   2. move DAT_00063354 to the room chain's next node (node+0x34c, a host pointer as elsewhere in the
+ *      chain), falling back to DAT_00063350 when the chain ends;
+ *   3. run fn_038f3d with variant 1 (six-row layout, levelup2.pcx);
+ *   4. re-derive the camera from the new room (fn_03cad3), then re-seat the player block DAT_00053c7c:
+ *      X = camera X - 0x1e facing right / + 0x15e facing left, nudged a further +/- 0x78 when
+ *      g_tab_52be0[room+0x40 column + (stage-1)*10] is 1; Y = camera Y + g_tab_52c3c[same slot];
+ *      DAT_00063398 (the facing) goes into player+0x1b, +0x17 = 1 (walking), +0x5/+0x11 = 0;
+ *   5. bump DAT_00063360 when it is a multiple of 10 (the idiv remainder is the only thing tested -- the
+ *      quotient is thrown away, which Ghidra renders as a bogus "/ 10"), pump the script-command list
+ *      (fn_03ed6f), repaint the room+HUD (fn_03801b) and select the new room's CD track
+ *      (fn_010b1d, whose argument comes from g_tab_52da4);
+ *   6. fade the DAC back in (fn_040660) and mirror the player's four selection bytes + experience into
+ *      DAT_00063374..0x63384; clear both key tables (DAT_00062c58 / DAT_00062cd8, 0x80 each) and, when
+ *      the room is NOT a g_tab_52be0 "walk-in" room, step the player 0x78 frames in place
+ *      (fn_0381d7 -- the walk that carries them into the new room).
+ * Quirks kept: DAT_00063e24/0x63e28 are saved to the frame at entry, forced to 0 in the middle, and put
+ * back at the end; DAT_000639bc is cleared; fn_010b1d's argument is read and (in this port) ignored.
+ */
+void fn_03d244(uint8_t *node)
+{
+    (void)canary_id((uintptr_t)node, 0x2c);                          /* 0x0003d244-49 */
+    uint32_t save24 = g_dat_63e24, save28 = g_dat_63e28;             /* 0x0003d264-71 */
+
+    fn_03237b();                                                     /* 0x0003d25f */
+    fn_0406f5(g_dat_63354 + 0x48, 0x32);                             /* 0x0003d274-81 */
+
+    uint8_t *nxt = *(uint8_t **)(node + 0x34c);                      /* 0x0003d286-95 */
+    g_dat_63354 = (nxt != NULL) ? nxt : g_dat_63350;                 /* 0x0003d29b / 0x0003d2a2 */
+
+    fn_038f3d(1);                                                    /* 0x0003d2ac-b1 */
+    fn_03cad3(g_dat_63354);                                          /* 0x0003d2b6-bb */
+
+    uint8_t *P = g_dat_53c7c;
+    *(int32_t *)(P + 0x01) = (int32_t)g_dat_639dc + (g_dat_63398 == 0 ? -0x1e : 0x15e);
+    const uint32_t col = *(const uint32_t *)(g_dat_63354 + 0x40);
+    const int32_t rowb = ((int32_t)g_dat_63370 - 1) * 10;
+    if (g_tab_52be0[col + rowb] == 1)                                /* 0x0003d2f0-30e */
+        *(int32_t *)(P + 0x01) += (g_dat_63398 == 0 ? 0x78 : -0x78); /* 0x0003d31c-32c */
+    *(int32_t *)(P + 0x09) = (int32_t)g_dat_639e0
+                             + (int32_t)g_tab_52c3c[col + rowb];     /* 0x0003d330-58 */
+    *(uint32_t *)(P + 0x05) = 0;                                     /* 0x0003d360 */
+    *(uint32_t *)(P + 0x17) = 1;                                     /* 0x0003d36c */
+    *(uint32_t *)(P + 0x11) = 0;                                     /* 0x0003d378 */
+    *(int32_t *)(P + 0x1b) = (int32_t)g_dat_63398;                   /* 0x0003d384-8a */
+
+    if ((int32_t)g_dat_63360 % 10 == 0) g_dat_63360 = g_dat_63360 + 1;   /* 0x0003d392-a6 (idiv: remainder only) */
+    fn_03ed6f();                                                     /* 0x0003d3ac */
+    fn_03801b(g_dat_633b0);                                          /* 0x0003d3b1-b6 */
+    uint32_t track = g_tab_52da4[col + rowb];                        /* 0x0003d3bb-d1 */
+    (void)track;                                                     /* fn_010b1d reads no argument here */
+    fn_10b1d();                                                      /* 0x0003d3d7 */
+    fn_040660(g_dat_63354 + 0x48, 0x32);                             /* 0x0003d3dc-e9 */
+
+    g_dat_63358 = g_dat_63354;                                       /* 0x0003d3ee-f3 */
+    g_dat_63374 = *(const uint32_t *)(P + 0x2b);                     /* 0x0003d3f8-400 */
+    g_dat_63384 = P[0x28];                                           /* 0x0003d405-12 */
+    g_dat_63378 = P[0x27];                                           /* 0x0003d417-24 */
+    g_dat_6337c = P[0x26];                                           /* 0x0003d429-36 */
+    g_dat_63380 = P[0x25];                                           /* 0x0003d43b-48 */
+
+    g_dat_63e28 = 0;                                                 /* 0x0003d44d */
+    g_dat_63e24 = g_dat_63e28;                                       /* 0x0003d457-5c */
+    if (g_tab_52be0[col + rowb] == 0)                                /* 0x0003d461-81 */
+        fn_0381d7(g_dat_633b0, 1, 0, 0x78, (int32_t)g_dat_63398);     /* 0x0003d483-9a */
+    fn_041e20(g_dat_62c58, 0, 0x80);                                 /* 0x0003d4a4-ab */
+    fn_041e20(g_dat_62cd8, 0, 0x80);                                 /* 0x0003d4b5-bc */
+    g_dat_63e24 = save24;                                            /* 0x0003d4c1-c4 */
+    g_dat_63e28 = save28;                                            /* 0x0003d4c9-cc */
+    g_dat_639bc = 0;                                                 /* 0x0003d4d1 */
+}
 
 /* fn_03ed6f  orig: 0x0003ed6f (L17, 155 B) -- THE COMMAND-LIST PUMP: walks the room's script-command
  * list (the same doubly-linked list fn_0003e0a0 appends to, +0x51 = prev / +0x55 = next, cached in

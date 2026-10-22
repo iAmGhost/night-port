@@ -15857,6 +15857,165 @@ static void test_fn_03ed6f(void) {
 }
 
 
+static void test_fn_03d244(void) {
+    printf("fn_03d244 (0x03d244): level-up transition (room chain, status screen, player re-seat)\n");
+    uint8_t *s_pc = g_dat_53c7c;
+    uint8_t *s_room = g_dat_63354, *s_50 = g_dat_63350, *s_58 = g_dat_63358;
+    uint32_t s_stage = g_dat_63370, s_face = g_dat_63398, s_tick = g_dat_63360;
+    uint32_t s_3b0 = g_dat_633b0, s_24 = g_dat_63e24, s_28 = g_dat_63e28, s_18 = g_dat_63e18;
+    uint32_t s_374 = g_dat_63374, s_378 = g_dat_63378, s_37c = g_dat_6337c, s_380 = g_dat_63380, s_384 = g_dat_63384;
+    int32_t s_c48 = g_dat_53c48; uint32_t s_3a4 = g_dat_633a4; uint8_t s_9bc = g_dat_639bc;
+    uint8_t *s_font = g_dat_63e04;
+    uint8_t *s_e70 = g_dat_53c70, *s_e74 = g_dat_53c74, *s_e80 = g_dat_53c80;
+    int32_t s_e68 = g_dat_53c68;
+    res_reader *s_rd = g_639b8; uint32_t s_3a0 = g_dat_633a0;
+
+    sys_ports_reset();
+    sys_key_script_clear();
+    heap_arena_init();
+    heap_arena_cap_set(0x400000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    g_dat_633a0 = 0;
+    g_dat_531f4 = 0x10000; g_dat_63e64 = 0x280;
+
+    /* the player block: 0x147 bytes, exp pending folded in on entry */
+    uint32_t p_off = heap_malloc(0x147);
+    uint8_t *P = hb + p_off;
+    memset(P, 0, 0x147);
+    g_dat_53c7c = P;
+    *(uint32_t *)(P + 0x2b) = 5000;                        /* experience total */
+    *(uint32_t *)(P + 0x52) = 300;                         /* experience pending */
+    P[0x27] = 0; P[0x28] = 1; P[0x26] = 0; P[0x25] = 0;
+    *(uint16_t *)(P + 0x23) = 0x1234;
+
+    for (int i = 0; i < 30; i++) g_dat_53c94[i] = 0;
+    g_dat_53c94[0 * 5 + 0] = 300;                          /* row 0, column 0 costs 300 */
+    g_dat_53c94[5 + 1] = 1000;                             /* row 0, column 1 */
+    g_tab_52738[1] = 0x1234;                               /* the ship table the row-1 refund tests */
+    g_dat_53100 = 3;
+    g_dat_53c48 = 0x7fffffff;                              /* never re-seek the CD track */
+
+    /* one resource stream: three 26-record spr blocks (two passes each), then levelup2.pcx, help1.pcx */
+    const uint32_t recs = 26, glen = 28;
+    uint32_t spr = 4 + recs * (0x30 + 4 + glen) + recs * (0x30 + 4 + glen);
+    const uint32_t pcx = 0x300 + 2 * 1008;
+    uint32_t total = 3 * spr + 2 * pcx;
+    uint32_t data_off = heap_arena_alloc(total + 8);
+    uint8_t *d = hb + data_off;
+    memset(d, 0, total);
+    uint32_t q = 0;
+    for (int b = 0; b < 3; b++) {
+        *(uint32_t *)(d + q) = recs; q += 4;
+        for (uint32_t i = 0; i < recs; i++) {              /* pass 1: header + length + payload */
+            *(uint32_t *)(d + q + 0x30) = glen;
+            for (uint32_t k = 0; k < glen; k++) d[q + 0x34 + k] = 0x5a;
+            q += 0x30 + 4 + glen;
+        }
+        for (uint32_t i = 0; i < recs; i++) {              /* pass 2: 12 header dwords + length + glyph RLE */
+            for (uint32_t k = 0; k < 12; k++) *(uint32_t *)(d + q + k * 4) = 0;
+            *(uint32_t *)(d + q + 0x30) = glen;
+            for (uint32_t r = 0; r < 7; r++) {
+                uint8_t *p = d + q + 0x34 + r * 4;
+                p[0] = 1; p[1] = 0; p[2] = 1; p[3] = (uint8_t)(0xa0 + (i & 0x1f));
+            }
+            q += 0x30 + 4 + glen;
+        }
+    }
+    const uint8_t fill[2] = { 0x62, 0x68 };                /* levelup2.pcx, help1.pcx */
+    for (int p = 0; p < 2; p++) {
+        for (uint32_t i = 0; i < 0x300; i++) d[q++] = (uint8_t)((i * 4) & 0xff);
+        uint32_t left = 0xfa00;
+        while (left) {
+            uint32_t c = left > 63 ? 63 : left;
+            d[q++] = (uint8_t)(0xc0 | c); d[q++] = fill[p];
+            left -= c;
+        }
+    }
+    uint32_t node_off = heap_arena_alloc(0x20);
+    uint8_t *node = hb + node_off;
+    memset(node, 0, 0x20);
+    *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = total;
+    *(uint32_t *)(node + 8) = data_off + total; node[0xc] = 0x41;
+    g_639b8 = (res_reader *)node;
+    g_dat_53dd8 = g_dat_53ddc = g_dat_53de0 = g_dat_53de4 = 0;
+
+
+    /* a real room node (the 0x038f3d fixture only needs a DAC buffer; the transition walks the chain) */
+    static uint8_t roomB[0x900];
+    memset(roomB, 0, sizeof roomB);
+    *(uint32_t *)(roomB + 0x00) = 300;                 /* camera X */
+    *(uint32_t *)(roomB + 0x04) = 200;                 /* camera Y */
+    *(uint32_t *)(roomB + 0x1a) = 0x140;               /* background pitch (fn_03801b) */
+    roomB[0x11] = 0;                                   /* camera X comes from room+0 */
+    *(uint32_t *)(roomB + 0x40) = 3;                   /* room serial column */
+    for (uint32_t i = 0; i < 0x400; i++) roomB[0x48 + i] = (uint8_t)(i & 0x3f);
+    *(uint32_t *)(roomB + 0x348) = SCREEN_BASE;        /* the background plane fn_03801b blits */
+    static uint8_t node1[0x360], node2[0x360];
+    memset(node1, 0, sizeof node1); memset(node2, 0, sizeof node2);
+    *(uint8_t **)(node1 + 0x34c) = roomB;              /* chain continues */
+    *(uint8_t **)(node2 + 0x34c) = NULL;               /* chain ends -> DAT_00063350 */
+    g_dat_63350 = roomB;
+    g_dat_63354 = node1;
+    g_dat_63370 = 3;                                   /* stage 3, serial 3: g_tab_52be0 says "walk in" */
+    g_dat_63398 = 0; g_dat_63360 = 20; g_dat_633b0 = SCREEN_BASE;
+    g_dat_63e24 = 0x1234; g_dat_63e28 = 0x5678; g_dat_63e18 = 0;
+    g_dat_53c48 = 0x7fffffff; g_dat_633a4 = 0;
+    memset(g_dat_62c58, 0xa5, 0x80); memset(g_dat_62cd8, 0xa5, 0x80);
+    g_dat_639bc = 0x5a;
+    {   uint32_t gl = heap_malloc(64), ct = heap_malloc(0x100), fs = heap_malloc(0x40);
+        uint8_t *gly = hb + gl, *cht = hb + ct, *fs_p = hb + fs;
+        for (int r = 0; r < 7; r++) { gly[r*4]=1; gly[r*4+1]=0; gly[r*4+2]=1; gly[r*4+3]=0x77; }
+        *(uint32_t *)(fs_p + 0x34) = ct + 0x30u*4u; *(uint32_t *)(fs_p + 0x38) = gl;
+        g_dat_63e04 = fs_p;
+    }
+    g_dat_53c70 = NULL; g_dat_53c74 = NULL; g_dat_53c80 = NULL; g_dat_53c68 = 0;
+    *(uint32_t *)(P + 0x2b) = 5000;
+    P[0x27] = 2; P[0x28] = 3; P[0x26] = 4; P[0x25] = 5;
+    sys_key_script_clear();
+    sys_key_script_add(1, &g_dat_63e89, 1);            /* the status screen leaves after one frame */
+    sys_key_script_add(2, &g_dat_63e89, 0);
+
+    fn_03d244(node1);
+
+    check(g_dat_63354 == roomB, "the room chain advances: DAT_00063354 = node+0x34c");
+    check(*(int32_t *)(P + 0x01) == 300 - 0x1e + 0x78,
+          "facing right: player X = camera X - 0x1e, then + 0x78 because g_tab_52be0[stage 3, serial 3] == 1");
+    check(*(int32_t *)(P + 0x09) == 200 + (int32_t)g_tab_52c3c[3 + (3 - 1) * 10],
+          "player Y = camera Y + the g_tab_52c3c slot for this stage/room serial");
+    check(*(uint32_t *)(P + 0x05) == 0 && *(uint32_t *)(P + 0x11) == 0
+          && *(uint32_t *)(P + 0x17) == 1 && *(int32_t *)(P + 0x1b) == 0,
+          "the re-seat stamps +0x5 / +0x11 = 0, walking +0x17 = 1 and the facing into +0x1b");
+    check(g_dat_63360 == 21, "DAT_00063360 bumped only because it was a multiple of 10 (idiv remainder)");
+    check(g_dat_63358 == roomB && g_dat_63374 == *(const uint32_t *)(P + 0x2b)
+          && g_dat_63384 == P[0x28] && g_dat_63378 == P[0x27] && g_dat_6337c == P[0x26] && g_dat_63380 == P[0x25],
+          "the room and the player's experience + four selection bytes are mirrored into DAT_63358..63384");
+    { int ok = 1; for (int i2 = 0; i2 < 0x80; i2++) if (g_dat_62c58[i2] || g_dat_62cd8[i2]) ok = 0;
+      check(ok, "both per-key tables (DAT_00062c58 / DAT_00062cd8) are cleared over 0x80 bytes"); }
+    check(g_dat_63e24 == 0x1234 && g_dat_63e28 == 0x5678 && g_dat_639bc == 0,
+          "DAT_00063e24/28 are forced to 0 mid-call and restored from the frame; DAT_000639bc is cleared");
+
+    /* second call: the chain has ended, and the player faces the other way */
+    sys_key_script_clear();
+    sys_key_script_add(1, &g_dat_63e89, 1);
+    sys_key_script_add(2, &g_dat_63e89, 0);
+    *(uint32_t *)(node2 + 0) = *(const uint32_t *)(node1 + 0);   /* the stream node is reused */
+    g_dat_63398 = 1; g_dat_63360 = 21;
+    fn_03d244(node2);
+    check(g_dat_63354 == roomB && *(int32_t *)(P + 0x01) == 300 + 0x15e - 0x78 && g_dat_63360 == 21,
+          "end of chain falls back to DAT_00063350; facing left gives camera X + 0x15e - 0x78, and 21 % 10 leaves the tick alone");
+
+    sys_ports_reset();
+    g_dat_53c7c = s_pc; g_dat_63354 = s_room; g_dat_63350 = s_50; g_dat_63358 = s_58;
+    g_dat_63370 = s_stage; g_dat_63398 = s_face; g_dat_63360 = s_tick; g_dat_633b0 = s_3b0;
+    g_dat_63e24 = s_24; g_dat_63e28 = s_28; g_dat_63e18 = s_18;
+    g_dat_63374 = s_374; g_dat_63378 = s_378; g_dat_6337c = s_37c; g_dat_63380 = s_380; g_dat_63384 = s_384;
+    g_dat_53c48 = s_c48; g_dat_633a4 = s_3a4; g_dat_639bc = s_9bc; g_dat_63e04 = s_font;
+    g_639b8 = s_rd; g_dat_633a0 = s_3a0;
+    g_dat_53c70 = s_e70; g_dat_53c74 = s_e74; g_dat_53c80 = s_e80; g_dat_53c68 = s_e68;
+    sys_key_script_clear();
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16241,6 +16400,7 @@ int main(void) {
     test_fn_038f3d();
     test_fn_03e20f();
     test_fn_03ed6f();
+    test_fn_03d244();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

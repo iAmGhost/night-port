@@ -1435,4 +1435,13 @@ extern const uint32_t g_tab_528b4[180];   /* DS 0x528b4: per-stage entity caps, 
  * opcode byte was consumed. See docs/21-script-commands.md. */
 void fn_03ed6f(void);
 
+extern uint8_t g_dat_639bc;
+const uint8_t  g_tab_52be0[100];   /* 0x52be0: rooms entered by walking in (per stage x 10 room slots) */
+const uint32_t g_tab_52da4[100];  /* 0x52da4: per-room CD audio track */
+
+/* 0x03d244: THE LEVEL-UP TRANSITION -- drains the entity list, fades out, moves DAT_00063354 to the next
+ * room node, runs the status screen (fn_00038f3d variant 1), re-seats the player from g_tab_52be0 /
+ * g_tab_52c3c, pumps the command list, repaints, picks the CD track and fades back in. */
+void fn_03d244(uint8_t *node);
+
 #endif

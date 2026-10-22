@@ -73,3 +73,12 @@ opcode byte surviving or being consumed as the visible side effect: opcode 4's o
 off-by-one band edge, opcode 6's counter bump, opcode 3's table row, opcode 2's strict Y gate and byte
 latch, opcode 1's spawn gate, the abort path, the camera-anchored anchor values (`+0x1e`, `+0x15e`), the
 `+0x17 = 3` stamp, and opcode 5 hitting the default.
+
+## Who pumps it
+
+`fn_0003ed6f` is called from `fn_03d244` (the level-up / room transition) and from the per-frame game
+loop, so a command record can survive many frames: the interpreter's early `return`s leave the record
+armed, and the pump simply revisits it. `fn_03d244` is also where the command list gets its chance
+between rooms -- it runs the status screen, moves `DAT_00063354` to the next room node and then pumps
+the list before repainting, which is how a new room's wall rows (opcode 3) and trigger boxes (opcodes
+4/6) are installed before the first frame of that room is drawn.

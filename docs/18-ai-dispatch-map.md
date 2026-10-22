@@ -131,6 +131,8 @@ Older progress: (8 of 18 -- 0x01f064/behaviour 0x07 added: a four-arm chooser (s
 
 Older progress: (7 of 18 -- 0x01df8b/behaviour 0x06 added: the entity[0x5f] phase-latch chooser (script-byte side spots alternating with absolute jitter slots 6..9)).
 
+PORTED (see STATUS 0x02319c) -- the recipe below is what produced it, kept as a worked example.
+
 READ-IN-PROGRESS NOTES -- 0x02319c (behaviour 0x1f, 6748 B, dispatcher arg 2). 98.9% of its 1746
 instructions are shared with 0x029709 in order; only 9 substitutions and 9 inserts (252 insns), so it is
 a body-generation job. Substitutions (all inside the rope arm, whose sprite is 0x2c not 0x2b): the state

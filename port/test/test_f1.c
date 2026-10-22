@@ -9100,6 +9100,119 @@ static void test_fn_02fe1e(void)
     #undef FE_BASE
 }
 
+
+/* ---- 0x02319c: behaviour-0x1f (the 0x2c swing arm + the ten-pixel walk tolerance) ---- */
+static void test_fn_02319c(void)
+{
+    printf("fn_02319c (0x02319c, behaviour-0x1f entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 23;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 20; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+    row0[0] = 40;
+
+    pl[0] = 1; pl[0x17] = 0x0a;
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+    #define F1F_BASE(st_, fr_) do { e[0x17] = (st_); e[0x11] = (fr_); e[0x1f] = 6; e[0xaf] = 1; \
+        e[0x8b] = 1; } while (0)
+
+    /* (1) the swing latches on counter 0x48; equal gaps take the vertical branch (step 4 in Y) */
+    F1F_BASE(0x2c, 0x48);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 20;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    *(int32_t *)(e + 0xcb) = 0; *(int32_t *)(e + 0xcf) = 0;
+    fn_02319c(e);
+    float sl, ex, ey; memcpy(&sl, e + 0xdb, 4); memcpy(&ex, e + 0xe3, 4); memcpy(&ey, e + 0xe7, 4);
+    check(*(int32_t *)(e + 0xd3) == 100 && *(int32_t *)(e + 0xd7) == 20 &&
+          *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
+          "02319c the swing latches the entity and player anchors on counter 0x48");
+    check(sl == 1.0f && ex == (100.0f / 31.0f) && ey == 4.0f,
+          "02319c a vertical swing derives entity[0xe3] over the 31.0 pool and steps 4 px in Y");
+
+    /* (2) a wider X gap takes the horizontal branch (step 7 in X) */
+    F1F_BASE(0x2c, 0x48);
+    *(int32_t *)(e + 0x01) = 100; *(int32_t *)(e + 0x09) = 110;
+    fn_02319c(e);
+    memcpy(&ex, e + 0xe3, 4); memcpy(&ey, e + 0xe7, 4);
+    check(ex == 7.0f && ey == (10.0f / 31.0f),
+          "02319c a horizontal swing steps 7 px in X and derives entity[0xe7]");
+
+    /* (3) only counter 0x48 latches; 0x2b is not a rope any more */
+    F1F_BASE(0x2c, 0x47);
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0xd3) == 0 && *(int32_t *)(e + 0xd7) == 0,
+          "02319c a counter below 0x48 does nothing");
+    F1F_BASE(0x2b, 0x48);
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0xd3) == 0 && *(int32_t *)(e + 0xd7) == 0,
+          "02319c sprite 0x2b is an ordinary state (0x029709 treats it as the rope)");
+
+    /* (4) inside the 0x49..0x71 window the entity walks the fitted line */
+    F1F_BASE(0x2c, 0x48);
+    *(int32_t *)(e + 0x01) = 60; *(int32_t *)(e + 0x09) = 30;
+    fn_02319c(e);
+    F1F_BASE(0x2c, 0x50);
+    int32_t bx = *(int32_t *)(e + 0x01), by = *(int32_t *)(e + 0x09);
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0x01) != bx || *(int32_t *)(e + 0x09) != by,
+          "02319c counter 0x50 is inside the window and moves the entity");
+    F1F_BASE(0x2c, 0x72);
+    bx = *(int32_t *)(e + 0x01); by = *(int32_t *)(e + 0x09);
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0x01) == bx && *(int32_t *)(e + 0x09) == by,
+          "02319c counter 0x72 is past the window (2..0x71 past the latch)");
+
+    /* (5) the walk tolerates ten pixels of Y and re-latches the anchors when it advances a row */
+    row0[0] = 7; row0[1] = 0;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 128;      /* 8 px of Y error */
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1 &&
+          *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
+          "02319c a walk row advances on eight pixels of Y error and re-latches the player anchors");
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 132;      /* 12 px: over the ten-pixel limit */
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0x1f) == 0 &&
+          (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
+          "02319c twelve pixels of Y error misses the row and falls back to the coin flip");
+    row0[0] = 40;
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+    #undef F1F_BASE
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -14216,6 +14329,7 @@ int main(void) {
     test_fn_0265ac();
     test_fn_029709();
     test_fn_02fe1e();
+    test_fn_02319c();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

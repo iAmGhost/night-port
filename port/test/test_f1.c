@@ -527,6 +527,22 @@ static void test_heap_arena(void) {
     check(hw(region + 0x2c)[0] == 0x1004 && !(hw(region + 0x2c)[0] & 1),
           "whole data area is one free block");
     heap_verify(region, "fresh region (1 free block)");
+
+    /* Region granularity knob (heap_region_floor_set). The DPMI original acquires whole blocks
+     * (FUN_00043071), so a fresh region is always much larger than the request that triggered it;
+     * sizing a region to one request is an artifact of the arena substitution, and real data then
+     * needs one region per allocation (7,450 for stage 1) instead of a handful. */
+    heap_arena_init();
+    heap_region_floor_set(0x1000);
+    uint32_t gd2 = heap_malloc(0x10);
+    uint32_t gr2 = gd2 - 0x30;
+    check(gd2 != 0 && hw(gr2)[0] == 0x2c + 0x1000,
+          "with a 0x1000 region floor, the data area follows the floor, not the request");
+    uint32_t gd3 = heap_malloc(0x10);
+    check(gd3 != 0 && gd3 > gd2 && gd3 - gr2 < hw(gr2)[0],
+          "the next allocation is served from the room left in that same region (no new region)");
+    heap_region_floor_set(0);
+    heap_arena_init();
 }
 
 static void test_heap_insert_init(void) {
@@ -10258,7 +10274,10 @@ static void test_real_res_container(void) {
     sys_file_image_set(0, 0);
     sys_file_real_dir(dir);
     uint32_t saved_cap = heap_arena_cap();
-    heap_arena_init(); heap_arena_cap_set(48u << 20); (void)heap_malloc(0x4000);
+    heap_arena_init(); heap_arena_cap_set(48u << 20); heap_region_floor_set(0x10000);
+    (void)heap_malloc(0x4000);   /* 64 KiB region floor: the DPMI acquirer (FUN_00043071) always
+                                 * acquires a whole block, so the game never has one region per
+                                 * allocation (per-request sizing built 7,450 regions for stage 1) */
 
     g_639b8 = fn_04270d((const uint8_t *)"NIGHT.RES", "rb");
     check(g_639b8 != 0, "NIGHT.RES opens through fn_04270d on the real-file backend");
@@ -10302,7 +10321,7 @@ static void test_real_res_container(void) {
     g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
     g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
     g_dat_633b0 = saved_b0;
-    heap_arena_cap_set(saved_cap);
+    heap_arena_cap_set(saved_cap); heap_region_floor_set(0);
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
@@ -10354,7 +10373,10 @@ static void test_real_master_load(void) {
     sys_file_image_set(0, 0);
     sys_file_real_dir(dir);
     uint32_t saved_cap = heap_arena_cap();
-    heap_arena_init(); heap_arena_cap_set(48u << 20); (void)heap_malloc(0x4000);
+    heap_arena_init(); heap_arena_cap_set(48u << 20); heap_region_floor_set(0x10000);
+    (void)heap_malloc(0x4000);   /* 64 KiB region floor: the DPMI acquirer (FUN_00043071) always
+                                 * acquires a whole block, so the game never has one region per
+                                 * allocation (per-request sizing built 7,450 regions for stage 1) */
     /* The per-type tables are cross-test state as well: fn_037347 walks slots 1..0x103 and frees
      * whatever it finds, so stale slots from earlier tests would be freed as if they were real
      * stage data. Start from the empty tables a fresh boot has, and put them back afterwards. */
@@ -10458,10 +10480,22 @@ static void test_real_master_load(void) {
     check(cfg_real[0x17] == 1 && cfg_real[0x11] == 0,
           "the player config block is seeded by the transition (+0x17=1, +0x11=0)");
 
-    /* NOT run (open item, docs/15-real-stage-load.md): fn_037347 over the real stage data crashes in
-     * heap_free. The per-slot dry run (scratch/real_act_free.c) shows every sprite sub-object offset
-     * and every action record offset valid, so the fault is heap-metadata corruption (a double free)
-     * rather than a bogus offset -- left as a targeted follow-up, with the repro committed. */
+    /* the real teardown, i.e. the free-only half of the transition. This only became possible once the
+     * region granularity matched the DPMI acquirer (see docs/15-real-stage-load.md). */
+    uint8_t *room_ref = g_dat_63354;
+    uint32_t act9 = g_dat_53818[0x09];
+    uint8_t *spr1f = g_dat_639ec[0x1f];
+    uint32_t act1f = g_dat_53818[0x1f];
+    check(spr1f != 0 && act1f != 0, "a real paired type slot (0x1f) is loaded before the teardown");
+    fn_037347();
+    check(g_dat_639ec[0x1f] == 0 && g_dat_53818[0x1f] == 0,
+          "teardown released the real type slot (0x1f .spr + .act) and cleared both slots");
+    check(act9 == 0 && g_dat_639ec[0x09] == 0 && g_dat_53818[0x09] == 0,
+          "a type stage 1 never references (0x09) is empty before and after the teardown");
+    check(g_dat_63dfc == 0 && g_dat_6334c == 0,
+          "the real stage sprite struct and room chain are freed and cleared");
+    check(g_dat_63354 == room_ref,
+          "DAT_63354 left dangling at the freed room chain (original quirk, real data)");
 
     g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370;
     g_dat_639ec[32] = s_spr32; g_dat_53818[32] = s_act32; g_dat_53c7c = s_ent;
@@ -10493,7 +10527,7 @@ static void test_real_master_load(void) {
     g_dat_63e04 = s_e04; g_dat_63358 = s_358;
     memcpy(g_dat_53d0c, voc_save, sizeof g_dat_53d0c);
     memcpy(g_dat_53c94, exp_save, sizeof exp_save);
-    heap_arena_cap_set(saved_cap);
+    heap_arena_cap_set(saved_cap); heap_region_floor_set(0);
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 

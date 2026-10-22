@@ -108,30 +108,50 @@ numeric text loader (`0x032464` + `0x043a7f` + `0x041ffc`) parses the shipped te
 pass-1 totals computed by `fn_03d9cf` byte for byte — the "0x30 header + length + payload" sprite model is
 confirmed against real data, not just inferred from the disassembly.
 
-## Open item: teardown over real data (`fn_037347`) faults in `heap_free`
+## The teardown fault was the allocator substitution, not the game data (RESOLVED)
 
-`fn_037347` after a real stage load crashes (`heap_free` → wild write, SIGBUS / ASan BUS). It is *not*
-caused by bogus offsets — a dry run of the teardown loop (`scratch/real_act_free.c`, committed as the
-repro) prints, for the real stage 1 data:
+`fn_037347` after a real stage load faulted inside `heap_free`. It was never a game-data problem:
 
-* all 9 sprite structs with 14 valid sub-object offsets each, and
-* all **1031** action records with valid `+0x6d` / `+0x71` / `+0x75` sub-object offsets, none zero
-  (`heap_malloc` inside `fn_010181` never failed once the region sizing was fixed).
+* a dry run of the teardown loop validated **every** block it is about to free — 4293 blocks, including
+  all 1031 action records and their `+0x6d`/`+0x71`/`+0x75` sub-objects and the 14 sub-objects of every
+  sprite struct: **0 anomalies** (each offset lands inside its own region, its header says allocated, its
+  size is plausible and does not overrun the region);
+* but the region chain under the port's default geometry held **7,450 regions** for one stage, almost all
+  of them `total = 0x38` — one per allocation — and walking that chain eventually ran into a non-region
+  offset. The corruption is in the arena substitution's own bookkeeping under a geometry the original
+  cannot produce, and it surfaced as a wild write in a later `heap_free`.
 
-So the fault is **heap bookkeeping** — most plausibly a double free: `fn_037347` frees each slot's sprite
-struct (`fn_03d999` + the struct itself) and its action container (`fn_0100d9` + the container), and one of
-those was already freed (candidates: the `fn_0376c8` "resume" reload path re-entering `fn_037b03`, or
-`fn_03de85`'s free-old-sub-objects step interacting with the `.spr`/`.act` pairing). The test therefore
-does not call `fn_037347` on real data yet; the check is documented in place.
+Cause: `heap_acquire_region` sized a new region to exactly the request that triggered it. The original's
+acquirer (`FUN_00043071`) asks DPMI for a whole memory block, far larger than the request, so a fresh
+region always has room left over. With per-request regions, `heap_malloc` can never reuse one and every
+allocation grows the chain.
 
-Next step for it: run `heap_verify` after each free phase (sprite sub-objects, sprite struct, action
-records, action array, action container, room chain) and find the first invariant break.
+Fix: a granularity knob, `heap_region_floor_set(bytes)` (default 0 = the old per-request sizing, which the
+allocator unit tests pin). The real-container tests set a 64 KiB floor, mirroring a DPMI block. Effect on
+the same real stage-1 load: **regions 7,450 -> 34**, and the teardown now runs cleanly — pinned by two new
+allocator checks and five teardown checks:
+
+```
+regions in chain: 34          (floor 0x10000; 7450 with per-request sizing)
+checked=4293 anomalies=0
+fn_037347 survived
+```
+
+The stage lifecycle is therefore fully covered over shipped data: `fn_03690b` -> `fn_0374ad` ->
+`fn_0376c8` -> `fn_037347`, including the original's quirk that `DAT_63354` is left dangling at the freed
+room chain.
+
+Debug probes kept for reference: `scratch/real_chain_probe.c` (region chain walk + anomalies),
+`scratch/real_block_probe.c` (block-header validation of everything a teardown frees),
+`scratch/real_teardown_probe.c` (free-order replica with a double-free bitset), `scratch/floor_probe.c`
+(region granularity), `scratch/real_act_free.c` (first repro).
 
 ## Suite
 
-`make -C port test`: **2140 PASS, 0 FAIL** (was 2110), ASan clean. `TOTALS` unchanged (466/528 — this is
-integration, not new functions). The real-data tests raise the heap cap to 48 MiB (physical arena is now
-64 MiB); the default usable cap stays 1 MiB so every older test is unaffected.
+`make -C port test`: **2147 PASS, 0 FAIL** (was 2110 before this work), ASan clean. `TOTALS` unchanged
+(466/528 — this is integration, not new functions). The real-data tests raise the heap cap to 48 MiB
+(physical arena 64 MiB) and the region floor to 64 KiB; the defaults stay 1 MiB / per-request sizing so
+every older test is unaffected.
 
 ## Next
 
@@ -139,6 +159,5 @@ integration, not new functions). The real-data tests raise the heap cap to 48 Mi
   the real stage (types 0x01/0x0b/0x1f/0x20/0x24/0x25/0x29/0x2a/0x2e are the ones stage 1 actually spawns).
 * `heap_grow` (`0x04322c`) is still a stub — with the sizing fix it is no longer needed for stage 1, but it
   should still be ported before the arena cap is treated as a hard limit.
-* `fn_037347` teardown over real data — see "Open item" above (repro: `scratch/real_act_free.c`).
-* Then the playable chain continues: the entity frame dispatchers and the AI handlers on the real stage 1
+* The playable chain continues: the entity frame dispatchers and the AI handlers on the real stage 1
   types (01/0b/1f/20/24/25/29/2a/2e).

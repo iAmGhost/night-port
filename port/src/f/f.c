@@ -2493,6 +2493,12 @@ static uint8_t s_heap_arena[NIGHT_HEAP_ARENA_MAX];
 static uint32_t s_arena_cap = NIGHT_HEAP_ARENA;
 void     heap_arena_cap_set(uint32_t cap) { s_arena_cap = (cap < 0x40) ? 0x40u : (cap > NIGHT_HEAP_ARENA_MAX ? NIGHT_HEAP_ARENA_MAX : cap); }
 uint32_t heap_arena_cap(void) { return s_arena_cap; }
+/* Minimum data area of a freshly acquired region; 0 = size the region to the triggering request.
+ * The DPMI original always acquires a block far larger than the request (FUN_00043071), so the
+ * per-request granularity is an artifact of the arena substitution, not of the game's allocator. */
+static uint32_t s_region_floor = 0;
+void     heap_region_floor_set(uint32_t bytes) { s_region_floor = bytes; }
+uint32_t heap_region_floor(void) { return s_region_floor; }
 
 uintptr_t g_heap_base      = 0;
 uint32_t  g_heap_head      = 0;   /* DAT_00053350 */
@@ -2821,6 +2827,13 @@ uint32_t heap_acquire_region(uint32_t size) {
     uint32_t t = size + 7;                                  /* 0x42ae4 ADD,7 */
     uint32_t need = (t & 0xFFFFFF00u) | ((t & 0xFFu) & 0xFCu); /* 0x42ae9 AND AL,0xfc */
     if (need < 0xc) need = 0xc;                             /* 0x42aeb-42af7 max(eax,0xc) */
+    /* Region-granularity knob (heap_region_floor_set). The original's acquirer (FUN_00043071) asks
+     * DPMI for a whole memory block, far larger than the request that triggered it, so a fresh region
+     * always has room left over for later calls. Sizing a region to exactly one request -- the
+     * default, and what the allocator unit tests pin -- makes every malloc spawn its own region: one
+     * stage of real data built 7,450 single-block regions. Raising the floor mirrors the DPMI block. */
+    if (need < s_region_floor) need = s_region_floor;
+    else if (s_region_floor)   need += need >> 2;
     uint32_t data_area = (need + 3) & 0xFFFFFFFCu;          /* round up to 4 */
     uint32_t total  = 0x2c + data_area;                     /* header + data area */
     uint32_t region = heap_arena_alloc(total);            /* arena slot */

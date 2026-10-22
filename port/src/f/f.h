@@ -420,6 +420,12 @@ uint32_t heap_arena_alloc(uint32_t size); /* 64-byte-aligned region slot, or 0 *
  * .wal alone is ~0.8 MiB) up to the physical arena size. */
 void     heap_arena_cap_set(uint32_t cap);
 uint32_t heap_arena_cap(void);
+/* Region granularity of the arena substitution: minimum data area of a freshly acquired region
+ * (0 = size the region to the triggering request, the allocator tests' default). The DPMI original
+ * acquires whole blocks (FUN_00043071) far larger than the request, so real data loads raise this to
+ * avoid one region per allocation. */
+void     heap_region_floor_set(uint32_t bytes);
+uint32_t heap_region_floor(void);
 
 /* Unlink a region from the all-blocks chain: advance head/cursor if it is the
  * node, then prev->next = next AND next->prev = prev, each NULL-guarded

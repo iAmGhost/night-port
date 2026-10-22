@@ -23749,6 +23749,153 @@ uint32_t g_dat_51a10 = 1;
 const uint32_t g_tab_531e0[5] = { 0x6c, 0x79, 0x87, 0x92, 0x9e };
 
 
+
+/* fn_01194c  orig: 0x0001194c (L14, 3269 B) -- THE PER-ENTITY STEP DISPATCH: given an entity (EAX), pick
+ * what its current state does this frame. The original is one jump table on entity[+0x17] (the state)
+ * whose entries chain into range tests on entity[+0x0d] (the entity type/serial) and finally on
+ * entity[+0x11] (the current action code); every leaf is one of three things:
+ *   RYMV  fn_01545e(e, prng_next() % 0x15 - 10) then fn_011827(e, -10, -4, 1, 4)
+ *         -- a random Y nudge (-10..10) plus the standard "spawn the trail entity 10 px back, 4 px up"
+ *   MV    fn_011827(...) alone, with the nudge arguments replaced
+ *   SND   fn_0113e7(e) -- the three-way spray/spark spawn (and the per-type sound stream)
+ * States handled: 4, 0x15, 0x16, 0x17, 0x18, 0x1a, 0x1d, 0x1e, 0x20, 0x8c, 0x8d (the rest do nothing, and the
+ * player entity (DAT_00053c7c) is routinely EXCLUDED from the type-band tests, sometimes taking its own
+ * narrower branch: entry 0x15 for the player skips the random Y nudge entirely (plain MV), and entry 0x20
+ * requires the entity NOT to be the player before the innermost band tests apply at all).
+ * The type bands are the same family everywhere -- 0x1f..0x23, 0x24..0x28, 0x29..0x2d, 0x2e..0x32 and the
+ * singletons 7, 1, 2 -- and the "outside all bands" branch repeats the 0x4b/100 pair, i.e. the common
+ * entity types get the generic treatment while the numbered special types each name their own action.
+ * Ghidra's tree below is the decompiler's re-materialisation of that chain; it is transcribed verbatim so
+ * the (frequently overlapping, occasionally unreachable) band logic stays visible.
+ */
+void fn_01194c(uint8_t *e)
+{
+    (void)canary_id((uintptr_t)e, 0x14);                                 /* 0x0001194c-52 probe */
+    const uint32_t st = *(const uint32_t *)(e + 0x17);                   /* the jump-table index */
+    const int32_t ty = *(const int32_t *)(e + 0x0d);                     /* entity type / serial */
+    const int32_t ac = *(const int32_t *)(e + 0x11);                     /* current action code */
+    const int is_player = (e == g_dat_53c7c);
+
+#define MV   fn_011827(e, -10, -4, 1, 4)
+#define RY   fn_01545e(e, (int32_t)(prng_next() % 0x15) - 10)
+#define RYMV do { RY; MV; } while (0)
+#define SND  fn_0113e7(e)
+
+    if (st < 0x1a) {
+        if (st < 0x16) {
+            if (3 < st) {
+              if (st < 5) {                                             /* state 4 */
+                if (ac == 0x12 || ac == 0x0b) fn_011827(e, 9, 0, 1, 1);
+              } else if (st == 0x15) {                                  /* entry 0x15 */
+            if (!is_player) {
+                if (ty < 0x1f || 0x2d < ty) {
+                    if (ty == 0x32 || ty == 7) {
+                        if (ac == 0x2b) { RYMV; }
+                        else if (ac == 0x3e) { SND; }
+                    } else if (ty == 1 || ty == 2) {
+                        if (ac == 0x24) { MV; }
+                        else if (ac == 0x37) { SND; }
+                    } else if (ac == 0x3a) { RYMV; }
+                    else if (ac == 0x4d) { SND; }
+                } else if (ac == 0x3a) { RYMV; }
+                else if (ac == 0x4d) { SND; }
+            } else {
+                /* the player's branch of entry 0x15 has no random Y nudge at all */
+                if (ac == 0x3a) { MV; }
+                else if (ac == 0x50) { SND; }
+            }
+            }
+            }
+        } else if (st == 0x16) {
+            if (is_player) {
+                if (ac == 0x25) { MV; }
+                else if (ac == 0x37) { SND; }
+            } else if (ac == 0x22) { RYMV; }
+            else if (ac == 0x33) { SND; }
+        } else if (st == 0x17) {
+            if (ty < 0x1f || 0x23 < ty) {
+                if (ty < 0x24 || 0x28 < ty) {
+                    if (ty < 0x29 || 0x2d < ty) {
+                        if ((ty < 0x2e || 0x32 < ty) && ty != 7) {
+                            if (ty == 1 || ty == 2) {
+                                if (ac == 0x35) { MV; }
+                                else if (ac == 0x4e) { SND; }
+                            } else if (ac == 0x4b) { RYMV; }
+                            else if (ac == 100) { SND; }
+                        } else if (ac == 0x41) { RYMV; }
+                        else if (ac == 0x5a) { SND; }
+                    } else if (ac == 0x4c) { RYMV; }
+                    else if (ac == 0x65) { SND; }
+                } else if (ac == 0x4f) { RYMV; }
+                else if (ac == 0x68) { SND; }
+            } else if (ac == 0x4b) { RYMV; }
+            else if (ac == 100) { SND; }
+        } else if (st == 0x18) {
+            if (ty < 0x1f || 0x23 < ty) {
+                if (ty < 0x24 || 0x28 < ty) {
+                    if (ty < 0x29 || 0x2d < ty) {
+                        if ((ty < 0x2e || 0x32 < ty) && ty != 7) {
+                            if (ac == 10) { RYMV; }
+                            else if (ac == 0x3f || ac == 0x59) { SND; }
+                        } else if (ac == 10) { RYMV; }
+                        else if (ac == 0x32 || ac == 0x43) { SND; }
+                    } else if (ac == 10) { RYMV; }
+                    else if (ac == 0x3e || ac == 0x50) { SND; }
+                } else if (ac == 0x0e) { RYMV; }
+                else if (ac == 0x3f || ac == 0x50) { SND; }
+            } else if (ac == 10) { RYMV; }
+            else if (ac == 0x3f || ac == 0x59) { SND; }
+        }
+    } else if (st < 0x1b) {                                             /* state 0x1a */
+        if (ty < 0x1f || 0x23 < ty) {
+            if (ty < 0x24 || 0x2d < ty) {
+                if ((ty < 0x2e || 0x32 < ty) && ty != 7) {
+                    if (ac == 0x20) { RYMV; }
+                    else if (ac == 0x33) { SND; }
+                } else if (ac == 0x1d) { RYMV; }
+                else if (ac == 0x31) { SND; }
+            } else if (ac == 0x20) { RYMV; }
+            else if (ac == 0x34) { SND; }
+        } else if (ac == 0x20) { RYMV; }
+        else if (ac == 0x33) { SND; }
+    } else if (st < 0x20) {                                             /* 0x1b..0x1f */
+        if (0x1c < st) {
+            if (st < 0x1e) {                                            /* state 0x1d */
+                if (ac == 0x30) { RYMV; }
+                else if (ac == 0x42) { SND; }
+            } else if (st == 0x1e) {                                    /* state 0x1e */
+                if (ac == 0x31) { RYMV; }
+                else if (ac == 0x3b) { SND; }
+            }
+        }
+    } else if (st < 0x21) {                                             /* state 0x20 */
+        if (ty < 0x1f || 0x23 < ty) {
+            if (ty < 0x24 || 0x28 < ty) {
+                if ((ty < 0x29 || 0x2d < ty) && !is_player) {
+                    if ((ty < 0x2e || 0x32 < ty) && ty != 7) {
+                        if (ac == 0x2d) { RYMV; }
+                        else if (ac == 0x40) { SND; }
+                    } else if (ac == 0x24) { RYMV; }
+                    else if (ac == 0x36) { SND; }
+                } else if (ac == 0x2d) { RYMV; }
+                else if (ac == 0x40) { SND; }
+            } else if (ac == 0x33) { RYMV; }
+            else if (ac == 0x45) { SND; }
+        } else if (ac == 0x2d) { RYMV; }
+        else if (ac == 0x40) { SND; }
+    } else if (0x8b < st) {                                             /* 0x8c / 0x8d */
+        if (st < 0x8d) {
+            if (is_player && ac == 0x3f) fn_011827(e, 0x20, -4, 1, 4);
+        } else if (st == 0x8d && is_player && ac == 0x38) {
+            fn_011827(e, 0x20, -4, 1, 4);
+        }
+    }
+#undef MV
+#undef RY
+#undef RYMV
+#undef SND
+}
+
 /* fn_039c03  orig: 0x00039c03 (L17, 1456 B) -- THE TITLE / ATTRACT MENU LOOP: the five-entry setup
  * screen drawn from "pause.spr" (DAT_00063e0c), navigated with the select/direction keys, that ends by
  * handing control to either the status screen (entry 0), the help screen (entry 1) or the game (2..4).

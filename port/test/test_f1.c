@@ -16135,6 +16135,128 @@ static void test_fn_039c03(void) {
 }
 
 
+static void test_fn_01194c(void) {
+    printf("fn_01194c (0x01194c): per-entity step dispatch (state x type band x action)\n");
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    int32_t s_cnt = g_dat_53c68;
+    uint32_t s_370 = g_dat_63370, s_364 = g_dat_63364, s_368 = g_dat_63368;
+    uint8_t *s_sprfa = g_dat_639ec[0xfa], *s_player = g_dat_53c7c;
+    uint32_t s_dc = g_dat_639dc; uint32_t s_nb = g_dat_62a8c;
+    uint8_t *entab = g_dat_53e9c + 0xfau * 0x88u;
+    static uint8_t saved_ent[0x88]; memcpy(saved_ent, entab, sizeof saved_ent);
+
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    memset(entab, 0, 0x88);
+    uint8_t *sprfa = (uint8_t *)calloc(1, 0x40);
+    g_dat_639ec[0xfa] = sprfa; g_dat_53818[0xfa] = 0;
+    g_dat_63370 = 1; g_dat_63364 = 0; g_dat_63368 = 0;
+    g_dat_639dc = 1000;                       /* fn_01545e's default band: 1010 .. 1302 */
+    g_dat_62a8c = 0;                          /* no wall rows */
+    g_dat_53c7c = NULL;
+
+    uint8_t *src = (uint8_t *)calloc(1, 0x14f);
+#define RESET(st_, ty_, ac_) do { memset(src, 0, 0x14f); src[0] = 2;               \
+        *(int32_t *)(src + 0x01) = 1050; *(int32_t *)(src + 0x09) = 2000;          \
+        *(int32_t *)(src + 0x0d) = (ty_); *(int32_t *)(src + 0x11) = (ac_);        \
+        *(int32_t *)(src + 0x17) = (st_);                                          \
+        g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;        \
+        g_dat_63364 = 0; g_dat_63368 = 0; } while (0)
+
+    RESET(4, 0x21, 0x12);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1 && g_dat_53c70 != NULL
+          && *(int32_t *)(g_dat_53c70 + 0x01) == 1059 && *(int32_t *)(g_dat_53c70 + 0x09) == 2001
+          && *(int32_t *)(g_dat_53c70 + 0x05) == 0 && *(uint32_t *)(g_dat_53c70 + 0x17) == 1,
+          "state 4, action 0x12: fn_011827 with dx +9 / dy +1 / EBX 0 and the spawn state 1");
+
+    RESET(4, 0x21, 0x0c);
+    fn_01194c(src);
+    check(g_dat_53c68 == 0, "state 4 with an action outside {0x12, 0x0b} does nothing");
+
+    RESET(0x15, 0x32, 0x2b);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1 && *(int32_t *)(src + 0x01) >= 1040 && *(int32_t *)(src + 0x01) <= 1060
+          && *(int32_t *)(g_dat_53c70 + 0x01) == *(int32_t *)(src + 0x01) - 10,
+          "state 0x15, type 0x32, action 0x2b: a random -10..10 nudge of the entity, then the -10/-4 spawn");
+
+    RESET(0x15, 0x32, 0x3e);
+    fn_01194c(src);
+    check(g_dat_53c68 == 3 && *(int32_t *)(src + 0x01) == 1050,
+          "state 0x15, action 0x3e: fn_0113e7 sprays three companions and leaves the source alone");
+
+    g_dat_53c7c = src;
+    RESET(0x15, 0x32, 0x3a);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1 && *(int32_t *)(src + 0x01) == 1050
+          && *(int32_t *)(g_dat_53c70 + 0x01) == 1040,
+          "the player's entry-0x15 branch skips the random nudge: plain -10/-4 spawn, source unmoved");
+
+    RESET(0x16, 0x21, 0x25);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1 && *(int32_t *)(g_dat_53c70 + 0x01) == 1040
+          && *(int32_t *)(g_dat_53c70 + 0x09) == 2001,
+          "state 0x16 (player, action 0x25): the plain spawn (dx -10, EBX -4, dy +1)");
+
+    g_dat_53c7c = NULL;
+    RESET(0x16, 0x21, 0x22);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1 && *(int32_t *)(src + 0x01) != 1050,
+          "state 0x16 (not the player, action 0x22): nudge plus spawn");
+
+    RESET(0x17, 0x25, 0x4f);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1, "state 0x17, type 0x25 (the 0x24..0x28 band), action 0x4f: nudge plus spawn");
+
+    RESET(0x17, 0x25, 0x68);
+    fn_01194c(src);
+    check(g_dat_53c68 == 3, "same band, action 0x68: the three-way spray");
+
+    RESET(0x17, 0x21, 100);
+    fn_01194c(src);
+    check(g_dat_53c68 == 3, "state 0x17, type 0x21 (inside the first band) with the generic action 100: spray");
+
+    RESET(0x18, 0x21, 10);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1, "state 0x18: action 10 is the move in every band");
+
+    RESET(0x19, 0x21, 0x20);
+    fn_01194c(src);
+    check(g_dat_53c68 == 0, "state 0x19 has no table entry: nothing happens");
+
+    RESET(0x1a, 0x10, 0x20);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1, "state 0x1a, action 0x20: nudge plus spawn");
+
+    RESET(0x1e, 0x21, 0x3b);
+    fn_01194c(src);
+    check(g_dat_53c68 == 3, "state 0x1e, action 0x3b: the three-way spray");
+
+    RESET(0x20, 0x21, 0x2d);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1, "state 0x20, action 0x2d: nudge plus spawn");
+
+    g_dat_53c7c = src;
+    RESET(0x8c, 0x21, 0x3f);
+    fn_01194c(src);
+    check(g_dat_53c68 == 1 && *(int32_t *)(g_dat_53c70 + 0x01) == 1082
+          && *(int32_t *)(g_dat_53c70 + 0x09) == 2001,
+          "state 0x8c (player, action 0x3f): the +0x20 spawn (EBX -4, dy +1)");
+
+    g_dat_53c7c = NULL;
+    RESET(0x8d, 0x21, 0x38);
+    fn_01194c(src);
+    check(g_dat_53c68 == 0, "state 0x8d only fires for the player entity");
+
+#undef RESET
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_63370 = s_370; g_dat_63364 = s_364; g_dat_63368 = s_368;
+    g_dat_639ec[0xfa] = s_sprfa; g_dat_53c7c = s_player;
+    g_dat_639dc = s_dc; g_dat_62a8c = s_nb;
+    memcpy(entab, saved_ent, sizeof saved_ent);
+    free(sprfa); free(src);
+}
+
+
 int main(void) {
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
@@ -16521,6 +16643,7 @@ int main(void) {
     test_fn_03ed6f();
     test_fn_03d244();
     test_fn_039c03();
+    test_fn_01194c();
     test_fn_038445();
     test_fn_0383a4();
     test_fn_03df96();

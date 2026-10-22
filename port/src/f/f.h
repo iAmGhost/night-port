@@ -1452,4 +1452,9 @@ const uint32_t g_tab_531e0[5];          /* 0x531e0: Y of each title-menu entry (
  * Returns 0 only for entry 4 with its toggle clear, otherwise 1. */
 int32_t fn_039c03(void);
 
+/* 0x01194c: THE PER-ENTITY STEP DISPATCH -- jump table on entity+0x17 (state) into range tests on
+ * entity+0x0d (type) and entity+0x11 (action), whose leaves are a random-Y nudge + trail spawn
+ * (fn_01545e + fn_011827), a plain spawn (fn_011827) or the three-way spray (fn_0113e7). */
+void fn_01194c(uint8_t *e);
+
 #endif

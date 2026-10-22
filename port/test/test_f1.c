@@ -8852,6 +8852,138 @@ static void test_fn_0265ac(void)
     heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x029709: behaviour-0x17 (0x0265ac's sibling: rope sprite arm, side-slot-only chooser) ---- */
+static void test_fn_029709(void)
+{
+    printf("fn_029709 (0x029709, behaviour-0x17 entity AI handler)\n");
+    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uint8_t  *save_room = g_dat_63354;
+    uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
+    uint32_t  save_cap   = heap_arena_cap_get();
+    uint32_t  save_floor = heap_region_floor_get();
+    heap_arena_cap_set(0x800000);
+    heap_region_floor_set(0x400);
+
+    uint8_t *pl = h13_alloc(0x14f);
+    uint8_t *e  = h13_alloc(0x14f);
+    uint8_t *room = h13_alloc(0x120);
+    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_dat_639dc = 0; g_dat_639e0 = 0;
+    *(int32_t *)(room + 0x12) = -1000;
+    *(int32_t *)(room + 0x16) = 1000;
+
+    const int32_t TY = 23;
+    uint8_t *cfg = g_dat_53e9c + (size_t)TY * 0x88u;
+    *(int32_t *)(cfg + 0x04) = 1; *(int32_t *)(cfg + 0x80) = 3;
+    *(int32_t *)(cfg + 0x14) = 20; *(int32_t *)(cfg + 0x18) = 100; *(int32_t *)(cfg + 0x84) = 40;
+    uint8_t *row0 = g_dat_53eb8 + (size_t)TY * 0x88u;
+    row0[0] = 40;                                            /* col 0: the side-spot offset */
+
+    pl[0] = 1; pl[0x17] = 0x0a;                              /* an idle player: probe runs */
+    *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
+    e[0] = 1; *(int32_t *)(e + 0x0d) = TY;
+
+    /* (1) the chooser has lost both jitter arms: the slot is always 0 or 1 */
+    {
+        int bad = 0;
+        for (uint32_t sd = 1; sd <= 120u; sd++) {
+            prng_seed(sd);
+            e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x5f] = (int32_t)(sd & 1); e[0x6f] = 0;
+            e[0x8b] = 1; e[0x113] = 0; e[0x11b] = 0;
+            *(int32_t *)(e + 0x01) = 20; *(int32_t *)(e + 0x09) = 400;
+            *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+            *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0xffffffff;
+            fn_029709(e);
+            if (*(int32_t *)(e + 0xff) > 1) bad++;
+            if (*(int32_t *)(e + 0xc3) != 120) bad++;        /* the spot is always level with the player */
+        }
+        check(bad == 0, "029709 every hiding spot is a script-row side slot level with the player");
+    }
+
+    /* (2) both side arms, forced through the re-roll: col-0 offset, with the >>1 / 0x3c rule */
+    row0[0] = 0x80;                                          /* 0x80>>1 = 0x40 >= 0x3c -> halved form */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x6f] = 0; e[0x8b] = 1; e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 20; *(int32_t *)(e + 0x09) = 400;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 1;  /* forces slot 0 */
+    fn_029709(e);
+    check(*(int32_t *)(e + 0xff) == 0 && *(int32_t *)(e + 0xbf) == 200 - 0x40 + 1,
+          "029709 slot 0 with a large offset lands at player - (offset>>1) + 1");
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x6f] = 0; e[0x8b] = 1; e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0xbf) = 0; *(int32_t *)(e + 0xc3) = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 0;  /* forces slot 1 */
+    fn_029709(e);
+    check(*(int32_t *)(e + 0xff) == 1 && *(int32_t *)(e + 0xbf) == 200 + 0x40 - 1,
+          "029709 slot 1 with a large offset lands at player + (offset>>1) - 1");
+    row0[0] = 40;
+
+    /* (3) the X clamp runs BEFORE the too-close test, so a rejected spot keeps its raw X */
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x6f] = 0; e[0x8b] = 1; e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 200 - 40; *(int32_t *)(e + 0x09) = 120;   /* sitting on slot 0's spot */
+    *(int32_t *)(e + 0xbf) = 0x5555; *(int32_t *)(e + 0xc3) = 0x2222;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xff) = 1;
+    fn_029709(e);
+    check(*(int32_t *)(e + 0xc7) == 1 && *(int32_t *)(e + 0xbf) == 0x5555,
+          "029709 a rejected spot restores an UNclamped X (the clamp already ran)");
+
+    /* (4) the rope sprite 0x2b latches both anchors on its first frame */
+    e[0x17] = 0x2b; e[0x11] = 1; e[0x1f] = 6; e[0xaf] = 1; e[0x8b] = 1;
+    *(int32_t *)(e + 0x01) = 90; *(int32_t *)(e + 0x09) = 70;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    *(int32_t *)(e + 0xcb) = 0; *(int32_t *)(e + 0xcf) = 0;
+    memset(e + 0xe7, 0, 4);
+    fn_029709(e);
+    check(*(int32_t *)(e + 0xd3) == 90 && *(int32_t *)(e + 0xd7) == 70 &&
+          *(int32_t *)(e + 0xcb) == 200 && *(int32_t *)(e + 0xcf) == 120,
+          "029709 the rope state's first frame latches the self and player anchors");
+    float slope; memcpy(&slope, e + 0xe7, 4);
+    check(isinf(slope) && slope > 0.0f,
+          "029709 entity[0xe7] is the anchor gap over the unresolved DS 0x44 double (0 -> +inf)");
+
+    /* (5) the rope climb only runs for entity[0x11] in 2..0x14 */
+    e[0x17] = 0x2b; e[0x11] = 0x15; e[0x1f] = 6; e[0xaf] = 1; e[0x8b] = 1;
+    *(int32_t *)(e + 0xd3) = 0; *(int32_t *)(e + 0xd7) = 0;
+    fn_029709(e);
+    check(*(int32_t *)(e + 0xd3) == 0 && *(int32_t *)(e + 0xd7) == 0,
+          "029709 a rope frame past 0x14 does nothing");
+
+    /* (6) the walk: a row whose col-1 byte is '.' ignores the Y tolerance */
+    row0[0] = 7; row0[1] = 0x2b;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 300;      /* 180 px away in Y */
+    fn_029709(e);
+    check(*(int32_t *)(e + 0x17) == 7 && *(int32_t *)(e + 0x11b) == 1,
+          "029709 a '.' walk row advances on the X gap alone");
+    row0[1] = 3;
+    e[0x17] = 2; e[0x1f] = 0x0b; *(int32_t *)(e + 0xab) = -1; e[0x8b] = 1;
+    e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0x01) = 205; *(int32_t *)(e + 0x09) = 300;
+    fn_029709(e);
+    check(*(int32_t *)(e + 0x1f) == 0 &&
+          (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
+          "029709 an ordinary walk row still needs the six-pixel Y match");
+    row0[0] = 40; row0[1] = 0;
+
+    /* (7) the shared ladder survives: state 0x0d shows '1' */
+    e[0x17] = 2; e[0x1f] = 0x0d; e[0xaf] = 0x0a; *(int32_t *)(e + 0xab) = 0; e[0x8b] = 1;
+    fn_029709(e);
+    check(e[0x17] == 0x31 && *(int32_t *)(e + 0x1f) == 0,
+          "029709 keeps the countdown ladder rung '1' at state 0x0d");
+
+    {
+        uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
+        *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
+        *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
+        for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
+    }
+    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
+    heap_arena_cap_set(save_cap);
+    heap_region_floor_set(save_floor);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -13966,6 +14098,7 @@ int main(void) {
     test_fn_0221b8();
     test_fn_02119c();
     test_fn_0265ac();
+    test_fn_029709();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

@@ -131,6 +131,20 @@ Older progress: (8 of 18 -- 0x01f064/behaviour 0x07 added: a four-arm chooser (s
 
 Older progress: (7 of 18 -- 0x01df8b/behaviour 0x06 added: the entity[0x5f] phase-latch chooser (script-byte side spots alternating with absolute jitter slots 6..9)).
 
+SIBLING-DIFF SHORTCUT (used for 0x029709, use it for the rest): the if-chain handlers are near-clones.
+Normalise each disassembly to `mnemonic + operands-with-immediates-masked`, run difflib
+SequenceMatcher against an already-ported sibling, then read ONLY (a) inserted blocks, (b) deleted
+blocks, (c) aligned pairs whose difference survives stripping branch targets and [ebp-...] slot renames.
+For 0x029709 vs 0x0265ac that is 1213/1342 shared, two inserted blocks (0x000299e1-0x00029aa8,
+0x0002a9ba-0x0002aac1) and exactly one semantic substitution (probe fn_0161f9 vs fn_015b5b) -- so the
+port is the sibling body plus four edits. Family variants pinned so far: the X clamp sits AFTER the
+too-close restore in 0x0265ac (both paths clamped) but BEFORE it in 0x029709 (restored X stays raw);
+0x0265ac has an entity[0x5f] two-arm latch (side slots vs absolute jitter 6..9) while 0x029709 draws
+only prng()%2 side slots; a script row whose col-1 byte is '.' (0x2b) drops the walk's 6 px Y
+tolerance in 0x029709. One unresolved external: the double at DS 0x44 (rope slope divisor) is not
+initialised image data -- under DOS4GW absolute 0x44 is the PM IVT slot for int 0x11 -- so the port
+keeps g_ds_low0040 zeroed and the slope becomes +inf (documented deviation).
+
 HANDLER FRONTIER (recomputed with a corrected pending/callee scan, scratch/frontier-style): every one of
 the 9 remaining handlers is gated ONLY on folded helpers (0x0418ee canary prologue, 0x041e9f prng,
 0x041f76 abs, 0x041f7e modulo) plus 0x01586b / 0x017927, which are BOTH already ported. None of them is

@@ -8972,6 +8972,20 @@ static void test_fn_029709(void)
     check(e[0x17] == 0x31 && *(int32_t *)(e + 0x1f) == 0,
           "029709 keeps the countdown ladder rung '1' at state 0x0d");
 
+    /* recon gate: the FIRST frame in the dispatch state only raises entity[0x8b] and skips the
+     * whole action dispatch; the second frame runs it (0x00029b42 / 0x0003078d / 0x00023902). */
+    *(int32_t *)(g_dat_53e9c + (size_t)TY * 0x88u + 0x14) = 40;
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 0; e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xab) = 0;
+    *(int32_t *)(e + 0xbf) = 0x7777; *(int32_t *)(e + 0xc3) = 0x7777;
+    fn_029709(e);
+    check(*(int32_t *)(e + 0x8b) == 1 && *(int32_t *)(e + 0xab) == 0 &&
+          *(int32_t *)(e + 0xbf) == 0x7777,
+          "029709 the first frame of the dispatch state only raises entity[0x8b] (recon gate)");
+    fn_029709(e);
+    check(*(int32_t *)(e + 0xab) == 20 && *(int32_t *)(e + 0xbf) != 0x7777,
+          "029709 the next frame runs the dispatch (entity[0xab] = config 0x14 >> 1, spot chosen)");
+
     {
         uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
         *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
@@ -9087,6 +9101,20 @@ static void test_fn_02fe1e(void)
           "02fe1e an unmarked walk row still needs the six-pixel Y match");
     row0[0] = 40; row0[1] = 0;
 
+    /* recon gate: the FIRST frame in the dispatch state only raises entity[0x8b] and skips the
+     * whole action dispatch; the second frame runs it (0x00029b42 / 0x0003078d / 0x00023902). */
+    *(int32_t *)(g_dat_53e9c + (size_t)TY * 0x88u + 0x14) = 40;
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 0; e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xab) = 0;
+    *(int32_t *)(e + 0xbf) = 0x7777; *(int32_t *)(e + 0xc3) = 0x7777;
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0x8b) == 1 && *(int32_t *)(e + 0xab) == 0 &&
+          *(int32_t *)(e + 0xbf) == 0x7777,
+          "02fe1e the first frame of the dispatch state only raises entity[0x8b] (recon gate)");
+    fn_02fe1e(e);
+    check(*(int32_t *)(e + 0xab) == 20 && *(int32_t *)(e + 0xbf) != 0x7777,
+          "02fe1e the next frame runs the dispatch (entity[0xab] = config 0x14 >> 1, spot chosen)");
+
     {
         uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;
         *(uint32_t *)(c + 0x04) = *(uint32_t *)(c + 0x10) = *(uint32_t *)(c + 0x14) = 0;
@@ -9199,6 +9227,20 @@ static void test_fn_02319c(void)
           (*(int32_t *)(e + 0xaf) == 0x0a || *(int32_t *)(e + 0xaf) == 4),
           "02319c twelve pixels of Y error misses the row and falls back to the coin flip");
     row0[0] = 40;
+
+    /* recon gate: the FIRST frame in the dispatch state only raises entity[0x8b] and skips the
+     * whole action dispatch; the second frame runs it (0x00029b42 / 0x0003078d / 0x00023902). */
+    *(int32_t *)(g_dat_53e9c + (size_t)TY * 0x88u + 0x14) = 40;
+    e[0x17] = 2; e[0x1f] = 0; e[0xaf] = 4; e[0x8b] = 0; e[0x113] = 0; e[0x11b] = 0;
+    *(int32_t *)(e + 0xc7) = 1; *(int32_t *)(e + 0xab) = 0;
+    *(int32_t *)(e + 0xbf) = 0x7777; *(int32_t *)(e + 0xc3) = 0x7777;
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0x8b) == 1 && *(int32_t *)(e + 0xab) == 0 &&
+          *(int32_t *)(e + 0xbf) == 0x7777,
+          "02319c the first frame of the dispatch state only raises entity[0x8b] (recon gate)");
+    fn_02319c(e);
+    check(*(int32_t *)(e + 0xab) == 20 && *(int32_t *)(e + 0xbf) != 0x7777,
+          "02319c the next frame runs the dispatch (entity[0xab] = config 0x14 >> 1, spot chosen)");
 
     {
         uint8_t *c = g_dat_53e9c + (size_t)TY * 0x88u;

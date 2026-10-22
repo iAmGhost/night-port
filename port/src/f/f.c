@@ -18718,6 +18718,13 @@ void fn_029709(uint8_t *e)
         goto ai_tail;
     }
 
+    /* 0x00029b42-0x00029b5b: the FIRST frame in this state never runs the action dispatch -- it only raises the
+     * recon flag entity[0x8b] and falls straight through to the move tail.  (0x01bea8 and 0x0265ac
+     * have no such gate; they only ever clear the flag.) */
+    if (*(int32_t *)(e + 0x8b) == 0) {
+        *(int32_t *)(e + 0x8b) = 1;
+        goto ai_tail;                                              /* 0x0002ad9d */
+    }
     if (*(int32_t *)(e + 0xaf) != 4) {
         if (*(int32_t *)(e + 0xaf) == 0x0a) {
             *(int32_t *)(e + 0xab) = (uint32_t)(ai_rec_i32(ty, 0x18) >> 1);
@@ -19241,6 +19248,13 @@ void fn_02fe1e(uint8_t *e)
         goto ai_tail;
     }
 
+    /* 0x0003078d-0x000307a6: the FIRST frame in this state never runs the action dispatch -- it only raises the
+     * recon flag entity[0x8b] and falls straight through to the move tail.  (0x01bea8 and 0x0265ac
+     * have no such gate; they only ever clear the flag.) */
+    if (*(int32_t *)(e + 0x8b) == 0) {
+        *(int32_t *)(e + 0x8b) = 1;
+        goto ai_tail;                                              /* 0x00031a36 */
+    }
     if (*(int32_t *)(e + 0xaf) != 4) {
         if (*(int32_t *)(e + 0xaf) == 0x0a) {
             *(int32_t *)(e + 0xab) = (uint32_t)(ai_rec_i32(ty, 0x18) >> 1);
@@ -19740,6 +19754,13 @@ void fn_02319c(uint8_t *e)
         goto ai_tail;
     }
 
+    /* 0x00023902-0x0002391b: the FIRST frame in this state never runs the action dispatch -- it only raises the
+     * recon flag entity[0x8b] and falls straight through to the move tail.  (0x01bea8 and 0x0265ac
+     * have no such gate; they only ever clear the flag.) */
+    if (*(int32_t *)(e + 0x8b) == 0) {
+        *(int32_t *)(e + 0x8b) = 1;
+        goto ai_tail;                                              /* 0x00024104 -> 0x00024ba1 */
+    }
     if (*(int32_t *)(e + 0xaf) != 4) {
         if (*(int32_t *)(e + 0xaf) == 0x0a) {
             *(int32_t *)(e + 0xab) = (uint32_t)(ai_rec_i32(ty, 0x18) >> 1);

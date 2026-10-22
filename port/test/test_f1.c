@@ -10204,6 +10204,186 @@ static void test_fn_031a8e(void)
     heap_arena_cap_set(save_cap); heap_region_floor_set(save_floor);
 }
 
+
+/* ---- 0x013c4d: the actor-vs-actor hit test ---- */
+static void test_fn_013c4d(void)
+{
+    printf("fn_013c4d (0x013c4d, actor hit test)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_dat_53c7c, *s_80 = g_dat_53c80;
+    int32_t  s_cnt = g_dat_53c68; uint32_t s_370 = g_dat_63370;
+    uint8_t *s_spr1 = g_dat_639ec[1], *s_spr2 = g_dat_639ec[2], *s_sprc9 = g_dat_639ec[0xc9];
+    uint32_t s_act2 = g_dat_53818[2];
+    static uint8_t s_cfg1[0x88], s_cfg2[0x88], s_cfgc9[0x88];
+    memcpy(s_cfg1, g_dat_53e9c + 1u*0x88u, 0x88); memcpy(s_cfg2, g_dat_53e9c + 2u*0x88u, 0x88);
+    memcpy(s_cfgc9, g_dat_53e9c + 0xc9u*0x88u, 0x88);
+    memset(g_dat_53e9c + 1u*0x88u, 0, 0x88); memset(g_dat_53e9c + 2u*0x88u, 0, 0x88);
+    memset(g_dat_53e9c + 0xc9u*0x88u, 0, 0x88);
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0; g_dat_63370 = 0xffffffffu;
+
+    /* the per-type sprite structs and their eight box arrays (indices 0..3 used) */
+    uint32_t sprA_off = heap_arena_alloc(0x40); uint8_t *sprA = hb + sprA_off; memset(sprA, 0, 0x40);
+    uint32_t sprB_off = heap_arena_alloc(0x40); uint8_t *sprB = hb + sprB_off; memset(sprB, 0, 0x40);
+    uint32_t sprC9_off = heap_arena_alloc(0x40); uint8_t *sprC9 = hb + sprC9_off; memset(sprC9, 0, 0x40);
+    int32_t *bx14 = (int32_t *)(hb + (g_dat_639ec[2] = sprB, *(uint32_t *)(sprB + 0x14) = heap_arena_alloc(0x40)));
+    int32_t *bx18 = (int32_t *)(hb + (*(uint32_t *)(sprB + 0x18) = heap_arena_alloc(0x40)));
+    int32_t *by24 = (int32_t *)(hb + (*(uint32_t *)(sprB + 0x24) = heap_arena_alloc(0x40)));
+    int32_t *by28 = (int32_t *)(hb + (*(uint32_t *)(sprB + 0x28) = heap_arena_alloc(0x40)));
+    int32_t *ax1c = (int32_t *)(hb + (g_dat_639ec[1] = sprA, *(uint32_t *)(sprA + 0x1c) = heap_arena_alloc(0x40)));
+    int32_t *ax20 = (int32_t *)(hb + (*(uint32_t *)(sprA + 0x20) = heap_arena_alloc(0x40)));
+    int32_t *ay2c = (int32_t *)(hb + (*(uint32_t *)(sprA + 0x2c) = heap_arena_alloc(0x40)));
+    int32_t *ay30 = (int32_t *)(hb + (*(uint32_t *)(sprA + 0x30) = heap_arena_alloc(0x40)));
+    g_dat_639ec[0xc9] = sprC9;
+
+    /* B's ACT chain: b[0x123] -> container -> record array -> the current animation record */
+    uint32_t cont_off = heap_arena_alloc(0x20); uint8_t *cont = hb + cont_off; memset(cont, 0, 0x20);
+    uint32_t recs_off = heap_arena_alloc(0x20); uint8_t *recs = hb + recs_off; memset(recs, 0, 0x20);
+    uint32_t anim_off = heap_arena_alloc(0x80); uint8_t *anim = hb + anim_off; memset(anim, 0, 0x80);
+    uint32_t bfr_off  = heap_arena_alloc(0x20); uint8_t *bfr  = hb + bfr_off;  memset(bfr, 0, 0x20);
+    *(uint32_t *)(cont + 0x04) = recs_off;
+    *(uint32_t *)(recs + 4u * 5) = anim_off;                    /* state 5 -> this record */
+    *(uint32_t *)(anim + 0x00) = 4;                             /* frame count (divisor) */
+    *(uint16_t *)(anim + 0x04) = 0; *(uint16_t *)(anim + 0x06) = 0;   /* no intangible window */
+    *(uint32_t *)(anim + 0x6d) = bfr_off;
+    for (int i = 0; i < 8; i++) *(uint16_t *)(bfr + 2u*i) = (uint16_t)i;
+
+    /* the shared pair record passed in EBX (its per-frame sub-record is at +0x200 here) */
+    uint32_t prec_off = heap_arena_alloc(0x220); uint8_t *prec = hb + prec_off; memset(prec, 0, 0x220);
+    uint32_t afr_off  = heap_arena_alloc(0x20); uint8_t *afr  = hb + afr_off; memset(afr, 0, 0x20);
+    *(uint32_t *)(prec + 0x00) = 4;                             /* frame count for A's index */
+    *(uint32_t *)(prec + 0x6d) = afr_off;
+    for (int i = 0; i < 8; i++) *(uint16_t *)(afr + 2u*i) = (uint16_t)i;
+    const int32_t ROFF = 0x200;
+    prec[ROFF + 0x3e] = 7; prec[ROFF + 0x44] = 30; prec[ROFF + 0x56] = 20; prec[ROFF + 0x5d] = 0;
+
+    uint8_t *A = hb + heap_arena_alloc(0x160); memset(A, 0, 0x160);
+    uint8_t *B = hb + heap_arena_alloc(0x160); memset(B, 0, 0x160);
+    A[0] = 1; B[0] = 1;
+    *(uint32_t *)(A + 0x0d) = 1;  *(uint32_t *)(B + 0x0d) = 2;
+    *(uint32_t *)(B + 0x123) = cont_off;
+    *(uint32_t *)(A + 0x17) = 5;  *(uint32_t *)(B + 0x17) = 5;
+    *(uint32_t *)(A + 0x11) = 2;  *(uint32_t *)(B + 0x11) = 3;   /* idx_a = 2, idx_b = 3 */
+    *(uint32_t *)(A + 0x01) = 100; *(uint32_t *)(A + 0x05) = 10; *(uint32_t *)(A + 0x09) = 60;
+    *(uint32_t *)(B + 0x01) = 120; *(uint32_t *)(B + 0x05) = 10; *(uint32_t *)(B + 0x09) = 60;
+
+    /* base geometry: B = X[80,160] Y[40,80], A's box = X[110,120] (facing 0) Y[65,75] */
+    bx14[3] = -40; bx18[3] = 40; by24[3] = -30; by28[3] = 10;
+    ax1c[2] = -20; ax20[2] = 20; ay2c[2] = -5;  ay30[2] = 5;
+
+    /* (1) the inert flag: an entity spawned this frame cannot be hit */
+    B[0x30] = 1;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d byte B[0x30] == 1 rejects the hit outright");
+    B[0x30] = 0;
+
+    /* (2) the intangible frame window from B's animation record (word +4 / +6) */
+    *(uint16_t *)(anim + 0x04) = 0; *(uint16_t *)(anim + 0x06) = 10;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d frame 3 inside the word[+4]..word[+6] window is intangible");
+    *(uint16_t *)(anim + 0x04) = 10; *(uint16_t *)(anim + 0x06) = 20;
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d a frame below word[+4] sits OUTSIDE the window, so the hit stays alive");
+    *(uint16_t *)(anim + 0x04) = 0; *(uint16_t *)(anim + 0x06) = 0;
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d an empty window (+4 == +6 == 0) leaves the hit alive");
+
+    /* (3) the carry/being-carried pair only hits its own partner (B[0x4a] == A) */
+    *(uint32_t *)(A + 0x17) = 0x67;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d state 0x67 with B[0x4a] clear rejects an unlinked victim");
+    *(uint32_t *)(B + 0x4a) = (uint32_t)(uintptr_t)(A - hb);
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d state 0x67 whose B[0x4a] link points at A hits");
+    *(uint32_t *)(B + 0x4a) = 0; *(uint32_t *)(A + 0x17) = 5;
+
+    /* (4) the Y gate uses byte +0x56 of the pair record */
+    prec[ROFF + 0x56] = 5; *(uint32_t *)(B + 0x09) = 90;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d more than byte(+0x56) apart on Y is rejected before any box work");
+    prec[ROFF + 0x56] = 20; *(uint32_t *)(B + 0x09) = 60;
+
+    /* (5) the plain hit: box corners inside, and B turns to face A */
+    *(uint32_t *)(B + 0x1b) = 0;
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d both of A's X corners inside B's span is a hit");
+    check(*(uint32_t *)(B + 0x1b) == 1, "013c4d the generic tail turns a right-facing B when B is right of A");
+
+    /* (6) X straddle: A's box swallows B's box instead of being rejected */
+    ax1c[2] = -100; ax20[2] = 100;
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d an A box straddling all of B passes on the straddle arm");
+    ax1c[2] = -20; ax20[2] = 20;
+
+    /* (7) X miss and (8) the Y tiers */
+    *(uint32_t *)(A + 0x01) = 400;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d A far to the right misses (no corner inside, no straddle)");
+    *(uint32_t *)(A + 0x01) = 100;
+    ay2c[2] = -50; ay30[2] = 50;
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d the Y tier also accepts a full straddle (A above and below B)");
+    ay2c[2] = 20; ay30[2] = 30;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d A entirely below B's Y span misses");
+    ay2c[2] = -5; ay30[2] = 5;
+
+    /* (9) the contact point: byte(+0x44) offset, clamped into B's X span, spawns the effect actor */
+    prec[ROFF + 0x5d] = 5;
+    int cnt0 = g_dat_53c68;
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d a hit with byte(+0x5d) set still returns 1");
+    check(g_dat_53c68 == cnt0 + 1, "013c4d the spawn appends one entity to the list");
+    uint8_t *nt = g_dat_53c74;
+    check(nt[0x30] == 1 && *(uint32_t *)(nt + 0x17) == 5 && *(uint32_t *)(nt + 0x0d) == 0xc9,
+          "013c4d the spawned type-0xc9 actor gets +0x30 = 1 and +0x17 = byte(+0x5d)");
+    check(*(uint32_t *)(nt + 0x01) == 130 && *(int32_t *)(nt + 0x09) == 81
+          && *(int32_t *)(nt + 0x05) == -18,
+          "013c4d spawn position = A.x + byte(+0x44), A.y + dl + 1, A.h + (-byte(+0x3e)) - dl - 1");
+    check(*(uint32_t *)(nt + 0x1b) == *(const uint32_t *)(A + 0x1b),
+          "013c4d the spawned actor copies A's facing (A is not the player here)");
+    /* (10) the clamp: a big +0x44 offset is pulled back to B's far edge */
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0;
+    prec[ROFF + 0x44] = 0xc8;                                    /* bit 7 set = a NEGATIVE offset: -56 */
+    (void)fn_013c4d(A, B, prec, ROFF);
+    check(*(uint32_t *)(g_dat_53c74 + 0x01) == 80,
+          "013c4d byte(+0x44) with bit 7 set is read as (v&0x7f)-0x80 and clamps up to B's near edge");
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0;
+    prec[ROFF + 0x44] = 100;                                     /* a plain positive offset past the far edge */
+    (void)fn_013c4d(A, B, prec, ROFF);
+    check(*(uint32_t *)(g_dat_53c74 + 0x01) == 160,
+          "013c4d the contact X clamps to B's far edge (v4c)");
+    prec[ROFF + 0x44] = 30;
+
+    /* (11) the player reaction: animation record byte +0x6c == 1 -> state 0xa1, and B mirrors A */
+    g_dat_53c7c = A; g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0;
+    prec[ROFF + 0x5d] = 0;
+    *(uint32_t *)(A + 0x17) = 0x65; *(uint32_t *)(A + 0x11) = 3; *(uint16_t *)(A + 0x50) = 0x55;
+    *(uint32_t *)(A + 0x1b) = 0; *(uint32_t *)(B + 0x1b) = 0;
+    anim[0x6c] = 1;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d the player hit in state 0x65 returns 0 (the reaction consumes it)");
+    check(*(uint32_t *)(A + 0x17) == 0xa1 && *(uint32_t *)(A + 0x11) == 0 && *(uint16_t *)(A + 0x50) == 0
+          && *(uint32_t *)(B + 0x1b) == 1,
+          "013c4d record byte +0x6c == 1 -> state 0xa1, frame 0, word +0x50 cleared, B = 1 - A facing");
+    /* (12) other +0x6c values only react when the pair faces the same way; the player byte +0x27 picks 0xab */
+    *(uint32_t *)(A + 0x17) = 0x99; *(uint32_t *)(A + 0x11) = 3; *(uint16_t *)(A + 0x50) = 0x55;
+    *(uint32_t *)(A + 0x1b) = 0; *(uint32_t *)(B + 0x1b) = 0; anim[0x6c] = 0;
+    g_dat_53c7c[0x27] = 4;
+    check(fn_013c4d(A, B, prec, ROFF) == 0 && *(uint32_t *)(A + 0x17) == 0xab
+          && *(uint32_t *)(A + 0x11) == 0 && *(uint16_t *)(A + 0x50) == 0 && *(uint32_t *)(B + 0x1b) == 1,
+          "013c4d same-facing reaction with player[0x27] == 4 -> state 0xab and B's facing flipped");
+    *(uint32_t *)(A + 0x17) = 0x65; *(uint32_t *)(A + 0x11) = 3; *(uint32_t *)(B + 0x1b) = 1;
+    check(fn_013c4d(A, B, prec, ROFF) == 1 && *(uint32_t *)(A + 0x17) == 0x65,
+          "013c4d opposite facings: no reaction, the hit simply returns 1");
+    g_dat_53c7c[0x27] = 0; g_dat_53c7c = s_pl;
+
+    /* (13) the facing really mirrors the boxes: the same data misses facing 0 and hits facing 1 */
+    ax1c[2] = -50; ax20[2] = -30;
+    *(uint32_t *)(A + 0x11) = 2;
+    *(uint32_t *)(A + 0x17) = 5; *(uint32_t *)(A + 0x1b) = 0; *(uint32_t *)(B + 0x1b) = 0;
+    check(fn_013c4d(A, B, prec, ROFF) == 0, "013c4d a left-side hit box misses when A faces right");
+    *(uint32_t *)(A + 0x1b) = 1;
+    check(fn_013c4d(A, B, prec, ROFF) == 1, "013c4d the same box hits once A faces left (the pairs swap and negate)");
+    ax1c[2] = -20; ax20[2] = 20;
+
+    /* restore */
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c7c = s_pl; g_dat_53c80 = s_80;
+    g_dat_53c68 = s_cnt; g_dat_63370 = s_370;
+    g_dat_639ec[1] = s_spr1; g_dat_639ec[2] = s_spr2; g_dat_639ec[0xc9] = s_sprc9;
+    g_dat_53818[2] = s_act2;
+    memcpy(g_dat_53e9c + 1u*0x88u, s_cfg1, 0x88); memcpy(g_dat_53e9c + 2u*0x88u, s_cfg2, 0x88);
+    memcpy(g_dat_53e9c + 0xc9u*0x88u, s_cfgc9, 0x88);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_013aad(void) {
     printf("fn_013aad (0x013aad, entity-list bubble-sort)\n");
     const int NS = 0x150;
@@ -15327,6 +15507,7 @@ int main(void) {
     test_fn_02c838();
     test_fn_02e2cc();
     test_fn_031a8e();
+    test_fn_013c4d();
     test_fn_013aad();
     test_fn_0357f2();
     test_fn_035941();

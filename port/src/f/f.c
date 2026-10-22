@@ -22579,3 +22579,187 @@ void fn_0322f5(void)
         g_dat_53c78 = *(uint8_t **)(g_dat_53c78 + 0x13f);          /* 0x00032360-0x0003236b */
     }
 }
+
+/* =================================================================== */
+/*  the actor-vs-actor hit test (0x013c4d)                              */
+/* =================================================================== */
+
+/* fn_013c4d  orig: 0x013c4d (L13, 1809 B) -- THE ACTOR HIT TEST: decides whether actor A (EAX) lands a
+ * hit on actor B (EDX) this frame, and on success applies the resulting state/facing changes -- and can
+ * SPAWN a third actor. Called only from fn_01441e (0x0001472b).
+ * ABI: EAX = A, the attacker (its animation record supplies the hit box), EDX = B, the victim (its
+ * animation record supplies the hurt box), EBX = the shared ACT record base for the pair, ECX = a byte
+ * offset added to that record (so EBX+ECX is the per-frame sub-record: +0x3e/+0x44/+0x56/+0x5d bytes).
+ * Returns 1 when the hit landed, 0 when it was rejected.
+ *
+ * Gates, in order (each rejected case returns 0 without touching anything):
+ *   1. byte B[0x30] == 1 -> B was just spawned this frame and is inert.
+ *   2. the victim's animation record frame window: with anim = P2[B[0x17] & 0x7fffffff] from the
+ *      B[0x123] chain, B is hittable unless word anim[4] <= B[0x11] < word anim[6] -- that frame range is
+ *      the intangible window (0x00013cb0-0x00013cd1 keeps the "outside the window" case alive).
+ *   3. A in state 0x67/0x68 (the carry/being-carried pair) only hits its own partner: B[0x4a] must equal A.
+ *      The link is kept as a heap-relative 32-bit value, exactly like the original's flat heap address.
+ *   4. the Y overlap: |B[9] - (A[9] + 0)| <= byte(EBX+ECX+0x56), i.e. both B[9] >= A9-dl and
+ *      B9 <= A9+dl must hold (0x00013d79-0x00013daf). Failing it jumps to 0x0001434f: return 0 WITHOUT
+ *      any of the facing fix-up below.
+ *
+ * Boxes: each side is a quadrilateral's X/Y span, read from the per-type sprite struct g_dat_639ec[type]
+ * through eight parallel dword arrays (+0x14/+0x18 = B's X pair, +0x1c/+0x20 = A's X pair,
+ * +0x24/+0x28 = the Y pair, +0x2c/+0x30 = A's Y pair), indexed by the frame index
+ * fidx = B[0x11] % B-anim[0] (signed) for B and A[0x11] % A-anim[0] for A. A[0x1b] (facing) mirrors the
+ * whole thing: facing 0 subtracts B's offsets and adds A's, facing 1 adds B's and subtracts A's, and the
+ * two X pairs swap roles. Every Y value is (entity[9] + entity[5]) + offset, i.e. the row is measured from
+ * the feet plus the record height.
+ *
+ * The overlap test is NOT a plain AABB test: the primary test asks whether either of A's two X corners
+ * falls inside B's X span, and only if that fails whether A's box STRADDLES B's (A's left corner at or
+ * left of B's left AND A's right corner at or right of B's right); the same two-tier test then runs on Y
+ * (corners inside, else straddle). Both must pass -- a big actor therefore swallows a small one instead
+ * of being rejected, which is what the straddle arms are for.
+ *
+ * Success path (0x000140d5): the contact X = A[1] +/- byte(EBX+ECX+0x44) (bit 7 set means a negative
+ * offset: value = (v & 0x7f) - 0x80), clamped into B's X span. If byte(EBX+ECX+0x5d) is nonzero it is
+ * used as the state of a freshly allocated type-0xc9 (201) actor built by fn_010efc at that clamped X,
+ * y = A[9] + dl + 1, with the pair's mirrored-x offset; the new actor gets +0x30 = 1 and +0x1b copied from
+ * A -- flipped when A is the player in state 0x38/0xa4. Allocation failure is kept: the original writes
+ * +0x30 / +0x17 through the null block.
+ * Then A's own reaction: when A is the player in state 0x65 or 0x99, the animation record's byte +0x6c
+ * picks the outcome -- 1 puts A into state 0xa1 (with frame 0 and word +0x50 cleared) and mirrors B; any
+ * other value only does it when A and B face the same way, going to 0xab if the player's byte +0x27 == 4
+ * else 0xa0, and both return 0 afterwards (the hit is consumed by the reaction). Otherwise the generic
+ * tail runs: B is turned to face A (only when that agrees with B's own facing rule), and 1 is returned. */
+int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
+{
+    (void)canary_id((uintptr_t)a, 0x84);                          /* 0x00013c4d-52 stack probe (0x84) */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    if (*(const uint8_t *)(b + 0x30) == 1) return 0;              /* 0x00013c6e-7c */
+
+    uint32_t p1 = *(const uint32_t *)(b + 0x123);                 /* 0x00013c9d: B's ACT container */
+    uint32_t p2 = *(const uint32_t *)(hb + p1 + 0x04);            /* 0x00013ca3 */
+    uint32_t st = *(const uint32_t *)(b + 0x17) & 0x7fffffffu;    /* 0x00013c8d-95 */
+    const uint8_t *anim = hb + *(const uint32_t *)(hb + p2 + 4u * st);  /* 0x00013ca6-aa */
+    int32_t fr = (int32_t)*(const uint32_t *)(b + 0x11);          /* B's frame */
+    if ((int32_t)*(const uint16_t *)(anim + 0x04) <= fr &&
+        (int32_t)*(const uint16_t *)(anim + 0x06) > fr) return 0; /* 0x00013cb0-0x00013cd1: intangible window */
+
+    {
+        int32_t sa = *(const int32_t *)(a + 0x17);                /* 0x00013ce0 / 0x00013ce9 */
+        if (sa == 0x67 || sa == 0x68) {                           /* 0x00013cef-0x00013d01: partner only */
+            if (*(const uint32_t *)(b + 0x4a) != (uint32_t)(uintptr_t)(a - hb)) return 0;
+        }
+    }
+
+    /* A's frame slot comes from the shared pair record, B's from B's own animation record. */
+    int32_t idx_a = (int32_t)*(const uint32_t *)(a + 0x11) % (int32_t)*(const uint32_t *)(rec);
+    uint32_t v34 = *(const uint16_t *)(hb + *(const uint32_t *)(rec + 0x6d) + 2u * (uint32_t)idx_a);
+    int32_t idx_b = (int32_t)*(const uint32_t *)(b + 0x11) % (int32_t)*(const uint32_t *)(anim);
+    uint32_t v30 = *(const uint16_t *)(hb + *(const uint32_t *)(anim + 0x6d) + 2u * (uint32_t)idx_b);
+
+    int32_t v2c = (int32_t)*(const uint8_t *)(rec + rec_off + 0x5d);   /* 0x00013d4a-55: spawned state */
+    int32_t bx  = (int32_t)*(const uint32_t *)(b + 0x01);              /* 0x00013d61-67 */
+    int32_t by  = (int32_t)*(const uint32_t *)(b + 0x09)
+                  + (int32_t)*(const uint32_t *)(b + 0x05);            /* 0x00013d6a-76 */
+    int32_t dl  = (int32_t)*(const uint8_t *)(rec + rec_off + 0x56);   /* 0x00013d79-81 */
+    int32_t ay  = (int32_t)*(const uint32_t *)(a + 0x09);
+    int32_t by9 = (int32_t)*(const uint32_t *)(b + 0x09);
+    if (ay + dl < by9) return 0;                                       /* 0x00013d87-90 -> 0x0001434f */
+    if (ay - dl > by9) return 0;                                       /* 0x00013d92-0x00013daf */
+
+    {
+        int32_t ty_a = *(const int32_t *)(a + 0x0d);
+        int32_t ty_b = *(const int32_t *)(b + 0x0d);
+        const uint8_t *sprA = g_dat_639ec[(size_t)(uint32_t)ty_a];
+        const uint8_t *sprB = g_dat_639ec[(size_t)(uint32_t)ty_b];
+#define SUBT(p, off) ((const int32_t *)(hb + *(const uint32_t *)((p) + (off))))
+        int32_t ax = (int32_t)*(const uint32_t *)(a + 0x01);
+        int32_t awh = ay + (int32_t)*(const uint32_t *)(a + 0x05);     /* the row anchor, feet + height */
+        int32_t v50, v4c, v40, v3c, v58, v54, v48, v44;
+        if (*(const int32_t *)(a + 0x1b) == 0) {                       /* 0x00013db7: facing right */
+            v50 = bx - SUBT(sprB, 0x18)[idx_b];
+            v40 = by + SUBT(sprB, 0x24)[idx_b];
+            v4c = bx - SUBT(sprB, 0x14)[idx_b];
+            v3c = by + SUBT(sprB, 0x28)[idx_b];
+            v58 = ax + SUBT(sprA, 0x1c)[idx_a];
+            v48 = awh + SUBT(sprA, 0x2c)[idx_a];
+            v54 = ax + SUBT(sprA, 0x20)[idx_a];
+            v44 = awh + SUBT(sprA, 0x30)[idx_a];
+        } else {                                                       /* 0x00013ee6: mirrored */
+            v50 = bx + SUBT(sprB, 0x14)[idx_b];
+            v40 = by + SUBT(sprB, 0x24)[idx_b];
+            v4c = bx + SUBT(sprB, 0x18)[idx_b];
+            v3c = by + SUBT(sprB, 0x28)[idx_b];
+            v58 = ax - SUBT(sprA, 0x20)[idx_a];
+            v48 = awh + SUBT(sprA, 0x2c)[idx_a];
+            v54 = ax - SUBT(sprA, 0x1c)[idx_a];
+            v44 = awh + SUBT(sprA, 0x30)[idx_a];
+        }
+#undef SUBT
+
+        /* 0x00014006-0x00014026 / 0x00014071: corners inside, otherwise a full straddle. */
+        int inside = (v54 >= v50 && v54 <= v4c) || (v58 >= v50 && v58 <= v4c);
+        if (!inside && !(v58 <= v50 && v54 >= v4c)) return 0;
+
+        /* 0x00014028-0x0001405e (duplicated at 0x00014083-0x000140b5): same two-tier test on Y. */
+        if (!((v44 >= v40 && v44 <= v3c) || (v48 >= v40 && v48 <= v3c) ||
+              (v48 <= v40 && v44 >= v3c))) return 0;
+
+        /* 0x000140d5-0x00014138: the contact point, clamped into B's span. */
+        int32_t v38 = (int32_t)*(const uint8_t *)(rec + rec_off + 0x44);
+        if (v38 & 0x80) v38 = (v38 & 0x7f) - 0x80;
+        int32_t cx = (*(const int32_t *)(a + 0x1b) == 0) ? ax + v38 : ax - v38;
+        if (cx < v50) cx = v50;
+        if (cx > v4c) cx = v4c;
+
+        if (v2c != 0) {                                                /* 0x0001413b: spawn the effect actor */
+            uint32_t blk = fn_00041bdc(0x14f);                         /* 0x00014145-4f (orig block 0x147) */
+            uint8_t *ent;
+            if (blk != 0) {
+                int32_t ex = (int32_t)*(const uint8_t *)(rec + rec_off + 0x3e);
+                ent = fn_010efc(hb + blk, cx,
+                                (int32_t)*(const uint32_t *)(a + 0x05) - ex - dl - 1,
+                                ay + dl + 1, 0xc9, 2);                 /* 0x0001415e-0x000141b0 */
+            } else {
+                ent = NULL;                                            /* the original never checks it */
+            }
+            *(uint8_t *)(ent + 0x30) = 1;                              /* 0x000141c7-ca */
+            *(uint32_t *)(ent + 0x17) = (uint32_t)v2c;                 /* 0x000141ce-0x000141d7 */
+            int32_t fa = *(const int32_t *)(a + 0x1b);
+            if (a == g_dat_53c7c) {                                    /* 0x000141da-0x000141f7 */
+                int32_t sa = *(const int32_t *)(a + 0x17);
+                if (sa == 0x38 || sa == 0xa4) fa = 1 - fa;
+            }
+            *(uint32_t *)(ent + 0x1b) = (uint32_t)fa;                  /* 0x000141fb-0x00014219 */
+        }
+    }
+
+    {
+        int32_t sa = *(const int32_t *)(a + 0x17);                     /* 0x0001421c-0x0001423a */
+        if ((sa == 0x65 || sa == 0x99) && a == g_dat_53c7c) {
+            if (*(const uint8_t *)(anim + 0x6c) == 1) {                /* 0x00014241-0x00014288 */
+                *(int32_t *)(a + 0x17) = 0xa1;
+                *(int32_t *)(a + 0x11) = 0;
+                *(uint16_t *)(a + 0x50) = 0;
+                *(int32_t *)(b + 0x1b) = 1 - *(const int32_t *)(a + 0x1b);
+                return 0;
+            }
+            if (*(const int32_t *)(a + 0x1b) != *(const int32_t *)(b + 0x1b)) return 1;  /* 0x000142f3 */
+            *(int32_t *)(a + 0x17) =                                  /* 0x0001429b-0x000142c3 */
+                (*(const uint8_t *)(g_dat_53c7c + 0x27) == 4) ? 0xab : 0xa0;
+            *(int32_t *)(a + 0x11) = 0;
+            *(uint16_t *)(a + 0x50) = 0;
+            *(int32_t *)(b + 0x1b) = 1 - *(const int32_t *)(b + 0x1b); /* 0x000142d6-0x000142e4 */
+            return 0;
+        }
+    }
+
+    {                                                                  /* 0x000142f5: turn B to face A */
+        int32_t fa = *(const int32_t *)(a + 0x1b);
+        int32_t fb = *(const int32_t *)(b + 0x1b);
+        int32_t ax = (int32_t)*(const uint32_t *)(a + 0x01);
+        int32_t bx2 = (int32_t)*(const uint32_t *)(b + 0x01);
+        if (fa == 0) { if (fb == 0 && bx2 > ax) *(int32_t *)(b + 0x1b) = 1; }
+        else         { if (fb == 1 && bx2 < ax) *(int32_t *)(b + 0x1b) = 0; }
+    }
+    return 1;                                                          /* 0x00014346 */
+}

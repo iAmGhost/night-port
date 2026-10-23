@@ -99,3 +99,14 @@ trace inside `fn_0367c9` alone -- `sys_res_notify` announces into the host ring 
 `g_res_trace`/`g_res_trace_seq`. The fix (next edit): a game-side `res_announce(name)` helper that sets
 `g_res_trace`, bumps `g_res_trace_seq` and then calls `sys_res_notify`, used at `fn_036190` and `fn_03d8d4`
 in place of the bare notify.
+
+### Spin-point screenshot edge: wired, and it did not yet produce the named frames
+
+`shots_resource_edge()` was factored out of `shots_poll` and called from `input_pump` (which
+`sys_port_spin` drives from the game's busy-waits), on the reasoning that `fn_038f3d` runs entirely inside
+one host step. Measured on the same warp route: **still no `levelup2.pcx` / `levelup.spr` / `number1.spr` /
+`number2.spr` shot**. So either that screen's wait path never reaches `sys_port_spin` (its frame work goes
+through the VGA ready-wait and buffer copies rather than an input spin), or the loads happen before the
+first spin of the screen and the edge is consumed by then. The next diagnosis is one grep-sized question:
+whether the loop body between 0x0003920a and 0x00039a51 calls a spin point at all -- recorded rather than
+guessed, with the harness change already in place so the answer is one run away.

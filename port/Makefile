@@ -20,7 +20,7 @@ test: $(T)/test_f1
 
 # res pipeline (verified decoders) — needs SDL3 for png_out
 selftest: $(T)/selftest
-	./$(T)/selftest
+	SHOTS=../scratch/shots ./$(T)/selftest   # byte-exact refs (python FLI frame, CDDA wav) live in scratch
 $(T)/selftest: src/res/selftest.c src/res/res_container.c src/res/res_pcx.c \
                 src/res/res_spr.c src/res/fli.c src/res/voc.c src/res/wav.c \
                 src/res/png_out.c src/res/res.h

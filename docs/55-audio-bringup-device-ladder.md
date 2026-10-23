@@ -106,3 +106,16 @@ was), skipping cleanly when the image is absent.
 
 Still open for this task: CD-DA. The sys layer models only MSCDEX *stop audio* (`sys_cd_audio_stop`);
 `fn_10b1d` (start track) and the Red Book byte path have no host backing yet.
+### Named asset, end to end (`NIGHT_PLAYVOC=7`)
+
+Handing one shipped sound slot to the game's own player now runs to completion (it previously wedged the
+run inside `fn_04185e` — the same `DAT_53338 == 0` guard, since the sample player armed a transfer it was
+not allowed to finish) and moves the counters by exactly that asset:
+
+```
+before: transfers=61 pushed=220027
+after : transfers=62 pushed=225260   drained=450520  pending=0  rate=10989 width=1
+```
+
+i.e. one `.voc` -> one DSP/DMA transfer -> 5233 bytes of 8-bit PCM at 10989 Hz, fully drained. The host
+hook runs from the frame pump, not from inside `audio_pump`, so it can no longer re-enter the drain loop.

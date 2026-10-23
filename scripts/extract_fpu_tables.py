@@ -40,4 +40,5 @@ if __name__ == "__main__":
     print()
     emit("kFpuTable2", 0x45f38, 64, "index b & 0x3f -> arithmetic arm inside fn_0461cc")
     emit("kFpuTable3", 0x46038, 64, "index (ah & 0x38) | al for the modrm >= 0xc0 path (0x462f7)")
-    emit("kFpuTable1b", 0x46ed8, 64, "nested table called by the compound operand arm at 0x464ec (0x464ff)")
+    # The compound operand arm at 0x464ec calls cs:[ebx*4 + 0x35ed8]; the cs displacement is +0x10000,
+    # so that is ROM 0x45ed8 = table1 + 24 entries -- the same table, upper half. No fourth table.

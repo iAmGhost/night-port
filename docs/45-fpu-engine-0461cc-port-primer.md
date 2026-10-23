@@ -71,10 +71,11 @@ above (prologue + tables + one arm per step, each pinned by a register-file diff
   "(spurious) data mid-code": they are table3 arm entry points, not stray data. Any future pass must treat
   them as arms.
 * **The operand-form arm `0x464ec` is not a leaf.** It reads a byte, decodes
-  `bl = (b & 7) | ((ah >> 3) & 0x18)`, and **calls a fourth table at ROM `0x46ed8`** (`call dword ptr
-  cs:[ebx*4 + 0x35ed8]`), then post-processes: unless `(dl & 0x38) == 0x20` it computes
+  `bl = (b & 7) | ((ah >> 3) & 0x18)`, and **calls back into table1 at its upper half** — the cs
+  displacement `0x35ed8` is `+0x10000` → ROM `0x45ed8` = table1 + 24 entries, which is where the
+  `0x46442 / 0x4647c / 0x464c4 …` variants (the ones ending in `mov ecx, edx`) live. It then post-processes: unless `(dl & 0x38) == 0x20` it computes
   `edx = [ebp + (-(dl >> 1)) + 0x28] << (cl >> 6)` and adds it to EBX — i.e. scaled-index/SIB decoding.
-  The engine is a small interpreter chain over four tables, not one flat switch.
+  The engine is a small interpreter chain over three tables (one of them re-entered at an offset), not one flat switch.
 * `0x46524`, the target shared by eight table2 entries, is `jmp 0x461cc`: the engine re-enters itself.
 * The frame slots the operand arms add displacements to are `[ebp+0x0c,0x10,0x14,0x18,0x1c,0x20,0x24,0x28]`
   (eight dwords = the faulting context's base registers); `cmp ax, 0xf801` at `0x462de` is on the

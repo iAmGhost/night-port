@@ -583,6 +583,33 @@ static void input_pump(void) {
 }
 
 /* ---- the tick pump: real time -> the installed timer handler ---------- */
+/* Which per-type sprite/action set each live entity actually uses: entity+0x123 holds the act-table
+ * value copied from g_dat_53818[type] by the constructor (fn_010efc), so matching it back against the
+ * table names the entity's type -- the direct way to see whether every enemy is landing on type 0
+ * ("gun", i.e. the protagonist's art). */
+static void ent_dump(void) {
+    int n = 0;
+    for (uint32_t i = 0; i < 0x65; i++) if (g_dat_53818[i]) n++;
+    SDL_Log("ent: count=%d tables loaded=%d", (int)g_dat_53c68, n);
+    uint8_t *e = g_dat_53c70;
+    for (int k = 0; k < 8 && e; k++) {
+        uint32_t act = 0, off = 0;
+        memcpy(&act, e + 0x123, 4);
+        int ty = -1;
+        for (uint32_t i = 0; i < 0x65; i++) if (g_dat_53818[i] == act && act) { ty = (int)i; break; }
+        memcpy(&off, e + 0x127, 4);
+        int sty = -1;
+        for (uint32_t i = 0; i < 0x65; i++)
+            if (g_dat_639ec[i] && memcmp(g_dat_639ec[i] + 0x38, e + 0x127, 4) == 0) { sty = (int)i; break; }
+        int16_t x = 0, y = 0;
+        memcpy(&x, e + 0x73, 2); memcpy(&y, e + 0x75, 2);
+        SDL_Log("  ent[%d] block=%p type(act-match)=%d type(spr-match)=%d pos=%d,%d sprfields=%08x %08x %08x",
+                k, (void *)e, ty, sty, x, y, *(uint32_t *)(e + 0x127), *(uint32_t *)(e + 0x12b),
+                *(uint32_t *)(e + 0x12f));
+        e = *(uint8_t **)(e + 0x13f);
+    }
+}
+
 static Uint64 g_tick_next;
 static unsigned long g_pump_calls, g_timer_calls;
 static Uint64 g_diag_next;
@@ -602,6 +629,7 @@ static void tick_pump(void) {
                 sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
                 (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null);
+        if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {
             FILE *fp = fopen("/tmp/heap.bin", "wb");

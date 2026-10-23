@@ -210,3 +210,22 @@ Findings from that work, each one measured:
 Until that open question closes, the port side keeps advancing on evidence that does not need original
 frames (episode sweep, docs/58, docs/59), and the comparison halves of the affected tasks stay open with
 this document as their status record.
+
+### Follow-up measurement (same day): the write path is not the blocker
+
+Two side-by-side guests were built to separate "hook shape", "call shape" and "context":
+
+- `scratch/snapsr/snapwrkX.asm`: the probe's exact create -> write 16 -> close sequence, run twice -- once
+  before any hook is installed and once **after all four hooks** (INT 8 / 1Ch / 10h / 21h, each counting
+  and chaining). Both files landed with their 16 bytes (`SNAPPRB.BIN`, `SNAPPRC.BIN`, payload `0x5a`).
+- Adding the classic DOS-reentrancy guard to the probe's INT 1Ch handler -- `INDOS` (`0050:0080`) must be
+  clear, plus a private busy flag -- changed nothing: its log still holds 0 bytes while the marker creates
+  around it all succeed.
+
+Conclusion so far: hooks, the create/write/close shape and the install context are all demonstrably fine,
+so the probe program's empty log is a defect inside that program rather than a property of DOSBox or of
+DOS reentrancy. It is left open; the two variants are kept in `scratch/snapsr` so the difference can be
+bisected mechanically (they differ only in the resident handlers and in what surrounds the write). What
+the probe would answer -- whether a real-mode INT 21h hook sees a DOS4GW guest's DOS traffic at all --
+is still the question that decides whether the guest-side snapper can dump frames from the INT 21h hook,
+must go back to the tick context, or has to bypass DOS entirely (serial/printer `OUT` instructions).

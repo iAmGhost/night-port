@@ -1,4 +1,4 @@
-# 51 — the logo screen only covers the first 64 KB of the framebuffer (open lead)
+# 51 — the logo screen only covered the first 64 KB of the framebuffer (fixed)
 
 With the pacing fixed, the boot sequence now reaches the logo (`logo.pcx` is the first resource the game
 opens, held ~1.4 s before `opening.fli`), but the **logo screen renders wrong**: only the top 102 rows of
@@ -90,3 +90,32 @@ default 1000 ms) so a screenshot is taken after the retrace-paced fade has broug
 instant-of-lookup shots are black by construction. `docs/manual-playtest/02-shots/03-logo_hold_port.bmp`
 (next to `03-logo_reference.pcx.png`) is the artifact; `02-shots/02-playing-hud-fixed.bmp` shows a path
 that is already correct.
+
+## Fix and measurement
+
+`fn_03628e` now slides the window: the destination is `g_video_ram + chunk*0x10000 + off`, with
+`fn_03f3be(chunk)` still called at every boundary exactly as the original does. The whole 0x4b000-byte
+still lands in order.
+
+Coverage/brightness against the `logo.pcx` asset (row means, sampled every 16 px; the port frames are
+hold-shots at the given delay after the lookup):
+
+| row | logo.pcx | port @500 ms | @800 ms | @1100 ms | @1350 ms |
+|---|---|---|---|---|---|
+| 0 | 106.3 | 70.0 | 93.2 | 46.6 | 10.8 |
+| 120 | 104.1 | 68.3 | 91.1 | 45.3 | 10.5 |
+| 240 | 124.5 | 82.1 | 110.0 | 54.8 | 13.0 |
+| 360 | 85.3 | 55.3 | 73.8 | 36.3 | 8.2 |
+| ratio | 1.00 | 0.66 | **0.88** | 0.44 | 0.10 |
+
+Two things follow. (1) The picture is now correct: `02-shots/03-logo_asset_vs_port.png` (asset left, port
+right) shows the same meteor streak and the "ENTERTAINMENT" wordmark in the same place. (2) **The logo
+screen fades in and out** — brightness rises to ~0.9 of the asset around 800-900 ms and falls away before
+`opening.fli` takes over at ~1.46 s. Any port-vs-asset pixel comparison therefore has to be taken at that
+plateau (or brightness-normalized); at 900 ms a raw per-pixel threshold still reports only 12.9 % "close"
+purely because of the fade level. This is the original's loading fade (`fn_03f3be` per chunk plus the
+`fn_040660`/`fn_0406f5` pair), not a port artifact.
+
+Tests updated to the slid model: `test_fn_03628e` now pins absolute index == video offset (0, 0xa000,
+0x10000, 0x3b000, 0x4afff) and still expects the chunk counter to reach 4; the CD-gate test's
+`cdinsert.pcx` check now expects the tail byte at 0x4afff and 0x5a at 0xafff. 2806 checks, ALL PASS.

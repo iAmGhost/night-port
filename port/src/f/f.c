@@ -5715,11 +5715,17 @@ void fn_036190(const char *name, uint8_t *dest) {
 
 /* 0x03628e (L11, 393 B): screen RLE loader writing into the VIDEO window (0xa0000).
  * Same prologue/table/RLE structure as fn_036417 but the destination is the fixed video
- * base (local_18 = 0xa0000, never advanced) and the write offset wraps at 0x10000; each
- * wrap bumps a chunk counter that is fed to the VGA palette setter fn_03f3be (a loading
- * fade). reg-ABI: EAX = name, DL = flag (1 -> board_out of the >>2 table). LATENT QUIRK
- * (replicated faithfully): the loop writes 0x4b000 (307200) bytes into a 0x10000 window,
- * so the image wraps ~4.7 times and only the last pass over each offset survives. */
+ * base (local_18 = 0xa0000) and the write offset wraps at 0x10000, the size of the real VGA
+ * window at A0000. reg-ABI: EAX = name, DL = flag (1 -> board_out of the >>2 table).
+ *
+ * The window SLIDES, it does not wrap in place (docs/51): at every 0x10000 boundary the original
+ * bumps the chunk counter and calls fn_03f3be(chunk), which is not a palette write but a VESA call --
+ * `shl chunk, [0x13e4c]`, cached in [0x13e50 + idx*4], then INT 10h AX=0x4F05 with DX = the value
+ * (0x3f3f5-0x3f405). That is how a 0x4b000-byte (640x480) still reaches the whole screen: five 64 KB
+ * chunks. The port has no VBIOS, so the slide is modelled directly here: chunk n writes at
+ * g_video_ram + n*0x10000. (Before that was understood the offset wrapped in place, so a 640x480 still
+ * only covered the first 102 rows -- the missing company logo, docs/51.) The fn_03f3be side effect is
+ * still invoked per chunk, as in the original. */
 void fn_03628e(const char *name, uint32_t dl) {
     (void)canary_id((uintptr_t)name, 0x44);                        /* 0x3628e-93 */
     uint32_t chunk = 0;                                            /* 0x362ab  [ebp-0xc] */
@@ -5741,13 +5747,13 @@ void fn_03628e(const char *name, uint32_t dl) {
             uint32_t value = fn_041c8f((uint8_t *)g_639b8);         /* 0x36391 */
             for (;;) {                                              /* 0x36399-9c: dec/cmp -1 */
                 if (--count == 0xffffffffu) break;
-                base[off++] = (uint8_t)value;                       /* 0x363a2-ae */
+                base[(uintptr_t)chunk * 0x10000 + off++] = (uint8_t)value;  /* 0x363a2-ae, slid window */
                 pos++;                                              /* 0x363b0-13 */
                 if (off < 0x10000) continue;                        /* 0x363b6-3bd */
-                off = 0; chunk++; fn_03f3be(chunk);                 /* 0x363bf-3cf */
+                off = 0; chunk++; fn_03f3be(chunk);                 /* 0x363bf-3cf: window slide */
             }
         } else {                                                    /* 0x363d8: literal */
-            base[off++] = (uint8_t)byte;                            /* 0x363d8-3e4 */
+            base[(uintptr_t)chunk * 0x10000 + off++] = (uint8_t)byte;  /* slid window */                            /* 0x363d8-3e4 */
             pos++;                                                  /* 0x363e6-3e9 */
             if (off >= 0x10000) { off = 0; chunk++; fn_03f3be(chunk); }  /* 0x363ec-405 */
         }

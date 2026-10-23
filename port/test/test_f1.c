@@ -12946,7 +12946,7 @@ static void test_fn_036190(void) {
 }
 
 static void test_fn_03628e(void) {
-    printf("fn_03628e (0x03628e): screen RLE loader into the video window (0x10000 wrap + palette fade)\n");
+    printf("fn_03628e (0x03628e): screen RLE loader into the video window (0x10000 window SLIDE + palette fade)\n");
     heap_arena_init();                       /* runs after test_fn_041e94_04123d, so re-init is safe */
     uint8_t *hb = (uint8_t *)g_heap_base;
     g_dat_633a0 = 0;                         /* empty resource table -> fn_0367c9/fn_036853 no-op */
@@ -12967,27 +12967,29 @@ static void test_fn_03628e(void) {
     node[0xc] = 0x41;                        /* bit0 valid, bit6 set -> no CR translation in fn_041c8f */
     g_639b8 = (res_reader *)node;
 
-    uint8_t *vsave = (uint8_t *)calloc(1, 0x10000);
+    uint8_t *vsave = (uint8_t *)calloc(1, 0x4b000);
     if (!vsave) { check(0, "  video save buffer (SKIP)"); return; }
-    memcpy(vsave, g_video_ram, 0x10000);
-    memset(g_video_ram, 0, 0x10000);
+    memcpy(vsave, g_video_ram, 0x4b000);
+    memset(g_video_ram, 0, 0x4b000);
     uint32_t s_e5c = g_dat_63e5c, s_e4c = g_dat_63e4c, s_e50 = g_dat_63e50[0];
     g_dat_63e5c = 0; g_dat_63e4c = 0; g_dat_63e50[0] = 0x99;
 
     fn_03628e("NORES", 0);                   /* dl = 0 -> board_out path skipped */
     check(g_dat_636b8[0] == 0x3C, "  table[0] = 0xF0>>2 = 0x3C");
 
-    /* Absolute write index i lands at video offset i % 0x10000, so the surviving byte at an
-     * offset is the largest i < 0x4b000 congruent to it (i.e. +0x40000 below 0xb000). */
+    /* The 0x10000 boundary SLIDES the window (fn_03f3be(chunk) -> INT 10h AX=0x4F05, docs/51), so the
+     * absolute write index is the video offset: the whole 0x4b000-byte still lands in order. */
     #define EXP(i) ((i) < nruns * 63 ? (uint8_t)((i) / 63) : 0xEE)
-    check(g_video_ram[0] == EXP(0x40000), "  wrap: video[0] holds the byte from absolute 0x40000");
-    check(g_video_ram[0xa000] == EXP(0x4a000), "  video[0xa000] from absolute 0x4a000");
-    check(g_video_ram[0xafff] == 0xEE, "  final write (absolute 0x4afff, the FILL-12) lands at video[0xafff]");
-    check(g_video_ram[0xb000] == EXP(0x3b000), "  offsets >= 0xb000 keep the 0x30000-pass byte");
+    check(g_video_ram[0] == EXP(0), "  video[0] holds the byte from absolute 0");
+    check(g_video_ram[0xa000] == EXP(0xa000), "  video[0xa000] from absolute 0xa000 (chunk 0)");
+    check(g_video_ram[0x10000] == EXP(0x10000),
+          "  video[0x10000] from absolute 0x10000 -- the window slid, it did not wrap in place");
+    check(g_video_ram[0x4afff] == 0xEE, "  final write (absolute 0x4afff, the FILL-12) lands at video[0x4afff]");
+    check(g_video_ram[0x3b000] == EXP(0x3b000), "  a mid-stream offset keeps its own byte (no re-write pass)");
     check(g_dat_63e50[0] == 4, "  palette fade: fn_03f3be ends at chunk counter 4 (4 wraps)");
     #undef EXP
 
-    memcpy(g_video_ram, vsave, 0x10000); free(vsave);
+    memcpy(g_video_ram, vsave, 0x4b000); free(vsave);
     g_dat_63e5c = s_e5c; g_dat_63e4c = s_e4c; g_dat_63e50[0] = s_e50;
 }
 
@@ -13627,8 +13629,8 @@ static void test_fn_010c3e(void) {
           "an entry count that is not 0xf and a record gap of 0xc50 both fail, so it retries (3 polls)");
     check(g_dat_636b8[0] == 0x3C,
           "each failed poll reloads cdinsert.pcx: the palette staging buffer is filled (0xF0>>2)");
-    check(g_video_ram[0] == 0x5a && g_video_ram[0xafff] == 0xee,
-          "and the whole 0x4b000 RLE screen lands in the A0000 window with the 0x10000 wrap");
+    check(g_video_ram[0] == 0x5a && g_video_ram[0xafff] == 0x5a && g_video_ram[0x4afff] == 0xee,
+          "and the whole 0x4b000 RLE screen lands in order: the A0000 window slides by 0x10000 per chunk");
     check(sys_cd_audio_stop_calls() == 1,
           "having shown the prompt once, the gate stops the CD audio (fn_000405a7) on the way out");
 

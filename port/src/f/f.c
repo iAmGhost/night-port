@@ -582,7 +582,27 @@ int fn_00040788(void) { return 0; }
  *   calls the fn_041e51 (INT 31h) trampoline, then writes the returned segment
  *   into DAT_00053c58/DAT_00053c5c. No DPMI in the flat model -> the allocation
  *   and the writes to the fake segment do not happen. No-op. */
-void fn_000104c7(void) {}
+uint32_t g_dat_53c58 = 0;   /* DAT_00053c58: the MSCDEX drive number reported by INT 2F AX=1500 */
+
+/* The block the original reaches as real-mode paragraph 0x11 (address 0000:0110) through a DPMI
+ * selector: the Watcom real-mode-call parameter block, from which the 24/26-byte call blocks and the
+ * 7-byte MSCDEX reply are built. fn_000104c7 points DAT_00053c5c at base+2. Flat model: a static
+ * block stands in for low memory (the port has no real-mode address space). */
+static uint8_t g_rm_low_block[0x100];
+uint8_t *sys_rm_low_block(void) { return g_rm_low_block; }
+
+void fn_000104c7(void) {
+    (void)canary_id(0, 0x2c);                                     /* 0x104c7 PUSH/CALL guard */
+    /* 0x104d8-f1: request block AX=0x1500, INT 2F (the MSCDEX presence check). The reply's flag word
+     * decides whether the drive number reaches DAT_00053c58. The port always has its CD backend, so
+     * the drive number reported is the one the ROM call templates seed (0x0a). */
+    g_dat_53c58 = 0x0a;                                           /* 0x104ee (_DAT_00053c58) */
+    /* 0x104f2-fd: INT 31h AX=0x100 DX=0x11 -- allocate a selector over real-mode paragraph 0x11, write
+     * the paragraph back through it, and point the far-pointer global at base+2. */
+    memset(g_rm_low_block, 0, sizeof g_rm_low_block);
+    *(uint16_t *)g_rm_low_block = 0x11;                           /* 0x104f9 [sel*0x10] = DX */
+    g_dat_53c5c = (uintptr_t)(g_rm_low_block + 2);                /* 0x104fb (base + 1 word) */
+}
 
 /* fn_0003f645  orig: 0x0003f645 (L11, 118B)
  *   VGA palette + frame-buffer init loop: fn_03f3be(0), then while
@@ -12989,7 +13009,8 @@ uint32_t fn_03f6bc(const char *name)
         if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 || g_dat_63e89 != 0) {       /* 0x3f75b-76 */
             return 1;                                                         /* 0x3f778 */
         }
-        while ((int32_t)(uint32_t)(uint16_t)idx >= (int32_t)g_dat_63e40) {}   /* 0x3f787-93: frame wait */
+        while ((int32_t)(uint32_t)(uint16_t)idx >= (int32_t)g_dat_63e40)      /* 0x3f787-93: frame wait */
+            { if (!sys_port_spin()) break; }   /* the port's tick source advances DAT_63e40 */
         if ((uint32_t)(uint16_t)idx == g_tab_53200[cursor]) {                 /* 0x3f795-a1 (table dword) */
             fn_04185e(g_dat_53d0c[(uint32_t)g_tab_532f4[cursor]]);            /* 0x3f7a9-c0 (byte -> slot array) */
             cursor = cursor + 1;                                              /* 0x3f7c5-c8 */
@@ -13641,7 +13662,7 @@ void fn_038098(uint32_t base)
         }
         cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x38154-68 */
     }
-    while (n > (int32_t)g_dat_63e24) { break; }                  /* 0x3819a-197 VBLANK busy-wait (no-op) */
+    while (n > (int32_t)g_dat_63e24) { if (!sys_port_spin()) break; }   /* 0x3819a-197 VBLANK busy-wait */
     g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24
                              - (int32_t)(0x1eau / g_dat_53104));  /* 0x381b5-c8 recomputed, dword sub */
 }
@@ -13708,7 +13729,7 @@ void fn_0381d7(uint32_t base, int32_t dx, int32_t dy, int32_t steps, int32_t fac
             }
             cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x3833b-4f */
         }
-        while (n > (int32_t)g_dat_63e24) { break; }             /* VBLANK busy-wait (no-op) */
+        while (n > (int32_t)g_dat_63e24) { if (!sys_port_spin()) break; }   /* VBLANK busy-wait */
         g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24
                                  - (int32_t)(0x1eau / g_dat_53104));            /* 0x3836b-7e */
     }
@@ -13771,7 +13792,7 @@ void fn_03a70e(void)
         }
         if (g_dat_63e89 != 0) break;                               /* 0x3a7a1-a9 abort the whole show */
         if (idx != count) fn_04185e(g_dat_53dd8);                  /* 0x3a7ad-bf */
-        do { while (g_dat_63ec1 != 0) { } } while (g_dat_63ea4 != 0);  /* 0x3a7c4-cf key release wait */
+        do { while (g_dat_63ec1 != 0) { sys_port_spin(); } } while (g_dat_63ea4 != 0);  /* 0x3a7c4-cf key release wait */
         idx++;                                                     /* 0x3a7d0-*/
     } while (idx < count);                                         /* 0x3a7d8-e5 */
 
@@ -13804,9 +13825,24 @@ void sys_key_script_add(uint32_t tick, uint8_t *slot, int value)
     while (i > 0 && g_key_evt[i - 1].tick > tick) { g_key_evt[i] = g_key_evt[i - 1]; i--; }
     g_key_evt[i] = (key_evt){ tick, slot, value };
 }
+/* The port's cooperative tick source. The original busy-waits in several places while an interrupt
+ * (the PIT/timer handler fn_03ee88, the keyboard IRQ/pump fn_0347e3) changes a counter. A build with a
+ * real clock installs those pumps through sys_set_tick_pump/sys_set_input_pump, and every such wait is
+ * written
+ *      while (cond) { if (!sys_port_spin()) break; }
+ * so the wait is real when a clock exists and stays the documented no-op the unit tests were ported
+ * against when it does not. Returns 1 when at least one pump ran. */
+int sys_port_spin(void) {
+    sys_pump_fn tp = sys_get_tick_pump(), ip = sys_get_input_pump();
+    if (tp != (sys_pump_fn)0) tp();
+    if (ip != (sys_pump_fn)0) ip();
+    return (tp != (sys_pump_fn)0 || ip != (sys_pump_fn)0) ? 1 : 0;
+}
+
 void sys_key_spin(void)
 {
     g_key_tick++;
+    if (sys_get_input_pump() != (sys_pump_fn)0) sys_get_input_pump()();   /* the SDL build's keyboard source */
     while (g_key_evt_i < g_key_evt_n && g_key_evt[g_key_evt_i].tick <= g_key_tick) {
         *g_key_evt[g_key_evt_i].slot = (uint8_t)g_key_evt[g_key_evt_i].value;
         g_key_evt_i++;
@@ -21550,7 +21586,7 @@ int32_t fn_03a829(void)
             showed = 1;
         }
         if (g_dat_63e89 != 0 && pl[0x30] != 1) {                       /* 0x0003aa9f-0x0003aac6 the abort */
-            while (g_dat_63e89 != 0) { break; }                        /* busy-wait (no-op here): the byte is
+            while (g_dat_63e89 != 0) { if (!sys_port_spin()) break; }  /* busy-wait: the byte is
                                                                         * cleared by the input backend */
             if (fn_039c03() == 0) return -1;
         }
@@ -25325,7 +25361,7 @@ room_start:                                                            /* LAB_00
         for (uint32_t k = 0; k < 0xc00; k++) {                         /* 0x03b17c-99 */
             delay_units(1);
             if (g_dat_63e89 != 0) {
-                while (g_dat_63e89 != 0) { }                           /* LAB_0003b191 */
+                while (g_dat_63e89 != 0) { sys_port_spin(); }           /* LAB_0003b191 */
                 break;
             }
         }

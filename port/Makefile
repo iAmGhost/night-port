@@ -8,7 +8,7 @@ SRC_SYS = src/sys/sys.c
 SRC_CD  = src/cd/cd_iso.c
 T       = test
 
-.PHONY: all test selftest clean
+.PHONY: all test selftest app run clean
 
 all: test
 
@@ -27,5 +27,14 @@ selftest:
 		|| { echo "SDL3 not found; skipping res selftest"; exit 0; }
 	./$(T)/selftest
 
+# the SDL host (needs SDL3: brew install sdl3)
+SDL_CFLAGS ?= -I/opt/homebrew/include
+SDL_LIBS   ?= -L/opt/homebrew/lib -lSDL3
+app: $(T)/night
+$(T)/night: src/app/main.c $(SRC_F) $(SRC_SYS) $(SRC_CD) src/f/f.h src/sys/sys.h src/cd/cd_iso.h
+	$(CC) $(CFLAGS) -Isrc $(SDL_CFLAGS) -o $@ src/app/main.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SDL_LIBS) -lm
+run: app
+	./$(T)/night
+
 clean:
-	rm -f $(T)/test_f1 $(T)/selftest
+	rm -f $(T)/test_f1 $(T)/selftest $(T)/night

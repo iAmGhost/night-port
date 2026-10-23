@@ -331,6 +331,8 @@ extern uint32_t g_dat_63e64;               /* DAT_00063e64: VESA bytes-per-line/
 extern uint32_t g_dat_53104;               /* DAT_00053104: row-progress divisor (0x46 default, fn_03a5f7) */
 extern uint32_t g_dat_63e4c;               /* DAT_00063e4c: palette color shift */
 extern uintptr_t g_dat_53c5c;               /* DAT_00053c5c: DPMI far-pointer (debug-reg) */
+extern uint32_t g_dat_53c58;               /* DAT_00053c58: the MSCDEX drive number (INT 2F AX=1500) */
+uint8_t *sys_rm_low_block(void);           /* the port's stand-in for real-mode paragraph 0x11 */
 extern uint8_t  g_dat_53c4c[9];            /* DAT_00053c4c: 9-byte real-mode command staging area */
 extern uint8_t  g_dat_63e88[0x80];          /* DAT_00063e88: DMA/channel status (IRQ9 install) */
 extern uint32_t g_dat_63f4c;               /* DAT_00063f4c: -1 sentinel (IRQ9 install) */
@@ -935,6 +937,7 @@ void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
 void sys_key_script_clear(void);   /* reset the scripted key timeline + tick counter */
 void sys_key_script_add(uint32_t tick, uint8_t *slot, int value); /* set *slot on the Nth sys_key_spin() */
 void sys_key_spin(void);           /* the port's stand-in for a keyboard busy-wait: SDL pumps input, tests run the script */
+int  sys_port_spin(void);            /* run the installed tick/input pumps; 0 when none is installed (the waits then stay no-ops) */
 extern uint8_t g_dat_63eb2;        /* DAT_00063eb2: key byte (the "any key" set of the help/title screens) */
 extern uint8_t g_dat_63ebe;        /* DAT_00063ebe: key byte (same set) */
 

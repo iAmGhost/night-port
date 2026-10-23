@@ -24,9 +24,40 @@ static uint8_t *hist_buf(void) {
     return hist;
 }
 
+/* ---- PIT: mode register 0x43 selects channel/lo-hi/mode; 0x40/0x41/0x42 carry the divisor ---- */
+static uint32_t pit_div[3];      /* programmed divisor per channel (0 = never programmed) */
+static uint8_t  pit_mode[3];     /* the mode byte last selected for that channel */
+static uint8_t  pit_phase[3];    /* 0 = low byte next, 1 = high byte next */
+
+uint32_t sys_pit_divisor(int ch) { return (ch >= 0 && ch < 3) ? pit_div[ch] : 0; }
+uint32_t sys_pit_hz(int ch) {
+    uint32_t d = sys_pit_divisor(ch);
+    return d ? (1193182u / d) : 0u;
+}
+
+static void pit_out(uint16_t port, uint8_t v) {
+    if (port == 0x43) {
+        int ch = (v >> 6) & 3;                    /* bits 7-6: channel (3 = read-back command) */
+        if (ch < 3) {
+            pit_mode[ch] = v;
+            pit_phase[ch] = ((v & 0x30) == 0x10) ? 1 : 0;   /* 01 = write low only, 11 = low then high */
+            if ((v & 0x30) == 0x30) pit_div[ch] = 0;         /* a new 16-bit program starts fresh */
+        }
+        return;
+    }
+    int ch = port - 0x40;
+    if (ch < 0 || ch > 2) return;
+    if (pit_phase[ch] == 0) { pit_div[ch] = (pit_div[ch] & 0xff00u) | v; pit_phase[ch] = 1; }
+    else                    { pit_div[ch] = (pit_div[ch] & 0x00ffu) | ((uint32_t)v << 8); pit_phase[ch] = 0; }
+}
+
 void sys_ports_reset(void) {
     memset(port_val, 0, sizeof port_val);
     hist_n = 0;
+    sys_vga_palette_reset();
+    memset(pit_div, 0, sizeof pit_div);
+    memset(pit_mode, 0, sizeof pit_mode);
+    memset(pit_phase, 0, sizeof pit_phase);
 }
 
 int sys_hist(void *buf, int max) {            /* returns history length */
@@ -36,12 +67,38 @@ int sys_hist(void *buf, int max) {            /* returns history length */
     return hist_n;
 }
 
+/* ---- VGA DAC state ---- */
+static uint8_t  dac_rgb[768];
+static uint32_t dac_writes;
+static uint8_t  dac_index;      /* the 0x3C8 write index */
+static uint8_t  dac_phase;      /* 0=R, 1=G, 2=B within the current entry */
+
+void sys_vga_palette(uint8_t *out768) { if (out768) memcpy(out768, dac_rgb, 768); }
+uint32_t sys_vga_palette_writes(void) { return dac_writes; }
+void sys_vga_palette_reset(void) { memset(dac_rgb, 0, sizeof dac_rgb); dac_writes = 0; dac_index = 0; dac_phase = 0; }
+
+/* ---- input pump hook ---- */
+static sys_pump_fn input_pump;
+void sys_set_input_pump(sys_pump_fn fn) { input_pump = fn; }
+sys_pump_fn sys_get_input_pump(void) { return input_pump; }
+
+static sys_pump_fn tick_pump;
+void sys_set_tick_pump(sys_pump_fn fn) { tick_pump = fn; }
+sys_pump_fn sys_get_tick_pump(void) { return tick_pump; }
+
 void sys_outb(uint16_t port, uint8_t v) {
     if (port < PORT_MAX) {
         port_val[port] = v;
         uint8_t *hb;
-        if (port == 0x3c9 && hist_n < HIST_MAX && (hb = hist_buf()) != 0)
-            hb[hist_n++] = v;
+        if (port == 0x3c9) {
+            if (hist_n < HIST_MAX && (hb = hist_buf()) != 0) hb[hist_n++] = v;
+            dac_rgb[(uint32_t)dac_index * 3u + dac_phase] = v;   /* the DAC data port */
+            dac_writes++;
+            if (++dac_phase == 3) { dac_phase = 0; dac_index = (uint8_t)(dac_index + 1); }
+        } else if (port == 0x3c8) {
+            dac_index = v; dac_phase = 0;                        /* the DAC address port */
+        }
+    if (port == 0x43 || (port >= 0x40 && port <= 0x42)) pit_out(port, v);
     }
     /* other ports: no-op (no real hardware in the port) */
 }

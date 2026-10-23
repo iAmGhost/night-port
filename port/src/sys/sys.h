@@ -117,6 +117,37 @@ extern uint16_t sys_vesa_xres;              /* ModeInfoBlock +0x06 / +0x12 */
 extern uint16_t sys_vesa_yres;              /* ModeInfoBlock +0x14 */
 extern uint16_t sys_vesa_bpp;
 extern uint16_t sys_vesa_set_mode_ah;       /* 0 = mode set ok, 1 = error */
+/* ---- VGA DAC (palette) model ----
+ * board_out() writes the palette through outb(0x3C8, index) + outb(0x3C9, v) x3 per entry with the
+ * index auto-incrementing, exactly as the VGA DAC does. The port's video backend reads the resulting
+ * 768-byte RGB table with sys_vga_palette(); sys_vga_palette_dirty() counts DAC writes so a backend
+ * can decide when to re-upload. */
+void     sys_vga_palette(uint8_t *out768);
+uint32_t sys_vga_palette_writes(void);
+void     sys_vga_palette_reset(void);
+
+/* ---- PIT model (channels 0..2) ----
+ * fn_03ef29 programs channel 0 (`outb(0x43,0x36); outb(0x40,lo); outb(0x40,hi)`) with the timer value,
+ * and fn_03575d programs channel 2 the same way. sys_pit_hz(ch) returns 1193182/divisor, or 0 while
+ * that channel has never been programmed. */
+uint32_t sys_pit_hz(int ch);
+uint32_t sys_pit_divisor(int ch);
+
+/* ---- input pump hook (the port's asynchronous keyboard source) ----
+ * The original's key state (the DAT_62c58[] scan-code slots and the DAT_63e?? held-key bytes) is
+ * updated by the keyboard IRQ / the pump fn_0347e3 while the game spins. f.c's sys_key_spin() calls
+ * this hook once per spin unit, so the SDL build installs a pump that pushes real key events into
+ * that state; tests leave it NULL and use the scripted timeline instead. */
+typedef void (*sys_pump_fn)(void);
+void sys_set_input_pump(sys_pump_fn fn);
+sys_pump_fn sys_get_input_pump(void);
+
+/* Tick pump: the modern stand-in for the PIT/timer interrupt (fn_03ee88 is the installed handler).
+ * A build with a tick source installs a pump here that advances real time and runs the handler the
+ * right number of times, so the game's frame pacing and its busy-waits behave as they did. */
+void sys_set_tick_pump(sys_pump_fn fn);
+sys_pump_fn sys_get_tick_pump(void);
+
 void sys_vesa_info(uint8_t *buf);
 void sys_vesa_mode_info(uint16_t mode, uint8_t *buf);
 uint16_t sys_vesa_set_mode(uint16_t mode);

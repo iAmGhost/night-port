@@ -73,3 +73,36 @@ screen + DAC on the port side), resizes to the port size, and reports per pair:
 * `match` — fraction of pixels within 12 levels on all channels,
 plus the best-matching original frame for every port shot (`nearest …`), so a timing offset between the
 two runs cannot hide an otherwise-correct frame.
+
+## Original-side capture: what works, and the exact environment blocker
+
+Two capture paths for the original were built:
+
+1. **Guest-side snapper TSR** — `scratch/snapsr/snap.asm` (built with `nasm -f bin` to `SNAP.COM`, copied
+   into the mounted C:). It hooks INT 8 (tick count) and INT 1C (does the work), and once per second
+   writes the mode-0x13 framebuffer plus the 768-byte DAC to `C:\CAP\SNAPnnnnn.DMP`
+   (`NGSH` header, magic + version + w/h + tick, then palette, then 200 rows top-down). It only dumps when
+   `INDOS` (0050:0080) is clear and never re-enters itself. This path needs **no host key events at all**,
+   which is what the macOS focus restriction makes impossible.
+2. `scripts/playtest_orig.py` — the DOSBox-side driver (autotype cadence snapping, conf generation).
+
+Neither can run from this agent session: **DOSBox Staging launched from here never reaches its
+`[autoexec]` section.** Verified three independent ways:
+no DOSBox window appears in `CGWindowListCopyWindowInfo` (all windows, `--noprimaryconf`, `output=surface`);
+`--exit` with `-c "echo hi > c:\TEST.TXT"` produced no file after 30 s; a minimal `echo HELLO >
+z:\ZZZ.TXT` (Z: = host cwd, no mount involved) produced no file after 12 s. The log always stops right
+after `SDL: cocoa video initialised` / `CAPTURE: Image capturer started`, i.e. the emulator is blocked
+before the DOS shell runs — consistent with a session that cannot create a window-server connection.
+
+Consequence: the original-side half of every screenshot comparison must be produced by a human in a
+normal terminal, e.g.
+
+```
+cp /tmp/snap.com NIGHT/SNAP.COM && mkdir -p NIGHT/CAP && rm -f NIGHT/CAP/*.DMP
+dosbox-staging --conf scratch/dosbox_snap.conf     # snap.com + night, ~60 s
+```
+
+after which `scripts/snap_decode.py` (queued) turns `NIGHT/CAP/*.DMP` into PNGs next to the port's shots.
+Until then, port-side evidence uses the extracted assets (logo.pcx, opening.fli via ffmpeg's flic decoder,
+the per-type .spr/.act tables) plus the manual captures already in `scratch/` and
+`docs/manual-playtest/00-screenshots/`.

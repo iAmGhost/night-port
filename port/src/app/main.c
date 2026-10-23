@@ -307,10 +307,17 @@ static void autokey(void) {
  *     <t_ms> shot <name>            take a named screenshot at t_ms
  * Key names: enter space esc tab up down left right ctrl shift, single letters/digits, or a hex
  * DOS scan code (0x4b / 4b). */
-struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; };
+/* PT_WAIT anchors the rest of the timeline to a game-visible event instead of the wall clock: the
+ * script pauses until the resource lookup named in `name` happens (g_res_trace / g_res_trace_seq are the
+ * host-side instrumentation for that), then rebases every later event by the slippage. That is what makes
+ * a scripted run land the same keys in the same game states regardless of host speed -- with an audio
+ * device live the game runs at a different rate and a purely wall-clock script fires the menu keys in the
+ * wrong places (docs/55). The leading number on a wait line is a timeout in ms, so a missing anchor cannot
+ * hang the run. */
+struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at; };
 static void shot_named(const char *event);
 static void key_apply(uint8_t sc, int make);
-enum { PT_KEY = 0, PT_SHOT = 1 };
+enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2 };
 static struct pt_evt *g_pt;
 static int g_pt_n, g_pt_i;
 static const char *g_shots_dir;
@@ -318,6 +325,9 @@ static FILE *g_manifest;
 static int g_shot_seq;
 static int g_shot_limit = 600;
 static int g_shot_scene = 1, g_shot_res = 1, g_shot_fli = 1;
+/* Opening a host audio device can block outright on a machine whose CoreAudio devices are broken (the
+ * open call never returns, not merely fails), which must not stop a scripted playtest run. */
+static int g_no_audio;
 static uint32_t g_pt_res_seq;
 static Uint64 g_pt_last_scene, g_pt_last_fli;
 static uint64_t g_pt_hash;
@@ -352,13 +362,17 @@ static void pt_load(const char *path) {
     char line[256];
     while (fgets(line, sizeof line, fp) && g_pt_n < 512) {
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
-        long t; char verb[64], arg[64], updown[8];
-        int n = sscanf(line, "%ld %63s %63s %7s", &t, verb, arg, updown);
+        long t; char verb[64], arg[64], updown[64];
+        int n = sscanf(line, "%ld %63s %63s %63s", &t, verb, arg, updown);
         if (n < 2) continue;
         struct pt_evt *e = &g_pt[g_pt_n];
-        e->t_ms = t; e->kind = PT_KEY; e->make = 1; e->name[0] = 0; e->sc = 0;
+        e->t_ms = t; e->kind = PT_KEY; e->make = 1; e->name[0] = 0; e->sc = 0; e->seq_at = 0;
         if (!strcasecmp(verb, "shot")) {
             e->kind = PT_SHOT; snprintf(e->name, sizeof e->name, "%s", arg);
+        } else if (!strcasecmp(verb, "wait") && n >= 3 && !strcasecmp(arg, "res")) {
+            e->kind = PT_WAIT; snprintf(e->name, sizeof e->name, "%s", updown);
+            e->seq_at = 0;   /* set when the wait becomes current, see pt_drive */
+            if (e->name[0] == 0) { SDL_Log("script: wait res needs a name (line ignored)"); continue; }
         } else {
             const char *kn = (!strcasecmp(verb, "key") && n >= 3) ? arg : verb;
             if (!strcasecmp(verb, "key") && n >= 3) e->make = !strcasecmp(updown, "down") || !strcasecmp(updown, "1");
@@ -377,11 +391,51 @@ static void pt_load(const char *path) {
 }
 
 /* press/release, through the same bytes sdl_events feeds the game */
+/* Every lookup the game performs, recorded as it happens (sys_res_notify), so a `wait res` line can match
+ * a lookup even when the script polls long afterwards. */
+static char g_reslog[256][24];
+static int  g_reslog_n, g_reslog_cursor;
+static char g_res_match[24];
+static long g_pt_done_ms = -1;                       /* when the last scripted event fired, -1 = not yet */
+static void reslog_add(const char *name) {
+    if (g_reslog_n < (int)(sizeof g_reslog / sizeof g_reslog[0])) {
+        snprintf(g_reslog[g_reslog_n], sizeof g_reslog[0], "%s", name);
+        g_reslog_n++;
+    }
+}
+
 static void pt_drive(void) {
     if (!g_pt || !g_pt_n) return;
     long t = pt_now_ms();
-    while (g_pt_i < g_pt_n && g_pt[g_pt_i].t_ms <= t) {
-        struct pt_evt *e = &g_pt[g_pt_i++];
+    while (g_pt_i < g_pt_n) {
+        struct pt_evt *e = &g_pt[g_pt_i];
+        if (e->kind == PT_WAIT) {
+            /* A wait is polled every pass, not scheduled: its number is only the deadline. The anchor
+             * lookup can happen long before that number, and the game's own resource lookups keep moving
+             * g_res_trace, so the match has to be against "some lookup since the wait became current". */
+            if (!e->seq_at) e->seq_at = g_res_trace_seq;
+            int hit_at = -1;
+            for (int k = g_reslog_cursor; k < g_reslog_n; k++)
+                if (strcasestr(g_reslog[k], e->name)) { hit_at = k; break; }
+            if (hit_at >= 0) {
+                g_reslog_cursor = hit_at + 1;
+                snprintf(g_res_match, sizeof g_res_match, "%s", g_reslog[hit_at]);
+                long slip = t - e->t_ms;                     /* the rest of the timeline is relative to the anchor */
+                for (int k = g_pt_i + 1; k < g_pt_n; k++) g_pt[k].t_ms += slip;
+                g_pt_i++;
+                SDL_Log("script: anchored on res '%s' at t=%ldms (rebased %+ldms)", g_res_match, t, slip);
+                continue;
+            }
+            if (t >= e->t_ms) {
+                SDL_Log("script: wait res '%s' timed out at t=%ldms (continuing)", e->name, t);
+                g_pt_i++;
+                continue;
+            }
+            return;                                          /* still waiting: nothing later may fire */
+        }
+        if (e->t_ms > t) return;
+        g_pt_i++;
+        if (g_pt_i >= g_pt_n) g_pt_done_ms = t;      /* script exhausted: let the host wrap up cleanly */
         if (e->kind == PT_SHOT) { shot_named(e->name); continue; }
         SDL_Log("script: key %#02x %s (t=%ldms)", e->sc, e->make ? "down" : "up", e->t_ms);
         key_apply(e->sc, e->make);
@@ -672,6 +726,9 @@ static void key_apply(uint8_t sc, int make) {
 static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
     pt_drive();                                                /* the playtest script's key timeline */
+    /* A finished script means the run has produced everything it was going to: end the process normally so
+     * the manifest is flushed (killing it loses the tail). */
+    if (g_pt_done_ms >= 0 && pt_now_ms() - g_pt_done_ms > 2500) g_quit = 1;
     sdl_events();
     fn_0347e3();                                           /* the game's keyboard pump */
 }
@@ -771,6 +828,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--dump") && i + 1 < argc) g_dump_dir = argv[++i];
         else if (!strcmp(argv[i], "--autokey")) g_autokey = 1;
         else if (!strcmp(argv[i], "--script") && i + 1 < argc) pt_load(argv[++i]);
+        else if (!strcmp(argv[i], "--no-audio")) g_no_audio = 1;
         else if (!strcmp(argv[i], "--shots") && i + 1 < argc) g_shots_dir = argv[++i];
         else if (!strcmp(argv[i], "--shot-limit") && i + 1 < argc) g_shot_limit = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot-delay") && i + 1 < argc) g_shot_delay_ms = (Uint64)atoi(argv[++i]);
@@ -779,7 +837,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--no-res-shots")) g_shot_res = 0;
         else if (!strcmp(argv[i], "--help")) {
             printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR] [--shots DIR]\n"
-                   "              [--script FILE] [--shot-limit N] [--shot-delay MS] [--no-scene-shots] [--no-res-shots]\n");
+                   "              [--script FILE] [--shot-limit N] [--shot-delay MS] [--no-audio] [--no-scene-shots] [--no-res-shots]\n");
             return 0;
         }
     }
@@ -804,7 +862,9 @@ int main(int argc, char **argv) {
     if (getenv("NIGHT_BOARD")) board_boot();   /* else the shipped default (DAT_53334 = 0x210) is kept */
     if (getenv("NIGHT_SOUND")) g_dat_53338 = 1;  /* the title menu's SOUND toggle (fn_039c03) is off by
                                                   * default in the shipped image; force it on for tests */
-    audio_boot();
+    sys_set_res_hook(reslog_add);
+    if (!g_no_audio) audio_boot();
+    else SDL_Log("audio: skipped (--no-audio); the board's DMA ring is still drained every frame");
     g_dbg_03d606 = getenv("NIGHT_DBG") ? 1 : 0;
     g_heap_chain_dbg = getenv("NIGHT_DBG") ? 1 : 0;
     if (getenv("NIGHT_BLITSTATS")) blit_stats_on();

@@ -723,3 +723,11 @@ int sys_audio_plan(const sys_audio_cand_t *c, int n, int *out_index) {
     }
     return SYS_AUDIO_PLAN_NULL_SINK;
 }
+
+/* ---- resource lookup notification (host instrumentation) ---------------------------------------
+ * The playtest harness anchors its script on the resources the game asks for (docs/55), and the polls are
+ * too sparse to catch a lookup by sampling a "last name" global: the boot-time lookups are already gone by
+ * the first poll. So the game tells the host, through this hook, at the moment of each lookup. */
+static sys_res_hook_fn g_res_hook;
+void sys_set_res_hook(sys_res_hook_fn fn) { g_res_hook = fn; }
+void sys_res_notify(const char *name) { if (g_res_hook && name) g_res_hook(name); }

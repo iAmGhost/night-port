@@ -17604,7 +17604,21 @@ static void test_audio_plan(void) {
     sys_audio_reset();
 }
 
+static void test_fn_034635_null_player(void) {
+    printf("fn_034635 (0x034635): a key make before any stage is loaded (DAT_53c7c = 0)\n");
+    uint8_t saved_state = g_dat_62c58[0x1c];
+    int32_t saved_a94 = g_dat_62a94;
+    void *saved_player = (void *)g_dat_53c7c;
+    g_dat_53c7c = 0;
+    g_dat_62c58[0x1c] = 1;                        /* the state that asks for player->0x1b */
+    fn_034635(0x1c);
+    check(g_dat_62c58[0x1c] == 2, "the key counter still advances with no player entity");
+    check(g_dat_62a94 == saved_a94, "the ->0x1b read is skipped, so no value is invented for DAT_62a94");
+    g_dat_53c7c = saved_player; g_dat_62c58[0x1c] = saved_state;
+}
+
 int main(void) {
+    test_fn_034635_null_player();
     test_audio_plan();
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;

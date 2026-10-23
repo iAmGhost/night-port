@@ -228,6 +228,11 @@ void sys_cd_root_records(uint8_t *recs, uint32_t n);
 typedef struct { const char *name; int openable; } sys_audio_cand_t;
 int sys_audio_plan(const sys_audio_cand_t *c, int n, int *out_index);
 
+/* Resource lookups, announced to the host (see sys.c). */
+typedef void (*sys_res_hook_fn)(const char *name);
+void sys_set_res_hook(sys_res_hook_fn fn);
+void sys_res_notify(const char *name);
+
 void     sys_cd_audio_stop(void);
 uint32_t sys_cd_audio_stop_calls(void);
 void     sys_cd_audio_stop_reset(void);

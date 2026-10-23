@@ -1,0 +1,26 @@
+# Anchored playtest route (docs/55). `wait res NAME` parks the timeline until the game performs a resource
+# lookup whose name contains NAME, then rebases the rest of the timeline by the slippage. The leading
+# number is therefore both the expected slot and a generous timeout, gaps after an anchor are read relative
+# to that anchor, and slots must stay monotone so a later anchor can never be evaluated first. Result: the
+# same keys land in the same game states whatever the host's speed or audio state.
+0 shot boot
+20000 wait res logo.pcx
+21000 shot logo_hold
+30000 wait res opening.fli
+31000 shot opening_hold
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+130000 wait res 1s1.pcx
+130600 shot slide_1s1
+170000 wait res stage1.pcx
+171000 shot stage_card
+172000 shot episode_start
+180000 shot stage_play
+181000 key down down
+181400 key down up
+181500 key right down
+181900 key right up
+185000 shot playing

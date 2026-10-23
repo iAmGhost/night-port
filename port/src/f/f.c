@@ -2435,6 +2435,7 @@ uint32_t g_res_trace_seq;
 int32_t fn_0367c9(const char *a0) {
     if (a0) { snprintf(g_res_trace, sizeof g_res_trace, "%s", a0); g_res_trace_seq++; }   /* instrumentation */
     g_res_view_flag = g_view_320x200;      /* instrumentation: the view geometry in force at the lookup */
+    sys_res_notify(a0);                    /* host harness anchor: announced as it happens, not sampled */
     int32_t len = (int32_t)str_len(a0);
     for (uint32_t i = 0; i < g_dat_633a0; i++) {
         const uint8_t *e = g_tab_5d884 + i * 21;
@@ -8608,6 +8609,8 @@ int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0174
     return 0;
 }
 
+static int g_dat_53c7c_null_warned;
+
 void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state machine */
     key = key & 0xff;
     uint8_t state = g_dat_62c58[key];
@@ -8621,7 +8624,19 @@ void fn_034635(uint8_t key) {                                  /* 0x034635: keyb
         if (g_dat_62cd8[key] != 0) { g_dat_62c58[key] = 1; g_dat_62cd8[key]--; }
         else                       { g_dat_62c58[key] = 0; }
     } else {
-        if (state == 1) g_dat_62a94 = *(int32_t *)(g_dat_53c7c + 0x1b);
+        /* DAT_53c7c is the player entity pointer and is only valid once a stage has been loaded. A key
+         * make before that (the attract/menu screens, or a script key landing there) read DOS heap offset
+         * 0 on the original -- mapped memory, so it picked up garbage and carried on. On the host that
+         * address is a fault, so the read is skipped and reported once: same inert outcome, no crash
+         * (docs/55; the same treatment as the NULL room-chain link at fn_03cc6b, docs/52). */
+        if (state == 1) {
+            if (g_dat_53c7c) g_dat_62a94 = *(int32_t *)(g_dat_53c7c + 0x1b);
+            else if (!g_dat_53c7c_null_warned) {
+                g_dat_53c7c_null_warned = 1;
+                fprintf(stderr, "fn_034635: key %#02x make with DAT_53c7c = 0 (no stage loaded): "
+                                "the ->0x1b read is skipped, as on DOS it read unmapped-meaningless heap\n", key);
+            }
+        }
         g_dat_62c58[key]++;
     }
 }

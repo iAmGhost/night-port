@@ -123,6 +123,46 @@ static void present(void) {
     SDL_RenderPresent(g_ren);
 }
 
+/* ---- audio -----------------------------------------------------------------------------
+ * The game drives its sound effects the way a Sound Blaster is driven: DSP commands plus a DMA
+ * transfer it programs itself. The sys layer recognises that protocol and turns each transfer into
+ * PCM bytes; the host pushes them through an SDL audio stream, which also resamples (the board rate
+ * is per-sample: DSP command 0x40 + a time constant). */
+static SDL_AudioDeviceID g_adev;
+static SDL_AudioStream  *g_astream;
+static uint32_t          g_astream_rate;
+
+static void audio_boot(void) {
+    if (!SDL_Init(SDL_INIT_AUDIO)) { SDL_Log("audio unavailable: %s", SDL_GetError()); return; }
+    SDL_AudioSpec dst; SDL_zero(dst);
+    dst.format = SDL_AUDIO_S16; dst.channels = 2; dst.freq = 48000;
+    g_adev = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &dst);
+    if (!g_adev) { SDL_Log("audio device: %s", SDL_GetError()); return; }
+    SDL_AudioSpec src; SDL_zero(src);
+    src.format = SDL_AUDIO_S16; src.channels = 1; src.freq = 22050;
+    g_astream_rate = 22050;
+    g_astream = SDL_CreateAudioStream(&src, &dst);
+    SDL_ResumeAudioDevice(g_adev);                            /* SDL3 devices open paused */
+    SDL_Log("audio: playing at 48000 Hz (board samples start at %u Hz)", g_astream_rate);
+}
+
+static void audio_pump(void) {
+    if (!g_adev || !g_astream) return;
+    sys_audio_set_source(g_dat_63fb4);                 /* the buffer an armed DMA transfer reads */
+    uint32_t rate = sys_audio_rate();
+    if (rate != g_astream_rate && rate) {              /* DSP 0x40 changed the board rate */
+        SDL_AudioSpec src; SDL_zero(src);
+        src.format = SDL_AUDIO_S16; src.channels = 1; src.freq = (int)rate;
+        if (SDL_SetAudioStreamFormat(g_astream, &src, NULL)) g_astream_rate = rate;
+    }
+    static int16_t buf[2048];
+    uint32_t got;
+    while ((got = sys_audio_fill(buf, 2048)) != 0) {
+        if (SDL_GetAudioStreamAvailable(g_astream) > 96000) break;   /* bound the latency */
+        if (!SDL_PutAudioStreamData(g_astream, buf, (int)(got * 2))) break;
+    }
+}
+
 static int      g_autokey;                   /* headless proof: press confirm after the attract show */
 static Uint64   g_start_time;
 static int      g_autokey_last;
@@ -293,14 +333,20 @@ static void input_pump(void) {
 static Uint64 g_tick_next;
 static unsigned long g_pump_calls, g_timer_calls;
 static Uint64 g_diag_next;
+static Uint64 g_audio_next;
 static void tick_pump(void) {
     Uint64 now = SDL_GetPerformanceCounter();
     g_pump_calls++;
+    if (now >= g_audio_next) {                 /* feed the sound stream on a 20 ms cadence */
+        g_audio_next = now + g_perf_freq / 50;
+        audio_pump();
+    }
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
-                "pit=%u Hz",
+                "pit=%u Hz audio=%uHz pushed=%u pend=%u xfer=%u stops=%u",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
-                sys_pit_hz(0));
+                sys_pit_hz(0), sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
+                sys_audio_transfers(), sys_audio_stops());
         g_diag_next = now + g_perf_freq;
     }
     if (now < g_tick_next) return;
@@ -352,6 +398,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(getenv("NIGHT_PAL"), "cacheraw")) g_pal_src = 3;
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
+    audio_boot();
+    g_dbg_03d606 = getenv("NIGHT_DBG") ? 1 : 0;
     g_win = SDL_CreateWindow("NIGHT", 640 * 2, 480 * 2, 0);
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;
     if (!g_ren) { SDL_Log("no renderer: %s", SDL_GetError()); return 1; }

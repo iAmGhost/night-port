@@ -127,6 +127,130 @@ void    sys_dev_cmd_hook(sys_dev_cmd_fn fn) { dev_hook = fn; }
 uint32_t sys_dev_cmds(uint16_t port)  { return port < PORT_MAX ? dev_cmds[port] : 0; }
 uint8_t  sys_dev_last_cmd(uint16_t port) { return port < PORT_MAX ? dev_last[port] : 0; }
 
+/* ---- Sound Blaster / 8237 audio path ----------------------------------------------------------
+ * The game drives its sound effects exactly the way a Sound Blaster is driven: DSP commands on the
+ * board command port (base+0xc), and the sample bytes handed over through an ISA DMA transfer that it
+ * programs itself (fn_040b83: mask, clear ff, preset 0x49, address on 0x01, page on 0x83, count on
+ * 0x03, unmask). Command 0x40 + time constant sets the sample rate (rate = 1e6 / (256 - t)); 0x14 /
+ * 0x17 start an 8-bit DMA transfer, 0x75 / 0x77 a 16-bit one, 0xd0 / 0xd1 stop and reset.
+ * The model below recognises that protocol on sys_outb and turns each transfer into PCM samples in a
+ * ring buffer, which the SDL host drains. PORT DEVIATION: the DMA source address in this port is a
+ * truncated host pointer, so the host registers the buffer the transfer reads (sys_audio_set_source);
+ * the original reads physical memory at the DMA address. */
+#define AUDIO_RING (1u << 17)
+static uint8_t  au_ring[AUDIO_RING];
+static uint32_t au_w, au_r;
+static uint32_t au_rate_hz   = 22050;   /* DSP 0x40 time constant -> rate */
+static uint32_t au_width     = 1;       /* sample width in bytes (8- or 16-bit) */
+static uint32_t au_transfers, au_stops;
+static const uint8_t *au_src;
+static uint32_t au_pushed;
+
+/* 8237 state the game drives */
+static uint8_t  dma_page[4];
+static uint32_t dma_addr[4], dma_count[4];
+static uint8_t  dma_ff[4];              /* the byte/word flip of the address / count registers */
+static int8_t   dma_armed = -1;         /* channel last programmed for a transfer */
+
+static uint8_t  dsp_wait;               /* the DSP command whose argument is still to come */
+static uint16_t dsp_block;              /* 0x14/0x17/0x75/0x77 then count low, high */
+static uint8_t  dsp_blk_i;
+
+void sys_audio_set_source(const uint8_t *buf) { au_src = buf; }
+uint32_t sys_audio_rate(void)     { return au_rate_hz; }
+uint32_t sys_audio_width(void)    { return au_width; }
+uint32_t sys_audio_transfers(void){ return au_transfers; }
+uint32_t sys_audio_stops(void)    { return au_stops; }
+uint32_t sys_audio_pending(void)  { return au_w - au_r; }
+uint32_t sys_audio_pushed(void)   { return au_pushed; }
+uint32_t sys_dma_addr(uint8_t ch)   { return ch < 4 ? dma_addr[ch] : 0; }
+uint32_t sys_dma_count(uint8_t ch)  { return ch < 4 ? dma_count[ch] : 0; }
+int8_t   sys_dma_armed(void)        { return dma_armed; }
+
+static void au_put(uint8_t b) {
+    uint32_t n = (au_w + 1) & (AUDIO_RING - 1);
+    if (n == au_r) return;                    /* full: drop, like a card whose FIFO is overruns */
+    au_ring[au_w] = b; au_w = n;
+}
+
+static void au_start(void) {
+    if (dma_armed < 0 || !au_src) return;
+    uint32_t n = dma_count[(uint8_t)dma_armed] + 1u;     /* the count register is programmed as n-1 */
+    for (uint32_t i = 0; i < n; i++) au_put(au_src[i]);
+    au_transfers++; au_pushed += n;
+    dma_armed = -1;
+}
+
+static void dma8237_out(uint16_t port, uint8_t v) {
+    if (port == 0x0a) {                                    /* mask / unmask */
+        if (v & 4) return;                                 /* mask: not an arm */
+        uint8_t ch = (uint8_t)(v & 3);
+        if (ch == 3) dma_armed = 1;                        /* "unmask all": the board uses channel 1 */
+        else         dma_armed = (int8_t)ch;
+    } else if (port == 0x0c) {
+        memset(dma_ff, 0, sizeof dma_ff);                  /* clear first/last flip flop */
+    } else if (port == 0x0b) {
+        memset(dma_ff, 0, sizeof dma_ff);
+    } else if (port == 0x02 || port == 0x03) {
+        /* The board's own DMA registers: the game writes the 24-bit transfer address as two bytes to
+         * 0x02 and the byte count (n-1) as two bytes to 0x03, with the page on 0x83 (fn_040b83). */
+        if (port == 0x02) {
+            if (!dma_ff[1]) { dma_addr[1] = (dma_addr[1] & 0xff00u) | v; dma_ff[1] = 1; }
+            else            { dma_addr[1] = (dma_addr[1] & 0x00ffu) | ((uint32_t)v << 8); dma_ff[1] = 0; }
+        } else {
+            if (!dma_ff[1]) { dma_count[1] = (dma_count[1] & 0xff00u) | v; dma_ff[1] = 1; }
+            else            { dma_count[1] = (dma_count[1] & 0x00ffu) | ((uint32_t)v << 8); dma_ff[1] = 0; }
+        }
+    } else if (port >= 0x83 && port <= 0x87) {
+        dma_page[(port - 0x83) & 3] = v;
+    }
+}
+
+static void dsp_out(uint16_t port, uint8_t v) {
+    (void)port;
+    if (dsp_wait == 0x40) { au_rate_hz = 1000000u / (uint32_t)(256 - v); dsp_wait = 0; return; }
+    if (dsp_wait == 0x14 || dsp_wait == 0x17 || dsp_wait == 0x75 || dsp_wait == 0x77) {
+        if (dsp_blk_i == 0) { dsp_block = v; dsp_blk_i = 1; }
+        else { dsp_block |= (uint16_t)((uint16_t)v << 8); dsp_blk_i = 0; dsp_wait = 0; }
+        return;
+    }
+    switch (v) {
+    case 0x40: dsp_wait = 0x40; break;
+    case 0x14: case 0x17: au_width = 1; dsp_wait = v; dsp_blk_i = 0; au_start(); break;
+    case 0x75: case 0x77: au_width = 2; dsp_wait = v; dsp_blk_i = 0; au_start(); break;
+    case 0xd0: case 0xd1: au_stops++; dma_armed = -1; break;
+    default: break;
+    }
+}
+
+void sys_audio_reset(void) {
+    au_w = au_r = 0; au_rate_hz = 22050; au_width = 1;
+    au_transfers = au_stops = au_pushed = 0; au_src = 0;
+    memset(dma_page, 0, sizeof dma_page); memset(dma_addr, 0, sizeof dma_addr);
+    memset(dma_count, 0, sizeof dma_count); memset(dma_ff, 0, sizeof dma_ff);
+    dma_armed = -1; dsp_wait = 0; dsp_block = 0; dsp_blk_i = 0;
+}
+
+/* drain PCM into signed 16-bit frames (mono); returns the number of frames written */
+uint32_t sys_audio_fill(int16_t *dst, uint32_t frames) {
+    uint32_t got = 0;
+    while (got < frames && au_r != au_w) {
+        if (au_width == 1) {
+            uint8_t b = au_ring[au_r]; au_r = (au_r + 1) & (AUDIO_RING - 1);
+            dst[got++] = (int16_t)(((int32_t)b - 128) << 8);
+        } else {
+            if (((au_r + 1) & (AUDIO_RING - 1)) == au_w) break;      /* a half sample: wait */
+            uint8_t lo = au_ring[au_r]; au_r = (au_r + 1) & (AUDIO_RING - 1);
+            uint8_t hi = au_ring[au_r]; au_r = (au_r + 1) & (AUDIO_RING - 1);
+            dst[got++] = (int16_t)((uint16_t)(lo | (hi << 8)));
+        }
+    }
+    return got;
+}
+
+/* the SB command port is the same register the base scan writes commands to (base+0xc) */
+static int sb_cmd_port(uint16_t port) { return port == 0x22c || port == 0x21c; }
+
 static uint32_t out_hist[PORT_MAX];
 uint32_t sys_outb_count(uint16_t port) { return port < PORT_MAX ? out_hist[port] : 0; }
 
@@ -146,6 +270,8 @@ void sys_outb(uint16_t port, uint8_t v) {
         }
     if (port == 0x43 || (port >= 0x40 && port <= 0x42)) pit_out(port, v);
         if (dev_hook) dev_hook(port, v);
+        if (port >= 0x200 && port < 0x300 && sb_cmd_port(port)) dsp_out(port, v);
+        if (port <= 0x0b || (port >= 0x81 && port <= 0x87)) dma8237_out(port, v);
         if (port >= DEV_PORT_BASE && port < DEV_PORT_BASE + 0x100) {
             dev_cmds[port]++; dev_last[port] = v;   /* the command register: writes are counted, reads are not */
         }
@@ -385,7 +511,7 @@ struct dos_time sys_gettime(void) { return sys_time; }
  * fixed real-mode memory image and the VBE calls are answered from the tunable
  * fields below (the SDL backend would fill them from a real adapter).
  * ------------------------------------------------------------------ */
-#define SYS_REALMEM 0x20000u   /* the device transfer buffer alone is 0x10000 of it */
+#define SYS_REALMEM 0x30000u   /* several 0x10000-byte device/DMA buffers are live at once */
 static uint8_t  g_real_mem[SYS_REALMEM];
 static uint32_t g_real_mem_used;
 static uint16_t g_real_mem_sel = 0x1000;
@@ -410,6 +536,15 @@ static sys_realblk g_real_blks[SYS_REALMEM_BLOCKS];
 
 /* the DOS-linear (paragraph-based) address of a block handed out above, i.e. what DPMI would report */
 uint32_t sys_dos_seg_linear(const uint8_t *p) { return (uint32_t)(uintptr_t)(p - g_real_mem); }
+
+/* release the block that contains p (DPMI INT 31h AX=0101); used by tests that allocate the 64 KB
+ * device transfer buffer so the pool does not run dry for the next caller */
+void sys_dos_seg_free_ptr(const uint8_t *p) {
+    if (!p || p < g_real_mem || p >= g_real_mem + SYS_REALMEM) return;
+    uint32_t off = (uint32_t)(uintptr_t)(p - g_real_mem);
+    for (int i = 0; i < SYS_REALMEM_BLOCKS; i++)
+        if (g_real_blks[i].used && g_real_blks[i].off == off) { sys_dos_seg_free(g_real_blks[i].sel); return; }
+}
 
 uint8_t *sys_dos_seg_alloc(uint32_t paragraphs, uint16_t *selector)
 {

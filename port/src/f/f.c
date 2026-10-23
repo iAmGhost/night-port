@@ -1785,6 +1785,7 @@ void fn_03d67c(uint8_t *a, uint32_t a1, uint32_t a2) {
  * 3-byte-stride data array inline at a0+0x48. Loop i in 0..count-1: a1 = pairs[i*2],
  * a2 = pairs[i*2+1]; fn_03d67c(a0+0x48, a1, a2). (orig args: EAX=a0+0x48 base,
  * EDX=a1, EBX=a2 -> fn_03d67c(a0=EAX, a1=EDX, a2=EBX).) */
+int g_dbg_03d606;                      /* host-side diagnostic switch for the palette-row rotation */
 void fn_03d606(uint32_t a0) {
     (void)canary_id(0, 0x24);                                   /* PUSH 0x24;CALL 0x418ee */
     uint8_t *hb = (uint8_t *)g_heap_base;
@@ -1792,9 +1793,12 @@ void fn_03d606(uint32_t a0) {
     int32_t count = *(int32_t *)(s + 0x3c);                     /* 0x3d636 */
     uint32_t po = *(uint32_t *)(s + 0x44);                      /* pairs heap offset */
     uint8_t *pairs = hb + po;
+    if (g_dbg_03d606) fprintf(stderr, "fn_03d606: a0=%#x count=%d pairs=%#x heap=%p arena=%#x\n",
+                              a0, count, po, (void *)g_heap_base, heap_arena_cap_get());
     for (int32_t i = 0; i < count; i++) {
         uint32_t a1 = pairs[i * 2 + 0];                         /* 0x3d65e: EDX = a1 */
         uint32_t a2 = pairs[i * 2 + 1];                         /* 0x3d648: EBX = a2 */
+        if (g_dbg_03d606 && i < 4) fprintf(stderr, "   pair %u: a1=%u a2=%u\n", i, a1, a2);
         fn_03d67c((uint8_t *)g_heap_base + a0 + 0x48, a1, a2);   /* 0x3d66c (a0 is a heap offset) */
     }
 }
@@ -6383,7 +6387,8 @@ void fn_03d0c0(uint8_t *ent) {
                   *(uint32_t *)(e + 0x1a));                            /* 0x3d102 */
     } else if (g0 < *(uint32_t *)(e + 0x4)) {                           /* 0x3d118 */
         fn_03ba2c(*(uint32_t *)(e + 0x348), *(uint32_t *)(e + 0x1a));   /* 0x3d129 */
-        uint8_t *s = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x354);    /* 0x3d131: orig slot +0x350, shifted to +0x354 because the widened node link at +0x34c occupies 0x34c-0x353 */
+        uint64_t w354; memcpy(&w354, e + 0x354, sizeof w354);   /* unaligned-safe: records are 3-byte aligned, so a 64-bit load can fault (SIGBUS on arm64) */
+        uint8_t *s = (uint8_t *)(uintptr_t)w354;    /* 0x3d131: orig slot +0x350, shifted to +0x354 because the widened node link at +0x34c occupies 0x34c-0x353 */
         uint32_t inc = *(uint32_t *)(s + 0x1a);
         uint32_t ci  = *(uint32_t *)(s + 0x348) + base - *(uint32_t *)(s + 0x0)
                      + (0xc8u - (*(uint32_t *)(s + 0x4) - g0)) * inc;   /* 0x3d137-7c */
@@ -6392,7 +6397,8 @@ void fn_03d0c0(uint8_t *ent) {
         uint32_t inc = *(uint32_t *)(e + 0x1a);
         fn_03ba2c(*(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0x4)) * 0x140u,
                   inc);                                                 /* 0x3d1c0 */
-        uint8_t *s = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x34c);    /* 0x3d1c8 */
+        uint64_t w34c; memcpy(&w34c, e + 0x34c, sizeof w34c);   /* unaligned-safe (see the +0x354 note) */
+        uint8_t *s = (uint8_t *)(uintptr_t)w34c;    /* 0x3d1c8 */
         fn_03ba2c(*(uint32_t *)(s + 0x348) + base - *(uint32_t *)(s + 0x0),
                   *(uint32_t *)(s + 0x1a));                             /* 0x3d1f4 */
     } else {                                                            /* 0x3d1fb */
@@ -6642,7 +6648,8 @@ void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
         uint32_t sa = base + *(uint32_t *)(e + 0x348) - *(uint32_t *)(e + 0x0);
         blt_rows(video_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
     } else if (g0 < *(uint32_t *)(e + 0x4)) {          /* B1 */
-        uint8_t *s1 = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x354);   /* orig ent[0x350] = sibling ptr, shifted to +0x354 (widened +0x34c link) */
+        uint64_t w354b; memcpy(&w354b, e + 0x354, sizeof w354b);   /* unaligned-safe */
+        uint8_t *s1 = (uint8_t *)(uintptr_t)w354b;   /* orig ent[0x350] = sibling ptr, shifted to +0x354 (widened +0x34c link) */
         uint32_t sp1 = *(uint32_t *)(s1 + 0x1a);
         uint32_t h1a = 0xc8 - (*(uint32_t *)(e + 0x4) - g0);
         uint32_t do1a = (uint32_t)((int)(0xc8 - (g0 - *(uint32_t *)(s1 + 0x4))) * (int)0x140);
@@ -6656,7 +6663,8 @@ void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
         uint32_t h2a = *(uint32_t *)(e + 0xc) - g0;
         uint32_t sa2a = *(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0)) * 0x140;
         blt_rows(video_map(sa2a), (int)*(uint32_t *)(e + 0x1a), 0x140, (int)h2a, dst, 0x140);
-        uint8_t *s2 = (uint8_t *)(uintptr_t)*(uint64_t *)(e + 0x34c);   /* ent[0x34c] = sibling ptr (64-bit) */
+        uint64_t w34cb; memcpy(&w34cb, e + 0x34c, sizeof w34cb);   /* unaligned-safe */
+        uint8_t *s2 = (uint8_t *)(uintptr_t)w34cb;   /* ent[0x34c] = sibling ptr (64-bit) */
         uint32_t h2b = g0 - *(uint32_t *)(e + 0);
         uint32_t do2b = (uint32_t)((int)((0xc8 - g0) + *(uint32_t *)(e + 0)) * (int)0x140);
         uint32_t sa2b = *(uint32_t *)(s2 + 0x348) + base - *(uint32_t *)(s2 + 0x0);

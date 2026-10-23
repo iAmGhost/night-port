@@ -130,7 +130,8 @@ uint32_t sys_file_real_opened(void);                     /* successful real open
  * image, plus the selector the original stores in its first word. */
 uint8_t *sys_dos_seg_alloc(uint32_t paragraphs, uint16_t *selector);
 void     sys_dos_seg_free(uint16_t selector);
-uint32_t sys_dos_seg_linear(const uint8_t *p);   /* the paragraph-based address DPMI reports for a block */
+uint32_t sys_dos_seg_linear(const uint8_t *p);
+void     sys_dos_seg_free_ptr(const uint8_t *p);  /* release the block containing p */   /* the paragraph-based address DPMI reports for a block */
 extern uint32_t sys_dos_segs_allocated;
 
 /* INT 10h AX=4F00 / 4F01 / 4F02 stand-ins (VESA VBE). Tunable for tests. */
@@ -150,6 +151,19 @@ extern uint16_t sys_vesa_set_mode_ah;       /* 0 = mode set ok, 1 = error */
 void     sys_vga_palette(uint8_t *out768);
 void     sys_vga_palette_set(uint16_t index, uint8_t r, uint8_t g, uint8_t b);
 uint32_t sys_vga_palette_writes(void);
+void     sys_audio_set_source(const uint8_t *buf);  /* the buffer an armed DMA transfer reads */
+uint32_t sys_audio_rate(void);                      /* the sample rate the last DSP 0x40 asked for */
+uint32_t sys_audio_width(void);                     /* 1 = 8-bit PCM, 2 = 16-bit PCM */
+uint32_t sys_audio_transfers(void);                 /* DMA transfers turned into samples */
+uint32_t sys_audio_stops(void);                     /* DSP 0xd0 / 0xd1 stops */
+uint32_t sys_audio_pending(void);                   /* bytes waiting in the output ring */
+uint32_t sys_audio_pushed(void);                    /* bytes ever accepted into the ring */
+uint32_t sys_audio_fill(int16_t *dst, uint32_t frames);
+void     sys_audio_reset(void);
+uint32_t sys_dma_addr(uint8_t ch);                  /* the 8237 address the game programmed */
+uint32_t sys_dma_count(uint8_t ch);                 /* the 8237 count register (bytes = count+1) */
+int8_t   sys_dma_armed(void);                       /* channel last unmasked (armed), or -1 */
+
 uint32_t sys_outb_count(uint16_t port);    /* how many writes a given port has seen (diagnostics) */
 uint8_t  sys_vga_dac_max(void);           /* largest DAC byte written: <=63 means 6-bit addressing */
 void     sys_vga_palette_reset(void);

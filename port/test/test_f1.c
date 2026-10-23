@@ -17166,9 +17166,72 @@ static void test_device_bringup(void) {
     sys_dev_cmd_hook(0);
     sys_isr_reset();
     sys_dev_status_reset();
+    if (g_dat_63fb4 && g_dat_63fb4 != s_b4) sys_dos_seg_free_ptr(g_dat_63fb4);
+    g_dat_63fb4 = s_b4;
     g_dat_53334 = s_base; g_dat_63f84 = s_84; g_dat_63f88 = s_88; g_dat_63f90 = s_90;
     g_dat_63fb4 = s_b4; g_dat_63fac = s_ac; g_dat_63f54 = s_54; g_dat_63f58 = s_58;
     sys_port_set(0x21, (uint8_t)s_pic1); sys_port_set(0xa1, (uint8_t)s_pic2);
+}
+
+/* The sound-effects path end to end: the game's own VOC play block (fn_04185e -> fn_040839 ->
+ * fn_04097e -> fn_040b83) programs the board's DMA registers and the DSP, and the sys layer recognises
+ * that protocol and turns the transfer into PCM samples for the host's audio device. */
+static void test_audio_path(void) {
+    printf("the sound-effect path (0x04185e -> 0x04097e -> 0x040b83 -> the DSP / DMA model)\n");
+    uint32_t s_34 = g_dat_53334, s_90 = g_dat_63f90, s_b8 = g_dat_63fb8;
+    uint8_t  s_38 = g_dat_53338;
+    uint8_t *s_b4 = g_dat_63fb4;  uint32_t s_ac = g_dat_63fac, s_f94 = g_dat_63f94;
+
+    sys_isr_reset(); sys_dev_status_reset(); sys_audio_reset();
+    g_dat_53334 = 0x220;
+    sys_dev_status_set(0x22c, 0x00);                      /* ready: command writes go through */
+    g_dat_63f90 = 1; g_dat_53338 = 1; g_dat_63fb8 = 0;
+    uint32_t seg = 0;
+    g_dat_63fb4 = fn_00040788(&seg, 0xffff);              /* the 64 KB device transfer buffer */
+    check(g_dat_63fb4 != 0, "the 64 KB device transfer buffer is allocated for the DMA load");
+    g_dat_63fac = 0x12345u;
+    sys_audio_set_source(g_dat_63fb4);
+
+    enum { N = 300 };
+    static uint8_t pcm[N];
+    for (int i = 0; i < N; i++) pcm[i] = (uint8_t)(i * 3 + 1);
+    static uint8_t stream[6 + N + 1];
+    stream[0] = 1;                                       /* record kind 1: arm and start a transfer */
+    stream[1] = (uint8_t)((2 + N) & 0xff);                /* 24-bit little-endian length */
+    stream[2] = (uint8_t)(((2 + N) >> 8) & 0xff);
+    stream[3] = 0;
+    stream[4] = 0x80;                                    /* the DSP time constant: 1e6/(256-0x80) */
+    stream[5] = 0;                                       /* block kind 0 -> the 8-bit transfer (0x14) */
+    memcpy(stream + 6, pcm, N);
+    stream[6 + N] = 0;                                   /* end of stream */
+
+    fn_04185e(stream);
+    check(sys_audio_transfers() == 1, "one play block produces exactly one DMA transfer");
+    check(sys_audio_rate() == 7812, "DSP 0x40 + time constant 0x80 asks for 1e6/(256-t) = 7812 Hz");
+    check(sys_audio_width() == 1, "block kind 0 programs the 8-bit transfer command (0x14)");
+    check(sys_audio_pushed() == N, "the whole record payload reached the sample ring");
+    check(sys_dma_count(1) == (uint32_t)(N - 1) && sys_dma_addr(1) == (g_dat_63fac & 0xffff),
+          "the DMA registers were programmed as address low/mid and count n-1");
+    int16_t out[N];
+    uint32_t got = sys_audio_fill(out, N);
+    check(got == N && out[0] == (int16_t)(((int32_t)pcm[0] - 128) << 8) &&
+          out[N - 1] == (int16_t)(((int32_t)pcm[N - 1] - 128) << 8),
+          "the ring replays the sample bytes as signed 16-bit PCM");
+
+    fn_04185e(stream);
+    check(sys_audio_stops() == 1, "the second play sends the stop/reset command (0xd0) first");
+
+    sys_audio_reset(); sys_dev_status_reset();
+    sys_dev_status_set(0x22c, 0x00);
+    sys_audio_set_source(g_dat_63fb4);
+    stream[5] = 1;                                       /* block kind 1 -> the 16-bit transfer (0x75) */
+    fn_04185e(stream);
+    check(sys_audio_width() == 2, "block kind 1 programs the 16-bit transfer command (0x75)");
+
+    sys_audio_reset(); sys_isr_reset(); sys_dev_status_reset();
+    if (g_dat_63fb4 && g_dat_63fb4 != s_b4) sys_dos_seg_free_ptr(g_dat_63fb4);   /* do not starve the pool */
+    g_dat_53334 = s_34; g_dat_63f90 = s_90; g_dat_63fb8 = s_b8; g_dat_53338 = s_38;
+    g_dat_63fb4 = s_b4; g_dat_63fac = s_ac; g_dat_63f94 = s_f94;
 }
 
 static void test_fn_0420bc(void) {
@@ -17781,6 +17844,7 @@ int main(void) {
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
     test_fn_0445c9();
+    test_audio_path();
     test_device_bringup();
     test_fn_0420bc();
     test_cd_iso_real();

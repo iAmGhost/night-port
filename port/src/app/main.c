@@ -49,6 +49,7 @@ static Uint64   g_present_next;
 static Uint64   g_perf_freq;
 
 static const char *g_dump_dir;
+static int g_resnames;
 static const int   g_dump_frames[] = { 30, 90, 240, 600, 1200, 2400, 4800, 9600 };
 
 /* ---- fatal / terminate ---------------------------------------------- */
@@ -275,6 +276,7 @@ int main(int argc, char **argv) {
             return 0;
         }
     }
+    for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--resnames")) g_resnames = 1;
     if (getenv("NIGHT_RES_DIR") && *getenv("NIGHT_RES_DIR")) res_dir = getenv("NIGHT_RES_DIR");
     char cue[1024];
     snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", res_dir);
@@ -303,6 +305,14 @@ int main(int argc, char **argv) {
         SDL_Log("disc: %u tracks, %u sectors, lead-out MSF-derived", cd_iso_track_count(), cd_iso_total_sectors());
     } else {
         SDL_Log("disc: %s not readable -- the disc-present gate will ask for the CD", cue);
+    }
+    if (g_resnames) {                        /* the expanded name->value index (fn_0366a4) */
+        for (uint32_t i = 0; i < g_dat_633a0 && i < 512; i++) {
+            const uint8_t *e = &g_tab_5d884[i * 0x15];
+            char nm[13]; memcpy(nm, e, 12); nm[12] = 0;
+            SDL_Log("res[%u] %-12s value=%u offset=%u", i, nm,
+                    *(const uint32_t *)(e + 0x0d), *(const uint32_t *)(e + 0x11));
+        }
     }
     sys_set_input_pump(input_pump);
     sys_set_tick_pump(tick_pump);

@@ -19,13 +19,15 @@ test: $(T)/test_f1
 	./$(T)/test_f1
 
 # res pipeline (verified decoders) — needs SDL3 for png_out
-selftest:
-	pkg-config --exists sdl3 && $(CC) $(CFLAGS) -o $(T)/selftest \
-		src/res/selftest.c src/res/res_container.c src/res/res_pcx.c \
-		src/res/res_spr.c src/res/fli.c src/res/voc.c src/res/wav.c \
-		src/res/png_out.c $(shell pkg-config --cflags --libs sdl3) \
-		|| { echo "SDL3 not found; skipping res selftest"; exit 0; }
+selftest: $(T)/selftest
 	./$(T)/selftest
+$(T)/selftest: src/res/selftest.c src/res/res_container.c src/res/res_pcx.c \
+                src/res/res_spr.c src/res/fli.c src/res/voc.c src/res/wav.c \
+                src/res/png_out.c src/res/res.h
+	$(CC) $(CFLAGS) -Isrc -DRES_SELFTEST_MAIN $(SDL_CFLAGS) -o $@ src/res/selftest.c src/res/res_container.c \
+		src/res/res_pcx.c src/res/res_spr.c src/res/fli.c src/res/voc.c src/res/wav.c \
+		src/res/png_out.c $(SDL_LIBS) -lm
+
 
 # the SDL host (needs SDL3: brew install sdl3)
 SDL_CFLAGS ?= -I/opt/homebrew/include

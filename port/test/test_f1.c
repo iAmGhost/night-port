@@ -5556,7 +5556,9 @@ static void test_l10_accessors(void) {
         memset(canvas, 0, sizeof canvas);
         int saved = g_video_stride; g_video_stride = 0x140;
         fn_040631(0x140);
-        rect_fill(canvas, 0x1f, 0x17, 0x64, 2, 0x33);
+        rect_fill(canvas, 0x1f, 0x17, 0x64, 2, 0x33);   /* (base, COLUMN, ROW, w, h, colour) */
+        check(canvas[0x17 * 0x140 + 0x1f] == 0x33 && canvas[0x1f * 0x140 + 0x17] == 0,
+              "  rect_fill's parameter order is (base, column, row, ...) -- not (base, row, column)");
         check(canvas[0x17 * 0x140 + 0x1f] == 0x33 && canvas[0x17 * 0x140 + 0x1f + 99] == 0x33 &&
               canvas[0x18 * 0x140 + 0x1f] == 0x33 && canvas[0x16 * 0x140 + 0x1f] == 0 &&
               canvas[0x17 * 0x140 + 0x1e] == 0,

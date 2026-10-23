@@ -13790,10 +13790,15 @@ void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
                   (int32_t)*(const uint32_t *)(hb + gage[1]),
                   *(const uint32_t *)(hb + gage[2]),
                   hb + gage[14], 0);                              /* 0x13738 (no offset indexing) */
+        /* Push order at 0x13745-1375e / 0x13771-0x13789 is colour, 2, width, 0x1f,
+         * (slot*0xaa + 0x17), base -- so with the cdecl left-to-right order REVERSED the parameters are
+         * rect_fill(base, COLUMN = slot*0xaa + 0x17, ROW = 0x1f, width, 2, colour). The panel itself is
+         * blitted at row 0x1d (29), so a bar at row 0x1f (31) sits inside it; the earlier port reading
+         * had column and row swapped, which put the gauge 8 px right and 8 px high. */
         if (q1 != 0)                                              /* 0x1373d-13763 */
-            rect_fill(scr, 0x1f, slot * 0xaa + 0x17, 0x64, 2, (uint8_t)c14);
+            rect_fill(scr, slot * 0xaa + 0x17, 0x1f, 0x64, 2, (uint8_t)c14);
         if (r1 != 0) {                                            /* 0x13766-137b7 */
-            rect_fill(scr, 0x1f, slot * 0xaa + 0x17, (uint32_t)r1, 2, (uint8_t)c10);
+            rect_fill(scr, slot * 0xaa + 0x17, 0x1f, (uint32_t)r1, 2, (uint8_t)c10);
             vline_set(scr, 0x140, slot * 0xaa + 0x17 + r1, 0x1e, 4, 0xd0);
         }
         return;                                                   /* 0x137ba */

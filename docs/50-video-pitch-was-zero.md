@@ -50,3 +50,29 @@ Because the two broken helpers are used by fades, markers and single-pixel effec
 prerequisite for judging the remaining visual reports (the intro .fli artifact and the stage-transition
 corruption): those were previously evaluated against a frame where pitch-relative writes were landing on
 row 0.
+
+## The remaining offset slip: `rect_fill`'s argument pair was transposed in `fn_01348f`
+
+Fixing the pitch made the bar appear, but at the wrong place. Reading the push order at the call sites
+settles it — pushes are right-to-left, so the parameters read in reverse:
+
+```
+00013745  push c14            ; colour
+00013749  push 2              ; height
+0001374b  push 0x64           ; width
+0001374d  push 0x1f           ; -> 3rd parameter
+0001374f  imul eax, [slot], 0xaa ; + 0x17
+00013759  push eax            ; -> 2nd parameter
+0001375d  push base           ; 1st
+0001375e  call 0x4052c        ; rect_fill(base, COLUMN, ROW, width, height, colour)
+```
+
+so the gauge fill is `column = slot*0xaa + 0x17`, `row = 0x1f` — which sits inside the gauge panel blitted
+at row `0x1d` (29) by `fn_03bb42`. The port had those two arguments swapped (`0x1f` as column,
+`slot*0xaa+0x17` as row), putting the bar 8 px right and 8 px high. Both sites (the 100-px `q1` fill at
+0x1375e and the remainder `r1` fill at 0x13789) are corrected; the third site in the same function
+(0x13696: `0x20`, `0xbb`) was already in the right order, verified the same way.
+
+Measured after the fix (stage-1 gameplay frame, 320x200): the fill is exactly **columns 23..122, rows
+31..32** — `slot*0xaa + 0x17 = 23`, `0x1f = 31`, 100 x 2 — with no red pixels on rows 27-30 or 33-37. A
+regression check now pins the (base, column, row) order itself.

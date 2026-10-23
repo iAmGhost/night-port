@@ -707,3 +707,19 @@ void sys_dos_env_set(const void *env, uint32_t len) {
 uint32_t sys_dos_exit_code(void)  { return g_exit_code; }
 uint32_t sys_dos_exit_calls(void) { return g_exit_calls; }
 void sys_dos_terminate(uint32_t code) { g_exit_code = code; g_exit_calls++; }
+
+/* ---- audio device fallback plan (docs/55) ------------------------------------------------
+ * A host can have a default output device that exists but cannot start (CoreAudio answers
+ * AudioQueueStart with 2003329396 here, which is also what stalls dosbox-staging when it is launched
+ * non-interactively). The game must still get a stream to push its DMA bytes into, otherwise the
+ * emulated board's ring fills and the sample player blocks. This is the ordering decision, kept here
+ * as a pure function so it can be pinned by a test: default first, then every other listed output
+ * device, then a null sink that is drained by the pump so the emulated DMA clock keeps advancing. */
+int sys_audio_plan(const sys_audio_cand_t *c, int n, int *out_index) {
+    if (out_index) *out_index = -1;
+    if (!c || n <= 0) return SYS_AUDIO_PLAN_NULL_SINK;
+    for (int i = 0; i < n; i++) {
+        if (c[i].openable) { if (out_index) *out_index = i; return SYS_AUDIO_PLAN_DEVICE; }
+    }
+    return SYS_AUDIO_PLAN_NULL_SINK;
+}

@@ -139,19 +139,70 @@ static void present(void) {
 static SDL_AudioDeviceID g_adev;
 static SDL_AudioStream  *g_astream;
 static uint32_t          g_astream_rate;
+static uint64_t          g_audio_submitted;   /* bytes handed to the SDL stream */
+static uint64_t          g_audio_drained;     /* bytes dropped because no device took them */
+static char              g_audio_dev[80] = "none";
+static int               g_audio_null_sink;
+
+/* One open attempt, logged. The label names the rung of the fallback ladder. */
+static SDL_AudioDeviceID try_open(SDL_AudioDeviceID id, const SDL_AudioSpec *dst, const char *label) {
+    if (!id) return 0;
+    SDL_AudioDeviceID d = SDL_OpenAudioDevice(id, dst);
+    if (d) snprintf(g_audio_dev, sizeof g_audio_dev, "%s", label);
+    else   SDL_Log("audio: %s refused (%s)", label, SDL_GetError());
+    return d;
+}
+
+/* The last rung used to be a driver swap: quit the audio subsystem, set SDL_AUDIODRIVER=dummy and
+ * re-init. On this SDL3 that sequence hangs after the real devices have all refused (the log stops at
+ * the last refusal and the run never ends), so the last rung is instead the software sink in
+ * audio_pump: the board's DMA ring is still drained every frame, which is what the game's own
+ * busy-wait depends on. An operator can still ask SDL for its null driver up front with
+ * SDL_AUDIODRIVER=dummy, which is how the counters below were measured. */
+static void audio_pump_drain_only(void);
 
 static void audio_boot(void) {
     if (!SDL_Init(SDL_INIT_AUDIO)) { SDL_Log("audio unavailable: %s", SDL_GetError()); return; }
     SDL_AudioSpec dst; SDL_zero(dst);
     dst.format = SDL_AUDIO_S16; dst.channels = 2; dst.freq = 48000;
-    g_adev = SDL_OpenAudioDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &dst);
-    if (!g_adev) { SDL_Log("audio device: %s", SDL_GetError()); return; }
+
+    /* Rung 1: the system default. Rung 2: every other output device the host lists (a machine can have
+     * a dead default and a working secondary). Rung 3: the null sink. */
+    g_adev = try_open(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &dst, "default");
+    if (!g_adev) {
+        int n = 0;
+        SDL_AudioDeviceID *list = SDL_GetAudioPlaybackDevices(&n);
+        char label[64];
+        for (int i = 0; i < n && !g_adev; i++) {
+            const char *nm = SDL_GetAudioDeviceName(list[i]);
+            snprintf(label, sizeof label, "alt %u %s", i, nm ? nm : "?");
+            g_adev = try_open(list[i], &dst, label);
+        }
+        SDL_free(list);
+    }
+    if (!g_adev) { SDL_Log("audio: no stream at all, the board's DMA ring will be drained and discarded"); return; }
+
     SDL_AudioSpec src; SDL_zero(src);
     src.format = SDL_AUDIO_S16; src.channels = 1; src.freq = 22050;
     g_astream_rate = 22050;
     g_astream = SDL_CreateAudioStream(&src, &dst);
     SDL_ResumeAudioDevice(g_adev);                            /* SDL3 devices open paused */
-    SDL_Log("audio: playing at 48000 Hz (board samples start at %u Hz)", g_astream_rate);
+    SDL_Log("audio: %s at %d Hz (board samples start at %u Hz)", g_audio_dev, dst.freq, g_astream_rate);
+}
+
+/* No host stream: drain the board's ring into a scratch buffer. The game waits on the *board* (its DMA
+ * transfer completing and the DSP accepting a stop), not on the host device, so the emulated DMA clock
+ * has to keep advancing or fn_04185e never returns and the game logic starves. */
+static void audio_pump_drain_only(void) {
+    static int16_t sink[2048];
+    sys_audio_set_source(g_dat_63fb4);
+    uint32_t got;
+    while ((got = sys_audio_fill(sink, 2048)) != 0) g_audio_drained += got * 2;
+    if (getenv("NIGHT_AUDIODBG") && (g_frames % 60) == 0)
+        SDL_Log("audiodbg: frame=%u no-stream drained=%llu B transfers=%u stops=%u rate=%u width=%u "
+                "pending=%u pushed=%u", g_frames, (unsigned long long)g_audio_drained,
+                sys_audio_transfers(), sys_audio_stops(), sys_audio_rate(), sys_audio_width(),
+                sys_audio_pending(), sys_audio_pushed());
 }
 
 /* The game's sound board is only initialised if the hardware answers: fn_040f4f scans the device
@@ -190,7 +241,7 @@ static void audio_pump(void) {
             fn_04185e(g_dat_53d0c[n - 1]);
         }
     }
-    if (!g_adev || !g_astream) return;
+    if (!g_astream) { audio_pump_drain_only(); return; }
     sys_audio_set_source(g_dat_63fb4);                 /* the buffer an armed DMA transfer reads */
     uint32_t rate = sys_audio_rate();
     if (rate != g_astream_rate && rate) {              /* DSP 0x40 changed the board rate */
@@ -202,8 +253,16 @@ static void audio_pump(void) {
     uint32_t got;
     while ((got = sys_audio_fill(buf, 2048)) != 0) {
         if (SDL_GetAudioStreamAvailable(g_astream) > 96000) break;   /* bound the latency */
-        if (!SDL_PutAudioStreamData(g_astream, buf, (int)(got * 2))) break;
+        if (!SDL_PutAudioStreamData(g_astream, buf, (int)(got * 2))) { g_audio_drained += got * 2; break; }
+        g_audio_submitted += got * 2;
     }
+    if (getenv("NIGHT_AUDIODBG") && (g_frames % 60) == 0)
+        SDL_Log("audiodbg: frame=%u dev=%s submitted=%llu B drained=%llu B stream=%d B "
+                "transfers=%u stops=%u rate=%u width=%u pending=%u pushed=%u",
+                g_frames, g_audio_dev, (unsigned long long)g_audio_submitted,
+                (unsigned long long)g_audio_drained, SDL_GetAudioStreamAvailable(g_astream),
+                sys_audio_transfers(), sys_audio_stops(), sys_audio_rate(), sys_audio_width(),
+                sys_audio_pending(), sys_audio_pushed());
 }
 
 static int      g_autokey;                   /* headless proof: press confirm after the attract show */

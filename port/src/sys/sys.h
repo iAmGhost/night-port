@@ -221,6 +221,13 @@ void sys_cd_root_records(uint8_t *recs, uint32_t n);
 
 /* The MSCDEX "stop audio" request behind fn_000405a7 (real-mode request 0x13). Counted so
  * callers become observable in tests. */
+/* Audio device fallback plan: ordered candidates (index 0 = the system default) and what to do with
+ * them. See sys.c for the rationale. */
+#define SYS_AUDIO_PLAN_DEVICE    0
+#define SYS_AUDIO_PLAN_NULL_SINK 1
+typedef struct { const char *name; int openable; } sys_audio_cand_t;
+int sys_audio_plan(const sys_audio_cand_t *c, int n, int *out_index);
+
 void     sys_cd_audio_stop(void);
 uint32_t sys_cd_audio_stop_calls(void);
 void     sys_cd_audio_stop_reset(void);

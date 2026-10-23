@@ -17566,7 +17566,46 @@ static void test_fn_0445c9(void) {
     g_stack_bound = bound_s;
 }
 
+static void test_audio_plan(void) {
+    printf("sys_audio_plan: the audio device fallback ladder (docs/55)\n");
+    int idx = -7;
+    sys_audio_cand_t default_dead[] = {{"default", 0}, {"Mac Studio", 1}, {"dummy", 1}};
+    check(sys_audio_plan(default_dead, 3, &idx) == SYS_AUDIO_PLAN_DEVICE && idx == 1,
+          "a default that cannot start falls through to the next listed output device");
+    sys_audio_cand_t all_dead[] = {{"default", 0}, {"hdmi", 0}};
+    check(sys_audio_plan(all_dead, 2, &idx) == SYS_AUDIO_PLAN_NULL_SINK && idx == -1,
+          "when every real device refuses, the plan is the sink that still drains the DMA ring");
+    sys_audio_cand_t default_alive[] = {{"default", 1}, {"hdmi", 1}};
+    check(sys_audio_plan(default_alive, 2, &idx) == SYS_AUDIO_PLAN_DEVICE && idx == 0,
+          "a working default is opened first, so a healthy machine is unchanged");
+    idx = -7;
+    check(sys_audio_plan(0, 0, &idx) == SYS_AUDIO_PLAN_NULL_SINK && idx == -1,
+          "an empty device list is not an error: the plan is the sink");
+
+    /* The board side of the same chain: the DSP/DMA protocol has to keep producing measurable bytes
+     * even when no host device ever takes them, or fn_04185e's wait starves the game. */
+    sys_audio_reset();
+    static uint8_t src[16];
+    for (int i = 0; i < 16; i++) src[i] = (uint8_t)(0x80 + i * 4);
+    sys_audio_set_source(src);
+    sys_outb(0x0a, 0x01);                       /* unmask DMA channel 1 */
+    sys_outb(0x0c, 0);                          /* clear the flip flop */
+    sys_outb(0x03, 15); sys_outb(0x03, 0);      /* count = n-1 = 15 -> 16 bytes */
+    sys_outb(0x22c, 0x40); sys_outb(0x22c, 0x4c);   /* set sample rate: t=0x4c -> 22050-ish */
+    sys_outb(0x22c, 0x14); sys_outb(0x22c, 15); sys_outb(0x22c, 0);   /* 8-bit DMA out, 16 bytes */
+    check(sys_audio_transfers() == 1 && sys_audio_pushed() == 16,
+          "the DSP+8237 protocol turns one armed transfer into 16 measurable ring bytes");
+    int16_t dst[32];
+    uint32_t got = sys_audio_fill(dst, 32);
+    check(got == 16 && dst[0] == 0 && dst[15] == (int16_t)(15 * 4 << 8),
+          "sys_audio_fill drains exactly those 16 frames as signed 16-bit mono");
+    sys_outb(0x22c, 0xd0);
+    check(sys_audio_stops() == 1, "the DSP stop command is counted (the board's end of transfer)");
+    sys_audio_reset();
+}
+
 int main(void) {
+    test_audio_plan();
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */
     g_dat_63354 = s_t_bounds;
     /* --- fn_017927: 2D move/AI (double-deref bounds via g_dat_63354) --- */

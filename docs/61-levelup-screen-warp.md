@@ -81,3 +81,21 @@ hook announces without producing a shot. `help1.pcx` reaches the log through `fn
 `heap_malloc` results in `fn_038f3d` -- that names which of (a) or (b) it is, and it is deliberately left as
 the next step rather than guessed at here.
 
+
+## Resolved the same day, by that probe: it is possibility (b)
+
+With `NIGHT_MENUBG=1` the probe prints, in the run that warps at frame 2777:
+
+```
+fn_038f3d allocs: lvl=0x18e940 n1=0x18e980 n2=0x18e9c0 pcx=0x3b8ef0
+fn_036190: levelup2.pcx
+```
+
+All four allocations succeed (so the three `fn_03d8d4` sprite loads at `f.c:24185-87` are reached as well) and
+the card loader is genuinely handed `levelup2.pcx`. The assets therefore **do** load; the missing
+`res=levelup2.pcx` line and the absent automatic screenshot are a harness-visibility gap only. The cause is
+concrete: the shot/`res=` machinery keys on `g_res_trace_seq`, and that counter is advanced by the game-side
+trace inside `fn_0367c9` alone -- `sys_res_notify` announces into the host ring without touching
+`g_res_trace`/`g_res_trace_seq`. The fix (next edit): a game-side `res_announce(name)` helper that sets
+`g_res_trace`, bumps `g_res_trace_seq` and then calls `sys_res_notify`, used at `fn_036190` and `fn_03d8d4`
+in place of the bare notify.

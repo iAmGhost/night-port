@@ -590,7 +590,13 @@ static void shot_flush_pending(void) {
 static int g_res_edge_busy = 0;
 static void shots_resource_edge(void) {
     if (!g_shots_dir || !g_shot_res || g_res_edge_busy) return;
-    if (g_res_trace_seq == g_pt_res_seq) return;
+    if (g_res_trace_seq == g_pt_res_seq) {
+        if (getenv("NIGHT_SHOTDBG")) fprintf(stderr, "res edge: seq unchanged (%u)\n", (unsigned)g_res_trace_seq);
+        return;
+    }
+    if (getenv("NIGHT_SHOTDBG")) {   /* the docs/61 probe: is the edge reached with a changed seq? */
+        fprintf(stderr, "res edge: name=%s seq=%u\n", g_res_trace, (unsigned)g_res_trace_seq);
+    }
     g_res_edge_busy = 1;
     g_pt_res_seq = g_res_trace_seq;
     g_pt_hash = 0;

@@ -17617,7 +17617,16 @@ static void test_fn_034635_null_player(void) {
     g_dat_53c7c = saved_player; g_dat_62c58[0x1c] = saved_state;
 }
 
+static void test_sound_enable_default(void) {
+    printf("DAT_00053338: the sound/music enable byte's initialized value (docs/55)\n");
+    /* The port once defaulted this to 0, which muted everything: fn_04185e returns at its
+     * `DAT_53338 == 0` guard, so no DSP command and no DMA transfer was ever programmed. The shipped
+     * image initializes it to 1 (NIGHT.EXE byte at DS 0x53338). */
+    check(g_dat_53338 == 1, "the sound enable byte starts enabled, as the shipped image initializes it");
+}
+
 int main(void) {
+    test_sound_enable_default();
     test_fn_034635_null_player();
     test_audio_plan();
     static uint8_t s_t_bounds[0x100];   /* g_dat_63354 clamp-struct buffer (0x03ce0b periodic path reads +0x48) */

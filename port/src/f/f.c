@@ -7872,7 +7872,12 @@ uint8_t  g_dat_63ea4 = 0;           /* 0x63ea4: second key byte */
 uint8_t  g_dat_63ea5 = 0;           /* 0x63ea5: third key byte (key waits in 0x03a224 / 0x038cde) */
 uint8_t  g_dat_63ec0 = 0;           /* 0x63ec0: fourth key byte (same key waits) */
 uint8_t  g_dat_63e89 = 0;           /* 0x63e89: abort/quit byte */
-uint8_t g_dat_53338 = 0;   /* DAT_00053338: sound/music enable byte (gates fn_04185e) */
+/* DAT_00053338: the sound/music enable byte that gates fn_04185e. The shipped image initializes it to 1
+ * (NIGHT.EXE file byte at DS 0x53338 == 1; neighbouring words cross-check the mapping: DS 0x53334 = 0x210
+ * and DS 0x51a10 = 1, both matching the port, and DS 0x53340 is the "Stack Overflow!" string). The port
+ * had 0, which silently muted every sample the game tried to play -- fn_04185e returns at its
+ * `DAT_53338 == 0` guard, so no DSP command and no DMA transfer was ever programmed (docs/55). */
+uint8_t g_dat_53338 = 1;
 uint8_t g_dat_63fb8 = 0;   /* DAT_00063fb8: device-command-stream started flag */
 
 /* fn_04185e  orig: 0x0004185e (L12, 95 B) -- START THE DEVICE COMMAND STREAM (EAX = cursor passed

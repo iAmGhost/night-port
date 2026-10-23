@@ -70,3 +70,39 @@ Two things follow:
 
 Also still missing for the contract: CDDA. The sys layer models only the MSCDEX *stop audio* request
 (`sys_cd_audio_stop`); there is no CD-DA play path, so no Red Book bytes can reach the host stream yet.
+
+## The mute was a wrong initialized global (fixed, measured)
+
+`DAT_00053338`, the sound/music enable byte that gates `fn_04185e`, was declared `= 0` in the port. The
+shipped image initializes it to **1** (NIGHT.EXE byte at DS `0x53338`; the mapping cross-checks: DS
+`0x53334` = 0x210 and DS `0x51a10` = 1 both match the port's defaults, and DS `0x53340` is the
+"Stack Overflow!" text). Because `fn_04185e` returns at its `DAT_53338 == 0` guard, the port never reached
+the DSP/DMA programming at all -- which is why every counter read zero.
+
+Measured with the board modelled (`NIGHT_BOARD=1`), the anchored episode-1 route, and the pump
+diagnostics:
+
+```
+audio=10989Hz pushed=220027 pend=0 xfer=61 stops=63 snden=1 devinit=1 plays=63 real=61 null=2
+```
+
+i.e. the game programmed **61 DMA transfers** totalling **220027 bytes** of 8-bit PCM at **10989 Hz**
+(the DSP 0x40 time constant, not the 22050 Hz default), and the ring drained completely (`pend=0`,
+`drained=440054 B` counted at the sink).
+
+With a host stream attached (`SDL_AUDIODRIVER=dummy`, device open at 48 kHz):
+
+```
+dev=default submitted=11310 B stream=98684 B transfers=61 stops=63 rate=10989 width=1 pushed=220027
+```
+
+bytes do reach the SDL stream; delivery is capped by the latency bound (`stream > 96000 B` pauses the
+pump), and the null driver does not consume at the rate the game produces, so only 11310 B of the
+220027 B were handed over in this window -- on a real device the stream drains in real time.
+
+A regression check now pins the default (`DAT_53338` starts 1). Worth adding later: a suite check that
+cross-reads `NIGHT/NIGHT.EXE` and compares DS-resident defaults against the image (the class of bug this
+was), skipping cleanly when the image is absent.
+
+Still open for this task: CD-DA. The sys layer models only MSCDEX *stop audio* (`sys_cd_audio_stop`);
+`fn_10b1d` (start track) and the Red Book byte path have no host backing yet.

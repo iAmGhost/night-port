@@ -367,16 +367,51 @@ static void shot_named(const char *event) {
     g_shot_seq++;
 }
 
+/* Named events fire the moment a resource is OPENED, which is usually before the fade-in has put
+ * anything on screen -- a `logo.pcx` shot taken at lookup time is a black frame and proves nothing. So
+ * every named event also queues a "hold" shot a fixed time later, once the retrace-paced fades have
+ * brought the picture up (docs/46). --shot-delay <ms> tunes it (0 disables). */
+#define PT_MAX_PENDING 12
+static struct { char name[72]; Uint64 due; } g_pt_pending[PT_MAX_PENDING];
+static int    g_pt_pending_n;
+static Uint64 g_shot_delay_ms = 1000;   /* fn_040660 / fn_0406f5 need ~0.7 s of retraces to reach full brightness */
+
+static void shot_queue(const char *event) {
+    if (!g_shot_delay_ms) return;
+    char nm[72]; snprintf(nm, sizeof nm, "%s_hold", event);
+    for (int i = 0; i < g_pt_pending_n; i++)
+        if (strcmp(g_pt_pending[i].name, nm) == 0) return;      /* one hold shot per event name */
+    if (g_pt_pending_n >= PT_MAX_PENDING) return;
+    snprintf(g_pt_pending[g_pt_pending_n].name, sizeof g_pt_pending[0].name, "%s", nm);
+    g_pt_pending[g_pt_pending_n].due = SDL_GetPerformanceCounter() +
+                                       (Uint64)g_shot_delay_ms * g_perf_freq / 1000;
+    g_pt_pending_n++;
+}
+
+static void shot_flush_pending(void) {
+    Uint64 now = SDL_GetPerformanceCounter();
+    for (int i = 0; i < g_pt_pending_n; i++) {
+        if (now < g_pt_pending[i].due) continue;
+        char nm[72]; snprintf(nm, sizeof nm, "%s", g_pt_pending[i].name);
+        g_pt_pending[i] = g_pt_pending[--g_pt_pending_n];       /* drop before the shot can recurse */
+        shot_named(nm);
+        i = -1;                                                /* the array shifted; restart */
+    }
+}
+
 /* Scene/resource watcher: a resource lookup is an event with a name, a large screen change without one
  * is a scene boundary, and a .fli playback gets a periodic shot so pacing is measurable. */
 static void shots_poll(void) {
     if (!g_shots_dir) return;
+    shot_flush_pending();
     Uint64 now = SDL_GetPerformanceCounter();
     if (g_shot_res && g_res_trace_seq != g_pt_res_seq) {
         g_pt_res_seq = g_res_trace_seq;
         g_pt_hash = 0;                                  /* a new resource resets the scene reference */
         shot_named(g_res_trace);
+        shot_queue(g_res_trace);
         g_pt_last_scene = now;
+        shot_flush_pending();
         return;
     }
     if (g_shot_fli && strstr(g_res_trace, ".fli")) {
@@ -679,11 +714,12 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--script") && i + 1 < argc) pt_load(argv[++i]);
         else if (!strcmp(argv[i], "--shots") && i + 1 < argc) g_shots_dir = argv[++i];
         else if (!strcmp(argv[i], "--shot-limit") && i + 1 < argc) g_shot_limit = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--shot-delay") && i + 1 < argc) g_shot_delay_ms = (Uint64)atoi(argv[++i]);
         else if (!strcmp(argv[i], "--no-scene-shots")) g_shot_scene = 0;
         else if (!strcmp(argv[i], "--no-res-shots")) g_shot_res = 0;
         else if (!strcmp(argv[i], "--help")) {
             printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR] [--shots DIR]\n"
-                   "              [--script FILE] [--shot-limit N] [--no-scene-shots] [--no-res-shots]\n");
+                   "              [--script FILE] [--shot-limit N] [--shot-delay MS] [--no-scene-shots] [--no-res-shots]\n");
             return 0;
         }
     }

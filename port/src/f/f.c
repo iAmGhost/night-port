@@ -7715,8 +7715,10 @@ uint8_t g_dat_63fb8 = 0;   /* DAT_00063fb8: device-command-stream started flag *
  * DAT_00053338; on the SECOND call (DAT_00063fb8 == 1) it first sends the stop/reset command 0xd0
  * through the ready-gated fn_041340, then walks the stream and latches DAT_00063fb8 = 1.
  */
+unsigned long g_play_calls;      /* host diagnostic: how often the game asked to play a sample */
 void fn_04185e(uint8_t *cursor)
 {
+    g_play_calls++;
     (void)canary_id((uintptr_t)cursor, 0x20);                         /* 0x4185e-63 */
     if (g_dat_63f90 == 0) return;                                     /* 0x41879-80 */
     if (g_dat_53338 == 0) return;                                     /* 0x41884-8b */

@@ -376,10 +376,11 @@ static void tick_pump(void) {
     }
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
-                "pit=%u Hz audio=%uHz pushed=%u pend=%u xfer=%u stops=%u",
+                "pit=%u Hz audio=%uHz pushed=%u pend=%u xfer=%u stops=%u snden=%u devinit=%u plays=%u",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
-                sys_audio_transfers(), sys_audio_stops());
+                sys_audio_transfers(), sys_audio_stops(),
+                (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls);
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {
             FILE *fp = fopen("/tmp/heap.bin", "wb");

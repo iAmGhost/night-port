@@ -75,3 +75,19 @@ Suite: **2787 -> 2792 PASS / 0 FAIL**, ASan clean. `make -C port selftest` ALL P
 Diagnostics kept for future sessions: `dbg_pal_load`, `fn_040660` fade-target dumps (`/tmp/palfade###.bin`),
 `board_out` `dladdr` trace, `fn_038098` pacing + geometry log, `fn_03ce0b` argument log, blit accounting
 (`NIGHT_BLITSTATS`), heap dump (`NIGHT_HEAPDUMP`), and the `vidscr/frame_scr` dumps.
+
+## Follow-up measurements in the same host run (frame 1300, autokey)
+
+* **Sound effects are still silent in the host run, and the reason is now measured:**
+  `snden=0 devinit=0 plays=0` — `DAT_00053338` (the sound enable byte) and `DAT_00063f90` (the
+  board-initialised flag) are both zero, and `fn_04185e` is never entered. So the audio model and its SDL
+  stream are idle because the game-side gate never opens in this run; the unit path (`test_audio_path`)
+  still proves the model. The next step is to find who sets `DAT_00053338` / `DAT_00063f90` (the audio
+  master `0x3658d` / device bring-up chain) and why that does not happen in the host.
+* **The intermittent host crash is still there but the site is stable:** `EXC_BAD_ACCESS`, fault
+  `0x124e41005` (a read), frames `fn_03d606` (inlined) → `fn_03a829` → `fn_03af18`. `fn_03d606` itself
+  never loops (`count = 0`), so the faulting pc belongs to code inlined into the room loop next to it. The
+  statements right there dereference the room chain link `*(uint8_t **)(room + 0x34c)` twice (the
+  `DAT_0006336c == 2` / `== 4` exit branches, `g_dat_63398 = **(room+0x34c + 0x11)`), which is the prime
+  suspect now that the room loop really walks and takes exit branches. `heap_chain_check("fn_03a829")`
+  reports nothing, so the corruption (if any) is in record fields, not allocator chains.

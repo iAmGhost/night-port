@@ -8476,6 +8476,21 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
 void fn_03cc6b(uint8_t *a0) {
     (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
     uint8_t *c = rec_ptr_get(a0, 0x34c);                     /* 0x3cc98 */
+    if (c == NULL) {
+        /* DIAGNOSTIC (docs/52, stage 5): the original reads through this link unguarded, and stage 5 --
+         * a ONE-segment kill-clear stage -- reaches it with the only room's `next` link clear, which
+         * faults on the host. Kept as a log-and-return so the state can be read and the sweep continue;
+         * the faithful resolution is to find why the port arrives here with a NULL next-room. */
+        static int logged;
+        if (!logged) {
+            logged = 1;
+            printf("[room-chain] fn_03cc6b got a NULL next link: a0=%p head=%p cur=%p state639e4=%d "
+                   "roomCount=%d stage=%d camX=%d camY=%d\n",
+                   (void *)a0, (void *)g_dat_6334c, (void *)g_dat_63354, (int)g_dat_639e4,
+                   (int)g_dat_639d8, (int)g_dat_63370, (int)g_dat_639dc, (int)g_dat_639e0);
+        }
+        return;
+    }
     if (g_dat_639e4 == 0) {                                     /* 0x3cc8f */
         if (g_dat_639dc == *(uint32_t *)c) {                    /* 0x3cca4 */
             g_dat_63354 = c;                                    /* 0x3ccb5 */

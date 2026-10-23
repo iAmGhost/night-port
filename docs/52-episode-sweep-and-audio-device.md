@@ -76,3 +76,24 @@ the game's DSP/DMA emulation: bring-up must (a) try the default device, (b) on f
 devices and retry, and (c) fall back to a null sink that still advances the emulated DMA clock so the game
 logic (which spins on the sound-ready flags) is not starved. `--audio-driver <name>` plus a fallback log
 line is the plan; `pushed=…`/`plays=…` counters already exist to prove samples move once the device works.
+
+## Stage 5 resolved: a latent original quirk that is only fatal on the host
+
+With the NULL link logged instead of dereferenced, stage 5 plays to the end of the scripted route
+(`episode_start` / `stage_play` / `playing` at 4 entities, 8166 frames presented) and the diagnostic fires
+once:
+
+```
+[room-chain] fn_03cc6b got a NULL next link: a0=head=cur=0x1026984d8 state639e4=0 roomCount=1 stage=5 camX=960 camY=0
+```
+
+`a0` **is** the chain head and the current room (`roomCount == 1`), so `a0+0x34c` — the room-chain `next`
+link — is legitimately 0 for a one-segment stage, and `fn_03cc6b` dereferences that link in *both* arms
+(`*(uint32_t *)c` for the world-X test and `c->0xc` for the camera-Y bump). On real DOS that pointer would
+be whatever the allocator left there — mapped memory, so the two comparisons simply fail and the state
+machine is inert. On the host it is address zero, hence SIGSEGV. So this is not a port logic slip: it is a
+latent original quirk whose consequence is host-only.
+
+Port deviation, marked in the code: when the link is NULL, log once and return (the inert outcome the
+original would have had). The alternative — feeding a self-reference — would invent comparison operands the
+original never had, so it was rejected.

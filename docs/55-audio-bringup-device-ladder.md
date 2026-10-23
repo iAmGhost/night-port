@@ -43,20 +43,30 @@ through `sys_outb`: unmask DMA ch 1, program count `n-1`, DSP `0x40`+time consta
 length -> `sys_audio_transfers()==1`, `sys_audio_pushed()==16`, `sys_audio_fill()` returns exactly 16
 signed 16-bit frames, DSP `0xd0` counted as a stop.
 
-## What a working device exposed (the actual remaining bug)
+## What a working device exposed: the scripted route is not game-clock deterministic
 
-With `SDL_AUDIODRIVER=dummy` the device opens and the game **stops making progress**: the run sits in a
-busy-wait (pump calls ~4.2e8, presented frames stuck around 2700-3200, `DAT_63e40` frozen, `retrace`
-frozen, `pushed=0 xfer=0 stops=0 snden=0 devinit=0 plays=5`). Without a device the same route reaches
-`playing` normally.
+With `SDL_AUDIODRIVER=dummy` the same route stops reaching `playing`. It is **not** a hang: `sample`
+on the live process shows it spending its time in the host's own `input_pump` (main.c:672-676) and, on
+the game side, in `fn_038098` (the frame flip), `fn_0347e3`, `fn_03a829`, `fn_03bb42` and **`fn_03af18`
+-- the attract/menu loop** -- presenting at ~59 fps (frames 1471 in 25 s). `--frames 200` does not stop
+it because the limit is only checked between game steps, and one menu-loop step keeps flipping frames.
 
-This is not a regression from the ladder: the pre-change binary stalls identically with the dummy driver
-(`frames=2668`, same frozen counters), so the trigger is *sound init succeeding*, not the new code. The
-sound path the game enters once audio exists ends in a wait the port never satisfies -- no DMA transfer
-is ever armed (`xfer=0`), so it is not a DMA-completion problem but a wait that is entered before any
-transfer, on hardware the model does not answer. That is the next thing to find for this task: which
-busy-wait it is (the pump diagnostic's `devinit=0 plays=5` is the breadcrumb), and what the original's
-equivalent wait is released by.
+So the difference a working audio device makes is *pacing*: the route script is clocked off the wall
+clock, one device-refused run and one audio-live run tick at different rates, and the key events stop
+landing where the menu loop expects them. The pre-change binary stalls identically with the dummy driver,
+so this predates the ladder work.
+
+Two things follow:
+
+1. The harness must schedule script events off the **game clock** (the VBLANK/tick counters the pump
+   already reports: `tick`, `DAT_63e40`, `pit=490 Hz`) instead of host wall time, otherwise every
+   port-vs-original comparison is at the mercy of host-side overhead. That is the harness contract's
+   "deterministically reaches title -> slide -> stage" clause, and it is the next harness fix.
+2. The audio task's remaining real gap is not the host device at all: with audio up the game still never
+   programs a transfer (`xfer=0`, `pushed=0`, `snden=0`, `devinit=0`), i.e. the sound path is not entered
+   -- the enable byte `DAT_53338` is 0 and the board model is only installed with `NIGHT_BOARD=1`. Getting
+   an effect measured means entering `fn_04185e` legitimately (board base + enable + the `0xf2` probe/IRQ
+   handshake the port already models in `board_boot`).
 
 Also still missing for the contract: CDDA. The sys layer models only the MSCDEX *stop audio* request
 (`sys_cd_audio_stop`); there is no CD-DA play path, so no Red Book bytes can reach the host stream yet.

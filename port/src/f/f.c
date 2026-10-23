@@ -8,6 +8,7 @@
 #include "../sys/sys.h"
 #include <math.h>
 #include <string.h>
+#include <dlfcn.h>
 
 /* ---- globals (mirrored BSS) ---- */
 int32_t  g_video_stride = 0;
@@ -140,8 +141,19 @@ uint8_t        g_board_out_hdr[16];
 #define BOC_TRACE_N 24
 uintptr_t      g_board_out_ra[BOC_TRACE_N];   /* distinct board_out call sites */
 uint32_t       g_board_out_ra_n[BOC_TRACE_N];
+extern int g_dbg_03d606;                      /* declared with fn_03d606 below; reused for the DAC trace */
+static int s_bo_logged;                        /* bounded DAC push trace (host diagnosis) */
 void board_out(uint8_t a, int b, const uint8_t *c) {
     g_board_out_pushes++; g_board_out_bytes += (uint32_t)(b * 3);
+    if (g_dbg_03d606 && s_bo_logged < 4000) {
+        s_bo_logged++;
+        Dl_info di; const char *sym = __builtin_return_address(0); (void)sym;
+        const char *nm = "?";
+        if (dladdr(__builtin_return_address(0), &di) && di.dli_sname) nm = di.dli_sname;
+        fprintf(stderr, "bo#%u start=%u n=%d buf=%p from=%s first=%d,%d,%d %d,%d,%d\n",
+                g_board_out_pushes, a, b, (const void *)c, nm,
+                c ? c[0] : -1, c ? c[1] : -1, c ? c[2] : -1, c ? c[3] : -1, c ? c[4] : -1, c ? c[5] : -1);
+    }
     {   /* who asked for the palette: image-relative return address, for the palette-source question */
         void *ra = __builtin_return_address(0);
         for (int i = 0; i < BOC_TRACE_N; i++)
@@ -175,6 +187,12 @@ void board_out(uint8_t a, int b, const uint8_t *c) {
  *   fits a byte (i < arg2 => arg1[j]*i/arg2 < 256). */
 void fn_040660(const uint8_t *arg1, uint32_t arg2) {
     (void)canary_id((uintptr_t)arg1, 0x334);
+    if (g_dbg_03d606) { static int s_pd; char pfp[64];
+        snprintf(pfp, sizeof pfp, "/tmp/palfade%03d.bin", s_pd++); FILE *pf = fopen(pfp, "wb");
+        if (pf) { fwrite(arg1, 1, 0x300, pf); fclose(pf); } }
+    if (g_dbg_03d606) { int nz=0; for (int j=0;j<0x300;j++) if (arg1[j]) nz++;
+        fprintf(stderr, "fade-in target=%p frames=%u nonzero=%d first=%d,%d,%d %d,%d,%d\n", (const void*)arg1, arg2, nz,
+                arg1[0],arg1[1],arg1[2],arg1[3],arg1[4],arg1[5]); }
     uint8_t local[0x300];
     for (uint32_t i = 0; i < arg2; i++) {
         for (uint32_t j = 0; j < 0x300; j++)
@@ -5485,12 +5503,22 @@ void fn_03fa3b(uint8_t *node, uint32_t size) {
  * via fn_041c8f (1 byte at a time): byte&0xc0==0xc0 -> count=byte&0x3f, value=next, write value count
  * times; else write the literal byte. Loops until video pos reaches 0xfa00 (64000). If dl==1:
  * board_out(0,0xff,g_dat_636b8). */
+
+/* Loader-side palette probe (host diagnosis, docs/38): what table did the screen loader actually read? */
+static void dbg_pal_load(const char *tag, const char *name, const uint8_t *t) {
+    if (!g_dbg_03d606) return;
+    int nz = 0; for (int i = 0; i < 0x300; i++) if (t[i]) nz++;
+    fprintf(stderr, "palload %s %s nonzero=%d first=%d,%d,%d %d,%d,%d\n", tag, name ? name : "?", nz,
+            t[0], t[1], t[2], t[3], t[4], t[5]);
+}
+
 void fn_035f1b(const char *name, uint32_t dl) {
     (void)canary_id((uintptr_t)name, 0x3c);                        /* 0x35f1b-20 */
     fn_0367c9(name);                                               /* 0x35f49 */
     fn_036853(name, 0xfffffd00, 2);                                /* 0x35f5b: seek to end-0x300 */
     fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);          /* 0x35f75: read 768 B table */
     for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x35f83-9c */
+    dbg_pal_load("fn_035f1b", name, g_dat_636b8);
     fn_036853(name, 0x80, 0);                                      /* 0x35fa8: seek to 0x80 */
     uint32_t pos = 0;                                              /* 0x35fad: video write pos */
     while (pos < 0xfa00) {
@@ -5516,6 +5544,7 @@ void fn_036041(const char *name, uint32_t dl) {
     fn_036853(name, 0xfffffd00, 2);                                /* 0x3606e */
     fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);          /* 0x3609b: 768 B table */
     for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x360a9-bb */
+    dbg_pal_load("fn_036041", name, g_dat_636b8);
     fn_036853(name, 0x80, 0);                                      /* 0x360ce */
     uint32_t pos = 0;                                              /* 0x360d3 */
     while (pos < 0xfa00) {
@@ -5578,6 +5607,7 @@ void fn_03628e(const char *name, uint32_t dl) {
     fn_036853(name, 0xfffffd00, 2);                                /* 0x362da */
     fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);           /* 0x362f4: 768 B table */
     for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x36311-1b */
+    dbg_pal_load("fn_036190", name, g_dat_636b8);
     if ((dl & 0xff) == 1) board_out(0, 0xff, g_dat_636b8);           /* 0x36322-3b */
     fn_036853(name, 0x80, 0);                                       /* 0x36348 */
     fn_03f3be(chunk);                                               /* 0x36350: fade start */
@@ -5681,6 +5711,7 @@ void fn_036417(const char *name, uint8_t *dest, uint32_t dl) {
     fn_036853(name, 0xfffffd00, 2);                                /* 0x36452 */
     fn_04192e(g_dat_636b8, 3, 0x100, (uint8_t *)g_639b8);          /* 0x36463: 768 B table */
     for (uint32_t i = 0; i < 0x300; i++) g_dat_636b8[i] >>= 2;      /* 0x3646d-84 */
+    dbg_pal_load("fn_036417", name, g_dat_636b8);
     fn_036853(name, 0x80, 0);                                      /* 0x36490 */
     uint32_t pos = 0;                                              /* 0x36498 */
     while (pos < 0x4b000) {
@@ -13738,11 +13769,14 @@ void fn_0113e7(uint8_t *e)
  * increments in each branch (drawn / skipped / waiting) and never reads -- dead bookkeeping, noted and
  * dropped. Latent kept: DAT_53104 == 0 is a divide fault; DAT_63e24 is subtracted unconditionally.
  */
+static int s_38098;
 void fn_038098(uint32_t base)
 {
     (void)canary_id((uintptr_t)base, 0x38);                     /* 0x38098-9d probe (0x38) */
     fn_013aad((uint32_t)(uintptr_t)g_dat_53c70);                /* 0x380c6-cb (EAX = entity list head) */
     int32_t n = (int32_t)(0x1eau / g_dat_53104);                /* 0x380d0-dd (signed idiv) */
+    if (g_dbg_03d606 && s_38098++ < 40) fprintf(stderr, "038098 base=%#x DAT_53104=%u n=%d DAT_63e24=%u -> %s\n",
+            base, g_dat_53104, n, g_dat_63e24, n > (int32_t)g_dat_63e24 ? "draw+flip" : "skip");
     if (n > (int32_t)g_dat_63e24) {                             /* 0x380e3-e9 CMP/JLE */
         fn_03ce0b(g_dat_63354, video_map(base));                     /* 0x380ef-f7 (EAX=room, EDX=base) */
         fn_03203d(base);                                        /* 0x380fc-ff */

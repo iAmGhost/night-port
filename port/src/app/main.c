@@ -243,6 +243,8 @@ static void dump_frame(int n) {
             SDL_Log("outb counts: %s", ob);
         }
     }
+    SDL_Log("screen base DAT_633b0=%p delta_from_video_ram=%td  DAT_63354=%p",
+            (void *)g_dat_633b0, (ptrdiff_t)((uint8_t *)g_dat_633b0 - g_video_ram), (void *)g_dat_63354);
     char path[512];
     snprintf(path, sizeof path, "%s/frame%05d.bmp", g_dump_dir, n);
     SDL_Surface *s = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGBA8888);
@@ -259,8 +261,30 @@ static void dump_frame(int n) {
     {   /* raw side dump: the palette mirror and the first 64000 bytes of the screen, for offline diffing */
         char rp[540]; snprintf(rp, sizeof rp, "%s/pal%05d.bin", g_dump_dir, n);
         FILE *fp = fopen(rp, "wb"); if (fp) { fwrite(g_palette8, 1, 768, fp); fclose(fp); }
+        snprintf(rp, sizeof rp, "%s/vidscr%05d.bin", g_dump_dir, n);
+        fp = fopen(rp, "wb"); if (fp) { fwrite(g_screen_ram, 1, 0xfa00, fp); fclose(fp); }
+        snprintf(rp, sizeof rp, "%s/palsrc%05d.bin", g_dump_dir, n);
+        fp = fopen(rp, "wb"); if (fp) { fwrite(g_dat_636b8, 1, 768, fp); fclose(fp); }
+        snprintf(rp, sizeof rp, "%s/palrot%05d.bin", g_dump_dir, n);
+        fp = fopen(rp, "wb"); if (fp) { fwrite(g_dat_633b8, 1, 768, fp); fclose(fp); }
         snprintf(rp, sizeof rp, "%s/vid%05d.bin", g_dump_dir, n);
         fp = fopen(rp, "wb"); if (fp) { fwrite(g_video_ram, 1, 307200, fp); fclose(fp); }
+    }
+    /* The room/HUD composite target is the back screen DAT_633b0 (320x200, pitch 0x140), not the
+     * VGA linear arena; dump it separately so the flip question is answerable. */
+    snprintf(path, sizeof path, "%s/frame%05d_scr.bmp", g_dump_dir, n);
+    {
+        SDL_Surface *ss = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_RGBA8888);
+        if (ss) {
+            uint8_t *d = (uint8_t *)ss->pixels;
+            for (int i = 0; i < 320 * 200; i++) {
+                uint8_t idx = g_screen_ram[i];
+                d[i*4+0]=g_palette8[idx*3]; d[i*4+1]=g_palette8[idx*3+1];
+                d[i*4+2]=g_palette8[idx*3+2]; d[i*4+3]=255;
+            }
+            SDL_SaveBMP(ss, path);
+            SDL_DestroySurface(ss);
+        }
     }
     SDL_DestroySurface(s);
     /* The 320x200 view: the game's own screens and its RLE picture loader are 320 wide (pitch 0x140,

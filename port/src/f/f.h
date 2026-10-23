@@ -739,6 +739,18 @@ extern uint32_t g_dat_53c60;         /* DAT_00053c60: directory entry count */
 extern uint32_t g_dat_53c64;         /* DAT_00053c64: dir-entry buffer heap offset */
 void     fn_010927(void);            /* 0x010927: CD/MSCDEX root-directory read */
 void     fn_010c3e(void);            /* 0x010c3e: the disc-present gate (15 root entries + the 0xc51 record gap), "cdinsert.pcx" until it passes */
+/* ---- the image entry + DOS4GW startup (0x042044 / 0x042046 / 0x0420bc) ---- */
+uint32_t fn_0420bc(void);   /* 0x0420bc: the startup body (host probes, command tail + env, zeroing, then dispatch_a / the entry thunk / dispatch_b / terminate) */
+uint32_t fn_042046(void);   /* 0x042046: the same startup behind the runtime banner bytes */
+uint32_t fn_042044(void);   /* 0x042044: the image entry, `jmp 0x420bc` */
+extern uint32_t g_dat_53384, g_dat_53398, g_dat_533b5, g_dat_533b0;
+extern uint8_t  g_dat_533bc, g_dat_533b2, g_dat_533b3;
+extern uint16_t g_dat_533b9;
+extern uintptr_t g_dat_53380, g_dat_53394, g_dat_53364;
+extern uint16_t g_dat_53368;
+extern uint8_t  g_dat_640c0[0x100];
+extern uint32_t g_startup_zero_len, g_startup_ret_slot;
+
 void     fn_0445c9(void);            /* 0x0445c9: the entry thunk (stack reservation, DAT_00053640, the game main, terminate) */
 extern uint32_t  g_dat_5339c;       /* DAT_0005339c: stack reservation offset for the entry thunk */
 extern uintptr_t g_dat_533a0;       /* DAT_000533a0: the reserved stack base recorded by the entry thunk */

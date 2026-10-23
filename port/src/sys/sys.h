@@ -177,4 +177,24 @@ void     sys_cd_audio_stop(void);
 uint32_t sys_cd_audio_stop_calls(void);
 void     sys_cd_audio_stop_reset(void);
 
+
+/* ---- modelled DOS / DPMI host probes for the image startup (0x042044 / 0x0420bc) ----
+ * The startup interrogates the host before anything else runs, so the host behaviour is
+ * here rather than in the game layer. Defaults reproduce a DOS4GW client (INT 21h AH=30
+ * answering DOS 3.31 with the extenders marker CX=0x4243 and EDX = its info block). */
+void      sys_dos_version(uint8_t *major, uint8_t *minor, uint16_t *marker, uintptr_t *info);
+void      sys_dos_version_set(uint8_t major, uint8_t minor, uint16_t marker);
+uint8_t  *sys_dos4gw_info(void);            /* the EDX info block: +0x10 PSP base, +0x1c DTA, +0x2c DS paragraph */
+void      sys_dpmi_host_probe_set(int present);   /* INT 21h AX=FF00 DX=78: 0 = no DPMI host */
+int       sys_dpmi_host_probe(void);
+void      sys_dpmi_disable_ints_set(int count);   /* INT 31h AX=0006 -> CX = previous disable count */
+int       sys_dpmi_disable_ints(void);
+uint8_t  *sys_psp_tail(void);               /* PSP+0x81 command tail; the length byte is at [-1] */
+void      sys_psp_tail_set(const char *text);     /* stores the length byte + characters */
+uint8_t  *sys_dos_env(void);                /* the NUL-separated, double-NUL-terminated env block */
+void      sys_dos_env_set(const void *env, uint32_t len);  /* NUL-separated entries; len counts the bytes to store */
+uint32_t  sys_dos_exit_code(void);          /* INT 21h AH=4C: the exit code the program ended with */
+uint32_t  sys_dos_exit_calls(void);
+void      sys_dos_terminate(uint32_t code);
+
 #endif

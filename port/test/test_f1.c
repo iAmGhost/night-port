@@ -21,6 +21,7 @@
 static int failures = 0;
 static void check(int ok, const char *what) {
     printf("  [%s] %s\n", ok ? "PASS" : "FAIL", what);
+    fflush(stdout);                                 /* so a hang shows where it really stopped */
     if (!ok) failures++;
 }
 
@@ -17077,6 +17078,120 @@ static void test_cd_iso_real(void) {
     cd_iso_close();
 }
 
+/* The startup probe fires through dispatch_a; count it. */
+static int g_startup_ev_calls;
+static void startup_ev_cb(void) { g_startup_ev_calls++; }
+
+static void test_fn_0420bc(void) {
+    printf("fn_0420bc / fn_042046 / fn_042044 (0x0420bc): the DOS4GW image startup\n");
+    /* The chain reaches the game main, so it needs the same terminate escape as the entry-thunk test. */
+    uint32_t s_free = g_dpmi_free_dos_paragraphs, s_640 = g_dat_53640;
+    uint32_t s_39c = g_dat_5339c; uintptr_t s_3a0 = g_dat_533a0;
+    u32_cb_fn s_c = g_dat_5336c, s_70 = g_dat_53370, s_74 = g_dat_53374;
+    uint32_t s_a0 = g_dat_633a0, s_f4 = g_dat_531f4, s_a4 = g_dat_533a4;
+    uint8_t s_c1 = g_dat_63ec1, s_a4k = g_dat_63ea4, s_a5 = g_dat_63ea5, s_c0 = g_dat_63ec0;
+    uint32_t bound_s = g_stack_bound;
+    struct ev_entry s_ev[10];
+    for (int i = 0; i < 10; i++) { s_ev[i] = g_evtab[i]; g_evtab[i].flag = 0; g_evtab[i].key = 0xff; g_evtab[i].fn = 0; }
+    g_evtab[0].flag = 0; g_evtab[0].key = 0x10; g_evtab[0].fn = startup_ev_cb;
+    uint32_t s_390 = (uint32_t)g_dat_53390, s_3bb = g_dat_533bb;
+
+    /* host model: DOS 3.31 with the 'CB' marker (DOS4GW), a command tail with leading spaces, and an
+     * environment whose first two entries open with no78= in mixed case. */
+    uint8_t *info = sys_dos4gw_info();
+    memset(info, 0, 0x40);
+    *(uint32_t *)(info + 0x10) = 0;            /* the PSP base is flat 0 in this model */
+    *(uint16_t *)(info + 0x2c) = 0x10;         /* -> DAT_533b5 = 0x100 */
+    sys_dos_version_set(3, 0x1f, 0x4243);
+    sys_psp_tail_set("  NO78=1 stage1");
+    static const char env[] = "no78=\0NO78=x\0PATH=C:\0\0\0\0EXTRA=1\0";
+    sys_dos_env_set(env, sizeof env - 1);
+    g_startup_ev_calls = 0;
+
+    g_dat_633a0 = 0; g_dat_533a4 = 1;
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    g_dpmi_free_dos_paragraphs = 0x100;        /* below the gate: the game main ends the program */
+    g_dat_5336c = g_dat_53370 = g_dat_53374 = entry_term_cb;
+    g_dat_5339c = 0; g_dat_533a0 = 0; g_dat_53640 = 0; g_entry_term_calls = 0;
+
+    if (setjmp(g_entry_escape) == 0) {
+        fn_0420bc();
+        check(0, "the startup reaches the game main and leaves through the terminate path");
+    } else {
+        check(g_entry_term_calls >= 1, "fn_0420bc -> fn_0445c9 -> fn_03af18 -> the terminate path");
+    }
+
+    check(g_dat_533bb == 3 && g_dat_533bc == 0x1f,
+          "INT 21h AH=30 lands in DAT_533bb / DAT_533bc (DOS 3.31)");
+    check(g_dat_533b2 == 9 && g_dat_533b3 == 0,
+          "CX=0x4243 is the DOS4GW branch: the host marker pair becomes 9 / 0");
+    check(g_dat_53364 == (uintptr_t)info,
+          "the extenders info block pointer from that call is stored in DAT_53364");
+    check(g_dat_533b5 == 0x100, "DAT_533b5 = the info blocks DS paragraph (+0x2c) shifted left 4");
+    check(strcmp((const char *)g_dat_640c0, "NO78=1 stage1") == 0,
+          "the command tail is copied to DAT_640c0 with its leading spaces scanned off");
+    check(g_dat_533b0 == 2,
+          "the environment walk counts the two entries opening with no78= (case-insensitive)");
+    check(strcmp((const char *)&g_dat_640c0[15], "EXTRA=1") == 0,
+          "the string three bytes past the environment terminator is copied after the tail");
+    check(g_dat_53394 >= (uintptr_t)g_dat_640c0 && g_dat_53380 != 0 && g_dat_5338c != 0,
+          "the write cursor, stack pointer and env cursor are recorded");
+    check(g_dat_53388 == 0x140c0,
+          "DAT_53388 holds the aligned command buffer: 0x140bc + 0xf with DL masked to 0xf0");
+    check(g_startup_zero_len == 0x140bc - 0x3818,
+          "the BSS extent is the whole 0x3818..0x140bc range when the marker is not 1");
+    check(g_startup_ev_calls == 1 && g_evtab[0].flag == 2,
+          "dispatch_a(0xff) fires the pending event table entry before the entry thunk");
+    check(g_startup_ret_slot == 0x422d3,
+          "the [ESP-4] return slot advanced to 0x422d3 before the entry thunk call");
+
+    /* DR DOS marker: the branch leaves marker 0x22 and CX = 0x2c behind. */
+    g_dat_533b2 = g_dat_533b3 = 0; g_dat_533b9 = 0; g_startup_zero_len = 0;
+    g_entry_term_calls = 0; g_dpmi_free_dos_paragraphs = 0x100;
+    g_dat_533a4 = 1;                                /* re-arm the pending-key latch the first run consumed */
+    sys_dos_version_set(7, 0x0, 0x4458);
+    if (setjmp(g_entry_escape) == 0) fn_042044();
+    check(g_dat_533b2 == 0x22 && g_dat_533b3 == 0 && g_dat_533b9 == 0x2c,
+          "the 0x42044 thunk and the 'DX' (DR DOS) branch give marker 0x22 with CX = 0x2c");
+
+    /* a plain DPMI host that answers the AX=FF00 probe: marker 1, and the zeroing is capped at 0x1000 */
+    g_dat_533b2 = g_dat_533b3 = 0; g_dat_533b9 = 0; g_startup_zero_len = 0;
+    g_entry_term_calls = 0; g_dpmi_free_dos_paragraphs = 0x100;
+    g_dat_533a4 = 1;
+    sys_dos_version_set(3, 0x1f, 0x1234);
+    sys_dpmi_host_probe_set(1);
+    sys_dpmi_disable_ints_set(2);
+    if (setjmp(g_entry_escape) == 0) fn_042046();
+    check(g_dat_533b2 == 1 && g_dat_533b3 == 1,
+          "a host answering INT 21h AX=FF00 sets marker 1, with AH set by INT 31h AX=0006");
+    check(g_startup_zero_len == 0x1000,
+          "with marker 1 the zeroing is capped at 0x1000, which is what keeps the command buffer alive");
+
+    /* and a machine with no DPMI host at all */
+    g_dat_533b2 = g_dat_533b3 = g_dat_533b9 = 0;
+    g_entry_term_calls = 0; g_dpmi_free_dos_paragraphs = 0x100;
+    g_dat_533a4 = 1;
+    sys_dpmi_host_probe_set(0);
+    if (setjmp(g_entry_escape) == 0) fn_0420bc();
+    check(g_dat_533b2 == 0 && g_dat_533b3 == 0 && g_dat_533b9 == 0x2c,
+          "no DPMI host: marker 0 / 0 and CX = 0x2c");
+
+    /* restore the world */
+    g_dpmi_free_dos_paragraphs = s_free; g_dat_53640 = s_640;
+    g_dat_5339c = s_39c; g_dat_533a0 = s_3a0;
+    g_dat_5336c = s_c; g_dat_53370 = s_70; g_dat_53374 = s_74;
+    g_dat_633a0 = s_a0; g_dat_531f4 = s_f4; g_dat_533a4 = s_a4;
+    g_dat_63ec1 = s_c1; g_dat_63ea4 = s_a4k; g_dat_63ea5 = s_a5; g_dat_63ec0 = s_c0;
+    g_stack_bound = bound_s;
+    for (int i = 0; i < 10; i++) g_evtab[i] = s_ev[i];
+    g_dat_53390 = (int)s_390; g_dat_533bb = (uint8_t)s_3bb;
+    sys_dos_version_set(3, 0x1f, 0x4243);
+    sys_dpmi_host_probe_set(0);
+    sys_dpmi_disable_ints_set(0);
+    sys_psp_tail_set("");
+    sys_dos_env_set(NULL, 0);
+}
+
 static void test_fn_0445c9(void) {
     printf("fn_0445c9 (0x0445c9): the entry thunk (stack reservation -> DAT_00053640 -> the game main)\n");
     uint32_t s_free = g_dpmi_free_dos_paragraphs, s_640 = g_dat_53640;
@@ -17577,6 +17692,7 @@ int main(void) {
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
     test_fn_0445c9();
+    test_fn_0420bc();
     test_cd_iso_real();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */
     /* test_fn_03a829() is #if 0'd out: see the note above its definition */

@@ -25487,6 +25487,154 @@ ending:                                                                /* LAB_00
     goto menu_loop;
 }
 
+/* ==== the image entry and the DOS4GW startup: 0x042044 / 0x042046 / 0x0420bc ====
+ * These three are the parts of the image the port used to leave entirely to the host: 0x042044 is a
+ * 2-byte `jmp 0x420bc`, 0x042046 is the runtime banner string ("Watcom C++ ... Time Stamp ... by
+ * Watson C Information ...") mis-decoded as code with the same body behind it, and 0x0420bc is the
+ * startup body itself. They are ported here so the chain entry -> startup -> dispatch_a -> the entry
+ * thunk -> dispatch_b -> terminate exists in the port, with the host side (DOS version, DPMI probe,
+ * PSP tail, environment, INT 21h 4Ch) modelled in the sys layer.
+ *
+ * Globals the body fills, all at DS 0x533xx (the Watcom runtime block):
+ *   0x53384 / 0x53398  the 4-aligned startup stack pointer
+ *   0x53390            the DS selector the body latches (0x24, or DS from the host)
+ *   0x533bb / 0x533bc  the DOS version INT 21h AH=30 answered (major, minor)
+ *   0x533b2 / 0x533b3  the host marker pair: 9 = DOS4GW, 0x22 = DR DOS, 1/1 or 0/0 = other/none
+ *   0x533b5            the DS linear base (info block +0x2c paragraph << 4)
+ *   0x533b9            the CX the branch left behind
+ *   0x533b0            how many environment entries start with "no78="
+ *   0x53380 / 0x53388 / 0x5338c / 0x53394   stack, aligned command/env buffer, env cursor, write cursor
+ *   0x53364 / 0x53368  the DOS4GW info block pointer, the GS selector when the host supplied one */
+uint32_t g_dat_53384, g_dat_53398, g_dat_533b5, g_dat_533b0;
+uint8_t  g_dat_533bc, g_dat_533b2, g_dat_533b3;
+uint16_t g_dat_533b9;
+uintptr_t g_dat_53380, g_dat_53394, g_dat_53364;
+uint16_t g_dat_53368;
+uint8_t  g_dat_640c0[0x100];       /* flat 0x140c0: the trimmed command tail, then the env copy */
+uint32_t g_startup_zero_len;       /* the BSS extent the startup computed (see startup_body) */
+uint32_t g_startup_ret_slot;       /* the [ESP-4] return-slot chain the calls hand over */
+
+/* The body shared by 0x0420bc and (behind the banner) 0x042046. */
+static uint32_t startup_body(void) {
+    uint8_t frame;                                        /* 0x420bd `and esp,~3` */
+    uint32_t esp = (uint32_t)(uintptr_t)&frame;
+    g_dat_53398 = esp;                                    /* 0x420c2 */
+    g_dat_53384 = esp;                                    /* 0x420c8 */
+    g_dat_53390 = 0x24;                                   /* 0x420ce `mov ax,0x24` */
+
+    uint8_t al = 0, ah = 0;
+    uint16_t cx = 0;
+    uintptr_t edx = 0;
+    sys_dos_version(&al, &ah, &cx, &edx);                 /* 0x420dd-0420e1: AX=0, AH=30, INT 21h */
+    g_dat_533bb = al;                                     /* 0x420e3 */
+    g_dat_533bc = ah;                                     /* 0x420e8 */
+    uint32_t esi = 0;                                     /* 0x420f0 `sub esi,esi` */
+    const uint8_t *edi = sys_psp_tail();                  /* 0x420f2 `mov edi,0x81` (PSP + 0x81) */
+    uint16_t cword = 0;
+
+    if (cx == 0x4458) {                                   /* 0x420fe: 'DX', DR DOS */
+        al = (uint8_t)(0x52 - 0x30);                      /* 0x42100: BL from the 'RAPH' constant */
+        ah = 0;
+        g_dat_53384 = 0;                                  /* 0x4210f-042122: [DS:0x5c]+0xfff & ~0xfff */
+        cword = 0x2c;                                     /* 0x42138 */
+    } else if (cx == 0x4243) {                            /* 0x42142: 'CB', DOS4GW */
+        g_dat_53364 = edx;                                /* 0x42144: the extenders info block */
+        const uint8_t *info = sys_dos4gw_info();
+        /* 0x4214c-042155 read the DTA address at info+0x1c and hand it to INT 21h AH=2Ah; setting the
+         * DTA has no effect in the flat model, so only the pointer is kept. */
+        edi = sys_psp_tail() + *(const uint32_t *)(info + 0x10);   /* 0x42161-042164 */
+        esi = (uint32_t)*(const uint16_t *)(info + 0x2c) << 4;     /* 0x42168-04216c */
+        g_dat_53390 = 0x24;                               /* 0x4215a `mov [0x3390],ds` */
+        al = 9; ah = 0;                                   /* 0x42172-042174 */
+    } else {                                              /* 0x42178: probe INT 21h AX=FF00 DX=78 */
+        if (sys_dpmi_host_probe() == 0) {
+            al = 0; ah = 0;                               /* 0x421cd-0421cf: no DPMI host */
+            cword = 0x2c;                                 /* 0x421c3 */
+        } else {
+            /* 0x42186-04219c: latch GS when it is set (0 in the flat model), then INT 31h AX=0006 */
+            int dx = sys_dpmi_disable_ints();
+            al = 1;
+            ah = (uint8_t)((dx | 0) != 0 ? 1 : 0);        /* 0x421a2 `or dx,cx` + 0x421a7 */
+            cword = 0;                                    /* 0x421b0 `mov cx,es:[0x2c]` */
+        }
+    }
+
+    g_dat_533b2 = al;                                     /* 0x421d1 */
+    g_dat_533b3 = ah;                                     /* 0x421d6 */
+    /* 0x421dc `mov word ptr es:[0x32319], ds` stores DS through the stack pointer; the flat port has no
+     * DS, so the slot stays at the value the thunk chain expects (0). */
+    g_dat_533b5 = esi;                                    /* 0x421e6 */
+    g_dat_533b9 = cword;                                  /* 0x421ec (word store) */
+
+    /* 0x421fb-0x42204: the aligned command/env buffer, flat 0x140bc + 0xf with only DL masked to 0xf0. */
+    uint32_t dest_flat = 0x140bc + 0xf;
+    dest_flat = (dest_flat & ~0xffu) | (dest_flat & 0xf0u);
+    uint8_t *dst = g_dat_640c0;                           /* the buffer standing in for flat 0x140c0 */
+
+    /* 0x42209-0x42224: the tail length byte, `repe scasb` for the first non-space, then the copy. */
+    uint32_t cnt = edi[-1];
+    uint32_t scan = 0;
+    int zf = 1;                                           /* `sub ecx,ecx` set ZF; scasb may clear it */
+    while (scan < cnt && edi[scan] == ' ') scan++;
+    if (scan < cnt) zf = (edi[scan] == ' ');
+    const uint8_t *src = edi + (scan ? scan : 0);
+    if (!zf) while (src < edi + cnt) *dst++ = *src++;
+    *dst++ = 0; *dst++ = 0;                               /* 0x42226-0x42229: two `stosb` */
+
+    /* 0x42236-0x4225f: walk the environment that follows, counting entries that open with "no78="
+     * (the compare ORs the first four bytes with 0x20202020, so NO78= matches too), then copy the
+     * string that sits past the terminator. The original reads this straight out of flat memory at
+     * the destination; the port reads the modelled env block and copies it into the same buffer,
+     * which is the state the original leaves behind. */
+    const uint8_t *env = sys_dos_env();
+    uint16_t n78 = 0;
+    while (*env) {
+        if ((env[0] | 0x20) == 'n' && (env[1] | 0x20) == 'o' && (env[2] | 0x20) == '7' &&
+            (env[3] | 0x20) == '8' && env[4] == '=') n78++;
+        while (*env) env++;
+        env++;
+    }
+    env += 3;                                             /* 0x42258-0x4225a: lodsb + two `inc esi` */
+    while (1) { *dst++ = *env; if (!*env++) break; }       /* 0x4225b-0x4225f: movsb until the NUL */
+
+    g_dat_533b0 = n78;                                    /* 0x42265 (word store) */
+    g_dat_53394 = (uintptr_t)dst;                         /* 0x4226c */
+    g_dat_53380 = esp;                                    /* 0x42272 */
+
+    /* 0x42278-0x422aa: zero DS 0x3818..0x140bc, capped at 0x1000 when the host marker is 1 (the
+     * quirk that keeps the command buffer alive under a DPMI host). PORT NOTE: that range is a set of
+     * C globals here, all zero before anything runs, so the loop is recorded rather than applied --
+     * applying it later would wipe live tables. */
+    uint32_t zlen = 0x140bc - 0x3818;
+    if (g_dat_533b2 == 1 && zlen > 0x1000) zlen = 0x1000;
+    g_startup_zero_len = zlen;
+
+    g_dat_53388 = dest_flat;                              /* 0x422b7 */
+    g_dat_5338c = (uint32_t)(uintptr_t)env;                 /* 0x422bc */
+
+    g_startup_ret_slot = 0x422cc;                         /* 0x422c0 writes the return slot */
+    dispatch_a(0xff);                                     /* 0x422c7 */
+    g_startup_ret_slot = 0x422d3;
+    fn_0445c9();                                          /* 0x422ce: the game main chain */
+    g_startup_ret_slot = 0x42308;
+    dispatch_b(0, 0xff);                                  /* 0x42303 */
+    /* 0x42309-0x4230b: INT 21h AH=4Ch with AL from the return slot. */
+    sys_dos_terminate(g_startup_ret_slot & 0xffu);
+    return g_startup_ret_slot & 0xffu;
+}
+
+/* fn_0420bc  orig: 0x0420bc (L23, 536 B) -- the DOS4GW startup body; see startup_body. */
+uint32_t fn_0420bc(void) { return startup_body(); }
+
+/* fn_042046  orig: 0x042046 (L23, 116 B) -- the same startup behind the "Watcom C++ ... Time Stamp ..."
+ * banner: capstone decodes the banner bytes as push/inc/and junk (the decompiler threw out twelve
+ * unreachable blocks), and the real image reaches the body through 0x042044 instead. The reachable
+ * part is the shared body, so that is what runs here. */
+uint32_t fn_042046(void) { return startup_body(); }
+
+/* fn_042044  orig: 0x042044 (L23, 2 B) -- the image entry: `jmp 0x420bc`. */
+uint32_t fn_042044(void) { return fn_0420bc(); }
+
 /* DAT_0005339c / DAT_000533a0: the stack-reservation pair written by the entry thunk fn_0445c9
  * (DS image: both 0; DAT_0005339c comes from the DOS4GW startup). */
 uint32_t  g_dat_5339c = 0;

@@ -407,3 +407,56 @@ void sys_cd_root_records(uint8_t *recs, uint32_t n) { if (g_cd_records) g_cd_rec
 void     sys_cd_audio_stop(void)       { g_cd_stops++; }
 uint32_t sys_cd_audio_stop_calls(void) { return g_cd_stops; }
 void     sys_cd_audio_stop_reset(void) { g_cd_stops = 0; }
+
+/* ---- modelled DOS / DPMI host probes (image startup 0x042044 / 0x0420bc) ---- */
+static uint8_t  g_dos_major = 3, g_dos_minor = 0x1f;   /* DOS 3.31, what DOS4GW reports */
+static uint16_t g_dos_marker = 0x4243;                /* 'CB': the DOS4GW marker in CX */
+static uint8_t  g_dos4gw_info[0x40];                  /* the EDX info block */
+static int      g_dpmi_host = 0;                      /* INT 21h AX=FF00 answer */
+static int      g_dpmi_disable = 0;                   /* INT 31h AX=0006 answer */
+static uint8_t  g_psp_tail[0x100];                    /* [0] = length, [1..] = characters */
+static uint8_t  g_dos_env[0x400];
+static uint32_t g_dos_env_len;
+static uint32_t g_exit_code, g_exit_calls;
+
+uint8_t *sys_dos4gw_info(void) { return g_dos4gw_info; }
+
+void sys_dos_version_set(uint8_t major, uint8_t minor, uint16_t marker) {
+    g_dos_major = major; g_dos_minor = minor; g_dos_marker = marker;
+}
+
+void sys_dos_version(uint8_t *major, uint8_t *minor, uint16_t *marker, uintptr_t *info) {
+    if (major)  *major  = g_dos_major;
+    if (minor)  *minor  = g_dos_minor;
+    if (marker) *marker = g_dos_marker;
+    if (info)   *info   = (uintptr_t)g_dos4gw_info;
+}
+
+void  sys_dpmi_host_probe_set(int present) { g_dpmi_host = present ? 1 : 0; }
+int   sys_dpmi_host_probe(void)            { return g_dpmi_host; }
+void  sys_dpmi_disable_ints_set(int count) { g_dpmi_disable = count; }
+int   sys_dpmi_disable_ints(void)          { return g_dpmi_disable; }
+
+uint8_t *sys_psp_tail(void) { return &g_psp_tail[1]; }
+
+void sys_psp_tail_set(const char *text) {
+    uint32_t n = text ? (uint32_t)strlen(text) : 0;
+    if (n > 0x7f) n = 0x7f;                 /* the PSP tail is 127 characters at most */
+    memset(g_psp_tail, 0, sizeof g_psp_tail);
+    g_psp_tail[0] = (uint8_t)n;
+    if (text) memcpy(&g_psp_tail[1], text, n);
+}
+
+uint8_t *sys_dos_env(void) { return g_dos_env; }
+
+void sys_dos_env_set(const void *env, uint32_t len) {
+    uint32_t n = env ? len : 0;
+    if (n > sizeof g_dos_env - 1) n = sizeof g_dos_env - 1;
+    memset(g_dos_env, 0, sizeof g_dos_env);
+    if (env) memcpy(g_dos_env, env, n);
+    g_dos_env_len = n;
+}
+
+uint32_t sys_dos_exit_code(void)  { return g_exit_code; }
+uint32_t sys_dos_exit_calls(void) { return g_exit_calls; }
+void sys_dos_terminate(uint32_t code) { g_exit_code = code; g_exit_calls++; }

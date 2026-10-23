@@ -16,8 +16,32 @@ int  sys_hist(void *buf, int max);              /* 0x3C9 write history (tests) *
 
 /* Interrupt-vector service (INT 0x21h get/set). No real vectors in a flat
  * process; the timer subsystem builds a tick driver on sys_isr_set. */
-uint64_t sys_isr_get(uint8_t vector);
+uint64_t sys_isr_get(uint8_t vector);           /* (seg << 32) | offset, 0 when unset */
 void     sys_isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg);
+
+/* The handlers the game installs are *image offsets* (0x3ee88, 0x41439, 0x415c9 ...). Binding an offset
+ * to a ported C function makes an installed handler callable, so sys_isr_fire(vector) runs the handler
+ * the game itself put in the vector -- the honest stand-in for the interrupt. */
+void     sys_isr_bind(uint32_t handler_off, void (*fn)(void));
+uint32_t sys_isr_handler(uint8_t vector);       /* the offset currently installed, 0 when none */
+int      sys_isr_fire(uint8_t vector);          /* 1 if a bound handler ran */
+void     sys_isr_reset(void);                   /* clear vectors + bindings */
+
+/* ---- device (Sound Blaster class) port model ----
+ * The game writes a command to base+0xc and polls the SAME port for bit 7, which only works because
+ * the port is write-only for the command and read-only for the status. A plain port array cannot model
+ * that (the write latches a byte with bit 7 set, so the poll never clears), so the read side of these
+ * ports is modelled separately. */
+void     sys_dev_status_set(uint16_t port, uint8_t v);   /* what inb(port) answers */
+uint8_t  sys_dev_status(uint16_t port);
+void     sys_dev_status_reset(void);
+/* successive reads of one port may answer different bytes (a device data register that returns the
+ * high byte then the low byte of a word, for example); the sequence repeats its last byte. */
+void     sys_dev_read_seq(uint16_t port, const uint8_t *bytes, int n);
+typedef void (*sys_dev_cmd_fn)(uint16_t port, uint8_t cmd);
+void     sys_dev_cmd_hook(sys_dev_cmd_fn fn);            /* called on every device write */
+uint32_t sys_dev_cmds(uint16_t port);                    /* how many writes to that port */
+uint8_t  sys_dev_last_cmd(uint16_t port);
 
 /* SS segment: original canary compared the SS register; the modern flat
  * model has a single address space, so SS is a constant. */
@@ -106,6 +130,7 @@ uint32_t sys_file_real_opened(void);                     /* successful real open
  * image, plus the selector the original stores in its first word. */
 uint8_t *sys_dos_seg_alloc(uint32_t paragraphs, uint16_t *selector);
 void     sys_dos_seg_free(uint16_t selector);
+uint32_t sys_dos_seg_linear(const uint8_t *p);   /* the paragraph-based address DPMI reports for a block */
 extern uint32_t sys_dos_segs_allocated;
 
 /* INT 10h AX=4F00 / 4F01 / 4F02 stand-ins (VESA VBE). Tunable for tests. */
@@ -124,6 +149,7 @@ extern uint16_t sys_vesa_set_mode_ah;       /* 0 = mode set ok, 1 = error */
  * can decide when to re-upload. */
 void     sys_vga_palette(uint8_t *out768);
 uint32_t sys_vga_palette_writes(void);
+uint8_t  sys_vga_dac_max(void);           /* largest DAC byte written: <=63 means 6-bit addressing */
 void     sys_vga_palette_reset(void);
 
 /* ---- PIT model (channels 0..2) ----

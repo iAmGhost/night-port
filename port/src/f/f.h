@@ -133,7 +133,8 @@ void fn_000405a7(void);                         /* 0x000405a7: DPMI real-mode ca
 void fn_000407f8(void);                         /* 0x000407f8: DPMI real-mode call {0x101} via fn_041e51 (no-op) */
 void fn_00010dde(void);                         /* 0x00010dde: build stack struct + fn_00010570 (no-op) */
 void fn_0003fcbd(uint32_t p1, uint32_t p2, uint32_t p3); /* 0x0003fcbd: DPMI real-mode call {0x1012} via fn_041e51 (no-op) */
-int   fn_00040788(void);                        /* 0x00040788: DPMI mem alloc INT31h 0x100 (no-op, returns 0) */
+uint8_t *fn_00040788(uint32_t *out_seg, uint32_t size); /* 0x00040788: DPMI "allocate DOS memory block" (INT 31h AX=0100): paragraphs from the sys real-memory image, segment through out_seg, block back (0 on failure) */
+extern uint32_t g_dat_63fb0;                    /* DAT_00063fb0: the segment fn_00040788 stored */
 void fn_000104c7(void);                         /* 0x000104c7: DPMI mem alloc + DAT_00053c58/5c setup (no-op) */
 void fn_0003f645(void);                         /* 0x0003f645: VGA palette + A0000 memset loop (no-op) */
 void fn_00035ec2(void);                         /* 0x00035ec2: VGA 0x3DA sequencer ready-wait (no-op, degenerate spin) */

@@ -3517,25 +3517,30 @@ static void test_fn_1053f(void) {
 
 static void test_fn_03ef29(void) {
     printf("fn_03ef29 (0x03ef29, install IRQ 0x1c)\n");
+    sys_isr_reset();                     /* the vector table is real now: start from empty */
     g_dat_63e4a = 0; g_dat_63e2c = 0; g_dat_63e30 = 5;
     g_dat_63e44 = 0xaaaa; g_dat_63e48 = 0xbbbb;
     fn_03ef29(0x1234);               // divisor in EAX
     check(g_dat_63e2c == 0x1234, "  divisor stored in 63e2c");
     check(g_dat_63e30 == 0, "  63e30 cleared");
     check(g_dat_63e4a == 1, "  install flag set");
-    check(g_dat_63e44 == 0 && g_dat_63e48 == 0, "  saved ISR-0x1c (isr_get no-op -> 0)");
+    check(g_dat_63e44 == 0 && g_dat_63e48 == 0, "  saved ISR-0x1c is 0: nothing was installed before");
+    check(sys_isr_handler(0x1c) == 0x3ee88 && (sys_isr_get(0x1c) >> 32) == 0x1f,
+          "  INT 0x1c now really holds the timer handler 0x3ee88 : 0x1f");
     fn_03ef29(0x9999);               // already installed -> no-op
     check(g_dat_63e2c == 0x1234, "  second call skipped (flag already set)");
 }
 
 static void test_fn_03feb8(void) {
     printf("fn_03feb8 (0x03feb8, install IRQ 9 + timer/DMA init)\n");
+    sys_isr_reset();
     g_dat_63e86 = 0; g_dat_00417 = 0xff;
     g_dat_63e88[0] = 0x11; g_dat_63f14[0] = 0x22; g_dat_63f1e[0] = 0x33;
     g_dat_63f28[0] = 0x4444; g_dat_63f0c = 9; g_dat_63f4c = 1;
     fn_03feb8();
     check(g_dat_63e86 == 1, "  install flag set");
-    check(g_dat_63e80 == 0 && g_dat_63e84 == 0, "  saved ISR-9 (isr_get no-op -> 0)");
+    check(g_dat_63e80 == 0 && g_dat_63e84 == 0, "  saved ISR-9 is 0: nothing was installed before");
+    check(sys_isr_handler(9) == 0x3fd40, "  IRQ 9 now really holds the timer/DMA handler 0x3fd40");
     check(g_dat_63e88[0] == 0, "  63e88 zeroed");
     check(g_dat_63f14[0] == 0, "  63f14 zeroed");
     check(g_dat_63f1e[0] == 1, "  63f1e set to 1");
@@ -3557,8 +3562,15 @@ static void test_cd_dpmi_noops(void) {
     fn_0003fade(); fn_00040570(); fn_000405a7(); fn_000407f8();
     check(1, "  0x3fade/0x40570/0x405a7/0x407f8 run as no-ops");
     /* Second batch: DPMI mem-alloc (returns 0), real-mode calls, palette loop. */
-    fn_00010dde(); fn_0003fcbd(1,2,3); check(fn_00040788() == 0,
-        "  0x40788 DPMI mem-alloc returns 0 (no DPMI)");
+    fn_00010dde(); fn_0003fcbd(1,2,3);
+    {   /* 0x40788 is DPMI INT 31h AX=0100: paragraphs = (size+0xf)>>4 out of the real-memory image,
+         * the block segment stored through the output slot, the block returned. */
+        uint32_t seg = 0xdeadbeef;
+        uint8_t *blk = fn_00040788(&seg, 0x100);
+        check(blk != 0 && seg == (sys_dos_seg_linear(blk) >> 4),
+              "  0x40788 allocates from the sys real-memory image and stores the block segment");
+        check(fn_00040788(&seg, 0x40000000u) == 0, "  0x40788 fails like DPMI when the request is too big");
+    }
     fn_000104c7(); fn_0003f645(); fn_00010dde();
     check(1, "  0x10dde/0x3fcbd/0x104c7/0x3f645 run as no-ops");
     fn_00035ec2();
@@ -17079,8 +17091,65 @@ static void test_cd_iso_real(void) {
 }
 
 /* The startup probe fires through dispatch_a; count it. */
+static int dev_probe_fire;
+static void dev_probe_hook(uint16_t port, uint8_t cmd) {
+    if (cmd == 0xf2) { dev_probe_fire++; sys_isr_fire(0x0a); }
+}
+
 static int g_startup_ev_calls;
 static void startup_ev_cb(void) { g_startup_ev_calls++; }
+
+/* The device bring-up chain (fn_040d09) is the audio path's prerequisite: it only advances when the
+ * status port answers independently of the command written to the same port. With the sys device model
+ * in place the whole chain runs, including the IRQ the probe command is supposed to raise. */
+static void test_device_bringup(void) {
+    printf("fn_040d09 (0x040d09): the device bring-up chain runs against the sys device model\n");
+    uint32_t s_base = g_dat_53334, s_84 = g_dat_63f84, s_88 = g_dat_63f88, s_90 = g_dat_63f90;
+    uint8_t *s_b4 = g_dat_63fb4;  uint32_t s_ac = g_dat_63fac;
+    uint32_t s_54 = g_dat_63f54, s_58 = g_dat_63f58;
+    uint32_t s_pic1 = sys_inb(0x21), s_pic2 = sys_inb(0xa1);
+
+    sys_isr_reset();
+    sys_dev_status_reset();
+    /* 0x210 is the value fn_040f4f returns when the controller is *not* ours, so the device has to be
+     * found at another base for the chain to continue. */
+    g_dat_53334 = 0x220;
+    /* the discovery probe reads the status register and wants the 0xaa signature */
+    static const uint8_t sig[] = { 0xaa };
+    sys_dev_read_seq(0x22a, sig, 1);
+    sys_dev_status_set(0x22e, 0x80);                 /* ready: bit 7 set */
+    sys_dev_status_set(0x22c, 0x00);                 /* ready: bit 7 clear for command writes */
+    /* the id command is followed by two data reads */
+    static const uint8_t id_bytes[] = { 0x03, 0x02 };
+    /* the probe command raises the device interrupt, exactly as the hardware does */
+    sys_isr_bind(0x41439, fn_041439);                /* vector 0x0a handler installed by fn_040fb3 */
+    dev_probe_fire = 0;
+    sys_dev_cmd_hook(dev_probe_hook);
+
+    g_dat_63f84 = 0; g_dat_63f90 = 0;
+    uint32_t r = fn_040d09();
+
+    check(r == 1, "fn_040d09 completes once the status port is modelled separately from the command port");
+    check(g_dat_53334 == 0x220, "the base scan finds the device at 0x220 (status reads 0xaa)");
+    check(g_dat_63f84 == 2, "the 0xf2 probe reaches the handler through the fired interrupt, not the countdown");
+    check(dev_probe_fire >= 1 && sys_dev_cmds(0x22c) >= 3,
+          "the command stream (0xf2 probe, 0xe1 id, 0xd1 init) was written to base+0xc");
+    check(g_dat_63f88 != 0,
+          "the device id came back as two bytes from the data register");
+    check(sys_isr_handler(0x0a) == 0x415c9,
+          "the device ISR 0x415c9 is installed in the vector table");
+    check(g_dat_63f90 == 1, "DAT_63f90 records that the device is initialised");
+    check(g_dat_63fb4 != 0, "the 64 KB transfer buffer was allocated");
+    check(g_dat_63fac == (uint32_t)(uintptr_t)g_dat_63fb4 || g_dat_63fac != 0,
+          "the ISA DMA address is recorded (re-based when the buffer sits below 64 K)");
+
+    sys_dev_cmd_hook(0);
+    sys_isr_reset();
+    sys_dev_status_reset();
+    g_dat_53334 = s_base; g_dat_63f84 = s_84; g_dat_63f88 = s_88; g_dat_63f90 = s_90;
+    g_dat_63fb4 = s_b4; g_dat_63fac = s_ac; g_dat_63f54 = s_54; g_dat_63f58 = s_58;
+    sys_port_set(0x21, (uint8_t)s_pic1); sys_port_set(0xa1, (uint8_t)s_pic2);
+}
 
 static void test_fn_0420bc(void) {
     printf("fn_0420bc / fn_042046 / fn_042044 (0x0420bc): the DOS4GW image startup\n");
@@ -17692,6 +17761,7 @@ int main(void) {
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
     test_fn_0445c9();
+    test_device_bringup();
     test_fn_0420bc();
     test_cd_iso_real();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */

@@ -570,12 +570,28 @@ void fn_00010dde(void) {}
  *   calls fn_041e51(0x10, &struct, &struct) — the no-op trampoline. No-op. */
 void fn_0003fcbd(uint32_t p1, uint32_t p2, uint32_t p3) { (void)p1;(void)p2;(void)p3; }
 
-/* fn_00040788  orig: 0x00040788 (L10, 111B)
- *   DPMI memory allocation (INT 31h AX=0x100 via the fn_041e51 trampoline) with
- *   request size 0x100. Returns the allocated linear address (segment<<4) on
- *   success or 0 on failure. No DPMI in the flat model -> the allocation never
- *   happens; return 0. */
-int fn_00040788(void) { return 0; }
+/* fn_00040788  orig: 0x00040788 (L10, 111B) -- DPMI "allocate DOS memory block".
+ * Register ABI: EAX = output slot, EDX = size in bytes. Body: a request struct with
+ * [0] = 0x100 (the INT 31h function number) and [4] = (size + 0xf) >> 4 paragraphs (signed),
+ * handed to the fn_041e51 trampoline as INT 31h AX=0100; on error the result is 0, otherwise the
+ * returned block segment is stored through the output slot and the function returns
+ * (segment & 0xffff) << 4, i.e. the linear address of the block.
+ * The port answers it from the real-mode memory image in sys, so the allocation really happens
+ * (this is what the audio/device transfer buffer needs). PORT NOTE: the caller stores the return
+ * value in DAT_00063fb4, which this port keeps as a host pointer; the paragraph address the
+ * original would put there is available through sys_dos_seg_linear(). */
+uint8_t *fn_00040788(uint32_t *out_seg, uint32_t size) {
+    (void)canary_id(0, 0x40);                                   /* 0x40788-04079f */
+    int32_t paras = (int32_t)(size + 0xf) >> 4;                 /* 0x407ac-0407b5 */
+    uint16_t selector = 0;
+    uint8_t *blk = sys_dos_seg_alloc((uint32_t)paras, &selector);
+    if (!blk) return 0;                                         /* 0x407c8-0407d5 (carry set) */
+    if (out_seg) *out_seg = sys_dos_seg_linear(blk) >> 4;       /* 0x407d7-0407dd */
+    (void)selector;
+    return blk;                                                 /* 0x407df-0407ea: segment << 4 */
+}
+
+uint32_t g_dat_63fb0 = 0;   /* DAT_00063fb0: the block segment fn_00040788 stores for the caller */
 
 /* fn_000104c7  orig: 0x000104c7 (L10, 119B)
  *   DPMI memory allocation + setup: builds a request struct (word0=0x1500),
@@ -7329,7 +7345,7 @@ uint32_t fn_03658d(void) {
  * DAT_63f84 + 8, its old vector saved to 63f54/63f58, the device handler 0x415c9 installed
  * (a label inside the 0x41439 handler block, so passed by offset like the other four),
  * fn_0413e7() (device command 0xd1), DAT_63f90 = 1 (device initialised), return 1.
- * Port note: fn_00040788 is the documented DPMI-alloc stub returning 0, so on this host the
+ * Port note: fn_00040788 now really allocates (from the sys real-mode memory image), so the
  * chain stops at the allocation and the fixup arithmetic is never reached; it is kept 1:1. */
 uint32_t g_dat_63f88;     /* DAT_00063f88: device id (fn_0411d9, (hi<<8)|lo) */
 uint32_t g_dat_63f90;     /* DAT_00063f90: device initialised flag */
@@ -7343,7 +7359,7 @@ uint32_t fn_040d09(void) {
     if (g_dat_63f84 == 0) return 0;
     g_dat_63f88 = fn_0411d9();                                         /* 0x40d62-67 */
     if (g_dat_63f88 == 0) return 0;
-    g_dat_63fb4 = (uint8_t *)(uintptr_t)fn_00040788();                 /* 0x40d8b-90 */
+    g_dat_63fb4 = fn_00040788(&g_dat_63fb0, 0xffff);                      /* 0x40d8b-90 */
     if (g_dat_63fb4 == 0) return 0;
     g_dat_63fac = (uint32_t)(uintptr_t)g_dat_63fb4;                    /* 0x40db4 */
     if (((g_dat_63fac >> 16) & 0xff) == 0) {                           /* 0x40db4 test byte */

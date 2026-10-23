@@ -69,11 +69,14 @@ int sys_hist(void *buf, int max) {            /* returns history length */
 
 /* ---- VGA DAC state ---- */
 static uint8_t  dac_rgb[768];
+static uint8_t dac_max;
 static uint32_t dac_writes;
 static uint8_t  dac_index;      /* the 0x3C8 write index */
 static uint8_t  dac_phase;      /* 0=R, 1=G, 2=B within the current entry */
 
 void sys_vga_palette(uint8_t *out768) { if (out768) memcpy(out768, dac_rgb, 768); }
+uint8_t sys_vga_dac_max(void) { return dac_max; }
+
 uint32_t sys_vga_palette_writes(void) { return dac_writes; }
 void sys_vga_palette_reset(void) { memset(dac_rgb, 0, sizeof dac_rgb); dac_writes = 0; dac_index = 0; dac_phase = 0; }
 
@@ -86,6 +89,34 @@ static sys_pump_fn tick_pump;
 void sys_set_tick_pump(sys_pump_fn fn) { tick_pump = fn; }
 sys_pump_fn sys_get_tick_pump(void) { return tick_pump; }
 
+/* ---- device port model: separate read (status) and write (command) sides ---- */
+#define DEV_PORT_BASE 0x200          /* the ISA device range the base scan probes: 0x200..0x2ff */
+static uint8_t     dev_status[PORT_MAX];
+static uint8_t     dev_status_set[PORT_MAX];
+static uint32_t    dev_cmds[PORT_MAX];
+static uint8_t     dev_last[PORT_MAX];
+static sys_dev_cmd_fn dev_hook;
+static const uint8_t *dev_seq[PORT_MAX];
+static int            dev_seq_len[PORT_MAX];
+static int            dev_seq_at[PORT_MAX];
+
+void    sys_dev_status_set(uint16_t port, uint8_t v) { if (port < PORT_MAX) { dev_status[port] = v; dev_status_set[port] = 1; } }
+uint8_t sys_dev_status(uint16_t port) { return port < PORT_MAX ? dev_status[port] : 0; }
+void    sys_dev_status_reset(void) { memset(dev_status, 0, sizeof dev_status); memset(dev_status_set, 0, sizeof dev_status_set);
+                                     memset(dev_cmds, 0, sizeof dev_cmds); memset(dev_last, 0, sizeof dev_last);
+                                     memset(dev_seq, 0, sizeof dev_seq); memset(dev_seq_len, 0, sizeof dev_seq_len);
+                                     memset(dev_seq_at, 0, sizeof dev_seq_at);
+                                     dev_hook = 0; }
+void sys_dev_read_seq(uint16_t port, const uint8_t *bytes, int n) {
+    if (port >= PORT_MAX) return;
+    dev_seq[port] = bytes; dev_seq_len[port] = bytes ? n : 0; dev_seq_at[port] = 0;
+    if (bytes && n > 0) dev_status_set[port] = 1;
+}
+
+void    sys_dev_cmd_hook(sys_dev_cmd_fn fn) { dev_hook = fn; }
+uint32_t sys_dev_cmds(uint16_t port)  { return port < PORT_MAX ? dev_cmds[port] : 0; }
+uint8_t  sys_dev_last_cmd(uint16_t port) { return port < PORT_MAX ? dev_last[port] : 0; }
+
 void sys_outb(uint16_t port, uint8_t v) {
     if (port < PORT_MAX) {
         port_val[port] = v;
@@ -93,19 +124,33 @@ void sys_outb(uint16_t port, uint8_t v) {
         if (port == 0x3c9) {
             if (hist_n < HIST_MAX && (hb = hist_buf()) != 0) hb[hist_n++] = v;
             dac_rgb[(uint32_t)dac_index * 3u + dac_phase] = v;   /* the DAC data port */
+            if (v > dac_max) dac_max = v;   /* 6-bit (0..63) or 8-bit DAC addressing? */
             dac_writes++;
             if (++dac_phase == 3) { dac_phase = 0; dac_index = (uint8_t)(dac_index + 1); }
         } else if (port == 0x3c8) {
             dac_index = v; dac_phase = 0;                        /* the DAC address port */
         }
     if (port == 0x43 || (port >= 0x40 && port <= 0x42)) pit_out(port, v);
+        if (dev_hook) dev_hook(port, v);
+        if (port >= DEV_PORT_BASE && port < DEV_PORT_BASE + 0x100) {
+            dev_cmds[port]++; dev_last[port] = v;   /* the command register: writes are counted, reads are not */
+        }
     }
     /* other ports: no-op (no real hardware in the port) */
 }
 
+
 uint8_t sys_inb(uint16_t port) {
-    if (port < PORT_MAX)
+    if (port < PORT_MAX) {
+        /* a device status register answers reads independently of what was written to it */
+        if (dev_seq_len[port]) {
+            int i = dev_seq_at[port];
+            if (i < dev_seq_len[port] - 1) dev_seq_at[port] = i + 1;
+            return dev_seq[port][i];
+        }
+        if (dev_status_set[port]) return dev_status[port];
         return port_val[port];
+    }
     return 0;
 }
 
@@ -119,15 +164,47 @@ void sys_port_set(uint16_t port, uint8_t v) {
  * directly. A flat SDL process has no real interrupt vectors, so these are
  * stubs; the timer subsystem (batch: 0x0003ee88/0x0003ef29) will build a
  * tick driver on top of sys_isr_set. */
+typedef struct { uint32_t off; uint16_t seg; } isr_slot;
+static isr_slot   g_isr[256];
+static struct { uint32_t off; void (*fn)(void); } g_isr_bind[32];
+
 uint64_t sys_isr_get(uint8_t vector) {
-    (void)vector;
-    return 0;                 /* no real OS vector to read */
+    return ((uint64_t)g_isr[vector].seg << 32) | g_isr[vector].off;
 }
 
 void sys_isr_set(uint8_t vector, uint32_t handler_off, uint16_t handler_seg) {
-    (void)vector; (void)handler_off; (void)handler_seg;
-    /* no-op now: installing a real tick handler is the timer subsystem's job */
+    g_isr[vector].off = handler_off;
+    g_isr[vector].seg = handler_seg;
 }
+
+uint32_t sys_isr_handler(uint8_t vector) { return g_isr[vector].off; }
+
+void sys_isr_bind(uint32_t handler_off, void (*fn)(void)) {
+    for (unsigned i = 0; i < sizeof g_isr_bind / sizeof g_isr_bind[0]; i++)
+        if (g_isr_bind[i].off == handler_off || g_isr_bind[i].fn == fn) {
+            g_isr_bind[i].off = handler_off; g_isr_bind[i].fn = fn;
+            return;
+        }
+    for (unsigned i = 0; i < sizeof g_isr_bind / sizeof g_isr_bind[0]; i++)
+        if (!g_isr_bind[i].off && !g_isr_bind[i].fn) {
+            g_isr_bind[i].off = handler_off; g_isr_bind[i].fn = fn;
+            return;
+        }
+}
+
+int sys_isr_fire(uint8_t vector) {
+    uint32_t off = g_isr[vector].off;
+    if (!off) return 0;
+    for (unsigned i = 0; i < sizeof g_isr_bind / sizeof g_isr_bind[0]; i++)
+        if (g_isr_bind[i].off == off && g_isr_bind[i].fn) { g_isr_bind[i].fn(); return 1; }
+    return 0;
+}
+
+void sys_isr_reset(void) {
+    memset(g_isr, 0, sizeof g_isr);
+    memset(g_isr_bind, 0, sizeof g_isr_bind);
+}
+
 
 /* ---- SS / fatal ---- */
 uint16_t sys_ss(void) { return 0x2b; } /* flat model: constant segment */
@@ -294,7 +371,7 @@ struct dos_time sys_gettime(void) { return sys_time; }
  * fixed real-mode memory image and the VBE calls are answered from the tunable
  * fields below (the SDL backend would fill them from a real adapter).
  * ------------------------------------------------------------------ */
-#define SYS_REALMEM 0x2000u
+#define SYS_REALMEM 0x20000u   /* the device transfer buffer alone is 0x10000 of it */
 static uint8_t  g_real_mem[SYS_REALMEM];
 static uint32_t g_real_mem_used;
 static uint16_t g_real_mem_sel = 0x1000;
@@ -316,6 +393,9 @@ uint32_t sys_dos_segs_allocated = 0;
 #define SYS_REALMEM_BLOCKS 24
 typedef struct { uint32_t off, size; uint16_t sel; uint8_t used; } sys_realblk;
 static sys_realblk g_real_blks[SYS_REALMEM_BLOCKS];
+
+/* the DOS-linear (paragraph-based) address of a block handed out above, i.e. what DPMI would report */
+uint32_t sys_dos_seg_linear(const uint8_t *p) { return (uint32_t)(uintptr_t)(p - g_real_mem); }
 
 uint8_t *sys_dos_seg_alloc(uint32_t paragraphs, uint16_t *selector)
 {

@@ -87,7 +87,8 @@ static int ensure_mode(void) {
  * VGA DAC does when turning them into 8-bit RGB. */
 static void palette_rgba(void) {
     sys_vga_palette(g_pal);
-    for (int i = 0; i < 768; i++) g_pal[i] = (uint8_t)((g_pal[i] << 2) | (g_pal[i] >> 4));
+    if (sys_vga_dac_max() <= 63)                       /* 6-bit DAC values: scale the way a DAC does */
+        for (int i = 0; i < 768; i++) g_pal[i] = (uint8_t)((g_pal[i] << 2) | (g_pal[i] >> 4));
 }
 
 static void present(void) {

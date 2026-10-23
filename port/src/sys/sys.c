@@ -640,6 +640,10 @@ uint16_t sys_vesa_set_mode(uint16_t mode)
 /* ---- CD-ROM (MSCDEX) backend seam: see sys.h for the contract ---- */
 static sys_cd_header_fn  g_cd_header;
 static sys_cd_records_fn g_cd_records;
+
+static sys_cd_play_fn    g_cd_play;
+static sys_cd_stop_fn    g_cd_stop;
+static uint32_t          g_cd_plays, g_cd_play_index, g_cd_play_lba, g_cd_play_sectors;
 static uint32_t          g_cd_stops;
 
 void sys_cd_set_backend(sys_cd_header_fn header, sys_cd_records_fn records)
@@ -651,9 +655,41 @@ void sys_cd_set_backend(sys_cd_header_fn header, sys_cd_records_fn records)
 void sys_cd_root_header(uint8_t *hdr7)  { if (g_cd_header)  g_cd_header(hdr7); }
 void sys_cd_root_records(uint8_t *recs, uint32_t n) { if (g_cd_records) g_cd_records(recs, n); }
 
-void     sys_cd_audio_stop(void)       { g_cd_stops++; }
+void     sys_cd_audio_stop(void)       { g_cd_stops++; if (g_cd_stop) g_cd_stop(); }
 uint32_t sys_cd_audio_stop_calls(void) { return g_cd_stops; }
 void     sys_cd_audio_stop_reset(void) { g_cd_stops = 0; }
+
+/* ---- CD-DA playback seam (see sys.h); the function pointers are declared above ---- */
+void sys_cd_set_audio_backend(sys_cd_play_fn play, sys_cd_stop_fn stop)
+{
+    g_cd_play = play;
+    g_cd_stop = stop;
+}
+
+void sys_cd_audio_play(uint32_t index, uint32_t lba, uint32_t sectors)
+{
+    g_cd_plays++;
+    g_cd_play_index = index; g_cd_play_lba = lba; g_cd_play_sectors = sectors;
+    if (g_cd_play) g_cd_play(index, lba, sectors);
+}
+
+uint32_t sys_cd_audio_play_calls(void)   { return g_cd_plays; }
+uint32_t sys_cd_audio_last_index(void)   { return g_cd_play_index; }
+uint32_t sys_cd_audio_last_lba(void)     { return g_cd_play_lba; }
+uint32_t sys_cd_audio_last_sectors(void) { return g_cd_play_sectors; }
+void     sys_cd_audio_reset(void)
+{
+    g_cd_plays = 0; g_cd_play_index = 0; g_cd_play_lba = 0; g_cd_play_sectors = 0; g_cd_stops = 0;
+}
+
+uint32_t sys_cd_da_plan(uint32_t pos, uint32_t sectors, uint32_t want, uint32_t cap)
+{
+    if (!sectors || !want || !cap) return 0;
+    if (pos >= sectors) return 0;                 /* track exhausted: the game restarts it */
+    uint32_t room = sectors - pos;
+    uint32_t n = want < room ? want : room;
+    return n < cap ? n : cap;
+}
 
 /* ---- modelled DOS / DPMI host probes (image startup 0x042044 / 0x0420bc) ---- */
 static uint8_t  g_dos_major = 3, g_dos_minor = 0x1f;   /* DOS 3.31, what DOS4GW reports */

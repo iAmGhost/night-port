@@ -3585,9 +3585,68 @@ static void test_fn_03feb8(void) {
     check(g_dat_63e86 == 1, "  second call skipped (flag already set)");
 }
 
+/* fn_010b1d (0x010b1d) selects a CD-DA track from the TOC record array and asks for its sectors.
+ * The arithmetic is fixed by the disassembly: lba = rec[idx].lba, len = rec[idx+1].lba - lba (or
+ * the lead-out record when idx is the last track), DAT_53c44 = lba, DAT_53c40 = lba + len,
+ * DAT_53c48 = len/75 (seconds), DAT_63e38 = 0, then the MSCDEX media read -- the sys seam. */
+static void test_cd_da_track_select(void) {
+    printf("fn_010b1d: CD-DA track selection from the TOC records (docs/57)\n");
+    heap_arena_init();
+    g_dat_51a10 = 1;                       /* sound effects enabled: the 0x010b38 gate */
+    g_dat_53c60 = 4;                       /* four tracks + a lead-out record */
+    uint32_t off = heap_malloc((g_dat_53c60 + 1) * 5);
+    g_dat_53c64 = off;
+    uint8_t *recs = (uint8_t *)g_heap_base + off;
+    const uint32_t lbas[5] = { 0, 37112, 40250, 45000, 50000 };
+    for (uint32_t i = 0; i <= g_dat_53c60; i++) {
+        recs[i * 5 + 0] = (uint8_t)(i + 1);
+        memcpy(recs + i * 5 + 1, &lbas[i], 4);
+    }
+    sys_cd_audio_reset();
+    g_dat_63e38 = 0x9999;
+
+    fn_10b1d(1);                           /* the first audio track */
+    check(g_dat_53c44 == 37112 && g_dat_53c40 == 40250,
+          "  DAT_53c44/53c40 = track LBA and end LBA (0x010bf9-0x010c07)");
+    check(g_dat_53c48 == 41, "  DAT_53c48 = len/75 = 3138/75 = 41 s (IDIV 0x4b, 0x010c16-26)");
+    check(g_dat_63e38 == 0, "  DAT_63e38 cleared for the refresh watchdog (0x010c0c)");
+    check(sys_cd_audio_play_calls() == 1 && sys_cd_audio_last_index() == 1 &&
+          sys_cd_audio_last_lba() == 37112 && sys_cd_audio_last_sectors() == 3138,
+          "  the MSCDEX media read lands as one play request with the same LBA/length");
+
+    fn_10b1d(3);                           /* last track: length comes from the lead-out record */
+    check(g_dat_53c44 == 45000 && g_dat_53c48 == 66,
+          "  last track measured against the lead-out record (0x010b79-0x010b9d)");
+    check(sys_cd_audio_play_calls() == 2 && sys_cd_audio_last_sectors() == 5000,
+          "  second request carries the lead-out-derived length");
+
+    g_dat_51a10 = 0;
+    fn_10b1d(2);
+    check(sys_cd_audio_play_calls() == 2, "  DAT_51a10 == 0 (effects off) returns before anything (0x010b38)");
+    g_dat_51a10 = 1;
+    fn_10b1d(4);
+    check(sys_cd_audio_play_calls() == 2, "  index >= DAT_53c60 returns (JGE at 0x010b45)");
+    g_dat_53c64 = 0;
+    fn_10b1d(1);
+    check(sys_cd_audio_play_calls() == 2, "  no record array -> no request (host-side guard, DOS read heap 0)");
+}
+
+/* The host-side streaming policy: whole sectors of the selected track, never past its end (the
+ * game restarts a finished track through its own watchdog, not the host). */
+static void test_cd_da_plan(void) {
+    printf("sys_cd_da_plan: CD-DA streaming policy (docs/57)\n");
+    check(sys_cd_da_plan(0, 100, 30, 16) == 16, "  capped by the host buffer (16 sectors)");
+    check(sys_cd_da_plan(0, 10, 30, 16) == 10, "  a short track yields its remaining sectors");
+    check(sys_cd_da_plan(5, 10, 30, 16) == 5,  "  clamped by the rest of the track");
+    check(sys_cd_da_plan(10, 10, 30, 16) == 0, "  exhausted track reads nothing");
+    check(sys_cd_da_plan(0, 0, 30, 16) == 0,   "  empty track reads nothing");
+    check(sys_cd_da_plan(0, 10, 0, 16) == 0,   "  host asks for nothing");
+    check(sys_cd_da_plan(0, 10, 4, 16) == 4,   "  host ask wins when it is the smallest");
+}
+
 static void test_cd_dpmi_noops(void) {
     printf("CD/DPMI real-mode I/O cluster (no-op standins)\n");
-    fn_103e0(); fn_10570(0, 0); (void)fn_10876(); fn_107b9(); fn_10664(); fn_10b1d();
+    fn_103e0(); fn_10570(0, 0); (void)fn_10876(); fn_107b9(); fn_10664(); fn_10b1d(0);
     check(1, "  all six run as no-ops (no flat-model effect)");
     /* DPMI memory-region / real-mode-call initializers (L10): zero DAT_000a0000
      * region + 3 real-mode requests via the no-op fn_041e51 trampoline. */
@@ -17843,6 +17902,8 @@ int main(void) {
     test_fn_1053f();
     test_fn_03ef29();
     test_fn_03feb8();
+    test_cd_da_track_select();
+    test_cd_da_plan();
     test_cd_dpmi_noops();
     test_fn_00041bdc();
     test_fn_000356ba();

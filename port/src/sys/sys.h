@@ -237,6 +237,34 @@ void     sys_cd_audio_stop(void);
 uint32_t sys_cd_audio_stop_calls(void);
 void     sys_cd_audio_stop_reset(void);
 
+/* ---- CD-DA (Red Book audio) seam -------------------------------------------------------
+ * fn_010b1d (orig: 0x010b1d, EAX = index into the DAT_00053c64 TOC record array) resolves the
+ * selected track's start LBA and length, writes DAT_00053c44 (start LBA), DAT_00053c40 (end LBA),
+ * DAT_00053c48 (length/75 = seconds) and DAT_00063e38 = 0, then issues the MSCDEX media read
+ * (fn_010570 builds request 0x1510) that pulls the track off the disc. On the host that read is a
+ * seam: the installed play callback gets the same LBA/length the original asked MSCDEX for.
+ * The disc itself is raw MODE1/2352 (see src/cd/cd_iso.c): 15 tracks, track 01 = data, tracks
+ * 02..15 = audio. Measured on TG_NIGHT.IMG: the audio sectors hold **little-endian** 16-bit signed
+ * PCM (lag-1 autocorrelation of the two channels 0.982 / 0.972; the big-endian reading of the same
+ * bytes is white noise at -0.001 / +0.004), unlike Red Book's on-disc byte order. */
+typedef void (*sys_cd_play_fn)(uint32_t index, uint32_t lba, uint32_t sectors);
+typedef void (*sys_cd_stop_fn)(void);
+void sys_cd_set_audio_backend(sys_cd_play_fn play, sys_cd_stop_fn stop);
+void sys_cd_audio_play(uint32_t index, uint32_t lba, uint32_t sectors);
+uint32_t sys_cd_audio_play_calls(void);
+uint32_t sys_cd_audio_last_index(void);
+uint32_t sys_cd_audio_last_lba(void);
+uint32_t sys_cd_audio_last_sectors(void);
+void     sys_cd_audio_reset(void);
+
+/* How many whole sectors of the selected CD-DA track to hand the host next. Pure so the streaming
+ * policy is testable without a disc: `pos` = sectors already consumed, `sectors` = track length,
+ * `want` = sectors the host wants, `cap` = host buffer capacity in sectors. 0 = nothing to do.
+ * A finished track is NOT looped here: the game's own refresh watchdogs (fn_010d47, the screen at
+ * 0x0003884b and the one at 0x00039a35) re-issue fn_010b1d once DAT_00063e38/490 passes
+ * DAT_00053c48, so the track restarts through the game, not through the host. */
+uint32_t sys_cd_da_plan(uint32_t pos, uint32_t sectors, uint32_t want, uint32_t cap);
+
 
 /* ---- modelled DOS / DPMI host probes for the image startup (0x042044 / 0x0420bc) ----
  * The startup interrogates the host before anything else runs, so the host behaviour is

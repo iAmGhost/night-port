@@ -23,4 +23,10 @@ void cd_iso_root_records(uint8_t *recs, uint32_t n);
 /* One ISO logical sector (2048 bytes) from a disc LBA. 0 = ok. */
 int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048);
 
+/* One RAW sector (all 2352 bytes, no user-data slice) from a disc LBA -- the Red Book audio
+ * tracks are read this way, because fn_010b1d asks MSCDEX for the track's sectors and the
+ * original streams them as samples. Measured on TG_NIGHT.IMG: the audio sectors hold
+ * little-endian 16-bit signed PCM, 588 stereo frames per sector (see sys.h). 0 = ok. */
+int cd_iso_read_audio(uint32_t disc_lba, uint8_t *out2352);
+
 #endif

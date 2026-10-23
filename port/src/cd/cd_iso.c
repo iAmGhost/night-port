@@ -182,6 +182,14 @@ void cd_iso_root_records(uint8_t *recs, uint32_t n) {
     }
 }
 
+/* ---- raw sector read: the whole 2352 bytes, for CD-DA tracks ---- */
+int cd_iso_read_audio(uint32_t disc_lba, uint8_t *out2352) {
+    if (!g_opened || !out2352) return -1;
+    if (fseek(g_img, (long)disc_lba * IMG_SECTOR, SEEK_SET) != 0) return -1;
+    if (fread(out2352, 1, IMG_SECTOR, g_img) != IMG_SECTOR) return -1;
+    return 0;
+}
+
 /* ---- logical sector read (MODE1/2352, user data at +16) ---- */
 int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048) {
     if (!g_opened || !out2048) return -1;

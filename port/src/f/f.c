@@ -1970,17 +1970,74 @@ int32_t fn_034f31(uint32_t a0, uint32_t a1, uint32_t a2) {
 uint64_t fn_10876(void) { (void)0; return 0; } /* 0x010876: CD dir-entry read+checksum (no-op -> 0). */
 void fn_107b9(void)   { /* 0x0107b9: CD dir-entry read into large buffer (no-op). */ }
 void fn_10664(void)   { /* 0x010664: CD request build + DPMI read (no-op; EAX-gated). */ }
-void fn_10b1d(void)   { /* 0x010b1d: CD track/TOC read via 0x10570 (no-op). */ }
+/* fn_010b1d  orig: 0x00010b1d (L13, 288 B) -- SELECT AND START A CD-DA TRACK.
+ * EAX is an argument: 0x010b35 `MOV dword ptr [EBP-4],EAX`, and every later access goes through
+ * [EBP-4] (Ghidra prints it as the canary local `local_20` because the canary slot and the argument
+ * share the frame -- the earlier port note "fn_010b1d reads no argument" was wrong, and the table
+ * reads at the call sites are live, not dead). Verified flow:
+ *   0x010b38  gate: DAT_00051a10 == 0 (sound effects off) -> return
+ *   0x010b45  gate: (int32)[EBP-4] >= (int32)DAT_00053c60 (track count) -> return   (JGE, signed)
+ *   0x010b54  copy the 5-dword + 1-word MSCDEX read-request template from DS 0x51b20 to [EBP-0x1c]
+ *   0x010b65  lba = rec[idx].lba           (records at DAT_00053c64 are 5 B each: track byte, then
+ *                                          the LBA dword at +1)
+ *   0x010b79  len = rec[count].lba - rec[idx].lba   (record[count] is the lead-out, which
+ *                                          fn_010927 writes at count*5+1)
+ *   0x010ba0  if (idx != count-1) len = rec[idx+1].lba - rec[idx].lba   (0x010bd4-0x010bf6, +6)
+ *   0x010bf9  DAT_00053c44 = lba; DAT_00053c40 = lba + len
+ *   0x010c0c  DAT_00063e38 = 0             (the tick counter the refresh watchdogs compare)
+ *   0x010c16  DAT_00053c48 = (int32)len / 75   (SAR + IDIV 0x4b: the track length in seconds)
+ *   0x010c2d  fn_010570(&block, 0)         (the MSCDEX media read, request 0x1510)
+ * Callers hand over a track *number* (1, 9, 11, 12, or the room's entry in g_tab_52da4) and the
+ * original uses it as the record index directly, so the LBA comes from the disc's own TOC and the
+ * host plays whatever track the original would have asked MSCDEX for. The read itself is the
+ * sys_cd_audio_play() seam (docs/57). */
+uint32_t g_dat_53c44 = 0;   /* DAT_00053c44: start LBA of the CD track fn_010b1d selected (0x010bfc) */
+uint32_t g_dat_53c40 = 0;   /* DAT_00053c40: end LBA (start + length) of that track (0x010c07) */
+void fn_10b1d(uint32_t track)
+{
+    if (g_dat_51a10 == 0) return;                                  /* 0x010b38-3f */
+    if ((int32_t)track >= (int32_t)g_dat_53c60) return;            /* 0x010b45-4e */
+    if (g_dat_53c64 == 0) return;   /* host safety: the record array is heap-allocated by
+                                     * fn_010927; on DOS heap offset 0 is mapped garbage */
+    uint8_t *recs = (uint8_t *)g_heap_base + g_dat_53c64;
+    uint32_t lba = 0, lead = 0, nxt = 0;
+    memcpy(&lba,  recs + track * 5 + 1, 4);                          /* 0x010b65-76 */
+    memcpy(&lead, recs + g_dat_53c60 * 5 + 1, 4);                    /* 0x010b79-97 */
+    int32_t len = (int32_t)(lead - lba);                             /* 0x010b9a-9d */
+    if (track + 1 != g_dat_53c60) {                                 /* 0x010ba0-a9 */
+        memcpy(&nxt, recs + (track + 1) * 5 + 1, 4);                 /* 0x010bd4-0x010bf0 */
+        len = (int32_t)(nxt - lba);                                  /* 0x010bf3-0x010bf6 */
+    }
+    g_dat_53c44 = lba;                                              /* 0x010bf9-0x010c01 */
+    g_dat_53c40 = lba + (uint32_t)len;                              /* 0x010c01-07 */
+    g_dat_63e38 = 0;                                                /* 0x010c0c-16 */
+    g_dat_53c48 = len / 75;                                         /* 0x010c16-26 */
+    uint8_t block[22];                                              /* 0x010b54-63: request template */
+    memset(block, 0, sizeof block);
+    (void)block;
+    sys_cd_audio_play(track, lba, (uint32_t)(len > 0 ? len : 0));   /* 0x010c2d */
+}
+
+/* The room's CD audio track: g_tab_52da4[room[+0x40] + (stage-1)*10] (0x010d9d-0x010db9 and
+ * 0x0003a863-86). The index is range-checked here because the original read it straight out of raw DS
+ * and, in a state with no stage loaded, could walk past the 100 entries into unrelated data; on the
+ * host that would be out of bounds. Real game indices stay in range (stages 1..9 -> <= 99). */
+static uint32_t cd_track_for_room(const uint8_t *room)
+{
+    if (!room) return 0;                                   /* DOS read heap 0 -> garbage */
+    int32_t idx = (int32_t)*(const uint32_t *)(room + 0x40) + ((int32_t)g_dat_63370 - 1) * 10;
+    if (idx < 0 || idx >= (int32_t)(sizeof g_tab_52da4 / sizeof g_tab_52da4[0])) return 0;
+    return g_tab_52da4[idx];
+}
 
 /* 0x010d47 (L13, 150 bytes): periodic CD-refresh tick.
  *   canary 0x24; q = (int32)g_63e38 / 490  (signed, truncated: IDIV 0x1ea).
  *   if (q <= g_53c48) return;  (JLE signed)
  *   else: g_63e38 = 0;  g_52ff8 = 0;  ...; fn_10b1d();  g_63e24/g_63e28 restored; g_52ff8 = 1.
- * The original then computes e = *(g_63354+0x40); idx = e*4 + (g_63370-1)*40;
- *   v = *(idx + 0x52da4);  and CALL fn_10b1d (passing v in EAX).  In the port fn_10b1d is a
- *   no-op CD read that ignores its argument, so the 0x52da4 data-table read is dead and is
- *   omitted (pointer/data-table wall, same class as 0x03c65b/0x03c72b).  The observable
- *   effects are just the gate + global writes + the fn_10b1d call. */
+ * The original then computes e = *(g_63354+0x40); idx = e*4 + (g_63370-1)*40; v = *(idx + 0x52da4);
+ *   and CALLs fn_010b1d with v in EAX (0x010d9d-0x010db9): the room's CD audio track. fn_010b1d does
+ *   take that argument -- 0x010b35 stores it to [EBP-4] and every later access reads it back -- so the
+ *   0x52da4 table read is live, not dead, and is restored here. */
 void fn_010d47(void) {
     (void)canary_id(0, 0x24);
     int32_t q = (int32_t)g_dat_63e38 / 490;   /* IDIV EBX(0x1ea), signed truncated */
@@ -1988,7 +2045,7 @@ void fn_010d47(void) {
     g_dat_63e38 = 0;
     int32_t s1 = (int32_t)g_dat_63e24, s2 = (int32_t)g_dat_63e28;  /* saved/restored (net unchanged) */
     g_dat_52ff8 = 0;
-    fn_10b1d();   /* CD track/TOC read (no-op); dead data-table read omitted above */
+    fn_10b1d(cd_track_for_room(g_dat_63354));
     g_dat_63e24 = (uint32_t)s1;
     g_dat_63e28 = (uint32_t)s2;
     g_dat_52ff8 = 1;
@@ -14430,7 +14487,7 @@ int32_t fn_03a224(void)
         sys_key_spin();
 
     g_dat_63f08 = 0;                                               /* 0x3a433 */
-    fn_10b1d();                                                    /* 0x3a43d-42 (orig EAX = 9) */
+    fn_10b1d(9);                                                   /* 0x3a43d-42 (orig EAX = 9) */
     fn_04185e(g_dat_53dd4);                                        /* 0x3a447-4c attract stream */
     for (;;) {                                                     /* 0x3a451-524 the menu */
         sys_key_spin();
@@ -14588,7 +14645,7 @@ void fn_038a20(void)
 void fn_038ae0(void)
 {
     fn_000405a7();                                   /* 0x38af8 */
-    fn_10b1d();                                      /* 0x38b02 (orig EAX = 1) */
+    fn_10b1d(1);                                      /* 0x38b02 (orig EAX = 1) */
     fn_03f6bc("opening.fli");                        /* 0x38b1a (DS 0x15e7; EDX=0, EBX=0x46, ECX=0x48, push 0) */
     fn_00010dde();                                   /* 0x38b1f */
     fn_03f15f();                                     /* 0x38b24 */
@@ -21970,9 +22027,8 @@ int32_t fn_03a829(void)
 
     g_dat_639bc = 0;                                                   /* 0x0003a845 kill counter */
     g_dat_53104 = 0x46;                                                /* 0x0003a84f row-progress divisor */
-    (void)g_tab_52da4[*(const int32_t *)(room + 0x40) +               /* 0x0003a863-86: the CD track handed */
-                      ((int32_t)g_dat_63370 - 1) * 10];                /* to fn_10b1d (no-op in flat model) */
-    fn_10b1d();                                                        /* 0x0003a882 */
+    /* 0x0003a863-86: this room's CD audio track, handed to fn_010b1d in EAX */
+    fn_10b1d(cd_track_for_room(room));                     /* 0x0003a878 */
     fn_03b9b7();                                                       /* 0x0003a887 drain the entity list */
     *(int32_t *)(pl + 0x17) = 1;                                       /* 0x0003a88c-94 idle state */
     g_dat_63374 = *(const uint32_t *)(pl + 0x2b);                      /* 0x0003a894-0x0003a8c2 equipment */
@@ -23921,7 +23977,7 @@ int32_t fn_038445(void)
     }
     fn_0383a4(g_dat_633b0, hb + digits, 0x118, 0xae, g_dat_53100);      /* 0x00038606-22: the countdown number */
     fn_040660(g_dat_633b8, 0x32);                                      /* 0x00038623-32: 50-step DAC fade-in */
-    fn_10b1d();                                                        /* 0x00038632-37 */
+    fn_10b1d(12);                                                      /* 0x00038632-37 (orig EAX = 0xc) */
 
     for (;;) {
         /* ---- the frame gate: which branch runs (0x0003863c-0x00038664) ---- */
@@ -23977,7 +24033,7 @@ blink_next:
         scroll = scroll + 1;                                           /* 0x00038845-48 */
         if (g_dat_63e38 / 0x1ea > g_dat_53c48) {                       /* 0x0003884b-66: CD refresh watchdog */
             g_dat_63e38 = 0;
-            fn_10b1d();                                                /* 0x00038872-77 */
+            fn_10b1d(12);                                              /* 0x00038872-77 (orig EAX = 0xc) */
         }
         continue;                                                      /* 0x0003887c -> 0x0003863c */
 
@@ -24131,7 +24187,7 @@ void fn_038f3d(int32_t variant)
         fn_00035d5d();                                                  /* 0x000391d3 */
         mem_copy(video_map(0xa0000), hb + o_pcx, 0xfa00);               /* 0x000391d8-f0 */
     }
-    if (variant == 1) fn_10b1d();                                       /* 0x000391f5-0x000391fa */
+    if (variant == 1) fn_10b1d(11);                                     /* 0x000391f5-0x000391fa (EAX = 0xb) */
     fn_04185e(g_dat_53de4);                                             /* 0x000391fd-0x0003920a */
 
     uint8_t namebuf[0x10];                                              /* [EBP-0x134] */
@@ -24284,7 +24340,7 @@ void fn_038f3d(int32_t variant)
                                 INT 09 handler / keyboard pump between frames (cf. fn_038cde) */
         if (variant == 1 && (int32_t)g_dat_63e38 / 0x1ea > g_dat_53c48) {  /* 0x00039a1a-0x00039a4c */
             g_dat_63e38 = 0;                                             /* signed IDIV: the remainder is dropped */
-            fn_10b1d();
+            fn_10b1d(11);                                              /* 0x00039a4c (orig EAX = 0xb) */
         }
     }
 
@@ -24886,8 +24942,8 @@ int32_t fn_039c03(void)
                 if (f[2] == 0) {
                     uint32_t track = g_tab_52da4[*(const uint32_t *)(g_dat_63354 + 0x40)
                                                 + ((int32_t)g_dat_63370 - 1) * 0x28 / 4];
-                    (void)track;                                       /* fn_010b1d ignores it here */
-                    fn_10b1d();                                        /* 0x00039e8c */
+
+                    fn_10b1d(track);                                       /* 0x00039e8c: EAX = the room track */
                 } else {
                     fn_00010dde();                                     /* 0x00039e69: stop the CD */
                 }
@@ -25002,8 +25058,8 @@ void fn_03d244(uint8_t *node)
     fn_03ed6f();                                                     /* 0x0003d3ac */
     fn_03801b(g_dat_633b0);                                          /* 0x0003d3b1-b6 */
     uint32_t track = g_tab_52da4[col + rowb];                        /* 0x0003d3bb-d1 */
-    (void)track;                                                     /* fn_010b1d reads no argument here */
-    fn_10b1d();                                                      /* 0x0003d3d7 */
+
+    fn_10b1d(track);                                                   /* 0x0003d3d7: EAX = the room track */
     fn_040660(g_dat_63354 + 0x48, 0x32);                             /* 0x0003d3dc-e9 */
 
     g_dat_63358 = g_dat_63354;                                       /* 0x0003d3ee-f3 */
@@ -25764,7 +25820,7 @@ room_start:                                                            /* LAB_00
     slide = 0;
     if (fn_03f15f() == 1) {                                            /* 0x03b066 */
         if (g_tab_52f2c[g_dat_63370] != 0) {                           /* 0x03b072 */
-            fn_10b1d();   /* track 11 in EAX; the flat-model read is inert */                                            /* 0x03b08e: CD track 11 */
+            fn_10b1d(11);   /* track 11 in EAX */                                            /* 0x03b08e: CD track 11 */
             fn_041e20(g_dat_636b8, 0, 0x300);                          /* 0x03b09f */
             board_out(0, 0x100, g_dat_636b8);                          /* 0x03b0b3 (fn_040042) */
             do {
@@ -25830,7 +25886,7 @@ room_start:                                                            /* LAB_00
     if (g_dat_63370 == 9) {                                            /* 0x03b1d4: the game is through */
         slide = 0;
         if (g_dat_52fb4 != 0 && fn_03f15f() == 1) {
-            fn_10b1d();   /* track 12 in EAX */                                            /* 0x03b20f: CD track 12 */
+            fn_10b1d(12);   /* track 12 in EAX */                                            /* 0x03b20f: CD track 12 */
             fn_041e20(g_dat_636b8, 0, 0x300);
             board_out(0, 0x100, g_dat_636b8);
             room_end_slideshow(&slide);                                /* LAB_0003b237 */
@@ -25841,7 +25897,7 @@ room_start:                                                            /* LAB_00
     fn_0406f5(g_dat_63354 + 0x48, 0x32);                               /* 0x03b44a */
     slide = 0;
     if (g_tab_52f90[g_dat_63370] != 0 && fn_03f15f() == 1) {            /* 0x03b46b */
-        fn_10b1d();   /* track 12 in EAX */
+        fn_10b1d(12);   /* track 12 in EAX */
         fn_041e20(g_dat_636b8, 0, 0x300);
         board_out(0, 0x100, g_dat_636b8);
         room_end_slideshow(&slide);
@@ -25856,7 +25912,7 @@ room_start:                                                            /* LAB_00
 ending:                                                                /* LAB_0003b2b1 */
     slide = 0;
     if (fn_03f15f() == 1) {                                            /* 0x03b2bd */
-        fn_10b1d();   /* track 10 in EAX */                                                 /* 0x03b2d0: CD track 10 */
+        fn_10b1d(10);   /* track 10 in EAX */                                                 /* 0x03b2d0: CD track 10 */
         fn_041e20(g_dat_636b8, 0, 0x300);
         board_out(0, 0x100, g_dat_636b8);
         do {

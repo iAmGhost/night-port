@@ -218,7 +218,9 @@ int32_t  fn_034f31(uint32_t a0, uint32_t a1, uint32_t a2);  /* 0x034f31: MIDI RI
 uint64_t fn_10876(void);                        /* 0x010876: CD dir-entry read+checksum (no-op -> 0) */
 void     fn_107b9(void);                        /* 0x0107b9: CD dir-entry read (no-op) */
 void     fn_10664(void);                        /* 0x010664: CD request build + DPMI read (no-op) */
-void     fn_10b1d(void);                        /* 0x010b1d: CD track/TOC read (no-op) */
+void     fn_10b1d(uint32_t track);              /* 0x010b1d: select + start a CD-DA track (docs/57) */
+extern uint32_t g_dat_53c44;                /* DAT_00053c44: CD track start LBA (fn_010b1d) */
+extern uint32_t g_dat_53c40;                /* DAT_00053c40: CD track end LBA (fn_010b1d) */
 void     fn_010d47(void);                       /* 0x010d47: periodic CD-refresh tick (gated on g_63e38/490 > g_53c48) */
 void     fn_048e60(uint32_t *p);                /* 0x048e60: 128-bit fixed-point normalize + Newton reciprocal divide */
 void     fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out); /* 0x047f54: fixed-point normalize (EAX:EDX in, EBX out) */

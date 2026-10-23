@@ -143,6 +143,7 @@ static uint64_t          g_audio_submitted;   /* bytes handed to the SDL stream 
 static uint64_t          g_audio_drained;     /* bytes dropped because no device took them */
 static char              g_audio_dev[80] = "none";
 static int               g_audio_null_sink;
+static SDL_AudioSpec     g_audio_dst;      /* what the opened device wants (CD-DA shares it) */
 
 /* One open attempt, logged. The label names the rung of the fallback ladder. */
 static SDL_AudioDeviceID try_open(SDL_AudioDeviceID id, const SDL_AudioSpec *dst, const char *label) {
@@ -186,8 +187,74 @@ static void audio_boot(void) {
     src.format = SDL_AUDIO_S16; src.channels = 1; src.freq = 22050;
     g_astream_rate = 22050;
     g_astream = SDL_CreateAudioStream(&src, &dst);
+    /* SDL3 only plays a stream once it is bound to an open device. Without this the bytes were
+     * accepted by the stream (the counters happily grew) but nothing reached the hardware, which is
+     * why the available-byte figure climbed to ~98 KB and stopped there. */
+    if (g_astream && !SDL_BindAudioStream(g_adev, g_astream))
+        SDL_Log("audio: bind failed: %s", SDL_GetError());
+    g_audio_dst = dst;
     SDL_ResumeAudioDevice(g_adev);                            /* SDL3 devices open paused */
     SDL_Log("audio: %s at %d Hz (board samples start at %u Hz)", g_audio_dev, dst.freq, g_astream_rate);
+}
+
+/* ---- CD-DA (Red Book) playback ------------------------------------------------------------
+ * fn_010b1d (f.c) resolves a track through the disc TOC and asks for its sectors -- on DOS that is
+ * the MSCDEX media read behind fn_010570. The seam lands here. Measured on TG_NIGHT.IMG the audio
+ * sectors carry **little-endian** 16-bit signed PCM (per-channel lag-1 autocorrelation 0.982 /
+ * 0.972, while the big-endian reading of the same bytes is uncorrelated at -0.001 / +0.004), unlike
+ * Red Book's on-disc byte order, so the sector bytes go to SDL unchanged: 2352 bytes = 588 stereo
+ * frames = exactly 1/75 s. A second stream is bound to the same device, so the board's effects and
+ * the disc's music are mixed by SDL rather than by us.
+ * With no device at all the track is still consumed on the disc's own 75-sectors-per-second clock,
+ * so the counters -- and the game's refresh watchdog, which compares DAT_00063e38/490 against
+ * DAT_00053c48 (the track length in seconds) -- behave the same way. */
+static SDL_AudioStream *g_cdda_stream;
+static uint32_t  g_cdda_lba, g_cdda_sectors, g_cdda_pos;
+static uint64_t  g_cdda_bytes, g_cdda_sector_reads;
+static uint32_t  g_cdda_tracks;
+static uint64_t  g_cdda_clock, g_cdda_freq;      /* drain-model timing */
+static uint8_t   g_cdda_raw[2352];
+
+static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
+    g_cdda_tracks++;
+    g_cdda_lba = lba; g_cdda_sectors = sectors; g_cdda_pos = 0;
+    g_cdda_clock = SDL_GetPerformanceCounter();
+    if (!g_cdda_freq) g_cdda_freq = SDL_GetPerformanceFrequency();
+    if (g_adev && !g_cdda_stream && g_audio_dst.freq) {
+        SDL_AudioSpec src; SDL_zero(src);
+        src.format = SDL_AUDIO_S16; src.channels = 2; src.freq = 44100;
+        g_cdda_stream = SDL_CreateAudioStream(&src, &g_audio_dst);
+        if (g_cdda_stream && !SDL_BindAudioStream(g_adev, g_cdda_stream)) {
+            SDL_Log("cdda: bind failed: %s", SDL_GetError());
+            SDL_DestroyAudioStream(g_cdda_stream); g_cdda_stream = 0;
+        }
+    }
+    SDL_Log("cdda: track index %u lba=%u sectors=%u (%.1f s)%s", index, lba, sectors,
+            sectors / 75.0, g_cdda_stream ? "" : " (no device: counted, not played)");
+}
+
+static void cdda_stop(void) {
+    g_cdda_sectors = 0; g_cdda_pos = 0;
+    if (g_cdda_stream) SDL_FlushAudioStream(g_cdda_stream);
+}
+
+static void cdda_pump(void) {
+    if (!g_cdda_sectors) return;
+    uint32_t want = 0;
+    if (g_cdda_stream) {
+        want = sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, 30, 16);   /* ~0.4 s lead, 16-sector chunks */
+    } else {
+        uint64_t now = SDL_GetPerformanceCounter();
+        if (!g_cdda_freq) g_cdda_freq = SDL_GetPerformanceFrequency();
+        uint64_t el = (now - g_cdda_clock) * 75 / g_cdda_freq;       /* sectors of wall time */
+        g_cdda_clock += el * g_cdda_freq / 75;
+        want = sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, (uint32_t)(el ? el : 1), 16);
+    }
+    for (uint32_t i = 0; i < want; i++) {
+        if (cd_iso_read_audio(g_cdda_lba + g_cdda_pos, g_cdda_raw) != 0) { g_cdda_sectors = 0; break; }
+        if (g_cdda_stream && !SDL_PutAudioStreamData(g_cdda_stream, g_cdda_raw, 2352)) { g_cdda_sectors = 0; break; }
+        g_cdda_bytes += 2352; g_cdda_sector_reads++; g_cdda_pos++;
+    }
 }
 
 /* No host stream: drain the board's ring into a scratch buffer. The game waits on the *board* (its DMA
@@ -774,14 +841,16 @@ static void tick_pump(void) {
     if (now >= g_audio_next) {                 /* feed the sound stream on a 20 ms cadence */
         g_audio_next = now + g_perf_freq / 50;
         audio_pump();
+        cdda_pump();
     }
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
-                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u snden=%u devinit=%u plays=%u real=%lu null=%lu",
+                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), (unsigned long)g_vga_retrace_waits,
                 sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
+                (unsigned long long)g_cdda_bytes, (unsigned)g_cdda_tracks, (unsigned)g_cdda_pos,
                 (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null);
         if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
     if (getenv("NIGHT_ENTDBG")) ent_dump();
@@ -888,6 +957,7 @@ int main(int argc, char **argv) {
     sys_file_real_dir(res_dir);
     if (cd_iso_open(cue) == 0) {
         sys_cd_set_backend(cd_iso_root_header, cd_iso_root_records);
+        sys_cd_set_audio_backend(cdda_play, cdda_stop);
         SDL_Log("disc: %u tracks, %u sectors, lead-out MSF-derived", cd_iso_track_count(), cd_iso_total_sectors());
     } else {
         SDL_Log("disc: %s not readable -- the disc-present gate will ask for the CD", cue);

@@ -632,7 +632,8 @@ static void tick_pump(void) {
                 sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
                 (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null);
-        if (getenv("NIGHT_ENTDBG")) ent_dump();
+        if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
+    if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {
             FILE *fp = fopen("/tmp/heap.bin", "wb");

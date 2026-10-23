@@ -962,6 +962,7 @@ extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment blo
 #define g_tab_51c90   (g_blk_51c24 + 0x6c)          /* DS 0x51c90 gauge fill colours; +1 = DAT_00051c91 */
 #define g_tab_51c24   ((const uint32_t *)g_blk_51c24) /* DS 0x51c24: entity type -> sound-slot index */
 
+extern int g_hud_trace;   /* NIGHT_HUDDBG gauge-geometry trace */
 void fn_01348f(uint8_t *ent, uint32_t base, int32_t slot);
 void sys_key_script_clear(void);   /* reset the scripted key timeline + tick counter */
 void sys_key_script_add(uint32_t tick, uint8_t *slot, int value); /* set *slot on the Nth sys_key_spin() */

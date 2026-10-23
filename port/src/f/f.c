@@ -122,11 +122,16 @@ void hline_set(uint8_t *a, int b, int c, int d, uint32_t e, uint8_t f) {
     }
 }
 
+int g_hud_trace = 0;   /* NIGHT_HUDDBG: log the gauge panel geometry (docs/50) */
+
 /* vline_set  orig: 0x040506
  *   p = a + d*b + c; do { *p = f; p += b; e--; } while (e)
  * a = base, b = step (pitch), c = column, d = row, e = length, f = pixel
  */
 void vline_set(uint8_t *a, int b, int c, int d, int e, uint8_t f) {
+    if (g_hud_trace && d >= -2 && d <= 2)
+        printf("[vlineset] step=%d col=%d row=%d len=%d colour=%02x ra=%p\n",
+               b, c, d, e, f, (void *)__builtin_return_address(0));
     uint8_t *p = a + d * b + c;
     do {
         *p = f;
@@ -153,6 +158,9 @@ static inline void rec_ptr_set(uint8_t *rec, unsigned off, const uint8_t *v) {
  * a = base, b = column, c = row, d = width, e = height, f = pixel
  */
 void rect_fill(uint8_t *a, int b, int c, uint32_t d, int e, uint8_t f) {
+    if (g_hud_trace && c >= -2 && c <= 2)
+        printf("[rectfill] col=%d row=%d w=%u h=%d colour=%02x ra=%p\n",
+               b, c, d, e, f, (void *)__builtin_return_address(0));
     uint8_t *p = a + c * g_video_stride + b;
     int adv = g_video_stride - (int)d;
     do {
@@ -7157,7 +7165,17 @@ void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count,
     }
 }
 
-uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */uint32_t fn_040631(uint32_t param) { uint32_t v = param & 0xffff; g_dat_40010 = v; return v; }  /* 0x040631 */
+uint32_t fn_010e15(void) { return g_dat_53c60; }                       /* 0x010e15 */uint32_t fn_040631(uint32_t param) {
+    uint32_t v = param & 0xffff;
+    g_dat_40010 = v;
+    /* DAT_00040010 is ALSO the pitch the blit helpers read (fn_040024 / rect_fill 0x04052c / the poke
+     * helper use base[c*DAT_00040010 + b]). The port keeps a second name for it (g_video_stride), so
+     * this setter is the one place where the two must move together -- with the port never calling it,
+     * the pitch stayed 0 and every rect_fill collapsed onto row 0 (the health-bar gauge fill landed at
+     * the top of the screen instead of under the EXP row). */
+    g_video_stride = (int32_t)v;
+    return v;
+}   /* 0x040631 */
 uint32_t g_dat_40014 = 0, g_dat_40018 = 0, g_dat_4001c = 0, g_dat_40020 = 0;
 /* 0x0405de: store 4 16-bit values. ABI p1=EAX, p2=EDX, p3=EBX, p4=ECX. Each is
  * zero-extended (XOR EAX,EAX; MOV AX,reg) and stored to consecutive globals:
@@ -13732,6 +13750,9 @@ void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
     uint32_t gi   = *(const uint32_t *)(e + 0x0d);                /* gauge sprite index */
     int32_t  amt  = (int32_t)*(const int32_t *)(e + 0x56);
 
+    if (g_hud_trace)
+        printf("[hud] slot=%d gi=%u amt=%d a=%d b=%d q1=%d r1=%d q2=%d r2=%d scr=%p base=0x%x\n",
+               slot, gi, amt, a, b, q1, r1, q2, r2, (void *)scr, (unsigned)base);
     if (gi == 0 || amt == 0) {                                    /* 0x135dd-135ec empty panel */
         fn_03bb42(base, slot * 0xaa + 4, 3,
                   (int32_t)*(const uint32_t *)(hb + face[1] + 4u * gi),

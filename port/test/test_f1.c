@@ -5549,6 +5549,20 @@ static void test_l10_accessors(void) {
     uint32_t r = fn_040631(0xabcd1234);
     check(r == 0x1234, "  fn_040631 returns low16");
     check(g_dat_40010 == 0x1234, "  fn_040631 sets g_dat_40010");
+    check(g_video_stride == 0x1234,
+          "  fn_040631 also moves g_video_stride: DAT_00040010 IS the pitch the blit helpers use");
+    {   /* geometry proof: a 320-wide pitch puts the gauge fill on row 0x17, not row 0 */
+        static uint8_t canvas[320 * 200];
+        memset(canvas, 0, sizeof canvas);
+        int saved = g_video_stride; g_video_stride = 0x140;
+        fn_040631(0x140);
+        rect_fill(canvas, 0x1f, 0x17, 0x64, 2, 0x33);
+        check(canvas[0x17 * 0x140 + 0x1f] == 0x33 && canvas[0x17 * 0x140 + 0x1f + 99] == 0x33 &&
+              canvas[0x18 * 0x140 + 0x1f] == 0x33 && canvas[0x16 * 0x140 + 0x1f] == 0 &&
+              canvas[0x17 * 0x140 + 0x1e] == 0,
+              "  rect_fill with the real 0x140 pitch paints a 100x2 bar at (0x1f,0x17)");
+        g_video_stride = saved;
+    }
     uint8_t buf[12] = {0,1,2,3,4, 0x78,0x56,0x34,0x12, 0,0,0};
     check(fn_01520b(buf) == 0x12345678, "  fn_01520b -> *(p+5)");
     g_dat_62d64 = 0x100;

@@ -14266,6 +14266,11 @@ void fn_03a70e(void)
         for (;;) {                                                 /* 0x3a789-9f key wait */
             if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0) break;
             if (g_dat_63e89 != 0) break;                           /* loop tail: while (DAT_63e89 == 0) */
+            sys_port_spin();   /* the original spins on bytes the keyboard IRQ / pump (fn_0347e3,
+                                * gated by DAT_52ff8) update asynchronously; without the cooperative
+                                * pump here the wait can never end -- the picture show deadlocked at
+                                * its first picture (stage 8, docs/52). The release wait below already
+                                * pumps. */
         }
         if (g_dat_63e89 != 0) break;                               /* 0x3a7a1-a9 abort the whole show */
         if (idx != count) fn_04185e(g_dat_53dd8);                  /* 0x3a7ad-bf */

@@ -18,6 +18,8 @@ progression through 9 episodes is not reachable from a short scripted route.
 | 5 | **SIGSEGV** after ~926 frames | 4 (reached gameplay) | stage5.pcx |
 | 6 | plays | 4 | stage6.pcx |
 | 7 | plays | 4 | stage7.pcx |
+| 8 | **was a port deadlock**, now plays | 2 | stage8.pcx + the picture show `na80001.pcx` |
+| 9 | plays | 1 | stage9.pcx |
 | 8, 9 | not run yet (sweep loop timed out at 1200 s wall clock) | | |
 
 The per-stage record/type data is known independently from `scripts/decode_stg.py`:
@@ -97,3 +99,36 @@ latent original quirk whose consequence is host-only.
 Port deviation, marked in the code: when the link is NULL, log once and return (the inert outcome the
 original would have had). The alternative — feeding a self-reference — would invent comparison operands the
 original never had, so it was rejected.
+
+
+## Stage 8 was a missing cooperative pump in fn_03a70e (fixed, 2026-10-24)
+
+Stage 8 did not crash and was not gated by content: it **deadlocked**. A `sample` of the stalled process
+showed the main thread inside `fn_03a70e` (the picture / CG slide-show driver), whose first wait was
+
+```c
+for (;;) {                                    /* 0x0003a789-9f key wait */
+    if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0) break;
+    if (g_dat_63e89 != 0) break;
+}
+```
+
+with no `sys_port_spin()`. On DOS those bytes are updated asynchronously by the keyboard IRQ and the
+pump; in the single-threaded port nothing else runs, so the wait can never end -- the frame counter
+freezes at the first picture (`na80001.pcx` never even appeared in the resource log, which is why the
+anchored route looked like it was "waiting too long"). The key-*release* wait a few lines below already
+pumps; this one had been missed.
+
+After adding the pump, `scripts/playtest/route_show_keyed.txt` (anchored on the show's own resource
+names, then paced key presses) takes stage 8 through the show and into gameplay:
+
+```
+shot 0090 na80001.pcx    frame=2497 res=na80001.pcx entities=2
+script: anchored on res 'na80001.pcx' at t=46012ms (rebased -6000ms)
+shot 0095 episode_start  frame=4139 ... shot 0096 stage_play ... shot 0097 playing  entities=2
+```
+
+Stage 9 plays too (`episode_start` -> `stage_play` -> `playing`, 1 live entity). So all nine episodes now
+enter, render and accept control through the warp. Note the show family is `na<stage>NNNN.pcx`, a
+different asset family from the `<stage>s<N>/<stage>e<N>.pcx` cards of docs/58 -- two separate
+intermission mechanisms.

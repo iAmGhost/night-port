@@ -61,3 +61,23 @@ selector 3 is `+0x40000`.
 one pass risks leaving a half-ported engine inside an otherwise fully verified `f.c`. The staged order
 above (prologue + tables + one arm per step, each pinned by a register-file differential check as
 `docs/30` proposes) is the safe route.
+
+## Added after the first pass (arm bodies, and it is deeper than a flat switch)
+
+* **A third dispatch table exists: ROM `0x46038`, 64 entries**, indexed `(ah & 0x38) | al` and reached at
+  `0x462f7` for the `modrm >= 0xc0` path (`jmp dword ptr cs:[edx*4 + 0x36038]`). Its targets include
+  `0x46d32 / 0x46d47 / 0x46dd4 / 0x46e1c` (inside the engine), the `0x473bf..0x476fe` family, and
+  **`0x46d00` / `0x46d05`** — which are exactly the two STATUS rows previously dismissed as
+  "(spurious) data mid-code": they are table3 arm entry points, not stray data. Any future pass must treat
+  them as arms.
+* **The operand-form arm `0x464ec` is not a leaf.** It reads a byte, decodes
+  `bl = (b & 7) | ((ah >> 3) & 0x18)`, and **calls a fourth table at ROM `0x46ed8`** (`call dword ptr
+  cs:[ebx*4 + 0x35ed8]`), then post-processes: unless `(dl & 0x38) == 0x20` it computes
+  `edx = [ebp + (-(dl >> 1)) + 0x28] << (cl >> 6)` and adds it to EBX — i.e. scaled-index/SIB decoding.
+  The engine is a small interpreter chain over four tables, not one flat switch.
+* `0x46524`, the target shared by eight table2 entries, is `jmp 0x461cc`: the engine re-enters itself.
+* The frame slots the operand arms add displacements to are `[ebp+0x0c,0x10,0x14,0x18,0x1c,0x20,0x24,0x28]`
+  (eight dwords = the faulting context's base registers); `cmp ax, 0xf801` at `0x462de` is on the
+  *synthesised* `AX = (modrm << 8) | (opcode & 7)`, not on a saved register — no unknown slot needed there.
+* Assets: `scripts/extract_fpu_tables.py` now also emits `kFpuTable3` and `kFpuTable1b`
+  (all four tables in `scratch/fpu_tables.txt`).

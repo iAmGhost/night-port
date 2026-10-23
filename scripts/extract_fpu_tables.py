@@ -39,3 +39,5 @@ if __name__ == "__main__":
     emit("kFpuTable1", 0x45e78, 48, "index (b | (b>>8)) & 0x1f -> operand-form arm inside fn_0461cc")
     print()
     emit("kFpuTable2", 0x45f38, 64, "index b & 0x3f -> arithmetic arm inside fn_0461cc")
+    emit("kFpuTable3", 0x46038, 64, "index (ah & 0x38) | al for the modrm >= 0xc0 path (0x462f7)")
+    emit("kFpuTable1b", 0x46ed8, 64, "nested table called by the compound operand arm at 0x464ec (0x464ff)")

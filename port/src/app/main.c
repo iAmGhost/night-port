@@ -590,7 +590,8 @@ static void input_pump(void) {
 static void ent_dump(void) {
     int n = 0;
     for (uint32_t i = 0; i < 0x65; i++) if (g_dat_53818[i]) n++;
-    SDL_Log("ent: count=%d tables loaded=%d", (int)g_dat_53c68, n);
+    SDL_Log("ent: count=%d tables loaded=%d cameraX=%d cameraY=%d playerBlock=%p",
+            (int)g_dat_53c68, n, (int)g_dat_639dc, (int)g_dat_639e0, (void *)g_dat_53c7c);
     uint8_t *e = g_dat_53c70;
     for (int k = 0; k < 8 && e; k++) {
         uint32_t act = 0, off = 0;
@@ -601,11 +602,13 @@ static void ent_dump(void) {
         int sty = -1;
         for (uint32_t i = 0; i < 0x65; i++)
             if (g_dat_639ec[i] && memcmp(g_dat_639ec[i] + 0x38, e + 0x127, 4) == 0) { sty = (int)i; break; }
-        int16_t x = 0, y = 0;
-        memcpy(&x, e + 0x73, 2); memcpy(&y, e + 0x75, 2);
-        SDL_Log("  ent[%d] block=%p type(act-match)=%d type(spr-match)=%d pos=%d,%d sprfields=%08x %08x %08x",
-                k, (void *)e, ty, sty, x, y, *(uint32_t *)(e + 0x127), *(uint32_t *)(e + 0x12b),
-                *(uint32_t *)(e + 0x12f));
+        uint32_t x = 0, y = 0, st = 0, face = 0;
+        memcpy(&x, e + 0x01, 4); memcpy(&y, e + 0x09, 4);      /* world x/y (see fn_011827) */
+        memcpy(&st, e + 0x17, 4); memcpy(&face, e + 0x1b, 4);
+        SDL_Log("  ent[%d] block=%p type(act)=%d type(spr)=%d world=%u,%u state=0x%x face=%u isPlayer=%d "
+                "sprfields=%08x %08x %08x",
+                k, (void *)e, ty, sty, x, y, st, face, e == g_dat_53c7c,
+                *(uint32_t *)(e + 0x127), *(uint32_t *)(e + 0x12b), *(uint32_t *)(e + 0x12f));
         e = *(uint8_t **)(e + 0x13f);
     }
 }

@@ -13909,7 +13909,7 @@ static void test_fn_037b03(void) {
     { uint8_t *s = img + of[2]; *(uint32_t *)(s) = 2;   /* stage1.stg: kind 5 then kind 1 */
       s[4] = 5; *(uint32_t *)(s+5)  = 0x111; *(uint32_t *)(s+9)  = 0x555;
       *(uint32_t *)(s+13) = 0x999; *(uint32_t *)(s+0x11) = 0xddd;
-      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 32; }  /* kind 1 -> load entity type 32 now */
+      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 31; }  /* kind 1 -> entity type 31 = ena-1 (image table: 31 is the first ena entry) */
     for (uint32_t e = 0; e < 0x65u; e++) {              /* night1.chr: 101 type entries */
         uint8_t *c = img + of[3] + 2 + e * 116u;   /* fn_036853(name,2,0) re-seeks to offset+2: a 2-byte header */
         *(uint16_t *)(c + 0) = (uint16_t)(0x100u + e);  c[2] = (uint8_t)(0x20 + e);
@@ -13966,10 +13966,14 @@ fn_037b03(0);
           && *(uint32_t *)(recbuf + 0x08) == 0xddd && *(uint32_t *)(recbuf + 0x0c) == 0x555
           && *(uint32_t *)(recbuf + 0x10) == 0,
           "  kind-5 record fields land in the DAT_5d0b4 array (stride 0x14, dword 4 zeroed)");
-    check(g_dat_639ec[32] != 0 && *(uint32_t *)g_dat_639ec[32] == 0,
-          "  kind-1 record: ena-1.spr loaded as the type-32 sprite struct");
-    check(g_dat_53818[32] != 0 && *(uint32_t *)((uint8_t *)g_heap_base + g_dat_53818[32]) == 0,
-          "  kind-1 record: ena-1.act loaded as the type-32 action table (heap offset)");
+    /* The image's per-type name tables put the FIRST ena entry at type 31 (the family blocks are
+     * {gun, X-1, X-2, X-3[, X-4], gun, ...} with gun at each block head), so a kind-1 record of type
+     * 31 must load ena-1.spr/.act into slot 31 and leave slot 32 (ena-2) untouched. */
+    check(g_dat_639ec[31] != 0 && *(uint32_t *)g_dat_639ec[31] == 0 && g_dat_639ec[32] == 0,
+          "  kind-1 record: ena-1.spr loaded as the type-31 sprite struct (slot 32 = ena-2 stays empty)");
+    check(g_dat_53818[31] != 0 && *(uint32_t *)((uint8_t *)g_heap_base + g_dat_53818[31]) == 0 &&
+          g_dat_53818[32] == 0,
+          "  kind-1 record: ena-1.act loaded as the type-31 action table (heap offset)");
     const uint8_t *t0 = g_dat_53e9c, *t40 = g_dat_53e9c + 40u * 0x88u;
     check(*(const uint16_t *)(t0 + 0x00) == 0x100 && *(const uint32_t *)(t0 + 0x04) == 0x20
           && *(const uint16_t *)(t0 + 0x80) == 0x900 && *(const uint16_t *)(t0 + 0x84) == 0xa00,
@@ -14136,6 +14140,21 @@ static void test_fn_011827(void) {
     free(sprfa); free(src);
 }
 
+/* fn_037347 / fn_0374ad walk EVERY per-type slot 1..0x103 and free what they find, so a slot still
+ * holding an offset from another test's arena makes those teardowns fault. Quarantine the whole pair of
+ * arrays around the fixture (snapshot + clear, restore afterwards). */
+static uint8_t *g_slot_spr_save[0x104];
+static uint32_t g_slot_act_save[0x104];
+static void stage_slots_quarantine(void) {
+    for (int i = 0; i < 0x104; i++) {
+        g_slot_spr_save[i] = g_dat_639ec[i]; g_slot_act_save[i] = g_dat_53818[i];
+        g_dat_639ec[i] = 0; g_dat_53818[i] = 0;
+    }
+}
+static void stage_slots_restore(void) {
+    for (int i = 0; i < 0x104; i++) { g_dat_639ec[i] = g_slot_spr_save[i]; g_dat_53818[i] = g_slot_act_save[i]; }
+}
+
 static void test_fn_037347(void) {
     printf("fn_037347 (0x037347): stage data teardown (free only)\n");
 
@@ -14163,7 +14182,7 @@ static void test_fn_037347(void) {
       *(uint32_t *)(w + 30 + 200 + 768) = 0; }
     { uint8_t *s = img + of[2]; *(uint32_t *)(s) = 2;
       s[4] = 5; *(uint32_t *)(s+5) = 0x111;
-      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 32; }
+      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 31; }   /* type 31 = ena-1 in the image name tables */
 
     static uint8_t pool[0x53800];
     memset(pool, 0, sizeof pool);
@@ -14193,14 +14212,15 @@ static void test_fn_037347(void) {
     uint32_t s_52c = g_tab_52c3c[0]; g_tab_52c3c[0] = 0x5a5;   /* room serial 0 of stage 1 */
     cfg[0x30] = 0x11; cfg[5] = 0x22; cfg[0x11] = 0x33; cfg[0x17] = 0x44;
 
+    stage_slots_quarantine();
     cache_reset();
 fn_037b03(0);                                    /* populate the stage */
 
-    uint8_t *spr32_old = g_dat_639ec[32];
-    uint32_t  act32_old = g_dat_53818[32];
+    uint8_t *spr32_old = g_dat_639ec[31];
+    uint32_t  act32_old = g_dat_53818[31];
     uint8_t *room_old = g_dat_6334c;
     check(spr32_old != 0 && act32_old != 0 && room_old != 0,
-          "  preconditions: type 32 and the room chain are loaded");
+          "  preconditions: type 31 and the room chain are loaded");
     uint32_t junk = heap_malloc(0x3c); g_dat_639ec[7] = hb + junk;
     uint32_t orphan = heap_malloc(8); g_dat_53818[9] = orphan; g_dat_639ec[9] = 0;
     g_dat_53c88 = 5;
@@ -14208,7 +14228,7 @@ fn_037b03(0);                                    /* populate the stage */
 
     fn_037347();
 
-    check(g_dat_639ec[32] == NULL && g_dat_53818[32] == 0,
+    check(g_dat_639ec[31] == NULL && g_dat_53818[31] == 0,
           "  the per-type sprite struct and its action table are both cleared");
     check(g_dat_639ec[7] == NULL, "  an unused type slot is cleared too");
     check(g_dat_53818[9] == orphan,
@@ -14225,6 +14245,7 @@ fn_037b03(0);                                    /* populate the stage */
     g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
     g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
     g_dat_633b0 = saved_b0;
+    stage_slots_restore();
     free(img);
     cache_restore();
 
@@ -14256,7 +14277,7 @@ static void test_fn_0374ad(void) {
       *(uint32_t *)(w + 30 + 200 + 768) = 0; }
     { uint8_t *s = img + of[2]; *(uint32_t *)(s) = 2;
       s[4] = 5; *(uint32_t *)(s+5) = 0x111;
-      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 32; }
+      s[4 + 81] = 1; *(uint32_t *)(s + 4 + 82) = 31; }   /* type 31 = ena-1 in the image name tables */
 
     static uint8_t pool[0x53800];
     memset(pool, 0, sizeof pool);
@@ -14286,12 +14307,13 @@ static void test_fn_0374ad(void) {
     uint32_t s_52c = g_tab_52c3c[0]; g_tab_52c3c[0] = 0x5a5;   /* room serial 0 of stage 1 */
     cfg[0x30] = 0x11; cfg[5] = 0x22; cfg[0x11] = 0x33; cfg[0x17] = 0x44;
 
+    stage_slots_quarantine();
     cache_reset();
 fn_037b03(0);                                    /* populate the stage */
-    uint8_t *spr32_old = g_dat_639ec[32];
-    uint32_t  act32_old = g_dat_53818[32];
+    uint8_t *spr32_old = g_dat_639ec[31];
+    uint32_t  act32_old = g_dat_53818[31];
     uint8_t *room_old = g_dat_6334c;
-    check(spr32_old != 0 && act32_old != 0 && room_old != 0, "  preconditions: type 32 and the room chain are loaded");
+    check(spr32_old != 0 && act32_old != 0 && room_old != 0, "  preconditions: type 31 and the room chain are loaded");
     /* a slot the stage set never loads, to watch the teardown clear it */
     uint32_t junk = heap_malloc(0x3c); g_dat_639ec[7] = hb + junk;
     /* the documented leak: an action table with no sprite slot is never freed */
@@ -14303,9 +14325,9 @@ fn_037b03(0);                                    /* populate the stage */
     check(g_dat_53818[9] == orphan,
           "  latent quirk kept: an .act with an empty .spr slot is neither freed nor cleared");
     (void)spr32_old; (void)act32_old; (void)room_old;   /* the arena reuses the freed offsets, so block identity proves nothing */
-    check(g_dat_639ec[32] != 0 && *(uint32_t *)g_dat_639ec[32] == 0,
-          "  type 32 was torn down and re-loaded (slot non-zero again, parsed empty)");
-    check(g_dat_53818[32] != 0 && *(uint32_t *)(hb + g_dat_53818[32]) == 0,
+    check(g_dat_639ec[31] != 0 && *(uint32_t *)g_dat_639ec[31] == 0,
+          "  type 31 was torn down and re-loaded (slot non-zero again, parsed empty)");
+    check(g_dat_53818[31] != 0 && *(uint32_t *)(hb + g_dat_53818[31]) == 0,
           "  its action table was torn down and re-loaded");
     check(g_dat_6334c != 0 && g_dat_63354 == g_dat_6334c
           && *(uint32_t *)(g_dat_6334c + 0x12) == 0x11223344u,
@@ -14322,6 +14344,7 @@ fn_037b03(0);                                    /* populate the stage */
     g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
     g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
     g_dat_633b0 = saved_b0;
+    stage_slots_restore();   /* the teardown/reload owns only slots it loaded itself */
     sys_file_image_set(0, 0);
     free(recbuf); free(img); free(cfg);
     heap_arena_init(); (void)heap_malloc(0x400);
@@ -17183,6 +17206,27 @@ static void test_device_bringup(void) {
  * value through video_map(), which clamped it to the video-window base and blitted nothing but stale data
  * (measured: the back buffer matched the .wal index map at only chance level, 0.004). Verified against the
  * same arithmetic the room path uses (DAT_000639dc = first node worldX_left, source pitch = node+0x1a). */
+/* The DS image-constant tables the port initialises from NIGHT.EXE (docs/49). These were silent
+ * zero stubs, which put the player on world Y 0 (invisible behind the HUD) and left the timed-event
+ * and ship tables empty. Pinned straight from the image bytes. */
+static void test_ds_constant_tables(void) {
+    printf("DS image-constant tables (52c3c / 52738 / 53200 / 52ffc)\n");
+    check(g_tab_52c3c[0] == 172 && g_tab_52c3c[9] == 172,
+          "  DAT_52c3c: stage 1 walk-line Y = 172 for every room serial");
+    check(g_tab_52c3c[21] == 162 && g_tab_52c3c[24] == 162 && g_tab_52c3c[40] == 160,
+          "  DAT_52c3c: the raised-platform rooms carry 162 / 160");
+    check(g_tab_52c3c[89] != 0 && g_tab_52c3c[90] == 0,
+          "  DAT_52c3c: 90 entries (9 stages x 10); the image bytes past that are another variable");
+    check(g_tab_52738[0] == 100 && g_tab_52738[1] == 200 && g_tab_52738[4] == 500 &&
+          g_tab_52738[5] == 0x3f000000u,
+          "  DAT_52738: 100..500 then the IEEE-float half (0x3f000000 = 0.5f)");
+    check(g_tab_52738[255] == 1000, "  DAT_52738: the whole 256-dword span is initialised");
+    check(g_tab_53200[0] == 229 && g_tab_53200[1] == 235 && g_tab_53200[60] == 1086,
+          "  DAT_53200: the timed-event tick table runs 229 .. 1086 over 61 dwords");
+    check(g_tab_52ffc[0] == 1 && g_tab_52ffc[1] == 2 && g_tab_52ffc[2] == 2 && g_tab_52ffc[64] == 0xa0000u,
+          "  DAT_52ffc: the 65-dword kind/threshold table");
+}
+
 /* The 0x3DA retrace-wait model (docs/47): with no pump installed the wait must stay the timing-free
  * stub every other ported test was written against; with a pump it must actually cost a retrace
  * interval each call and run the pump while waiting (that is what makes the logo, the slideshows and
@@ -17539,6 +17583,7 @@ int main(void) {
       check(fn_0350aa(a,b3)==-1, "  fn_0350aa 1st diff -> -1"); }
     printf("== batch 1 (L0 primitives) ==\n");
     test_put_px();
+    test_ds_constant_tables();   /* first: later tests write these tables */
     test_cpy_back();
     test_cpy_dw();
     test_blt_rows();

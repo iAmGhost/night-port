@@ -4611,28 +4611,30 @@ void fn_037306(void) {
  *    dereferenced (record node) / stored (sprite struct) by the original.
  */
 static const char *const kTypeSprNames[0x65] = {
-    "gun.spr","boss1.spr","boss2.spr","boss3-1.spr","boss3-2.spr","boss3-3.spr","boss4.spr","boss5.spr","boss6.spr","boss7.spr",
-    "gun.spr","mboss1-1.spr","mboss1-2.spr","mboss2.spr","mboss3.spr","mboss4.spr","mboss5.spr","mboss6.spr","gun.spr","gun.spr",
-    "gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr",
-    "ena-1.spr","ena-2.spr","ena-3.spr","gun.spr","gun.spr","enb-1.spr","enb-2.spr","enb-3.spr","enb-4.spr","gun.spr",
-    "enc-1.spr","enc-2.spr","enc-3.spr","gun.spr","gun.spr","end-1.spr","end-2.spr","end-3.spr","end-4.spr","gun.spr",
-    "ene-1.spr","ene-2.spr","ene-3.spr","ene-4.spr","gun.spr","enf-1.spr","enf-2.spr","enf-3.spr","gun.spr","gun.spr",
-    "eng-1.spr","eng-2.spr","eng-3.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr",
-    "enh-1.spr","enh-2.spr","enh-3.spr","gun.spr","gun.spr","eni-1.spr","eni-2.spr","eni-3.spr","eni-4.spr","gun.spr",
-    "enj-1.spr","enj-2.spr","enj-3.spr","enj-4.spr","gun.spr","enk-1.spr","enk-2.spr","enk-3.spr","gun.spr","gun.spr",
-    "enl-1.spr","enl-2.spr","enl-3.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr","gun.spr"
+    "gun.spr", "boss1.spr", "boss2.spr", "boss3-1.spr", "boss3-2.spr", "boss3-3.spr", "boss4.spr", "boss5.spr", "boss6.spr", "boss7.spr",
+    "gun.spr", "mboss1-1.spr", "mboss1-2.spr", "mboss2.spr", "mboss3.spr", "mboss4.spr", "mboss5.spr", "mboss6.spr", "gun.spr", "gun.spr",
+    "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr",
+    "gun.spr", "ena-1.spr", "ena-2.spr", "ena-3.spr", "gun.spr", "gun.spr", "enb-1.spr", "enb-2.spr", "enb-3.spr", "enb-4.spr",
+    "gun.spr", "enc-1.spr", "enc-2.spr", "enc-3.spr", "gun.spr", "gun.spr", "end-1.spr", "end-2.spr", "end-3.spr", "end-4.spr",
+    "gun.spr", "ene-1.spr", "ene-2.spr", "ene-3.spr", "ene-4.spr", "gun.spr", "enf-1.spr", "enf-2.spr", "enf-3.spr", "gun.spr",
+    "gun.spr", "eng-1.spr", "eng-2.spr", "eng-3.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr",
+    "gun.spr", "enh-1.spr", "enh-2.spr", "enh-3.spr", "gun.spr", "gun.spr", "eni-1.spr", "eni-2.spr", "eni-3.spr", "eni-4.spr",
+    "gun.spr", "enj-1.spr", "enj-2.spr", "enj-3.spr", "enj-4.spr", "gun.spr", "enk-1.spr", "enk-2.spr", "enk-3.spr", "gun.spr",
+    "gun.spr", "enl-1.spr", "enl-2.spr", "enl-3.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr", "gun.spr",
+    "gun.spr"
 };
 static const char *const kTypeActNames[0x65] = {
-    "gun.act","boss1.act","boss2.act","boss3-1.act","boss3-2.act","boss3-3.act","boss4.act","boss5.act","boss6.act","boss7.act",
-    "gun.act","mboss1-1.act","mboss1-2.act","mboss2.act","mboss3.act","mboss4.act","mboss5.act","mboss6.act","gun.act","gun.act",
-    "gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act",
-    "ena-1.act","ena-2.act","ena-3.act","gun.act","gun.act","enb-1.act","enb-2.act","enb-3.act","enb-4.act","gun.act",
-    "enc-1.act","enc-2.act","enc-3.act","gun.act","gun.act","end-1.act","end-2.act","end-3.act","end-4.act","gun.act",
-    "ene-1.act","ene-2.act","ene-3.act","ene-4.act","gun.act","enf-1.act","enf-2.act","enf-3.act","enf-4.act","gun.act",
-    "eng-1.act","eng-2.act","eng-3.act","eng-4.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act",
-    "enh-1.act","enh-2.act","enh-3.act","enh-4.act","gun.act","eni-1.act","eni-2.act","eni-3.act","eni-4.act","gun.act",
-    "enj-1.act","enj-2.act","enj-3.act","enj-4.act","gun.act","enk-1.act","enk-2.act","enk-3.act","enk-4.act","gun.act",
-    "enl-1.act","enl-2.act","enl-3.act","enl-4.act","gun.act","gun.act","gun.act","gun.act","gun.act","gun.act"
+    "gun.act", "boss1.act", "boss2.act", "boss3-1.act", "boss3-2.act", "boss3-3.act", "boss4.act", "boss5.act", "boss6.act", "boss7.act",
+    "gun.act", "mboss1-1.act", "mboss1-2.act", "mboss2.act", "mboss3.act", "mboss4.act", "mboss5.act", "mboss6.act", "gun.act", "gun.act",
+    "gun.act", "gun.act", "gun.act", "gun.act", "gun.act", "gun.act", "gun.act", "gun.act", "gun.act", "gun.act",
+    "gun.act", "ena-1.act", "ena-2.act", "ena-3.act", "gun.act", "gun.act", "enb-1.act", "enb-2.act", "enb-3.act", "enb-4.act",
+    "gun.act", "enc-1.act", "enc-2.act", "enc-3.act", "gun.act", "gun.act", "end-1.act", "end-2.act", "end-3.act", "end-4.act",
+    "gun.act", "ene-1.act", "ene-2.act", "ene-3.act", "ene-4.act", "gun.act", "enf-1.act", "enf-2.act", "enf-3.act", "enf-4.act",
+    "gun.act", "eng-1.act", "eng-2.act", "eng-3.act", "eng-4.act", "gun.act", "gun.act", "gun.act", "gun.act", "gun.act",
+    "gun.act", "enh-1.act", "enh-2.act", "enh-3.act", "enh-4.act", "gun.act", "eni-1.act", "eni-2.act", "eni-3.act", "eni-4.act",
+    "gun.act", "enj-1.act", "enj-2.act", "enj-3.act", "enj-4.act", "gun.act", "enk-1.act", "enk-2.act", "enk-3.act", "enk-4.act",
+    "gun.act", "enl-1.act", "enl-2.act", "enl-3.act", "enl-4.act", "gun.act", "gun.act", "gun.act", "gun.act", "gun.act",
+    "gun.act"
 };
 
 uint8_t *g_dat_6334c = NULL;   /* DAT_0006334c: room-chain head (the first stage node) */
@@ -4745,7 +4747,17 @@ stage_records:
  */
 uint32_t g_dat_63398 = 0;                    /* DAT_00063398: room orientation byte (room node +0x11) */
 uint32_t g_tab_52a1c[0x4ec/4];  /* DAT_00052a1c: kill quota per room, 10 dwords/stage by room serial; no producer in the EXE */
-uint32_t g_tab_52c3c[0x104] = {0};           /* DAT_00052c3c: 10 dwords per stage, indexed by the room serial */
+uint32_t g_tab_52c3c[0x104] = {
+    0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000ac, 0x000000a2, 0x000000ac, 0x000000ac, 0x000000a2, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000a0, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
+    0x000000ac, 0x000000ac, 0x000000a0, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac
+};   /* DAT_00052c3c: 10 dwords per stage (90 used), the walk-line Y the player and the room-edge spawns place entities on. Image constant, DS 0x52c3c (extract_ds.py); the image bytes past index 89 belong to the next variable, so the remaining slots stay 0. Values: 172 everywhere except 162/160 for the raised platforms. */           /* DAT_00052c3c: 10 dwords per stage, indexed by the room serial */
 /* DAT_0005274c: FLOAT table, 10 floats (40 B) per stage, indexed by the room serial.
  * Effective address = 0x5274c + serial*4 + (DAT_00063370-1)*0x28 (0x03d75c 0x3d854-6f).
  * Bounded above by the next known global DAT_00052c3c: 0x52c3c-0x5274c = 0x4f0 = 316 floats.
@@ -4880,7 +4892,34 @@ void fn_0374ad(void)
  *    link pair (see fn_010efc).
  */
 uintptr_t g_dat_53c84 = 0;                   /* DAT_00053c84: the player entity (second slot); widened to a pointer-width integer */
-uint32_t g_tab_52738[0x100] = {0};           /* DAT_00052738: per-ship dword table, indexed by entity +0x28 */
+uint32_t g_tab_52738[0x100] = {
+    0x00000064, 0x000000c8, 0x0000012c, 0x00000190, 0x000001f4, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000,
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x00000000, 0x00000000, 0x3f000000, 0x3f000000,
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000,
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000,
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x00000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000,
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x00000000, 0x3f000000, 0x3f000000,
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x00000000, 0x3f000000, 0x00000000, 0x3f000000, 0x3f000000,
+    0x00000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000,
+    0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x00000000, 0x3f000000, 0x00000000, 0x00000000, 0x00000000,
+    0x3f000000, 0x00000000, 0x3f000000, 0x3f000000, 0x3f000000, 0x00000009, 0x00000009, 0x00000009, 0x00000005, 0x00000009,
+    0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000005, 0x00000009,
+    0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009,
+    0x00000009, 0x00000005, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000005, 0x00000009, 0x00000009, 0x00000009,
+    0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009,
+    0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000005, 0x00000009,
+    0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000005, 0x00000009, 0x00000009,
+    0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009,
+    0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009, 0x00000009,
+    0x00000009, 0x00000009, 0x00000005, 0x00000009, 0x00000009, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8,
+    0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x00000019, 0x000003e8, 0x000003e8, 0x000003e8,
+    0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x00000004, 0x00000019, 0x0000000a, 0x00000004,
+    0x0000000c, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x0000000f, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8,
+    0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8,
+    0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8,
+    0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8,
+    0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8, 0x000003e8
+};   /* DAT_00052738: per-ship dword table, indexed by entity +0x28. Image constant, DS 0x52738 (whole 0x400-byte span initialised; the first five are distances, the rest mix ints and IEEE floats such as 0x3f800000 = 1.0f). */           /* DAT_00052738: per-ship dword table, indexed by entity +0x28 */
 
 void fn_0376c8(void)
 {
@@ -7757,7 +7796,15 @@ void fn_040839(uint8_t *cursor)
     }
 }
 
-uint32_t g_tab_53200[0x3d] = {0};   /* 0x53200: timed-event tick table (61 dwords, ends exactly at DAT_532f4) */
+uint32_t g_tab_53200[0x3d] = {
+    0x000000e5, 0x000000eb, 0x000000f2, 0x00000102, 0x00000108, 0x0000010c, 0x0000010f, 0x00000111, 0x0000011c, 0x00000121,
+    0x00000128, 0x0000012a, 0x0000012b, 0x00000132, 0x00000137, 0x00000139, 0x0000013b, 0x00000145, 0x000001de, 0x000001e2,
+    0x000001ea, 0x000001ef, 0x000001f3, 0x000001fc, 0x00000201, 0x00000205, 0x00000208, 0x00000209, 0x00000213, 0x00000215,
+    0x00000224, 0x00000225, 0x000002a7, 0x000002ad, 0x000002b4, 0x000002c0, 0x000002cd, 0x000002d0, 0x000002ed, 0x000002f2,
+    0x000002f5, 0x000002fc, 0x00000302, 0x000003ba, 0x000003c5, 0x000003ca, 0x000003cf, 0x000003d2, 0x000003d5, 0x000003dc,
+    0x000003e1, 0x000003e6, 0x000003e9, 0x000003f9, 0x00000404, 0x0000040b, 0x0000040f, 0x00000418, 0x0000041e, 0x0000043d,
+    0x0000043e
+};   /* 0x53200: timed-event tick table (61 dwords, ends exactly at DAT_532f4). Image constant, DS 0x53200. */   /* 0x53200: timed-event tick table (61 dwords, ends exactly at DAT_532f4) */
 uint8_t  g_tab_532f4[0x44] = {0};   /* 0x532f4: DAT_53d0c sound-slot indices, 68 bytes */
 uint8_t  g_dat_63ec1 = 0;           /* 0x63ec1: key-pressed byte */
 uint8_t  g_dat_63ea4 = 0;           /* 0x63ea4: second key byte */
@@ -25097,7 +25144,15 @@ void fn_03e20f(uint8_t *rec)
 
 /* DAT_00052ffc..DAT_00053100 (DS): walk/step deltas indexed by (frame % 4) * 3 + gun-slot byte.
  * Filled by the stage data load; no EXE producer writes it directly. */
-uint32_t g_tab_52ffc[0x41] = {0};
+uint32_t g_tab_52ffc[0x41] = {
+    0x00000001, 0x00000002, 0x00000002, 0x00000001, 0x00000001, 0x00000002, 0x00000001, 0x00000002, 0x00000001, 0x00000001,
+    0x00000001, 0x00000001, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+    0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x1d663800, 0x00646950,
+    0x00000000, 0x0000006c, 0x2a4d6739, 0x68004800, 0x002c0000, 0x00000000, 0x1d663800, 0x00646950, 0x00000000, 0x0000004b,
+    0x2a4d6739, 0x68004800, 0x002c0000, 0x00000000, 0x00000320, 0x00000001, 0x00000064, 0x00000064, 0x0000007f, 0x0000007f,
+    0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f,
+    0x0000007f, 0x0000007f, 0x0000007f, 0x0000007f, 0x000a0000
+};   /* DAT_00052ffc: 65 dwords (small 1/2 kind values, then thresholds; last entry 0x000a0000). Image constant, DS 0x52ffc. */
 uint32_t g_dat_62d58 = 0;   /* DAT_00062d58: the state id of the action currently being chained */
 uint32_t g_dat_6339c = 0;   /* DAT_0006339c: forced-transition countdown (500 -> state 0x28) */
 uint8_t  g_dat_63eb4 = 0;   /* DAT_00063eb4: key byte, the "dash/attack" key latch */

@@ -1072,6 +1072,7 @@ extern uint32_t g_dat_63fac;   /* DAT_00063fac: 24-bit DMA address byte-sent to 
 extern uint32_t g_dat_63f8c;   /* DAT_00063f8c: transfer-armed flag (0xffff) */
 void fn_040839(uint8_t *cursor);   /* 0x040839: device command-stream walker: [kind][24-bit len][payload]; kind 0 end / 1 fn_04097e / 2 fn_040b83 / other skip */
 extern unsigned long g_play_calls;
+extern uint32_t g_res_view_flag;    /* instrumentation: the view geometry in force at that lookup */
 extern char g_res_trace[24];          /* last resource name handed to fn_0367c9 (host instrumentation) */
 extern uint32_t g_res_trace_seq;      /* counter of those lookups */
 extern unsigned long g_play_real;

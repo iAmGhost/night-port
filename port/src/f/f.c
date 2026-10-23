@@ -2428,11 +2428,13 @@ int32_t fn_036626(const char *s) {
 /* Host instrumentation, NOT part of the original: the resource name most recently handed to
  * fn_0367c9 and a counter of those lookups. The SDL host names its playtest screenshots from this
  * (docs/46-playtest-harness.md); it changes no game behaviour. */
+uint32_t g_res_view_flag;      /* instrumentation: g_view_320x200 as seen by the last lookup */
 char g_res_trace[24];
 uint32_t g_res_trace_seq;
 
 int32_t fn_0367c9(const char *a0) {
     if (a0) { snprintf(g_res_trace, sizeof g_res_trace, "%s", a0); g_res_trace_seq++; }   /* instrumentation */
+    g_res_view_flag = g_view_320x200;      /* instrumentation: the view geometry in force at the lookup */
     int32_t len = (int32_t)str_len(a0);
     for (uint32_t i = 0; i < g_dat_633a0; i++) {
         const uint8_t *e = g_tab_5d884 + i * 21;
@@ -13354,7 +13356,23 @@ void fn_011827(uint8_t *src, int32_t dx, int32_t arg_ebx, int32_t dy, uint32_t s
  * The frame-wait spin cannot be exited in a unit test (nothing raises DAT_00063e40 there), so the
  * tests cover the tag, the MOVsx count, the entry zeroing and the key-cut return.
  */
+/* Presentation: the CG player's image ops (fn_03fa3b / fn_03fb73 / fn_03fb0e) address the screen with a
+ * 0x140 pitch over 64000 bytes -- a 320x200 frame -- while the still-image loaders (fn_03628e,
+ * fn_03f3be window slides) cover 307200 bytes (640x480). The host's view flag therefore has to follow the
+ * player for the duration of the movie, or a 320-pitch frame is read back with a 640 pitch and shears
+ * into the "artifact" the playtest report describes (docs/53). */
+static uint32_t fn_03f6bc_impl(const char *name);
+
 uint32_t fn_03f6bc(const char *name)
+{
+    uint32_t view_save = g_view_320x200;
+    g_view_320x200 = 1;
+    uint32_t r = fn_03f6bc_impl(name);
+    g_view_320x200 = view_save;
+    return r;
+}
+
+static uint32_t fn_03f6bc_impl(const char *name)
 {
     (void)canary_id(0, 0x1b8);                                                /* 0x3f6bc-c1 */
     uint8_t hdr[0x80];                                                        /* [ebp-0x1a0] */

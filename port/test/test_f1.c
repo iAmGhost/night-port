@@ -2571,6 +2571,18 @@ static void test_fn_038a20_038ae0(void) {
     fn_038ae0();
     check(g_dat_531f4 == 0xa0000, "the opening step restores the 640x480 mode after the .fli player");
 
+    /* The CG player's image ops address a 320-pitch, 64000-byte frame, so the host view must be
+     * 320x200 for the whole movie: a 320-pitch frame read back with a 640 pitch shears into the
+     * "intro video artifact" (docs/53). Pinned from both sides: the flag is 1 inside the player (as
+     * observed by the resource lookup it performs) and restored to its prior value afterwards. */
+    uint32_t view_s = g_view_320x200;
+    g_view_320x200 = 0;
+    g_res_view_flag = 0xaa;
+    fn_03f6bc("opening.fli");
+    check(g_res_view_flag == 1, "the CG player runs with the 320x200 view (the movie frame is 320-pitch x 64000 B)");
+    check(g_view_320x200 == 0, "the CG player restores the caller's view geometry");
+    g_view_320x200 = view_s;
+
     g_dat_531f4 = s_f4; g_dat_633a0 = s_3a0;
     memcpy(g_dat_633b8, s_tab, sizeof s_tab);
 }

@@ -73,7 +73,7 @@ Regression test: `test_fn_03fb73` T3 (three packets in one row: copy 2, skip 1 +
 asserts the writes chain — `[0..1]`, `[3..5]`, `[6..7]` — instead of stacking on `[0..]`.
 2810 checks ALL PASS.
 
-## What is left for the intro: 320x200 movie vs the 640x480 presentation
+## Closed: the 320x200 movie had to drive the host view, and the presented frames now match the reference
 
 The decode target `g_dat_51a0c` (= the port's video arena) is written with a **320-byte pitch**, and the
 screenshots taken during the movie are **640x480**, so the picture the harness shows is the 320-pitch
@@ -92,6 +92,30 @@ Constraints found while looking for the mode switch:
   the frame-pitch global `DAT_00040010` (`fn_040631`) are the two candidates, together with the port's
   `g_view_320x200` view flag (set today only by the room-frame flip `fn_038098`).
 
-Next step: find who scales/doubles the 320x200 movie buffer into the visible 640x480 frame (or, if the
-original really runs a 320x200 VGA mode through a path the port models as a no-op, that path) and make
-the host presenter use the same geometry, then re-run the ffmpeg comparison at matched frame indices.
+Resolution: the game has no second mode set, and every CG image op addresses a **320-pitch, 64000-byte**
+frame, while the still-image loaders cover 307200 bytes (640x480). So the *view* is per-step, and the
+port's host-side view flag (`g_view_320x200`, set today only by the room-frame flip `fn_038098`) simply
+was never raised for the movie: a 320-pitch frame was read back with a 640 pitch and sheared into speckle.
+`fn_03f6bc` now brackets the play with the 320x200 view (saving/restoring the caller's value).
+
+Measured afterwards -- the port's presented `.fli` screenshots against ffmpeg's reference frames, 80x50
+luma, best-matching reference index per shot:
+
+```
+0008_fli.bmp  best ref # 39  L1= 2.00
+0009_fli.bmp  best ref # 57  L1= 2.00
+0010_fli.bmp  best ref # 68  L1= 1.51
+0012_fli.bmp  best ref # 98  L1= 1.45
+```
+
+`L1 ≈ 1.5-2.0` is the floor an *identical* pair produces here (the same value the known-matching pairs
+give), and the matched indices advance through the movie, so the intro now tracks the reference frame by
+frame. Montage: `docs/manual-playtest/02-shots/05-fli_port_vs_ffmpeg.png` (port x4 | ffmpeg x4).
+
+Regression pins added: `fn_03f6bc` runs with `g_view_320x200 == 1` (observed by the resource lookup it
+performs, via the new `g_res_view_flag` instrumentation) and restores the caller's value afterwards; plus
+the `fn_03fb73` packet-chain test from the fix above. 2812 checks ALL PASS.
+
+Remaining for this task: the logo half of the contract still wants the *original's* logo frame from
+DOSBox (the port side is compared against the extracted `logo.pcx` and the fade profile today) -- that is
+the `docs/46` capture one-liner, which needs an interactive terminal.

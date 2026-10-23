@@ -55,3 +55,29 @@ assets are not loaded -- the screen visibly changes over the frames above).
 
 As for every other screen, the matching frame from the original is still blocked on the DOSBox capture path
 (docs/46).
+
+### Where the trace hook actually sits (re-checked after the commit above)
+
+`fn_038f3d` does call both hooked loaders, unconditionally for the card:
+
+```c
+uint32_t o_lvl = heap_malloc(0x3c), o_n1 = heap_malloc(0x3c), o_n2 = heap_malloc(0x3c);
+if (o_lvl != 0) lvl  = fn_03d8d4((uint32_t *)(hb + o_lvl), "levelup.spr");   /* f.c:24184 */
+if (o_n1  != 0) num1 = fn_03d8d4(..., "number1.spr");
+if (o_n2  != 0) num2 = fn_03d8d4(..., "number2.spr");
+uint32_t o_pcx = heap_malloc(0xfa00);
+fn_036190((variant == 0) ? "levelup.pcx" : "levelup2.pcx", hb + o_pcx);      /* f.c:24189 */
+...
+} else {
+    fn_035f1b("help1.pcx", 0);                                              /* f.c:24196, what the log shows */
+```
+
+so the missing names narrow to two possibilities, and the run does not yet separate them: (a) the three
+`heap_malloc(0x3c)` calls returned 0 (heap pressure at that point), which skips the `.spr` loads outright --
+and the same would be true on the original; or (b) `sys_res_notify` at those entries updates the trace name
+but the harness's automatic screenshot / resource-log line is driven by `fn_0367c9`'s lookup path, so the
+hook announces without producing a shot. `help1.pcx` reaches the log through `fn_035f1b`, which does go via
+`fn_0367c9`. The decisive next probe is one line: print at the entry of `fn_036190` and at the
+`heap_malloc` results in `fn_038f3d` -- that names which of (a) or (b) it is, and it is deliberately left as
+the next step rather than guessed at here.
+

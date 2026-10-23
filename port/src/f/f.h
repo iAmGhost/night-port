@@ -46,6 +46,13 @@ void rect_fill(uint8_t *a, int b, int c, uint32_t d, int e, uint8_t f);
 
 /* outb(0x3C8, a); REP OUTSB: 3*b bytes of c -> port 0x3C9     orig: 0x040042 */
 void board_out(uint8_t a, int b, const uint8_t *c);
+extern uint32_t g_board_out_pushes;         /* DAC palette pushes seen (diagnostics) */
+extern uint32_t g_board_out_bytes;
+extern const uint8_t *g_board_out_lastbuf;  /* the buffer the last push read */
+extern uint8_t g_board_out_hdr[16];
+#define BOC_TRACE_N 24
+extern uintptr_t g_board_out_ra[BOC_TRACE_N];
+extern uint32_t g_board_out_ra_n[BOC_TRACE_N];         /* its first 16 bytes
 /* outb(0x3C7, a); REP INSB:  3*b bytes from port 0x3C9 -> c   orig: 0x040061 */
 void board_in(uint8_t a, int b, uint8_t *c);
 

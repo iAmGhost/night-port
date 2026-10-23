@@ -74,6 +74,16 @@ static uint32_t dac_writes;
 static uint8_t  dac_index;      /* the 0x3C8 write index */
 static uint8_t  dac_phase;      /* 0=R, 1=G, 2=B within the current entry */
 
+/* A single palette register programmed directly (VBE INT 10h AX=4F09 style), as opposed to the
+ * legacy 0x3C8/0x3C9 stream. Both end up in the same DAC table. */
+void sys_vga_palette_set(uint16_t index, uint8_t r, uint8_t g, uint8_t b) {
+    if (index >= 256) return;
+    dac_rgb[index * 3u] = r; dac_rgb[index * 3u + 1] = g; dac_rgb[index * 3u + 2] = b;
+    uint8_t mx = r > g ? r : g; if (b > mx) mx = b;
+    if (mx > dac_max) dac_max = mx;
+    dac_writes += 3;
+}
+
 void sys_vga_palette(uint8_t *out768) { if (out768) memcpy(out768, dac_rgb, 768); }
 uint8_t sys_vga_dac_max(void) { return dac_max; }
 
@@ -117,8 +127,12 @@ void    sys_dev_cmd_hook(sys_dev_cmd_fn fn) { dev_hook = fn; }
 uint32_t sys_dev_cmds(uint16_t port)  { return port < PORT_MAX ? dev_cmds[port] : 0; }
 uint8_t  sys_dev_last_cmd(uint16_t port) { return port < PORT_MAX ? dev_last[port] : 0; }
 
+static uint32_t out_hist[PORT_MAX];
+uint32_t sys_outb_count(uint16_t port) { return port < PORT_MAX ? out_hist[port] : 0; }
+
 void sys_outb(uint16_t port, uint8_t v) {
     if (port < PORT_MAX) {
+        out_hist[port]++;
         port_val[port] = v;
         uint8_t *hb;
         if (port == 0x3c9) {

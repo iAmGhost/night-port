@@ -85,20 +85,36 @@ static int ensure_mode(void) {
 
 /* The DAC holds 6-bit values (measured: the game never writes a byte above 63), so scale them the way a
  * VGA DAC does when turning them into 8-bit RGB. */
+/* The game keeps its own palette table (DAT_00062d60 / g_pal) and the reference renders in the test
+ * harness use it directly, so the host must read it as-is. The old version copied the DAC mirror over
+ * g_pal and rescaled it in place, which both washed the picture out and mutated the table the game
+ * itself fades through. */
+static uint8_t g_palette8[768];
+static int  g_pal_src = 0;           /* 0 = the DAC mirror, 1 = the game's own staging table DAT_633b8 */
 static void palette_rgba(void) {
-    sys_vga_palette(g_pal);
+    if (g_pal_src == 1) memcpy(g_palette8, g_dat_633b8, 768);
+    else if (g_pal_src == 2)
+        for (int i = 0; i < 256; i++) {          /* the VBE palette cache DAT_63e50 (colour << shift) */
+            uint32_t v = g_dat_63e50[i] >> (g_dat_63e4c & 0x1f);
+            g_palette8[i*3] = (uint8_t)v; g_palette8[i*3+1] = (uint8_t)(v >> 8); g_palette8[i*3+2] = (uint8_t)(v >> 16);
+        }
+    else if (g_pal_src == 3)
+        for (int i = 0; i < 256; i++) {
+            uint32_t v = g_dat_63e50[i];
+            g_palette8[i*3] = (uint8_t)v; g_palette8[i*3+1] = (uint8_t)(v >> 8); g_palette8[i*3+2] = (uint8_t)(v >> 16);
+        }
+    else                sys_vga_palette(g_palette8);          /* the DAC mirror: what the game last programmed into 0x3c8/0x3c9 */
     if (sys_vga_dac_max() <= 63)                       /* 6-bit DAC values: scale the way a DAC does */
-        for (int i = 0; i < 768; i++) g_pal[i] = (uint8_t)((g_pal[i] << 2) | (g_pal[i] >> 4));
+        for (int i = 0; i < 768; i++) g_palette8[i] = (uint8_t)((g_palette8[i] << 2) | (g_palette8[i] >> 4));
 }
-
 static void present(void) {
     if (ensure_mode() != 0) return;
     palette_rgba();
     const uint8_t *src = g_video_ram;                       /* indexed pixels, linear in the arena */
     for (int i = 0; i < g_vid_w * g_vid_h; i++) {
         uint8_t idx = src[i];
-        g_pixels[i] = (0xffu << 24) | ((uint32_t)g_pal[idx * 3] << 16) |
-                      ((uint32_t)g_pal[idx * 3 + 1] << 8) | (uint32_t)g_pal[idx * 3 + 2];
+        g_pixels[i] = (0xffu << 24) | ((uint32_t)g_palette8[idx * 3] << 16) |
+                      ((uint32_t)g_palette8[idx * 3 + 1] << 8) | (uint32_t)g_palette8[idx * 3 + 2];
     }
     SDL_UpdateTexture(g_tex, NULL, g_pixels, g_vid_w * 4);
     SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255);
@@ -130,14 +146,15 @@ static void autokey(void) {
 
 static void dump_frame(int n) {
     if (!g_dump_dir) return;
+    SDL_CreateDirectory(g_dump_dir);          /* so --dump to a fresh path works */
     int W = g_vid_w ? g_vid_w : sys_video_w(), H = g_vid_h ? g_vid_h : sys_video_h();
     palette_rgba();
     uint8_t seen[256]; memset(seen, 0, sizeof seen);
     for (int i = 0; i < W * H; i++) seen[g_video_ram[i]] = 1;
     int ndx = 0, lit = 0, dac_max = 0, dac_gt63 = 0;
     for (int i = 0; i < 256; i++) if (seen[i]) ndx++;
-    for (int i = 0; i < 768; i++) { if (g_pal[i] > dac_max) dac_max = g_pal[i]; if (g_pal[i] > 63) dac_gt63++; }
-    for (int i = 0; i < 768; i += 3) if (g_pal[i] | g_pal[i + 1] | g_pal[i + 2]) lit++;
+    for (int i = 0; i < 768; i++) { if (g_palette8[i] > dac_max) dac_max = g_palette8[i]; if (g_palette8[i] > 63) dac_gt63++; }
+    for (int i = 0; i < 768; i += 3) if (g_palette8[i] | g_palette8[i + 1] | g_palette8[i + 2]) lit++;
     SDL_Log("frame %d: %dx%d colours=%d  dac lit=%d  dac writes=%u  "
             "PIT0=%u Hz tick=%u DAT_63e40=%u DAT_633a0=%u stage=%u W=%u pitch=%u  "
             "room=%p entities=%d list=%p dacmax=%d dacle64=%d",
@@ -145,6 +162,47 @@ static void dump_frame(int n) {
             sys_pit_hz(0), g_dat_63e24, g_dat_63e40, g_dat_633a0, g_dat_63370,
             g_dat_531f4, g_dat_63e64, (void *)g_dat_6334c, (int)g_dat_53c68, (void *)g_dat_53c70,
             dac_max, dac_gt63);
+    {
+        char pb[512]; int po = 0;
+        SDL_Log("board_out pushes=%u bytes=%u buf=%p hdr=%u/%u/%u %u/%u/%u %u/%u/%u",
+                g_board_out_pushes, g_board_out_bytes, (void *)g_board_out_lastbuf,
+                g_board_out_hdr[0],g_board_out_hdr[1],g_board_out_hdr[2], g_board_out_hdr[3],g_board_out_hdr[4],g_board_out_hdr[5],
+                g_board_out_hdr[6],g_board_out_hdr[7],g_board_out_hdr[8]);
+        for (int k = 0; k < BOC_TRACE_N; k++)
+            if (g_board_out_ra[k])
+                SDL_Log("  board_out caller +%#lx x%u", (unsigned long)(g_board_out_ra[k] - (uintptr_t)(void *)board_out), g_board_out_ra_n[k]);
+        SDL_Log("DAT_63e50[0..5] shift=%u: %08x %08x %08x %08x %08x %08x", g_dat_63e4c,
+                g_dat_63e50[0],g_dat_63e50[1],g_dat_63e50[2],g_dat_63e50[3],g_dat_63e50[4],g_dat_63e50[5]);
+        SDL_Log("staging DAT_633b8[0..9]: %u/%u/%u %u/%u/%u %u/%u/%u %u/%u/%u %u/%u/%u",
+                g_dat_633b8[0],g_dat_633b8[1],g_dat_633b8[2], g_dat_633b8[3],g_dat_633b8[4],g_dat_633b8[5],
+                g_dat_633b8[6],g_dat_633b8[7],g_dat_633b8[8], g_dat_633b8[9],g_dat_633b8[10],g_dat_633b8[11],
+                g_dat_633b8[12],g_dat_633b8[13],g_dat_633b8[14]);
+        for (int i = 0; i < 10; i++)
+            po += snprintf(pb + po, sizeof pb - po, "%u/%u/%u ", g_palette8[i*3], g_palette8[i*3+1], g_palette8[i*3+2]);
+        SDL_Log("dac palette[0..9]: %s", pb);
+        {
+            int dark = 0, mid = 0, hi = 0, white = 0;
+            for (int i = 0; i < 256; i++) {
+                int mx = g_palette8[i*3], mn = g_palette8[i*3];
+                for (int k = 1; k < 3; k++) { if (g_palette8[i*3+k] > mx) mx = g_palette8[i*3+k]; if (g_palette8[i*3+k] < mn) mn = g_palette8[i*3+k]; }
+                if (mx < 32) dark++; else if (mx < 96) mid++; else if (mx < 192) hi++; else white++;
+                (void)mn;
+            }
+            SDL_Log("palette buckets dark<32=%d mid<96=%d hi<192=%d white=%d ; [100..103]: %u/%u/%u %u/%u/%u %u/%u/%u %u/%u/%u  ; idx writes=%u data writes=%u",
+                    dark, mid, hi, white,
+                    g_palette8[300],g_palette8[301],g_palette8[302], g_palette8[303],g_palette8[304],g_palette8[305],
+                    g_palette8[306],g_palette8[307],g_palette8[308], g_palette8[309],g_palette8[310],g_palette8[311],
+                    sys_outb_count(0x3c8), sys_outb_count(0x3c9));
+        }
+        {
+            int idx[6] = { 0x3c6, 0x3c8, 0x3c9, 0x20, 0x21, 0x61 };
+            char ob[256]; int oo = 0;
+            for (int k = 0; k < 6; k++) oo += snprintf(ob + oo, sizeof ob - oo, "%03x=%u ", idx[k], sys_outb_count((uint16_t)idx[k]));
+            /* top-6 written ports overall */
+            for (int rep = 0; rep < 0; rep++);
+            SDL_Log("outb counts: %s", ob);
+        }
+    }
     char path[512];
     snprintf(path, sizeof path, "%s/frame%05d.bmp", g_dump_dir, n);
     SDL_Surface *s = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGBA8888);
@@ -152,12 +210,18 @@ static void dump_frame(int n) {
     uint8_t *dst = (uint8_t *)s->pixels;
     for (int i = 0; i < W * H; i++) {
         uint8_t idx = g_video_ram[i];
-        dst[i * 4 + 0] = g_pal[idx * 3];
-        dst[i * 4 + 1] = g_pal[idx * 3 + 1];
-        dst[i * 4 + 2] = g_pal[idx * 3 + 2];
+        dst[i * 4 + 0] = g_palette8[idx * 3];
+        dst[i * 4 + 1] = g_palette8[idx * 3 + 1];
+        dst[i * 4 + 2] = g_palette8[idx * 3 + 2];
         dst[i * 4 + 3] = 255;
     }
     SDL_SaveBMP(s, path);
+    {   /* raw side dump: the palette mirror and the first 64000 bytes of the screen, for offline diffing */
+        char rp[540]; snprintf(rp, sizeof rp, "%s/pal%05d.bin", g_dump_dir, n);
+        FILE *fp = fopen(rp, "wb"); if (fp) { fwrite(g_palette8, 1, 768, fp); fclose(fp); }
+        snprintf(rp, sizeof rp, "%s/vid%05d.bin", g_dump_dir, n);
+        fp = fopen(rp, "wb"); if (fp) { fwrite(g_video_ram, 1, 307200, fp); fclose(fp); }
+    }
     SDL_DestroySurface(s);
     /* The 320x200 view: the game's own screens and its RLE picture loader are 320 wide (pitch 0x140,
      * 0xfa00 bytes), so this is the view that shows what the loaders actually painted. */
@@ -167,8 +231,8 @@ static void dump_frame(int n) {
         uint8_t *d2 = (uint8_t *)s2->pixels;
         for (int i = 0; i < 320 * 200; i++) {
             uint8_t idx = g_video_ram[i];
-            d2[i * 4 + 0] = g_pal[idx * 3]; d2[i * 4 + 1] = g_pal[idx * 3 + 1];
-            d2[i * 4 + 2] = g_pal[idx * 3 + 2]; d2[i * 4 + 3] = 255;
+            d2[i * 4 + 0] = g_palette8[idx * 3]; d2[i * 4 + 1] = g_palette8[idx * 3 + 1];
+            d2[i * 4 + 2] = g_palette8[idx * 3 + 2]; d2[i * 4 + 3] = 255;
         }
         SDL_SaveBMP(s2, path);
         SDL_DestroySurface(s2);
@@ -282,6 +346,11 @@ int main(int argc, char **argv) {
     char cue[1024];
     snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", res_dir);
 
+    if (getenv("NIGHT_PAL")) {
+        if (!strcmp(getenv("NIGHT_PAL"), "staging")) g_pal_src = 1;
+        else if (!strcmp(getenv("NIGHT_PAL"), "cache")) g_pal_src = 2;
+        else if (!strcmp(getenv("NIGHT_PAL"), "cacheraw")) g_pal_src = 3;
+    }
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
     g_win = SDL_CreateWindow("NIGHT", 640 * 2, 480 * 2, 0);
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;

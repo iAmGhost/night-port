@@ -131,7 +131,28 @@ void rect_fill(uint8_t *a, int b, int c, uint32_t d, int e, uint8_t f) {
  *   outb(0x3C8, a); REP OUTSB: 3*b bytes of c -> port 0x3C9
  * a = control byte, b = n, c = buffer
  */
+/* DAC push diagnostics: the app uses these to find out which buffer the palette stream actually
+ * comes from (the title/slide palette question, docs/33). */
+uint32_t       g_board_out_pushes;
+uint32_t       g_board_out_bytes;
+const uint8_t *g_board_out_lastbuf;
+uint8_t        g_board_out_hdr[16];
+#define BOC_TRACE_N 24
+uintptr_t      g_board_out_ra[BOC_TRACE_N];   /* distinct board_out call sites */
+uint32_t       g_board_out_ra_n[BOC_TRACE_N];
 void board_out(uint8_t a, int b, const uint8_t *c) {
+    g_board_out_pushes++; g_board_out_bytes += (uint32_t)(b * 3);
+    {   /* who asked for the palette: image-relative return address, for the palette-source question */
+        void *ra = __builtin_return_address(0);
+        for (int i = 0; i < BOC_TRACE_N; i++)
+            if (g_board_out_ra[i] == (uintptr_t)ra) { g_board_out_ra_n[i]++; goto seen; }
+        for (int i = 0; i < BOC_TRACE_N; i++)
+            if (g_board_out_ra[i] == 0) { g_board_out_ra[i] = (uintptr_t)ra; g_board_out_ra_n[i] = 1; break; }
+        seen: ;
+    }
+    g_board_out_lastbuf = c;
+    int hn = b * 3 < 16 ? b * 3 : 16;              /* never read past what the push actually sends */
+    for (int i = 0; i < 16; i++) g_board_out_hdr[i] = (c && i < hn) ? c[i] : 0;
     sys_outb(0x3c8, a);
     int n = b * 3;
     while (n != 0) {
@@ -502,9 +523,11 @@ static void palette_set(uint32_t index, uint32_t color)
     uint32_t v = color << (g_dat_63e4c & 0x1f);          /* 0x3f3f8 */
     if (v != g_dat_63e50[index]) {                       /* 0x3f3fa-fc */
         g_dat_63e50[index] = v;                          /* 0x3f3fe */
-        /* INT 0x10 AX=0x4F05 (EBX=bank index, EDX=frame): VBE Set Win A/B Position. */
-        /* No-op in the flat model: the port has one 64 KiB A0000 window, so switching the
-         * 640x480 frame buffer's banks has no effect yet (open item for the SDL backend). */
+        /* INT 0x10 AX=0x4F09: VBE Set Palette Register. The flat model has no VBIOS, but the palette
+         * this writes IS observable, so it programs the sys DAC model: `color` is the packed RGB dword
+         * as the original passes it (little-endian: byte0 = R, then G, then B). Deviation: the port
+         * applies the value un-shifted; the cache slot keeps the shifted form the original stores. */
+        sys_vga_palette_set((uint16_t)index, (uint8_t)color, (uint8_t)(color >> 8), (uint8_t)(color >> 16));
     }
 }
 void fn_03f3be(uint32_t color) { palette_set(g_dat_63e5c, color); }

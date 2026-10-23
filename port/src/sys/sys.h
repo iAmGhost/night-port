@@ -148,7 +148,9 @@ extern uint16_t sys_vesa_set_mode_ah;       /* 0 = mode set ok, 1 = error */
  * 768-byte RGB table with sys_vga_palette(); sys_vga_palette_dirty() counts DAC writes so a backend
  * can decide when to re-upload. */
 void     sys_vga_palette(uint8_t *out768);
+void     sys_vga_palette_set(uint16_t index, uint8_t r, uint8_t g, uint8_t b);
 uint32_t sys_vga_palette_writes(void);
+uint32_t sys_outb_count(uint16_t port);    /* how many writes a given port has seen (diagnostics) */
 uint8_t  sys_vga_dac_max(void);           /* largest DAC byte written: <=63 means 6-bit addressing */
 void     sys_vga_palette_reset(void);
 

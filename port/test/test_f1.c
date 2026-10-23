@@ -3507,6 +3507,26 @@ static void test_fn_03f3be(void) {
     check(g_dat_63e50[0] == before, "  0x3f3be: unchanged value is a no-op");
     fn_03f410(0x12);           // twin, index 63e58=1 -> cache[1]=0x1200
     check(g_dat_63e50[1] == 0x1200, "  0x3f410: uses 63e58 index");
+    /* The INT 10h call this replaces is a palette-register write, so the packed colour is observable:
+     * byte0 = R, then G, then B (little-endian RGB dword). */
+    uint8_t pal0[768], pal1[768];
+    sys_vga_palette(pal0);
+    g_dat_63e50[2] = 0xffffffffu; g_dat_63e5c = 2;
+    fn_03f3be(0x00214408u);
+    sys_vga_palette(pal1);
+    check(pal1[6] == 0x08 && pal1[7] == 0x44 && pal1[8] == 0x21,
+          "  0x3f3be: the packed colour programs the DAC model at the addressed register (R,G,B)");
+    check(memcmp(pal1, pal0, 6) == 0 && memcmp(pal1 + 9, pal0 + 9, sizeof pal0 - 9) == 0,
+          "  0x3f3be: no other register moves");
+    /* The legacy stream path has to land in the same table: board_out(start, n, buf) writes 3n bytes
+     * to 0x3C9 starting at register `start`, with the DAC's own auto-index. */
+    static uint8_t pb[0x60];
+    for (int i = 0; i < 0x60; i++) pb[i] = (uint8_t)(0x100 - i);
+    board_out(200, 0x20, pb);
+    uint8_t pal2[768];
+    sys_vga_palette(pal2);
+    check(pal2[200 * 3] == pb[0] && pal2[200 * 3 + 1] == pb[1] && pal2[231 * 3 + 2] == pb[0x5f],
+          "  board_out: the 0x3C8/0x3C9 stream fills the same DAC table from the addressed register");
 }
 
 static void test_fn_1053f(void) {

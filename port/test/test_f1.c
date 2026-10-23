@@ -12821,6 +12821,32 @@ static void test_fn_03fb73(void) {
         check(g_video_ram[2]==0xAB && g_video_ram[6]==0xAB, "  T2 FILL: video[2..6]=0xAB (5)");
         check(g_video_ram[7]==0x00, "  T2 FILL: video[7] untouched");
     }
+
+    /* T3 (multi-packet row): REP MOVSB / REP STOSB advance EDI in the original, so each packet
+     * writes AFTER the previous one. The port used memcpy/memset without advancing `d`, which made
+     * every packet after the first land on the same pixels -- the speckled intro .fli (docs/53). */
+    {
+        uint8_t node[0x20]; memset(node,0,sizeof(node));
+        uint32_t node_off = heap_arena_alloc(0x40);
+        uint8_t *nb = hb + node_off;
+        int o = 0;
+        nb[o++]=0x00; nb[o++]=0x00;            /* start_row 0 */
+        nb[o++]=0x01; nb[o++]=0x00;            /* one row */
+        nb[o++]=0x03;                          /* three packets */
+        nb[o++]=0x00; nb[o++]=0x02; nb[o++]=0xAB; nb[o++]=0xCD;   /* copy 2 -> [0..1] */
+        nb[o++]=0x01; nb[o++]=0xfd; nb[o++]=0xEE;                 /* skip 1, fill 3 -> [3..5] */
+        nb[o++]=0x00; nb[o++]=0x02; nb[o++]=0x11; nb[o++]=0x22;   /* copy 2 -> [6..7] */
+        int rle = o;
+        memset(g_video_ram, 0, sizeof(g_video_ram));
+        node[0x0c]=0x41; *(uint32_t*)(node+0x08)=node_off; *(uint32_t*)(node+0x00)=node_off;
+        *(uint32_t*)(node+0x04)=(uint32_t)rle;
+        fn_03fb73(node, (uint32_t)rle);
+        check(g_video_ram[0]==0xAB && g_video_ram[1]==0xCD, "  T3 chain: first packet at [0..1]");
+        check(g_video_ram[2]==0x00 && g_video_ram[3]==0xEE && g_video_ram[5]==0xEE && g_video_ram[6]!=0xEE,
+              "  T3 chain: the fill follows the copy (skip 1 then [3..5]) instead of rewriting [0..]");
+        check(g_video_ram[6]==0x11 && g_video_ram[7]==0x22 && g_video_ram[8]==0x00,
+              "  T3 chain: the third packet follows the fill ([6..7]) -- EDI advances per packet");
+    }
 }
 
 static void test_fn_03fa3b(void) {

@@ -726,6 +726,7 @@ int main(int argc, char **argv) {
     }
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--resnames")) g_resnames = 1;
     if (getenv("NIGHT_FLIDBG")) g_fli_trace = (uint32_t)atoi(getenv("NIGHT_FLIDBG"));   /* CG op trace */
+    if (getenv("NIGHT_FLIDUMP")) { snprintf(g_fli_dump, sizeof g_fli_dump, "%s", getenv("NIGHT_FLIDUMP")); }
     if (getenv("NIGHT_RES_DIR") && *getenv("NIGHT_RES_DIR")) res_dir = getenv("NIGHT_RES_DIR");
     char cue[1024];
     snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", res_dir);

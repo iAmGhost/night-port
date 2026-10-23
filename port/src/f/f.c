@@ -5567,6 +5567,13 @@ void fn_03fb73(uint8_t *node, uint32_t size) {
     g_dat_63e7c = buf_off;
     fn_04192e((uint8_t *)(g_heap_base + buf_off), size, 1, node);  /* 0x3fba5-ad */
     const uint8_t *buf = (const uint8_t *)(g_heap_base + buf_off);
+    if (g_fli_dump) {                                    /* payload the LC decoder actually sees */
+        static uint32_t pshots;
+        char path[160];
+        snprintf(path, sizeof path, "%s/pay_%04u.bin", g_fli_dump, pshots++);
+        FILE *f = fopen(path, "wb");
+        if (f) { fwrite(buf, 1, size, f); fclose(f); }
+    }
     uint8_t *vid = g_dat_51a0c;                                    /* 0x3fbb2 EDI=[0x51a0c] */
     uint16_t start_row = *(const uint16_t *)(buf + 0);             /* 0x3fbbf LODSW */
     uint16_t row_count = *(const uint16_t *)(buf + 2);             /* 0x3fbcb LODSW */
@@ -5583,9 +5590,16 @@ void fn_03fb73(uint8_t *node, uint32_t size) {
             if ((int8_t)ctl >= 0) {                                /* 0x3fbe5 JS -> else (FILL) */
                 memcpy(d, p, ctl);                                 /* 0x3fbea MOVSB.REP (CX=ctl) */
                 p += ctl;
+                d += ctl;                      /* REP MOVSB advances EDI, so the NEXT packet starts
+                                                * after the bytes just copied. The port omitted this
+                                                * advance: every packet after the first in a row
+                                                * rewrote the same pixels -- the intro .fli artifact
+                                                * (docs/53). */
             } else {
                 uint8_t val = *p++;                                /* 0x3fbf6 LODSB */
-                memset(d, val, (size_t)((256 - ctl) & 0xff));      /* 0x3fbf7 STOSB.REP (NEG AL) */
+                uint32_t n = (uint32_t)((256 - ctl) & 0xff);
+                memset(d, val, (size_t)n);                         /* 0x3fbf7 STOSB.REP (NEG AL) */
+                d += n;                            /* REP STOSB advances EDI likewise */
             }
             bl--;                                                  /* 0x3fbec/9 DEC BL */
         }
@@ -5790,6 +5804,7 @@ void fn_03628e(const char *name, uint32_t dl) {
  * extended, so a negative count runs nothing yet still reports success. A tag mismatch consumes only
  * the header and reports 0. The loop's counter is post-incremented inside the compare (MOV EDX,[i];
  * INC [i]; CMP EDX,count; JGE out), which is the same trip count as written. */
+char g_fli_dump[128];   /* NIGHT_FLIDUMP=<dir> */
 uint32_t g_fli_trace = 0;   /* NIGHT_FLIDBG=1: log every resource-op the CG player dispatches */
 
 uint32_t fn_03f80d(res_reader *node)
@@ -5816,10 +5831,14 @@ void fn_03f885(res_reader *node) {
     uint32_t param = *(uint32_t *)(void *)hdr;                   /* 0x3f8b5-10] */
     uint16_t op    = *(uint16_t *)(void *)(hdr + 4);              /* 0x3f8b5: [ebp-0xc] */
     if (g_fli_trace) {
-        static uint32_t seen[0x100];
-        if (op < 0x100) seen[op]++;
         printf("[fli] op=%#04x payload=%u\n", op, param - 6);
-        if (g_fli_trace > 1 && op == 0x12) { /* unused placeholder */ }
+    }
+    if (g_fli_dump && (op == 0xc || op == 0xf)) {      /* NIGHT_FLIDUMP=<dir>: snapshot the index buffer */
+        static uint32_t shots;
+        char path[128];
+        snprintf(path, sizeof path, "%s/%04u_%02x.idx", g_fli_dump, shots++, op);
+        FILE *f = fopen(path, "wb");
+        if (f) { fwrite(g_dat_51a0c, 1, 64000, f); fclose(f); }
     }
     if (op >= 0xc) {                                             /* 0x3f9ba jb */
         if (op == 0xc) { fn_03fb73((uint8_t *)node, param - 6); return; }   /* 0x3f8d3 */

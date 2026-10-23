@@ -44,3 +44,54 @@ Decode a single `0x0c` block in isolation: feed the file's first such block thro
 unit test (the resource reader can wrap a memory buffer) and compare the produced 320x200 rows with the
 matching ffmpeg frame. Then re-run the montage/`fli_compare` numbers; they are the objective pass/fail
 for the `logo-intro` task's second half.
+
+## Fixed: `fn_03fb73` (op 0x0c) lost the EDI advance, so every packet after the first re-wrote the same pixels
+
+The reference chain above (op 0x04 palette + op 0x0f first frame + 687 op 0x0c deltas) reproduces
+ffmpeg's frames at **edge correlation 1.000** (luma L1 ≈ 0.3/255), so it is a valid ground truth. Feeding
+it the *same bytes the port sees* (verified: `NIGHT_FLIDUMP` payload dumps are byte-identical to the file's
+blocks) exposed the divergence, and disassembly of 0x3fbd6-0x3fc09 explains it:
+
+```
+0003fbe7  6689c1   mov cx, ax
+0003fbea  f3a4     rep movsb byte ptr es:[edi], byte ptr [esi]   ; COPY: EDI advances by CX
+...
+0003fbf4  89c1     mov ecx, eax
+0003fbf7  f3aa     rep stosb byte ptr es:[edi], al               ; FILL: EDI advances by CX
+```
+
+`rep movsb` / `rep stosb` advance the destination; the port's `memcpy` / `memset` did not advance `d`, so
+each row's second, third, … packets overwrote the first one's pixels. With the advance restored, all 88
+port snapshots of the decode buffer are **byte-identical** to the reference decode:
+
+```
+compared 88 port index-buffer snapshots against the reference decode
+mismatching snapshots (after the first): 0 []
+```
+
+Regression test: `test_fn_03fb73` T3 (three packets in one row: copy 2, skip 1 + fill 3, copy 2) now
+asserts the writes chain — `[0..1]`, `[3..5]`, `[6..7]` — instead of stacking on `[0..]`.
+2810 checks ALL PASS.
+
+## What is left for the intro: 320x200 movie vs the 640x480 presentation
+
+The decode target `g_dat_51a0c` (= the port's video arena) is written with a **320-byte pitch**, and the
+screenshots taken during the movie are **640x480**, so the picture the harness shows is the 320-pitch
+movie read back with a 640 pitch — sheared into the speckle the report calls an artifact. The decode
+itself is now provably correct, so the remaining defect is on the presentation side.
+
+Constraints found while looking for the mode switch:
+
+* the EXE contains exactly **one** VESA set-mode call, `0x3f36e` with `BX = 0x101` (640x480), inside
+  `fn_03f15f`, which the opening step calls *after* the player (the existing test pins that restore);
+* the player `fn_03f6bc` never touches the mode, and the ops it dispatches are only 0x12 (payload 201,
+  the Autodesk FLI_MINI thumbnail — correctly discarded), 0x04 (palette), 0x0f, 0x0c; there is no
+  per-frame "present" op (0x0d/`fn_0003fade` is never reached during the intro);
+* so the movie lives in a 64000-byte 320x200 work screen and must reach the 640x480 screen through the
+  scaler/blitter family — `fn_03f462` (seen blitting `(0,0,0x280,0x1e0,scratch)` for the title wipe) and
+  the frame-pitch global `DAT_00040010` (`fn_040631`) are the two candidates, together with the port's
+  `g_view_320x200` view flag (set today only by the room-frame flip `fn_038098`).
+
+Next step: find who scales/doubles the 320x200 movie buffer into the visible 640x480 frame (or, if the
+original really runs a 320x200 VGA mode through a path the port models as a no-op, that path) and make
+the host presenter use the same geometry, then re-run the ffmpeg comparison at matched frame indices.

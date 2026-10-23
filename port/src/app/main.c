@@ -581,6 +581,26 @@ static void shot_flush_pending(void) {
 
 /* Scene/resource watcher: a resource lookup is an event with a name, a large screen change without one
  * is a scene boundary, and a .fli playback gets a periodic shot so pacing is measurable. */
+/* The resource edge, factored out so nested screens are visible too. A whole screen such as the level-up
+ * picture (fn_038f3d) runs inside ONE host step -- it does not return to the frame pump until the screen
+ * exits -- so its own resource lookups (levelup2.pcx, levelup.spr, number1/2.spr) were announced but never
+ * got a frame of their own (docs/61). sys_port_spin calls the input pump from the game's own busy-waits, so
+ * pumping this edge there catches them mid-screen. Guarded, because shots_poll also runs it at the frame
+ * boundary. */
+static int g_res_edge_busy = 0;
+static void shots_resource_edge(void) {
+    if (!g_shots_dir || !g_shot_res || g_res_edge_busy) return;
+    if (g_res_trace_seq == g_pt_res_seq) return;
+    g_res_edge_busy = 1;
+    g_pt_res_seq = g_res_trace_seq;
+    g_pt_hash = 0;
+    shot_named(g_res_trace);
+    shot_queue(g_res_trace);
+    g_pt_last_scene = SDL_GetPerformanceCounter();
+    shot_flush_pending();
+    g_res_edge_busy = 0;
+}
+
 static void shots_poll(void) {
     if (!g_shots_dir) return;
     shot_flush_pending();
@@ -812,6 +832,8 @@ static void key_apply(uint8_t sc, int make) {
 static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
     pt_drive();                                                /* the playtest script's key timeline */
+    shots_resource_edge();                                     /* resource names announced inside a nested
+                                                                * screen are only visible from a spin point */
     /* A finished script means the run has produced everything it was going to: end the process normally so
      * the manifest is flushed (killing it loses the tail). */
     if (g_pt_done_ms >= 0 && pt_now_ms() - g_pt_done_ms > 2500) g_quit = 1;

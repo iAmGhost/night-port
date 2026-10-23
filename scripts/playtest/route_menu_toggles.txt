@@ -1,0 +1,24 @@
+# Setup-menu (fn_039c03, drawn from pause.spr) navigation and toggles.
+# The menu walks m 0 -> 4 -> 3 -> 2 on Down and 4 -> 0 -> 1 on Up; Left/Right toggle f[m], which is only
+# meaningful for m==3 (music: writes DAT_00053338) and m==2 (sound effects: writes DAT_00051a10 and
+# either selects the room's CD track or stops the CD). Anchored on the title card so the timeline is the
+# game clock, not wall clock (docs/56).
+0 shot boot
+120000 wait res title1.pcx
+120500 shot menu_m0
+121000 key down down
+121150 key down up
+121700 shot menu_down1
+122200 key down down
+122350 key down up
+122900 shot menu_down2
+123400 key right down
+123550 key right up
+124100 shot menu_toggled
+124600 key right down
+124750 key right up
+125300 shot menu_toggled2
+125800 key left down
+125950 key left up
+126500 shot menu_toggled_back
+127000 shot menu_late

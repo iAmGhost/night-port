@@ -845,13 +845,14 @@ static void tick_pump(void) {
     }
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
-                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu",
+                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu cdstops=%u sfx=%u",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), (unsigned long)g_vga_retrace_waits,
                 sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
                 (unsigned long long)g_cdda_bytes, (unsigned)g_cdda_tracks, (unsigned)g_cdda_pos,
-                (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null);
+                (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null,
+                (unsigned)sys_cd_audio_stop_calls(), (unsigned)g_dat_51a10);
         if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
     if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();

@@ -1,0 +1,16 @@
+# No keys at all: watch the attract flow after the title card until the setup / attract menu
+# (fn_039c03, pause.spr) appears on its own. The playtest report's "pause menu" screen is this one; the
+# earlier route reached it by waiting ~12 s on the title card rather than by pressing a key (an Enter on
+# the title card goes straight into the game instead: 1s1.pcx -> 1s2.pcx -> 1s3.pcx -> stage1.pcx).
+0 shot boot
+120000 wait res title1.pcx
+124000 shot wait_p4
+126000 shot wait_p6
+128000 shot wait_p8
+130000 shot wait_p10
+132000 shot wait_p12
+134000 shot wait_p14
+136000 shot wait_p16
+138000 shot wait_p18
+140000 shot wait_p20
+142000 shot wait_p22

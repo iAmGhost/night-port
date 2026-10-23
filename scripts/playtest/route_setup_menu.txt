@@ -1,0 +1,25 @@
+# The setup / attract menu (fn_039c03, drawn from pause.spr). One Enter on the title card leaves the
+# attract loop into this menu (the port's earlier route showed it: the menu frame differs from the title
+# card over 57.5% of pixels, mean L1 35.1, brightness 75.1 vs 45.5). From there Down walks the entry
+# index m 0 -> 4 -> 3 -> 2 and Left/Right toggle f[m]: m==3 is MUSIC (writes DAT_00053338, seen in the
+# host pump line as snden=) and m==2 is sound EFFECTS (writes DAT_00051a10, seen as sfx=, and either
+# selects the room's CD track or stops the CD -- cdstops=).
+0 shot boot
+120000 wait res title1.pcx
+120400 key enter down
+120550 key enter up
+121500 shot menu_m0
+122000 key down down
+122150 key down up
+123000 shot menu_m4
+123500 key down down
+123650 key down up
+124500 shot menu_m3
+125000 key right down
+125150 key right up
+126000 shot menu_m3_off
+127000 shot menu_m3_off_hold
+128000 key left down
+128150 key left up
+129000 shot menu_m3_on
+130000 shot menu_end

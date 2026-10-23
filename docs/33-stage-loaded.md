@@ -68,3 +68,14 @@ heap (offsets), which is what the fixed struct now expects.
 - Room-to-room progression (the transition tables `g_tab_52be0`/`g_tab_52da4` have no producer in the EXE
   — they are image data from the disc; docs/24 notes this).
 - Sound: the device command stream is modelled but silent.
+
+## Visual fidelity: what the stage dump actually shows
+
+Two character figures, a HUD frame box top-left and the room's plane structure are laid down correctly
+(`--autokey` run, `frame01200_320.bmp`), and the DAC cache confirms the game programs it with **6-bit
+values** (measured: no byte above 63 is ever written), which the host now scales to 8 bits like a real DAC.
+But the colours are wrong for the scene -- pink/green speckle over the background plane -- so the palette
+in effect is not the one belonging to this room's art, and/or the background plane indices are not being
+filled from the right stream. That is the next thing to chase, and the way to chase it is a side-by-side:
+capture the same room from the original under dosbox-staging and diff the two 320x200 frames, which will
+separate "wrong palette pushed at the wrong time" from "background plane decoded from the wrong offset".

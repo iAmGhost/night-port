@@ -82,9 +82,16 @@ static int ensure_mode(void) {
     return 0;
 }
 
+/* The DAC holds 6-bit values (measured: the game never writes a byte above 63), so scale them the way a
+ * VGA DAC does when turning them into 8-bit RGB. */
+static void palette_rgba(void) {
+    sys_vga_palette(g_pal);
+    for (int i = 0; i < 768; i++) g_pal[i] = (uint8_t)((g_pal[i] << 2) | (g_pal[i] >> 4));
+}
+
 static void present(void) {
     if (ensure_mode() != 0) return;
-    sys_vga_palette(g_pal);
+    palette_rgba();
     const uint8_t *src = g_video_ram;                       /* indexed pixels, linear in the arena */
     for (int i = 0; i < g_vid_w * g_vid_h; i++) {
         uint8_t idx = src[i];
@@ -122,17 +129,20 @@ static void autokey(void) {
 static void dump_frame(int n) {
     if (!g_dump_dir) return;
     int W = g_vid_w ? g_vid_w : sys_video_w(), H = g_vid_h ? g_vid_h : sys_video_h();
+    palette_rgba();
     uint8_t seen[256]; memset(seen, 0, sizeof seen);
     for (int i = 0; i < W * H; i++) seen[g_video_ram[i]] = 1;
-    int ndx = 0, lit = 0;
+    int ndx = 0, lit = 0, dac_max = 0, dac_gt63 = 0;
     for (int i = 0; i < 256; i++) if (seen[i]) ndx++;
+    for (int i = 0; i < 768; i++) { if (g_pal[i] > dac_max) dac_max = g_pal[i]; if (g_pal[i] > 63) dac_gt63++; }
     for (int i = 0; i < 768; i += 3) if (g_pal[i] | g_pal[i + 1] | g_pal[i + 2]) lit++;
     SDL_Log("frame %d: %dx%d colours=%d  dac lit=%d  dac writes=%u  "
             "PIT0=%u Hz tick=%u DAT_63e40=%u DAT_633a0=%u stage=%u W=%u pitch=%u  "
-            "room=%p entities=%d list=%p",
+            "room=%p entities=%d list=%p dacmax=%d dacle64=%d",
             n, W, H, ndx, lit, sys_vga_palette_writes(),
             sys_pit_hz(0), g_dat_63e24, g_dat_63e40, g_dat_633a0, g_dat_63370,
-            g_dat_531f4, g_dat_63e64, (void *)g_dat_6334c, (int)g_dat_53c68, (void *)g_dat_53c70);
+            g_dat_531f4, g_dat_63e64, (void *)g_dat_6334c, (int)g_dat_53c68, (void *)g_dat_53c70,
+            dac_max, dac_gt63);
     char path[512];
     snprintf(path, sizeof path, "%s/frame%05d.bmp", g_dump_dir, n);
     SDL_Surface *s = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGBA8888);

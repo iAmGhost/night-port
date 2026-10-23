@@ -5775,6 +5775,7 @@ void fn_036041(const char *name, uint32_t dl) {
  * (2nd arg EDX, a host buffer -- NOT 0xa0000 video); table -> g_dat_633b8 (>>2). RLE: FILL
  * (byte&0xc0==0xc0: count=byte&0x3f, value, write value count times) + literal; no 0xff-skip. */
 void fn_036190(const char *name, uint8_t *dest) {
+    if (g_menu_trace) fprintf(stderr, "fn_036190: %s\n", name);   /* the docs/61 probe */
     sys_res_notify(name);                                        /* host harness anchor (docs/56): the card loaders that read straight into a buffer are otherwise invisible to the resource log, so a screen such as the level-up picture (levelup.pcx / levelup2.pcx, fn_038f3d) leaves no trace and no automatic screenshot. */
     (void)canary_id((uintptr_t)name, 0x2c);                        /* 0x36190-95 */
     fn_0367c9(name);                                               /* 0x361b7 */
@@ -8675,6 +8676,7 @@ int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0174
     return 0;
 }
 
+int g_menu_trace = 0;   /* host-side diagnostic (NIGHT_MENUBG=1): menu/screen traces, docs/60 and docs/61 */
 static int g_dat_53c7c_null_warned;
 
 void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state machine */
@@ -24183,7 +24185,12 @@ void fn_038f3d(int32_t variant)
     if (o_lvl != 0) lvl  = fn_03d8d4((uint32_t *)(hb + o_lvl), "levelup.spr");
     if (o_n1  != 0) num1 = fn_03d8d4((uint32_t *)(hb + o_n1),  "number1.spr");
     if (o_n2  != 0) num2 = fn_03d8d4((uint32_t *)(hb + o_n2),  "number2.spr");
-    uint32_t o_pcx = heap_malloc(0xfa00);                               /* 0x000390fd-0x00039133 (fn_041af8) */
+    uint32_t o_pcx = heap_malloc(0xfa00);   /* 0x000390fd-0x00039133 (fn_041af8) */
+    if (g_menu_trace) {
+        /* the docs/61 probe: do these allocations fail, or does the loader just not announce? */
+        fprintf(stderr, "fn_038f3d allocs: lvl=%#x n1=%#x n2=%#x pcx=%#x\n",
+                o_lvl, o_n1, o_n2, o_pcx);
+    }
     fn_036190((variant == 0) ? "levelup.pcx" : "levelup2.pcx", hb + o_pcx);   /* 0x00039134-55 */
     for (int k = 0; k < 0x300; k = k + 1) g_dat_636b8[k] = 0;           /* 0x0003915a-66 fn_041e20 */
     board_out(0, 0x100, g_dat_636b8);                                   /* 0x0003916b-7f (fn_040042) */
@@ -24886,8 +24893,6 @@ void fn_012616(uint8_t *e)
  * fn_00041bdc offsets): +0x04 = per-entry columns, +0x08 = per-entry row counts, +0x34 = per-entry byte
  * offsets into the RLE stream at +0x38. Entry i uses index i+1; index 0 is the header.
  */
-int g_menu_trace = 0;          /* host-side diagnostic: set from the SDL host with NIGHT_MENUBG=1 */
-
 int32_t fn_039c03(void)
 {
     if (g_menu_trace) fprintf(stderr, "fn_039c03 enter\n");   /* host-side diagnostic */

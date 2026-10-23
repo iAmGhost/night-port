@@ -2697,6 +2697,30 @@ uint32_t heap_alloc(uint32_t region, uint32_t size) {
 }
 
 /* Free a data offset within a region.  orig: 0x042b82 */
+/* Host-side integrity probe (not part of the original): walk the region chain and each region's
+ * free/allocated block chains and report the first link that cannot be a heap offset. The port widens
+ * some record slots to 64-bit host pointers; if such a pointer is ever written into a 32-bit allocator
+ * field (or a record field that aliases one), the next allocation walks off the end of the arena, which
+ * is how the intermittent host SIGBUS looks. Enabled with g_heap_chain_dbg (host flag NIGHT_DBG=1). */
+int g_heap_chain_dbg;
+uint32_t g_heap_chain_bad;             /* the bogus offset that was found, 0 = chain clean */
+void heap_chain_check(const char *where) {
+    if (!g_heap_chain_dbg || g_heap_chain_bad) return;
+    uint32_t guard = 0;
+    for (uint32_t r = g_heap_head; r && guard++ < 64; r = B_NEXT(r)) {   /* regions link via B_NEXT */
+        if (r >= s_arena_cap) { g_heap_chain_bad = r; break; }
+        uint32_t sent = R_SENT(r), bg = 0;
+        for (uint32_t b = R_ROOT(r); b && bg++ < 200000; b = B_NEXT(b)) {
+            if (b >= s_arena_cap || (B_SIZE(b) & ~1u) >= s_arena_cap) { g_heap_chain_bad = b; break; }
+            if (b == sent) break;
+        }
+        if (g_heap_chain_bad) break;
+    }
+    if (g_heap_chain_bad)
+        fprintf(stderr, "heap chain broken at %s: bad link %#x (cap %#x, base %p)\n",
+                where, g_heap_chain_bad, s_arena_cap, (void *)g_heap_base);
+}
+
 void heap_free(uint32_t region, uint32_t data) {
     if (data == 0) return;                              /* 0x42b88 OR; 0x42b8a JZ */
     uint32_t block = data - 4;                            /* 0x42b8c/42b8e */
@@ -21688,6 +21712,7 @@ int32_t fn_03a829(void)
         else g_dat_6339c = 0;                                          /* 0x0003ab79-0x0003ab8b idle timer */
         /* 0x0003ab90-0x0003abb4: the /10 quotient is discarded, only the %10 test matters (as in fn_03d244). */
         if (g_dat_63360 % 10 == 0) fn_03d606((uint32_t)(uintptr_t)room);
+        heap_chain_check("fn_03a829");   /* host probe: name allocator-chain corruption at its source */
         if (g_dat_6336c == 1) break;                                   /* 0x0003abc0 gone for good */
         if (g_dat_6336c == 3) { g_dat_6336c = 0; return 1; }           /* 0x0003abca-0x0003abdd died */
         if (g_dat_6336c == 2) {                                        /* 0x0003ac2a-0x0003ac7b exit rect */

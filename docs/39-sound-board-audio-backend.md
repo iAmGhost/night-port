@@ -74,10 +74,16 @@ EXC_BAD_ACCESS (SIGBUS) KERN_PROTECTION_FAILURE at 0x0000000108997a30
   night 0x41170 fn_03af18
 ```
 
-Measured facts: the faulting address is ~0x5d12_8ac bytes past `g_heap_base` while the arena cap is
-`0x3000000`, i.e. a heap offset far beyond the arena was added to the base; `fn_03d606` itself never loops
-(`count = 0` in all 108 calls), and an ASan build of the same host ran to frame 3212 with no report, and an
-`-O1 -fno-inline` build did not crash in 40 s. So the fault is a wild pointer assembled from uninitialised
-recycled-heap contents, not an out-of-bounds access ASan would catch. The likely next step is to make the
-allocator poison freed blocks (and/or assert that every heap offset is `< heap_arena_cap()`) so the offending
-producer is named instead of a downstream victim.
+Measured facts, sharpened: the arena is a **64 MiB** static array while the host sets the cap to
+`0x3000000` (48 MiB), and the faulting address `0x108997a30` is base + `0x5d12_8ac` — i.e. **inside the static
+array but past the cap**, in the untouched tail whose pages were never faulted in. So the value used was a
+heap offset in the 48-64 MiB band, which is what a 32-bit field holding part of a 64-bit host pointer looks
+like: the port widens several record slots (`+0x34c`, `+0x350` -> `+0x354`, `+0x348` doubling as a video
+address) and those fields sit only 4-8 bytes from allocator bookkeeping (`B_SIZE`/`B_PREV`/`B_NEXT`).
+`fn_03d606` itself never loops (`count = 0` in all 108 calls), the ASan build ran to frame 3212 clean, and an
+`-O1 -fno-inline` build did not crash in 40 s — consistent with a corrupted allocator chain rather than a
+plain out-of-bounds access.
+Probe added: `heap_chain_check("fn_03a829")` walks the region chain and each region's block chain (bounded)
+and reports the first link or block size that cannot be a heap offset, gated by `g_heap_chain_dbg`
+(host flag `NIGHT_DBG=1`). The first run with the probe reached frame 2015 without detecting corruption and
+without crashing, so the probe now sits where the fault happens and will name the broken link when it does.

@@ -400,6 +400,7 @@ int main(int argc, char **argv) {
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
     audio_boot();
     g_dbg_03d606 = getenv("NIGHT_DBG") ? 1 : 0;
+    g_heap_chain_dbg = getenv("NIGHT_DBG") ? 1 : 0;
     g_win = SDL_CreateWindow("NIGHT", 640 * 2, 480 * 2, 0);
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;
     if (!g_ren) { SDL_Log("no renderer: %s", SDL_GetError()); return 1; }

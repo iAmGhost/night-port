@@ -138,7 +138,23 @@ own still loader uses. Three real bugs were fixed on the way:
    TSR's own segment landed; the framebuffer write did not), so each window chunk is now copied into a
    64 KB buffer reserved with `INT 21h AH=48h` at install time and written from there.
 
-Still open, and the next thing to fix: the dump currently ends at 796 bytes (header + DAC, **zero**
-framebuffer bytes) with no `C:\SNPDONE.TXT` diagnostic, so the chunk loop exits without issuing a write;
-exactly one dump happens per run, at tick 18 with the mode already 0x13 and the DAC still all zero (very
-early in boot). The header layout is v2: `NGSH`, version, mode, w, h, tick, reserved (28 B).
+Findings from the diagnosis, all reproducible with the DOS-prompt-only conf (`scratch`-adjacent
+`/tmp/snap_only.conf`: mount, `snap.com`, three `dir /s` to burn time, `exit` -- and note `exit` matters,
+because a `SIGKILL`ed DOSBox loses file tails):
+
+- The 64 KB staging allocation (`INT 21h AH=48h`) **fails** at install time on this image, so the earlier
+  revision copied 64000 bytes with `ES=0` and scribbled over low memory -- which is why every DOS call
+  after the copy misbehaved and why symptoms looked random. The TSR now checks the buffer pointer and bails
+  before touching anything, so the current build is safe to leave resident.
+- With the guard in place the probe file is created but its 4-byte record still lands as **0 bytes**:
+  inside the INT 1C handler `AH=3Ch` succeeds while `AH=40h` writes nothing, even with the payload staged at
+  an address a successful write uses (the DAC buffer) and even with `DS` restored to the TSR's own segment.
+  A later probe pass also re-created the same name, which `AH=3Ch` refuses; probes now delete first.
+- Net state: the original-side capture path boots and runs the game headlessly, and the snapper writes a
+  correct 796-byte header+DAC record, but its framebuffer record is still empty. Next experiment if this
+  is picked up again: stop doing file I/O inside the tick handler at all -- collect nothing in the ISR and
+  instead have the batch run a *foreground* dumping program (a second .COM) that reads A0000 through the
+  VESA window and writes the file, driven by a marker the TSR leaves in its own data.
+
+The header layout is v2: `NGSH`, version, mode, w, h, tick, reserved (28 B).
+The header layout is v2: `NGSH`, version, mode, w, h, tick, reserved (28 B).

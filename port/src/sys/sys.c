@@ -513,6 +513,13 @@ struct dos_time sys_gettime(void) { return sys_time; }
  * ------------------------------------------------------------------ */
 #define SYS_REALMEM 0x30000u   /* several 0x10000-byte device/DMA buffers are live at once */
 static uint8_t  g_real_mem[SYS_REALMEM];
+
+/* A DOS/DMPI program can read linear address 0 without faulting: the first megabyte stays mapped
+ * (the real-mode IVT lives there). Ported code that dereferences a null table entry therefore has to
+ * read something rather than trap, and what it reads decides whether the caller walks off into the
+ * wild. The page is zeroed, which makes "record list terminated" the outcome. */
+static uint8_t  g_linear0[64];
+uint8_t *sys_linear0(void) { return g_linear0; }
 static uint32_t g_real_mem_used;
 static uint16_t g_real_mem_sel = 0x1000;
 

@@ -2336,12 +2336,16 @@ uint32_t fn_03690b(void)
     g_dat_63e0c = spr_block("pause.spr");
 
     /* the 100 sound slots: size from the index table, buffer of size*2, then the payload */
+    int voc_loaded = 0;
     for (uint32_t i = 0; i < 100; i = i + 1) {
         int32_t size = fn_036626(kVocNames[i]);
+        if (size > 0) voc_loaded++;
         uint32_t off = heap_malloc((uint32_t)size * 2u);
         g_dat_53d0c[i] = (off == 0) ? 0 : (uint8_t *)g_heap_base + off;
         fn_0417f3(kVocNames[i], g_dat_53d0c[i]);                       /* skips the 0x1a header */
     }
+
+    if (g_dbg_03d606) fprintf(stderr, "voc slots: %d of 100 have a size in the resource index\n", voc_loaded);
 
     /* HUD / sprite tables (0x03d8d4 structs) and their action containers */
     g_dat_639c0 = spr_block("system.spr");
@@ -7712,6 +7716,12 @@ void fn_040b83(uint8_t *src, uint32_t unused_edx) {
 void fn_040839(uint8_t *cursor)
 {
     (void)canary_id((uintptr_t)cursor, 0x2c);                         /* 0x40839-3e */
+    /* DS 0x53d08 (the per-element-event command streams fn_03a829 indexes at 0x3ab4b) is zero in the
+     * image and NOTHING in NIGHT.EXE ever writes it: the only xref is that read, no instruction
+     * anywhere uses a displacement in DS 0x13c80..0x13dc0, and no code takes the address. So the
+     * shipped game really does call this with EAX = 0, and survives only because a DOS extender keeps
+     * linear 0 mapped -- the first byte it reads is the record terminator. Model that page. */
+    if (!cursor) cursor = sys_linear0();
     g_dat_63f8c = 0;                                                  /* 0x40862 */
     for (;;) {                                                        /* 0x4086c-0x408ba */
         uint32_t kind = *cursor;        cursor += 1;                  /* 0x4086f-76 (inc then read) */
@@ -7740,6 +7750,8 @@ uint8_t g_dat_63fb8 = 0;   /* DAT_00063fb8: device-command-stream started flag *
  * through the ready-gated fn_041340, then walks the stream and latches DAT_00063fb8 = 1.
  */
 unsigned long g_play_calls;      /* host diagnostic: how often the game asked to play a sample */
+unsigned long g_play_real;         /* ... entered with a non-null command stream (real sample data) */
+unsigned long g_play_null;         /* ... entered with a null one (the DS 0x53d08 table is never written) */
 void fn_04185e(uint8_t *cursor)
 {
     g_play_calls++;
@@ -7747,6 +7759,7 @@ void fn_04185e(uint8_t *cursor)
     if (g_dat_63f90 == 0) return;                                     /* 0x41879-80 */
     if (g_dat_53338 == 0) return;                                     /* 0x41884-8b */
     if (g_dat_63fb8 == 1) (void)fn_041340(0xd0);                      /* 0x41891-418a0 */
+    if (cursor) g_play_real++; else g_play_null++;   /* host measure: real command stream vs empty slot */
     fn_040839(cursor);                                                /* 0x418a8 (EAX passed through) */
     g_dat_63fb8 = 1;                                                  /* 0x418ad */
 }

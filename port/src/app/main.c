@@ -173,6 +173,21 @@ static void board_boot(void) {
 }
 
 static void audio_pump(void) {
+    /* NIGHT_PLAYVOC=<1..100>: hand one shipped sound slot to the game's own sample player once, so the
+     * .voc -> command-stream -> DSP/DMA -> SDL path is measurable with real assets. The in-game triggers
+     * for these slots are action-record opcodes (SND -> fn_0113e7, plus fn_03f6bc), which a blind key
+     * script does not reach, so this is the deterministic way to prove the backend works end to end. */
+    static int voc_done;
+    if (!voc_done && g_frames > 300 && getenv("NIGHT_PLAYVOC")) {
+        int n = atoi(getenv("NIGHT_PLAYVOC"));
+        if (n >= 1 && n <= 100 && g_dat_53d0c[n - 1]) {
+            voc_done = 1;
+            SDL_Log("playvoc: slot %d cursor=%p first bytes=%02x %02x %02x %02x",
+                    n, (void *)g_dat_53d0c[n - 1], g_dat_53d0c[n-1][0], g_dat_53d0c[n-1][1],
+                    g_dat_53d0c[n-1][2], g_dat_53d0c[n-1][3]);
+            fn_04185e(g_dat_53d0c[n - 1]);
+        }
+    }
     if (!g_adev || !g_astream) return;
     sys_audio_set_source(g_dat_63fb4);                 /* the buffer an armed DMA transfer reads */
     uint32_t rate = sys_audio_rate();
@@ -207,6 +222,18 @@ static void autokey(void) {
         g_dat_63ea4 = (uint8_t)on; g_dat_62c58[0x1c] = (uint8_t)on;
         g_autokey_last = on;
         SDL_Log("autokey: confirm %s (t=%.1fs)", on ? "down" : "up", t);
+    }
+    /* Once the stage is up, walk and swing: the element/AI sound triggers (fn_0113e7, fn_03f6bc and the
+     * action-chain sound ids) only fire from real in-game events, so a headless proof of the sample path
+     * needs gameplay, not just a menu key. The key-state array is the same surface fn_034635 maintains,
+     * and 4 is the state its state machine reads as "held". */
+    if (t > 12.0) {
+        static const uint8_t keys[] = { 0x4b, 0x4d, 0x48, 0x50, 0x1c, 0x39 };
+        static int prev_key = -1;
+        int slot = (int)(t * 2) % 6;                    /* one key per 0.5 s */
+        int held = (fmod(t, 0.5) < 0.3);
+        if (slot != prev_key) { g_dat_62c58[prev_key >= 0 ? prev_key : 0x4b] = 0; prev_key = slot; }
+        g_dat_62c58[keys[slot]] = (uint8_t)(held ? 4 : 0);
     }
 }
 
@@ -396,11 +423,11 @@ static void tick_pump(void) {
     }
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
-                "pit=%u Hz audio=%uHz pushed=%u pend=%u xfer=%u stops=%u snden=%u devinit=%u plays=%u",
+                "pit=%u Hz audio=%uHz pushed=%u pend=%u xfer=%u stops=%u snden=%u devinit=%u plays=%u real=%lu null=%lu",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
-                (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls);
+                (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null);
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {
             FILE *fp = fopen("/tmp/heap.bin", "wb");

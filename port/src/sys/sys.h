@@ -32,6 +32,7 @@ void     sys_isr_reset(void);                   /* clear vectors + bindings */
  * the port is write-only for the command and read-only for the status. A plain port array cannot model
  * that (the write latches a byte with bit 7 set, so the poll never clears), so the read side of these
  * ports is modelled separately. */
+uint8_t *sys_linear0(void);                  /* the mapped page at linear 0: what a null deref reads on DOS */
 void     sys_dev_status_set(uint16_t port, uint8_t v);   /* what inb(port) answers */
 uint8_t  sys_dev_status(uint16_t port);
 void     sys_dev_status_reset(void);

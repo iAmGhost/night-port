@@ -1065,7 +1065,9 @@ extern uint8_t *g_dat_63fb4;   /* DAT_00063fb4: device buffer, 0x10000-byte wind
 extern uint32_t g_dat_63fac;   /* DAT_00063fac: 24-bit DMA address byte-sent to the device */
 extern uint32_t g_dat_63f8c;   /* DAT_00063f8c: transfer-armed flag (0xffff) */
 void fn_040839(uint8_t *cursor);   /* 0x040839: device command-stream walker: [kind][24-bit len][payload]; kind 0 end / 1 fn_04097e / 2 fn_040b83 / other skip */
-extern unsigned long g_play_calls;   /* host diagnostic: fn_04185e entry count */
+extern unsigned long g_play_calls;
+extern unsigned long g_play_real;
+extern unsigned long g_play_null;   /* host diagnostic: fn_04185e entry count */
 extern uint8_t g_dat_53338;       /* DAT_00053338: sound/music enable byte (gates fn_04185e) */
 extern uint8_t g_dat_63fb8;       /* DAT_00063fb8: device command-stream started flag */
 void fn_04185e(uint8_t *cursor);  /* 0x04145e: start the device command stream (gated by DAT_63f90 + DAT_53338; re-entry sends cmd 0xd0 first) -- unblocks 9 pending functions */

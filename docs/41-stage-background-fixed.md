@@ -91,3 +91,15 @@ Diagnostics kept for future sessions: `dbg_pal_load`, `fn_040660` fade-target du
   `DAT_0006336c == 2` / `== 4` exit branches, `g_dat_63398 = **(room+0x34c + 0x11)`), which is the prime
   suspect now that the room loop really walks and takes exit branches. `heap_chain_check("fn_03a829")`
   reports nothing, so the corruption (if any) is in record fields, not allocator chains.
+
+### Where the two audio gates are written (handoff for the silent-audio item)
+
+* `DAT_00063f90 = 1` happens **only** at the end of the device bring-up (`fn_040d09`, `f.c:7524`,
+  the original's `0x40e70`). It is 0 in the host run, so `fn_040d09` does not reach its last step there,
+  even though `test_device_bringup` walks it end-to-end (base scan 0x220, IRQ probe, 0xf2/0xe1/0xd1, id
+  from two data reads, ISR install, 64 KB buffer, DMA address).
+* `DAT_00053338` is written **only** from the title-menu sound option inside `fn_039c03`
+  (`f.c:24655`, `g_dat_53338 = 1 - f[3]`, seeded at `f.c:24611` by `if (DAT_00053338 == 0) f[3] = 1 - ...`).
+* Therefore both conditions must be fixed for `fn_04185e` to ever be entered: start with `fn_040d09`'s
+  late steps in the host (what differs from the unit fixture), then check whether `fn_039c03`'s config
+  block runs at all in the headless autokey run.

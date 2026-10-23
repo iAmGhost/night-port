@@ -873,8 +873,26 @@ static void tick_pump(void) {
                 (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null,
                 (unsigned)sys_cd_audio_stop_calls(), (unsigned)g_dat_51a10,
                 (unsigned)g_dat_63ed0, (unsigned)g_dat_63ed3, (unsigned)g_dat_63ed5, (unsigned)g_dat_63ed8);
-        if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
+        /* Host debug warp for screens a scripted route cannot reach in the time a run lasts: the level-up
+     * (fn_038f3d, variant 1 -- the game itself calls it at 0x0003b54c right after g_dat_63370 += 1 on stage
+     * completion, guarded by pl[0x30] != 1) and the status (variant 0) / help (fn_038cde, the pause menu's
+     * entries 0 and 1 at 0x0003d2ac / 0x0003d2c1) screens. The warp calls the game's own routine, so the
+     * asset loads, the compositing and the key handling under test are the shipped ones; only the moment of
+     * entering them is host-chosen (same convention as --warp-stage, docs/52).
+     * NIGHT_SHOWSCREEN=levelup|status|help, NIGHT_SHOWSCREEN_AT=<frame>. */
+    if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
     if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
+        { static int s_shown;                                  /* the debug warp for the menu screens */
+          const char *what = getenv("NIGHT_SHOWSCREEN");
+          long at = getenv("NIGHT_SHOWSCREEN_AT") ? atol(getenv("NIGHT_SHOWSCREEN_AT")) : 4000;
+          if (what && !s_shown && (long)g_frames >= at) {
+              s_shown = 1;
+              SDL_Log("showscreen warp: %s at frame %u", what, g_frames);
+              if (!strcmp(what, "levelup"))      fn_038f3d(1);
+              else if (!strcmp(what, "status"))  fn_038f3d(0);
+              else if (!strcmp(what, "help"))    fn_038cde();
+              else SDL_Log("showscreen warp: unknown screen '%s'", what);
+          } }
     if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {

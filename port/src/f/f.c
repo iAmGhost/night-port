@@ -5775,6 +5775,7 @@ void fn_036041(const char *name, uint32_t dl) {
  * (2nd arg EDX, a host buffer -- NOT 0xa0000 video); table -> g_dat_633b8 (>>2). RLE: FILL
  * (byte&0xc0==0xc0: count=byte&0x3f, value, write value count times) + literal; no 0xff-skip. */
 void fn_036190(const char *name, uint8_t *dest) {
+    sys_res_notify(name);                                        /* host harness anchor (docs/56): the card loaders that read straight into a buffer are otherwise invisible to the resource log, so a screen such as the level-up picture (levelup.pcx / levelup2.pcx, fn_038f3d) leaves no trace and no automatic screenshot. */
     (void)canary_id((uintptr_t)name, 0x2c);                        /* 0x36190-95 */
     fn_0367c9(name);                                               /* 0x361b7 */
     fn_036853(name, 0xfffffd00, 2);                                /* 0x361c9 */
@@ -7387,6 +7388,9 @@ int32_t fn_03d9cf(uint32_t *s, const char *name)
  * s[1]..s[14] (+0x04..+0x38, leaving s[0] alone), calls fn_03d9cf, returns the block. */
 uint32_t *fn_03d8d4(uint32_t *s, const char *name)
 {
+    sys_res_notify(name);   /* host harness anchor: .spr/.act and font blocks load through here rather than
+                             * through fn_0367c9, so without this the sprite families a screen depends on
+                             * (pause.spr, levelup.spr, number1/2.spr) leave no trace in the resource log. */
     (void)canary_id((uintptr_t)s, 0x24);                     /* 0x3d8d4-8d9: guard, EAX/EDX pass */
     for (int k = 1; k <= 14; k = k + 1) s[k] = 0;             /* 0x3d8f1-976 */
     fn_03d9cf(s, name);                                      /* 0x3d97d-83 */

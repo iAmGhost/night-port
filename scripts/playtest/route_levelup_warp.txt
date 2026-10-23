@@ -1,0 +1,64 @@
+# Anchored playtest route (docs/55). `wait res NAME` parks the timeline until the game performs a resource
+# lookup whose name contains NAME, then rebases the rest of the timeline by the slippage. The leading
+# number is therefore both the expected slot and a generous timeout, gaps after an anchor are read relative
+# to that anchor, and slots must stay monotone so a later anchor can never be evaluated first. Result: the
+# same keys land in the same game states whatever the host's speed or audio state.
+0 shot boot
+20000 wait res logo.pcx
+21000 shot logo_hold
+30000 wait res opening.fli
+31000 shot opening_hold
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+130000 wait res 1s1.pcx
+130600 shot slide_1s1
+170000 wait res stage1.pcx
+171000 shot stage_card
+172000 shot episode_start
+180000 shot stage_play
+181000 key down down
+181400 key down up
+181500 key right down
+181900 key right up
+185000 shot playing
+# --- pause menu (fn_039c03): entered from gameplay with the abort key, since the room loop calls it only
+# under "if (DAT_00063e89 != 0 && pl[0x30] != 1)" at 0x0003aa9f-0x0003aac6. Inside it, Left/Right
+# (DAT_00063ed0 / DAT_00063ed8, 0x00039d2a / 0x00039d86) walk the entry index m 0 -> 4 -> 3 -> 2 and
+# Up/Down (DAT_00063ed3 / DAT_00063ed5, 0x00039de2) toggle the selected entry: m==3 MUSIC (DAT_00053338
+# -> snden=), m==2 sound EFFECTS (DAT_00051a10 -> sfx=, plus fn_10b1d(track) or the CD stop -> cdstops=).
+# Presses are held ~700 ms because the routine re-arms its auto-repeat counters at 0x13 frames.
+# --- pause menu (fn_039c03), entered from gameplay with the abort key (the room loop calls it only under
+# "if (DAT_00063e89 != 0 && pl[0x30] != 1)", 0x0003aa9f-0x0003aac6). Presses are SHORT (150 ms) on purpose:
+# the routine re-arms its auto-repeat counters at 0x13 frames, and a 700 ms hold measured as one press plus
+# two repeats (the trace showed m walking 0 -> 4 -> 3 -> 2/1 inside a single hold), which overshoots the row
+# you wanted. Short presses step exactly one row, and the toggle branch still fires (it only needs the
+# counter to reach 0, which happens on the second frame of a hold).
+# Level-up screen through the host debug warp (NIGHT_SHOWSCREEN=levelup, NIGHT_SHOWSCREEN_AT=<frame>): the
+# game reaches fn_038f3d(1) only on stage completion, right after g_dat_63370 += 1 at 0x0003b54c (guarded by
+# pl[0x30] != 1), which scripted play cannot reach in a run's lifetime. The warp calls the game's own
+# routine, so the asset loads (levelup.spr / number1.spr / number2.spr, levelup.pcx or levelup2.pcx), the
+# compositing and the key handling under test are the shipped ones -- only the moment of entering is
+# host-chosen (the --warp-stage convention, docs/52). The warp must fire only once a stage is live: called
+# with no stage loaded it faults exactly like the DAT_00063c7c null-player read of docs/55.
+186000 shot pre_levelup
+188000 shot levelup_wait
+190000 key enter down
+190150 key enter up
+193000 shot after_levelup
+# dense shots across the warp window so the level-up picture itself is captured, not just the help card that
+# precedes it (fn_038f3d's loads go through fn_03d8d4 / fn_036190, which the resource-lookup trace does not
+# cover, so no automatic shot is taken for levelup.pcx)
+51000 shot lu_00
+51400 shot lu_01
+51800 shot lu_02
+52200 shot lu_03
+52600 shot lu_04
+53000 shot lu_05
+53400 shot lu_06
+53800 shot lu_07
+54200 shot lu_08
+54600 shot lu_09
+55000 shot lu_10

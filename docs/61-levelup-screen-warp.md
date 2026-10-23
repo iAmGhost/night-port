@@ -110,3 +110,19 @@ through the VGA ready-wait and buffer copies rather than an input spin), or the 
 first spin of the screen and the edge is consumed by then. The next diagnosis is one grep-sized question:
 whether the loop body between 0x0003920a and 0x00039a51 calls a spin point at all -- recorded rather than
 guessed, with the harness change already in place so the answer is one run away.
+
+### What has now been ruled out (all by grep/ls, not by reasoning)
+
+- The loaders do announce: `res_announce(name)` is present at `f.c:5791` (`fn_036190`, the still-into-buffer
+  card loader) and `f.c:7405` (`fn_03d8d4`, the `.spr`/`.act`/font block loader).
+- The screen does reach spin points: `fn_038f3d` contains **8** spin calls, and they go through
+  `sys_key_spin()`, which in the SDL build calls the installed input pump (`f.c`, `sys_key_spin`: input pump,
+  then tick pump, then the scripted key timeline) -- so the spin-point edge added in `9db3181` is reachable
+  from inside that screen.
+- And still the run produces no such frame: `/tmp/luA` has no `levelup2*`/`number*` file, and the log's 115
+  shot lines contain none.
+
+The precise next probe (not run yet, context budget): one `fprintf` inside `shots_resource_edge` under a
+`NIGHT_SHOTDBG` switch printing `g_res_trace` and `g_res_trace_seq` at every call. That separates the two
+remaining explanations -- the edge never being reached with a changed sequence number, versus it firing and
+the queued/hold-shot path dropping the frame because the screen exits before the hold delay elapses.

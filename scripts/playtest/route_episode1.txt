@@ -1,0 +1,15 @@
+# playtest route: attract -> title -> menu -> episode 1 -> play -> pause
+0 shot boot
+9000 shot attract_done
+10000 key enter down
+10150 key enter up
+12000 shot menu
+12500 key enter down
+12650 key enter up
+16000 shot episode_start
+30000 shot stage_play
+31000 key down down
+31400 key down up
+31500 key right down
+31900 key right up
+33000 shot playing

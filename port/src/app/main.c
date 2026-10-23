@@ -24,11 +24,13 @@
 
 #include <SDL3/SDL.h>
 
+#include <ctype.h>
 #include <math.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #define SCREEN_W 320
 #define SCREEN_H 200
@@ -237,6 +239,171 @@ static void autokey(void) {
     }
 }
 
+/* ---- the playtest harness: scripted keys + named-event screenshots (docs/46) -----------
+ * A script file pins the timeline a human would use (attract -> menu -> episode slide -> stage ->
+ * menu screens), and every screenshot is named after the game-visible event that produced it, so the
+ * captures taken from the original under DOSBox (scripts/orig_capture.sh) can be paired with them.
+ * Script syntax (one directive per line, '#'-comments allowed):
+ *     <t_ms> key <name> down|up      press/release a key at t_ms
+ *     <t_ms> shot <name>            take a named screenshot at t_ms
+ * Key names: enter space esc tab up down left right ctrl shift, single letters/digits, or a hex
+ * DOS scan code (0x4b / 4b). */
+struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; };
+static void shot_named(const char *event);
+static void key_apply(uint8_t sc, int make);
+enum { PT_KEY = 0, PT_SHOT = 1 };
+static struct pt_evt *g_pt;
+static int g_pt_n, g_pt_i;
+static const char *g_shots_dir;
+static FILE *g_manifest;
+static int g_shot_seq;
+static int g_shot_limit = 600;
+static int g_shot_scene = 1, g_shot_res = 1, g_shot_fli = 1;
+static uint32_t g_pt_res_seq;
+static Uint64 g_pt_last_scene, g_pt_last_fli;
+static uint64_t g_pt_hash;
+static uint8_t g_pt_sample[2048];
+
+static long pt_now_ms(void) {
+    return (long)((SDL_GetPerformanceCounter() - g_start_time) * 1000ull / g_perf_freq);
+}
+
+/* the DOS scan code the game's key state consults for a script token */
+static uint8_t pt_sc(const char *name) {
+    static const struct { const char *n; uint8_t sc; } tbl[] = {
+        { "enter", 0x1c }, { "return", 0x1c }, { "space", 0x39 }, { "esc", 0x01 },
+        { "tab", 0x0f }, { "up", 0x48 }, { "down", 0x50 }, { "left", 0x4b }, { "right", 0x4d },
+        { "ctrl", 0x1d }, { "shift", 0x2a }, { "backspace", 0x0e },
+    };
+    for (unsigned k = 0; k < sizeof tbl / sizeof tbl[0]; k++)
+        if (!strcasecmp(name, tbl[k].n)) return tbl[k].sc;
+    if (name[0] == '0' && (name[1] == 'x' || name[1] == 'X')) return (uint8_t)strtoul(name, NULL, 16);
+    if (strlen(name) == 2 && isxdigit((unsigned char)name[0]) && isxdigit((unsigned char)name[1]))
+        return (uint8_t)strtoul(name, NULL, 16);
+    SDL_Scancode c = SDL_GetScancodeFromName(name);
+    if (c >= SDL_SCANCODE_A && c <= SDL_SCANCODE_Z) return (uint8_t)(0x1e + (c - SDL_SCANCODE_A));
+    if (c >= SDL_SCANCODE_1 && c <= SDL_SCANCODE_0) return (uint8_t)(0x02 + (c - SDL_SCANCODE_1));
+    return 0;
+}
+
+static void pt_load(const char *path) {
+    FILE *fp = fopen(path, "rb");
+    if (!fp) { SDL_Log("script: cannot open %s", path); return; }
+    g_pt = malloc(sizeof *g_pt * 512);
+    char line[256];
+    while (fgets(line, sizeof line, fp) && g_pt_n < 512) {
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+        long t; char verb[64], arg[64], updown[8];
+        int n = sscanf(line, "%ld %63s %63s %7s", &t, verb, arg, updown);
+        if (n < 2) continue;
+        struct pt_evt *e = &g_pt[g_pt_n];
+        e->t_ms = t; e->kind = PT_KEY; e->make = 1; e->name[0] = 0; e->sc = 0;
+        if (!strcasecmp(verb, "shot")) {
+            e->kind = PT_SHOT; snprintf(e->name, sizeof e->name, "%s", arg);
+        } else {
+            const char *kn = (!strcasecmp(verb, "key") && n >= 3) ? arg : verb;
+            if (!strcasecmp(verb, "key") && n >= 3) e->make = !strcasecmp(updown, "down") || !strcasecmp(updown, "1");
+            else if (n >= 3) e->make = !strcasecmp(arg, "down") || !strcasecmp(arg, "1");
+            e->sc = pt_sc(kn);
+            if (!e->sc) { SDL_Log("script: unknown key '%s' (line ignored)", kn); continue; }
+        }
+        g_pt_n++;
+    }
+    fclose(fp);
+    for (int i = 1; i < g_pt_n; i++)                    /* stable insertion sort: scripts are almost sorted */
+        for (int j = i; j > 0 && g_pt[j].t_ms < g_pt[j - 1].t_ms; j--) {
+            struct pt_evt tmp = g_pt[j]; g_pt[j] = g_pt[j - 1]; g_pt[j - 1] = tmp;
+        }
+    SDL_Log("script: %d events from %s", g_pt_n, path);
+}
+
+/* press/release, through the same bytes sdl_events feeds the game */
+static void pt_drive(void) {
+    if (!g_pt || !g_pt_n) return;
+    long t = pt_now_ms();
+    while (g_pt_i < g_pt_n && g_pt[g_pt_i].t_ms <= t) {
+        struct pt_evt *e = &g_pt[g_pt_i++];
+        if (e->kind == PT_SHOT) { shot_named(e->name); continue; }
+        SDL_Log("script: key %#02x %s (t=%ldms)", e->sc, e->make ? "down" : "up", e->t_ms);
+        key_apply(e->sc, e->make);
+    }
+}
+
+/* ---- named-event screenshots ------------------------------------------------------------- */
+static void sanitize(char *s) {
+    for (; *s; s++) if (!isalnum((unsigned char)*s)) *s = (*s == '.' || *s == '-' ) ? *s : '_';
+}
+
+static void shot_named(const char *event) {
+    if (!g_shots_dir || g_shot_seq >= g_shot_limit) return;
+    SDL_CreateDirectory(g_shots_dir);
+    int W = g_vid_w ? g_vid_w : sys_video_w(), H = g_vid_h ? g_vid_h : sys_video_h();
+    if (W <= 0 || H <= 0) return;
+    palette_rgba();
+    char safe[64]; snprintf(safe, sizeof safe, "%s", event && *event ? event : "shot"); sanitize(safe);
+    char path[600];
+    snprintf(path, sizeof path, "%s/%04d_%s.bmp", g_shots_dir, g_shot_seq, safe);
+    SDL_Surface *s = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGBA8888);
+    if (!s) return;
+    uint32_t *px = (uint32_t *)s->pixels;
+    for (int i = 0; i < W * H; i++) {
+        uint8_t idx = g_video_ram[i];
+        px[i] = ((uint32_t)g_palette8[idx * 3] << 24) | ((uint32_t)g_palette8[idx * 3 + 1] << 16) |
+                ((uint32_t)g_palette8[idx * 3 + 2] << 8) | 0xffu;
+    }
+    int ok = SDL_SaveBMP(s, path);
+    SDL_DestroySurface(s);
+    if (!g_manifest) {
+        char mp[600]; snprintf(mp, sizeof mp, "%s/manifest.tsv", g_shots_dir);
+        g_manifest = fopen(mp, "wb");
+        if (g_manifest) fputs("seq\tt_ms\tframes\tevent\tresource\tstage\tentities\tW\tH\n", g_manifest);
+    }
+    if (g_manifest)
+        fprintf(g_manifest, "%d\t%ld\t%u\t%s\t%s\t%u\t%d\t%d\t%d\n", g_shot_seq, pt_now_ms(), g_frames,
+                safe, g_res_trace, (unsigned)g_dat_531f4, (int)g_dat_53c68, W, H);
+    SDL_Log("shot %04d %-18s frame=%u t=%ldms res=%s stage=%u entities=%d %s",
+            g_shot_seq, safe, g_frames, pt_now_ms(), g_res_trace, (unsigned)g_dat_531f4,
+            (int)g_dat_53c68, ok ? "" : "(save failed)");
+    g_shot_seq++;
+}
+
+/* Scene/resource watcher: a resource lookup is an event with a name, a large screen change without one
+ * is a scene boundary, and a .fli playback gets a periodic shot so pacing is measurable. */
+static void shots_poll(void) {
+    if (!g_shots_dir) return;
+    Uint64 now = SDL_GetPerformanceCounter();
+    if (g_shot_res && g_res_trace_seq != g_pt_res_seq) {
+        g_pt_res_seq = g_res_trace_seq;
+        g_pt_hash = 0;                                  /* a new resource resets the scene reference */
+        shot_named(g_res_trace);
+        g_pt_last_scene = now;
+        return;
+    }
+    if (g_shot_fli && strstr(g_res_trace, ".fli")) {
+        if (now >= g_pt_last_fli + g_perf_freq / 2) {
+            g_pt_last_fli = now;
+            shot_named("fli");
+        }
+        return;
+    }
+    if (!g_shot_scene) return;
+    uint64_t hash = 1469598103934665603ull;
+    int diff = 0, ns = 0;
+    for (int i = 0; i < 307200 && ns < (int)sizeof g_pt_sample; i += 193) {
+        uint8_t v = g_video_ram[i];
+        hash = (hash ^ v) * 1099511628211ull;
+        if (g_pt_hash && g_pt_sample[ns] != v) diff++;
+        g_pt_sample[ns++] = v;
+    }
+    if (g_pt_hash && hash != g_pt_hash && diff > ns / 4 && now >= g_pt_last_scene + g_perf_freq / 2) {
+        g_pt_hash = hash;
+        g_pt_last_scene = now;
+        shot_named("scene");
+    } else if (!g_pt_hash) {
+        g_pt_hash = hash;
+    }
+}
+
 static void dump_frame(int n) {
     if (!g_dump_dir) return;
     SDL_CreateDirectory(g_dump_dir);          /* so --dump to a fresh path works */
@@ -380,7 +547,13 @@ static void sdl_events(void) {
         default: break;
         }
         if (!sc) continue;
-        int make = ev.key.down;
+        key_apply(sc, ev.key.down);
+    }
+}
+
+/* the game-side half of input handling: SDL key events and the playtest script both land here, so a
+ * scripted run drives exactly the bytes an interactive run does */
+static void key_apply(uint8_t sc, int make) {
         switch (sc) {
         case 0x48: g_dat_63ed3 = (uint8_t)make; break;      /* up held */
         case 0x50: g_dat_63ed5 = (uint8_t)make; break;      /* down held */
@@ -400,11 +573,11 @@ static void sdl_events(void) {
         } else {
             g_dat_62c58[sc] = 0;
         }
-    }
 }
 
 static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
+    pt_drive();                                                /* the playtest script's key timeline */
     sdl_events();
     fn_0347e3();                                           /* the game's keyboard pump */
 }
@@ -456,6 +629,7 @@ static void tick_pump(void) {
         g_frames++;
         for (unsigned k = 0; k < sizeof g_dump_frames / sizeof g_dump_frames[0]; k++)
             if (g_frames == g_dump_frames[k]) dump_frame(g_frames);
+        shots_poll();                                       /* named-event playtest screenshots */
         g_present_next = now + g_perf_freq / 60u;
     }
     if (g_quit) longjmp(g_game_escape, 1);
@@ -469,8 +643,14 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames_limit = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--dump") && i + 1 < argc) g_dump_dir = argv[++i];
         else if (!strcmp(argv[i], "--autokey")) g_autokey = 1;
+        else if (!strcmp(argv[i], "--script") && i + 1 < argc) pt_load(argv[++i]);
+        else if (!strcmp(argv[i], "--shots") && i + 1 < argc) g_shots_dir = argv[++i];
+        else if (!strcmp(argv[i], "--shot-limit") && i + 1 < argc) g_shot_limit = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--no-scene-shots")) g_shot_scene = 0;
+        else if (!strcmp(argv[i], "--no-res-shots")) g_shot_res = 0;
         else if (!strcmp(argv[i], "--help")) {
-            printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR]\n");
+            printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR] [--shots DIR]\n"
+                   "              [--script FILE] [--shot-limit N] [--no-scene-shots] [--no-res-shots]\n");
             return 0;
         }
     }

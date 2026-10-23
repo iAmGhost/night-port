@@ -2401,7 +2401,14 @@ int32_t fn_036626(const char *s) {
  * fn_04247a(r, value, mode=0) and return 1. The fn_04247a return value is
  * discarded (the original ignores it). Returns 0 if no entry matches (or
  * g_dat_633a0 == 0). */
+/* Host instrumentation, NOT part of the original: the resource name most recently handed to
+ * fn_0367c9 and a counter of those lookups. The SDL host names its playtest screenshots from this
+ * (docs/46-playtest-harness.md); it changes no game behaviour. */
+char g_res_trace[24];
+uint32_t g_res_trace_seq;
+
 int32_t fn_0367c9(const char *a0) {
+    if (a0) { snprintf(g_res_trace, sizeof g_res_trace, "%s", a0); g_res_trace_seq++; }   /* instrumentation */
     int32_t len = (int32_t)str_len(a0);
     for (uint32_t i = 0; i < g_dat_633a0; i++) {
         const uint8_t *e = g_tab_5d884 + i * 21;

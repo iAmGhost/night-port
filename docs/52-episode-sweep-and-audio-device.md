@@ -41,8 +41,21 @@ stores what the original also stores — NULL — which `fn_010efc` then derefer
 the port has kept). Stage 9 uses types up to 84, stage 5 uses 86/87 (`enk-1`/`enk-2`, which do exist), so
 the crash still needs its own diagnosis: under `lldb` the stage-5 run did **not** crash but stalled inside
 CoreAudio (see below), which suggests the SIGSEGV may be downstream of an audio/DMA state difference
-rather than in the stage path itself. Next step: run stage 5 with `SDL_AUDIODRIVER=dummy` under lldb to
-separate the two.
+rather than in the stage path itself. The two are **separate**: with `SDL_AUDIODRIVER=dummy` the crash reproduces at the same point (after
+926 presented frames), and the faulting site is exact:
+
+```
+* thread #1, stop reason = EXC_BAD_ACCESS (code=1, address=0x0)
+  frame #0: night`fn_03cc6b(a0="") at f.c:8480:28
+```
+
+`f.c:8480` is `if (g_dat_639dc == *(uint32_t *)c)` with `c = rec_ptr_get(a0, 0x34c)` — the room-chain
+`next` link is NULL and the state machine dereferences it (the original's unguarded read, kept). Stage 5
+is a **one-segment** stage (`ep 5: segs 1, recs 28, exit NONE (kill-clear)`), so at the room boundary the
+`next` link of the only room is 0 — which means the port reaches this state with a NULL next-room where
+the original does not. Next step: at the fault, compare `g_dat_6334c` / `g_dat_63354`, `g_dat_639e4` and
+the room count `g_dat_639d8` for stage 5 against the `.wal` (1 segment) to find which of the chain/serial
+state differs; `NIGHT_ENTDBG` already dumps the entity list and camera.
 
 ## The audio failure is the host audio device, not the port's parameters
 

@@ -25,6 +25,9 @@ void cpy_back(uint8_t *a, const uint8_t *b, int n);
 
 /* for (; n; n--) { *c = *a; a++; c++; }   (dwords)           orig: 0x0404c6 */
 void cpy_dw(uint32_t *a, int n, uint32_t *c);
+extern int g_view_320x200;
+void blit_stats_on(void);
+void blit_stats_dump(void);
 
 /* h rows of w bytes: odd byte, then w>>1 words;
  * src += s - w, dst += t - w per row                          orig: 0x040491 */

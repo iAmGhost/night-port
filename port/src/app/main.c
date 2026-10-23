@@ -70,8 +70,7 @@ static uint32_t on_terminate(uint32_t a) {
  * set through VBE (fn_03f15f asks for mode 0x101 = 640x480x8), so the texture is (re)made to match. */
 static int g_vid_w, g_vid_h;
 
-static int ensure_mode(void) {
-    int w = sys_video_w(), h = sys_video_h();
+static int ensure_mode(int w, int h) {
     if (w == g_vid_w && h == g_vid_h && g_tex) return 0;
     if (g_tex) { SDL_DestroyTexture(g_tex); g_tex = NULL; }
     free(g_pixels);
@@ -108,15 +107,22 @@ static void palette_rgba(void) {
         for (int i = 0; i < 768; i++) g_palette8[i] = (uint8_t)((g_palette8[i] << 2) | (g_palette8[i] >> 4));
 }
 static void present(void) {
-    if (ensure_mode() != 0) return;
+    /* The room path composites a 320x200 frame (pitch 0x140, 0xfa00 bytes) and flips exactly those
+     * 64000 bytes to the framebuffer start (fn_038098), while the slide path fills the whole 640x480
+     * region (fn_03f462 with count 0x1e0). Present whichever the game last wrote. */
+    int vw = g_view_320x200 ? 320 : sys_video_w(), vh = g_view_320x200 ? 200 : sys_video_h();
+    if (ensure_mode(vw, vh) != 0) return;
     palette_rgba();
     const uint8_t *src = g_video_ram;                       /* indexed pixels, linear in the arena */
-    for (int i = 0; i < g_vid_w * g_vid_h; i++) {
+    for (int i = 0; i < vw * vh; i++) {
         uint8_t idx = src[i];
-        g_pixels[i] = (0xffu << 24) | ((uint32_t)g_palette8[idx * 3] << 16) |
-                      ((uint32_t)g_palette8[idx * 3 + 1] << 8) | (uint32_t)g_palette8[idx * 3 + 2];
+        /* SDL3 SDL_PIXELFORMAT_RGBA8888 masks are R=0xff000000 G=0x00ff0000 B=0x0000ff00
+         * A=0x000000ff (verified empirically), so the alpha byte must be the LOW byte. */
+        g_pixels[i] = ((uint32_t)g_palette8[idx * 3] << 24) |
+                      ((uint32_t)g_palette8[idx * 3 + 1] << 16) |
+                      ((uint32_t)g_palette8[idx * 3 + 2] << 8) | 0xffu;
     }
-    SDL_UpdateTexture(g_tex, NULL, g_pixels, g_vid_w * 4);
+    SDL_UpdateTexture(g_tex, NULL, g_pixels, vw * 4);
     SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255);
     SDL_RenderClear(g_ren);
     SDL_RenderTexture(g_ren, g_tex, NULL, NULL);
@@ -250,12 +256,13 @@ static void dump_frame(int n) {
     SDL_Surface *s = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGBA8888);
     if (!s) return;
     uint8_t *dst = (uint8_t *)s->pixels;
+    /* RGBA8888 is a packed 32-bit format (R<<16|G<<8|B, A<<24), so write whole pixels: byte-wise
+     * fills land the channels in the wrong slots and every dump came out with a saturated red. */
     for (int i = 0; i < W * H; i++) {
         uint8_t idx = g_video_ram[i];
-        dst[i * 4 + 0] = g_palette8[idx * 3];
-        dst[i * 4 + 1] = g_palette8[idx * 3 + 1];
-        dst[i * 4 + 2] = g_palette8[idx * 3 + 2];
-        dst[i * 4 + 3] = 255;
+        ((uint32_t *)dst)[i] = ((uint32_t)g_palette8[idx * 3] << 24) |
+                               ((uint32_t)g_palette8[idx * 3 + 1] << 16) |
+                               ((uint32_t)g_palette8[idx * 3 + 2] << 8) | 0xffu;
     }
     SDL_SaveBMP(s, path);
     {   /* raw side dump: the palette mirror and the first 64000 bytes of the screen, for offline diffing */
@@ -279,8 +286,9 @@ static void dump_frame(int n) {
             uint8_t *d = (uint8_t *)ss->pixels;
             for (int i = 0; i < 320 * 200; i++) {
                 uint8_t idx = g_screen_ram[i];
-                d[i*4+0]=g_palette8[idx*3]; d[i*4+1]=g_palette8[idx*3+1];
-                d[i*4+2]=g_palette8[idx*3+2]; d[i*4+3]=255;
+                ((uint32_t *)d)[i] = ((uint32_t)g_palette8[idx*3] << 24) |
+                                     ((uint32_t)g_palette8[idx*3+1] << 16) |
+                                     ((uint32_t)g_palette8[idx*3+2] << 8) | 0xffu;
             }
             SDL_SaveBMP(ss, path);
             SDL_DestroySurface(ss);
@@ -295,8 +303,9 @@ static void dump_frame(int n) {
         uint8_t *d2 = (uint8_t *)s2->pixels;
         for (int i = 0; i < 320 * 200; i++) {
             uint8_t idx = g_video_ram[i];
-            d2[i * 4 + 0] = g_palette8[idx * 3]; d2[i * 4 + 1] = g_palette8[idx * 3 + 1];
-            d2[i * 4 + 2] = g_palette8[idx * 3 + 2]; d2[i * 4 + 3] = 255;
+            ((uint32_t *)d2)[i] = ((uint32_t)g_palette8[idx * 3] << 24) |
+                                  ((uint32_t)g_palette8[idx * 3 + 1] << 16) |
+                                  ((uint32_t)g_palette8[idx * 3 + 2] << 8) | 0xffu;
         }
         SDL_SaveBMP(s2, path);
         SDL_DestroySurface(s2);
@@ -371,6 +380,12 @@ static void tick_pump(void) {
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops());
+        if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
+        if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {
+            FILE *fp = fopen("/tmp/heap.bin", "wb");
+            if (fp) { fwrite((const void *)g_heap_base, 1, heap_arena_cap_get(), fp); fclose(fp); }
+            SDL_Log("heap dump: base=%p cap=%#x", (void *)g_heap_base, heap_arena_cap_get());
+        } }
         g_diag_next = now + g_perf_freq;
     }
     if (now < g_tick_next) return;
@@ -425,6 +440,7 @@ int main(int argc, char **argv) {
     audio_boot();
     g_dbg_03d606 = getenv("NIGHT_DBG") ? 1 : 0;
     g_heap_chain_dbg = getenv("NIGHT_DBG") ? 1 : 0;
+    if (getenv("NIGHT_BLITSTATS")) blit_stats_on();
     g_win = SDL_CreateWindow("NIGHT", 640 * 2, 480 * 2, 0);
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;
     if (!g_ren) { SDL_Log("no renderer: %s", SDL_GetError()); return 1; }
@@ -488,6 +504,7 @@ int main(int argc, char **argv) {
     if (g_win) SDL_DestroyWindow(g_win);
     free(g_pixels);
     cd_iso_close();
-    SDL_Quit();
+        blit_stats_dump();
+SDL_Quit();
     return 0;
 }

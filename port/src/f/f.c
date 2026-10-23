@@ -41,7 +41,36 @@ void cpy_back(uint8_t *a, const uint8_t *b, int n) {
  *   for (; n; n--) { *c = *a; a++; c++; }   (REP MOVSD)
  * a = src, n = dword count, c = dst
  */
+
+/* ---- host blit accounting (diagnosis, docs/40): who copies how much, and to where ---- */
+typedef struct { const char *sym; unsigned long bytes, calls; int dst_screen; } blit_stat;
+static blit_stat s_bstat[48];
+static int s_bstat_n;
+static void bstat(const void *ra, unsigned long bytes, const void *dst, unsigned long dst_span) {
+    const char *nm = "?"; Dl_info di;
+    if (dladdr((const void *)ra, &di) && di.dli_sname) nm = di.dli_sname;
+    /* is the destination inside the back-screen arena (g_screen_ram)? */
+    int scr = ((const uint8_t *)dst >= g_screen_ram &&
+               (const uint8_t *)dst < g_screen_ram + sizeof g_screen_ram) ? 1 :
+              ((const uint8_t *)dst >= g_video_ram &&
+               (const uint8_t *)dst < g_video_ram + sizeof g_video_ram) ? 2 : 0;
+    (void)dst_span;
+    for (int i = 0; i < s_bstat_n; i++)
+        if (s_bstat[i].sym == nm) { s_bstat[i].bytes += bytes; s_bstat[i].calls++; if (scr) s_bstat[i].dst_screen = scr; return; }
+    if (s_bstat_n < 48) { s_bstat[s_bstat_n].sym = nm; s_bstat[s_bstat_n].bytes = bytes;
+                          s_bstat[s_bstat_n].calls = 1; s_bstat[s_bstat_n].dst_screen = scr; s_bstat_n++; }
+}
+void blit_stats_dump(void) {
+    fprintf(stderr, "== blit stats (dst: 0=other 1=back screen 2=video arena) ==\n");
+    for (int i = 0; i < s_bstat_n; i++)
+        fprintf(stderr, "  %-22s calls=%-8lu bytes=%-12lu dst=%d\n",
+                s_bstat[i].sym, s_bstat[i].calls, s_bstat[i].bytes, s_bstat[i].dst_screen);
+}
+
+static int g_blit_stats_on;   /* set by blit_stats_on() from the host */
+void blit_stats_on(void) { g_blit_stats_on = 1; }
 void cpy_dw(uint32_t *a, int n, uint32_t *c) {
+    if (g_blit_stats_on) bstat(__builtin_return_address(0), (unsigned long)n * 4u, c, (unsigned long)n * 4u);
     for (; n != 0; n = n - 1) {
         *c = *a;
         a = a + 1;
@@ -55,6 +84,7 @@ void cpy_dw(uint32_t *a, int n, uint32_t *c) {
  * a = src, s = src pitch, w = width, h = rows, c = dst, t = dst pitch
  */
 void blt_rows(uint8_t *a, int s, uint32_t w, int h, uint8_t *c, int t) {
+    if (g_blit_stats_on) bstat(__builtin_return_address(0), (unsigned long)w * (unsigned long)(h < 0 ? 0 : h), c, (unsigned long)w * (unsigned long)h);
     do {
         uint32_t uw = w >> 1;
         if ((w & 1) != 0) {
@@ -6694,39 +6724,65 @@ void fn_03c65b(uint8_t *a0) {
  *   B3 otherwise                       : 1 blit (scrolled primary sprite)
  * Common epilogue: ent[0x22]=0; ent[0x1e]=0; if (g_63360 % 10 == 0) board_out(0,0x100,g_63354+0x48).
  * Canary PUSH 0x38. All 3 callees ported (canary, blt_rows=0x040491, board_out=0x040042). */
+static int s_03ce0b;
+/* PORT RESOLUTION (stage background): the .wal room loader (fn_03c853) stores the result of
+ * heap_malloc() in node+0x348, i.e. an OFFSET into the port heap arena, whereas the original stored a
+ * linear address inside its sprite-RAM arena (the base the game keeps in DAT_000639dc, which is 0 in
+ * this port because no separate sprite-RAM block is allocated). Resolve such a value against the heap
+ * so the background blit reads the real .wal index map instead of the clamped video-window base. */
+static inline uint8_t *stage_map(uint32_t va) {
+    /* Any address that actually lies in the modelled video/screen window is a video address (that is
+     * what the test fixtures and the sprite-RAM users hand us); everything else is one of the port's
+     * heap offsets, which is what fn_03c853 stores in node+0x348 for a stage background map. */
+    if (va >= VIDEO_BASE && va < SCREEN_BASE + 2u * SCREEN_SIZE) return video_map(va);
+    if (va < heap_arena_cap()) return (uint8_t *)g_heap_base + va;
+    return video_map(va);
+}
+
 void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
     (void)canary_id(0, 0x38);
     uint8_t *e = ent;
     uint32_t g0   = g_dat_639e0;      /* scroll row */
     uint32_t base = g_dat_639dc;      /* sprite-RAM base (video addr) */
+    if (g_dbg_03d606 && s_03ce0b < 6) {
+        s_03ce0b++;
+        fprintf(stderr, "03ce0b ent=%p dst=%p e[0]=%#x e[4]=%u e[0xc]=%u e[0x1a]=%u e[0x348]=%#x "
+                        "g639dc=%#x g639e0=%u g639e4=%u srcbytes=%d,%d,%d,%d\n",
+                (void*)ent,(void*)dst,*(uint32_t*)(e+0),*(uint32_t*)(e+4),*(uint32_t*)(e+0xc),
+                *(uint32_t*)(e+0x1a),*(uint32_t*)(e+0x348), g_dat_639dc, g_dat_639e0, g_dat_639e4,
+                video_map(g_dat_639dc + *(uint32_t*)(e+0x348) - *(uint32_t*)(e+0))[0],
+                video_map(g_dat_639dc + *(uint32_t*)(e+0x348) - *(uint32_t*)(e+0))[1],
+                video_map(g_dat_639dc + *(uint32_t*)(e+0x348) - *(uint32_t*)(e+0))[2],
+                video_map(g_dat_639dc + *(uint32_t*)(e+0x348) - *(uint32_t*)(e+0))[3]);
+    }
     if (g_dat_639e4 == 0) {          /* B0 */
         uint32_t sa = base + *(uint32_t *)(e + 0x348) - *(uint32_t *)(e + 0x0);
-        blt_rows(video_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
+        blt_rows(stage_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
     } else if (g0 < *(uint32_t *)(e + 0x4)) {          /* B1 */
         uint64_t w354b; memcpy(&w354b, e + 0x354, sizeof w354b);   /* unaligned-safe */
         uint8_t *s1 = (uint8_t *)(uintptr_t)w354b;   /* orig ent[0x350] = sibling ptr, shifted to +0x354 (widened +0x34c link) */
         uint32_t sp1 = *(uint32_t *)(s1 + 0x1a);
         uint32_t h1a = 0xc8 - (*(uint32_t *)(e + 0x4) - g0);
         uint32_t do1a = (uint32_t)((int)(0xc8 - (g0 - *(uint32_t *)(s1 + 0x4))) * (int)0x140);
-        blt_rows(video_map(*(uint32_t *)(e + 0x348)), (int)*(uint32_t *)(e + 0x1a), 0x140,
+        blt_rows(stage_map(*(uint32_t *)(e + 0x348)), (int)*(uint32_t *)(e + 0x1a), 0x140,
                  (int)h1a, dst + do1a, 0x140);
         uint32_t h1b = *(uint32_t *)(e + 0x4) - g0;
         uint32_t sa1b = *(uint32_t *)(s1 + 0x348) + base - *(uint32_t *)(s1 + 0x0)
                        + sp1 * (0xc8 - h1b);
-        blt_rows(video_map(sa1b), (int)sp1, 0x140, (int)h1b, dst, 0x140);
+        blt_rows(stage_map(sa1b), (int)sp1, 0x140, (int)h1b, dst, 0x140);
     } else if (g0 + 0xc8 > *(uint32_t *)(e + 0xc)) {    /* B2 */
         uint32_t h2a = *(uint32_t *)(e + 0xc) - g0;
         uint32_t sa2a = *(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0)) * 0x140;
-        blt_rows(video_map(sa2a), (int)*(uint32_t *)(e + 0x1a), 0x140, (int)h2a, dst, 0x140);
+        blt_rows(stage_map(sa2a), (int)*(uint32_t *)(e + 0x1a), 0x140, (int)h2a, dst, 0x140);
         uint64_t w34cb; memcpy(&w34cb, e + 0x34c, sizeof w34cb);   /* unaligned-safe */
         uint8_t *s2 = (uint8_t *)(uintptr_t)w34cb;   /* ent[0x34c] = sibling ptr (64-bit) */
         uint32_t h2b = g0 - *(uint32_t *)(e + 0);
         uint32_t do2b = (uint32_t)((int)((0xc8 - g0) + *(uint32_t *)(e + 0)) * (int)0x140);
         uint32_t sa2b = *(uint32_t *)(s2 + 0x348) + base - *(uint32_t *)(s2 + 0x0);
-        blt_rows(video_map(sa2b), (int)*(uint32_t *)(s2 + 0x1a), 0x140, (int)h2b, dst + do2b, 0x140);
+        blt_rows(stage_map(sa2b), (int)*(uint32_t *)(s2 + 0x1a), 0x140, (int)h2b, dst + do2b, 0x140);
     } else {                                      /* B3 */
         uint32_t sa = *(uint32_t *)(e + 0x348) + (g0 - *(uint32_t *)(e + 0)) * *(uint32_t *)(e + 0x1a);
-        blt_rows(video_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
+        blt_rows(stage_map(sa), (int)*(uint32_t *)(e + 0x1a), 0x140, 0xc8, dst, 0x140);
     }
     /* common epilogue */
     *(uint32_t *)(e + 0x22) = 0;
@@ -6982,8 +7038,11 @@ void fn_03ace9(void) {
  *   src += width each iteration.
  * DAT_000531f4 (W) and DAT_00063e64 (pitch) are VESA mode values set at runtime by
  * 0x03f15f (VBE mode-info: W = VBE[0x8]<<10, pitch = VBE[0x12]); defaults 0x140 here. */
+int g_view_320x200;   /* 1 = the framebuffer currently holds a 320x200 room frame (fn_038098 flip) */
+int32_t fn_03f462_note(void);
 void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count,
                const uint8_t *src) {
+    if (count >= 0x1e0u) g_view_320x200 = 0;   /* a full-height 640x480 slide fills the framebuffer */
     (void)canary_id((uintptr_t)base, 0x34);
     int32_t W = (int32_t)g_dat_531f4;
     int32_t pitch = (int32_t)g_dat_63e64;
@@ -13775,8 +13834,10 @@ void fn_038098(uint32_t base)
     (void)canary_id((uintptr_t)base, 0x38);                     /* 0x38098-9d probe (0x38) */
     fn_013aad((uint32_t)(uintptr_t)g_dat_53c70);                /* 0x380c6-cb (EAX = entity list head) */
     int32_t n = (int32_t)(0x1eau / g_dat_53104);                /* 0x380d0-dd (signed idiv) */
-    if (g_dbg_03d606 && s_38098++ < 40) fprintf(stderr, "038098 base=%#x DAT_53104=%u n=%d DAT_63e24=%u -> %s\n",
-            base, g_dat_53104, n, g_dat_63e24, n > (int32_t)g_dat_63e24 ? "draw+flip" : "skip");
+    if (g_dbg_03d606 && s_38098++ < 6) fprintf(stderr, "038098 base=%#x DAT_53104=%u n=%d DAT_63e24=%u -> %s "
+            "pitch(DAT_63e64)=%d xres(63e68)=%d wrap(DAT_531f4)=%#x\n",
+            base, g_dat_53104, n, g_dat_63e24, n > (int32_t)g_dat_63e24 ? "draw+flip" : "skip",
+            (int)g_dat_63e64, (int)g_dat_63e68, g_dat_531f4);
     if (n > (int32_t)g_dat_63e24) {                             /* 0x380e3-e9 CMP/JLE */
         fn_03ce0b(g_dat_63354, video_map(base));                     /* 0x380ef-f7 (EAX=room, EDX=base) */
         fn_03203d(base);                                        /* 0x380fc-ff */
@@ -13790,6 +13851,8 @@ void fn_038098(uint32_t base)
             fn_01348f((uint8_t *)(uintptr_t)g_dat_53c88, base, 1); /* 0x38142-4f */
         }
         cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x38154-68 */
+        g_view_320x200 = 1;   /* host view hint: the last thing written to the framebuffer is a
+                               * 320x200 (0x140 pitch, 0xfa00 byte) room frame, not a 640x480 slide */
     }
     while (n > (int32_t)g_dat_63e24) { if (!sys_port_spin()) break; }   /* 0x3819a-197 VBLANK busy-wait */
     g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24

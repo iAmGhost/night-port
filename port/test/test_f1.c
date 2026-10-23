@@ -17176,6 +17176,52 @@ static void test_device_bringup(void) {
 /* The sound-effects path end to end: the game's own VOC play block (fn_04185e -> fn_040839 ->
  * fn_04097e -> fn_040b83) programs the board's DMA registers and the DSP, and the sys layer recognises
  * that protocol and turns the transfer into PCM samples for the host's audio device. */
+
+/* The stage background map is stored in room-node +0x348 by the .wal loader (fn_03c853) as the result of
+ * heap_malloc(), i.e. an offset into the port's heap arena, while the original kept a linear address in
+ * its sprite-RAM arena. fn_03ce0b must therefore read the map from the heap: an earlier port resolved the
+ * value through video_map(), which clamped it to the video-window base and blitted nothing but stale data
+ * (measured: the back buffer matched the .wal index map at only chance level, 0.004). Verified against the
+ * same arithmetic the room path uses (DAT_000639dc = first node worldX_left, source pitch = node+0x1a). */
+static void test_stage_bg_heap_source(void) {
+    printf("fn_03ce0b stage background: node+0x348 as a heap offset (docs/41)\n");
+    uint32_t save_cap = heap_arena_cap_get(), save_floor = heap_region_floor_get();
+    heap_arena_init();
+    uint32_t node_off = heap_malloc(0x35c);
+    check(node_off != 0, "  a room node allocates");
+    uint8_t *node = (uint8_t *)g_heap_base + node_off;
+    memset(node, 0, 0x35c);
+
+    uint32_t bg_off = heap_malloc(0x2000);
+    check(bg_off != 0, "  the background index map allocates");
+    uint8_t *bg = (uint8_t *)g_heap_base + bg_off;
+    for (int i = 0; i < 0x2000; i++) bg[i] = (uint8_t)(i * 7 + 1);
+
+    *(uint32_t *)(node + 0x00)  = 0;        /* worldX_left   (fn_03cad3 also feeds DAT_000639dc) */
+    *(uint32_t *)(node + 0x04)  = 0;        /* worldY_top    */
+    *(uint32_t *)(node + 0x08)  = 1600;     /* worldX_right  -> node+0x1a = 1600 rows, overridden below */
+    *(uint32_t *)(node + 0x0c)  = 1000;     /* worldY_bottom (B0 branch test) */
+    *(uint32_t *)(node + 0x1a)  = 0x400;    /* source pitch of this segment's map */
+    *(uint32_t *)(node + 0x348) = bg_off;   /* the map, as fn_03c853 stores it */
+
+    uint32_t s_e4 = g_dat_639e4, s_e0 = g_dat_639e0, s_dc = g_dat_639dc, s_60 = (uint32_t)g_dat_63360;
+    uint8_t *s_54 = g_dat_63354;
+    g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_639dc = 0;   /* B0: src = 0 + node[0x348] - node[0] */
+    g_dat_63360 = 7;                                     /* %10 != 0: skip the periodic board_out */
+    g_dat_63354 = (uint8_t *)calloc(1, 0x400);
+    uint8_t *dst = (uint8_t *)calloc(1, 0xc8 * 0x140 + 16);
+    fn_03ce0b(node, dst);
+    check(dst[0] == bg[0] && dst[1] == bg[1] && dst[0x13f] == bg[0x13f],
+          "  row 0 is copied from the heap background map");
+    check(dst[0x140] == bg[0x400] && dst[0x140 + 9] == bg[0x400 + 9],
+          "  row 1 advances by the segment pitch (node+0x1a = 0x400)");
+    check(dst[3 * 0x140 + 5] == bg[3 * 0x400 + 5], "  row 3 likewise");
+    free(dst); free(g_dat_63354);
+    g_dat_63354 = s_54; g_dat_639e4 = s_e4; g_dat_639e0 = s_e0; g_dat_639dc = s_dc;
+    g_dat_63360 = (int32_t)s_60;
+    heap_arena_cap_set(save_cap); heap_region_floor_set(save_floor);
+}
+
 static void test_audio_path(void) {
     printf("the sound-effect path (0x04185e -> 0x04097e -> 0x040b83 -> the DSP / DMA model)\n");
     uint32_t s_34 = g_dat_53334, s_90 = g_dat_63f90, s_b8 = g_dat_63fb8;
@@ -17844,6 +17890,7 @@ int main(void) {
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
     test_fn_0445c9();
+    test_stage_bg_heap_source();
     test_audio_path();
     test_device_bringup();
     test_fn_0420bc();

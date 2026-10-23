@@ -151,6 +151,8 @@ sys_pump_fn sys_get_tick_pump(void);
 void sys_vesa_info(uint8_t *buf);
 void sys_vesa_mode_info(uint16_t mode, uint8_t *buf);
 uint16_t sys_vesa_set_mode(uint16_t mode);
+int  sys_video_w(void);             /* the geometry the last mode set produced (320x200 until one) */
+int  sys_video_h(void);
 
 /* --- CD-ROM (MSCDEX) backend -------------------------------------------------
  * The original reached MSCDEX through DPMI real-mode call structures (fn_10570 /

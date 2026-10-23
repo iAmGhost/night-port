@@ -377,9 +377,16 @@ void sys_vesa_mode_info(uint16_t mode, uint8_t *buf)
     w = sys_vesa_yres;            buf[0x14] = (uint8_t)w; buf[0x15] = (uint8_t)(w >> 8);
 }
 
+static int g_vid_w = 320, g_vid_h = 200;   /* the current display geometry */
+int  sys_video_w(void) { return g_vid_w; }
+int  sys_video_h(void) { return g_vid_h; }
+
 uint16_t sys_vesa_set_mode(uint16_t mode)
 {
-    (void)mode;
+    /* VBE mode numbers the game asks for: 0x101 = 640x480x8 (fn_03f15f), 0x100 = 640x400x8. */
+    if (mode == 0x101) { g_vid_w = 640; g_vid_h = 480; }
+    else if (mode == 0x100) { g_vid_w = 640; g_vid_h = 400; }
+    else if (mode == 0x13 || mode == 0x6f) { g_vid_w = 320; g_vid_h = 200; }
     return sys_vesa_set_mode_ah;   /* AH of the INT 10h/4F02h reply */
 }
 

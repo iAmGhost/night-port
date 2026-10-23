@@ -890,7 +890,7 @@ extern uintptr_t g_node_arena_base;    /* node-arena base (s_node_arena) */
 extern uint32_t  g_dat_62d68[200];      /* DAT_00062d68: head-node offset per list idx (200 lists) */
 
 /* Video-RAM model (flat 0xa0000 VGA segment): 64 KB window [0xa0000,0xb0000). */
-extern uint8_t g_video_ram[0x10000];
+extern uint8_t g_video_ram[0x160000];   /* the A0000 video arena: the game's linear 640 KiB screen model (see f.c fn_03f15f notes) */
 extern uint8_t *g_dat_51a0c;     /* DAT_00051a0c: raw video base (0xa0000) -> g_video_ram (fn_03fb73) */
 extern uint8_t g_dat_636b8[0x300]; /* DAT_000636b8: 768 B font/glyph table (fn_035f1b loads + >>2) */
 extern uint8_t g_dat_633b8[0x300]; /* DAT_000633b8: 768 B font/glyph table (fn_036190 loads + >>2) */
@@ -908,7 +908,7 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                uint32_t row_count, const uint8_t *rle, int32_t mode);
 /* Off-screen 64000 B screens (DAT_000633b0 / DAT_000633b4), modelled as a flat arena right
  * above the A0000 video window so fn_03bb42/fn_03bebb base arithmetic resolves the same way. */
-#define SCREEN_BASE  0xb0000u                       /* VIDEO_BASE + VIDEO_SIZE */
+#define SCREEN_BASE  0x200000u                      /* VIDEO_BASE + VIDEO_SIZE: above the linear arena */
 #define SCREEN_SIZE  0xfa00u                        /* 64000 B */
 extern uint8_t  g_screen_ram[2 * SCREEN_SIZE];
 extern uint32_t g_dat_633b0;                        /* DAT_000633b0: back screen (flat addr) */
@@ -981,7 +981,10 @@ void     fn_03a594(uint8_t *dest, const uint8_t *src, uint32_t count);  /* 0x03a
 void     fn_034aba(int32_t a, int32_t idx, int32_t b, int32_t c, int32_t flag);  /* 0x034aba */
 extern uint32_t g_dat_639dc;    /* DAT_000639dc */
 extern uint32_t g_dat_633a0;    /* DAT_000633a0: # entries in the 0x5d884 string table */
-extern uint8_t  g_tab_5d884[128 * 21];  /* RODATA string->value table @0x5d884, 21-byte entries */
+/* The name->value index fn_0366a4 expands out of the resource stream: 21-byte entries at DS 0x5d884.
+ * The shipped NIGHT.RES index holds 444 entries (0x246c bytes), so the table has to be that big -- the
+ * 128-entry size an earlier pass guessed overflowed on the real disc. 512 entries leaves room. */
+extern uint8_t  g_tab_5d884[512 * 21];  /* RODATA string->value table @0x5d884, 21-byte entries */
 extern res_reader *g_639b8;      /* DAT_000639b8: resource-reader node pointer (target of fn_0367c9 submits) */
 int32_t fn_036626(const char *s);  /* 0x036626: case-insensitive string->value table lookup */
 void fn_0366a4(uint8_t *node);  /* 0x0366a4: obfuscated resource-index loader -> g_dat_633a0 + g_tab_5d884 (scratch = back screen) */
@@ -992,13 +995,20 @@ extern uint32_t g_dat_639e0;    /* DAT_000639e0 */
 /* 0x03df96 sprite-blit font: original is a 4-byte-dword-pointer struct; port widens each pointer
  * to 8 bytes (pointer-width adaptation). orig offsets: col_tbl=+0x04, rowcount_tbl=+0x08,
  * x_tbl=+0x0c, y_tbl=+0x10, char_table=+0x34, rle_base=+0x38. */
+/* The 0x3c-byte parallel-array block fn_03d8d4/fn_03d9cf loads (the ".spr" sprite/HUD font descriptor).
+ * Every table field is a HEAP OFFSET, not an address -- heap_malloc returns offsets in this port and the
+ * loaders store them straight into the block (fn_03de85 / fn_03dcbd free them with heap_free_host), which
+ * is how fn_03d75c already reads the same block as a uint32_t array. Consumers resolve them by adding
+ * g_heap_base. See docs/12-functions/03d75c-record-float-decay.md. */
 struct hud_font {
-    uint32_t *col_tbl;       /* orig +0x04: col (ECX) table */
-    uint32_t *rowcount_tbl;  /* orig +0x08: row_count table */
-    uint32_t *x_tbl;         /* orig +0x0c: dest_off (x) offset table */
-    uint32_t *y_tbl;         /* orig +0x10: start_row (y) offset table */
-    uint32_t *char_table;    /* orig +0x34: glyph RLE-offset table */
-    uint32_t *rle_base;      /* orig +0x38: RLE data base */
+    uint32_t off_obj;        /* +0x00 */
+    uint32_t col_tbl;        /* +0x04: col (ECX) table (heap offset) */
+    uint32_t rowcount_tbl;   /* +0x08: row_count table (heap offset) */
+    uint32_t x_tbl;          /* +0x0c: dest_off (x) offset table (heap offset) */
+    uint32_t y_tbl;          /* +0x10: start_row (y) offset table (heap offset) */
+    uint32_t pad[8];         /* +0x14..+0x30: cleared by fn_03d8d4, unread by the ported consumers */
+    uint32_t char_table;     /* +0x34: glyph RLE-offset table (heap offset) */
+    uint32_t rle_base;       /* +0x38: RLE data base (heap offset) */
 };
 extern struct hud_font *g_dat_63dfc;  /* 0x63dfc: sprite blit font ptr (fn_03df96) */
 extern uint32_t g_dat_62a90;          /* 0x62a90: sprite record count (fn_03df96) */

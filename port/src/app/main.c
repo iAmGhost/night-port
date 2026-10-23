@@ -24,6 +24,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <math.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,40 +64,81 @@ static uint32_t on_terminate(uint32_t a) {
     return 0;
 }
 
-/* ---- presentation ---------------------------------------------------- */
+/* ---- presentation ----------------------------------------------------
+ * The arena (g_video_ram) is the game's linear screen model; its geometry follows the mode the game
+ * set through VBE (fn_03f15f asks for mode 0x101 = 640x480x8), so the texture is (re)made to match. */
+static int g_vid_w, g_vid_h;
+
+static int ensure_mode(void) {
+    int w = sys_video_w(), h = sys_video_h();
+    if (w == g_vid_w && h == g_vid_h && g_tex) return 0;
+    if (g_tex) { SDL_DestroyTexture(g_tex); g_tex = NULL; }
+    free(g_pixels);
+    g_pixels = malloc((size_t)w * (size_t)h * 4u);
+    g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, w, h);
+    if (!g_tex || !g_pixels) return -1;
+    SDL_Log("display mode %dx%d", w, h);
+    g_vid_w = w; g_vid_h = h;
+    return 0;
+}
+
 static void present(void) {
-    if (!g_tex || !g_pixels) return;
+    if (ensure_mode() != 0) return;
     sys_vga_palette(g_pal);
-    const uint8_t *src = g_video_ram;                       /* the A0000 window: 320x200 indexed */
-    for (int i = 0; i < SCREEN_W * SCREEN_H; i++) {
+    const uint8_t *src = g_video_ram;                       /* indexed pixels, linear in the arena */
+    for (int i = 0; i < g_vid_w * g_vid_h; i++) {
         uint8_t idx = src[i];
         g_pixels[i] = (0xffu << 24) | ((uint32_t)g_pal[idx * 3] << 16) |
                       ((uint32_t)g_pal[idx * 3 + 1] << 8) | (uint32_t)g_pal[idx * 3 + 2];
     }
-    SDL_UpdateTexture(g_tex, NULL, g_pixels, SCREEN_W * 4);
+    SDL_UpdateTexture(g_tex, NULL, g_pixels, g_vid_w * 4);
     SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255);
     SDL_RenderClear(g_ren);
     SDL_RenderTexture(g_ren, g_tex, NULL, NULL);
     SDL_RenderPresent(g_ren);
 }
 
+static int      g_autokey;                   /* headless proof: press confirm after the attract show */
+static Uint64   g_start_time;
+static int      g_autokey_last;
+/* Real-time scripted key press: a key wait (fn_03a224's drains, the room-loop key waits) only runs the
+ * input pump, so the timeline has to be clocked off the clock, not off presented frames. */
+static void autokey(void) {
+    if (!g_autokey) return;
+    Uint64 now = SDL_GetPerformanceCounter();
+    double t = (double)(now - g_start_time) / (double)g_perf_freq;
+    /* Repeating confirm pulse: the attract chain (logo hold, opening .fli, title wipe + drain, then the
+     * menu itself) each waits for a key, so a single press is consumed by whichever phase is up. One
+     * pulse every 5 s eventually lands while the menu proper is reading it, which is what starts the
+     * game (selection 0 -> fn_03af18 leaves the menu loop for the stage). */
+    int on = (t > 3.0) && (fmod(t, 5.0) < 0.15);
+    if (on != g_autokey_last) {
+        g_dat_63ea4 = (uint8_t)on; g_dat_62c58[0x1c] = (uint8_t)on;
+        g_autokey_last = on;
+        SDL_Log("autokey: confirm %s (t=%.1fs)", on ? "down" : "up", t);
+    }
+}
+
 static void dump_frame(int n) {
     if (!g_dump_dir) return;
+    int W = g_vid_w ? g_vid_w : sys_video_w(), H = g_vid_h ? g_vid_h : sys_video_h();
     uint8_t seen[256]; memset(seen, 0, sizeof seen);
-    for (int i = 0; i < SCREEN_W * SCREEN_H; i++) seen[g_video_ram[i]] = 1;
+    for (int i = 0; i < W * H; i++) seen[g_video_ram[i]] = 1;
     int ndx = 0, lit = 0;
     for (int i = 0; i < 256; i++) if (seen[i]) ndx++;
     for (int i = 0; i < 768; i += 3) if (g_pal[i] | g_pal[i + 1] | g_pal[i + 2]) lit++;
-    SDL_Log("frame %d: video colours=%d  dac entries lit=%d  dac writes=%u  pcx pal=%02x %02x %02x  "
-            "PIT0=%u Hz tick=%u DAT_63e40=%u DAT_633a0=%u DAT_63370=%u",
-            n, ndx, lit, sys_vga_palette_writes(), g_dat_636b8[0], g_dat_636b8[1], g_dat_636b8[2],
-            sys_pit_hz(0), g_dat_63e24, g_dat_63e40, g_dat_633a0, g_dat_63370);
+    SDL_Log("frame %d: %dx%d colours=%d  dac lit=%d  dac writes=%u  "
+            "PIT0=%u Hz tick=%u DAT_63e40=%u DAT_633a0=%u stage=%u W=%u pitch=%u  "
+            "room=%p entities=%d list=%p",
+            n, W, H, ndx, lit, sys_vga_palette_writes(),
+            sys_pit_hz(0), g_dat_63e24, g_dat_63e40, g_dat_633a0, g_dat_63370,
+            g_dat_531f4, g_dat_63e64, (void *)g_dat_6334c, (int)g_dat_53c68, (void *)g_dat_53c70);
     char path[512];
     snprintf(path, sizeof path, "%s/frame%05d.bmp", g_dump_dir, n);
-    SDL_Surface *s = SDL_CreateSurface(SCREEN_W, SCREEN_H, SDL_PIXELFORMAT_RGBA8888);
+    SDL_Surface *s = SDL_CreateSurface(W, H, SDL_PIXELFORMAT_RGBA8888);
     if (!s) return;
     uint8_t *dst = (uint8_t *)s->pixels;
-    for (int i = 0; i < SCREEN_W * SCREEN_H; i++) {
+    for (int i = 0; i < W * H; i++) {
         uint8_t idx = g_video_ram[i];
         dst[i * 4 + 0] = g_pal[idx * 3];
         dst[i * 4 + 1] = g_pal[idx * 3 + 1];
@@ -105,6 +147,20 @@ static void dump_frame(int n) {
     }
     SDL_SaveBMP(s, path);
     SDL_DestroySurface(s);
+    /* The 320x200 view: the game's own screens and its RLE picture loader are 320 wide (pitch 0x140,
+     * 0xfa00 bytes), so this is the view that shows what the loaders actually painted. */
+    snprintf(path, sizeof path, "%s/frame%05d_320.bmp", g_dump_dir, n);
+    SDL_Surface *s2 = SDL_CreateSurface(320, 200, SDL_PIXELFORMAT_RGBA8888);
+    if (s2) {
+        uint8_t *d2 = (uint8_t *)s2->pixels;
+        for (int i = 0; i < 320 * 200; i++) {
+            uint8_t idx = g_video_ram[i];
+            d2[i * 4 + 0] = g_pal[idx * 3]; d2[i * 4 + 1] = g_pal[idx * 3 + 1];
+            d2[i * 4 + 2] = g_pal[idx * 3 + 2]; d2[i * 4 + 3] = 255;
+        }
+        SDL_SaveBMP(s2, path);
+        SDL_DestroySurface(s2);
+    }
     SDL_Log("wrote %s", path);
 }
 
@@ -134,6 +190,14 @@ static void sdl_events(void) {
         case 0x50: g_dat_63ed5 = (uint8_t)make; break;      /* down held */
         default: break;
         }
+        /* The game's own key bytes (the DS bytes its keyboard pump used to set; the menu in fn_03a224
+         * and every key wait read these): 63ea4 = confirm, 63ed0/63ed8 = the held select keys,
+         * 63e89 = abort, 63ec1 = a plain key press. */
+        uint8_t *byte = (sc == 0x1c || sc == 0x39) ? &g_dat_63ea4      /* enter / space: confirm */
+                    : (sc == 0x01) ? &g_dat_63e89                      /* esc: abort */
+                    : (sc == 0x48 || sc == 0x50 || sc == 0x4b || sc == 0x4d) ? &g_dat_63ed0
+                    : &g_dat_63ec1;
+        *byte = (uint8_t)make;
         if (make) {
             g_dat_63eb2 = 1; g_dat_63ebe = 1;              /* the "any key" bytes */
             g_dat_62c58[sc] = 1;                           /* scan-code slot, as fn_0343d1 arms it */
@@ -144,14 +208,25 @@ static void sdl_events(void) {
 }
 
 static void input_pump(void) {
+    autokey();                                                 /* the scripted headless key press */
     sdl_events();
     fn_0347e3();                                           /* the game's keyboard pump */
 }
 
 /* ---- the tick pump: real time -> the installed timer handler ---------- */
 static Uint64 g_tick_next;
+static unsigned long g_pump_calls, g_timer_calls;
+static Uint64 g_diag_next;
 static void tick_pump(void) {
     Uint64 now = SDL_GetPerformanceCounter();
+    g_pump_calls++;
+    if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
+        SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
+                "pit=%u Hz",
+                g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
+                sys_pit_hz(0));
+        g_diag_next = now + g_perf_freq;
+    }
     if (now < g_tick_next) return;
     uint32_t hz = sys_pit_hz(0);                      /* fn_03ef29 programs PIT ch0 (0x982 -> 490 Hz) */
     if (hz == 0 && g_dat_63318) hz = 1193182u / g_dat_63318;   /* fn_03575d's ch2 user */
@@ -165,7 +240,7 @@ static void tick_pump(void) {
         while (now >= g_tick_next && calls < 64) { g_tick_next += period; calls++; }
         calls--;
     }
-    while (calls--) fn_03ee88();
+    while (calls--) { fn_03ee88(); g_timer_calls++; }
 
     if (now >= g_present_next) {
         present();
@@ -184,6 +259,7 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "--res-dir") && i + 1 < argc) res_dir = argv[++i];
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames_limit = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--dump") && i + 1 < argc) g_dump_dir = argv[++i];
+        else if (!strcmp(argv[i], "--autokey")) g_autokey = 1;
         else if (!strcmp(argv[i], "--help")) {
             printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR]\n");
             return 0;
@@ -194,11 +270,9 @@ int main(int argc, char **argv) {
     snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", res_dir);
 
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
-    g_win = SDL_CreateWindow("NIGHT", SCREEN_W * 2, SCREEN_H * 2, 0);
+    g_win = SDL_CreateWindow("NIGHT", 640 * 2, 480 * 2, 0);
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;
-    g_tex = g_ren ? SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING,
-                                      SCREEN_W, SCREEN_H) : NULL;
-    g_pixels = SDL_malloc((size_t)SCREEN_W * SCREEN_H * 4u);
+    if (!g_ren) { SDL_Log("no renderer: %s", SDL_GetError()); return 1; }
     g_perf_freq = SDL_GetPerformanceFrequency();
 
     /* ---- port boot (the recipe the real-data test uses, docs/15) ---- */
@@ -223,8 +297,10 @@ int main(int argc, char **argv) {
     sys_set_input_pump(input_pump);
     sys_set_tick_pump(tick_pump);
 
-    g_tick_next = SDL_GetPerformanceCounter();
-    g_present_next = g_tick_next;
+    g_start_time = SDL_GetPerformanceCounter();
+    g_tick_next = g_start_time;
+    g_present_next = g_start_time;
+    g_diag_next = g_tick_next + g_perf_freq;
 
     /* ---- run ---- */
     if (setjmp(g_game_escape) == 0) {
@@ -247,7 +323,7 @@ int main(int argc, char **argv) {
     if (g_tex) SDL_DestroyTexture(g_tex);
     if (g_ren) SDL_DestroyRenderer(g_ren);
     if (g_win) SDL_DestroyWindow(g_win);
-    SDL_free(g_pixels);
+    free(g_pixels);
     cd_iso_close();
     SDL_Quit();
     return 0;

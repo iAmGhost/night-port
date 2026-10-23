@@ -12477,13 +12477,19 @@ static void test_fn_0383a4(void) {
 static void test_fn_03df96(void) {
     printf("fn_03df96 (0x03df96): sprite/entity blit (per-record glyph via fn_03bb42)\n");
     uint8_t *scr = g_video_ram;
-    static uint32_t col_tbl[2], rowcount_tbl[2], x_tbl[2], y_tbl[2], char_table[2];
-    static uint8_t  rle_buf[3 * 4];              /* 1 glyph, 3 rows of [1,0,1,0xA5] */
+    /* The font block's table fields are HEAP OFFSETS (fn_03d9cf stores heap_malloc results there), so the
+     * fixture puts its tables and glyph data in the heap arena and records offsets. */
+    heap_arena_init();
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t col_off = heap_malloc(8), rc_off = heap_malloc(8), x_off = heap_malloc(8),
+             y_off = heap_malloc(8), ct_off = heap_malloc(8), rle_off = heap_malloc(12);
+    #define HTAB(o) ((uint32_t *)(hb + (o)))
+    HTAB(col_off)[0] = 7; HTAB(rc_off)[0] = 3;
+    HTAB(x_off)[0] = 0;   HTAB(y_off)[0] = 0;    HTAB(ct_off)[0] = 0;
     static struct hud_font font;
-    for (int r = 0; r < 3; r++) { uint8_t *p = rle_buf + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=0xA5; }
-    col_tbl[0]=7; rowcount_tbl[0]=3; x_tbl[0]=0; y_tbl[0]=0; char_table[0]=0;
-    font.col_tbl=col_tbl; font.rowcount_tbl=rowcount_tbl; font.x_tbl=x_tbl; font.y_tbl=y_tbl;
-    font.char_table=char_table; font.rle_base=(uint32_t*)rle_buf;
+    for (int r = 0; r < 3; r++) { uint8_t *p = hb + rle_off + r * 4; p[0]=1; p[1]=0; p[2]=1; p[3]=0xA5; }
+    font.col_tbl = col_off; font.rowcount_tbl = rc_off; font.x_tbl = x_off; font.y_tbl = y_off;
+    font.char_table = ct_off; font.rle_base = rle_off;
     g_dat_63dfc = &font;
     static uint8_t ents[3 * 0x14];
     g_dat_5d0b4 = ents;
@@ -12524,6 +12530,7 @@ static void test_fn_03df96(void) {
     check(ok3, "  T3 2 recs: rec0@col80/row40, rec1@col180/row50");
 
     g_dat_639dc = save_x; g_dat_639e0 = save_y;
+    #undef HTAB
     #undef SETREC
 }
 

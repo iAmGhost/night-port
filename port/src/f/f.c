@@ -2087,7 +2087,7 @@ int str_icmp(const char *a, const char *b, int n) {
 /* 0x5d884: RODATA string->value table, 21-byte entries {char str[13]; int32 value@13; pad[4]}.
  * 0x633a0 bounds the walk (runtime count). Sized generously for the real table. */
 uint32_t g_dat_633a0 = 0;
-uint8_t  g_tab_5d884[128 * 21];
+uint8_t  g_tab_5d884[512 * 21];
 res_reader *g_639b8 = NULL;   /* resource-reader node pointer (0x639b8) */
 static inline uint8_t *video_map(uint32_t va);   /* forward use of the video-window mapper (defined below) */
 
@@ -6514,7 +6514,13 @@ static inline void     node_flag_set(uint32_t o, uint8_t v){ s_node_arena[o+10]=
  * and the blit family. Out-of-window va is clamped to the buffer base (defensive;
  * real game stays within the window). */
 #define VIDEO_BASE   0xa0000u
-#define VIDEO_SIZE   0x10000u
+/* The video arena is the game's LINEAR screen model, not a 320x200 VGA window: after fn_03f15f puts
+ * the display in VBE mode 0x101 (640x480x8), DAT_000531f4 -- the wrap width fn_03f462 blits against --
+ * is the mode info's size field shifted by 10, i.e. a 640 KiB linear region based at 0xa0000, and the
+ * title/slide path writes a full 0x4b000-byte 640x480 image through it (`fn_03a224` calls
+ * fn_03f462(0, 0, 0x280, 0x1e0, buf)). The arena therefore has to span that region; 0x160000 covers
+ * 0xa0000..0x200000, which is where the model's off-screen screens (SCREEN_BASE) begin. */
+#define VIDEO_SIZE   0x160000u
 uint8_t g_video_ram[VIDEO_SIZE];
 
 /* DAT_000633b0 / DAT_000633b4: the two off-screen 64000-byte screens. The original
@@ -7120,7 +7126,12 @@ uint32_t g_dat_639dc = 0;
 uint32_t g_dat_639e0 = 0;
 struct hud_font *g_dat_63dfc = NULL;  /* 0x63dfc: sprite blit font ptr (fn_03df96) */
 uint32_t g_dat_62a90 = 0;            /* 0x62a90: sprite record count (fn_03df96) */
-uint8_t *g_dat_5d0b4 = NULL;         /* 0x5d0b4: sprite record array, 0x14 stride (fn_03df96) */
+/* DS 0x5d0b4 is a static array in the original's data segment, not a heap pointer: it runs to the next
+ * DS object (the resource index table g_tab_5d884 at 0x5d884), i.e. exactly 0x7d0 bytes = 100 records of
+ * 0x14. Stage entry (fn_037b03) fills it from the "stage<N>.stg" records and the sprite blitters read it,
+ * so it needs backing storage in the flat model. */
+static uint8_t g_tab_5d0b4[0x7d0];
+uint8_t *g_dat_5d0b4 = g_tab_5d0b4;  /* 0x5d0b4: sprite record array, 0x14 stride (fn_03df96) */
 uint32_t fn_01519f(const uint8_t *p) { return *(const uint32_t *)(p + 1) - g_dat_639dc; }  /* 0x01519f */
 uint32_t fn_0151d5(const uint8_t *p) { return *(const uint32_t *)(p + 9) - g_dat_639e0; }  /* 0x0151d5 */
 
@@ -12658,6 +12669,19 @@ void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
 void fn_03df96(uint32_t base) {
     (void)canary_id(0, 0x38);                                     /* PUSH 0x38;CALL 0x418ee */
     const struct hud_font *font = g_dat_63dfc;
+    /* The block's table fields are heap offsets (fn_03d9cf stores heap_malloc results in them, exactly as
+     * fn_03d75c reads them), so every table is resolved against the heap base here too.
+     * Port guard: with the ".spr" block absent the original would dereference offset 0; the port skips the
+     * sweep instead so a missing resource degrades to "no sprites" rather than killing the process. */
+    if (font == (const struct hud_font *)0 || font->rle_base == 0 || font->char_table == 0 ||
+        font->x_tbl == 0 || font->y_tbl == 0 || font->col_tbl == 0 || font->rowcount_tbl == 0) return;
+    const uint8_t *hb = (const uint8_t *)g_heap_base;
+    const uint32_t *col_tbl      = (const uint32_t *)(hb + font->col_tbl);
+    const uint32_t *rowcount_tbl = (const uint32_t *)(hb + font->rowcount_tbl);
+    const uint32_t *x_tbl        = (const uint32_t *)(hb + font->x_tbl);
+    const uint32_t *y_tbl        = (const uint32_t *)(hb + font->y_tbl);
+    const uint32_t *char_table   = (const uint32_t *)(hb + font->char_table);
+    const uint8_t  *rle_base     = hb + font->rle_base;
     for (int32_t i = 0; i < (int32_t)g_dat_62a90; i++) {          /* 0x03dfb8-c9 */
         const uint8_t *rec = g_dat_5d0b4 + (uint32_t)i * 0x14;    /* record i @ 0x5d0b4 + i*0x14 */
         int32_t  g      = *(const int32_t *)(rec + 0x0);          /* glyph index */
@@ -12665,11 +12689,11 @@ void fn_03df96(uint32_t base) {
         int32_t  f8     = *(const int32_t *)(rec + 0x8);          /* start_row (y) component */
         uint32_t mode   = (uint32_t)rec[0xc];                     /* mode/fill byte */
         float    sc     = *(const float *)(rec + 0x10);           /* scale (rounded) */
-        int32_t dest_off  = f4 - (int32_t)font->x_tbl[g] - (int32_t)g_dat_639dc + (int32_t)fpu_rndint((double)sc); /* 0x03e046-086 */
-        int32_t start_row = f8 - (int32_t)font->y_tbl[g] - (int32_t)g_dat_639e0;                              /* 0x03e046/56 */
-        int32_t col       = (int32_t)font->col_tbl[g];             /* 0x03e02a */
-        int32_t row_count = (int32_t)font->rowcount_tbl[g];        /* 0x03e018 */
-        const uint8_t *rle = (const uint8_t *)((uintptr_t)font->rle_base + font->char_table[g]);              /* 0x03e005 */
+        int32_t dest_off  = f4 - (int32_t)x_tbl[g] - (int32_t)g_dat_639dc + (int32_t)fpu_rndint((double)sc); /* 0x03e046-086 */
+        int32_t start_row = f8 - (int32_t)y_tbl[g] - (int32_t)g_dat_639e0;                              /* 0x03e046/56 */
+        int32_t col       = (int32_t)col_tbl[g];                   /* 0x03e02a */
+        int32_t row_count = (int32_t)rowcount_tbl[g];              /* 0x03e018 */
+        const uint8_t *rle = rle_base + char_table[g];             /* 0x03e005 */
         fn_03bb42(base, dest_off, start_row, col, row_count, rle, mode);
     }
 }
@@ -13843,6 +13867,10 @@ void sys_key_spin(void)
 {
     g_key_tick++;
     if (sys_get_input_pump() != (sys_pump_fn)0) sys_get_input_pump()();   /* the SDL build's keyboard source */
+    /* The original kept taking timer interrupts while it waited for a key, so the clock keeps running
+     * here too: without it, the tick-driven counters a key wait depends on (DAT_63f08, the paced
+     * pumps) would freeze for the whole wait. */
+    if (sys_get_tick_pump() != (sys_pump_fn)0) sys_get_tick_pump()();
     while (g_key_evt_i < g_key_evt_n && g_key_evt[g_key_evt_i].tick <= g_key_tick) {
         *g_key_evt[g_key_evt_i].slot = (uint8_t)g_key_evt[g_key_evt_i].value;
         g_key_evt_i++;

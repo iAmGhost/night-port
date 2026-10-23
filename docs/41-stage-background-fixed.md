@@ -103,3 +103,27 @@ Diagnostics kept for future sessions: `dbg_pal_load`, `fn_040660` fade-target du
 * Therefore both conditions must be fixed for `fn_04185e` to ever be entered: start with `fn_040d09`'s
   late steps in the host (what differs from the unit fixture), then check whether `fn_039c03`'s config
   block runs at all in the headless autokey run.
+
+## The intermittent host crash is solved: a 32-bit parameter truncated a host pointer
+
+With `-fno-inline` the crash report stopped being ambiguous: the faulting frame really was
+`fn_03d606 + 64` called from `fn_03a829`, and the fault was `KERN_PROTECTION_FAILURE` at an address just
+past the arena. The room loop called it as
+
+```c
+fn_03d606((uint32_t)(uintptr_t)room);   /* a0 was declared uint32_t */
+```
+
+while `fn_03d606` computed `g_heap_base + a0`. The original passed a *linear address*; in the flat port the
+room node is a 64-bit host pointer, so the cast threw away the high half and the arithmetic produced an
+address inside the arena only by luck of ASLR — which is exactly why the fault was intermittent and why no
+sanitizer build reproduced it (`heap_chain_check` correctly reported the allocator chains as clean).
+
+Fix: `fn_03d606(uintptr_t a0)` uses the struct address directly (the `pairs` field at `+0x44` stays a heap
+offset, as `fn_03c853` stores it) and the room loop passes `(uintptr_t)room`. Along the way every widened
+64-bit record link (`+0x34c` next, `+0x354` back) now goes through the unaligned-safe `rec_ptr_get` /
+`rec_ptr_set` helpers instead of `*(uint8_t **)`, because those slots are only 4-byte aligned.
+
+Measured: five consecutive headless runs of 1500 frames completed with the run killed by the harness
+timeout (`frames=1580` each) instead of dying around frame ~600, and the ASan suite is clean at
+**2792 PASS / 0 FAIL**.

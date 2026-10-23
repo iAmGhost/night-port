@@ -7046,7 +7046,7 @@ static void test_fn_03d606(void) {
     for (int e = 0; e < 3; e++) for (int b = 0; b < 3; b++) E[e * 3 + b] = e + 1;
     fn_03d67c((uint8_t *)g_heap_base + eo, P[0], P[1]);
     fn_03d67c((uint8_t *)g_heap_base + eo, P[2], P[3]);
-    fn_03d606(a0);
+    fn_03d606((uintptr_t)(g_heap_base + a0));   /* the struct address, as the original passed it */
     int ok = 1;
     for (int i = 0; i < 9; i++) if (S[0x48 + i] != E[i]) ok = 0;
     check(ok, "03d606 data matches differential");

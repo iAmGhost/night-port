@@ -135,6 +135,18 @@ void vline_set(uint8_t *a, int b, int c, int d, int e, uint8_t f) {
     } while (e != 0);
 }
 
+/* Unaligned-safe access to the widened 64-bit record links. The port widens the room/entity chain
+ * slots at +0x34c (next) and +0x354 (back, originally +0x350) from 4 to 8 bytes, but record offsets
+ * are only 4-byte aligned (and the allocator hands out 4-aligned blocks), so a direct 64-bit load or
+ * store there is misaligned: the compiler may emit an aligned-only pair access, which faults. The
+ * intermittent host SIGBUS/SIGSEGV inside the room loop traced to exactly these slots. */
+static inline uint8_t *rec_ptr_get(const uint8_t *rec, unsigned off) {
+    uint64_t v; memcpy(&v, rec + off, sizeof v); return (uint8_t *)(uintptr_t)v;
+}
+static inline void rec_ptr_set(uint8_t *rec, unsigned off, const uint8_t *v) {
+    uint64_t u = (uint64_t)(uintptr_t)v; memcpy(rec + off, &u, sizeof u);
+}
+
 /* rect_fill  orig: 0x04052c
  *   p = a + b + c*stride; e rows of d bytes (odd byte, then d>>1 words
  *   of f|f<<8); p += stride - d per row
@@ -870,16 +882,16 @@ void fn_03c853(uint8_t *node, uint8_t *io)
     }
     g_dat_6335c = g_dat_6335c + 1;                                 /* 0x3ca48 */
     if (g_dat_6335c == g_dat_639d8) {                              /* 0x3ca4e-59 */
-        *(uint8_t **)(node + 0x34c) = NULL;                        /* 0x3ca5e: last room in the chain */
+        rec_ptr_set(node, 0x34c, NULL);                        /* 0x3ca5e: last room in the chain */
     } else {
         /* 0x3ca6f: the 0x041bdc wrapper. The original asks for 0x354 bytes; the port asks for
          * 0x35c because the back pointer moved to +0x354 (8 bytes) after the link widening. */
         uint32_t child_off = heap_malloc(0x35c);
         uint8_t *child = (child_off == 0) ? NULL : (uint8_t *)g_heap_base + child_off;
         if (child != NULL) child = fn_03c6ec(child);               /* 0x3ca86 */
-        *(uint8_t **)(node + 0x34c) = child;                       /* 0x3caa2 */
+        rec_ptr_set(node, 0x34c, child);                       /* 0x3caa2 */
         if (child != NULL) {
-            *(uint8_t **)(child + 0x354) = node;                   /* 0x3cab4: orig +0x350, shifted */
+            rec_ptr_set(child, 0x354, node);                   /* 0x3cab4: orig +0x350, shifted */
             fn_03c853(child, io);                                  /* 0x3cac6: EAX = child */
         }
     }
@@ -900,7 +912,7 @@ uint32_t fn_03d88f(void) {
     uint8_t *node = g_dat_63350;                 /* 0xd8a7/0xd8ac */
     while (node != NULL) {                       /* 0xd8af/0xd8b3 */
         fn_0003c7d7(node);                       /* 0xd8b8 */
-        node = *(uint8_t **)(node + 0x34c);      /* 0xd8c0/0xd8c6 */
+        node = rec_ptr_get(node, 0x34c);      /* 0xd8c0/0xd8c6 */
     }
     return 0;                                     /* 0xd8cb (EAX = null next) */
 }
@@ -1834,10 +1846,12 @@ void fn_03d67c(uint8_t *a, uint32_t a1, uint32_t a2) {
  * a2 = pairs[i*2+1]; fn_03d67c(a0+0x48, a1, a2). (orig args: EAX=a0+0x48 base,
  * EDX=a1, EBX=a2 -> fn_03d67c(a0=EAX, a1=EDX, a2=EBX).) */
 int g_dbg_03d606;                      /* host-side diagnostic switch for the palette-row rotation */
-void fn_03d606(uint32_t a0) {
+void fn_03d606(uintptr_t a0) {   /* a0 is the STRUCT ADDRESS (the original passed a linear address;
+                                  * a 32-bit parameter truncated the host pointer, so the room loop's
+                                  * call landed outside the arena -- the intermittent host crash) */
     (void)canary_id(0, 0x24);                                   /* PUSH 0x24;CALL 0x418ee */
     uint8_t *hb = (uint8_t *)g_heap_base;
-    uint8_t *s = hb + a0;                                       /* struct at heap offset a0 */
+    uint8_t *s = (uint8_t *)a0;                                 /* the struct itself */
     int32_t count = *(int32_t *)(s + 0x3c);                     /* 0x3d636 */
     uint32_t po = *(uint32_t *)(s + 0x44);                      /* pairs heap offset */
     uint8_t *pairs = hb + po;
@@ -1847,7 +1861,7 @@ void fn_03d606(uint32_t a0) {
         uint32_t a1 = pairs[i * 2 + 0];                         /* 0x3d65e: EDX = a1 */
         uint32_t a2 = pairs[i * 2 + 1];                         /* 0x3d648: EBX = a2 */
         if (g_dbg_03d606 && i < 4) fprintf(stderr, "   pair %u: a1=%u a2=%u\n", i, a1, a2);
-        fn_03d67c((uint8_t *)g_heap_base + a0 + 0x48, a1, a2);   /* 0x3d66c (a0 is a heap offset) */
+        fn_03d67c((uint8_t *)a0 + 0x48, a1, a2);               /* 0x3d66c: the inline data array */
     }
 }
 /* 0x017218: set the sign of an output value pair by a 2-bit index. Args: a0 (heap
@@ -6523,7 +6537,7 @@ uint32_t fn_03c72b(uint32_t ent_off) {
      * as an offset -- the first version of this port -- produced wild child offsets such as
      * 0x051db5b4 (the low half of an arena address), which made the real stage teardown crash at
      * random: the arena sits at a different address on every run. Read the pointer, convert. */
-    uint8_t *child_p = *(uint8_t **)(ent + 0x34c);              /* 0x3c74b-52 (the != 0 test) */
+    uint8_t *child_p = rec_ptr_get(ent, 0x34c);              /* 0x3c74b-52 (the != 0 test) */
     if (child_p) {
         uint32_t child = (uint32_t)(child_p - (uint8_t *)g_heap_base);   /* 0x3c757-5d [ebp-0x14] */
         uint32_t r = fn_03c72b(child);                          /* 0x3c76b (EDX=0) */
@@ -8316,7 +8330,7 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
     int32_t mn = (int32_t)(*(int32_t *)(p + 0x12) + g_dat_639e0);   /* 0x15892-158a0 */
     int32_t mx;
     if (p[0x10] == 0) mx = (int32_t)(*(int32_t *)(p + 0x16) + g_dat_639e0);     /* 0x158b4-158c2 */
-    else { uint8_t *q = *(uint8_t **)(p + 0x34c); mx = (int32_t)(*(int32_t *)(q + 0x16) + g_dat_639e0); } /* 0x158c7-158db */
+    else { uint8_t *q = rec_ptr_get(p, 0x34c); mx = (int32_t)(*(int32_t *)(q + 0x16) + g_dat_639e0); } /* 0x158c7-158db */
     if (a0[0] <= 1) {                                          /* 0x158e1-158eb (a0[0] > 1 skips) */
         for (uint32_t i = 0; i < g_dat_62a8c; i++) {
             struct clamp_tab_5c8bc *t = &g_tab_5c8bc[i];
@@ -8347,7 +8361,7 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
  *   g_63378=(b)g_53c7c->0x27; g_6337c=(b)g_53c7c->0x26; g_63380=(b)g_53c7c->0x25. */
 void fn_03cc6b(uint8_t *a0) {
     (void)canary_id(0, 0x20);                                   /* PUSH 0x20;CALL 0x418ee */
-    uint8_t *c = *(uint8_t **)(a0 + 0x34c);                     /* 0x3cc98 */
+    uint8_t *c = rec_ptr_get(a0, 0x34c);                     /* 0x3cc98 */
     if (g_dat_639e4 == 0) {                                     /* 0x3cc8f */
         if (g_dat_639dc == *(uint32_t *)c) {                    /* 0x3cca4 */
             g_dat_63354 = c;                                    /* 0x3ccb5 */
@@ -21820,18 +21834,18 @@ int32_t fn_03a829(void)
         if (*(const int32_t *)(pl + 0x17) == 1) g_dat_6339c = g_dat_6339c + 1;
         else g_dat_6339c = 0;                                          /* 0x0003ab79-0x0003ab8b idle timer */
         /* 0x0003ab90-0x0003abb4: the /10 quotient is discarded, only the %10 test matters (as in fn_03d244). */
-        if (g_dat_63360 % 10 == 0) fn_03d606((uint32_t)(uintptr_t)room);
+        if (g_dat_63360 % 10 == 0) fn_03d606((uintptr_t)room);
         heap_chain_check("fn_03a829");   /* host probe: name allocator-chain corruption at its source */
         if (g_dat_6336c == 1) break;                                   /* 0x0003abc0 gone for good */
         if (g_dat_6336c == 3) { g_dat_6336c = 0; return 1; }           /* 0x0003abca-0x0003abdd died */
         if (g_dat_6336c == 2) {                                        /* 0x0003ac2a-0x0003ac7b exit rect */
             fn_0381d7(g_dat_633b0, 1, 0, 0x50, (int32_t)g_dat_63398);
             /* the room chain link at +0x34c is a widened host pointer in this port (cf. fn_03cc6b) */
-            g_dat_63398 = *(const uint8_t *)(*(uint8_t **)(room + 0x34c) + 0x11);
+            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(room, 0x34c) + 0x11);
             g_dat_6336c = 0;
             fn_03d244(room);
         } else if (g_dat_6336c == 4) {                                 /* 0x0003ac80-0x0003accd quota met */
-            g_dat_63398 = *(const uint8_t *)(*(uint8_t **)(room + 0x34c) + 0x11);
+            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(room, 0x34c) + 0x11);
             g_dat_6336c = 0;
             fn_03d244(room);
         }
@@ -24763,7 +24777,7 @@ void fn_03d244(uint8_t *node)
     fn_03237b();                                                     /* 0x0003d25f */
     fn_0406f5(g_dat_63354 + 0x48, 0x32);                             /* 0x0003d274-81 */
 
-    uint8_t *nxt = *(uint8_t **)(node + 0x34c);                      /* 0x0003d286-95 */
+    uint8_t *nxt = rec_ptr_get(node, 0x34c);                      /* 0x0003d286-95 */
     g_dat_63354 = (nxt != NULL) ? nxt : g_dat_63350;                 /* 0x0003d29b / 0x0003d2a2 */
 
     fn_038f3d(1);                                                    /* 0x0003d2ac-b1 */

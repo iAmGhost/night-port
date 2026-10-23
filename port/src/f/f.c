@@ -2060,7 +2060,12 @@ uint8_t inb(uint16_t port) {
  * observable effect is DAT_00063f84 = 2. The decompile's param_1/param_2 are the
  * interrupt-entry registers (EAX:EDX), not real parameters. */
 uint32_t g_dat_63f84 = 0;              /* DAT_00063f84: IRQ/device state (0x041439 sets 2) */
-uint32_t g_dat_53334 = 0;              /* DAT_00053334: device port base */
+uint32_t g_dat_53334 = 0x210;          /* DAT_00053334: device port base. The shipped image initialises
+                                      * it to 0x210 (NIGHT.EXE file 0x4bd34 = DS 0x53334), and fn_040d09
+                                      * treats that value as "this is not our controller" and returns 0
+                                      * without touching the board: with the data as shipped the device
+                                      * path stays uninitialised (DAT_00063f90 = 0), so sample playback
+                                      * through fn_04185e is gated off unless something configures a base. */
 void fn_041439(void)
 {
     seg_ds_load();                                /* 0x41449 */
@@ -7499,13 +7504,17 @@ uint16_t g_dat_63f58;     /* DAT_00063f58: saved device-ISR segment (0x040d09) *
 uint32_t fn_040d09(void) {
     (void)canary_id(0, 0x30);                                          /* 0x40d0e */
     g_dat_53334 = fn_040f4f();                                         /* 0x40d21-26 */
-    if (g_dat_53334 == 0x210) return 0;                                /* 0x40d2b */
+    if (g_dbg_03d606) fprintf(stderr, "040d09: base=%#x\n", g_dat_53334);
+    if (g_dat_53334 == 0x210) { if (g_dbg_03d606) fprintf(stderr, "040d09: bail base\n"); return 0; }
     g_dat_63f84 = fn_040fb3();                                         /* 0x40d43-48 */
-    if (g_dat_63f84 == 0) return 0;
+    if (g_dbg_03d606) fprintf(stderr, "040d09: irq probe=%u\n", g_dat_63f84);
+    if (g_dat_63f84 == 0) { if (g_dbg_03d606) fprintf(stderr, "040d09: bail irq probe\n"); return 0; }
     g_dat_63f88 = fn_0411d9();                                         /* 0x40d62-67 */
-    if (g_dat_63f88 == 0) return 0;
+    if (g_dbg_03d606) fprintf(stderr, "040d09: id=%u\n", g_dat_63f88);
+    if (g_dat_63f88 == 0) { if (g_dbg_03d606) fprintf(stderr, "040d09: bail id\n"); return 0; }
     g_dat_63fb4 = fn_00040788(&g_dat_63fb0, 0xffff);                      /* 0x40d8b-90 */
-    if (g_dat_63fb4 == 0) return 0;
+    if (g_dbg_03d606) fprintf(stderr, "040d09: buf=%p\n", (void *)g_dat_63fb4);
+    if (g_dat_63fb4 == 0) { if (g_dbg_03d606) fprintf(stderr, "040d09: bail buffer\n"); return 0; }
     g_dat_63fac = (uint32_t)(uintptr_t)g_dat_63fb4;                    /* 0x40db4 */
     if (((g_dat_63fac >> 16) & 0xff) == 0) {                           /* 0x40db4 test byte */
         uint16_t segs[6]; sys_get_segments(segs);                      /* ES,CS,SS,DS,FS,GS */
@@ -7521,6 +7530,7 @@ uint32_t fn_040d09(void) {
     g_dat_63f54 = (uint32_t)v; g_dat_63f58 = (uint16_t)(v >> 32);      /* 0x40e45-4c */
     isr_set((uint8_t)vec, 0x415c9, 0x1f);                              /* 0x40e66 */
     fn_0413e7();                                                       /* 0x40e6b */
+    if (g_dbg_03d606) fprintf(stderr, "040d09: initialised\n");
     g_dat_63f90 = 1;                                                   /* 0x40e70 */
     return 1;                                                          /* 0x40e7a */
 }

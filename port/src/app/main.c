@@ -152,6 +152,26 @@ static void audio_boot(void) {
     SDL_Log("audio: playing at 48000 Hz (board samples start at %u Hz)", g_astream_rate);
 }
 
+/* The game's sound board is only initialised if the hardware answers: fn_040f4f scans the device
+ * ports for the 0xaa signature, fn_040fb3 needs its probe command (0xf2) to raise the device
+ * interrupt, and fn_0411d9 needs a non-zero id. On a bare Mac none of that exists, so DAT_00063f90
+ * stays 0 and fn_04185e (the sample player) is never entered. Model the board exactly as the unit
+ * fixture does: a controller at 0x220 whose status port answers independently of the command port,
+ * plus the interrupt the probe raises. */
+static void board_cmd_hook(uint16_t port, uint8_t cmd) {
+    (void)port;
+    if (cmd == 0xf2) sys_isr_fire(0x0a);              /* the probe command asserts the device IRQ */
+}
+static void board_boot(void) {
+    static const uint8_t sig[] = { 0xaa };
+    sys_dev_read_seq(0x22a, sig, 1);                  /* the discovery probe's signature read */
+    sys_dev_status_set(0x22e, 0x80);                  /* ready for reads  */
+    sys_dev_status_set(0x22c, 0x00);                  /* ready for writes */
+    sys_isr_bind(0x41439, fn_041439);                 /* the game's own vector-0x0a handler */
+    sys_dev_cmd_hook(board_cmd_hook);
+    g_dat_53334 = 0x220;      /* the shipped image leaves 0x210 (board disabled); opt in with NIGHT_BOARD=1 */
+}
+
 static void audio_pump(void) {
     if (!g_adev || !g_astream) return;
     sys_audio_set_source(g_dat_63fb4);                 /* the buffer an armed DMA transfer reads */
@@ -438,6 +458,9 @@ int main(int argc, char **argv) {
         else if (!strcmp(getenv("NIGHT_PAL"), "cacheraw")) g_pal_src = 3;
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
+    if (getenv("NIGHT_BOARD")) board_boot();   /* else the shipped default (DAT_53334 = 0x210) is kept */
+    if (getenv("NIGHT_SOUND")) g_dat_53338 = 1;  /* the title menu's SOUND toggle (fn_039c03) is off by
+                                                  * default in the shipped image; force it on for tests */
     audio_boot();
     g_dbg_03d606 = getenv("NIGHT_DBG") ? 1 : 0;
     g_heap_chain_dbg = getenv("NIGHT_DBG") ? 1 : 0;

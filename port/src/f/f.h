@@ -26,6 +26,8 @@ void cpy_back(uint8_t *a, const uint8_t *b, int n);
 /* for (; n; n--) { *c = *a; a++; c++; }   (dwords)           orig: 0x0404c6 */
 void cpy_dw(uint32_t *a, int n, uint32_t *c);
 extern int g_view_320x200;
+extern uint32_t g_vga_retrace_us;      /* the 0x3DA wait model's retrace interval (docs/47) */
+extern uint64_t g_vga_retrace_waits;   /* retrace waits run so far */
 void blit_stats_on(void);
 void blit_stats_dump(void);
 

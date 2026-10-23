@@ -76,6 +76,11 @@ void sys_breakpoint(uint32_t eax, uint16_t edx);
  * sys_clock_read performs one clock read (a counting stub). */
 extern uint32_t sys_clock_tps;
 uint32_t sys_clock_ticks_per_sec(void);
+
+/* Host monotonic clock (microseconds, CLOCK_MONOTONIC). The original's per-frame pacing comes from
+ * spinning on hardware (the 0x3DA retrace bit), which only a host with a clock can reproduce; the
+ * waits use this so they cost what they cost on real hardware instead of nothing. */
+uint64_t sys_now_us(void);
 extern uint32_t sys_clock_read_count;
 void sys_clock_read(void);
 

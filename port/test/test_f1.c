@@ -17183,6 +17183,33 @@ static void test_device_bringup(void) {
  * value through video_map(), which clamped it to the video-window base and blitted nothing but stale data
  * (measured: the back buffer matched the .wal index map at only chance level, 0.004). Verified against the
  * same arithmetic the room path uses (DAT_000639dc = first node worldX_left, source pitch = node+0x1a). */
+/* The 0x3DA retrace-wait model (docs/47): with no pump installed the wait must stay the timing-free
+ * stub every other ported test was written against; with a pump it must actually cost a retrace
+ * interval each call and run the pump while waiting (that is what makes the logo, the slideshows and
+ * the fade pacing visible in the SDL host). */
+static int g_rt_pump_calls;
+static void rt_pump(void) { g_rt_pump_calls++; }
+
+static void test_vga_retrace_wait(void) {
+    uint64_t t0 = sys_now_us();
+    for (int i = 0; i < 5000; i++) fn_00035ec2();
+    uint64_t t1 = sys_now_us();
+    check(t1 - t0 < 25000, "0x3DA wait stays timing-free when no pump is installed");
+    check(g_rt_pump_calls == 0, "no pump ran because none is installed");
+
+    uint32_t saved = g_vga_retrace_us;
+    g_vga_retrace_us = 1000;                        /* 1 ms retraces keep the test quick */
+    sys_set_tick_pump(rt_pump);
+    g_rt_pump_calls = 0;
+    t0 = sys_now_us();
+    for (int i = 0; i < 25; i++) fn_00035ec2();
+    t1 = sys_now_us();
+    check(t1 - t0 >= 20000, "with a pump installed 25 retraces cost ~25 intervals");
+    check(g_rt_pump_calls >= 25, "the retrace wait runs the installed tick pump while it waits");
+    sys_set_tick_pump((sys_pump_fn)0);
+    g_vga_retrace_us = saved;
+}
+
 static void test_stage_bg_heap_source(void) {
     printf("fn_03ce0b stage background: node+0x348 as a heap offset (docs/41)\n");
     uint32_t save_cap = heap_arena_cap_get(), save_floor = heap_region_floor_get();
@@ -17890,6 +17917,7 @@ int main(void) {
     test_fn_038a20_038ae0();
     test_fn_03ae8e();
     test_fn_0445c9();
+    test_vga_retrace_wait();
     test_stage_bg_heap_source();
     test_audio_path();
     test_device_bringup();

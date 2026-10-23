@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* ---- virtual port map (low I/O ports 0x0-0x3ff) ----
  * Covers the ports the game actually touches: 8259 PIC (0x20-0x21), 8253 PIT
@@ -388,6 +389,16 @@ void sys_breakpoint(uint32_t eax, uint16_t edx) { (void)eax; (void)edx; }
 
 uint32_t sys_clock_tps = 18;   /* DOS 18.2 Hz tick rate (default) */
 uint32_t sys_clock_ticks_per_sec(void) { return sys_clock_tps; }
+
+uint64_t sys_now_us(void)
+{
+#ifdef CLOCK_MONOTONIC
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)
+        return (uint64_t)ts.tv_sec * 1000000ull + (uint64_t)ts.tv_nsec / 1000ull;
+#endif
+    return (uint64_t)clock() * 1000000ull / (uint64_t)CLOCKS_PER_SEC;
+}
 uint32_t sys_clock_read_count = 0;
 void sys_clock_read(void) { sys_clock_read_count++; }
 

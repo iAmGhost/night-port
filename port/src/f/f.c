@@ -716,7 +716,23 @@ void fn_0003f645(void) {}
  *   (b&9)==9. In the flat model inb(0x3da) is a port stub returning a constant
  *   (default 0), so the second spin (wait for the ready bit) would never see
  *   it and would loop forever. No-op standin (documented degenerate case). */
-void fn_00035ec2(void) {}
+uint32_t g_vga_retrace_us = 14286u;      /* 70 Hz, the mode-13h retrace the original waits on */
+uint64_t g_vga_retrace_waits;           /* how many retrace waits actually ran (host diagnostics) */
+
+void fn_00035ec2(void)
+{
+    /* Port model, not a ported body: the original's two inb(0x3da) loops are replaced by one wait to the
+     * next retrace boundary, so a fade/animation frame costs a monitor frame like the hardware version.
+     * With no pump installed (every unit test) the sys clock has nothing driving the game, so the wait
+     * stays the timing-free stub the tests were written against. */
+    g_vga_retrace_waits++;
+    if (!sys_get_tick_pump() && !sys_get_input_pump()) return;
+    static uint64_t next_us;
+    uint64_t now = sys_now_us();
+    if (next_us < now) next_us = now;
+    next_us += g_vga_retrace_us;
+    while (sys_now_us() < next_us) { if (!sys_port_spin()) break; }
+}
 
 /* fn_00041bdc  orig: 0x00041bdc (L6, 74B)
  *   heap_malloc wrapper: if (size == 0) size = 1; return heap_malloc(size).

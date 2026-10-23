@@ -1,31 +1,29 @@
-# Setup-menu (fn_039c03 / pause.spr) toggles, measured through the host pump counters.
-# No key is needed to reach the menu: after the title card the port holds a static screen that is
-# byte-identical (L1 0.00) to the frame the earlier route called "menu", and it stays identical for over
-# 20 s. Down walks the entry index m 0 -> 4 -> 3 -> 2; Right/Left toggle f[m], meaningful at m==4 (the
-# DAT_00053ddc stream), m==3 (MUSIC, DAT_00053338 -> snden=) and m==2 (sound EFFECTS, DAT_00051a10 ->
-# sfx=, plus a CD track select or stop -> tracks=/cdstops=). Each press arms auto-repeat for 0x13 frames,
-# so presses are separated by a second.
+# Setup-menu (fn_039c03 / pause.spr) navigation and toggles, driven through the key bytes the routine
+# actually reads (docs/60): Left/Right (DAT_00063ed0 / DAT_00063ed8) walk the entry index m 0 -> 4 -> 3 -> 2,
+# Up/Down (DAT_00063ed3 / DAT_00063ed5) toggle the selected entry's value -- at m==3 MUSIC (DAT_00053338,
+# reported as snden=), at m==2 sound EFFECTS (DAT_00051a10, sfx=, plus a CD track select or a CD stop:
+# tracks=/cdstops=), at m==4 the DAT_00053ddc stream. Auto-repeat arms for 0x13 frames after a press, so
+# presses are a second apart.
 0 shot boot
 120000 wait res title1.pcx
 123000 shot menu_m0
-124000 key down down
-124150 key down up
-125500 shot menu_down1_m4
-126500 key right down
-126650 key right up
-128000 shot menu_m4_right
-129000 key down down
-129150 key down up
-130500 shot menu_down2_m3
-131500 key right down
-131650 key right up
-133000 shot menu_m3_right
-134000 key down down
-134150 key down up
-135500 shot menu_down3_m2
-136500 key right down
-136650 key right up
-138000 shot menu_m2_right
-139000 key right down
-139150 key right up
-140500 shot menu_m2_right2
+124000 key left down
+124700 key left up
+125500 shot menu_m4
+126000 key left down
+126700 key left up
+127500 shot menu_m3
+128000 key down down
+128800 key down up
+129500 shot menu_m3_off
+131000 shot menu_m3_off_hold
+132000 key down down
+132800 key down up
+133500 shot menu_m3_on
+134000 key left down
+134700 key left up
+135500 shot menu_m2
+136000 key down down
+136800 key down up
+137500 shot menu_m2_off
+139000 shot menu_end

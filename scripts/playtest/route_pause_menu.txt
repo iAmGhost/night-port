@@ -1,0 +1,64 @@
+# Anchored playtest route (docs/55). `wait res NAME` parks the timeline until the game performs a resource
+# lookup whose name contains NAME, then rebases the rest of the timeline by the slippage. The leading
+# number is therefore both the expected slot and a generous timeout, gaps after an anchor are read relative
+# to that anchor, and slots must stay monotone so a later anchor can never be evaluated first. Result: the
+# same keys land in the same game states whatever the host's speed or audio state.
+0 shot boot
+20000 wait res logo.pcx
+21000 shot logo_hold
+30000 wait res opening.fli
+31000 shot opening_hold
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+130000 wait res 1s1.pcx
+130600 shot slide_1s1
+170000 wait res stage1.pcx
+171000 shot stage_card
+172000 shot episode_start
+180000 shot stage_play
+181000 key down down
+181400 key down up
+181500 key right down
+181900 key right up
+185000 shot playing
+# --- pause menu (fn_039c03): entered from gameplay with the abort key, since the room loop calls it only
+# under "if (DAT_00063e89 != 0 && pl[0x30] != 1)" at 0x0003aa9f-0x0003aac6. Inside it, Left/Right
+# (DAT_00063ed0 / DAT_00063ed8, 0x00039d2a / 0x00039d86) walk the entry index m 0 -> 4 -> 3 -> 2 and
+# Up/Down (DAT_00063ed3 / DAT_00063ed5, 0x00039de2) toggle the selected entry: m==3 MUSIC (DAT_00053338
+# -> snden=), m==2 sound EFFECTS (DAT_00051a10 -> sfx=, plus fn_10b1d(track) or the CD stop -> cdstops=).
+# Presses are held ~700 ms because the routine re-arms its auto-repeat counters at 0x13 frames.
+# --- pause menu (fn_039c03), entered from gameplay with the abort key (the room loop calls it only under
+# "if (DAT_00063e89 != 0 && pl[0x30] != 1)", 0x0003aa9f-0x0003aac6). Presses are SHORT (150 ms) on purpose:
+# the routine re-arms its auto-repeat counters at 0x13 frames, and a 700 ms hold measured as one press plus
+# two repeats (the trace showed m walking 0 -> 4 -> 3 -> 2/1 inside a single hold), which overshoots the row
+# you wanted. Short presses step exactly one row, and the toggle branch still fires (it only needs the
+# counter to reach 0, which happens on the second frame of a hold).
+187000 key esc down
+187150 key esc up
+188500 shot pause_m0
+189500 key left down
+189650 key left up
+190500 shot pause_m4
+191500 key left down
+191650 key left up
+192500 shot pause_m3
+193500 key down down
+193650 key down up
+194500 shot pause_m3_off
+195500 shot pause_m3_off_hold
+196500 key down down
+196650 key down up
+197500 shot pause_m3_on
+198500 key left down
+198650 key left up
+199500 shot pause_m2
+200500 key down down
+200650 key down up
+201500 shot pause_m2_off
+202500 shot pause_m2_hold
+203500 key esc down
+203650 key esc up
+204500 shot resumed

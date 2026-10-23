@@ -769,21 +769,40 @@ static void sdl_events(void) {
 /* the game-side half of input handling: SDL key events and the playtest script both land here, so a
  * scripted run drives exactly the bytes an interactive run does */
 static void key_apply(uint8_t sc, int make) {
+        /* The four arrow keys drive the game's dedicated "held key" bytes, and each screen reads a
+         * different pair, which is how the pairs' meaning is pinned from the consumers (all ported, with
+         * original addresses): fn_038cde / the help scroll use DAT_00063ed3 (0x00038d7b, up) and
+         * DAT_00063ed5 (0x00038df0, down); fn_039c03 (the setup menu) walks its entry index with
+         * DAT_00063ed0 (0x00039d2a) and DAT_00063ed8 (0x00039d86) and toggles the selected entry's value
+         * with DAT_00063ed3 / DAT_00063ed5 (0x00039de2) -- so Left/Right move between entries and
+         * Up/Down change the value, and the arrows are the ed0/ed8 pair. The original set these in its
+         * keyboard handler (not in the pump fn_0347e3, which only walks the scan-code slots), so the host
+         * writes them directly. docs/60. */
         switch (sc) {
-        case 0x48: g_dat_63ed3 = (uint8_t)make; break;      /* up held */
-        case 0x50: g_dat_63ed5 = (uint8_t)make; break;      /* down held */
+        case 0x48: g_dat_63ed3 = (uint8_t)make; break;      /* up */
+        case 0x50: g_dat_63ed5 = (uint8_t)make; break;      /* down */
+        case 0x4b: g_dat_63ed0 = (uint8_t)make; break;      /* left */
+        case 0x4d: g_dat_63ed8 = (uint8_t)make; break;      /* right */
         default: break;
         }
         /* The game's own key bytes (the DS bytes its keyboard pump used to set; the menu in fn_03a224
          * and every key wait read these): 63ea4 = confirm, 63ed0/63ed8 = the held select keys,
-         * 63e89 = abort, 63ec1 = a plain key press. */
+         * 63e89 = abort, 63ec1 = a plain key press. The arrows are deliberately NOT "any key": fn_039c03
+         * leaves the menu with m = 0x64 as soon as DAT_00063eb2 / DAT_00063ebe are set (0x00039ce6-d25),
+         * so feeding them from an arrow press would make the menu impossible to navigate (docs/60). */
         uint8_t *byte = (sc == 0x1c || sc == 0x39) ? &g_dat_63ea4      /* enter / space: confirm */
                     : (sc == 0x01) ? &g_dat_63e89                      /* esc: abort */
-                    : (sc == 0x48 || sc == 0x50 || sc == 0x4b || sc == 0x4d) ? &g_dat_63ed0
+                    : (sc == 0x48 || sc == 0x50 || sc == 0x4b || sc == 0x4d) ? (uint8_t *)0
                     : &g_dat_63ec1;
-        *byte = (uint8_t)make;
+        if (byte != (uint8_t *)0) *byte = (uint8_t)make;
+        if (sc != 0x48 && sc != 0x50 && sc != 0x4b && sc != 0x4d) {
+            /* The "any key" bytes follow the key: set on make, cleared on break. If they latched, the
+             * setup menu (fn_039c03) would leave on its very first frame -- its entry check spins until
+             * DAT_00063e89 / 0x63eb2 / 0x63ebe are clear and then exits with m = 0x64 (0x00039ce6-d25) --
+             * and every "wait for a key" loop would fall through. */
+            g_dat_63eb2 = (uint8_t)make; g_dat_63ebe = (uint8_t)make;
+        }
         if (make) {
-            g_dat_63eb2 = 1; g_dat_63ebe = 1;              /* the "any key" bytes */
             g_dat_62c58[sc] = 1;                           /* scan-code slot, as fn_0343d1 arms it */
         } else {
             g_dat_62c58[sc] = 0;
@@ -845,15 +864,17 @@ static void tick_pump(void) {
     }
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
-                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu cdstops=%u sfx=%u",
+                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu cdstops=%u sfx=%u keyb_ed0_ed3_ed5_ed8=%u/%u/%u/%u",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), (unsigned long)g_vga_retrace_waits,
                 sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
                 (unsigned long long)g_cdda_bytes, (unsigned)g_cdda_tracks, (unsigned)g_cdda_pos,
                 (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null,
-                (unsigned)sys_cd_audio_stop_calls(), (unsigned)g_dat_51a10);
-        if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
+                (unsigned)sys_cd_audio_stop_calls(), (unsigned)g_dat_51a10,
+                (unsigned)g_dat_63ed0, (unsigned)g_dat_63ed3, (unsigned)g_dat_63ed5, (unsigned)g_dat_63ed8);
+        if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
+    if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
     if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {

@@ -24144,6 +24144,7 @@ static uint32_t g_tab_531c8[6] = { 0x06, 0x06, 0x0a, 0x0c, 0x0c, 0x0c };
  * Ghidra's "% 0x1ea" rendering is wrong, verified at 0x00039a20-0x00039a3b). */
 void fn_038f3d(int32_t variant)
 {
+    if (g_menu_trace) fprintf(stderr, "fn_038f3d enter variant=%d\n", (int)variant);   /* host-side diagnostic */
     (void)canary_id(0, 0x168);                                          /* 0x00038f3d-42 */
     uint8_t *hb = (uint8_t *)g_heap_base;
     uint8_t *P = g_dat_53c7c;                                           /* DAT_00053c7c */
@@ -24881,8 +24882,11 @@ void fn_012616(uint8_t *e)
  * fn_00041bdc offsets): +0x04 = per-entry columns, +0x08 = per-entry row counts, +0x34 = per-entry byte
  * offsets into the RLE stream at +0x38. Entry i uses index i+1; index 0 is the header.
  */
+int g_menu_trace = 0;          /* host-side diagnostic: set from the SDL host with NIGHT_MENUBG=1 */
+
 int32_t fn_039c03(void)
 {
+    if (g_menu_trace) fprintf(stderr, "fn_039c03 enter\n");   /* host-side diagnostic */
     (void)canary_id(0, 0x60);                                          /* 0x00039c03-08 */
     uint8_t *hb = (uint8_t *)g_heap_base;
 
@@ -24935,6 +24939,10 @@ int32_t fn_039c03(void)
         else if (++c_up == 0x14) c_up = 0;
 
         /* --- left / right (DAT_00063ed3 / DAT_00063ed5): toggle the entry's own flag -------------- */
+        if (g_menu_trace)                                        /* host-side diagnostic (NIGHT_MENUBG) */
+            fprintf(stderr, "menu frame m=%d ed0=%u ed8=%u ed3=%u ed5=%u c_lr=%d f=%d%d%d%d%d\n",
+                    m, (unsigned)g_dat_63ed0, (unsigned)g_dat_63ed8, (unsigned)g_dat_63ed3,
+                    (unsigned)g_dat_63ed5, c_lr, (int)f[0], (int)f[1], (int)f[2], (int)f[3], (int)f[4]);
         if ((g_dat_63ed3 != 0 || g_dat_63ed5 != 0) && c_lr == 0) {     /* 0x00039de2-dff */
             if (m == 3) {                                              /* 0x00039dff-e2a: music */
                 f[3] = (uint8_t)(1 - f[3]);

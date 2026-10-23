@@ -68,3 +68,69 @@ re-read against the disassembly, along with why the redraw stops after the third
 
 Filed, not yet fixed. It does not affect gameplay audio (the shipped defaults are on and the audio path is
 measured working in docs/55 and docs/57); it means the menu's sound controls are not functional in the port.
+
+---
+
+## Correction and fix (same day): `fn_039c03` is the **in-game pause menu**, and three host input bugs were
+## holding it shut
+
+The section above probed the wrong screen. Adding an entry trace to `fn_039c03` and to `fn_038f3d` showed
+**neither is ever called** on the attract path, so the static frame after the title card is some other
+routine -- the routine's own caller settles the question: the room loop in `fn_03a829` reaches it only under
+
+```c
+if (g_dat_63e89 != 0 && pl[0x30] != 1) {          /* 0x0003aa9f-0x0003aac6 */
+    while (g_dat_63e89 != 0) { if (!sys_port_spin()) break; }
+    if (fn_039c03() == 0) return -1;
+}
+```
+
+i.e. **ESC during gameplay**. That is the playtest report's "pause menu". Driving it that way
+(`scripts/playtest/route_pause_menu.txt` = the anchored episode-1 route, then ESC) exposed three
+host-side input defects:
+
+1. **All four arrows wrote the same byte.** `key_apply` mapped `0x48/0x50/0x4b/0x4d` all to
+   `DAT_00063ed0`, so pressing Down also triggered the menu's entry-walk branch. Now: `0x4b -> DAT_63ed0`,
+   `0x4d -> DAT_63ed8`, `0x48 -> DAT_63ed3`, `0x50 -> DAT_63ed5` -- the pairing the ported consumers imply
+   (`fn_038cde` scrolls with ed3/ed5 at 0x00038d7b/0x00038df0; `fn_039c03` walks entries with ed0/ed8 at
+   0x00039d2a/0x00039d86 and toggles with ed3/ed5 at 0x00039de2).
+2. **Arrow presses latched the "any key" bytes.** They set `DAT_00063eb2 / DAT_00063ebe`, which make
+   `fn_039c03` leave on its first frame (its entry check spins until those bytes clear and then exits with
+   `m = 0x64`, 0x00039ce6-d25). Arrows no longer touch them.
+3. **`DAT_00063eb2 / DAT_00063ebe` were never cleared.** They were set on every key make and never on
+   break, so any screen that waits for them to clear was wedged. They now follow the key (set on make,
+   cleared on break).
+
+Measured before/after, with a per-frame trace of the menu (`NIGHT_MENUBG=1` prints `m`, the four key bytes,
+the auto-repeat counter and the five toggle flags):
+
+| | before the fix | after the fix |
+|---|---|---|
+| `fn_039c03` entered | 1 (then left at once) | 1 |
+| traced menu frames | **0** | **1098** |
+| entry index values seen | -- | 0, 1, 2, 3, 4 |
+| toggle branch observed | -- | `f[4]` flipping 1 -> 0 -> 1 at m == 4 |
+
+With the presses placed on the right rows, the sound controls move the real enable bytes:
+
+```
+@frame 3757: snden=0        (MUSIC off, m == 3)
+@frame 3921: snden=1        (MUSIC on again)
+@frame 4138: sfx=0          (sound EFFECTS off, m == 2)
+```
+
+and the redraws are localized exactly where the routine composites them: entry changes alter rows 109..179 /
+cols 200..311, the MUSIC ON/OFF sub-row alters rows 173..178, cols 256..311 (0.23 % of the frame), and the
+frame after the final ESC differs from the paused one over 14.11 % of pixels (rows 2..186, cols 24..316) --
+the game, unpaused. Screenshots: the run writes `pause_m0 ... pause_m2_hold, resumed`.
+
+Timing note for any scripted navigation: the routine re-arms its auto-repeat counters at 0x13 frames, so a
+700 ms hold steps the entry index two or three times (the trace shows `m` walking 0 -> 4 -> 3 -> 2 inside a
+single hold). Short presses (~150 ms) step exactly one row and still fire the toggle branch, which only
+needs its counter to reach 0 -- that happens on the second frame of a hold.
+
+Still open for this screen: at `m == 2` the byte changes (`sfx=0`) but the row's ON/OFF glyph does not
+(`pause_m2 -> pause_m2_off` is pixel-identical while `DAT_00051a10` flips) -- the entry is drawn from the
+same sprite with `f[m] + 6 / f[m] + 8`, so the effects row may legitimately have one cell, or the index into
+the `pause.spr` cells is off. Filed, not yet resolved. The original-side frame for this screen is still
+blocked on the capture path (docs/46).

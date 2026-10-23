@@ -1,0 +1,12 @@
+ent: count=3 tables loaded=10 cameraX=0 cameraY=0 playerBlock=0x1045b0c4c
+  ent[0] block=0x1045b0c4c type(act)=0 type(spr)=0 world=97,139 state=0x1 face=1 isPlayer=1 sprfields=001b02b0 0016bf64 0016c390
+  ent[1] block=0x104397e60 type(act)=31 type(spr)=31 world=27,141 state=0x1 face=0 isPlayer=0 sprfields=00341034 00340b88 00340be4
+  ent[2] block=0x104397d0c type(act)=31 type(spr)=31 world=40,168 state=0x1 face=0 isPlayer=0 sprfields=00341034 00340b88 00340be4
+ent: count=3 tables loaded=10 cameraX=0 cameraY=0 playerBlock=0x1045b0c4c
+  ent[0] block=0x1045b0c4c type(act)=0 type(spr)=0 world=97,139 state=0x1 face=1 isPlayer=1 sprfields=001b02b0 0016bf64 0016c390
+  ent[1] block=0x104397d0c type(act)=31 type(spr)=31 world=40,168 state=0x1 face=0 isPlayer=0 sprfields=00341034 00340b88 00340be4
+  ent[2] block=0x104397e60 type(act)=31 type(spr)=31 world=27,184 state=0x2 face=0 isPlayer=0 sprfields=00341034 00340b88 00340be4
+ent: count=3 tables loaded=10 cameraX=0 cameraY=0 playerBlock=0x1045b0c4c
+  ent[0] block=0x1045b0c4c type(act)=0 type(spr)=0 world=97,139 state=0x1 face=1 isPlayer=1 sprfields=001b02b0 0016bf64 0016c390
+  ent[1] block=0x104397d0c type(act)=31 type(spr)=31 world=40,168 state=0x1 face=0 isPlayer=0 sprfields=00341034 00340b88 00340be4
+  ent[2] block=0x104397e60 type(act)=31 type(spr)=31 world=97,184 state=0x2 face=0 isPlayer=0 sprfields=00341034 00340b88 00340be4

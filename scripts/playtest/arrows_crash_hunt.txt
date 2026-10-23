@@ -1,0 +1,48 @@
+# Crash hunt for the manual report's "Pressing arrow makes game crash: zsh: segmentation fault"
+# (docs/manual-playtest/00-2026-10-23.md item 9). The arrow keys are pressed where a human would press
+# them before any stage is loaded -- on the logo, during the intro film, on the title card and inside the
+# attract/setup menu -- because that is the state in which fn_034635 reads the player pointer DAT_00063c7c
+# while it is still null. Slots are monotone; `wait res` anchors keep the timing host-independent.
+0 shot boot
+20000 wait res logo.pcx
+21000 key left down
+21150 key left up
+22000 key right down
+22150 key right up
+30000 wait res opening.fli
+31000 key down down
+31150 key down up
+32000 key up down
+32150 key up up
+120000 wait res title1.pcx
+121000 key left down
+121150 key left up
+122000 key right down
+122150 key right up
+123000 key down down
+123150 key down up
+124000 key up down
+124150 key up up
+130000 key enter down
+130150 key enter up
+132000 key enter down
+132150 key enter up
+133000 wait res 1s1.pcx
+134000 key down down
+134150 key down up
+170000 wait res stage1.pcx
+171000 shot stage_card
+175000 key left down
+175150 key left up
+176000 key right down
+176150 key right up
+180000 shot stage_play
+181000 key down down
+181400 key down up
+181500 key right down
+181900 key right up
+182000 key up down
+182300 key up up
+183000 key ctrl down
+183400 key ctrl up
+185000 shot playing

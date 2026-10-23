@@ -318,6 +318,7 @@ extern uint32_t g_dat_63e28;               /* DAT_00063e28: tick counter (wraps 
 extern uint32_t g_dat_63e24;               /* DAT_00063e24: per-tick counter */
 extern uint32_t g_dat_63e3c;               /* DAT_00063e3c: tick counter (wraps at 18) */
 extern uint32_t g_dat_63e38;               /* DAT_00063e38: per-tick counter */
+extern uint32_t g_fli_trace;   /* NIGHT_FLIDBG=1: trace the CG player's resource-op dispatch */
 extern uint32_t g_dat_63e40;               /* DAT_00063e40: coarse counter (every 18) */
 extern uint32_t g_dat_63e30;               /* DAT_00063e30: frame/time counter (18-bit) */
 extern uint32_t g_dat_63e2c;               /* DAT_00063e2c: tick rate increment */

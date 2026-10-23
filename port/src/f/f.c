@@ -5790,6 +5790,8 @@ void fn_03628e(const char *name, uint32_t dl) {
  * extended, so a negative count runs nothing yet still reports success. A tag mismatch consumes only
  * the header and reports 0. The loop's counter is post-incremented inside the compare (MOV EDX,[i];
  * INC [i]; CMP EDX,count; JGE out), which is the same trip count as written. */
+uint32_t g_fli_trace = 0;   /* NIGHT_FLIDBG=1: log every resource-op the CG player dispatches */
+
 uint32_t fn_03f80d(res_reader *node)
 {
     (void)canary_id((uintptr_t)node, 0x38);                       /* 0x3f80d-816 */
@@ -5813,6 +5815,12 @@ void fn_03f885(res_reader *node) {
     fn_04192e(hdr, 6, 1, (uint8_t *)node);                       /* 0x3f8b0 */
     uint32_t param = *(uint32_t *)(void *)hdr;                   /* 0x3f8b5-10] */
     uint16_t op    = *(uint16_t *)(void *)(hdr + 4);              /* 0x3f8b5: [ebp-0xc] */
+    if (g_fli_trace) {
+        static uint32_t seen[0x100];
+        if (op < 0x100) seen[op]++;
+        printf("[fli] op=%#04x payload=%u\n", op, param - 6);
+        if (g_fli_trace > 1 && op == 0x12) { /* unused placeholder */ }
+    }
     if (op >= 0xc) {                                             /* 0x3f9ba jb */
         if (op == 0xc) { fn_03fb73((uint8_t *)node, param - 6); return; }   /* 0x3f8d3 */
         if (op <= 0xf) {                                         /* 0x3f9d2 jb */

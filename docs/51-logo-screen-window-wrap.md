@@ -44,10 +44,46 @@ DAC (0x3C8/0x3C9) — no bank register at all. Two candidate readings, to be sep
    different code path resamples — in which case the port's 640x480 presentation for the logo is itself
    the host-side mistake.
 
-Next step: dump the disassembly around `fn_03628e`'s wrap branch and the mode setter `fn_03f15f`
-(`out 0x3C2/0x3C4/0x3D4…`) to list every VGA register write the still-image path performs, then model the
-bank in `sys.c` (port 0x3D8/0x3D9 + the CRTC start address) so the 64 KB window slides over the
-framebuffer.
+## Disassembly: each 64 KB wrap makes a VESA call — the window has to slide
+
+`0x36399-0x363d4` (the fill arm; the literal arm `0x363d8-0x3640a` is identical):
+
+```
+000363a2  mov  edx, [ebp-0x10]      ; off
+000363a5  inc  dword [ebp-0x10]
+000363a8  add  edx, [ebp-0x18]      ; + window base (0xa0000)
+000363ae  mov  byte [edx], al       ; the pixel
+000363b6  cmp  dword [ebp-0x10], 0x10000
+000363bd  jl   ...                  ; still inside the 64 KB window
+000363bf  mov  dword [ebp-0x10], 0
+000363c6  mov  eax, [ebp-0xc]       ; chunk
+000363c9  inc  dword [ebp-0xc]
+000363cf  call 0x3f3be              ; per wrap, with the chunk counter
+```
+
+and `fn_03f3be` is not a palette write at all:
+
+```
+0003f3d9  mov  edx, [0x13e5c] ; an index slot (the twin fn_03f410 uses [0x13e58])
+0003f3df  shl  edx, 2
+0003f3e2  mov  esi, 0x13e50 ; a cache array
+0003f3f5  mov  edx, [ebp-4] ; the argument
+0003f3f8  shl  edx, cl      ; cl = [0x13e4c], a mode-dependent shift
+0003f3fa  cmp  edx, [esi]   ; only act on a change
+0003f3fe  mov  [esi], edx
+0003f400  mov  eax, 0x4f05
+0003f405  int  0x10         ; VESA AX=4F05h, DX = the value
+```
+
+So the still-image loader crosses 64 KB boundaries by calling **INT 10h AX=4F05h** with `DX = chunk << cl`
+— i.e. it reprograms the memory window/bank, and 307200 bytes of a 640x480 screen are reached in five
+64 KB chunks. The port models `fn_03f3be` as `palette_set(index, color)` and lets the offset wrap in place,
+which is why only the last pass over the first 64 KB survives on screen.
+
+Plan: give `src/sys/sys.c` a window model for the A0000 area (a bank base selected by that VESA call),
+keep the palette path (`board_out` of the `>>2` table, which is what actually drives the fades) separate,
+then let `fn_03628e` write at `window_base + off`. The fades still have to be verified afterwards, because
+`fn_03f3be` currently doubles as the palette-step recorder.
 
 Harness support added while measuring this: named events now queue a **hold shot** (`--shot-delay <ms>`,
 default 1000 ms) so a screenshot is taken after the retrace-paced fade has brought the picture up — the

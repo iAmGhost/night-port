@@ -715,6 +715,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--shots") && i + 1 < argc) g_shots_dir = argv[++i];
         else if (!strcmp(argv[i], "--shot-limit") && i + 1 < argc) g_shot_limit = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot-delay") && i + 1 < argc) g_shot_delay_ms = (Uint64)atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--warp-stage") && i + 1 < argc) g_warp_stage = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--no-scene-shots")) g_shot_scene = 0;
         else if (!strcmp(argv[i], "--no-res-shots")) g_shot_res = 0;
         else if (!strcmp(argv[i], "--help")) {

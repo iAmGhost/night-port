@@ -4647,9 +4647,16 @@ static const char *const kTypeActNames[0x65] = {
 
 uint8_t *g_dat_6334c = NULL;   /* DAT_0006334c: room-chain head (the first stage node) */
 
+/* Host-side debug warp (docs/52, `--warp-stage N`): the stage number is what every per-stage name in
+ * this loader is built from (`stage%d.wal`, `st%ds.spr`, `stage%d.stg`, `night%d.chr`) and what the
+ * spawn tables are indexed by, so overriding it here is enough to enter any episode for a playability
+ * sweep. Never set by the game itself; 0 = off. */
+int g_warp_stage = 0;
+
 void fn_037b03(int32_t resume_flag)
 {
     (void)canary_id((uintptr_t)resume_flag, 0xa4);                  /* 0x37b03-08 */
+    if (g_warp_stage > 0) g_dat_63370 = (uint32_t)g_warp_stage;
     g_dat_62a8c = 0;                                                /* 0x37b1e */
     g_dat_62a90 = 0;                                                /* 0x37b28 */
     fn_041e20(g_dat_5d08c, 0, 0x14);                                /* 0x37b3e */

@@ -119,6 +119,7 @@ void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_
 void fn_03eff2(void);                          /* 0x03eff2: install IRQ 0x1c (FPU) handler (flag-guarded) */
 void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handler (flag-guarded) */
 extern uint8_t *g_dat_6334c;   /* DAT_0006334c: stage room-chain head */
+extern int g_warp_stage;   /* host debug: force the stage number in fn_037b03 (docs/52) */
 void fn_037b03(int32_t resume_flag);
 extern uint32_t g_dat_63398;   /* DAT_00063398: room orientation byte (room node +0x11), set by fn_0374ad */
 extern uint32_t g_tab_52c3c[0x104]; /* DAT_00052c3c: 10 dwords per stage, indexed by room serial; no producer in the EXE (read-only: 0x0374ad/0x0376c8/0x03af18/0x03d244) */

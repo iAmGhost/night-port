@@ -5774,9 +5774,22 @@ void fn_036041(const char *name, uint32_t dl) {
  * fn_035f1b but: no board_out (no dl arg); writes to a caller-provided 64000-byte dest base
  * (2nd arg EDX, a host buffer -- NOT 0xa0000 video); table -> g_dat_633b8 (>>2). RLE: FILL
  * (byte&0xc0==0xc0: count=byte&0x3f, value, write value count times) + literal; no 0xff-skip. */
+/* res_announce: put a resource name on the same game-side trace that fn_0367c9 drives, so loaders that do
+ * not go through it (still images straight into a buffer, .spr/.act/font blocks) still produce a named
+ * screenshot and a res= log line. The host's shot machinery keys on g_res_trace_seq, which only this side
+ * owns -- sys_res_notify alone announces into the ring without advancing it (docs/61). */
+static void res_announce(const char *name) {
+    if (name) {
+        snprintf(g_res_trace, sizeof g_res_trace, "%s", name);
+        g_res_trace_seq++;
+        sys_res_notify(name);
+    }
+}
+
 void fn_036190(const char *name, uint8_t *dest) {
     if (g_menu_trace) fprintf(stderr, "fn_036190: %s\n", name);   /* the docs/61 probe */
-    sys_res_notify(name);                                        /* host harness anchor (docs/56): the card loaders that read straight into a buffer are otherwise invisible to the resource log, so a screen such as the level-up picture (levelup.pcx / levelup2.pcx, fn_038f3d) leaves no trace and no automatic screenshot. */
+    res_announce(name);        /* card loaders that read straight into a buffer are otherwise invisible to
+                                * the resource log (the level-up picture, levelup.pcx / levelup2.pcx). */
     (void)canary_id((uintptr_t)name, 0x2c);                        /* 0x36190-95 */
     fn_0367c9(name);                                               /* 0x361b7 */
     fn_036853(name, 0xfffffd00, 2);                                /* 0x361c9 */
@@ -7389,9 +7402,9 @@ int32_t fn_03d9cf(uint32_t *s, const char *name)
  * s[1]..s[14] (+0x04..+0x38, leaving s[0] alone), calls fn_03d9cf, returns the block. */
 uint32_t *fn_03d8d4(uint32_t *s, const char *name)
 {
-    sys_res_notify(name);   /* host harness anchor: .spr/.act and font blocks load through here rather than
-                             * through fn_0367c9, so without this the sprite families a screen depends on
-                             * (pause.spr, levelup.spr, number1/2.spr) leave no trace in the resource log. */
+    res_announce(name);      /* .spr/.act and font blocks load through here rather than through fn_0367c9;
+                              * without this the sprite families a screen needs (pause.spr, levelup.spr,
+                              * number1/2.spr) leave no trace and get no screenshot. */
     (void)canary_id((uintptr_t)s, 0x24);                     /* 0x3d8d4-8d9: guard, EAX/EDX pass */
     for (int k = 1; k <= 14; k = k + 1) s[k] = 0;             /* 0x3d8f1-976 */
     fn_03d9cf(s, name);                                      /* 0x3d97d-83 */

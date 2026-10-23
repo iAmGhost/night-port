@@ -55,6 +55,10 @@ static int render_sheet(Res *r, const char *spr_name, int cols, int rows, const 
 }
 
 int selftest(const char *res_path, const char *shot_dir) {
+    if (shot_dir && *shot_dir && !SDL_CreateDirectory(shot_dir) && SDL_GetError()[0]) {
+        SDL_ClearError();                       /* already exists is fine */
+    }
+
     printf("NIGHT loader self-test\n======================\n");
     SDL_Init(0); /* keep SDL initialized for later game modes */
 

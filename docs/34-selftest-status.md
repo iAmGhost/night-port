@@ -11,7 +11,15 @@ Fixed: the target builds with the same `SDL_CFLAGS`/`SDL_LIBS` the SDL host uses
 
 ## Result of the first real run (`RES=../NIGHT/NIGHT.RES`)
 
-10 checks PASS, 6 FAIL:
+10 checks PASS, 6 FAIL -- all six from one cause: **the screenshot directory was never created**, so every
+PNG write (`pcx_logo.png`, the five sprite sheets `pause`/`number1`/`ena-1`/`boss1`/`gun`) failed. The asset
+names were right (they are `pause.spr`, `number1.spr`, `ena-1.spr`, `boss1.spr`, `gun.spr` in the index; the
+check label is just the name without its extension).
+
+After adding `SDL_CreateDirectory(shot_dir)` to the test: **`make -C port selftest` prints
+`ALL PASS (0 failures)`** -- the res-container / PCX / SPR / sheet-render / FLI / VOC / WAV checks are
+byte-exact against the shipped `NIGHT.RES` and the CD tracks (the two `[skip]` lines are the optional
+`/tmp/cdda/trackNN.wav` comparisons, which need `scripts/cdda2wav.py` output first).
 
 | failure | cause |
 |---|---|

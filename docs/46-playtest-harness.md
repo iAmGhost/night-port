@@ -158,3 +158,55 @@ because a `SIGKILL`ed DOSBox loses file tails):
 
 The header layout is v2: `NGSH`, version, mode, w, h, tick, reserved (28 B).
 The header layout is v2: `NGSH`, version, mode, w, h, tick, reserved (28 B).
+
+
+## Original-side capture, measured 2026-10-24 (all three host routes closed, guest route narrowed)
+
+The remaining half of the harness contract is "the same moments captured from the original under
+dosbox-staging". Every host-side route was tested and measured, not assumed:
+
+1. **Host screenshot of the DOSBox window** -- `screencapture -x /tmp/dbx/full.png` returns a real file
+   (6016x3384 PNG), but every pixel is black: mean `[0.0 0.0 0.0]`, `std 0.0`, `frac nonblack 0.0`.
+   Screen recording yields nothing for this session. System Events lists the process
+   (`dosbox-staging`) but `get name, position, size of every window` returns `,,` (no usable window).
+   Synthetic key events therefore have no target either.
+2. **dosbox-staging's own capture facility** -- `--help` has no capture/screenshot/record flag; the
+   strings show a `capture_dir` setting and a screenshot *action* bound to a key, so it can only be
+   triggered by an emulated keypress, which is exactly what cannot be delivered.
+3. **Emulator swap (qemu: headless `screendump` + `sendkey`)** -- would solve both input and capture, but
+   `qemu-system-x86_64`, `dosemu`, `bochs` and `v86` are all absent here, and it deviates from the
+   contract's "under dosbox-staging". Left as a proposal, not done.
+
+So the capture has to happen inside the guest, and that route was narrowed to one open question by a
+purpose-built probe (`scratch/snapsr/snapprobe.asm` -> `SNAPPRB.COM`), which counts, once a second, how
+many times its real-mode INT 8 / INT 1Ch / INT 10h / INT 21h hooks fire and which video mode it saw.
+
+Findings from that work, each one measured:
+
+- **8.3 names bite twice.** `SNAPPROBE.COM` is invisible to the DOS shell (DIR lists it as `SNAPPR~1`), so
+  two runs did nothing at all; and `INT 21h AH=3Ch` *refuses* `SNAPPROBE.BIN` (name too long). Files for
+  the guest must be <= 8 characters + 3.
+- **Delete-first can break the create.** With `AH=41h` immediately before `AH=3Ch` the create reported an
+  error (marker file for the failure branch was written); dropping the delete and letting the host `rm`
+  before each run made the create succeed. The old v2 note "AH=3Ch refuses an existing name" is only half
+  the story.
+- **A handle held open across the run loses everything.** DOSBox buffers writes; a session ended with
+  SIGTERM leaves a 0-byte file even though every write "succeeded". Records must be written as
+  open -> seek-end -> write -> close (which is what v3's per-frame dump already does).
+- **The write path in the probe is still not landing.** With the game absent, `SNAPPRB.COM` creates its log
+  and closes it, but the file stays at 0 bytes, while an earlier variant (`snap_dbg2` marker routine:
+  delete, create, three writes, close) produced 16 bytes at the same point in the install. So writes are
+  possible from a resident .COM's install path; the difference between the two shapes is the immediate
+  next experiment.
+- **v3's INT 21h-hook dump captured nothing**: `C:\CAP` stayed empty over a 110 s run with the game. The
+  likely cause -- to be confirmed by the probe counters, which need the write path fixed first -- is that a
+  DOS4GW/protected-mode guest reaches DOS through DOSBox's DPMI callback rather than through the
+  real-mode IVT, so a real-mode INT 21h hook never sees the game's DOS traffic. The INT 1Ch hook does run
+  in-game (an earlier revision accumulated a 65 KB tick log while NIGHT was running), so if the counters
+  confirm the INT 21h bypass, the dump has to move back to the tick context with a
+  write-and-close-per-frame pattern, or go to a device (serial/printer OUT instructions) that needs no DOS
+  at all.
+
+Until that open question closes, the port side keeps advancing on evidence that does not need original
+frames (episode sweep, docs/58, docs/59), and the comparison halves of the affected tasks stay open with
+this document as their status record.

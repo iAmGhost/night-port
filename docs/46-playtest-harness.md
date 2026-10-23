@@ -106,3 +106,39 @@ after which `scripts/snap_decode.py` (queued) turns `NIGHT/CAP/*.DMP` into PNGs 
 Until then, port-side evidence uses the extracted assets (logo.pcx, opening.fli via ffmpeg's flic decoder,
 the per-type .spr/.act tables) plus the manual captures already in `scratch/` and
 `docs/manual-playtest/00-screenshots/`.
+
+## Update the same day: the real DOSBox blocker was audio, not the window server
+
+DOSBox Staging 0.83 launched non-interactively stalls in SDL **audio** init on this machine -- the same
+broken default CoreAudio device behind the port's `AudioQueueStart` failure (task `audio`). With the audio
+driver stubbed out it boots, runs `[autoexec]`, mounts drives and writes files normally:
+
+    SDL_AUDIODRIVER=dummy dosbox-staging --noprimaryconf -conf /tmp/orig_run.conf
+
+with `[sdl] output=tty` and an `[autoexec]` of
+
+    mount c ~/Git/night-port/NIGHT
+    mount d ~/Git/night-port/NIGHT/TG_NIGHT.CUE -t iso
+    c:
+    snap.com
+    night
+
+(`imgmount` is deprecated in 0.83 -- use `mount d <cue> -t iso`.) Verified: `[autoexec]` probe files land
+on the host, `MSCDEX installed`, and the TSR's `C:\TICK.TXT` dump appears.
+
+Snapper v2 (`scratch/snapsr/snap.asm`, 1834 B) now tracks the video mode through an INT 10h hook (VESA
+`AX=4F02` records BX; BIOS `AX=0000..0013` records AL) and dumps the linear framebuffer as
+`ceil(w*h/65536)` 64 KB chunks with the read window moved by INT 10h `AX=4F05`, the same trick the game's
+own still loader uses. Three real bugs were fixed on the way:
+
+1. v1 accepted only mode 0x13, so it bailed on every tick once the game switched modes.
+2. The per-row loop counted rows in BX, but BX is the file handle for every `INT 21h AH=40h` call -- the
+   loop never terminated and wrote a 4.3 GB file.
+3. DOSBox's DOS refuses a transfer buffer inside the A0000 window itself (the header written from the
+   TSR's own segment landed; the framebuffer write did not), so each window chunk is now copied into a
+   64 KB buffer reserved with `INT 21h AH=48h` at install time and written from there.
+
+Still open, and the next thing to fix: the dump currently ends at 796 bytes (header + DAC, **zero**
+framebuffer bytes) with no `C:\SNPDONE.TXT` diagnostic, so the chunk loop exits without issuing a write;
+exactly one dump happens per run, at tick 18 with the mode already 0x13 and the DAC still all zero (very
+early in boot). The header layout is v2: `NGSH`, version, mode, w, h, tick, reserved (28 B).

@@ -126,3 +126,36 @@ The precise next probe (not run yet, context budget): one `fprintf` inside `shot
 `NIGHT_SHOTDBG` switch printing `g_res_trace` and `g_res_trace_seq` at every call. That separates the two
 remaining explanations -- the edge never being reached with a changed sequence number, versus it firing and
 the queued/hold-shot path dropping the frame because the screen exits before the hold delay elapses.
+
+## Settled: the screen renders, and the earlier negative measurements were my own harness error
+
+Correction first: the runs behind the two "still no named frames" notes above (`/tmp/luA`, `/tmp/luC`,
+`/tmp/luD`) were launched **without** `NIGHT_SHOWSCREEN=levelup`, so the warp never fired (the log line
+`showscreen warp: levelup at frame 2777` is absent; `grep -c "showscreen warp"` = 0). The claim was measured
+on runs that did not exercise the screen at all. With the environment variable set, the picture loads and
+displays.
+
+Measured with the warp firing (`/tmp/luE` .. `/tmp/luI`):
+
+- The announce burst is real and reaches the host: `fn_038f3d allocs: lvl=0x18e940 n1=0x18e980 n2=0x18e9c0
+  pcx=0x3b8ef0` then `fn_036190: levelup2.pcx`, all at ~frame 2778 (the warp enters at 2777).
+- The spin-point resource edge is reached (34,593,897 calls per run) but advances on a changed sequence only
+  6-7 times per run, and never for `levelup2.pcx` / `levelup.spr` / `number1.spr` / `number2.spr`: the whole
+  burst happens between two edges, so the edge only ever sees the last name of it (`help1.pcx`).
+- Queuing a hold shot per announce therefore names the *wrong moment*: with a 1 s hold the four asset-named
+  frames land at frame 2833, with a 4.5 s hold at 3023, and with a next-scene-change anchor at 3105 -- all of
+  them pixel-identical to the stage screen (L1/px 0.2-1.3 vs the `playing` shot), because the picture is not
+  composited until much later.
+- A half-second frame series driven from the spin point while the warp screen is live (`warp_NN` shots)
+  shows the actual timeline over 29 frames: frame 2804 shows the `help1.pcx` greeting card, frames
+  2832-3660 sit at L1 0.1-1.7 from the stage screen, and frame 3710 (`warp_28`, L1 50.5 from the stage) is the
+  **level-up picture itself** -- read visually from the bitmap: EXP 00000 / RO-EXP 00000 header, TECHNICAL
+  LEVEL, H.P.MAX, POWER (filled bar), SPEED, H.P RECOVER, CONTINUE +08 gauges, the character art, and the
+  `EXIT:ESC  HELP:F1` footer. So `levelup2.pcx` plus the `levelup.spr` / `number1.spr` / `number2.spr` sprites
+  composite correctly; only the *entry* card and the *final* picture are on screen, with a long wait between.
+
+Two follow-ups are recorded rather than guessed: (1) why the screen's middle ~800 frames show the stage
+framebuffer rather than holding the card (a port-side compositing/presentation question, or faithful original
+behaviour -- indistinguishable without original-side frames, which is the shared DOSBox capture blocker);
+(2) the asset-named holds stay useful for slide cards (whose picture follows its announce immediately) but are
+not a proof of content for screens that composite late, so `warp_NN` is the series to cite for those.

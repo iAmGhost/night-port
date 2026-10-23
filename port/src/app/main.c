@@ -460,6 +460,9 @@ static void pt_load(const char *path) {
 /* press/release, through the same bytes sdl_events feeds the game */
 /* Every lookup the game performs, recorded as it happens (sys_res_notify), so a `wait res` line can match
  * a lookup even when the script polls long afterwards. */
+static void shot_queue(const char *event);   /* defined below; queued (delayed) screenshot per event name */
+static void shot_queue_scene(const char *event);   /* ditto, but anchored on the next scene change */
+
 static char g_reslog[256][24];
 static int  g_reslog_n, g_reslog_cursor;
 static char g_res_match[24];
@@ -469,7 +472,13 @@ static void reslog_add(const char *name) {
         snprintf(g_reslog[g_reslog_n], sizeof g_reslog[0], "%s", name);
         g_reslog_n++;
     }
-}
+    /* docs/61: a nested screen (fn_038f3d, the level-up picture) announces every asset it loads --
+     * levelup2.pcx, levelup.spr, number1.spr, number2.spr -- before its own frame loop reaches a spin
+     * point, so the sequence-number edge in shots_poll only ever sees the LAST name of that burst. Queuing a
+     * delayed hold shot per announce names each asset with a frame of the screen it belongs to (the delay
+     * lets the screen composite first), which is what makes those screens auditable by name. */
+    shot_queue_scene(name);
+  }
 
 static void pt_drive(void) {
     if (!g_pt || !g_pt_n) return;
@@ -552,7 +561,12 @@ static void shot_named(const char *event) {
  * every named event also queues a "hold" shot a fixed time later, once the retrace-paced fades have
  * brought the picture up (docs/46). --shot-delay <ms> tunes it (0 disables). */
 #define PT_MAX_PENDING 12
-static struct { char name[72]; Uint64 due; } g_pt_pending[PT_MAX_PENDING];
+/* `due` is a wall-clock fallback; `scene_gen0 >= 0` makes the shot wait for the NEXT scene change instead
+ * (see shot_queue_scene), which is what an asset announced by a nested screen needs: fn_038f3d loads
+ * levelup2.pcx / levelup.spr / number1.spr / number2.spr at screen entry, but the picture is only composited
+ * ~700 frames later, so a plain time-delayed hold photographed the previous screen (docs/61). */
+static struct { char name[72]; Uint64 due; long scene_gen0; } g_pt_pending[PT_MAX_PENDING];
+static long g_scene_gen = 0;            /* bumped on every detected scene change */
 static int    g_pt_pending_n;
 static Uint64 g_shot_delay_ms = 1000;   /* fn_040660 / fn_0406f5 need ~0.7 s of retraces to reach full brightness */
 
@@ -565,13 +579,30 @@ static void shot_queue(const char *event) {
     snprintf(g_pt_pending[g_pt_pending_n].name, sizeof g_pt_pending[0].name, "%s", nm);
     g_pt_pending[g_pt_pending_n].due = SDL_GetPerformanceCounter() +
                                        (Uint64)g_shot_delay_ms * g_perf_freq / 1000;
+    g_pt_pending[g_pt_pending_n].scene_gen0 = -1;              /* time-anchored */
+    g_pt_pending_n++;
+}
+
+/* Queue a shot for the next scene change (with a wall-clock fallback), used for assets announced by a
+ * nested screen: the load happens at screen entry, the picture appears seconds later. */
+static void shot_queue_scene(const char *event) {
+    if (!g_shots_dir) return;
+    char nm[72]; snprintf(nm, sizeof nm, "%s_hold", event);
+    for (int i = 0; i < g_pt_pending_n; i++)
+        if (strcmp(g_pt_pending[i].name, nm) == 0) return;
+    if (g_pt_pending_n >= PT_MAX_PENDING) return;
+    snprintf(g_pt_pending[g_pt_pending_n].name, sizeof g_pt_pending[0].name, "%s", nm);
+    g_pt_pending[g_pt_pending_n].due = SDL_GetPerformanceCounter() +
+                                       (Uint64)(g_shot_delay_ms ? g_shot_delay_ms : 1000) * 6 * g_perf_freq / 1000;
+    g_pt_pending[g_pt_pending_n].scene_gen0 = g_scene_gen;
     g_pt_pending_n++;
 }
 
 static void shot_flush_pending(void) {
     Uint64 now = SDL_GetPerformanceCounter();
     for (int i = 0; i < g_pt_pending_n; i++) {
-        if (now < g_pt_pending[i].due) continue;
+        int scene_ready = g_pt_pending[i].scene_gen0 >= 0 && g_scene_gen > g_pt_pending[i].scene_gen0;
+        if (!scene_ready && now < g_pt_pending[i].due) continue;
         char nm[72]; snprintf(nm, sizeof nm, "%s", g_pt_pending[i].name);
         g_pt_pending[i] = g_pt_pending[--g_pt_pending_n];       /* drop before the shot can recurse */
         shot_named(nm);
@@ -588,6 +619,22 @@ static void shot_flush_pending(void) {
  * pumping this edge there catches them mid-screen. Guarded, because shots_poll also runs it at the frame
  * boundary. */
 static int g_res_edge_busy = 0;
+/* Dense shots while a host-debug warp screen (fn_038f3d / fn_038cde) is up. Such a screen runs entirely
+ * inside one host step, so the frame-boundary watchers cannot see it at all; and its own resource announces
+ * all happen at screen entry, long before the picture is composited (measured: assets announced at frame
+ * ~2778, picture up by frame ~3500, docs/61). A half-second series driven from the spin point covers the
+ * screen from entry to exit, so the composited frames exist and are named. */
+static int    g_warp_active = 0, g_warp_shot_n = 0;
+static Uint64 g_warp_next_shot = 0;
+static void warp_shots_poll(void) {
+    if (!g_warp_active || !g_shots_dir) return;
+    Uint64 now = SDL_GetPerformanceCounter();
+    if (now < g_warp_next_shot) return;
+    g_warp_next_shot = now + g_perf_freq / 2;
+    char nm[72]; snprintf(nm, sizeof nm, "warp_%02d", g_warp_shot_n++);
+    shot_named(nm);
+}
+
 static void shots_resource_edge(void) {
     if (!g_shots_dir || !g_shot_res || g_res_edge_busy) return;
     if (g_res_trace_seq == g_pt_res_seq) {
@@ -639,6 +686,7 @@ static void shots_poll(void) {
     if (g_pt_hash && hash != g_pt_hash && diff > ns / 4 && now >= g_pt_last_scene + g_perf_freq / 2) {
         g_pt_hash = hash;
         g_pt_last_scene = now;
+        g_scene_gen++;
         shot_named("scene");
     } else if (!g_pt_hash) {
         g_pt_hash = hash;
@@ -838,8 +886,8 @@ static void key_apply(uint8_t sc, int make) {
 static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
     pt_drive();                                                /* the playtest script's key timeline */
-    shots_resource_edge();                                     /* resource names announced inside a nested
-                                                                * screen are only visible from a spin point */
+    shots_resource_edge();   /* names announced inside a nested screen are only visible from a spin point */
+    warp_shots_poll();       /* dense frames while a host-warp screen is up */
     /* A finished script means the run has produced everything it was going to: end the process normally so
      * the manifest is flushed (killing it loses the tail). */
     if (g_pt_done_ms >= 0 && pt_now_ms() - g_pt_done_ms > 2500) g_quit = 1;
@@ -916,10 +964,12 @@ static void tick_pump(void) {
           if (what && !s_shown && (long)g_frames >= at) {
               s_shown = 1;
               SDL_Log("showscreen warp: %s at frame %u", what, g_frames);
+              g_warp_active = 1; g_warp_next_shot = SDL_GetPerformanceCounter() + g_perf_freq / 2;
               if (!strcmp(what, "levelup"))      fn_038f3d(1);
               else if (!strcmp(what, "status"))  fn_038f3d(0);
               else if (!strcmp(what, "help"))    fn_038cde();
               else SDL_Log("showscreen warp: unknown screen '%s'", what);
+              g_warp_active = 0;
           } }
     if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();

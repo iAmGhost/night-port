@@ -34,3 +34,26 @@ Attempted and failed this turn: decoding the DS name arrays straight from `NIGHT
 mapping `file = DAT - 0x7600` (derived from `DAT_53334` ↔ file `0x4bd34`) produced garbage, so that base
 is wrong for these DS addresses — redo it via the container/image base used by `scripts/extract_ds.py`
 before trusting any hand-decoded name table.
+
+## Resolved: the name tables are faithful — the type index coming out of the stage record is off by one
+
+The DS name arrays are not far pointers: each entry is a **pool offset from DS `0x50000`**, and the pool
+is packed (`gun.spr\0` = 8 bytes, `ena-1.spr\0` = 10). Decoding `0x51d88` (`.spr`) that way gives, in
+order, the packed pool bytes
+
+```
+.spr\0 gun.spr\0 gun.spr\0 gun.spr\0 gun.spr\0 gun.spr\0 gun.spr\0 gun.spr\0
+ena-1.spr\0 ena-2.spr\0 ena-3.spr\0 gun.spr\0 gun.spr\0 enb-1.spr\0 ...
+```
+
+i.e. entry 31 = `gun.spr`, entry 32 = `ena-1.spr`, 37 = `enb-1.spr` — byte-for-byte what
+`kTypeSprNames`/`kTypeActNames` in `f.c` already contain. So hypothesis (1) is dead: the transcription is
+correct and the port's stage-1 enemies really are spawned with **type 31**, which the original would also
+draw from `gun.spr`.
+
+That leaves the spawn side: the type value the port feeds to `fn_010efc` is one lower than the original's
+(32 = `ena-1` for stage 1's first enemy). Next step is to trace where that index is produced — the stage
+record loop in `fn_037b03` (the `night%d.chr` / record-file reader) into the `fn_010efc(block, type, ...)`
+call — and check the width/offset of the field it reads (a byte vs word or a stride slip is exactly the
+signature), plus the companion question of why the player entity (`fn_0376c8`, which only publishes to
+`DAT_00053c80` when `type == DAT_00063370`) ends up absent.

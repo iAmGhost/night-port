@@ -38,3 +38,26 @@ selftest uses).
 
 Still to do for this task: the same measurement for episodes 2..9 (the per-episode sweep task), which
 needs the longer route scripts rather than episode 1.
+
+## Every shipped slide card, byte-identical per episode (this cycle)
+
+Nine runs (`route_show_keyed.txt --warp-stage N --frames 2600`, `NIGHT_VIDRAW=1` -- full 640x480 arena dumps after
+the docs/66 geometry fix), compared with independent PCX decodes:
+
+| episode | `g_tab_52f2c[stage]` | slides in `NIGHT.RES` | slides presented byte-identically (exact frames each) |
+|---|---|---|---|
+| 1 | 3 | 1s1, 1s2, 1s3 | 1s1 (5), 1s2 (5), 1s3 (4) |
+| 2 | 2 | 2s1, 2s2 | 2s1 (5), 2s2 (4) |
+| 3 | 6 | 3s1 .. 3s6 | 3s1 (5), 3s2 (4), 3s3 (5), 3s4 (5), 3s5 (5), 3s6 (5) |
+| 4 | 0 | none | -- (nothing to show) |
+| 5 | 0 | none | -- (nothing to show) |
+| 6 | 3 | 6s1, 6s2, 6s3 | 6s1 (5), 6s2 (5), 6s3 (4) |
+| 7 | 0 | none | -- (nothing to show) |
+| 8 | 1 | 8s1 | 8s1 (5) |
+| 9 | 3 | 9s1, 9s2, 9s3 | 9s1 (5), 9s2 (4), 9s3 (5) |
+
+`g_tab_52f2c = {0x16, 3, 2, 6, 0, 0, 3, 0, 1, 3}` (indexed by `g_dat_63370`, gated at 0x03b072) states the slide
+count per episode, the shipped container holds exactly that many cards for each episode, and the port presents
+exactly those cards -- so episodes 4, 5 and 7 having no introduction slide show is shipped behaviour, not a port
+gap. 26 distinct slide cards, every one byte-identical over all 307,200 arena bytes; `stage<N>.pcx`, `logo.pcx`
+and `title3.pcx` matched exactly in the same runs as well.

@@ -32,3 +32,35 @@ the game cannot avoid taking into real mode crashes the emulator when patched.
 records, and (6) the guest INT 10h TSR stalling or crashing the emulator, original-side frames require a real
 display session on this machine -- i.e. a DOSBox window launched from a GUI Terminal, which I cannot open myself.
 Until then the shipped-asset decode basis (docs/63) is the reference everything in this port is measured against.
+
+## Route 7 (this cycle): DOSBox-X, which *does* have capture commands -- but not headless
+
+`dosbox-staging` has no image-capture command at all, so this cycle installed `dosbox-x` (Homebrew bottle,
+2026.10.01), which ships the capture command family. It runs fully headless:
+
+```
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy dosbox-x -nogui -conf <file>
+```
+
+and its `[autoexec]` really executes (verified: `MODE CO80` changes the emulated surface to 720x400 in the log, and
+`ECHO hello > E:\mk.txt` lands on the host filesystem).
+
+What does **not** happen is any capture file. Every syntax variant tried produced nothing, in the mounted directory
+and anywhere else on the host (searched `~/Library/Application Support/DOSBox-X`, `~/Documents`, `/tmp` for
+`.png/.jpg/.avi/.mpg/.raw/.info` newer than the run):
+
+```
+cap raw E:\a.raw          cap raw E:\b.raw movie     cap raw movie E:\c.raw
+cap movie E:\d.avi        cap mpeg E:\e.mpg          cappng E:\f.png
+capjpg E:\g.jpg           cap save E:\h.png
+cap raw movie night.raw   cap raw add f1.raw         cappng shot.png   capjpg shot.jpg   (relative names)
+```
+
+The commands are simply inert in a `-nogui` session: DOSBox-X's capture path is driven from the SDL event loop and
+its hotkeys (Ctrl+F9 capture cycle), and with `SDL_VIDEODRIVER=dummy` there is no event stream to drive it -- the
+same class of failure as routes 1-3 (no host-visible window) and routes 4-6 (no guest-side path).
+
+**Status of the objective's original-frame clause:** seven routes measured, all dead on this machine without a
+graphics session. What would work, in one line: start `dosbox-x` (or `dosbox-staging`) from a GUI Terminal so a real
+window exists, then its capture hotkey (or my guest-side dumper) yields the frames, and the port side is already
+deterministic (fixed cycles, scripted input, named-event shots) so the pairs line up automatically.

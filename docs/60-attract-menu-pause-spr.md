@@ -134,3 +134,26 @@ Still open for this screen: at `m == 2` the byte changes (`sfx=0`) but the row's
 same sprite with `f[m] + 6 / f[m] + 8`, so the effects row may legitimately have one cell, or the index into
 the `pause.spr` cells is off. Filed, not yet resolved. The original-side frame for this screen is still
 blocked on the capture path (docs/46).
+
+## Resolved: the EFFECTS row's ON/OFF glyph *does* change (the filing was a measurement artifact)
+
+Filed earlier: at `m == 2` the enable byte `DAT_00051a10` flipped but the row's ON/OFF glyph looked
+pixel-identical. The toggle-row composite (capstone over `0x00039fa7-0x0003a012`) shows the cell index is
+`(f[m] << 2) + 0x18`, i.e. cells **6 and 7**, shared by both the sound (`m == 2`) and music (`m == 3`) rows --
+identical to the port's `k = f[m] + 6` in dword units, and the same dereference convention
+(`[spr+0x38] + [[spr+0x34] + idx]`) that was wrong in `fn_038445`.
+
+To decide it by measurement instead of theory, `NIGHT_MENUBG=1` now also prints an FNV hash of the presented
+frame over rows `0x64..0xbb` x cols `0xc8..0x13f` after the `0x0003a094-a9` present. Measured over the pause
+route (`scripts/playtest/route_pause_menu.txt`, 1141 menu frames):
+
+```
+m=2 f=00101  h=16c13ce7e8c26b6d     (f[2] = 1)
+m=2 f=00101 -> f=00001  h=c392c2b3c198bb86   ... hash changes with the flag, exactly as for m == 3
+m=3 f=00011  h=d6acb1d7a43c5cf8
+```
+
+So the row repaints on both rows; there is no port-side defect. Regression pin added in
+`test_real_res_container`: `pause.spr +0x38` is a heap offset, cells 6/7 (and the `m == 4` pair 8/9) resolve to
+in-block offsets with non-zero width/row-count, and **cells 6 and 7 carry different pixel data** (memcmp over
+the first 16 RLE bytes) -- if the ON and OFF glyphs ever collapse to one cell this fails.

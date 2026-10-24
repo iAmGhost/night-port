@@ -25038,6 +25038,19 @@ int32_t fn_039c03(void)
         }
         fn_00035ec2();                                                      /* 0x0003a08f: VGA ready-wait */
         mem_copy(video_map(0xa0000), video_map(g_dat_633b0), 0xfa00);       /* 0x0003a094-a9: present what was just drawn */
+        if (g_menu_trace) {                                         /* host-side diagnostic (NIGHT_MENUBG):
+                                                                   * checksum the entry + toggle-row band of the
+                                                                   * PRESENTED frame, so a toggle that changes the
+                                                                   * flag but not the pixels is visible */
+            const uint8_t *fb = video_map(0xa0000);
+            unsigned long h = 1469598103934665603UL;
+            for (int r = 0x64; r < 0xbc; r++)
+                for (int c = 0xc8; c < 0x140; c++) {
+                    h ^= fb[r * 0x140 + c]; h *= 1099511628211UL;
+                }
+            fprintf(stderr, "menufb m=%d f=%d%d%d%d%d h=%016lx\n", m, (int)f[0], (int)f[1], (int)f[2],
+                    (int)f[3], (int)f[4], h);
+        }
         continue;
 
       leave_menu:

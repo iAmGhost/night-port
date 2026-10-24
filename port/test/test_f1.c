@@ -15487,6 +15487,31 @@ static void test_real_master_load(void) {
           "gun.act / gun1.act: 192 / 196 action records (fn_010010 blocks)");
     /* sprite struct counts straight from the shipped .spr headers */
     check(SPRCNT(g_dat_63e0c) == 10, "pause.spr: 10 entries");
+
+    /* The pause menu's ON/OFF cell pair must actually repaint (docs/60 filing, resolved): fn_039c03 draws
+     * the toggle row from pause.spr cells (f[m] << 2) + 0x18 -- cells 6 and 7, shared by the sound and music
+     * rows (0x00039fa7-0x0003a012).  Measured with the NIGHT_MENUBG frame hash over rows 0x64..0xbb / cols
+     * 0xc8..0x13f, the presented frame changes when f[2] flips (16c13ce7e8c26b6d -> c392c2b3c198bb86), exactly
+     * as it does for m == 3, so the "the ON/OFF glyph never changes for EFFECTS" report was a measurement
+     * artifact.  Pinned structurally so the cell pair cannot collapse to one cell: */
+        uint32_t *spr = g_dat_63e0c;                       /* "pause.spr", loaded by test_real_res_container */
+        if (spr == 0 || SPRCNT(spr) < 10) { printf("  [skip] pause.spr not loaded for the toggle-cell check\n"); return; }
+        const uint8_t *hb = (const uint8_t *)g_heap_base;
+        const uint32_t *colv = (const uint32_t *)(hb + spr[1]);   /* +0x04 columns */
+        const uint32_t *rowv = (const uint32_t *)(hb + spr[2]);   /* +0x08 row counts */
+        const uint32_t *offv = (const uint32_t *)(hb + spr[13]);  /* +0x34 RLE offsets */
+        const uint8_t *rb = hb + spr[14];                         /* +0x38 RLE stream */
+        uint32_t cap = heap_arena_cap();
+        check(spr[14] < cap, "pause.spr +0x38 (the RLE stream) is a heap offset");
+        for (int k = 6; k <= 7; k++) {
+            check(offv[k] < 0x10000u, "pause.spr toggle cell offset is an in-block offset");
+            check(colv[k] != 0u && rowv[k] != 0u, "pause.spr toggle cell has a width and a row count");
+        }
+        /* the two cells must not be the same RLE run: the ON and OFF glyph are different images */
+        check(memcmp(rb + offv[6], rb + offv[7], 16) != 0,
+              "pause.spr ON and OFF toggle cells carry different pixel data");
+        /* and every later row's cells (m == 4 pair) resolve too */
+        check(offv[8] < 0x10000u && offv[9] < 0x10000u, "pause.spr exit-row cell pair resolves");
     check(SPRCNT(g_dat_639c0) == 11 && SPRCNT(g_dat_639c4) == 13,
           "system.spr / system2.spr: 11 / 13 entries");
     check(SPRCNT(g_dat_63e08) == 7 && SPRCNT(g_dat_53c8c) == 0x5c && SPRCNT(g_dat_63e00) == 3,
@@ -17397,6 +17422,12 @@ static void test_vga_retrace_wait(void) {
  * to a file that does not exist, which is indistinguishable from "the slideshow was skipped" in a playtest,
  * so the exact spelling of the sequence is pinned here as well as by the retrace-wait test above and the
  * per-card arena comparison in scripts/playtest_compare_slides.py (docs/62). */
+/* The pause menu's ON/OFF cell pair must actually repaint.  fn_039c03 draws the toggle row from
+ * pause.spr cells (f[m] << 2) + 0x18 (0x00039fa7-0x0003a012) -- i.e. cells 6 and 7, shared by the sound
+ * and music rows -- and the earlier playtest filing claimed the cell did not change for m == 2.  It does:
+ * the presented frame changes when f[2] flips (measured by FNV hash over rows 0x64..0xbb / cols 0xc8..0x13f:
+ * 16c13ce7e8c26b6d -> c392c2b3c198bb86, exactly as for m == 3).  Pinned structurally here so the cell pair
+ * can never silently collapse to one cell again. */
 static void test_slide_name_sequence(void) {
     struct { uint32_t stage, index; } arg = { 1, 1 };
     uint8_t *cur = (uint8_t *)&arg;

@@ -157,3 +157,21 @@ So the row repaints on both rows; there is no port-side defect. Regression pin a
 `test_real_res_container`: `pause.spr +0x38` is a heap offset, cells 6/7 (and the `m == 4` pair 8/9) resolve to
 in-block offsets with non-zero width/row-count, and **cells 6 and 7 carry different pixel data** (memcmp over
 the first 16 RLE bytes) -- if the ON and OFF glyphs ever collapse to one cell this fails.
+
+## Byte-level proof of the pause-menu composite (docs/63 basis)
+
+`NIGHT_MENUBG=1` now also prints, for each sprite cell the menu composites, the cell's raw row-RLE stream plus
+the bytes the blit actually wrote on the back screen. `scripts/playtest_verify_spr.py` decodes that stream with
+its own implementation of the shipped format (`fn_03bb42` mode 0 / `0x0003bb42`: per row a run count, per run
+`colAdvance, runLen, runLen literal bytes`, column position accumulating `colAdvance + runLen`) and compares it
+against what the port drew, at every column the cell covers. Over `scripts/playtest/route_pause_menu.txt`:
+
+```
+  entry    compared  179700  matched  179700  mismatched     0
+  head     compared  234031  matched  234031  mismatched     0
+  toggle   compared  134050  matched  134050  mismatched     0
+  TOTAL    compared  547781  matched  547781  mismatched     0  -> 1.0000
+```
+
+So the menu header, every entry row and both ON/OFF toggle cells are exactly what the shipped `pause.spr` data
+says, at the positions the port computes -- not merely "looks right".

@@ -25032,13 +25032,34 @@ int32_t fn_039c03(void)
         const uint32_t *rowv = (const uint32_t *)(hb + S[2]);               /* +0x08 row counts */
         const uint32_t *offv = (const uint32_t *)(hb + S[13]);              /* +0x34 RLE offsets */
         const uint8_t *rlebase = hb + S[14];                                /* +0x38 RLE stream */
+        /* Host diagnostic (NIGHT_MENUBG=1): hand a cell's raw row-RLE stream AND the bytes the blit put on the
+         * back screen to an independent decoder, so the drawn pixels are judged against the shipped pause.spr
+         * data rather than against the port itself (docs/63 basis; scripts/playtest_verify_spr.py). */
+#define MENU_TRACE_CELL(tag, k, dest, srow)                                                         \
+        do {                                                                                        \
+            const uint8_t *st_ = rlebase + offv[(k)];                                               \
+            fprintf(stderr, "menucell tag=%s k=%u dest=%#x srow=%d col=%u rows=%u stream=",          \
+                    (tag), (unsigned)(k), (int)(dest), (int)(srow), (unsigned)colv[(k)], (unsigned)rowv[(k)]); \
+            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", st_[q_]);                       \
+            fprintf(stderr, "\n");                                                                  \
+            const uint8_t *db_ = video_map(g_dat_633b0) + (uint32_t)(srow) * 0x140 + (uint32_t)(dest); \
+            unsigned w_ = colv[(k)] < 0x80u ? colv[(k)] : 0x80u;                                     \
+            for (uint32_t r_ = 0; r_ < rowv[(k)]; r_++) {                                            \
+                fprintf(stderr, "menupix k=%u r=%u ", (unsigned)(k), (unsigned)r_);                   \
+                for (unsigned q_ = 0; q_ < w_; q_++) fprintf(stderr, "%02x", db_[r_ * 0x140 + q_]);    \
+                fprintf(stderr, "\n");                                                              \
+            }                                                                                        \
+        } while (0)
         fn_03bb42(g_dat_633b0, 0xbe, 99, (int32_t)colv[0], rowv[0],
                   rlebase + offv[0], 0);                                    /* 0x00039efe-f38: header */
+        if (g_menu_trace) MENU_TRACE_CELL("head", 0, 0xbe, 99);
         fn_03bb42(g_dat_633b0, 0xc8, (int32_t)layout[m], (int32_t)colv[m + 1], rowv[m + 1],
                   rlebase + offv[m + 1], 0);                                /* 0x00039f3d-f96: this entry */
+        if (g_menu_trace) MENU_TRACE_CELL("entry", (uint32_t)(m + 1), 0xc8, (int32_t)layout[m]);
         if (m == 2 || m == 3) {                                             /* 0x00039f9b-3a012: the toggle row */
             uint32_t k = (uint32_t)f[m] + 6;
             fn_03bb42(g_dat_633b0, 0x100, 0xad, (int32_t)colv[k], rowv[k], rlebase + offv[k], 0);
+            if (g_menu_trace) MENU_TRACE_CELL("toggle", k, 0x100, 0xad);
         } else if (m == 4) {                                                /* 0x0003a019-8a */
             uint32_t k = (uint32_t)f[4] + 8;
             fn_03bb42(g_dat_633b0, 0x100, 0xad, (int32_t)colv[k], rowv[k], rlebase + offv[k], 0);

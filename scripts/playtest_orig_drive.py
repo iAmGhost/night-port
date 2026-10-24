@@ -110,6 +110,8 @@ def main():
     ap.add_argument("--base", default=os.environ.get("DOSBOX_BASE", "http://localhost:8386"))
     ap.add_argument("--hz", type=float, default=4.0)
     ap.add_argument("--thresh", type=float, default=0.90)
+    ap.add_argument("--swap13", type=int, default=1,
+                    help="1 = decode mode-13h payloads as BGRX (measured, see the comment in poll()); 0 keeps them as-is")
     a = ap.parse_args()
     import numpy as np
     from PIL import Image
@@ -166,6 +168,14 @@ def main():
         true_w = int(info.get("width", roww)) or roww
         if roww > true_w:
             px = px[:, :true_w, :]
+        # Measured channel order, per mode (do not "unify" this): with the SAME decode the VESA 101h payloads
+        # reproduce the shipped PCX palettes byte for byte (the title-card pair matched at 100.0000 % of pixels
+        # within +-3), but the mode-13h payloads come out R/B exchanged -- proved from the stage-1 room frame,
+        # whose colours equal the shipped stage1.wal palette at +0x4e21e exactly in the port (e.g. index 1 =
+        # (182,97,97), 378 pixels) and exactly mirrored in the capture, and whose HUD portrait tint is warm
+        # (149,119,100) in the port but cool (101,119,149) in the capture. So mode-13h payloads are BGRX.
+        if a.swap13 and h == 200:
+            px = px[:, :, (2, 1, 0, 3)]
         state["px"] = px
         state["h"] = h
         state["roww"] = px.shape[1]

@@ -103,3 +103,11 @@ record's `+0x48` fill, then re-run the histogram test above as the regression ch
 - `NIGHT_DENSEHZ=<hz>` -- the 320x200 dense sampler's rate (default 10 Hz); a 10 Hz series steps straight over a
   1.8 s transient, and the shot count cap had to be raised with `--shot-limit` (the default 600 truncated the
   series exactly where the transition was).
+
+## Correction (same cycle, docs/70)
+
+The "room palette has R and B exchanged" section above is **withdrawn**: the mirror is in the dosbox-automation
+capture path for mode-13h payloads (BGRX there, RGBX for VESA 101h), not in the port. The port's room palette push
+is byte-for-byte the shipped `stage1.wal` table at `+0x4e21e`, and with the capture decoded correctly the port's
+settled stage-1 frame agrees with the original's on 100.0000 % of pixels within +-3. See docs/70 for the evidence
+chain and for which earlier mode-13h pairs now need re-scoring.

@@ -13857,6 +13857,44 @@ static int ent_spr_trace(void) {
     return v;
 }
 
+/* Host diagnostic (NIGHT_ENTSPR=1): dump one entity composite -- its cell's row-RLE stream, the bytes the blit
+ * wrote, and the entity type / shipped asset it belongs to. Called from BOTH mirror arms of fn_012efa: the first
+ * version sat in the forward arm only, so every left-facing entity (the usual case for a walking enemy) was
+ * invisible to scripts/playtest_check_entity_sprites.py. */
+static void entspr_dump(uint8_t *e, uint32_t base, uint32_t spr, int32_t x, int32_t y,
+                        int32_t W, int32_t H, const uint8_t *rle, int32_t mode)
+{
+    /* Per-type quota: with one global budget the player's composites (drawn every frame) consumed all 120 slots,
+     * which hid every enemy composite from scripts/playtest_check_entity_sprites.py. */
+    static int quota[0x65];
+    /* Spend the quota on composites the blitter can actually place wholly inside the 320x200 room: fn_03bb42 bails
+     * at dest > 0x13f and clips at the right/bottom edge, so an off-screen entity's dump would only record bytes the
+     * blitter never wrote (24 of 48 stage-1 composites were like that on the first version of this check). */
+    if (!ent_spr_trace() || x < 0 || y < 0 || x + W > 0x140 || y + H > 0xc8) return;
+    uint32_t actq = 0; memcpy(&actq, e + 0x123, 4);
+    int tq = -1;
+    for (uint32_t t_ = 0; t_ < 0x65u; t_++) if (g_dat_53818[t_] == actq && actq) { tq = (int)t_; break; }
+    if (tq >= 0) { if (quota[tq] >= 40) return; quota[tq]++; }
+    if (g_ent_trace_left <= 0) return;
+    g_ent_trace_left--;
+    uint32_t actv = 0; memcpy(&actv, e + 0x123, 4);
+    int typ = -1;
+    for (uint32_t t_ = 0; t_ < 0x65u; t_++) if (g_dat_53818[t_] == actv && actv) { typ = (int)t_; break; }
+    const char *sprnm = (typ >= 0 && typ < 0x65) ? kTypeSprNames[typ] : "?";
+    const char *actnm = (typ >= 0 && typ < 0x65) ? kTypeActNames[typ] : "?";
+    fprintf(stderr, "menucell tag=entspr k=%u dest=%#x srow=%d col=%u rows=%u type=%d spr=%s act=%s mode=%d tick=%u stream=",
+            (unsigned)spr, (int)x, (int)y, (unsigned)W, (unsigned)H, typ, sprnm, actnm, (int)mode, (unsigned)g_dat_63e24);
+    trace_stream_hex(rle);
+    fprintf(stderr, "\n");
+    const uint8_t *db_ = video_map(base) + (uint32_t)y * 0x140 + (uint32_t)x;
+    unsigned w_ = (uint32_t)W < 0x80u ? (uint32_t)W : 0x80u;
+    for (int32_t r_ = 0; r_ < H; r_++) {
+        fprintf(stderr, "menupix k=%u r=%d ", (unsigned)spr, (int)r_);
+        for (unsigned q_ = 0; q_ < w_; q_++) fprintf(stderr, "%02x", db_[r_ * 0x140 + q_]);
+        fprintf(stderr, "\n");
+    }
+}
+
 void fn_012efa(uint8_t *e, uint32_t base)
 {
     (void)canary_id((uintptr_t)e, 0x38);                              /* 0x12efa-eff probe */
@@ -13911,25 +13949,7 @@ void fn_012efa(uint8_t *e, uint32_t base)
                       W, (uint32_t)half_div2(H), rle, flip, 0xd0);
         fn_03bb42(base, (ex - X) - camX, ((ey + ez) - Y) - camY, W,
                   (uint32_t)H, rle, flip);                            /* 0x13159 */
-        if (ent_spr_trace() && g_ent_trace_left > 0 &&      /* host diagnostic (NIGHT_ENTSPR=1): dump this */
-            ((ex - X) - camX) >= 0 && (((ey + ez) - Y) - camY) >= 0) {
-            /* entity frame's row-RLE stream and the bytes the blit wrote, for the independent decoder in
-             * scripts/playtest_verify_spr.py (docs/60, docs/63 basis). */
-            g_ent_trace_left--;
-            fprintf(stderr, "menucell tag=entspr k=%u dest=%#x srow=%d col=%u rows=%u stream=",
-                    (unsigned)spr, (int)((ex - X) - camX), (int)(((ey + ez) - Y) - camY),
-                    (unsigned)W, (unsigned)H);
-            trace_stream_hex(rle);
-            fprintf(stderr, "\n");
-            const uint8_t *db_ = video_map(base) + (uint32_t)(((ey + ez) - Y) - camY) * 0x140
-                               + (uint32_t)((ex - X) - camX);
-            unsigned w_ = (uint32_t)W < 0x80u ? (uint32_t)W : 0x80u;
-            for (int32_t r_ = 0; r_ < H; r_++) {
-                fprintf(stderr, "menupix k=%u r=%d ", (unsigned)spr, (int)r_);
-                for (unsigned q_ = 0; q_ < w_; q_++) fprintf(stderr, "%02x", db_[r_ * 0x140 + q_]);
-                fprintf(stderr, "\n");
-            }
-        }
+        entspr_dump(e, base, spr, (int32_t)((ex - X) - camX), (int32_t)(((ey + ez) - Y) - camY), W, H, rle, flip);
         return;                                                       /* 0x1315e -> 0x13316 */
     }
 
@@ -13939,6 +13959,7 @@ void fn_012efa(uint8_t *e, uint32_t base)
                   W, (uint32_t)half_div2(H), rle, flip, 0xd0);
     fn_03bb42(base, ex - (W - X) - camX, ((ey + ez) - Y) - camY, W,
               (uint32_t)H, rle, flip);                                /* 0x13311 */
+    entspr_dump(e, base, spr, (int32_t)(ex - (W - X) - camX), (int32_t)(((ey + ez) - Y) - camY), W, H, rle, flip);
 }
 
 /* fn_03203d  orig: 0x03203d (L11, 95 B) -- THE ENTITY DRAW SWEEP: runs fn_012efa over the entity

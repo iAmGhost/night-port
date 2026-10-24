@@ -987,6 +987,17 @@ static void ent_dump(void) {
                 "sprfields=%08x %08x %08x",
                 k, (void *)e, ty, sty, x, y, st, face, e == g_dat_53c7c,
                 *(uint32_t *)(e + 0x127), *(uint32_t *)(e + 0x12b), *(uint32_t *)(e + 0x12f));
+        /* Machine-readable form of the same record, with the shipped asset each type resolves to: this is what
+         * scripts/playtest_check_entity_sprites.py asserts on (docs/73). */
+        {
+            const char *const *sn = f_type_spr_names();
+            const char *const *an = f_type_act_names();
+            SDL_Log("entmap idx=%d player=%d type_act=%d type_spr=%d spr_asset=%s act_asset=%s "
+                    "rbase=%08x spr_struct=%p",
+                    k, e == g_dat_53c7c ? 1 : 0, ty, sty,
+                    (ty >= 0 && ty < 0x65) ? sn[ty] : "?", (ty >= 0 && ty < 0x65) ? an[ty] : "?",
+                    *(uint32_t *)(e + 0x127), (void *)(sty >= 0 ? g_dat_639ec[sty] : NULL));
+        }
         e = *(uint8_t **)(e + 0x13f);
     }
 }

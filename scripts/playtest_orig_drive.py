@@ -194,6 +194,67 @@ def main():
             {"events": [{"type": "key", "key": kn, "pressed": True},
                         {"type": "key", "key": kn, "pressed": False, "delay_ms": press_ms}]})
 
+    # ---- guest memory (dosbox-automation webserver) -------------------------------------------
+    # The image is relocated at load: code sits at (disassembler address + delta), and absolute data
+    # references inside the code were fixed up to (DAT address - 0x50000 + R). Both are derived per session
+    # instead of assumed: delta from a code pattern that must match NIGHT.EXE byte for byte, then R from the
+    # relocated immediate of `mov dword [DAT_00063370], 1` at 0x365eb (docs/74).
+    mem_state = {"delta": None, "R": None}
+
+    def exe_slice(addr: int, n: int) -> bytes:
+        with open(os.environ.get("NIGHT_EXE", "NIGHT/NIGHT.EXE"), "rb") as f:
+            f.seek(addr - 0x2600)
+            return f.read(n)
+
+    def mem_read(phys: int, n: int) -> bytes:
+        return api(a.base, a.token, f"/api/v1/memory/{phys}/{n}")
+
+    def mem_search(value: int, width: int = 4) -> list[int]:
+        return json.loads(api(a.base, a.token, "/api/v1/memory/search", "POST",
+                              {"value": value, "width": width, "start": 0, "end": 1 << 24})).get("matches", [])
+
+    def mem_calibrate() -> None:
+        if mem_state["delta"] is not None:
+            return
+        # The search endpoint is unreliable (500s intermittently), so the constants can be supplied from a previous
+        # calibration; they are then still verified against NIGHT.EXE byte for byte before anything is written.
+        cd, cb = os.environ.get("DBA_CODE_DELTA"), os.environ.get("DBA_DATA_BASE")
+        if cd and cb:
+            delta, R = int(cd, 0), int(cb, 0)
+            ok = all(mem_read(0x3bb42 + delta, 12) == exe_slice(0x3bb42, 12) for _ in (0,))
+            if not ok:
+                raise SystemExit("memory: supplied DBA_CODE_DELTA does not match NIGHT.EXE at the code anchor")
+            b = mem_read(0x365eb + delta, 10)
+            if b[:2] != b"\xc7\x05" or int.from_bytes(b[2:6], "little") != 0x13370 + R:
+                raise SystemExit("memory: supplied DBA_DATA_BASE is not what the code references (bytes %s)" % b.hex())
+            mem_state.update(delta=delta, R=R)
+            print("memory: using supplied code delta=%#x data base=%#x (verified against the loaded image)"
+                  % (delta, R))
+            return
+        deltas = {}
+        for anchor_addr in (0x3bb42, 0x3a2d7, 0x12efa, 0x40660):
+            want = exe_slice(anchor_addr, 12)
+            for cand in mem_search(int.from_bytes(want[:4], "little")):
+                if mem_read(cand, 12) == want:
+                    deltas.setdefault(cand - anchor_addr, []).append(anchor_addr)
+        if not deltas:
+            raise SystemExit("memory: no code anchor matched NIGHT.EXE -- cannot calibrate")
+        delta = max(deltas.items(), key=lambda kv: len(kv[1]))[0]
+        b = mem_read(0x365eb + delta, 10)          # c7 05 <abs32> 01 00 00 00
+        if b[:2] != b"\xc7\x05":
+            raise SystemExit("memory: unexpected bytes at 0x365eb (%s), cannot derive the data base" % b.hex())
+        R = int.from_bytes(b[2:6], "little") - 0x13370
+        mem_state.update(delta=delta, R=R)
+        print("memory: code delta=%#x data base=%#x (DAT_x -> phys x-0x50000%+#x)" % (delta, R, R))
+
+    def mem_phys(dat: int) -> int:
+        mem_calibrate()
+        return (dat - 0x50000) + mem_state["R"]
+
+    def mem_put(phys: int, payload: bytes) -> None:
+        api(a.base, a.token, f"/api/v1/memory/{phys}", "PUT", raw_body=payload,
+            ctype="application/octet-stream")
+
     si = 0
     period = 1.0 / a.hz
     last = None
@@ -236,6 +297,21 @@ def main():
                 time.sleep(gap)
             si += 1
             continue
+        if op == "key_until_mode":      # key_until_mode <height> <key> <tries> <gap_ms>: the picture show
+            want, kn = int(step[1]), step[2]        # waits a key per card, and the count per episode differs
+            tries, gap = int(step[3]), float(step[4]) / 1000.0
+            hit = False
+            for n in range(tries):
+                it = poll()
+                if state["h"] == want:
+                    hit = True
+                    print("  reached mode %d after %d press(es)" % (want, n))
+                    break
+                key(kn, 150)
+                time.sleep(gap)
+            print("key_until_mode %d: %s" % (want, "hit" if hit else "TIMEOUT"))
+            si += 1
+            continue
         if op == "shot":
             if state["px"] is not None:
                 save(step[1])
@@ -266,6 +342,18 @@ def main():
             continue
         if op == "sleep":
             time.sleep(float(step[1]) / 1000.0)
+            si += 1
+            continue
+        if op in ("writemem", "readmem"):        # writemem <DAT-hex> <value> / readmem <DAT-hex>
+            dat = int(step[1], 0)
+            if op == "readmem":
+                v = int.from_bytes(mem_read(mem_phys(dat), 4), "little")
+                print("readmem %s = %d (%#x) at phys %#x" % (step[1], v, v, mem_phys(dat)))
+            else:
+                val = int(step[2], 0)
+                mem_put(mem_phys(dat), val.to_bytes(4, "little"))
+                back = int.from_bytes(mem_read(mem_phys(dat), 4), "little")
+                print("writemem %s <- %d : read back %d at phys %#x" % (step[1], val, back, mem_phys(dat)))
             si += 1
             continue
         if op == "stop":

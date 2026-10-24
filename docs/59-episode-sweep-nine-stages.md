@@ -107,3 +107,30 @@ The effect-transfer count being identical (61/63) across episodes is a script ar
 same key set, so the same in-game triggers fire; it is not a claim that every episode has the same sfx budget.
 Retrace waits differ per episode (316-623), which is the pacing signal (docs/47): card counts and fade lengths
 differ per episode, and each episode's sequence completes on the retrace/PIT clock rather than host speed.
+
+## HUD gauge composites verified byte-for-byte in all nine episodes (this cycle)
+
+`NIGHT_HUDDBG=1` (gauge panel in `fn_01348f`) dumps the composited gauge cell's row-RLE stream plus the bytes the
+blit wrote; with `NIGHT_ENTSPR=1` in the same run, `scripts/playtest_verify_spr.py` decodes both independently:
+
+| stage | entity-sprite bytes | HUD-gauge bytes | mismatches |
+|---|---|---|---|
+| 1 | 48,301 | 51,120 | 0 |
+| 2 | 48,301 | 51,120 | 0 |
+| 3 | 50,789 | 51,120 | 0 |
+| 4 | 48,301 | 51,120 | 0 |
+| 5 | 46,972 | 51,120 | 0 |
+| 6 | 48,301 | 51,120 | 0 |
+| 7 | 48,301 | 51,120 | 0 |
+| 8 | 49,644 | 51,120 | 0 |
+| 9 | 48,301 | 51,120 | 0 |
+
+**899,270 compared bytes across the nine episodes, 0 mismatches.** Two harness bugs surfaced and were fixed on the
+way, both mine:
+1. the HUD dump shared the entity dump's 120-composite budget, so enabling both diagnostics starved entity
+   coverage (stage 5 first reported *zero* entity composites); they now have separate budgets;
+2. every dump read a fixed 512-byte window of the stream, an out-of-bounds read if an asset sits at the top of
+   the heap arena. A stage-6 run segfaulted once with both flags on and did **not** reproduce in three isolated
+   reruns (nor in the sweep after the bound was added), so it is not filed as a game defect -- but the dumps now
+   go through `trace_stream_hex()`, which clamps to the arena, so the diagnostic can never become the crash it
+   is hunting.

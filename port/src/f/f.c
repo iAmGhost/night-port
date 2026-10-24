@@ -2735,6 +2735,20 @@ void     heap_region_floor_set(uint32_t bytes) { s_region_floor = bytes; }
 /* Test-support knobs: read back the two arena knobs so a test can restore them. */
 uint32_t heap_arena_cap_get(void) { return s_arena_cap; }
 uint32_t heap_region_floor_get(void) { return s_region_floor; }
+
+/* Host-diagnostic helper: print a row-RLE stream as hex, clamped to the heap arena. The dumps read a fixed
+ * 512-byte window so the independent decoder (scripts/playtest_verify_spr.py) sees a whole stream even for
+ * long rows, but an asset sitting at the very top of the arena would turn that read into a fault past the
+ * mapping -- the diagnostic must not become the crash it is hunting. */
+static void trace_stream_hex(const uint8_t *p) {
+    const uint8_t *lo = (const uint8_t *)g_heap_base;
+    const uint8_t *hi = lo + heap_arena_cap_get();
+    if (p < lo || p >= hi) { fprintf(stderr, "SKIP(out-of-heap)"); return; }
+    size_t n = (size_t)(hi - p);
+    if (n > 512) n = 512;
+    for (size_t q = 0; q < n; q++) fprintf(stderr, "%02x", p[q]);
+}
+
 uint32_t heap_region_floor(void) { return s_region_floor; }
 
 uintptr_t g_heap_base      = 0;
@@ -13046,7 +13060,7 @@ void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
                 if (dest_ >= 0 && srow_ >= 0) {
                     fprintf(stderr, "menucell tag=lvlnum k=%u dest=%#x srow=%d col=6 rows=7 stream=",
                             (unsigned)digit, dest_, srow_);
-                    for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", rle[q_]);
+                    trace_stream_hex(rle);
                     fprintf(stderr, "\n");
                     const uint8_t *db_ = video_map(base) + (uint32_t)srow_ * 0x140 + (uint32_t)dest_;
                     for (int r_ = 0; r_ < 7; r_++) {
@@ -13768,6 +13782,9 @@ static int32_t half_div2(int32_t v) { return (v - (v >> 31)) >> 1; }   /* (v-(v>
 
 /* Host diagnostic (NIGHT_ENTSPR=1): how many entity frames to dump; see fn_012efa. */
 static int g_ent_trace_left = 120;
+static int g_hud_trace_left = 120;   /* NIGHT_HUDDBG gets its own budget: sharing the entity one made enabling
+                                      * both diagnostics starve entity coverage (stage 5 then reported zero
+                                      * entity composites, the gauge having consumed the whole budget) */
 static int ent_spr_trace(void) {
     static int v = -1;
     if (v < 0) { const char *e = getenv("NIGHT_ENTSPR"); v = (e && e[0] == '1'); }
@@ -13836,7 +13853,7 @@ void fn_012efa(uint8_t *e, uint32_t base)
             fprintf(stderr, "menucell tag=entspr k=%u dest=%#x srow=%d col=%u rows=%u stream=",
                     (unsigned)spr, (int)((ex - X) - camX), (int)(((ey + ez) - Y) - camY),
                     (unsigned)W, (unsigned)H);
-            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", rle[q_]);
+            trace_stream_hex(rle);
             fprintf(stderr, "\n");
             const uint8_t *db_ = video_map(base) + (uint32_t)(((ey + ez) - Y) - camY) * 0x140
                                + (uint32_t)((ex - X) - camX);
@@ -13991,18 +14008,18 @@ void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
                   (int32_t)*(const uint32_t *)(hb + gage[1]),
                   *(const uint32_t *)(hb + gage[2]),
                   hb + gage[14], 0);                              /* 0x13738 (no offset indexing) */
-        if (g_hud_trace && g_ent_trace_left > 0) {                 /* NIGHT_HUDDBG: dump the gauge cell's row-RLE
+        if (g_hud_trace && g_hud_trace_left > 0) {                 /* NIGHT_HUDDBG: dump the gauge cell's row-RLE
                                                                   * stream and the bytes the blit wrote, so the
                                                                   * HUD panel is checkable against the shipped
                                                                   * gage.spr data (scripts/playtest_verify_spr.py,
                                                                   * docs/50 / docs/63) */
-            g_ent_trace_left--;
+            g_hud_trace_left--;
             const uint8_t *st_ = hb + gage[14];
             unsigned col_ = *(const uint32_t *)(hb + gage[1]);
             unsigned rows_ = *(const uint32_t *)(hb + gage[2]);
             fprintf(stderr, "menucell tag=hudgage k=0 dest=%#x srow=%d col=%u rows=%u stream=",
                     slot * 0xaa + 0x13, 0x1d, col_, rows_);
-            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", st_[q_]);
+            trace_stream_hex(st_);
             fprintf(stderr, "\n");
             const uint8_t *db_ = video_map(base) + 0x1d * 0x140 + (unsigned)(slot * 0xaa + 0x13);
             unsigned w_ = col_ < 0x80u ? col_ : 0x80u;
@@ -24102,7 +24119,7 @@ int32_t fn_038445(void)
             const uint8_t *st_ = hb + roff;
             fprintf(stderr, "menucell tag=ovlayer k=%u dest=%#x srow=%d col=%u rows=%u stream=",
                     (unsigned)i, offv[i], colw[i], p4[i + 1], p8[i + 1]);
-            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", st_[q_]);
+            trace_stream_hex(st_);
             fprintf(stderr, "\n");
             const uint8_t *db_ = video_map(0xa0000) + (uint32_t)colw[i] * 0x140 + (uint32_t)offv[i];
             unsigned w_ = p4[i + 1] < 0x80u ? p4[i + 1] : 0x80u;
@@ -25130,7 +25147,7 @@ int32_t fn_039c03(void)
             const uint8_t *st_ = rlebase + offv[(k)];                                               \
             fprintf(stderr, "menucell tag=%s k=%u dest=%#x srow=%d col=%u rows=%u stream=",          \
                     (tag), (unsigned)(k), (int)(dest), (int)(srow), (unsigned)colv[(k)], (unsigned)rowv[(k)]); \
-            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", st_[q_]);                       \
+            trace_stream_hex(st_);                                                                  \
             fprintf(stderr, "\n");                                                                  \
             const uint8_t *db_ = video_map(g_dat_633b0) + (uint32_t)(srow) * 0x140 + (uint32_t)(dest); \
             unsigned w_ = colv[(k)] < 0x80u ? colv[(k)] : 0x80u;                                     \

@@ -64,3 +64,25 @@ same class of failure as routes 1-3 (no host-visible window) and routes 4-6 (no 
 graphics session. What would work, in one line: start `dosbox-x` (or `dosbox-staging`) from a GUI Terminal so a real
 window exists, then its capture hotkey (or my guest-side dumper) yields the frames, and the port side is already
 deterministic (fixed cycles, scripted input, named-event shots) so the pairs line up automatically.
+
+## Route 8 WORKS (this cycle): dosbox-automation's REST API, run headless in a Linux container
+
+The blocker was never "no capture inside DOSBox" but "no capture that survives having no window". **dosbox-automation**
+ships an HTTP REST API whose frame endpoints are independent of the window and the hotkeys, so it answers even under
+`xvfb`. It has no macOS build, so the linux-x86_64 release tarball runs in an amd64 container (OrbStack/Docker is
+present on this machine). Full recipe in AGENTS.md; harness: `scripts/playtest_orig_capture_api.py`.
+
+Measured just now, with the ORIGINAL game running (`/api/v1/status` -> `"program": "NIGHT"`, `"running": true`) and
+its own mode transitions in the emulator log (mode 13h -> **VESA 640x480 mode 101h** -> 13h):
+
+```
+captured 875 frames into /tmp/dbgauto/orig_boot      # 100 s of the original's boot: logo, intro, title, attract
+```
+
+Two configuration gotchas cost time and are now recorded in AGENTS.md: the webserver binds `127.0.0.1` by default,
+so a container's published port is unreachable from the host until `webserver_bind_address = 0.0.0.0` **and**
+`webserver_allow_remote = on` are set; and `output=texture` still needs an X server (`SDL_VIDEODRIVER=dummy` aborts
+in `GFX_InitSdl`), hence `xvfb-run`. Frames come back as raw BGRX32 with a documented header (width/height/pitch/
+format) or as PNG, plus `/api/v1/video/frame/info` with the emulated video mode; lossless ZMBV video recording and
+input injection (`/api/v1/input/sequence`, `/api/v1/input/type`) are also available, which makes the *same moments*
+reproducible on both sides rather than merely nearby.

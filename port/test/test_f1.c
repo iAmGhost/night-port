@@ -17371,6 +17371,31 @@ static void test_vga_retrace_wait(void) {
     g_vga_retrace_us = saved;
 }
 
+/* The per-episode intro slide names, built the way the stage entry loop builds them (0x0003b0ca-0x0003b0dd:
+ * two pushed dwords -- the stage number then the 1-based slide index -- with fn_0428f8's vararg cursor
+ * walking *upward*, so "%ds%d.pcx" reads (stage, index)).  A mis-ordered cursor silently renames every card
+ * to a file that does not exist, which is indistinguishable from "the slideshow was skipped" in a playtest,
+ * so the exact spelling of the sequence is pinned here as well as by the retrace-wait test above and the
+ * per-card arena comparison in scripts/playtest_compare_slides.py (docs/62). */
+static void test_slide_name_sequence(void) {
+    struct { uint32_t stage, index; } arg = { 1, 1 };
+    uint8_t *cur = (uint8_t *)&arg;
+    uint8_t name[0x10];
+    fn_0428f8(name, (const uint8_t *)"%ds%d.pcx", &cur);
+    check(strcmp((const char *)name, "1s1.pcx") == 0, "slide 1 of episode 1 is 1s1.pcx");
+
+    uint32_t args2[2] = { 3, 6 };
+    uint8_t *cur2 = (uint8_t *)args2;
+    fn_0428f8(name, (const uint8_t *)"%ds%d.pcx", &cur2);
+    check(strcmp((const char *)name, "3s6.pcx") == 0, "slide 6 of episode 3 is 3s6.pcx (the shipped count)");
+
+    /* The episode-title card the slide show ends on (0x0003b14a). */
+    uint32_t st = 9;
+    uint8_t *cur3 = (uint8_t *)&st;
+    fn_0428f8(name, (const uint8_t *)"stage%d.pcx", &cur3);
+    check(strcmp((const char *)name, "stage9.pcx") == 0, "the card after the slides is stage9.pcx");
+}
+
 static void test_stage_bg_heap_source(void) {
     printf("fn_03ce0b stage background: node+0x348 as a heap offset (docs/41)\n");
     uint32_t save_cap = heap_arena_cap_get(), save_floor = heap_region_floor_get();
@@ -18144,6 +18169,7 @@ int main(void) {
     test_fn_03ae8e();
     test_fn_0445c9();
     test_vga_retrace_wait();
+    test_slide_name_sequence();
     test_stage_bg_heap_source();
     test_audio_path();
     test_device_bringup();

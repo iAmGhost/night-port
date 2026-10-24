@@ -542,6 +542,21 @@ static void shot_named(const char *event) {
     }
     int ok = SDL_SaveBMP(s, path);
     SDL_DestroySurface(s);
+    if (getenv("NIGHT_VIDRAW")) {
+        /* Diagnostic dump of the *arena bytes* behind a shot, not the composed bitmap: it separates a
+         * game-side write problem (the RLE loader put the wrong bytes in the screen model) from a host-side
+         * presentation problem (the model is right but the palette/geometry applied to it is not).  If the
+         * game's screen base is not the arena base, that copy follows a marker. */
+        char rp[700]; snprintf(rp, sizeof rp, "%s/%04d_%s.raw", g_shots_dir, g_shot_seq, safe);
+        FILE *fp = fopen(rp, "wb");
+        if (fp) {
+            fwrite(g_video_ram, 1, (size_t)W * H, fp);
+            ptrdiff_t delta = (ptrdiff_t)((const uint8_t *)g_dat_633b0 - g_video_ram);
+            fprintf(fp, "#base_delta=%td\n#pal", delta);
+            fwrite(g_palette8, 1, 768, fp);        /* the DAC as the host sees it right now */
+            fclose(fp);
+        }
+    }
     if (!g_manifest) {
         char mp[600]; snprintf(mp, sizeof mp, "%s/manifest.tsv", g_shots_dir);
         g_manifest = fopen(mp, "wb");
@@ -654,9 +669,27 @@ static void shots_resource_edge(void) {
     g_res_edge_busy = 0;
 }
 
+/* Periodic shots while a still-image card is on screen.  A card is announced by its loader but is only
+ * on screen afterwards, and the intro cards hold for well under a second (measured: the stage-1 sequence
+ * 1s1/1s2/1s3 announces at frames 2339 / 2378 / 2418, i.e. ~39 frames = 0.7 s each), so the announce-time
+ * shot photographs the moment before the blit and cannot be compared with the card itself.  A 200 ms series
+ * during a 640x480 view gives every card at least two frames of its own, which scripts/playtest_compare_slides.py
+ * then matches to the decoded PCX. */
+static Uint64 g_card_next = 0;
+static int    g_card_n = 0;
+static void card_shots_poll(int w) {
+    if (!g_shots_dir || w != 640) return;
+    Uint64 now = SDL_GetPerformanceCounter();
+    if (now < g_card_next) return;
+    g_card_next = now + g_perf_freq / 5;
+    char nm[72]; snprintf(nm, sizeof nm, "card_%02d", g_card_n++);
+    shot_named(nm);
+}
+
 static void shots_poll(void) {
     if (!g_shots_dir) return;
     shot_flush_pending();
+    card_shots_poll(g_vid_w ? g_vid_w : sys_video_w());   /* frames of the card itself, not of its load */
     Uint64 now = SDL_GetPerformanceCounter();
     if (g_shot_res && g_res_trace_seq != g_pt_res_seq) {
         g_pt_res_seq = g_res_trace_seq;
@@ -888,6 +921,8 @@ static void input_pump(void) {
     pt_drive();                                                /* the playtest script's key timeline */
     shots_resource_edge();   /* names announced inside a nested screen are only visible from a spin point */
     warp_shots_poll();       /* dense frames while a host-warp screen is up */
+    card_shots_poll(g_vid_w ? g_vid_w : sys_video_w());   /* the slide show runs inside one host step, so
+                                                           * the frame-boundary watcher never samples it */
     /* A finished script means the run has produced everything it was going to: end the process normally so
      * the manifest is flushed (killing it loses the tail). */
     if (g_pt_done_ms >= 0 && pt_now_ms() - g_pt_done_ms > 2500) g_quit = 1;

@@ -13740,6 +13740,14 @@ void fn_03c231(uint32_t dest, int32_t col, int32_t row, int32_t width,
  * unguarded; kept as-is. */
 static int32_t half_div2(int32_t v) { return (v - (v >> 31)) >> 1; }   /* (v-(v>>31))>>1, trunc2 */
 
+/* Host diagnostic (NIGHT_ENTSPR=1): how many entity frames to dump; see fn_012efa. */
+static int g_ent_trace_left = 120;
+static int ent_spr_trace(void) {
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("NIGHT_ENTSPR"); v = (e && e[0] == '1'); }
+    return v;
+}
+
 void fn_012efa(uint8_t *e, uint32_t base)
 {
     (void)canary_id((uintptr_t)e, 0x38);                              /* 0x12efa-eff probe */
@@ -13794,6 +13802,25 @@ void fn_012efa(uint8_t *e, uint32_t base)
                       W, (uint32_t)half_div2(H), rle, flip, 0xd0);
         fn_03bb42(base, (ex - X) - camX, ((ey + ez) - Y) - camY, W,
                   (uint32_t)H, rle, flip);                            /* 0x13159 */
+        if (ent_spr_trace() && g_ent_trace_left > 0 &&      /* host diagnostic (NIGHT_ENTSPR=1): dump this */
+            ((ex - X) - camX) >= 0 && (((ey + ez) - Y) - camY) >= 0) {
+            /* entity frame's row-RLE stream and the bytes the blit wrote, for the independent decoder in
+             * scripts/playtest_verify_spr.py (docs/60, docs/63 basis). */
+            g_ent_trace_left--;
+            fprintf(stderr, "menucell tag=entspr k=%u dest=%#x srow=%d col=%u rows=%u stream=",
+                    (unsigned)spr, (int)((ex - X) - camX), (int)(((ey + ez) - Y) - camY),
+                    (unsigned)W, (unsigned)H);
+            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", rle[q_]);
+            fprintf(stderr, "\n");
+            const uint8_t *db_ = video_map(base) + (uint32_t)(((ey + ez) - Y) - camY) * 0x140
+                               + (uint32_t)((ex - X) - camX);
+            unsigned w_ = (uint32_t)W < 0x80u ? (uint32_t)W : 0x80u;
+            for (int32_t r_ = 0; r_ < H; r_++) {
+                fprintf(stderr, "menupix k=%u r=%d ", (unsigned)spr, (int)r_);
+                for (unsigned q_ = 0; q_ < w_; q_++) fprintf(stderr, "%02x", db_[r_ * 0x140 + q_]);
+                fprintf(stderr, "\n");
+            }
+        }
         return;                                                       /* 0x1315e -> 0x13316 */
     }
 

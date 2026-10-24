@@ -81,3 +81,19 @@ region is the first 64000 arena bytes.
 Read the level-up row this way: the card is present and correct to within the pixels the screen is *supposed*
 to overwrite. What this basis still cannot say is pacing and the intermediate frames -- that half stays with
 docs/46 / docs/64.
+
+## Entity sprites in gameplay, on the same basis
+
+The entity draw (`fn_012efa`, the routine every entity sprite goes through) now offers `NIGHT_ENTSPR=1`, which
+dumps each composited entity frame's row-RLE stream and the bytes the blit wrote (bounded to 120 cells per run,
+skipping cells whose screen position is negative because the blit clamps those). `scripts/playtest_verify_spr.py`
+decodes the stream independently:
+
+```
+  entspr   compared   48301  matched   48301  mismatched     0
+```
+
+over the stage-1 route: 120 entity-frame composites, 48,301 covered bytes, no mismatch. Which asset each entity
+uses is pinned separately -- the 101 `.spr` / 101 `.act` per-type name arrays hash-equal the copies read out of
+`NIGHT.EXE` (DS `0x51d88` / `0x52198`), and stage 1's two enemies are type 31 -> `ena-1.spr` / `ena-1.act`.
+Together those two facts replace the old "enemies draw the main character" symptom with a byte-level claim.

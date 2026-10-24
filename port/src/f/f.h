@@ -777,6 +777,7 @@ void     fn_0445c9(void);            /* 0x0445c9: the entry thunk (stack reserva
 extern uint32_t  g_dat_5339c;       /* DAT_0005339c: stack reservation offset for the entry thunk */
 extern uintptr_t g_dat_533a0;       /* DAT_000533a0: the reserved stack base recorded by the entry thunk */
 void     fn_03af18(void);            /* 0x03af18: THE GAME MAIN (menu loop, stage cycle, room-clear/continue/game-over/abort routing, slide shows) */
+int      fn_03af18_ending_slideshow(void);  /* the `ending:` block of fn_03af18 (LAB_0003b2b1): the "game is through" VESA mode set, CD track 10, and the ten "end%04d.pcx" / "2end%04d.pcx" cards */
 extern uint32_t g_tab_52f2c[0xa];   /* DAT_00052f2c: per-stage "%ds%d.pcx" start slide count (DS image) */
 extern uint32_t g_tab_52f90[0xa];   /* DAT_00052f90: per-stage "%de%d.pcx" end slide count (DS image) */
 extern uint32_t g_dat_52fb4;        /* DAT_00052fb4: the stage-9 ending slide-show gate (DS image, 3) */

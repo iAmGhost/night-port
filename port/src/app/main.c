@@ -932,6 +932,22 @@ static void input_pump(void) {
     warp_shots_poll();       /* dense frames while a host-warp screen is up */
     card_shots_poll(g_vid_w ? g_vid_w : sys_video_w());   /* the slide show runs inside one host step, so
                                                            * the frame-boundary watcher never samples it */
+    /* A screen whose loop blocks inside a single game step (the ending slide show, the slide shows, the CG
+     * picture show) never reaches the frame-boundary present(): the window sat on the previous scene for the
+     * whole screen -- and every shot taken from a spin point kept the stale geometry, because g_vid_w is only
+     * updated inside ensure_mode. Present from the cooperative pump too, on the same 60 Hz throttle. */
+    if (g_ren) {
+        static Uint64 s_pump_present_next;                    /* its own throttle: reusing g_present_next here
+                                                               * starved the main loop's present branch, and that
+                                                               * branch is where g_frames advances -- the frame
+                                                               * counter froze at 1 and every frame-gated script,
+                                                               * warp and --frames budget stopped firing */
+        Uint64 np = SDL_GetPerformanceCounter();
+        if (np >= s_pump_present_next) {
+            present();
+            s_pump_present_next = np + g_perf_freq / 60u;
+        }
+    }
     /* A finished script means the run has produced everything it was going to: end the process normally so
      * the manifest is flushed (killing it loses the tail). */
     if (g_pt_done_ms >= 0 && pt_now_ms() - g_pt_done_ms > 2500) g_quit = 1;
@@ -1015,6 +1031,11 @@ static void tick_pump(void) {
               else if (!strcmp(what, "gameover")) fn_038445();   /* the game-over / CONTINUE loop (docs/61
                                                                   * convention; its only in-game call site is
                                                                   * 0x0003aecf inside fn_03af18) */
+              else if (!strcmp(what, "ending")) fn_03af18_ending_slideshow();
+                                                                  /* the "game is through" ending slide show
+                                                                   * (LAB_0003b2b1, docs/64): in-game it is only
+                                                                   * reachable by clearing episode 9, which scripted
+                                                                   * play does not do */
               else SDL_Log("showscreen warp: unknown screen '%s'", what);
               g_warp_active = 0;
           } }

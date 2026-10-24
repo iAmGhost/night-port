@@ -5861,6 +5861,12 @@ void fn_03628e(const char *name, uint32_t dl) {
             if (off >= 0x10000) { off = 0; chunk++; fn_03f3be(chunk); }  /* 0x363ec-405 */
         }
     }
+    /* Host-view hint, not game behaviour: this loader writes the whole 0x4b000 bytes (640x480x8) through the
+     * slid window, so the framebuffer now holds a full-height image and must be presented as such. The flag
+     * used to be cleared only in fn_03f462 (the slide path), so after the first room -- which sets it to 1 --
+     * every fn_03628e screen stayed a 320x200 view: the ending slide show and cdinsert.pcx were displayed as a
+     * cropped 320x200 read of 640x480 data. The original always shows VRAM, so only the port tracks this. */
+    g_view_320x200 = 0;
 }
 
 /* fn_03f885  orig: 0x03f885 (L11, 438 B) -- resource-op dispatcher (screen/palette commands).
@@ -25964,6 +25970,41 @@ static void room_end_slideshow(uint32_t *slide) {
     } while (*slide < g_tab_52f90[g_dat_63370]);
 }
 
+/* The `ending:` block of fn_03af18 (LAB_0003b2b1), extracted verbatim so the host can present the ending
+ * slide show without clearing episode 9 first (docs/64: the chain is ported but scripted play never reaches
+ * the `g_dat_63370 == 9` branch). The game's behaviour is unchanged -- fn_03af18 calls this at exactly the
+ * same point and then runs the same tail (fn_000405a7, g_dat_63370 = 1, entity remove + heap free, fn_037347,
+ * menu loop). Returns 1 if the slide show ran, 0 if the shipped VESA gate refused (fn_03f15f, mode 0x101). */
+int fn_03af18_ending_slideshow(void) {
+    uint32_t slide = 0;
+    if (fn_03f15f() != 1) return 0;                                     /* 0x03b2bd */
+    fn_10b1d(10);   /* track 10 in EAX */                                                 /* 0x03b2d0: CD track 10 */
+    fn_041e20(g_dat_636b8, 0, 0x300);
+    board_out(0, 0x100, g_dat_636b8);
+    do {
+        uint8_t name[0x20];
+        uint32_t n = slide + 1;
+        /* the full-equipment run uses the alternate ending slide set */
+        if (g_dat_53c7c[0x25] == 1 && g_dat_53c7c[0x26] == 2 &&
+            g_dat_53c7c[0x27] == 4 && g_dat_53c7c[0x28] == 4) {
+            uint8_t *cur = (uint8_t *)&n;
+            fn_0428f8(name, (const uint8_t *)"2end%04d.pcx", &cur); /* 0x03b35a */
+        } else {
+            uint8_t *cur = (uint8_t *)&n;
+            fn_0428f8(name, (const uint8_t *)"end%04d.pcx", &cur);  /* 0x03b373 */
+        }
+        fn_03628e((const char *)name, 0);                          /* 0x03b380 */
+        fn_040660(g_dat_636b8, 0x32);                              /* 0x03b38f */
+        for (uint32_t k = 0; k < 12000; k++) {                      /* 0x03b39a-cc */
+            delay_units(1);
+            if (g_dat_63ec3 != 0) { fn_0406f5(g_dat_636b8, 0x32); break; }
+        }
+        fn_0406f5(g_dat_636b8, 0x32);                              /* 0x03b3dc */
+        slide += 1;
+    } while (slide < 10);
+    return 1;
+}
+
 void fn_03af18(void) {
     (void)canary_id(0, 0x74);                                          /* 0x03af18-23 */
     int32_t probe = 0;                                                 /* local_3c (unused result) */
@@ -26097,33 +26138,7 @@ room_start:                                                            /* LAB_00
     goto room_start;
 
 ending:                                                                /* LAB_0003b2b1 */
-    slide = 0;
-    if (fn_03f15f() == 1) {                                            /* 0x03b2bd */
-        fn_10b1d(10);   /* track 10 in EAX */                                                 /* 0x03b2d0: CD track 10 */
-        fn_041e20(g_dat_636b8, 0, 0x300);
-        board_out(0, 0x100, g_dat_636b8);
-        do {
-            uint8_t name[0x20];
-            uint32_t n = slide + 1;
-            /* the full-equipment run uses the alternate ending slide set */
-            if (g_dat_53c7c[0x25] == 1 && g_dat_53c7c[0x26] == 2 &&
-                g_dat_53c7c[0x27] == 4 && g_dat_53c7c[0x28] == 4) {
-                uint8_t *cur = (uint8_t *)&n;
-                fn_0428f8(name, (const uint8_t *)"2end%04d.pcx", &cur); /* 0x03b35a */
-            } else {
-                uint8_t *cur = (uint8_t *)&n;
-                fn_0428f8(name, (const uint8_t *)"end%04d.pcx", &cur);  /* 0x03b373 */
-            }
-            fn_03628e((const char *)name, 0);                          /* 0x03b380 */
-            fn_040660(g_dat_636b8, 0x32);                              /* 0x03b38f */
-            for (uint32_t k = 0; k < 12000; k++) {                      /* 0x03b39a-cc */
-                delay_units(1);
-                if (g_dat_63ec3 != 0) { fn_0406f5(g_dat_636b8, 0x32); break; }
-            }
-            fn_0406f5(g_dat_636b8, 0x32);                              /* 0x03b3dc */
-            slide += 1;
-        } while (slide < 10);
-    }
+    fn_03af18_ending_slideshow();
     fn_000405a7();
     g_dat_63370 = 1;                                                   /* 0x03b3f1 */
     if (g_dat_53c7c != NULL) {

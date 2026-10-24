@@ -1005,13 +1005,16 @@ static void tick_pump(void) {
     }
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
-                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu cdstops=%u sfx=%u keyb_ed0_ed3_ed5_ed8=%u/%u/%u/%u",
+                "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu cdstops=%u sfx=%u keyb_ed0_ed3_ed5_ed8=%u/%u/%u/%u "
+                "vgaws=%u vga_bytes=%llu wipe_keys_ea4_ec1_ea5_ec0=%u/%u/%u/%u",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), (unsigned long)g_vga_retrace_waits,
                 sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
                 (unsigned long long)g_cdda_bytes, (unsigned)g_cdda_tracks, (unsigned)g_cdda_pos,
                 (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null,
+                g_vga_window_ns, (unsigned long long)g_vga_window_bytes,
+                (unsigned)g_dat_63ea4, (unsigned)g_dat_63ec1, (unsigned)g_dat_63ea5, (unsigned)g_dat_63ec0,
                 (unsigned)sys_cd_audio_stop_calls(), (unsigned)g_dat_51a10,
                 (unsigned)g_dat_63ed0, (unsigned)g_dat_63ed3, (unsigned)g_dat_63ed5, (unsigned)g_dat_63ed8);
         /* Host debug warp for screens a scripted route cannot reach in the time a run lasts: the level-up
@@ -1086,6 +1089,14 @@ int main(int argc, char **argv) {
      * restores the timing-free behaviour. Default 500 us, measured against the original. */
     const char *e_delay = getenv("NIGHT_DELAY_US");
     if (e_delay) g_delay_unit_us = (uint32_t)atoi(e_delay);
+    /* NIGHT_VGAWS sets the modelled cost of one byte written through the A0000 VGA window, in ns. Default 98:
+     * the main title's wipe is 240 passes x 307200 window bytes and the original's own frames put that wipe at
+     * 7.19 s, i.e. 29.96 ms per pass = 97.5 ns/byte (two 486 cycles per uncacheable write; docs/72). The DEFAULT is
+     * lower than that physical figure on purpose: charged per scanline through the pump, each wait overshoots by
+     * tens of microseconds, and measured end to end 98 ns/byte gave 11.13 s (ratio 1.55), so the model is tuned so
+     * the observed span lands on the original's 7.19 s. 0 disables. */
+    const char *e_vgaws = getenv("NIGHT_VGAWS");
+    g_vga_window_ns = e_vgaws ? (uint32_t)atoi(e_vgaws) : 63u;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--res-dir") && i + 1 < argc) res_dir = argv[++i];
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames_limit = atoi(argv[++i]);

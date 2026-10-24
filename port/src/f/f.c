@@ -7293,6 +7293,31 @@ void fn_03ace9(void) {
  * DAT_000531f4 (W) and DAT_00063e64 (pitch) are VESA mode values set at runtime by
  * 0x03f15f (VBE mode-info: W = VBE[0x8]<<10, pitch = VBE[0x12]); defaults 0x140 here. */
 int g_view_320x200;   /* 1 = the framebuffer currently holds a 320x200 room frame (fn_038098 flip) */
+/* Modelled cost of one byte written through the A0000 VGA window, in nanoseconds (0 disables the pacing, which is
+ * what the unit tests use). Calibrated, not guessed: fn_03a224's main-title wipe runs 0x1e0/2 = 240 passes (the
+ * loop at 0x3a2d7-eb steps row by 2, confirmed by disassembly) and every pass puts 0x280*0x1e0 = 307200 bytes
+ * through the window via fn_03f462, while the original's own captured frames put the whole wipe at 7.19 s (first
+ * partially-resolved frame at 50308 ms, first frame matching the settled card at 57497 ms of the clean 6 Hz
+ * capture; docs/72). That is 29.96 ms per pass = 97.5 ns per byte, i.e. about two 486 cycles per uncacheable VGA
+ * write. Without the charge the port ran the entire melt in a few hundred milliseconds. */
+uint32_t g_vga_window_ns = 0;
+uint64_t g_vga_window_bytes;                    /* bytes charged to the window-write model (diagnostics/tests) */
+
+static void vga_charge(uint32_t bytes)
+{
+    g_vga_window_bytes += bytes;
+    if (!g_vga_window_ns || (!sys_get_tick_pump() && !sys_get_input_pump())) return;
+    /* Debt with carry, not a fresh wait per scanline: one sys_port_spin() can overshoot the deadline by most of a
+     * presented frame, and 480 per-row waits per pass then drift ~1.6x long (measured: 47.3 ms/pass instead of the
+     * intended 30.1 ms). Charging into an accumulator and crediting the overshoot back keeps the total honest. */
+    static uint64_t s_debt_us;
+    s_debt_us += ((uint64_t)bytes * g_vga_window_ns) / 1000u;
+    uint64_t target = sys_now_us() + s_debt_us;
+    while (sys_now_us() < target) { if (!sys_port_spin()) break; }
+    uint64_t now = sys_now_us();
+    s_debt_us = (now < target) ? (target - now) : 0;
+}
+
 int32_t fn_03f462_note(void);
 void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count,
                const uint8_t *src) {
@@ -7305,6 +7330,7 @@ void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count,
     int32_t col = pos % W;
     fn_03f3be((uint32_t)row);
     for (uint32_t i = 0; i < count; i++) {
+        vga_charge((uint32_t)width);            /* the original pays for the window write per scanline */
         if (col + (int32_t)width > W) {
             int32_t ovf = col + (int32_t)width - W;
             int32_t part1 = (int32_t)width - ovf;          /* = W - col */

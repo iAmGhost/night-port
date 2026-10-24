@@ -1322,6 +1322,10 @@ extern uint32_t g_clock_ticks;
 /* Wall-clock cost (us) of one guest DOS clock read inside delay_units; 0 disables the pacing.
  * 500 us is measured from the original (logo-card holds and the slide-show card hold, see f.c). */
 extern uint32_t g_delay_unit_us;
+extern uint32_t g_vga_window_ns;   /* modelled ns cost per byte written through the A0000 window (docs/72) */
+extern uint64_t g_vga_window_bytes;/* bytes charged to that model (diagnostics / tests) */
+extern uint32_t g_vbe_palette_call_us;   /* modelled cost of one INT 10h AX=0x4F09 (docs/72) */
+extern uint64_t g_vbe_palette_calls;     /* how many such calls were issued */
 /* Measure the clock tick rate into g_clock_ticks (orig counts INT 21h/0x2Ch
  * ticks over one real second).  orig: 0x04561d */
 void calibrate_clock(void);

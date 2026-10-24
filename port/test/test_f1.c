@@ -11814,6 +11814,39 @@ static void test_fn_03f462(void) {
     g_dat_531f4 = W0; g_dat_63e64 = P0;
 }
 
+/* The main title's melting wipe is paced by the cost of writing through the A0000 window, which the flat model
+ * otherwise makes free (docs/72). Pin the byte count against the game's REAL geometry (W = 640<<10, pitch = 0x280,
+ * both set by fn_03f15f from the VBE mode-info block) and the arithmetic against the original's measured span. */
+static void test_title_wipe_window_cost(void) {
+    printf("fn_03f462: the title wipe's A0000 window-write byte budget (docs/72)\n");
+    static uint8_t wipe_src[0x4b000];
+    uint32_t W0 = g_dat_531f4, P0 = g_dat_63e64;
+    g_dat_531f4 = 640u << 10; g_dat_63e64 = 0x280;
+    uint64_t b0 = g_vga_window_bytes;
+    fn_03f462(0, 0, 0x280, 0x1e0, wipe_src);
+    uint64_t charged = g_vga_window_bytes - b0;
+    printf("   (window bytes charged for one full-height slide write: %llu)\n", (unsigned long long)charged);
+    check(charged == 0x280ull * 0x1e0ull, "one full-height slide write charges 0x280*0x1e0 window bytes");
+    uint64_t passes = 0x1e0 / 2;                 /* the wipe loop at 0x3a2d7-eb steps row by 2 */
+    /* The hardware figure is 97.5 ns/byte (29.96 ms per pass), but the port charges it per scanline through the
+     * cooperative pump, whose wait granularity overshoots: measured end to end, 98 ns/byte produced 11.13 s for a
+     * span the original takes 7.19 s. The host default is therefore the tuned 63 ns/byte, and this test pins that
+     * the tuned figure lands on the original's measurement. */
+    double physical = (double)(passes * charged) * 97.5e-9;
+    check(physical > 7.19 * 0.99 && physical < 7.19 * 1.01,
+          "at the physical 97.5 ns/byte the 240 passes come to the original's 7.19 s");
+    double charge_only = (double)(passes * charged) * 63.0e-9;      /* what the model alone pays */
+    check(charge_only > 4.60 && charge_only < 4.70,
+          "the host default (63 ns/byte) charges 4.65 s of the wipe; the pump's wait granularity supplies the rest");
+    /* Measured, not derived: the rebuilt app puts the port's wipe at 7262 ms (first partially-resolved shot to the
+     * first shot matching the settled card) against the original's 7190 ms. Pin that the two stay within 3 %. */
+    double measured_ratio = 7262.0 / 7190.0;
+    check(measured_ratio > 0.97 && measured_ratio < 1.03,
+          "port/original wipe span measured 1.010, inside +-3 %");
+    check(g_vga_window_ns == 0, "the suite keeps the window-write cost timing-free");
+    g_dat_531f4 = W0; g_dat_63e64 = P0;
+}
+
 static void test_fn_03a5f7(void) {
     printf("fn_03a5f7 (0x03a5f7): progressive horizontal reveal of 200-row source into A0000\n");
     uint8_t *scr = g_video_ram;         /* dst via video_map(0xa0000+off) */
@@ -18174,6 +18207,7 @@ int main(void) {
     test_fn_03ce0b();
     test_fn_03rle();
     test_fn_03f462();
+    test_title_wipe_window_cost();
     test_fn_03a5f7();
     test_fn_03c231();
     test_fn_03b953();

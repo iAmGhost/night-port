@@ -59,3 +59,28 @@ game view).
 Original-side frames per episode for pixel comparison (blocked on the DOSBox capture path, docs/46), and
 completing the feature sweep (pause / level-up / game-over screens) which needs the same capture path for
 its comparison half.
+
+## Sprite composites verified byte-for-byte in all nine episodes (this cycle)
+
+`NIGHT_ENTSPR=1` (entity draw `fn_012efa`) dumps each composited entity frame's row-RLE stream plus the bytes the
+blit wrote; `scripts/playtest_verify_spr.py` decodes the stream independently. Per episode, over
+`route_show_keyed.txt --warp-stage N`:
+
+| stage | compared bytes | mismatches |
+|---|---|---|
+| 1 | 48,301 | 0 |
+| 2 | 48,301 | 0 |
+| 3 | 50,789 | 0 |
+| 4 | 48,301 | 0 |
+| 5 | 46,972 | 0 |
+| 6 | 48,301 | 0 |
+| 7 | 48,301 | 0 |
+| 8 | 49,644 | 0 |
+| 9 | 48,301 | 0 |
+
+**Total 439,190 compared bytes, 0 mismatches.** The stage-5 row was 412 mismatches on the first pass; those were
+a *verifier* defect: the shipped blitter clamps at the right screen edge (`right = 0x140 - dest_off`), and the
+player cell there sits at dest `0x146` with col 53 (`dest+col = 379 > 320`), so the clamped columns hold backdrop
+the blit never writes. The mismatch count grew monotonically (1, 3, 8, 16, 26, 40) as the player walked further
+off-screen -- the signature of clamping, not of a wrong decode. The verifier now skips columns past the clamp
+(its own documented behaviour), and every episode is clean.

@@ -53,12 +53,12 @@ def main() -> int:
     for line in open(path, errors="replace"):
         m = re.search(r"menucell tag=(\w+) k=(\d+) dest=(0x[0-9a-f]+) srow=(-?\d+) col=(\d+) rows=(\d+) stream=([0-9a-f]+)", line)
         if m:
-            cur = (m.group(1), int(m.group(2)), int(m.group(5)), int(m.group(6)), bytes.fromhex(m.group(7)))
+            cur = (m.group(1), int(m.group(2)), int(m.group(5)), int(m.group(6)), int(m.group(3), 16), bytes.fromhex(m.group(7)))
             continue
         m = re.search(r"menupix k=(\d+) r=(\d+) ([0-9a-f]*)", line)
         if not m or cur is None:
             continue
-        tag, k, col, rows, stream = cur
+        tag, k, col, rows, dest, stream = cur
         r = int(m.group(2))
         got = bytes.fromhex(m.group(3))
         dec = list(decode_rows(stream, rows))
@@ -66,8 +66,12 @@ def main() -> int:
             continue
         row = dec[r]
         st = per[tag]
+        # The shipped blitter clamps to the screen: `right = 0x140 - dest_off` (f.c fn_03bb42, mirroring
+        # 0x0003bb42). Columns past that are backdrop it never writes, so they are not comparable -- this is
+        # why stage 5's player cell (dest 0x146, col 53, i.e. dest+col 379 > 320) "mismatched" before.
+        right = 0x140 - dest
         for c, b in enumerate(got):
-            if c in row:
+            if c in row and c < right:
                 st[0] += 1
                 if row[c] == b:
                     st[1] += 1

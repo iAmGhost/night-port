@@ -1,0 +1,7 @@
+# Probe how the ORIGINAL reacts to the abort key from gameplay: dense frames across the press so a menu that
+# appears and goes away again is still caught.
+record pre_esc 2000
+key esc 150
+record esc_win 6000
+key esc 150
+record esc_win2 4000

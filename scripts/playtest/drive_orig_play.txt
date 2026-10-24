@@ -1,0 +1,32 @@
+# Continue a session that is already sitting on the episode's intro slides (640x480 cards) and drive it into
+# gameplay, then the pause menu. Used after drive_orig_episode1.txt; the game holds on the last card until a
+# key arrives, so the waits between key presses are soft (they do not abort the drive).
+key enter 150
+wait_mode_soft 200 15
+key enter 150
+wait_mode_soft 200 15
+key space 150
+wait_mode_soft 200 15
+key enter 150
+wait_mode 200 60
+shot stage_play
+key down 400
+key right 400
+sleep 600
+shot playing
+record gameplay 8000
+key esc 150
+sleep 1500
+shot pause_m0
+key left 150
+sleep 1200
+shot pause_m4
+key left 150
+sleep 1200
+shot pause_m3
+key down 150
+sleep 1200
+shot pause_m3_off
+key esc 150
+sleep 1500
+shot resumed

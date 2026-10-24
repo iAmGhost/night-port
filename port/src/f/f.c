@@ -9822,6 +9822,10 @@ uint32_t debug_break_hook(uint32_t eax, uint32_t edx)   /* 0x45a44 */
 /* ---- L0 batch D2 (2): DOS clock calibration + delay ---- */
 uint32_t g_clock_ticks = 0;                    /* DAT_00064000 */
 
+/* Wall-clock cost of one guest DOS clock read, in microseconds (0 disables the pacing, which is what
+ * the unit tests use). See delay_units below for the two original-side measurements that fix it. */
+uint32_t g_delay_unit_us = 500;
+
 void calibrate_clock(void)   /* 0x4561d */
 {
     /* Original: wait for the DOS second to roll over, then count INT 21h/0x2Ch
@@ -9836,7 +9840,24 @@ void delay_units(uint32_t arg)   /* 0x4564f (also thunk 0x042958) */
     uint32_t v = arg * g_clock_ticks + 0x1f4;         /* 0x45657/45663 */
     uint32_t es_i = v / 0x3e8;                        /* 0x4566a DIV 1000 */
     if (es_i == 0) es_i = 1;                          /* 0x4566e-45672 */
-    while (es_i-- > 0) sys_clock_read();              /* 0x45679-45680 */
+    /* The guest body performs es_i DOS clock reads (INT 21h/2Ch), and that instruction is not free on the
+     * reference hardware or under DOSBox: one read costs ~0.50 ms of wall time. Two independent holds measured
+     * against the original agree on that figure: the company-logo screen (fn_038a20) runs two 0x400-iteration
+     * delay_units(1) loops between its 50-frame retrace fade pair, and the logo card's visible envelope is
+     * 2.5 s (0.83 s fade-in, ~1.0 s at full brightness, 0.83 s fade-out) against the 1.45 s the fades alone
+     * account for, so 2048 reads ~ 1.05 s; and the ending/stage card hold (12000 reads per slide, 0x03b39a-cc)
+     * measures ~6.5 s per card in the original's per-episode slide show (26.5 s for three slides plus the stage
+     * card), i.e. 12000 reads ~ 6.0 s. Pacing each read reproduces those holds; the wait still runs the pumps so
+     * the cooperative tick/input plumbing keeps working, and with no pump installed (every unit test) it stays a
+     * no-op so the suite remains timing-free. */
+    if (g_dbg_03d606) fprintf(stderr, "delay_units: arg=%u iterations=%u unit_us=%u\n", arg, es_i, g_delay_unit_us);
+    while (es_i-- > 0) {
+        sys_clock_read();                             /* 0x45679-45680 */
+        if (g_delay_unit_us) {
+            uint64_t until = sys_now_us() + g_delay_unit_us;
+            while (sys_now_us() < until) { if (!sys_port_spin()) break; }
+        }
+    }
 }
 
 /* ---- L0 batch E (2): swap-global + jump-table field accessor ---- */

@@ -1,0 +1,6 @@
+# Pacing probe: logo fade curve, the .fli/attract-demo phase length, and the title card arrival.
+record boot 8000
+wait_mode 200 120
+record world 60000
+wait_mode 480 180
+record title_melt 14000

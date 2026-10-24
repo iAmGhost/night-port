@@ -1,0 +1,13 @@
+# Which injected keys does the ORIGINAL react to, and where? Dense windows around each press, then the
+# compare step reports the frame-to-frame change so a key that does something is unambiguous.
+record w0 1500
+key enter 150
+record w_enter 4000
+key space 150
+record w_space 4000
+key down 150
+record w_down 4000
+key right 150
+record w_right 4000
+key enter 300
+record w_enter2 6000

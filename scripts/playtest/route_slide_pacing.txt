@@ -1,0 +1,17 @@
+# Pacing measurement route: sample the company-logo fade envelope densely, then anchor on the resource lookups
+# that start each per-episode slide and the stage card, so the manifest timestamps give the per-card hold.
+0 shot boot
+4000 shot logo_end
+20000 wait res opening.fli
+21000 shot opening_start
+120000 wait res title1.pcx
+120500 key enter down
+120650 key enter up
+124000 wait res 1s1.pcx
+124200 shot slide_1
+128000 wait res 1s2.pcx
+128200 shot slide_2
+132000 wait res 1s3.pcx
+132200 shot slide_3
+136000 wait res stage1.pcx
+136200 shot stage_card

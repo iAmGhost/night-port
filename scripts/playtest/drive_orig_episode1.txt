@@ -1,0 +1,37 @@
+# Detection-anchored mirror of scripts/playtest/route_pause_menu.txt for the ORIGINAL game under
+# dosbox-automation (headless amd64 container; see AGENTS.md). Anchored on the captured frame's pixel height,
+# not wall time or image matching: NIGHT uses VESA 640x480 (mode 101h) for the company logo card, the
+# per-episode intro slides and the stage card, and VGA 320x200 (mode 13h, captured as a doubled 640x200
+# payload and cropped to 320x200 from frame/info's true width) for the .fli intro, gameplay and the 320x200
+# attract/setup menu. Geometry separates the phases exactly even though cycles=max boot timing is not.
+#
+# Measured here and used to write the timeline: one Enter on the title card starts the episode and the slides
+# play unattended, but an extra Enter *skips* the slide show (an earlier run pressed Enter three times and
+# landed on the 320x200 menu with no slide frames at all). Polling must also start within ~2 s of launch: the
+# logo card is gone by second 5, so a late first poll misses it entirely.
+record boot 5000
+wait_mode 200 120
+record fli 8000
+wait_mode 480 180
+record title_melt 7000
+shot title_card
+key enter 150
+record slides 22000
+# The show holds on the last slide / stage card until a key arrives, so the step into gameplay needs a press;
+# soft waits let each press be tried without aborting the drive if it was already consumed.
+key enter 150
+wait_mode_soft 200 10
+key enter 150
+wait_mode_soft 200 10
+key enter 150
+wait_mode 200 60
+shot stage_play
+record gameplay 8000
+key esc 200
+record esc_win 6000
+key left 150
+record left_win 3000
+key down 150
+record down_win 3000
+key esc 200
+record esc_win2 6000

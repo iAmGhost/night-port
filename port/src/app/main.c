@@ -1077,6 +1077,10 @@ static void tick_pump(void) {
 int main(int argc, char **argv) {
     const char *res_dir = "../NIGHT";
     int frames_limit = 0;
+    /* NIGHT_DELAY_US re-times the modelled cost of one guest DOS clock read (see delay_units in f.c); 0
+     * restores the timing-free behaviour. Default 500 us, measured against the original. */
+    const char *e_delay = getenv("NIGHT_DELAY_US");
+    if (e_delay) g_delay_unit_us = (uint32_t)atoi(e_delay);
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--res-dir") && i + 1 < argc) res_dir = argv[++i];
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames_limit = atoi(argv[++i]);

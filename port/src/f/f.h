@@ -1319,6 +1319,9 @@ uint32_t debug_break_hook(uint32_t eax, uint32_t edx);
  * INT 21h/0x2Ch calls per real second (~18.2 Hz); the port takes the value from
  * the sys layer. */
 extern uint32_t g_clock_ticks;
+/* Wall-clock cost (us) of one guest DOS clock read inside delay_units; 0 disables the pacing.
+ * 500 us is measured from the original (logo-card holds and the slide-show card hold, see f.c). */
+extern uint32_t g_delay_unit_us;
 /* Measure the clock tick rate into g_clock_ticks (orig counts INT 21h/0x2Ch
  * ticks over one real second).  orig: 0x04561d */
 void calibrate_clock(void);

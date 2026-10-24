@@ -1,0 +1,94 @@
+# Port vs original: phase timings, measured on both sides
+
+This is the first document that compares the port and the ORIGINAL on the same axis: moments captured from the
+original through the dosbox-automation REST capture path (docs/46 route 8, AGENTS.md recipe) against the port's
+named-event shots from the same scripted route.
+
+## Tooling added this cycle
+
+| file | role |
+|---|---|
+| `scripts/playtest_orig_drive.py` | drives the original: polls frames, classifies them, waits on *geometry* (`wait_mode 480/200`), injects keys through `/api/v1/input/sequence`, saves `NNNN_<event>.png` + `events.tsv` (label, similarity, emulated mode, time) |
+| `scripts/playtest_orig_capture_api.py` | plain paced capture of the original (`--every`, `--hz`) |
+| `scripts/playtest_compare_orig_port.py` | pairs port shots with original frames and reports per-pair NCC, the strictest pixel agreement, MAE and geometry |
+| `scripts/playtest/drive_orig_episode1.txt` | the original's drive file (logo → .fli → title melt → slides → gameplay → pause probing) |
+| `scripts/playtest/drive_orig_pacing.txt`, `drive_orig_play.txt`, `drive_orig_keyprobe.txt` | narrower probes |
+| `scripts/playtest/route_slide_pacing.txt` | port route that samples the logo fade envelope and the slide edges |
+| `scripts/playtest/dosbox_key_names.txt` | the emulator's accepted key names (extracted from its binary: `KBD_esc`, not `KBD_escape`) |
+
+Gotchas that cost time and are now pinned down:
+- one emulator instance per capture: the old instance kept the API port, the new one logged `failed to bind to
+  0.0.0.0:8386 ... the API is off`, so polling silently read a **stale, idle** machine;
+- the container image has no `pkill`/`pgrep`, so instances are reaped by scanning `/proc/*/exe`;
+- `wait_mode 200` for the .fli and `wait_mode 480` for cards is a far steadier anchor than image matching,
+  because animation frames never match a single reference well;
+- an extra Enter during the slide show *skips* it (the `fn_00035dfc() == 1` -> `goto hold` branch at 0x03b0f1),
+  which is what cut the original's slide show short in the first run;
+- `/api/v1/input/sequence` answers 409 when a previously injected sequence is still in flight.
+
+## The two clocks, and which one to compare
+
+The port's shot manifest carries `t_ms` derived from **pump frames** (~18 ms of modelled game time each), which
+does not advance while the game burns time inside a single main-loop step. The original's `events.tsv` times are
+**wall** time. Comparing them directly is wrong; wall time is the common basis, taken from the port's shot file
+mtimes.
+
+Measured in wall time for the port, with the DOS-clock-read cost set to 0 (the old behaviour) and to the measured
+500 us:
+
+| phase | unit cost 0 us | unit cost 500 us | original |
+|---|---|---|---|
+| company logo screen: logo load -> first `opening.fli` lookup | **1.45 s** | **2.60 s** | ~2.5 s of fades+holds (below) |
+| run length to reach the title | 42.0 s | 43.2 s | 46.6 s (with the attract demo) |
+
+## The original's company-logo screen, measured
+
+Captured at 6 Hz from boot (`cpu_cycles = 20000`), mean RGB per frame:
+
+```
+   7.74  30.73  56.20  78.94 | 92.18 92.18 92.18 92.18 92.18 92.18 | 84.78 61.54 38.39 15.09 | 0.00
+   fade-in (5 steps ~0.83 s)      plateau at full brightness ~1.0 s        fade-out ~0.83 s      black
+```
+
+Structure and content match the port exactly: pairing the port's logo card with the original's logo frames gives
+NCC 0.997-0.998, and after fitting a single scalar gain the mean channel error falls to 3.6-4.5 (best gain
+0.171 -> MAE 1.65 for a frame the original had faded to 17 % brightness). So the card is the same image with the
+same palette; the residual is the emulator's capture of a frame that was mid-fade.
+
+The port reproduced the same envelope once the clock-read cost was modelled: 50+51 retrace-paced fade frames
+(1.45 s) plus two 0x400-iteration `delay_units(1)` holds (2 x 1024 x 0.5 ms = 1.02 s) = 2.47 s, against the
+original's ~2.5 s.
+
+## `delay_units` was free: the defect and its measured basis
+
+`delay_units` (0x0004564f) converts its argument into a number of DOS clock reads
+(`(arg*ticks + 500) / 1000`) and then performs that many `INT 21h/2Ch` reads. The port's stand-in counted them and
+returned, so every hold built out of `delay_units` -- the logo screen's two idle loops (fn_038a20), the ending
+slide show's 12 000-iteration hold, the stage card's 0xc00-iteration hold, and the key-repeat gates -- ran in
+essentially zero time.
+
+Two independent original-side measurements fix the cost at ~0.5 ms per read:
+
+- the logo screen: 2 x 1024 reads account for the ~1.05 s of hold between the measured fade pair;
+- the ending/stage card hold is 12 000 reads, and the original's per-card hold measured ~6 s.
+
+The port now paces each read by `g_delay_unit_us` (default 500 us, override `NIGHT_DELAY_US`, 0 disables). The
+wait runs `sys_port_spin()` so the cooperative tick/input pumps keep running, and with no pump installed -- every
+unit test -- it stays a no-op, which is why `make -C port test` (2873 checks) and `make -C port selftest` still
+pass unchanged.
+
+The cost proved insensitive to the emulated CPU speed: the logo fade curve measured at `cycles = max` and at
+`cpu_cycles = 20000` is the same to within a sample, which is what makes it a usable calibration rather than an
+artifact of one emulator setting.
+
+## Still open after this cycle
+
+- the per-card slide hold is **not yet pinned**: in the original run the show was cut short by the drive's own
+  Enter press (the skip branch), so the original only showed one card; the port's `wait res` anchor spacing (4.0 s
+  per card) is an artifact of the route's schedule, not a measurement. Both sides need a clean, key-free slide
+  window.
+- the title melt has 28 original frames (`title_melt_01..28`, 46.59-53.58 s) but the port's card shots in that
+  window pair at NCC 0.07, i.e. the phases have not been lined up yet.
+- the pause menu now has an original frame (pink panel: LEVEL UP MODE / COMMAND LIST / BGM MODE / SOUND MODE /
+  EXIT TO DOS) against the port's `pause_m0/m4/m3`; the whole-frame NCC is 0.87 because the underlying gameplay
+  differs, so the menu panel region has to be compared separately.

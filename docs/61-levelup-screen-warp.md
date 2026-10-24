@@ -185,3 +185,37 @@ parameter semantics, not a guess.
 
 Until that is fixed, the game-over screen is *not* captured, and the feature-sweep item stays open with this
 root-cause narrowing recorded.
+
+## Fixed the same session: the game-over screen renders
+
+The suspicion above was right that a `.spr` field is read wrong, and the disassembly of
+`0x00038554-0x00038601` (capstone over `NIGHT.EXE`, file offset = ROM - 0x2600) settled both mistakes. The
+original pushes, right to left, for each of the six layers:
+
+```
+03856B  push 0                                   ; mode
+038587  push [spr+0x38] + [[spr+0x34] + 4i + 4]  ; rle  <-- table dereference, +0x38 base
+038598  push [[spr+0x08] + 4i + 4]               ; row_count
+0385AB  push [[spr+0x04] + 4i + 4]               ; col
+0385B4  push [ebp-0x60][i]                       ; start_row   <-- the "column width" table is the ROW slot
+0385BE  push [ebp-0x78][i]                       ; dest_off
+0385C2  mov  eax, 0xa0000                        ; base
+```
+
+So `fn_038445` had **two** transcription errors, repeated at all four composite sites (first composite, digit
+row, attract composite, slide loop):
+
+1. `start_row` and `col` swapped -- the local table (the port's `colw`) belongs in the start-row slot, while
+   `[spr+0x04][i]` belongs in the col slot;
+2. the RLE base was computed as `struct+0x34 + struct's own dwords` instead of
+   `struct+0x38 + [struct+0x34][i]`, so the blit walked off the arena. lldb pinned it exactly:
+   `EXC_BAD_ACCESS (address=0x15e624)` inside `fn_03bb42` -- and `0x15e624` *is* the raw `over.spr+0x38`
+   offset, i.e. a heap offset being used as a pointer.
+
+After both corrections the warp run completes: exit code 0, 29 frames of the `warp_NN` series, and
+`0205_warp_25.bmp` read visually shows the screen -- **GAME OVER** in the title art, **CONTINUE ? / YES / NO**
+with the cursor, the kneeling character over the parallax layers, and **CREDIT 3** in the corner.
+
+Regression pin added in the shipped-container test (`test_real_res_container`): `over.spr +0x34` and `+0x38`
+are arena offsets, all six layer-table entries are small in-block offsets (not struct dwords), every
+`+0x38 + entry` stays inside the arena, and `+0x04[i]` is small. Suite ALL PASS.

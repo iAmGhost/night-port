@@ -24006,15 +24006,23 @@ int32_t fn_038445(void)
     for (int32_t i = 0; i < 6; i = i + 1) {                            /* 0x00038554-0x000385ce: the first composite, straight to the video window */
         const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
         const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
-        uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
-                      + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
-        fn_03bb42(0xa0000, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1], hb + roff, 0);
+        /* 0x00038577-87: the RLE base is struct+0x38 PLUS the dword at (struct+0x34)[i] -- a table the
+         * struct points at, not the struct's own dwords. (Transcribed wrong here, which made the very
+         * first blit read off the end of the arena: SIGSEGV, docs/61.) */
+        uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x38)
+                      + *(const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x34)
+                                            + 4u * (uint32_t)i + 4u);
+        /* 0x00038598-b4: [ebp-0x60][i] (the column-width-looking table) is pushed in the START-ROW slot and
+         * struct+0x04[i] in the COL slot; the port had them the other way round. */
+        fn_03bb42(0xa0000, offv[i], colw[i], (int32_t)p4[i + 1], p8[i + 1], hb + roff, 0);
     }
     {                                                                  /* 0x000385ce-0x00038601: the digit row onto the video window */
         const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
         const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
-        fn_03bb42(0xa0000, 0xc8, (int32_t)p4[0], toggle * 0x12 + 0x5a, p8[0],
-                  (const uint8_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
+        /* Same two corrections as above: ebx (layer*0x12 + 0x5a) is the start row, struct+0x04[0] is the
+         * column, and the RLE pointer is heap_base + struct+0x38 (0x000385d7 pushes the offset). */
+        fn_03bb42(0xa0000, 0xc8, toggle * 0x12 + 0x5a, (int32_t)p4[0], p8[0],
+                  hb + *(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
     }
     fn_0383a4(g_dat_633b0, hb + digits, 0x118, 0xae, g_dat_53100);      /* 0x00038606-22: the countdown number */
     fn_040660(g_dat_633b8, 0x32);                                      /* 0x00038623-32: 50-step DAC fade-in */
@@ -24050,16 +24058,17 @@ blink_next:
         for (int32_t i = 0; i < 6; i = i + 1) {                        /* 0x00038709-0x00038781: the six layers onto the back screen */
             const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
             const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
-            uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
-                          + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
-            fn_03bb42(g_dat_633b0, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1],
+            uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x38)
+                          + *(const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x34)
+                                                + 4u * (uint32_t)i + 4u);
+            fn_03bb42(g_dat_633b0, offv[i], colw[i], (int32_t)p4[i + 1], p8[i + 1],
                       hb + roff, 0);
         }
         {                                                              /* 0x00038783-0x000387b6: the digit row */
             const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
             const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
-            fn_03bb42(g_dat_633b0, 0xc8, (int32_t)p4[0], toggle * 0x12 + 0x5a, p8[0],
-                      (const uint8_t *)(uintptr_t)*(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
+            fn_03bb42(g_dat_633b0, 0xc8, toggle * 0x12 + 0x5a, (int32_t)p4[0], p8[0],
+                      hb + *(const uint32_t *)((const uint8_t *)spr + 0x38), 0);
         }
         fn_0383a4(g_dat_633b0, hb + digits, 0x118, 0xae, g_dat_53100); /* 0x000387bb-ce: the countdown number */
         fn_00035ec2();                                                   /* 0x000387d8 */
@@ -24089,9 +24098,10 @@ slide:
         for (int32_t i = 0; i < 6; i = i + 1) {                        /* 0x000388d3-0x0003897b */
             const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
             const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));
-            uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x34)
-                          + *(const uint32_t *)((const uint8_t *)spr + 4u * (uint32_t)i + 4);
-            fn_03bb42(0xa0000, offv[i], (int32_t)p4[i + 1], colw[i], p8[i + 1], hb + roff, 0);
+            uint32_t roff = *(const uint32_t *)((const uint8_t *)spr + 0x38)
+                          + *(const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x34)
+                                                + 4u * (uint32_t)i + 4u);
+            fn_03bb42(0xa0000, offv[i], colw[i], (int32_t)p4[i + 1], p8[i + 1], hb + roff, 0);
             if (i % 2 == 0) offv[i] = offv[i] - 9;                     /* 0x0003894f-7b: creep the layers apart */
             else            offv[i] = offv[i] + 9;
         }

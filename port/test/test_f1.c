@@ -15491,6 +15491,26 @@ static void test_real_master_load(void) {
           "system.spr / system2.spr: 11 / 13 entries");
     check(SPRCNT(g_dat_63e08) == 7 && SPRCNT(g_dat_53c8c) == 0x5c && SPRCNT(g_dat_63e00) == 3,
           "over.spr / face.spr / gage.spr: 7 / 92 / 3 entries");
+
+    /* The .spr layer-table convention fn_038445 (the game-over screen) depends on, 0x00038577-0x000385ab:
+     * the per-layer RLE base is struct+0x38 PLUS the dword at (struct+0x34)[i] -- a table the struct points
+     * at, not the struct's own dwords -- and the column comes from (struct+0x04)[i].  Transcribing those as
+     * struct dwords put 0xe037c in a slot that must hold a small in-block offset and the first blit walked
+     * off the arena (SIGSEGV, docs/61), so the convention is pinned against the shipped block. */
+    {
+        const uint8_t *spr = (const uint8_t *)g_dat_63e08;
+        uint32_t tbl = *(const uint32_t *)(spr + 0x34), base = *(const uint32_t *)(spr + 0x38);
+        uint32_t cap = heap_arena_cap();
+        check(tbl != 0 && tbl < cap, "over.spr +0x34 points inside the arena");
+        check(base != 0 && base < cap, "over.spr +0x38 points inside the arena");
+        const uint32_t *p4 = (const uint32_t *)((uint8_t *)g_heap_base + *(const uint32_t *)(spr + 0x04));
+        for (int i = 0; i < 6; i++) {
+            uint32_t ent = *(const uint32_t *)((uint8_t *)g_heap_base + tbl + 4u * (uint32_t)i + 4u);
+            check(ent < 0x10000u, "over.spr layer table entry is an in-block offset, not a struct dword");
+            check(base + ent < cap, "layer RLE base (struct+0x38 + table entry) stays inside the arena");
+            check(p4[i + 1] < 0x10000u, "over.spr +0x04[i] (the fn_03bb42 column slot) is a small offset");
+        }
+    }
     check(SPRCNT(g_dat_639ec[0]) == 0x10a, "gun.spr is the type-0 sprite struct with 266 entries");
     check(SPRCNT(g_dat_63d10) == 0x4c && SPRCNT(g_dat_63dd4) == 0x10,
           "mark.spr / dust.spr: 76 / 16 entries");

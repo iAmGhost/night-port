@@ -390,7 +390,9 @@ static int g_pt_n, g_pt_i;
 static const char *g_shots_dir;
 static FILE *g_manifest;
 static int g_shot_seq;
-static int g_shot_limit = 600;
+static int g_shot_limit = 600;            /* NIGHT_SHOTLIMIT: a dense 20-55 Hz series across a 90 s run needs
+                                          * thousands of frames, and the 600 cap silently truncated the series right
+                                          * where the stage transition should have been */
 static int g_shot_scene = 1, g_shot_res = 1, g_shot_fli = 1;
 /* Opening a host audio device can block outright on a machine whose CoreAudio devices are broken (the
  * open call never returns, not merely fails), which must not stop a scripted playtest run. */
@@ -682,15 +684,18 @@ static void shots_resource_edge(void) {
 static Uint64 g_card_next = 0;
 static int    g_card_n = 0;
 static void card_shots_poll(int w) {
-    static int g_dense = -1;             /* NIGHT_DENSE=1: also sample the 320x200 view, so the mode switch into
-                                          * gameplay (where the playtest log reported a corrupted startup frame)
-                                          * is covered frame by frame instead of by two scene shots */
+    static int g_dense = -1;
+    static int g_dense_hz = -1;          /* NIGHT_DENSEHZ: sample the 320x200 view faster than 10 Hz, up to one
+                                          * shot per presented frame (~55 Hz modelled), which is what a "corrupted
+                                          * startup frame that heals after a while" report needs: a 10 Hz series can
+                                          * step straight over a transient bad frame */
     if (g_dense < 0) { const char *e = getenv("NIGHT_DENSE"); g_dense = (e && e[0] == '1'); }
+    if (g_dense_hz < 0) { const char *e = getenv("NIGHT_DENSEHZ"); g_dense_hz = (e && atoi(e) > 0) ? atoi(e) : 10; }
     if (!g_shots_dir) return;
     if (w != 640 && !(g_dense && w == 320)) return;
     Uint64 now = SDL_GetPerformanceCounter();
     if (now < g_card_next) return;
-    g_card_next = now + (w == 640 ? g_perf_freq / 5 : g_perf_freq / 10);
+    g_card_next = now + (w == 640 ? g_perf_freq / 5 : g_perf_freq / (Uint64)g_dense_hz);
     char nm[72]; snprintf(nm, sizeof nm, w == 640 ? "card_%02d" : "dense_%02d", g_card_n++);
     shot_named(nm);
 }

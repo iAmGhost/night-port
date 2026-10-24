@@ -193,8 +193,15 @@ uintptr_t      g_board_out_ra[BOC_TRACE_N];   /* distinct board_out call sites *
 uint32_t       g_board_out_ra_n[BOC_TRACE_N];
 extern int g_dbg_03d606;                      /* declared with fn_03d606 below; reused for the DAC trace */
 static int s_bo_logged;                        /* bounded DAC push trace (host diagnosis) */
+static FILE *s_dac_log;                        /* NIGHT_DACLOG=<path>, opened lazily on the first push */
+static int   s_dac_log_init;
 void board_out(uint8_t a, int b, const uint8_t *c) {
     g_board_out_pushes++; g_board_out_bytes += (uint32_t)(b * 3);
+    if (!s_dac_log_init) {
+        s_dac_log_init = 1;
+        const char *p = getenv("NIGHT_DACLOG");
+        if (p && *p) s_dac_log = fopen(p, "wb");
+    }
     if (g_dbg_03d606 && s_bo_logged < 4000) {
         s_bo_logged++;
         Dl_info di; const char *sym = __builtin_return_address(0); (void)sym;
@@ -211,6 +218,18 @@ void board_out(uint8_t a, int b, const uint8_t *c) {
         for (int i = 0; i < BOC_TRACE_N; i++)
             if (g_board_out_ra[i] == 0) { g_board_out_ra[i] = (uintptr_t)ra; g_board_out_ra_n[i] = 1; break; }
         seen: ;
+    }
+    if (s_dac_log) {   /* NIGHT_DACLOG=<path>: every DAC push, stamped with the resource lookup that was in
+                        * flight, plus the bytes themselves.  This is what separates "the framebuffer is wrong"
+                        * from "the framebuffer is right but the palette under it is wrong" -- the arena-index
+                        * checks in docs/58/63 cannot see the second case, and the stage-1 startup artifact the
+                        * playtest log reported turns out to be exactly that. */
+        Dl_info di; const char *nm = "?";
+        if (dladdr(__builtin_return_address(0), &di) && di.dli_sname) nm = di.dli_sname;
+        fprintf(s_dac_log, "#%u res=%s seq=%u start=%u n=%d from=%s\n        ",
+                g_board_out_pushes, g_res_trace, g_res_trace_seq, a, b, nm);
+        for (int i = 0; i < b * 3; i++) fprintf(s_dac_log, "%02x", c ? c[i] : 0);
+        fputc('\n', s_dac_log);
     }
     g_board_out_lastbuf = c;
     int hn = b * 3 < 16 ? b * 3 : 16;              /* never read past what the push actually sends */
@@ -14087,10 +14106,26 @@ void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
  *   cpy_dw(base, 0x3e80, 0xa0000)   16000 dwords = the whole 64000 B screen into the A0000 window
  * Only ONE HUD slot is drawn here (EBX = 0), so DAT_53c84 is the only HUD entity. Latent: the copy
  * runs even if nothing was drawn, and DAT_63354 is dereferenced without a guard. */
+static uint32_t fnv_bytes(const uint8_t *p, uint32_t n)   /* host diagnosis: content fingerprint */
+{
+    uint32_t h = 2166136261u;
+    for (uint32_t i = 0; i < n; i++) { h ^= p[i]; h *= 16777619u; }
+    return h;
+}
+
 void fn_03801b(uint32_t base)
 {
     (void)canary_id((uintptr_t)base, 0x2c);                          /* 0x3801b-20 probe */
+    static int s_bg_trace = -1;
+    static FILE *s_bg_log;
+    if (s_bg_trace < 0) { const char *e = getenv("NIGHT_ROOMBG");
+                          if (e && *e) { s_bg_trace = 1;
+                                         s_bg_log = strcmp(e, "1") ? fopen(e, "wb") : stderr; } }
+    if (s_bg_trace < 0) s_bg_trace = 0;
+    uint32_t h_scr_before = s_bg_trace ? fnv_bytes(video_map(base), 64000) : 0;
+    uint32_t h_win_before = s_bg_trace ? fnv_bytes(g_video_ram, 64000) : 0;
     fn_03ce0b(g_dat_63354, video_map(base));                         /* 0x38036-3e */
+    uint32_t h_scr_after_bg = s_bg_trace ? fnv_bytes(video_map(base), 64000) : 0;
     fn_03203d(base);                                                 /* 0x38046 */
     fn_03df96(base);                                                 /* 0x3804e */
     if (g_dat_53c84 != 0) {                                          /* 0x38053-5a */
@@ -14098,6 +14133,19 @@ void fn_03801b(uint32_t base)
         fn_0137c1((uint8_t *)g_dat_53c84, base);                      /* 0x38073 */
     }
     cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram);  /* 0x38078-8c */
+    g_view_320x200 = 1;   /* host view hint, measured not guessed: this copy writes 0x3e80 dwords =
+                           * 64000 bytes = one 320x200 mode-13h room frame into the window, and the playtest
+                           * log's "stage 1 starts corrupted, recovers after a while" is exactly what happens
+                           * when it is presented as 640x480 -- the frame is sheared (pitch 320 read at pitch
+                           * 640) over whatever 640x480 card was there before.  Before this cycle the flag was
+                           * only set by fn_038098's flip, which runs in the room's frame loop, so the room's
+                           * entry composite (0x0003a946, before the palette fade-in at 0x0003a951) was shown
+                           * with the wrong geometry for as long as the fade took. */
+    if (s_bg_log) {
+        fprintf(s_bg_log, "res=%s seq=%u scr_before=%08x after_bg=%08x win_before=%08x win_after=%08x room=%08x\n",
+                g_res_trace, g_res_trace_seq, h_scr_before, h_scr_after_bg, h_win_before,
+                fnv_bytes(g_video_ram, 64000), (uint32_t)(uintptr_t)g_dat_63354);
+    }
 }
 
 /* fn_013908  orig: 0x013908 (L13, 420 B) -- THE ENTITY OCCUPANCY REGISTER: records the columns the

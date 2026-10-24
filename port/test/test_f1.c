@@ -16010,7 +16010,13 @@ static void test_fn_03801b(void) {
     memset(g_video_ram, 0, sizeof g_video_ram);
     memset(g_screen_ram, 0x5c, SCREEN_SIZE);        /* the background plane the room blit reads */
 
+    int view_save = g_view_320x200;
+    g_view_320x200 = 0;                        /* the stage-entry artifact: this composite writes a 320x200
+                                                * mode-13h frame, so it must leave the view hint saying so */
     fn_03801b(work);
+    check(g_view_320x200 == 1,
+          "the room composite marks the window as a 320x200 frame, so the room's entry frame is never shown at 640x480");
+    g_view_320x200 = view_save;
     check(scr[0] == 0x5c && scr[SCREEN_SIZE - 1] == 0x5c,
           "fn_03ce0b lays the room's background plane down on the work screen first");
     check(g_video_ram[0] == 0x5c && g_video_ram[SCREEN_SIZE - 1] == 0x5c,

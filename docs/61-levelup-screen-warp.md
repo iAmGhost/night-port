@@ -219,3 +219,19 @@ with the cursor, the kneeling character over the parallax layers, and **CREDIT 3
 Regression pin added in the shipped-container test (`test_real_res_container`): `over.spr +0x34` and `+0x38`
 are arena offsets, all six layer-table entries are small in-block offsets (not struct dwords), every
 `+0x38 + entry` stays inside the arena, and `+0x04[i]` is small. Suite ALL PASS.
+
+## The repaired game-over composite, proven byte-for-byte
+
+`NIGHT_MENUBG=1` now also dumps, inside `fn_038445`, each parallax layer's raw row-RLE stream and the bytes the
+blit wrote (read immediately after that blit, so later layers overwriting the same rows cannot mask a
+mismatch). `scripts/playtest_verify_spr.py` decodes the streams with its own implementation of the shipped
+row-RLE format and compares:
+
+```
+  ovlayer  compared    1557  matched    1557  mismatched     0
+```
+
+All six `over.spr` layers land exactly where the corrected arguments say (`dest = offv[i]`, `start_row =
+colw[i]`, `col = [spr+0x04][i]`, `rows = [spr+0x08][i]`, `rle = spr+0x38 + [spr+0x34][i]`) -- the same
+correction that turned the SIGSEGV into the rendered screen. Same basis as docs/60's pause-menu result
+(547,781 bytes, 0 mismatches).

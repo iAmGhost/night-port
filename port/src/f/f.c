@@ -24022,6 +24022,22 @@ int32_t fn_038445(void)
         /* 0x00038598-b4: [ebp-0x60][i] (the column-width-looking table) is pushed in the START-ROW slot and
          * struct+0x04[i] in the COL slot; the port had them the other way round. */
         fn_03bb42(0xa0000, offv[i], colw[i], (int32_t)p4[i + 1], p8[i + 1], hb + roff, 0);
+        if (g_menu_trace) {          /* host diagnostic (NIGHT_MENUBG): dump the layer's row-RLE stream and the
+                                      * bytes this blit wrote (read immediately after it), so an independent
+                                      * decoder can check the parallax stack against shipped over.spr data */
+            const uint8_t *st_ = hb + roff;
+            fprintf(stderr, "menucell tag=ovlayer k=%u dest=%#x srow=%d col=%u rows=%u stream=",
+                    (unsigned)i, offv[i], colw[i], p4[i + 1], p8[i + 1]);
+            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", st_[q_]);
+            fprintf(stderr, "\n");
+            const uint8_t *db_ = video_map(0xa0000) + (uint32_t)colw[i] * 0x140 + (uint32_t)offv[i];
+            unsigned w_ = p4[i + 1] < 0x80u ? p4[i + 1] : 0x80u;
+            for (uint32_t r_ = 0; r_ < p8[i + 1]; r_++) {
+                fprintf(stderr, "menupix k=%u r=%u ", (unsigned)i, (unsigned)r_);
+                for (unsigned q_ = 0; q_ < w_; q_++) fprintf(stderr, "%02x", db_[r_ * 0x140 + q_]);
+                fprintf(stderr, "\n");
+            }
+        }
     }
     {                                                                  /* 0x000385ce-0x00038601: the digit row onto the video window */
         const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));

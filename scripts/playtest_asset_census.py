@@ -32,6 +32,11 @@ cell_re = re.compile(r"menucell tag=(\S+) k=(\d+) dest=(?:0x)?([0-9a-f]+) srow=(
 
 RUNS = [("stage%d" % n, ["--warp-stage", str(n), "--script", ROUTE_SHOW],
          {"NIGHT_ENTSPR": "1", "NIGHT_HUDDBG": "1"}) for n in range(1, 10)]
+ROUTE_LU = "../scripts/playtest/route_levelup_warp.txt"
+RUNS += [
+    ("levelup2", ["--script", ROUTE_TITLE, "NIGHT_SHOWSCREEN=levelup", "NIGHT_SHOWSCREEN_AT=2777"],
+     {"NIGHT_MENUBG": "1"}),
+]
 RUNS += [
     ("pause", ["--script", ROUTE_PAUSE], {"NIGHT_MENUBG": "1"}),
     ("help", ["--script", ROUTE_SHOW, "NIGHT_SHOWSCREEN=help"], {"NIGHT_MENUBG": "1"}),
@@ -83,8 +88,10 @@ def main() -> int:
         for m in cell_re.finditer(log):
             tag, typ, named, stream = m.group(1), m.group(7), m.group(8), m.group(10)
             raw = bytes.fromhex(stream)
-            probe = raw[:48]
-            if len(probe) < 8:
+            # Short streams (the level-up digits are 7-row glyphs) are used whole; anything under 4 bytes is too
+            # ambiguous to attribute by content.
+            probe = raw[:48] if len(raw) >= 8 else raw
+            if len(probe) < 4:
                 continue
             match = named if named and named != "?" else None
             if not match:

@@ -73,12 +73,20 @@ Total: 17 distinct shipped `.spr` assets seen being drawn by content attribution
    (NCC scan): the original went back to its 640x480 title/attract phase instead of showing the death screen, i.e.
    an idle player is not killed inside the window. Next step is now cheap and concrete: the guest-memory API is
    calibrated (docs/74), so zeroing the player's health variable and re-driving gives the frame deterministically.
+   Note on the level-up screen: its number glyphs come from `number1.spr` / `number2.spr` (docs/61), and
+   `number1.spr` **is** observed drawn -- in the game-over warp run above. So the level-up digit asset family is
+   covered even though `levelup.spr` itself is not.
+
 2. **`levelup.spr` / `system.spr` / help and ending screens report no composites in the census.** Root cause is the
    census run shape, not the game: with the keyed route the host screen warp fires after the route's own keyed waits
    have ended, so `NIGHT_MENUBG` produced no cells for those three runs. The same screens *are* byte-verified through
    dedicated runs -- pause menu cells (docs/60, docs/63), the level-up digits via the `lvlnum` trace (docs/61), the
    ending slide show with 116 frames byte-identical over 307,200 arena bytes (docs/66). Follow-up: point those three
-   census entries at the routes that reach them (`route_levelup_warp.txt`, `route_pause_menu.txt` with `help`).
+   census entries at the routes/frames that reach them. Attempts made and ruled out: `route_levelup_warp.txt`, and
+   `route_attract_wait.txt` with `NIGHT_SHOWSCREEN=levelup` at the frame docs/61 measured (2777) -- both produce zero
+   traced composites, so something about the census' process shape (short shot limit, no `NIGHT_BOARD`) keeps those
+   screens from compositing; the digit-glyph attribution was also widened to accept streams shorter than 8 bytes and
+   that changed nothing, confirming no composites were emitted at all.
 3. **`mboss1..mboss6` never drawn and never looked up.** docs/64's sweep of 293 resource lookups never names them;
    they are shipped but unreferenced content. Not fixable, recorded.
 4. **`enc`, `eng`, `eni`, `enj` and `st1s..st9s`, `boss1..boss5`, `dust`, `mark`, `exp`, `face`, `end-1..end-4` not

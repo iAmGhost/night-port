@@ -92,3 +92,13 @@ warp approach applies if a captured ending frame is ever needed.
 Geometry of the ending cards (measured from the shipped container, for whoever wires an ending warp):
 `end0001.pcx` .. `end0010.pcx` and `2end0001.pcx` .. `2end0010.pcx` are **640x480, 8 bpp**, i.e. they go through
 the 640x480 loader (`fn_03628e`, VESA window slides, docs/51) rather than the 320x200 loader.
+
+### Recipe for closing the ending gap (not yet executed)
+
+1. find the stage-clear dispatcher (the function whose body contains `if (g_dat_63370 == 9)` at f.c ~26073, orig
+   `0x03b1d4`);
+2. extend the `NIGHT_SHOWSCREEN` warp in `src/app/main.c:1002-1010` with an `ending` case that calls it, guarded
+   to fire only while a stage is live (a null player segfaulted the level-up warp before that guard existed);
+3. run with `NIGHT_SHOWSCREEN=ending NIGHT_SHOWSCREEN_AT=2750 NIGHT_VIDRAW=1 NIGHT_DENSE=1`, then compare the
+   arena behind the card frames against an independent decode of `end0001.pcx` / `2end0001.pcx` exactly as
+   docs/62/63 do for the slide and nested-screen cards (the geometry check above says expect 640x480 windows).

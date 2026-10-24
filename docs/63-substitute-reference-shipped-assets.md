@@ -65,3 +65,19 @@ verified when it is not.
 So the company logo is not merely "visible": the bytes the port puts in the screen arena are byte-identical to
 the shipped card, and the `card_NN` series shows it held across the window-slide presentation (docs/51). The
 decode path itself is separately pinned by `make -C port selftest` (`[pcx] logo.pcx`, docs/44).
+
+## Nested screens on the same basis: help, level-up, game-over
+
+`NIGHT_VIDRAW=1` arena dumps plus the independent PCX decoder give a byte-level verdict for the nested
+screens reached through the `NIGHT_SHOWSCREEN` warp (docs/61). Cards are 320x200 here, so the comparison
+region is the first 64000 arena bytes.
+
+| screen | measured against the shipped card |
+|---|---|
+| help (`NIGHT_SHOWSCREEN=help`) | `help1.pcx` **0 / 64000 bytes differ** (byte-identical, two frames) |
+| level-up / status (`=levelup`) | `levelup2.pcx` **677-881 / 64000 differ (1.06-1.38%)**, confined to rows 25..178 x cols 24..134 -- the value/number column the screen draws from `number1.spr` / `number2.spr` / `levelup.spr`. `levelup2.pcx` is consistently the closer card than `levelup.pcx`, exactly as the loader trace predicted (`fn_036190: levelup2.pcx`, docs/61) |
+| game-over / continue (`=gameover`) | one frame is **byte-identical to `continue.pcx`** (0/64000); frames showing the GAME OVER art match each of the three shipped layers (`gameove1/2/3.pcx`) at 94.3-95.1%, and **95.1% of all pixels match at least one layer** -- i.e. the screen is a shipped card plus the `over.spr` character art and the CREDIT digits (~5%), which is how `fn_038445` composites it |
+
+Read the level-up row this way: the card is present and correct to within the pixels the screen is *supposed*
+to overwrite. What this basis still cannot say is pacing and the intermediate frames -- that half stays with
+docs/46 / docs/64.

@@ -89,3 +89,6 @@ What is **not** observed is an actual play-through of it. A stage-9 run
 `fn_03ace9`), and the scripted key set does not do that. Root cause of the gap is progression, not code -- the
 same situation as the level-up screen before the `NIGHT_SHOWSCREEN` warp existed (docs/61), so the same host
 warp approach applies if a captured ending frame is ever needed.
+Geometry of the ending cards (measured from the shipped container, for whoever wires an ending warp):
+`end0001.pcx` .. `end0010.pcx` and `2end0001.pcx` .. `2end0010.pcx` are **640x480, 8 bpp**, i.e. they go through
+the 640x480 loader (`fn_03628e`, VESA window slides, docs/51) rather than the 320x200 loader.

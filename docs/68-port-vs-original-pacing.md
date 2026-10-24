@@ -112,3 +112,21 @@ Open, and deliberately not papered over:
   ahead, and one card held 38 s does not match any port-side constant);
 - whether the original holds a slide at a near-white palette level by design, which would make the port's
   fade handling for these cards wrong in a way the index-level comparison in docs/58 cannot see.
+
+## Title melt: the original's duration is now measured; the port's is not yet isolated
+
+Original, from the captured frames in the `title_melt` window (35 frames of 640x480): content changes begin at
+49.92 s and the last change is at 56.66 s, so **the melt animation spans 6.74 s** of real time, after which the
+card is still.
+
+The port side is not yet a number. Two measurement facts had to be discarded on the way:
+- shot-file mtimes are useless on the port side -- the harness writes shots in bursts inside one game step, so 103
+  shots came back with ~1 ms spacing;
+- the manifest's `t_ms`/`frames` clock is the port's modelled clock (about 18 ms per pump frame), which is the
+  right basis for the port but is not comparable with the original's wall clock without the `delay_units` pacing
+  discussed above.
+
+On the modelled clock the port's title-era 640x480 shots change continuously from the `title1.pcx` lookup until
+the first >=0.8 s static run, which lands 44 s after the lookup -- but that static point is the attract menu after
+the title, not the end of the melt, so the melt itself still needs a phase definition (first card frame -> first
+static run *before* the attract menu's sprites are looked up). Until then no port/original melt ratio is claimed.

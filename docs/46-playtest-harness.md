@@ -229,3 +229,33 @@ bisected mechanically (they differ only in the resident handlers and in what sur
 the probe would answer -- whether a real-mode INT 21h hook sees a DOS4GW guest's DOS traffic at all --
 is still the question that decides whether the guest-side snapper can dump frames from the INT 21h hook,
 must go back to the tick context, or has to bypass DOS entirely (serial/printer `OUT` instructions).
+
+## Original-side frame capture: closed as a measured dead end on this machine (five routes)
+
+1. **Host screenshot of the emulator window.** With a real window (`output=texture`, log lines
+   `DISPLAY: Using 1671x1253 window size in windowed mode on display-0` and
+   `SDL: Using 'metal' SDL render driver`), `screencapture -x` still returns an entirely black 6016x3384
+   image. The earlier black captures were not caused by `SDL_VIDEODRIVER=dummy` -- they reproduce with the
+   Metal window present.
+2. **Accessibility / synthetic keys.** `System Events` reports `0` windows for the dosbox-staging process, so
+   neither keystrokes nor window enumeration can reach it.
+3. **Emulator-side capture command.** 0.83 has no shell-internal capture command: `capture`, `capture video`
+   and `capture image` all produce `Illegal command: capture` (proven by redirecting the shell output to a
+   file on a mounted directory -- redirection of internal-command output does work, which is how this was
+   read). The `CAPTURE:` log strings are the hotkey-driven subsystem plus `capture_dir` /
+   `default_image_capture_formats`, and no CLI flag exists.
+4. **Port-based (LPT/serial) file devices.** The binary only knows LPT *DACs* (`lpt_dac`, Covox / Disney /
+   Stereo-On-1) -- there is no file-backed parallel or serial device to `OUT` frames into.
+5. **In-guest TSR.** `scratch/snapsr/snap4.asm` (v4) fixes the probe defects found by reading the code -- the
+   earlier probe handed the *function number* to DOS as the file handle (`mov ax,0x4202` then `mov bx,ax`) and
+   my own cleanup pass had removed the create call, so `open` failed with no trace. With both fixed, a
+   70-second run of the real game (mounted C: plus the CD image, MSCDEX installed) leaves
+   `S4LOG.BIN` = **16 bytes** (the install-context record) and `S4VID.BIN` = **2048 bytes** (the
+   install-context window sample): the write path works from the foreground, and the INT 1Ch handler produced
+   **zero** records while the game ran. Together with the earlier finding that a real-mode INT 21h hook sees
+   none of a DOS4GW guest's DOS traffic, the conclusion is that NIGHT takes the timer through its protected
+   mode IDT, so a real-mode timer chain never runs in-game.
+
+Every comparison half that asks for "the same moment from the original under dosbox-staging" is therefore
+blocked by the environment, not by the port. The substitute reference used instead, and why it is a sound
+one, is in docs/63.

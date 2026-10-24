@@ -75,3 +75,17 @@ including all of `ena..enk` (the sweep reaches `enk`, which the contract list st
 
 Pixel comparison against the original for all of these is blocked on the capture routes measured in docs/46;
 the substitute basis (independently decoded shipped assets) is docs/63.
+
+## Ending / episode-end handling (added this cycle)
+
+The ending chain **is ported**: the stage-clear dispatcher branches on `g_dat_63370 == 9` (orig `0x03b1d4`, the
+"game is through" branch) and builds the ending cards through the shipped name formatter --
+`"2end%04d.pcx"` (0x03b35a) and `"end%04d.pcx"` (0x03b373). The shipped container carries the assets:
+`end0001..end0010.pcx`, `2end0001..2end0010.pcx`, and the `end-1..end-4` sprite/action families.
+
+What is **not** observed is an actual play-through of it. A stage-9 run
+(`route_show_keyed.txt --warp-stage 9 --frames 9000`, `NIGHT_RESLOG=1`) performs 186 resource lookups and
+**none** of them is an ending asset: the branch requires *clearing* episode 9 (the room-clear path through
+`fn_03ace9`), and the scripted key set does not do that. Root cause of the gap is progression, not code -- the
+same situation as the level-up screen before the `NIGHT_SHOWSCREEN` warp existed (docs/61), so the same host
+warp approach applies if a captured ending frame is ever needed.

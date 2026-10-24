@@ -21,7 +21,9 @@ Drive file syntax (one step per line, '#' comments):
   sleep <ms>                       wait
   key <KBD_name> [press_ms]        press then release (PIC-timer scheduled, cycle accurate)
   type <text>                      typing helper (/api/v1/input/type)
-  shot <event>                     save the current frame as event <event>
+  key_until_not_label <key> <label> <maxsim> <tries> <gap_ms>
+                                   press the key until the picture stops matching <label>, so a title card
+                                   that needs the press to land after its animation finishes still starts
   record <label> <ms>              sample frames for <ms>, saving them as <label>_NN
   frame <event>                    save the next frame as event <event>
   stop                             end the drive
@@ -210,6 +212,18 @@ def main():
             if not hit and op not in ("label_at_most", "wait_mode_soft"):
                 print("  giving up on the drive")
                 break
+            si += 1
+            continue
+        if op == "key_until_not_label":     # key_until_not_label <key> <label> <maxsim> <tries> <gap_ms>
+            kn, lab, mx = step[1], step[2], float(step[3])
+            tries, gap = int(step[4]), float(step[5]) / 1000.0
+            for n in range(tries):
+                poll()
+                if state["label"] != lab or state["sim"] <= mx:
+                    print("  left %s after %d press(es) (sim %.3f)" % (lab, n, state["sim"]))
+                    break
+                key(kn, 150)
+                time.sleep(gap)
             si += 1
             continue
         if op == "shot":

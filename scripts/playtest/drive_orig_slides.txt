@@ -1,0 +1,13 @@
+# Clean slide-show window on the ORIGINAL: get the title card to start the episode without skipping the slides.
+# Measured: one Enter pressed ~10 s into the card leaves it sitting on the title (it later falls into the attract
+# demo by itself), while pressing Enter again during the slide show skips the rest of it (0x03b0f1 goto hold).
+# So the press is repeated only while the screen still matches the title reference, and never afterwards.
+record boot 4000
+wait_mode 200 120
+record fli 4000
+wait_mode 480 180
+record title_melt 9000
+key_until_not_label enter title 0.90 4 1200
+record slides 40000
+wait_mode_soft 200 60
+shot stage_play

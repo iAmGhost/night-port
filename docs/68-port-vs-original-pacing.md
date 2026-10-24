@@ -92,3 +92,23 @@ artifact of one emulator setting.
 - the pause menu now has an original frame (pink panel: LEVEL UP MODE / COMMAND LIST / BGM MODE / SOUND MODE /
   EXIT TO DOS) against the port's `pause_m0/m4/m3`; the whole-frame NCC is 0.87 because the underlying gameplay
   differs, so the menu panel region has to be compared separately.
+
+## Clean slide window on the original: one more thing to learn, and the title card needs the press to land late
+
+`scripts/playtest/drive_orig_slides.txt` presses Enter only while the picture still matches the title reference
+(new drive step `key_until_not_label`, because one Enter pressed ~10 s into the card leaves the original sitting
+on the title -- it later falls into the attract demo by itself -- while a press after the show has started skips
+it). The title gave way after **two** presses.
+
+What the clean window shows (154 frames of 640x480, 59.66-99.19 s): the slide content appears by 60.7 s and the
+picture then stays unchanged for 38.5 s. The frame at 60.7 s is legible -- the episode-1 narration card ("내 이름은
+남궁건, 17세…", a bus interior) -- but its mean RGB is 193, i.e. strongly blown out, and pairing it with the port's
+`1s1/1s2/1s3/stage1` shots gives NCC ~0 with MAE 193. That is not the content mismatch it looks like: in the earlier
+capture the original's slide frames paired with the port's slide-era cards at **NCC 0.996**, so the same artwork is
+involved; the difference is the palette level the card is held at.
+
+Open, and deliberately not papered over:
+- the original's per-card cadence in the episode slide show (the drive's second Enter may still have skipped
+  ahead, and one card held 38 s does not match any port-side constant);
+- whether the original holds a slide at a near-white palette level by design, which would make the port's
+  fade handling for these cards wrong in a way the index-level comparison in docs/58 cannot see.

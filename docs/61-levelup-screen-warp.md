@@ -159,3 +159,29 @@ framebuffer rather than holding the card (a port-side compositing/presentation q
 behaviour -- indistinguishable without original-side frames, which is the shared DOSBox capture blocker);
 (2) the asset-named holds stay useful for slide cards (whose picture follows its announce immediately) but are
 not a proof of content for screens that composite late, so `warp_NN` is the series to cite for those.
+
+## Extending the warp to the game-over screen found a real crash (feature sweep)
+
+`NIGHT_SHOWSCREEN=gameover` now calls the shipped routine the same way (`fn_038445`, whose only in-game call
+site is `0x0003aecf` inside `fn_03af18`). It **segfaults**, and the diagnostic print added in front of the
+composite loop shows the crash is not a missing asset or a failed allocation:
+
+```
+fn_038445: digits=0x18e940 bufs=0x3a7998/0x3b8ef0/0x3c8f30 over.spr=0x104ade3e4
+fn_038445 over.spr: +0x00=0x7 +0x04=0xe037c +0x08=0x11043c +0x34=0x14026c +0x38=0x15e624  arena=... cap=0x3000000
+  over.spr cell 0: p4[1]=0x4e p8[1]=0x16 roff=0x2205e8
+  over.spr cell 1: p4[2]=0x48 p8[2]=0x16 roff=0x2506a8
+  ...            (six cells, all offsets inside the arena)
+```
+
+So `number3.spr` and the three `gameove<N>.pcx` buffers allocate, `over.spr` is loaded, every sub-table offset
+is inside the arena -- and the fault happens inside the first `fn_03bb42` call at `0x00038554-0x000385ce`. The
+suspicion that the evidence points at: the value read as `p4[i + 1]` is a **small count-like number**
+(`0x4e, 0x48, 0x46, 0x14, 0xf, 0x35`), not an address-like heap offset, which is what the port's argument
+position for that call expects. That smells like a mis-read field of the `.spr` struct (the same family of
+convention errors already fixed twice here: font `+0x34/+0x38` as dword heap offsets, and the room chain link
+being a widened host pointer). Next step is the disassembly of `0x00038554-0x000385ce` against `fn_03bb42`'s
+parameter semantics, not a guess.
+
+Until that is fixed, the game-over screen is *not* captured, and the feature-sweep item stays open with this
+root-cause narrowing recorded.

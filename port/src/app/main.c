@@ -1003,6 +1003,9 @@ static void tick_pump(void) {
               if (!strcmp(what, "levelup"))      fn_038f3d(1);
               else if (!strcmp(what, "status"))  fn_038f3d(0);
               else if (!strcmp(what, "help"))    fn_038cde();
+              else if (!strcmp(what, "gameover")) fn_038445();   /* the game-over / CONTINUE loop (docs/61
+                                                                  * convention; its only in-game call site is
+                                                                  * 0x0003aecf inside fn_03af18) */
               else SDL_Log("showscreen warp: unknown screen '%s'", what);
               g_warp_active = 0;
           } }

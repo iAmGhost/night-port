@@ -23982,10 +23982,27 @@ int32_t fn_038445(void)
         (void)fn_0428f8(namebuf, (const uint8_t *)"gameove%d.pcx", &cur);
         fn_036190((const char *)namebuf, hb + bufp[i]);
     }
+    if (g_menu_trace) {
+        /* host diagnostic (docs/61 method): which precondition failed */
+        fprintf(stderr, "fn_038445: digits=%#x bufs=%#x/%#x/%#x over.spr=%p\n",
+                digits, bufp[0], bufp[1], bufp[2], (void *)g_dat_63e08);
+    }
     mem_copy(video_map(0xa0000), hb + bufp[0], 0xfa00);                 /* 0x00038542-54: seed the video window */
 
     const uint32_t *spr = g_dat_63e08;                                 /* DAT_00063e08: the "over.spr" struct */
 
+    if (g_menu_trace) {
+        /* host diagnostic: are the offsets fn_038445 feeds to fn_03bb42 inside the arena? */
+        const uint8_t *sp8 = (const uint8_t *)g_dat_63e08;
+        const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)(sp8 + 0x04));
+        const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)(sp8 + 0x08));
+        for (int k = 0; k < 6; k++) {
+            uint32_t roff = *(const uint32_t *)(sp8 + 0x34) + *(const uint32_t *)(sp8 + 4u * (uint32_t)k + 4u);
+            fprintf(stderr, "  over.spr cell %d: p4[%d]=%#x p8[%d]=%#x roff=%#x (cap %#x) src=%#x\n",
+                    k, k + 1, p4[k + 1], k + 1, p8[k + 1], roff, heap_arena_cap_get(),
+                    *(const uint32_t *)(sp8 + 0x34));
+        }
+    }
     for (int32_t i = 0; i < 6; i = i + 1) {                            /* 0x00038554-0x000385ce: the first composite, straight to the video window */
         const uint32_t *p4 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x04));
         const uint32_t *p8 = (const uint32_t *)(hb + *(const uint32_t *)((const uint8_t *)spr + 0x08));

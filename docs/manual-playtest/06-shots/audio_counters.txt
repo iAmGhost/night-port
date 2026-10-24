@@ -1,0 +1,4 @@
+# audio evidence (docs/55 effects/DSP-DMA path, docs/57 CD-DA) -- route scripts/playtest/route_show_keyed.txt --warp-stage 1,
+# env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_BOARD=1 NIGHT_RESLOG=1; counters from the host pump line:
+pump: calls=9950350 timer_calls=981 frames=110 tick=981 DAT_63e40=15 DAT_63e3c=17 pit=490 Hz retrace=101 audio=22050Hz pushed=0 pend=0 xfer=0 stops=1 cdda=94080B tracks=1 pos=40 snden=1 devinit=1 plays=0 real=0 null=0 cdstops=2 sfx=1 keyb_ed0_ed3_ed5_ed8=0/0/0/0
+# (xfer = DSP/DMA transfers, pushed/drained = effect bytes, cdda = Red Book bytes streamed, tracks = fn_010b1d track selections)

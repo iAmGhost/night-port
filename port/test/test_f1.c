@@ -15512,6 +15512,7 @@ static void test_real_master_load(void) {
               "pause.spr ON and OFF toggle cells carry different pixel data");
         /* and every later row's cells (m == 4 pair) resolve too */
         check(offv[8] < 0x10000u && offv[9] < 0x10000u, "pause.spr exit-row cell pair resolves");
+
     check(SPRCNT(g_dat_639c0) == 11 && SPRCNT(g_dat_639c4) == 13,
           "system.spr / system2.spr: 11 / 13 entries");
     check(SPRCNT(g_dat_63e08) == 7 && SPRCNT(g_dat_53c8c) == 0x5c && SPRCNT(g_dat_63e00) == 3,
@@ -17428,6 +17429,33 @@ static void test_vga_retrace_wait(void) {
  * the presented frame changes when f[2] flips (measured by FNV hash over rows 0x64..0xbb / cols 0xc8..0x13f:
  * 16c13ce7e8c26b6d -> c392c2b3c198bb86, exactly as for m == 3).  Pinned structurally here so the cell pair
  * can never silently collapse to one cell again. */
+/* The per-type sprite/action NAME tables, hashed against a copy read straight out of NIGHT.EXE.
+ * They are image constants -- DS dword arrays at 0x51d88 (.spr) and 0x52198 (.act), 101 entries, each entry a
+ * pool offset whose string is read from DS 0x50000+off.  Getting that arithmetic wrong shifts every name by
+ * one slot, and that is exactly how an enemy drew the main character's sprite (docs/48/49).  Hash input: each
+ * name's bytes, then a 0x1f separator (the same recipe as scripts: see docs/49). */
+static unsigned long fnv_names(const char *const *t) {
+    unsigned long h = 1469598103934665603UL;
+    for (int i = 0; i < 0x65; i++) {
+        for (const char *p = t[i]; *p; p++) { h ^= (unsigned char)*p; h *= 1099511628211UL; }
+        h ^= 0x1fUL; h *= 1099511628211UL;
+    }
+    return h;
+}
+static void test_type_name_tables_match_image(void) {
+    printf("type name tables: 101 .spr/.act names against the NIGHT.EXE image constants\n");
+    const char *const *spr = f_type_spr_names();
+    const char *const *act = f_type_act_names();
+    check(spr[0] != 0 && act[0] != 0, "the per-type name tables are populated");
+    check(strcmp(spr[0], "gun.spr") == 0 && strcmp(act[0], "gun.act") == 0,
+          "type 0 is the gun filler pair, as in the image");
+    /* the pair that broke: stage 1's two enemies are type 31, and type 31 must be the ENA family, not gun */
+    check(strcmp(spr[31], "ena-1.spr") == 0 && strcmp(act[31], "ena-1.act") == 0,
+          "type 31 resolves to ena-1.spr / ena-1.act (the stage-1 enemy), not the shifted neighbour");
+    check(fnv_names(spr) == 0x11ab4c98d4de6f12UL, "all 101 .spr type names match NIGHT.EXE DS 0x51d88");
+    check(fnv_names(act) == 0xb68eb82fdab264ebUL, "all 101 .act type names match NIGHT.EXE DS 0x52198");
+}
+
 static void test_slide_name_sequence(void) {
     struct { uint32_t stage, index; } arg = { 1, 1 };
     uint8_t *cur = (uint8_t *)&arg;
@@ -18220,6 +18248,7 @@ int main(void) {
     test_fn_03ae8e();
     test_fn_0445c9();
     test_vga_retrace_wait();
+    test_type_name_tables_match_image();
     test_slide_name_sequence();
     test_stage_bg_heap_source();
     test_audio_path();

@@ -4705,6 +4705,13 @@ static const char *const kTypeActNames[0x65] = {
     "gun.act"
 };
 
+/* Accessors for the two per-type name tables: the entries are image constants (DS dword arrays at
+ * 0x51d88 / 0x52198), and getting the pool-offset arithmetic wrong shifts EVERY name by one -- which is how
+ * an enemy ended up drawing the player's sprite (docs/48/49). The test hashes these tables against a copy
+ * read straight out of NIGHT.EXE, so that whole class of slip is pinned. */
+const char *const *f_type_spr_names(void) { return kTypeSprNames; }
+const char *const *f_type_act_names(void) { return kTypeActNames; }
+
 uint8_t *g_dat_6334c = NULL;   /* DAT_0006334c: room-chain head (the first stage node) */
 
 /* Host-side debug warp (docs/52, `--warp-stage N`): the stage number is what every per-stage name in

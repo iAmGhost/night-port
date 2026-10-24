@@ -467,7 +467,11 @@ static char g_reslog[256][24];
 static int  g_reslog_n, g_reslog_cursor;
 static char g_res_match[24];
 static long g_pt_done_ms = -1;                       /* when the last scripted event fired, -1 = not yet */
+static int g_reslog_verbose = -1;          /* NIGHT_RESLOG=1: print every lookup in order (feature-sweep
+                                           * inventory: which .spr/.act/.pcx families a given episode touches) */
 static void reslog_add(const char *name) {
+    if (g_reslog_verbose < 0) { const char *e = getenv("NIGHT_RESLOG"); g_reslog_verbose = (e && e[0] == '1'); }
+    if (g_reslog_verbose) SDL_Log("resseq %-22s n=%d", name, g_reslog_n);
     if (g_reslog_n < (int)(sizeof g_reslog / sizeof g_reslog[0])) {
         snprintf(g_reslog[g_reslog_n], sizeof g_reslog[0], "%s", name);
         g_reslog_n++;

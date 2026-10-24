@@ -918,6 +918,10 @@ void fn_034990(void);                    /* 0x034990: node-pool/video-arena init
 void fn_03dcbd(uint32_t *a0);            /* 0x03dcbd: struct destructor -- free 14 sub-obj heap-objs at +0x4..+0x38 (each if non-zero), null */
 int32_t fn_03d9cf(uint32_t *s, const char *name); /* 0x03d9cf: two-pass parallel-array table loader (headers->s[1..12], record offsets->s[13], payload->s[14]); returns 1 */
 uint32_t *fn_03d8d4(uint32_t *s, const char *name); /* 0x03d8d4: clear s[1..14] then fn_03d9cf; return s */
+/* The 101-entry per-type resource NAME tables (image constants: DS 0x51d88 / 0x52198); exposed so the test
+ * can hash them against a copy read out of NIGHT.EXE (docs/48/49: a one-slot slip draws the wrong sprite). */
+const char *const *f_type_spr_names(void);
+const char *const *f_type_act_names(void);
 uint32_t *fn_03d999(uint32_t *a0, uint32_t a1); /* 0x03d999: wrapper -- fn_03dcbd(a0); return a0 (a1 unused) */
 uint32_t fn_03de85(uint32_t *s, uint32_t count, uint32_t last_size); /* 0x03de85: struct ctor -- free old (fn_03dcbd), alloc 14 sub-objs at +0x4..+0x38, return 1 */
 extern uintptr_t g_node_arena_base;    /* node-arena base (s_node_arena) */

@@ -97,3 +97,26 @@ over the stage-1 route: 120 entity-frame composites, 48,301 covered bytes, no mi
 uses is pinned separately -- the 101 `.spr` / 101 `.act` per-type name arrays hash-equal the copies read out of
 `NIGHT.EXE` (DS `0x51d88` / `0x52198`), and stage 1's two enemies are type 31 -> `ena-1.spr` / `ena-1.act`.
 Together those two facts replace the old "enemies draw the main character" symptom with a byte-level claim.
+
+## The whole card chain, frame by frame, at full 640x480 (this cycle)
+
+After the `fn_03628e` view-geometry fix (docs/66) the shot dumps during 640x480 screens are full-frame, so the
+comparison is no longer a 64,000-byte crop. Same-route run (`route_show_keyed.txt --warp-stage 1`,
+`NIGHT_VIDRAW=1`), arena bytes behind each frame vs an independent decode of the shipped PCX:
+
+| seq | frame | nearest shipped card | diff |
+|---|---|---|---|
+| 104 | card_08 | title1.pcx | **69.99 %** (the melt's intermediate frame) |
+| 105-108 | card_09..card_12 | title3.pcx | 0.00 % (4 frames byte-identical) |
+| 109-113 | 1s1.pcx + holds | 1s1.pcx | 0.00 % |
+| 114-117 | 1s2.pcx + holds | 1s2.pcx | 0.00 % |
+| 118-122 | 1s3.pcx + holds | 1s3.pcx | 0.00 % |
+| 123-124 | stage1.pcx + hold | stage1.pcx | 0.00 % |
+
+Reading: the title screen's presented frame is **`title3.pcx`, byte-identical**; the per-episode introduction
+slides (`1s1/1s2/1s3.pcx`) and the stage card are byte-identical; and the only frame that matches no card is the
+one sampled in the middle of the melting animation, which differs from every card by ~70 % of pixels -- exactly
+what a tear/melt transition produces. This also retires the earlier observation that "title1.pcx frames were not
+byte-identical": that measurement was taken through the 320x200 view-geometry bug (a 64,000-byte crop of a
+640x480 picture), not because the content was wrong. `title1.pcx` and `title4.pcx` are the melt's other phases;
+the resting frame is `title3.pcx`.

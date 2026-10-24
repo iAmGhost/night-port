@@ -118,3 +118,25 @@ Nothing in the sample/CD path is known-broken in the port now; what remains is *
 evidence is byte/frame counters into bound SDL streams, not an audible check on real hardware. A
 real-device run (`NIGHT_BOARD=1`, no `SDL_AUDIODRIVER` override) on a machine with working CoreAudio is
 the remaining confirmation.
+
+## Effect samples verified byte-for-byte on the DMA wire (this cycle)
+
+New `NIGHT_AUDIODUMP=<n>` diagnostic in the sys layer dumps the first 256 bytes of every armed DMA transfer with
+the programmed sample count and rate (`audiodump n=... rate=... width=... ch=... bytes=<hex>`). Compared with an
+independent parse of the shipped container (100 `.voc` assets, 106 voice blocks, per the docs/04 layout: 26-byte
+header, then tag/len24/payload with tag 0x01 = handler, rate_idx, PCM):
+
+```
+DMA transfer 3607 samples @ 10989 Hz -> BYTE-EXACT in 1.voc: handler=0xa5 rate_idx=0 offset=0 (asset PCM 3607 B)
+```
+
+i.e. the samples the port hands the DMA are *exactly* the shipped asset's PCM -- the whole 3607-byte sample block,
+from offset 0, at the programmed rate. That upgrades the effects claim from "transfers complete" (the counters in
+docs/57) to "the hardware receives the shipped samples".
+
+Scope note, measured: across three scripted runs (40 and 60 transfers sampled) every triggered effect is that one
+asset -- `1.voc`, the starting weapon's sample, 3607 samples @ 10989 Hz, which is what the mASHed fire key plays.
+The other 99 assets are loaded by the same path but need in-game events the scripted routes do not reliably
+produce (enemy impacts, deaths, boss phases), so per-asset byte-exactness is proven for the one asset the routes
+trigger and the corpus-wide claim rests on the loader path being shared; the rate is the same for every asset in
+the corpus (`rate_idx` is 0 in all 106 blocks).

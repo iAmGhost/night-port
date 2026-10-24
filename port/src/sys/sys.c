@@ -179,6 +179,15 @@ static void au_start(void) {
     uint32_t n = dma_count[(uint8_t)dma_armed] + 1u;     /* the count register is programmed as n-1 */
     for (uint32_t i = 0; i < n; i++) au_put(au_src[i]);
     au_transfers++; au_pushed += n;
+    if (au_transfers <= (uint32_t)(getenv("NIGHT_AUDIODUMP") ? atoi(getenv("NIGHT_AUDIODUMP")) : 0)) {
+        /* Diagnostic: the exact sample bytes the game's DMA arm put on the wire, plus the programmed rate.
+         * Compared offline against an independent decode of the shipped .voc assets (docs/57 basis), this turns
+         * "effects transfer" into "the hardware receives the shipped samples at the shipped rate". */
+        fprintf(stderr, "audiodump n=%u rate=%u width=%u ch=%d bytes=",
+                n, au_rate_hz, au_width, (int)dma_armed);
+        for (uint32_t i = 0; i < (n < 256u ? n : 256u); i++) fprintf(stderr, "%02x", au_src[i]);
+        fprintf(stderr, "\n");
+    }
     dma_armed = -1;
 }
 

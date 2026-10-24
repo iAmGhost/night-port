@@ -99,3 +99,22 @@ Parsing the 875-frame store against the port's logo shot showed the harness, not
 
 With those fixed, the pairing plan is content-based rather than clock-based: identify each original frame by
 matching it to a shipped card decode (docs/63 basis), then compare the port frame captured for the same event.
+
+## First real port-vs-original result: the title screen matches to the pixel
+
+Pairing the port's named-event shots against the original's captured frames (60 s capture at 10 Hz, 561 frames,
+`format=raw` BGRX32, downsampled-luma NCC plus a native-size per-pixel check with a +-3 tolerance for DAC/gamma):
+
+| port frame | best original frame | NCC | pixels within +-3 |
+|---|---|---|---|
+| title frame (arena byte-identical to `title3.pcx`) | t=59.9 s | **1.0000** | **1.0000** (all 307,200 pixels) |
+| logo / intro / slides / stage card | -- | 0.00-0.07 | 0.00-0.04 |
+
+The title row is the first genuine original-vs-port proof: same content, same pixels. It also independently
+validates the shipped-asset reference basis of docs/63 -- the port frame that was byte-identical to the decoded
+`title3.pcx` is simultaneously identical to what the original draws.
+
+The other rows are not port findings: the 60 s original window ends as the title appears (`cycles=max` boot plus
+DOS autoexec), so the logo, `.fli` intro, per-episode slides and stage card were never on the original's screen
+during the capture; the "best matches" are text/BIOS frames. Next step is an input-driven original capture
+(`/api/v1/input/sequence` at the title, longer window) so those moments exist on both sides.

@@ -57,3 +57,24 @@ corruption, enemy/player sprites, health-bar position, audio) are tracked separa
 
 `test_vga_retrace_wait` (4 checks): the wait must stay timing-free with no pump installed, and with a
 1 ms retrace installed it must cost ≥20 ms over 25 calls while running the installed tick pump.
+
+## Pacing measured against the PIT model (this cycle)
+
+The host's pump line carries cumulative PIT timer callbacks (`timer_calls`, the 490 Hz model). From the
+episode-1 route (`route_levelup_warp.txt`, `--no-audio`), at three script anchors:
+
+| anchor | game frame | wall t | `timer_calls` | `timer_calls / 490` |
+|---|---|---|---|---|
+| `title1.pcx` shown | 2288 | 42016 ms | 20581 | 42.00 s |
+| `stage_play` | 3004 | 55150 ms | 26951 | 55.00 s |
+| `playing` | 3277 | 60150 ms | 29401 | 60.00 s |
+
+So elapsed game clock tracks wall time to within 0.02 s at every anchor, and the title-card-through-gameplay
+span consumes 8820 ticks (18.0 s of game clock for 989 host frames). That is the property the reported bug
+violated: with `fn_00035ec2` stubbed, fades and card holds ran as fast as the host could loop, so the title
+"melted" in a fraction of its PIT-measured length. The arithmetic itself is pinned by
+`test_vga_retrace_wait` (the wait advances to the next 1/60 s retrace boundary rather than returning at once).
+
+What this cannot state, without original-side frames (docs/46), is the port/original *duration ratio* per phase:
+the port's pacing is now the shipped code's pacing by construction (same wait, same fade step counts, same PIT
+anchor), but the literal ~1.0 ratio against captured original frames stays open.

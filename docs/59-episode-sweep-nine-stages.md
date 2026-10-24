@@ -84,3 +84,26 @@ player cell there sits at dest `0x146` with col 53 (`dest+col = 379 > 320`), so 
 the blit never writes. The mismatch count grew monotonically (1, 3, 8, 16, 26, 40) as the player walked further
 off-screen -- the signature of clamping, not of a wrong decode. The verifier now skips columns past the clamp
 (its own documented behaviour), and every episode is clean.
+
+## Per-episode audio and pacing activity (this cycle)
+
+Same nine runs (`NIGHT_BOARD=1`, `route_show_keyed.txt --warp-stage N`), read from the host pump counters:
+
+| stage | retrace waits | effect transfers (xfer / stops) | CD-DA bytes streamed | track selects (`fn_010b1d`) |
+|---|---|---|---|---|
+| 1 | 470 | 61 / 63 | 17,023,776 | 4 |
+| 2 | 418 | 61 / 63 | 18,082,176 | 4 |
+| 3 | 623 | 61 / 63 | 18,082,176 | 4 |
+| 4 | 316 | 61 / 63 | 17,828,160 | 3 |
+| 5 | 317 | 61 / 63 | 17,832,864 | 3 |
+| 6 | 469 | 61 / 63 | 17,023,776 | 4 |
+| 7 | 317 | 61 / 63 | 16,774,464 | 3 |
+| 8 | 367 | 61 / 63 | 17,026,128 | 4 |
+| 9 | 469 | 61 / 63 | 18,084,528 | 4 |
+
+Reading: every episode selects 3-4 Red Book tracks from the room table (`g_tab_52da4`, docs/57) and streams
+16.8-18.1 MB of CD-DA through the host stream, and the DSP/DMA effect path completes transfers in all of them.
+The effect-transfer count being identical (61/63) across episodes is a script artifact -- the routes press the
+same key set, so the same in-game triggers fire; it is not a claim that every episode has the same sfx budget.
+Retrace waits differ per episode (316-623), which is the pacing signal (docs/47): card counts and fade lengths
+differ per episode, and each episode's sequence completes on the retrace/PIT clock rather than host speed.

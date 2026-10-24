@@ -13031,6 +13031,26 @@ void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
         uint32_t glyph_off = char_table[digit - 0x30];            /* 0x00038c9f-cad */
         const uint8_t *rle = rle_base + glyph_off;
         fn_03bb42(base, (1 - i) * 7 + col0, start_row, 6, 7, rle, 0);
+        if (g_menu_trace) {                        /* NIGHT_MENUBG: dump the digit glyph's row-RLE stream and the
+                                                  * bytes the blit wrote, for the independent decoder in
+                                                  * scripts/playtest_verify_spr.py (docs/61 / docs/63 basis) */
+            static int s_left = 24;
+            if (s_left-- > 0) {
+                int dest_ = (1 - i) * 7 + col0, srow_ = start_row;
+                if (dest_ >= 0 && srow_ >= 0) {
+                    fprintf(stderr, "menucell tag=lvlnum k=%u dest=%#x srow=%d col=6 rows=7 stream=",
+                            (unsigned)digit, dest_, srow_);
+                    for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", rle[q_]);
+                    fprintf(stderr, "\n");
+                    const uint8_t *db_ = video_map(base) + (uint32_t)srow_ * 0x140 + (uint32_t)dest_;
+                    for (int r_ = 0; r_ < 7; r_++) {
+                        fprintf(stderr, "menupix k=%u r=%d ", (unsigned)digit, r_);
+                        for (int q_ = 0; q_ < 6; q_++) fprintf(stderr, "%02x", db_[r_ * 0x140 + q_]);
+                        fprintf(stderr, "\n");
+                    }
+                }
+            }
+        }
     }
 }
 

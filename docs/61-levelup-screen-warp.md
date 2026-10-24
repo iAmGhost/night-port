@@ -235,3 +235,15 @@ All six `over.spr` layers land exactly where the corrected arguments say (`dest 
 colw[i]`, `col = [spr+0x04][i]`, `rows = [spr+0x08][i]`, `rle = spr+0x38 + [spr+0x34][i]`) -- the same
 correction that turned the SIGSEGV into the rendered screen. Same basis as docs/60's pause-menu result
 (547,781 bytes, 0 mismatches).
+
+## The number glyphs are byte-exact too, so the whole screen is accounted for
+
+`NIGHT_MENUBG=1` now also dumps each digit glyph drawn by `fn_0383a4` (from `number1.spr` / `number2.spr`:
+`char_table = heap + font[+0x34]`, `rle_base = heap + font[+0x38]`, 6x7 cells at `(1-i)*7 + col0`).
+`scripts/playtest_verify_spr.py` decodes the streams independently: **912 compared bytes, 0 mismatches** over 24
+glyphs.
+
+Put together with docs/63's card comparison, the level-up/status screen is now fully accounted for: the arena is
+`levelup2.pcx` (98.6-98.9 % byte-identical) plus the shipped number glyphs at exactly the documented columns --
+the only pixels that differ from the card are the ones the shipped code overwrites, and those are themselves
+byte-exact.

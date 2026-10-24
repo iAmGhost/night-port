@@ -28,11 +28,18 @@ def api(base, token, path, out=None):
 
 
 def parse_raw(b):
-    """API raw frame: width u32, height u32, pitch i32, pixel_format u8, palette_count u16, then pixels."""
+    """API raw frame: width u32, height u32, pitch i32, pixel_format u8, palette_count u16, then pixels.
+
+    Measured against the live emulator: `width` is the DOS mode width (320 for mode 13h), but each payload row is
+    abs(pitch)/4 pixels -- 640 for mode 13h (the emulator's double-width surface, which frame/info flags as
+    double_width) and 640 for VESA 101h too. Decoding by `width` silently rejects every mode-13h frame, so the
+    pitch is authoritative. Payload length = abs(pitch) * height with a 15-byte header (verified:
+    512015 = 2560*200 + 15 for a mode-13h frame).
+    """
     w, h, pitch = struct.unpack_from("<IIi", b, 0)
     pf, pcount = struct.unpack_from("<BH", b, 12)
-    hdr = 12 + 3                                   # the three header fields above are 15 bytes packed
-    return w, h, pitch, pf, pcount, b[hdr:]
+    hdr = 15
+    return w, h, pitch, abs(pitch) // 4, pf, pcount, b[hdr:]
 
 
 def signature(px):
@@ -70,7 +77,8 @@ def main():
     seq = 0
     prev = None
     while time.time() - t0 < a.seconds:
-        tw = time.time() - t0
+        it0 = time.time()                            # per-iteration clock: mixing absolute and relative time here
+        tw = it0 - t0                                # made --hz a no-op (polled ~330 Hz instead of 10 Hz)
         try:
             info = json.loads(api(a.base, a.token, "/api/v1/video/frame/info"))
             raw = api(a.base, a.token, "/api/v1/video/frame?format=raw")
@@ -79,10 +87,12 @@ def main():
             time.sleep(period)
             continue
         vm = info.get("video_mode", {})
-        w, h, pitch, pf, pcount, px = parse_raw(raw)
+        w, h, pitch, roww, pf, pcount, px = parse_raw(raw)
         sig = signature(px)
         delta = 0 if prev is None else sum(1 for x, y in zip(sig, prev) if abs(x - y) > 1)
-        if a.every or prev is None or delta >= 3:
+        # A fade shifts every signature block slightly, so the coarse threshold of the first pass threw away the
+        # frames that matter (112 of 875 kept); compare at delta >= 1, and pass --every for the full sequence.
+        if a.every or prev is None or delta >= 1:
             name = "%04d_orig.raw" % seq
             with open(os.path.join(a.outdir, name), "wb") as f:
                 f.write(raw)
@@ -91,11 +101,11 @@ def main():
                 "%dx%d" % (vm.get("width", 0), vm.get("height", 0)),
                 vm.get("bios_mode_number", ""), vm.get("color_depth", ""), name, delta))
             man.flush()
-            print("seq %04d t=%5.2fs %dx%d mode=%s %s sig_delta=%d" % (
-                seq, tw, w, h, vm.get("bios_mode_number"), vm.get("color_depth"), delta))
+            print("seq %04d t=%5.2fs hdr=%dx%d row=%dpx mode=%s %s sig_delta=%d" % (
+                seq, tw, w, h, roww, vm.get("bios_mode_number"), vm.get("color_depth"), delta))
             prev = sig
             seq += 1
-        time.sleep(max(0.0, period - (time.time() - tw)))
+        time.sleep(max(0.0, period - (time.time() - it0)))
     man.close()
     print("captured %d frames into %s" % (seq, a.outdir))
 

@@ -682,11 +682,16 @@ static void shots_resource_edge(void) {
 static Uint64 g_card_next = 0;
 static int    g_card_n = 0;
 static void card_shots_poll(int w) {
-    if (!g_shots_dir || w != 640) return;
+    static int g_dense = -1;             /* NIGHT_DENSE=1: also sample the 320x200 view, so the mode switch into
+                                          * gameplay (where the playtest log reported a corrupted startup frame)
+                                          * is covered frame by frame instead of by two scene shots */
+    if (g_dense < 0) { const char *e = getenv("NIGHT_DENSE"); g_dense = (e && e[0] == '1'); }
+    if (!g_shots_dir) return;
+    if (w != 640 && !(g_dense && w == 320)) return;
     Uint64 now = SDL_GetPerformanceCounter();
     if (now < g_card_next) return;
-    g_card_next = now + g_perf_freq / 5;
-    char nm[72]; snprintf(nm, sizeof nm, "card_%02d", g_card_n++);
+    g_card_next = now + (w == 640 ? g_perf_freq / 5 : g_perf_freq / 10);
+    char nm[72]; snprintf(nm, sizeof nm, w == 640 ? "card_%02d" : "dense_%02d", g_card_n++);
     shot_named(nm);
 }
 

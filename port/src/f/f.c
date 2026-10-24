@@ -13965,6 +13965,27 @@ void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
                   (int32_t)*(const uint32_t *)(hb + gage[1]),
                   *(const uint32_t *)(hb + gage[2]),
                   hb + gage[14], 0);                              /* 0x13738 (no offset indexing) */
+        if (g_hud_trace && g_ent_trace_left > 0) {                 /* NIGHT_HUDDBG: dump the gauge cell's row-RLE
+                                                                  * stream and the bytes the blit wrote, so the
+                                                                  * HUD panel is checkable against the shipped
+                                                                  * gage.spr data (scripts/playtest_verify_spr.py,
+                                                                  * docs/50 / docs/63) */
+            g_ent_trace_left--;
+            const uint8_t *st_ = hb + gage[14];
+            unsigned col_ = *(const uint32_t *)(hb + gage[1]);
+            unsigned rows_ = *(const uint32_t *)(hb + gage[2]);
+            fprintf(stderr, "menucell tag=hudgage k=0 dest=%#x srow=%d col=%u rows=%u stream=",
+                    slot * 0xaa + 0x13, 0x1d, col_, rows_);
+            for (int q_ = 0; q_ < 512; q_++) fprintf(stderr, "%02x", st_[q_]);
+            fprintf(stderr, "\n");
+            const uint8_t *db_ = video_map(base) + 0x1d * 0x140 + (unsigned)(slot * 0xaa + 0x13);
+            unsigned w_ = col_ < 0x80u ? col_ : 0x80u;
+            for (unsigned r_ = 0; r_ < rows_; r_++) {
+                fprintf(stderr, "menupix k=0 r=%u ", r_);
+                for (unsigned q_ = 0; q_ < w_; q_++) fprintf(stderr, "%02x", db_[r_ * 0x140 + q_]);
+                fprintf(stderr, "\n");
+            }
+        }
         /* Push order at 0x13745-1375e / 0x13771-0x13789 is colour, 2, width, 0x1f,
          * (slot*0xaa + 0x17), base -- so with the cdecl left-to-right order REVERSED the parameters are
          * rect_fill(base, COLUMN = slot*0xaa + 0x17, ROW = 0x1f, width, 2, colour). The panel itself is

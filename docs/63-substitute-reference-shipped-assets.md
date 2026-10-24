@@ -49,3 +49,19 @@ Contracts whose wording requires the original's frame ("compared with the origin
 original frames at the same .fli frame index") have their comparison half blocked by the environment. Each is
 annotated in the playtest log with what *was* measured and what remains unmeasurable here, so nothing reads as
 verified when it is not.
+
+## Logo frame: the same byte-exact basis applies
+
+`route_attract_wait.txt` with `NIGHT_VIDRAW=1` gives an arena dump behind the logo shot. Decoding
+`logo.pcx` (640x480, 307200 B) straight out of `NIGHT.RES` with the independent decoder in
+`scripts/playtest_compare_slides.py::pcx_indices`:
+
+| shot | arena bytes equal to the shipped logo.pcx decode |
+|---|---|
+| `0000_card_00.raw` (just before the announce) | 307200 / 307200 |
+| `0001_logo.pcx.raw` (the logo shot itself) | 307200 / 307200 |
+| `0003_card_01.raw` (200 ms later, still on the logo) | 307200 / 307200 |
+
+So the company logo is not merely "visible": the bytes the port puts in the screen arena are byte-identical to
+the shipped card, and the `card_NN` series shows it held across the window-slide presentation (docs/51). The
+decode path itself is separately pinned by `make -C port selftest` (`[pcx] logo.pcx`, docs/44).

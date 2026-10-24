@@ -86,3 +86,16 @@ in `GFX_InitSdl`), hence `xvfb-run`. Frames come back as raw BGRX32 with a docum
 format) or as PNG, plus `/api/v1/video/frame/info` with the emulated video mode; lossless ZMBV video recording and
 input injection (`/api/v1/input/sequence`, `/api/v1/input/type`) are also available, which makes the *same moments*
 reproducible on both sides rather than merely nearby.
+
+### First comparison pass: two harness fixes needed before the pairs are meaningful
+
+Parsing the 875-frame store against the port's logo shot showed the harness, not the comparison, needs work:
+
+- only 112 of 875 fetched frames were kept, because the scene-change threshold (`sig_delta >= 3`) is tuned too
+  coarsely for fades (a fade-in changes every block slightly); and
+- every kept raw frame decodes as 640x480 BGRX32 even while `frame/info` reports mode 13h (320x200), so either
+  the raw endpoint returns the scaled surface or `frame/info`'s mode field latches the last `SET MODE`; the
+  `pitch`/`width` in the frame header is authoritative and must drive the decode.
+
+With those fixed, the pairing plan is content-based rather than clock-based: identify each original frame by
+matching it to a shipped card decode (docs/63 basis), then compare the port frame captured for the same event.

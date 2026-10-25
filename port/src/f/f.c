@@ -7755,7 +7755,26 @@ void fn_015295(uint8_t *a0, int32_t a1) {
                     a0 == g_latched_ent ? 1 : 0, a0_32, a0_1, a0_9 - 0x1e);
     *(uint32_t *)(g_player_ent + 0x52) += a0_32;    /* 0x15453 accumulator */
 }
-uint8_t  g_dat_53eb8[0x2000] = {0}; /* 0x53eb8: zeroed runtime table */
+uint8_t *const g_dat_53eb8 = g_dat_53e9c + 0x1c;   /* 0x53eb8 == 0x53e9c + 0x1c: the per-entry script-byte
+                                                   * block of the entity-type table, not its own table (docs/91) */
+uint32_t g_tbl53eb8_max_idx = 0;                  /* docs/91 witnesses */
+uint32_t g_tbl53eb8_clamped = 0;
+
+/* docs/91: the DAT_00053eb8 read, bounded against the real DS region. The shipped index is type*0x88 +
+ * slot*10 + step and is computed with no bound check anywhere: fn_015a1f and its family variants take the slot
+ * from a signed prng value (so the index can go negative) and the type from the entity's own byte (so it can
+ * pass the 0x104 entries fn_037b03 fills). Those reads stay inside the shipped data segment; here they are
+ * clamped to the table region -- the negative end lands on the table base exactly as it does in DS -- and
+ * counted, so a wild index reads a defined byte instead of walking off the end of the model. */
+static uint8_t tbl53eb8_get(int32_t idx)
+{
+    const int32_t lo = -0x1c;                            /* the view starts 0x1c past the table base */
+    const int32_t hi = 0x88 * 0x104 - 0x1c;
+    if (idx < lo || idx >= hi) { g_tbl53eb8_clamped++; idx = idx < lo ? lo : hi - 1; }
+    if (idx > (int32_t)g_tbl53eb8_max_idx) g_tbl53eb8_max_idx = (uint32_t)idx;
+    return g_dat_53eb8[idx];                      /* the view itself: g_dat_53e9c + 0x1c + idx */
+}
+
 
 void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */
     uint8_t c = p[0x31];
@@ -8917,7 +8936,7 @@ int32_t fn_015a1f(uint8_t *s) {                                      /* 0x015a1f
     if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
         int32_t idx = (int32_t)(*(int32_t *)(s + 0x113)) * 10 + (int32_t)(*(int32_t *)(s + 0xd)) * 0x88;
         /* LATENT BUG: idx can be negative (signed prng%10) -> out-of-bounds table read (1:1). */
-        if (abs32((int32_t)fn_01519f(s) - tX) < (int32_t)g_dat_53eb8[idx]) {
+        if (abs32((int32_t)fn_01519f(s) - tX) < (int32_t)tbl53eb8_get(idx)) {
             if (abs32((int32_t)fn_0151d5(s) - tY) < 6) return 1;
         }
     }
@@ -8947,9 +8966,9 @@ static int32_t fn_015b5b_core(uint8_t *s, const uint8_t *magics, int32_t nmagics
         *(uint32_t *)(s + 0x83) = 0;
     }
     int32_t idx = (int32_t)(*(int32_t *)(s + 0x113)) * 10 + (int32_t)(*(int32_t *)(s + 0xd)) * 0x88;
-    int32_t tbl0 = (int32_t)g_dat_53eb8[idx];
+    int32_t tbl0 = (int32_t)tbl53eb8_get(idx);
     if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
-        int32_t tbl1 = (int32_t)g_dat_53eb8[idx + 1];
+        int32_t tbl1 = (int32_t)tbl53eb8_get(idx + 1);
         int32_t is_magic = 0;
         for (int32_t i = 0; i < nmagics; i++) if ((uint32_t)tbl1 == magics[i]) { is_magic = 1; break; }
         if (is_magic) {
@@ -9203,7 +9222,7 @@ int32_t fn_015ed1(uint8_t *s) {                                      /* 0x015ed1
     }
     if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
         int32_t idx = (int32_t)(*(int32_t *)(s + 0x113)) * 10 + (int32_t)(*(int32_t *)(s + 0xd)) * 0x88;
-        int32_t tbl0 = (int32_t)g_dat_53eb8[idx];
+        int32_t tbl0 = (int32_t)tbl53eb8_get(idx);
         if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) {
             if (abs32((int32_t)fn_0151d5(s) - tY) < 10) return 1;
         }
@@ -9234,10 +9253,10 @@ int32_t fn_015d16(uint8_t *s) {                                      /* 0x015d16
         *(uint32_t *)(s + 0x83) = 0;
     }
     int32_t idx = (int32_t)(*(int32_t *)(s + 0x113)) * 10 + (int32_t)(*(int32_t *)(s + 0xd)) * 0x88;
-    int32_t tbl0 = (int32_t)g_dat_53eb8[idx];
+    int32_t tbl0 = (int32_t)tbl53eb8_get(idx);
     if ((int32_t)(*(uint32_t *)(s + 0x1f)) == 4) {
         if (abs32((int32_t)fn_01519f(s) - tX) < tbl0) {              /* X-gate first */
-            int32_t tbl1 = (int32_t)g_dat_53eb8[idx + 1];
+            int32_t tbl1 = (int32_t)tbl53eb8_get(idx + 1);
             if (tbl1 == 0x2b) {                                       /* '+' -> Y limit 40 */
                 if (abs32((int32_t)fn_0151d5(s) - tY) < 0x28) return 1;
             } else {                                                  /* else Y limit 10 */
@@ -15171,8 +15190,7 @@ static int32_t ai_cfg_i32(int32_t ty, unsigned k)
 /* DAT_00053eb8 behaviour-script cells, read byte-wise (0x018c98 / 0x018cf2). */
 static uint8_t ai_script_byte(int32_t ty, int32_t slot, int32_t step)
 {
-    return g_dat_53eb8[(size_t)(uint32_t)ty * 0x88u +
-                       (size_t)(uint32_t)slot * 10u + (size_t)(uint32_t)step];
+    return tbl53eb8_get(ty * 0x88 + slot * 10 + step);
 }
 /* Constants inside g_blk_51c24 (DS 0x51c24); memcpy because the fields are unaligned. */
 /* The x87 constant pool the AI handlers' climb / rope / swing machines divide by.  CORRECTION to an

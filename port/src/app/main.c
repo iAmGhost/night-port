@@ -984,17 +984,21 @@ static void tick_pump(void) {
     if (now >= g_diag_next) {                      /* progress diagnostics: is the clock moving? */
         SDL_Log("pump: calls=%lu timer_calls=%lu frames=%u tick=%u DAT_63e40=%u DAT_63e3c=%u "
                 "pit=%u Hz retrace=%lu audio=%uHz pushed=%u pend=%u xfer=%u stops=%u cdda=%lluB tracks=%u pos=%u snden=%u devinit=%u plays=%u real=%lu null=%lu cdstops=%u sfx=%u keyb_ed0_ed3_ed5_ed8=%u/%u/%u/%u "
-                "vgaws=%u vga_bytes=%llu wipe_keys_ea4_ec1_ea5_ec0=%u/%u/%u/%u",
+                "vgaws=%u vga_bytes=%llu wipe_keys_ea4_ec1_ea5_ec0=%u/%u/%u/%u tbl53eb8=%u/%u",
                 g_pump_calls, g_timer_calls, g_frames, g_dat_63e24, g_dat_63e40, g_dat_63e3c,
                 sys_pit_hz(0), (unsigned long)g_vga_retrace_waits,
                 sys_audio_rate(), sys_audio_pushed(), sys_audio_pending(),
                 sys_audio_transfers(), sys_audio_stops(),
                 (unsigned long long)g_cdda_bytes, (unsigned)g_cdda_tracks, (unsigned)g_cdda_pos,
                 (unsigned)g_dat_53338, (unsigned)g_dat_63f90, (unsigned)g_play_calls, g_play_real, g_play_null,
+                /* docs/91: the arg order had drifted out of step with the labels above -- cdstops/sfx/keyb/vgaws/
+                 * vga_bytes/wipe_keys were printing each other's values (the giveaway was vga_bytes=1 next to a
+                 * nonsense sfx=1124889600, which is the real 64000-byte-per-flip counter). Re-ordered to match. */
+                (unsigned)sys_cd_audio_stop_calls(), (unsigned)g_dat_51a10,
+                (unsigned)g_dat_63ed0, (unsigned)g_dat_63ed3, (unsigned)g_dat_63ed5, (unsigned)g_dat_63ed8,
                 g_vga_window_ns, (unsigned long long)g_vga_window_bytes,
                 (unsigned)g_dat_63ea4, (unsigned)g_dat_63ec1, (unsigned)g_dat_63ea5, (unsigned)g_dat_63ec0,
-                (unsigned)sys_cd_audio_stop_calls(), (unsigned)g_dat_51a10,
-                (unsigned)g_dat_63ed0, (unsigned)g_dat_63ed3, (unsigned)g_dat_63ed5, (unsigned)g_dat_63ed8);
+                (unsigned)g_tbl53eb8_max_idx, (unsigned)g_tbl53eb8_clamped);
         /* Host debug warp for screens a scripted route cannot reach in the time a run lasts: the level-up
      * (fn_038f3d, variant 1 -- the game itself calls it at 0x0003b54c right after g_dat_63370 += 1 on stage
      * completion, guarded by pl[0x30] != 1) and the status (variant 0) / help (fn_038cde, the pause menu's
@@ -1122,8 +1126,8 @@ static void tick_pump(void) {
                 long long rss_kb = (long long)ru.ru_maxrss; const char *unit = "KB";
 #endif
                 (void)unit;
-                SDL_Log("memstat stage=%u frames=%u arena=%u/%u rss_max=%lld KB",
-                        (unsigned)g_dat_63370, (unsigned)g_frames,
+                SDL_Log("memstat stage=%u room=%u frames=%u arena=%u/%u rss_max=%lld KB",
+                        (unsigned)g_dat_63370, (unsigned)(g_dat_63354 != 0), (unsigned)g_frames,
                         heap_arena_used(), heap_arena_cap_get(), rss_kb);
             }
         }

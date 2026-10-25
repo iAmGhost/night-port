@@ -1249,8 +1249,10 @@ extern uint32_t  g_pool_53d0c[100];  /* 0x53d0c: 100 pooled object offsets */
 void fn_037922(void);   /* 0x037922: clear-all-state -- free 100 pool + destruct+free+null 8 struct globals */
 void fn_0323f8(void);   /* 0x0323f8: drain entity list -- remove+free every node until empty */
 void fn_03237b(void);   /* 0x03237b: conditional drain -- remove+free nodes with dword@+0xd != 0; g_gauge_other_off=0 */
-#define FN_015A1F_TBL 0x2000
-extern uint8_t  g_dat_53eb8[FN_015A1F_TBL]; /* DAT_00053eb8 (zeroed runtime table) */
+#define FN_015A1F_TBL (0x88 * 0x104 - 0x1c)   /* bytes of the entity-type table reachable through the DAT_00053eb8 view: the table runs 0x53e9c..0x53e9c+0x88*0x104, the view starts at +0x1c */
+extern uint8_t *const g_dat_53eb8; /* DAT_00053eb8: NOT a separate table -- it is the +0x1c "behaviour script bytes" block inside each 0x88-byte entry of the entity-type table at DAT_00053e9c (0x53e9c + 0x1c == 0x53eb8), so the bytes read through it are the ones fn_037b03 filled from night%d.chr. A separate 0x2000-byte zeroed array used to stand in for it, which both read zeros where the shipped game read loaded table data and put every entity of type >= 60 out of bounds (docs/91: caught by the ASan soak as a SIGSEGV in episode 3). Indexed type*0x88 + slot*10 + step; see tbl53eb8_get(). */
+extern uint32_t g_tbl53eb8_max_idx;  /* docs/91 witnesses: largest index seen, and how many reads were clamped */
+extern uint32_t g_tbl53eb8_clamped;
 void fn_034635(uint8_t key);
 uint32_t fn_0100d9(uint32_t *s);      /* 0x0100d9: free container {count, array} + free array */
 int32_t  fn_015a1f(uint8_t *s);        /* 0x015a1f: state machine, data-table distance check */

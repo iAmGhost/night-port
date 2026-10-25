@@ -5767,12 +5767,12 @@ static void test_l10_accessors(void) {
       prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 0; r = fn_015a1f(s);
       check(r == 0 && s[0x117] == 0, "  fn_015a1f out-of-range s[0x1f]!=4 -> ret0");
       prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; s[0xd] = 2;
-      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); s[1] = 5; s[9] = 5;
+      memset(g_dat_53eb8, 100, (FN_015A1F_TBL)); s[1] = 5; s[9] = 5;
       r = fn_015a1f(s);
       check(r == 1, "  fn_015a1f close + table=100 -> ret1");
-      prng_seed(0x1234); memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); r = fn_015a1f(s);
+      prng_seed(0x1234); memset(g_dat_53eb8, 0, (FN_015A1F_TBL)); r = fn_015a1f(s);
       check(r == 0, "  fn_015a1f table=0 -> ret0");
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL));
     {
       uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_player_ent = tgt; g_dat_53c6c = 0;
       uint8_t s[0x200] = {0}; s[1] = 5; s[9] = 5; s[0xd] = 2;   // sX-tX=2, sY-tY=2, idx in-bounds
@@ -5781,21 +5781,21 @@ static void test_l10_accessors(void) {
       prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0xb; r = fn_015b5b(s);
       check(r == 2 && s[0x117] == 1 && g_dat_53c6c == 1, "  fn_015b5b [0xb,0x14] -> ret2");
       *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 0; *(int32_t *)(s+0x113) = 0;
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL)); r = fn_015b5b(s);
       check(r == 0 && s[0x117] == 0 && s[0x83] == 0, "  fn_015b5b out-of-range s[0x1f]!=4 -> ret0, s[0x83]=0");
       prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; *(uint32_t *)(s+0x83) = 0;
-      memset(g_dat_53eb8, 0x2e, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      memset(g_dat_53eb8, 0x2e, (FN_015A1F_TBL)); r = fn_015b5b(s);
       check(r == 1 && s[0x83] == 1, "  fn_015b5b tbl1='.' close -> ret1, s[0x83]=1");
       prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; *(uint32_t *)(s+0x83) = 0;
-      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      memset(g_dat_53eb8, 100, (FN_015A1F_TBL)); r = fn_015b5b(s);
       check(r == 1, "  fn_015b5b tbl1!='.' both-close -> ret1");
       prng_seed(0x1234); *(uint32_t *)(s+0x17) = 0x5; *(uint32_t *)(s+0x1f) = 4; *(uint32_t *)(s+0x83) = 0;
-      memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); r = fn_015b5b(s);
+      memset(g_dat_53eb8, 1, (FN_015A1F_TBL)); r = fn_015b5b(s);
       check(r == 0, "  fn_015b5b tbl0=1 too-far -> ret0");
       // near-twin magic-char check: whole table = '+'(0x2b), sX-tX=2, sY-tY=10 (2D Y-check fails).
       uint8_t s2[0x200] = {0}; s2[1] = 5; s2[9] = 13; s2[0xd] = 2;   // sX-tX=2, sY-tY=10
       *(uint32_t *)(s2+0x17) = 0x5; *(uint32_t *)(s2+0x1f) = 4; *(uint32_t *)(s2+0x83) = 0;
-      memset(g_dat_53eb8, 0x2b, sizeof(g_dat_53eb8));
+      memset(g_dat_53eb8, 0x2b, (FN_015A1F_TBL));
       prng_seed(0x1234); check(fn_015b5b(s2) == 0, "  near-twin fn_015b5b '.' -> 2D Y-fail ret0");
       prng_seed(0x1234); check(fn_01603e(s2) == 1, "  near-twin fn_01603e '+' -> 1D ret1");
       prng_seed(0x1234); check(fn_0161f9(s2) == 1, "  near-twin fn_0161f9 '+' -> 1D ret1");
@@ -5807,15 +5807,15 @@ static void test_l10_accessors(void) {
       prng_seed(0x1234); *(uint32_t *)(sd+0x17) = 0xb; rd = fn_015d16(sd);
       check(rd == 2 && sd[0x117] == 1, "  fn_015d16 [0xb,0x14] -> ret2");
       *(uint32_t *)(sd+0x17) = 0x5; *(uint32_t *)(sd+0x1f) = 0; *(int32_t *)(sd+0x113) = 0;
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); rd = fn_015d16(sd);
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL)); rd = fn_015d16(sd);
       check(rd == 0, "  fn_015d16 s[0x1f]!=4 -> ret0");
       *(uint32_t *)(sd+0x17) = 0x5; *(uint32_t *)(sd+0x1f) = 4; *(uint32_t *)(sd+0x83) = 0; sd[9] = 33;   // sY-tY=30
-      memset(g_dat_53eb8, 0x2b, sizeof(g_dat_53eb8)); prng_seed(0x1234); rd = fn_015d16(sd);
+      memset(g_dat_53eb8, 0x2b, (FN_015A1F_TBL)); prng_seed(0x1234); rd = fn_015d16(sd);
       check(rd == 1, "  fn_015d16 '+' Y-limit=40 (30<40) -> ret1");
       *(uint32_t *)(sd+0x1f) = 4; *(uint32_t *)(sd+0x83) = 0; sd[9] = 23;   // sY-tY=20
-      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); prng_seed(0x1234); rd = fn_015d16(sd);
+      memset(g_dat_53eb8, 100, (FN_015A1F_TBL)); prng_seed(0x1234); rd = fn_015d16(sd);
       check(rd == 0, "  fn_015d16 non-'+' Y-limit=10 (20>=10) -> ret0");
-      sd[9] = 5; memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); prng_seed(0x1234); rd = fn_015d16(sd);
+      sd[9] = 5; memset(g_dat_53eb8, 1, (FN_015A1F_TBL)); prng_seed(0x1234); rd = fn_015d16(sd);
       check(rd == 0, "  fn_015d16 X-gate (2>=1) -> ret0");
       // fn_015ed1: s[0x83] gate, no char check, Y-limit 10.
       uint8_t se[0x200] = {0}; se[1] = 5; se[9] = 5; se[0xd] = 2;   // sX-tX=2, sY-tY=2
@@ -5824,14 +5824,14 @@ static void test_l10_accessors(void) {
       prng_seed(0x1234); *(uint32_t *)(se+0x17) = 0xb; re = fn_015ed1(se);
       check(re == 2 && se[0x117] == 1, "  fn_015ed1 [0xb,0x14] -> ret2");
       *(uint32_t *)(se+0x17) = 0x5; *(uint32_t *)(se+0x1f) = 0; *(int32_t *)(se+0x113) = 0;
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); re = fn_015ed1(se);
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL)); re = fn_015ed1(se);
       check(re == 0, "  fn_015ed1 s[0x1f]!=4 -> ret0");
       *(uint32_t *)(se+0x17) = 0x5; *(uint32_t *)(se+0x1f) = 4; *(uint32_t *)(se+0x83) = 0;
-      memset(g_dat_53eb8, 100, sizeof(g_dat_53eb8)); prng_seed(0x1234); re = fn_015ed1(se);
+      memset(g_dat_53eb8, 100, (FN_015A1F_TBL)); prng_seed(0x1234); re = fn_015ed1(se);
       check(re == 1, "  fn_015ed1 X<tbl0 Y<10 -> ret1");
       se[9] = 23; *(uint32_t *)(se+0x83) = 0; prng_seed(0x1234); re = fn_015ed1(se);   // sY-tY=20
       check(re == 0, "  fn_015ed1 Y>=10 -> ret0");
-      se[9] = 5; *(uint32_t *)(se+0x83) = 0; memset(g_dat_53eb8, 1, sizeof(g_dat_53eb8)); prng_seed(0x1234); re = fn_015ed1(se);
+      se[9] = 5; *(uint32_t *)(se+0x83) = 0; memset(g_dat_53eb8, 1, (FN_015A1F_TBL)); prng_seed(0x1234); re = fn_015ed1(se);
       check(re == 0, "  fn_015ed1 X>=tbl0 -> ret0");
     // fn_032158: entity list -> set targets to player + prng jitter.
     {
@@ -5862,7 +5862,7 @@ static void test_l10_accessors(void) {
       uint8_t s1[0x200] = {0}; *(uint32_t *)(s1+1) = 5; *(uint32_t *)(s1+9) = 23;
       *(uint32_t *)(s1+0x17) = 0x5; *(uint32_t *)(s1+0x1f) = 4; *(uint32_t *)(s1+0x83) = 1;   // skip prng overwrite so s[0x113]=0 holds
       *(int32_t *)(s1+0x113) = 0; s1[0xd] = 2;
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8)); g_dat_53eb8[0x110] = 5;   // idx=2*0x88=0x110, tbl0=5
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL)); g_dat_53eb8[0x110] = 5;   // idx=2*0x88=0x110, tbl0=5
       int32_t r1;
       prng_seed(0x1234); g_dat_53eb8[0x111] = ','; r1 = fn_01656f(s1);
       check(r1 == 1, "  fn_01656f ',' -> 1D: X<5 -> ret1 (Y ignored)");
@@ -6008,12 +6008,12 @@ static void test_l10_accessors(void) {
       check(rr == 0 && x1 == 5 && y1 == 999 && *(int32_t *)(sn+0xaf) == 2, "  fn_01730b Y clamped by g16 bound");
       *(int32_t *)(g_dat_63354 + 0x16) = 1000;
       check(rr == 0 && o1 == -5 && o2 == -5, "  fn_01776f F>mid cb>=0xa0 no-arrival");
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL));
     }
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
-      memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL));
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL));
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL));
+      memset(g_dat_53eb8, 0, (FN_015A1F_TBL));
     }
     }
 }
@@ -11860,6 +11860,41 @@ static void test_title_wipe_window_cost(void) {
  * what makes the screen's "HELP:F1" footer real. The scan-code slots are armed at the scancode index (the
  * original shows Enter/space/F1 armed at DAT_00062c58+0x1c/0x39/0x3b), and the pump fn_0347e3 dispatches the
  * arrow slots to fn_034635 (repeat counter walks) while leaving other slots alone, gated by DAT_00052ff8. */
+/* docs/91: DAT_00053eb8 is the +0x1c script-byte block of each 0x88-byte entry of the entity-type table at
+ * DAT_00053e9c (0x53e9c + 0x1c == 0x53eb8 in DS), not a table of its own. It used to be modelled as a separate
+ * 0x2000-byte zeroed array, which read zeros where the shipped game read the night%d.chr table data, and put
+ * every entity of type >= 60 out of bounds: the ASan soak SIGSEGVed in episode 3 at fn_015a1f's distance check
+ * (idx ~ 9800, i.e. type 0x48 -- a type fn_037b03 does fill). The read is now bounded against the real region,
+ * and the shipped index is unchecked in two ways, so both are pinned here. */
+static void test_dat53eb8_alias(void) {
+    printf("DAT_00053eb8 is the entity-type table's +0x1c view, and its unchecked index is bounded\n");
+    check(g_dat_53eb8 == g_dat_53e9c + 0x1c, "the view starts 0x1c into the type table (0x53e9c + 0x1c = 0x53eb8)");
+    /* a filled entry's script bytes are visible through the view, and the type-table write is what changes them */
+    uint8_t saved[0x88 * 0x104];
+    memcpy(saved, g_dat_53e9c, sizeof saved);
+    g_tbl53eb8_max_idx = 0; g_tbl53eb8_clamped = 0;
+    g_dat_53e9c[0x48u * 0x88u + 0x1cu + 10u] = 0x7f;          /* the soak's index: 0x48*0x88 + 1*10 + 0 = 9802 */
+    check(g_dat_53eb8[0x48 * 0x88 + 1 * 10 + 0] == 0x7f, "a type-table byte shows through the view at the soak's index (9802)");
+    uint32_t base_clamped = g_tbl53eb8_clamped;
+    {   /* fn_015a1f with a wild type: the shipped index would run off the region, so the port clamps and counts */
+        uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3;
+        uint8_t *saved_pl = g_player_ent; g_player_ent = tgt; g_dat_53c6c = 0;
+        uint8_t s[0x200] = {0};
+        *(uint32_t *)(s + 0x17) = 5; *(uint32_t *)(s + 0x1f) = 4; *(int32_t *)(s + 0x113) = 0;
+        *(int32_t *)(s + 0xd) = 0x7fffffff;                    /* the shipped code multiplies this by 0x88 unchecked */
+        s[1] = 5; s[9] = 5;
+        prng_seed(0x1234);
+        check(fn_015a1f(s) == 0, "a wild type index still returns, reading a defined byte");
+        check(g_tbl53eb8_clamped > base_clamped, "  and the out-of-region read is counted by the witness");
+        /* the negative end: the signed prng can make the index negative, which in DS lands below the view */
+        *(int32_t *)(s + 0xd) = 0; *(int32_t *)(s + 0x113) = -1000;
+        prng_seed(0x5678);
+        check(fn_015a1f(s) == 0, "a negative index (signed prng % 10) is bounded to the table base");
+        g_player_ent = saved_pl;
+    }
+    memcpy(g_dat_53e9c, saved, sizeof saved);
+}
+
 static void test_key_map_measured(void) {
     printf("key map: measured scancode -> DS key bytes, and the fn_0347e3 dispatch\n");
     uint8_t saved_slots[0x80], saved_cd8[0x80];
@@ -18481,6 +18516,7 @@ int main(void) {
     test_title_wipe_window_cost();
     test_showscreen_gate();
     test_key_map_measured();
+    test_dat53eb8_alias();
     test_fn_03a5f7();
     test_fn_03c231();
     test_fn_03b953();

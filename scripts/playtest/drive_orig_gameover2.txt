@@ -1,0 +1,40 @@
+# Original-side game-over / CONTINUE capture (docs/81).
+# Spine = playtest_orig_episode_warp.py's proven ep-2 drive (docs/74) plus the stable mode pacing measured in
+# docs/81 (a press landing as the picture show ends makes the game flash mode 13h for one sample and fall back to a
+# 640x480 card forever, so the pacing must require the mode to hold). Once the room is live (measured: 320x200
+# gameplay frames, HUD + entities on screen), the shipped state variable DAT_0006336c is set to 1: fn_03a829 tests
+# it at 0x0003abc0, breaks the room loop and falls into 0x0003aeb7, where DAT_00053100 (CONTINUE credits, init 3)
+# selects the credit-less path or fn_038445, the CONTINUE screen loop. Each poke is one shipped 'gone for good'
+# transition; the credit count is read between them so the phases can be lined up.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+writemem 0x63370 2
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+shot stage_play
+record gameplay 5000
+readmem 0x6336c
+writemem 0x6336c 1
+record gone1 6000
+readmem 0x6336c
+readmem 0x53100
+record cont1 14000
+readmem 0x53100
+readmem 0x6336c
+writemem 0x6336c 1
+record gone2 6000
+readmem 0x53100
+record cont2 14000
+readmem 0x53100
+readmem 0x6336c
+writemem 0x6336c 1
+record gone3 6000
+readmem 0x53100
+record cont3 20000
+readmem 0x53100
+stop

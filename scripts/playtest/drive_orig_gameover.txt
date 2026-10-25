@@ -1,0 +1,48 @@
+# Original-side game-over / CONTINUE capture (docs/81).
+# Spine identical to playtest_orig_episode_warp.py's proven ep-2 DRIVE (docs/74): forced stage index before the
+# stage assets are named, then the per-card key pacing until mode 13h. Once the room is live, the player entity's
+# own death flag is set through the webserver memory API: DAT_00053c80 holds the player entity pointer, and the
+# engine's entity sweep tests `e[0x30] == 1` at 0x000129c4 to mark an entity dead -- for the player that sets
+# DAT_0006336c = 3 ("died", 0x000129c4-0x000129d8). DAT_00053100 is the CONTINUE credit count (init 3,
+# decremented once per game-over pass), and fn_038445 is the CONTINUE screen loop. So each poke is one shipped
+# death; four of them should exhaust the credits and reach the terminal path.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+writemem 0x63370 2
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+shot stage_play
+record gameplay 6000
+readptr 0x53c80
+readptr 0x53c7c
+readptr 0x53c88
+readmem 0x63354
+wait_mode_soft 200 8
+readmem 0x53100
+readmem 0x6336c
+poke_at 0x53c80 0x30 1 1
+record death1 8000
+readmem 0x6336c
+readmem 0x53100
+record after1 12000
+readmem 0x53100
+poke_at 0x53c80 0x30 1 1
+record death2 8000
+readmem 0x53100
+record after2 12000
+readmem 0x53100
+poke_at 0x53c80 0x30 1 1
+record death3 8000
+readmem 0x53100
+record after3 12000
+readmem 0x53100
+poke_at 0x53c80 0x30 1 1
+record death4 8000
+readmem 0x53100
+record after4 20000
+stop

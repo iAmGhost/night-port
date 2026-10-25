@@ -312,6 +312,27 @@ def main():
             print("key_until_mode %d: %s" % (want, "hit" if hit else "TIMEOUT"))
             si += 1
             continue
+        if op == "key_until_mode_stable":   # key_until_mode_stable <height> <key> <tries> <gap_ms> <stable>
+            want, kn = int(step[1]), step[2]   # like key_until_mode, but the mode must hold for <stable>
+            tries, gap = int(step[3]), float(step[4]) / 1000.0   # consecutive samples. Measured reason (docs/81):
+            stable, run, hit, presses = int(step[5]), 0, False, 0  # a press landing as the picture show ends makes
+            for _ in range(tries):            # the game flash mode 13h for one sample and fall back to a 640x480
+                it = poll()                   # card, where it waits forever; accepting that flash ends the pacing
+                if state["h"] == want:        # early and the stage never plays (two runs measured).
+                    run += 1
+                    if run >= stable:
+                        hit = True
+                        print("  mode %d held %d samples after %d press(es)" % (want, stable, presses))
+                        break
+                    time.sleep(max(0.0, period - (time.time() - it)))
+                    continue
+                run = 0
+                key(kn, 150)
+                presses += 1
+                time.sleep(gap)
+            print("key_until_mode_stable %d: %s (%d press(es))" % (want, "hit" if hit else "TIMEOUT", presses))
+            si += 1
+            continue
         if op == "shot":
             if state["px"] is not None:
                 save(step[1])
@@ -354,6 +375,26 @@ def main():
                 mem_put(mem_phys(dat), val.to_bytes(4, "little"))
                 back = int.from_bytes(mem_read(mem_phys(dat), 4), "little")
                 print("writemem %s <- %d : read back %d at phys %#x" % (step[1], val, back, mem_phys(dat)))
+            si += 1
+            continue
+        if op == "poke_at":     # poke_at <DAT-hex holding a pointer> <offset-hex> <width> <value>
+            # The game's own heap pointers are absolute (measured: DAT_00063354 = 0x38202c in a live room), so
+            # a pointer read from DAT space addresses guest physical memory directly. Values below 0x100000 are
+            # treated as DS-relative (the DAT_x convention) instead.
+            dat = int(step[1], 0)
+            ptr = int.from_bytes(mem_read(mem_phys(dat), 4), "little")
+            off, width, val = int(step[2], 0), int(step[3]), int(step[4], 0)
+            phys = ptr if ptr >= 0x100000 else mem_phys(ptr & 0xFFFFFF)
+            mem_put(phys + off, val.to_bytes(width, "little"))
+            back = mem_read(phys + off, width)
+            print("poke_at %s(+%#x) ptr=%#x -> phys %#x <- %d : read back %s"
+                  % (step[1], off, ptr, phys + off, val, back.hex()))
+            si += 1
+            continue
+        if op == "readptr":     # readptr <DAT-hex>  (report the pointer and where it maps)
+            dat = int(step[1], 0)
+            ptr = int.from_bytes(mem_read(mem_phys(dat), 4), "little")
+            print("readptr %s = %d (%#x)%s" % (step[1], ptr, ptr, "  [absolute]" if ptr >= 0x100000 else "  [DS-relative]"))
             si += 1
             continue
         if op == "stop":

@@ -1,0 +1,292 @@
+# Route for a stage whose startup runs the CG picture show (fn_03a70e, docs/52): the show turns the
+# keyboard pump off (DAT_52ff8 = 0) and then waits for a key *press* per picture, so a route that has
+# no keys left at that moment stalls forever with the frame counter frozen. Anchored on the show's own
+# resource names (na<stage>NNNN.pcx), then keys are paced while the show runs.
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+124000 shot pre_show
+130000 wait res na
+131000 key space down
+131150 key space up
+133000 key space down
+133150 key space up
+135000 key space down
+135150 key space up
+137000 key space down
+137150 key space up
+139000 key space down
+139150 key space up
+141000 key space down
+141150 key space up
+143000 key space down
+143150 key space up
+145000 key enter down
+145150 key enter up
+150000 shot mid_show
+152000 key space down
+152150 key space up
+154000 key space down
+154150 key space up
+156000 shot after_show
+158000 key enter down
+158150 key enter up
+160000 shot episode_start
+170000 shot stage_play
+175000 key down down
+175400 key down up
+175500 key right down
+175900 key right up
+180000 shot playing
+# docs/80 walk-and-fight extension: sweep the room and keep firing, so entity composites land
+# wholly inside the 320x200 room and the player's attacks land on enemies (effect sprites).
+176000 shot walk_start
+176200 key right down
+177000 key space down
+177150 key space up
+181000 key space down
+181150 key space up
+183000 key up down
+183900 key up up
+185000 key space down
+185150 key space up
+189000 key space down
+189150 key space up
+191000 key down down
+191900 key down up
+193000 key space down
+193150 key space up
+197000 key space down
+197150 key space up
+197500 key left down
+198500 key left up
+199000 key up down
+199900 key up up
+201000 key space down
+201150 key space up
+205000 key space down
+205150 key space up
+207000 key down down
+207900 key down up
+209000 key space down
+209150 key space up
+213000 key space down
+213150 key space up
+215000 key up down
+215900 key up up
+216500 shot walk_09
+217000 key space down
+217150 key space up
+221000 key space down
+221150 key space up
+221500 key left down
+222500 key left up
+223000 key down down
+223900 key down up
+225000 key space down
+225150 key space up
+229000 key space down
+229150 key space up
+231000 key up down
+231900 key up up
+233000 key space down
+233150 key space up
+237000 key space down
+237150 key space up
+239000 key down down
+239900 key down up
+241000 key space down
+241150 key space up
+245000 key space down
+245150 key space up
+245500 key left down
+246500 key left up
+247000 key up down
+247900 key up up
+249000 key space down
+249150 key space up
+253000 key space down
+253150 key space up
+255000 key down down
+255900 key down up
+256500 shot walk_19
+257000 key space down
+257150 key space up
+261000 key space down
+261150 key space up
+263000 key up down
+263900 key up up
+265000 key space down
+265150 key space up
+269000 key space down
+269150 key space up
+269500 key left down
+270500 key left up
+271000 key down down
+271900 key down up
+273000 key space down
+273150 key space up
+277000 key space down
+277150 key space up
+279000 key up down
+279900 key up up
+281000 key space down
+281150 key space up
+285000 key space down
+285150 key space up
+287000 key down down
+287900 key down up
+289000 key space down
+289150 key space up
+293000 key space down
+293150 key space up
+293500 key left down
+294500 key left up
+295000 key up down
+295900 key up up
+296500 shot walk_29
+297000 key space down
+297150 key space up
+301000 key space down
+301150 key space up
+303000 key down down
+303900 key down up
+305000 key space down
+305150 key space up
+309000 key space down
+309150 key space up
+311000 key up down
+311900 key up up
+313000 key space down
+313150 key space up
+317000 key space down
+317150 key space up
+317500 key left down
+318500 key left up
+319000 key down down
+319900 key down up
+321000 key space down
+321150 key space up
+325000 key space down
+325150 key space up
+327000 key up down
+327900 key up up
+329000 key space down
+329150 key space up
+333000 key space down
+333150 key space up
+335000 key down down
+335900 key down up
+336500 shot walk_39
+337000 key space down
+337150 key space up
+341000 key space down
+341150 key space up
+341500 key left down
+342500 key left up
+343000 key up down
+343900 key up up
+345000 key space down
+345150 key space up
+349000 key space down
+349150 key space up
+351000 key down down
+351900 key down up
+353000 key space down
+353150 key space up
+357000 key space down
+357150 key space up
+359000 key up down
+359900 key up up
+361000 key space down
+361150 key space up
+365000 key space down
+365150 key space up
+365500 key left down
+366500 key left up
+367000 key down down
+367900 key down up
+369000 key space down
+369150 key space up
+373000 key space down
+373150 key space up
+375000 key up down
+375900 key up up
+376500 shot walk_49
+377000 key space down
+377150 key space up
+381000 key space down
+381150 key space up
+383000 key down down
+383900 key down up
+385000 key space down
+385150 key space up
+389000 key space down
+389150 key space up
+389500 key left down
+390500 key left up
+391000 key up down
+391900 key up up
+393000 key space down
+393150 key space up
+397000 key space down
+397150 key space up
+399000 key down down
+399900 key down up
+401000 key space down
+401150 key space up
+405000 key space down
+405150 key space up
+407000 key up down
+407900 key up up
+409000 key space down
+409150 key space up
+413000 key space down
+413150 key space up
+413500 key left down
+414500 key left up
+415000 key down down
+415900 key down up
+416500 shot walk_59
+420000 key right up
+421000 shot walk_end
+# docs/81: shots taken after the NIGHT_SHOWSCREEN=gameover warp has fired (it fires at frame ~2573
+# here, i.e. t_ms ~46000 at the measured ~55 model frames/s), so the CONTINUE screen is captured.
+48000 shot gameover_01
+50000 shot gameover_02
+52000 shot gameover_03
+54000 shot gameover_04
+56000 shot gameover_05
+58000 shot gameover_06
+60000 shot gameover_07
+# The script rebases on an anchored res, so the window above landed before the warp (measured: those
+# shots sat at frames 1128..1784 while the warp fired at frame 2572; the frames below follow the warp.
+78000 shot go_a
+80000 shot go_b
+82000 shot go_c
+84000 shot go_d
+86000 shot go_e
+88000 shot go_f
+90000 shot go_g
+# The warp's frame varies per run (3508 here, 2572 before), so cover a wide window after it fires.
+66000 shot gow_00
+68000 shot gow_01
+70000 shot gow_02
+72000 shot gow_03
+74000 shot gow_04
+76000 shot gow_05
+78000 shot gow_06
+80000 shot gow_07
+82000 shot gow_08
+84000 shot gow_09
+86000 shot gow_10
+88000 shot gow_11
+90000 shot gow_12
+92000 shot gow_13
+94000 shot gow_14
+96000 shot gow_15

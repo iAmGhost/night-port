@@ -1037,6 +1037,34 @@ static void tick_pump(void) {
      * NIGHT_SHOWSCREEN=levelup|status|help, NIGHT_SHOWSCREEN_AT=<frame>. */
     if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
     if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
+    {   /* docs/88: drive the credit-less game-over branch the shipped way -- write the game's own state while
+         * the room loop is live. DAT_00053100 is the CONTINUE credit count (init 3) and DAT_0006336c == 1 is the
+         * "gone for good" latch the room loop tests at 0x0003abf1; the loop's post-break branch then runs
+         * `if (DAT_00053100 == 0) { DAT_00053100 = 3; return 0; }` at 0x0003aeb7-0x0003aec8, the path docs/81
+         * never reached because it kept one credit left. */
+        static int s_credits_done;
+        const char *cr = getenv("NIGHT_CREDITS");
+        if (cr && !s_credits_done) {
+            s_credits_done = 1;
+            g_dat_53100 = (uint32_t)atoi(cr);
+            SDL_Log("credits warp: DAT_53100 = %s", cr);
+        }
+        static int s_quit_fired, s_quit_defer_logged;
+        const char *qa = getenv("NIGHT_QUIT_AT");
+        if (qa && !s_quit_fired && (long)g_frames >= atol(qa)) {
+            if (g_dat_63354 == 0) {          /* same precondition style as fn_showscreen_gate (docs/78) */
+                if (!s_quit_defer_logged) {
+                    s_quit_defer_logged = 1;
+                    SDL_Log("quit warp: deferred at frame %u: no live room record (the room loop owns the latch)",
+                            (unsigned)g_frames);
+                }
+            } else {
+                s_quit_fired = 1;
+                g_dat_6336c = 1;
+                SDL_Log("quit warp: DAT_6336c = 1 at frame %u (credits=%u)", (unsigned)g_frames, g_dat_53100);
+            }
+        }
+    }
         { static int s_shown;                                  /* the debug warp for the menu screens */
           const char *what = getenv("NIGHT_SHOWSCREEN");
           long at = getenv("NIGHT_SHOWSCREEN_AT") ? atol(getenv("NIGHT_SHOWSCREEN_AT")) : 4000;

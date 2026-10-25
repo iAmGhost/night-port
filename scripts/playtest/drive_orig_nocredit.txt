@@ -1,0 +1,31 @@
+# Original-side credit-less game-over branch (docs/88).
+# docs/81 reached the CONTINUE screen (fn_038445, 0x0003aecf) but never the branch ahead of it: the room loop
+# fn_03a829 breaks on DAT_0006336c == 1 and then runs
+#   if (DAT_00053100 == 0) { DAT_00053100 = 3; return 0; }     0x0003aeb7-0x0003aec8   <- no credits left
+#   else { if (fn_038445() == 0) { DAT_00053100 = 3; return 0; } else return 2; }      0x0003aecf-0x0003aee1
+# So: drive the credit count DAT_00053100 to 0 through the memory API while a room is live (docs/74), then set
+# the same "gone for good" latch DAT_0006336c = 1 that docs/81 used, and read every variable back.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+shot stage_play
+readmem 0x53100
+readmem 0x63354
+readmem 0x6336c
+record gameplay 4000
+writemem 0x53100 0
+readmem 0x53100
+writemem 0x6336c 1
+readmem 0x6336c
+record nocredit 22000
+readmem 0x53100
+readmem 0x63354
+readmem 0x6336c
+readmem 0x63370
+stop

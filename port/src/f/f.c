@@ -8021,7 +8021,8 @@ void fn_040839(uint8_t *cursor)
     }
 }
 
-uint32_t g_tab_53200[0x3d] = {
+struct ds_53200_block g_ds_53200 = {      /* 0x53200..0x53338: one contiguous block, as the DS lays it out */
+    {   /* 0x53200: timed-event tick table (61 dwords, ends exactly at DAT_532f4). Image constant, DS 0x53200. */
     0x000000e5, 0x000000eb, 0x000000f2, 0x00000102, 0x00000108, 0x0000010c, 0x0000010f, 0x00000111, 0x0000011c, 0x00000121,
     0x00000128, 0x0000012a, 0x0000012b, 0x00000132, 0x00000137, 0x00000139, 0x0000013b, 0x00000145, 0x000001de, 0x000001e2,
     0x000001ea, 0x000001ef, 0x000001f3, 0x000001fc, 0x00000201, 0x00000205, 0x00000208, 0x00000209, 0x00000213, 0x00000215,
@@ -8029,8 +8030,11 @@ uint32_t g_tab_53200[0x3d] = {
     0x000002f5, 0x000002fc, 0x00000302, 0x000003ba, 0x000003c5, 0x000003ca, 0x000003cf, 0x000003d2, 0x000003d5, 0x000003dc,
     0x000003e1, 0x000003e6, 0x000003e9, 0x000003f9, 0x00000404, 0x0000040b, 0x0000040f, 0x00000418, 0x0000041e, 0x0000043d,
     0x0000043e
-};   /* 0x53200: timed-event tick table (61 dwords, ends exactly at DAT_532f4). Image constant, DS 0x53200. */   /* 0x53200: timed-event tick table (61 dwords, ends exactly at DAT_532f4) */
-uint8_t  g_tab_532f4[0x44] = {0};   /* 0x532f4: DAT_53d0c sound-slot indices, 68 bytes */
+    },
+    { 0 }   /* 0x532f4: DAT_53d0c sound-slot indices, 68 bytes; no producer inside the EXE */
+};
+uint32_t g_tab532_walk_clamped = 0;   /* host witness for the fn_03f6bc tick-table walk (docs/83) */
+uint32_t g_tab532_walk_max = 0;       /* highest cursor any fn_03f6bc walk reached (docs/83) */
 uint8_t  g_dat_63ec1 = 0;           /* 0x63ec1: key-pressed byte */
 uint8_t  g_dat_63ea4 = 0;           /* 0x63ea4: second key byte */
 uint8_t  g_dat_63ea5 = 0;           /* 0x63ea5: third key byte (key waits in 0x03a224 / 0x038cde) */
@@ -13622,9 +13626,21 @@ static uint32_t fn_03f6bc_impl(const char *name)
         }
         while ((int32_t)(uint32_t)(uint16_t)idx >= (int32_t)g_dat_63e40)      /* 0x3f787-93: frame wait */
             { if (!sys_port_spin()) break; }   /* the port's tick source advances DAT_63e40 */
-        if ((uint32_t)(uint16_t)idx == g_tab_53200[cursor]) {                 /* 0x3f795-a1 (table dword) */
+        /* 0x3f795-a1 / 0x3f7a9-c0. The original's cursor is unbounded, and in its DS the byte table
+         * DAT_532f4 sits immediately after the 61-dword tick table, so a walk past the last entry
+         * compares against (and then indexes through) the sound-slot bytes -- the contiguous
+         * g_ds_53200 block reproduces that. Past DAT_00053337 both reads leave the modelled span
+         * (the original would keep reading DS bytes the port models as other globals, starting with
+         * DAT_53338 itself), so the walk stops there and says so once (docs/83). */
+        if (cursor >= TAB532_WALK_LIMIT) {
+            g_tab532_walk_clamped++;
+            if (g_tab532_walk_clamped == 1)
+                fprintf(stderr, "tab53200: timed-event cursor %u leaves DAT_53200..0x53337, "
+                                "tick table not seeded\n", cursor);
+        } else if ((uint32_t)(uint16_t)idx == g_tab_53200[cursor]) {
             fn_04185e(g_dat_53d0c[(uint32_t)g_tab_532f4[cursor]]);            /* 0x3f7a9-c0 (byte -> slot array) */
             cursor = cursor + 1;                                              /* 0x3f7c5-c8 */
+            if (cursor > g_tab532_walk_max) g_tab532_walk_max = cursor;
         }
         if (fn_03f80d(g_639b8) == 0) return 1;                                /* 0x3f7cb-e4 */
     }

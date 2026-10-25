@@ -17447,6 +17447,29 @@ static void test_ds_constant_tables(void) {
           "  DAT_53200: the timed-event tick table runs 229 .. 1086 over 61 dwords");
     check(g_tab_52ffc[0] == 1 && g_tab_52ffc[1] == 2 && g_tab_52ffc[2] == 2 && g_tab_52ffc[64] == 0xa0000u,
           "  DAT_52ffc: the 65-dword kind/threshold table");
+    /* docs/83: DAT_53200 and DAT_532f4 are ONE contiguous DS block (0x53200..0x53338). fn_03f6bc's
+     * table cursor is never bounded, so a walk past the 61 dwords reads the sound-slot bytes; the
+     * block makes that read the shipped one instead of compiler padding. */
+    check((ptrdiff_t)((const uint8_t *)&g_ds_53200.tab_532f4 - (const uint8_t *)&g_ds_53200) == 0xf4 &&
+          sizeof(struct ds_53200_block) == 0x138,
+          "  0x53200 block: tick table ends at DAT_532f4, block ends at DAT_53338 exactly");
+    {
+        uint32_t dw = 0;
+        memcpy(&dw, (const uint8_t *)&g_ds_53200 + 61 * 4, 4);      /* DAT_53200 + 61*4 == DAT_532f4 */
+        check(dw == (uint32_t)g_ds_53200.tab_532f4[0],
+              "  the past-the-table dword IS DAT_532f4[0] (0: the byte table has no shipped producer)");
+        uint8_t save[4];
+        memcpy(save, g_ds_53200.tab_532f4, 4);
+        g_ds_53200.tab_532f4[0] = 0x11;
+        g_ds_53200.tab_532f4[1] = 0x22;
+        uint32_t dw2 = 0;
+        memcpy(&dw2, (const uint8_t *)&g_ds_53200 + 61 * 4, 4);
+        check(dw2 == 0x00002211u,
+              "  seeding DAT_532f4 changes that dword: the aliasing is real, not padding");
+        memcpy(g_ds_53200.tab_532f4, save, 4);
+    }
+    check(TAB532_WALK_LIMIT == 0x44u && g_tab532_walk_clamped == 0,
+          "  the walk stops at the byte table's 68 entries (the read that leaves the block first)");
 }
 
 /* The 0x3DA retrace-wait model (docs/47): with no pump installed the wait must stay the timing-free

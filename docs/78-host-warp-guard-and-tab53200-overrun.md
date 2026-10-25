@@ -63,10 +63,11 @@ so the same unbounded read lands in padding instead of `DAT_000532f4` -- a model
 Both tables also have *no producer inside the EXE* (`seedable`, awaiting the CD backend), which is why nothing in the
 port ever keeps `cursor` inside range.
 
-Fix shape (not applied in this change, kept separate because it touches the data-segment model): lay `DAT_53200` and
-`DAT_532f4` out in one contiguous block covering `0x53200..0x53338` and index through it, exactly as the original's
-DS layout does; then the overrun read returns what the original would read. Until then ASan reports it in any long
-title/attract run, and it is *not* the warp crash docs/75 filed.
+Fix shape (**since applied**, in docs/83 -- kept as a separate change because it touches the data-segment model): lay
+`DAT_53200` and `DAT_532f4` out in one contiguous block covering `0x53200..0x53338` and index through it, exactly as
+the original's DS layout does; then the overrun read returns what the original would read. docs/83 measures the walk
+reaching cursor 61 in every run (so the aliased read does happen), with 0 ASan reports and 0 clamps. Before that
+change ASan reported it in any long title/attract run, and it was *not* the warp crash docs/75 filed.
 
 ## Reproduce
 

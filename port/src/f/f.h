@@ -833,8 +833,23 @@ void fn_036417(const char *name, uint8_t *dest, uint32_t dl); /* 0x036417: scree
 void fn_03628e(const char *name, uint32_t dl);               /* 0x03628e: screen RLE loader into the 0xa0000 video window (wraps at 0x10000, fn_03f3be fade per wrap); dl->board_out */
 void fn_03fb0e(uint8_t *node, uint32_t count); /* 0x03fb0e: load 64000 B screen image from I/O node into g_dat_51a0c via heap buf + fn_04192e */
 uint32_t fn_03f6bc(const char *name);   /* 0x03f6bc: THE TIMED EVENT PLAYER -- 0x80 B header tagged 0xaf11 at +4, MOVsx count word at +6, frame waits on DAT_63e40, per-tick sound-slot starts via DAT_53200/DAT_532f4 -> DAT_53d0c -> fn_04185e, resource ops through fn_03f80d; 0 = tag/count, 1 = key cut or op stream done */
-extern uint32_t g_tab_53200[0x3d];      /* 0x53200: the timed-event tick table (61 dwords; DAT_53200 + 61*4 = DAT_532f4 exactly); no producer inside the EXE -- seedable, awaits the CD backend */
-extern uint8_t  g_tab_532f4[0x44];      /* 0x532f4: byte table of DAT_53d0c sound-slot indices (68 bytes, up to DAT_53338); no producer inside the EXE -- seedable */
+/* DAT_00053200 .. DAT_00053338 is ONE contiguous data-segment block in the shipped image: the
+ * 61-dword timed-event tick table ends at DAT_000532f4 exactly, and the 68-byte sound-slot index
+ * table ends at DAT_00053338 exactly (DAT_00053200 + 61*4 == DAT_000532f4, + 68 == DAT_00053338).
+ * fn_03f6bc's table cursor is never bounded, so past the tick table the original keeps reading --
+ * as dwords -- the bytes of the sound-slot table. Modelled as one struct so the aliasing is the
+ * shipped one; as two separate globals the same read landed in compiler-chosen padding (docs/78,
+ * fixed in docs/83). */
+struct ds_53200_block {
+    uint32_t tab_53200[0x3d];   /* 0x53200: timed-event tick table (image constant) */
+    uint8_t  tab_532f4[0x44];   /* 0x532f4: DAT_53d0c sound-slot indices; no producer inside the EXE -- seedable */
+};                              /* 0x138 bytes: the block ends at DAT_00053338 exactly */
+extern struct ds_53200_block g_ds_53200;
+#define g_tab_53200 g_ds_53200.tab_53200
+#define g_tab_532f4 g_ds_53200.tab_532f4
+#define TAB532_WALK_LIMIT 0x44u  /* the byte read at DAT_532f4+cursor is the first read to leave the block */
+extern uint32_t g_tab532_walk_clamped;   /* host witness: fn_03f6bc ticks refused for leaving 0x53200..0x53337 */
+extern uint32_t g_tab532_walk_max;       /* host witness: highest cursor any fn_03f6bc walk reached */
 extern uint8_t  g_dat_63ec1;            /* 0x63ec1: key-pressed byte (spin/abort in the picture + timed-event drivers) */
 extern uint8_t  g_dat_63ea5;   /* DAT_00063ea5: third key byte (key waits in 0x03a224 / 0x038cde) */
 extern uint8_t  g_dat_63ec0;   /* DAT_00063ec0: fourth key byte (same key waits) */

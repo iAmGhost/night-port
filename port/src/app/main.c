@@ -1228,6 +1228,9 @@ int main(int argc, char **argv) {
     if (g_win) SDL_DestroyWindow(g_win);
     free(g_pixels);
     cd_iso_close();
+    if (getenv("NIGHT_TAB532"))   /* docs/83: witness for the fn_03f6bc tick-table walk */
+        fprintf(stderr, "tab53200 walk: max_cursor=%u clamped=%u limit=%u\n",
+                g_tab532_walk_max, g_tab532_walk_clamped, TAB532_WALK_LIMIT);
         blit_stats_dump();
 SDL_Quit();
     return 0;

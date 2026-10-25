@@ -1,0 +1,15 @@
+# Original-side settled title screen (docs/86).
+# docs/77 could not find a settled title frame because every capture window ended in the middle of the
+# slow title wipe: /tmp/dbgauto/orig_slides2/events.tsv ramps the harness's own card similarity
+# 0.0000 (1s1 = plain mode-480 fill) -> 0.3695 (title_melt_09) -> 0.8390 (title_melt_35, last sample of
+# the 6 s window). The capture-method fix is simply to hold the title long enough and keep sampling.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_long 26000
+shot title_end
+sleep 2000
+key enter 150
+record after_title 3000
+stop

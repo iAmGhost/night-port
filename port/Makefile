@@ -6,14 +6,15 @@ CFLAGS  ?= -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter
 SRC_F   = src/f/f.c src/f/fx_04794a.c
 SRC_SYS = src/sys/sys.c
 SRC_CD  = src/cd/cd_iso.c
+SRC_KEY = src/app/keymap.c
 T       = test
 
 .PHONY: all test selftest app run clean
 
 all: test
 
-$(T)/test_f1: $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) src/f/f.h src/sys/sys.h src/cd/cd_iso.h
-	$(CC) $(CFLAGS) -o $@ $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD)
+$(T)/test_f1: $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SRC_KEY) src/f/f.h src/sys/sys.h src/cd/cd_iso.h src/app/keymap.h
+	$(CC) $(CFLAGS) -Isrc -o $@ $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SRC_KEY)
 
 test: $(T)/test_f1
 	./$(T)/test_f1
@@ -33,8 +34,8 @@ $(T)/selftest: src/res/selftest.c src/res/res_container.c src/res/res_pcx.c \
 SDL_CFLAGS ?= -I/opt/homebrew/include
 SDL_LIBS   ?= -L/opt/homebrew/lib -lSDL3
 app: $(T)/night
-$(T)/night: src/app/main.c $(SRC_F) $(SRC_SYS) $(SRC_CD) src/f/f.h src/sys/sys.h src/cd/cd_iso.h
-	$(CC) $(CFLAGS) -Isrc $(SDL_CFLAGS) -o $@ src/app/main.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SDL_LIBS) -lm
+$(T)/night: src/app/main.c $(SRC_KEY) $(SRC_F) $(SRC_SYS) $(SRC_CD) src/app/keymap.h src/f/f.h src/sys/sys.h src/cd/cd_iso.h
+	$(CC) $(CFLAGS) -Isrc $(SDL_CFLAGS) -o $@ src/app/main.c $(SRC_KEY) $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SDL_LIBS) -lm
 run: app
 	./$(T)/night
 

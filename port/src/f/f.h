@@ -467,6 +467,7 @@ uint32_t heap_arena_cap(void);
  * avoid one region per allocation. */
 void     heap_region_floor_set(uint32_t bytes);
 uint32_t heap_arena_cap_get(void);
+uint32_t heap_arena_used(void);   /* docs/91: bytes taken in the arena so far */
 uint32_t heap_region_floor_get(void);
 uint32_t heap_region_floor(void);
 

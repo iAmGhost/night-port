@@ -1,0 +1,41 @@
+# docs/91: key-byte census in the ORIGINAL -- which DS key bytes does each shipped key actually set?
+# In a live episode-1 room (docs/88's spine), dump the 0x68-byte window at DS 0x63e80 (it covers 0x63e89 abort,
+# 0x63ea4/0x63ea5 confirm pair, 0x63eb2, 0x63ec0/0x63ec1 any-key pair, 0x63ec3 the level-up "help pages" mode
+# byte, and the 0x63ed0/ed3/ed5/ed8 arrow held-bytes) before and after each press. Esc is left out: it aborts
+# the run.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+shot stage_play
+readmem 0x52ff8
+readbytes 0x63e80 0x68
+key f1 150
+sleep 500
+readbytes 0x63e80 0x68
+key up 150
+sleep 500
+readbytes 0x63e80 0x68
+key down 150
+sleep 500
+readbytes 0x63e80 0x68
+key left 150
+sleep 500
+readbytes 0x63e80 0x68
+key right 150
+sleep 500
+readbytes 0x63e80 0x68
+key space 150
+sleep 500
+readbytes 0x63e80 0x68
+key enter 150
+sleep 500
+readbytes 0x63e80 0x68
+readmem 0x52ff8
+readmem 0x62c58
+stop

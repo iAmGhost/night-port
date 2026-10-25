@@ -2842,6 +2842,9 @@ uint8_t   g_dat_5340c      = 0;   /* DAT_0005340c: system-init "armed" flag (1 =
 uint8_t   g_heap_flag      = 0;   /* DAT_00063fbd (wrappers zero; never read) */
 uint32_t  g_ds_segment     = 0;   /* DPMI DS (flat model: 0) */
 static uint32_t s_arena_used = 0; /* next free offset in the arena */
+
+/* docs/91: how much of the arena the game has taken, for the soak run's growth report. */
+uint32_t heap_arena_used(void) { return s_arena_used; }
 /* NOTE: the arena reserves offset 0 as a NULL guard. Region/block offsets
  * are 32-bit values stored in 4-byte fields (to keep the 12/44-byte layout),
  * and the region chain is NULL-terminated with 0. A region at offset 0 would

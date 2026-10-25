@@ -1,0 +1,45 @@
+# docs/91 probe: hold each key across a DS read so the key bytes can be seen SET (the plain `key` op releases
+# before the next sample, which is why the census run showed only zeros). Run against the live session left by
+# drive_orig_keymap.txt (an episode-1 room).
+readbytes 0x63e80 0x68
+key_down f1
+sleep 400
+readbytes 0x63e80 0x68
+key_up f1
+sleep 400
+readbytes 0x63e80 0x68
+key_down up
+sleep 400
+readbytes 0x63e80 0x68
+key_up up
+sleep 400
+readbytes 0x63e80 0x68
+key_down down
+sleep 400
+readbytes 0x63e80 0x68
+key_up down
+sleep 400
+readbytes 0x63e80 0x68
+key_down left
+sleep 400
+readbytes 0x63e80 0x68
+key_up left
+sleep 400
+readbytes 0x63e80 0x68
+key_down right
+sleep 400
+readbytes 0x63e80 0x68
+key_up right
+sleep 400
+readbytes 0x63e80 0x68
+key_down space
+sleep 400
+readbytes 0x63e80 0x68
+key_up space
+sleep 400
+readbytes 0x63e80 0x68
+key_down enter
+sleep 400
+readbytes 0x63e80 0x68
+key_up enter
+stop

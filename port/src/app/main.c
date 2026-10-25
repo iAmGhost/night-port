@@ -21,6 +21,7 @@
 #include "cd/cd_iso.h"
 #include "f/f.h"
 #include "sys/sys.h"
+#include "keymap.h"
 
 #include <SDL3/SDL.h>
 
@@ -28,6 +29,7 @@
 #include <math.h>
 #include <setjmp.h>
 #include <stdio.h>
+#include <sys/resource.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -878,6 +880,7 @@ static void sdl_events(void) {
         case SDL_SCANCODE_RETURN:  sc = 0x1c; break;
         case SDL_SCANCODE_ESCAPE:  sc = 0x01; g_quit = 1; break;
         case SDL_SCANCODE_SPACE:   sc = 0x39; break;
+        case SDL_SCANCODE_F1:      sc = NIGHT_SC_F1; break;   /* docs/91: sets DAT_00063ec3, the level-up help pages */
         case SDL_SCANCODE_LCTRL:   sc = 0x1d; break;
         case SDL_SCANCODE_LSHIFT:  sc = 0x2a; break;
         default: break;
@@ -889,46 +892,10 @@ static void sdl_events(void) {
 
 /* the game-side half of input handling: SDL key events and the playtest script both land here, so a
  * scripted run drives exactly the bytes an interactive run does */
-static void key_apply(uint8_t sc, int make) {
-        /* The four arrow keys drive the game's dedicated "held key" bytes, and each screen reads a
-         * different pair, which is how the pairs' meaning is pinned from the consumers (all ported, with
-         * original addresses): fn_038cde / the help scroll use DAT_00063ed3 (0x00038d7b, up) and
-         * DAT_00063ed5 (0x00038df0, down); fn_039c03 (the setup menu) walks its entry index with
-         * DAT_00063ed0 (0x00039d2a) and DAT_00063ed8 (0x00039d86) and toggles the selected entry's value
-         * with DAT_00063ed3 / DAT_00063ed5 (0x00039de2) -- so Left/Right move between entries and
-         * Up/Down change the value, and the arrows are the ed0/ed8 pair. The original set these in its
-         * keyboard handler (not in the pump fn_0347e3, which only walks the scan-code slots), so the host
-         * writes them directly. docs/60. */
-        switch (sc) {
-        case 0x48: g_dat_63ed3 = (uint8_t)make; break;      /* up */
-        case 0x50: g_dat_63ed5 = (uint8_t)make; break;      /* down */
-        case 0x4b: g_dat_63ed0 = (uint8_t)make; break;      /* left */
-        case 0x4d: g_dat_63ed8 = (uint8_t)make; break;      /* right */
-        default: break;
-        }
-        /* The game's own key bytes (the DS bytes its keyboard pump used to set; the menu in fn_03a224
-         * and every key wait read these): 63ea4 = confirm, 63ed0/63ed8 = the held select keys,
-         * 63e89 = abort, 63ec1 = a plain key press. The arrows are deliberately NOT "any key": fn_039c03
-         * leaves the menu with m = 0x64 as soon as DAT_00063eb2 / DAT_00063ebe are set (0x00039ce6-d25),
-         * so feeding them from an arrow press would make the menu impossible to navigate (docs/60). */
-        uint8_t *byte = (sc == 0x1c || sc == 0x39) ? &g_dat_63ea4      /* enter / space: confirm */
-                    : (sc == 0x01) ? &g_dat_63e89                      /* esc: abort */
-                    : (sc == 0x48 || sc == 0x50 || sc == 0x4b || sc == 0x4d) ? (uint8_t *)0
-                    : &g_dat_63ec1;
-        if (byte != (uint8_t *)0) *byte = (uint8_t)make;
-        if (sc != 0x48 && sc != 0x50 && sc != 0x4b && sc != 0x4d) {
-            /* The "any key" bytes follow the key: set on make, cleared on break. If they latched, the
-             * setup menu (fn_039c03) would leave on its very first frame -- its entry check spins until
-             * DAT_00063e89 / 0x63eb2 / 0x63ebe are clear and then exits with m = 0x64 (0x00039ce6-d25) --
-             * and every "wait for a key" loop would fall through. */
-            g_dat_63eb2 = (uint8_t)make; g_dat_63ebe = (uint8_t)make;
-        }
-        if (make) {
-            g_dat_62c58[sc] = 1;                           /* scan-code slot, as fn_0343d1 arms it */
-        } else {
-            g_dat_62c58[sc] = 0;
-        }
-}
+/* The game-side half of input handling: SDL key events and the playtest script both land here, so a
+ * scripted run drives exactly the bytes an interactive run does. The mapping itself lives in
+ * src/app/keymap.c (docs/91) because the test binary asserts it against the values measured on the original. */
+static void key_apply(uint8_t sc, int make) { night_key_apply(sc, make); }
 
 static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
@@ -1144,6 +1111,22 @@ static void tick_pump(void) {
             if (fp) { fwrite((const void *)g_heap_base, 1, heap_arena_cap_get(), fp); fclose(fp); }
             SDL_Log("heap dump: base=%p cap=%#x", (void *)g_heap_base, heap_arena_cap_get());
         } }
+        {   /* docs/91 soak witness: arena take-up and RSS, tagged with the stage in play.
+             * getrusage rather than SDL_GetProcessMemoryInfo: it is in every SDL3 we build against, and
+             * ru_maxrss is KiB on Linux and bytes on macOS -- the unit is named in the log line. */
+            struct rusage ru;
+            if (getrusage(RUSAGE_SELF, &ru) == 0) {
+#if defined(__APPLE__)
+                long long rss_kb = (long long)ru.ru_maxrss / 1024; const char *unit = "KB";
+#else
+                long long rss_kb = (long long)ru.ru_maxrss; const char *unit = "KB";
+#endif
+                (void)unit;
+                SDL_Log("memstat stage=%u frames=%u arena=%u/%u rss_max=%lld KB",
+                        (unsigned)g_dat_63370, (unsigned)g_frames,
+                        heap_arena_used(), heap_arena_cap_get(), rss_kb);
+            }
+        }
         g_diag_next = now + g_perf_freq;
     }
     if (now < g_tick_next) return;

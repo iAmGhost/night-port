@@ -357,6 +357,13 @@ def main():
             key(step[1], int(step[2]) if len(step) > 2 else 150)
             si += 1
             continue
+        if op in ("key_down", "key_up"):   # hold a key across a memory read, then release it
+            kn = KEY_DEFAULTS.get(step[1], step[1] if step[1].startswith("KBD_") else "KBD_" + step[1])
+            r = api(a.base, a.token, "/api/v1/input/sequence", "POST",
+                    {"events": [{"type": "key", "key": kn, "pressed": op == "key_down"}]})
+            print("%s %s -> %s" % (op, kn, str(r)[:120]))
+            si += 1
+            continue
         if op == "type":
             api(a.base, a.token, "/api/v1/input/type", "POST", {"text": step[1]})
             si += 1
@@ -395,6 +402,12 @@ def main():
             dat = int(step[1], 0)
             ptr = int.from_bytes(mem_read(mem_phys(dat), 4), "little")
             print("readptr %s = %d (%#x)%s" % (step[1], ptr, ptr, "  [absolute]" if ptr >= 0x100000 else "  [DS-relative]"))
+            si += 1
+            continue
+        if op == "readbytes":   # readbytes <DAT-hex> <count>: one hex dump line, for a key-byte census
+            dat = int(step[1], 0); n = int(step[2], 0)
+            data = mem_read(mem_phys(dat), n)
+            print("readbytes %s +%d = %s" % (step[1], n, data.hex()))
             si += 1
             continue
         if op == "recoff":      # recoff <DAT-hex holding a record pointer> <field-offset-hex>

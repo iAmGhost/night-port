@@ -3,6 +3,7 @@
  * plus I/O sequence capture for the board ports.
  * Exit 0 = all pass. */
 #include "../src/f/f.h"
+#include "../src/app/keymap.h"
 #include "../src/sys/sys.h"
 #include "../src/cd/cd_iso.h"
 #include <stdio.h>
@@ -11851,6 +11852,79 @@ static void test_title_wipe_window_cost(void) {
  * their in-game call sites guarantee. fn_038445 (game over / CONTINUE) opens with fn_0406f5(g_dat_63354 + 0x48,
  * 0x32), a 50-step DAC fade-out of the CURRENT ROOM's palette; with no room loaded that dereferences address 0x48
  * (measured under ASan: SEGV on unknown address 0x000000000048 at f.c:288 <- f.c:24208). The gate must refuse. */
+/* docs/91: the host scancode -> shipped DS key-byte map, asserted against the bytes MEASURED in the original
+ * (scripts/playtest/probe_orig_keybytes.txt holds one key down across a DS dump of 0x63e80..0x63ee8): Up 0x48
+ * arms DAT_00063ed0, Down 0x50 arms DAT_00063ed8, Left 0x4b arms DAT_00063ed3, Right 0x4d arms DAT_00063ed5,
+ * Space 0x39 arms DAT_00063ec1, Enter 0x1c arms DAT_00063ea4, Esc 0x01 arms DAT_00063e89, and F1 0x3b arms
+ * DAT_00063ec3 -- the mode byte the level-up screen tests at 0x0003922a before its help-page branch, which is
+ * what makes the screen's "HELP:F1" footer real. The scan-code slots are armed at the scancode index (the
+ * original shows Enter/space/F1 armed at DAT_00062c58+0x1c/0x39/0x3b), and the pump fn_0347e3 dispatches the
+ * arrow slots to fn_034635 (repeat counter walks) while leaving other slots alone, gated by DAT_00052ff8. */
+static void test_key_map_measured(void) {
+    printf("key map: measured scancode -> DS key bytes, and the fn_0347e3 dispatch\n");
+    uint8_t saved_slots[0x80], saved_cd8[0x80];
+    memcpy(saved_slots, g_dat_62c58, sizeof saved_slots);
+    memcpy(saved_cd8, g_dat_62cd8, sizeof saved_cd8);
+    uint8_t s89 = g_dat_63e89, s_a4 = g_dat_63ea4, s_c1 = g_dat_63ec1, s_c3 = g_dat_63ec3;
+    uint8_t s_b2 = g_dat_63eb2, s_be = g_dat_63ebe;
+    uint8_t d0 = g_dat_63ed0, d3 = g_dat_63ed3, d5 = g_dat_63ed5, d8 = g_dat_63ed8;
+    uint8_t ff8 = g_dat_52ff8; uint32_t d5c = g_dat_62d5c;
+
+    struct { uint8_t sc; const char *name; uint8_t *byte; } m[] = {
+        { NIGHT_SC_UP,    "Up 0x48    -> DAT_00063ed0", &g_dat_63ed0 },
+        { NIGHT_SC_DOWN,  "Down 0x50  -> DAT_00063ed8", &g_dat_63ed8 },
+        { NIGHT_SC_LEFT,  "Left 0x4b  -> DAT_00063ed3", &g_dat_63ed3 },
+        { NIGHT_SC_RIGHT, "Right 0x4d -> DAT_00063ed5", &g_dat_63ed5 },
+        { NIGHT_SC_SPACE, "Space 0x39 -> DAT_00063ec1", &g_dat_63ec1 },
+        { NIGHT_SC_ENTER, "Enter 0x1c -> DAT_00063ea4", &g_dat_63ea4 },
+        { NIGHT_SC_ESC,   "Esc 0x01   -> DAT_00063e89", &g_dat_63e89 },
+        { NIGHT_SC_F1,    "F1 0x3b    -> DAT_00063ec3 (the level-up help-page test at 0x0003922a)", &g_dat_63ec3 },
+    };
+    for (unsigned k = 0; k < sizeof m / sizeof m[0]; k++) {
+        memset(g_dat_62c58, 0, sizeof g_dat_62c58);
+        g_dat_63e89 = g_dat_63ea4 = g_dat_63ec1 = g_dat_63ec3 = 0;
+        g_dat_63ed0 = g_dat_63ed3 = g_dat_63ed5 = g_dat_63ed8 = 0;
+        night_key_apply(m[k].sc, 1);
+        check(*m[k].byte == 1, m[k].name);
+        check(g_dat_62c58[m[k].sc] == 1, "  and the scan-code slot is armed at the scancode index");
+        /* measured: one byte per key -- the arrow bytes stay clear for the non-arrow keys and vice versa */
+        int arrows_clear = (m[k].sc < 0x48) && g_dat_63ed0 == 0 && g_dat_63ed3 == 0 &&
+                           g_dat_63ed5 == 0 && g_dat_63ed8 == 0;
+        int others_clear = (m[k].sc >= 0x48) && g_dat_63e89 == 0 && g_dat_63ea4 == 0 &&
+                           g_dat_63ec1 == 0 && g_dat_63ec3 == 0;
+        check(arrows_clear || others_clear, "  exactly one key byte moves for this key");
+        night_key_apply(m[k].sc, 0);
+        check(*m[k].byte == 0 && g_dat_62c58[m[k].sc] == 0, "  released on break");
+    }
+    /* F1 must not touch the "any key" bytes, or the level-up screen would leave instead of paging help */
+    memset(g_dat_62c58, 0, sizeof g_dat_62c58);
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63eb2 = g_dat_63ebe = 0;
+    night_key_apply(NIGHT_SC_F1, 1);
+    check(g_dat_63ec3 == 1 && g_dat_63ec1 == 0 && g_dat_63ea4 == 0 && g_dat_63eb2 == 0 && g_dat_63ebe == 0,
+          "F1 arms only the help-page mode byte (measured), so the level-up screen pages help instead of leaving");
+
+    /* the pump dispatch, fn_0347e3 (0x0003483a-0x000348c3): arrow slots go to fn_034635, whose repeat counter
+     * walks the slot (0x00034xxx: <4 -> ++); an unhandled slot stays put; DAT_00052ff8 == 0 freezes all of it */
+    memset(g_dat_62c58, 0, sizeof g_dat_62c58); memset(g_dat_62cd8, 0, sizeof g_dat_62cd8);
+    g_dat_52ff8 = 1; g_dat_62d5c = 0;
+    g_dat_62c58[NIGHT_SC_UP] = 2; g_dat_62c58[NIGHT_SC_SPACE] = 2;
+    fn_0347e3();
+    check(g_dat_62c58[NIGHT_SC_UP] == 3, "  the pump walks the arrow slot through fn_034635 (2 -> 3)");
+    check(g_dat_62c58[NIGHT_SC_SPACE] == 2, "  a non-arrow slot stays put (no handler in the switch)");
+    g_dat_62c58[NIGHT_SC_UP] = 2;
+    g_dat_52ff8 = 0;
+    fn_0347e3();
+    check(g_dat_62c58[NIGHT_SC_UP] == 2, "  DAT_00052ff8 == 0 gates the whole pump (0x000347fb-0x000347cf)");
+
+    memset(g_dat_62c58, 0, sizeof g_dat_62c58);
+    memcpy(g_dat_62c58, saved_slots, sizeof g_dat_62c58);
+    memcpy(g_dat_62cd8, saved_cd8, sizeof g_dat_62cd8);
+    g_dat_63e89 = s89; g_dat_63ea4 = s_a4; g_dat_63ec1 = s_c1; g_dat_63ec3 = s_c3;
+    g_dat_63eb2 = s_b2; g_dat_63ebe = s_be;
+    g_dat_63ed0 = d0; g_dat_63ed3 = d3; g_dat_63ed5 = d5; g_dat_63ed8 = d8;
+    g_dat_52ff8 = ff8; g_dat_62d5c = d5c;
+}
+
 static void test_showscreen_gate(void) {
     printf("host debug-warp gate: fn_038445 needs a current room record (docs/78)\n");
     uint8_t *save = g_dat_63354;
@@ -18406,6 +18480,7 @@ int main(void) {
     test_fn_03f462();
     test_title_wipe_window_cost();
     test_showscreen_gate();
+    test_key_map_measured();
     test_fn_03a5f7();
     test_fn_03c231();
     test_fn_03b953();

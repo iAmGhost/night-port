@@ -1,0 +1,13 @@
+# Original-side attract flow after the title card (docs/87). No keys at all: docs/60 measured that the
+# port's attract loop switches to the setup / attract menu (fn_039c03, pause.spr) on its own after the
+# title card, without any key press, and docs/86 showed the original holds title3 for at least 15 s.
+# So: settle the title, then keep sampling long enough to catch the attract menu, then read the state.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record attract_wait 70000
+shot attract_end
+readmem 0x63370
+readmem 0x53338
+stop

@@ -1,0 +1,42 @@
+# Original-side setup / attract menu (fn_039c03, pause.spr) -- docs/87.
+# The routine has exactly ONE xref in the shipped binary: UNCONDITIONAL_CALL from 0x0003aac1, inside the room
+# play loop fn_03a829, guarded by "if (DAT_00063e89 != 0 && player[0x30] != 1)" (0x0003aa9f-0x0003aac6) -- the
+# abort latch, i.e. the menu is reachable only from a LIVE room. So: reach a live room with the docs/81 spine
+# (forced episode, then key_until_mode_stable so mode 13h HOLDS), read the latch byte, press esc, and sample
+# the menu; then Left/Down to walk the entry index and toggles, exactly as docs/60 measured on the port side.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+shot stage_play
+readmem 0x63e89
+readmem 0x63354
+record gameplay 4000
+key esc 150
+readmem 0x63e89
+readmem 0x63354
+record menu_m0 4000
+key left 150
+record menu_m4 4000
+key left 150
+record menu_m3 4000
+key down 150
+record menu_m3_t1 4000
+key down 150
+record menu_m3_t2 4000
+key left 150
+record menu_m2 4000
+key down 150
+record menu_m2_t1 4000
+readmem 0x53338
+readmem 0x51a10
+key enter 150
+record menu_exit 6000
+readmem 0x63370
+readmem 0x63354
+stop

@@ -14219,6 +14219,20 @@ void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
                                                                   * gage.spr data (scripts/playtest_verify_spr.py,
                                                                   * docs/50 / docs/63) */
             g_hud_trace_left--;
+            /* docs/87: the same witness for the portrait cell (face.spr record [+0x0d] at
+             * (slot*0xaa+4, row 3), blitted at 0x13702) so scripts/playtest_asset_census.py can attribute the
+             * HUD face by CONTENT like every other glyph site. Its own budget, so it cannot starve the gauge. */
+            static int s_face_left = 8;
+            if (s_face_left > 0) {
+                s_face_left--;
+                const uint8_t *fs_ = hb + face[14] + *(const uint32_t *)(hb + face[13] + 4u * gi);
+                fprintf(stderr, "menucell tag=hudface k=0 dest=%#x srow=%d col=%u rows=%u stream=",
+                        slot * 0xaa + 4, 3,
+                        *(const uint32_t *)(hb + face[1] + 4u * gi),
+                        *(const uint32_t *)(hb + face[2] + 4u * gi));
+                trace_stream_hex(fs_);
+                fprintf(stderr, "\n");
+            }
             const uint8_t *st_ = hb + gage[14];
             unsigned col_ = *(const uint32_t *)(hb + gage[1]);
             unsigned rows_ = *(const uint32_t *)(hb + gage[2]);

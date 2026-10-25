@@ -82,7 +82,9 @@ Total: 17 distinct shipped `.spr` assets seen being drawn by content attribution
    have ended, so `NIGHT_MENUBG` produced no cells for those three runs. The same screens *are* byte-verified through
    dedicated runs -- pause menu cells (docs/60, docs/63), the level-up digits via the `lvlnum` trace (docs/61), the
    ending slide show with 116 frames byte-identical over 307,200 arena bytes (docs/66). Follow-up: point those three
-   census entries at the routes/frames that reach them. Attempts made and ruled out: `route_levelup_warp.txt`, and
+   census entries at the routes/frames that reach them. **[filed, unchanged: docs/80 re-ran those routes and the census run
+   still emits 0 traced composites for them -- the `setup` census run loads all ten shared screen assets yet composites
+   none, so it stays recorded as a census run-shape limitation rather than an unrendered screen.] Attempts made and ruled out: `route_levelup_warp.txt`, and
    `route_attract_wait.txt` with `NIGHT_SHOWSCREEN=levelup` at the frame docs/61 measured (2777) -- both produce zero
    traced composites, so something about the census' process shape (short shot limit, no `NIGHT_BOARD`) keeps those
    screens from compositing; the digit-glyph attribution was also widened to accept streams shorter than 8 bytes and
@@ -95,6 +97,13 @@ Total: 17 distinct shipped `.spr` assets seen being drawn by content attribution
    it was never fully on screen; the effect sprites (`dust`, `mark`, `exp`) fire on hits, which scripted play does not
    produce; `face`/`system` belong to the setup/status menus. Follow-up: per-stage dwell with the player walking
    right, plus a scripted fight to fire the effect sprites.
+   **[closed with structural reasons, docs/80]** the dwell-and-fire route (`scripts/playtest/route_walk_fight.txt`) was
+   added and composited **no new families**, and the census now reports the game's own lookup trace beside the
+   attribution: every one of these assets **is loaded inside the episode that references it** (ep1 20 loaded / 17 never
+   composited, incl. `boss1`, `enc-1/2`, `st1s`, `system`, `dust`, `exp`, `face`; ep2 21/17 incl. `boss2`, `eng-1/2/3`;
+   ep9 23/21 incl. `boss7`, `eni-1..4`, `enj-1..4`). So the gap is spawn position and phase -- scripted play never clears
+   a room, bosses sit at a stage's end (only ep8's `boss6` is on screen from the start), `dust`/`mark`/`exp` need impacts
+   -- not a port omission.
 
 ## Harness caveats found
 

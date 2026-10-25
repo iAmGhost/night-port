@@ -95,5 +95,15 @@ Suite after the change: `make -C port test` ALL PASS, `make -C port selftest` AL
 - The window-write charge is applied in `fn_03f462` only (the slide/title writer). Other writers into the arena -- the
   room renderer's page flip and the sprite blitter -- are not charged yet, so their pacing is still modelled only by
   the retrace wait and `delay_units`. That is the natural next step and is filed in the playtest log.
+  **[closed, docs/76]** the room path now charges the window write at the three page-flip sites and nowhere else (the
+  background plane, entity sprites, glyph displays and gauge all write the off-screen `g_screen_ram` screens, so charging
+  the blitter would double-count RAM work). Measured with `NIGHT_FRAMERATE=1`: 70.0 calls/s drawn for `NIGHT_VGA_WS=0..223`
+  ns/byte, shedding above ~223 (50.8 drawn at 300), flip cost 4.03-6.24 ms of the 14.29 ms budget, and the title ramp /
+  logo spans unchanged (6002 vs 6005 ms, 2603 vs 2592 ms).
 - The port's title settles at fitted gain ~0.997 against the card while the original settles at ~0.79; that palette
   level difference is separate from pacing and still open.
+  **[closed as a measurement artifact, docs/77]** the ~0.79 was fitted to a capture holding zero card-palette colours
+  (exact-card-colour share 0.000 in both channel orders; 1->42->98->149->159 distinct colours, i.e. a transition rather
+  than a settled card), and per-channel fits are impossible for a DAC fade. The port reproduces the shipped palette
+  verbatim at gain 1.0 ((41,8,8)->(40,8,8) is the 6-bit DAC quantisation). Rule: never quote a fitted gain without its
+  premise check.

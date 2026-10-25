@@ -69,6 +69,14 @@ not the per-picture key wait that the port needed the cooperative pump for (docs
 original's forced stage-8 window actually shows (candidate: a picture-show card other than `na80001`, or a room that
 needs per-episode state the forced index does not supply). The port's stage 8 itself plays, renders and accepts
 control, with the entity-sprite and HUD composites byte-verified in docs/59's sweep.
+**[closed, docs/82]** the window is the live episode-8 room with the episode's CG dialogue card (`na80001.pcx` content:
+the speaker bust plus the subtitle box reading the same Korean line) composited over it -- identified by identical
+per-colour occurrence counts in the bust region (1246 / 891 / 790 / 640 / 463 / 395 on both sides, colours a few LSBs
+apart) and by the card's teal key `(27,123,143)` covering 57.27 % of the card appearing on **0.00 %** of the window's
+pixels. It is static because the show runs once per room inside the room loop (`fn_03a70e`) and waits a key per picture
+(docs/52). The 4.53 % / NCC 0.197 was a **phase** artifact: the port frame compared there had already left the show.
+Aligned, the port's show frame is 100.00 % within +-3 (MAE 0.24, NCC 100.00 %) of the original's window, and the docs/74
+pairing reproduces at 4.48 % / NCC 20.93 %. Guard: `scripts/playtest_ep8_show.py`.
 
 ## Container / API notes (each of these cost a run)
 

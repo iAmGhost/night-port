@@ -92,6 +92,9 @@ artifact of one emulator setting.
 - the pause menu now has an original frame (pink panel: LEVEL UP MODE / COMMAND LIST / BGM MODE / SOUND MODE /
   EXIT TO DOS) against the port's `pause_m0/m4/m3`; the whole-frame NCC is 0.87 because the underlying gameplay
   differs, so the menu panel region has to be compared separately.
+  **[re-scored, docs/79]** that 0.87 was measured against a channel-mirrored 320x200 capture; the corrected-basis
+  number is **86.18 % of the 64,000 pixels within +-3, NCC 0.860, MAE 9.04** with the residual confined to the live
+  gameplay backdrop behind the window (the window itself is byte-verified against `pause.spr`) -- docs/75.
 
 ## Clean slide window on the original: one more thing to learn, and the title card needs the press to land late
 

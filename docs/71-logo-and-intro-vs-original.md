@@ -80,6 +80,13 @@ Findings:
 - **The two sides show the same frame at the same .fli index**: 277 index-matched pairs, median 100 % of pixels
   within +-3, NCC 1.0000, and 170 pairs with >= 99 % of pixels within +-3 (MAE 0.06-0.08 on the best ones). Side by
   side: `docs/manual-playtest/08-shots/fli_idxNNNN_port_vs_original.png` (port left, original right).
+- **Channel order checked for this capture, per docs/79.** The `.fli` window is mode 13h, which docs/70 found delivers
+  BGRX payloads -- but these pairs are not mirrored. Re-measuring the published figures
+  (`docs/manual-playtest/08-shots/fli_idx*_port_vs_original.png`): the original half carries a chromatic palette (R == B
+  on only 0.7-4.7 % of pixels in `fli_idx0129` / `fli_idx0133`), and comparing as published gives **100.00 %** of pixels
+  within +-3 while exchanging R and B collapses it to **0.67 % / 4.65 %**. So this capture's 320x200 payloads were already
+  in the right order: **the channel order is a property of the capture configuration, not of the video mode**, and must be
+  anchored per capture (docs/70's shipped-data anchor) rather than inferred from the mode.
 - **Playback rate matches**: 28.65 (original) vs 28.56 (port) .fli frames/s -> ratio 0.997. This is the first
   independent pacing measurement that does not rely on the port's own clock.
 - Why 277 pairs and not more: the original is sampled at 6 Hz against a ~35 fps video, so only every ~6th frame is

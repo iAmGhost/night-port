@@ -67,9 +67,11 @@ in is monotone over ~0.6-0.8 s, and both settle at mean luma 94.5-95.0 with edge
 port's transition is sheared any more (`docs/manual-playtest/07-shots/stage1_transition_port_after.png` next to
 `stage1_transition_original.png`: the same station platform, HUD panel, DANGER sign and train).
 
-Paired similarity of the settled frames is NCC 0.9928; per-pixel agreement is only 1.26 % within +-3 (MAE 14.6)
-because the two runs are at different game states (the player and enemies stand in different places), which is
-expected for gameplay frames -- but computing it is what exposed the next defect, below.
+Paired similarity of the settled frames is NCC 0.9928; per-pixel agreement was reported as only 1.26 % within +-3
+(MAE 14.6), which was put down to the two runs being at different game states. **That number was measured against a
+channel-mirrored capture and is superseded** (docs/70): the same pair re-scored with the corrected payload order gives
+**100.0000 % of pixels within +-3, MAE 0.17, 65.7 % exactly equal**, the residual being entity positions only. Computing
+it is what exposed the next defect, below. See docs/79 for the re-scoring table.
 
 ## New defect found while scoring that pair: the room palette has R and B exchanged
 

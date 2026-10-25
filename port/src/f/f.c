@@ -14180,6 +14180,7 @@ void fn_03801b(uint32_t base)
         fn_0137c1((uint8_t *)g_dat_53c84, base);                      /* 0x38073 */
     }
     cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram);  /* 0x38078-8c */
+    vga_charge(64000u);   /* the only A0000-window write of a room frame: 16000 dwords through the window */
     g_view_320x200 = 1;   /* host view hint, measured not guessed: this copy writes 0x3e80 dwords =
                            * 64000 bytes = one 320x200 mode-13h room frame into the window, and the playtest
                            * log's "stage 1 starts corrupted, recovers after a while" is exactly what happens
@@ -14350,8 +14351,28 @@ static int s_38098;
 void fn_038098(uint32_t base)
 {
     (void)canary_id((uintptr_t)base, 0x38);                     /* 0x38098-9d probe (0x38) */
-    fn_013aad((uint32_t)(uintptr_t)g_dat_53c70);                /* 0x380c6-cb (EAX = entity list head) */
+    /* Host diagnosis (docs/76): the room pump's own cadence, i.e. how many page flips per second the tick gate
+     * (n = 0x1ea/DAT_53104 ticks) and the modelled window-write cost together allow. */
+    static int s_frate = -1;
+    if (s_frate < 0) { const char *e = getenv("NIGHT_FRAMERATE"); s_frate = (e && *e) ? 1 : 0; }
     int32_t n = (int32_t)(0x1eau / g_dat_53104);                /* 0x380d0-dd (signed idiv) */
+    if (s_frate) {
+        static uint64_t s_t0, s_next; static uint32_t s_n, s_skip;
+        uint64_t now = sys_now_us();
+        if (!s_t0) { s_t0 = now; s_next = now + 1000000u; }
+        s_n++;
+        if (n <= (int32_t)g_dat_63e24) s_skip++;
+        if (now >= s_next) {
+            fprintf(stderr, "framerate: room calls=%.1f/s drawn=%.1f/s skipped=%.1f/s "
+                            "window_bytes=%llu window_ns=%u per_flip_bytes=%u\n",
+                    (double)s_n * 1000000.0 / (double)(now - s_t0),
+                    (double)(s_n - s_skip) * 1000000.0 / (double)(now - s_t0),
+                    (double)s_skip * 1000000.0 / (double)(now - s_t0),
+                    (unsigned long long)g_vga_window_bytes, g_vga_window_ns, 64000u);
+            s_t0 = now; s_n = 0; s_skip = 0; s_next = now + 1000000u;
+        }
+    }
+    fn_013aad((uint32_t)(uintptr_t)g_dat_53c70);                /* 0x380c6-cb (EAX = entity list head) */
     if (g_dbg_03d606 && s_38098++ < 6) fprintf(stderr, "038098 base=%#x DAT_53104=%u n=%d DAT_63e24=%u -> %s "
             "pitch(DAT_63e64)=%d xres(63e68)=%d wrap(DAT_531f4)=%#x\n",
             base, g_dat_53104, n, g_dat_63e24, n > (int32_t)g_dat_63e24 ? "draw+flip" : "skip",
@@ -14369,6 +14390,7 @@ void fn_038098(uint32_t base)
             fn_01348f((uint8_t *)(uintptr_t)g_dat_53c88, base, 1); /* 0x38142-4f */
         }
         cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x38154-68 */
+        vga_charge(64000u);   /* window-write cost of the room page flip (see fn_03801b) */
         g_view_320x200 = 1;   /* host view hint: the last thing written to the framebuffer is a
                                * 320x200 (0x140 pitch, 0xfa00 byte) room frame, not a 640x480 slide */
     }
@@ -14438,6 +14460,7 @@ void fn_0381d7(uint32_t base, int32_t dx, int32_t dy, int32_t steps, int32_t fac
                 fn_0137c1((uint8_t *)g_dat_53c84, base);        /* 0x38314-1c */
             }
             cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x3833b-4f */
+            vga_charge(64000u);   /* window-write cost of the walk-step page flip (see fn_03801b) */
         }
         while (n > (int32_t)g_dat_63e24) { if (!sys_port_spin()) break; }   /* VBLANK busy-wait */
         g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24

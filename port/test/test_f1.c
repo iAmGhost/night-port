@@ -11847,6 +11847,26 @@ static void test_title_wipe_window_cost(void) {
     g_dat_531f4 = W0; g_dat_63e64 = P0;
 }
 
+/* docs/78: the host's NIGHT_SHOWSCREEN debug warp calls shipped screen routines, which carry the preconditions
+ * their in-game call sites guarantee. fn_038445 (game over / CONTINUE) opens with fn_0406f5(g_dat_63354 + 0x48,
+ * 0x32), a 50-step DAC fade-out of the CURRENT ROOM's palette; with no room loaded that dereferences address 0x48
+ * (measured under ASan: SEGV on unknown address 0x000000000048 at f.c:288 <- f.c:24208). The gate must refuse. */
+static void test_showscreen_gate(void) {
+    printf("host debug-warp gate: fn_038445 needs a current room record (docs/78)\n");
+    uint8_t *save = g_dat_63354;
+    g_dat_63354 = 0;
+    const char *why = fn_showscreen_gate("gameover");
+    check(why != 0, "the game-over warp is refused while DAT_63354 is null");
+    check(why && strstr(why, "DAT_63354") != 0, "the refusal names the missing shipped state");
+    static uint8_t room[0x80];
+    g_dat_63354 = room;
+    check(fn_showscreen_gate("gameover") == 0, "the warp is allowed once a room record exists");
+    g_dat_63354 = 0;
+    check(fn_showscreen_gate("ending") == 0, "the ending slide show has no room precondition to gate");
+    check(fn_showscreen_gate("bogus") == 0, "an unknown screen is reported by the caller, not the gate");
+    g_dat_63354 = save;
+}
+
 static void test_fn_03a5f7(void) {
     printf("fn_03a5f7 (0x03a5f7): progressive horizontal reveal of 200-row source into A0000\n");
     uint8_t *scr = g_video_ram;         /* dst via video_map(0xa0000+off) */
@@ -18208,6 +18228,7 @@ int main(void) {
     test_fn_03rle();
     test_fn_03f462();
     test_title_wipe_window_cost();
+    test_showscreen_gate();
     test_fn_03a5f7();
     test_fn_03c231();
     test_fn_03b953();

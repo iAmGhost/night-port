@@ -1040,7 +1040,16 @@ static void tick_pump(void) {
         { static int s_shown;                                  /* the debug warp for the menu screens */
           const char *what = getenv("NIGHT_SHOWSCREEN");
           long at = getenv("NIGHT_SHOWSCREEN_AT") ? atol(getenv("NIGHT_SHOWSCREEN_AT")) : 4000;
+          static int s_defer_logged;
           if (what && !s_shown && (long)g_frames >= at) {
+              /* docs/78: the shipped screen routines carry the preconditions their in-game call sites guarantee.
+               * fn_038445 opens by fading the CURRENT ROOM's palette out of DAT_63354+0x48, so warping to it
+               * before any room is loaded dereferences 0x48 (ASan SEGV). Defer instead of firing. */
+              const char *why = fn_showscreen_gate(what);
+              if (why) {
+                  if (!s_defer_logged) { s_defer_logged = 1;
+                      SDL_Log("showscreen warp: %s deferred at frame %u: %s", what, g_frames, why); }
+              } else {
               s_shown = 1;
               SDL_Log("showscreen warp: %s at frame %u", what, g_frames);
               g_warp_active = 1; g_warp_next_shot = SDL_GetPerformanceCounter() + g_perf_freq / 2;
@@ -1057,6 +1066,7 @@ static void tick_pump(void) {
                                                                    * play does not do */
               else SDL_Log("showscreen warp: unknown screen '%s'", what);
               g_warp_active = 0;
+              }
           } }
     if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();

@@ -291,6 +291,23 @@ void fn_0406f5(const uint8_t *arg1, uint32_t arg2) {
     }
 }
 
+/* Host debug-warp gate (docs/78). NIGHT_SHOWSCREEN calls a shipped screen routine from the host's tick pump,
+ * and those routines carry the preconditions the shipped call sites guarantee. fn_038445 (game over / CONTINUE)
+ * opens with fn_0406f5(g_dat_63354 + 0x48, 0x32), a 50-step DAC fade-out of the CURRENT ROOM's palette, so it
+ * needs a room record: its only in-game call site (0x0003aecf) sits inside the room play loop where one always
+ * exists. Warping to it during the title/attract phase dereferences 0x0 + 0x48 (measured under ASan:
+ * "SEGV on unknown address 0x000000000048", fn_0406f5 f.c:288 <- fn_038445 f.c:24208). Returns 0 when the warp
+ * is safe, otherwise the reason it must be deferred. */
+const char *fn_showscreen_gate(const char *what)
+{
+    if (!what) return "no screen requested";
+    if (!strcmp(what, "gameover")) {
+        if (g_dat_63354 == 0) return "no current room record (DAT_63354 == 0): fn_038445 fades the room palette";
+        return 0;
+    }
+    return 0;                      /* no shipped precondition proven for the other warps yet */
+}
+
 /* board_in  orig: 0x040061
  *   outb(0x3C7, a); REP INSB: 3*b bytes from port 0x3C9 -> c
  * a = control byte, b = n, c = buffer

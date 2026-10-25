@@ -1,0 +1,27 @@
+# docs/82: what does the ORIGINAL show in the forced episode-8 window (the docs/74 finding: a static 320x200
+# picture, 27 identical frames, that matched neither na80001.pcx nor stage8.pcx)? Same spine as docs/74's warp
+# drive, but with the stable mode pacing measured in docs/81, and the guest state read across the window.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+writemem 0x63370 8
+record slides 9000
+key_until_mode_stable 200 enter 40 1200 4
+shot stage_play
+readmem 0x63370
+readmem 0x63354
+readmem 0x6336c
+record window_a 12000
+readmem 0x63354
+record window_b 12000
+key enter 150
+key enter 150
+key space 150
+record window_c 12000
+readmem 0x63354
+readmem 0x6336c
+stop

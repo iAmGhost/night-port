@@ -2391,13 +2391,13 @@ static void test_fn_010d47(void) {
 
 static void test_fn_015295(void) {
     printf("fn_015295 (0x015295, entity tick: clamp + conditional list-insert + accumulator)\n");
-    uint8_t *sv53c7c = g_dat_53c7c, *sv53c80 = g_dat_53c80;
+    uint8_t *sv53c7c = g_player_ent, *sv53c80 = g_latched_ent;
     uint32_t sv639dc = g_dat_639dc;
     uint8_t *sv_cc = g_dat_639cc, *sv_d0 = g_dat_639d0;
     uint32_t sv_c8 = g_dat_639c8;
     uint8_t accbuf[0x60] = {0};
     uint8_t other[8] = {0};
-    g_dat_53c7c = accbuf; g_dat_639dc = 0;
+    g_player_ent = accbuf; g_dat_639dc = 0;
     g_dat_639cc = NULL; g_dat_639d0 = NULL; g_dat_639c8 = 0;
     uint8_t *nodeA = NULL, *nodeB = NULL;
 
@@ -2435,7 +2435,7 @@ static void test_fn_015295(void) {
         *(int32_t*)(s+5) = -3; s[0x30] = 1; s[0x25] = 0; s[0] = 1;
         *(int32_t*)(s+0x11) = 0x16;
         *(uint32_t*)(s+1) = 0x200; *(uint32_t*)(s+9) = 0x300; *(uint32_t*)(s+0x32) = 0x400;
-        g_dat_53c80 = s;   /* a0 == g_53c80 -> branch A */
+        g_latched_ent = s;   /* a0 == g_53c80 -> branch A */
         *(uint32_t*)(accbuf+0x52) = 100;
         fn_015295(s, 3);
         check(g_dat_639c8 == 1, "015295 s3: list insert (count=1)");
@@ -2454,7 +2454,7 @@ static void test_fn_015295(void) {
         *(int32_t*)(s+5) = -3; s[0x30] = 1; s[0x25] = 0; s[0] = 1;
         *(int32_t*)(s+0x11) = 0x16;
         *(uint32_t*)(s+1) = 0x200; *(uint32_t*)(s+9) = 0x300; *(uint32_t*)(s+0x32) = 0x400;
-        g_dat_53c80 = other;   /* a0 != g_53c80 -> branch B */
+        g_latched_ent = other;   /* a0 != g_53c80 -> branch B */
         *(uint32_t*)(accbuf+0x52) = 100;
         fn_015295(s, 3);
         check(g_dat_639c8 == 1, "015295 s4: list insert (count=1)");
@@ -2466,7 +2466,7 @@ static void test_fn_015295(void) {
     /* cleanup: free the two created nodes */
     if (nodeA) heap_free_host((uint32_t)(nodeA - (uint8_t *)g_heap_base));
     if (nodeB) heap_free_host((uint32_t)(nodeB - (uint8_t *)g_heap_base));
-    g_dat_53c7c = sv53c7c; g_dat_53c80 = sv53c80; g_dat_639dc = sv639dc;
+    g_player_ent = sv53c7c; g_latched_ent = sv53c80; g_dat_639dc = sv639dc;
     g_dat_639cc = sv_cc; g_dat_639d0 = sv_d0; g_dat_639c8 = sv_c8;
 }
 static void init_arena_03ba86(void) {
@@ -2878,7 +2878,7 @@ static void test_fn_03a70e(void) {
 
 static void test_fn_0381d7(void) {
     printf("fn_0381d7 (0x0381d7): the player step-animation loop\n");
-    uint8_t  *p_save = g_dat_53c7c, *r_save = g_dat_63354, *head_save = g_dat_53c70;
+    uint8_t  *p_save = g_player_ent, *r_save = g_dat_63354, *head_save = g_dat_53c70;
     uint32_t cnt_save = g_dat_53c68, tick_save = g_dat_63e24, div_save = g_dat_53104;
     uintptr_t hud_save = g_dat_53c84;
     uint32_t camx_save = g_dat_639dc, camy_save = g_dat_639e0, lock_save = g_dat_639e4;
@@ -2896,7 +2896,7 @@ static void test_fn_0381d7(void) {
     *(uint32_t *)(pl + 0x01) = 1000; *(uint32_t *)(pl + 0x09) = 500;
     *(uint32_t *)(pl + 0x11) = 0;    *(uint32_t *)(pl + 0x17) = 7;
     *(uint32_t *)(pl + 0x123) = cont;
-    g_dat_53c7c = pl;
+    g_player_ent = pl;
 
     uint8_t *room = (uint8_t *)calloc(1, 0x400);
     *(uint32_t *)(room + 0x1a) = 0x140; *(uint32_t *)(room + 0x348) = SCREEN_BASE;
@@ -2934,7 +2934,7 @@ static void test_fn_0381d7(void) {
           "the frame index wrap lands on 0 for this step count");
 
     free(pl); free(room);
-    g_dat_53c7c = p_save; g_dat_63354 = r_save; g_dat_53c70 = head_save;
+    g_player_ent = p_save; g_dat_63354 = r_save; g_dat_53c70 = head_save;
     g_dat_53c68 = cnt_save; g_dat_63e24 = tick_save; g_dat_53104 = div_save;
     g_dat_53c84 = hud_save; g_dat_639dc = camx_save; g_dat_639e0 = camy_save; g_dat_639e4 = lock_save;
     g_dat_62a90 = nrec_save; g_dat_63360 = tick0_save;
@@ -2944,14 +2944,14 @@ static void test_fn_038098(void) {
     printf("fn_038098 (0x038098): the paced frame pump\n");
     uint8_t  *r_save = g_dat_63354, *head_save = g_dat_53c70;
     uint32_t cnt_save = g_dat_53c68, tick_save = g_dat_63e24, div_save = g_dat_53104;
-    uint32_t d88_save = g_dat_53c88; uintptr_t hud_save = g_dat_53c84;
+    uint32_t d88_save = g_gauge_other_off; uintptr_t hud_save = g_dat_53c84;
     uint32_t tick0_save = g_dat_63360, n_save = g_dat_62a90, lock_save = g_dat_639e4;
 
     uint8_t *room = (uint8_t *)calloc(1, 0x400);
     *(uint32_t *)(room + 0x1a) = 0x140;             /* background pitch */
     *(uint32_t *)(room + 0x348) = SCREEN_BASE;      /* the background plane */
     g_dat_63354 = room; g_dat_53c70 = NULL; g_dat_53c68 = 0;
-    g_dat_53c84 = 0; g_dat_53c88 = 0;
+    g_dat_53c84 = 0; g_gauge_other_off = 0;
     g_dat_639dc = 0; g_dat_639e0 = 0; g_dat_639e4 = 0;
     g_dat_63360 = 3; g_dat_62a90 = 0;
 
@@ -2993,7 +2993,7 @@ static void test_fn_038098(void) {
 
     free(room);
     g_dat_63354 = r_save; g_dat_53c70 = head_save; g_dat_53c68 = cnt_save;
-    g_dat_63e24 = tick_save; g_dat_53104 = div_save; g_dat_53c88 = d88_save;
+    g_dat_63e24 = tick_save; g_dat_53104 = div_save; g_gauge_other_off = d88_save;
     g_dat_53c84 = hud_save; g_dat_63360 = tick0_save; g_dat_62a90 = n_save; g_dat_639e4 = lock_save;
 }
 
@@ -3002,13 +3002,13 @@ static void test_fn_0113e7(void) {
     heap_arena_init(); (void)heap_malloc(0x2000);
 
     /* --- isolate every global the spawn and the dispatch touch ------------------------------- */
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_latched_ent;
     int32_t  s_cnt = g_dat_53c68;
     uint8_t *s_sprfa = g_dat_639ec[0xfa]; uint32_t s_actfa = g_dat_53818[0xfa];
     uint8_t *s_53d0c[100]; for (int i = 0; i < 100; i++) s_53d0c[i] = g_dat_53d0c[i];
     uint8_t *s_e24[10]; for (int i = 0; i < 10; i++) s_e24[i] = g_dat_53e24[i];
     uint8_t s_f90 = g_dat_63f90, s_338 = g_dat_53338, s_fb8 = g_dat_63fb8;
-    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_latched_ent = 0;
     g_dat_63370 = 1; g_dat_63364 = 0; g_dat_63368 = 0;
 
     uint8_t *entab = g_dat_53e9c + 0xfau * 0x88u;
@@ -3097,7 +3097,7 @@ static void test_fn_0113e7(void) {
           "the gauge colour table really sits at DS 0x51c90 (block +0x6c), not +0x40");
 
     free(src);
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_latched_ent = s_80; g_dat_53c68 = s_cnt;
     g_dat_639ec[0xfa] = s_sprfa; g_dat_53818[0xfa] = s_actfa;
     for (int i = 0; i < 100; i++) g_dat_53d0c[i] = s_53d0c[i];
     for (int i = 0; i < 10; i++)  g_dat_53e24[i] = s_e24[i];
@@ -5722,7 +5722,7 @@ static void test_l10_accessors(void) {
       g_dat_639dc = 0; *(uint32_t*)(s+1) = 400; out = 10; r = fn_0174a2(s, 5, &out);  // F=400>0x13f
       check(r == 0 && out == 5, "  fn_0174a2 F>0x13f: out-=param2 ret=0"); }
     { memset(g_dat_62c58, 0, 128); memset(g_dat_62cd8, 0, 128);
-      uint8_t cfg[0x20] = {0}; g_dat_53c7c = cfg; *(int32_t*)(cfg+0x1b) = 0x1234; g_dat_62a94 = 0;
+      uint8_t cfg[0x20] = {0}; g_player_ent = cfg; *(int32_t*)(cfg+0x1b) = 0x1234; g_dat_62a94 = 0;
       fn_034635(5); check(g_dat_62c58[5] == 1, "  fn_034635 state=0: ++");
       g_dat_62a94 = 0; fn_034635(5);
       check(g_dat_62a94 == 0x1234 && g_dat_62c58[5] == 2, "  fn_034635 state=1: cfg[0x1b]+++");
@@ -5756,7 +5756,7 @@ static void test_l10_accessors(void) {
       for (int i = 0; i < nf; i++) heap_free_host(fill[i]);
       heap_arena_cap_set(saved_cap); }
     {
-      uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_dat_53c7c = tgt; g_dat_53c6c = 0;
+      uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_player_ent = tgt; g_dat_53c6c = 0;
       uint8_t s[0x200] = {0};
       *(uint32_t *)(s+0x17) = 0x1f;
       int32_t r = fn_015a1f(s);
@@ -5773,7 +5773,7 @@ static void test_l10_accessors(void) {
       check(r == 0, "  fn_015a1f table=0 -> ret0");
       memset(g_dat_53eb8, 0, sizeof(g_dat_53eb8));
     {
-      uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_dat_53c7c = tgt; g_dat_53c6c = 0;
+      uint8_t tgt[0x20] = {0}; tgt[1] = 3; tgt[9] = 3; g_player_ent = tgt; g_dat_53c6c = 0;
       uint8_t s[0x200] = {0}; s[1] = 5; s[9] = 5; s[0xd] = 2;   // sX-tX=2, sY-tY=2, idx in-bounds
       *(uint32_t *)(s+0x17) = 0x1f; int32_t r = fn_015b5b(s);
       check(r == 0 && g_dat_53c6c == 1, "  fn_015b5b state 0x1f -> ret0 + flag");
@@ -5838,7 +5838,7 @@ static void test_l10_accessors(void) {
       player[0x1b] = 0; *(uint32_t *)(player+0x1f) = 4;   // player is itself in the list (must be skipped)
       uint8_t e0[0x200] = {0}; *(uint32_t *)(e0+0x117) = 0; *(uint32_t *)(e0+0x1f) = 4; *(uint32_t *)(e0+0xaf) = 0;
       g_dat_639dc = 0; g_dat_639e0 = 0;   // so fn_01519f/fn_0151d5 = raw offset
-      g_dat_53c7c = player; g_dat_53c70 = e0; g_dat_53c68 = 2;
+      g_player_ent = player; g_dat_53c70 = e0; g_dat_53c68 = 2;
       *(uint8_t **)(e0+0x13f) = player; *(uint8_t **)(player+0x13f) = 0;   // e0 -> player
       g_dat_53c6c = 0; fn_032158();
       check(e0[0x1f] == 4 && g_dat_53c6c == 0, "  fn_032158 flag=0 -> no-op");
@@ -5857,7 +5857,7 @@ static void test_l10_accessors(void) {
       // fn_01656f (magic {',' '-'}) + fn_016750 (magic {'1' '4' '.'}).
       // sX-tX=2, sY-tY=20, tbl0=5 (X passes, Y fails).
       g_dat_639dc = 0; g_dat_639e0 = 0;
-      uint8_t p1[0x200] = {0}; *(uint32_t *)(p1+1) = 3; *(uint32_t *)(p1+9) = 3; g_dat_53c7c = p1;
+      uint8_t p1[0x200] = {0}; *(uint32_t *)(p1+1) = 3; *(uint32_t *)(p1+9) = 3; g_player_ent = p1;
       uint8_t s1[0x200] = {0}; *(uint32_t *)(s1+1) = 5; *(uint32_t *)(s1+9) = 23;
       *(uint32_t *)(s1+0x17) = 0x5; *(uint32_t *)(s1+0x1f) = 4; *(uint32_t *)(s1+0x83) = 1;   // skip prng overwrite so s[0x113]=0 holds
       *(int32_t *)(s1+0x113) = 0; s1[0xd] = 2;
@@ -5963,7 +5963,7 @@ static void test_l10_accessors(void) {
       // fn_016fec: grid-collision detector (entity list, grid cell X/20 Y/12).
       g_dat_639dc = 0; g_dat_639e0 = 0;
       uint8_t fs[0x200] = {0}, fe[0x200] = {0}, fp[0x200] = {0};
-      g_dat_53c70 = fe; g_dat_53c68 = 0; g_dat_53c7c = fp;
+      g_dat_53c70 = fe; g_dat_53c68 = 0; g_player_ent = fp;
       // 1: reinit (g_dat_51c98==1) -> ret0, mode=2, latch=0
       g_dat_51c98 = 1; g_dat_53c90 = 0;
       rr = fn_016fec(fs, 0);
@@ -7200,7 +7200,7 @@ static void test_fn_017f13(void)
     printf("fn_017f13 (0x017f13, behaviour-0x00 entity AI handler)\n");
     /* Test hygiene (see the note above): this test re-inits the arena and claims
      * stage globals, so save everything it touches and hand it back afterwards. */
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_63370 = g_dat_63370;
@@ -7211,7 +7211,7 @@ static void test_fn_017f13(void)
     uint8_t *pl = h13_alloc(0x14f);            /* the player entity */
     uint8_t *e  = h13_alloc(0x14f);            /* the thinker */
     uint8_t *room = h13_alloc(0x40);           /* the current room node (clamp band) */
-    g_dat_53c7c  = pl;
+    g_player_ent  = pl;
     g_dat_63354  = room;
     g_dat_639dc  = 0;                          /* camera offsets: screen == world here */
     g_dat_639e0  = 0;
@@ -7341,7 +7341,7 @@ static void test_fn_017f13(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)(1 + t) * 0x88u + b] = 0;
     }
-    g_dat_53c7c  = (uint8_t *)save_pl;
+    g_player_ent  = (uint8_t *)save_pl;
     g_dat_63354  = save_room;
     g_dat_639dc  = save_cx; g_dat_639e0 = save_cy;
     g_dat_63370  = save_63370;
@@ -7354,7 +7354,7 @@ static void test_fn_017f13(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)(1 + t) * 0x88u + b] = 0;
     }
-    g_dat_53c7c  = (uint8_t *)save_pl;
+    g_player_ent  = (uint8_t *)save_pl;
     g_dat_63354  = save_room;
     g_dat_639dc  = save_cx; g_dat_639e0 = save_cy;
     g_dat_63370  = save_63370;
@@ -7369,7 +7369,7 @@ static void test_fn_018e88(void)
     printf("fn_018e88 (0x018e88, behaviour-0x01 entity AI handler)\n");
     /* Test hygiene (see the note above): this test re-inits the arena and claims
      * stage globals, so save everything it touches and hand it back afterwards. */
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_63370 = g_dat_63370;
@@ -7380,7 +7380,7 @@ static void test_fn_018e88(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x40);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;         /* wide band: the spot clamp stays out of the way */
     *(int32_t *)(room + 0x16) = 1000;
@@ -7482,7 +7482,7 @@ static void test_fn_018e88(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)(1 + t) * 0x88u + b] = 0;
     }
-    g_dat_53c7c  = (uint8_t *)save_pl;
+    g_player_ent  = (uint8_t *)save_pl;
     g_dat_63354  = save_room;
     g_dat_639dc  = save_cx; g_dat_639e0 = save_cy;
     g_dat_63370  = save_63370;
@@ -7496,7 +7496,7 @@ static void test_fn_018e88(void)
 static void test_fn_019e48(void)
 {
     printf("fn_019e48 (0x019e48, behaviour-0x02 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -7507,7 +7507,7 @@ static void test_fn_019e48(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x40);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -7627,7 +7627,7 @@ static void test_fn_019e48(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -7638,7 +7638,7 @@ static void test_fn_019e48(void)
 static void test_fn_01aec8(void)
 {
     printf("fn_01aec8 (0x01aec8, behaviour-0x03 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -7649,7 +7649,7 @@ static void test_fn_01aec8(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x40);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -7772,7 +7772,7 @@ static void test_fn_01aec8(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -7790,7 +7790,7 @@ static void test_fn_01aec8(void)
 static void test_fn_01bea8(void)
 {
     printf("fn_01bea8 (0x01bea8, behaviour-0x04 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -7801,7 +7801,7 @@ static void test_fn_01bea8(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x40);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -7908,7 +7908,7 @@ static void test_fn_01bea8(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -7919,7 +7919,7 @@ static void test_fn_01bea8(void)
 static void test_fn_01cf64(void)
 {
     printf("fn_01cf64 (0x01cf64, behaviour-0x05/0x09/0x0a entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -7930,7 +7930,7 @@ static void test_fn_01cf64(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -8047,7 +8047,7 @@ static void test_fn_01cf64(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -8058,7 +8058,7 @@ static void test_fn_01cf64(void)
 static void test_fn_01df8b(void)
 {
     printf("fn_01df8b (0x01df8b, behaviour-0x06 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -8069,7 +8069,7 @@ static void test_fn_01df8b(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -8209,7 +8209,7 @@ static void test_fn_01df8b(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -8220,7 +8220,7 @@ static void test_fn_01df8b(void)
 static void test_fn_01f064(void)
 {
     printf("fn_01f064 (0x01f064, behaviour-0x07 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -8231,7 +8231,7 @@ static void test_fn_01f064(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -8352,7 +8352,7 @@ static void test_fn_01f064(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -8363,7 +8363,7 @@ static void test_fn_01f064(void)
 static void test_fn_020170(void)
 {
     printf("fn_020170 (0x020170, behaviour-0x08 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -8374,7 +8374,7 @@ static void test_fn_020170(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -8509,7 +8509,7 @@ static void test_fn_020170(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -8520,7 +8520,7 @@ static void test_fn_020170(void)
 static void test_fn_0221b8(void)
 {
     printf("fn_0221b8 (0x0221b8, behaviour-0x15 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -8531,7 +8531,7 @@ static void test_fn_0221b8(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -8650,7 +8650,7 @@ static void test_fn_0221b8(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -8661,7 +8661,7 @@ static void test_fn_0221b8(void)
 static void test_fn_02119c(void)
 {
     printf("fn_02119c (0x02119c, behaviour-0x0b entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -8672,7 +8672,7 @@ static void test_fn_02119c(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -8805,7 +8805,7 @@ static void test_fn_02119c(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -8816,7 +8816,7 @@ static void test_fn_02119c(void)
 static void test_fn_0265ac(void)
 {
     printf("fn_0265ac (0x0265ac, behaviour-0x16 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -8827,7 +8827,7 @@ static void test_fn_0265ac(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -8969,7 +8969,7 @@ static void test_fn_0265ac(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -8980,7 +8980,7 @@ static void test_fn_0265ac(void)
 static void test_fn_029709(void)
 {
     printf("fn_029709 (0x029709, behaviour-0x17 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -8991,7 +8991,7 @@ static void test_fn_029709(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -9115,7 +9115,7 @@ static void test_fn_029709(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -9126,7 +9126,7 @@ static void test_fn_029709(void)
 static void test_fn_02fe1e(void)
 {
     printf("fn_02fe1e (0x02fe1e, behaviour-0x27 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -9137,7 +9137,7 @@ static void test_fn_02fe1e(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -9244,7 +9244,7 @@ static void test_fn_02fe1e(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -9256,7 +9256,7 @@ static void test_fn_02fe1e(void)
 static void test_fn_02319c(void)
 {
     printf("fn_02319c (0x02319c, behaviour-0x1f entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -9267,7 +9267,7 @@ static void test_fn_02319c(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -9371,7 +9371,7 @@ static void test_fn_02319c(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -9383,7 +9383,7 @@ static void test_fn_02319c(void)
 static void test_fn_024bf9(void)
 {
     printf("fn_024bf9 (0x024bf9, behaviour-0x20 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -9394,7 +9394,7 @@ static void test_fn_024bf9(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -9541,7 +9541,7 @@ static void test_fn_024bf9(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -9553,7 +9553,7 @@ static void test_fn_024bf9(void)
 static void test_fn_02adf5(void)
 {
     printf("fn_02adf5 (0x02adf5, behaviour-0x24 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -9564,7 +9564,7 @@ static void test_fn_02adf5(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -9682,7 +9682,7 @@ static void test_fn_02adf5(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -9694,7 +9694,7 @@ static void test_fn_02adf5(void)
 static void test_fn_027bec(void)
 {
     printf("fn_027bec (0x027bec, behaviour-0x22 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -9705,7 +9705,7 @@ static void test_fn_027bec(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -9838,7 +9838,7 @@ static void test_fn_027bec(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     heap_arena_cap_set(save_cap);
     heap_region_floor_set(save_floor);
@@ -9850,7 +9850,7 @@ static void test_fn_027bec(void)
 static void test_fn_02c838(void)
 {
     printf("fn_02c838 (0x02c838, behaviour-0x25 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -9863,7 +9863,7 @@ static void test_fn_02c838(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -9967,7 +9967,7 @@ static void test_fn_02c838(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     g_dat_62a8c = save_tab;
     heap_arena_cap_set(save_cap);
@@ -9981,7 +9981,7 @@ static void test_fn_02c838(void)
 static void test_fn_02e2cc(void)
 {
     printf("fn_02e2cc (0x02e2cc, behaviour-0x26 entity AI handler)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
     uint32_t  save_cap   = heap_arena_cap_get();
@@ -9994,7 +9994,7 @@ static void test_fn_02e2cc(void)
     uint8_t *pl = h13_alloc(0x14f);
     uint8_t *e  = h13_alloc(0x14f);
     uint8_t *room = h13_alloc(0x120);
-    g_dat_53c7c = pl; g_dat_63354 = room;
+    g_player_ent = pl; g_dat_63354 = room;
     g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000;
     *(int32_t *)(room + 0x16) = 1000;
@@ -10134,7 +10134,7 @@ static void test_fn_02e2cc(void)
         *(uint32_t *)pl2 = 1; pl2[0x17] = 0x0a;
         *(int32_t *)(pl2 + 0x01) = 20; *(int32_t *)(pl2 + 0x09) = 120;
         e2[0] = 1; *(int32_t *)(e2 + 0x0d) = TY;
-        g_dat_53c7c = pl2;
+        g_player_ent = pl2;
         int frames = 0, hit = 0;
         for (int f = 0; f < 400 && !hit; f++) {
             e2[0x1f] = 0; e2[0xaf] = 4; e2[0x8f] = 0; e2[0xc7] = 1; e2[0x17] = 2; e2[0x8b] = 1;
@@ -10150,7 +10150,7 @@ static void test_fn_02e2cc(void)
         }
         check(hit && frames >= 1,
               "02e2cc clamping before the too-close test rejects a slot-0 spot that only gets close after the clamp");
-        g_dat_53c7c = pl;
+        g_player_ent = pl;
     }
     row0[0] = 40;
 
@@ -10160,7 +10160,7 @@ static void test_fn_02e2cc(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy;
     g_dat_62a8c = save_tab;
     heap_arena_cap_set(save_cap);
@@ -10174,7 +10174,7 @@ static void test_fn_02e2cc(void)
 static void test_fn_031a8e(void)
 {
     printf("fn_031a8e / fn_0322f5 (0x031a8e, per-type AI dispatcher + sweep)\n");
-    uintptr_t save_pl   = (uintptr_t)g_dat_53c7c;
+    uintptr_t save_pl   = (uintptr_t)g_player_ent;
     uint8_t  *save_room = g_dat_63354, *save_head = g_dat_53c70, *save_cur = g_dat_53c78;
     int32_t   save_cnt  = g_dat_53c68, save_reaim = (int32_t)g_dat_53c6c;
     uint32_t  save_cx   = g_dat_639dc, save_cy = g_dat_639e0;
@@ -10184,7 +10184,7 @@ static void test_fn_031a8e(void)
 
     uint8_t *pl = h13_alloc(0x14f), *e = h13_alloc(0x14f), *room = h13_alloc(0x120);
     uint8_t *e2 = h13_alloc(0x14f), *e3 = h13_alloc(0x14f);
-    g_dat_53c7c = pl; g_dat_63354 = room; g_dat_639dc = 0; g_dat_639e0 = 0;
+    g_player_ent = pl; g_dat_63354 = room; g_dat_639dc = 0; g_dat_639e0 = 0;
     *(int32_t *)(room + 0x12) = -1000; *(int32_t *)(room + 0x16) = 1000;
     pl[0] = 1; pl[0x17] = 0x0a;
     *(int32_t *)(pl + 0x01) = 200; *(int32_t *)(pl + 0x09) = 120;
@@ -10320,7 +10320,7 @@ static void test_fn_031a8e(void)
         *(uint32_t *)(c + 0x18) = *(uint32_t *)(c + 0x80) = *(uint32_t *)(c + 0x84) = 0;
         for (unsigned b = 0; b < 0x88u; b++) g_dat_53eb8[(size_t)TY * 0x88u + b] = 0;
     }
-    g_dat_53c7c = (uint8_t *)save_pl; g_dat_63354 = save_room;
+    g_player_ent = (uint8_t *)save_pl; g_dat_63354 = save_room;
     g_dat_53c70 = save_head; g_dat_53c78 = save_cur;
     g_dat_53c68 = save_cnt; g_dat_53c6c = (uint32_t)save_reaim;
     g_dat_639dc = save_cx; g_dat_639e0 = save_cy; g_dat_62a8c = save_tab;
@@ -10335,7 +10335,7 @@ static void test_fn_013c4d(void)
     heap_arena_init(); (void)heap_malloc(0x2000);
     uint8_t *hb = (uint8_t *)g_heap_base;
 
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_dat_53c7c, *s_80 = g_dat_53c80;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_player_ent, *s_80 = g_latched_ent;
     int32_t  s_cnt = g_dat_53c68; uint32_t s_370 = g_dat_63370;
     uint8_t *s_spr1 = g_dat_639ec[1], *s_spr2 = g_dat_639ec[2], *s_sprc9 = g_dat_639ec[0xc9];
     uint32_t s_act2 = g_dat_53818[2];
@@ -10344,7 +10344,7 @@ static void test_fn_013c4d(void)
     memcpy(s_cfgc9, g_dat_53e9c + 0xc9u*0x88u, 0x88);
     memset(g_dat_53e9c + 1u*0x88u, 0, 0x88); memset(g_dat_53e9c + 2u*0x88u, 0, 0x88);
     memset(g_dat_53e9c + 0xc9u*0x88u, 0, 0x88);
-    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0; g_dat_63370 = 0xffffffffu;
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_latched_ent = 0; g_dat_63370 = 0xffffffffu;
 
     /* the per-type sprite structs and their eight box arrays (indices 0..3 used) */
     uint32_t sprA_off = heap_arena_alloc(0x40); uint8_t *sprA = hb + sprA_off; memset(sprA, 0, 0x40);
@@ -10467,7 +10467,7 @@ static void test_fn_013c4d(void)
     prec[ROFF + 0x44] = 30;
 
     /* (11) the player reaction: animation record byte +0x6c == 1 -> state 0xa1, and B mirrors A */
-    g_dat_53c7c = A; g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0;
+    g_player_ent = A; g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0;
     prec[ROFF + 0x5d] = 0;
     *(uint32_t *)(A + 0x17) = 0x65; *(uint32_t *)(A + 0x11) = 3; *(uint16_t *)(A + 0x50) = 0x55;
     *(uint32_t *)(A + 0x1b) = 0; *(uint32_t *)(B + 0x1b) = 0;
@@ -10479,14 +10479,14 @@ static void test_fn_013c4d(void)
     /* (12) other +0x6c values only react when the pair faces the same way; the player byte +0x27 picks 0xab */
     *(uint32_t *)(A + 0x17) = 0x99; *(uint32_t *)(A + 0x11) = 3; *(uint16_t *)(A + 0x50) = 0x55;
     *(uint32_t *)(A + 0x1b) = 0; *(uint32_t *)(B + 0x1b) = 0; anim[0x6c] = 0;
-    g_dat_53c7c[0x27] = 4;
+    g_player_ent[0x27] = 4;
     check(fn_013c4d(A, B, prec, ROFF) == 0 && *(uint32_t *)(A + 0x17) == 0xab
           && *(uint32_t *)(A + 0x11) == 0 && *(uint16_t *)(A + 0x50) == 0 && *(uint32_t *)(B + 0x1b) == 1,
           "013c4d same-facing reaction with player[0x27] == 4 -> state 0xab and B's facing flipped");
     *(uint32_t *)(A + 0x17) = 0x65; *(uint32_t *)(A + 0x11) = 3; *(uint32_t *)(B + 0x1b) = 1;
     check(fn_013c4d(A, B, prec, ROFF) == 1 && *(uint32_t *)(A + 0x17) == 0x65,
           "013c4d opposite facings: no reaction, the hit simply returns 1");
-    g_dat_53c7c[0x27] = 0; g_dat_53c7c = s_pl;
+    g_player_ent[0x27] = 0; g_player_ent = s_pl;
 
     /* (13) the facing really mirrors the boxes: the same data misses facing 0 and hits facing 1 */
     ax1c[2] = -50; ax20[2] = -30;
@@ -10498,7 +10498,7 @@ static void test_fn_013c4d(void)
     ax1c[2] = -20; ax20[2] = 20;
 
     /* restore */
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c7c = s_pl; g_dat_53c80 = s_80;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_player_ent = s_pl; g_latched_ent = s_80;
     g_dat_53c68 = s_cnt; g_dat_63370 = s_370;
     g_dat_639ec[1] = s_spr1; g_dat_639ec[2] = s_spr2; g_dat_639ec[0xc9] = s_sprc9;
     g_dat_53818[2] = s_act2;
@@ -10517,7 +10517,7 @@ static void test_fn_0320f5(void)
     heap_arena_init(); (void)heap_malloc(0x2000);
     uint8_t *hb = (uint8_t *)g_heap_base;
 
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_dat_53c7c;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_player_ent;
     int32_t  s_cnt = g_dat_53c68;
     uint32_t s_388 = g_dat_63388;
     uint8_t  s_ed3 = g_dat_63ed3, s_ed5 = g_dat_63ed5;
@@ -10561,7 +10561,7 @@ static void test_fn_0320f5(void)
     *(uint32_t *)(T + 0x09) = 62;
     P[0x27] = 2;
 
-    g_dat_53c70 = A; g_dat_53c74 = T; g_dat_53c68 = 4; g_dat_53c7c = P;
+    g_dat_53c70 = A; g_dat_53c74 = T; g_dat_53c68 = 4; g_player_ent = P;
     g_dat_63ed3 = 0; g_dat_63ed5 = 1;
 
     /* (1) the sweep clears the DAT_00063388 latch before walking */
@@ -10589,7 +10589,7 @@ static void test_fn_0320f5(void)
     check(*(uint32_t *)(P + 0x17) == 0x9a,
           "0320f5 the walk begins at DAT_00053c70 (the player moved to the head still bumps)");
 
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c7c = s_pl; g_dat_53c68 = s_cnt;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_player_ent = s_pl; g_dat_53c68 = s_cnt;
     g_dat_63388 = s_388; g_dat_63ed3 = s_ed3; g_dat_63ed5 = s_ed5; g_dat_639ec[1] = s_spr1;
     memcpy(g_dat_53e9c + 0x88u, s_c1, 0x88);
     heap_arena_init(); (void)heap_malloc(0x400);
@@ -10601,9 +10601,9 @@ static void test_fn_01441e(void)
     heap_arena_init(); (void)heap_malloc(0x2000);
     uint8_t *hb = (uint8_t *)g_heap_base;
 
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_dat_53c7c, *s_80 = g_dat_53c80;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_pl = g_player_ent, *s_80 = g_latched_ent;
     int32_t  s_cnt = g_dat_53c68;
-    uint32_t s_364 = g_dat_63364, s_368 = g_dat_63368, s_104 = g_dat_53104, s_c88 = g_dat_53c88;
+    uint32_t s_364 = g_dat_63364, s_368 = g_dat_63368, s_104 = g_dat_53104, s_c88 = g_gauge_other_off;
     uint8_t  s_ed3 = g_dat_63ed3, s_ed5 = g_dat_63ed5;
     uint8_t *s_spr1 = g_dat_639ec[1], *s_spr2 = g_dat_639ec[2];
     static uint8_t s_c1[0x88], s_c2[0x88];
@@ -10661,13 +10661,13 @@ static void test_fn_01441e(void)
     *(uint32_t *)(E + 0x01) = 100; *(uint32_t *)(E + 0x05) = 10; *(uint32_t *)(E + 0x09) = 60;
     *(uint32_t *)(O + 0x01) = 120; *(uint32_t *)(O + 0x05) = 10; *(uint32_t *)(O + 0x09) = 60;
     *(uint16_t *)(O + 0x29) = 50;
-    g_dat_53c80 = NULL; g_dat_63364 = 0; g_dat_63368 = 0; g_dat_53c88 = 0;
+    g_latched_ent = NULL; g_dat_63364 = 0; g_dat_63368 = 0; g_gauge_other_off = 0;
     g_dat_63ed3 = 0; g_dat_63ed5 = 0;
 
     /* the one-element list: E is the attacker and O the only candidate */
     g_dat_53c70 = E; g_dat_53c74 = O; g_dat_53c68 = 2;
     *(uint8_t **)(E + 0x13f) = O; *(uint8_t **)(O + 0x13f) = NULL;
-    g_dat_53c7c = NULL;
+    g_player_ent = NULL;
 
     /* (1) pass 2 gate: identical X box corners mean an empty attack box */
     ax1c[3] = 20; ax20[3] = 20;
@@ -10690,7 +10690,7 @@ static void test_fn_01441e(void)
           "01441e a hit lands: hit points drop by the slot damage and the victim records the attacker");
     check(O[0x4e] == 5 && O[0x4f] == 0,
           "01441e victim bytes +0x4e / +0x4f record the attacker state and the attack slot used");
-    check(g_dat_53c88 == (uint32_t)(uintptr_t)(O - hb) && *(uint32_t *)(O + 0x46) == (uint32_t)(uintptr_t)(E - hb),
+    check(g_gauge_other_off == (uint32_t)(uintptr_t)(O - hb) && *(uint32_t *)(O + 0x46) == (uint32_t)(uintptr_t)(E - hb),
           "01441e DAT_53c88 gets the victim and victim+0x46 the attacker (heap-relative)");
     check(*(uint16_t *)(O + 0x50) == 0x33 && *(uint32_t *)(O + 0x11) == 0,
           "01441e the non-flagged reaction sets the victim stun word from record+0x4a and clears its frame");
@@ -10717,7 +10717,7 @@ static void test_fn_01441e(void)
           "01441e a lethal non-player victim takes the type-table sound (record +0x0c) and stun 0x78");
 
     /* (6) the walking-player bump scan puts the player into state 0x9a */
-    g_dat_53c7c = E; g_dat_63ed5 = 1;
+    g_player_ent = E; g_dat_63ed5 = 1;
     E[0x27] = 2; *(uint32_t *)(E + 0x17) = 2; *(uint32_t *)(E + 0x11) = 4;
     memset(O, 0, 0x160);
     O[0] = 1; *(uint32_t *)(O + 0x0d) = 2; *(uint32_t *)(O + 0x123) = co;
@@ -10734,9 +10734,9 @@ static void test_fn_01441e(void)
           "01441e with DAT_63ed5 clear a right-facing player still uses the reversed (DAT_63ed3) behind-test");
     g_dat_63ed3 = s_ed3; g_dat_63ed5 = s_ed5;
 
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c7c = s_pl; g_dat_53c80 = s_80;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_player_ent = s_pl; g_latched_ent = s_80;
     g_dat_53c68 = s_cnt; g_dat_63364 = s_364; g_dat_63368 = s_368; g_dat_53104 = s_104;
-    g_dat_53c88 = s_c88; g_dat_639ec[1] = s_spr1; g_dat_639ec[2] = s_spr2;
+    g_gauge_other_off = s_c88; g_dat_639ec[1] = s_spr1; g_dat_639ec[2] = s_spr2;
     memcpy(g_dat_53e9c + 0x88u, s_c1, 0x88); memcpy(g_dat_53e9c + 2u*0x88u, s_c2, 0x88);
     heap_arena_init(); (void)heap_malloc(0x400);
 }
@@ -10751,7 +10751,7 @@ static void test_fn_013aad(void) {
     n0[0]=1; *(int32_t*)(n0+0x9)=3; *(uint8_t**)(n0+0x13f)=n1; *(uint8_t**)(n0+0x147)=NULL;
     n1[0]=1; *(int32_t*)(n1+0x9)=1; *(uint8_t**)(n1+0x13f)=n2; *(uint8_t**)(n1+0x147)=n0;
     n2[0]=1; *(int32_t*)(n2+0x9)=2; *(uint8_t**)(n2+0x13f)=NULL;*(uint8_t**)(n2+0x147)=n1;
-    g_dat_53c68 = 3; g_dat_53c70 = n0; g_dat_53c74 = n2; g_dat_53c7c = NULL;
+    g_dat_53c68 = 3; g_dat_53c70 = n0; g_dat_53c74 = n2; g_player_ent = NULL;
     fn_013aad(0);
     /* expected ascending: n1(1) <-> n2(2) <-> n0(3); head=n1, tail=n0. */
     check(g_dat_53c70 == n1, "013aad head=n1(key1)");
@@ -10972,7 +10972,7 @@ static void test_fn_03cc6b(void) {
     *(uint32_t *)(c + 0x0) = 0x1234;        /* c->0x0 */
     *(uint32_t *)(c + 0x4) = 0x55;          /* c->0x4 */
     *(uint32_t *)(c + 0xc) = 0x1c0;         /* c->0xc (0x1c0-0xc8=0x78=120) */
-    g_dat_53c7c = kb;
+    g_player_ent = kb;
     *(uint32_t *)(kb + 0x2b) = 0x77;        /* kb->0x2b */
     kb[0x28] = 0x11; kb[0x27] = 0x22; kb[0x26] = 0x33; kb[0x25] = 0x44;
     /* Case 1: branch1 (g_639e4==0) match, copy kb-config, g_639e0++ */
@@ -11437,12 +11437,12 @@ static void test_fn_03237b(void) {
     uint8_t *n1, *n2, *n3;
     build_entity_list3(&n1, &n2, &n3);
     *(uint32_t *)(n2+0xd) = 5;               /* only n2 is flagged for removal */
-    g_dat_53c88 = 0x12345678;
+    g_gauge_other_off = 0x12345678;
     fn_03237b();
     check(g_dat_53c70 == n1, "  head is kept node n1");
     check(g_dat_53c74 == n3, "  tail is kept node n3");
     check(g_dat_53c68 == 2, "  count reduced 3->2 (n2 removed)");
-    check(g_dat_53c88 == 0, "  g_dat_53c88 cleared to 0");
+    check(g_gauge_other_off == 0, "  g_gauge_other_off cleared to 0");
     check(*(uint8_t **)(n1+0x13f) == n3, "  n1->next relinked to n3");
     heap_arena_init();
 }
@@ -12332,7 +12332,7 @@ static void test_fn_0137c1(void) {
 static void test_fn_038f3d(void)
 {
     printf("fn_038f3d (0x038f3d, level-up / status screen)\n");
-    uint8_t *s_pc = g_dat_53c7c;
+    uint8_t *s_pc = g_player_ent;
     uint32_t s_100 = g_dat_53100, s_3a4 = g_dat_633a4, s_ec3 = g_dat_63ec3, s_e89 = g_dat_63e89;
     uint8_t s_ea4 = g_dat_63ea4, s_eb2 = g_dat_63eb2, s_ebe = g_dat_63ebe, s_ec1 = g_dat_63ec1;
     uint8_t s_ea5 = g_dat_63ea5, s_ec0 = g_dat_63ec0, s_ed0 = g_dat_63ed0, s_ed8 = g_dat_63ed8;
@@ -12353,7 +12353,7 @@ static void test_fn_038f3d(void)
     uint32_t p_off = heap_malloc(0x147);
     uint8_t *P = hb + p_off;
     memset(P, 0, 0x147);
-    g_dat_53c7c = P;
+    g_player_ent = P;
     *(uint32_t *)(P + 0x2b) = 5000;                        /* experience total */
     *(uint32_t *)(P + 0x52) = 300;                         /* experience pending */
     P[0x27] = 0; P[0x28] = 1; P[0x26] = 0; P[0x25] = 0;
@@ -12463,7 +12463,7 @@ static void test_fn_038f3d(void)
           "038f3d spends the row-0/column-0 cost from the exptab table DAT_00053c94 (5000 - 300)");
 
     for (int i = 0; i < 30; i++) g_dat_53c94[i] = cost_save[i];
-    g_dat_53c7c = s_pc; g_dat_53100 = s_100; g_dat_633a4 = (uint8_t)s_3a4;
+    g_player_ent = s_pc; g_dat_53100 = s_100; g_dat_633a4 = (uint8_t)s_3a4;
     g_dat_63ec3 = (uint8_t)s_ec3; g_dat_63e89 = (uint8_t)s_e89;
     g_dat_63ea4 = s_ea4; g_dat_63eb2 = s_eb2; g_dat_63ebe = s_ebe; g_dat_63ec1 = s_ec1;
     g_dat_63ea5 = s_ea5; g_dat_63ec0 = s_ec0; g_dat_63ed0 = s_ed0; g_dat_63ed8 = s_ed8;
@@ -13875,16 +13875,76 @@ static void mk_resnode(uint8_t *data, uint32_t data_off, uint8_t *nd, uint32_t n
  * allocated 0x147, the port's widened link fields need 0x14f). */
 static uint32_t t_actab[0x20];
 
+static void test_warp_entity_shared_types(void) {
+    printf("host entity warp and the shared per-type slots 0xc9 / 0xfa (docs/84)\n");
+    heap_arena_init(); (void)heap_malloc(0x2000);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+
+    /* The shipped DS identity the alias fill reproduces: the per-type arrays and the named globals
+     * are literally the same addresses. */
+    check(0x639ecu + 0xc9u * 4u == 0x63d10u && 0x639ecu + 0xfau * 4u == 0x63dd4u &&
+          0x53818u + 0xc9u * 4u == 0x53b3cu && 0x53818u + 0xfau * 4u == 0x53c00u,
+          "  DAT_639ec[0xc9] IS DAT_63d10 and DAT_53818[0xfa] IS DAT_53c00 in the shipped DS");
+    check(f_warp_entity_type("enc-1") == 41 && f_warp_entity_type("enc-2") == 42 &&
+          f_warp_entity_type("ena-1") == 31 && f_warp_entity_type("boss1") == 1 &&
+          f_warp_entity_type("eni-1") == 76 && f_warp_entity_type("enj-4") == 84 &&
+          f_warp_entity_type("mark") == 0xc9 && f_warp_entity_type("dust") == 0xfa &&
+          f_warp_entity_type("not-a-spr") == 0xffffffffu,
+          "  the name -> type map is the game's own per-type name table, not a host-side guess");
+
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_room = g_dat_63354;
+    int32_t s_cnt = g_dat_53c68;
+    uint32_t s_stage = g_dat_63370, s_camx = g_dat_639dc;
+    uint8_t *s_spr9c9 = g_dat_639ec[0xc9], *s_spr29 = g_dat_639ec[41];
+    uint32_t s_act9c9 = g_dat_53818[0xc9], s_act29 = g_dat_53818[41];
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_63354 = 0;
+
+    const char *why = f_warp_entity_refuse("mark");
+    check(why && strstr(why, "no live room") != NULL,
+          "  refused before any room is loaded, and the refusal names the missing shipped state");
+
+    uint8_t *room = hb + heap_arena_alloc(0x60);
+    memset(room, 0, 0x60);
+    *(uint32_t *)(room + 0x40) = 0;                     /* room serial 0: the stage-1 walk-line slot */
+    g_dat_63354 = room; g_dat_63370 = 1; g_dat_639dc = 0x100;
+    g_dat_639ec[0xc9] = 0; g_dat_53818[0xc9] = 0;
+    check(f_warp_entity_refuse("mark") != NULL,
+          "  still refused while no episode has loaded the type's .spr/.act blocks");
+
+    uint32_t sp_off = heap_arena_alloc(0x40);
+    uint8_t *sp = hb + sp_off; memset(sp, 0, 0x40);
+    *(uint32_t *)(sp + 0x38) = 0x2468;                  /* the RLE base field fn_010efc copies at +0x127 */
+    uint32_t act_off = heap_arena_alloc(0x10);
+    g_dat_639ec[0xc9] = sp; g_dat_53818[0xc9] = act_off;    /* what the master loader's alias fill does */
+    check(f_warp_entity_refuse("mark") == NULL, "  spawnable once the room and both blocks exist");
+    uint8_t *e = f_warp_entity_spawn("mark");
+    check(e != NULL && e[0x0d] == 0xc9, "  the warp builds the shipped type 0xc9 actor");
+    check(e && *(uint32_t *)(e + 0x127) == 0x2468 && *(uint32_t *)(e + 0x123) == act_off,
+          "  the actor resolves its sprite and action blocks through the aliased slot");
+    check(g_dat_53c68 == 1, "  the actor joins the room's live entity count");
+
+    g_dat_639ec[41] = sp; g_dat_53818[41] = act_off;
+    uint8_t *e2 = f_warp_entity_spawn("enc-1");
+    check(e2 != NULL && e2[0x0d] == 41, "  a named per-type enemy (enc-1 = type 41) spawns the same way");
+    check(e2 && *(int32_t *)(e2 + 0x01) == (int32_t)0x100 + 0xa0 && *(int32_t *)(e2 + 0x09) == 172,
+          "  the host places it inside the camera field, on the room's walk line (172 for stage 1)");
+
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_63354 = s_room; g_dat_53c68 = s_cnt;
+    g_dat_63370 = s_stage; g_dat_639dc = s_camx;
+    g_dat_639ec[0xc9] = s_spr9c9; g_dat_639ec[41] = s_spr29;
+    g_dat_53818[0xc9] = s_act9c9; g_dat_53818[41] = s_act29;
+}
+
 static void test_fn_010efc(void) {
     printf("fn_010efc (0x010efc): entity constructor (type table + entity list append)\n");
     heap_arena_init(); (void)heap_malloc(0x2000);
     uint8_t *hb = (uint8_t *)g_heap_base;
 
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_latched_ent;
     int32_t s_cnt = g_dat_53c68; uint32_t s_370 = g_dat_63370;
     static uint32_t s_tab[0x20]; memcpy(s_tab, g_dat_53818, sizeof s_tab);
     uint8_t *s_spr0 = g_dat_639ec[0], *s_spr2 = g_dat_639ec[2];
-    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_latched_ent = 0;
 
     memset(g_dat_53e9c, 0, 0x88 * 0x20);
     uint8_t *e2 = g_dat_53e9c + 2u * 0x88u;
@@ -13910,7 +13970,7 @@ static void test_fn_010efc(void) {
     g_dat_63370 = 2;                            /* matches type_idx 2 -> DAT_53c80 latch */
     uint8_t *r = fn_010efc(b1, (int32_t)0xffffffe2u, 7, 9, 2, 0x11);
     check(r == b1, "  returns the block");
-    check(g_dat_53c80 == b1, "  type index == DAT_63370: published to DAT_53c80");
+    check(g_latched_ent == b1, "  type index == DAT_63370: published to DAT_53c80");
     check(b1[0x00] == 0x11 && *(uint32_t *)(b1 + 1) == 0xffffffe2u
           && *(uint32_t *)(b1 + 5) == 7 && *(uint32_t *)(b1 + 9) == 9
           && *(uint32_t *)(b1 + 0xd) == 2, "  the four register args + the byte arg stored verbatim");
@@ -13951,9 +14011,9 @@ static void test_fn_010efc(void) {
     (void)fn_010efc(b3, 0, 0, 0, 0, 0);
     check(*(uint32_t *)(b3 + 0x56) == 0x9abc0011u && *(uint16_t *)(b3 + 0x23) == 0,
           "  type 0: the DWORD at entry+0 goes to +0x56 and +0x23 stays clear");
-    check(g_dat_53c80 == b1, "  type index != DAT_63370: DAT_53c80 not overwritten");
+    check(g_latched_ent == b1, "  type index != DAT_63370: DAT_53c80 not overwritten");
 
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_latched_ent = s_80; g_dat_53c68 = s_cnt;
     g_dat_63370 = s_370; memcpy(g_dat_53818, s_tab, sizeof s_tab); g_dat_639ec[0] = s_spr0; g_dat_639ec[2] = s_spr2;
     heap_arena_init(); (void)heap_malloc(0x400);
 }
@@ -14242,11 +14302,11 @@ static void test_fn_011827(void) {
     heap_arena_init(); (void)heap_malloc(0x2000);
     uint8_t *hb = (uint8_t *)g_heap_base;
 
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_latched_ent;
     int32_t s_cnt = g_dat_53c68;
     uint32_t s_370 = g_dat_63370, s_364 = g_dat_63364, s_368 = g_dat_63368;
     uint8_t *s_sprfa = g_dat_639ec[0xfa]; uint32_t s_actfa = g_dat_53818[0xfa];
-    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_latched_ent = 0;
     g_dat_63370 = 1; g_dat_63364 = 0; g_dat_63368 = 0;
 
     uint8_t *entab = g_dat_53e9c + 0xfau * 0x88u;      /* the companion type's table entry */
@@ -14283,7 +14343,7 @@ static void test_fn_011827(void) {
           "  the shared type-0xfa sprite struct was read unguarded (hence the teardown skip)");
     check(g_dat_63364 == 0x13 && g_dat_63368 == 0,
           "  source+0x17 != 4 -> the element event DAT_63364 = 0x13, DAT_63368 = 0");
-    check(g_dat_53c80 == 0, "  DAT_53c80 untouched: the type is not the current stage number");
+    check(g_latched_ent == 0, "  DAT_53c80 untouched: the type is not the current stage number");
 
     *(uint32_t *)(src + 0x1b) = 1;                     /* mirrored side */
     fn_011827(src, 30, 7, 50, 0x17);
@@ -14303,7 +14363,7 @@ static void test_fn_011827(void) {
 
     memcpy(entab, saved_ent, 0x88);
     g_dat_639ec[0xfa] = s_sprfa; g_dat_53818[0xfa] = s_actfa;
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_latched_ent = s_80; g_dat_53c68 = s_cnt;
     g_dat_63370 = s_370; g_dat_63364 = s_364; g_dat_63368 = s_368;
     free(sprfa); free(src);
 }
@@ -14373,7 +14433,7 @@ static void test_fn_037347(void) {
     uint8_t *hb = (uint8_t *)g_heap_base;
 
     uint8_t *cfg = (uint8_t *)calloc(1, 0x40);
-    uint8_t *s_cfg = g_dat_53c7c; g_dat_53c7c = cfg;
+    uint8_t *s_cfg = g_player_ent; g_player_ent = cfg;
     uint8_t *s_5d0b4 = g_dat_5d0b4; uint32_t s_370 = g_dat_63370;
     uint8_t *recbuf = (uint8_t *)calloc(1, 0x14 * 8);
     g_dat_5d0b4 = recbuf; g_dat_63370 = 1;
@@ -14391,7 +14451,7 @@ fn_037b03(0);                                    /* populate the stage */
           "  preconditions: type 31 and the room chain are loaded");
     uint32_t junk = heap_malloc(0x3c); g_dat_639ec[7] = hb + junk;
     uint32_t orphan = heap_malloc(8); g_dat_53818[9] = orphan; g_dat_639ec[9] = 0;
-    g_dat_53c88 = 5;
+    g_gauge_other_off = 5;
     uint8_t *room_ref = g_dat_63354;
 
     fn_037347();
@@ -14404,12 +14464,12 @@ fn_037b03(0);                                    /* populate the stage */
     check(g_dat_6334c == NULL, "  the room chain pointer DAT_6334c is cleared");
     check(g_dat_63354 == room_ref,
           "  DAT_63354 is left dangling at the freed chain (the original never clears it here)");
-    check(g_dat_53c88 == 0, "  DAT_53c88 is zeroed");
+    check(g_gauge_other_off == 0, "  DAT_53c88 is zeroed");
     fn_037347();
     check(g_dat_6334c == NULL && g_dat_63dfc == NULL, "  a second call is a no-op (everything already freed)");
 
     free(recbuf); free(cfg);
-    g_dat_53c7c = s_cfg; g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370; g_tab_52c3c[0] = s_52c;
+    g_player_ent = s_cfg; g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370; g_tab_52c3c[0] = s_52c;
     g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
     g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
     g_dat_633b0 = saved_b0;
@@ -14468,7 +14528,7 @@ static void test_fn_0374ad(void) {
     uint8_t *hb = (uint8_t *)g_heap_base;
 
     uint8_t *cfg = (uint8_t *)calloc(1, 0x40);
-    uint8_t *s_cfg = g_dat_53c7c; g_dat_53c7c = cfg;
+    uint8_t *s_cfg = g_player_ent; g_player_ent = cfg;
     uint8_t *s_5d0b4 = g_dat_5d0b4; uint32_t s_370 = g_dat_63370;
     uint8_t *recbuf = (uint8_t *)calloc(1, 0x14 * 8);
     g_dat_5d0b4 = recbuf; g_dat_63370 = 1;
@@ -14508,7 +14568,7 @@ fn_037b03(0);                                    /* populate the stage */
     check(*(int32_t *)(cfg + 9) == (int32_t)g_dat_639e0 + 0x5a5,
           "  config +9 = DAT_639e0 + DAT_52c3c[(stage-1)*0x28 + serial*4]");
 
-    g_dat_53c7c = s_cfg; g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370; g_tab_52c3c[0] = s_52c;
+    g_player_ent = s_cfg; g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370; g_tab_52c3c[0] = s_52c;
     g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
     g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
     g_dat_633b0 = saved_b0;
@@ -14569,7 +14629,7 @@ static void test_fn_0376c8(void) {
     uint8_t *hb = (uint8_t *)g_heap_base;
 
     uint8_t *cfg = (uint8_t *)calloc(1, 0x40);
-    uint8_t *s_cfg = g_dat_53c7c; g_dat_53c7c = cfg;
+    uint8_t *s_cfg = g_player_ent; g_player_ent = cfg;
     uint32_t s_370 = g_dat_63370; g_dat_63370 = 1;
     uint32_t save_52c = g_tab_52c3c[0], save_28 = g_tab_52738[3];
     g_tab_52c3c[0] = 0x77; g_tab_52738[3] = 0x123456;
@@ -14593,32 +14653,32 @@ fn_037b03(0);                                   /* the stage (room chain + type 
 
     fn_0376c8();
 
-    check(g_dat_53c7c != 0 && g_dat_53c84 == (uintptr_t)g_dat_53c7c,
+    check(g_player_ent != 0 && g_dat_53c84 == (uintptr_t)g_player_ent,
           "  DAT_53c7c / DAT_53c84 hold the new player entity");
-    check(g_dat_53c7c[0x28] == 3 && *(uint32_t *)(g_dat_53c7c + 0x56) == 0x3456,
+    check(g_player_ent[0x28] == 3 && *(uint32_t *)(g_player_ent + 0x56) == 0x3456,
           "  +0x28 = DAT_63384 and +0x56 = the low half of DAT_52738[+0x28]");
-    check(*(const uint16_t *)(g_dat_53c7c + 0x23) == 0
-          && *(const uint16_t *)(g_dat_53c7c + 0x29) == *(const uint16_t *)(g_dat_53e9c + 8),
+    check(*(const uint16_t *)(g_player_ent + 0x23) == 0
+          && *(const uint16_t *)(g_player_ent + 0x29) == *(const uint16_t *)(g_dat_53e9c + 8),
           "  +0x23 cleared, +0x29 = DAT_53ea4 (type-0 table +8)");
-    check(g_dat_53c88 == 0 && g_dat_63354 == g_dat_6334c,
+    check(g_gauge_other_off == 0 && g_dat_63354 == g_dat_6334c,
           "  DAT_53c88 cleared; DAT_63354 = DAT_6334c while DAT_63358 is empty");
     check(g_dat_62a98 == g_dat_62aa8 && g_dat_62a9c == g_dat_62abc,
           "  active key/catch tables picked from the DAT_62aa0 region by DAT_63378");
     check(g_dat_53818[0] != 0 && (hb + g_dat_53818[0]) == (uint8_t *)g_dat_53c2c
-          && *(uint32_t *)(g_dat_53c7c + 0x123) == g_dat_53818[0],
+          && *(uint32_t *)(g_player_ent + 0x123) == g_dat_53818[0],
           "  DAT_53818[0] = the DAT_53c28 container chosen by DAT_6337c, mirrored into entity+0x123");
-    check(*(const uint32_t *)(g_dat_53c7c + 0x2b) == 0x2b2b
-          && g_dat_53c7c[0x27] == 2 && g_dat_53c7c[0x26] == 1 && g_dat_53c7c[0x25] == 3,
+    check(*(const uint32_t *)(g_player_ent + 0x2b) == 0x2b2b
+          && g_player_ent[0x27] == 2 && g_player_ent[0x26] == 1 && g_player_ent[0x25] == 3,
           "  entity +0x2b / +0x27 / +0x26 / +0x25 mirror DAT_63374/78/7c/80");
-    check(*(int32_t *)(g_dat_53c7c + 1) == (int32_t)g_dat_639dc - 0x1e
-          && *(uint32_t *)(g_dat_53c7c + 0x1b) == 0,
+    check(*(int32_t *)(g_player_ent + 1) == (int32_t)g_dat_639dc - 0x1e
+          && *(uint32_t *)(g_player_ent + 0x1b) == 0,
           "  DAT_63398 == 0 -> +1 = DAT_639dc - 0x1e, +0x1b = 0");
-    check(*(int32_t *)(g_dat_53c7c + 9) == (int32_t)g_dat_639e0 + 0x77,
+    check(*(int32_t *)(g_player_ent + 9) == (int32_t)g_dat_639e0 + 0x77,
           "  +9 = DAT_639e0 + DAT_52c3c[(stage-1)*0x28 + serial*4]");
-    check(*(uint32_t *)(g_dat_53c7c + 0x17) == 1 && *(uint32_t *)(g_dat_53c7c + 0x11) == 0,
+    check(*(uint32_t *)(g_player_ent + 0x17) == 1 && *(uint32_t *)(g_player_ent + 0x11) == 0,
           "  entity +0x17 = 1, +0x11 = 0");
 
-    g_dat_53c7c = s_cfg; g_dat_63370 = s_370; g_tab_52c3c[0] = save_52c; g_tab_52738[3] = save_28;
+    g_player_ent = s_cfg; g_dat_63370 = s_370; g_tab_52c3c[0] = save_52c; g_tab_52738[3] = save_28;
     g_dat_63374 = s_374; g_dat_63378 = s_378; g_dat_6337c = s_37c; g_dat_63380 = s_380; g_dat_63384 = s_384;
     g_dat_63398 = s_398; g_dat_53c84 = s_c84; g_dat_63358 = s_358;
     g_dat_62a98 = s_key98; g_dat_62a9c = s_key9c; g_dat_53818[0] = s_818_0; g_dat_639ec[0] = s_spr0;
@@ -14642,13 +14702,13 @@ fn_037b03(0);                                   /* the stage (room chain + type 
 /* fn_034295 / fn_0342ff (106 B / 84 B): the player's gated and ungated vertical moves. */
 static void test_fn_034295_0342ff(void) {
     printf("fn_034295 + fn_0342ff: player vertical move (gated / ungated)\n");
-    uint8_t *s_player = g_dat_53c7c;
+    uint8_t *s_player = g_player_ent;
     uint32_t s_dc = g_dat_639dc, s_n = g_dat_62a8c;
     uint8_t s_e3 = g_dat_63ed3, s_e5 = g_dat_63ed5;
     g_dat_639dc = 1000; g_dat_62a8c = 0;                 /* band: 1010 .. 1302, no wall bands */
     uint8_t *pl = (uint8_t *)calloc(1, 0x200);
     *(int32_t *)(pl + 0xd) = 1;                          /* default band */
-    g_dat_53c7c = pl;
+    g_player_ent = pl;
 
 #define RESETY() (*(int32_t *)(pl + 1) = 1100)
     g_dat_63ed3 = 1; g_dat_63ed5 = 1; *(int32_t *)(pl + 0x1b) = 1;
@@ -14671,7 +14731,7 @@ static void test_fn_034295_0342ff(void) {
     check(*(int32_t *)(pl + 1) == 1100, "  fn_034295: any other state drops the plain move too");
 #undef RESETY
     free(pl);
-    g_dat_53c7c = s_player; g_dat_639dc = s_dc; g_dat_62a8c = s_n;
+    g_player_ent = s_player; g_dat_639dc = s_dc; g_dat_62a8c = s_n;
     g_dat_63ed3 = s_e3; g_dat_63ed5 = s_e5;
 }
 
@@ -14760,11 +14820,11 @@ static void test_fn_016b8f(void) {
 static void test_fn_01545e(void) {
     printf("fn_01545e: Y-axis move, wall bands (g_tab_5c8bc) and trigger latch\n");
     uint32_t s_dc = g_dat_639dc, s_n = g_dat_62a8c, s_64 = g_dat_63364, s_68 = g_dat_63368;
-    uint8_t *s_player = g_dat_53c7c;
+    uint8_t *s_player = g_player_ent;
     struct clamp_tab_5c8bc s_t0 = g_tab_5c8bc[0];
     g_dat_639dc = 1000;                       /* default band: lo = 1010, hi = 1302 */
     g_dat_62a8c = 0;
-    g_dat_63364 = 0; g_dat_63368 = 0; g_dat_53c7c = NULL;
+    g_dat_63364 = 0; g_dat_63368 = 0; g_player_ent = NULL;
 
     uint8_t *e = (uint8_t *)calloc(1, 0x100);
 #define RESET(kind, y_, x_, f17, f11) do { memset(e, 0, 0x100); e[0] = (kind); \
@@ -14794,12 +14854,12 @@ static void test_fn_01545e(void) {
     check(e[0] == 1, "  a sleeping entity (kind 0) is woken to 1 by the catch");
 
     g_dat_63364 = 0; g_dat_63368 = 0;
-    g_dat_53c7c = e;
+    g_player_ent = e;
     RESET(0, 1015, 150, 0x16, 5);
     fn_01545e(e, -100);
     check(*(int32_t *)(e + 1) == 1010 && g_dat_63364 == 0 && *(int32_t *)(e + 0x17) == 0x16,
           "  the player is clamped exactly to lo and is never caught");
-    g_dat_53c7c = NULL;
+    g_player_ent = NULL;
 
     g_tab_5c8bc[0].v_lo = 100; g_tab_5c8bc[0].v_hi = 200;      /* the X gate ([e+9]) */
     g_tab_5c8bc[0].a1_lo = 1075; g_tab_5c8bc[0].a1_hi = 1200;  /* the Y band ([e+1] + d) */
@@ -14845,7 +14905,7 @@ static void test_fn_01545e(void) {
 #undef RESET
     free(e);
     g_dat_639dc = s_dc; g_dat_62a8c = s_n; g_dat_63364 = s_64; g_dat_63368 = s_68;
-    g_dat_53c7c = s_player; g_tab_5c8bc[0] = s_t0;
+    g_player_ent = s_player; g_tab_5c8bc[0] = s_t0;
 }
 
 static void test_fn_040839_04185e(void) {
@@ -15295,7 +15355,7 @@ static void test_fn_03cb38_pair(void) {
     *(uint32_t *)(player + 0x17) = 1;                              /* follow state */
     g_dat_5d0b4 = recs; g_dat_62a90 = 1;
     g_dat_63dfc = (struct hud_font *)spr;
-    g_dat_63354 = room; g_dat_53c7c = player; g_dat_63370 = 1;
+    g_dat_63354 = room; g_player_ent = player; g_dat_63370 = 1;
     g_dat_639e4 = 0; g_dat_639e0 = 0; g_dat_53c68 = 0;
     for (int i = 0; i < 0x4f0 / 4; i++) g_tab_5274c[i] = 0.0f;
     g_tab_5274c[0] = 1.0f;                                        /* serial 0, stage 1 -> rate 1.0 */
@@ -15606,7 +15666,7 @@ static void test_real_master_load(void) {
     /* ---- the real stage 1 load, straight on top of the real master load ---- */
     uint8_t *s_5d0b4 = g_dat_5d0b4; uint32_t s_370 = g_dat_63370;
     uint8_t *s_spr32 = g_dat_639ec[32]; uint32_t s_act32 = g_dat_53818[32];
-    uint8_t *s_ent = g_dat_53c7c;
+    uint8_t *s_ent = g_player_ent;
     uint8_t *recbuf = (uint8_t *)calloc(1, 0x14 * 0x200);
     g_dat_5d0b4 = recbuf; g_dat_63370 = 1;                  /* stage number 1 */
     g_dat_639ec[32] = 0; g_dat_53818[32] = 0;               /* type 32 must be freshly loaded */
@@ -15618,9 +15678,9 @@ static void test_real_master_load(void) {
     uint32_t sv_35c = g_dat_6335c, sv_a90 = g_dat_62a90;
     g_dat_63dfc = 0; g_dat_6334c = 0; g_dat_63354 = 0; g_dat_63358 = 0;
     g_dat_6335c = 0; g_dat_62a90 = 0;
-    uint8_t *s_cfg_real = g_dat_53c7c;
+    uint8_t *s_cfg_real = g_player_ent;
     uint8_t *cfg_real = (uint8_t *)calloc(1, 0x40);
-    g_dat_53c7c = cfg_real;
+    g_player_ent = cfg_real;
     fn_0374ad();                  /* the real stage-entry transition: teardown + fn_037b03 + DAT_63354 + cfg seed */
 
     check(g_dat_639d8 == 4, "stage1.wal: 4 rooms (real room count)");
@@ -15653,8 +15713,8 @@ static void test_real_master_load(void) {
 
     /* spawn the hero: the constructor reads the real gun tables from the master load */
     fn_0376c8();
-    check(g_dat_53c7c != 0, "fn_0376c8 spawned the player entity from real stage data");
-    check(g_dat_53c84 == (uintptr_t)g_dat_53c7c, "DAT_53c84 mirrors the entity");
+    check(g_player_ent != 0, "fn_0376c8 spawned the player entity from real stage data");
+    check(g_dat_53c84 == (uintptr_t)g_player_ent, "DAT_53c84 mirrors the entity");
     check(g_dat_63354 != 0 && g_dat_63354 == g_dat_6334c,
           "fn_0374ad set the current-room pointer to the real room chain head");
     check(cfg_real[0x17] == 1 && cfg_real[0x11] == 0,
@@ -15678,7 +15738,7 @@ static void test_real_master_load(void) {
           "DAT_63354 left dangling at the freed room chain (original quirk, real data)");
 
     g_dat_5d0b4 = s_5d0b4; g_dat_63370 = s_370;
-    g_dat_639ec[32] = s_spr32; g_dat_53818[32] = s_act32; g_dat_53c7c = s_ent;
+    g_dat_639ec[32] = s_spr32; g_dat_53818[32] = s_act32; g_player_ent = s_ent;
     free(cfg_real);
     g_dat_63dfc = (uint8_t *)sv_6dfc; g_dat_6334c = (uint8_t *)sv_34c;
     g_dat_63354 = (uint8_t *)sv_354; g_dat_63358 = (uint8_t *)sv_358;
@@ -15926,7 +15986,7 @@ static void test_fn_01348f(void) {
     printf("fn_01348f (0x01348f): the HUD gauge draw\n");
     uint32_t sb4 = g_dat_633b4, st = (uint32_t)g_video_stride;
     uint32_t *face_s = g_dat_53c8c, *gage_s = g_dat_63e00;
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     uint8_t tab_save[0x10];
     memcpy(tab_save, g_tab_51c90, sizeof tab_save);
 
@@ -15965,7 +16025,7 @@ static void test_fn_01348f(void) {
     *(int16_t *)(e + 0x29) = 120;                       /* q2 = 1, r2 = 20 */
     *(uint32_t *)(e + 0x0d) = 0;
     *(uint32_t *)(e + 0x56) = 7;
-    g_dat_53c7c = e;
+    g_player_ent = e;
     memset(g_screen_ram, 0, sizeof g_screen_ram);
     fn_01348f(e, SCREEN_BASE, slot);
     check(scr[3 * 0x140 + 5] == 0xA1 && scr[3 * 0x140 + 6] == 0xA2,
@@ -16006,7 +16066,7 @@ static void test_fn_01348f(void) {
 
     free(e2); free(e);
     memcpy(g_tab_51c90, tab_save, sizeof tab_save);
-    g_dat_53c8c = face_s; g_dat_63e00 = gage_s; g_dat_53c7c = pl;
+    g_dat_53c8c = face_s; g_dat_63e00 = gage_s; g_player_ent = pl;
     g_dat_633b4 = sb4; g_video_stride = (int32_t)st;
 }
 
@@ -16094,7 +16154,7 @@ static void test_fn_03e20f(void) {
     uint8_t *hb = (uint8_t *)g_heap_base;
 
     uint8_t *s_room = g_dat_63354; uint32_t s_stage = g_dat_63370;
-    int32_t s_cnt = g_dat_53c68; uint8_t *s_70 = g_dat_53c70, *s_74 = g_dat_53c74, *s_80 = g_dat_53c80;
+    int32_t s_cnt = g_dat_53c68; uint8_t *s_70 = g_dat_53c70, *s_74 = g_dat_53c74, *s_80 = g_latched_ent;
     uint32_t s_camx = g_dat_639dc, s_camy = g_dat_639e0, s_cnt2 = g_dat_62a8c;
     uint8_t s_box1[0x14], s_box2[0x14];
     memcpy(s_box1, g_dat_5d08c, 0x14); memcpy(s_box2, g_dat_5d0a0, 0x14);
@@ -16170,7 +16230,7 @@ static void test_fn_03e20f(void) {
           "opcode 2 sub 5 writes a BYTE 1 at room+0x3a (right edge, camera X exceeded)");
 
     /* opcode 1, spawn gate == 1: the armed DAT_5d08c box decides, camera-anchored spawn */
-    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;
+    g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_latched_ent = 0;
     *(uint32_t *)&g_dat_5d08c[0x00] = 100; *(uint32_t *)&g_dat_5d08c[0x04] = 200;
     *(uint32_t *)&g_dat_5d08c[0x08] = 400; *(uint32_t *)&g_dat_5d08c[0x0c] = 600;
     memset(rec, 0, sizeof rec); rec[0] = 1;
@@ -16207,7 +16267,7 @@ static void test_fn_03e20f(void) {
     #undef PUTR
     #undef RD32
     g_dat_63354 = s_room; g_dat_63370 = s_stage; g_dat_53c68 = s_cnt;
-    g_dat_53c70 = s_70; g_dat_53c74 = s_74; g_dat_53c80 = s_80;
+    g_dat_53c70 = s_70; g_dat_53c74 = s_74; g_latched_ent = s_80;
     g_dat_639dc = s_camx; g_dat_639e0 = s_camy; g_dat_62a8c = s_cnt2;
     memcpy(g_dat_5d08c, s_box1, 0x14); memcpy(g_dat_5d0a0, s_box2, 0x14);
     g_dat_639ec[3] = s_spr3; memcpy(g_dat_53e9c + 3u * 0x88u, s_ent3, 0x88);
@@ -16258,14 +16318,14 @@ static void test_fn_03ed6f(void) {
 
 static void test_fn_03d244(void) {
     printf("fn_03d244 (0x03d244): level-up transition (room chain, status screen, player re-seat)\n");
-    uint8_t *s_pc = g_dat_53c7c;
+    uint8_t *s_pc = g_player_ent;
     uint8_t *s_room = g_dat_63354, *s_50 = g_dat_63350, *s_58 = g_dat_63358;
     uint32_t s_stage = g_dat_63370, s_face = g_dat_63398, s_tick = g_dat_63360;
     uint32_t s_3b0 = g_dat_633b0, s_24 = g_dat_63e24, s_28 = g_dat_63e28, s_18 = g_dat_63e18;
     uint32_t s_374 = g_dat_63374, s_378 = g_dat_63378, s_37c = g_dat_6337c, s_380 = g_dat_63380, s_384 = g_dat_63384;
     int32_t s_c48 = g_dat_53c48; uint32_t s_3a4 = g_dat_633a4; uint8_t s_9bc = g_dat_639bc;
     uint8_t *s_font = g_dat_63e04;
-    uint8_t *s_e70 = g_dat_53c70, *s_e74 = g_dat_53c74, *s_e80 = g_dat_53c80;
+    uint8_t *s_e70 = g_dat_53c70, *s_e74 = g_dat_53c74, *s_e80 = g_latched_ent;
     int32_t s_e68 = g_dat_53c68;
     res_reader *s_rd = g_639b8; uint32_t s_3a0 = g_dat_633a0;
 
@@ -16281,7 +16341,7 @@ static void test_fn_03d244(void) {
     uint32_t p_off = heap_malloc(0x147);
     uint8_t *P = hb + p_off;
     memset(P, 0, 0x147);
-    g_dat_53c7c = P;
+    g_player_ent = P;
     *(uint32_t *)(P + 0x2b) = 5000;                        /* experience total */
     *(uint32_t *)(P + 0x52) = 300;                         /* experience pending */
     P[0x27] = 0; P[0x28] = 1; P[0x26] = 0; P[0x25] = 0;
@@ -16367,7 +16427,7 @@ static void test_fn_03d244(void) {
         *(uint32_t *)(fs_p + 0x34) = ct + 0x30u*4u; *(uint32_t *)(fs_p + 0x38) = gl;
         g_dat_63e04 = fs_p;
     }
-    g_dat_53c70 = NULL; g_dat_53c74 = NULL; g_dat_53c80 = NULL; g_dat_53c68 = 0;
+    g_dat_53c70 = NULL; g_dat_53c74 = NULL; g_latched_ent = NULL; g_dat_53c68 = 0;
     *(uint32_t *)(P + 0x2b) = 5000;
     P[0x27] = 2; P[0x28] = 3; P[0x26] = 4; P[0x25] = 5;
     sys_key_script_clear();
@@ -16404,13 +16464,13 @@ static void test_fn_03d244(void) {
           "end of chain falls back to DAT_00063350; facing left gives camera X + 0x15e - 0x78, and 21 % 10 leaves the tick alone");
 
     sys_ports_reset();
-    g_dat_53c7c = s_pc; g_dat_63354 = s_room; g_dat_63350 = s_50; g_dat_63358 = s_58;
+    g_player_ent = s_pc; g_dat_63354 = s_room; g_dat_63350 = s_50; g_dat_63358 = s_58;
     g_dat_63370 = s_stage; g_dat_63398 = s_face; g_dat_63360 = s_tick; g_dat_633b0 = s_3b0;
     g_dat_63e24 = s_24; g_dat_63e28 = s_28; g_dat_63e18 = s_18;
     g_dat_63374 = s_374; g_dat_63378 = s_378; g_dat_6337c = s_37c; g_dat_63380 = s_380; g_dat_63384 = s_384;
     g_dat_53c48 = s_c48; g_dat_633a4 = s_3a4; g_dat_639bc = s_9bc; g_dat_63e04 = s_font;
     g_639b8 = s_rd; g_dat_633a0 = s_3a0;
-    g_dat_53c70 = s_e70; g_dat_53c74 = s_e74; g_dat_53c80 = s_e80; g_dat_53c68 = s_e68;
+    g_dat_53c70 = s_e70; g_dat_53c74 = s_e74; g_latched_ent = s_e80; g_dat_53c68 = s_e68;
     sys_key_script_clear();
 }
 
@@ -16536,10 +16596,10 @@ static void test_fn_039c03(void) {
 
 static void test_fn_01194c(void) {
     printf("fn_01194c (0x01194c): per-entity step dispatch (state x type band x action)\n");
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_latched_ent;
     int32_t s_cnt = g_dat_53c68;
     uint32_t s_370 = g_dat_63370, s_364 = g_dat_63364, s_368 = g_dat_63368;
-    uint8_t *s_sprfa = g_dat_639ec[0xfa], *s_player = g_dat_53c7c;
+    uint8_t *s_sprfa = g_dat_639ec[0xfa], *s_player = g_player_ent;
     uint32_t s_dc = g_dat_639dc; uint32_t s_nb = g_dat_62a8c;
     uint8_t *entab = g_dat_53e9c + 0xfau * 0x88u;
     static uint8_t saved_ent[0x88]; memcpy(saved_ent, entab, sizeof saved_ent);
@@ -16551,14 +16611,14 @@ static void test_fn_01194c(void) {
     g_dat_63370 = 1; g_dat_63364 = 0; g_dat_63368 = 0;
     g_dat_639dc = 1000;                       /* fn_01545e's default band: 1010 .. 1302 */
     g_dat_62a8c = 0;                          /* no wall rows */
-    g_dat_53c7c = NULL;
+    g_player_ent = NULL;
 
     uint8_t *src = (uint8_t *)calloc(1, 0x14f);
 #define RESET(st_, ty_, ac_) do { memset(src, 0, 0x14f); src[0] = 2;               \
         *(int32_t *)(src + 0x01) = 1050; *(int32_t *)(src + 0x09) = 2000;          \
         *(int32_t *)(src + 0x0d) = (ty_); *(int32_t *)(src + 0x11) = (ac_);        \
         *(int32_t *)(src + 0x17) = (st_);                                          \
-        g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_dat_53c80 = 0;        \
+        g_dat_53c70 = 0; g_dat_53c74 = 0; g_dat_53c68 = 0; g_latched_ent = 0;        \
         g_dat_63364 = 0; g_dat_63368 = 0; } while (0)
 
     RESET(4, 0x21, 0x12);
@@ -16583,7 +16643,7 @@ static void test_fn_01194c(void) {
     check(g_dat_53c68 == 3 && *(int32_t *)(src + 0x01) == 1050,
           "state 0x15, action 0x3e: fn_0113e7 sprays three companions and leaves the source alone");
 
-    g_dat_53c7c = src;
+    g_player_ent = src;
     RESET(0x15, 0x32, 0x3a);
     fn_01194c(src);
     check(g_dat_53c68 == 1 && *(int32_t *)(src + 0x01) == 1050
@@ -16596,7 +16656,7 @@ static void test_fn_01194c(void) {
           && *(int32_t *)(g_dat_53c70 + 0x09) == 2001,
           "state 0x16 (player, action 0x25): the plain spawn (dx -10, EBX -4, dy +1)");
 
-    g_dat_53c7c = NULL;
+    g_player_ent = NULL;
     RESET(0x16, 0x21, 0x22);
     fn_01194c(src);
     check(g_dat_53c68 == 1 && *(int32_t *)(src + 0x01) != 1050,
@@ -16634,22 +16694,22 @@ static void test_fn_01194c(void) {
     fn_01194c(src);
     check(g_dat_53c68 == 1, "state 0x20, action 0x2d: nudge plus spawn");
 
-    g_dat_53c7c = src;
+    g_player_ent = src;
     RESET(0x8c, 0x21, 0x3f);
     fn_01194c(src);
     check(g_dat_53c68 == 1 && *(int32_t *)(g_dat_53c70 + 0x01) == 1082
           && *(int32_t *)(g_dat_53c70 + 0x09) == 2001,
           "state 0x8c (player, action 0x3f): the +0x20 spawn (EBX -4, dy +1)");
 
-    g_dat_53c7c = NULL;
+    g_player_ent = NULL;
     RESET(0x8d, 0x21, 0x38);
     fn_01194c(src);
     check(g_dat_53c68 == 0, "state 0x8d only fires for the player entity");
 
 #undef RESET
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c68 = s_cnt;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_latched_ent = s_80; g_dat_53c68 = s_cnt;
     g_dat_63370 = s_370; g_dat_63364 = s_364; g_dat_63368 = s_368;
-    g_dat_639ec[0xfa] = s_sprfa; g_dat_53c7c = s_player;
+    g_dat_639ec[0xfa] = s_sprfa; g_player_ent = s_player;
     g_dat_639dc = s_dc; g_dat_62a8c = s_nb;
     memcpy(entab, saved_ent, sizeof saved_ent);
     free(sprfa); free(src);
@@ -16658,8 +16718,8 @@ static void test_fn_01194c(void) {
 
 static void test_fn_012616(void) {
     printf("fn_012616 (0x012616): the action-record stepper (frame, state windows, death, moves)\n");
-    uint8_t *s_54 = g_dat_63354, *s_7c = g_dat_53c7c, *s_80 = g_dat_53c80;
-    uint32_t s_88 = g_dat_53c88, s_370 = g_dat_63370, s_36c = g_dat_6336c, s_398 = g_dat_63398;
+    uint8_t *s_54 = g_dat_63354, *s_7c = g_player_ent, *s_80 = g_latched_ent;
+    uint32_t s_88 = g_gauge_other_off, s_370 = g_dat_63370, s_36c = g_dat_6336c, s_398 = g_dat_63398;
     uint32_t s_360 = g_dat_63360, s_364 = g_dat_63364, s_368 = g_dat_63368, s_39bc = g_dat_639bc;
     uint32_t s_dc = g_dat_639dc, s_de0 = g_dat_639e0, s_nb = g_dat_62a8c;
     uint8_t s_ed3 = g_dat_63ed3, s_ed5 = g_dat_63ed5, s_box[0x14];
@@ -16679,7 +16739,7 @@ static void test_fn_012616(void) {
     uint8_t saves[4] = {0};                                /* only used to make +0x34c non-NULL */
     g_dat_63354 = room; g_dat_63370 = 1;
     g_dat_639dc = 1000; g_dat_639e0 = 0; g_dat_62a8c = 0;
-    g_dat_53c7c = NULL; g_dat_53c80 = NULL; g_dat_53c88 = 0;
+    g_player_ent = NULL; g_latched_ent = NULL; g_gauge_other_off = 0;
     g_dat_6336c = 0; g_dat_639bc = 0; g_dat_63364 = 0; g_dat_63368 = 0;
     g_dat_63398 = 0; g_dat_63ed3 = 0; g_dat_63ed5 = 0; g_dat_63360 = 7;
     memset(g_dat_5d0a0, 0, sizeof g_dat_5d0a0);
@@ -16707,7 +16767,7 @@ static void test_fn_012616(void) {
         *(uint32_t *)(e + 0x123) = p1; *(int32_t *)(e + 0x01) = 1200; *(int32_t *)(e + 0x09) = 300; \
         *(uint32_t *)(e + 0x17) = 1; *(uint32_t *)(e + 0x11) = 2; e[0] = 2;                  \
         g_dat_53c70 = NULL; g_dat_53c74 = NULL; g_dat_53c68 = 0;                             \
-        g_dat_53c7c = NULL; g_dat_53c80 = NULL; g_dat_53c88 = 0;                             \
+        g_player_ent = NULL; g_latched_ent = NULL; g_gauge_other_off = 0;                             \
         g_dat_6336c = 0; g_dat_639bc = 0; g_dat_63364 = 0; g_dat_63368 = 0;                  \
         g_dat_63398 = 0; g_dat_63ed3 = 0; g_dat_63ed5 = 0;                                   \
         *(uint32_t *)(room + 0x1e) = 0; *(uint32_t *)(room + 0x22) = 0;                      \
@@ -16728,7 +16788,7 @@ static void test_fn_012616(void) {
 
     /* 3+4: the Y delta array (with the player's room accumulation) and the X delta array */
     RESET_ENT();
-    dY[3] = 7; dX[3] = 5; g_dat_53c7c = e;   /* frame 2 has already become 3 at the top of the call */
+    dY[3] = 7; dX[3] = 5; g_player_ent = e;   /* frame 2 has already become 3 at the top of the call */
     fn_012616(e);
     check(*(int32_t *)(e + 0x01) == 1207 && *(int32_t *)(e + 0x09) == 305,
           "record+0x71[frame] moves Y through fn_01545e and +0x75[frame] moves X through fn_01586b");
@@ -16806,7 +16866,7 @@ static void test_fn_012616(void) {
 
     /* 11: the exit rectangle published by script opcode 6 (g_dat_5d0a0) */
     RESET_ENT();
-    g_dat_53c7c = e; *(uint32_t *)(e + 0x17) = 2; *(uint32_t *)(e + 0x11) = 5; dX[6] = 20;
+    g_player_ent = e; *(uint32_t *)(e + 0x17) = 2; *(uint32_t *)(e + 0x11) = 5; dX[6] = 20;
     *(uint32_t *)&g_dat_5d0a0[0x00] = 1000; *(uint32_t *)&g_dat_5d0a0[0x04] = 250;
     *(uint32_t *)&g_dat_5d0a0[0x08] = 1300; *(uint32_t *)&g_dat_5d0a0[0x0c] = 400;
     g_dat_63ed5 = 1; g_dat_63398 = 1; *(uint8_t **)(room + 0x34c) = room2;
@@ -16817,7 +16877,7 @@ static void test_fn_012616(void) {
           "the same branch accumulates the X delta into room+0x22 even before the rectangle test");
 
     RESET_ENT();
-    g_dat_53c7c = e; *(uint32_t *)(e + 0x17) = 2; *(uint32_t *)(e + 0x11) = 5;
+    g_player_ent = e; *(uint32_t *)(e + 0x17) = 2; *(uint32_t *)(e + 0x11) = 5;
     *(uint32_t *)&g_dat_5d0a0[0x00] = 1000; *(uint32_t *)&g_dat_5d0a0[0x04] = 250;
     *(uint32_t *)&g_dat_5d0a0[0x08] = 1300; *(uint32_t *)&g_dat_5d0a0[0x0c] = 400;
     *(uint32_t *)&g_dat_5d0a0[0x10] = 7; g_dat_63ed3 = 1;
@@ -16843,7 +16903,7 @@ static void test_fn_012616(void) {
 
 #undef RESET_ENT
     heap_region_floor_set(s_floor);
-    g_dat_63354 = s_54; g_dat_53c7c = s_7c; g_dat_53c80 = s_80; g_dat_53c88 = s_88;
+    g_dat_63354 = s_54; g_player_ent = s_7c; g_latched_ent = s_80; g_gauge_other_off = s_88;
     g_dat_63370 = s_370; g_dat_6336c = s_36c; g_dat_63398 = s_398; g_dat_63360 = s_360;
     g_dat_63364 = s_364; g_dat_63368 = s_368; g_dat_639bc = s_39bc;
     g_dat_639dc = s_dc; g_dat_639e0 = s_de0; g_dat_62a8c = s_nb;
@@ -16855,8 +16915,8 @@ static void test_fn_012616(void) {
 
 static void test_fn_03209c(void) {
     printf("fn_03209c (0x03209c): the per-frame entity sweep (every node through fn_012616)\n");
-    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_dat_53c80;
-    uint8_t *s_7c = g_dat_53c7c, *s_54 = g_dat_63354;
+    uint8_t *s_head = g_dat_53c70, *s_tail = g_dat_53c74, *s_80 = g_latched_ent;
+    uint8_t *s_7c = g_player_ent, *s_54 = g_dat_63354;
     int32_t s_cnt = g_dat_53c68; uint32_t s_370 = g_dat_63370, s_39bc = g_dat_639bc;
     uint8_t *s_sprfa = g_dat_639ec[0xfa];
     uint32_t s_dc = g_dat_639dc, s_nb = g_dat_62a8c, s_floor = heap_region_floor();
@@ -16867,7 +16927,7 @@ static void test_fn_03209c(void) {
     uint8_t *room = (uint8_t *)calloc(1, 0x400);
     *(uint32_t *)(room + 0x12) = 100; *(uint32_t *)(room + 0x16) = 5000;
     g_dat_63354 = room; g_dat_63370 = 1; g_dat_639dc = 1000; g_dat_62a8c = 0;
-    g_dat_53c7c = NULL; g_dat_53c80 = NULL; g_dat_6336c = 0; g_dat_639bc = 0;
+    g_player_ent = NULL; g_latched_ent = NULL; g_dat_6336c = 0; g_dat_639bc = 0;
     memset(g_dat_5d0a0, 0, sizeof g_dat_5d0a0);
 
     /* one shared inert action record for every state, as in the fn_012616 test */
@@ -16930,7 +16990,7 @@ static void test_fn_03209c(void) {
 
 #undef MKE
     heap_region_floor_set(s_floor);
-    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_dat_53c80 = s_80; g_dat_53c7c = s_7c;
+    g_dat_53c70 = s_head; g_dat_53c74 = s_tail; g_latched_ent = s_80; g_player_ent = s_7c;
     g_dat_63354 = s_54; g_dat_53c68 = s_cnt; g_dat_63370 = s_370; g_dat_639bc = s_39bc;
     g_dat_639ec[0xfa] = s_sprfa; g_dat_639dc = s_dc; g_dat_62a8c = s_nb;
     memcpy(g_dat_53e9c + 0xfau * 0x88u, entab_save, sizeof entab_save);
@@ -16941,7 +17001,7 @@ static void test_fn_03209c(void) {
 static void test_fn_03272f(void) {
     printf("fn_03272f (0x03272f): the player action-chain resolver (states + the .act chain match)\n");
     /* --- save every global this function can touch ------------------------------- */
-    uint8_t *s_pl = g_dat_53c7c, *s_room = g_dat_63354;
+    uint8_t *s_pl = g_player_ent, *s_room = g_dat_63354;
     uint8_t s_ring[10], s_arm[10]; uint32_t s_lvl[16];
     memcpy(s_ring, g_dat_63f14, 10); memcpy(s_arm, g_dat_63f1e, 10); memcpy(s_lvl, g_dat_63f28, 40);
     uint8_t s_f50 = g_dat_63f50, s_f08 = g_dat_63f08;
@@ -16971,7 +17031,7 @@ static void test_fn_03272f(void) {
     for (int i = 0; i < 0x100; i++) *(uint32_t *)(hb + p2 + (size_t)i * 4) = defr;
 
     uint32_t pl_o = heap_malloc(0x14f); uint8_t *pl = hb + pl_o;
-    g_dat_53c7c = pl;
+    g_player_ent = pl;
 #define RESET() do { memset((pl), 0, 0x14f); *(uint32_t *)(pl + 0x123) = p1;      \
         *(int32_t *)(pl + 0x01) = 1200; *(int32_t *)(pl + 0x09) = 300;            \
         memset(g_dat_63f14, 0, 10); memset(g_dat_63f1e, 0, 10);                   \
@@ -17127,7 +17187,7 @@ static void test_fn_03272f(void) {
 #undef FR
 #undef RESET
     /* restore */
-    g_dat_53c7c = s_pl; g_dat_63354 = s_room;
+    g_player_ent = s_pl; g_dat_63354 = s_room;
     memcpy(g_dat_63f14, s_ring, 10); memcpy(g_dat_63f1e, s_arm, 10); memcpy(g_dat_63f28, s_lvl, 40);
     g_dat_63f50 = s_f50; g_dat_63f08 = s_f08;
     g_dat_62d58 = s_2d58; g_dat_62d5c = s_2d5c; g_dat_6339c = s_339c;
@@ -17146,7 +17206,7 @@ static void test_fn_03272f(void) {
 #if 0   /* DISABLED: the room loop needs the full stage fixture -- see docs/12-functions/STATUS.md
 static void test_fn_03a829(void) {
     printf("fn_03a829 (0x03a829): the room play loop (frame pipeline + the DAT_6336c exit decision)\n");
-    uint8_t *s_pl = g_dat_53c7c, *s_room = g_dat_63354, *s_80 = g_dat_53c80;
+    uint8_t *s_pl = g_player_ent, *s_room = g_dat_63354, *s_80 = g_latched_ent;
     uint8_t *s_hd = g_dat_53c70, *s_tl = g_dat_53c74, *s_c78 = g_dat_53c78;
     uint8_t *s_a98 = g_dat_62a98, *s_a9c = g_dat_62a9c, *s_639cc = g_dat_639cc, *s_639d4 = g_dat_639d4;
     uint32_t s_b0 = g_dat_633b0, s_100 = g_dat_53100, s_370 = g_dat_63370, s_39c = g_dat_6339c;
@@ -17154,7 +17214,7 @@ static void test_fn_03a829(void) {
     uint32_t s_398 = g_dat_63398, s_2d58 = g_dat_62d58, s_2d5c = g_dat_62d5c;
     uint32_t s_cnt = g_dat_53c68, s_9e0 = g_dat_639e0, s_9dc = g_dat_639dc, s_74 = g_dat_63374;
     uint32_t s_2a90 = g_dat_62a90, s_9e4 = g_dat_639e4, s_e24 = g_dat_63e24;
-    uint32_t s_c84 = (uint32_t)(uintptr_t)g_dat_53c84, s_c88 = g_dat_53c88;
+    uint32_t s_c84 = (uint32_t)(uintptr_t)g_dat_53c84, s_c88 = g_gauge_other_off;
     uint8_t  s_e89 = g_dat_63e89, s_b900 = g_dat_62b90[0], s_b9071 = g_dat_62b90[0x71];
     uint32_t s_e18 = g_dat_63e18, s_e1c = g_dat_63e1c, s_e20 = g_dat_63e20;
     uint8_t ring_s[10], arm_s[10]; memcpy(ring_s, g_dat_63f14, 10); memcpy(arm_s, g_dat_63f1e, 10);
@@ -17166,10 +17226,10 @@ static void test_fn_03a829(void) {
     /* every list the frame pipeline walks is emptied: fn_03b9b7 drains DAT_000639cc, the draw sweep
      * walks DAT_00053c70/DAT_00053c84/DAT_00053c88, the script pump walks DAT_00063e18 */
     g_dat_639cc = NULL; g_dat_639d4 = NULL;
-    g_dat_53c84 = 0; g_dat_53c88 = 0;
+    g_dat_53c84 = 0; g_gauge_other_off = 0;
     g_dat_63e18 = 0; g_dat_63e1c = 0; g_dat_63e20 = 0;
     g_dat_633b0 = SCREEN_BASE; g_dat_62a90 = 0; g_dat_639e4 = 0; g_dat_63e24 = 0;
-    g_dat_53c80 = NULL; g_dat_63e89 = 0;
+    g_latched_ent = NULL; g_dat_63e89 = 0;
     g_dat_639e0 = 1000; g_dat_639dc = 0;
 
     uint8_t *room = (uint8_t *)calloc(1, 0x800);
@@ -17186,7 +17246,7 @@ static void test_fn_03a829(void) {
 
     /* the player, with an action record that runs out at frame 3 so its death can end the loop */
     uint32_t pl_o = heap_malloc(0x14f); uint8_t *pl = hb + pl_o;
-    g_dat_53c7c = pl;
+    g_player_ent = pl;
     memset(pl, 0, 0x14f);
     uint32_t p1 = heap_malloc(0x20);
     *(uint32_t *)(hb + p1 + 4) = heap_malloc(0x100 * 4);
@@ -17237,7 +17297,7 @@ static void test_fn_03a829(void) {
     }
 
     /* --- a stage entity's death is reported (DAT_6336c == 3) and returns 1 ------------------ */
-    LINK(foe); g_dat_53c80 = foe; pl[0x30] = 0;
+    LINK(foe); g_latched_ent = foe; pl[0x30] = 0;
     *(int32_t *)(pl + 1) = 1200; g_dat_63360 = 0; g_dat_6339c = 0;
     r = fn_03a829();
     check(r == 1 && g_dat_6336c == 0,
@@ -17258,7 +17318,7 @@ static void test_fn_03a829(void) {
     g_dat_63f14[9] = 'q'; g_dat_62d58 = 0; g_dat_62b90[0] = 1; g_dat_62b90[0x71] = 2;
 
     LINK(pl); pl[0x30] = 0; *(uint32_t *)(pl + 0x17) = 1; *(uint32_t *)(pl + 0x11) = 0;
-    g_dat_53c80 = NULL; g_dat_63360 = 0; g_dat_6339c = 0; g_dat_53100 = 0;
+    g_latched_ent = NULL; g_dat_63360 = 0; g_dat_6339c = 0; g_dat_53100 = 0;
     g_dat_62a98 = tbl; g_dat_62a9c = empty_tbl;
     /* the loop would otherwise run forever, so let the player die on the frame AFTER the chain fires:
      * the record limit is 3, so the third frame kills it */
@@ -17276,7 +17336,7 @@ static void test_fn_03a829(void) {
 
 #undef LINK
 #undef DYING
-    g_dat_53c7c = s_pl; g_dat_63354 = s_room; g_dat_53c80 = s_80;
+    g_player_ent = s_pl; g_dat_63354 = s_room; g_latched_ent = s_80;
     g_dat_53c70 = s_hd; g_dat_53c74 = s_tl; g_dat_53c78 = s_c78;
     g_dat_639cc = s_639cc; g_dat_639d4 = s_639d4;
     g_dat_62a98 = s_a98; g_dat_62a9c = s_a9c;
@@ -17286,7 +17346,7 @@ static void test_fn_03a829(void) {
     g_dat_639e0 = s_9e0; g_dat_639dc = s_9dc; g_dat_63374 = s_74; g_dat_63e89 = s_e89;
     g_dat_62b90[0] = s_b900; g_dat_62b90[0x71] = s_b9071;
     g_dat_62a90 = s_2a90; g_dat_639e4 = s_9e4; g_dat_63e24 = s_e24;
-    g_dat_53c84 = (uintptr_t)s_c84; g_dat_53c88 = s_c88;
+    g_dat_53c84 = (uintptr_t)s_c84; g_gauge_other_off = s_c88;
     g_dat_63e18 = s_e18; g_dat_63e1c = s_e1c; g_dat_63e20 = s_e20;
     memcpy(g_dat_63f14, ring_s, 10); memcpy(g_dat_63f1e, arm_s, 10); g_dat_63f50 = ring_c;
     heap_region_floor_set(floor_s);
@@ -17853,13 +17913,13 @@ static void test_fn_034635_null_player(void) {
     printf("fn_034635 (0x034635): a key make before any stage is loaded (DAT_53c7c = 0)\n");
     uint8_t saved_state = g_dat_62c58[0x1c];
     int32_t saved_a94 = g_dat_62a94;
-    void *saved_player = (void *)g_dat_53c7c;
-    g_dat_53c7c = 0;
+    void *saved_player = (void *)g_player_ent;
+    g_player_ent = 0;
     g_dat_62c58[0x1c] = 1;                        /* the state that asks for player->0x1b */
     fn_034635(0x1c);
     check(g_dat_62c58[0x1c] == 2, "the key counter still advances with no player entity");
     check(g_dat_62a94 == saved_a94, "the ->0x1b read is skipped, so no value is invented for DAT_62a94");
-    g_dat_53c7c = saved_player; g_dat_62c58[0x1c] = saved_state;
+    g_player_ent = saved_player; g_dat_62c58[0x1c] = saved_state;
 }
 
 static void test_sound_enable_default(void) {
@@ -18287,6 +18347,7 @@ int main(void) {
     test_fn_04097e();
     test_fn_03f885();
     test_fn_03f80d();
+    test_warp_entity_shared_types();
     test_fn_010efc();
     test_fn_03c853();
     test_fn_037b03();

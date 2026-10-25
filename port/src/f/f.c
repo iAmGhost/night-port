@@ -1124,8 +1124,9 @@ uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg
                    int32_t type_idx, uint8_t kind)
 {
     (void)canary_id((uintptr_t)block, 0x24);                     /* 0x10efc-01 */
-    if ((uint32_t)type_idx == g_dat_63370) {                     /* 0x10f1d-26 */
-        g_dat_53c80 = block;                                     /* 0x10f28-2b */
+    if ((uint32_t)type_idx == g_dat_63370) {                     /* 0x10f1d-26: the type index == the current
+                                                                  * episode counter -> latch DAT_00053c80 (docs/89) */
+        g_latched_ent = block;                                     /* 0x10f28-2b */
     }
     block[0x00] = kind;                                          /* 0x10f30-36 */
     *(uint32_t *)(block + 0x01) = (uint32_t)arg_edx;             /* 0x10f38-3e */
@@ -1259,7 +1260,7 @@ void fn_0323f8(void) {
 
 /* 0x03237b (L11, 124 B): conditional drain -- walk from head, remove+free only
  * the nodes whose dword at +0xd is non-zero (fn_0112fd + heap_free_guard),
- * leaving the others linked in place. Clears g_dat_53c88 = 0 after the walk. */
+ * leaving the others linked in place. Clears g_gauge_other_off = 0 after the walk. */
 void fn_03237b(void) {
     (void)canary_id(0, 0x2c);
     uint8_t *cur = g_dat_53c70;
@@ -1272,13 +1273,13 @@ void fn_03237b(void) {
         }
         cur = next;
     }
-    g_dat_53c88 = 0;                                    /* [0x53c88]=0 */
+    g_gauge_other_off = 0;                                    /* [0x53c88]=0 */
 }
 
 /* fn_013aad  orig: 0x00013aad (L10, 415B)
  *   Entity-list bubble-sort: sort the doubly-linked entity list ascending by
  *   node->+0x9 (int32 key), relinking nodes in place and maintaining head
- *   (g_dat_53c70) + tail (g_dat_53c74). g_dat_53c7c = special-node marker
+ *   (g_dat_53c70) + tail (g_dat_53c74). g_player_ent = special-node marker
  *   (stable-sort tie-breaker). No callees (canary only).
  *   Node layout (real C pointers; POINTER-WIDTH ADAPTATION): +0x0 type(byte),
  *   +0x9 key(int32), +0x13f next(8-byte ptr, widened from 4), +0x147 prev
@@ -1294,7 +1295,7 @@ void fn_013aad(uint32_t a0) {
             int32_t ck = *(int32_t *)(cur + 0x9);
             int32_t nk = *(int32_t *)(nxt + 0x9);
             if (ck < nk) { cur = nxt; continue; }        /* 0x13b21 */
-            if (nxt == g_dat_53c7c && nk == ck) { cur = nxt; continue; }  /* 0x13b4e */
+            if (nxt == g_player_ent && nk == ck) { cur = nxt; continue; }  /* 0x13b4e */
             if (nxt[0] == cur[0] && nk == ck) { cur = nxt; continue; }    /* 0x13b7b */
             /* full swap (0x13b8c): */
             uint8_t *nxt_next = *(uint8_t **)(nxt + 0x13f);
@@ -2477,6 +2478,18 @@ uint32_t fn_03690b(void)
     g_dat_53b3c = act_block("mark.act");
     g_dat_63dd4 = spr_block("dust.spr");
     g_dat_53c00 = act_block("dust.act");
+    /* DAT_000639ec[0xc9] IS DAT_00063d10 and DAT_000639ec[0xfa] IS DAT_00063dd4 -- same DS address
+     * (0x639ec + 0xc9*4 = 0x63d10, + 0xfa*4 = 0x63dd4), and likewise 0x53818 + 0xc9*4 = 0x53b3c and
+     * + 0xfa*4 = 0x53c00. That is why the per-type teardown skips those two indices. Filling the two
+     * slots is what lets an actor of type 0xc9 (the hit-contact marker fn_013c4d spawns) or type 0xfa
+     * (the mirrored companion / effect type fn_011827 spawns three of) resolve a sprite and action
+     * block at all: with the named globals kept separate the slots stayed 0 and fn_010efc would
+     * dereference a null block at +0x38 (docs/84). The blocks stay owned by the named globals, which
+     * is also where they are freed. */
+    g_dat_639ec[0xc9] = (uint8_t *)g_dat_63d10;
+    g_dat_639ec[0xfa] = (uint8_t *)g_dat_63dd4;
+    g_dat_53818[0xc9] = g_dat_53b3c ? (uint32_t)((uint8_t *)g_dat_53b3c - (uint8_t *)g_heap_base) : 0;
+    g_dat_53818[0xfa] = g_dat_53c00 ? (uint32_t)((uint8_t *)g_dat_53c00 - (uint8_t *)g_heap_base) : 0;
 
     /* exptab.dat: 6 rows of 5 numbers, then the row's newline */
     fn_0367c9("exptab.dat");
@@ -2786,6 +2799,30 @@ static void trace_stream_hex(const uint8_t *p) {
 }
 
 uint32_t heap_region_floor(void) { return s_region_floor; }
+
+/* Host diagnostic (NIGHT_GLYPHDBG=1, docs/84): dump one glyph/number cell composite from the
+ * font-style renderers that had no trace at all -- fn_03df96 (the per-stage sprite block stNs.spr),
+ * fn_0137c1 (the countdown numbers, exp.spr), fn_038b30 / fn_0383a4 (the number fields), fn_03b718
+ * (the floating value display, system.spr / system2.spr). The census attributes these composites by
+ * CONTENT, so the line names no asset: scripts/playtest_asset_census.py must find the RLE bytes in
+ * an extracted .spr. Every site keeps its own budget, so a per-frame display cannot starve the rarer
+ * ones (cf. the per-type entity quota note below). */
+static int glyph_trace_on(void)
+{
+    static int v = -1;
+    if (v < 0) { const char *e = getenv("NIGHT_GLYPHDBG"); v = (e && e[0] == '1'); }
+    return v;
+}
+#define GLYPH_TRACE(tagname, budget, rle_, dest_, srow_, col_, rows_)              \
+    do {                                                                          \
+        if (glyph_trace_on() && (budget) > 0 && (dest_) >= 0 && (srow_) >= 0) {    \
+            (budget)--;                                                           \
+            fprintf(stderr, "menucell tag=%s k=0 dest=%d srow=%d col=%d rows=%d stream=", \
+                    tagname, (int)(dest_), (int)(srow_), (int)(col_), (int)(rows_)); \
+            trace_stream_hex(rle_);                                               \
+            fprintf(stderr, "\n");                                                \
+        }                                                                         \
+    } while (0)
 
 uintptr_t g_heap_base      = 0;
 uint32_t  g_heap_head      = 0;   /* DAT_00053350 */
@@ -4777,7 +4814,7 @@ void fn_037b03(int32_t resume_flag)
     g_dat_62a8c = 0;                                                /* 0x37b1e */
     g_dat_62a90 = 0;                                                /* 0x37b28 */
     fn_041e20(g_dat_5d08c, 0, 0x14);                                /* 0x37b3e */
-    g_dat_53c80 = 0;                                                /* 0x37b43 */
+    g_latched_ent = 0;                                                /* 0x37b43 */
     uint8_t name[0x20];                                             /* [EBP-0x4c] */
     uint8_t *cur = (uint8_t *)&g_dat_63370;                         /* vararg cursor (see header) */
     if (resume_flag != 0) goto stage_records;                       /* 0x37b4d-51 */
@@ -4913,7 +4950,7 @@ void fn_037347(void)
     (void)canary_id(0, 0x28);                                                /* 0x37347-4c */
     fn_03237b();                                                             /* 0x37351 */
     fn_03ee0a();                                                             /* 0x37356 */
-    g_dat_53c88 = 0;                                                         /* 0x3735b */
+    g_gauge_other_off = 0;                                                         /* 0x3735b */
     uint8_t *hb = (uint8_t *)g_heap_base;
     for (uint32_t i = 1; i < 0x104u; i = i + 1) {                            /* 0x37365-0x37429 */
         if (i == 0xc9u || i == 0xfau) continue;                              /* 0x373xx: shared tables */
@@ -4943,10 +4980,10 @@ void fn_037347(void)
 void fn_0374ad(void)
 {
     (void)canary_id(0, 0x40);                                                /* 0x374ad-b2 */
-    g_dat_53c7c[0x30] = 0;                                                   /* 0x374ca */
+    g_player_ent[0x30] = 0;                                                   /* 0x374ca */
     fn_03237b();                                                             /* 0x374ce */
     fn_03ee0a();                                                             /* 0x374d3 */
-    g_dat_53c88 = 0;                                                         /* 0x374d8 */
+    g_gauge_other_off = 0;                                                         /* 0x374d8 */
     uint8_t *hb = (uint8_t *)g_heap_base;
     for (uint32_t i = 1; i < 0x104u; i = i + 1) {                            /* 0x374e2-375a8 */
         if (i == 0xc9u || i == 0xfau) continue;                              /* shared tables, never freed */
@@ -4975,14 +5012,14 @@ void fn_0374ad(void)
     g_dat_63354 = g_dat_6334c;                                               /* 0x3761f */
     fn_03cad3(g_dat_63354);                                                  /* 0x37629 */
     g_dat_63398 = g_dat_63354[0x11];                                         /* 0x37633-3b (zero-extended byte) */
-    if (g_dat_63398 == 0) *(int32_t *)(g_dat_53c7c + 1) = (int32_t)g_dat_639dc - 0x1e;    /* 0x37649-57 */
-    else                  *(int32_t *)(g_dat_53c7c + 1) = (int32_t)g_dat_639dc + 0x15e;   /* 0x3765c-6d */
-    *(uint32_t *)(g_dat_53c7c + 5) = 0;                                      /* 0x37675 */
-    *(int32_t *)(g_dat_53c7c + 9) =                                          /* 0x3767c-9f */
+    if (g_dat_63398 == 0) *(int32_t *)(g_player_ent + 1) = (int32_t)g_dat_639dc - 0x1e;    /* 0x37649-57 */
+    else                  *(int32_t *)(g_player_ent + 1) = (int32_t)g_dat_639dc + 0x15e;   /* 0x3765c-6d */
+    *(uint32_t *)(g_player_ent + 5) = 0;                                      /* 0x37675 */
+    *(int32_t *)(g_player_ent + 9) =                                          /* 0x3767c-9f */
         (int32_t)(g_dat_639e0 +
                   g_tab_52c3c[(g_dat_63370 - 1) * 0xa + *(const uint32_t *)(g_dat_63354 + 0x40)]);
-    *(uint32_t *)(g_dat_53c7c + 0x17) = 1;                                   /* 0x376ac */
-    *(uint32_t *)(g_dat_53c7c + 0x11) = 0;                                   /* 0x376b8 */
+    *(uint32_t *)(g_player_ent + 0x17) = 1;                                   /* 0x376ac */
+    *(uint32_t *)(g_player_ent + 0x11) = 0;                                   /* 0x376b8 */
 }
 
 /* fn_0376c8  orig: 0x000376c8 (L15, 601 B) -- THE PLAYER (hero) SPAWN.
@@ -5067,18 +5104,18 @@ void fn_0376c8(void)
                                            + (g_dat_63370 - 1) * 0xa];       /* 0x3770d-29 */
         player = fn_010efc(hb + blk, (int32_t)0xffffffe2, 0, (int32_t)tbl, 0, 0);  /* 0x37733 (EAX,EDX,EBX,ECX + two pushed 0s) */
     }
-    g_dat_53c7c = player;                                                    /* 0x3774c: the player entity */
-    *(uint16_t *)(g_dat_53c7c + 0x23) = 0;                                   /* 0x37756 */
-    g_dat_53c7c[0x28] = (uint8_t)g_dat_63384;                                /* 0x37761-67 */
-    if (g_dat_53c7c[0x28] == 0) {                                            /* 0x37779 */
-        *(uint32_t *)(g_dat_53c7c + 0x56) = *(const uint16_t *)(g_dat_53e9c + 0x00);  /* 0x377a1-3e: DAT_53e9c low half */
+    g_player_ent = player;                                                    /* 0x3774c: the player entity */
+    *(uint16_t *)(g_player_ent + 0x23) = 0;                                   /* 0x37756 */
+    g_player_ent[0x28] = (uint8_t)g_dat_63384;                                /* 0x37761-67 */
+    if (g_player_ent[0x28] == 0) {                                            /* 0x37779 */
+        *(uint32_t *)(g_player_ent + 0x56) = *(const uint16_t *)(g_dat_53e9c + 0x00);  /* 0x377a1-3e: DAT_53e9c low half */
     } else {
-        *(uint32_t *)(g_dat_53c7c + 0x56)
-            = g_tab_52738[(uint32_t)g_dat_53c7c[0x28]] & 0xffffu;            /* 0x3778b-3779c */
+        *(uint32_t *)(g_player_ent + 0x56)
+            = g_tab_52738[(uint32_t)g_player_ent[0x28]] & 0xffffu;            /* 0x3778b-3779c */
     }
-    *(uint16_t *)(g_dat_53c7c + 0x29) = *(const uint16_t *)(g_dat_53e9c + 0x08);  /* 0x377ba-c1: DAT_53ea4 */
-    g_dat_53c88 = 0;                                                         /* 0x377c5 */
-    g_dat_53c84 = (uintptr_t)g_dat_53c7c;                               /* 0x377d4 */
+    *(uint16_t *)(g_player_ent + 0x29) = *(const uint16_t *)(g_dat_53e9c + 0x08);  /* 0x377ba-c1: DAT_53ea4 */
+    g_gauge_other_off = 0;                                                         /* 0x377c5 */
+    g_dat_53c84 = (uintptr_t)g_player_ent;                               /* 0x377d4 */
     fn_037b03(1);                                                            /* 0x377de: resume-style load */
     g_dat_63354 = (g_dat_63358 != NULL) ? g_dat_63358 : g_dat_6334c;         /* 0x377e3-37802 */
     uint8_t *keytab[10] = { g_dat_62aa0, g_dat_62aa4, g_dat_62aa8, g_dat_62aac, g_dat_62ab0,
@@ -5090,23 +5127,23 @@ void fn_0376c8(void)
     uint32_t ai = g_dat_6337c;                                               /* 0x37828-36 */
     g_dat_53818[0] = (ai < 3u && acttab[ai] != NULL)
                    ? (uint32_t)(acttab[ai] - hb) : 0;
-    *(uint32_t *)(g_dat_53c7c + 0x123) = g_dat_53818[0];                     /* 0x37846 */
-    *(uint32_t *)(g_dat_53c7c + 0x2b) = g_dat_63374;                         /* 0x37857 */
-    g_dat_53c7c[0x27] = (uint8_t)g_dat_63378;                                /* 0x37865 */
-    g_dat_53c7c[0x26] = (uint8_t)g_dat_6337c;                                /* 0x37873 */
-    g_dat_53c7c[0x25] = (uint8_t)g_dat_63380;                                /* 0x3787f */
+    *(uint32_t *)(g_player_ent + 0x123) = g_dat_53818[0];                     /* 0x37846 */
+    *(uint32_t *)(g_player_ent + 0x2b) = g_dat_63374;                         /* 0x37857 */
+    g_player_ent[0x27] = (uint8_t)g_dat_63378;                                /* 0x37865 */
+    g_player_ent[0x26] = (uint8_t)g_dat_6337c;                                /* 0x37873 */
+    g_player_ent[0x25] = (uint8_t)g_dat_63380;                                /* 0x3787f */
     fn_03cad3(g_dat_63354);                                                  /* 0x3788e */
     if (g_dat_63398 == 0) {                                                  /* 0x37893 */
-        *(int32_t *)(g_dat_53c7c + 1)  = (int32_t)g_dat_639dc - 0x1e;
-        *(uint32_t *)(g_dat_53c7c + 0x1b) = 0;
+        *(int32_t *)(g_player_ent + 1)  = (int32_t)g_dat_639dc - 0x1e;
+        *(uint32_t *)(g_player_ent + 0x1b) = 0;
     } else {
-        *(int32_t *)(g_dat_53c7c + 1)  = (int32_t)g_dat_639dc + 0x15e;
-        *(uint32_t *)(g_dat_53c7c + 0x1b) = 1;
+        *(int32_t *)(g_player_ent + 1)  = (int32_t)g_dat_639dc + 0x15e;
+        *(uint32_t *)(g_player_ent + 0x1b) = 1;
     }
-    *(int32_t *)(g_dat_53c7c + 9) = (int32_t)(g_dat_639e0
+    *(int32_t *)(g_player_ent + 9) = (int32_t)(g_dat_639e0
         + g_tab_52c3c[*(const uint32_t *)(g_dat_63354 + 0x40) + (g_dat_63370 - 1) * 0xa]);  /* 0x378d3-9f */
-    *(uint32_t *)(g_dat_53c7c + 0x17) = 1;                                   /* 0x378e1 */
-    *(uint32_t *)(g_dat_53c7c + 0x11) = 0;                                   /* 0x378ed */
+    *(uint32_t *)(g_player_ent + 0x17) = 1;                                   /* 0x378e1 */
+    *(uint32_t *)(g_player_ent + 0x11) = 0;                                   /* 0x378ed */
 }
 
 
@@ -7619,8 +7656,10 @@ uint8_t  g_dat_62c82 = 0;   /* 0x62c82 */
 uint8_t  g_dat_62c8e = 0;   /* 0x62c8e */
 uint8_t  g_dat_62c90 = 0;   /* 0x62c90 */
 uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
-uint8_t *g_dat_53c7c = 0;      /* 0x53c7c */
-uint8_t *g_dat_53c80 = 0;      /* 0x53c80 */
+uint8_t *g_player_ent = 0;      /* 0x53c7c (Ghidra g_pPlayerEntity): THE PLAYER ENTITY POINTER; writes only at
+                                 * 0x3774c (stage loader) and 0x3b01b (episode tail re-seat). docs/89. */
+uint8_t *g_latched_ent = 0;      /* 0x53c80 (Ghidra g_pLatchedTypeEntity): the entity whose type index equals
+                                 * g_dat_63370; latched by fn_010efc at 0x10f2b, cleared at 0x37b43. docs/89. */
 int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
 uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
@@ -7628,7 +7667,8 @@ uint8_t  g_dat_53e9c[0x88 * 0x104]; /* 0x53e9c: entity-type table, 0x104 (260) e
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
-uint32_t g_dat_53c88 = 0;      /* 0x53c88 (cleared by fn_03237b conditional drain) */
+uint32_t g_gauge_other_off = 0;      /* 0x53c88 (Ghidra g_dwGaugeOtherEntityDs): DS-relative heap offset of the
+                                      * non-player entity whose slot-1 gauge panel is drawn; 0 = none. docs/89. */
 uint32_t *g_dat_639c0 = 0;     /* 0x639c0 */
 uint32_t *g_dat_53c8c = 0;     /* 0x53c8c */
 uint32_t *g_dat_63e00 = 0;     /* 0x63e00 */
@@ -7668,11 +7708,11 @@ void fn_037922(void) {
  *   gate: proceed iff  a0[0x30]==1 && a0[0x25]!=0xff && a0->5==0 && a0->11>0x15;
  *         else return (only the a0->5 clamp applied).
  *   2. a0[0x25] = 0xff;  if (a0[0] != 1) return;      (set active, then exit if not type 1)
- *   3. if (a0 == g_dat_53c80): node = heap_malloc(0x21); if (node) fn_0003b5c0(node, 1, a0->32, a0->1, a0->9-0x1e);
+ *   3. if (a0 == g_latched_ent): node = heap_malloc(0x21); if (node) fn_0003b5c0(node, 1, a0->32, a0->1, a0->9-0x1e);
  *      else:                   node = heap_malloc(0x21); if (node) fn_0003b5c0(node, 0, a0->32, a0->1, a0->9-0x1e);
  *   (heap_malloc returns a heap OFFSET; the node pointer is g_heap_base + offset, and the
  *    failure check is on the offset, per the port's heap convention.)
- *   4. *(g_dat_53c7c + 0x52) += a0->32;               (accumulator -- reached only in step 3)
+ *   4. *(g_player_ent + 0x52) += a0->32;               (accumulator -- reached only in step 3)
  * NOTE: the original computes a clamped offset (tmp) from (a0->1 - g_dat_639dc) in each
  * branch (bounds 0x104 / 0x136) but NEVER consumes it -- dead code, omitted here.
  * POINTER-WIDTH ADAPTATION: the original allocates the node with heap_malloc(0x19) (25 B,
@@ -7696,8 +7736,8 @@ void fn_015295(uint8_t *a0, int32_t a1) {
     uint32_t node_off = heap_malloc(0x21);  /* orig 0x19 +8 (widened prev) */
     if (node_off)
         fn_0003b5c0((uint8_t *)(g_heap_base + node_off),
-                    a0 == g_dat_53c80 ? 1 : 0, a0_32, a0_1, a0_9 - 0x1e);
-    *(uint32_t *)(g_dat_53c7c + 0x52) += a0_32;    /* 0x15453 accumulator */
+                    a0 == g_latched_ent ? 1 : 0, a0_32, a0_1, a0_9 - 0x1e);
+    *(uint32_t *)(g_player_ent + 0x52) += a0_32;    /* 0x15453 accumulator */
 }
 uint8_t  g_dat_53eb8[0x2000] = {0}; /* 0x53eb8: zeroed runtime table */
 
@@ -7764,7 +7804,7 @@ uint32_t  g_dat_63fac;      /* DAT_00063fac: 24-bit DMA address byte-sent to the
  * returned blocks are not used as the screen pointers: fn_03bb42/fn_03bebb resolve their base
  * through video_map(), so the port keeps DAT_633b0/DAT_633b4 pointing at the fixed
  * g_screen_ram arena (flat SCREEN_BASE..). This is the same deviation as g_dat_51a0c. */
-uint32_t g_dat_63370;      /* DAT_00063370: master-init done flag */
+uint32_t g_dat_63370;      /* DAT_00063370 (Ghidra g_dwEpisodeCounter): the current episode counter 1..9 */
 uint32_t fn_03658d(void) {
     (void)canary_id(0, 0x20);                                          /* 0x36592 */
     fn_03feb8();                                                       /* 0x365a5 */
@@ -8382,12 +8422,12 @@ uint8_t *g_dat_63354 = NULL;   /* 0x63354: POINTER to clamp-bounds struct; lo=P+
 int32_t  g_dat_63360 = 0;      /* 0x63360: frame counter; %10 gates the periodic board_out in 0x03ce0b */
 uint8_t *g_dat_63e04 = NULL;   /* 0x63e04: HUD number font ptr; +0x34=char_table(8B), +0x3c=rle_base(8B) (fn_0137c1) */
 uint8_t *g_dat_63358 = NULL;   /* 0x63358: mirror of g_dat_63354 (0x03cc6b) */
-uint32_t g_dat_63370 = 0;      /* 0x63370: mode flag (0x03cc6b) */
-uint32_t g_dat_63374 = 0;      /* 0x63374: = g_dat_53c7c->0x2b (0x03cc6b) */
-uint32_t g_dat_63378 = 0;      /* 0x63378: = (byte)g_dat_53c7c->0x27 (0x03cc6b) */
-uint32_t g_dat_6337c = 0;      /* 0x6337c: = (byte)g_dat_53c7c->0x26 (0x03cc6b) */
-uint32_t g_dat_63380 = 0;      /* 0x63380: = (byte)g_dat_53c7c->0x25 (0x03cc6b) */
-uint32_t g_dat_63384 = 0;      /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) */
+uint32_t g_dat_63370 = 0;      /* 0x63370: the episode counter (Ghidra g_dwEpisodeCounter); fn_03cc6b reads it too */
+uint32_t g_dat_63374 = 0;      /* 0x63374: = g_player_ent->0x2b (0x03cc6b) */
+uint32_t g_dat_63378 = 0;      /* 0x63378: = (byte)g_player_ent->0x27 (0x03cc6b) */
+uint32_t g_dat_6337c = 0;      /* 0x6337c: = (byte)g_player_ent->0x26 (0x03cc6b) */
+uint32_t g_dat_63380 = 0;      /* 0x63380: = (byte)g_player_ent->0x25 (0x03cc6b) */
+uint32_t g_dat_63384 = 0;      /* 0x63384: = (byte)g_player_ent->0x28 (0x03cc6b) */
 
 /* ---- 0x01586b (L10, 435 B): clamp a0[9] to [min,max] after adding a1 ----
  * canary PUSH 0x2c;CALL 0x418ee. a0 (EAX) = item byte-buffer, a1 (EDX) = delta.
@@ -8415,12 +8455,12 @@ void fn_034295(int32_t amount)
 {
     (void)canary_id(0, 0x20);                                                /* 0x34295-9a */
     if (g_dat_63ed3 != 0) {                                                  /* 0x342b0-b7 */
-        if (*(int32_t *)(g_dat_53c7c + 0x1b) == 0)                           /* 0x342be-c2 */
-            fn_01545e(g_dat_53c7c, -amount);                                 /* 0x342c4-1545e call */
+        if (*(int32_t *)(g_player_ent + 0x1b) == 0)                           /* 0x342be-c2 */
+            fn_01545e(g_player_ent, -amount);                                 /* 0x342c4-1545e call */
     } else {
         if (g_dat_63ed5 == 0) return;                                        /* 0x342d5-dc */
-        if (*(int32_t *)(g_dat_53c7c + 0x1b) == 1)                           /* 0x342e3-e7 */
-            fn_01545e(g_dat_53c7c, amount);                                   /* 0x342e9-342f1 */
+        if (*(int32_t *)(g_player_ent + 0x1b) == 1)                           /* 0x342e3-e7 */
+            fn_01545e(g_player_ent, amount);                                   /* 0x342e9-342f1 */
     }
 }
 
@@ -8434,10 +8474,10 @@ void fn_0342ff(int32_t amount)
 {
     (void)canary_id(0, 0x20);                                                /* 0x342ff-34304 */
     if (g_dat_63ed3 != 0) {                                                  /* 0x3431a-34321 */
-        fn_01545e(g_dat_53c7c, -amount);                                     /* 0x34323-3432d */
+        fn_01545e(g_player_ent, -amount);                                     /* 0x34323-3432d */
     } else {
         if (g_dat_63ed5 == 0) return;                                        /* 0x34334-3433b */
-        fn_01545e(g_dat_53c7c, amount);                                      /* 0x3433d-34345 */
+        fn_01545e(g_player_ent, amount);                                      /* 0x3433d-34345 */
     }
 }
 
@@ -8484,14 +8524,14 @@ void fn_01545e(uint8_t *e, int32_t d)
             d = (d > 0) ? (t->a1_lo - *(int32_t *)(e + 1))                    /* 0x15574-0x15580 */
                         : (t->a1_hi - *(int32_t *)(e + 1));                  /* 0x15638-0x15644 */
             if (*(int32_t *)(e + 0x17) != 0x16) continue;                    /* 0x15586 / 0x1564a */
-            if (e == g_dat_53c7c) continue;                                  /* 0x1558f / 0x15653 */
+            if (e == g_player_ent) continue;                                  /* 0x1558f / 0x15653 */
             if (*(int32_t *)(e + 0x11) < 0 || *(int32_t *)(e + 0x11) > 0x15) continue; /* 0x1559c-0x155a9 */
             g_dat_63364 = 0x12;                                              /* 0x155ad */
             g_dat_63368 = 1;                                                 /* 0x155b7 */
             *(int32_t *)(e + 0x17) = 0x20;                                   /* 0x155c1 */
             *(int32_t *)(e + 0x11) = 0;                                      /* 0x155ce */
             *(int32_t *)(e + 5) = 0;                                         /* 0x155d8 */
-            if (e != g_dat_53c7c && (int32_t)e[0] == 0) e[0] = 1;            /* 0x155df-0x155fd */
+            if (e != g_player_ent && (int32_t)e[0] == 0) e[0] = 1;            /* 0x155df-0x155fd */
         }
     }
 
@@ -8502,7 +8542,7 @@ void fn_01545e(uint8_t *e, int32_t d)
     *(int32_t *)(e + 1) += d;                                                /* 0x156ed-0x156f3 */
     if ((int32_t)*(uint32_t *)(e + 1) < lo) {                                 /* 0x156f6-0x156ff */
         *(int32_t *)(e + 1) = lo;                                             /* 0x15705-0x1570b */
-        if (*(int32_t *)(e + 0x17) == 0x16 && e != g_dat_53c7c
+        if (*(int32_t *)(e + 0x17) == 0x16 && e != g_player_ent
             && *(int32_t *)(e + 0x11) >= 0 && *(int32_t *)(e + 0x11) <= 0x15) { /* 0x15711-0x15737 */
             g_dat_63364 = 0x12;                                              /* 0x1573b */
             g_dat_63368 = 1;                                                 /* 0x15745 */
@@ -8511,11 +8551,11 @@ void fn_01545e(uint8_t *e, int32_t d)
             *(int32_t *)(e + 5) = 0;                                         /* 0x15760 */
             int32_t r = (int32_t)prng_next();                                 /* 0x1576d-0x15772 */
             *(int32_t *)(e + 1) += (r % 0x29) - 0x14;                         /* 0x15774-0x15786: signed idiv */
-            if (e != g_dat_53c7c && (int32_t)e[0] == 0) e[0] = 1;             /* 0x15789-0x157a7 */
+            if (e != g_player_ent && (int32_t)e[0] == 0) e[0] = 1;             /* 0x15789-0x157a7 */
         }
     } else if ((int32_t)*(uint32_t *)(e + 1) > hi) {                          /* 0x157af-0x157b8 */
         *(int32_t *)(e + 1) = hi;                                             /* 0x157be-0x157c4 */
-        if (*(int32_t *)(e + 0x17) == 0x16 && e != g_dat_53c7c
+        if (*(int32_t *)(e + 0x17) == 0x16 && e != g_player_ent
             && *(int32_t *)(e + 0x11) >= 0 && *(int32_t *)(e + 0x11) <= 0x15) { /* 0x157ca-0x157f0 */
             g_dat_63364 = 0x12;                                              /* 0x157f4 */
             g_dat_63368 = 1;                                                 /* 0x157fe */
@@ -8524,7 +8564,7 @@ void fn_01545e(uint8_t *e, int32_t d)
             *(int32_t *)(e + 5) = 0;                                         /* 0x15819 */
             int32_t r = (int32_t)prng_next();                                 /* 0x15826-2b */
             *(int32_t *)(e + 1) += (r % 0x29) - 0x14;                         /* 0x1582d-0x1583f */
-            if (e != g_dat_53c7c && (int32_t)e[0] == 0) e[0] = 1;             /* 0x15842-0x15860 */
+            if (e != g_player_ent && (int32_t)e[0] == 0) e[0] = 1;             /* 0x15842-0x15860 */
         }
     }
 }
@@ -8700,11 +8740,11 @@ void fn_03cc6b(uint8_t *a0) {
             g_dat_639e4 = 1;                                    /* 0x3ccba */
             if (g_dat_63370 != 1) {                             /* 0x3ccc1 */
                 g_dat_63358 = g_dat_63354;                      /* 0x3cccf */
-                g_dat_63374 = *(uint32_t *)(g_dat_53c7c + 0x2b);/* 0x3ccdc */
-                g_dat_63384 = *(uint8_t *)(g_dat_53c7c + 0x28); /* 0x3ccee */
-                g_dat_63378 = *(uint8_t *)(g_dat_53c7c + 0x27); /* 0x3cd00 */
-                g_dat_6337c = *(uint8_t *)(g_dat_53c7c + 0x26); /* 0x3cd12 */
-                g_dat_63380 = *(uint8_t *)(g_dat_53c7c + 0x25); /* 0x3cd24 */
+                g_dat_63374 = *(uint32_t *)(g_player_ent + 0x2b);/* 0x3ccdc */
+                g_dat_63384 = *(uint8_t *)(g_player_ent + 0x28); /* 0x3ccee */
+                g_dat_63378 = *(uint8_t *)(g_player_ent + 0x27); /* 0x3cd00 */
+                g_dat_6337c = *(uint8_t *)(g_player_ent + 0x26); /* 0x3cd12 */
+                g_dat_63380 = *(uint8_t *)(g_player_ent + 0x25); /* 0x3cd24 */
             }
         }
         if ((int32_t)(*(uint32_t *)(c + 0xc)) - 0xc8 > (int32_t)g_dat_639e0)
@@ -8715,11 +8755,11 @@ void fn_03cc6b(uint8_t *a0) {
             g_dat_639e4 = 0;                                    /* 0x3cd74 */
             if (g_dat_63370 != 1) {                             /* 0x3cd7b */
                 g_dat_63358 = g_dat_63354;                      /* 0x3cd89 */
-                g_dat_63374 = *(uint32_t *)(g_dat_53c7c + 0x2b);/* 0x3cd96 */
-                g_dat_63384 = *(uint8_t *)(g_dat_53c7c + 0x28); /* 0x3cda8 */
-                g_dat_63378 = *(uint8_t *)(g_dat_53c7c + 0x27); /* 0x3cdba */
-                g_dat_6337c = *(uint8_t *)(g_dat_53c7c + 0x26); /* 0x3cdcc */
-                g_dat_63380 = *(uint8_t *)(g_dat_53c7c + 0x25); /* 0x3cdde */
+                g_dat_63374 = *(uint32_t *)(g_player_ent + 0x2b);/* 0x3cd96 */
+                g_dat_63384 = *(uint8_t *)(g_player_ent + 0x28); /* 0x3cda8 */
+                g_dat_63378 = *(uint8_t *)(g_player_ent + 0x27); /* 0x3cdba */
+                g_dat_6337c = *(uint8_t *)(g_player_ent + 0x26); /* 0x3cdcc */
+                g_dat_63380 = *(uint8_t *)(g_player_ent + 0x25); /* 0x3cdde */
             }
         }
         if ((int32_t)(*(uint32_t *)(c + 0xc)) - 0xc8 > (int32_t)g_dat_639e0)
@@ -8804,7 +8844,7 @@ void fn_034635(uint8_t key) {                                  /* 0x034635: keyb
          * address is a fault, so the read is skipped and reported once: same inert outcome, no crash
          * (docs/55; the same treatment as the NULL room-chain link at fn_03cc6b, docs/52). */
         if (state == 1) {
-            if (g_dat_53c7c) g_dat_62a94 = *(int32_t *)(g_dat_53c7c + 0x1b);
+            if (g_player_ent) g_dat_62a94 = *(int32_t *)(g_player_ent + 0x1b);
             else if (!g_dat_53c7c_null_warned) {
                 g_dat_53c7c_null_warned = 1;
                 fprintf(stderr, "fn_034635: key %#02x make with DAT_53c7c = 0 (no stage loaded): "
@@ -8833,8 +8873,8 @@ uint32_t fn_0100d9(uint32_t *s) {                                   /* 0x0100d9:
 }
 
 int32_t fn_015a1f(uint8_t *s) {                                      /* 0x015a1f: state machine + table distance check */
-    int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
-    int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
+    int32_t tX = (int32_t)fn_01519f(g_player_ent);
+    int32_t tY = (int32_t)fn_0151d5(g_player_ent);
     if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {                /* reached target state */
         g_dat_53c6c = 1;
         return 0;
@@ -8859,8 +8899,8 @@ int32_t fn_015a1f(uint8_t *s) {                                      /* 0x015a1f
 }
 
 static int32_t fn_015b5b_core(uint8_t *s, const uint8_t *magics, int32_t nmagics) {   /* 0x015b5b family core (magic-char SET) */
-    int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
-    int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
+    int32_t tX = (int32_t)fn_01519f(g_player_ent);
+    int32_t tY = (int32_t)fn_0151d5(g_player_ent);
     if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {
         g_dat_53c6c = 1;
         return 0;
@@ -8920,7 +8960,7 @@ int32_t fn_016fec(uint8_t *s, int32_t yref) {                                /* 
     int32_t Yg = (int32_t)fn_0151d5(s) / 0xc;                           /* Y / 12 (signed) */
     uint8_t *node = g_dat_53c70;
     for (int32_t i = 0; i < g_dat_53c68; i++) {
-        if (node != g_dat_53c7c && node != s &&
+        if (node != g_player_ent && node != s &&
             (int32_t)(*(uint32_t *)(node + 0x1f)) == 4) {
             int32_t nXg = (int32_t)fn_01519f(node) / 0x14;
             int32_t nYg = (int32_t)fn_0151d5(node) / 0xc;
@@ -8933,7 +8973,7 @@ int32_t fn_016fec(uint8_t *s, int32_t yref) {                                /* 
         node = *(uint8_t **)(node + 0x13f);
     }
     if (g_dat_53c90 == 0 &&
-        0x83u <= *(uint32_t *)(g_dat_53c7c + 0x17) && *(uint32_t *)(g_dat_53c7c + 0x17) <= 0x85u) {
+        0x83u <= *(uint32_t *)(g_player_ent + 0x17) && *(uint32_t *)(g_player_ent + 0x17) <= 0x85u) {
         if (abs32((int32_t)fn_0151d5(s) - yref) < 6) {
             if ((int32_t)prng_next() % 100 < 0x32) {
                 g_dat_51c98 = 1;
@@ -9086,15 +9126,15 @@ void fn_032158(void) {                                            /* 0x032158: s
     if (g_dat_53c6c != 1) return;
     uint8_t *node = g_dat_53c70;
     for (int32_t i = 0; i < g_dat_53c68; i++) {
-        if (node != g_dat_53c7c &&
+        if (node != g_player_ent &&
             (int32_t)(*(uint32_t *)(node + 0x117)) == 0 &&
             (int32_t)(*(uint32_t *)(node + 0x1f)) == 4 &&
             (int32_t)(*(uint32_t *)(node + 0xaf)) != 6) {
-            int32_t tx = (int32_t)fn_01519f(g_dat_53c7c);
-            int32_t ty = (int32_t)fn_0151d5(g_dat_53c7c);
+            int32_t tx = (int32_t)fn_01519f(g_player_ent);
+            int32_t ty = (int32_t)fn_0151d5(g_player_ent);
             *(int32_t *)(node + 0xb3) = tx;
             *(int32_t *)(node + 0xb7) = ty;
-            if ((int32_t)(*(uint32_t *)(g_dat_53c7c + 0x1b)) == 0) {
+            if ((int32_t)(*(uint32_t *)(g_player_ent + 0x1b)) == 0) {
                 *(int32_t *)(node + 0xb3) -= 0x2d;
                 *(int32_t *)(node + 0xb7) -= 5;
                 *(int32_t *)(node + 0xb3) += (int32_t)prng_next() % 10;
@@ -9114,8 +9154,8 @@ void fn_032158(void) {                                            /* 0x032158: s
 }
 
 int32_t fn_015ed1(uint8_t *s) {                                      /* 0x015ed1: family variant (s[0x83] gate, no char, Y-limit 10) */
-    int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
-    int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
+    int32_t tX = (int32_t)fn_01519f(g_player_ent);
+    int32_t tY = (int32_t)fn_0151d5(g_player_ent);
     if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {
         g_dat_53c6c = 1;
         return 0;
@@ -9146,8 +9186,8 @@ int32_t fn_015ed1(uint8_t *s) {                                      /* 0x015ed1
 }
 
 int32_t fn_015d16(uint8_t *s) {                                      /* 0x015d16: family variant (X-gate + char-selects-Y-limit) */
-    int32_t tX = (int32_t)fn_01519f(g_dat_53c7c);
-    int32_t tY = (int32_t)fn_0151d5(g_dat_53c7c);
+    int32_t tX = (int32_t)fn_01519f(g_player_ent);
+    int32_t tY = (int32_t)fn_0151d5(g_player_ent);
     if ((int32_t)(*(uint32_t *)(s + 0x17)) == 0x1f) {
         g_dat_53c6c = 1;
         return 0;
@@ -13184,11 +13224,15 @@ void fn_0137c1(uint8_t *entity, uint32_t base) {
     const uint8_t *rle_base = (const uint8_t *)g_heap_base + *(const uint32_t *)(g_dat_63e04 + 0x38);
     for (int i = 0; i < pad; i++) {                               /* 0x00013807-52 (blank glyphs) */
         uint32_t glyph_off = char_table[1];                       /* 0x00013833: blank = [char_table + 4] */
+        static int s_expnum_left = 40;                            /* NIGHT_GLYPHDBG (docs/84): the exp.spr font */
+        GLYPH_TRACE("expnum", s_expnum_left, rle_base + glyph_off, i * 6 + 0x41, 0x14, 5, 7);
         fn_03bb42(base, i * 6 + 0x41, 0x14, 5, 7, rle_base + glyph_off, 0);
     }
     for (int i = 0; i < len; i++) {                               /* 0x013854-ba (digit glyphs) */
         uint32_t d = (uint32_t)(uint8_t)buf[i];
         uint32_t glyph_off = char_table[d - 0x2f];                /* 0x00013884-91: [ct + d*4 - 0xbc] */
+        static int s_expnum_left2 = 40;                           /* NIGHT_GLYPHDBG (docs/84) */
+        GLYPH_TRACE("expnum", s_expnum_left2, rle_base + glyph_off, (i + pad) * 6 + 0x41, 0x14, 5, 7);
         fn_03bb42(base, (i + pad) * 6 + 0x41, 0x14, 5, 7, rle_base + glyph_off, 0);
     }
     if (*(int32_t *)(entity + 0x52) != 0 && (int32_t)g_dat_63360 % 2 == 0) {  /* 0x0138ba-dc (even tick) */
@@ -13244,6 +13288,19 @@ void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
 void fn_03df96(uint32_t base) {
     (void)canary_id(0, 0x38);                                     /* PUSH 0x38;CALL 0x418ee */
     const struct hud_font *font = g_dat_63dfc;
+    /* docs/84 witness (NIGHT_GLYPHDBG): the stage-sprite sweep is silent in some episodes; this says why
+     * once per call site state -- record count, whether the .spr font block exists, and which fields are 0. */
+    if (getenv("NIGHT_GLYPHDBG")) {
+        static int s_seen[4] = {0,0,0,0};   /* 0 = font missing, 1 = records empty, 2 = sweeping */
+        int st = (font == (const struct hud_font *)0 || font->rle_base == 0 || font->char_table == 0 ||
+                  font->x_tbl == 0 || font->y_tbl == 0 || font->col_tbl == 0 || font->rowcount_tbl == 0) ? 0
+                 : (g_dat_62a90 == 0 ? 1 : 2);
+        if (!s_seen[st]) { s_seen[st] = 1;
+            fprintf(stderr, "stagespr state=%d stage=%u records=%u font=%p rle=%#x chars=%#x\n",
+                    st, g_dat_63370, g_dat_62a90, (const void *)font,
+                    font ? font->rle_base : 0u, font ? font->char_table : 0u);
+        }
+    }
     /* The block's table fields are heap offsets (fn_03d9cf stores heap_malloc results in them, exactly as
      * fn_03d75c reads them), so every table is resolved against the heap base here too.
      * Port guard: with the ".spr" block absent the original would dereference offset 0; the port skips the
@@ -13269,6 +13326,8 @@ void fn_03df96(uint32_t base) {
         int32_t col       = (int32_t)col_tbl[g];                   /* 0x03e02a */
         int32_t row_count = (int32_t)rowcount_tbl[g];              /* 0x03e018 */
         const uint8_t *rle = rle_base + char_table[g];             /* 0x03e005 */
+        static int s_stagespr_left = 80;                           /* NIGHT_GLYPHDBG (docs/84): the stage sprite */
+        GLYPH_TRACE("stagespr", s_stagespr_left, rle, dest_off, start_row, col, row_count);
         fn_03bb42(base, dest_off, start_row, col, row_count, rle, mode);
     }
 }
@@ -13352,7 +13411,7 @@ void fn_03cb38(uint8_t *subj) {
     (void)canary_id((uintptr_t)subj, 0x24);                        /* 0x3cb38-3d */
     int32_t prev = (int32_t)g_dat_639dc;                           /* [ebp-8] (0x3cb53-58) */
     if (g_dat_639e4 == 0) {                                        /* 0x3cb5b-64 */
-        if ((int32_t)*(const uint32_t *)(g_dat_53c7c + 0x17) == 3) {  /* 0x3cb66-6f */
+        if ((int32_t)*(const uint32_t *)(g_player_ent + 0x17) == 3) {  /* 0x3cb66-6f */
             int32_t right = (int32_t)*(const uint32_t *)(subj + 0x08);
             if (right - 0x142 > (int32_t)g_dat_639dc) {            /* 0x3cb71-82 */
                 g_dat_639dc = (uint32_t)((int32_t)g_dat_639dc + 3);
@@ -13389,7 +13448,7 @@ void fn_03cbd9(uint8_t *subj) {
     (void)canary_id((uintptr_t)subj, 0x24);                        /* 0x3cbd9-de */
     int32_t prev = (int32_t)g_dat_639dc;                           /* 0x3cbf4-f9 */
     if (g_dat_639e4 == 0) {                                        /* 0x3cbfc-c05 */
-        if ((int32_t)*(const uint32_t *)(g_dat_53c7c + 0x17) == 3) {  /* 0x3cc07-10 */
+        if ((int32_t)*(const uint32_t *)(g_player_ent + 0x17) == 3) {  /* 0x3cc07-10 */
             int32_t left = (int32_t)*(const uint32_t *)(subj + 0x00);
             if (left + 2 < (int32_t)g_dat_639dc) {                 /* 0x3cc12-20 */
                 g_dat_639dc = (uint32_t)((int32_t)g_dat_639dc - 3);
@@ -13432,7 +13491,7 @@ void fn_03cbd9(uint8_t *subj) {
 void fn_03d4e4(uint8_t *room) {
     (void)canary_id((uintptr_t)room, 0x20);                        /* 0x3d4e4-e9 */
     if (room[0x3b] == 0) {                                         /* 0x3d4ff-50c */
-        int32_t px = (int32_t)*(const uint32_t *)(g_dat_53c7c + 0x01);
+        int32_t px = (int32_t)*(const uint32_t *)(g_player_ent + 0x01);
         if (px - (int32_t)g_dat_639dc > 0xbe) {                    /* 0x3d512-25 */
             int32_t right = (int32_t)g_dat_639dc + 0x140;
             uint32_t stop = *(const uint32_t *)(room + 0x2e);
@@ -13447,7 +13506,7 @@ void fn_03d4e4(uint8_t *room) {
         }
     }
     if (room[0x3a] == 0) {                                         /* 0x3d576-83 */
-        int32_t px = (int32_t)*(const uint32_t *)(g_dat_53c7c + 0x01);
+        int32_t px = (int32_t)*(const uint32_t *)(g_player_ent + 0x01);
         if (px - (int32_t)g_dat_639dc < 0x82) {                    /* 0x3d585-98 */
             int32_t left = (int32_t)g_dat_639dc;
             uint32_t stop = *(const uint32_t *)(room + 0x2a);
@@ -13461,7 +13520,7 @@ void fn_03d4e4(uint8_t *room) {
             }
         }
     }
-    if ((int32_t)g_dat_639e0 + 0xc2 > (int32_t)*(const uint32_t *)(g_dat_53c7c + 0x09))
+    if ((int32_t)g_dat_639e0 + 0xc2 > (int32_t)*(const uint32_t *)(g_player_ent + 0x09))
         fn_03cc6b(g_dat_63354);                                    /* 0x3d5dd-f8 */
 }
 
@@ -13492,6 +13551,8 @@ void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, in
     for (int i = 0; i < pad; i++) {                               /* 0x038b80-bb9 (pad/blank glyphs) */
         uint32_t glyph_off = char_table[0];                       /* 0x00038b91-9d: rle_base + [char_table] */
         const uint8_t *rle = rle_base + glyph_off;
+        static int s_num5_left = 40;                              /* NIGHT_GLYPHDBG (docs/84) */
+        GLYPH_TRACE("numfield5", s_num5_left, rle, i * 7 + col0, start_row, 6, 7);
         fn_03bb42(base, i * 7 + col0, start_row, 6, 7, rle, 0);
     }
     for (int i = 0; i < len; i++) {                               /* 0x038bc4-c19 (digit glyphs) */
@@ -13694,6 +13755,9 @@ void fn_03b718(uint8_t *entity, uint32_t base)
     for (int32_t i = 0; i < len; i++) {                                     /* 0x3b765-0x3b7e0 */
         uint32_t digit = (uint32_t)(uint8_t)buf[i];                          /* 0x3b782-86 */
         uint32_t glyph = *(const uint32_t *)(void *)(char_table - 0xc0 + digit * 4); /* 0x3b7a3 */
+        static int s_value_left = 60;                                        /* NIGHT_GLYPHDBG (docs/84) */
+        GLYPH_TRACE("valuedisp", s_value_left, rle_base + glyph,
+                    i * adv + ex - (int32_t)g_dat_639dc, dy - 0xf, col, rows);
         fn_03bb42(base, i * adv + ex - (int32_t)g_dat_639dc,
                   dy - 0xf, col, rows, rle_base + glyph, 0);                /* 0x3b7db */
     }
@@ -13879,8 +13943,14 @@ void fn_03c231(uint32_t dest, int32_t col, int32_t row, int32_t width,
  * unguarded; kept as-is. */
 static int32_t half_div2(int32_t v) { return (v - (v >> 31)) >> 1; }   /* (v-(v>>31))>>1, trunc2 */
 
-/* Host diagnostic (NIGHT_ENTSPR=1): how many entity frames to dump; see fn_012efa. */
+/* Host diagnostic (NIGHT_ENTSPR=1): how many entity frames to dump; see fn_012efa. The budget is
+ * shared across types, so tracing more families at once needs a bigger one (NIGHT_ENTBUDGET=N, docs/84). */
 static int g_ent_trace_left = 120;
+static int ent_trace_budget(void) {
+    static int done = 0;
+    if (!done) { done = 1; const char *e = getenv("NIGHT_ENTBUDGET"); if (e && atoi(e) > 0) g_ent_trace_left = atoi(e); }
+    return g_ent_trace_left;
+}
 static int g_hud_trace_left = 120;   /* NIGHT_HUDDBG gets its own budget: sharing the entity one made enabling
                                       * both diagnostics starve entity coverage (stage 5 then reported zero
                                       * entity composites, the gauge having consumed the whole budget) */
@@ -13897,9 +13967,13 @@ static int ent_spr_trace(void) {
 static void entspr_dump(uint8_t *e, uint32_t base, uint32_t spr, int32_t x, int32_t y,
                         int32_t W, int32_t H, const uint8_t *rle, int32_t mode)
 {
+    ent_trace_budget();
     /* Per-type quota: with one global budget the player's composites (drawn every frame) consumed all 120 slots,
      * which hid every enemy composite from scripts/playtest_check_entity_sprites.py. */
     static int quota[0x65];
+    static int qcap = -1;   /* NIGHT_ENTQUOTA: how many composites per type (docs/84: a census run that
+                             * traces a dozen families at once wants a small per-type slice each) */
+    if (qcap < 0) { const char *qe = getenv("NIGHT_ENTQUOTA"); qcap = (qe && atoi(qe) > 0) ? atoi(qe) : 40; }
     /* Spend the quota on composites the blitter can actually place wholly inside the 320x200 room: fn_03bb42 bails
      * at dest > 0x13f and clips at the right/bottom edge, so an off-screen entity's dump would only record bytes the
      * blitter never wrote (24 of 48 stage-1 composites were like that on the first version of this check). */
@@ -13907,14 +13981,18 @@ static void entspr_dump(uint8_t *e, uint32_t base, uint32_t spr, int32_t x, int3
     uint32_t actq = 0; memcpy(&actq, e + 0x123, 4);
     int tq = -1;
     for (uint32_t t_ = 0; t_ < 0x65u; t_++) if (g_dat_53818[t_] == actq && actq) { tq = (int)t_; break; }
-    if (tq >= 0) { if (quota[tq] >= 40) return; quota[tq]++; }
+    if (tq >= 0) { if (quota[tq] >= qcap) return; quota[tq]++; }
     if (g_ent_trace_left <= 0) return;
     g_ent_trace_left--;
     uint32_t actv = 0; memcpy(&actv, e + 0x123, 4);
+    /* The type is recovered from the action-table slot; the two shared types (0xc9 mark, 0xfa dust)
+     * sit past the named 0x65 range and are named from the DS globals they alias (docs/84). */
     int typ = -1;
-    for (uint32_t t_ = 0; t_ < 0x65u; t_++) if (g_dat_53818[t_] == actv && actv) { typ = (int)t_; break; }
-    const char *sprnm = (typ >= 0 && typ < 0x65) ? kTypeSprNames[typ] : "?";
-    const char *actnm = (typ >= 0 && typ < 0x65) ? kTypeActNames[typ] : "?";
+    for (uint32_t t_ = 0; t_ < 0x104u; t_++) if (g_dat_53818[t_] == actv && actv) { typ = (int)t_; break; }
+    const char *sprnm = (typ < 0) ? "?" : (typ == 0xc9 ? "mark.spr" : (typ == 0xfa ? "dust.spr" :
+                       (typ < 0x65 ? kTypeSprNames[typ] : "?")));
+    const char *actnm = (typ < 0) ? "?" : (typ == 0xc9 ? "mark.act" : (typ == 0xfa ? "dust.act" :
+                       (typ < 0x65 ? kTypeActNames[typ] : "?")));
     fprintf(stderr, "menucell tag=entspr k=%u dest=%#x srow=%d col=%u rows=%u type=%d spr=%s act=%s mode=%d tick=%u stream=",
             (unsigned)spr, (int)x, (int)y, (unsigned)W, (unsigned)H, typ, sprnm, actnm, (int)mode, (unsigned)g_dat_63e24);
     trace_stream_hex(rle);
@@ -14097,7 +14175,7 @@ void fn_01348f(uint8_t *e, uint32_t base, int32_t slot)
     int32_t q1, r1, q2, r2, c14, c10;                             /* [ebp-0x24..-0x10] */
     int32_t a = (int32_t)*(const int16_t *)(e + 0x23);            /* 0x134bc / 0x13535 */
     int32_t b = (int32_t)*(const int16_t *)(e + 0x29);            /* 0x134e8 / 0x1356c */
-    if (e == g_dat_53c7c) {                                       /* 0x134b1-b7 the player itself */
+    if (e == g_player_ent) {                                       /* 0x134b1-b7 the player itself */
         q1 = a / 100; r1 = a % 100;                               /* 0x134c0-134e2 */
         q2 = b / 100; r2 = b % 100;                               /* 0x134e5-1350e */
         c10 = (int32_t)g_tab_51c90[(uint32_t)q1 + 1];             /* 0x13511-1c  DAT_00051c91[q1] */
@@ -14419,8 +14497,8 @@ void fn_038098(uint32_t base)
             fn_01348f((uint8_t *)g_dat_53c84, base, 0);          /* 0x3811d-27 */
             fn_0137c1((uint8_t *)g_dat_53c84, base);             /* 0x3812c-34 */
         }
-        if (g_dat_53c88 != 0) {                                 /* 0x38139-40 */
-            fn_01348f((uint8_t *)(uintptr_t)g_dat_53c88, base, 1); /* 0x38142-4f */
+        if (g_gauge_other_off != 0) {                                 /* 0x38139-40 */
+            fn_01348f((uint8_t *)(uintptr_t)g_gauge_other_off, base, 1); /* 0x38142-4f */
         }
         cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x38154-68 */
         vga_charge(64000u);   /* window-write cost of the room page flip (see fn_03801b) */
@@ -14463,7 +14541,7 @@ void fn_038098(uint32_t base)
 void fn_0381d7(uint32_t base, int32_t dx, int32_t dy, int32_t steps, int32_t facing)
 {
     (void)canary_id((uintptr_t)base, 0x44);                     /* 0x381d7-dc probe (0x44) */
-    uint8_t *p = g_dat_53c7c;                                   /* the player block */
+    uint8_t *p = g_player_ent;                                   /* the player block */
     uint8_t *hb = (uint8_t *)g_heap_base;
 
     uint32_t saved17 = *(const uint32_t *)(p + 0x17);           /* 0x38212-1a */
@@ -15094,7 +15172,7 @@ static void  ai_fput(uint8_t *p, unsigned off, float v) { memcpy(p + off, &v, 4)
 
 void fn_017f13(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;                                   /* the player entity */
+    uint8_t *pl = g_player_ent;                                   /* the player entity */
     if (e == pl) return;                                         /* 0x017f61-67 */
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x2c] */
@@ -15454,7 +15532,7 @@ static int32_t ai_rec_i32(int32_t ty, unsigned ds_off)
 
 void fn_018e88(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -15788,7 +15866,7 @@ void fn_018e88(uint8_t *e)
  */
 void fn_019e48(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -16138,7 +16216,7 @@ void fn_019e48(uint8_t *e)
  */
 void fn_01aec8(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -16476,7 +16554,7 @@ void fn_01aec8(uint8_t *e)
  */
 void fn_01bea8(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -16833,7 +16911,7 @@ void fn_01bea8(uint8_t *e)
  */
 void fn_01cf64(uint8_t *e, int32_t mode)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -17192,7 +17270,7 @@ void fn_01cf64(uint8_t *e, int32_t mode)
  */
 void fn_01df8b(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -17542,7 +17620,7 @@ void fn_01df8b(uint8_t *e)
  */
 void fn_01f064(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -17898,7 +17976,7 @@ void fn_01f064(uint8_t *e)
  */
 void fn_020170(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -18236,7 +18314,7 @@ void fn_020170(uint8_t *e)
  */
 void fn_0221b8(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -18566,7 +18644,7 @@ void fn_0221b8(uint8_t *e)
  */
 void fn_02119c(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     if (e == pl) return;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x48] */
@@ -18910,7 +18988,7 @@ void fn_02119c(uint8_t *e)
  */
 void fn_0265ac(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -19334,7 +19412,7 @@ ai_tail:
  */
 void fn_029709(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -19855,7 +19933,7 @@ static void ai_climb_xy(uint8_t *e, int32_t p_x, int32_t p_y, int32_t frame_max,
  */
 void fn_02fe1e(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -20317,7 +20395,7 @@ ai_tail:
  */
 void fn_02319c(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -20795,7 +20873,7 @@ ai_tail:
  */
 void fn_024bf9(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -21281,7 +21359,7 @@ ai_tail:
  */
 void fn_02adf5(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -21786,7 +21864,7 @@ ai_tail:
  */
 void fn_027bec(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -22314,7 +22392,7 @@ uint32_t g_tab_53d08[101] = {0};
 int32_t fn_03a829(void)
 {
     (void)canary_id(0, 0x3c);                                          /* 0x0003a82e probe (push 0x3c) */
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
     uint8_t *room = g_dat_63354;
     int32_t showed = 0;                                                /* local_20: the slide-show is done */
     int32_t col = *(const int32_t *)(room + 0x40) + ((int32_t)g_dat_63370 - 1) * 10;
@@ -22351,11 +22429,11 @@ int32_t fn_03a829(void)
     for (;;) {
         /* 0x0003aa3b-0x0003aa9a: the optional CG slide-show, once per room, armed when the DAT_00053c80
          * entity is inside the camera band. */
-        if (showed == 0 && g_dat_53c80 != NULL &&
-            (int32_t)g_dat_639e0 <= *(const int32_t *)(g_dat_53c80 + 9) &&
-            *(const int32_t *)(g_dat_53c80 + 9) < (int32_t)g_dat_639e0 + 200 &&
-            (int32_t)g_dat_639dc + 0x32 <= *(const int32_t *)(g_dat_53c80 + 1) &&
-            *(const int32_t *)(g_dat_53c80 + 1) <= (int32_t)g_dat_639dc + 0x10e) {
+        if (showed == 0 && g_latched_ent != NULL &&
+            (int32_t)g_dat_639e0 <= *(const int32_t *)(g_latched_ent + 9) &&
+            *(const int32_t *)(g_latched_ent + 9) < (int32_t)g_dat_639e0 + 200 &&
+            (int32_t)g_dat_639dc + 0x32 <= *(const int32_t *)(g_latched_ent + 1) &&
+            *(const int32_t *)(g_latched_ent + 1) <= (int32_t)g_dat_639dc + 0x10e) {
             fn_03a70e();
             showed = 1;
         }
@@ -22435,7 +22513,7 @@ int32_t fn_03a829(void)
  */
 void fn_02c838(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -22944,7 +23022,7 @@ ai_tail:
  */
 void fn_02e2cc(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     int32_t p_x = (int32_t)fn_01519f(pl);                        /* [EBP-0x4c] */
     int32_t p_y = (int32_t)fn_0151d5(pl);                        /* [EBP-0x48] */
@@ -23458,7 +23536,7 @@ ai_tail:
  */
 void fn_031a8e(uint8_t *e)
 {
-    uint8_t *pl = g_dat_53c7c;
+    uint8_t *pl = g_player_ent;
 
     if (*(const int32_t *)(e + 0x17) == 2) {                       /* 0x00031aa9: state 2 */
         int32_t n;                                                 /* entity[0x103], also unaligned */
@@ -23578,7 +23656,7 @@ void fn_0322f5(void)
     g_dat_53c78 = g_dat_53c70;                                     /* 0x00032312-0x00032317 */
     for (int32_t i = 0; ; i = i + 1) {                             /* 0x0003231c / 0x00032325 */
         if (i >= (int32_t)g_dat_53c68) break;                      /* 0x0003232e-0x00032334 */
-        if (g_dat_53c78 == g_dat_53c7c || (uint32_t)g_dat_53c78[0] == 2u) {
+        if (g_dat_53c78 == g_player_ent || (uint32_t)g_dat_53c78[0] == 2u) {
             /* 0x00032336-0x00032352: skipped */
         } else {
             fn_031a8e(g_dat_53c78);                                /* 0x0003235b */
@@ -23767,7 +23845,7 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
             *(uint8_t *)(ent + 0x30) = 1;                              /* 0x000141c7-ca */
             *(uint32_t *)(ent + 0x17) = (uint32_t)v2c;                 /* 0x000141ce-0x000141d7 */
             int32_t fa = *(const int32_t *)(a + 0x1b);
-            if (a == g_dat_53c7c) {                                    /* 0x000141da-0x000141f7 */
+            if (a == g_player_ent) {                                    /* 0x000141da-0x000141f7 */
                 int32_t sa = *(const int32_t *)(a + 0x17);
                 if (sa == 0x38 || sa == 0xa4) fa = 1 - fa;
             }
@@ -23777,7 +23855,7 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
 
     {
         int32_t sa = *(const int32_t *)(a + 0x17);                     /* 0x0001421c-0x0001423a */
-        if ((sa == 0x65 || sa == 0x99) && a == g_dat_53c7c) {
+        if ((sa == 0x65 || sa == 0x99) && a == g_player_ent) {
             if (*(const uint8_t *)(anim + 0x6c) == 1) {                /* 0x00014241-0x00014288 */
                 *(int32_t *)(a + 0x17) = 0xa1;
                 *(int32_t *)(a + 0x11) = 0;
@@ -23787,7 +23865,7 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
             }
             if (*(const int32_t *)(a + 0x1b) != *(const int32_t *)(b + 0x1b)) return 1;  /* 0x000142f3 */
             *(int32_t *)(a + 0x17) =                                  /* 0x0001429b-0x000142c3 */
-                (*(const uint8_t *)(g_dat_53c7c + 0x27) == 4) ? 0xab : 0xa0;
+                (*(const uint8_t *)(g_player_ent + 0x27) == 4) ? 0xab : 0xa0;
             *(int32_t *)(a + 0x11) = 0;
             *(uint16_t *)(a + 0x50) = 0;
             *(int32_t *)(b + 0x1b) = 1 - *(const int32_t *)(b + 0x1b); /* 0x000142d6-0x000142e4 */
@@ -23860,7 +23938,7 @@ void fn_01441e(uint8_t *e)
     int32_t xhi = ((const int32_t *)(hb + *(const uint32_t *)(spr_e + 0x20)))[fi];  /* [EBP-0x34] */
 
     /* ---- pass 1: the walking player bumping into something ---- */
-    if (e == g_dat_53c7c && *(const int32_t *)(e + 0x17) == 2) {   /* 0x000144bf-0x000144ce */
+    if (e == g_player_ent && *(const int32_t *)(e + 0x17) == 2) {   /* 0x000144bf-0x000144ce */
         uint8_t *cur = g_dat_53c70;                                /* [EBP-0x8] 0x000144d5 */
         for (int32_t i = 0; i < (int32_t)g_dat_53c68; i = i + 1) { /* 0x000144dd-0x000144f5 */
             uint32_t ro = *(const uint32_t *)(                     /* [EBP-0xc] 0x000144fb-1a */
@@ -23877,7 +23955,7 @@ void fn_01441e(uint8_t *e)
                     int32_t d = (int32_t)*(const uint32_t *)(cur + 0x01)
                                 - (int32_t)*(const uint32_t *)(e + 0x01);
                     if (!(d <= 0xc && d > 0)) goto p1next;         /* 0x000145a3-0x000145b8 */
-                    if ((uint32_t)g_dat_53c7c[0x27] >= 2u) {       /* 0x000145ba-0x000145d9 */
+                    if ((uint32_t)g_player_ent[0x27] >= 2u) {       /* 0x000145ba-0x000145d9 */
                         *(int32_t *)(e + 0x17) = 0x9a;
                         *(int32_t *)(e + 0x11) = 0;
                     }
@@ -23890,7 +23968,7 @@ void fn_01441e(uint8_t *e)
                 int32_t d = (int32_t)*(const uint32_t *)(e + 0x01)
                             - (int32_t)*(const uint32_t *)(cur + 0x01);
                 if (!(d <= 0xc && d > 0)) goto p1next;             /* 0x000145fc-0x00014611 */
-                if ((uint32_t)g_dat_53c7c[0x27] >= 2u) {           /* 0x00014613-0x00014632 */
+                if ((uint32_t)g_player_ent[0x27] >= 2u) {           /* 0x00014613-0x00014632 */
                     *(int32_t *)(e + 0x17) = 0x9a;
                     *(int32_t *)(e + 0x11) = 0;
                 }
@@ -23931,7 +24009,7 @@ p1next:
 
         /* 0x00014789-0x000147c9: is this a "flagged" (player-style reaction) victim? */
         int32_t flag;
-        if (cur == g_dat_53c7c) {
+        if (cur == g_player_ent) {
             if (*(const int32_t *)(cur + 0x05) != 0) flag = (int32_t)*(const uint8_t *)(hb + ro + 0x6c);
             else {
                 int32_t cs = *(const int32_t *)(cur + 0x17);
@@ -23944,24 +24022,24 @@ p1next:
         g_dat_63364 = (uint32_t)*(const uint8_t *)(hb + rec_e + (uint32_t)slot + 0x63);  /* 0x000147c9-DC */
         g_dat_63368 = 0;                                           /* 0x000147dc */
         *(uint8_t *)(cur + 0x31) = 0;                              /* 0x000147e6-e9 */
-        if (cur != g_dat_53c7c) g_dat_53c88 = (uint32_t)(uintptr_t)(cur - hb);  /* 0x000147f0-0xfb */
+        if (cur != g_player_ent) g_gauge_other_off = (uint32_t)(uintptr_t)(cur - hb);  /* 0x000147f0-0xfb */
         *(uint32_t *)(cur + 0x46) = (uint32_t)(uintptr_t)(e - hb); /* 0x00014800-06 */
         *(uint8_t  *)(cur + 0x4e) = (uint8_t)*(const uint32_t *)(e + 0x17);  /* 0x00014809-12 */
         *(uint8_t  *)(cur + 0x4f) = (uint8_t)slot;                 /* 0x00014815-1b */
         int32_t atype = (int32_t)*(const uint8_t *)(hb + rec_e + (uint32_t)slot + 0x38);  /* [EBP-0x24] */
-        if (cur == g_dat_53c7c && *(const uint32_t *)(g_dat_53c7c + 0x4a) != 0) {  /* 0x0001482c-40 */
+        if (cur == g_player_ent && *(const uint32_t *)(g_player_ent + 0x4a) != 0) {  /* 0x0001482c-40 */
             uint8_t *lk = hb + *(const uint32_t *)(cur + 0x4a);
             *(uint32_t *)(lk + 0x4a) = 0;                          /* 0x00014844-51 */
             *(uint16_t *)(lk + 0x50) = 0;                          /* 0x00014851-57 */
             *(int32_t *)(lk + 0x17) = 1;                           /* 0x0001485d-63 */
             *(int32_t *)(lk + 0x11) = 0;                           /* 0x0001486a-70 */
             *(uint32_t *)(cur + 0x4a) = 0;                         /* 0x00014877-7a */
-            *(uint8_t *)(g_dat_53c7c + 0x31) = 0;                  /* 0x00014881-86 */
+            *(uint8_t *)(g_player_ent + 0x31) = 0;                  /* 0x00014881-86 */
         }
 
         /* damage strength (0x0001488a-0x000148e7) */
         int32_t dmg;
-        if (flag == 1 && cur != g_dat_53c7c) {
+        if (flag == 1 && cur != g_player_ent) {
             int32_t cs = *(const int32_t *)(cur + 0x17);
             int32_t base = (int32_t)*(const uint32_t *)(hb + rec_e + 4u * (uint32_t)slot + 0x20);
             dmg = (cs >= 0x33 && cs <= 0x35) ? base * 3 : base * 2;
@@ -23976,7 +24054,7 @@ p1next:
                 *(uint16_t *)(cur + 0x29) = 0;
                 *(uint8_t  *)(cur + 0x30) = 1;
             }
-        } else if (cur == g_dat_53c7c || *(const int32_t *)(cur + 0x56) == 0) {
+        } else if (cur == g_player_ent || *(const int32_t *)(cur + 0x56) == 0) {
             *(uint16_t *)(cur + 0x23) = (uint16_t)((int16_t)*(const uint16_t *)(cur + 0x23) - (int16_t)dmg);
         } else {
             *(int32_t *)(cur + 0x56) -= dmg;
@@ -24006,7 +24084,7 @@ p1next:
                 *(uint16_t *)(cur + 0x50) = 0x50;                  /* 0x000149d7-da */
                 if (atype >= 0x0b && atype <= 0x14) *(int32_t *)(cur + 0x42) = 4;  /* 0x000149e0-0x000149f8 */
                 else                                 *(int32_t *)(cur + 0x42) = 1;
-                if (cur == g_dat_53c7c && (uint32_t)cur[0x16] == 0u) {  /* 0x00014a04-0x00014a1c */
+                if (cur == g_player_ent && (uint32_t)cur[0x16] == 0u) {  /* 0x00014a04-0x00014a1c */
                     *(int32_t *)(cur + 0x17) = 0x1e;                /* 0x00014a23-26 */
                     *(uint8_t  *)(cur + 0x31) = 0;                  /* 0x00014a2d-30 */
                     *(uint8_t  *)(cur + 0x16) = 7;                  /* 0x00014a34-37 */
@@ -24035,7 +24113,7 @@ p1next:
                 }
             } else {                                               /* 0x00014b8f */
                 fn_01545e(cur, *(const int32_t *)(cur + 0x1b) == 0 ? -0x0a : 0x0a);  /* 0x00014b8f-af */
-                if (cur != g_dat_53c7c) {                           /* 0x00014bb4 */
+                if (cur != g_player_ent) {                           /* 0x00014bb4 */
                     fn_015295(cur, -4);                             /* 0x00014bbf-c7 */
                     *(uint8_t  *)(cur + 0x16) = 5;                  /* 0x00014bcc-cf */
                     *(int32_t *)(cur + 0x42) = 0;                   /* 0x00014bd3-d6 */
@@ -24049,7 +24127,7 @@ p1next:
                 *(uint8_t *)(cur + 0x30) = 1;                       /* 0x00014c17-1a */
                 *(uint8_t *)(cur + 0x31) = 0;                       /* 0x00014c1e-21 */
             }
-            if (e == g_dat_53c7c && *(const int32_t *)(e + 0x17) == 0x8c)
+            if (e == g_player_ent && *(const int32_t *)(e + 0x17) == 0x8c)
                 *(uint16_t *)(cur + 0x50) = 0x28;                   /* 0x00014c25-41 */
             goto hitapply_end;                                     /* 0x00014c47 */
         }
@@ -24057,7 +24135,7 @@ p1next:
         /* the non-flagged reaction (0x00014c4c-0x00014dd a) */
         *(uint16_t *)(cur + 0x50) = *(const uint16_t *)(hb + rec_e + 2u * (uint32_t)slot + 0x4a);
         *(int32_t *)(cur + 0x11) = 0;
-        if (cur == g_dat_53c7c && *(const int32_t *)(cur + 0x17) == 0x97) {   /* 0x00014c6c-0x00014cb4 */
+        if (cur == g_player_ent && *(const int32_t *)(cur + 0x17) == 0x97) {   /* 0x00014c6c-0x00014cb4 */
             if (atype >= 1 && atype <= 9) {
                 *(uint8_t  *)(cur + 0x31) = 0;
                 *(int32_t *)(cur + 0x17) = 0x14;
@@ -24147,11 +24225,11 @@ hitapply_end:
 score:
         {                                                          /* 0x00014fd1-0x00015003 */
             int32_t delta = hp0 - (int32_t)*(const int16_t *)(cur + 0x29);
-            if (delta != 0 && e == g_dat_53c7c)
-                *(int32_t *)(g_dat_53c7c + 0xbb) += (uint32_t)delta;
+            if (delta != 0 && e == g_player_ent)
+                *(int32_t *)(g_player_ent + 0xbb) += (uint32_t)delta;
         }
         if ((uint32_t)cur[0x30] == 1u) {                           /* 0x00015003-0x00015070 */
-            if (cur != g_dat_53c7c) {
+            if (cur != g_player_ent) {
                 if ((uint32_t)cur[0x5a] == 0u &&
                     (int16_t)*(const int16_t *)(cur + 0x29) != 0) {
                     *(uint8_t  *)(cur + 0x5a) = 1;
@@ -24165,7 +24243,7 @@ score:
             }
         }
         if ((uint32_t)cur[0x30] == 1u) {                           /* 0x00015073-0x000150c4 */
-            if (cur == g_dat_53c7c) {
+            if (cur == g_player_ent) {
                 *(uint8_t  *)(cur + 0x31) = 0;
                 *(uint16_t *)(cur + 0x50) = 0xc8;
                 g_dat_63364 = 0x28;
@@ -24174,7 +24252,7 @@ score:
                 *(uint16_t *)(cur + 0x50) = 0x78;
                 *(uint8_t  *)(cur + 0x31) = 0;
             }
-            if (cur == g_dat_53c80) {                              /* 0x000150c8-0x000150fa */
+            if (cur == g_latched_ent) {                              /* 0x000150c8-0x000150fa */
                 fn_04185e(g_dat_53d0c[g_tab_51c68[*(const uint32_t *)(e + 0x0d)]]);
                 fn_03ee0a();
                 fn_00035c5c();
@@ -24195,8 +24273,8 @@ hitnext:
         cur = *(uint8_t **)(cur + 0x13f);                          /* 0x00015150-59 */
     }
 
-    if (e == g_dat_53c7c && *(const int32_t *)(e + 0xbb) != 0) {   /* 0x00015161-0x0001518c */
-        *(int32_t *)(g_dat_53c7c + 0x52) += *(const uint32_t *)(e + 0xbb);
+    if (e == g_player_ent && *(const int32_t *)(e + 0xbb) != 0) {   /* 0x00015161-0x0001518c */
+        *(int32_t *)(g_player_ent + 0x52) += *(const uint32_t *)(e + 0xbb);
         *(int32_t *)(e + 0xbb) = 0;
     }
 }
@@ -24479,7 +24557,7 @@ void fn_038f3d(int32_t variant)
     if (g_menu_trace) fprintf(stderr, "fn_038f3d enter variant=%d\n", (int)variant);   /* host-side diagnostic */
     (void)canary_id(0, 0x168);                                          /* 0x00038f3d-42 */
     uint8_t *hb = (uint8_t *)g_heap_base;
-    uint8_t *P = g_dat_53c7c;                                           /* DAT_00053c7c */
+    uint8_t *P = g_player_ent;                                           /* DAT_00053c7c */
 
     int32_t page = 0;                                                   /* [EBP-0x60] the row cursor */
     int32_t up_ctr = 0, down_ctr = 0;                                   /* [EBP-0x5c] [EBP-0x58] */
@@ -24836,7 +24914,7 @@ void fn_01194c(uint8_t *e)
     const uint32_t st = *(const uint32_t *)(e + 0x17);                   /* the jump-table index */
     const int32_t ty = *(const int32_t *)(e + 0x0d);                     /* entity type / serial */
     const int32_t ac = *(const int32_t *)(e + 0x11);                     /* current action code */
-    const int is_player = (e == g_dat_53c7c);
+    const int is_player = (e == g_player_ent);
 
 #define MV   fn_011827(e, -10, -4, 1, 4)
 #define RY   fn_01545e(e, (int32_t)(prng_next() % 0x15) - 10)
@@ -25001,7 +25079,7 @@ void fn_012616(uint8_t *e)
     if (*(int32_t *)(e + 0x17) == 0x29)                                  /* 0x00012625-45 */
         *(uint32_t *)(e + 0x17) = 0x29;                                  /* four byte stores == dword */
 
-    if (e != g_dat_53c7c && e[0] == 0) {                                 /* 0x0001264b: wake-up, never the player */
+    if (e != g_player_ent && e[0] == 0) {                                 /* 0x0001264b: wake-up, never the player */
         if (*(int32_t *)(e + 0x17) == 0x1d && 0x2d < *(int32_t *)(e + 0x11)) e[0] = 1;
         if (*(int32_t *)(e + 0x17) == 0x16 && 0x12 < *(int32_t *)(e + 0x11)) e[0] = 1;
     }
@@ -25067,9 +25145,9 @@ void fn_012616(uint8_t *e)
                     rec = RECST(*(int32_t *)(e + 0x17));
                 }
                 if (e[0x30] == 1) {                                       /* 0x000129c4: the entity dies here */
-                    if (e == g_dat_53c7c) g_dat_6336c = 1;
-                    else if (e == g_dat_53c80) g_dat_6336c = 3;
-                    else if ((const uint8_t *)(uintptr_t)g_dat_53c88 == e) g_dat_53c88 = 0;
+                    if (e == g_player_ent) g_dat_6336c = 1;
+                    else if (e == g_latched_ent) g_dat_6336c = 3;
+                    else if ((const uint8_t *)(uintptr_t)g_gauge_other_off == e) g_gauge_other_off = 0;
                     if (e[0] == 1) {                                      /* 0x00012a24 (unsigned byte) */
                         g_dat_639bc = g_dat_639bc + 1;                    /* 0x00012a33 (dword) */
                         const int32_t quota = (int32_t)g_tab_52a1c[
@@ -25082,7 +25160,7 @@ void fn_012616(uint8_t *e)
                     return;
                 }
             }
-        } else if (e == g_dat_53c7c
+        } else if (e == g_player_ent
                    && (*(const int32_t *)(e + 0x17) == 0x6f
                        || *(const int32_t *)(e + 0x17) == 0x71)) {
             e[0x31] = 0;                                                  /* 0x00012904 */
@@ -25132,7 +25210,7 @@ void fn_012616(uint8_t *e)
         }
         if (*(const int32_t *)(e + 0x1b) == 0) {                          /* 0x00012cc2 */
             fn_01545e(e, mv);
-            if (e == g_dat_53c7c)
+            if (e == g_player_ent)
                 *(int32_t *)(g_dat_63354 + 0x1e) = *(int32_t *)(g_dat_63354 + 0x1e) + mv;
         } else fn_01545e(e, -mv);
     }
@@ -25161,7 +25239,7 @@ void fn_012616(uint8_t *e)
         fn_01586b(e, XARR(rec)[*(const int32_t *)(e + 0x11)]);            /* 0x00012e01 */
     }
 
-    if (e == g_dat_53c7c && *(int32_t *)(g_dat_53c7c + 0x17) == 2) {      /* 0x00012e4f */
+    if (e == g_player_ent && *(int32_t *)(g_player_ent + 0x17) == 2) {      /* 0x00012e4f */
         *(int32_t *)(g_dat_63354 + 0x22)
             = *(int32_t *)(g_dat_63354 + 0x22) + XARR(rec)[*(const int32_t *)(e + 0x11)];
         if ((int32_t)*(const int32_t *)&g_dat_5d0a0[0x00] <= *(const int32_t *)(e + 0x01)
@@ -25423,7 +25501,7 @@ void fn_03d244(uint8_t *node)
     fn_038f3d(1);                                                    /* 0x0003d2ac-b1 */
     fn_03cad3(g_dat_63354);                                          /* 0x0003d2b6-bb */
 
-    uint8_t *P = g_dat_53c7c;
+    uint8_t *P = g_player_ent;
     *(int32_t *)(P + 0x01) = (int32_t)g_dat_639dc + (g_dat_63398 == 0 ? -0x1e : 0x15e);
     const uint32_t col = *(const uint32_t *)(g_dat_63354 + 0x40);
     const int32_t rowb = ((int32_t)g_dat_63370 - 1) * 10;
@@ -25522,6 +25600,49 @@ void fn_03ed6f(void)
  *   branch actually fires; the entity-block write is unconditional in the original (a failed
  *   allocation would write through flat 0x1b) and is kept that way, as in fn_011827.
  */
+/* ---- host-side debug warp: spawn a shipped entity type in the live room (docs/84) -----------
+ * `NIGHT_WARP_ENTITY=enc-1,enc-2,boss1` (parsed by the SDL host) asks for entity types by their
+ * shipped per-type asset name. kTypeSprNames / kTypeActNames are the game's own DS name tables, so
+ * the name -> type mapping is the shipped one rather than a host-side guess; "mark" and "dust" name
+ * the two shared types whose per-type slots alias the named globals (0xc9 / 0xfa, see the master
+ * loader). The spawn itself mirrors what the shipped room-record opcode 1 does (fn_00041bdc then
+ * fn_010efc with kind 1) and the Y is the room's walk line, exactly as the player placement takes it;
+ * it refuses while the game has no live room or when this episode's stage%d.stg never loaded the
+ * type's blocks, so a request that cannot be honoured is reported instead of guessed.
+ */
+uint32_t f_warp_entity_type(const char *name)
+{
+    if (name == NULL || name[0] == 0) return 0xffffffffu;
+    char stem[0x20];
+    snprintf(stem, sizeof stem, "%s.spr", name);
+    for (uint32_t t = 0; t < 0x65u; t++)
+        if (kTypeSprNames[t] && strcmp(kTypeSprNames[t], stem) == 0) return t;
+    if (strcmp(name, "mark") == 0) return 0xc9;   /* DAT_00063d10 IS g_dat_639ec[0xc9] */
+    if (strcmp(name, "dust") == 0) return 0xfa;   /* DAT_00063dd4 IS g_dat_639ec[0xfa] */
+    return 0xffffffffu;
+}
+
+const char *f_warp_entity_refuse(const char *name)      /* NULL = spawnable as of now */
+{
+    uint32_t t = f_warp_entity_type(name);
+    if (t == 0xffffffffu) return "no shipped entity type names that .spr";
+    if (g_dat_63354 == NULL) return "no live room record (the room loop owns the entity list)";
+    if (g_dat_639ec[t] == NULL) return "this episode never loaded the type's .spr block";
+    if (g_dat_53818[t] == 0) return "this episode never loaded the type's .act block";
+    return NULL;
+}
+
+uint8_t *f_warp_entity_spawn(const char *name)
+{
+    if (f_warp_entity_refuse(name) != NULL) return NULL;
+    uint32_t t = f_warp_entity_type(name);
+    uint32_t blk = fn_00041bdc(0x14f);                                /* as opcode 1 does (orig 0x147) */
+    if (blk == 0) return NULL;
+    int32_t tbl = (int32_t)g_tab_52c3c[*(const uint32_t *)(g_dat_63354 + 0x40)
+                                       + (g_dat_63370 - 1) * 0xa];     /* the room's walk line, as the player's is */
+    return fn_010efc((uint8_t *)g_heap_base + blk, (int32_t)g_dat_639dc + 0xa0, 0, tbl, (int32_t)t, 1);
+}
+
 static uint8_t *e20f_spawn(int32_t anchor_x, const uint8_t *rec, int stamp_gate)
 {
     uint8_t *hb = (uint8_t *)g_heap_base;
@@ -25832,7 +25953,7 @@ static void lab_attack_ready(uint8_t *pl, int st, uint8_t key)
 void fn_03272f(uint8_t *tbl)
 {
     (void)canary_id((uintptr_t)tbl, 0x3c);                          /* 0x00032734 probe (push 0x3c) */
-    uint8_t *pl = g_dat_53c7c;                                      /* 0x0003274a */
+    uint8_t *pl = g_player_ent;                                      /* 0x0003274a */
     uint8_t *hb = (uint8_t *)g_heap_base;
     if (PL8(0x30) == 1) return;                                     /* 0x0003274f-0x00032759 dying */
     if (g_dat_6339c == 500) { PL32(0x17) = 0x28; PL32(0x11) = 0; }   /* 0x00032759-0x00032779 */
@@ -26174,8 +26295,8 @@ int fn_03af18_ending_slideshow(void) {
         uint8_t name[0x20];
         uint32_t n = slide + 1;
         /* the full-equipment run uses the alternate ending slide set */
-        if (g_dat_53c7c[0x25] == 1 && g_dat_53c7c[0x26] == 2 &&
-            g_dat_53c7c[0x27] == 4 && g_dat_53c7c[0x28] == 4) {
+        if (g_player_ent[0x25] == 1 && g_player_ent[0x26] == 2 &&
+            g_player_ent[0x27] == 4 && g_player_ent[0x28] == 4) {
             uint8_t *cur = (uint8_t *)&n;
             fn_0428f8(name, (const uint8_t *)"2end%04d.pcx", &cur); /* 0x03b35a */
         } else {
@@ -26228,7 +26349,7 @@ menu_loop:                                                             /* LAB_00
                                            + (g_dat_63370 - 1) * 0xa]; /* 0x03afe8-f9 */
         player = fn_010efc(hb + blk, (int32_t)0xffffffe2, 0, tbl, 0, 0);  /* 0x03b007 */
     }
-    g_dat_53c7c = player;                                              /* 0x03b021-2c */
+    g_player_ent = player;                                              /* 0x03b021-2c */
     g_dat_53c84 = (uintptr_t)player;
     if (g_dat_63398 == 0) *(int32_t *)(player + 0x01) = (int32_t)g_dat_639dc - 0x1e;
     else                  *(int32_t *)(player + 0x01) = (int32_t)g_dat_639dc + 0x15e;
@@ -26322,7 +26443,7 @@ room_start:                                                            /* LAB_00
     g_dat_63370 += 1;                                                  /* 0x03b52b: next stage */
     fn_00010dde();
     fn_000405a7();
-    if (g_dat_53c7c[0x30] != 1) fn_038f3d(1);                          /* 0x03b54c */
+    if (g_player_ent[0x30] != 1) fn_038f3d(1);                          /* 0x03b54c */
     fn_0374ad();
     goto room_start;
 
@@ -26330,9 +26451,9 @@ ending:                                                                /* LAB_00
     fn_03af18_ending_slideshow();
     fn_000405a7();
     g_dat_63370 = 1;                                                   /* 0x03b3f1 */
-    if (g_dat_53c7c != NULL) {
-        fn_0112fd(g_dat_53c7c, 0);                                     /* 0x03b413: entity remove */
-        heap_free_guard((uint32_t)(g_dat_53c7c - (uint8_t *)g_heap_base));   /* 0x03b418 (fn_041c28) */                                                 /* 0x03b418: heap free */
+    if (g_player_ent != NULL) {
+        fn_0112fd(g_player_ent, 0);                                     /* 0x03b413: entity remove */
+        heap_free_guard((uint32_t)(g_player_ent - (uint8_t *)g_heap_base));   /* 0x03b418 (fn_041c28) */                                                 /* 0x03b418: heap free */
     }
     fn_037347();
     g_dat_63398 = 0;

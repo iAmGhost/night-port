@@ -969,7 +969,7 @@ static void ent_dump(void) {
     int n = 0;
     for (uint32_t i = 0; i < 0x65; i++) if (g_dat_53818[i]) n++;
     SDL_Log("ent: count=%d tables loaded=%d cameraX=%d cameraY=%d playerBlock=%p",
-            (int)g_dat_53c68, n, (int)g_dat_639dc, (int)g_dat_639e0, (void *)g_dat_53c7c);
+            (int)g_dat_53c68, n, (int)g_dat_639dc, (int)g_dat_639e0, (void *)g_player_ent);
     uint8_t *e = g_dat_53c70;
     for (int k = 0; k < 8 && e; k++) {
         uint32_t act = 0, off = 0;
@@ -985,7 +985,7 @@ static void ent_dump(void) {
         memcpy(&st, e + 0x17, 4); memcpy(&face, e + 0x1b, 4);
         SDL_Log("  ent[%d] block=%p type(act)=%d type(spr)=%d world=%u,%u state=0x%x face=%u isPlayer=%d "
                 "sprfields=%08x %08x %08x",
-                k, (void *)e, ty, sty, x, y, st, face, e == g_dat_53c7c,
+                k, (void *)e, ty, sty, x, y, st, face, e == g_player_ent,
                 *(uint32_t *)(e + 0x127), *(uint32_t *)(e + 0x12b), *(uint32_t *)(e + 0x12f));
         /* Machine-readable form of the same record, with the shipped asset each type resolves to: this is what
          * scripts/playtest_check_entity_sprites.py asserts on (docs/73). */
@@ -994,7 +994,7 @@ static void ent_dump(void) {
             const char *const *an = f_type_act_names();
             SDL_Log("entmap idx=%d player=%d type_act=%d type_spr=%d spr_asset=%s act_asset=%s "
                     "rbase=%08x spr_struct=%p",
-                    k, e == g_dat_53c7c ? 1 : 0, ty, sty,
+                    k, e == g_player_ent ? 1 : 0, ty, sty,
                     (ty >= 0 && ty < 0x65) ? sn[ty] : "?", (ty >= 0 && ty < 0x65) ? an[ty] : "?",
                     *(uint32_t *)(e + 0x127), (void *)(sty >= 0 ? g_dat_639ec[sty] : NULL));
         }
@@ -1068,6 +1068,46 @@ static void tick_pump(void) {
               g_warp_active = 0;
               }
           } }
+    /* Host-side debug warp (docs/84): NIGHT_WARP_ENTITY=enc-1,boss1,dust asks for shipped entity
+     * types in the live room, which is how the sprite-family census reaches the families scripted play
+     * never clears its way to. The name -> type map is the game's own per-type name table, the spawn
+     * is the shipped room-record opcode-1 shape (fn_00041bdc + fn_010efc), and the request is deferred
+     * (with the reason logged) while the shipped preconditions are unmet: no live room record, or this
+     * episode's stage records never loaded the type's .spr/.act blocks. */
+    { static char wnames[24][0x20]; static int wnn = -1, wdone[24], wdefer[24];
+      if (wnn < 0) {
+          const char *e = getenv("NIGHT_WARP_ENTITY");
+          wnn = 0;
+          const char *p = e;
+          while (p && *p && wnn < 24) {
+              const char *q = strchr(p, ',');
+              size_t n = q ? (size_t)(q - p) : strlen(p);
+              if (n >= sizeof wnames[0]) n = sizeof wnames[0] - 1;
+              memcpy(wnames[wnn], p, n); wnames[wnn][n] = 0; wnn++;
+              p = q ? q + 1 : NULL;
+          }
+      }
+      if (wnn > 0) {
+          long at = getenv("NIGHT_WARP_ENTITY_AT") ? atol(getenv("NIGHT_WARP_ENTITY_AT")) : 0;
+          if ((long)g_frames >= at) {
+              for (int i = 0; i < wnn; i++) {
+                  if (wdone[i]) continue;
+                  const char *why = f_warp_entity_refuse(wnames[i]);
+                  if (why) {
+                      if (!wdone[i] && (long)g_frames < at + 700 && ++wdefer[i] == 1)
+                          fprintf(stderr, "warp-entity: %s deferred at frame %u: %s\n",
+                                  wnames[i], g_frames, why);
+                      continue;
+                  }
+                  uint8_t *ent = f_warp_entity_spawn(wnames[i]);
+                  wdone[i] = 1;
+                  fprintf(stderr, "warp-entity: %s type=%u frame=%u %s\n", wnames[i],
+                          (unsigned)f_warp_entity_type(wnames[i]), g_frames,
+                          ent ? "spawned" : "allocation failed");
+              }
+          }
+      }
+    }
     if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {

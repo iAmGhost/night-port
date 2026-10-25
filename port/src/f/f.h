@@ -120,6 +120,12 @@ void fn_03eff2(void);                          /* 0x03eff2: install IRQ 0x1c (FP
 void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handler (flag-guarded) */
 extern uint8_t *g_dat_6334c;   /* DAT_0006334c: stage room-chain head */
 extern int g_warp_stage;   /* host debug: force the stage number in fn_037b03 (docs/52) */
+/* Host-side debug warp (docs/84, NIGHT_WARP_ENTITY=name,name,...): resolve a shipped per-type .spr
+ * name to its entity type, ask whether the spawn is legal right now, and spawn it the way the shipped
+ * room-record opcode 1 does. 0xffffffff = no such shipped type. */
+uint32_t f_warp_entity_type(const char *name);
+const char *f_warp_entity_refuse(const char *name);   /* NULL = spawnable */
+uint8_t *f_warp_entity_spawn(const char *name);
 void fn_037b03(int32_t resume_flag);
 extern uint32_t g_dat_63398;   /* DAT_00063398: room orientation byte (room node +0x11), set by fn_0374ad */
 extern uint32_t g_tab_52c3c[0x104]; /* DAT_00052c3c: 10 dwords per stage, indexed by room serial; no producer in the EXE (read-only: 0x0374ad/0x0376c8/0x03af18/0x03d244) */
@@ -1107,7 +1113,9 @@ void fn_040b83(uint8_t *src, uint32_t unused_edx);  /* 0x040b83: one DMA chunk: 
 uint32_t fn_040fb3(void);               /* 0x040fb3: save+hook INT 0x0a/0x0b/0x0d/0x0f/0x72, remask PIC 0x21/0xa1, probe cmd 0xf2, wait, restore; returns DAT_00063f84 */
 uint32_t fn_040d09(void);               /* 0x040d09: device bring-up chain (fn_040f4f base scan -> fn_040fb3 probe -> fn_0411d9 id -> 64KB buffer -> hook ISR 0x415c9 -> fn_0413e7 -> DAT_63f90=1) */
 uint32_t fn_03658d(void);               /* 0x03658d: master bring-up (IRQ9/timer state, DPMI, device, CD read, pitch, PIT tick, init flag, two 64KB screens) */
-extern uint32_t g_dat_63370;            /* DAT_00063370: master-init done flag */
+extern uint32_t g_dat_63370;            /* DAT_00063370 (Ghidra g_dwEpisodeCounter): the current episode counter 1..9
+                                         * (written 1 at 0x365eb in fn_03658d; re-written in fn_03af18 at 0x3b3f1 and
+                                         * 0x3b569). The entity constructor compares it at 0x10f1d to latch g_latched_ent. */
 extern uint32_t g_dat_63f88;            /* DAT_00063f88: device id ((hi<<8)|lo) from fn_0411d9 */
 extern uint32_t g_dat_63f90;            /* DAT_00063f90: device initialised flag */
 extern uint32_t g_dat_63f54;            /* DAT_00063f54: saved device-ISR offset (0x040d09) */
@@ -1136,11 +1144,11 @@ extern int32_t  g_dat_63360;   /* 0x63360: frame counter; %10 gates periodic boa
 extern uint8_t *g_dat_63e04;   /* 0x63e04: HUD number font ptr; +0x34=char_table(8B), +0x3c=rle_base(8B) (fn_0137c1) */
 extern uint8_t *g_dat_63358;   /* 0x63358: mirror of g_dat_63354 (0x03cc6b) */
 extern uint32_t g_dat_63370;   /* 0x63370: mode flag (0x03cc6b) */
-extern uint32_t g_dat_63374;   /* 0x63374: = g_dat_53c7c->0x2b (0x03cc6b) */
-extern uint32_t g_dat_63378;   /* 0x63378: = (byte)g_dat_53c7c->0x27 (0x03cc6b) */
-extern uint32_t g_dat_6337c;   /* 0x6337c: = (byte)g_dat_53c7c->0x26 (0x03cc6b) */
-extern uint32_t g_dat_63380;   /* 0x63380: = (byte)g_dat_53c7c->0x25 (0x03cc6b) */
-extern uint32_t g_dat_63384;   /* 0x63384: = (byte)g_dat_53c7c->0x28 (0x03cc6b) */
+extern uint32_t g_dat_63374;   /* 0x63374: = g_player_ent->0x2b (0x03cc6b) */
+extern uint32_t g_dat_63378;   /* 0x63378: = (byte)g_player_ent->0x27 (0x03cc6b) */
+extern uint32_t g_dat_6337c;   /* 0x6337c: = (byte)g_player_ent->0x26 (0x03cc6b) */
+extern uint32_t g_dat_63380;   /* 0x63380: = (byte)g_player_ent->0x25 (0x03cc6b) */
+extern uint32_t g_dat_63384;   /* 0x63384: = (byte)g_player_ent->0x28 (0x03cc6b) */
 void fn_03cc6b(uint8_t *a0);   /* 0x03cc6b: state machine (g_639e4 toggle, g_63354/58, kb-config copy, g_639e0++) */
 void fn_034295(int32_t amount);  /* 0x034295: the player's STATE-GATED vertical move (DAT_63ed3 reversed / DAT_63ed5 plain, plus [player+0x1b] must be 0 / 1) */
 extern uint8_t g_dat_63ed3;      /* DAT_00063ed3: reversed vertical-direction flag */
@@ -1169,8 +1177,17 @@ extern uint8_t  g_dat_62c82;      /* DAT_00062c82 (byte flag) */
 extern uint8_t  g_dat_62c8e;      /* DAT_00062c8e (byte flag) */
 extern uint8_t  g_dat_62c90;      /* DAT_00062c90 (byte flag) */
 extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
-extern uint8_t *g_dat_53c7c;   /* DAT_00053c7c (kb config ptr; [0x1b] int32) */
-extern uint8_t *g_dat_53c80;   /* DAT_00053c80 (entity ptr; compared to a0 in 0x015295) */
+extern uint8_t *g_player_ent;   /* DAT_00053c7c: THE PLAYER ENTITY POINTER (Ghidra g_pPlayerEntity). Only two writes:
+                                 * 0x3774c (fn_0376c8, the stage loader stores the new player block) and 0x3b01b
+                                 * (fn_03af18, the episode tail re-seats it); 869 reads, and the per-frame sweeps
+                                 * exclude it from type-band tests (0x129fc / 0x147fb / 0x150cb). A real heap pointer
+                                 * in the shipped DS (guest witness in a live room: 0x00631798). docs/89. */
+extern uint8_t *g_latched_ent;   /* DAT_00053c80: the entity whose TYPE INDEX equals g_dat_63370 (docs/89).
+                                 * Written only at 0x10f2b -- fn_010efc latches every block it constructs whose
+                                 * type_idx == DAT_63370 -- and cleared at 0x37b43 (fn_037b03 stage entry). Read at
+                                 * 0x3aa31..0x3aa77 (fn_03a829: the CG picture show is armed when it is non-NULL and
+                                 * inside the camera band) and at 0x15328 (fn_015295: its death sets DAT_6336c = 3).
+                                 * Measured 0 in a live room: nothing of that type had been built in that room. */
 extern int32_t  g_dat_53c48;   /* DAT_00053c48: CD-refresh threshold (cmp g_63e38/490, 0x010d47) */
 extern int32_t  g_dat_53c6c;   /* DAT_00053c6c (state flag) */
 extern uint8_t *g_dat_53c70;   /* DAT_00053c70 (entity list head; next at +0x13f) */
@@ -1185,7 +1202,11 @@ uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2);   /* 0x0112fd: entity-list REM
 extern int32_t  g_dat_51c98;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 extern int32_t  g_dat_53c90;   /* DAT_00053c90 (player-event latch) */
 extern int32_t  g_dat_53c68;   /* DAT_00053c68 (entity count) */
-extern uint32_t g_dat_53c88;   /* DAT_00053c88 (cleared by fn_03237b conditional drain) */
+extern uint32_t g_gauge_other_off;   /* DAT_00053c88 (Ghidra g_dwGaugeOtherEntityDs): DS-RELATIVE heap offset of the
+                                 * non-player entity whose slot-1 gauge panel is drawn; 0 = none. Set at 0x147fb
+                                 * (fn_01441e, only when the walked entity != the player) and 0x12a1a; cleared at
+                                 * 0x323e5 / 0x37369 / 0x374d8 / 0x377c5; read at 0x12a10 and by the room renderer
+                                 * fn_038098 at 0x38139 / 0x3814a (fn_01348f draws that panel). docs/89. */
 extern uint8_t *g_dat_62aa0;   /* DAT_00062aa0: "gun.key" text table (fn_032464 block) */
 extern uint8_t *g_dat_62aa4;   /* DAT_00062aa4: "gun1.key" */
 extern uint8_t *g_dat_62aa8;   /* DAT_00062aa8: "gun2.key" */
@@ -1225,7 +1246,7 @@ extern uint32_t *g_dat_53c00;  /* 0x53c00: container host-ptr (fn_0100d9) */
 extern uint32_t  g_pool_53d0c[100];  /* 0x53d0c: 100 pooled object offsets */
 void fn_037922(void);   /* 0x037922: clear-all-state -- free 100 pool + destruct+free+null 8 struct globals */
 void fn_0323f8(void);   /* 0x0323f8: drain entity list -- remove+free every node until empty */
-void fn_03237b(void);   /* 0x03237b: conditional drain -- remove+free nodes with dword@+0xd != 0; g_dat_53c88=0 */
+void fn_03237b(void);   /* 0x03237b: conditional drain -- remove+free nodes with dword@+0xd != 0; g_gauge_other_off=0 */
 #define FN_015A1F_TBL 0x2000
 extern uint8_t  g_dat_53eb8[FN_015A1F_TBL]; /* DAT_00053eb8 (zeroed runtime table) */
 void fn_034635(uint8_t key);

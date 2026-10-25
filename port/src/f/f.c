@@ -5811,6 +5811,13 @@ static void dbg_pal_load(const char *tag, const char *name, const uint8_t *t) {
 }
 
 void fn_035f1b(const char *name, uint32_t dl) {
+    /* docs/85 witness (NIGHT_GLYPHDBG): the shipped card-show sequence. The original's level-up /
+     * status presentation was captured frame by frame (docs/85: levelup2 <-> help8, one key per
+     * picture), and this line is the port-side counterpart -- which card the show puts up, in order. */
+    if (getenv("NIGHT_GLYPHDBG")) {
+        static unsigned s_seq = 0;
+        fprintf(stderr, "cardshow seq=%u name=%s dl=%u\n", ++s_seq, name, dl);
+    }
     (void)canary_id((uintptr_t)name, 0x3c);                        /* 0x35f1b-20 */
     fn_0367c9(name);                                               /* 0x35f49 */
     fn_036853(name, 0xfffffd00, 2);                                /* 0x35f5b: seek to end-0x300 */

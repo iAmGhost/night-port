@@ -1037,6 +1037,7 @@ static void tick_pump(void) {
      * NIGHT_SHOWSCREEN=levelup|status|help, NIGHT_SHOWSCREEN_AT=<frame>. */
     if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
     if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
+    if (getenv("NIGHT_ROOMDBG")) g_room_trace = 1;   /* stage room-chain witness (docs/90) */
     {   /* docs/88: drive the credit-less game-over branch the shipped way -- write the game's own state while
          * the room loop is live. DAT_00053100 is the CONTINUE credit count (init 3) and DAT_0006336c == 1 is the
          * "gone for good" latch the room loop tests at 0x0003abf1; the loop's post-break branch then runs

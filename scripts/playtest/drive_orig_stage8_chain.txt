@@ -1,0 +1,45 @@
+# docs/90: is the stage-8 room chain really one record long in the SHIPPED data?
+# Forced episode 8 (docs/82's route: write DAT_00063370 = 8 during the slide show), then read the shipped
+# room-chain state: DAT_0006334c chain head, DAT_00063354 current room, DAT_000639d8 room count,
+# DAT_000639dc/0x639e0 camera room indices, DAT_000639e4 chain state, and the record's own +0x34c next link /
+# +0x350 back link. A cleared link is DS offset 0 in DOS, which is mapped, so `recoff 0x0` style reads are safe.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+writemem 0x63370 8
+record slides 9000
+key_until_mode_stable 200 enter 40 1200 4
+shot stage_play
+readmem 0x63370
+readptr 0x6334c
+readptr 0x63354
+readmem 0x639d8
+readmem 0x6335c
+readmem 0x639dc
+readmem 0x639e0
+readmem 0x639e4
+recoff 0x63354 0x34c
+recoff 0x63354 0x350
+record walk_right 14000
+key right 150
+key right 150
+key right 150
+readmem 0x639dc
+readmem 0x639e0
+readmem 0x639e4
+readptr 0x63354
+recoff 0x63354 0x34c
+record walk_right2 14000
+key right 150
+key right 150
+readmem 0x639dc
+readmem 0x639e0
+readmem 0x639e4
+readptr 0x63354
+recoff 0x63354 0x34c
+readmem 0x6336c
+stop

@@ -123,6 +123,7 @@ void hline_set(uint8_t *a, int b, int c, int d, uint32_t e, uint8_t f) {
 }
 
 int g_hud_trace = 0;   /* NIGHT_HUDDBG: log the gauge panel geometry (docs/50) */
+int g_room_trace = 0;  /* NIGHT_ROOMDBG: stage room chain -- count, per-node links, the terminator (docs/90) */
 
 /* vline_set  orig: 0x040506
  *   p = a + d*b + c; do { *p = f; p += b; e--; } while (e)
@@ -941,6 +942,11 @@ void fn_03c853(uint8_t *node, uint8_t *io)
         fn_04192e((uint8_t *)g_heap_base + off, 2, n, io);          /* 0x3ca43 */
     }
     g_dat_6335c = g_dat_6335c + 1;                                 /* 0x3ca48 */
+    if (g_room_trace)                                             /* docs/90 witness */
+        printf("[room-chain] stage=%u node#%u counter=%u/%u next=%s\n",
+               (unsigned)g_dat_63370, (unsigned)*(uint32_t *)(node + 0x40),
+               (unsigned)g_dat_6335c, (unsigned)g_dat_639d8,
+               (g_dat_6335c == g_dat_639d8) ? "NULL (terminator 0x0003ca5e)" : "to be linked");
     if (g_dat_6335c == g_dat_639d8) {                              /* 0x3ca4e-59 */
         rec_ptr_set(node, 0x34c, NULL);                        /* 0x3ca5e: last room in the chain */
     } else {
@@ -8738,6 +8744,16 @@ void fn_03cc6b(uint8_t *a0) {
                    "roomCount=%d stage=%d camX=%d camY=%d\n",
                    (void *)a0, (void *)g_dat_6334c, (void *)g_dat_63354, (int)g_dat_639e4,
                    (int)g_dat_639d8, (int)g_dat_63370, (int)g_dat_639dc, (int)g_dat_639e0);
+        }
+        if (g_room_trace) {                                       /* docs/90: count every arrival */
+            static unsigned null_hits;
+            null_hits++;
+            printf("[room-chain] fn_03cc6b NULL-link hit #%u node#%u head=%s cur=%s rooms=%u stage=%u "
+                   "camX=%d camY=%d state=%d\n",
+                   null_hits, (unsigned)*(uint32_t *)(a0 + 0x40),
+                   (g_dat_6334c == a0) ? "a0" : "other", (g_dat_63354 == a0) ? "a0" : "other",
+                   (unsigned)g_dat_639d8, (unsigned)g_dat_63370, (int)g_dat_639dc, (int)g_dat_639e0,
+                   (int)g_dat_639e4);
         }
         return;
     }

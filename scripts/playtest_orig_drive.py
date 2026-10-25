@@ -397,6 +397,18 @@ def main():
             print("readptr %s = %d (%#x)%s" % (step[1], ptr, ptr, "  [absolute]" if ptr >= 0x100000 else "  [DS-relative]"))
             si += 1
             continue
+        if op == "recoff":      # recoff <DAT-hex holding a record pointer> <field-offset-hex>
+            # Read one 4-byte field of the record the game's own pointer refers to. A cleared link reads as
+            # DS offset 0 in DOS (physical data base), which is mapped memory -- not a fault.
+            dat = int(step[1], 0)
+            ptr = int.from_bytes(mem_read(mem_phys(dat), 4), "little")
+            off = int(step[2], 0)
+            phys = (ptr + off) if ptr >= 0x100000 else (mem_phys(ptr & 0xFFFFFF) + off)
+            v = int.from_bytes(mem_read(phys, 4), "little")
+            print("recoff %s+%s ptr=%#x -> phys %#x = %d (%#x)%s"
+                  % (step[1], step[2], ptr, phys, v, v, "  [cleared link -> DS:0]" if ptr == 0 else ""))
+            si += 1
+            continue
         if op == "stop":
             break
         print("unknown step: %s" % " ".join(step))

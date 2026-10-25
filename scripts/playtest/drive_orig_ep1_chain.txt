@@ -1,0 +1,42 @@
+# docs/90 control: the same chain reads in an episode-1 room (the multi-room case), so the one-record
+# stage-8 chain has a measured comparison. Episode forced the same way (DAT_00063370 = 1).
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+writemem 0x63370 1
+record slides 9000
+key_until_mode_stable 200 enter 40 1200 4
+shot stage_play
+readmem 0x63370
+readptr 0x6334c
+readptr 0x63354
+readmem 0x639d8
+readmem 0x6335c
+readmem 0x639dc
+readmem 0x639e0
+readmem 0x639e4
+recoff 0x63354 0x34c
+recoff 0x63354 0x350
+record walk_right 14000
+key right 150
+key right 150
+key right 150
+readmem 0x639dc
+readmem 0x639e0
+readmem 0x639e4
+readptr 0x63354
+recoff 0x63354 0x34c
+record walk_right2 14000
+key right 150
+key right 150
+readmem 0x639dc
+readmem 0x639e0
+readmem 0x639e4
+readptr 0x63354
+recoff 0x63354 0x34c
+readmem 0x6336c
+stop

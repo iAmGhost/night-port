@@ -15437,6 +15437,100 @@ static void test_fn_03cb38_pair(void) {
 #undef INFIELD
 }
 
+/* docs/90: why a one-room stage reaches fn_03cc6b with a cleared next link. The room count the stage
+ * loader stores to DAT_000639d8 (0x00037bda) is the first dword of stageN.wal, read here straight off the
+ * shipped container through the port's own io. Stage 5 and stage 8 are one-room stages, so their only room
+ * node carries the chain terminator the builder writes at 0x0003ca5e -- the NULL link fn_03cc6b reports is
+ * shipped data, not a broken link. Counts cross-checked with scripts/extract_res.py's independent decode. */
+static void test_stage_chain_shipped_counts(void) {
+    printf("shipped stage chains: stage{1..9}.wal room counts and the 0x0003ca5e terminator\n");
+    const char *dir = getenv("NIGHT_RES_DIR");
+    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    char path[600];
+    snprintf(path, sizeof path, "%s/NIGHT.RES", dir);
+    FILE *probe = fopen(path, "rb");
+    if (probe == 0) { printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", path); return; }
+    fclose(probe);
+
+    static uint8_t pool[0x53800];
+    memset(pool, 0, sizeof pool);
+    uint8_t *saved_pool = g_ndpool;
+    uint32_t saved_act = g_node_list_active, saved_done = g_node_list_done;
+    g_ndpool = pool; g_node_list_active = 0; g_node_list_done = 0;
+    static uint32_t dev_tab[8];
+    uint32_t *saved_dev = g_dat_53730;
+    uint32_t saved_bound = g_dat_536dc, saved_619 = g_dat_53619, saved_6d8 = g_dat_536d8;
+    uint32_t saved_b0 = g_dat_633b0;
+    memset(dev_tab, 0, sizeof dev_tab);
+    g_dat_53730 = dev_tab; g_dat_536dc = 8; g_dat_53619 = 0; g_dat_536d8 = 0;
+    g_dat_633b0 = SCREEN_BASE;
+    sys_ioctl_dx = 0; sys_ioctl_cf = 0;
+    sys_file_image_set(0, 0);
+    sys_file_real_dir(dir);
+    uint32_t saved_cap = heap_arena_cap();
+    heap_arena_init(); heap_arena_cap_set(48u << 20); heap_region_floor_set(0x10000);
+    (void)heap_malloc(0x4000);
+    uint32_t saved_35c = g_dat_6335c, saved_9d8 = g_dat_639d8, saved_9e8 = g_dat_639e8;
+    uint8_t *saved_34c = g_dat_6334c, *saved_354 = g_dat_63354;
+    uint32_t saved_9dc = g_dat_639dc, saved_9e0 = g_dat_639e0, saved_9e4 = g_dat_639e4;
+
+    g_639b8 = fn_04270d((const uint8_t *)"NIGHT.RES", "rb");
+    fn_0366a4((uint8_t *)g_639b8);                     /* decode the shipped index (444 entries) */
+
+    static const uint32_t want[9] = { 4, 4, 7, 2, 1, 4, 3, 1, 8 };
+    int match = 1, sought = 1;
+    for (int ep = 1; ep <= 9; ep++) {
+        char nm[16]; snprintf(nm, sizeof nm, "stage%d.wal", ep);
+        if (fn_0367c9(nm) != 1) { sought = 0; continue; }
+        uint32_t rooms = 0;
+        fn_04192e((uint8_t *)&rooms, 1, 4, (uint8_t *)g_639b8);
+        if (rooms != want[ep - 1]) match = 0;
+    }
+    check(sought, "all nine stage{1..9}.wal entries resolve in the shipped index");
+    check(match, "shipped room counts stage1..9.wal = 4,4,7,2,1,4,3,1,8 (the DAT_639d8 source, extract_res cross-check)");
+
+    /* stage 8 built the way the loader builds it: one node, link cleared by the terminator */
+    check(fn_0367c9("stage8.wal") == 1, "fn_0367c9 seeks stage8.wal");
+    uint32_t rooms = 0;
+    fn_04192e((uint8_t *)&rooms, 1, 4, (uint8_t *)g_639b8);            /* 0x00037bda: DAT_639d8 */
+    check(rooms == 1, "stage8.wal room count = 1: the chain has exactly one room");
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t head_off = heap_arena_alloc(0x360);
+    uint8_t *head = hb + head_off; memset(head, 0, 0x360);
+    g_dat_639e8 = 0; g_dat_6335c = 0; g_dat_639d8 = rooms;
+    fn_03c853(head, (uint8_t *)g_639b8);
+    check(g_dat_6335c == 1, "  one node loaded (the shipped count)");
+    check(*(uint8_t **)(head + 0x34c) == 0,
+          "  the only node carries the cleared next link the builder writes at 0x0003ca5e");
+    g_dat_6334c = head; g_dat_63354 = head; g_dat_639e4 = 0; g_dat_639dc = 0; g_dat_639e0 = 0;
+    fn_03cc6b(head);                                                   /* the docs/52 guard */
+    check(g_dat_63354 == head && g_dat_639e4 == 0 && g_dat_639e0 == 0,
+          "  fn_03cc6b on that node returns without dereferencing or advancing the chain");
+
+    /* control: a multi-room stage keeps the link live and clears only the LAST node */
+    check(fn_0367c9("stage4.wal") == 1, "fn_0367c9 seeks stage4.wal (the two-room control)");
+    rooms = 0;
+    fn_04192e((uint8_t *)&rooms, 1, 4, (uint8_t *)g_639b8);
+    check(rooms == 2, "stage4.wal room count = 2");
+    uint32_t h4_off = heap_arena_alloc(0x360);
+    uint8_t *h4 = hb + h4_off; memset(h4, 0, 0x360);
+    g_dat_639e8 = 0; g_dat_6335c = 0; g_dat_639d8 = rooms;
+    fn_03c853(h4, (uint8_t *)g_639b8);
+    uint8_t *kid = *(uint8_t **)(h4 + 0x34c);
+    check(g_dat_6335c == 2 && kid != 0 && *(uint8_t **)(kid + 0x34c) == 0,
+          "  stage 4 chains two nodes and only the last one has the cleared link");
+
+    g_dat_6335c = saved_35c; g_dat_639d8 = saved_9d8; g_dat_639e8 = saved_9e8;
+    g_dat_6334c = saved_34c; g_dat_63354 = saved_354;
+    g_dat_639dc = saved_9dc; g_dat_639e0 = saved_9e0; g_dat_639e4 = saved_9e4;
+    sys_file_real_dir(0);
+    g_ndpool = saved_pool; g_node_list_active = saved_act; g_node_list_done = saved_done;
+    g_dat_53730 = saved_dev; g_dat_536dc = saved_bound; g_dat_53619 = saved_619; g_dat_536d8 = saved_6d8;
+    g_dat_633b0 = saved_b0;
+    heap_arena_cap_set(saved_cap); heap_region_floor_set(0);
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 /* The port's io layer against the SHIPPED resource container (NIGHT/NIGHT.RES, 51 MB, 444 assets).
  * Everything asserted here is cross-checked with scripts/extract_res.py, which decodes the container
  * independently. Skips cleanly when the container is not next to the tree (NIGHT_RES_DIR overrides). */
@@ -18374,6 +18468,7 @@ int main(void) {
     test_fn_03d75c();
     test_fn_03cb38_pair();
     test_real_res_container();
+    test_stage_chain_shipped_counts();
     test_real_master_load();
     test_fn_03e0a0();
     test_fn_03fb0e();

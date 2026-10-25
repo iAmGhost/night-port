@@ -115,3 +115,86 @@ routes used only Enter/Space (boot chain, slides, shows, the credit-less branch,
 unaffected; anything that *walked* now presses the byte the shipped game assigns to that arrow, so port-side
 walk routes move the way the original's do. Re-verified guards: see the soak table below plus
 `scripts/playtest_ep8_show.py` (the >= 99.5 % episode-8 show floor).
+
+---
+
+# Part 2 -- the long soak found a real crash: DAT_00053eb8 is the entity-type table's +0x1c view
+
+`scripts/playtest_soak.sh` runs `--warp-stage 1..9` under a hard `timeout`. Stage 3 came back **rc=139
+(SIGSEGV)** at frame 3720, a few frames after an Enter press inside a live room, with no unwind message --
+the process just died. Same build, same route, AddressSanitizer:
+
+```
+ERROR: AddressSanitizer: global-buffer-overflow on address ... READ of size 1
+    #0 fn_015a1f f.c:8920
+    #1 fn_018e88 f.c:15599
+    #2 fn_0322f5 f.c:23702
+    #3 fn_03a829 f.c:22485
+    #4 fn_03af18 f.c:26440        <- the game main
+0x... is located 1610 bytes after global variable 'g_dat_53eb8' defined in 'src/f/f.c' of size 8192
+SUMMARY: AddressSanitizer: global-buffer-overflow f.c:8920 in fn_015a1f
+```
+
+The offending line is the distance check `abs32(...) < g_dat_53eb8[idx]` with
+
+```
+idx = (int32_t)(prng % 10) * 10 + entity[0xd] * 0x88      /* no bound check anywhere in the shipped code */
+```
+
+and the faulting index is `8192 + 1610 = 9802 = 0x48 * 0x88 + 10`, i.e. **entity type 0x48** -- a type
+`fn_037b03` does fill from `night%d.chr`. The port's own comment on the line already flagged the negative-index
+case as a latent 1:1 bug; what was missing is that the *positive* side also walked off the port's array.
+
+## What DAT_00053eb8 actually is
+
+Ghidra: `DAT_00053eb8` has ~120 data xrefs, all from the per-type entity handlers (`fn_02c838`, `fn_01f064`,
+`fn_01603e`, `fn_020170`, ...). And in DS, `0x53e9c + 0x1c == 0x53eb8` exactly, where `DAT_00053e9c` is the
+**entity-type table** -- 0x104 entries of stride 0x88, whose entry layout the port already records as
+`(+0, +4, +8, +0x1c 100 B, +0x80/+0x84)`. So `DAT_00053eb8` is not a table of its own: it is the **100-byte
+per-entry script-byte block inside each entity-type entry**, addressed `type*0x88 + slot*10 + step`
+(`slot, step < 10`), which is exactly how `ai_script_byte` and `fn_015a1f` index it.
+
+The port modelled it as a separate `0x2000`-byte zeroed array, which was wrong in two ways:
+
+1. **Bounds** -- 0x2000 / 0x88 = 60, so every entity of type >= 60 read out of bounds; the crash was type 0x48.
+2. **Values** -- the array was always zero, while the shipped game reads `night%d.chr` table data through it.
+   `fn_015a1f`'s latch test is `abs(dx) < table[idx]`, so with zeros the proximity latch could never fire for
+   any entity: a shipped behaviour the port was silently missing.
+
+## The fix
+
+`g_dat_53eb8` becomes the view itself (`uint8_t *const = g_dat_53e9c + 0x1c`), `FN_015A1F_TBL` becomes the
+reachable extent (`0x88*0x104 - 0x1c`), and all seven read sites go through `tbl53eb8_get()`, which clamps to
+the real region -- the negative end lands on the table base, exactly as it does in DS -- and counts:
+`g_tbl53eb8_max_idx` / `g_tbl53eb8_clamped`, printed in the pump line as `tbl53eb8=`.
+
+After the fix, the stage-3 ASan repro:
+
+```
+rc=0   asan_reports=0   memstat stage=3 room=1 frames=18790 arena=4463232/50331648   tbl53eb8=10428/0
+```
+
+`tbl53eb8=10428/0` is the measurement that sizes the real table: the shipped reads reach 10428 bytes past the
+view (legal DS, illegal in the old 0x2000 array) and **nothing** needed clamping, so the port now reproduces
+the shipped reads instead of substituting zeros.
+
+Suite check `test_dat53eb8_alias`: the view equals `g_dat_53e9c + 0x1c`; a byte written into the type table at
+`0x48*0x88 + 0x1c + 10` is visible through the view at the soak's index 9802; a wild type index (`0x7fffffff`
+in entity+0xd, which the shipped code multiplies by 0x88 unchecked) returns a defined byte and is counted by the
+witness; a negative index from the signed `prng % 10` is bounded to the table base.
+
+## Part 2b -- the pump diagnostic was printing labels against the wrong values
+
+While reading the soak logs the pump line showed `vga_bytes=1` next to `sfx=1124889600`: the `SDL_Log` arg list
+had drifted out of step with its format string, so `cdstops / sfx / keyb_* / vgaws / vga_bytes / wipe_keys_*`
+were each printing another field's value. Re-ordered to match; the same stage-3 run now prints
+`vga_bytes=1278003200` (18790 frames x 64000 bytes of A0000 window charge, matching docs/76's model) and
+`sfx=<the sound table field>`. Rule of thumb: a diagnostic's numbers are only as good as a label-to-argument
+check against an independent expectation (here: frames x 64000).
+
+## New soak witnesses
+
+* `memstat stage=N room=<0|1> frames=F arena=A/CAP rss_max=R KiB` once a second -- `room=` is
+  `g_dat_63354 != 0`, so a run can be told to have soaked a live room rather than the title/attract path.
+* `scripts/playtest_soak_report.py` -- per stage: arena first/last/peak, RSS first/last/peak, live-room samples,
+  AddressSanitizer report count, and how the run ended (returned / unwound / killed by timeout).

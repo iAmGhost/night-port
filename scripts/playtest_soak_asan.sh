@@ -16,6 +16,7 @@ FRAMES="${FRAMES:-4600}"
 SCRIPT=../scripts/playtest/route_walk_fight.txt
 mkdir -p "$OUT"
 
+touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
 make -C . app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address" >/dev/null 2>&1 || { echo "ASan build failed"; exit 1; }
 : > "$OUT/asan.tsv"
 for st in 1 2 3 4 5 6 7 8 9; do
@@ -28,4 +29,5 @@ for st in 1 2 3 4 5 6 7 8 9; do
     last=$(grep memstat "$OUT/asan_stage$st.log" | tail -1 | sed 's/.*memstat //')
     echo "stage $st rc=$rc asan_reports=$n last[$last]" | tee -a "$OUT/asan.tsv"
 done
+touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
 make -C . app >/dev/null 2>&1      # leave the normal build in place

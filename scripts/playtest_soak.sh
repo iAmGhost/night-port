@@ -37,20 +37,23 @@ report() {                       # $1 = stage, $2 = log
 }
 
 if [ "$PHASE" = plain ] || [ "$PHASE" = both ]; then
+    touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
     make -C . app >/dev/null 2>&1
     : > "$OUT/plain.tsv"
     for st in 1 2 3 4 5 6 7 8 9; do
-        run_stage "$st" "$OUT/plain_stage$st.log" "" 300
+        run_stage "$st" "$OUT/plain_stage$st.log" "" 200
         report "$st" "$OUT/plain_stage$st.log" | tee -a "$OUT/plain.tsv"
     done
 fi
 
 if [ "$PHASE" = asan ] || [ "$PHASE" = both ]; then
+    touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
     make -C . app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address" >/dev/null 2>&1
     : > "$OUT/asan.tsv"
     for st in 1 2 3 4 5 6 7 8 9; do
         run_stage "$st" "$OUT/asan_stage$st.log" "ASAN_OPTIONS=detect_leaks=0:halt_on_error=0" 360
         report "$st" "$OUT/asan_stage$st.log" | tee -a "$OUT/asan.tsv"
     done
+    touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
     make -C . app >/dev/null 2>&1      # leave the normal build in place
 fi

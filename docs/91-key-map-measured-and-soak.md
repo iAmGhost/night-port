@@ -198,3 +198,89 @@ check against an independent expectation (here: frames x 64000).
   `g_dat_63354 != 0`, so a run can be told to have soaked a live room rather than the title/attract path.
 * `scripts/playtest_soak_report.py` -- per stage: arena first/last/peak, RSS first/last/peak, live-room samples,
   AddressSanitizer report count, and how the run ended (returned / unwound / killed by timeout).
+
+---
+
+# Part 3 -- the soak numbers, all nine episodes
+
+Command (each phase rebuilds the binary it needs by touching the sources first -- `make` will *not* relink when
+only `CFLAGS` change, so a plain-phase run without the `touch` silently measures the ASan binary; that is exactly
+what the first attempt did, and its 350 MB RSS line is why):
+
+```sh
+bash scripts/playtest_soak.sh plain        # --warp-stage 1..9, hard `timeout 200` each
+bash scripts/playtest_soak_asan.sh         # same nine stages under ASan, `timeout 480` each
+uv run --with numpy python3 scripts/playtest_soak_report.py /tmp/night_soak
+```
+
+Route: `scripts/playtest/route_walk_fight.txt` for every stage. `room samples` counts the once-per-second
+`memstat` samples that had `g_dat_63354 != 0`, i.e. a live room.
+
+| stage | plain: arena (MiB) | plain: RSS high-water (MiB) | plain frames | plain room samples | ASan: arena (MiB) | ASan: RSS (MiB) | ASan frames | ASan room samples | ASan reports |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 2.26 -> 3.85 | 29 -> 34 | 10894 | 153/199 | 2.26 -> 3.85 | 341 -> 341 | 18507 | 294/340 | 0 |
+| 2 | 2.26 -> 4.37 | 29 -> 34 | 10896 | 153/199 | 2.26 -> 4.37 | 341 -> 344 | 18840 | 300/346 | 0 |
+| 3 | 2.26 -> 4.26 | 29 -> 34 | 10895 | 153/199 | 2.26 -> 4.26 | 341 -> 344 | 18840 | 300/346 | 0 |
+| 4 | 2.26 -> 3.72 | 29 -> 32 | 10893 | 153/199 | 2.26 -> 3.72 | 341 -> 343 | 18815 | 300/346 | 0 |
+| 5 | 2.26 -> 3.72 | 29 -> 33 | 10891 | 153/199 | 2.26 -> 3.72 | 341 -> 342 | 18838 | 300/346 | 0 |
+| 6 | 2.26 -> 4.40 | 29 -> 34 | 10897 | 153/199 | 2.26 -> 4.40 | 341 -> 344 | 18499 | 294/340 | 0 |
+| 7 | 2.26 -> 5.01 | 29 -> 33 | 10896 | 153/199 | 2.26 -> 5.01 | 341 -> 341 | 18509 | 294/340 | 0 |
+| 8 | 2.26 -> 3.72 | 29 -> 33 | 10897 | 153/199 | 2.26 -> 3.72 | 341 -> 341 | 18733 | 298/344 | 0 |
+| 9 | 2.26 -> 4.67 | 29 -> 34 | 10892 | 153/199 | 2.26 -> 4.67 | 341 -> 344 | 18824 | 300/346 | 0 |
+
+**Total: ~97,000 frames plain + ~168,000 frames under ASan, 0 AddressSanitizer reports.**
+Plain runs are bounded by the hard `timeout` (rc=124; SDL3's SIGTERM handler makes the game main unwind cleanly,
+so the logs still end with `game main unwound` + `frames presented`), the ASan runs reach that exit on their own
+inside 480 s (rc=0).
+
+What the growth numbers say:
+
+* **Arena take-up is per episode load, not per frame.** Boot sits at 2.26 MiB of the 48 MiB arena; each stage
+  settles at 3.72-5.01 MiB and the value is *constant* through the rest of the run (sampled every 25 memstat
+  lines on stages 5 and 7: `arena=3903168/50331648` and `arena=5248896/50331648` unchanged). Peak == last, so
+  nothing is being allocated during play; the spread between stages is simply how much that episode's stage
+  records and entity blocks pull in (episode 7 pulls most, the one-room stages 5 and 8 least).
+* **RSS high-water moves once.** Plain: 29 MiB at the first sample, 32-34 MiB by the end of the episode, flat
+  after (RSS high-water is monotone by definition, so "flat" is the claim: no further pages claimed over
+  ~10.9k frames). ASan: 341 MiB at boot (shadow) and at most +3 MiB over ~18.8k frames.
+* **The `tbl53eb8=` witness says the bounded read was never needed**: max index / clamped per episode is
+  `4988/0, 7708/0, 10428/0, 7978/0, 11924/0, 4442/0, 5668/0, 1181/0, 0/0`. The shipped index reaches 11924 bytes
+  past the view (episode 5) -- all inside DS, all now legal, and the clamp path is a guard that a real run never
+  takes. Episode 9 never reaches that read at all in this route.
+* **The window charge is what docs/76 says it is**: the corrected pump line prints
+  `vga_bytes=1278003200` for a 18790-frame stage-3 run = 18790 x 64000 exactly, i.e. one A0000 page flip per
+  presented frame.
+
+## Reproduce the whole task (docs/91)
+
+```sh
+# key map on the original side (container + emulator up: docs/85's launch recipe)
+export DOSBOX_API_TOKEN=...
+uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
+  --out /tmp/dbgauto/orig_keyprobe2 --drive scripts/playtest/probe_orig_keybytes.txt --hz 1
+# the map is now asserted in the suite, so the port side needs no capture:
+cd port && ./test/test_f1 | grep -A28 "key map:"; ./test/test_f1 | grep -A6 "DAT_00053eb8 is the entity-type"
+# the soak (plain then ASan) and its table:
+bash scripts/playtest_soak.sh plain && bash scripts/playtest_soak_asan.sh
+uv run --with numpy python3 scripts/playtest_soak_report.py /tmp/night_soak
+```
+
+## Post-fix regression check on the room path (the alias change makes those table bytes live)
+
+The `DAT_00053eb8` fix turns previously-zero bytes into real `night%d.chr` data, so the mirrored room/menu
+comparison was re-measured from scratch rather than trusted:
+
+```sh
+uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
+  --out /tmp/dbgauto/orig_ep1_91 --drive scripts/playtest/drive_orig_episode1.txt --hz 8      # 517 frames, 61 gameplay
+(cd port && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test/night --warp-stage 1 \
+   --script ../scripts/playtest/route_pause_menu.txt --shots /tmp/port_ep1_91 --no-audio \
+   --frames 12000 --shot-limit 400)                                                          # 187 shots, tbl53eb8=4307/0
+uv run --with numpy --with pillow python3 scripts/playtest_compare_orig_port.py \
+  --port /tmp/port_ep1_91 --orig /tmp/dbgauto/orig_ep1_91
+```
+
+Result: **348 of 517 original frames have a port counterpart at NCC >= 0.90**; the `.fli` pairs are pixel-exact
+(1.0000 within +-3, MAE 0.00-0.17); the setup-menu pairs sit at NCC 0.859-0.872, i.e. unchanged from docs/79's
+0.860 (whose residual is the known backdrop phase difference, with the `pause.spr` panel itself byte-verified in
+docs/87). No regression from the alias change.

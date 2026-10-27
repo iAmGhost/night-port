@@ -2452,6 +2452,48 @@ static uint32_t *spr_block(const char *name)
     return fn_03d8d4((uint32_t *)((uint8_t *)g_heap_base + p), name);
 }
 
+/* DAT_00052a1c: kill quota per room, 10 dwords/stage by room serial. This is NOT BSS: it is
+ * image-initialised data in NIGHT.EXE (DS 0x52a1c = file 0x4b41c, the 0x7600 data-section delta
+ * verified by the DAT_52da4=0x4b7a4 anchor in docs/51). The initializer below was dumped from the
+ * shipped file and is byte-identical to a live read of the original's memory via the container API
+ * (docs/99): most rooms carry quota 1000 (unreachable -> the room ends by exit rect / all-clear),
+ * a few carry real quotas (ep2 r2 25, ep3 4/25/10/4/12, ep4 r1 15, ep9 24/17/5/31/9/32/13).
+ * Zero here made fn_00012a55 fire "quota met" on the FIRST kill (playtest item 9: one kill
+ * advanced stage 1). */
+const uint32_t kTab52a1c_init[0x4ec/4] = {
+    1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+    1000, 25, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+    1000, 4, 25, 10, 4, 12, 1000, 1000, 1000, 1000,
+    15, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+    1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+    1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+    1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+    1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000,
+    24, 17, 5, 31, 9, 32, 13, 1000, 1000, 1000,
+    0, 0, 0, 0, 0, 16777216, 1, 0, 0, 0,
+    0, 0, 0, 0, 0, 256, 0, 65536, 0, 0,
+    0, 16777472, 0, 0, 0, 0, 0, 0, 16777216, 257,
+    0, 0, 0, 0, 0, 0, 256, 0, 256, 0,
+    0, 0, 0, 0, 16777216, 0, 172, 172, 172, 172,
+    172, 172, 172, 172, 172, 172, 172, 172, 172, 172,
+    172, 172, 172, 172, 172, 172, 172, 162, 172, 172,
+    162, 172, 172, 172, 172, 172, 172, 172, 172, 172,
+    172, 172, 172, 172, 172, 172, 160, 172, 172, 172,
+    172, 172, 172, 172, 172, 172, 172, 172, 172, 172,
+    172, 172, 172, 172, 172, 172, 172, 172, 172, 172,
+    172, 172, 172, 172, 172, 172, 172, 172, 172, 172,
+    172, 172, 172, 172, 172, 172, 172, 172, 160, 172,
+    172, 172, 172, 172, 172, 172, 2, 2, 2, 8,
+    2, 2, 2, 2, 2, 2, 3, 3, 3, 8,
+    3, 3, 3, 3, 3, 3, 9, 9, 9, 9,
+    9, 9, 8, 9, 9, 9, 4, 8, 4, 4,
+    4, 4, 4, 4, 4, 4, 5, 5, 5, 5,
+    5, 5, 5, 5, 5, 5, 6, 6, 6, 8,
+    6, 6, 6, 6, 6, 6, 7, 7, 8, 7,
+    7, 7, 7, 7, 7, 7, 8, 8, 8, 8,
+    8, 8, 8, 8, 8, 8, 2, 2, 2, 2,
+    2, 2, 2, 8, 2,
+};
 /* fn_03690b  orig: 0x03690b (L13, 2555 B) -- THE master data loader: opens NIGHT.RES and turns it
  * into the game's runtime tables. Fully linear; every load is guarded by its allocation.
  * See docs/12-functions/03690b-master-data-loader.md for the field-level walkthrough.
@@ -2520,6 +2562,9 @@ uint32_t fn_03690b(void)
     g_dat_53de0  = g_dat_53d0c[53u];
     g_dat_53de4  = g_dat_53d0c[54u];
     for (uint32_t k = 0; k < 10; k = k + 1) g_dat_53e24[k] = g_dat_53d0c[70u + k];
+
+    /* DAT_52a1c is image-initialised data (see the table definition): copy the shipped bytes. */
+    memcpy(g_tab_52a1c, kTab52a1c_init, sizeof g_tab_52a1c);
 
     /* HUD / sprite tables (0x03d8d4 structs) and their action containers */
     g_dat_639c0 = spr_block("system.spr");
@@ -4974,7 +5019,7 @@ stage_records:
  *    0x03d244), so it is modelled as a zero-initialised global table a test can seed.
  */
 uint32_t g_dat_63398 = 0;                    /* DAT_00063398: room orientation byte (room node +0x11) */
-uint32_t g_tab_52a1c[0x4ec/4];  /* DAT_00052a1c: kill quota per room, 10 dwords/stage by room serial; no producer in the EXE */
+uint32_t g_tab_52a1c[0x4ec/4];
 uint32_t g_tab_52c3c[0x104] = {
     0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,
     0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac, 0x000000ac,

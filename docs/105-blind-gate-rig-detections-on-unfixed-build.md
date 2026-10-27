@@ -180,3 +180,108 @@ record reader passes the raw value to the memory API as a physical address. That
 again, and until the shipped-side reader resolves heap-relative pointers the entity-level items
 (EXP-per-kill, fallen reachability, teleport position continuity) stay undetected. Recorded as the rig's
 next defect, not as a port finding.
+
+## 7. Third gate pass: the port's record dump was broken, and what the records then showed
+
+Before any entity conclusion could be trusted, the port-side dump had to be fixed. `app/rig_sink.c`
+laid out the cell area (`g_off`) but **never assigned `g_recoff`**, and set `g_rec_bytes` to the cell
+area only -- so the `if (g_recoff[i] != 0xffffffffu)` test passed with offset 0 for *every* pointer
+cell and each pointer's object was memcpy'd over the first cell's bytes. `meta.json` said
+`rec_offset: 0` for all 43 pointer cells. Every `REC-*` row in every earlier report was therefore
+comparing the wrong bytes. Fixed: record blocks are now allocated after the cell area
+(`record_bytes` 6169 -> 25860 for this table), `rec_offset` distinct per cell
+(`0x53c70`@11780, `0x53c74`@12132, `0x53c7c`@12836), and every reader
+(`diff_state.py`, `record_diff.py`, `ent_fields.py`) takes block size/offset from the dumps instead of
+a hardcoded `RB = 64`. Both sides now dump `0x160` bytes per pointer target.
+
+Route `ep1_combat` again, port re-dumped with the fixed binary: `/tmp/rig/route-e1`
+(655 shipped samples, 51 pointer cells, 749 port samples in the combat window).
+
+Also corrected here: a misreading in section 6. In the `ds_trace` column format
+`orig_mode | port_transition / port_mode`, the `0x0|0x0->0x1/0x1` at P48@171390 is the **port**
+incrementing the room kill counter `0x639bc`; the shipped side stayed at 0 in all three drives
+(k1, k2, e1). And in k1/k2 the shipped side never reached combat at all: across 583 and 572 shipped
+samples `0x53c68` (entity count), `0x53c70` (list head), `0x53c74` (tail) and `0x53c7c` (player entity)
+were all zero, while `ep1_combat` gives count 3-4 and live pointers in 600+ samples. Those drives were
+missing `anchor static` and the slide-stepping `enter` keys, so the shipped game sat on the title
+slides. Any entity comparison on k1/k2 was vacuous -- the rig's own drive was the defect.
+
+### New oracles
+
+* `scripts/rig/ptr_scan.py` -- blind hunt for live heap pointers in the shipped DS (no port symbol
+  needed): route-k2 had 980 pointer-like cells, all high-churn ones in `0x64xxx` (allocator metadata).
+* `scripts/rig/state_hist.py` -- census of the entity state field `+0x17` against the ranges the
+  disassembly names (f.c:24125 "the 0x0b..0x1e hurt states" / "0x66..0x5b", f.c:26474
+  `10 < PL32(0x17) < 0x15`).
+* `scripts/rig/rec_offsets.py` -- field-activity map of a record: per-offset change counts, split into
+  upward vs downward steps, so an award field is found by shape (rare + monotonic-up) rather than by
+  trusting the port's offset comments.
+
+### Hurt / stagger / stuck (items 2, 6, 11) -- detected and localized
+
+```
+state field +0x17, cells g_dat_53c70 (list head), g_dat_53c74 (tail), g_player_ent, t=[150,230]s
+class            orig     port
+neutral          574     2178
+hurt/stagger      10        3
+fallen (0x5b-66)   0        0
+orig ids: 0x1x394 0x2x178 0xcx6 0xbx4 0x34x2 0x35x2 0x36x2 0x4x2 0x29x1
+port ids: 0x1x1500 0x2x674 0x33x66 0x3x3 0x15x3 0x4x1
+```
+
+The shipped player passes through `0x0b`/`0x0c` -- the bottom of the mapped hit-reaction band -- while
+the port's player entity sits at `+0x17 = 0x33` for the whole fight (66 samples, its only non-locomotion
+state) and its single hit reaction is `0x15`, above the mapped band. Per-phase, same window:
+
+```
+P39@167320  +0x17 0x36/0x33     P40@168000 0xb/0x33     P41@168150 0xc/0x33
+P42@168830  +0x17 0xc/0x33      P43@169050 0xc/0x33     P45@169880 0x1/0x33
+```
+
+Window **166.5-170.0 s of drive time**, region: the player entity record reached from DS `0x53c7c`
+(`+0x17` action state, and the `+0x32/+0x33` pair which f.c:1121 shows is copied from the `DAT_00053ea8`
+0x88-byte entry table and f.c:1897 feeds back into `+0x17`), i.e. the hit-reaction path that maps a
+landing hit onto `0x0b..0x1e` (f.c:24125, the table `fn_012616` consumes). The port never populates that
+path: its `+0x32` dword is `0x0` in all 749 samples while the shipped side steps
+`0x0 -> 0x35 -> 0x36` across 166.8-167.5 s. Same run, the `0x62d58`/`0x6339c` cells already reported in
+section 3 are the DS-side shadow of it.
+"Fallen" (`0x5b..0x66`) is entered zero times on **both** sides in this window, so item 6 needs a drive
+that actually kills; it is not yet a detection, it is an uncovered region.
+
+### EXP on kill (item 7) -- window and region, field not yet resolved
+
+`0x639bc` (the room kill counter compared against the quota table `g_tab_52a1c`, f.c:25440): port
+`0x0 -> 0x1` at P48@171390, shipped stays 0. The shipped player record's only monotonic-up offsets in
+the fight are `+0x32/+0x33` (bytes `00 -> 02 35 -> 01 36 -> 00 36` at 166.8-167.5 s), and they never
+move on the port. Meanwhile the offsets the port's *own comments* call the experience fields
+(`P[+0x52]` pending, `P[+0x2b]` total, per the level-up screen's `P[+0x2b] += P[+0x52]` at f.c:24799)
+change **zero** times on both sides -- so either the award never fires in this window on either side, or
+the port's field naming is wrong. `rec_offsets.py` is the tool that decides that without trusting the
+comment; the honest status is: divergence window and DS region named, offset unconfirmed.
+
+### Entity-count divergence (feeds item 8)
+
+```
+phase         0x53c68 (orig mode | port transition / port mode)
+P39@167320    0x3 | 0x4->0xa / 0x9      P41@168150  0x4 | 0x3->0xa / 0x9
+P42@168830    0x4                       0x7         P43@169050 0x3 | 0x3->0x6 / 0x3
+```
+
+The shipped room holds 3-4 entities while the port holds up to 10 in the same phases. Candidate for
+"enemies teleport": extra entities, and every attempt to read a position field out of the record
+(`+0x60..+0xac`, `+0x110..+0x114`) produces values on the 2^31 scale on *both* sides, so those offsets
+are not plain coordinates and the position-continuity signature is invalid as designed. Teleport stays
+a screen-oracle item (6 divergent runs, scores < 0.88) until an entity-position field is resolved.
+
+### Media oracle on the same run
+
+```
+divergent runs (score < 0.88): 6
+pacing check (docs/47, docs/82): picture changes per second orig=5.39 port=9.94 ratio=0.54
+channel-order check: declared=0.703 R/B-swapped=0.703 (chroma 29.3)  ok
+```
+
+Gate score after this pass: items 1 (music, three sub-behaviours), 2, 9 (SFX), 3, 4, 5 (screen/pacing)
+and the state cluster of 2/11 are detected with a named window and DS region; item 6 (fallen) is an
+uncovered region (drive must produce kills) and item 8 (teleport) has a measured entity-count
+divergence but no validated position signature yet.

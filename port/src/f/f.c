@@ -804,15 +804,33 @@ void fn_00035d0f(void) {}
  *   effect. No-op standin. */
 void fn_00035d5d(void) {}
 
-/* fn_00035dfc  orig: 0x00035dfc (L10, 197B) -- 4-flag busy-wait + settle query.
- *   Same three nested 4-flag checks as fn_00035d5d (A=[0x39], B=[0x1c],
- *   C=[0x1d], D=[0x38] of g_dat_63e88) plus a sub-spin on E=[0x01] (0x63e89).
- *   Returns 1 if the E sub-spin is reached (a flag settles to a specific
- *   pattern) and 0 from the third-check all-clear exit; with the flat model's
- *   static zero flags the second check loops forever (all-clear re-spin), so
- *   the routine is degenerate. No register args read. No-op standin returning
- *   the all-idle value 0. */
-int fn_00035dfc(void) { return 0; }
+/* fn_00035dfc  orig: 0x00035dfc -- THE GAME-KEY WAIT (the slide-show and card key gates).
+ * Disassembled body (0x35e14-0x35eb6, dumped by scripts/ghidra_scripts/DumpKeyWait.java):
+ *   A) while any of DAT_63ec1/63ea4/63ea5/63ec0 is held: spin (0x35e3c -> 0x35e14);
+ *   B) then spin; if the ESC latch DAT_63e89 fires: spin until it clears and return 1
+ *      (0x35e68-71-7a, result local -0x4 = 1);
+ *   C) if instead one of the four key bytes fires: spin until all four are released
+ *      (0x35e85..0x35ead loop) and return 0 (0x35eaf).
+ * The four bytes are the MEASURED press latches of docs/92: 0x63ea4 enter, 0x63ea5 punch
+ * (CTRL/Z/V), 0x63ec0 kick (ALT/X/B), 0x63ec1 space -- i.e. the gate is "press a game key",
+ * not the guessed 0x63eb2/0x63ebe pair of docs/60. The port stubbed this as a no-op returning
+ * 0, which is why every card of the stage slide-show auto-advanced (playtest item 3). */
+int fn_00035dfc(void) {
+    while (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0)   /* A: drain a held key */
+        sys_key_spin();
+    for (;;) {                                                         /* B/C: wait for a press */
+        if (g_dat_63e89) {                                             /* 0x35e68 */
+            while (g_dat_63e89) sys_key_spin();                        /* 0x35e71 */
+            return 1;
+        }
+        if (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0) {
+            while (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0)  /* 0x35e85..35ead */
+                sys_key_spin();
+            return 0;                                                 /* 0x35eaf */
+        }
+        sys_key_spin();                                                 /* keeps pump + scripted tests moving */
+    }
+}
 
 int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) */
 int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
@@ -14784,6 +14802,16 @@ void sys_key_spin(void)
 {
     g_key_tick++;
     if (sys_get_input_pump() != (sys_pump_fn)0) sys_get_input_pump()();   /* the SDL build's keyboard source */
+    if (getenv("NIGHT_KEYDBG")) {   /* key-latch witness for playtest forensics (docs/97) */
+        static const uint8_t *kb[5];
+        static uint8_t prev[5];
+        if (!kb[0]) {
+            const char *e = getenv("NIGHT_KEYDBG"); (void)e;
+            kb[0] = &g_dat_63e89; kb[1] = &g_dat_63ea4; kb[2] = &g_dat_63ea5; kb[3] = &g_dat_63ec0; kb[4] = &g_dat_63ec1;
+        }
+        for (int i = 0; i < 5; i++)
+            if (*kb[i] != prev[i]) { fprintf(stderr, "keydbg tick=%u latch%d %u->%u\n", g_key_tick, i, prev[i], *kb[i]); prev[i] = *kb[i]; }
+    }
     /* The original kept taking timer interrupts while it waited for a key, so the clock keeps running
      * here too: without it, the tick-driven counters a key wait depends on (DAT_63f08, the paced
      * pumps) would freeze for the whole wait. */
@@ -26450,6 +26478,7 @@ static void room_end_slideshow(uint32_t *slide) {
         fn_0428f8(name, (const uint8_t *)"%de%d.pcx", &cur);   /* 0x03b4c0 / 0x03b251 */
         fn_03628e((const char *)name, 0);                     /* 0x03b4cd / 0x03b25e */
         fn_040660(g_dat_636b8, 0x19);                         /* 0x03b4dc / 0x03b26d */
+        if (getenv("NIGHT_SLIDEDBG")) fprintf(stderr, "endcard: slide %u wait\n", *slide + 1);
         if (fn_00035dfc() == 1) {                             /* 0x03b4e1 / 0x03b272 */
             fn_0406f5(g_dat_636b8, 0x19);
             return;
@@ -26547,6 +26576,7 @@ room_start:                                                            /* LAB_00
                 fn_0428f8(name, (const uint8_t *)"%ds%d.pcx", &cur);   /* 0x03b0d0 */
                 fn_03628e((const char *)name, 0);                      /* 0x03b0dd */
                 fn_040660(g_dat_636b8, 0x19);                          /* 0x03b0ec */
+                if (getenv("NIGHT_SLIDEDBG")) fprintf(stderr, "slide: card %u/%u wait\n", slide + 1, g_tab_52f2c[g_dat_63370]);
                 if (fn_00035dfc() == 1) {                              /* 0x03b0f1 */
                     fn_0406f5(g_dat_636b8, 0x19);
                     goto hold;                                         /* 0x03b105 */

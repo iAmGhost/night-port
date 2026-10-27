@@ -162,7 +162,7 @@ void fn_0406f5(const uint8_t *arg1, uint32_t arg2); /* 0x0406f5: VGA DAC row-bli
 uint32_t fn_00041bdc(uint32_t size);            /* 0x00041bdc: heap_malloc wrapper (size 0->1) */
 void fn_00035d0f(void);                         /* 0x00035d0f: DMA channel busy-wait (no-op, degenerate spin) */
 void fn_00035d5d(void);                         /* 0x00035d5d: 4-flag DMA/channel busy-wait (no-op, degenerate spin) */
-int  fn_00035dfc(void);                         /* 0x00035dfc: 4-flag busy-wait + settle query (no-op, degenerate spin, returns 0) */
+int  fn_00035dfc(void);                         /* 0x00035dfc: THE GAME-KEY WAIT -- spin for a press of enter/punch/kick/space (measured latches 0x63ea4/ea5/ec0/ec1); ESC (0x63e89) -> 1, game key -> 0 (docs/97) */
 void fn_000356ba(uint32_t ticks);               /* 0x000356ba: PIT ch0 rate setup from ticks (reg-ABI) */
 extern int32_t  g_dat_530b4;                    /* DAT_000530b4: timer rate multiplier */
 extern int32_t  g_dat_530b8;                    /* DAT_000530b8: timer rate multiplier #2 (fn_035b91) */

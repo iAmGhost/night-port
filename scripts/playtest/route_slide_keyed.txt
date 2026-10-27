@@ -1,0 +1,33 @@
+# docs/97 evidence route: each stage start slide-show card must HOLD until a game key.
+# One press at the title is eaten by fn_03a224's own release drain (as shipped), so two presses
+# start the game. Each 1sN card is then sampled ~7 s later with NO key (must still show the SAME
+# card -- before the fn_00035dfc fix they auto-advanced), then advanced by exactly one press.
+# The stage card afterwards is the shipped time-bounded hold (0xc00 delay_units): no key needed.
+0 shot boot
+20000 wait res opening.fli
+45000 wait res title1.pcx
+45500 key enter down
+47650 key enter up
+# (single press: if the menu drain eats it, a second pass adds it)
+
+52000 shot after_start
+56000 wait res 1s1.pcx
+56500 shot slide_1
+63500 shot slide_hold_a
+64000 key enter down
+66150 key enter up
+65000 shot slide_2
+72000 shot slide_hold_b
+72500 key enter down
+74650 key enter up
+73500 shot slide_3
+80500 shot slide_hold_c
+81000 key enter down
+83150 key enter up
+90000 key enter down
+92150 key enter up
+81500 wait res stage1.pcx
+82000 shot stage_card
+92000 shot room_after
+96000 shot room_final
+112000 shot room_final2

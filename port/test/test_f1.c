@@ -11485,9 +11485,23 @@ static void test_fn_035d_spin(void) {
     uint8_t before0 = g_dat_63e88[0x1c];   /* 0x63ea4 */
     fn_00035d5d();
     check(g_dat_63e88[0x1c] == before0, "  fn_035d5d: no side effect on flags");
+    /* fn_00035dfc = THE GAME-KEY WAIT (docs/97): drain a held game key, then a press -> 0, ESC -> 1.
+     * The four bytes are the measured press latches (docs/92): 63ea4 enter, 63ea5 punch, 63ec0 kick,
+     * 63ec1 space; ESC latch 63e89. */
+    sys_key_script_clear();
+    g_dat_63ea4 = 1;                            /* phase A: a key is already held on entry */
+    sys_key_script_add(2, &g_dat_63ea4, 0);      /* release it */
+    sys_key_script_add(4, &g_dat_63ea4, 1);      /* a fresh press arrives */
+    sys_key_script_add(6, &g_dat_63ea4, 0);      /* and is released again */
     int r = fn_00035dfc();
-    check(r == 0, "  fn_035dfc: returns all-idle 0");
-    check(g_dat_63e88[0x39] == (uint8_t)0x39, "  fn_035dfc: no side effect on flags");
+    check(r == 0, "  fn_035dfc: drains a held key, press of a game key -> 0");
+    sys_key_script_clear();
+    sys_key_script_add(2, &g_dat_63e89, 1);      /* ESC arrives while idle */
+    sys_key_script_add(4, &g_dat_63e89, 0);      /* and clears */
+    r = fn_00035dfc();
+    check(r == 1, "  fn_035dfc: ESC -> 1 after draining the latch");
+    check(g_dat_63e89 == 0 && g_dat_63ea4 == 0 && g_dat_63ec1 == 0,
+          "  fn_035dfc: leaves the key latches cleared");
     /* restore BSS-zero buffer so other tests see a clean DMA status */
     for (int i = 0; i < 0x80; i++) g_dat_63e88[i] = 0;
 }

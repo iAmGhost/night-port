@@ -111,3 +111,31 @@ anchor static 3.0 90
 172070 key down down
 172210 key down up
 172290 key lctrl down
+
+# trailing keys keep the port's timeline spanning the same nominal range as the shipped side:
+# the host wraps up 2.5 s after the last scripted event, so without these the port's records stop at
+# ~103 s while the original keeps running, and every later phase compares nothing.
+176000 key esc down
+176120 key esc up
+184000 key enter down
+184120 key enter up
+188000 key enter down
+188120 key enter up
+192000 key enter down
+192120 key enter up
+196000 key enter down
+196120 key enter up
+200000 key enter down
+200120 key enter up
+204000 key enter down
+204120 key enter up
+208000 key enter down
+208120 key enter up
+212000 key enter down
+212120 key enter up
+216000 key enter down
+216120 key enter up
+220000 key enter down
+220120 key enter up
+224000 key enter down
+224120 key enter up

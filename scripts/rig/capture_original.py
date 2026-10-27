@@ -105,12 +105,20 @@ def main():
     # changing, not when the container happened to start. Without it the capture session is a different
     # game situation from the replay session, which is what made the pacing metric swing.
     segments = []
+    phys_base = a.ds_base
+    if phys_base is None:
+        try:
+            sys.path.insert(0, HERE)
+            from replay_original import load_ds_base
+            phys_base = load_ds_base()
+        except Exception:
+            phys_base = None
     if a.drive:
         sys.path.insert(0, HERE)
         from replay_original import parse_drive, parse_events, ds_cond
         segments = parse_events(parse_drive(a.drive))
         if any(sg["wait"] for sg in segments):
-            if a.ds_base is None:
+            if phys_base is None:
                 sys.exit("the drive uses `wait ds`, so this session needs a calibrated DS base "
                          "(run calibrate_ds.py first, or pass --ds-base)")
     if a.drive:
@@ -127,14 +135,6 @@ def main():
         else:
             print("anchor not reached; capturing anyway", file=sys.stderr)
     t0 = time.time()
-    phys_base = a.ds_base
-    if phys_base is None:
-        try:
-            sys.path.insert(0, HERE)
-            from replay_original import load_ds_base
-            phys_base = load_ds_base()
-        except Exception:
-            phys_base = None
     seg_i, shift = 0, 0
 
     def post_segment(i):

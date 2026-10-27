@@ -101,7 +101,7 @@ def parse_drive(path):
 
 # the drive files name keys the way the port's playtest scripts do; the emulator wants XT set-1
 # break-code names.
-KEYNAME = {"enter": "KBD_enter", "return": "KBD_enter", "space": "KBD_space", "esc": "KBD_escape",
+KEYNAME = {"enter": "KBD_enter", "return": "KBD_enter", "space": "KBD_space", "esc": "KBD_esc",
            "tab": "KBD_tab", "up": "KBD_up", "down": "KBD_down", "left": "KBD_left",
            "right": "KBD_right", "ctrl": "KBD_leftctrl", "lctrl": "KBD_leftctrl",
            "rctrl": "KBD_rightctrl", "shift": "KBD_leftshift", "lshift": "KBD_leftshift",
@@ -109,14 +109,22 @@ KEYNAME = {"enter": "KBD_enter", "return": "KBD_enter", "space": "KBD_space", "e
            "ralt": "KBD_rightalt", "altgr": "KBD_rightalt", "backspace": "KBD_backspace"}
 # The emulator answers 400 in the middle of a run for a name it does not know, which wastes a whole
 # boot; check every name up front instead.
-KNOWN_KBD = set(KEYNAME.values())
+# The emulator rejects an unknown name with HTTP 400 *mid-run*, so validate against the set of names
+# the emulator binary actually knows (gen/kbd_names.txt, `strings bin/dosbox | grep ^KBD_`). Guessing
+# from KEYNAME is not validation: `esc` was mapped to KBD_escape, which does not exist.
+def known_kbd():
+    p = os.path.join(HERE, "gen", "kbd_names.txt")
+    if not os.path.exists(p):
+        return set(KEYNAME.values())
+    return {l.strip() for l in open(p) if l.strip()}
 
 
 def check_names(segs):
-    bad = {ev["key"] for sg in segs for ev in sg["events"] if ev["key"] not in KNOWN_KBD}
+    known = known_kbd()
+    bad = {ev["key"] for sg in segs for ev in sg["events"] if ev["key"] not in known}
     if bad:
         sys.exit(f"drive uses key names the emulator does not accept: {sorted(bad)} "
-                 f"(add them to KEYNAME in replay_original.py)")
+                 f"(fix KEYNAME in replay_original.py; known names: gen/kbd_names.txt)")
 
 
 def parse_events(steps):
@@ -253,7 +261,10 @@ def main():
                 return
             except urllib.error.HTTPError as e:
                 if e.code != 409 or time.time() - t0 > a.seconds - 2:
-                    raise
+                    raise RuntimeError(
+                        f"input/sequence rejected segment {i} ({len(evs)} events, "
+                        f"t {evs[0]['t']}..{evs[-1]['t']} ms, shift {shift}): HTTP {e.code} "
+                        f"{e.read().decode('utf-8','replace')[:200]}") from e
                 time.sleep(0.5)
 
     post_segment(0)

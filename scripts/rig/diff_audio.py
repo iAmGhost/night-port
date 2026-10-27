@@ -66,6 +66,32 @@ def envelope(s, rate):
     return out
 
 
+def envelope_from_windows(windows, bucket_ms=BUCKET_MS):
+    """RMS/zcr buckets placed at real time: `windows` is [(t0_ms, t1_ms, samples, rate)] and the
+    sample count in each window decides how much of that window's time is actually audible."""
+    import math
+    buckets = {}
+    for t0, t1, seg, rate in windows:
+        if not seg or not rate:
+            continue
+        step = max(1, int(rate * bucket_ms / 1000.0))
+        for j in range(0, len(seg), step):
+            part = seg[j:j + step]
+            if len(part) < step // 2:
+                continue
+            rms = (sum(x * x for x in part) / len(part)) ** 0.5
+            zc = sum(1 for a, b in zip(part, part[1:]) if (a < 0) != (b < 0)) / len(part)
+            buckets[int(t0 + j * 1000.0 / rate)] = (rms, zc)
+    if not buckets:
+        return []
+    keys = sorted(buckets)
+    lo, hi = keys[0], keys[-1]
+    out = []
+    for ms in range(lo, hi + bucket_ms, bucket_ms):
+        out.append(buckets.get(ms, (0.0, 0.0)))
+    return out
+
+
 def features(buckets, thresh=300.0):
     onsets, active, loud = 0, 0, []
     prev = False
@@ -115,22 +141,41 @@ def main():
     so, ro = read_mono(a.orig)
     sp, rp = read_mono(a.port)
     if a.port_cells and os.path.exists(a.port_cells):
-        # The port's WAV header carries a nominal board rate; the truth is how long the run lasted, so
-        # derive the rate from the record timeline instead of trusting the header (docs/34: the board
-        # rate is whatever DSP command 0x40 last programmed).
+        # The port's WAV header carries a *nominal* rate, but the board rate is whatever DSP command
+        # 0x40 last programmed (measured 8000 Hz at the title) and PCM exists only while a transfer is
+        # running. Reconstruct the envelope in real time instead: each record reports how many PCM
+        # bytes were produced since the previous one, which fixes both the sample-to-time mapping and
+        # the local rate. (Assuming the PCM spans the whole run, as a fixed rate would, slides the
+        # envelope and invents silence in the middle of a route.)
         rec = struct.Struct("<qQQQII")
+        rows = []
         with open(a.port_cells, "rb") as f:
             f.read(16)
-            hs = rec.unpack(f.read(rec.size))
-            f.seek(-rec.size, os.SEEK_END)
-            he = rec.unpack(f.read(rec.size))
-        dur = (he[0] - hs[0]) / 1000.0
-        if dur > 0.5:
-            measured = len(sp) / dur
-            if abs(measured - rp) / rp > 0.25:
-                print(f"port WAV header says {rp} Hz; the run lasted {dur:.1f} s for {len(sp)} samples "
-                      f"-> using {measured:.0f} Hz")
-                rp = measured
+            while True:
+                b = f.read(rec.size)
+                if len(b) < rec.size:
+                    break
+                rows.append(rec.unpack(b))          # t_ms, frame, audio_bytes, screen, tick, n
+        if len(rows) >= 2:
+            samples = sp
+            pos, out, rates = 0, [], []
+            for (t0, _, a0, _, _, _), (t1, _, a1, _, _, _) in zip(rows, rows[1:]):
+                dt = (t1 - t0) / 1000.0
+                if dt <= 0:
+                    continue
+                want = max(0, (a1 - a0)) // 2       # 16-bit samples produced in this window
+                seg = samples[pos:pos + want]
+                pos += want
+                rate = want / dt if want else 0.0
+                if rate:
+                    rates.append(rate)
+                out.append((t0, t1, seg, rate))
+            total = sum(len(o[2]) for o in out)
+            print(f"port PCM: {total} samples placed by record window "
+                  f"(header claimed {rp} Hz; window rates median "
+                  f"{sorted(rates)[len(rates)//2] if rates else 0:.0f} Hz, "
+                  f"{len(rates)} active windows of {len(out)})")
+            ep, rp = envelope_from_windows(out), rp
     eo, ep = envelope(so, ro), envelope(sp, rp)
     print(f"original: {len(so)/ro:.1f} s @{ro} Hz -> {len(eo)} buckets")
     print(f"port    : {len(sp)/rp:.1f} s @{rp} Hz -> {len(ep)} buckets")

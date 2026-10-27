@@ -18,6 +18,8 @@ import sys
 import time
 import urllib.request
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 GRID = 40 * 30
 REC = struct.Struct("<qQiiii")     # t_ms, frame, w, h, changed, pad -- 32 B, rig_sink.c layout
 
@@ -37,7 +39,7 @@ KEYNAME = {"enter": "KBD_enter", "return": "KBD_enter", "space": "KBD_space", "e
            "alt": "KBD_leftalt", "backspace": "KBD_backspace"}
 
 
-def drive_events(path):
+def drive_events(path):  # kept for drives without DS waits
     ev = []
     for line in open(path):
         f = line.split("#")[0].split()
@@ -89,6 +91,9 @@ def main():
     ap.add_argument("--drive")
     ap.add_argument("--witness-every", type=int, default=10)
     ap.add_argument("--anchor-stable", type=float, default=3.0)
+    ap.add_argument("--ds-base", type=lambda x: int(x, 0), default=None,
+                    help="physical address of DS offset 0 (from calibrate_ds.py); required when the "
+                         "drive uses `wait ds`")
     ap.add_argument("--anchor-wait", type=float, default=90.0)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -99,6 +104,15 @@ def main():
     # Same anchoring rule as replay_original.py: the input timeline is released when the picture stops
     # changing, not when the container happened to start. Without it the capture session is a different
     # game situation from the replay session, which is what made the pacing metric swing.
+    segments = []
+    if a.drive:
+        sys.path.insert(0, HERE)
+        from replay_original import parse_drive, parse_events, ds_cond
+        segments = parse_events(parse_drive(a.drive))
+        if any(sg["wait"] for sg in segments):
+            if a.ds_base is None:
+                sys.exit("the drive uses `wait ds`, so this session needs a calibrated DS base "
+                         "(run calibrate_ds.py first, or pass --ds-base)")
     if a.drive:
         stable, limit = a.anchor_stable, a.anchor_wait
         last_h, last_change, t_wait = None, time.time(), time.time()
@@ -113,8 +127,25 @@ def main():
         else:
             print("anchor not reached; capturing anyway", file=sys.stderr)
     t0 = time.time()
+    phys_base = a.ds_base
+    if phys_base is None:
+        try:
+            sys.path.insert(0, HERE)
+            from replay_original import load_ds_base
+            phys_base = load_ds_base()
+        except Exception:
+            phys_base = None
+    seg_i, shift = 0, 0
+
+    def post_segment(i):
+        now = int((time.time() - t0) * 1000)
+        evs = [{"t": max(0, ev["t"] + shift - now), "type": "key", "key": ev["key"],
+                "pressed": ev["pressed"]} for ev in segments[i]["events"]]
+        if evs:
+            api(a.base, token, "/api/v1/input/sequence", "POST", {"events": evs})
+
     if a.drive:
-        api(a.base, token, "/api/v1/input/sequence", "POST", {"events": drive_events(a.drive)})
+        post_segment(0)
     prev, n, witness, frames_dir = None, 0, 0, os.path.join(a.out, "frames")
     sha_seen = {}
     while time.time() - t0 < a.seconds:

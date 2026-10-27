@@ -23,9 +23,11 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 import urllib.request
+import urllib.error
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DS_LO, DS_HI = 0x50000, 0x66000
@@ -101,23 +103,61 @@ def parse_drive(path):
 # break-code names.
 KEYNAME = {"enter": "KBD_enter", "return": "KBD_enter", "space": "KBD_space", "esc": "KBD_escape",
            "tab": "KBD_tab", "up": "KBD_up", "down": "KBD_down", "left": "KBD_left",
-           "right": "KBD_right", "ctrl": "KBD_leftctrl", "shift": "KBD_leftshift",
-           "alt": "KBD_leftalt", "backspace": "KBD_backspace"}
+           "right": "KBD_right", "ctrl": "KBD_leftctrl", "lctrl": "KBD_leftctrl",
+           "rctrl": "KBD_rightctrl", "shift": "KBD_leftshift", "lshift": "KBD_leftshift",
+           "rshift": "KBD_rightshift", "alt": "KBD_leftalt", "lalt": "KBD_leftalt",
+           "ralt": "KBD_rightalt", "altgr": "KBD_rightalt", "backspace": "KBD_backspace"}
+# The emulator answers 400 in the middle of a run for a name it does not know, which wastes a whole
+# boot; check every name up front instead.
+KNOWN_KBD = set(KEYNAME.values())
+
+
+def check_names(segs):
+    bad = {ev["key"] for sg in segs for ev in sg["events"] if ev["key"] not in KNOWN_KBD}
+    if bad:
+        sys.exit(f"drive uses key names the emulator does not accept: {sorted(bad)} "
+                 f"(add them to KEYNAME in replay_original.py)")
 
 
 def parse_events(steps):
-    events = []
-    for f in steps:
-        if f[1] != "key":
-            continue
+    """Drive steps -> segments: [{"events": [...], "wait": None|{"t","ds","op","val"}}].
+
+    A `t wait ds 0x63354 !=0` line splits the timeline: the emulator posts the events before it, then
+    waits for the *shipped DS event* (read through the memory API) before posting the rest, and rebases
+    the remaining times by the slippage -- the same rule the port's playtest script applies, so both
+    sides run the same keys in the same game state. Resource-name anchors do not work on the shipped
+    side: all 435 resource-name strings are resident in DS the whole time (measured)."""
+    segs = [{"events": [], "wait": None}]
     for f in steps:
         if f[1] == "key":
             press = f[3].startswith("d")
             kn = KEYNAME.get(f[2].lower(), f[2])
-            events.append({"t": int(f[0]), "type": "key", "key": kn, "pressed": press})
-        elif f[0] != "anchor":
+            segs[-1]["events"].append({"t": int(f[0]), "type": "key", "key": kn, "pressed": press})
+        elif f[0] == "anchor":
+            continue
+        elif f[1] == "wait" and len(f) >= 4 and f[2] == "res":
+            # a port-side anchor (the port logs every resource lookup). The shipped side cannot see the
+            # lookup itself -- all 435 resource names are resident in DS all the time -- so the shipped
+            # side anchors on `anchor static` plus the `wait ds` lines instead. Recorded, not executed.
+            continue
+        elif f[1] == "wait" and len(f) >= 5 and f[2] == "ds":
+            m = re.match(r"(!=|==|>=|<=)(.+)$", f[4])
+            if not m:
+                sys.exit(f"bad wait ds condition: {f[4]} (want ==N or !=N)")
+            segs[-1]["wait"] = {"t": int(f[0]), "ds": int(f[3], 0), "op": m.group(1),
+                                "val": int(m.group(2), 0)}
+            segs.append({"events": [], "wait": None})
+        else:
             sys.exit(f"unknown drive step: {' '.join(f)}")
-    return events
+    return segs
+
+
+def ds_cond(base, token, phys_base, w):
+    raw = api(base, token, f"/api/v1/memory/{phys_base + w['ds']}/4", timeout=30)
+    v = int.from_bytes(raw, "little")
+    hit = {"==": v == w["val"], "!=": v != w["val"],
+           ">=": v >= w["val"], "<=": v <= w["val"]}[w["op"]]
+    return v, hit
 
 
 def main():
@@ -149,14 +189,20 @@ def main():
         sys.exit("cycles are not pinned (auto_adjust=true) -> bringup with a pinned conf")
 
     steps = parse_drive(a.drive)
-    events = parse_events(steps)
+    segments = parse_events(steps)
+    check_names(segments)
+    events = [e for sg in segments for e in sg["events"]]
 
     # --- anchor: release the input timeline at a game-defined moment -------------
     anchor = None
     for f in steps:
-        if f[1] != "anchor":
+        # the drive writes `anchor static 3.0 90`; accept the verb in either field so a refactor of the
+        # line format cannot silently disable the anchor (it did once: the shipped side then released its
+        # keys during the logo, which shifted its whole timeline by ~90 s)
+        if f[0] != "anchor" and (len(f) < 2 or f[1] != "anchor"):
             continue
-        kind, stable, limit = f[1], float(f[2]), float(f[3])
+        kind = f[1] if f[0] == "anchor" else f[2]
+        stable, limit = (float(f[2]), float(f[3])) if f[0] == "anchor" else (float(f[3]), float(f[4]))
         t_wait, last_h, last_change = time.time(), None, time.time()
         while time.time() - t_wait < limit:
             h = hashlib.sha1(api(a.base, token, "/api/v1/video/frame?format=raw", timeout=60)).hexdigest()
@@ -179,7 +225,38 @@ def main():
         except Exception as e:
             print(f"audio capture unavailable: {e}", file=sys.stderr)
     t0 = time.time()
-    api(a.base, token, "/api/v1/input/sequence", "POST", {"events": events})
+    seg_i, ds_waits = 0, []
+    # The anchor is a rebase point with an implied nominal: the shipped side releases the timeline when
+    # the title card is steady, so the first segment's nominal times collapse onto that moment (the port
+    # rebases the same way, onto its own `wait res title1.pcx`). Without this the drive's 120000 ms
+    # nominal for the title would be taken as wall-clock and the keys would land two minutes late.
+    first = [ev["t"] for ev in segments[0]["events"]] or [segments[0]["wait"]["t"]] \
+        if segments and (segments[0]["events"] or segments[0]["wait"]) else [0]
+    shift = int((time.time() - t0) * 1000) - min(first)
+
+    def post_segment(i):
+        if not segments[i]["events"]:
+            return
+        # The emulator answers 409 while an earlier sequence is still being played back, and segments
+        # are long (stepping the episode's slides takes ~28 s), so recompute the offsets and retry
+        # until it accepts -- the times are relative to the POST that succeeds, which is what the
+        # rebase rule assumes.
+        for attempt in range(120):
+            now = int((time.time() - t0) * 1000)
+            evs = []
+            for ev in segments[i]["events"]:
+                e2 = dict(ev)
+                e2["t"] = max(0, ev["t"] + shift - now)
+                evs.append(e2)
+            try:
+                api(a.base, token, "/api/v1/input/sequence", "POST", {"events": evs})
+                return
+            except urllib.error.HTTPError as e:
+                if e.code != 409 or time.time() - t0 > a.seconds - 2:
+                    raise
+                time.sleep(0.5)
+
+    post_segment(0)
 
     # pointer cells: the guest keeps entity/record objects on the heap; a fixed-size block at each
     # pointer is dumped so record fields can be compared at a fixed record offset (no layout guess).
@@ -221,6 +298,19 @@ def main():
             with open(os.path.join(a.out, f"state_{len(states) - 1:04d}.heap.bin"), "wb") as f:
                 f.write(read_ptrs(ds))
             prev = (dsh, frh)
+        now_ms = int((time.time() - t0) * 1000)
+        while seg_i + 1 < len(segments):
+            w = segments[seg_i]["wait"]
+            if not w:
+                break
+            v, hit = ds_cond(a.base, token, phys_base, w)
+            if not hit and now_ms < w["t"] + shift:
+                break
+            shift = now_ms - w["t"]                  # same rebase rule as the port's playtest script
+            ds_waits.append({"t_ms": now_ms, "ds": hex(w["ds"]), "op": w["op"], "val": w["val"],
+                             "observed": v, "hit": bool(hit), "shift_ms": shift})
+            seg_i += 1
+            post_segment(seg_i)
         time.sleep(1.0 / a.hz)
 
     if a.audio_capture:
@@ -230,7 +320,8 @@ def main():
             pass
     meta = {"ptr_cells": [{"ds": c["ds"], "name": c["name"], "rec_bytes": PTR_BYTES}
                           for c in ptr_cells],
-            "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor, "hz": a.hz,
+            "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor,
+            "ds_waits": ds_waits, "hz": a.hz,
             "seconds": a.seconds, "states": len(states), "cycles": cyc,
             "res_events": res_events, "timeline": states}
     json.dump(meta, open(os.path.join(a.out, "timeline.json"), "w"), indent=1)

@@ -40,6 +40,8 @@ say "original: $(tail -1 "$OUT/replay.log")"
 say "original: boot + capture (screen)"
 RUN_GAME=1 bash "$HERE/bringup.sh" > "$OUT/bringup2.log" 2>&1
 sleep 10
+# the capture session must be able to evaluate `wait ds` anchors too, so it needs its own calibration
+timeout 120 python3 "$HERE/calibrate_ds.py" > "$OUT/calib2.log" 2>&1 || say "calibrate (session 2) failed"
 timeout $((DUR + 90)) python3 "$HERE/capture_original.py" --out "$OUT/orig_screen" --seconds "$DUR" \
         --hz 25 --drive "$DRIVE" > "$OUT/capture.log" 2>&1
 say "original: $(tail -1 "$OUT/capture.log")"

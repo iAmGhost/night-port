@@ -432,7 +432,7 @@ static void autokey(void) {
 struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at; };
 static void shot_named(const char *event);
 static void key_apply(uint8_t sc, int make);
-enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2 };
+enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3 };
 static struct pt_evt *g_pt;
 static int g_pt_n, g_pt_i;
 static const char *g_shots_dir;
@@ -442,6 +442,7 @@ static const char *g_shots_dir;
 void rig_init(const char *dir, int hz);
 void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes);
 void rig_marker(long t_ms, const char *fmt, ...);
+int  rig_ds_read(uint32_t ds, uint32_t *out);   /* current value of a DS-claiming global, by DS address */
 void rig_close(void);
 void rig_screen_init(const char *dir, int witness_every);
 void rig_pcm_open(const char *dir);
@@ -500,8 +501,8 @@ static void pt_load(const char *path) {
     char line[256];
     while (fgets(line, sizeof line, fp) && g_pt_n < 512) {
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
-        long t; char verb[64], arg[64], updown[64];
-        int n = sscanf(line, "%ld %63s %63s %63s", &t, verb, arg, updown);
+        long t; char verb[64], arg[64], updown[64], argv4[64];
+        int n = sscanf(line, "%ld %63s %63s %63s %63s", &t, verb, arg, updown, argv4);
         if (n < 2) continue;
         struct pt_evt *e = &g_pt[g_pt_n];
         e->t_ms = t; e->kind = PT_KEY; e->make = 1; e->name[0] = 0; e->sc = 0; e->seq_at = 0;
@@ -511,6 +512,14 @@ static void pt_load(const char *path) {
             e->kind = PT_WAIT; snprintf(e->name, sizeof e->name, "%s", updown);
             e->seq_at = 0;   /* set when the wait becomes current, see pt_drive */
             if (e->name[0] == 0) { SDL_Log("script: wait res needs a name (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "wait") && n >= 4 && !strcasecmp(arg, "ds")) {
+            /* `t wait ds 0x63354 !=0` anchors the rest of the timeline on a shipped DS event. The
+             * original side reads the same address through the emulator's memory API, so both sides sit
+             * in the same game state when the following keys fire. */
+            e->kind = PT_WAIT_DS;
+            e->seq_at = (uint32_t)strtoul(updown, NULL, 0);
+            snprintf(e->name, sizeof e->name, "%s", argv4);
+            if (!e->seq_at) { SDL_Log("script: wait ds needs an address (line ignored)"); continue; }
         } else {
             const char *kn = (!strcasecmp(verb, "key") && n >= 3) ? arg : verb;
             if (!strcasecmp(verb, "key") && n >= 3) e->make = !strcasecmp(updown, "down") || !strcasecmp(updown, "1");
@@ -561,6 +570,31 @@ static void pt_drive(void) {
     long t = pt_now_ms();
     while (g_pt_i < g_pt_n) {
         struct pt_evt *e = &g_pt[g_pt_i];
+        if (e->kind == PT_WAIT_DS) {
+            uint32_t v = 0;
+            int sz = rig_ds_read(e->seq_at, &v);
+            const char *num = e->name + 2;              /* "==N" "!=N" ">=N" "<=N" */
+            uint32_t want = (uint32_t)strtoul(num, NULL, 0);
+            int hit = sz && (!strcmp(e->name, "==") ? v == want
+                             : e->name[0] == '!' ? v != want
+                             : e->name[0] == '>' ? v >= want : v <= want);
+            if (hit) {
+                long slip = t - e->t_ms;
+                for (int k = g_pt_i + 1; k < g_pt_n; k++) g_pt[k].t_ms += slip;
+                g_pt_i++;
+                SDL_Log("script: anchored on ds %#x = %u at t=%ldms (rebased %+ldms)",
+                        e->seq_at, v, t, slip);
+                if (g_rig_dir) rig_marker(t, "ds %#x = %u", e->seq_at, v);
+                continue;
+            }
+            if (t >= e->t_ms) {
+                SDL_Log("script: wait ds %#x %s timed out at t=%ldms val=%u (continuing)",
+                        e->seq_at, e->name, t, v);
+                g_pt_i++;
+                continue;
+            }
+            return;
+        }
         if (e->kind == PT_WAIT) {
             /* A wait is polled every pass, not scheduled: its number is only the deadline. The anchor
              * lookup can happen long before that number, and the game's own resource lookups keep moving

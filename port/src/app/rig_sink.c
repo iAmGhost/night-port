@@ -31,6 +31,24 @@ static int g_n;
 #define RIG_REC 64              /* bytes of the object a pointer cell refers to, also dumped */
 static uint32_t g_recoff[RIG_MAX];
 
+/* Read the current value of one DS-claiming global by its DS address, little-endian, up to 4 bytes.
+ * Used by the playtest script's `wait ds ADDR OP VAL`, so both sides of the rig can anchor on the same
+ * shipped DS event (a resource name cannot be used: every resource name is resident in DS all the time,
+ * measured -- 435 name-shaped strings present at the title and unchanged after entering the game). */
+int rig_ds_read(uint32_t ds, uint32_t *out) {
+    for (int i = 0; i < rig_cell_count(); i++) {
+        const struct rig_cell *c = rig_cell_at(i);
+        if (c->ds != ds) continue;
+        unsigned n = c->host_size < 4 ? c->host_size : 4;
+        const unsigned char *b = (const unsigned char *)c->host;
+        uint32_t v = 0;
+        for (unsigned k = 0; k < n; k++) v |= (uint32_t)b[k] << (8 * k);
+        *out = v;
+        return (int)c->host_size;
+    }
+    return 0;
+}
+
 void rig_init(const char *dir, int hz) {
     char path[1024];
     if (hz > 0) g_period_ms = 1000 / hz;

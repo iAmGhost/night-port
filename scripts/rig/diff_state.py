@@ -280,15 +280,20 @@ def main():
             if j is None:
                 continue
             per, verdict = [], "REC-SAME"
+            # Record-block geometry comes from each side's own dump: the shipped side concatenates one
+            # fixed-size block per pointer cell in timeline["ptr_cells"] order, the port stores each
+            # block at its declared rec_offset. The block size is per-run (replay_original PTR_BYTES,
+            # rig_sink RIG_REC), so it is read from the entries instead of being hardcoded.
+            rb_o = orig_ptrs[i].get("rec_bytes") or RB
+            base_o = sum((p.get("rec_bytes") or RB) for p in orig_ptrs[:i])
+            rb_p = (other_ptrs[j].get("rec_bytes") or RB) if is_port else rb_o
+            base_p = (other_ptrs[j]["rec_offset"] if is_port
+                      else sum((p.get("rec_bytes") or RB) for p in other_ptrs[:j]))
             for label, _t0, _t1 in phases:
-                ov = [b[i * RB:(i + 1) * RB] for b in h_o.get(label, [])]
-                if is_port:
-                    off = other_ptrs[j]["rec_offset"]
-                    pv = [b[off:off + RB] for b in h_p.get(label, [])]
-                else:
-                    pv = [b[j * RB:(j + 1) * RB] for b in h_p.get(label, [])]
-                ov = [x for x in ov if len(x) == RB]
-                pv = [x for x in pv if len(x) == RB]
+                ov = [b[base_o:base_o + rb_o] for b in h_o.get(label, [])]
+                pv = [b[base_p:base_p + rb_p] for b in h_p.get(label, [])]
+                ov = [x for x in ov if len(x) == rb_o]
+                pv = [x for x in pv if len(x) == rb_p]
                 if not ov or not pv:
                     per.append((label, "NO-DATA", "", ""))
                     continue

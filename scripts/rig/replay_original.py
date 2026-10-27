@@ -277,7 +277,10 @@ def main():
     # pointer is dumped so record fields can be compared at a fixed record offset (no layout guess).
     cells = json.load(open(os.path.join(HERE, "..", "audit", "gen", "rig_cells.json")))
     ptr_cells = [c for c in cells if c["ptr"] and c["guest_size"] in (0, 4)]
-    PTR_BYTES = 64
+    # 0x160 covers the whole entity record used by the state oracle: EXP total +0x2b, score +0x52,
+    # position +0x56/+0x73, score award +0xbb. The link fields at +0x13f/+0x143 are width-adapted in
+    # the port (docs/94 family) and are deliberately not compared.
+    PTR_BYTES = 0x160
 
     def read_ptrs(ds):
         if a.no_heap:

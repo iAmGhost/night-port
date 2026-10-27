@@ -49,23 +49,34 @@ def main():
     # only genuine pointer cells have a record block: a 256B array cell also carries a rec_offset from
     # the generator, and dumping past it just re-reads the array
     port_off = {c["name"]: c.get("rec_offset") for c in pcells if c["host_size"] in (4, 8)}
+    port_rb = {c["name"]: c.get("rec_bytes") or RB for c in pcells}
+    # the port widens the entity list links (guest +0x13f/+0x143 4B -> host +0x13f/+0x147 8B, docs/94);
+    # that region differs by construction, so it is excluded from the histogram instead of flooding it
+    LINKS = range(0x13F, 0x150)
     rows = []
+    base_o = 0
     for i, c in enumerate(ptr_cells):
+        size = c.get("rec_bytes") or RB
         off = port_off.get(c["name"])
+        psz = port_rb.get(c["name"], size)
         hist, vals = collections.Counter(), {}
         n = 0
         for label, _t0, _t1 in phases:
             for bo, bp in zip(hb_o[label], hb_p[label] if label in hb_p else []):
                 if off is None:
                     continue
-                go, gp = bo[i * RB:(i + 1) * RB], bp[off:off + RB]
-                if len(go) != RB or len(gp) != RB or not any(go):
+                go, gp = bo[base_o:base_o + size], bp[off:off + psz]
+                m = min(len(go), len(gp))
+                if m < size or not any(go[:m]):
                     continue
                 n += 1
-                for k in range(RB):
+                for k in range(m):
+                    if k in LINKS:
+                        continue
                     if go[k] != gp[k]:
                         hist[k] += 1
                         vals.setdefault(k, (go[k], gp[k]))
+        base_o += size
         if hist:
             rows.append((sum(hist.values()), c["name"], hex(c["ds"]), n, hist, vals))
     rows.sort(reverse=True)

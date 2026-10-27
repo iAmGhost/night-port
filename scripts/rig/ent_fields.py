@@ -22,7 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from diff_state import load_orig, load_port, phases_from_drive  # noqa: E402
 
-RB = 64
+RB = 64  # overridden per side from the dump's own rec_bytes
 
 
 def parse_fields(spec):
@@ -103,8 +103,11 @@ def main():
             vals = []
             for s in ins:
                 hb = s[heap_idx] if heap_idx is not None else s[1]
-                base = cellidx * RB if heap_idx is not None else recoff
-                blk = hb[base:base + RB]
+                rb = (ocells[cellidx].get("rec_bytes") if heap_idx is not None
+                      else pcells[cellidx].get("rec_bytes")) or RB
+                base = (sum(x.get("rec_bytes", RB) for x in ocells[:cellidx]) if heap_idx is not None
+                        else recoff)
+                blk = hb[base:base + rb]
                 vals.append([unpack(blk, off, w) for off, w in fields])
             rows.append((label, vals))
         return rows

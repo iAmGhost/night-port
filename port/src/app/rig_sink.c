@@ -47,7 +47,10 @@ static unsigned g_tick;
 static uint32_t g_rec_bytes;
 static uint32_t g_off[RIG_MAX];
 static int g_n;
-#define RIG_REC 64              /* bytes of the object a pointer cell refers to, also dumped */
+#define RIG_REC 0x160          /* bytes of the object a pointer cell refers to, also dumped: the
+                                entity record the state oracle reads (EXP +0x2b, score +0x52,
+                                award +0xbb, position +0x56/+0x73), up to the width-adapted
+                                link fields at +0x13f/+0x143, which are not comparable */
 static uint32_t g_recoff[RIG_MAX];
 
 /* Read the current value of one DS-claiming global by its DS address, little-endian, up to 4 bytes.
@@ -93,7 +96,20 @@ void rig_init(const char *dir, int hz) {
         g_off[i] = off;
         off += rig_cell_at(i)->host_size;
     }
-    g_rec_bytes = off;
+    /* Each pointer cell also gets a block of the object it points at, laid out AFTER the cell area.
+     * Without this every record landed at offset 0 -- on top of the first cell -- and the entity-level
+     * oracles compared the wrong bytes (docs/105). */
+    uint32_t rec_off = off;
+    for (int i = 0; i < g_n; i++) {
+        const struct rig_cell *c = rig_cell_at(i);
+        if (c->ptr && c->host_size == 8) {
+            g_recoff[i] = rec_off;
+            rec_off += RIG_REC;
+        } else {
+            g_recoff[i] = 0xffffffffu;
+        }
+    }
+    g_rec_bytes = rec_off;
 
     uint32_t hdr[4] = {0x4352474eu /* NGRC */, 1u, g_rec_bytes, (uint32_t)g_n};
     fwrite(hdr, sizeof hdr, 1, g_bin);

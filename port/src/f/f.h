@@ -978,16 +978,14 @@ extern uint32_t g_dat_633b4;                        /* DAT_000633b4: working scr
  * apart (+4, +8, +0x34, +0x38); widening them in place would OVERLAP, so the port models the
  * block as this struct (field order = original order). The dwords inside the referenced
  * objects (+0x2c / +0x30) stay 32-bit and are still read by byte offset. */
-struct blit_ctl {
-    uint8_t *col_obj;   /* orig +0x04: column dwords   @+0x2c / @+0x30 */
-    uint8_t *row_obj;   /* orig +0x08: row-count dwords @+0x2c / @+0x30 */
-    uint8_t *off_obj;   /* orig +0x34: RLE byte offsets @+0x2c / @+0x30 */
-    uint8_t *rle_base;  /* orig +0x38: base of the RLE streams */
-};
-extern struct blit_ctl *g_dat_639c4;                /* DAT_000639c4: HUD blit control block */
+/* DAT_000639c4/DAT_000639c0 are the 0x3c-byte parallel-array structs of fn_03d8d4/fn_03de85:
+ * uint32 cells s[1..14] (+0x04..+0x38) holding HEAP OFFSETS of the sub-objects; every reader adds
+ * g_heap_base (cf. fn_0137c1). There is no widened pointer struct for these blocks. */
+extern uint32_t *g_dat_639c4;                /* DAT_000639c4: HUD blit control block */
 void fn_03ace9(void);                               /* 0x03ace9: 20-frame HUD composite (633b0/633b4 + 2 sprites via fn_03bb42) */
 void fn_012efa(uint8_t *ent, uint32_t base);
 void fn_03203d(uint32_t base);
+extern uint8_t g_ds_ivt[0x200];  /* guest linear 0x000..0x1ff: IVT copy; target of fn_0003b67e's NULL-link writes (0x3b6b6/0x3b6dc) */
 extern uint8_t g_blk_50010[0xc8];   /* DS 0x50010..0x500cf: the AI handlers' x87 constant pool (float 31.0 at 0x50014..0x50023; doubles 20.0 / 27.0 / 30.0 as climb, rope and swing divisors). See the capstone-base note in f.c. */
 extern uint8_t g_blk_51c24[0x1dc];   /* DS 0x51c24: initialized data-segment block (see f.c for the map) */
 #define g_blk_51c80   (g_blk_51c24 + 0x5c)          /* DS 0x51c80 view (legacy name) */

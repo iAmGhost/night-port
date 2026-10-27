@@ -12158,6 +12158,29 @@ static void test_fn_03c231(void) {
           "  row<0 skips -row stream rows (the gap=0 arithmetic) and shortens the count");
 }
 
+static void test_fn_0003b67e_lastnode(void) {
+    printf("fn_0003b67e (0x03b67e): last-node remove writes through the NULL link into DS low (docs/95)\n");
+    heap_arena_init(); (void)heap_malloc(0x400);
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    void *s_cc = (void *)g_dat_639cc, *s_d0 = (void *)g_dat_639d0; int32_t s_c8 = (int32_t)g_dat_639c8;
+    uint32_t o = heap_malloc(0x40); uint8_t *n = hb + o; memset(n, 0, 0x40);
+    *(uint8_t **)(n + 0x11) = NULL; *(uint8_t **)(n + 0x19) = NULL;
+    g_dat_639cc = n; g_dat_639d0 = n; g_dat_639c8 = 1;
+    memset(g_ds_ivt, 0xAA, 0x200);
+    fn_0003b67e(n);                                   /* head branch: [0 + 0x19] = 0 in port layout */
+    check(g_dat_639cc == NULL && g_dat_639c8 == 0, "  removing the last node empties the list head + count");
+    check(*(uint8_t **)(g_ds_ivt + 0x19) == NULL && g_ds_ivt[0x18] == 0xAA,
+          "  the NULL-link write lands in the modelled guest IVT page (DS:0x15-class), not a crash");
+    /* tail branch mirror on a different single-node list */
+    uint32_t o2 = heap_malloc(0x40); uint8_t *n2 = hb + o2; memset(n2, 0, 0x40);
+    *(uint8_t **)(n2 + 0x11) = NULL; *(uint8_t **)(n2 + 0x19) = NULL;
+    g_dat_639cc = n2; g_dat_639d0 = n2; g_dat_639c8 = 1;  /* head==tail: head branch wins, as shipped */
+    fn_0003b67e(n2);
+    check(g_dat_639cc == NULL && g_dat_639c8 == 0, "  single node takes the HEAD branch (shipped if-order)");
+    g_dat_639cc = (uint8_t *)s_cc; g_dat_639d0 = (uint8_t *)s_d0; g_dat_639c8 = (uint32_t)s_c8;
+    heap_arena_init(); (void)heap_malloc(0x400);
+}
+
 static void test_fn_03b953(void) {
     printf("fn_03b953 (0x03b953): entity-list sweep of the floating value display\n");
     uint8_t *scr = g_video_ram;
@@ -12167,22 +12190,26 @@ static void test_fn_03b953(void) {
     int32_t s_c8 = (int32_t)g_dat_639c8;
     heap_arena_init(); (void)heap_malloc(0x400);
 
-    static uint32_t offs[0x100];
     static uint8_t rle[10 * 28];
-    static uint8_t obj4[0x40], obj8[0x40];
-    static struct blit_ctl fa, fb;
-    uint8_t *ct = (uint8_t *)(offs + 0x30);
-    for (uint32_t c = '0'; c <= '9'; c++) offs[c] = (c - '0') * 28;
     for (int d = 0; d < 10; d++)
         for (int r = 0; r < 7; r++) { uint8_t *p = rle + d*28 + r*4; p[0]=1; p[1]=0; p[2]=1; p[3]=(uint8_t)(0xa0+d); }
-    *(uint32_t *)(obj4 + 0x2c) = 0; *(uint32_t *)(obj8 + 0x2c) = 0;   /* terminator: 0 rows -> no-op */
-    *(uint32_t *)(ct + 0x2c)   = 0;
-    fa.col_obj = obj4; fa.row_obj = obj8; fa.off_obj = ct; fa.rle_base = rle;
-    fb = fa;
-    g_dat_639c0 = (uint32_t *)(void *)&fa; g_dat_639c4 = &fb;
+    /* control blocks + objects in the ARENA: cells +0x04/+0x08/+0x34/+0x38 hold heap OFFSETS
+     * exactly as fn_03de85/fn_03d9cf leave them in the loaded game */
+    uint8_t *hb = (uint8_t *)g_heap_base;
+    uint32_t oc0 = heap_malloc(0x3c), oc4 = heap_malloc(0x3c);
+    uint32_t o4 = heap_malloc(0x34), o8 = heap_malloc(0x34), oct = heap_malloc(0x34), orle = heap_malloc(280);
+    memset(hb + oct, 0, 0x34); memset(hb + o4, 0, 0x34); memset(hb + o8, 0, 0x34);
+    for (uint32_t c = '0'; c <= '9'; c++) *(uint32_t *)(hb + oct + (c - 0x30) * 4) = (c - '0') * 28;
+    memcpy(hb + orle, rle, sizeof rle);
+    *(uint32_t *)(hb + oct + 0x2c) = 0;               /* terminator: 0 rows -> no-op */
+    for (int blk = 0; blk < 2; blk++) {
+        uint32_t *b = (uint32_t *)(hb + (blk ? oc4 : oc0));
+        for (int k = 0; k < 15; k++) b[k] = 0;
+        b[1] = o4; b[2] = o8; b[13] = oct; b[14] = orle;
+    }
+    g_dat_639c0 = (uint32_t *)(hb + oc0); g_dat_639c4 = (uint32_t *)(hb + oc4);
     g_dat_639dc = 0; g_dat_639e0 = 0; g_dat_63360 = 1;
 
-    uint8_t *hb = (uint8_t *)g_heap_base;
     uint32_t o[3]; uint8_t *n[3];
     /* allocate first, then link: n[i+1] is still uninitialised in a single combined pass, which
      * links the list to garbage (this exact bug wild-pointer SEGV'd the first draft of the test) */
@@ -12226,7 +12253,7 @@ static void test_fn_03b953(void) {
     uint32_t again = heap_malloc(0x40);
     check(again == o[1], "  and the freed node's block is available again");
 
-    g_dat_639c0 = (uint32_t *)s_c0; g_dat_639c4 = (struct blit_ctl *)s_c4;
+    g_dat_639c0 = (uint32_t *)s_c0; g_dat_639c4 = (uint32_t *)s_c4;
     g_dat_639dc = s_dc; g_dat_639e0 = s_e0; g_dat_63360 = s_60;
     g_dat_639cc = (uint8_t *)s_cc; g_dat_639d0 = (uint8_t *)s_d0;
     g_dat_639d4 = (uint8_t *)s_d4; g_dat_639c8 = (uint32_t)s_c8;
@@ -12246,8 +12273,6 @@ static void test_fn_03b718(void) {
      * indexes as char_table - 0xc0 + ascii*4 and the terminator reads at char_table + 0x2c. */
     static uint32_t offA[0x100], offB[0x100];
     static uint8_t rleA[0x310], rleB[0x310];
-    static uint8_t obj4[0x40], obj8[0x40];
-    static struct blit_ctl fa, fb;
     uint8_t *ctA = (uint8_t *)(offA + 0x30), *ctB = (uint8_t *)(offB + 0x30);   /* +0xc0 bytes */
     for (uint32_t c = '0'; c <= '9'; c++) { offA[c] = (c - '0') * 28; offB[c] = (c - '0') * 48; }
     for (int d = 0; d < 10; d++)                        /* font A: 7 rows of one pixel 0xa0+d */
@@ -12259,15 +12284,30 @@ static void test_fn_03b718(void) {
         pa[0]=1; pa[1]=0; pa[2]=1; pa[3]=0xaf;
         pb[0]=1; pb[1]=0; pb[2]=1; pb[3]=0xbf;
     }
-    memset(obj4, 0, sizeof obj4); memset(obj8, 0, sizeof obj8);
-    *(uint32_t *)(obj4 + 0x2c) = 3;                     /* terminator col  (orig +0x28) */
-    *(uint32_t *)(obj8 + 0x2c) = 2;                     /* terminator rows (orig +0x28) */
-    *(uint32_t *)(ctA + 0x2c)  = 0x300;                 /* terminator glyph offset */
-    *(uint32_t *)(ctB + 0x2c)  = 0x300;
-    fa.col_obj = obj4; fa.row_obj = obj8; fa.off_obj = ctA; fa.rle_base = rleA;
-    fb.col_obj = obj4; fb.row_obj = obj8; fb.off_obj = ctB; fb.rle_base = rleB;
-    g_dat_639c0 = (uint32_t *)(void *)&fa;
-    g_dat_639c4 = &fb;
+    /* control blocks + objects live in the ARENA; cells +0x04/+0x08/+0x34/+0x38 hold heap OFFSETS */
+    uint8_t *hbx = (uint8_t *)g_heap_base;
+    uint32_t oc0 = heap_malloc(0x3c), oc4 = heap_malloc(0x3c);
+    uint32_t o4 = heap_malloc(0x34), o8 = heap_malloc(0x34);
+    uint32_t oA = heap_malloc(0x34), oB = heap_malloc(0x34);
+    uint32_t orA = heap_malloc(0x310), orB = heap_malloc(0x310);
+    memset(hbx + o4, 0, 0x34); memset(hbx + o8, 0, 0x34);
+    memset(hbx + oA, 0, 0x34); memset(hbx + oB, 0, 0x34);
+    for (uint32_t c = '0'; c <= '9'; c++) {
+        *(uint32_t *)(hbx + oA + (c - 0x30) * 4) = (c - '0') * 28;
+        *(uint32_t *)(hbx + oB + (c - 0x30) * 4) = (c - '0') * 48;
+    }
+    memcpy(hbx + orA, rleA, 0x310); memcpy(hbx + orB, rleB, 0x310);
+    *(uint32_t *)(hbx + o4 + 0x2c) = 3;                 /* terminator col  (orig +0x28) */
+    *(uint32_t *)(hbx + o8 + 0x2c) = 2;                 /* terminator rows (orig +0x28) */
+    *(uint32_t *)(hbx + oA + 0x2c) = 0x300;
+    *(uint32_t *)(hbx + oB + 0x2c) = 0x300;
+    for (uint32_t blk = 0; blk < 2; blk++) {
+        uint32_t *b = (uint32_t *)(hbx + (blk ? oc4 : oc0));
+        for (int k = 0; k < 15; k++) b[k] = 0;
+        b[1] = o4; b[2] = o8; b[13] = (blk ? oB : oA); b[14] = (blk ? orB : orA);
+    }
+    g_dat_639c0 = (uint32_t *)(hbx + oc0);
+    g_dat_639c4 = (uint32_t *)(hbx + oc4);
     g_dat_639dc = 0x100; g_dat_639e0 = 0x40;
     g_dat_63360 = 1;                                    /* %3 != 0: no ageing */
 
@@ -12321,7 +12361,7 @@ static void test_fn_03b718(void) {
     uint32_t again = heap_malloc(0x40);
     check(again == oa, "  and its heap block is released (fn_00041c28)");
 
-    g_dat_639c0 = (uint32_t *)s_c0; g_dat_639c4 = (struct blit_ctl *)s_c4;
+    g_dat_639c0 = (uint32_t *)s_c0; g_dat_639c4 = (uint32_t *)s_c4;
     g_dat_639dc = s_dc; g_dat_639e0 = s_e0; g_dat_63360 = s_60;
     g_dat_639cc = (uint8_t *)s_cc; g_dat_639d0 = (uint8_t *)s_d0; g_dat_639c8 = (uint32_t)s_c8;
     heap_arena_init(); (void)heap_malloc(0x400);
@@ -15181,14 +15221,15 @@ static void test_fn_03ace9(void) {
     memset(back, 0x55, sizeof g_screen_ram);
     memset(g_video_ram, 0x00, sizeof g_video_ram);
 
-    /* control block: the port models DAT_000639c4 as a struct (the original's four pointer
-     * fields sit 4 bytes apart, which cannot be widened in place) */
-    struct blit_ctl *cb = (struct blit_ctl *)calloc(1, sizeof *cb);
-    uint8_t *obj4  = (uint8_t *)calloc(1, 0x40);
-    uint8_t *obj8  = (uint8_t *)calloc(1, 0x40);
-    uint8_t *obj34 = (uint8_t *)calloc(1, 0x40);
-    uint8_t *rle   = (uint8_t *)calloc(1, 0x100);
-    if (!cb || !obj4 || !obj8 || !obj34 || !rle) { check(0, "  control buffers (SKIP)"); return; }
+    /* control block + objects in the ARENA (cells hold heap offsets, fn_03de85) */
+    heap_arena_init(); (void)heap_malloc(0x400);
+    uint8_t *hba = (uint8_t *)g_heap_base;
+    uint32_t oc4 = heap_malloc(0x3c), oo4 = heap_malloc(0x40), oo8 = heap_malloc(0x40);
+    uint32_t oo34 = heap_malloc(0x40), orle = heap_malloc(0x100);
+    uint8_t *obj4 = hba + oo4, *obj8 = hba + oo8, *obj34 = hba + oo34, *rle = hba + orle;
+    uint32_t *cb = (uint32_t *)(hba + oc4);
+    for (int k = 0; k < 15; k++) cb[k] = 0;
+    cb[1] = oo4; cb[2] = oo8; cb[13] = oo34; cb[14] = orle;
     /* two 2-row streams, each row "[N=1][gap=0][len=4][data x4]"; sprite B sits at rle+0x20 */
     rle[0] = 1; rle[1] = 0; rle[2] = 4;
     rle[3] = 0xAA; rle[4] = 0xBB; rle[5] = 0xCC; rle[6] = 0xDD;
@@ -15204,7 +15245,6 @@ static void test_fn_03ace9(void) {
     *(uint32_t *)(void *)(obj8 + 0x30)  = 2;            /* row count B */
     *(uint32_t *)(void *)(obj34 + 0x2c) = 0x00;         /* RLE offset A */
     *(uint32_t *)(void *)(obj34 + 0x30) = 0x20;         /* RLE offset B */
-    cb->col_obj = obj4; cb->row_obj = obj8; cb->off_obj = obj34; cb->rle_base = rle;
     g_dat_639c4 = cb;
 
     fn_03ace9();
@@ -15227,7 +15267,7 @@ static void test_fn_03ace9(void) {
     check(memcmp(SROW(back, 0x35) + 0x2b, "\x55\x55\x55\x55", 4) == 0,
           "  animated frames never touch the back screen (only the write-back does)");
     #undef SROW
-    free(cb); free(obj4); free(obj8); free(obj34); free(rle);
+    heap_arena_init();
 }
 
 static void test_fn_040fb3(void) {
@@ -18543,6 +18583,7 @@ int main(void) {
     test_fn_03a5f7();
     test_fn_03c231();
     test_fn_03b953();
+    test_fn_0003b67e_lastnode();
     test_fn_03b718();
     test_fn_038c23();
     test_fn_038b30();

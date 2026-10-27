@@ -1028,18 +1028,23 @@ uint8_t *fn_0003b5c0(uint8_t *node, uint8_t flag, uint32_t d_ecx, uint32_t d_edx
  *   DAT_000639c8 is decremented. Returns the node. next@+0x11, prev@+0x19
  *   (widened to 8 bytes, see fn_0003b5c0).
  *   LATENT BUG (faithfully reproduced): the head/tail branches do not NULL-check
- *   the successor/predecessor, so removing the last remaining node null-derefs
- *   (writes next->prev through next==0, or prev->next through prev==0). The game
- *   presumably never removes the final node via this path. */
+ *   the successor/predecessor. On the LAST remaining node the guest writes through the NULL
+ *   link: 0x0003b6b6 `MOV dword ptr [EAX + 0x15],0x0` with EAX=0 and 0x0003b6dc the mirror --
+ *   a 4-byte store to guest LINEAR address 0x15/0x11, i.e. into the guest's own IVT copy
+ *   (linear 0x000..0x1ff, mapped and inert in protected mode). The original survives this
+ *   path constantly (every floating number list draining to empty); it is NOT a guest crash.
+ *   The port models that low page as g_ds_ivt, so a NULL link writes there exactly as in the
+ *   guest. (The earlier port comment calling this a null-deref crash was wrong; docs/95.) */
+uint8_t g_ds_ivt[0x200];   /* guest linear 0x000..0x1ff: real-mode IVT copy; target of the NULL-link writes above */
 uint8_t *fn_0003b67e(uint8_t *node) {
     uint8_t *next = *(uint8_t **)(node + 0x11);
     uint8_t *prev = *(uint8_t **)(node + 0x19);
     if (g_dat_639cc == node) {
         g_dat_639cc = next;
-        *(uint8_t **)(next + 0x19) = NULL;   /* latent null-deref if next == NULL */
+        *(uint8_t **)((next ? next : g_ds_ivt) + 0x19) = NULL;   /* 0x3b6b6: [next+0x15] with next=0 -> DS:0x15 */
     } else if (g_dat_639d0 == node) {
         g_dat_639d0 = prev;
-        *(uint8_t **)(prev + 0x11) = NULL;   /* latent null-deref if prev == NULL */
+        *(uint8_t **)((prev ? prev : g_ds_ivt) + 0x11) = NULL;   /* 0x3b6dc: [prev+0x11] with prev=0 -> DS:0x11 */
     } else {
         *(uint8_t **)(prev + 0x11) = next;
         *(uint8_t **)(next + 0x19) = prev;
@@ -2473,7 +2478,7 @@ uint32_t fn_03690b(void)
 
     /* HUD / sprite tables (0x03d8d4 structs) and their action containers */
     g_dat_639c0 = spr_block("system.spr");
-    g_dat_639c4 = (struct blit_ctl *)spr_block("system2.spr");
+    g_dat_639c4 = spr_block("system2.spr");
     g_dat_63e08 = spr_block("over.spr");
     g_dat_53c8c = spr_block("face.spr");
     g_dat_63e00 = spr_block("gage.spr");
@@ -6991,7 +6996,7 @@ uint32_t g_dat_633b4 = SCREEN_BASE + SCREEN_SIZE;   /* DAT_000633b4: working scr
 /* DAT_000639c4: control block for the HUD/screen blits (assigned by the unported master data
  * loader 0x03690b); its four pointer-ish fields live 4 bytes apart in the original, so the
  * port uses a named struct (see f.h) instead of byte-offset access. */
-struct blit_ctl *g_dat_639c4;
+uint32_t *g_dat_639c4;  /* 0x639c4: HUD blit control block (0x3c-byte struct; +0x04..+0x38 hold HEAP OFFSETS) */
 
 static inline uint8_t *video_map(uint32_t va) {
     uint32_t off = va - SCREEN_BASE;
@@ -7315,20 +7320,20 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
  * RLE pointer; [row_obj+0x2c/0x30] = row count; [col_obj+0x2c/0x30] = column. */
 void fn_03ace9(void) {
     (void)canary_id(0, 0x2c);                                          /* 0x3acee */
-    struct blit_ctl *cb = g_dat_639c4;
+    const uint32_t *cb = g_dat_639c4;   /* fields +0x04/+0x08/+0x34/+0x38 are HEAP OFFSETS (fn_03de85) */
 
     for (int32_t i = 0; i < 0x14; i++) {
         mem_copy(video_map(g_dat_633b4), video_map(g_dat_633b0), 0xfa00);      /* 0x3ad2a */
         /* 0x3ad70: push 0; push rle; push row_count; EAX=633b4 EDX=i*5-0x34 EBX=0x35 ECX=col */
         fn_03bb42(g_dat_633b4, i * 5 - 0x34, 0x35,
-                  (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x2c),
-                  *(uint32_t *)(void *)(cb->row_obj + 0x2c),
-                  cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x2c), 0);
+                  (int32_t)*(const uint32_t *)((const uint8_t *)g_heap_base + cb[1] + 0x2c),
+                  *(const uint32_t *)((const uint8_t *)g_heap_base + cb[2] + 0x2c),
+                  (const uint8_t *)g_heap_base + cb[14] + *(const uint32_t *)((const uint8_t *)g_heap_base + cb[13] + 0x2c), 0);
         /* 0x3adbb: same shape with the +0x30 fields and dest_off = 0x115 - i*5 */
         fn_03bb42(g_dat_633b4, 0x115 - i * 5, 0x35,
-                  (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x30),
-                  *(uint32_t *)(void *)(cb->row_obj + 0x30),
-                  cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x30), 0);
+                  (int32_t)*(const uint32_t *)((const uint8_t *)g_heap_base + cb[1] + 0x30),
+                  *(const uint32_t *)((const uint8_t *)g_heap_base + cb[2] + 0x30),
+                  (const uint8_t *)g_heap_base + cb[14] + *(const uint32_t *)((const uint8_t *)g_heap_base + cb[13] + 0x30), 0);
         fn_00035ec2();                                                        /* 0x3adc0 */
         mem_copy(video_map(VIDEO_BASE), video_map(g_dat_633b4), 0xfa00);      /* 0x3add5 */
     }
@@ -7338,13 +7343,13 @@ void fn_03ace9(void) {
 
     /* 0x3ae3f / 0x3ae80: same two sprites, now into the BACK screen at fixed columns */
     fn_03bb42(g_dat_633b0, 0x30, 0x35,
-              (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x2c),
-              *(uint32_t *)(void *)(cb->row_obj + 0x2c),
-              cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x2c), 0);
+              (int32_t)*(const uint32_t *)((const uint8_t *)g_heap_base + cb[1] + 0x2c),
+              *(const uint32_t *)((const uint8_t *)g_heap_base + cb[2] + 0x2c),
+              (const uint8_t *)g_heap_base + cb[14] + *(const uint32_t *)((const uint8_t *)g_heap_base + cb[13] + 0x2c), 0);
     fn_03bb42(g_dat_633b0, 0xb1, 0x35,
-              (int32_t)*(uint32_t *)(void *)(cb->col_obj + 0x30),
-              *(uint32_t *)(void *)(cb->row_obj + 0x30),
-              cb->rle_base + *(uint32_t *)(void *)(cb->off_obj + 0x30), 0);
+              (int32_t)*(const uint32_t *)((const uint8_t *)g_heap_base + cb[1] + 0x30),
+              *(const uint32_t *)((const uint8_t *)g_heap_base + cb[2] + 0x30),
+              (const uint8_t *)g_heap_base + cb[14] + *(const uint32_t *)((const uint8_t *)g_heap_base + cb[13] + 0x30), 0);
 }
 
 /* fn_03f462  orig: 0x03f462 (L11, 303 B) -- row-wrap fill into the A0000 video arena.
@@ -13779,9 +13784,13 @@ static uint32_t fn_03f6bc_impl(const char *name)
  *     dest -0x18, start_row -0xd.
  *   if (DAT_00063360 % 3 == 0) entity[5]++;                                 0x3b91d-0x3b927
  *   if (entity[5] > 0x28) { fn_0003b67e(entity); heap_free_guard(off); }     0x3b936-0x3b946
- * The control blocks are modelled as struct blit_ctl (cf. fn_03ace9): the original's four pointer
- * fields (+0x04 col list, +0x08 row list, +0x34 glyph offsets, +0x38 RLE base) sit 4 bytes apart and
- * cannot be widened in place; the +0x28 dwords inside the pointed-to objects are the port's +0x2c.
+ * The control blocks are the 0x3c-byte parallel-array structs built by fn_03d8d4/fn_03de85: the
+ * original's four object fields (+0x04 col list, +0x08 row list, +0x34 glyph offsets, +0x38 RLE
+ * base) are 4-byte cells holding the guest heap pointers; in this port heap_malloc returns heap
+ * OFFSETS (fn_03de85 stores them verbatim), so every read must add g_heap_base (cf. fn_0137c1).
+ * The +0x28 dwords inside the pointed-to objects are the port's +0x2c. The old port model treated
+ * the cells as widened host pointers, which read a pair of heap offsets as one garbage 64-bit
+ * address and SEGV'd on the first floating damage number in stage 1 (docs/95).
  * The original also stores the dead constants 0x3b946/0x3b94b into the stack scratch before the last
  * two calls (leftover from the record fields written in the loops); they are never read.
  */
@@ -13792,15 +13801,15 @@ void fn_03b718(uint8_t *entity, uint32_t base)
     itoa32s((int32_t)*(uint32_t *)(entity + 0x01), buf, 10);                 /* 0x3b735-43 */
     int32_t len = (int32_t)str_len(buf);                                     /* 0x3b748-50 */
 
-    const struct blit_ctl *fa = (const struct blit_ctl *)(void *)g_dat_639c0;
-    const struct blit_ctl *fb = g_dat_639c4;
-    const struct blit_ctl *f = ((uint32_t)entity[0] == 0u) ? fa : fb;        /* 0x3b753-5f */
+    const uint32_t *fa = (const uint32_t *)(void *)g_dat_639c0;   /* s[13]=+0x34, s[14]=+0x38: offsets */
+    const uint32_t *fb = (const uint32_t *)(void *)g_dat_639c4;
+    const uint32_t *f = ((uint32_t)entity[0] == 0u) ? fa : fb;     /* 0x3b753-5f */
     int32_t adv  = (f == fa) ? 5 : 0xb;                                      /* 0x3b7cc / 0x3b8a2 */
     int32_t rows = (f == fa) ? 7 : 0xc;                                      /* 0x3b7aa / 0x3b885 */
     int32_t col  = (f == fa) ? 4 : 10;                                       /* 0x3b7ac / 0x3b899 */
 
-    uintptr_t char_table = (uintptr_t)f->off_obj;
-    const uint8_t *rle_base = f->rle_base;
+    uintptr_t char_table = (uintptr_t)((const uint8_t *)g_heap_base + f[13]);   /* +0x34 object */
+    const uint8_t *rle_base = (const uint8_t *)g_heap_base + f[14];             /* +0x38 object */
     int32_t ex = (int32_t)*(uint32_t *)(entity + 0x09);                      /* entity +9 */
     int32_t ey = (int32_t)*(uint32_t *)(entity + 0x0d)
                - (int32_t)*(uint32_t *)(entity + 0x05);                      /* +0xd - +5 */
@@ -13818,9 +13827,9 @@ void fn_03b718(uint8_t *entity, uint32_t base)
 
     fn_03bb42(base, ex - (int32_t)g_dat_639dc - ((f == fa) ? 0xf : 0x18),
               dy - ((f == fa) ? 0xe : 0xd),
-              (int32_t)*(const uint32_t *)(void *)(f->col_obj + 0x2c),
-              *(const uint32_t *)(void *)(f->row_obj + 0x2c),
-              rle_base + *(const uint32_t *)(void *)(f->off_obj + 0x2c), 0); /* 0x3b83b / 0x3b914 */
+              (int32_t)*(const uint32_t *)((const uint8_t *)g_heap_base + f[1] + 0x2c),
+              *(const uint32_t *)((const uint8_t *)g_heap_base + f[2] + 0x2c),
+              rle_base + *(const uint32_t *)((const uint8_t *)g_heap_base + f[13] + 0x2c), 0); /* 0x3b83b / 0x3b914 */
 
     uint32_t off = (uint32_t)(entity - (const uint8_t *)g_heap_base);        /* arg of 0x041c28 */
     if (g_dat_63360 % 3 == 0)                                              /* 0x3b91d-27 */
@@ -13850,7 +13859,18 @@ void fn_03b953(uint32_t base)
     (void)canary_id(0x24, 0x24);                                      /* 0x3b953-58 */
     g_dat_639d4 = g_dat_639cc;                                       /* 0x3b96e-73 */
     for (int32_t i = 0; i < g_dat_639c8; i++) {                       /* 0x3b978-90 */
+        if (g_hit_trace)
+            fprintf(stderr, "VD i=%d n=%u cur=%p age=%u val=%d l11=%p l19=%p\n", i,
+                    (unsigned)g_dat_639c8, (void *)g_dat_639d4,
+                    *(const uint32_t *)(g_dat_639d4 + 0x05),
+                    *(const int32_t *)(g_dat_639d4 + 0x01),
+                    *(void **)(g_dat_639d4 + 0x11), *(void **)(g_dat_639d4 + 0x19));
         fn_03b718(g_dat_639d4, base);                                /* 0x3b992-9a */
+        if (g_hit_trace)
+            fprintf(stderr, "VD i=%d n=%u after cur=%p l11=%p n11=%p\n", i,
+                    (unsigned)g_dat_639c8, (void *)g_dat_639d4,
+                    *(void **)(g_dat_639d4 + 0x11),
+                    *(void **)(g_dat_639d4 + 0x19));
         g_dat_639d4 = *(uint8_t **)(g_dat_639d4 + 0x11);              /* 0x3b99f-a7 (post-free read) */
     }
 }

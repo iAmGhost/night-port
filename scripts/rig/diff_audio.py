@@ -227,6 +227,11 @@ def main():
               f"rms={co['mean_rms']:7.1f} zcr={co['mean_zcr']:.3f} | "
               f"port onsets={cp['onsets']:4d} active={cp['active_frac']:.2f} "
               f"rms={cp['mean_rms']:7.1f} zcr={cp['mean_zcr']:.3f}  [{verdict}]")
+    sched = []
+    if a.port:
+        cd = load_cdda(a.port)
+        if cd and cd[0]:
+            sched = cdda_schedule(cd[0], cd[1], cd[2], eo)
     if a.md:
         os.makedirs(os.path.dirname(a.md) or ".", exist_ok=True)
         with open(a.md, "w") as f:
@@ -237,8 +242,97 @@ def main():
             for label, lo, hi, co, cp, v in rows:
                 f.write(f"| {label} ({lo}-{hi} ms) | {co['onsets']} | {co['active_frac']} | "
                         f"{cp['onsets']} | {cp['active_frac']} | {v} |\n")
+            if sched:
+                f.write("\n```\n" + "\n".join(sched) + "\n```\n")
         print(f"wrote {a.md}")
 
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------- CD-DA schedule
+# The game's music is CD-DA on both sides, so "is the music right" is a schedule question, not a
+# loudness question: which disc extent plays in which window. The port's witness records every play/stop
+# with its index, LBA and length plus the bytes it fed the device, so each witnessed track can be matched
+# against the original's captured mix by its energy profile. A track that plays in the port but never
+# appears (or appears far away in time) in the original's mix is the music items in docs/manual-playtest
+# stated as a measurement.
+def load_cdda(port_dir):
+    d = port_dir if os.path.isdir(port_dir) else os.path.dirname(port_dir)
+    raw, idx = os.path.join(d, "cdda.raw"), os.path.join(d, "cdda.jsonl")
+    if not (os.path.exists(raw) and os.path.exists(idx)):
+        return None, []
+    marks, cursors = [], []
+    for line in open(idx):
+        try:
+            j = json.loads(line)
+        except ValueError:
+            continue
+        if "event" in j:
+            marks.append(j)
+        else:
+            cursors.append(j)
+    return raw, marks, cursors
+
+
+def rms_at(raw, byte_off, n_bytes, rate=44100):
+    """Mean |sample| over one slice of the s16le stereo CD-DA witness, or None past the end."""
+    with open(raw, "rb") as f:
+        f.seek(byte_off)
+        b = f.read(n_bytes)
+    if len(b) < 4:
+        return None
+    import struct as _s
+    n = len(b) // 2
+    v = _s.unpack(f"<{n}h", b[: n * 2])
+    return sum(abs(x) for x in v) / n if v else None
+
+
+def cdda_schedule(raw, marks, cursors, orig_env, bucket_ms=BUCKET_MS, step_ms=500, win_s=20.0):
+    """For every witnessed track: where the port played it, and where in the original's capture the same
+    music profile appears (lag = original_time - port_time)."""
+    FB = step_ms // bucket_ms                      # fingerprint buckets
+    prof = [e[0] for e in orig_env]                # rms per 100 ms
+    out = [f"CD-DA schedule ({len(marks)} marks, fingerprint step {step_ms} ms over "
+           f"{len(prof)} original buckets)"]
+    for m in marks:
+        if m["event"] != "play":
+            continue
+        t0 = m["t_ms"]
+        start = m["bytes"]                          # witness byte offset where this track begins
+        dur = min(win_s, m["sectors"] / 75.0)
+        nb = int(dur * 44100 * 4)                   # s16 stereo bytes
+        seg = [rms_at(raw, start + k * 44100 * 4 // 10, 44100 * 4 // 10)
+               for k in range(int(dur * 10))]
+        seg = [x if x is not None else 0.0 for x in seg]
+        if not any(seg):
+            out.append(f"  track index {m['index']} lba={m['lba']} t={t0/1000:.1f}s: "
+                       f"no samples witnessed")
+            continue
+        fseg = _norm([sum(seg[i * FB:(i + 1) * FB]) / FB for i in range(len(seg) // FB)])
+        fpro = _norm_prof(prof, FB)
+        best, blag = 0.0, 0
+        for lag in range(0, max(1, len(fpro) - len(fseg))):
+            s = sum(a * b for a, b in zip(fseg, fpro[lag:lag + len(fseg)])) / len(fseg)
+            if s > best:
+                best, blag = s, lag
+        pt0 = t0 / 1000.0
+        ot0 = blag * step_ms / 1000.0
+        verdict = ("MATCH" if best > 0.8 and abs(ot0 - pt0) < 2.0 else
+                   f"SHIFTED {ot0 - pt0:+.1f}s" if best > 0.8 else "NOT FOUND in the original mix")
+        out.append(f"  track index {m['index']} lba={m['lba']} sectors={m['sectors']}: "
+                   f"port {pt0:.1f}s -> original {ot0:.1f}s  corr={best:.2f}  [{verdict}]")
+    print("\n" + "\n".join(out))
+    return out
+
+
+def _norm(v):
+    m = sum(v) / len(v) if v else 0.0
+    w = [x - m for x in v]
+    n = sum(x * x for x in w) ** 0.5
+    return [x / n for x in w] if n else v
+
+
+def _norm_prof(prof, fb):
+    return _norm([sum(prof[i * fb:(i + 1) * fb]) / fb for i in range(len(prof) // fb)])

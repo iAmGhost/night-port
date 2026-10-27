@@ -22,6 +22,15 @@
 #define RIG_MAX 512
 
 static FILE *g_bin, *g_meta, *g_marks;
+/* CD-DA witness. The port plays its music straight off the disc through a separate SDL stream, so a
+ * witness on the DSP/PCM path alone cannot see the music at all -- and in the shipped game the music is
+ * CD-DA as well, which is what the container's mixer capture records. cdda.raw holds the s16le stereo
+ * 44100 Hz bytes the port fed to the device, and cdda.jsonl places them on the nominal timeline and
+ * marks every play/stop with the track index, LBA and length, so a missing or wrong track is a schedule
+ * difference that can be read off directly instead of inferred from loudness. */
+static FILE *g_cdda, *g_cdda_idx;
+static uint64_t g_cdda_bytes;
+static long long g_cdda_next_ms;
 static long g_period_ms = 100;
 static long long g_next_raw_ms;
 /* Script anchors move the timeline origin: the playtest script rebases its keys onto shipped game
@@ -66,6 +75,10 @@ void rig_init(const char *dir, int hz) {
     g_meta = fopen(path, "w");
     snprintf(path, sizeof path, "%s/markers.jsonl", dir);
     g_marks = fopen(path, "w");
+    snprintf(path, sizeof path, "%s/cdda.raw", dir);
+    g_cdda = fopen(path, "wb");
+    snprintf(path, sizeof path, "%s/cdda.jsonl", dir);
+    g_cdda_idx = fopen(path, "w");
     if (!g_bin || !g_meta) {
         fprintf(stderr, "rig_sink: cannot open %s\n", dir);
         exit(1);
@@ -248,7 +261,33 @@ void rig_pcm_write(const void *bytes, size_t n) {
     g_pcm_bytes += n;
 }
 
+/* index=-1 marks a stop. `lba`/`sectors` are the disc extent the guest asked for, which is what the
+ * shipped MSCU command carries, so the schedule can be compared against the original's track list. */
+void rig_cdda_marker(long t_ms_in, long index, uint32_t lba, uint32_t sectors) {
+    if (!g_cdda_idx) return;
+    fprintf(g_cdda_idx, "{\"t_ms\":%lld,\"event\":\"%s\",\"index\":%ld,\"lba\":%u,\"sectors\":%u,"
+                        "\"bytes\":%llu}\n", (long long)(t_ms_in + g_t_shift_ms),
+            index < 0 ? "stop" : "play", index, lba, sectors,
+            (unsigned long long)g_cdda_bytes);
+    fflush(g_cdda_idx);
+    g_cdda_next_ms = t_ms_in + g_period_ms;
+}
+
+/* One CD sector (2352 B = 588 stereo frames = 1/75 s of audio) as it was handed to the device. */
+void rig_cdda_sample(long t_ms_in, const void *bytes, unsigned n) {
+    if (!g_cdda || !bytes) return;
+    fwrite(bytes, 1, n, g_cdda);
+    g_cdda_bytes += n;
+    if (g_cdda_idx && t_ms_in >= g_cdda_next_ms) {
+        fprintf(g_cdda_idx, "{\"t_ms\":%lld,\"bytes\":%llu}\n",
+                (long long)(t_ms_in + g_t_shift_ms), (unsigned long long)g_cdda_bytes);
+        g_cdda_next_ms = t_ms_in + g_period_ms;
+    }
+}
+
 void rig_close(void) {
+    if (g_cdda_idx) { fclose(g_cdda_idx); g_cdda_idx = NULL; }
+    if (g_cdda) { fclose(g_cdda); g_cdda = NULL; }
     if (g_pcm) {
         uint32_t dsz = (uint32_t)(g_pcm_bytes < 0x7fffffff ? g_pcm_bytes : 0x7fffffff);
         uint32_t riff = dsz + 36;

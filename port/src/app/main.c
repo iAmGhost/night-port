@@ -240,6 +240,10 @@ static void audio_boot(void) {
  * With no device at all the track is still consumed on the disc's own 75-sectors-per-second clock,
  * so the counters -- and the game's refresh watchdog, which compares DAT_00063e38/490 against
  * DAT_00053c48 (the track length in seconds) -- behave the same way. */
+/* CD-DA witness (app/rig_sink.c): the disc path is where the game's music lives, so the audio oracle
+ * needs it as well as the DSP/PCM path. */
+void rig_cdda_marker(long t_ms, long index, uint32_t lba, uint32_t sectors);
+void rig_cdda_sample(long t_ms, const void *bytes, unsigned n);
 static SDL_AudioStream *g_cdda_stream;
 static uint32_t  g_cdda_lba, g_cdda_sectors, g_cdda_pos;
 static uint64_t  g_cdda_bytes, g_cdda_sector_reads;
@@ -263,9 +267,11 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     }
     SDL_Log("cdda: track index %u lba=%u sectors=%u (%.1f s)%s", index, lba, sectors,
             sectors / 75.0, g_cdda_stream ? "" : " (no device: counted, not played)");
+    if (g_rig_dir) rig_cdda_marker(pt_now_ms(), (long)index, lba, sectors);
 }
 
 static void cdda_stop(void) {
+    if (g_rig_dir) rig_cdda_marker(pt_now_ms(), -1, g_cdda_lba, g_cdda_sectors);
     g_cdda_sectors = 0; g_cdda_pos = 0;
     if (g_cdda_stream) SDL_FlushAudioStream(g_cdda_stream);
 }
@@ -286,6 +292,7 @@ static void cdda_pump(void) {
         if (cd_iso_read_audio(g_cdda_lba + g_cdda_pos, g_cdda_raw) != 0) { g_cdda_sectors = 0; break; }
         if (g_cdda_stream && !SDL_PutAudioStreamData(g_cdda_stream, g_cdda_raw, 2352)) { g_cdda_sectors = 0; break; }
         g_cdda_bytes += 2352; g_cdda_sector_reads++; g_cdda_pos++;
+        if (g_rig_dir) rig_cdda_sample(pt_now_ms(), g_cdda_raw, 2352);
     }
 }
 

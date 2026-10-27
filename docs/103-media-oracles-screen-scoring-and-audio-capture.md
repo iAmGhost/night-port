@@ -91,13 +91,30 @@ fresh containers (state replay with `--audio-capture`, then a screen capture), p
 out with `docker cp`, and runs the four oracles into `$OUT/DIVERGENCE.md` with timestamps. A 25 s route
 takes ~3 minutes; every step is timeout-capped.
 
-Injected control (rig-runtime contract — the rig must catch a deliberately broken build):
-`NIGHT_RIG_CONTROL=no_timer` in the port host stops running the guest's tick handler. The rig notices
-without being told: the screen pacing check moves the port from 2.85 picture changes/s (ratio 3.51) to
-14.52/s (ratio 0.69), crossing the tolerance band, while the clean run's ratio sits outside it in the
-other direction. `NIGHT_RIG_CONTROL=no_draw` (compose, never present) is **not** observable through the
-port's own screen witness — the witness is the composed buffer, not the window — and is recorded as a
-hole rather than pretended away.
+Injected controls (rig-runtime contract — the rig must catch a deliberately broken build).
+The port host accepts `NIGHT_RIG_CONTROL=<fault>`; each fault stubs a piece of the shipped game rather
+than faking a value. Measured on the same 25 s title route against the same original replay
+(`/tmp/rig/route-a1/orig`), the rig's own outputs, nobody told which fault was in force:
+
+| build | state-oracle tally | screen route | pacing (changes/s, orig 2.20) |
+|---|---|---|---|
+| clean | DIFF 77, REC-DIFF 37, REC-NULL 6, SAME 67 | 4 divergent runs | port 6.91 → ratio 0.32 |
+| `no_timer` (fn_03ee88 never called) | DIFF 76, **REC-SAME 6, REC-NULL 37**, SAME 67 | 4 divergent runs | port 4.52 → ratio 0.49 |
+| `no_input` (scripted keys never reach the key state) | DIFF 78, REC-DIFF 37, SAME 67 | 4 divergent runs | port 12.66 → ratio 0.17 |
+
+The signatures are different and both are machine-visible: `no_timer` freezes *game* time, so the
+successive record snapshots stop changing and the state oracle's verdict for the record stream flips
+from `REC-DIFF` to `REC-SAME`/`REC-NULL` — that appears in no other build. `no_input` leaves the port
+sitting on the attract card, whose redraws push its picture-change rate to *twice* the clean build's,
+so the pacing check separates 12.66 / 6.91 / 4.52 without knowing which fault ran.
+
+Correction, recorded because it matters: an earlier draft of this section cited a `no_timer` run with
+numbers like "2.85 → 14.52 changes/s" from before that control existed (only `no_draw` was
+implemented then, so that run measured nothing injected). The table above is the measurement.
+
+`NIGHT_RIG_CONTROL=no_draw` (compose, never present) is **not** observable through the port's own
+screen witness — the witness is the composed buffer, taken before the present decision — and is
+recorded as a hole rather than pretended away.
 
 ## 5. Reproduce
 
@@ -107,6 +124,6 @@ python3 scripts/rig/diff_screen.py --orig $OUT/orig_screen/frames.bin --port $OU
         --orig-run $OUT/orig --md $OUT/report_screen.md
 python3 scripts/rig/diff_audio.py  --orig $OUT/orig/audio.wav --port $OUT/port/pcm.wav \
         --port-cells $OUT/port/cells.bin --drive scripts/rig/drives/title_basic.txt
-NIGHT_RIG_CONTROL=no_timer timeout 60 ./port/test/night --res-dir ./NIGHT \
-        --script scripts/rig/drives/title_basic.txt --rig-dump /tmp/rig/portCtl --rig-hz 10 --frames 2500
+NIGHT_RIG_CONTROL=no_timer timeout 90 ./port/test/night --res-dir ./NIGHT \
+        --script scripts/rig/drives/title_basic.txt --rig-dump /tmp/rig/ctl-no_timer --rig-hz 10 --frames 1600
 ```

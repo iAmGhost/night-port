@@ -117,6 +117,26 @@ void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, i
 void rig_pcm_write(const void *bytes, size_t n);
 static const char *g_rig_dir;
 
+/* ---- injected controls (rig-runtime contract: the rig must detect a deliberately broken build) ----
+ * NIGHT_RIG_CONTROL selects one fault; the oracles have to notice without being told which. Each one
+ * is a *stubbed helper*, not a fake value: the host stops running a piece of the shipped game.
+ *   no_timer : the guest's installed timer handler (fn_03ee88) is never called; the pump bookkeeping
+ *              stays, so the host still presents frames while game time stands still
+ *   no_input : scripted key events are parsed, logged and marked, but never reach the key state
+ *   no_draw  : the frame is composed and recorded, never presented */
+static int g_rig_ctl;
+static void rig_ctl_init(void) {
+    const char *rc = getenv("NIGHT_RIG_CONTROL");
+    g_rig_ctl = !rc ? 0 : !strcmp(rc, "no_timer") ? 1 : !strcmp(rc, "no_input") ? 2 :
+                !strcmp(rc, "no_draw") ? 4 : 0;
+    if (g_rig_ctl)
+        SDL_Log("rig control injected: %s%s", rc,
+                g_rig_ctl == 4 ? " (NOT observable through the port's own screen witness: that "
+                                "witness records the composed buffer, before the present decision)" : "");
+    else if (rc)
+        SDL_Log("rig control ignored: unknown NIGHT_RIG_CONTROL=%s", rc);
+}
+
 static void present(void) {
     /* The room path composites a 320x200 frame (pitch 0x140, 0xfa00 bytes) and flips exactly those
      * 64000 bytes to the framebuffer start (fn_038098), while the slide path fills the whole 640x480
@@ -135,8 +155,7 @@ static void present(void) {
     }
     if (g_rig_dir)
         rig_screen_frame(pt_now_ms(), (unsigned long long)g_frames, g_pixels, vw, vh, 3, 2, 1);
-    { const char *rc = getenv("NIGHT_RIG_CONTROL");
-      if (rc && !strcmp(rc, "no_draw")) return;    /* composed and recorded, never shown */ }
+    if (g_rig_ctl & 4) return;                       /* composed and recorded, never shown */
     SDL_UpdateTexture(g_tex, NULL, g_pixels, vw * 4);
     SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255);
     SDL_RenderClear(g_ren);
@@ -572,7 +591,10 @@ static void pt_drive(void) {
         if (e->kind == PT_SHOT) { shot_named(e->name); continue; }
         SDL_Log("script: key %#02x %s (t=%ldms)", e->sc, e->make ? "down" : "up", e->t_ms);
         if (g_rig_dir) rig_marker(e->t_ms, "key %#02x %s", e->sc, e->make ? "down" : "up");
-        key_apply(e->sc, e->make);
+        if (g_rig_ctl & 2)
+            SDL_Log("rig control: key %#02x %s withheld", e->sc, e->make ? "down" : "up");
+        else
+            key_apply(e->sc, e->make);
     }
 }
 
@@ -1209,7 +1231,11 @@ static void tick_pump(void) {
         while (now >= g_tick_next && calls < 64) { g_tick_next += period; calls++; }
         calls--;
     }
-    while (calls--) { fn_03ee88(); g_timer_calls++; }
+    if (g_rig_ctl & 1) {
+        g_pump_calls++;                                /* the pump runs; the shipped tick handler does not */
+    } else {
+        while (calls--) { fn_03ee88(); g_timer_calls++; }
+    }
 
     if (now >= g_present_next) {
         present();
@@ -1321,6 +1347,7 @@ int main(int argc, char **argv) {
         }
     }
     sys_set_input_pump(input_pump);
+    rig_ctl_init();
     sys_set_tick_pump(tick_pump);
 
     g_start_time = SDL_GetPerformanceCounter();

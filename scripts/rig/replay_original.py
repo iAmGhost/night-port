@@ -55,11 +55,36 @@ def load_ds_base():
     return json.load(open(p))["phys_ds_base"]
 
 
+def read_at(base, token, phys_addr, n):
+    return api(base, token, f"/api/v1/memory/{phys_addr}/{n}", timeout=60)
+
+
 def read_ds(base, token, phys_base):
     out = b""
     for a in range(DS_LO, DS_HI, CHUNK):
         n = min(CHUNK, DS_HI - a)
         out += api(base, token, f"/api/v1/memory/{phys_base + a}/{n}", timeout=60)
+    return out
+
+
+def res_names(ds):
+    """Resource lookups are the event anchors both sides can see: the guest leaves the name of the
+    resource it is working on as ASCII somewhere in DS, and the port announces every lookup. Scan for
+    name-shaped strings instead of assuming an address for the name buffer."""
+    out = set()
+    i = 0
+    while i < len(ds):
+        c = ds[i]
+        if 0x20 <= c < 0x7f:
+            j = i
+            while j < len(ds) and 0x20 <= ds[j] < 0x7f:
+                j += 1
+            run = ds[i:j].decode("ascii", "replace").strip()
+            if run.lower().endswith((".pcx", ".spr", ".fli", ".act", ".voc", ".wav", ".mid")):
+                out.add(run.lower())
+            i = j
+        else:
+            i += 1
     return out
 
 
@@ -72,6 +97,14 @@ def parse_drive(path):
     return steps
 
 
+# the drive files name keys the way the port's playtest scripts do; the emulator wants XT set-1
+# break-code names.
+KEYNAME = {"enter": "KBD_enter", "return": "KBD_enter", "space": "KBD_space", "esc": "KBD_escape",
+           "tab": "KBD_tab", "up": "KBD_up", "down": "KBD_down", "left": "KBD_left",
+           "right": "KBD_right", "ctrl": "KBD_leftctrl", "shift": "KBD_leftshift",
+           "alt": "KBD_leftalt", "backspace": "KBD_backspace"}
+
+
 def parse_events(steps):
     events = []
     for f in steps:
@@ -80,7 +113,8 @@ def parse_events(steps):
     for f in steps:
         if f[1] == "key":
             press = f[3].startswith("d")
-            events.append({"t": int(f[0]), "type": "key", "key": f[2], "pressed": press})
+            kn = KEYNAME.get(f[2].lower(), f[2])
+            events.append({"t": int(f[0]), "type": "key", "key": kn, "pressed": press})
         elif f[0] != "anchor":
             sys.exit(f"unknown drive step: {' '.join(f)}")
     return events
@@ -136,14 +170,32 @@ def main():
     t0 = time.time()
     api(a.base, token, "/api/v1/input/sequence", "POST", {"events": events})
 
+    # pointer cells: the guest keeps entity/record objects on the heap; a fixed-size block at each
+    # pointer is dumped so record fields can be compared at a fixed record offset (no layout guess).
+    cells = json.load(open(os.path.join(HERE, "..", "audit", "gen", "rig_cells.json")))
+    ptr_cells = [c for c in cells if c["ptr"] and c["guest_size"] in (0, 4)]
+    PTR_BYTES = 64
+
+    def read_ptrs(ds):
+        out = b""
+        for c in ptr_cells:
+            v = int.from_bytes(ds[c["ds"] - DS_LO: c["ds"] - DS_LO + 4], "little")
+            out += read_at(a.base, token, v, PTR_BYTES) if v else bytes(PTR_BYTES)
+        return out
+
     states, prev = [], None
     last_ds = None
+    all_res, res_events = set(), []
     while time.time() - t0 < a.seconds:
         ds = read_ds(a.base, token, phys_base)
         fr = api(a.base, token, "/api/v1/video/frame?format=raw", timeout=60)
         info = json.loads(api(a.base, token, "/api/v1/video/frame/info"))
         dsh, frh = masked_digest(ds, mask), hashlib.sha1(fr).hexdigest()
         now = time.time() - t0
+        for nm in res_names(ds):
+            if nm not in all_res:
+                all_res.add(nm)
+                res_events.append({"t_wall": round(now, 3), "event": "res", "name": nm})
         if prev != (dsh, frh):
             states.append({"t_wall": round(now, 3), "ds_sha": dsh, "frame_sha": frh,
                            "mode": info.get("video_mode"), "w": info.get("width"),
@@ -153,12 +205,16 @@ def main():
                 f.write(ds)
             with open(os.path.join(a.out, f"state_{len(states) - 1:04d}.frame.bin"), "wb") as f:
                 f.write(fr)
+            with open(os.path.join(a.out, f"state_{len(states) - 1:04d}.heap.bin"), "wb") as f:
+                f.write(read_ptrs(ds))
             prev = (dsh, frh)
         time.sleep(1.0 / a.hz)
 
-    meta = {"drive": os.path.abspath(a.drive), "events": events, "anchor": anchor, "hz": a.hz,
+    meta = {"ptr_cells": [{"ds": c["ds"], "name": c["name"], "rec_bytes": PTR_BYTES}
+                          for c in ptr_cells],
+            "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor, "hz": a.hz,
             "seconds": a.seconds, "states": len(states), "cycles": cyc,
-            "timeline": states}
+            "res_events": res_events, "timeline": states}
     json.dump(meta, open(os.path.join(a.out, "timeline.json"), "w"), indent=1)
     print(f"{len(states)} distinct states over {a.seconds}s -> {a.out}/timeline.json")
 

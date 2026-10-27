@@ -1,0 +1,2189 @@
+[
+ {
+  "ds": 334348,
+  "name": "g_dat_51a0c",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 334352,
+  "name": "g_dat_51a10",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 334540,
+  "name": "g_rom_51acc",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 7,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 334548,
+  "name": "g_rom_51ad4",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 26,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 337740,
+  "name": "g_tab_5274c",
+  "ctype": "float",
+  "guest_size": 0,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 338100,
+  "name": "g_tab_528b4",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 338460,
+  "name": "g_tab_52a1c",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 338820,
+  "name": "g_tab_52b84",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 90,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 338912,
+  "name": "g_tab_52be0",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 100,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 339004,
+  "name": "g_tab_52c3c",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 339364,
+  "name": "g_tab_52da4",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 339720,
+  "name": "g_dat_52f08",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 339756,
+  "name": "g_tab_52f2c",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 40,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 339856,
+  "name": "g_tab_52f90",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 40,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 339892,
+  "name": "g_dat_52fb4",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 339960,
+  "name": "g_dat_52ff8",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 339964,
+  "name": "g_tab_52ffc",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340148,
+  "name": "g_dat_530b4",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340152,
+  "name": "g_dat_530b8",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340156,
+  "name": "g_dat_530bc",
+  "ctype": "int32_t",
+  "guest_size": 0,
+  "host_size": 64,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340224,
+  "name": "g_dat_53100",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340228,
+  "name": "g_dat_53104",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340232,
+  "name": "g_tab_53108",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340256,
+  "name": "g_tab_53120",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340280,
+  "name": "g_tab_53138",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340304,
+  "name": "g_tab_53150",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340328,
+  "name": "g_tab_53168",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340352,
+  "name": "g_tab_53180",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340376,
+  "name": "g_tab_53198",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340400,
+  "name": "g_tab_531b0",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340424,
+  "name": "g_tab_531c8",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340448,
+  "name": "g_tab_531e0",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 20,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340468,
+  "name": "g_dat_531f4",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340472,
+  "name": "g_dat_531f8",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340788,
+  "name": "g_dat_53334",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340792,
+  "name": "g_dat_53338",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340828,
+  "name": "g_rng_state",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340840,
+  "name": "g_dat_53368",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340856,
+  "name": "g_dat_53378",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340860,
+  "name": "g_dat_5337c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340876,
+  "name": "g_dat_5338c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340892,
+  "name": "g_dat_5339c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340900,
+  "name": "g_dat_533a4",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340921,
+  "name": "g_dat_533b9",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340923,
+  "name": "g_dat_533bb",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341004,
+  "name": "g_dat_5340c",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341073,
+  "name": "g_dat_53451",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 341529,
+  "name": "g_dat_53619",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341564,
+  "name": "g_dat_5363c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 341568,
+  "name": "g_dat_53640",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 341720,
+  "name": "g_dat_536d8",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341724,
+  "name": "g_dat_536dc",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 341808,
+  "name": "g_dat_53730",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 341884,
+  "name": "g_dat_5377c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341892,
+  "name": "g_dat_53784",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341896,
+  "name": "g_dat_53788",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341927,
+  "name": "g_dat_537a7",
+  "ctype": "uint32_t",
+  "guest_size": 1,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341962,
+  "name": "g_dat_537ca",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 2
+ },
+ {
+  "ds": 341972,
+  "name": "g_dat_537d4",
+  "ctype": "char **",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 342040,
+  "name": "g_dat_53818",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 342844,
+  "name": "g_dat_53b3c",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343040,
+  "name": "g_dat_53c00",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343080,
+  "name": "g_dat_53c28",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 343084,
+  "name": "g_dat_53c2c",
+  "ctype": "uint32_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 343088,
+  "name": "g_dat_53c30",
+  "ctype": "uint32_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 343104,
+  "name": "g_dat_53c40",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343108,
+  "name": "g_dat_53c44",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 343112,
+  "name": "g_dat_53c48",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343116,
+  "name": "g_dat_53c4c",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 9,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343128,
+  "name": "g_dat_53c58",
+  "ctype": "uint32_t",
+  "guest_size": 2,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343136,
+  "name": "g_dat_53c60",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343140,
+  "name": "g_dat_53c64",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 343144,
+  "name": "g_dat_53c68",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343148,
+  "name": "g_dat_53c6c",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 343152,
+  "name": "g_dat_53c70",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 2
+ },
+ {
+  "ds": 343156,
+  "name": "g_dat_53c74",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 343160,
+  "name": "g_dat_53c78",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 343164,
+  "name": "g_dat_53c7c_null_warned",
+  "ctype": "int",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 343180,
+  "name": "g_dat_53c8c",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343184,
+  "name": "g_dat_53c90",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343188,
+  "name": "g_dat_53c94",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 120,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343304,
+  "name": "g_tab_53d08",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343308,
+  "name": "g_pool_53d0c",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343508,
+  "name": "g_dat_53dd4",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 343512,
+  "name": "g_dat_53dd8",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343516,
+  "name": "g_dat_53ddc",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343520,
+  "name": "g_dat_53de0",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343524,
+  "name": "g_dat_53de4",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343588,
+  "name": "g_dat_53e24",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 80,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 343708,
+  "name": "g_dat_53e9c",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 343720,
+  "name": "g_dat_53ea8",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 381068,
+  "name": "g_dat_5d08c",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 20,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 381088,
+  "name": "g_dat_5d0a0",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 20,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 381108,
+  "name": "g_dat_5d0b4",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 2
+ },
+ {
+  "ds": 383108,
+  "name": "g_tab_5d884",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404108,
+  "name": "g_dat_62a8c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404112,
+  "name": "g_dat_62a90",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404116,
+  "name": "g_dat_62a94",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404120,
+  "name": "g_dat_62a98",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404124,
+  "name": "g_dat_62a9c",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404132,
+  "name": "g_dat_62aa4",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404136,
+  "name": "g_dat_62aa8",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404140,
+  "name": "g_dat_62aac",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404144,
+  "name": "g_dat_62ab0",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404148,
+  "name": "g_dat_62ab4",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404152,
+  "name": "g_dat_62ab8",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404156,
+  "name": "g_dat_62abc",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404160,
+  "name": "g_dat_62ac0",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404164,
+  "name": "g_dat_62ac4",
+  "ctype": "uint8_t *",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404168,
+  "name": "g_dat_62ac8",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 200,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 404368,
+  "name": "g_dat_62b90",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 200,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404568,
+  "name": "g_dat_62c58",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 128,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404696,
+  "name": "g_dat_62cd8",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 128,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404824,
+  "name": "g_dat_62d58",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 404828,
+  "name": "g_dat_62d5c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404832,
+  "name": "g_dat_62d60",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 404836,
+  "name": "g_dat_62d64",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 404840,
+  "name": "g_dat_62d68",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406276,
+  "name": "g_dat_63304",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 406280,
+  "name": "g_dat_63308",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406284,
+  "name": "g_dat_6330c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 406296,
+  "name": "g_dat_63318",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406308,
+  "name": "g_dat_63324",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406316,
+  "name": "g_dat_6332c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406320,
+  "name": "g_dat_63330",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406324,
+  "name": "g_dat_63334",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406328,
+  "name": "g_dat_63338",
+  "ctype": "uint32_t",
+  "guest_size": 2,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406332,
+  "name": "g_dat_6333c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406348,
+  "name": "g_dat_6334c",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 406352,
+  "name": "g_dat_63350",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 406364,
+  "name": "g_dat_6335c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406368,
+  "name": "g_dat_63360",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 406372,
+  "name": "g_dat_63364",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406376,
+  "name": "g_dat_63368",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406380,
+  "name": "g_dat_6336c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406384,
+  "name": "g_dat_63370",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 2
+ },
+ {
+  "ds": 406388,
+  "name": "g_dat_63374",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 406392,
+  "name": "g_dat_63378",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406396,
+  "name": "g_dat_6337c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406400,
+  "name": "g_dat_63380",
+  "ctype": "uint32_t",
+  "guest_size": 1,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406404,
+  "name": "g_dat_63384",
+  "ctype": "uint32_t",
+  "guest_size": 1,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406408,
+  "name": "g_dat_63388",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406424,
+  "name": "g_dat_63398",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 406428,
+  "name": "g_dat_6339c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406432,
+  "name": "g_dat_633a0",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 406436,
+  "name": "g_dat_633a4",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406440,
+  "name": "g_dat_633a8",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406444,
+  "name": "g_dat_633ac",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406448,
+  "name": "g_dat_633b0",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406452,
+  "name": "g_dat_633b4",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 406456,
+  "name": "g_dat_633b8",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 407224,
+  "name": "g_dat_636b8",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 407996,
+  "name": "g_dat_639bc",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 408000,
+  "name": "g_dat_639c0",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 408008,
+  "name": "g_dat_639c8",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 408012,
+  "name": "g_dat_639cc",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 408016,
+  "name": "g_dat_639d0",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 408020,
+  "name": "g_dat_639d4",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 408024,
+  "name": "g_dat_639d8",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 408028,
+  "name": "g_dat_639dc",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 408032,
+  "name": "g_dat_639e0",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 408036,
+  "name": "g_dat_639e4",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 408044,
+  "name": "g_dat_639ec",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 256,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 409044,
+  "name": "g_dat_63dd4",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 409088,
+  "name": "g_dat_63e00",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 409100,
+  "name": "g_dat_63e0c",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 409108,
+  "name": "g_dat_63e14",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409112,
+  "name": "g_dat_63e18",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409116,
+  "name": "g_dat_63e1c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409120,
+  "name": "g_dat_63e20",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409124,
+  "name": "g_dat_63e24",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409128,
+  "name": "g_dat_63e28",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409132,
+  "name": "g_dat_63e2c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409136,
+  "name": "g_dat_63e30",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409140,
+  "name": "g_dat_63e34",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409144,
+  "name": "g_dat_63e38",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409148,
+  "name": "g_dat_63e3c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409152,
+  "name": "g_dat_63e40",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409156,
+  "name": "g_dat_63e44",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409160,
+  "name": "g_dat_63e48",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409162,
+  "name": "g_dat_63e4a",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409164,
+  "name": "g_dat_63e4c",
+  "ctype": "uint32_t",
+  "guest_size": 1,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409168,
+  "name": "g_dat_63e50",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409176,
+  "name": "g_dat_63e58",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409180,
+  "name": "g_dat_63e5c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409184,
+  "name": "g_dat_63e60",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409188,
+  "name": "g_dat_63e64",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409192,
+  "name": "g_dat_63e68",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409208,
+  "name": "g_dat_63e78",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409212,
+  "name": "g_dat_63e7c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409216,
+  "name": "g_dat_63e80",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409220,
+  "name": "g_dat_63e84",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409222,
+  "name": "g_dat_63e86",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409224,
+  "name": "g_dat_63e88",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 128,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409225,
+  "name": "g_dat_63e89",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409252,
+  "name": "g_dat_63ea4",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409253,
+  "name": "g_dat_63ea5",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409268,
+  "name": "g_dat_63eb4",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409278,
+  "name": "g_dat_63ebe",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409280,
+  "name": "g_dat_63ec0",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409281,
+  "name": "g_dat_63ec1",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409283,
+  "name": "g_dat_63ec3",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409296,
+  "name": "g_dat_63ed0",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409299,
+  "name": "g_dat_63ed3",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409301,
+  "name": "g_dat_63ed5",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409304,
+  "name": "g_dat_63ed8",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409352,
+  "name": "g_dat_63f08",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409356,
+  "name": "g_dat_63f0c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409364,
+  "name": "g_dat_63f14",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 16,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409374,
+  "name": "g_dat_63f1e",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 16,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409384,
+  "name": "g_dat_63f28",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 64,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409420,
+  "name": "g_dat_63f4c",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409424,
+  "name": "g_dat_63f50",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409425,
+  "name": "g_dat_63f51",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409428,
+  "name": "g_dat_63f54",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409432,
+  "name": "g_dat_63f58",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409436,
+  "name": "g_dat_63f5c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409440,
+  "name": "g_dat_63f60",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409444,
+  "name": "g_dat_63f64",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409448,
+  "name": "g_dat_63f68",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409452,
+  "name": "g_dat_63f6c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409456,
+  "name": "g_dat_63f70",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409460,
+  "name": "g_dat_63f74",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409464,
+  "name": "g_dat_63f78",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409468,
+  "name": "g_dat_63f7c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409472,
+  "name": "g_dat_63f80",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409476,
+  "name": "g_dat_63f84",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409480,
+  "name": "g_dat_63f88",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409484,
+  "name": "g_dat_63f8c",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409488,
+  "name": "g_63f90",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 2
+ },
+ {
+  "ds": 409492,
+  "name": "g_dat_63f94",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409496,
+  "name": "g_dat_63f98",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409500,
+  "name": "g_dat_63f9c",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409512,
+  "name": "g_dat_63fa8",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 409516,
+  "name": "g_dat_63fac",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409520,
+  "name": "g_dat_63fb0",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409524,
+  "name": "g_dat_63fb4",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 409528,
+  "name": "g_dat_63fb8",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409604,
+  "name": "g_dat_64004",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409608,
+  "name": "g_dat_64008",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409744,
+  "name": "g_dat_64090",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409748,
+  "name": "g_dat_64094",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 409792,
+  "name": "g_dat_640c0",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ }
+]

@@ -97,6 +97,10 @@
   "0x63f09": {
    "bytes_differing_runs": 6,
    "name": "?"
+  },
+  "0x63e1c": {
+   "name": "g_dat_63e1c",
+   "reason": "varies across identical replays (allocation address / timing)"
   }
  }
 }

@@ -26926,3 +26926,6 @@ void fn_0445c9(void) {
     fn_03af18();                                                         /* 0x04460e */
     fn_0423b7(0, 0, 0, 0);                                               /* 0x044613 */
 }
+
+/* the rig's state-dump table (generated; see src/f/rig_cells.h) */
+#include "rig_table.h"

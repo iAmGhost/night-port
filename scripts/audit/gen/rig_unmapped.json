@@ -1,0 +1,56 @@
+[
+ {
+  "ds": 1047,
+  "name": "g_dat_00417",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 262160,
+  "name": "g_dat_40010",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 262168,
+  "name": "g_dat_40018",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 262172,
+  "name": "g_dat_4001c",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 262176,
+  "name": "g_dat_40020",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 297526,
+  "name": "g_scale_48a36",
+  "ctype": "uint16_t",
+  "guest_size": 0,
+  "host_size": 18,
+  "ptr": 0,
+  "dupes": 0
+ }
+]

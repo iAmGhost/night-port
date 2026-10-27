@@ -20,6 +20,7 @@
  */
 #include "cd/cd_iso.h"
 #include "f/f.h"
+#include "f/rig_cells.h"
 #include "sys/sys.h"
 #include "keymap.h"
 
@@ -400,6 +401,15 @@ enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2 };
 static struct pt_evt *g_pt;
 static int g_pt_n, g_pt_i;
 static const char *g_shots_dir;
+
+/* rig_sink (app/rig_sink.c): state-oracle dump; the table itself is generated from the shipped
+ * symbol database by scripts/audit/gen_headers.py. */
+void rig_init(const char *dir, int hz);
+void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes);
+void rig_marker(long t_ms, const char *fmt, ...);
+void rig_close(void);
+static const char *g_rig_dir;
+static int g_rig_hz = 10;
 static FILE *g_manifest;
 static int g_shot_seq;
 static int g_shot_limit = 600;            /* NIGHT_SHOTLIMIT: a dense 20-55 Hz series across a 90 s run needs
@@ -494,6 +504,7 @@ static long g_pt_done_ms = -1;                       /* when the last scripted e
 static int g_reslog_verbose = -1;          /* NIGHT_RESLOG=1: print every lookup in order (feature-sweep
                                            * inventory: which .spr/.act/.pcx families a given episode touches) */
 static void reslog_add(const char *name) {
+    if (g_rig_dir) rig_marker(pt_now_ms(), "res %s", name);   /* event anchor for the rig (docs/56) */
     if (g_reslog_verbose < 0) { const char *e = getenv("NIGHT_RESLOG"); g_reslog_verbose = (e && e[0] == '1'); }
     if (g_reslog_verbose) SDL_Log("resseq %-22s n=%d", name, g_reslog_n);
     if (g_reslog_n < (int)(sizeof g_reslog / sizeof g_reslog[0])) {
@@ -542,6 +553,7 @@ static void pt_drive(void) {
         if (g_pt_i >= g_pt_n) g_pt_done_ms = t;      /* script exhausted: let the host wrap up cleanly */
         if (e->kind == PT_SHOT) { shot_named(e->name); continue; }
         SDL_Log("script: key %#02x %s (t=%ldms)", e->sc, e->make ? "down" : "up", e->t_ms);
+        if (g_rig_dir) rig_marker(e->t_ms, "key %#02x %s", e->sc, e->make ? "down" : "up");
         key_apply(e->sc, e->make);
     }
 }
@@ -929,6 +941,8 @@ static void key_apply(uint8_t sc, int make) { night_key_apply(sc, make); }
 static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
     pt_drive();                                                /* the playtest script's key timeline */
+    if (g_rig_dir) rig_poll(pt_now_ms(), (unsigned long long)g_frames,
+                           (unsigned long long)g_audio_submitted);
     shots_resource_edge();   /* names announced inside a nested screen are only visible from a spin point */
     warp_shots_poll();       /* dense frames while a host-warp screen is up */
     card_shots_poll(g_vid_w ? g_vid_w : sys_video_w());   /* the slide show runs inside one host step, so
@@ -1216,6 +1230,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--shot-limit") && i + 1 < argc) g_shot_limit = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot-delay") && i + 1 < argc) g_shot_delay_ms = (Uint64)atoi(argv[++i]);
         else if (!strcmp(argv[i], "--warp-stage") && i + 1 < argc) g_warp_stage = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--rig-dump") && i + 1 < argc) g_rig_dir = argv[++i];
+        else if (!strcmp(argv[i], "--rig-hz") && i + 1 < argc) g_rig_hz = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--no-scene-shots")) g_shot_scene = 0;
         else if (!strcmp(argv[i], "--no-res-shots")) g_shot_res = 0;
         else if (!strcmp(argv[i], "--help")) {
@@ -1255,6 +1271,8 @@ int main(int argc, char **argv) {
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;
     if (!g_ren) { SDL_Log("no renderer: %s", SDL_GetError()); return 1; }
     g_perf_freq = SDL_GetPerformanceFrequency();
+    if (g_rig_dir) { rig_init(g_rig_dir, g_rig_hz); SDL_Log("rig: dumping %d DS cells to %s at %d Hz",
+                        rig_cell_count(), g_rig_dir, g_rig_hz); }
 
     /* ---- port boot (the recipe the real-data test uses, docs/15) ---- */
     sys_set_fatal_handler(on_fatal);

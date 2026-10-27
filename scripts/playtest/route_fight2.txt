@@ -1,0 +1,101 @@
+# docs/94 two-way combat run: reach the live episode-1 room, close on the enemies and fight.
+# NIGHT_HITTRACE=1 logs every fn_01441e hit (attacker/victim/slot/dmg/hp). Shots sample the HUD.
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+170000 wait res stage1.pcx
+171000 shot fight_start
+172000 key right down
+173800 key right up
+174200 key lctrl down
+174650 key lctrl up
+174900 key lctrl down
+175350 key lctrl up
+175600 key lctrl down
+176050 key lctrl up
+176450 shot bar_01
+176300 key lctrl down
+176750 key lctrl up
+177000 key lctrl down
+177450 key lctrl up
+177700 key left down
+178300 key left up
+178500 key right down
+179100 key right up
+179300 key lctrl down
+179750 key lctrl up
+180150 shot bar_02
+180000 key lctrl down
+180450 key lctrl up
+180700 key lctrl down
+181150 key lctrl up
+181400 key lctrl down
+181850 key lctrl up
+182250 shot bar_03
+182100 key lctrl down
+182550 key lctrl up
+182800 key left down
+183400 key left up
+183600 key right down
+184200 key right up
+184400 key lctrl down
+184850 key lctrl up
+185100 key lctrl down
+185550 key lctrl up
+185950 shot bar_04
+185800 key lctrl down
+186250 key lctrl up
+186500 key lctrl down
+186950 key lctrl up
+187200 key lctrl down
+187650 key lctrl up
+188050 shot bar_05
+187900 key left down
+188500 key left up
+188700 key right down
+189300 key right up
+189500 key lctrl down
+189950 key lctrl up
+190200 key lctrl down
+190650 key lctrl up
+190900 key lctrl down
+191350 key lctrl up
+191750 shot bar_06
+191600 key lctrl down
+192050 key lctrl up
+192300 key lctrl down
+192750 key lctrl up
+193000 key left down
+193600 key left up
+193800 key right down
+194400 key right up
+194600 key lctrl down
+195050 key lctrl up
+195450 shot bar_07
+195300 key lctrl down
+195750 key lctrl up
+196000 key lctrl down
+196450 key lctrl up
+196700 key lctrl down
+197150 key lctrl up
+197550 shot bar_08
+197400 key lctrl down
+197850 key lctrl up
+198100 key left down
+198700 key left up
+198900 key right down
+199500 key right up
+199700 key lctrl down
+200150 key lctrl up
+200400 key lctrl down
+200850 key lctrl up
+201250 shot bar_09
+201100 key lctrl down
+201550 key lctrl up
+201800 key lctrl down
+202250 key lctrl up

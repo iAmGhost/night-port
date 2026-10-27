@@ -10374,7 +10374,10 @@ static void test_fn_013c4d(void)
     for (int i = 0; i < 8; i++) *(uint16_t *)(bfr + 2u*i) = (uint16_t)i;
 
     /* the shared pair record passed in EBX (its per-frame sub-record is at +0x200 here) */
-    uint32_t prec_off = heap_arena_alloc(0x220); uint8_t *prec = hb + prec_off; memset(prec, 0, 0x220);
+    uint32_t prec_off = heap_arena_alloc(0x280); uint8_t *prec = hb + prec_off; memset(prec, 0, 0x280);
+    /* docs/94: the sub-record at ROFF=0x200 reaches byte +0x63 -> 0x263; the old 0x220 allocation let
+     * prec[ROFF+0x3e..0x63] spill into the afr frame array allocated right after it. Harmless while the
+     * boxes were indexed by the raw slot; the shipped frame-number indexing (v34) actually reads afr. */
     uint32_t afr_off  = heap_arena_alloc(0x20); uint8_t *afr  = hb + afr_off; memset(afr, 0, 0x20);
     *(uint32_t *)(prec + 0x00) = 4;                             /* frame count for A's index */
     *(uint32_t *)(prec + 0x6d) = afr_off;
@@ -10632,6 +10635,8 @@ static void test_fn_01441e(void)
     uint32_t ae = heap_arena_alloc(0x80); memset(hb + ae, 0, 0x80);
     uint32_t fe = heap_arena_alloc(0x20); memset(hb + fe, 0, 0x20);
     *(uint32_t *)(hb + ce + 4) = re; *(uint32_t *)(hb + re + 4u * 5) = ae;
+    *(uint32_t *)(hb + re + 4u * 2) = ae;   /* docs/94: the bump-scan cases run the attacker in state 2; the
+                                             * fn_01441e box pre-check dereferences rec+0x6d for EVERY state */
     *(uint32_t *)(hb + ae + 0x00) = 4; *(uint32_t *)(hb + ae + 0x6d) = fe;
     *(uint16_t *)(hb + ae + 0x08) = 0; *(uint16_t *)(hb + ae + 0x0a) = 10;   /* slot 0 */
     *(uint16_t *)(hb + ae + 0x0c) = 20; *(uint16_t *)(hb + ae + 0x0e) = 30;  /* slot 1 */
@@ -18150,6 +18155,8 @@ static void test_sound_enable_default(void) {
 }
 
 int main(void) {
+    if (getenv("TF1TRACE")) { extern int g_hit_trace; g_hit_trace = 1; }
+
     test_sound_enable_default();
     test_fn_034635_null_player();
     test_audio_plan();

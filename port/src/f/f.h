@@ -1174,6 +1174,7 @@ extern uint32_t g_dat_62d5c;     /* DAT_00062d5c: frame counter (decremented by 
 extern uint8_t  g_dat_52ff8;            /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
 extern int g_menu_trace;                /* setup-menu diagnostic (docs/60) */
 extern int g_key_trace;                 /* combat-key diagnostic (NIGHT_KEYTRACE=1, docs/92) */
+extern int g_hit_trace;                 /* hit-trace diagnostic (NIGHT_HITTRACE=1, docs/94) */
 void fn_0347e3(void);            /* 0x0347e3: keyboard dispatch pump over g_62c58 */
 extern uint8_t *const g_dat_62c75;  /* DAT_00062c75 == DAT_00062c58 + 0x1d: the CTRL slot (docs/92) */
 extern uint8_t *const g_dat_62c82;  /* DAT_00062c82 == DAT_00062c58 + 0x2a: the LSHIFT slot */

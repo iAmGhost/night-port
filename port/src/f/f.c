@@ -8875,6 +8875,8 @@ int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0174
 int g_menu_trace = 0;   /* host-side diagnostic (NIGHT_MENUBG=1): menu/screen traces, docs/60 and docs/61 */
 int g_key_trace = 0;    /* host-side diagnostic (NIGHT_KEYTRACE=1): ring marker stamps and player-state
                          * transitions around fn_03272f, used by the docs/92 combat-key run */
+int g_hit_trace = 0;    /* host-side diagnostic (NIGHT_HITTRACE=1, docs/94): one line per fn_01441e hit --
+                         * attacker/victim/slot/atype/dmg and the victim's +0x29 hp before -> after */
 static int g_dat_53c7c_null_warned;
 
 void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state machine */
@@ -14564,7 +14566,11 @@ void fn_038098(uint32_t base)
             fn_0137c1((uint8_t *)g_dat_53c84, base);             /* 0x3812c-34 */
         }
         if (g_gauge_other_off != 0) {                                 /* 0x38139-40 */
-            fn_01348f((uint8_t *)(uintptr_t)g_gauge_other_off, base, 1); /* 0x38142-4f */
+            /* DAT_00053c88 is stored as a heap offset (cur - hb at 0x000147f8) and the shipped call
+             * passes it as the entity pointer (0x0003814a MOV EAX,[0x00053c88]; CALL 0x1348f). In the
+             * port's flat model that pointer is hb + offset (docs/94: this is the stage-1 crash --
+             * dereferencing the bare offset faults). */
+            fn_01348f((uint8_t *)g_heap_base + g_gauge_other_off, base, 1); /* 0x38142-4f */
         }
         cpy_dw((uint32_t *)video_map(base), 0x3e80, (uint32_t *)g_video_ram); /* 0x38154-68 */
         vga_charge(64000u);   /* window-write cost of the room page flip (see fn_03801b) */
@@ -23827,7 +23833,10 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
     (void)canary_id((uintptr_t)a, 0x84);                          /* 0x00013c4d-52 stack probe (0x84) */
     uint8_t *hb = (uint8_t *)g_heap_base;
 
-    if (*(const uint8_t *)(b + 0x30) == 1) return 0;              /* 0x00013c6e-7c */
+    if (*(const uint8_t *)(b + 0x30) == 1) {
+        if (g_hit_trace && a == g_player_ent) fprintf(stderr, "GATE1 fl\n");
+        return 0;                                                  /* 0x00013c6e-7c */
+    }
 
     uint32_t p1 = *(const uint32_t *)(b + 0x123);                 /* 0x00013c9d: B's ACT container */
     uint32_t p2 = *(const uint32_t *)(hb + p1 + 0x04);            /* 0x00013ca3 */
@@ -23835,7 +23844,12 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
     const uint8_t *anim = hb + *(const uint32_t *)(hb + p2 + 4u * st);  /* 0x00013ca6-aa */
     int32_t fr = (int32_t)*(const uint32_t *)(b + 0x11);          /* B's frame */
     if ((int32_t)*(const uint16_t *)(anim + 0x04) <= fr &&
-        (int32_t)*(const uint16_t *)(anim + 0x06) > fr) return 0; /* 0x00013cb0-0x00013cd1: intangible window */
+        (int32_t)*(const uint16_t *)(anim + 0x06) > fr) {
+        if (g_hit_trace)
+            fprintf(stderr, "GATE2 intangible bfr=%d win=%d..%d (anim %08x)\n", fr,
+                    (int)*(const uint16_t *)(anim + 0x04), (int)*(const uint16_t *)(anim + 0x06), (unsigned)(anim - hb));
+        return 0;                                                  /* 0x00013cb0-0x00013cd1: intangible window */
+    }
 
     {
         int32_t sa = *(const int32_t *)(a + 0x17);                /* 0x00013ce0 / 0x00013ce9 */
@@ -23857,8 +23871,14 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
     int32_t dl  = (int32_t)*(const uint8_t *)(rec + rec_off + 0x56);   /* 0x00013d79-81 */
     int32_t ay  = (int32_t)*(const uint32_t *)(a + 0x09);
     int32_t by9 = (int32_t)*(const uint32_t *)(b + 0x09);
-    if (ay + dl < by9) return 0;                                       /* 0x00013d87-90 -> 0x0001434f */
-    if (ay - dl > by9) return 0;                                       /* 0x00013d92-0x00013daf */
+    if (ay + dl < by9) {
+        if (g_hit_trace) fprintf(stderr, "GATE4 y %d vs %d dl=%d\n", ay, by9, dl);
+        return 0;                                                  /* 0x00013d87-90 -> 0x0001434f */
+    }
+    if (ay - dl > by9) {
+        if (g_hit_trace) fprintf(stderr, "GATE4 y %d vs %d dl=%d\n", ay, by9, dl);
+        return 0;                                                  /* 0x00013d92-0x00013daf */
+    }
 
     {
         int32_t ty_a = *(const int32_t *)(a + 0x0d);
@@ -23869,34 +23889,49 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
         int32_t ax = (int32_t)*(const uint32_t *)(a + 0x01);
         int32_t awh = ay + (int32_t)*(const uint32_t *)(a + 0x05);     /* the row anchor, feet + height */
         int32_t v50, v4c, v40, v3c, v58, v54, v48, v44;
+        /* 0x00013dc1-0x00013ebd / 0x00013ee6-...: the box arrays are indexed by the FRAME NUMBERS
+         * v34/v30 that the rec+0x6d arrays map the slots to (EBP-0x34 / EBP-0x30; docs/94 -- the
+         * docs/19 "indexed by the frame slot" shorthand was wrong for non-identity frame arrays,
+         * and the player's punch/kick records map slots to high sprite frames, e.g. 55..71). */
         if (*(const int32_t *)(a + 0x1b) == 0) {                       /* 0x00013db7: facing right */
-            v50 = bx - SUBT(sprB, 0x18)[idx_b];
-            v40 = by + SUBT(sprB, 0x24)[idx_b];
-            v4c = bx - SUBT(sprB, 0x14)[idx_b];
-            v3c = by + SUBT(sprB, 0x28)[idx_b];
-            v58 = ax + SUBT(sprA, 0x1c)[idx_a];
-            v48 = awh + SUBT(sprA, 0x2c)[idx_a];
-            v54 = ax + SUBT(sprA, 0x20)[idx_a];
-            v44 = awh + SUBT(sprA, 0x30)[idx_a];
+            v50 = bx - SUBT(sprB, 0x18)[v30];
+            v40 = by + SUBT(sprB, 0x24)[v30];
+            v4c = bx - SUBT(sprB, 0x14)[v30];
+            v3c = by + SUBT(sprB, 0x28)[v30];
+            v58 = ax + SUBT(sprA, 0x1c)[v34];
+            v48 = awh + SUBT(sprA, 0x2c)[v34];
+            v54 = ax + SUBT(sprA, 0x20)[v34];
+            v44 = awh + SUBT(sprA, 0x30)[v34];
         } else {                                                       /* 0x00013ee6: mirrored */
-            v50 = bx + SUBT(sprB, 0x14)[idx_b];
-            v40 = by + SUBT(sprB, 0x24)[idx_b];
-            v4c = bx + SUBT(sprB, 0x18)[idx_b];
-            v3c = by + SUBT(sprB, 0x28)[idx_b];
-            v58 = ax - SUBT(sprA, 0x20)[idx_a];
-            v48 = awh + SUBT(sprA, 0x2c)[idx_a];
-            v54 = ax - SUBT(sprA, 0x1c)[idx_a];
-            v44 = awh + SUBT(sprA, 0x30)[idx_a];
+            v50 = bx + SUBT(sprB, 0x14)[v30];
+            v40 = by + SUBT(sprB, 0x24)[v30];
+            v4c = bx + SUBT(sprB, 0x18)[v30];
+            v3c = by + SUBT(sprB, 0x28)[v30];
+            v58 = ax - SUBT(sprA, 0x20)[v34];
+            v48 = awh + SUBT(sprA, 0x2c)[v34];
+            v54 = ax - SUBT(sprA, 0x1c)[v34];
+            v44 = awh + SUBT(sprA, 0x30)[v34];
         }
 #undef SUBT
 
         /* 0x00014006-0x00014026 / 0x00014071: corners inside, otherwise a full straddle. */
         int inside = (v54 >= v50 && v54 <= v4c) || (v58 >= v50 && v58 <= v4c);
-        if (!inside && !(v58 <= v50 && v54 >= v4c)) return 0;
+        if (!inside && !(v58 <= v50 && v54 >= v4c)) {
+            if (g_hit_trace)
+                fprintf(stderr, "GATE5 x A[%d,%d] B[%d,%d] idxA=%u idxB=%u rec=%08x farrA=%08x slotA=%d aframe=%d\n", v58, v54, v50, v4c, v34, v30,
+                        (unsigned)(rec - hb), (unsigned)*(const uint32_t *)(rec + 0x6d), idx_a,
+                        (int)*(const uint32_t *)(a + 0x11));
+            return 0;
+        }
 
         /* 0x00014028-0x0001405e (duplicated at 0x00014083-0x000140b5): same two-tier test on Y. */
         if (!((v44 >= v40 && v44 <= v3c) || (v48 >= v40 && v48 <= v3c) ||
-              (v48 <= v40 && v44 >= v3c))) return 0;
+              (v48 <= v40 && v44 >= v3c))) {
+            if (g_hit_trace)
+                fprintf(stderr, "GATE6 y A[%d,%d] B[%d,%d]\n", v48, v44, v40, v3c);
+            return 0;
+        }
+        if (g_hit_trace) fprintf(stderr, "GATEOK x A[%d,%d] B[%d,%d] y A[%d,%d] B[%d,%d] v34=%u v30=%u\n", v58, v54, v50, v4c, v48, v44, v40, v3c, v34, v30);
 
         /* 0x000140d5-0x00014138: the contact point, clamped into B's span. */
         int32_t v38 = (int32_t)*(const uint8_t *)(rec + rec_off + 0x44);
@@ -24005,11 +24040,23 @@ void fn_01441e(uint8_t *e)
     uint32_t rec_e = *(const uint32_t *)(                          /* [EBP-0x10] 0x00014439-59 */
         hb + *(const uint32_t *)(hb + *(const uint32_t *)(e + 0x123) + 0x04)
            + 4u * (*(const uint32_t *)(e + 0x17) & 0x7fffffffu));
-    int32_t fi = (int32_t)*(const uint32_t *)(e + 0x11)            /* [EBP-0x40] 0x0001445c-7b */
+    int32_t fslot = (int32_t)*(const uint32_t *)(e + 0x11)          /* 0x0001445c-68: signed slot */
                  % (int32_t)*(const uint32_t *)(hb + rec_e);
+    /* 0x0001446a-7b: the slot indexes the record's uint16 FRAME-NUMBER array at rec+0x6d first; the
+     * box arrays are indexed by that sprite frame number, not by the raw slot (docs/94). */
+    int32_t fi = (int32_t)*(const uint16_t *)(
+        hb + *(const uint32_t *)(hb + rec_e + 0x6d) + 2u * (uint32_t)fslot);
     const uint8_t *spr_e = g_dat_639ec[(size_t)*(const uint32_t *)(e + 0x0d)];
     int32_t xlo = ((const int32_t *)(hb + *(const uint32_t *)(spr_e + 0x1c)))[fi];  /* [EBP-0x38] */
     int32_t xhi = ((const int32_t *)(hb + *(const uint32_t *)(spr_e + 0x20)))[fi];  /* [EBP-0x34] */
+    if (g_hit_trace && e == g_player_ent && (xlo != xhi) && fi == 55) {
+        static int once;
+        if (!once++)
+            fprintf(stderr, "PREBOX spr=%p aXarr=%p aYarr=%p fi=%d box=(%d,%d) rec=%08x recdiv=%u fslot=%d\n",
+                    (const void *)spr_e, (const void *)(hb + *(const uint32_t *)(spr_e + 0x1c)),
+                    (const void *)(hb + *(const uint32_t *)(spr_e + 0x20)), fi, xlo, xhi,
+                    rec_e, (unsigned)*(const uint32_t *)(hb + rec_e), fslot);
+    }
 
     /* ---- pass 1: the walking player bumping into something ---- */
     if (e == g_player_ent && *(const int32_t *)(e + 0x17) == 2) {   /* 0x000144bf-0x000144ce */
@@ -24054,7 +24101,14 @@ p1next:
     }
 
     /* ---- pass 2: which attack slot covers the current frame ---- */
-    if (xlo == xhi) return;                                        /* 0x0001464f-55: an empty box */
+    if (xlo == xhi) {
+        if (g_hit_trace && e == g_player_ent) {
+            int32_t cs = *(const int32_t *)(e + 0x17);
+            if (cs == 0x33 || cs == 0x3d)
+                fprintf(stderr, "PASS2 empty-box st=%02x fi=%d box(%d,%d)\n", (unsigned)cs, fi, xlo, xhi);
+        }
+        return;                                                  /* 0x0001464f-55: an empty box */
+    }
     int32_t slot = -1;                                             /* [EBP-0x2c] */
     int32_t i = 0;
     for (i = 0; i < 6; i = i + 1) {                                /* 0x0001465b-0x000146a9 */
@@ -24063,7 +24117,16 @@ p1next:
         int32_t fr = (int32_t)*(const uint32_t *)(e + 0x11);
         if ((int32_t)w1 <= fr && (int32_t)w2 > fr) { slot = i; break; }
     }
-    if (i == 6) return;                                            /* 0x000146ab-0x000146af */
+    if (i == 6) {
+        if (g_hit_trace && e == g_player_ent) {
+            int32_t cs = *(const int32_t *)(e + 0x17);
+            if (cs == 0x33 || cs == 0x3d)
+                fprintf(stderr, "PASS2 no-live-slot st=%02x fi=%d rec=%08x w=%04x,%04x\n", (unsigned)cs, fi,
+                        rec_e, (unsigned)*(const uint16_t *)(hb + rec_e + 0x08),
+                        (unsigned)*(const uint16_t *)(hb + rec_e + 0x0a));
+        }
+        return;                                            /* 0x000146ab-0x000146af */
+    }
 
     /* ---- pass 3: the hit scan ---- */
     uint8_t *cur = g_dat_53c70;                                    /* 0x000146b5-ba */
@@ -24071,7 +24134,17 @@ p1next:
         if ((uint32_t)e[0] == (uint32_t)cur[0] || (uint32_t)cur[0] == 2u) goto hitnext;  /* 0x000146db-f6 */
         if ((uint32_t)*(const uint8_t *)(cur + 0x4e) == *(const uint32_t *)(e + 0x17) &&
             (uint32_t)*(const uint8_t *)(cur + 0x4f) == (uint32_t)slot) goto hitnext;   /* 0x000146fb-0x00014719 */
-        if (fn_013c4d(e, cur, hb + rec_e, slot) != 1) goto hitnext;                    /* 0x0001471f-33 */
+        int32_t ht = fn_013c4d(e, cur, hb + rec_e, slot);         /* 0x0001471f-33 */
+        if (ht != 1) {
+            if (g_hit_trace && e == g_player_ent)
+                fprintf(stderr, "PASS3 miss vic(type=%u st=%02x fl=%u) x %d/%d y %d/%d slot=%d fi=%d dl=%d box=%d,%d face=%d\n",
+                        (unsigned)*(const uint32_t *)(cur + 0x0d), (unsigned)*(const uint32_t *)(cur + 0x17),
+                        (unsigned)cur[0x30], (int)*(const uint32_t *)(cur + 0x01), (int)*(const uint32_t *)(e + 0x01),
+                        (int)*(const uint32_t *)(cur + 0x09), (int)*(const uint32_t *)(e + 0x09), slot, fi,
+                        (int)*(const uint8_t *)(hb + rec_e + (uint32_t)slot + 0x56), xlo, xhi,
+                        (int)*(const uint32_t *)(e + 0x1b));
+            goto hitnext;
+        }
 
         int32_t hp0 = (int32_t)*(const int16_t *)(cur + 0x29);      /* [EBP-0x18] 0x00014739-40 */
         uint32_t ro = *(const uint32_t *)(                          /* [EBP-0xc] 0x00014743-63 */
@@ -24150,6 +24223,16 @@ p1next:
                 *(uint16_t *)(cur + 0x29) = 0;
             }
         }
+        if (g_hit_trace)
+            fprintf(stderr, "HIT atk(type=%u st=%02x) vic(type=%u %s st=%02x) slot=%d atype=%d dmg=%d hp %d->%d debt %d ovs %d%s\n",
+                    (unsigned)*(const uint32_t *)(e + 0x0d),
+                    (unsigned)*(const uint32_t *)(e + 0x17),
+                    (unsigned)*(const uint32_t *)(cur + 0x0d), cur == g_player_ent ? "PLAYER" : "     ",
+                    (unsigned)*(const uint32_t *)(cur + 0x17), slot, atype, dmg,
+                    hp0, (int)(int16_t)*(const uint16_t *)(cur + 0x29),
+                    (int)(int16_t)*(const uint16_t *)(cur + 0x23),
+                    (int)*(const uint32_t *)(cur + 0x56),
+                    *(const uint8_t *)(cur + 0x30) == 1u ? " LETHAL" : "");
 
         if (flag == 1) {                                           /* 0x000149ac-0x00014c07 */
             *(uint8_t *)(cur + 0x5a) = 0;                          /* 0x000149b6-b9 */
@@ -25221,7 +25304,9 @@ void fn_012616(uint8_t *e)
                 if (e[0x30] == 1) {                                       /* 0x000129c4: the entity dies here */
                     if (e == g_player_ent) g_dat_6336c = 1;
                     else if (e == g_latched_ent) g_dat_6336c = 3;
-                    else if ((const uint8_t *)(uintptr_t)g_gauge_other_off == e) g_gauge_other_off = 0;
+                    else if (g_gauge_other_off == (uint32_t)(uintptr_t)(e - hb)) g_gauge_other_off = 0;
+                    /* 0x00012a10-1a compares the stored gauge entity against the walked entity IN THE
+                     * SAME REPRESENTATION; both sides here are heap offsets (docs/94). */
                     if (e[0] == 1) {                                      /* 0x00012a24 (unsigned byte) */
                         g_dat_639bc = g_dat_639bc + 1;                    /* 0x00012a33 (dword) */
                         const int32_t quota = (int32_t)g_tab_52a1c[

@@ -1,0 +1,56 @@
+# docs/94 two-way combat run: reach the live episode-1 room, close on the enemies and fight.
+# NIGHT_HITTRACE=1 logs every fn_01441e hit (attacker/victim/slot/dmg/hp). Shots sample the HUD.
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+170000 wait res stage1.pcx
+171000 shot fight_start
+172000 key right down
+174500 key right up
+174700 key lctrl down
+175200 key lctrl up
+175500 shot close_punch_1
+175900 key lctrl down
+176400 key lctrl up
+176700 shot close_punch_2
+177200 key x down
+177700 key x up
+178400 key lctrl down
+178900 key lctrl up
+179200 shot close_punch_3
+179600 key left down
+180900 key left up
+181100 key lctrl down
+181600 key lctrl up
+181900 shot turn_punch_1
+182300 key x down
+182800 key x up
+183500 key lctrl down
+184000 key lctrl up
+184300 shot turn_punch_2
+185000 key right down
+186200 key right up
+186400 key lctrl down
+186900 key lctrl up
+187200 shot chase_punch_1
+187600 key lalt down
+188100 key lalt up
+188800 key lctrl down
+189300 key lctrl up
+189600 shot chase_punch_2
+190400 key right down
+191600 key right up
+191800 key x down
+192300 key x up
+193000 key lctrl down
+193500 key lctrl up
+193800 shot chase_punch_3
+195000 shot idle_1
+197000 shot idle_2
+199000 shot idle_3
+201000 shot idle_4

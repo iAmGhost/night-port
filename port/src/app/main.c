@@ -1027,6 +1027,7 @@ static void tick_pump(void) {
      * NIGHT_SHOWSCREEN=levelup|status|help, NIGHT_SHOWSCREEN_AT=<frame>. */
     if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
     if (getenv("NIGHT_KEYTRACE")) g_key_trace = 1;
+    if (getenv("NIGHT_HITTRACE")) g_hit_trace = 1;
     if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
     if (getenv("NIGHT_ROOMDBG")) g_room_trace = 1;   /* stage room-chain witness (docs/90) */
     {   /* docs/88: drive the credit-less game-over branch the shipped way -- write the game's own state while

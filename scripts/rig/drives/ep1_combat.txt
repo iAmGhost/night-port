@@ -41,7 +41,7 @@ anchor static 3.0 90
 88000 key enter down
 88120 key enter up
 150000 wait res stage1.pcx
-150000 wait ds 0x63f50 >=6
+150000 wait ds 0x63f50 >=1
 152000 key enter down
 152120 key enter up
 155000 key right down

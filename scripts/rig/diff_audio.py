@@ -174,9 +174,11 @@ def main():
             # own pump line and place the samples where the record timeline says they were produced.
             board = rp
             if a.port_log and os.path.exists(a.port_log):  # noqa: E501
-                m = re.findall(r"audio=(\d+)Hz", open(a.port_log).read())
+                m = [int(x) for x in re.findall(r"audio=(\d+)Hz", open(a.port_log).read())]
                 if m:
-                    board = int(m[-1])
+                    # the board rate is programmed per transfer, so the log shows several values; the
+                    # one the pump reported most often is the rate the bulk of the PCM was produced at
+                    board = max(set(m), key=m.count)
             samples, pos, out = sp, 0, []
             for (t0, _, a0, _, _, _), (t1, _, a1, _, _, _) in zip(rows, rows[1:]):
                 dt = (t1 - t0) / 1000.0

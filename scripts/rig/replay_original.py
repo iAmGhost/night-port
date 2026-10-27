@@ -241,6 +241,10 @@ def main():
     first = [ev["t"] for ev in segments[0]["events"]] or [segments[0]["wait"]["t"]] \
         if segments and (segments[0]["events"] or segments[0]["wait"]) else [0]
     shift = int((time.time() - t0) * 1000) - min(first)
+    # Rebase points, so a state sample can be mapped back to the drive's nominal time: each one says
+    # "emulator clock t_ms corresponds to drive time nominal". diff_state cuts its windows on nominal
+    # times, which is the only clock the port's dump is also stamped with.
+    rebases = [{"t_ms": 0, "nominal": min(first)}]
 
     def post_segment(i):
         if not segments[i]["events"]:
@@ -318,6 +322,7 @@ def main():
             if not hit and now_ms < w["t"] + shift:
                 break
             shift = now_ms - w["t"]                  # same rebase rule as the port's playtest script
+            rebases.append({"t_ms": now_ms, "nominal": w["t"]})
             ds_waits.append({"t_ms": now_ms, "ds": hex(w["ds"]), "op": w["op"], "val": w["val"],
                              "observed": v, "hit": bool(hit), "shift_ms": shift})
             seg_i += 1
@@ -332,7 +337,7 @@ def main():
     meta = {"ptr_cells": [{"ds": c["ds"], "name": c["name"], "rec_bytes": PTR_BYTES}
                           for c in ptr_cells],
             "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor,
-            "ds_waits": ds_waits, "hz": a.hz,
+            "ds_waits": ds_waits, "rebases": rebases, "hz": a.hz,
             "seconds": a.seconds, "states": len(states), "cycles": cyc,
             "res_events": res_events, "timeline": states}
     json.dump(meta, open(os.path.join(a.out, "timeline.json"), "w"), indent=1)

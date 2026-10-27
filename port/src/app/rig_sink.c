@@ -23,7 +23,7 @@
 
 static FILE *g_bin, *g_meta, *g_marks;
 static long g_period_ms = 100;
-static long long g_next_ms;
+static long long g_next_raw_ms;
 /* Script anchors move the timeline origin: the playtest script rebases its keys onto shipped game
  * events, and the shipped side's rig t=0 is its own anchor. Without the same rebase here, the port's
  * first phase is "boot" while the shipped side's first phase is "title card up", which made every DS
@@ -98,9 +98,12 @@ void rig_init(const char *dir, int hz) {
  * PCM bytes handed to the audio device (the audio oracle's window bound); `screen_hash` stays zero
  * until the media oracle fills it in. */
 void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_bytes) {
+    /* Cadence is kept on the raw clock, the stamp on the shifted one: an anchor can move the shifted
+     * clock backwards by tens of seconds, and comparing the stamp against the cadence deadline then
+     * silences the dump until the raw clock catches up (it stopped the dump for the rest of a run). */
     long t_ms = (long)(t_ms0 + g_t_shift_ms);
-    if (!g_bin || t_ms < g_next_ms) return;
-    g_next_ms = t_ms + g_period_ms;
+    if (!g_bin || t_ms0 < g_next_raw_ms) return;
+    g_next_raw_ms = t_ms0 + g_period_ms;
 
     /* field order chosen so the layout has no padding: the reader (scripts/rig/diff_state.py) uses a
      * packed struct and must not have to guess the compiler's alignment decisions. */

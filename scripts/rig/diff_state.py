@@ -42,7 +42,21 @@ def load_orig(run):
     replay anchor. heap_bytes is the concatenation of one fixed-size block per pointer cell, in the
     order recorded in timeline.json["ptr_cells"]."""
     tl = json.load(open(os.path.join(run, "timeline.json")))
+    reb = tl.get("rebases") or [
+        {"t_ms": w["t_ms"], "nominal": w["t_ms"] - w["shift_ms"]} for w in tl.get("ds_waits", [])]
     t0 = tl["timeline"][0]["t_wall"] if tl["timeline"] else 0.0
+
+    def nominal(t_ms):
+        """Emulator clock -> drive nominal. The replay releases each segment when its `wait ds` fires,
+        so the emulator's clock and the drive's nominal time differ by a per-segment offset; the port's
+        dump is stamped in nominal time, and the phase windows are cut in nominal time too."""
+        off = reb[0]["nominal"] - reb[0]["t_ms"] if reb else -int(t0 * 1000)
+        for r in reb:
+            if r["t_ms"] <= t_ms:
+                off = r["nominal"] - r["t_ms"]
+            else:
+                break
+        return t_ms + off
     out = []
     for i, st in enumerate(tl["timeline"]):
         p = os.path.join(run, f"state_{i:04d}.ds.bin")
@@ -54,7 +68,7 @@ def load_orig(run):
         if not os.path.exists(hp):
             hp = os.path.join(run, f"state_{i + 1:04d}.heap.bin")
         hb = open(hp, "rb").read() if os.path.exists(hp) else b""
-        out.append((int((st["t_wall"] - t0) * 1000), open(p, "rb").read(), hb))
+        out.append((nominal(int(st["t_wall"] * 1000)), open(p, "rb").read(), hb))
     return out, tl.get("ptr_cells", [])
 
 
@@ -78,14 +92,24 @@ def load_port(run):
 
 
 def phases_from_drive(path):
-    """Windows cut by key-down edges: [(label, t0, t1)]."""
-    edges = []
+    """Windows cut by key-down edges: [(label, t0, t1)].
+
+    Everything before the drive's first anchor is dropped on both sides: each side boots at its own
+    speed (the emulator reaches the title at 42 s, the port at 47 s), so those windows compare a
+    half-loaded program against a differently half-loaded one and every cell reads DIFF. The anchor is
+    the first instant where both sides are known to be at the same shipped event."""
+    edges, anchors = [], []
     for line in open(path):
         line = line.split("#")[0].strip()
         f = line.split()
         if len(f) >= 4 and f[1] == "key" and f[3].startswith("d"):
             edges.append(int(f[0]))
+        if len(f) >= 2 and f[1] in ("anchor", "wait"):
+            anchors.append(int(f[0]))
     edges = sorted(set([0] + edges))
+    if anchors:
+        cut = min(anchors)
+        edges = [e for e in edges if e >= cut] or [cut]
     out = []
     for i in range(len(edges)):
         t0 = edges[i]
@@ -160,12 +184,18 @@ def main():
 
     # index samples by phase
     def bucket(samples):
+        """Blobs per phase. The shipped side only records a state when it *changes*, so a quiet window
+        has no sample inside it at all; carrying the last earlier sample forward keeps the comparison
+        continuous instead of turning every idle phase into NO-DATA (which also silently drops the
+        cells that only matter once, like a kill counter)."""
+        srt = sorted(samples, key=lambda s: s[0])
         b = collections.defaultdict(list)
-        for t_ms, blob in [(s[0], s[1]) for s in samples]:
-            for label, t0, t1 in phases:
-                if t0 <= t_ms < t1:
-                    b[label].append(blob)
-                    break
+        for label, t0, t1 in phases:
+            inside = [s[1] for s in srt if t0 <= s[0] < t1]
+            if not inside:
+                prior = [s[1] for s in srt if s[0] < t0]
+                inside = [prior[-1]] if prior else []
+            b[label] = inside
         return b
 
     def span_t(samples):

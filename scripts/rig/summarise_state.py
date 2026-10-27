@@ -14,7 +14,7 @@ import collections
 import re
 
 ROW = re.compile(r"^\|\s*([A-Z?]+)\s*\|\s*(0x[0-9a-f]+)\s*\|\s*(\S+)\s*\|\s*(\S+)\s*\|\s*(\S+)\s*\|")
-PHASE = re.compile(r"(P\d+@\d+)\s+([A-Z?]+)")
+PHASE = re.compile(r"(P\d+@\d+)\s+([A-Z?]+(?:-[A-Z]+)?)")
 
 
 def main():
@@ -34,7 +34,7 @@ def main():
         counts = collections.Counter(v for _, v in phases)
         # one representative value pair, taken from the first DIFF phase note
         sample = ""
-        mm = re.search(r"(P\d+@\d+) DIFF orig=(\S+?) port=(\S+?)(?: \||$)", line)
+        mm = re.search(r"(P\d+@\d+) [A-Z?-]+ orig=(\S+?) port=(\S+?)(?: \||$)", line)
         if mm:
             sample = f"{mm.group(1)}: orig={mm.group(2)} port={mm.group(3).split(',')[0]}"
         rows.append({"addr": addr, "name": name, "guest": gsz, "host": hsz, "verdict": verdict,

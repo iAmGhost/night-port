@@ -6,6 +6,7 @@ defined_data.json / mem_access.json next to this file. The shipped EXE gives the
 image-initialised DS bytes: the LE image loads at linear DS-0x7600, so a DS address
 maps to file offset addr-0x7600 (docs/99 measured that for DAT_00052a1c).
 """
+import collections
 import json
 import os
 
@@ -79,6 +80,13 @@ class Db:
         for i, r in enumerate(m["refs"]):
             a = int(r["to"], 16)
             t = r["rtype"]
+            operand = next((o for o in ops if _mentions(o, r["to"])), "")
+            frame = any("EBP" in o or "ESP" in o for o in ops)
+            if "EBP" in operand or "ESP" in operand or (frame and not operand):
+                # Ghidra's flat LE model renders stack frames as DS:[EBP+disp] and resolves them to
+                # a DS address; those are locals, not DS globals, and are not global state.
+                out.append((a, "stack"))
+                continue
             if "READ_WRITE" in t:
                 d = "rw"
             elif "READ" in t:
@@ -103,11 +111,20 @@ class Db:
         out = {}
         for m in self.mem_access:
             for a, d in self.dirs(m):
-                if not (DS_LO <= a <= DS_HI):
+                if d == "stack" or not (DS_LO <= a <= DS_HI):
                     continue
                 slot = out.setdefault(a, {"read": 0, "write": 0, "rw": 0})
                 slot[d] += 1
         return out
+
+    def stack_only_cells(self):
+        """DS-looking addresses whose every access is frame-relative (EBP/ESP) -> locals."""
+        seen = {}
+        for m in self.mem_access:
+            for a, d in self.dirs(m):
+                if DS_LO <= a <= DS_HI:
+                    seen.setdefault(a, set()).add(d)
+        return {a for a, ds in seen.items() if ds == {"stack"}}
 
     def ds_write_sites(self):
         out = {}

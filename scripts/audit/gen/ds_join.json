@@ -18338,7 +18338,7 @@
   "guest_symbol": "DAT_0005364c",
   "guest_type": "undefined2",
   "guest_size": 2,
-  "reads": 3,
+  "reads": 2,
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
@@ -18350,16 +18350,9 @@
   "guest_symbol": "DAT_00053650",
   "guest_type": "undefined2",
   "guest_size": 2,
-  "reads": 54,
-  "writes": 51,
-  "write_sites": [
-   "fn_0461cc@0x46de4 AND ['word ptr DS:[EBP + 0x4]', '0xc7ff']",
-   "fn_0461cc@0x46deb OR ['word ptr DS:[EBP + 0x4]', 'BX']",
-   "fn_0461cc@0x46efd AND ['word ptr DS:[EBP + 0x4]', '0xc7ff']",
-   "fn_0461cc@0x46f04 OR ['word ptr DS:[EBP + 0x4]', 'BX']",
-   "fn_0461cc@0x46f40 AND ['word ptr DS:[EBP + 0x4]', '0xc7ff']",
-   "fn_0461cc@0x46f47 OR ['word ptr DS:[EBP + 0x4]', 'BX']"
-  ],
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
   "image_u32": 0,
   "port_names": [],
   "port_types": []
@@ -18369,16 +18362,9 @@
   "guest_symbol": "DAT_00053654",
   "guest_type": "undefined2",
   "guest_size": 2,
-  "reads": 39,
-  "writes": 39,
-  "write_sites": [
-   "fn_0461cc@0x46df8 AND ['word ptr DS:[EBP + 0x8]', 'BX']",
-   "fn_0461cc@0x46f11 AND ['word ptr DS:[EBP + 0x8]', 'BX']",
-   "fn_0461cc@0x46f54 AND ['word ptr DS:[EBP + 0x8]', 'BX']",
-   "fn_0461cc@0x46f99 AND ['word ptr DS:[EBP + 0x8]', 'BX']",
-   "fn_0461cc@0x46fde AND ['word ptr DS:[EBP + 0x8]', 'BX']",
-   "fn_0461cc@0x47023 AND ['word ptr DS:[EBP + 0x8]', 'BX']"
-  ],
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
   "image_u32": 0,
   "port_names": [],
   "port_types": []
@@ -18388,7 +18374,7 @@
   "guest_symbol": null,
   "guest_type": null,
   "guest_size": null,
-  "reads": 23,
+  "reads": 15,
   "writes": 1,
   "write_sites": [
    "fn_0461cc@0x46e26 XCHG ['dword ptr [EBX]', 'EAX']"
@@ -18402,7 +18388,7 @@
   "guest_symbol": null,
   "guest_type": null,
   "guest_size": null,
-  "reads": 23,
+  "reads": 15,
   "writes": 1,
   "write_sites": [
    "fn_0461cc@0x46e2d XCHG ['dword ptr [EBX + 0x4]', 'EAX']"
@@ -18428,7 +18414,7 @@
   "guest_symbol": null,
   "guest_type": null,
   "guest_size": null,
-  "reads": 25,
+  "reads": 17,
   "writes": 1,
   "write_sites": [
    "fn_0461cc@0x46e37 XCHG ['word ptr [EBX + 0x8]', 'AX']"
@@ -18454,13 +18440,9 @@
   "guest_symbol": "DAT_000536b8",
   "guest_type": "undefined4",
   "guest_size": 4,
-  "reads": 3,
-  "writes": 3,
-  "write_sites": [
-   "fn_0461cc@0x46e8c MOV ['dword ptr DS:[EBP + 0x6c]', 'EAX']",
-   "fn_0461cc@0x4732e MOV ['dword ptr DS:[EBP + 0x6c]', 'EAX']",
-   "fn_0461cc@0x475c0 MOV ['dword ptr DS:[EBP + 0x6c]', 'EAX']"
-  ],
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
   "image_u32": 0,
   "port_names": [],
   "port_types": []
@@ -18471,12 +18453,8 @@
   "guest_type": "undefined4",
   "guest_size": 4,
   "reads": 0,
-  "writes": 3,
-  "write_sites": [
-   "fn_0461cc@0x46e96 MOV ['dword ptr DS:[EBP + 0x70]', 'EAX']",
-   "fn_0461cc@0x47336 MOV ['dword ptr DS:[EBP + 0x70]', 'EAX']",
-   "fn_0461cc@0x475c8 MOV ['dword ptr DS:[EBP + 0x70]', 'EAX']"
-  ],
+  "writes": 0,
+  "write_sites": [],
   "image_u32": 0,
   "port_names": [],
   "port_types": []
@@ -18487,12 +18465,8 @@
   "guest_type": "undefined2",
   "guest_size": 2,
   "reads": 0,
-  "writes": 3,
-  "write_sites": [
-   "fn_0461cc@0x46ea1 MOV ['word ptr DS:[EBP + 0x74]', 'AX']",
-   "fn_0461cc@0x4733f MOV ['word ptr DS:[EBP + 0x74]', 'AX']",
-   "fn_0461cc@0x475d1 MOV ['word ptr DS:[EBP + 0x74]', 'AX']"
-  ],
+  "writes": 0,
+  "write_sites": [],
   "image_u32": 0,
   "port_names": [],
   "port_types": []
@@ -18502,7 +18476,7 @@
   "guest_symbol": "DAT_000536c2",
   "guest_type": "undefined4",
   "guest_size": 4,
-  "reads": 26,
+  "reads": 0,
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
@@ -18690,7 +18664,7 @@
   "guest_symbol": "DAT_0005374c",
   "guest_type": "undefined4",
   "guest_size": 4,
-  "reads": 2,
+  "reads": 1,
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,

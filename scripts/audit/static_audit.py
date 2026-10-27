@@ -19,6 +19,7 @@ import argparse
 import collections
 import json
 import os
+import re
 
 import ghidra_db
 import port_src
@@ -44,6 +45,31 @@ def ds_immediates(db):
             for mm in DS_CONST.finditer(op):
                 out[int(mm.group(1), 16)].append((m["addr"], m["fn"], m["mnem"], op))
     return out
+
+
+def port_written_names():
+    """Port globals the port itself produces a value for (assignment, memcpy, &addr, fread).
+
+    Keeps the image-init findings honest: a placeholder the port fills at load time is not a dropped
+    initializer; a placeholder nothing ever writes is."""
+    names = {g["name"] for g in port_src.globals_()}
+    written = set()
+    for _fname, text in port_src._files():
+        for _lineno, stmt in port_src._statements(text):
+            one = " ".join(stmt.split())
+            head = one.lstrip()
+            while head.startswith("/*"):
+                end = head.find("*/")
+                if end < 0:
+                    break
+                head = head[end + 2:].lstrip()
+            if port_src.DECL.match(head):
+                continue          # a declaration + initializer is not a producer
+            for n in names:
+                if re.search(rf"\b{n}(\s*\[[^\]]*\])*\s*(=|\+=|-=|\|=|&=|\+\+|--)(?![=>])", one) \
+                        or re.search(rf"&\s*{n}\b", one):
+                    written.add(n)
+    return written
 
 
 def port_global_map():

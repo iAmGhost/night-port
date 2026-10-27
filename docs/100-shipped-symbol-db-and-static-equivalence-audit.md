@@ -104,7 +104,40 @@ bugs — the music-never-stops gate (a device-state flag, not a symbol), the mis
 and initializer already matches and only the *sequence of states* differs. Those need the runtime
 oracles (`rig-runtime` and below).
 
-## 6. Reproduce
+## 6. Triage: every finding gets a verdict (`scripts/audit/triage.py` → `reports/triage.{md,json}`)
+
+442 findings filed with evidence, 86 explained. Nothing here is guesswork dressed as a verdict: the
+verdict is decided by a rule, and the rule is printed with the finding.
+
+| verdict | n | rule |
+|---|---|---|
+| FILED-READONLY | 7 | guest never writes the cell, image bytes non-zero, **and nothing in the port ever writes that global** -> the shipped bytes were dropped |
+| FILED-PRODUCER-CHECK | 16 | same, but the port has its own producer -> compare the producer against the shipped bytes |
+| FILED-RUNTIME | 107 | initializer differs and the guest does write the cell -> only a replay can say whether the first read sees the shipped value |
+| FILED-SPAN | 120 | a port span covers another port global that the guest addresses with its own base constant -> over-declared array hiding a table |
+| FILED-VIEW | 63 | two port-named DS cells with overlapping access spans |
+| FILED-MODEL | 61 | DS cell with >=3 accesses the port does not name and is not inside any port span |
+| FILED-REPR | 4 | pointer/number disagreement, both directions |
+| FILED-CALLGRAPH-GAP | 64 | shipped fn with shipped callers, no port counterpart |
+| EXPLAINED-DEAD / -RENAMED / -BY-SPAN / -SAME-TABLE / -UNACCESSED / -SCRATCH | 86 | no shipped caller; a port fn shares >=50 % of its callees (renamed); cell lies inside a port span; contiguous one-table split; no instruction-level access |
+
+False-positive controls built into the pass (each one was needed):
+
+- **stack frames**: Ghidra resolves `DS:[EBP+0x4]` to a real DS address, so frame-local accesses were
+  being reported as global state (`0x53650`, 6 cells) -> excluded by direction `stack`;
+- **port producers**: a placeholder with a loader is not a dropped initializer, so the write scan
+  skips declaration statements (otherwise `= {0}` itself counted as a producer);
+- **renamed helpers**: a port function sharing half of a shipped routine's callees is treated as the
+  same routine rather than a gap.
+
+The filed items are *not* fixed yet, deliberately: `blind-validation` has to observe the current
+build. The clearest one is worth naming now, because it is a live bug rather than a hypothesis --
+`float g_tab_5274c[0x4f0/4] = {0};` (`f.c:5038`) is read by the shipped camera code
+(`0x3d86f FMUL dword [edx+0x5274c]`), nothing in the port ever writes it, and the shipped bytes are
+`0.5, 0.5, …`: the port multiplies by zero. `g_tab_52a1c` (kill quota, `0x3e8`) is the same shape,
+which is what `docs/99` found by hand.
+
+## 7. Reproduce
 
 ```sh
 # 1. refresh the Ghidra export (Ghidra MCP: run ~/ghidra_scripts/NightExport.java)

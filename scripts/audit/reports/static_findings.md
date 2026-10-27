@@ -1,33 +1,33 @@
 # Static equivalence audit (Ghidra DB vs port source)
 
-port globals with a DS address: 410 across 249 distinct DS cells; guest DS defined-data items: 1638; guest DS cells with accesses: 630
+port globals with a DS address: 410 across 249 distinct DS cells; guest DS defined-data items: 1638; guest DS cells with accesses: 624
 
-## c1_unmodelled: 388 findings
+## c1_unmodelled: 382 findings
   {"ds": 406356, "reads": 236, "writes": 8, "total": 244}
   {"ds": 343736, "reads": 148, "writes": 0, "total": 148}
   {"ds": 343728, "reads": 80, "writes": 0, "total": 80}
   {"ds": 407992, "reads": 76, "writes": 1, "total": 77}
   {"ds": 335196, "reads": 58, "writes": 0, "total": 58}
-  {"ds": 341584, "reads": 54, "writes": 51, "total": 56}
   {"ds": 335004, "reads": 48, "writes": 0, "total": 48}
   {"ds": 335008, "reads": 42, "writes": 0, "total": 42}
   {"ds": 343732, "reads": 40, "writes": 0, "total": 40}
   {"ds": 343840, "reads": 40, "writes": 0, "total": 40}
   {"ds": 343836, "reads": 39, "writes": 0, "total": 39}
-  {"ds": 341588, "reads": 39, "writes": 39, "total": 39}
   {"ds": 343132, "reads": 29, "writes": 1, "total": 30}
   {"ds": 335208, "reads": 27, "writes": 0, "total": 27}
-  {"ds": 341698, "reads": 26, "writes": 0, "total": 26}
-  {"ds": 341616, "reads": 25, "writes": 1, "total": 25}
   {"ds": 335012, "reads": 24, "writes": 0, "total": 24}
   {"ds": 408004, "reads": 22, "writes": 1, "total": 23}
-  {"ds": 341608, "reads": 23, "writes": 1, "total": 23}
-  {"ds": 341612, "reads": 23, "writes": 1, "total": 23}
   {"ds": 343712, "reads": 20, "writes": 1, "total": 21}
   {"ds": 335016, "reads": 21, "writes": 0, "total": 21}
   {"ds": 409096, "reads": 18, "writes": 1, "total": 19}
   {"ds": 343737, "reads": 18, "writes": 0, "total": 18}
+  {"ds": 341616, "reads": 17, "writes": 1, "total": 17}
   {"ds": 340914, "reads": 14, "writes": 1, "total": 15}
+  {"ds": 333916, "reads": 15, "writes": 0, "total": 15}
+  {"ds": 341608, "reads": 15, "writes": 1, "total": 15}
+  {"ds": 341612, "reads": 15, "writes": 1, "total": 15}
+  {"ds": 409084, "reads": 11, "writes": 3, "total": 14}
+  {"ds": 340816, "reads": 10, "writes": 2, "total": 12}
 
 ## c2_aliasing: 126 findings
   {"kind": "port-span-overlap", "a": "g_tab_528b4", "a_span": ["0x528b4", "0x52b84"], "b": "g_tab_52a1c", "b_span": ["0x52a1c", "0x52a20"], "overlap": 4}

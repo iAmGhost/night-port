@@ -39,7 +39,10 @@ static long long g_next_raw_ms;
  * cell look wrong at P0. */
 static long long g_t_shift_ms;
 
-void rig_rebase(long long slip_ms) { g_t_shift_ms += slip_ms; }
+/* The script slides the remaining events by `slip` so a nominal drive time X now fires on the wall clock
+ * at X + slip; to stamp the record with X itself the shift must *undo* the slip. Adding it instead
+ * double-counts, which pushed the port's stamps 140 s away from the drive's nominal times. */
+void rig_rebase(long long slip_ms) { g_t_shift_ms -= slip_ms; }
 static unsigned g_tick;
 static uint32_t g_rec_bytes;
 static uint32_t g_off[RIG_MAX];

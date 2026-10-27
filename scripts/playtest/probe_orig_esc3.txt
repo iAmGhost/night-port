@@ -1,0 +1,13 @@
+# docs/93: does the shipped ESC -> pause/options path fire in the original, and when? ESC byte IS set
+# (0x63e89, probe_orig_esc2). Now: settle the room, then try ESC at several room ages with frames.
+record slides 12000
+sleep 6000
+shot room_settled
+key esc 300
+sleep 2500
+shot esc_after_6s
+sleep 6000
+shot room_settled2
+key esc 300
+sleep 2500
+shot esc_after_12s

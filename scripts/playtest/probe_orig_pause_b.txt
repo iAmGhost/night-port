@@ -1,0 +1,23 @@
+# Navigation preamble identical to probe_orig_combat_keys.txt; frames captured around each key.
+wait_mode 480 30
+key enter 150
+sleep 1200
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+sleep 500
+shot room_before
+readbytes 0x63e80 0x68
+key esc 200
+sleep 1500
+shot pause_screen
+readbytes 0x63e80 0x68
+key down 200
+sleep 900
+shot pause_down
+key enter 200
+sleep 1500
+shot after_enter
+key esc 200
+sleep 1500
+shot after_esc
+readbytes 0x63e80 0x68

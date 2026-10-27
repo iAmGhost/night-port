@@ -1,0 +1,24 @@
+# docs/93 ESC pause probe: live episode-1 room -> ESC opens the shipped pause/setup menu (fn_039c03),
+# arrows navigate, Enter confirms, ESC leaves. Anchored route (docs/55 convention).
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+170000 wait res stage1.pcx
+185000 shot room_before_esc
+186000 key esc down
+186300 key esc up
+187500 shot pause_menu
+188000 key down down
+188300 key down up
+189200 shot pause_menu_down
+189700 key enter down
+190000 key enter up
+191000 shot after_enter
+191500 key esc down
+191800 key esc up
+193000 shot after_esc

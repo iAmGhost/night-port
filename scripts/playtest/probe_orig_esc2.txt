@@ -1,0 +1,16 @@
+# docs/93: is the ESC held byte (0x63e88+0x01) even set by the container's key injection, and does
+# the shipped room loop (0x0003aa9f: 63e89 != 0 -> fn_039c03) then react? Live ep-1 room.
+key_down esc
+sleep 500
+readbytes 0x63e80 0x28
+key_up esc
+sleep 300
+readbytes 0x63e80 0x28
+sleep 2500
+shot after_esc_hold
+key_down esc
+sleep 700
+readbytes 0x63e80 0x28
+key_up esc
+sleep 300
+shot after_esc_hold2

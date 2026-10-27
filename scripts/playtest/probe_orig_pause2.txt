@@ -1,0 +1,30 @@
+# docs/93: exit paths of the pause&options screen (README: ESC/SHIFT release it; ENTER/SPACE confirm).
+# Session enters with the menu OPEN (left by probe_orig_esc3).
+record slides 9000
+sleep 500
+shot menu_open
+key leftshift 200
+sleep 1500
+shot after_shift_leave
+key esc 200
+sleep 1500
+shot menu_reopened
+key up 200
+sleep 800
+shot menu_up          # arrow up: cursor to EXIT TO DOS (wrap?)
+key esc 200
+sleep 1500
+shot room_resumed
+key esc 200
+sleep 1200
+key down 200
+sleep 800
+key down 200
+sleep 800
+shot menu_at_commandlist
+key enter 200
+sleep 1800
+shot command_list_page
+key esc 200
+sleep 1800
+shot after_esc_from_list

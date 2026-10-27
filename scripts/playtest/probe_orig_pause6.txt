@@ -1,0 +1,26 @@
+# docs/93: fresh session, ALSA null audio (the dummy driver starves the guest DAC service): does the
+# world animate, does ESC open the pause menu, and do the arrows walk its cursor?
+wait_mode 19 60
+key enter 150
+sleep 1200
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+sleep 1000
+shot room_a
+sleep 3000
+shot room_b
+key esc 250
+sleep 2500
+shot menu_open
+key down 250
+sleep 1500
+shot menu_down1
+key down 250
+sleep 1500
+shot menu_down2
+key up 250
+sleep 1500
+shot menu_up1
+key enter 250
+sleep 3000
+shot menu_enter

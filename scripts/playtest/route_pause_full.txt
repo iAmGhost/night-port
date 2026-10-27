@@ -1,0 +1,29 @@
+# docs/93: the shipped pause&options loop fn_039c03 as the SDL host drives it. ESC in a live episode-1
+# room enters it (room-loop latch at 0x0003aa9f); ENTER confirms entry m=0 (status screen, 0x00039cb9);
+# ESC spins-until-clear and leaves with m=0x64 (0x00039ce6) back into the room; SHIFT does the same
+# (it is one of the three exit bytes 0x63e89/0x63eb2/0x63ebe).
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+170000 wait res stage1.pcx
+185000 shot room_before_esc
+186000 key esc down
+186300 key esc up
+187500 shot pause_menu
+188000 key down down
+188300 key down up
+189000 shot pause_menu_down
+189500 key esc down
+189800 key esc up
+191000 shot room_after_esc
+191500 key shift down
+191800 key shift up
+192800 shot pause_menu_shift
+193300 key shift down
+193600 key shift up
+194800 shot room_after_shift

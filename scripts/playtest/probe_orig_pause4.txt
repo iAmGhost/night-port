@@ -1,0 +1,11 @@
+# docs/93: pause menu responsiveness at a slow pace (cycles=20000; menu loop may poll slowly).
+shot before
+key_down down
+sleep 3000
+shot down_held_3s
+key_up down
+sleep 3000
+shot after_down_release
+key enter 600
+sleep 4000
+shot after_enter_slow

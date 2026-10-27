@@ -1,0 +1,17 @@
+# docs/93: SPACE as the confirming key inside the pause menu (README: ENTER/SPACE decide).
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+170000 wait res stage1.pcx
+185000 shot room_before
+186000 key esc down
+186300 key esc up
+187500 shot pause_menu
+188000 key space down
+188300 key space up
+189500 shot after_space_confirm

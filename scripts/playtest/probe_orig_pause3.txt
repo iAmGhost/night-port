@@ -1,0 +1,15 @@
+# docs/93: with the pause menu open, do injected arrows SET the held bytes the menu polls
+# (0x63ed0 up / 0x63ed8 down)? If yes, injection is fine and the menu's non-response is real behavior.
+readbytes 0x63e80 0x68
+key_down down
+sleep 500
+readbytes 0x63e80 0x68
+key_up down
+sleep 300
+readbytes 0x63e80 0x68
+key_down enter
+sleep 500
+readbytes 0x63e80 0x68
+key_up enter
+sleep 400
+shot after

@@ -888,7 +888,7 @@ static void sdl_events(void) {
         case SDL_SCANCODE_LEFT:    sc = 0x4b; break;
         case SDL_SCANCODE_RIGHT:   sc = 0x4d; break;
         case SDL_SCANCODE_RETURN:  sc = 0x1c; break;
-        case SDL_SCANCODE_ESCAPE:  sc = 0x01; g_quit = 1; break;
+        case SDL_SCANCODE_ESCAPE:  sc = 0x01; break;   /* docs/93: the shipped room loop turns the abort byte into fn_039c03 (the pause/setup menu) -- the host must NOT quit (docs/60) */
         case SDL_SCANCODE_SPACE:   sc = 0x39; break;
         case SDL_SCANCODE_F1:      sc = NIGHT_SC_F1; break;   /* docs/91: sets DAT_00063ec3, the level-up help pages */
         case SDL_SCANCODE_LCTRL:   sc = NIGHT_SC_CTRL; break;

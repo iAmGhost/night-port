@@ -2238,6 +2238,16 @@ void fn_041439(void)
     /* IRETD: not represented in the flat C model (handler returns). */
 }
 
+/* 0x041486 / 0x0414d3 / 0x041520 / 0x04156d: the same IRQ probe stub for IRQ3/5/7/10
+ * (docs/98 disasm: PUSHAD, DS load, DAT_63f84 = <irq>, ack read inb(base+0xe), PIC EOI,
+ * STI, POPAD, IRETD). fn_040fb3 (the probe in fn_040d09) installs all five on vectors
+ * 0x0a/0x0b/0x0d/0x0f/0x72; whichever fires names itself in DAT_63f84. docs/98 measures the
+ * original under dosbox-automation (sb16): DAT_63f84 = 7, i.e. vector 0x0f fired. */
+void fn_041486(void) { seg_ds_load(); irq_cli(); g_dat_63f84 = 3; (void)inb((uint16_t)(g_dat_53334 + 0xe)); outb(0x20, 0x20); irq_sti(); }
+void fn_0414d3(void) { seg_ds_load(); irq_cli(); g_dat_63f84 = 5; (void)inb((uint16_t)(g_dat_53334 + 0xe)); outb(0x20, 0x20); irq_sti(); }
+void fn_041520(void) { seg_ds_load(); irq_cli(); g_dat_63f84 = 7; (void)inb((uint16_t)(g_dat_53334 + 0xe)); outb(0x20, 0x20); irq_sti(); }
+void fn_04156d(void) { seg_ds_load(); irq_cli(); g_dat_63f84 = 0xa; (void)inb((uint16_t)(g_dat_53334 + 0xe)); outb(0x20, 0x20); irq_sti(); }
+
 /* 0x03ee88: timer/IRQ tick handler (38 ins, ends IRETD). On each tick it advances
  * several global counters with wrap logic, then acks the PIC. All callees
  * (seg_ds_load/irq_cli/irq_sti/outb) are ported flat-model no-op sys stubs; IRETD
@@ -2493,6 +2503,23 @@ uint32_t fn_03690b(void)
     }
 
     if (g_dbg_03d606) fprintf(stderr, "voc slots: %d of 100 have a size in the resource index\n", voc_loaded);
+
+    /* docs/98: in the shipped image DAT_53d0c is ONE contiguous 100-dword array (DS 0x53d0c ..
+     * 0x53e9c), so several "separate" DS globals are in fact slot cells of it:
+     *   DAT_53dd4/53dd8/53ddc/53de0/53de4 = slots 50..54 (0x53d0c + 0xc8..0xd8) -- the attract /
+     *       slideshow / start / selection / screen-entered command cursors,
+     *   DAT_53e24..0x53e48               = slots 70..79 -- fn_0113e7's ten combat-SFX streams.
+     * Verified live on the original (docs/98): every DAT_53e24[k] equals DAT_53d0c[70+k], and a
+     * byte fingerprint pins those buffers as the tag streams of 71.voc..80.voc from NIGHT.RES.
+     * With NULL here fn_04185e played empty slots and fn_040839 saw the 0x00 terminator at once
+     * (playtest item 6, missing SFX). The port models these as separate globals, so wire the
+     * cells at master-data load; filled 3.7-5.4 s after boot on the original, i.e. right here. */
+    g_dat_53dd4  = g_dat_53d0c[50u];
+    g_dat_53dd8  = g_dat_53d0c[51u];
+    g_dat_53ddc  = g_dat_53d0c[52u];
+    g_dat_53de0  = g_dat_53d0c[53u];
+    g_dat_53de4  = g_dat_53d0c[54u];
+    for (uint32_t k = 0; k < 10; k = k + 1) g_dat_53e24[k] = g_dat_53d0c[70u + k];
 
     /* HUD / sprite tables (0x03d8d4 structs) and their action containers */
     g_dat_639c0 = spr_block("system.spr");
@@ -8166,6 +8193,13 @@ void fn_04185e(uint8_t *cursor)
     if (g_dat_53338 == 0) return;                                     /* 0x41884-8b */
     if (g_dat_63fb8 == 1) (void)fn_041340(0xd0);                      /* 0x41891-418a0 */
     if (cursor) g_play_real++; else g_play_null++;   /* host measure: real command stream vs empty slot */
+    if (getenv("NIGHT_SFXDBG")) {                    /* docs/98 witness: which sound slot the guest triggers */
+        int slot = -1;
+        for (int i = 0; i < 100; i++) if (cursor && cursor == g_dat_53d0c[i]) { slot = i + 1; break; }
+        if (slot < 0) for (int i = 0; i < 10; i++) if (cursor && cursor == g_dat_53e24[i]) { slot = -100 - i; break; }
+        fprintf(stderr, "sfx: play#%lu slot=%d gate(63f90=%u 53338=%u)\n",
+                g_play_calls, slot, g_dat_63f90, g_dat_53338);
+    }
     fn_040839(cursor);                                                /* 0x418a8 (EAX passed through) */
     g_dat_63fb8 = 1;                                                  /* 0x418ad */
 }
@@ -13776,6 +13810,7 @@ static uint32_t fn_03f6bc_impl(const char *name)
                 fprintf(stderr, "tab53200: timed-event cursor %u leaves DAT_53200..0x53337, "
                                 "tick table not seeded\n", cursor);
         } else if ((uint32_t)(uint16_t)idx == g_tab_53200[cursor]) {
+            if (getenv("NIGHT_SFXDBG")) fprintf(stderr, "sfx: 3f6bc slot byte=%u\n", (unsigned)g_tab_532f4[cursor]);
             fn_04185e(g_dat_53d0c[(uint32_t)g_tab_532f4[cursor]]);            /* 0x3f7a9-c0 (byte -> slot array) */
             cursor = cursor + 1;                                              /* 0x3f7c5-c8 */
             if (cursor > g_tab532_walk_max) g_tab532_walk_max = cursor;

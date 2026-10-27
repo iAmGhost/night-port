@@ -275,23 +275,33 @@ static void audio_pump_drain_only(void) {
 }
 
 /* The game's sound board is only initialised if the hardware answers: fn_040f4f scans the device
- * ports for the 0xaa signature, fn_040fb3 needs its probe command (0xf2) to raise the device
- * interrupt, and fn_0411d9 needs a non-zero id. On a bare Mac none of that exists, so DAT_00063f90
- * stays 0 and fn_04185e (the sample player) is never entered. Model the board exactly as the unit
- * fixture does: a controller at 0x220 whose status port answers independently of the command port,
- * plus the interrupt the probe raises. */
+ * ports for the 0xaa signature (after fn_04123d's reset pulse on base+6, the classic SB16 detection),
+ * fn_040fb3 needs its probe command 0xf2 (outb base+0xc) to raise the device interrupt, and fn_0411d9
+ * needs a non-zero id (command 0xE1, two data reads). Without that DAT_00063f90 stays 0 and fn_04185e
+ * (the sample player) returns at its first gate -- every in-game SFX call is swallowed (docs/98).
+ * docs/98 measured the ORIGINAL under dosbox-automation (sbtype=sb16): at the title DAT_53334=0x220,
+ * DAT_63f84=7 (the probe's IRQ fired vector 0x0f), DAT_63f88=0x405 (id 4.5 = SB16), DAT_63f90=1,
+ * DAT_51a10=1. The model below reproduces exactly those values; NIGHT_BOARD=0 opts out. */
 static void board_cmd_hook(uint16_t port, uint8_t cmd) {
-    (void)port;
-    if (cmd == 0xf2) sys_isr_fire(0x0a);              /* the probe command asserts the device IRQ */
+    if (port != 0x22c) return;                      /* the command/write port base+0xc (docs/98 0x41375) */
+    if (cmd == 0xf2) sys_isr_fire(0x0f);            /* IRQ7: the probe measures DAT_63f84=7 (docs/98) */
+    if (cmd == 0xe1) {
+        static const uint8_t id[] = { 0x04, 0x05 }; /* fn_0411d9: major, minor -> DAT_63f88=0x405 */
+        sys_dev_read_seq(0x22a, id, 2);
+    }
 }
 static void board_boot(void) {
     static const uint8_t sig[] = { 0xaa };
-    sys_dev_read_seq(0x22a, sig, 1);                  /* the discovery probe's signature read */
-    sys_dev_status_set(0x22e, 0x80);                  /* ready for reads  */
-    sys_dev_status_set(0x22c, 0x00);                  /* ready for writes */
-    sys_isr_bind(0x41439, fn_041439);                 /* the game's own vector-0x0a handler */
+    sys_dev_read_seq(0x22a, sig, 1);                  /* the detection probe's signature read */
+    sys_dev_status_set(0x22e, 0x80);                  /* read-ready status (fn_0412e9 wants bit7 set) */
+    sys_dev_status_set(0x22c, 0x00);                  /* write-ready status (fn_041390 wants bit7 clear) */
+    sys_isr_bind(0x41439, fn_041439);                 /* the game's own vector-0x0a/0x0b/0x0d/0x0f/0x72 */
+    sys_isr_bind(0x41486, fn_041486);                 /* probe stubs (docs/98); whichever fires names */
+    sys_isr_bind(0x414d3, fn_0414d3);                 /* its IRQ in DAT_63f84 */
+    sys_isr_bind(0x41520, fn_041520);
+    sys_isr_bind(0x4156d, fn_04156d);
     sys_dev_cmd_hook(board_cmd_hook);
-    g_dat_53334 = 0x220;      /* the shipped image leaves 0x210 (board disabled); opt in with NIGHT_BOARD=1 */
+    g_dat_53334 = 0x220;      /* the value the original runs with at the title (docs/98 live read) */
 }
 
 static void audio_pump(void) {
@@ -1232,7 +1242,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(getenv("NIGHT_PAL"), "cacheraw")) g_pal_src = 3;
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
-    if (getenv("NIGHT_BOARD")) board_boot();   /* else the shipped default (DAT_53334 = 0x210) is kept */
+    { const char *be = getenv("NIGHT_BOARD"); if (!be || strcmp(be, "0") != 0) board_boot(); }   /* the original ships with the board live (DAT_53334=0x220 at the title, docs/98); NIGHT_BOARD=0 opts out */
     if (getenv("NIGHT_SOUND")) g_dat_53338 = 1;  /* the title menu's SOUND toggle (fn_039c03) is off by
                                                   * default in the shipped image; force it on for tests */
     sys_set_res_hook(reslog_add);

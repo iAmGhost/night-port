@@ -162,6 +162,41 @@ static void test_board(void) {
     check(inbuf[0] == 0xA8 && inbuf[8] == 0xA8, "in: 3n bytes read from 0x3C9");
 }
 
+static void sfx_cmd_hook(uint16_t port, uint8_t cmd) {   /* mirrors main.c board_cmd_hook (docs/98) */
+    if (port != 0x22c) return;
+    if (cmd == 0xf2) sys_isr_fire(0x0f);
+    if (cmd == 0xe1) { static const uint8_t id[] = { 0x04, 0x05 }; sys_dev_read_seq(0x22a, id, 2); }
+}
+
+/* docs/98: fn_040d09's whole bring-up chain against the modelled board. The expectations are the
+ * values measured on the ORIGINAL under dosbox-automation (docs/98 live reads at the title):
+ * base 0x220, probe IRQ 7, id 0x405, DAT_63f90=1 -- and with the gate open fn_04185e reaches
+ * fn_040839 instead of returning at 0x41879. */
+static void test_sfx_board(void) {
+    printf("fn_040d09 device bring-up + fn_04185e gate (docs/98)\n");
+    sys_dev_read_seq(0x22a, (const uint8_t[]){ 0xaa }, 1);
+    sys_dev_status_set(0x22e, 0x80);          /* read ready (fn_0412e9 wants bit7 set) */
+    sys_dev_status_set(0x22c, 0x00);          /* write ready (fn_041390 wants bit7 clear) */
+    sys_isr_bind(0x41439, fn_041439); sys_isr_bind(0x41486, fn_041486);
+    sys_isr_bind(0x414d3, fn_0414d3); sys_isr_bind(0x41520, fn_041520);
+    sys_isr_bind(0x4156d, fn_04156d);
+    sys_dev_cmd_hook(sfx_cmd_hook);
+    g_dat_53334 = 0x210;                      /* shipped image value (board disabled) -> scan must land on 0x220 */
+    g_dat_63f84 = 0; g_dat_63f88 = 0; g_dat_63f90 = 0;
+    check(fn_040d09() == 1, "fn_040d09 initialises against the modelled board");
+    check(g_dat_53334 == 0x220, "base 0x220 = original measurement (docs/98)");
+    check(g_dat_63f84 == 7,   "probe IRQ 7 = original measurement (docs/98)");
+    check(g_dat_63f88 == 0x405, "id 0x405 (SB16 4.5) = original measurement (docs/98)");
+    check(g_dat_63f90 == 1,   "DAT_63f90=1: device initialised");
+    unsigned long r0 = g_play_real;
+    static uint8_t term[0x20];                       /* kind 0 at 0x4088c = end of record */
+    fn_04185e(term);                              /* gate open + non-null cursor -> fn_040839 reached */
+    check(g_play_real == r0 + 1, "fn_04185e passes 0x41879/0x41884 with the board live");
+    fn_041340(0xd0);
+    sys_dev_cmd_hook(0);
+    sys_isr_reset();
+}
+
 static void test_abs(void) {
     printf("abs32 (0x041f76)\n");
     check(abs32(0) == 0 && abs32(123) == 123 && abs32(-123) == 123
@@ -13545,6 +13580,13 @@ static void test_fn_03690b(void) {
         else if (i && g_dat_53d0c[i] == g_dat_53d0c[i - 1]) voc_ok = 0;
     }
     check(voc_ok, "  100 sound slots allocated as distinct buffers (size 0x1a*2 each)");
+    /* docs/98: DAT_53dd4..0x53de4 and DAT_53e24..0x53e48 are cells 50..54 and 70..79 of the one
+     * contiguous DAT_53d0c array (verified live on the original, docs/98); the loader must wire them. */
+    check(g_dat_53dd4 == g_dat_53d0c[50] && g_dat_53dd8 == g_dat_53d0c[51] &&
+          g_dat_53ddc == g_dat_53d0c[52] && g_dat_53de0 == g_dat_53d0c[53] &&
+          g_dat_53de4 == g_dat_53d0c[54] && g_dat_53e24[0] == g_dat_53d0c[70] &&
+          g_dat_53e24[9] == g_dat_53d0c[79],
+          "  docs/98 slot aliases: 53dd4..de4=slots 50..54, 53e24..48=slots 70..79");
 
     int exp_ok = 1;
     for (uint32_t i = 0; i < 30; i++) if (g_dat_53c94[i] != (i / 5 + 1) * 10 + (i % 5) + 1) exp_ok = 0;
@@ -18313,6 +18355,7 @@ int main(void) {
     test_blt_rows();
     test_hline_vline_rect();
     test_board();
+    test_sfx_board();
     test_abs();
     test_canary();
     printf("== batch 2 (L0 seg/mem/str/fpu) ==\n");

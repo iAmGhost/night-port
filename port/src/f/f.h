@@ -322,6 +322,10 @@ uint8_t  inb(uint16_t port);
 extern uint32_t g_dat_63f84;               /* DAT_00063f84: IRQ/device state (0x041439 sets 2) */
 extern uint32_t g_dat_53334;               /* DAT_00053334: device port base */
 void     fn_041439(void);                   /* 0x041439: IRQ handler (PIC EOI, sets DAT_00063f84=2) */
+void     fn_041486(void);                   /* 0x041486: same stub, DAT_00063f84=3 (docs/98) */
+void     fn_0414d3(void);                   /* 0x0414d3: same stub, DAT_00063f84=5 (docs/98) */
+void     fn_041520(void);                   /* 0x041520: same stub, DAT_00063f84=7 -- the one the original's probe measures (docs/98) */
+void     fn_04156d(void);                   /* 0x04156d: same stub, DAT_00063f84=0xa (docs/98) */
 extern uint32_t g_dat_63e28;               /* DAT_00063e28: tick counter (wraps at 8) */
 extern uint32_t g_dat_63e24;               /* DAT_00063e24: per-tick counter */
 extern uint32_t g_dat_63e3c;               /* DAT_00063e3c: tick counter (wraps at 18) */
@@ -1227,7 +1231,7 @@ extern uint32_t *g_dat_53c30;  /* DAT_00053c30: "gun2.act" */
 extern uint32_t g_dat_53818[0x104]; /* DAT_00053818: per-type action-table heap-offset ARRAY, 0x104 (260) slots -- one per entity type 0..0x103, ending exactly at DAT_00053c28 (slot 0 = the gun action table); slots 0xc9/0xfa are shared tables the teardown skips */
 extern uint32_t *g_dat_63e08;  /* DAT_00063e08: "over.spr" struct (fn_03d8d4) */
 extern uint32_t *g_dat_63e0c;  /* DAT_00063e0c: "pause.spr" struct (fn_03d8d4) */
-extern uint8_t *g_dat_53e24[10];   /* DAT_00053e24..0x53e48: ten device-command-stream cursors picked by entity type (fn_0113e7); BSS, no writer in the analyzed set yet */
+extern uint8_t *g_dat_53e24[10];   /* DAT_00053e24..0x53e48: cells 70..79 of the DAT_53d0c slot array (docs/98 live-verified), the combat-SFX streams picked by entity type (fn_0113e7); wired by fn_03690b */
 extern uint8_t *g_dat_53d0c[100]; /* DAT_00053d0c: 100 sound-slot buffers ("1.voc".."100.voc") */
 extern uint8_t  g_dat_63ec3;   /* DAT_00063ec3: level-up screen "help pages showing" mode byte */
 extern uint8_t  g_dat_633a4;   /* DAT_000633a4: level-up screen "help already shown" flag */

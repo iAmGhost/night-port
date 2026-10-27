@@ -1,7 +1,7 @@
 {
  "tally": {
-  "FILED-RUNTIME": 107,
-  "FILED-PRODUCER-CHECK": 16,
+  "FILED-RUNTIME": 110,
+  "FILED-PRODUCER-CHECK": 12,
   "FILED-READONLY": 7,
   "EXPLAINED-UNACCESSED": 37,
   "FILED-SPAN": 120,
@@ -96,6 +96,13 @@
   {
    "check": "C3",
    "kind": "image-init",
+   "subject": "g_dat_63e64 @ 0x63e64",
+   "evidence": "image=00000000 port_init='= 0x140' guest reads=6 writes=1",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C3",
+   "kind": "image-init",
    "subject": "g_dat_53100 @ 0x53100",
    "evidence": "image=03000000 port_init='' guest reads=6 writes=4",
    "verdict": "FILED-RUNTIME"
@@ -110,30 +117,16 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_40010 @ 0x40010",
-   "evidence": "image=eb068b45 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
+   "subject": "g_dat_633b0 @ 0x633b0",
+   "evidence": "image=00000000 port_init='= SCREEN_BASE' guest reads=42 writes=1",
+   "verdict": "FILED-RUNTIME"
   },
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_40018 @ 0x40018",
-   "evidence": "image=8b45d4a3 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_4001c @ 0x4001c",
-   "evidence": "image=7c3c0000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_40020 @ 0x40020",
-   "evidence": "image=a17c3c00 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
+   "subject": "g_dat_633b4 @ 0x633b4",
+   "evidence": "image=00000000 port_init='= SCREEN_BASE + SCREEN_SIZE' guest reads=8 writes=1",
+   "verdict": "FILED-RUNTIME"
   },
   {
    "check": "C3",
@@ -1511,14 +1504,14 @@
    "check": "C4",
    "kind": "guest-symbol-is-pointer-port-declares-integer",
    "subject": "g_dat_53c7c_null_warned @ 0x53c7c",
-   "evidence": "port=int shipped=pointer image=None R867/W2 ",
+   "evidence": "port=int shipped=pointer image=0 R867/W2 ",
    "verdict": "FILED-REPR"
   },
   {
    "check": "C4",
    "kind": "port-declares-pointer-guest-looks-numeric",
    "subject": "g_dat_639ec @ 0x639ec",
-   "evidence": "port=uint8_t * shipped=undefined4 image=None R26/W3 ['CMP dword ptr [EAX + 0x639ec] 0x0']",
+   "evidence": "port=uint8_t * shipped=undefined4 image=0 R26/W3 ['CMP dword ptr [EAX + 0x639ec] 0x0']",
    "verdict": "FILED-REPR"
   },
   {
@@ -1539,28 +1532,28 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63354",
-   "evidence": "R236/W8 image=None sites=[\"fn_0374ad@0x3761f MOV ['[0x00063354]', 'EAX']\", \"fn_0376c8@0x377f1 MOV ['[0x00063354]', 'EAX']\"]",
+   "evidence": "R236/W8 image=0 sites=[\"fn_0374ad@0x3761f MOV ['[0x00063354]', 'EAX']\", \"fn_0376c8@0x377f1 MOV ['[0x00063354]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eb8",
-   "evidence": "R148/W0 image=None sites=[]",
+   "evidence": "R148/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eb0",
-   "evidence": "R80/W0 image=None sites=[]",
+   "evidence": "R80/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x639b8",
-   "evidence": "R76/W1 image=None sites=[\"fn_03690b@0x36932 MOV ['[0x000639b8]', 'EAX']\"]",
+   "evidence": "R76/W1 image=0 sites=[\"fn_03690b@0x36932 MOV ['[0x000639b8]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1588,28 +1581,28 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eb4",
-   "evidence": "R40/W0 image=None sites=[]",
+   "evidence": "R40/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53f20",
-   "evidence": "R40/W0 image=None sites=[]",
+   "evidence": "R40/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53f1c",
-   "evidence": "R39/W0 image=None sites=[]",
+   "evidence": "R39/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53c5c",
-   "evidence": "R29/W1 image=None sites=[\"fn_0104c7@0x10530 MOV ['dword ptr [0x00053c5c]', 'EBX']\"]",
+   "evidence": "R29/W1 image=0 sites=[\"fn_0104c7@0x10530 MOV ['dword ptr [0x00053c5c]', 'EBX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1630,14 +1623,14 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x639c4",
-   "evidence": "R22/W1 image=None sites=[\"fn_03690b@0x36fb5 MOV ['[0x000639c4]', 'EAX']\"]",
+   "evidence": "R22/W1 image=0 sites=[\"fn_03690b@0x36fb5 MOV ['[0x000639c4]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53ea0",
-   "evidence": "R20/W1 image=None sites=[\"fn_037b03@0x37ed8 MOV ['dword ptr [EDX + 0x53ea0]', 'EAX']\"]",
+   "evidence": "R20/W1 image=0 sites=[\"fn_037b03@0x37ed8 MOV ['dword ptr [EDX + 0x53ea0]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1651,14 +1644,14 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63e08",
-   "evidence": "R18/W1 image=None sites=[\"fn_03690b@0x36ffd MOV ['[0x00063e08]', 'EAX']\"]",
+   "evidence": "R18/W1 image=0 sites=[\"fn_03690b@0x36ffd MOV ['[0x00063e08]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eb9",
-   "evidence": "R18/W0 image=None sites=[]",
+   "evidence": "R18/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1700,7 +1693,7 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63dfc",
-   "evidence": "R11/W3 image=None sites=[\"fn_037347@0x37467 MOV ['dword ptr [0x00063dfc]', '0x0']\", \"fn_0374ad@0x375d6 MOV ['dword ptr [0x00063dfc]', '0x0']\"]",
+   "evidence": "R11/W3 image=0 sites=[\"fn_037347@0x37467 MOV ['dword ptr [0x00063dfc]', '0x0']\", \"fn_0374ad@0x375d6 MOV ['dword ptr [0x00063dfc]', '0x0']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1721,14 +1714,14 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53c84",
-   "evidence": "R9/W2 image=None sites=[\"fn_0376c8@0x377d4 MOV ['[0x00053c84]', 'EAX']\", \"fn_03af18@0x3b025 MOV ['[0x00053c84]', 'EAX']\"]",
+   "evidence": "R9/W2 image=0 sites=[\"fn_0376c8@0x377d4 MOV ['[0x00053c84]', 'EAX']\", \"fn_03af18@0x3b025 MOV ['[0x00053c84]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53c80",
-   "evidence": "R8/W2 image=None sites=[\"fn_010efc@0x10f2b MOV ['[0x00053c80]', 'EAX']\", \"fn_037b03@0x37b43 MOV ['dword ptr [0x00053c80]', '0x0']\"]",
+   "evidence": "R8/W2 image=0 sites=[\"fn_010efc@0x10f2b MOV ['[0x00053c80]', 'EAX']\", \"fn_037b03@0x37b43 MOV ['dword ptr [0x00053c80]', '0x0']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1756,7 +1749,7 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53c88",
-   "evidence": "R3/W6 image=None sites=[\"fn_012616@0x12a1a MOV ['dword ptr [0x00053c88]', '0x0']\", \"fn_01441e@0x147fb MOV ['[0x00053c88]', 'EAX']\"]",
+   "evidence": "R3/W6 image=0 sites=[\"fn_012616@0x12a1a MOV ['dword ptr [0x00053c88]', '0x0']\", \"fn_01441e@0x147fb MOV ['[0x00053c88]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1777,7 +1770,7 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63358",
-   "evidence": "R2/W5 image=None sites=[\"fn_03690b@0x372e3 MOV ['dword ptr [0x00063358]', '0x0']\", \"fn_037b03@0x37b57 MOV ['dword ptr [0x00063358]', '0x0']\"]",
+   "evidence": "R2/W5 image=0 sites=[\"fn_03690b@0x372e3 MOV ['dword ptr [0x00063358]', '0x0']\", \"fn_037b03@0x37b57 MOV ['dword ptr [0x00063358]', '0x0']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1833,35 +1826,35 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63e04",
-   "evidence": "R4/W1 image=None sites=[\"fn_03690b@0x370d5 MOV ['[0x00063e04]', 'EAX']\"]",
+   "evidence": "R4/W1 image=0 sites=[\"fn_03690b@0x370d5 MOV ['[0x00063e04]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x5c8c0",
-   "evidence": "R4/W1 image=None sites=[\"fn_03e20f@0x3ebaf MOV ['dword ptr [EDX + 0x5c8c0]', 'EAX']\"]",
+   "evidence": "R4/W1 image=0 sites=[\"fn_03e20f@0x3ebaf MOV ['dword ptr [EDX + 0x5c8c0]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x5c8c8",
-   "evidence": "R4/W1 image=None sites=[\"fn_03e20f@0x3ebd5 MOV ['dword ptr [EDX + 0x5c8c8]', 'EAX']\"]",
+   "evidence": "R4/W1 image=0 sites=[\"fn_03e20f@0x3ebd5 MOV ['dword ptr [EDX + 0x5c8c8]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x5c8bc",
-   "evidence": "R4/W1 image=None sites=[\"fn_03e20f@0x3eb9c MOV ['dword ptr [EDX + 0x5c8bc]', 'EAX']\"]",
+   "evidence": "R4/W1 image=0 sites=[\"fn_03e20f@0x3eb9c MOV ['dword ptr [EDX + 0x5c8bc]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x5c8c4",
-   "evidence": "R4/W1 image=None sites=[\"fn_03e20f@0x3ebc2 MOV ['dword ptr [EDX + 0x5c8c4]', 'EAX']\"]",
+   "evidence": "R4/W1 image=0 sites=[\"fn_03e20f@0x3ebc2 MOV ['dword ptr [EDX + 0x5c8c4]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1875,7 +1868,7 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eac",
-   "evidence": "R4/W1 image=None sites=[\"fn_037b03@0x37f3b MOV ['dword ptr [EDX + 0x53eac]', 'EAX']\"]",
+   "evidence": "R4/W1 image=0 sites=[\"fn_037b03@0x37f3b MOV ['dword ptr [EDX + 0x53eac]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1924,7 +1917,7 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63300",
-   "evidence": "R4/W0 image=None sites=[]",
+   "evidence": "R4/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1938,7 +1931,7 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x62aa0",
-   "evidence": "R3/W1 image=None sites=[\"fn_03690b@0x369af MOV ['[0x00062aa0]', 'EAX']\"]",
+   "evidence": "R3/W1 image=0 sites=[\"fn_03690b@0x369af MOV ['[0x00062aa0]', 'EAX']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -2008,28 +2001,28 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63220",
-   "evidence": "R3/W0 image=None sites=[]",
+   "evidence": "R3/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63328",
-   "evidence": "R2/W2 image=None sites=[\"@0x34e20 MOV ['dword ptr [0x00063328]', '0x1']\", \"fn_034e3c@0x34e80 INC ['dword ptr [0x00063328]']\"]",
+   "evidence": "R2/W2 image=0 sites=[\"@0x34e20 MOV ['dword ptr [0x00063328]', '0x1']\", \"fn_034e3c@0x34e80 INC ['dword ptr [0x00063328]']\"]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x5d895",
-   "evidence": "R3/W0 image=None sites=[]",
+   "evidence": "R3/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x63d10",
-   "evidence": "R1/W2 image=None sites=[\"fn_03690b@0x37171 MOV ['[0x00063d10]', 'EAX']\", \"fn_037922@0x37a57 MOV ['dword ptr [0x00063d10]', '0x0']\"]",
+   "evidence": "R1/W2 image=0 sites=[\"fn_03690b@0x37171 MOV ['[0x00063d10]', 'EAX']\", \"fn_037922@0x37a57 MOV ['dword ptr [0x00063d10]', '0x0']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -2043,7 +2036,7 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x639e8",
-   "evidence": "R2/W2 image=None sites=[\"fn_037b03@0x37bdf MOV ['dword ptr [0x000639e8]', '0x0']\", \"fn_03c853@0x3c87c INC ['dword ptr [0x000639e8]']\"]",
+   "evidence": "R2/W2 image=0 sites=[\"fn_037b03@0x37bdf MOV ['dword ptr [0x000639e8]', '0x0']\", \"fn_03c853@0x3c87c INC ['dword ptr [0x000639e8]']\"]",
    "verdict": "FILED-MODEL"
   },
   {

@@ -56,7 +56,7 @@ port globals with a DS address: 410 across 249 distinct DS cells; guest DS defin
   {"kind": "port-span-overlap", "a": "g_dat_53818", "a_span": ["0x53818", "0x53c28"], "b": "g_dat_53c00", "b_span": ["0x53c00", "0x53c04"], "overlap": 4}
   {"kind": "port-span-overlap", "a": "g_dat_53c94", "a_span": ["0x53c94", "0x53d0c"], "b": "g_tab_53d08", "b_span": ["0x53d08", "0x53e9c"], "overlap": 4}
 
-## c3_image_init: 31 findings
+## c3_image_init: 30 findings
   {"ds": 340156, "kind": "image-nonzero-port-zero", "name": "g_dat_530bc", "image_head": "7f0000007f0000007f0000007f000000", "init": ""}
   {"ds": 339756, "kind": "image-nonzero-port-zero", "name": "g_tab_52f2c", "image_head": "16000000030000000200000006000000", "init": ""}
   {"ds": 339720, "kind": "image-nonzero-port-zero", "name": "g_dat_52f08", "image_head": "02000000050000000600000006000000", "init": ""}
@@ -68,12 +68,11 @@ port globals with a DS address: 410 across 249 distinct DS cells; guest DS defin
   {"ds": 340148, "kind": "image-nonzero-port-zero", "name": "g_dat_530b4", "image_head": "64000000", "init": ""}
   {"ds": 340152, "kind": "image-nonzero-port-zero", "name": "g_dat_530b8", "image_head": "64000000", "init": "= 0"}
   {"ds": 340472, "kind": "image-nonzero-port-zero", "name": "g_dat_531f8", "image_head": "ffff0000", "init": "= 0"}
+  {"ds": 409188, "kind": "image-zero-port-nonzero", "name": "g_dat_63e64", "image_head": "00000000", "init": "= 0x140"}
   {"ds": 340224, "kind": "image-nonzero-port-zero", "name": "g_dat_53100", "image_head": "03000000", "init": ""}
   {"ds": 341529, "kind": "image-nonzero-port-zero", "name": "g_dat_53619", "image_head": "00010000", "init": "= 0"}
-  {"ds": 262160, "kind": "image-nonzero-port-zero", "name": "g_dat_40010", "image_head": "eb068b45", "init": "= 0"}
-  {"ds": 262168, "kind": "image-nonzero-port-zero", "name": "g_dat_40018", "image_head": "8b45d4a3", "init": ""}
-  {"ds": 262172, "kind": "image-nonzero-port-zero", "name": "g_dat_4001c", "image_head": "7c3c0000", "init": ""}
-  {"ds": 262176, "kind": "image-nonzero-port-zero", "name": "g_dat_40020", "image_head": "a17c3c00", "init": ""}
+  {"ds": 406448, "kind": "image-zero-port-nonzero", "name": "g_dat_633b0", "image_head": "00000000", "init": "= SCREEN_BASE"}
+  {"ds": 406452, "kind": "image-zero-port-nonzero", "name": "g_dat_633b4", "image_head": "00000000", "init": "= SCREEN_BASE + SCREEN_SIZE"}
   {"ds": 337740, "kind": "image-nonzero-port-zero", "name": "g_tab_5274c", "image_head": "0000003f", "init": ""}
   {"ds": 341724, "kind": "image-nonzero-port-zero", "name": "g_dat_536dc", "image_head": "14000000", "init": ""}
   {"ds": 341892, "kind": "image-nonzero-port-zero", "name": "g_dat_53784", "image_head": "01000000", "init": "= 0"}
@@ -82,10 +81,11 @@ port globals with a DS address: 410 across 249 distinct DS cells; guest DS defin
   {"ds": 341884, "kind": "image-nonzero-port-zero", "name": "g_dat_5377c", "image_head": "50460000", "init": "= 0"}
   {"ds": 341564, "kind": "image-nonzero-port-zero", "name": "g_dat_5363c", "image_head": "01000000", "init": ""}
   {"ds": 341568, "kind": "image-nonzero-port-zero", "name": "g_dat_53640", "image_head": "10000000", "init": ""}
+  {"ds": 334352, "kind": "image-nonzero-port-zero", "name": "g_dat_51a10", "image_head": "01000000", "init": ""}
 
 ## c4_representation: 4 findings
-  {"ds": 343164, "why": "guest-symbol-is-pointer-port-declares-integer", "score": 5, "port_name": "g_dat_53c7c_null_warned", "port_type": "int", "guest_type": "pointer", "image_u32": null, "n_reads": 867, "n_writes": 2}
-  {"ds": 408044, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_639ec", "port_type": "uint8_t *", "guest_type": "undefined4", "image_u32": null, "small_imm_stores": [], "indexed_reads": ["CMP dword ptr [EAX + 0x639ec] 0x0"], "n_reads": 26, "n_writes": 3}
+  {"ds": 343164, "why": "guest-symbol-is-pointer-port-declares-integer", "score": 5, "port_name": "g_dat_53c7c_null_warned", "port_type": "int", "guest_type": "pointer", "image_u32": 0, "n_reads": 867, "n_writes": 2}
+  {"ds": 408044, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_639ec", "port_type": "uint8_t *", "guest_type": "undefined4", "image_u32": 0, "small_imm_stores": [], "indexed_reads": ["CMP dword ptr [EAX + 0x639ec] 0x0"], "n_reads": 26, "n_writes": 3}
   {"ds": 341808, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_53730", "port_type": "uint32_t *", "guest_type": "pointer", "image_u32": 14048, "small_imm_stores": [], "indexed_reads": [], "n_reads": 4, "n_writes": 0}
   {"ds": 341962, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_537ca", "port_type": "uint8_t *", "guest_type": "pointer", "image_u32": 14247, "small_imm_stores": [], "indexed_reads": [], "n_reads": 1, "n_writes": 0}
 

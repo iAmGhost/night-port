@@ -40,9 +40,19 @@ Two structural facts about this database drive every check below:
    decompiler literally therefore *manufactures* pointer semantics. `docs/49 / 61 / 94 / 95` are
    consequences of trusting that; the audit treats a shipped `undefined *` as no evidence at all.
 
-Image-initialised state: the LE image loads at linear `DS-0x7600`, so a DS address maps to file
-offset `addr-0x7600` in `NIGHT/NIGHT.EXE` (`ghidra_db.Db.image_at`). That is the only ground truth
-for "what did this global contain before the game touched it".
+'Initial state' is not one fact but two, and they were previously conflated.** NIGHT is an LE binary
+with three objects: `.object1` = code + initialised data (0x10000..0x4ab1c), `.object2` = the DS group
+(virtual 0x50000..0x650bf), `.image` = raw overlay. Inside `.object2` the file offset is
+`ds_addr - 0x7600` (i.e. `.object2` starts at file offset 0x48a00), and `.object2`'s *initialised*
+part ends at file EOF -> DS **0x53817**. Everything from 0x53817 to 0x650bf is **BSS: the loader
+zeroes it**. Measured rather than assumed: the shipped strings at DS `0x50004` (`cdinsert.pcx`) and
+DS `0x5333e` (`Stack Overflow!`) sit at file offsets `0x48a04` / `0x4bd3e`, and reading the emulator's
+physical memory at `DS_base + addr` returns the same bytes (`scripts/rig/calibrate_ds.py`), while DS
+`0x53a00` and `0x63348` read as zeros. `ghidra_db` now re-checks those two strings at load time and
+refuses to run if the mapping is off, so a wrong offset cannot silently produce findings again.
+Consequence for the audit: a cell above 0x53817 has a *definite* initial value (zero), so a non-zero
+port initializer there is a claim the shipped image does not support -- that is now a checkable
+finding (`image-zero-port-nonzero`) instead of "out of range, skipped".
 
 ## 2. The join table
 

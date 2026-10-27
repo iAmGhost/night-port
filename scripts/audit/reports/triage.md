@@ -5,14 +5,14 @@ Port source is deliberately untouched in this pass: the blind gate must run agai
 | verdict | count |
 |---|---|
 | FILED-SPAN | 120 |
-| FILED-RUNTIME | 107 |
+| FILED-RUNTIME | 110 |
 | FILED-CALLGRAPH-GAP | 64 |
 | FILED-VIEW | 63 |
 | FILED-MODEL | 61 |
 | EXPLAINED-UNACCESSED | 37 |
 | EXPLAINED-DEAD | 25 |
 | EXPLAINED-BY-SPAN | 19 |
-| FILED-PRODUCER-CHECK | 16 |
+| FILED-PRODUCER-CHECK | 12 |
 | FILED-READONLY | 7 |
 | FILED-REPR | 4 |
 | EXPLAINED-SAME-TABLE | 3 |
@@ -20,24 +20,24 @@ Port source is deliberately untouched in this pass: the blind gate must run agai
 | EXPLAINED-NOT-MODELLED | 1 |
 
 ## C1: 80 adjudicated, 61 filed
-- **FILED-MODEL** 0x63354 — R236/W8 image=None sites=["fn_0374ad@0x3761f MOV ['[0x00063354]', 'EAX']", "fn_0376c8@0x377f1 MOV ['[0x00063354]', 'EAX']"]
-- **FILED-MODEL** 0x53eb8 — R148/W0 image=None sites=[]
-- **FILED-MODEL** 0x53eb0 — R80/W0 image=None sites=[]
-- **FILED-MODEL** 0x639b8 — R76/W1 image=None sites=["fn_03690b@0x36932 MOV ['[0x000639b8]', 'EAX']"]
+- **FILED-MODEL** 0x63354 — R236/W8 image=0 sites=["fn_0374ad@0x3761f MOV ['[0x00063354]', 'EAX']", "fn_0376c8@0x377f1 MOV ['[0x00063354]', 'EAX']"]
+- **FILED-MODEL** 0x53eb8 — R148/W0 image=0 sites=[]
+- **FILED-MODEL** 0x53eb0 — R80/W0 image=0 sites=[]
+- **FILED-MODEL** 0x639b8 — R76/W1 image=0 sites=["fn_03690b@0x36932 MOV ['[0x000639b8]', 'EAX']"]
 - **FILED-MODEL** 0x51d5c — R58/W0 image=1056964608 sites=[]
 - **FILED-MODEL** 0x51c9c — R48/W0 image=4294967241 sites=[]
 - **FILED-MODEL** 0x51ca0 — R42/W0 image=4294967291 sites=[]
-- **FILED-MODEL** 0x53eb4 — R40/W0 image=None sites=[]
-- **FILED-MODEL** 0x53f20 — R40/W0 image=None sites=[]
-- **FILED-MODEL** 0x53f1c — R39/W0 image=None sites=[]
-- **FILED-MODEL** 0x53c5c — R29/W1 image=None sites=["fn_0104c7@0x10530 MOV ['dword ptr [0x00053c5c]', 'EBX']"]
+- **FILED-MODEL** 0x53eb4 — R40/W0 image=0 sites=[]
+- **FILED-MODEL** 0x53f20 — R40/W0 image=0 sites=[]
+- **FILED-MODEL** 0x53f1c — R39/W0 image=0 sites=[]
+- **FILED-MODEL** 0x53c5c — R29/W1 image=0 sites=["fn_0104c7@0x10530 MOV ['dword ptr [0x00053c5c]', 'EBX']"]
 - **FILED-MODEL** 0x51d68 — R27/W0 image=1065353216 sites=[]
 - **FILED-MODEL** 0x51ca4 — R24/W0 image=4294967256 sites=[]
-- **FILED-MODEL** 0x639c4 — R22/W1 image=None sites=["fn_03690b@0x36fb5 MOV ['[0x000639c4]', 'EAX']"]
-- **FILED-MODEL** 0x53ea0 — R20/W1 image=None sites=["fn_037b03@0x37ed8 MOV ['dword ptr [EDX + 0x53ea0]', 'EAX']"]
+- **FILED-MODEL** 0x639c4 — R22/W1 image=0 sites=["fn_03690b@0x36fb5 MOV ['[0x000639c4]', 'EAX']"]
+- **FILED-MODEL** 0x53ea0 — R20/W1 image=0 sites=["fn_037b03@0x37ed8 MOV ['dword ptr [EDX + 0x53ea0]', 'EAX']"]
 - **FILED-MODEL** 0x51ca8 — R21/W0 image=5 sites=[]
-- **FILED-MODEL** 0x63e08 — R18/W1 image=None sites=["fn_03690b@0x36ffd MOV ['[0x00063e08]', 'EAX']"]
-- **FILED-MODEL** 0x53eb9 — R18/W0 image=None sites=[]
+- **FILED-MODEL** 0x63e08 — R18/W1 image=0 sites=["fn_03690b@0x36ffd MOV ['[0x00063e08]', 'EAX']"]
+- **FILED-MODEL** 0x53eb9 — R18/W0 image=0 sites=[]
 
 ## C2: 126 adjudicated, 123 filed
 - **FILED-SPAN** g_tab_528b4 covers g_tab_52a1c — overlap=4B shipped base constants in the inner span: ['0x52a1c']
@@ -59,7 +59,7 @@ Port source is deliberately untouched in this pass: the blind gate must run agai
 - **FILED-SPAN** g_tab_52ffc covers g_dat_530bc — overlap=64B shipped base constants in the inner span: ['0x530b4', '0x530bc', '0x530b8']
 - **FILED-SPAN** g_dat_537ca covers g_dat_537ca_target — overlap=1B shipped base constants in the inner span: ['0x537ca']
 
-## C3: 31 adjudicated, 31 filed
+## C3: 30 adjudicated, 30 filed
 - **FILED-RUNTIME** g_dat_530bc @ 0x530bc — image=7f0000007f0000007f0000007f000000 port_init='' guest reads=0 writes=1
 - **FILED-PRODUCER-CHECK** g_tab_52f2c @ 0x52f2c — image=16000000030000000200000006000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
 - **FILED-PRODUCER-CHECK** g_dat_52f08 @ 0x52f08 — image=02000000050000000600000006000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
@@ -71,18 +71,18 @@ Port source is deliberately untouched in this pass: the blind gate must run agai
 - **FILED-RUNTIME** g_dat_530b4 @ 0x530b4 — image=64000000 port_init='' guest reads=1 writes=2
 - **FILED-READONLY** g_dat_530b8 @ 0x530b8 — image=64000000 port_init='= 0' guest reads=1 writes=0, and nothing in the port ever writes 'g_dat_530b8' -> shipped bytes were dropped
 - **FILED-RUNTIME** g_dat_531f8 @ 0x531f8 — image=ffff0000 port_init='= 0' guest reads=0 writes=1
+- **FILED-RUNTIME** g_dat_63e64 @ 0x63e64 — image=00000000 port_init='= 0x140' guest reads=6 writes=1
 - **FILED-RUNTIME** g_dat_53100 @ 0x53100 — image=03000000 port_init='' guest reads=6 writes=4
 - **FILED-PRODUCER-CHECK** g_dat_53619 @ 0x53619 — image=00010000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes
-- **FILED-PRODUCER-CHECK** g_dat_40010 @ 0x40010 — image=eb068b45 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes
-- **FILED-PRODUCER-CHECK** g_dat_40018 @ 0x40018 — image=8b45d4a3 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
-- **FILED-PRODUCER-CHECK** g_dat_4001c @ 0x4001c — image=7c3c0000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
-- **FILED-PRODUCER-CHECK** g_dat_40020 @ 0x40020 — image=a17c3c00 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
+- **FILED-RUNTIME** g_dat_633b0 @ 0x633b0 — image=00000000 port_init='= SCREEN_BASE' guest reads=42 writes=1
+- **FILED-RUNTIME** g_dat_633b4 @ 0x633b4 — image=00000000 port_init='= SCREEN_BASE + SCREEN_SIZE' guest reads=8 writes=1
 - **FILED-PRODUCER-CHECK** g_tab_5274c @ 0x5274c — image=0000003f port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
-- _12 FILED-RUNTIME (the state oracle decides):_ g_dat_530bc @ 0x530bc; g_dat_530b4 @ 0x530b4; g_dat_531f8 @ 0x531f8; g_dat_53100 @ 0x53100; g_dat_53784 @ 0x53784; g_dat_537a7 @ 0x537a7; g_dat_5363c @ 0x5363c; g_dat_53640 @ 0x53640; g_dat_51a10 @ 0x51a10; g_dat_53368 @ 0x53368
+- **FILED-PRODUCER-CHECK** g_dat_536dc @ 0x536dc — image=14000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
+- _15 FILED-RUNTIME (the state oracle decides):_ g_dat_530bc @ 0x530bc; g_dat_530b4 @ 0x530b4; g_dat_531f8 @ 0x531f8; g_dat_63e64 @ 0x63e64; g_dat_53100 @ 0x53100; g_dat_633b0 @ 0x633b0; g_dat_633b4 @ 0x633b4; g_dat_53784 @ 0x53784; g_dat_537a7 @ 0x537a7; g_dat_5363c @ 0x5363c
 
 ## C4: 4 adjudicated, 4 filed
-- **FILED-REPR** g_dat_53c7c_null_warned @ 0x53c7c — port=int shipped=pointer image=None R867/W2 
-- **FILED-REPR** g_dat_639ec @ 0x639ec — port=uint8_t * shipped=undefined4 image=None R26/W3 ['CMP dword ptr [EAX + 0x639ec] 0x0']
+- **FILED-REPR** g_dat_53c7c_null_warned @ 0x53c7c — port=int shipped=pointer image=0 R867/W2 
+- **FILED-REPR** g_dat_639ec @ 0x639ec — port=uint8_t * shipped=undefined4 image=0 R26/W3 ['CMP dword ptr [EAX + 0x639ec] 0x0']
 - **FILED-REPR** g_dat_53730 @ 0x53730 — port=uint32_t * shipped=pointer image=14048 R4/W0 
 - **FILED-REPR** g_dat_537ca @ 0x537ca — port=uint8_t * shipped=pointer image=14247 R1/W0 
 

@@ -23,7 +23,7 @@
   "reads": 0,
   "writes": 0,
   "write_sites": [],
-  "image_u32": 1166739179,
+  "image_u32": null,
   "port_names": [
    "g_dat_40010"
   ],
@@ -39,7 +39,7 @@
   "reads": 0,
   "writes": 0,
   "write_sites": [],
-  "image_u32": 2748597643,
+  "image_u32": null,
   "port_names": [
    "g_dat_40018"
   ],
@@ -55,7 +55,7 @@
   "reads": 0,
   "writes": 0,
   "write_sites": [],
-  "image_u32": 15484,
+  "image_u32": null,
   "port_names": [
    "g_dat_4001c"
   ],
@@ -71,7 +71,7 @@
   "reads": 0,
   "writes": 0,
   "write_sites": [],
-  "image_u32": 3964065,
+  "image_u32": null,
   "port_names": [
    "g_dat_40020"
   ],
@@ -87,7 +87,7 @@
   "reads": 0,
   "writes": 0,
   "write_sites": [],
-  "image_u32": 2303202370,
+  "image_u32": null,
   "port_names": [
    "g_scale_48a36"
   ],
@@ -19052,7 +19052,7 @@
    "fn_038f3d@0x39ae6 MOV ['dword ptr [0x00053818]', 'EDX']",
    "fn_0420bc@0x422a3 STOSD.REP ['ES:EDI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53818"
   ],
@@ -19073,7 +19073,7 @@
    "fn_0420bc@0x422a3 STOSD.REP ['ES:EDI']",
    "fn_0420bc@0x422aa STOSB.REP ['ES:EDI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19087,7 +19087,7 @@
   "write_sites": [
    "fn_0420bc@0x422aa STOSB.REP ['ES:EDI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19102,7 +19102,7 @@
    "fn_03690b@0x371ba MOV ['[0x00053b3c]', 'EAX']",
    "fn_037922@0x37a8a MOV ['dword ptr [0x00053b3c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53b3c"
   ],
@@ -19121,7 +19121,7 @@
    "fn_03690b@0x3724c MOV ['[0x00053c00]', 'EAX']",
    "fn_037922@0x37af0 MOV ['dword ptr [0x00053c00]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c00"
   ],
@@ -19139,7 +19139,7 @@
   "write_sites": [
    "fn_03690b@0x36d6f MOV ['[0x00053c28]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c28"
   ],
@@ -19157,7 +19157,7 @@
   "write_sites": [
    "fn_03690b@0x36dcf MOV ['[0x00053c2c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c2c"
   ],
@@ -19175,7 +19175,7 @@
   "write_sites": [
    "fn_03690b@0x36e2f MOV ['[0x00053c30]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c30"
   ],
@@ -19193,7 +19193,7 @@
   "write_sites": [
    "fn_010b1d@0x10c07 MOV ['[0x00053c40]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c40"
   ],
@@ -19211,7 +19211,7 @@
   "write_sites": [
    "fn_010b1d@0x10bfc MOV ['[0x00053c44]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c44"
   ],
@@ -19229,7 +19229,7 @@
   "write_sites": [
    "fn_010b1d@0x10c26 MOV ['[0x00053c48]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c48"
   ],
@@ -19248,7 +19248,7 @@
    "fn_10664@0x106fe MOV ['byte ptr [0x00053c4c]', '0x3']",
    "fn_01072f@0x10773 MOV ['byte ptr [0x00053c4c]', '0x4']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c4c"
   ],
@@ -19266,7 +19266,7 @@
   "write_sites": [
    "fn_10664@0x106bc MOV ['byte ptr [0x00053c4d]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19280,7 +19280,7 @@
   "write_sites": [
    "fn_10664@0x106f9 MOV ['[0x00053c4e]', 'AL']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19294,7 +19294,7 @@
   "write_sites": [
    "fn_10664@0x106c3 MOV ['byte ptr [0x00053c4f]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19308,7 +19308,7 @@
   "write_sites": [
    "fn_10664@0x106ef MOV ['[0x00053c50]', 'AL']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19322,7 +19322,7 @@
   "write_sites": [
    "fn_10664@0x106ca MOV ['byte ptr [0x00053c51]', '0x2']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19336,7 +19336,7 @@
   "write_sites": [
    "fn_10664@0x106e5 MOV ['[0x00053c52]', 'AL']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19350,7 +19350,7 @@
   "write_sites": [
    "fn_10664@0x106d1 MOV ['byte ptr [0x00053c53]', '0x3']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19364,7 +19364,7 @@
   "write_sites": [
    "fn_10664@0x106db MOV ['[0x00053c54]', 'AL']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19378,7 +19378,7 @@
   "write_sites": [
    "fn_0104c7@0x1050b MOV ['[0x00053c58]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c58"
   ],
@@ -19396,7 +19396,7 @@
   "write_sites": [
    "fn_0104c7@0x10530 MOV ['dword ptr [0x00053c5c]', 'EBX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19410,7 +19410,7 @@
   "write_sites": [
    "fn_010927@0x109b6 MOV ['dword ptr [0x00053c60]', 'EDX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c60"
   ],
@@ -19428,7 +19428,7 @@
   "write_sites": [
    "fn_010927@0x109dd MOV ['[0x00053c64]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c64"
   ],
@@ -19447,7 +19447,7 @@
    "fn_010efc@0x111be INC ['dword ptr [0x00053c68]']",
    "fn_0112fd@0x113d0 DEC ['dword ptr [0x00053c68]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c68"
   ],
@@ -19470,7 +19470,7 @@
    "fn_015d16@0x15d54 MOV ['dword ptr [0x00053c6c]', '0x1']",
    "fn_015d16@0x15d8b MOV ['dword ptr [0x00053c6c]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c6c"
   ],
@@ -19491,7 +19491,7 @@
    "fn_0112fd@0x11359 MOV ['[0x00053c70]', 'EAX']",
    "fn_013aad@0x13c13 MOV ['[0x00053c70]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c70"
   ],
@@ -19513,7 +19513,7 @@
    "fn_0112fd@0x11386 MOV ['[0x00053c74]', 'EAX']",
    "fn_013aad@0x13c27 MOV ['[0x00053c74]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c74"
   ],
@@ -19535,7 +19535,7 @@
    "fn_035c5c@0x35c79 MOV ['[0x00053c78]', 'EAX']",
    "fn_035c5c@0x35cfc MOV ['[0x00053c78]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c78"
   ],
@@ -19554,7 +19554,7 @@
    "fn_0376c8@0x3774c MOV ['[0x00053c7c]', 'EAX']",
    "fn_03af18@0x3b01b MOV ['[0x00053c7c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c7c_null_warned"
   ],
@@ -19573,7 +19573,7 @@
    "fn_010efc@0x10f2b MOV ['[0x00053c80]', 'EAX']",
    "fn_037b03@0x37b43 MOV ['dword ptr [0x00053c80]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19588,7 +19588,7 @@
    "fn_0376c8@0x377d4 MOV ['[0x00053c84]', 'EAX']",
    "fn_03af18@0x3b025 MOV ['[0x00053c84]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19607,7 +19607,7 @@
    "fn_0374ad@0x374d8 MOV ['dword ptr [0x00053c88]', '0x0']",
    "fn_0376c8@0x377c5 MOV ['dword ptr [0x00053c88]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19622,7 +19622,7 @@
    "fn_03690b@0x37045 MOV ['[0x00053c8c]', 'EAX']",
    "fn_037922@0x379be MOV ['dword ptr [0x00053c8c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c8c"
   ],
@@ -19642,7 +19642,7 @@
    "fn_016fec@0x171c1 MOV ['dword ptr [0x00053c90]', '0x1']",
    "fn_016fec@0x171d4 MOV ['dword ptr [0x00053c90]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c90"
   ],
@@ -19658,7 +19658,7 @@
   "reads": 5,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53c94"
   ],
@@ -19674,7 +19674,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_tab_53d08"
   ],
@@ -19692,7 +19692,7 @@
   "write_sites": [
    "fn_03690b@0x36ef9 MOV ['dword ptr [EDX + 0x53d0c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_pool_53d0c"
   ],
@@ -19708,7 +19708,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53dd4"
   ],
@@ -19724,7 +19724,7 @@
   "reads": 11,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53dd8"
   ],
@@ -19740,7 +19740,7 @@
   "reads": 8,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53ddc"
   ],
@@ -19756,7 +19756,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53de0"
   ],
@@ -19772,7 +19772,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53de4"
   ],
@@ -19788,7 +19788,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53e24"
   ],
@@ -19804,7 +19804,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19816,7 +19816,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19828,7 +19828,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19840,7 +19840,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19852,7 +19852,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19864,7 +19864,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19876,7 +19876,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19888,7 +19888,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19900,7 +19900,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19912,7 +19912,7 @@
   "reads": 11,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53e9c"
   ],
@@ -19930,7 +19930,7 @@
   "write_sites": [
    "fn_037b03@0x37ed8 MOV ['dword ptr [EDX + 0x53ea0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19942,7 +19942,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19954,7 +19954,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_53ea8"
   ],
@@ -19972,7 +19972,7 @@
   "write_sites": [
    "fn_037b03@0x37f3b MOV ['dword ptr [EDX + 0x53eac]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19984,7 +19984,7 @@
   "reads": 80,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -19996,7 +19996,7 @@
   "reads": 40,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20008,7 +20008,7 @@
   "reads": 148,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20020,7 +20020,7 @@
   "reads": 18,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20032,7 +20032,7 @@
   "reads": 39,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20044,7 +20044,7 @@
   "reads": 40,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20058,7 +20058,7 @@
   "write_sites": [
    "fn_03e20f@0x3eb9c MOV ['dword ptr [EDX + 0x5c8bc]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20072,7 +20072,7 @@
   "write_sites": [
    "fn_03e20f@0x3ebaf MOV ['dword ptr [EDX + 0x5c8c0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20086,7 +20086,7 @@
   "write_sites": [
    "fn_03e20f@0x3ebc2 MOV ['dword ptr [EDX + 0x5c8c4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20100,7 +20100,7 @@
   "write_sites": [
    "fn_03e20f@0x3ebd5 MOV ['dword ptr [EDX + 0x5c8c8]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20114,7 +20114,7 @@
   "write_sites": [
    "fn_03e20f@0x3ec5a MOV ['[0x0005d08c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_5d08c"
   ],
@@ -20132,7 +20132,7 @@
   "write_sites": [
    "fn_03e20f@0x3ec62 MOV ['[0x0005d090]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20146,7 +20146,7 @@
   "write_sites": [
    "fn_03e20f@0x3ec6a MOV ['[0x0005d094]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20160,7 +20160,7 @@
   "write_sites": [
    "fn_03e20f@0x3ec72 MOV ['[0x0005d098]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20174,7 +20174,7 @@
   "write_sites": [
    "fn_03e20f@0x3ece6 MOV ['[0x0005d0a0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_5d0a0"
   ],
@@ -20192,7 +20192,7 @@
   "write_sites": [
    "fn_03e20f@0x3ecf1 MOV ['[0x0005d0a4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20206,7 +20206,7 @@
   "write_sites": [
    "fn_03e20f@0x3ecfc MOV ['[0x0005d0a8]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20220,7 +20220,7 @@
   "write_sites": [
    "fn_03e20f@0x3ed07 MOV ['[0x0005d0ac]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20234,7 +20234,7 @@
   "write_sites": [
    "fn_03e20f@0x3ed12 MOV ['[0x0005d0b0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20248,7 +20248,7 @@
   "write_sites": [
    "fn_037b03@0x37dfb MOV ['dword ptr [EDX + 0x5d0b4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_5d0b4",
    "g_tab_5d0b4"
@@ -20268,7 +20268,7 @@
   "write_sites": [
    "fn_037b03@0x37e0e MOV ['dword ptr [EDX + 0x5d0b8]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20282,7 +20282,7 @@
   "write_sites": [
    "fn_037b03@0x37e21 MOV ['dword ptr [EDX + 0x5d0bc]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20296,7 +20296,7 @@
   "write_sites": [
    "fn_037b03@0x37e34 MOV ['dword ptr [EDX + 0x5d0c0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20310,7 +20310,7 @@
   "write_sites": [
    "fn_037b03@0x37e41 MOV ['dword ptr [EAX + 0x5d0c4]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20322,7 +20322,7 @@
   "reads": 6,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_tab_5d884"
   ],
@@ -20338,7 +20338,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20350,7 +20350,7 @@
   "reads": 3,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20367,7 +20367,7 @@
    "fn_03e20f@0x3ed17 INC ['dword ptr [0x00062a8c]']",
    "fn_03ee0a@0x3ee73 MOV ['dword ptr [0x00062a8c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62a8c"
   ],
@@ -20387,7 +20387,7 @@
    "fn_037b03@0x37c92 MOV ['dword ptr [0x00062a90]', '0x0']",
    "fn_037b03@0x37e4b INC ['dword ptr [0x00062a90]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62a90"
   ],
@@ -20405,7 +20405,7 @@
   "write_sites": [
    "fn_034635@0x3471c MOV ['[0x00062a94]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62a94"
   ],
@@ -20425,7 +20425,7 @@
    "fn_0376c8@0x37810 MOV ['[0x00062a98]', 'EAX']",
    "fn_038f3d@0x39a7a MOV ['[0x00062a98]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62a98"
   ],
@@ -20445,7 +20445,7 @@
    "fn_0376c8@0x37823 MOV ['[0x00062a9c]', 'EAX']",
    "fn_038f3d@0x39a8e MOV ['[0x00062a9c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62a9c"
   ],
@@ -20463,7 +20463,7 @@
   "write_sites": [
    "fn_03690b@0x369af MOV ['[0x00062aa0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20477,7 +20477,7 @@
   "write_sites": [
    "fn_03690b@0x36a0f MOV ['[0x00062aa4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62aa4"
   ],
@@ -20495,7 +20495,7 @@
   "write_sites": [
    "fn_03690b@0x36a6f MOV ['[0x00062aa8]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62aa8"
   ],
@@ -20513,7 +20513,7 @@
   "write_sites": [
    "fn_03690b@0x36acf MOV ['[0x00062aac]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62aac"
   ],
@@ -20531,7 +20531,7 @@
   "write_sites": [
    "fn_03690b@0x36b2f MOV ['[0x00062ab0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62ab0"
   ],
@@ -20549,7 +20549,7 @@
   "write_sites": [
    "fn_03690b@0x36b8f MOV ['[0x00062ab4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62ab4"
   ],
@@ -20567,7 +20567,7 @@
   "write_sites": [
    "fn_03690b@0x36bef MOV ['[0x00062ab8]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62ab8"
   ],
@@ -20585,7 +20585,7 @@
   "write_sites": [
    "fn_03690b@0x36c4f MOV ['[0x00062abc]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62abc"
   ],
@@ -20603,7 +20603,7 @@
   "write_sites": [
    "fn_03690b@0x36caf MOV ['[0x00062ac0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62ac0"
   ],
@@ -20621,7 +20621,7 @@
   "write_sites": [
    "fn_03690b@0x36d0f MOV ['[0x00062ac4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62ac4"
   ],
@@ -20639,7 +20639,7 @@
   "write_sites": [
    "fn_032464@0x3264e MOV ['byte ptr [EDX + 0x62ac8]', 'AL']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62ac8"
   ],
@@ -20657,7 +20657,7 @@
   "write_sites": [
    "fn_032464@0x32684 MOV ['byte ptr [EDX + 0x62b90]', 'AL']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62b90"
   ],
@@ -20680,7 +20680,7 @@
    "fn_034635@0x34726 INC ['byte ptr [EAX + 0x62c58]']",
    "fn_034735@0x3478e MOV ['byte ptr [EAX + 0x62c58]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62c58"
   ],
@@ -20696,7 +20696,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20708,7 +20708,7 @@
   "reads": 3,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20720,7 +20720,7 @@
   "reads": 3,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20732,7 +20732,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20744,7 +20744,7 @@
   "reads": 3,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20761,7 +20761,7 @@
    "fn_034735@0x3479a DEC ['byte ptr [EAX + 0x62cd8]']",
    "@0x3fe26 INC ['byte ptr [EAX + 0x62cd8]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62cd8"
   ],
@@ -20784,7 +20784,7 @@
    "fn_03272f@0x32e23 MOV ['dword ptr [0x00062d58]', '0x85']",
    "fn_03272f@0x32e7d MOV ['dword ptr [0x00062d58]', '0x85']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62d58"
   ],
@@ -20807,7 +20807,7 @@
    "fn_03272f@0x3408c MOV ['[0x00062d5c]', 'EAX']",
    "fn_03272f@0x34128 MOV ['[0x00062d5c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62d5c"
   ],
@@ -20825,7 +20825,7 @@
   "write_sites": [
    "fn_034990@0x349aa MOV ['[0x00062d60]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62d60"
   ],
@@ -20844,7 +20844,7 @@
    "fn_034990@0x349b4 MOV ['[0x00062d64]', 'EAX']",
    "fn_034a87@0x34aa4 ADD ['dword ptr [0x00062d64]', '0xb']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62d64"
   ],
@@ -20863,7 +20863,7 @@
    "fn_034990@0x349fe MOV ['dword ptr [EDX + 0x62d68]', 'EAX']",
    "fn_034aba@0x34b1b MOV ['dword ptr [EDX + 0x62d68]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_62d68"
   ],
@@ -20879,7 +20879,7 @@
   "reads": 3,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20891,7 +20891,7 @@
   "reads": 4,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20903,7 +20903,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63304"
   ],
@@ -20921,7 +20921,7 @@
   "write_sites": [
    "fn_0353d0@0x35456 MOV ['[0x00063308]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63308"
   ],
@@ -20939,7 +20939,7 @@
   "write_sites": [
    "fn_034c40@0x34c5f INC ['dword ptr [0x0006330c]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6330c"
   ],
@@ -20955,7 +20955,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -20971,7 +20971,7 @@
    "fn_03575d@0x35790 MOV ['dword ptr [0x00063318]', '0x10000']",
    "fn_03575d@0x357a6 MOV ['dword ptr [0x00063318]', '0x10000']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63318"
   ],
@@ -20987,7 +20987,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21002,7 +21002,7 @@
    "@0x34e16 MOV ['dword ptr [0x00063324]', '0x1']",
    "fn_034eb0@0x34f03 MOV ['dword ptr [0x00063324]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63324"
   ],
@@ -21021,7 +21021,7 @@
    "@0x34e20 MOV ['dword ptr [0x00063328]', '0x1']",
    "fn_034e3c@0x34e80 INC ['dword ptr [0x00063328]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21037,7 +21037,7 @@
    "fn_034c40@0x34c87 ADD ['dword ptr [0x0006332c]', 'EAX']",
    "fn_03575d@0x35778 MOV ['dword ptr [0x0006332c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6332c"
   ],
@@ -21055,7 +21055,7 @@
   "write_sites": [
    "fn_0356ba@0x356d8 MOV ['[0x00063330]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63330"
   ],
@@ -21073,7 +21073,7 @@
   "write_sites": [
    "@0x34df0 MOV ['dword ptr [0x00063334]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63334"
   ],
@@ -21091,7 +21091,7 @@
   "write_sites": [
    "@0x34de9 MOV ['word ptr [0x00063338]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63338"
   ],
@@ -21111,7 +21111,7 @@
    "@0x34d1d MOV ['[0x0006333c]', 'EAX']",
    "fn_034eb0@0x34f20 MOV ['dword ptr [0x0006333c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6333c"
   ],
@@ -21131,7 +21131,7 @@
    "fn_0374ad@0x37609 MOV ['dword ptr [0x0006334c]', '0x0']",
    "fn_037b03@0x37bae MOV ['[0x0006334c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6334c"
   ],
@@ -21149,7 +21149,7 @@
   "write_sites": [
    "fn_03af18@0x3afa7 MOV ['[0x00063350]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63350"
   ],
@@ -21172,7 +21172,7 @@
    "fn_03cc6b@0x3ccb5 MOV ['[0x00063354]', 'EAX']",
    "fn_03cc6b@0x3cd6f MOV ['[0x00063354]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21190,7 +21190,7 @@
    "fn_03cc6b@0x3cd89 MOV ['[0x00063358]', 'EAX']",
    "fn_03d244@0x3d3f3 MOV ['[0x00063358]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21205,7 +21205,7 @@
    "fn_037b03@0x37bbb MOV ['dword ptr [0x0006335c]', '0x0']",
    "fn_03c853@0x3ca48 INC ['dword ptr [0x0006335c]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6335c"
   ],
@@ -21227,7 +21227,7 @@
    "fn_03a829@0x3ab68 INC ['dword ptr [0x00063360]']",
    "fn_03d244@0x3d3a6 INC ['dword ptr [0x00063360]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63360"
   ],
@@ -21250,7 +21250,7 @@
    "fn_01545e@0x155ad MOV ['dword ptr [0x00063364]', '0x12']",
    "fn_01545e@0x15671 MOV ['dword ptr [0x00063364]', '0x12']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63364"
   ],
@@ -21273,7 +21273,7 @@
    "fn_01545e@0x155b7 MOV ['dword ptr [0x00063368]', '0x1']",
    "fn_01545e@0x1567b MOV ['dword ptr [0x00063368]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63368"
   ],
@@ -21296,7 +21296,7 @@
    "fn_012616@0x12ee7 MOV ['dword ptr [0x0006336c]', '0x2']",
    "fn_03a829@0x3a976 MOV ['dword ptr [0x0006336c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6336c"
   ],
@@ -21317,7 +21317,7 @@
    "fn_03af18@0x3b520 INC ['dword ptr [0x00063370]']",
    "fn_03af18@0x3b569 MOV ['dword ptr [0x00063370]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63370"
   ],
@@ -21338,7 +21338,7 @@
    "fn_03cc6b@0x3cd96 MOV ['[0x00063374]', 'EAX']",
    "fn_03d244@0x3d400 MOV ['[0x00063374]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63374"
   ],
@@ -21359,7 +21359,7 @@
    "fn_03cc6b@0x3cdba MOV ['[0x00063378]', 'EAX']",
    "fn_03d244@0x3d424 MOV ['[0x00063378]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63378"
   ],
@@ -21380,7 +21380,7 @@
    "fn_03cc6b@0x3cdcc MOV ['[0x0006337c]', 'EAX']",
    "fn_03d244@0x3d436 MOV ['[0x0006337c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6337c"
   ],
@@ -21401,7 +21401,7 @@
    "fn_03cc6b@0x3cdde MOV ['[0x00063380]', 'EAX']",
    "fn_03d244@0x3d448 MOV ['[0x00063380]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63380"
   ],
@@ -21422,7 +21422,7 @@
    "fn_03cc6b@0x3cda8 MOV ['[0x00063384]', 'EAX']",
    "fn_03d244@0x3d412 MOV ['[0x00063384]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63384"
   ],
@@ -21440,7 +21440,7 @@
   "write_sites": [
    "fn_0320f5@0x32115 MOV ['dword ptr [0x00063388]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63388"
   ],
@@ -21463,7 +21463,7 @@
    "fn_03a829@0x3ac99 MOV ['[0x00063398]', 'EAX']",
    "fn_03af18@0x3afb9 MOV ['[0x00063398]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63398"
   ],
@@ -21483,7 +21483,7 @@
    "fn_03a829@0x3ab81 MOV ['dword ptr [0x0006339c]', '0x0']",
    "@0x3fe3a MOV ['dword ptr [0x0006339c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_6339c"
   ],
@@ -21499,7 +21499,7 @@
   "reads": 7,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_633a0"
   ],
@@ -21517,7 +21517,7 @@
   "write_sites": [
    "fn_038f3d@0x391cc MOV ['dword ptr [0x000633a4]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_633a4"
   ],
@@ -21533,7 +21533,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_633a8"
   ],
@@ -21549,7 +21549,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_633ac"
   ],
@@ -21567,7 +21567,7 @@
   "write_sites": [
    "fn_03658d@0x365ff MOV ['[0x000633b0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_633b0"
   ],
@@ -21585,7 +21585,7 @@
   "write_sites": [
    "fn_03658d@0x3660e MOV ['[0x000633b4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_633b4"
   ],
@@ -21603,7 +21603,7 @@
   "write_sites": [
    "fn_036190@0x36203 SHR ['byte ptr [EAX + 0x633b8]', '0x2']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_633b8"
   ],
@@ -21619,7 +21619,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21636,7 +21636,7 @@
    "fn_03628e@0x36314 SHR ['byte ptr [EAX + 0x636b8]', '0x2']",
    "fn_036417@0x3648c SHR ['byte ptr [EAX + 0x636b8]', '0x2']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_636b8"
   ],
@@ -21652,7 +21652,7 @@
   "reads": 4,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21666,7 +21666,7 @@
   "write_sites": [
    "fn_03690b@0x36932 MOV ['[0x000639b8]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21682,7 +21682,7 @@
    "fn_03a829@0x3a848 MOV ['dword ptr [0x000639bc]', '0x0']",
    "fn_03d244@0x3d4d1 MOV ['dword ptr [0x000639bc]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639bc"
   ],
@@ -21701,7 +21701,7 @@
    "fn_03690b@0x36f6d MOV ['[0x000639c0]', 'EAX']",
    "fn_037922@0x3798b MOV ['dword ptr [0x000639c0]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639c0"
   ],
@@ -21719,7 +21719,7 @@
   "write_sites": [
    "fn_03690b@0x36fb5 MOV ['[0x000639c4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21734,7 +21734,7 @@
    "fn_03b5c0@0x3b667 INC ['dword ptr [0x000639c8]']",
    "fn_03b67e@0x3b701 DEC ['dword ptr [0x000639c8]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639c8"
   ],
@@ -21753,7 +21753,7 @@
    "fn_03b5c0@0x3b61a MOV ['[0x000639cc]', 'EAX']",
    "fn_03b67e@0x3b6ab MOV ['[0x000639cc]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639cc"
   ],
@@ -21773,7 +21773,7 @@
    "fn_03b5c0@0x3b662 MOV ['[0x000639d0]', 'EAX']",
    "fn_03b67e@0x3b6cf MOV ['[0x000639d0]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639d0"
   ],
@@ -21794,7 +21794,7 @@
    "fn_03b9b7@0x3b9d4 MOV ['[0x000639d4]', 'EAX']",
    "fn_03b9b7@0x3ba19 MOV ['[0x000639d4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639d4"
   ],
@@ -21810,7 +21810,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639d8"
   ],
@@ -21833,7 +21833,7 @@
    "fn_03cb38@0x3cbb2 INC ['dword ptr [0x000639dc]']",
    "fn_03cbd9@0x3cc22 SUB ['dword ptr [0x000639dc]', '0x3']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639dc"
   ],
@@ -21853,7 +21853,7 @@
    "fn_03cc6b@0x3cd42 INC ['dword ptr [0x000639e0]']",
    "fn_03cc6b@0x3cdfc INC ['dword ptr [0x000639e0]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639e0"
   ],
@@ -21873,7 +21873,7 @@
    "fn_03cc6b@0x3ccba MOV ['byte ptr [0x000639e4]', '0x1']",
    "fn_03cc6b@0x3cd74 MOV ['byte ptr [0x000639e4]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639e4"
   ],
@@ -21892,7 +21892,7 @@
    "fn_037b03@0x37bdf MOV ['dword ptr [0x000639e8]', '0x0']",
    "fn_03c853@0x3c87c INC ['dword ptr [0x000639e8]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21908,7 +21908,7 @@
    "fn_037922@0x37a24 MOV ['dword ptr [0x000639ec]', '0x0']",
    "fn_037b03@0x37d7b MOV ['dword ptr [EDX + 0x639ec]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_639ec"
   ],
@@ -21927,7 +21927,7 @@
    "fn_037347@0x3741f MOV ['dword ptr [EAX + 0x639ec]', '0x0']",
    "fn_0374ad@0x3758e MOV ['dword ptr [EAX + 0x639ec]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21942,7 +21942,7 @@
    "fn_03690b@0x37171 MOV ['[0x00063d10]', 'EAX']",
    "fn_037922@0x37a57 MOV ['dword ptr [0x00063d10]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21957,7 +21957,7 @@
    "fn_03690b@0x37203 MOV ['[0x00063dd4]', 'EAX']",
    "fn_037922@0x37abd MOV ['dword ptr [0x00063dd4]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63dd4"
   ],
@@ -21977,7 +21977,7 @@
    "fn_0374ad@0x375d6 MOV ['dword ptr [0x00063dfc]', '0x0']",
    "fn_037b03@0x37c53 MOV ['[0x00063dfc]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -21992,7 +21992,7 @@
    "fn_03690b@0x3708d MOV ['[0x00063e00]', 'EAX']",
    "fn_037922@0x379f1 MOV ['dword ptr [0x00063e00]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e00"
   ],
@@ -22010,7 +22010,7 @@
   "write_sites": [
    "fn_03690b@0x370d5 MOV ['[0x00063e04]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -22024,7 +22024,7 @@
   "write_sites": [
    "fn_03690b@0x36ffd MOV ['[0x00063e08]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -22038,7 +22038,7 @@
   "write_sites": [
    "fn_03690b@0x36ea3 MOV ['[0x00063e0c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e0c"
   ],
@@ -22056,7 +22056,7 @@
   "write_sites": [
    "fn_03e14c@0x3e1f8 DEC ['dword ptr [0x00063e14]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e14"
   ],
@@ -22076,7 +22076,7 @@
    "fn_03e14c@0x3e172 MOV ['dword ptr [0x00063e18]', '0x0']",
    "fn_03e14c@0x3e1a2 MOV ['[0x00063e18]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e18"
   ],
@@ -22097,7 +22097,7 @@
    "fn_03e14c@0x3e17c MOV ['dword ptr [0x00063e1c]', '0x0']",
    "fn_03e14c@0x3e1c6 MOV ['[0x00063e1c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e1c"
   ],
@@ -22120,7 +22120,7 @@
    "fn_03ee0a@0x3ee27 MOV ['[0x00063e20]', 'EAX']",
    "fn_03ee0a@0x3ee6c MOV ['[0x00063e20]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e20"
   ],
@@ -22143,7 +22143,7 @@
    "fn_03a5f7@0x3a619 MOV ['dword ptr [0x00063e24]', '0x0']",
    "fn_03a5f7@0x3a6ee SUB ['dword ptr [0x00063e24]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e24"
   ],
@@ -22166,7 +22166,7 @@
    "fn_03a829@0x3a9f5 MOV ['[0x00063e28]', 'EAX']",
    "fn_03d244@0x3d44d MOV ['dword ptr [0x00063e28]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e28"
   ],
@@ -22184,7 +22184,7 @@
   "write_sites": [
    "fn_03ef29@0x3ef5e MOV ['[0x00063e2c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e2c"
   ],
@@ -22204,7 +22204,7 @@
    "fn_03ee88@0x3eefd SUB ['dword ptr [0x00063e30]', '0xffff']",
    "fn_03ef29@0x3ef63 MOV ['dword ptr [0x00063e30]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e30"
   ],
@@ -22222,7 +22222,7 @@
   "write_sites": [
    "fn_03ee88@0x3ef07 INC ['dword ptr [0x00063e34]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e34"
   ],
@@ -22244,7 +22244,7 @@
    "fn_038f3d@0x39a3d MOV ['dword ptr [0x00063e38]', '0x0']",
    "fn_03ee88@0x3eeca INC ['dword ptr [0x00063e38]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e38"
   ],
@@ -22264,7 +22264,7 @@
    "fn_03ee88@0x3eedf SUB ['dword ptr [0x00063e3c]', '0x11']",
    "fn_03f6bc@0x3f72d MOV ['dword ptr [0x00063e3c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e3c"
   ],
@@ -22283,7 +22283,7 @@
    "fn_03ee88@0x3eed9 INC ['dword ptr [0x00063e40]']",
    "fn_03f6bc@0x3f737 MOV ['dword ptr [0x00063e40]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e40"
   ],
@@ -22301,7 +22301,7 @@
   "write_sites": [
    "fn_03ef29@0x3ef82 MOV ['dword ptr [0x00063e44]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e44"
   ],
@@ -22319,7 +22319,7 @@
   "write_sites": [
    "fn_03ef29@0x3ef7b MOV ['word ptr [0x00063e48]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e48"
   ],
@@ -22338,7 +22338,7 @@
    "fn_03ef29@0x3efdd MOV ['byte ptr [0x00063e4a]', '0x1']",
    "fn_03eff2@0x3f064 MOV ['byte ptr [0x00063e4a]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e4a"
   ],
@@ -22357,7 +22357,7 @@
    "fn_03f15f@0x3f2ea MOV ['dword ptr [0x00063e4c]', '0x0']",
    "fn_03f15f@0x3f2f6 INC ['dword ptr [0x00063e4c]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e4c"
   ],
@@ -22373,7 +22373,7 @@
   "reads": 6,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e50"
   ],
@@ -22392,7 +22392,7 @@
    "fn_03f15f@0x3f28c MOV ['dword ptr [0x00063e58]', '0x0']",
    "fn_03f15f@0x3f2c4 MOV ['dword ptr [0x00063e58]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e58"
   ],
@@ -22411,7 +22411,7 @@
    "fn_03f15f@0x3f2a8 MOV ['dword ptr [0x00063e5c]', '0x0']",
    "fn_03f15f@0x3f2e0 MOV ['dword ptr [0x00063e5c]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e5c"
   ],
@@ -22429,7 +22429,7 @@
   "write_sites": [
    "fn_03f15f@0x3f328 MOV ['[0x00063e60]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e60"
   ],
@@ -22447,7 +22447,7 @@
   "write_sites": [
    "fn_03f15f@0x3f334 MOV ['[0x00063e64]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e64"
   ],
@@ -22465,7 +22465,7 @@
   "write_sites": [
    "fn_03f15f@0x3f340 MOV ['[0x00063e68]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e68"
   ],
@@ -22486,7 +22486,7 @@
    "fn_03fb73@0x3fbcd MOV ['[0x00063e78]', 'EAX']",
    "fn_03fb73@0x3fc03 DEC ['dword ptr [0x00063e78]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e78"
   ],
@@ -22506,7 +22506,7 @@
    "fn_03fb0e@0x3fb33 MOV ['[0x00063e7c]', 'EAX']",
    "fn_03fb73@0x3fb98 MOV ['[0x00063e7c]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e7c"
   ],
@@ -22524,7 +22524,7 @@
   "write_sites": [
    "fn_03feb8@0x3fef4 MOV ['dword ptr [0x00063e80]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e80"
   ],
@@ -22542,7 +22542,7 @@
   "write_sites": [
    "fn_03feb8@0x3feed MOV ['word ptr [0x00063e84]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e84"
   ],
@@ -22561,7 +22561,7 @@
    "fn_03feb8@0x3ff84 MOV ['byte ptr [0x00063e86]', '0x1']",
    "fn_03ffab@0x3ffeb MOV ['byte ptr [0x00063e86]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e86"
   ],
@@ -22580,7 +22580,7 @@
    "@0x3fe06 MOV ['byte ptr [EAX + 0x63e88]', '0x1']",
    "@0x3fe6e MOV ['byte ptr [EAX + 0x63e88]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e88"
   ],
@@ -22596,7 +22596,7 @@
   "reads": 19,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63e89"
   ],
@@ -22612,7 +22612,7 @@
   "reads": 21,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ea4"
   ],
@@ -22630,7 +22630,7 @@
   "write_sites": [
    "@0x3fe06 MOV ['byte ptr [EAX + 0x63e88]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ea5"
   ],
@@ -22648,7 +22648,7 @@
   "write_sites": [
    "@0x3fe06 MOV ['byte ptr [EAX + 0x63e88]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -22660,7 +22660,7 @@
   "reads": 3,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63eb4"
   ],
@@ -22676,7 +22676,7 @@
   "reads": 8,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ebe"
   ],
@@ -22694,7 +22694,7 @@
   "write_sites": [
    "@0x3fe06 MOV ['byte ptr [EAX + 0x63e88]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ec0"
   ],
@@ -22710,7 +22710,7 @@
   "reads": 24,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ec1"
   ],
@@ -22726,7 +22726,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ec3"
   ],
@@ -22742,7 +22742,7 @@
   "reads": 11,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ed0"
   ],
@@ -22758,7 +22758,7 @@
   "reads": 16,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ed3"
   ],
@@ -22774,7 +22774,7 @@
   "reads": 16,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ed5"
   ],
@@ -22790,7 +22790,7 @@
   "reads": 11,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63ed8"
   ],
@@ -22810,7 +22810,7 @@
    "fn_03ee88@0x3eeb1 INC ['dword ptr [0x00063f08]']",
    "fn_03feb8@0x3ff6b MOV ['[0x00063f08]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f08"
   ],
@@ -22829,7 +22829,7 @@
    "fn_034353@0x343ab MOV ['[0x00063f0c]', 'EAX']",
    "fn_03feb8@0x3ff5c MOV ['dword ptr [0x00063f0c]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f0c"
   ],
@@ -22845,7 +22845,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -22864,7 +22864,7 @@
    "fn_03442e@0x344ec MOV ['byte ptr [EAX + 0x63f14]', '0x69']",
    "fn_03442e@0x34512 MOV ['byte ptr [EAX + 0x63f14]', '0x68']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f14"
   ],
@@ -22880,7 +22880,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -22892,7 +22892,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -22911,7 +22911,7 @@
    "fn_03272f@0x33e2e MOV ['byte ptr [EAX + 0x63f1e]', '0x1']",
    "fn_03272f@0x34028 MOV ['byte ptr [EAX + 0x63f1e]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f1e"
   ],
@@ -22927,7 +22927,7 @@
   "reads": 9,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -22943,7 +22943,7 @@
    "fn_03442e@0x345b3 MOV ['dword ptr [EAX + 0x63f28]', 'EDX']",
    "fn_0348e2@0x34918 MOV ['dword ptr [EAX + 0x63f28]', 'EDX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f28"
   ],
@@ -22961,7 +22961,7 @@
   "write_sites": [
    "fn_03feb8@0x3ff7a MOV ['dword ptr [0x00063f4c]', '0xffffffff']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f4c"
   ],
@@ -22984,7 +22984,7 @@
    "fn_0348e2@0x3491e INC ['byte ptr [0x00063f50]']",
    "fn_0348e2@0x34930 MOV ['byte ptr [0x00063f50]', '0x0']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f50"
   ],
@@ -23002,7 +23002,7 @@
   "write_sites": [
    "fn_03feb8@0x3ff97 MOV ['[0x00063f51]', 'AL']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f51"
   ],
@@ -23020,7 +23020,7 @@
   "write_sites": [
    "fn_040d09@0x40e4c MOV ['dword ptr [0x00063f54]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f54"
   ],
@@ -23038,7 +23038,7 @@
   "write_sites": [
    "fn_040d09@0x40e45 MOV ['word ptr [0x00063f58]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f58"
   ],
@@ -23056,7 +23056,7 @@
   "write_sites": [
    "fn_040fb3@0x40fe7 MOV ['dword ptr [0x00063f5c]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f5c"
   ],
@@ -23074,7 +23074,7 @@
   "write_sites": [
    "fn_040fb3@0x40fe0 MOV ['word ptr [0x00063f60]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f60"
   ],
@@ -23092,7 +23092,7 @@
   "write_sites": [
    "fn_040fb3@0x4101d MOV ['dword ptr [0x00063f64]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f64"
   ],
@@ -23110,7 +23110,7 @@
   "write_sites": [
    "fn_040fb3@0x41016 MOV ['word ptr [0x00063f68]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f68"
   ],
@@ -23128,7 +23128,7 @@
   "write_sites": [
    "fn_040fb3@0x41053 MOV ['dword ptr [0x00063f6c]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f6c"
   ],
@@ -23146,7 +23146,7 @@
   "write_sites": [
    "fn_040fb3@0x4104c MOV ['word ptr [0x00063f70]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f70"
   ],
@@ -23164,7 +23164,7 @@
   "write_sites": [
    "fn_040fb3@0x41089 MOV ['dword ptr [0x00063f74]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f74"
   ],
@@ -23182,7 +23182,7 @@
   "write_sites": [
    "fn_040fb3@0x41082 MOV ['word ptr [0x00063f78]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f78"
   ],
@@ -23200,7 +23200,7 @@
   "write_sites": [
    "fn_040fb3@0x410bf MOV ['dword ptr [0x00063f7c]', 'ECX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f7c"
   ],
@@ -23218,7 +23218,7 @@
   "write_sites": [
    "fn_040fb3@0x410b8 MOV ['word ptr [0x00063f80]', 'BX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f80"
   ],
@@ -23241,7 +23241,7 @@
    "@0x4153a MOV ['dword ptr [0x00063f84]', '0x7']",
    "@0x41587 MOV ['dword ptr [0x00063f84]', '0xa']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f84"
   ],
@@ -23260,7 +23260,7 @@
    "fn_040d09@0x40d67 MOV ['[0x00063f88]', 'EAX']",
    "fn_0411d9@0x41223 MOV ['dword ptr [0x00063f88]', 'EDX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f88"
   ],
@@ -23279,7 +23279,7 @@
    "fn_040839@0x40862 MOV ['dword ptr [0x00063f8c]', '0x0']",
    "fn_04097e@0x40a2e MOV ['dword ptr [0x00063f8c]', '0xffff']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f8c"
   ],
@@ -23297,7 +23297,7 @@
   "write_sites": [
    "fn_040d09@0x40e70 MOV ['dword ptr [0x00063f90]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_63f90",
    "g_dat_63f90"
@@ -23319,7 +23319,7 @@
    "fn_040b83@0x40bf9 SUB ['dword ptr [0x00063f94]', 'EAX']",
    "@0x41656 SUB ['dword ptr [0x00063f94]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f94"
   ],
@@ -23342,7 +23342,7 @@
    "fn_040b83@0x40bc5 MOV ['[0x00063f98]', 'EAX']",
    "fn_040b83@0x40c0a DEC ['dword ptr [0x00063f98]']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f98"
   ],
@@ -23363,7 +23363,7 @@
    "fn_04097e@0x409dd MOV ['dword ptr [0x00063f9c]', '0x77']",
    "fn_04097e@0x409e9 MOV ['dword ptr [0x00063f9c]', '0x17']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63f9c"
   ],
@@ -23385,7 +23385,7 @@
    "fn_040b83@0x40c04 ADD ['dword ptr [0x00063fa8]', 'EAX']",
    "@0x41661 ADD ['dword ptr [0x00063fa8]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63fa8"
   ],
@@ -23405,7 +23405,7 @@
    "fn_040d09@0x40de2 MOV ['[0x00063fac]', 'EAX']",
    "fn_040d09@0x40e04 ADD ['dword ptr [0x00063fac]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63fac"
   ],
@@ -23421,7 +23421,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23433,7 +23433,7 @@
   "reads": 2,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63fb0"
   ],
@@ -23453,7 +23453,7 @@
    "fn_040d09@0x40e0d ADD ['dword ptr [0x00063fb4]', 'EAX']",
    "fn_040d09@0x40e16 ADD ['dword ptr [0x00063fb4]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63fb4"
   ],
@@ -23472,7 +23472,7 @@
    "@0x415f9 MOV ['byte ptr [0x00063fb8]', '0x0']",
    "fn_04185e@0x418ad MOV ['byte ptr [0x00063fb8]', '0x1']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_63fb8"
   ],
@@ -23491,7 +23491,7 @@
    "heap_malloc@0x41bc6 MOV ['byte ptr [0x00063fbd]', 'CH']",
    "heap_free_host@0x41c84 MOV ['byte ptr [0x00063fbd]', 'AH']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23503,7 +23503,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23515,7 +23515,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23533,7 +23533,7 @@
    "fn_044b96@0x44baa MOV ['dword ptr [0x00063ff8]', 'EDX']",
    "fn_04933a@0x493a8 MOV ['dword ptr [0x00063ff8]', 'EDX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23549,7 +23549,7 @@
    "fn_044ab5@0x44b3f MOV ['dword ptr [0x00063ffc]', 'ESI']",
    "fn_04933a@0x49396 MOV ['dword ptr [0x00063ffc]', 'EBX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23563,7 +23563,7 @@
   "write_sites": [
    "calibrate_clock@0x45644 MOV ['dword ptr [0x00064000]', 'ESI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23575,7 +23575,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_64004"
   ],
@@ -23591,7 +23591,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_64008"
   ],
@@ -23609,7 +23609,7 @@
   "write_sites": [
    "fn_042eef@0x42f48 MOV ['dword ptr [0x0006400c]', '0xfffff']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23621,7 +23621,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23633,7 +23633,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23647,7 +23647,7 @@
   "write_sites": [
    "fn_04589e@0x45946 MOV ['dword ptr [0x00064090]', 'EBP']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_64090"
   ],
@@ -23665,7 +23665,7 @@
   "write_sites": [
    "fn_04589e@0x4594c MOV ['[0x00064094]', 'EAX']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_64094"
   ],
@@ -23681,7 +23681,7 @@
   "reads": 1,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23693,7 +23693,7 @@
   "reads": 3,
   "writes": 0,
   "write_sites": [],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23708,7 +23708,7 @@
    "fn_0420bc@0x42224 MOVSB.REP ['ES:EDI', 'ESI']",
    "fn_0420bc@0x42228 STOSB ['ES:EDI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [
    "g_dat_640c0"
   ],
@@ -23728,7 +23728,7 @@
    "fn_0420bc@0x42228 STOSB ['ES:EDI']",
    "fn_0420bc@0x42229 STOSB ['ES:EDI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23743,7 +23743,7 @@
    "fn_0420bc@0x42229 STOSB ['ES:EDI']",
    "fn_0420bc@0x4225e MOVSB ['ES:EDI', 'ESI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  },
@@ -23757,7 +23757,7 @@
   "write_sites": [
    "fn_0420bc@0x4225e MOVSB ['ES:EDI', 'ESI']"
   ],
-  "image_u32": null,
+  "image_u32": 0,
   "port_names": [],
   "port_types": []
  }

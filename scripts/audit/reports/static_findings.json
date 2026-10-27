@@ -4135,6 +4135,13 @@
    "init": "= 0"
   },
   {
+   "ds": 409188,
+   "kind": "image-zero-port-nonzero",
+   "name": "g_dat_63e64",
+   "image_head": "00000000",
+   "init": "= 0x140"
+  },
+  {
    "ds": 340224,
    "kind": "image-nonzero-port-zero",
    "name": "g_dat_53100",
@@ -4149,32 +4156,18 @@
    "init": "= 0"
   },
   {
-   "ds": 262160,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_dat_40010",
-   "image_head": "eb068b45",
-   "init": "= 0"
+   "ds": 406448,
+   "kind": "image-zero-port-nonzero",
+   "name": "g_dat_633b0",
+   "image_head": "00000000",
+   "init": "= SCREEN_BASE"
   },
   {
-   "ds": 262168,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_dat_40018",
-   "image_head": "8b45d4a3",
-   "init": ""
-  },
-  {
-   "ds": 262172,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_dat_4001c",
-   "image_head": "7c3c0000",
-   "init": ""
-  },
-  {
-   "ds": 262176,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_dat_40020",
-   "image_head": "a17c3c00",
-   "init": ""
+   "ds": 406452,
+   "kind": "image-zero-port-nonzero",
+   "name": "g_dat_633b4",
+   "image_head": "00000000",
+   "init": "= SCREEN_BASE + SCREEN_SIZE"
   },
   {
    "ds": 337740,
@@ -4283,7 +4276,7 @@
    "port_name": "g_dat_53c7c_null_warned",
    "port_type": "int",
    "guest_type": "pointer",
-   "image_u32": null,
+   "image_u32": 0,
    "n_reads": 867,
    "n_writes": 2
   },
@@ -4294,7 +4287,7 @@
    "port_name": "g_dat_639ec",
    "port_type": "uint8_t *",
    "guest_type": "undefined4",
-   "image_u32": null,
+   "image_u32": 0,
    "small_imm_stores": [],
    "indexed_reads": [
     "CMP dword ptr [EAX + 0x639ec] 0x0"

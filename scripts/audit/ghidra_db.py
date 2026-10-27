@@ -3,8 +3,8 @@
 
 NightExport.java (ghidra_scripts/) writes symbols.json / functions.json /
 defined_data.json / mem_access.json next to this file. The shipped EXE gives the
-image-initialised DS bytes: the LE image loads at linear DS-0x7600, so a DS address
-maps to file offset addr-0x7600 (docs/99 measured that for DAT_00052a1c).
+image-initialised DS bytes live in .object2: file offset = ds_addr - 0x7600, and above the
+raw part .object2 is BSS (loader-zeroed). Verified at load against two shipped strings.
 """
 import collections
 import json
@@ -12,7 +12,12 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DS_LO, DS_HI = 0x50000, 0x66000
-IMAGE_FILE_VS_DS = 0x7600          # file offset = ds_addr - 0x7600
+# NIGHT is an LE binary: DS is .object2 (virtual 0x50000..0x650bf) whose *initialised* part starts
+# at file offset 0x48a00, i.e. file offset = ds_addr - 0x7600 inside .object2 only. Everything above
+# the raw part is BSS (zero-filled by the loader), which is a different claim about initial state.
+OBJECT2_DS_START = 0x50000
+OBJECT2_FILE_START = 0x48a00
+IMAGE_FILE_VS_DS = OBJECT2_DS_START - OBJECT2_FILE_START   # = 0x7600 (file = ds - this), verified at load
 EXE = os.path.join(HERE, "..", "..", "NIGHT", "NIGHT.EXE")
 
 
@@ -45,6 +50,15 @@ class Db:
         self.mem_access = _load("mem_access.json")
         with open(EXE, "rb") as f:
             self.image = f.read()
+        self.ds_raw_end = OBJECT2_DS_START + (len(self.image) - OBJECT2_FILE_START)
+        self._verify_mapping()
+
+    def _verify_mapping(self):
+        """Self-check: two shipped strings at opposite ends of .object2's raw part."""
+        for ds, want in ((0x50004, b"cdinsert.pcx"), (0x5333e, b"Stack Overflow!")):
+            got = self.image_at(ds, len(want))
+            if got != want:
+                raise SystemExit(f"image mapping wrong at {ds:#x}: {got!r} != {want!r}")
 
     # ---- functions -------------------------------------------------------
     def fn_by_entry(self):
@@ -144,13 +158,18 @@ class Db:
 
     # ---- image bytes -----------------------------------------------------
     def in_image(self, ds_addr):
-        off = ds_addr - IMAGE_FILE_VS_DS
-        return 0 <= off < len(self.image)
+        """True for DS addresses with a definite initial value (raw .object2 or BSS zeros)."""
+        return OBJECT2_DS_START <= ds_addr < DS_HI
 
     def image_at(self, ds_addr, size):
-        off = ds_addr - IMAGE_FILE_VS_DS
-        if off < 0 or off + size > len(self.image):
+        if not (OBJECT2_DS_START <= ds_addr < DS_HI):
             return None
+        if ds_addr >= self.ds_raw_end:
+            return b"\x00" * size                       # BSS: the loader zeroes it
+        off = ds_addr - IMAGE_FILE_VS_DS
+        if off + size > len(self.image):                # straddles the raw/BSS boundary
+            head = self.image[off:]
+            return head + b"\x00" * (size - len(head))
         return self.image[off:off + size]
 
     def image_u32(self, ds_addr):

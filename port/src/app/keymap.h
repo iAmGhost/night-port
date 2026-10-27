@@ -20,8 +20,19 @@
 
 enum {
     NIGHT_SC_ESC   = 0x01,
+    NIGHT_SC_F     = 0x21,
+    NIGHT_SC_G     = 0x22,
     NIGHT_SC_ENTER = 0x1c,
-    NIGHT_SC_SPACE = 0x39,
+    NIGHT_SC_CTRL  = 0x1d,     /* held byte DAT_00063ea5 (docs/92) */
+    NIGHT_SC_LSHIFT = 0x2a,    /* held byte DAT_00063eb2 */
+    NIGHT_SC_Z     = 0x2c,     /* -> 0x1d, the punch alias (handler 0x0003fdd1) */
+    NIGHT_SC_X     = 0x2d,     /* -> 0x38, the kick alias */
+    NIGHT_SC_C     = 0x2e,     /* -> 0x2a, the jump alias */
+    NIGHT_SC_V     = 0x2f,     /* -> 0x1d */
+    NIGHT_SC_B     = 0x30,     /* -> 0x38 */
+    NIGHT_SC_RSHIFT = 0x36,    /* held byte DAT_00063ebe, its OWN slot */
+    NIGHT_SC_ALT   = 0x38,     /* held byte DAT_00063ec0 */
+    NIGHT_SC_SPACE = 0x39,     /* held byte DAT_00063ec1 */
     NIGHT_SC_F1    = 0x3b,
     NIGHT_SC_LEFT  = 0x4b,
     NIGHT_SC_UP    = 0x48,

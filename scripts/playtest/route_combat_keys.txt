@@ -1,0 +1,42 @@
+# docs/92 combat-key proof run: reach the live episode-1 room, then exercise every README.TXT action
+# with BOTH its keys (SHIFT/C jump, CTRL/Z punch, ALT/X kick, SPACE crouch). NIGHT_KEYTRACE=1 witnesses
+# the ring marker stamps (fn_034353) and the player-state transitions around fn_03272f; the shots show the
+# poses. Anchored with `wait res` so key timings land in the room regardless of host speed.
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+170000 wait res stage1.pcx
+172000 shot episode_start
+173000 shot idle_before
+
+186000 key shift down          # jump (SHIFT)
+186600 key shift up
+187150 shot jump_shift
+
+188200 key lctrl down          # punch (CTRL)
+188800 key lctrl up
+189350 shot punch_ctrl
+
+190400 key z down              # punch (Z alias -> CTRL slot)
+191000 key z up
+191550 shot punch_z
+
+192600 key lalt down           # kick (ALT)
+193200 key lalt up
+193750 shot kick_alt
+
+194800 key x down              # kick (X alias -> ALT slot)
+195400 key x up
+195950 shot kick_x
+196450 shot idle_mid             # back to stance between actions: clean visual baseline
+
+197000 key space down          # crouch (SPACE)
+197600 key space up
+198150 shot crouch_space
+
+199000 shot idle_after

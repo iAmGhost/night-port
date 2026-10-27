@@ -1171,13 +1171,14 @@ extern uint32_t g_dat_63f08;      /* DAT_00063f08 (slot fill value) */
 extern uint8_t  g_dat_62cd8[128]; /* DAT_00062cd8 (counters, per-key) */
 extern uint8_t  g_dat_62c58[128]; /* DAT_00062c58 (flags, per-key) */
 extern uint32_t g_dat_62d5c;     /* DAT_00062d5c: frame counter (decremented by fn_0347e3) */
-extern uint8_t  g_dat_52ff8;
-extern int g_menu_trace;                /* setup-menu diagnostic (docs/60) */     /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
+extern uint8_t  g_dat_52ff8;            /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
+extern int g_menu_trace;                /* setup-menu diagnostic (docs/60) */
+extern int g_key_trace;                 /* combat-key diagnostic (NIGHT_KEYTRACE=1, docs/92) */
 void fn_0347e3(void);            /* 0x0347e3: keyboard dispatch pump over g_62c58 */
-extern uint8_t  g_dat_62c75;      /* DAT_00062c75 (byte flag) */
-extern uint8_t  g_dat_62c82;      /* DAT_00062c82 (byte flag) */
-extern uint8_t  g_dat_62c8e;      /* DAT_00062c8e (byte flag) */
-extern uint8_t  g_dat_62c90;      /* DAT_00062c90 (byte flag) */
+extern uint8_t *const g_dat_62c75;  /* DAT_00062c75 == DAT_00062c58 + 0x1d: the CTRL slot (docs/92) */
+extern uint8_t *const g_dat_62c82;  /* DAT_00062c82 == DAT_00062c58 + 0x2a: the LSHIFT slot */
+extern uint8_t *const g_dat_62c8e;  /* DAT_00062c8e == DAT_00062c58 + 0x36: the RSHIFT slot */
+extern uint8_t *const g_dat_62c90;  /* DAT_00062c90 == DAT_00062c58 + 0x38: the LALT slot */
 extern uint32_t g_dat_62a94;   /* DAT_00062a94 (kb input state value) */
 extern uint8_t *g_player_ent;   /* DAT_00053c7c: THE PLAYER ENTITY POINTER (Ghidra g_pPlayerEntity). Only two writes:
                                  * 0x3774c (fn_0376c8, the stage loader stores the new player block) and 0x3b01b

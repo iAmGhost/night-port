@@ -413,7 +413,10 @@ static uint8_t pt_sc(const char *name) {
     static const struct { const char *n; uint8_t sc; } tbl[] = {
         { "enter", 0x1c }, { "return", 0x1c }, { "space", 0x39 }, { "esc", 0x01 },
         { "tab", 0x0f }, { "up", 0x48 }, { "down", 0x50 }, { "left", 0x4b }, { "right", 0x4d },
-        { "ctrl", 0x1d }, { "shift", 0x2a }, { "backspace", 0x0e },
+        { "ctrl", 0x1d }, { "lctrl", 0x1d }, { "rctrl", 0x1d },
+        { "shift", 0x2a }, { "lshift", 0x2a }, { "rshift", 0x36 },
+        { "alt", 0x38 }, { "lalt", 0x38 }, { "ralt", 0x38 }, { "altgr", 0x38 },
+        { "backspace", 0x0e },
     };
     for (unsigned k = 0; k < sizeof tbl / sizeof tbl[0]; k++)
         if (!strcasecmp(name, tbl[k].n)) return tbl[k].sc;
@@ -421,7 +424,14 @@ static uint8_t pt_sc(const char *name) {
     if (strlen(name) == 2 && isxdigit((unsigned char)name[0]) && isxdigit((unsigned char)name[1]))
         return (uint8_t)strtoul(name, NULL, 16);
     SDL_Scancode c = SDL_GetScancodeFromName(name);
-    if (c >= SDL_SCANCODE_A && c <= SDL_SCANCODE_Z) return (uint8_t)(0x1e + (c - SDL_SCANCODE_A));
+    /* DOS set-1 make codes for A-Z. NOT linear: SDL scancodes are HID usage order (A=4..Z=29), so the
+     * old arithmetic fallback mapped letters wrong ("z" became 0x37 instead of 0x2c -- docs/92). */
+    static const char letters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const uint8_t dos[] = {
+        0x1e,0x30,0x2e,0x20,0x12,0x21,0x22,0x23,0x17,0x24,0x25,0x26,
+        0x32,0x31,0x18,0x19,0x10,0x13,0x1f,0x14,0x16,0x2f,0x11,0x2d,0x15,0x2c };
+    if (c >= SDL_SCANCODE_A && c <= SDL_SCANCODE_Z)
+        return dos[c - SDL_SCANCODE_A];
     if (c >= SDL_SCANCODE_1 && c <= SDL_SCANCODE_0) return (uint8_t)(0x02 + (c - SDL_SCANCODE_1));
     return 0;
 }
@@ -881,8 +891,17 @@ static void sdl_events(void) {
         case SDL_SCANCODE_ESCAPE:  sc = 0x01; g_quit = 1; break;
         case SDL_SCANCODE_SPACE:   sc = 0x39; break;
         case SDL_SCANCODE_F1:      sc = NIGHT_SC_F1; break;   /* docs/91: sets DAT_00063ec3, the level-up help pages */
-        case SDL_SCANCODE_LCTRL:   sc = 0x1d; break;
-        case SDL_SCANCODE_LSHIFT:  sc = 0x2a; break;
+        case SDL_SCANCODE_LCTRL:   sc = NIGHT_SC_CTRL; break;
+        case SDL_SCANCODE_RCTRL:   sc = NIGHT_SC_CTRL; break;   /* E0 1D: the handler lands on the same slot (measured) */
+        case SDL_SCANCODE_LSHIFT:  sc = NIGHT_SC_LSHIFT; break;
+        case SDL_SCANCODE_RSHIFT:  sc = NIGHT_SC_RSHIFT; break; /* its own slot +0x36, held byte DAT_00063ebe (measured) */
+        case SDL_SCANCODE_LALT:    sc = NIGHT_SC_ALT; break;
+        case SDL_SCANCODE_RALT:    sc = NIGHT_SC_ALT; break;    /* E0 38 (measured) */
+        case SDL_SCANCODE_Z:       sc = NIGHT_SC_Z; break;      /* punch alias -> CTRL, handler 0x0003fdd1 */
+        case SDL_SCANCODE_X:       sc = NIGHT_SC_X; break;      /* kick alias -> ALT */
+        case SDL_SCANCODE_C:       sc = NIGHT_SC_C; break;      /* jump alias -> SHIFT */
+        case SDL_SCANCODE_V:       sc = NIGHT_SC_V; break;
+        case SDL_SCANCODE_B:       sc = NIGHT_SC_B; break;
         default: break;
         }
         if (!sc) continue;
@@ -1007,6 +1026,7 @@ static void tick_pump(void) {
      * entering them is host-chosen (same convention as --warp-stage, docs/52).
      * NIGHT_SHOWSCREEN=levelup|status|help, NIGHT_SHOWSCREEN_AT=<frame>. */
     if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
+    if (getenv("NIGHT_KEYTRACE")) g_key_trace = 1;
     if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
     if (getenv("NIGHT_ROOMDBG")) g_room_trace = 1;   /* stage room-chain witness (docs/90) */
     {   /* docs/88: drive the credit-less game-over branch the shipped way -- write the game's own state while

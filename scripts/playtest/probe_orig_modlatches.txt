@@ -1,0 +1,53 @@
+# docs/92 probe 3: which DS bytes latch the HELD state of each modifier (fn_03442e reads
+# DAT_00062c75/0x62c82/0x62c8e/0x62c90) and who sets DAT_00063eb4 (the dash/attack latch fn_03272f
+# reads next to 0x63ec1). Live room; wide dumps: the scan-code slot block 0x62c58..0x62cf8 and the
+# key-byte block 0x63e80..0x63f28.
+readbytes 0x62c58 0xa0
+readbytes 0x63e80 0xa8
+key_down leftshift
+sleep 400
+readbytes 0x62c58 0xa0
+readbytes 0x63e80 0xa8
+key_up leftshift
+sleep 300
+readbytes 0x62c58 0xa0
+key_down leftctrl
+sleep 400
+readbytes 0x62c58 0xa0
+readbytes 0x63e80 0xa8
+key_up leftctrl
+sleep 300
+readbytes 0x62c58 0xa0
+key_down leftalt
+sleep 400
+readbytes 0x62c58 0xa0
+readbytes 0x63e80 0xa8
+key_up leftalt
+sleep 300
+readbytes 0x62c58 0xa0
+key_down z
+sleep 400
+readbytes 0x62c58 0xa0
+readbytes 0x63e80 0xa8
+key_up z
+sleep 300
+readbytes 0x62c58 0xa0
+key_down x
+sleep 400
+readbytes 0x62c58 0xa0
+readbytes 0x63e80 0xa8
+key_up x
+sleep 300
+readbytes 0x63e80 0xa8
+key_down rightshift
+sleep 400
+readbytes 0x63e80 0xa8
+key_up rightshift
+sleep 300
+key_down space
+sleep 400
+readbytes 0x63e80 0xa8
+key_up space
+sleep 300
+readbytes 0x63e80 0xa8
+stop

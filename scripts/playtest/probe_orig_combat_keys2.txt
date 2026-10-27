@@ -1,0 +1,33 @@
+# docs/92 probe 2: right-hand modifiers, in the still-live room left by probe_orig_combat_keys.txt.
+readbytes 0x63e80 0x68
+key_down rightshift
+sleep 400
+readbytes 0x63e80 0x68
+key_up rightshift
+sleep 400
+readbytes 0x63e80 0x68
+key_down rightctrl
+sleep 400
+readbytes 0x63e80 0x68
+key_up rightctrl
+sleep 400
+readbytes 0x63e80 0x68
+key_down rightalt
+sleep 400
+readbytes 0x63e80 0x68
+key_up rightalt
+sleep 400
+readbytes 0x63e80 0x68
+# repeat the left ones once more to confirm the mapping is stable
+key_down leftctrl
+sleep 400
+readbytes 0x63e80 0x68
+key_up leftctrl
+sleep 400
+key_down x
+sleep 400
+readbytes 0x63e80 0x68
+key_up x
+sleep 400
+readbytes 0x63e80 0x68
+stop

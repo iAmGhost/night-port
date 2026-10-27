@@ -1,56 +1,78 @@
-/* docs/91: the host-side scancode -> shipped DS key-byte map, shared by the SDL host and the test binary so
- * the mapping is asserted, not assumed. The per-key assignment below is MEASURED on the original
- * (scripts/playtest/probe_orig_keybytes.txt): holding a key in a live room sets exactly one byte in the
- * DS 0x63e80 window -- Up 0x48 -> DAT_00063ed0, Down 0x50 -> DAT_00063ed8, Left 0x4b -> DAT_00063ed3,
- * Right 0x4d -> DAT_00063ed5, Space 0x39 -> DAT_00063ec1, Enter 0x1c -> DAT_00063ea4,
- * F1 0x3b -> DAT_00063ec3.
+/* docs/91 + docs/92: the host-side key event writer, reproducing the shipped IRQ 9 handler found at
+ * 0x0003fd40 (installed on IRQ 9 by the block at 0x0003feb8). Linear disassembly in
+ * scratch/kbd/kbd_handler_dis.txt; the handler per raw scan code read from port 0x60:
  *
- * An earlier host guess crossed the pairs (up/left on ed0/ed3, down/right on ed5/ed8); the consumers
- * (fn_03272f in the room, fn_038f3d on the level-up screen, fn_039c03 in the setup menu, fn_038445 on the
- * game-over card) are ported at the shipped addresses, so the host assignment -- not the consumers -- is what
- * was wrong. Consequences of the corrected map, in the shipped code's own terms: the setup menu walks its
- * entry index with Up/Down (0x00039d2a reads DAT_63ed0, 0x00039d61 reads DAT_63ed8) and changes the selected
- * value with Left/Right (0x00039de2 / 0x00039ebb read DAT_63ed3 / DAT_63ed5); the level-up help scroll uses
- * Left/Right (0x000392af / 0x00039334).
+ *   idx   = sc & 0x7f, ALIASED by the binary search at 0x0003fd9d-0x0003fdd9:
+ *             Z 0x2c -> 0x1d   V 0x2f -> 0x1d        (punch: CTRL or Z or V)
+ *             X 0x2d -> 0x38   B 0x30 -> 0x38        (kick:  ALT  or X or B)
+ *             C 0x2e -> 0x2a   F 0x21 -> 0x2a  G 0x22 -> 0x2a   (jump: SHIFT or C)
+ *   break (sc & 0x80): DAT_00063e88[idx] = 0                        (0x0003fe69-6e)
+ *   make  : if (DAT_00063e88[idx] == 0) {                           (0x0003fdf2-ff)
+ *             DAT_00063e88[idx] = 1;                                (0x0003fe06)
+ *             if (DAT_00062c58[idx] != 0) DAT_00062cd8[idx]++;      (0x0003fe26 auto-repeat counter)
+ *             else                      DAT_00062c58[idx] = 1;      (0x0003fe33 first make arms slot)
+ *           }
+ *           DAT_0006339c = 0;                                       (0x0003fe3a)
+ *           if (player[0x17] == 0x28) { player[0x17] = 1; player[0x11] = 0 }  (0x0003fe44-60)
  *
- * The "any key" bytes (DAT_00063eb2 / DAT_00063ebe) stay as the host has always driven them -- the shipped
- * writer sits in the unanalyzed keyboard-handler block at 0x0003fdxx-0x0003fexx (the only WRITE xrefs Ghidra
- * has for 0x63ea5 / 0x63eb2 / 0x63ec0, at 0x0003fe06) and a held-key sample never showed them set, so their
- * exact trigger is unresolved; the port sets them on every non-arrow make and that is what the shipped
- * key-waits and the setup menu need (docs/60). F1 is deliberately excluded: measured, it sets only
- * DAT_00063ec3, and setting the any-key bytes on F1 would leave the level-up screen instead of opening the
- * help pages its footer advertises.
+ * Every "key byte" the port reads is one slot of the DAT_00063e88 table: 0x63e89=+0x01 Esc,
+ * 0x63ea4=+0x1c Enter, 0x63ea5=+0x1d CTRL, 0x63eb2=+0x2a LShift, 0x63ebe=+0x36 RShift,
+ * 0x63ec0=+0x38 LAlt, 0x63ec1=+0x39 Space, 0x63ec3=+0x3b F1, arrows +0x48/+0x4b/+0x4d/+0x50.
+ * All assignments are MEASURED on the original (probe_orig_combat_keys.txt / probe_orig_modlatches.txt:
+ * holding shift/ctrl/alt/space sets exactly +0x2a/+0x1d/+0x38/+0x39; Z sets +0x1d, X sets +0x38; the slot
+ * array arms at the ALIASED index and its repeat counter at DAT_00062cd8+idx ticks while held).
+ * The docs/60 "any key bytes 0x63eb2/0x63ebe" guess is retired: those are the two shift held-bytes.
  */
 #include "keymap.h"
 
 #include "../f/f.h"
 
+/* the handler's alias table, 0x0003fd9d-0x0003fdd9 */
+static uint8_t night_key_alias(uint8_t idx) {
+    switch (idx) {
+    case 0x2c: case 0x2f: return 0x1d;                  /* Z, V -> CTRL slot */
+    case 0x2d: case 0x30: return 0x38;                  /* X, B -> ALT slot */
+    case 0x21: case 0x22: case 0x2e: return 0x2a;       /* F, G, C -> SHIFT slot */
+    default: return idx;
+    }
+}
+
+/* the DAT_00063e88[idx] held-byte, modelled as the individual globals the shipped readers use */
+static uint8_t *night_held_byte(uint8_t idx) {
+    switch (idx) {
+    case 0x01: return &g_dat_63e89;   case 0x1c: return &g_dat_63ea4;
+    case 0x1d: return &g_dat_63ea5;   case 0x2a: return &g_dat_63eb2;
+    case 0x36: return &g_dat_63ebe;   case 0x38: return &g_dat_63ec0;
+    case 0x39: return &g_dat_63ec1;   case 0x3b: return &g_dat_63ec3;
+    case 0x48: return &g_dat_63ed0;   case 0x4b: return &g_dat_63ed3;
+    case 0x4d: return &g_dat_63ed5;   case 0x50: return &g_dat_63ed8;
+    default:   return &g_dat_63e88[idx];                /* the rest of the 0x80-byte table */
+    }
+}
+
 void night_key_apply(uint8_t sc, int make) {
-    switch (sc) {                                       /* the four held-arrow bytes, measured map */
-    case NIGHT_SC_UP:    g_dat_63ed0 = (uint8_t)make; break;
-    case NIGHT_SC_DOWN:  g_dat_63ed8 = (uint8_t)make; break;
-    case NIGHT_SC_LEFT:  g_dat_63ed3 = (uint8_t)make; break;
-    case NIGHT_SC_RIGHT: g_dat_63ed5 = (uint8_t)make; break;
-    default: break;
+    uint8_t idx = night_key_alias(sc & 0x7f);
+    uint8_t *held = night_held_byte(idx);
+
+    if (sc & 0x80) { make = 0; }                        /* explicit break code wins */
+    if (!make) {
+        *held = 0;                                      /* 0x0003fe69-6e: only the held byte clears */
+        return;
     }
 
-    uint8_t *byte =
-        (sc == NIGHT_SC_ENTER) ? &g_dat_63ea4 :         /* confirm */
-        (sc == NIGHT_SC_ESC)   ? &g_dat_63e89 :         /* abort */
-        (sc == NIGHT_SC_F1)    ? &g_dat_63ec3 :         /* the level-up help pages, measured */
-        (sc == NIGHT_SC_UP || sc == NIGHT_SC_DOWN ||
-         sc == NIGHT_SC_LEFT || sc == NIGHT_SC_RIGHT) ? (uint8_t *)0
-                                                      : &g_dat_63ec1;  /* a plain key press */
-    if (byte != (uint8_t *)0) *byte = (uint8_t)make;
-
-    if (sc != NIGHT_SC_UP && sc != NIGHT_SC_DOWN && sc != NIGHT_SC_LEFT &&
-        sc != NIGHT_SC_RIGHT && sc != NIGHT_SC_F1) {
-        /* If these latched, the setup menu (fn_039c03) would leave on its very first frame -- its entry
-         * check spins until DAT_00063e89 / 0x63eb2 / 0x63ebe are clear and then exits with m = 0x64
-         * (0x00039ce6-d25) -- and every "wait for a key" loop would fall through (docs/60). */
-        g_dat_63eb2 = (uint8_t)make;
-        g_dat_63ebe = (uint8_t)make;
+    if (*held == 0) {                                   /* 0x0003fdf2-ff */
+        *held = 1;                                      /* 0x0003fe06 */
+        if (g_dat_62c58[idx] != 0) {                    /* 0x0003fe12-26: a re-make while the slot
+                                                         * state machine still holds it -> auto-repeat */
+            g_dat_62cd8[idx]++;
+        } else {
+            g_dat_62c58[idx] = 1;                       /* 0x0003fe33: first make arms the slot */
+        }
     }
 
-    g_dat_62c58[sc & 0x7f] = make ? 1 : 0;              /* scan-code slot, as fn_0343d1 arms it */
+    g_dat_6339c = 0;                                    /* 0x0003fe3a */
+    if (g_player_ent != (uint8_t *)0 && g_player_ent[0x17] == 0x28) {
+        g_player_ent[0x17] = 1;                         /* 0x0003fe44-60: a key leaves state 0x28 */
+        g_player_ent[0x11] = 0;
+    }
 }

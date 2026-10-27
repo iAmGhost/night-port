@@ -7667,10 +7667,14 @@ uint8_t  g_dat_62cd8[128] = {0};
 uint8_t  g_dat_62c58[128] = {0};
 uint32_t g_dat_62d5c = 0;  /* DAT_00062d5c: frame counter (decremented by fn_0347e3) */
 uint8_t  g_dat_52ff8 = 0;  /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
-uint8_t  g_dat_62c75 = 0;   /* 0x62c75 */
-uint8_t  g_dat_62c82 = 0;   /* 0x62c82 */
-uint8_t  g_dat_62c8e = 0;   /* 0x62c8e */
-uint8_t  g_dat_62c90 = 0;   /* 0x62c90 */
+/* docs/92: the shipped fn_03442e reads DAT_00062c75/0x62c82/0x62c8e/0x62c90 -- those addresses ARE
+ * DAT_00062c58[0x1d / 0x2a / 0x36 / 0x38], the scan-code slot array, NOT separate globals. They stood as
+ * independent zeroed bytes nothing wrote, so the Ctrl+Alt / Ctrl+Shift / Alt+Shift combo markers 0x67 /
+ * 0x68 / 0x69 never fired (same aliasing class as DAT_00053eb8 in docs/91). */
+uint8_t *const g_dat_62c75 = g_dat_62c58 + 0x1d;   /* 0x62c75 = 0x62c58 + 0x1d: CTRL slot */
+uint8_t *const g_dat_62c82 = g_dat_62c58 + 0x2a;   /* 0x62c82 = 0x62c58 + 0x2a: LSHIFT slot */
+uint8_t *const g_dat_62c8e = g_dat_62c58 + 0x36;   /* 0x62c8e = 0x62c58 + 0x36: RSHIFT slot */
+uint8_t *const g_dat_62c90 = g_dat_62c58 + 0x38;   /* 0x62c90 = 0x62c58 + 0x38: LALT slot */
 uint32_t g_dat_62a94 = 0;      /* 0x62a94 */
 uint8_t *g_player_ent = 0;      /* 0x53c7c (Ghidra g_pPlayerEntity): THE PLAYER ENTITY POINTER; writes only at
                                  * 0x3774c (stage loader) and 0x3b01b (episode tail re-seat). docs/89. */
@@ -8269,14 +8273,14 @@ void fn_03442e(uint8_t x) {                                      /* 0x03442e */
     uint8_t y = 0;
     uint8_t z = 0;
     if (x == 0x1d) {
-        if (g_dat_62c90 != 0) { g_dat_63f14[g_dat_63f50] = 0x67; y = 0x38; z = 1; }
-        else if (g_dat_62c82 != 0 || g_dat_62c8e != 0) { g_dat_63f14[g_dat_63f50] = 0x68; y = 0x2a; z = 1; }
+        if (*g_dat_62c90 != 0) { g_dat_63f14[g_dat_63f50] = 0x67; y = 0x38; z = 1; }
+        else if (*g_dat_62c82 != 0 || *g_dat_62c8e != 0) { g_dat_63f14[g_dat_63f50] = 0x68; y = 0x2a; z = 1; }
     } else if (x == 0x38) {
-        if (g_dat_62c75 != 0) { g_dat_63f14[g_dat_63f50] = 0x67; y = 0x1d; z = 1; }
-        else if (g_dat_62c82 != 0 || g_dat_62c8e != 0) { g_dat_63f14[g_dat_63f50] = 0x69; y = 0x2a; z = 1; }
+        if (*g_dat_62c75 != 0) { g_dat_63f14[g_dat_63f50] = 0x67; y = 0x1d; z = 1; }
+        else if (*g_dat_62c82 != 0 || *g_dat_62c8e != 0) { g_dat_63f14[g_dat_63f50] = 0x69; y = 0x2a; z = 1; }
     } else if (x == 0x2a || x == 0x36) {
-        if (g_dat_62c75 != 0) { g_dat_63f14[g_dat_63f50] = 0x68; y = 0x1d; z = 1; }
-        else if (g_dat_62c90 != 0) { g_dat_63f14[g_dat_63f50] = 0x69; y = 0x38; z = 1; }
+        if (*g_dat_62c75 != 0) { g_dat_63f14[g_dat_63f50] = 0x68; y = 0x1d; z = 1; }
+        else if (*g_dat_62c90 != 0) { g_dat_63f14[g_dat_63f50] = 0x69; y = 0x38; z = 1; }
     }
     if (z != 1) return;
     g_dat_63f1e[g_dat_63f50] = 0;
@@ -8301,6 +8305,7 @@ void fn_03cad3(const uint8_t *p) {                                /* 0x03cad3 */
     g_dat_639e4 = p[16];
 }
 void fn_034353(uint8_t a, uint32_t b) {                            /* 0x034353 */
+    if (g_key_trace) fprintf(stderr, "keytrace: ring stamp marker=%#02x t=%u\n", a, b);
     g_dat_63f14[g_dat_63f50] = a;
     g_dat_63f28[g_dat_63f50] = b - g_dat_63f0c;
     g_dat_63f1e[g_dat_63f50] = 0;
@@ -8868,6 +8873,8 @@ int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0174
 }
 
 int g_menu_trace = 0;   /* host-side diagnostic (NIGHT_MENUBG=1): menu/screen traces, docs/60 and docs/61 */
+int g_key_trace = 0;    /* host-side diagnostic (NIGHT_KEYTRACE=1): ring marker stamps and player-state
+                         * transitions around fn_03272f, used by the docs/92 combat-key run */
 static int g_dat_53c7c_null_warned;
 
 void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state machine */
@@ -22503,9 +22510,18 @@ int32_t fn_03a829(void)
         fn_0322f5();                                                   /* 0x0003aadb per-type AI sweep */
         fn_03209c();                                                   /* 0x0003aae0 entity action step */
         fn_0347e3();                                                   /* 0x0003aae5 keyboard dispatch */
-        fn_03272f((*(const int32_t *)(pl + 0x17) == 0x66 ||            /* 0x0003aaea-0x0003ab13 the player */
-                   *(const int32_t *)(pl + 0x17) == 0x70)
-                      ? g_dat_62a9c : g_dat_62a98);
+        {
+            int32_t st_before = *(const int32_t *)(pl + 0x17);
+            fn_03272f((*(const int32_t *)(pl + 0x17) == 0x66 ||            /* 0x0003aaea-0x0003ab13 the player */
+                       *(const int32_t *)(pl + 0x17) == 0x70)
+                          ? g_dat_62a9c : g_dat_62a98);
+            if (g_key_trace) {
+                int32_t st_after = *(const int32_t *)(pl + 0x17);
+                if (st_after != st_before)
+                    fprintf(stderr, "keytrace: player state %#x -> %#x (tick %u)\n",
+                            (unsigned)st_before, (unsigned)st_after, (unsigned)g_dat_63f08);
+            }
+        }
         fn_0320f5();                                                   /* 0x0003ab18 hit test */
         fn_03d4e4(room);                                               /* 0x0003ab22 camera policy */
         fn_03ed6f();                                                   /* 0x0003ab27 script pump */

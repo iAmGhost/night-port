@@ -1,0 +1,26 @@
+# docs/92 probe 4: (a) Z/X scancode identity via the slot array DAT_00062c58 (DOS set-1 predicts Z=0x2c,
+# X=0x2d); (b) do the combo latches 0x62c75/0x62c82/0x62c90/0x62cf5 decay on their own after release
+# (probe 3 saw them sticky 300 ms later), or are they consumed by the pump?
+key_down z
+sleep 300
+readbytes 0x62c58 0xa0
+key_up z
+sleep 2000
+readbytes 0x62c58 0xa0
+readbytes 0x62c70 0x90
+key_down x
+sleep 300
+readbytes 0x62c58 0xa0
+key_up x
+sleep 300
+readbytes 0x62c58 0xa0
+sleep 3000
+readbytes 0x62c70 0x90
+key_down leftshift
+sleep 300
+key_up leftshift
+sleep 300
+readbytes 0x62c70 0x90
+sleep 3000
+readbytes 0x62c70 0x90
+stop

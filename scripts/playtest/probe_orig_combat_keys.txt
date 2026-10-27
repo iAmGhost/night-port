@@ -1,0 +1,57 @@
+# docs/92 probe: hold each COMBAT key across a DS read so its key byte can be seen SET, in a live
+# episode-1 room (README.TXT: SHIFT jump, CTRL/Z punch, ALT/X kick, SPACE crouch). Same shape as
+# probe_orig_keybytes.txt (docs/91). 0x63e80+0x68 covers abort/confirm/any-key/arrow window;
+# 0x62c58+0x58 is the game's own scan-code slot array (the name -> scancode anchor).
+# Session starts at the TITLE screen (VESA 640x480), so the boot/fli steps of docs/91's file are skipped.
+wait_mode 480 30
+key enter 150
+sleep 1200
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+sleep 500
+shot stage_play
+readbytes 0x63e80 0x68
+readbytes 0x62c58 0x58
+key_down leftshift
+sleep 400
+readbytes 0x63e80 0x68
+readbytes 0x62c58 0x58
+key_up leftshift
+sleep 400
+readbytes 0x63e80 0x68
+key_down leftctrl
+sleep 400
+readbytes 0x63e80 0x68
+readbytes 0x62c58 0x58
+key_up leftctrl
+sleep 400
+readbytes 0x63e80 0x68
+key_down leftalt
+sleep 400
+readbytes 0x63e80 0x68
+readbytes 0x62c58 0x58
+key_up leftalt
+sleep 400
+readbytes 0x63e80 0x68
+key_down z
+sleep 400
+readbytes 0x63e80 0x68
+readbytes 0x62c58 0x58
+key_up z
+sleep 400
+readbytes 0x63e80 0x68
+key_down x
+sleep 400
+readbytes 0x63e80 0x68
+readbytes 0x62c58 0x58
+key_up x
+sleep 400
+readbytes 0x63e80 0x68
+key_down space
+sleep 400
+readbytes 0x63e80 0x68
+readbytes 0x62c58 0x58
+key_up space
+sleep 400
+readbytes 0x63e80 0x68
+stop

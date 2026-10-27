@@ -2017,7 +2017,7 @@ static void reset_03442e(void) {
     memset(g_dat_63f14, 0, sizeof g_dat_63f14);
     memset(g_dat_63f1e, 0, sizeof g_dat_63f1e);
     memset(g_dat_63f28, 0, sizeof g_dat_63f28);
-    g_dat_62c75 = g_dat_62c82 = g_dat_62c8e = g_dat_62c90 = 0;
+    /* docs/92: g_dat_62c75/82/8e/90 are aliases into g_dat_62c58, already zeroed by the memset above */
     g_dat_63f50 = 0; g_dat_63f08 = 0; g_dat_63f0c = 0;
 }
 
@@ -5558,7 +5558,7 @@ static void test_fn_03442e(void) {
 
     /* B: x=0x1d, 62c90 set -> marker 0x67, y=0x38, slot 2->3, delta 600 */
     reset_03442e();
-    g_dat_63f50=2; g_dat_62c90=1; g_dat_63f08=1000; g_dat_63f0c=400;
+    g_dat_63f50=2; *g_dat_62c90=1; g_dat_63f08=1000; g_dat_63f0c=400;
     g_dat_62cd8[0x1d]=5; g_dat_62cd8[0x38]=7;
     fn_03442e(0x1d);
     check(g_dat_63f14[2]==0x67 && g_dat_63f1e[2]==0 && g_dat_63f28[2]==600 && g_dat_63f50==3,
@@ -5568,7 +5568,7 @@ static void test_fn_03442e(void) {
 
     /* C: x=0x1d, 62c90=0, 62c82 set -> marker 0x68, y=0x2a, calls 0x1d,0x2a,0x36 */
     reset_03442e();
-    g_dat_63f50=4; g_dat_62c82=1; g_dat_63f08=50; g_dat_63f0c=20;
+    g_dat_63f50=4; *g_dat_62c82=1; g_dat_63f08=50; g_dat_63f0c=20;
     g_dat_62cd8[0x1d]=2; g_dat_62cd8[0x2a]=3; g_dat_62cd8[0x36]=4;
     fn_03442e(0x1d);
     check(g_dat_63f14[4]==0x68 && g_dat_63f28[4]==30 && g_dat_63f50==5,
@@ -5578,7 +5578,7 @@ static void test_fn_03442e(void) {
 
     /* D: x=0x38, 62c75 set -> marker 0x67, y=0x1d, calls 0x38,0x1d */
     reset_03442e();
-    g_dat_63f50=0; g_dat_62c75=1; g_dat_63f08=100; g_dat_63f0c=10;
+    g_dat_63f50=0; *g_dat_62c75=1; g_dat_63f08=100; g_dat_63f0c=10;
     g_dat_62cd8[0x38]=9; g_dat_62cd8[0x1d]=1;
     fn_03442e(0x38);
     check(g_dat_63f14[0]==0x67 && g_dat_63f28[0]==90 && g_dat_63f50==1,
@@ -5588,7 +5588,7 @@ static void test_fn_03442e(void) {
 
     /* E: x=0x2a, 62c75=0, 62c90 set -> marker 0x69, y=0x38, slot 9->0 wrap */
     reset_03442e();
-    g_dat_63f50=9; g_dat_62c90=1; g_dat_63f08=7; g_dat_63f0c=3;
+    g_dat_63f50=9; *g_dat_62c90=1; g_dat_63f08=7; g_dat_63f0c=3;
     g_dat_62cd8[0x2a]=2; g_dat_62cd8[0x38]=3;
     fn_03442e(0x2a);
     check(g_dat_63f14[9]==0x69 && g_dat_63f28[9]==4 && g_dat_63f50==0,
@@ -5598,7 +5598,7 @@ static void test_fn_03442e(void) {
 
     /* F: x=0x36, 62c75 set -> marker 0x68, y=0x1d (same branch as x=0x2a) */
     reset_03442e();
-    g_dat_63f50=1; g_dat_62c75=1; g_dat_63f08=1000; g_dat_63f0c=0;
+    g_dat_63f50=1; *g_dat_62c75=1; g_dat_63f08=1000; g_dat_63f0c=0;
     g_dat_62cd8[0x36]=3; g_dat_62cd8[0x1d]=2;
     fn_03442e(0x36);
     check(g_dat_63f14[1]==0x68 && g_dat_63f28[1]==1000 && g_dat_63f50==2,
@@ -10913,13 +10913,12 @@ static void test_fn_0347e3(void) {
     memcpy(sv_c58, g_dat_62c58, 128);
     memcpy(sv_cd8, g_dat_62cd8, 128);
     uint32_t sv24 = g_dat_52ff8, svdc = g_dat_62d5c;
-    uint32_t sv90 = g_dat_62c90, sv82 = g_dat_62c82, sve = g_dat_62c8e, sv75 = g_dat_62c75;
+    uint8_t sv90 = *g_dat_62c90, sv82 = *g_dat_62c82, sve = *g_dat_62c8e, sv75 = *g_dat_62c75;
     uint32_t sv94 = g_dat_62a94;
 
     /* isolate: zero per-key state + ring-trigger keys so callees only touch g_62c58 */
-    memset(g_dat_62c58, 0, 128);
+    memset(g_dat_62c58, 0, 128);        /* docs/92: 0x62c75/82/8e/90 live inside this array */
     memset(g_dat_62cd8, 0, 128);
-    g_dat_62c90 = g_dat_62c82 = g_dat_62c8e = g_dat_62c75 = 0;
 
     /* 1. gate off: nothing happens */
     g_dat_52ff8 = 0; g_dat_62c58[0x1d] = 1; g_dat_62d5c = 3;
@@ -10957,7 +10956,7 @@ static void test_fn_0347e3(void) {
     memcpy(g_dat_62c58, sv_c58, 128);
     memcpy(g_dat_62cd8, sv_cd8, 128);
     g_dat_52ff8 = sv24; g_dat_62d5c = svdc;
-    g_dat_62c90 = sv90; g_dat_62c82 = sv82; g_dat_62c8e = sve; g_dat_62c75 = sv75;
+    *g_dat_62c90 = sv90; *g_dat_62c82 = sv82; *g_dat_62c8e = sve; *g_dat_62c75 = sv75;   /* via the aliases, after the array restore */
     g_dat_62a94 = sv94;
 }
 
@@ -11902,41 +11901,57 @@ static void test_key_map_measured(void) {
     memcpy(saved_cd8, g_dat_62cd8, sizeof saved_cd8);
     uint8_t s89 = g_dat_63e89, s_a4 = g_dat_63ea4, s_c1 = g_dat_63ec1, s_c3 = g_dat_63ec3;
     uint8_t s_b2 = g_dat_63eb2, s_be = g_dat_63ebe;
+    uint8_t s_a5 = g_dat_63ea5, s_c0 = g_dat_63ec0;
     uint8_t d0 = g_dat_63ed0, d3 = g_dat_63ed3, d5 = g_dat_63ed5, d8 = g_dat_63ed8;
     uint8_t ff8 = g_dat_52ff8; uint32_t d5c = g_dat_62d5c;
 
-    struct { uint8_t sc; const char *name; uint8_t *byte; } m[] = {
-        { NIGHT_SC_UP,    "Up 0x48    -> DAT_00063ed0", &g_dat_63ed0 },
-        { NIGHT_SC_DOWN,  "Down 0x50  -> DAT_00063ed8", &g_dat_63ed8 },
-        { NIGHT_SC_LEFT,  "Left 0x4b  -> DAT_00063ed3", &g_dat_63ed3 },
-        { NIGHT_SC_RIGHT, "Right 0x4d -> DAT_00063ed5", &g_dat_63ed5 },
-        { NIGHT_SC_SPACE, "Space 0x39 -> DAT_00063ec1", &g_dat_63ec1 },
-        { NIGHT_SC_ENTER, "Enter 0x1c -> DAT_00063ea4", &g_dat_63ea4 },
-        { NIGHT_SC_ESC,   "Esc 0x01   -> DAT_00063e89", &g_dat_63e89 },
-        { NIGHT_SC_F1,    "F1 0x3b    -> DAT_00063ec3 (the level-up help-page test at 0x0003922a)", &g_dat_63ec3 },
+    /* docs/92: every pair is MEASURED on the original (probe_orig_combat_keys.txt / probe_orig_modlatches.txt)
+     * AND read off the shipped IRQ9 handler at 0x0003fd40: the alias column is its binary search at
+     * 0x0003fd9d-0x0003fdd9 (Z/V->CTRL, X/B->ALT, C/F/G->SHIFT). */
+    struct { uint8_t sc; uint8_t slot; const char *name; uint8_t *byte; } m[] = {
+        { NIGHT_SC_UP,    0x48, "Up 0x48       -> DAT_00063ed0", &g_dat_63ed0 },
+        { NIGHT_SC_DOWN,  0x50, "Down 0x50     -> DAT_00063ed8", &g_dat_63ed8 },
+        { NIGHT_SC_LEFT,  0x4b, "Left 0x4b     -> DAT_00063ed3", &g_dat_63ed3 },
+        { NIGHT_SC_RIGHT, 0x4d, "Right 0x4d    -> DAT_00063ed5", &g_dat_63ed5 },
+        { NIGHT_SC_SPACE, 0x39, "Space 0x39    -> DAT_00063ec1 (crouch)", &g_dat_63ec1 },
+        { NIGHT_SC_ENTER, 0x1c, "Enter 0x1c    -> DAT_00063ea4", &g_dat_63ea4 },
+        { NIGHT_SC_ESC,   0x01, "Esc 0x01      -> DAT_00063e89", &g_dat_63e89 },
+        { NIGHT_SC_F1,    0x3b, "F1 0x3b       -> DAT_00063ec3 (the level-up help-page test at 0x0003922a)", &g_dat_63ec3 },
+        { NIGHT_SC_CTRL,  0x1d, "LCTRL 0x1d    -> DAT_00063ea5 (punch)", &g_dat_63ea5 },
+        { NIGHT_SC_Z,     0x1d, "Z 0x2c        -> DAT_00063ea5 via the CTRL alias (punch)", &g_dat_63ea5 },
+        { NIGHT_SC_V,     0x1d, "V 0x2f        -> DAT_00063ea5 via the CTRL alias", &g_dat_63ea5 },
+        { NIGHT_SC_ALT,   0x38, "LALT 0x38     -> DAT_00063ec0 (kick)", &g_dat_63ec0 },
+        { NIGHT_SC_X,     0x38, "X 0x2d        -> DAT_00063ec0 via the ALT alias (kick)", &g_dat_63ec0 },
+        { NIGHT_SC_B,     0x38, "B 0x30        -> DAT_00063ec0 via the ALT alias", &g_dat_63ec0 },
+        { NIGHT_SC_LSHIFT,0x2a, "LSHIFT 0x2a   -> DAT_00063eb2 (jump)", &g_dat_63eb2 },
+        { NIGHT_SC_RSHIFT,0x36, "RSHIFT 0x36   -> DAT_00063ebe (its own slot, measured)", &g_dat_63ebe },
+        { NIGHT_SC_C,     0x2a, "C 0x2e        -> DAT_00063eb2 via the SHIFT alias (jump)", &g_dat_63eb2 },
+        { NIGHT_SC_F,     0x2a, "F 0x21        -> DAT_00063eb2 via the SHIFT alias", &g_dat_63eb2 },
+        { NIGHT_SC_G,     0x2a, "G 0x22        -> DAT_00063eb2 via the SHIFT alias", &g_dat_63eb2 },
     };
     for (unsigned k = 0; k < sizeof m / sizeof m[0]; k++) {
         memset(g_dat_62c58, 0, sizeof g_dat_62c58);
         g_dat_63e89 = g_dat_63ea4 = g_dat_63ec1 = g_dat_63ec3 = 0;
+        g_dat_63ea5 = g_dat_63ec0 = g_dat_63eb2 = g_dat_63ebe = 0;
         g_dat_63ed0 = g_dat_63ed3 = g_dat_63ed5 = g_dat_63ed8 = 0;
         night_key_apply(m[k].sc, 1);
         check(*m[k].byte == 1, m[k].name);
-        check(g_dat_62c58[m[k].sc] == 1, "  and the scan-code slot is armed at the scancode index");
-        /* measured: one byte per key -- the arrow bytes stay clear for the non-arrow keys and vice versa */
-        int arrows_clear = (m[k].sc < 0x48) && g_dat_63ed0 == 0 && g_dat_63ed3 == 0 &&
-                           g_dat_63ed5 == 0 && g_dat_63ed8 == 0;
-        int others_clear = (m[k].sc >= 0x48) && g_dat_63e89 == 0 && g_dat_63ea4 == 0 &&
-                           g_dat_63ec1 == 0 && g_dat_63ec3 == 0;
-        check(arrows_clear || others_clear, "  exactly one key byte moves for this key");
+        check(g_dat_62c58[m[k].slot] == 1, "  and the scan-code slot is armed at the ALIASED index");
+        /* measured: one byte per key -- every other key byte in the table stays clear */
+        uint8_t others = g_dat_63e89 + g_dat_63ea4 + g_dat_63ec1 + g_dat_63ec3 +
+                         g_dat_63ea5 + g_dat_63ec0 + g_dat_63eb2 + g_dat_63ebe +
+                         g_dat_63ed0 + g_dat_63ed3 + g_dat_63ed5 + g_dat_63ed8;
+        check(others == *m[k].byte, "  exactly one key byte moves for this key");
+        night_key_apply(m[k].sc, 1);   /* shipped handler: a re-make while held changes NOTHING (0x0003fdff JNZ) */
+        check(*m[k].byte == 1 && g_dat_62c58[m[k].slot] == 1, "  a re-make while held is a no-op");
         night_key_apply(m[k].sc, 0);
-        check(*m[k].byte == 0 && g_dat_62c58[m[k].sc] == 0, "  released on break");
+        check(*m[k].byte == 0, "  the held byte clears on break (0x0003fe69-6e)");
+        check(g_dat_62c58[m[k].slot] == 1, "  the slot does NOT: the shipped break only clears the held byte");
+        g_dat_62c58[m[k].slot] = 0;
+        night_key_apply(m[k].sc, 1);   /* held==0 && slot==0 -> re-arm; held==0 && slot!=0 -> INC repeat */
+        check(g_dat_62c58[m[k].slot] == 1, "  re-arms after the slot decayed");
+        night_key_apply(m[k].sc, 0);
     }
-    /* F1 must not touch the "any key" bytes, or the level-up screen would leave instead of paging help */
-    memset(g_dat_62c58, 0, sizeof g_dat_62c58);
-    g_dat_63ec1 = g_dat_63ea4 = g_dat_63eb2 = g_dat_63ebe = 0;
-    night_key_apply(NIGHT_SC_F1, 1);
-    check(g_dat_63ec3 == 1 && g_dat_63ec1 == 0 && g_dat_63ea4 == 0 && g_dat_63eb2 == 0 && g_dat_63ebe == 0,
-          "F1 arms only the help-page mode byte (measured), so the level-up screen pages help instead of leaving");
 
     /* the pump dispatch, fn_0347e3 (0x0003483a-0x000348c3): arrow slots go to fn_034635, whose repeat counter
      * walks the slot (0x00034xxx: <4 -> ++); an unhandled slot stays put; DAT_00052ff8 == 0 freezes all of it */
@@ -11955,6 +11970,7 @@ static void test_key_map_measured(void) {
     memcpy(g_dat_62c58, saved_slots, sizeof g_dat_62c58);
     memcpy(g_dat_62cd8, saved_cd8, sizeof g_dat_62cd8);
     g_dat_63e89 = s89; g_dat_63ea4 = s_a4; g_dat_63ec1 = s_c1; g_dat_63ec3 = s_c3;
+    g_dat_63ea5 = s_a5; g_dat_63ec0 = s_c0;
     g_dat_63eb2 = s_b2; g_dat_63ebe = s_be;
     g_dat_63ed0 = d0; g_dat_63ed3 = d3; g_dat_63ed5 = d5; g_dat_63ed8 = d8;
     g_dat_52ff8 = ff8; g_dat_62d5c = d5c;

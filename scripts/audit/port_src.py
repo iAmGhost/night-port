@@ -15,6 +15,11 @@ TYPE_SIZE = {
     "uint16_t": 2, "int16_t": 2, "short": 2,
     "uint32_t": 4, "int32_t": 4, "int": 4, "unsigned": 4, "float": 4,
     "uint64_t": 8, "int64_t": 8, "double": 8,
+    # The port widens guest DS-relative heap offsets to uintptr_t where it holds a pointer (the docs/94
+    # offset-vs-pointer family). Without these the entity globals -- the player entity at DAT_00053c84,
+    # the latched entity at DAT_00053c80 -- were not in the symbol table at all, so neither the static
+    # audit nor the state oracle could see the records they point at.
+    "uintptr_t": 8, "intptr_t": 8, "size_t": 8,
 }
 
 DECL = re.compile(
@@ -25,7 +30,11 @@ DECL = re.compile(
     r"(=[^;]*)?;")
 DIM = re.compile(r"\[([^\]]*)\]")
 NAME_ADDR = re.compile(r"_(?:dat|tab|ds|scr)?_?([0-9a-f]{5})(?:\b|_)")
+# The port marks a DS-group global with the Ghidra name (`DAT_00053c84`) *or* with a bare address at the
+# start of the trailing comment (`/* 0x53c80 ... */`). Both are accepted; a bare hex number anywhere else
+# in the comment is not, because those are field offsets, not addresses.
 COMMENT_ADDR = re.compile(r"DAT_000([0-9a-f]{5})")
+COMMENT_ADDR_BARE = re.compile(r"/\*\s*0x([0-9a-f]{4,6})\b")
 FNDEF = re.compile(r"^(?:static\s+|inline\s+)*[A-Za-z_][A-Za-z0-9_ \t\*]*?\b(fn_[0-9a-f]{4,6}|[a-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*\{", re.M)
 FNCALL = re.compile(r"\b(fn_[0-9a-f]{4,6})\s*\(")
 
@@ -38,16 +47,27 @@ def _files():
 
 
 def _statements(text):
-    """Yield (start_line, statement_text) for top-level statements (brace depth 0)."""
+    """Yield (start_line, start_offset, statement_text) for top-level statements (brace depth 0).
+
+    Comment bodies are skipped rather than scanned: the port's doc comments contain semicolons and braces,
+    and splitting on them produced statements that were comment fragments (`/* 0x53c7c (... POINTER;`),
+    which is how several entity globals lost their address marker. The offsets are kept so a declaration's
+    address marker can be read off its own physical line."""
     depth, i, line, seg_start, seg_line = 0, 0, 1, 0, 1
     while i < len(text):
         c = text[i]
+        if text.startswith("/*", i):                                   # skip a comment body verbatim
+            end = text.find("*/", i + 2)
+            end = len(text) - 1 if end < 0 else end + 1
+            line += text.count("\n", i, end)
+            i = end
+            continue
         if c == "{":
             depth += 1
         elif c == "}":
             depth -= 1
         elif c == ";" and depth == 0:
-            yield seg_line, text[seg_start:i + 1]
+            yield seg_line, seg_start, text[seg_start:i + 1]
             seg_start, seg_line = i + 1, line + text.count("\n", seg_start, i + 1)
         elif c == "\n":
             line += 1
@@ -57,9 +77,15 @@ def _statements(text):
 def globals_():
     out = []
     for fname, text in _files():
-        for lineno, stmt in _statements(text):
+        for lineno, off, stmt in _statements(text):
             one = " ".join(stmt.split())
-            head = one
+            # a trailing comment from the *previous* declaration can end up glued to the front of this
+            # statement's text, because statements are segmented at top-level `;`. Strip comments that
+            # sit before the first `;` (declarators never contain one) -- this is what hid the entity
+            # globals whose address marker is in their own trailing comment.
+            semi = one.find(";")
+            decl_text = re.sub(r"/\*.*?\*/", " ", one[:semi], flags=re.S).strip() + one[semi:]
+            head = decl_text
             while head.startswith("/*"):
                 end = head.find("*/")
                 if end < 0:
@@ -83,11 +109,28 @@ def globals_():
             if mm:
                 addr = int(mm.group(1), 16)
             if addr is None:
-                # only a comment AFTER the declarator belongs to this declaration
-                tail = one[one.find(name) + len(name):]
+                # Two sources, in order: the text after the declarator inside the statement, and a comment
+                # that starts on the SAME physical line as the statement's closing `;` (statements are
+                # segmented at `;`, so `uint8_t *g_latched_ent = 0;  /* 0x53c80 ... */` puts its own marker
+                # just past its own end). A comment on the following line is NOT used: that one documents
+                # the next declaration. A bare hex number only counts if it is inside the DS group -- the
+                # prose is full of code addresses (`0x3774c`) and field offsets (`+0x123`).
+                i_self = stmt.find(name)
+                tail = stmt[i_self:] if i_self >= 0 else ""
+                end_off = off + len(stmt) - 1
+                if re.match(r"[ \t]*/\*", text[end_off + 1:end_off + 40]):
+                    cend = text.find("*/", end_off)
+                    if cend > 0:
+                        tail += " " + text[end_off:cend + 2]
                 cm = COMMENT_ADDR.search(tail)
                 if cm:
                     addr = int(cm.group(1), 16)
+                else:
+                    for cand in re.finditer(r"0x([0-9a-f]{4,6})\b", tail):
+                        v = int(cand.group(1), 16)
+                        if DS_LO <= v < DS_HI:
+                            addr = v
+                            break
             out.append({
                 "name": name, "ds": addr, "ctype": ctype, "ptr": ptr,
                 "base_type": base, "elems": elems, "type_size": tsz,
@@ -98,6 +141,9 @@ def globals_():
 
 
 DIM_EXPR = re.compile(r"^[0-9a-fA-FxX+*/\- \t()]+$")
+
+
+DS_LO, DS_HI = 0x50000, 0x65000     # the DS group; markers outside it are prose addresses, not globals
 
 
 def eval_dim(text):

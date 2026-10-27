@@ -32,6 +32,22 @@
   ]
  },
  {
+  "ds": 262164,
+  "guest_symbol": null,
+  "guest_type": null,
+  "guest_size": null,
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
+  "image_u32": null,
+  "port_names": [
+   "g_dat_40014"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
+ },
+ {
   "ds": 262168,
   "guest_symbol": null,
   "guest_type": null,
@@ -106,6 +122,22 @@
   "image_u32": 1852400739,
   "port_names": [],
   "port_types": []
+ },
+ {
+  "ds": 327696,
+  "guest_symbol": null,
+  "guest_type": null,
+  "guest_size": null,
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
+  "image_u32": 0,
+  "port_names": [
+   "g_blk_50010"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 327700,
@@ -8804,8 +8836,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 2031616,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_nonleap_tbl"
+  ],
+  "port_types": [
+   "int16_t"
+  ]
  },
  {
   "ds": 334178,
@@ -8840,8 +8876,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 2031616,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_leap_tbl"
+  ],
+  "port_types": [
+   "int16_t"
+  ]
  },
  {
   "ds": 334228,
@@ -9410,8 +9450,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 39,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_blk_51c24"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 334952,
@@ -9463,8 +9507,12 @@
    "fn_016fec@0x171ea MOV ['dword ptr [0x00051c98]', '0x1']"
   ],
   "image_u32": 1,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_51c98"
+  ],
+  "port_types": [
+   "int32_t"
+  ]
  },
  {
   "ds": 335004,
@@ -16855,8 +16903,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 100,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_tab_52738"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 337740,
@@ -17096,8 +17148,12 @@
    "fn_035941@0x3595f MOV ['[0x000530ac]', 'EAX']"
   ],
   "image_u32": 800,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_530ac"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 340144,
@@ -17592,8 +17648,12 @@
    "canary_ss_save@0x418e6 MOV ['word ptr [0x0005333c]', 'SS']"
   ],
   "image_u32": 1951596544,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_ss_saved"
+  ],
+  "port_types": [
+   "uint16_t"
+  ]
  },
  {
   "ds": 340798,
@@ -17619,8 +17679,12 @@
    "heap_insert_init@0x42e56 MOV ['dword ptr [0x00053350]', 'EDX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_head"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 340820,
@@ -17634,8 +17698,12 @@
    "heap_unlink@0x42c9c MOV ['dword ptr [0x00053354]', 'EDX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_cursor"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 340824,
@@ -17650,8 +17718,12 @@
    "heap_free_host@0x41c7c MOV ['dword ptr [0x00053358]', 'EDX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_highwater"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 340828,
@@ -17816,8 +17888,12 @@
    "fn_045bb7@0x45c69 MOV ['dword ptr [0x00053384]', 'EBX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_seg_limit"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 340872,
@@ -17864,8 +17940,12 @@
    "fn_0420bc@0x421a9 MOV ['word ptr [0x00053390]', 'ES']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_53390"
+  ],
+  "port_types": [
+   "int"
+  ]
  },
  {
   "ds": 340884,
@@ -17878,8 +17958,12 @@
    "fn_0420bc@0x4226c MOV ['dword ptr [0x00053394]', 'EDI']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_stack_bound"
+  ],
+  "port_types": [
+   "uintptr_t"
+  ]
  },
  {
   "ds": 340888,
@@ -17922,8 +18006,12 @@
    "fn_0445c9@0x445f4 MOV ['[0x000533a0]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_533a0"
+  ],
+  "port_types": [
+   "uintptr_t"
+  ]
  },
  {
   "ds": 340900,
@@ -17969,8 +18057,12 @@
    "fn_0420bc@0x421d1 MOV ['[0x000533b2]', 'AL']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_cfg_b2"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 340915,
@@ -17983,8 +18075,12 @@
    "fn_0420bc@0x421d6 MOV ['byte ptr [0x000533b3]', 'AH']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_cfg_b3"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 340916,
@@ -17995,8 +18091,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_cfg_b4"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 340917,
@@ -18246,8 +18346,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_debug_break"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 341555,
@@ -18794,8 +18898,12 @@
    "fn_049c76@0x49cd4 MOV ['dword ptr [0x00053780]', 'EBX']"
   ],
   "image_u32": 3600,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_53780"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 341892,
@@ -19397,8 +19505,12 @@
    "fn_0104c7@0x10530 MOV ['dword ptr [0x00053c5c]', 'EBX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_53c5c"
+  ],
+  "port_types": [
+   "uintptr_t"
+  ]
  },
  {
   "ds": 343136,
@@ -19556,10 +19668,12 @@
   ],
   "image_u32": 0,
   "port_names": [
-   "g_dat_53c7c_null_warned"
+   "g_dat_53c7c_null_warned",
+   "g_player_ent"
   ],
   "port_types": [
-   "int"
+   "int",
+   "uint8_t *"
   ]
  },
  {
@@ -19574,8 +19688,12 @@
    "fn_037b03@0x37b43 MOV ['dword ptr [0x00053c80]', '0x0']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_latched_ent"
+  ],
+  "port_types": [
+   "uint8_t *"
+  ]
  },
  {
   "ds": 343172,
@@ -19589,8 +19707,12 @@
    "fn_03af18@0x3b025 MOV ['[0x00053c84]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_53c84"
+  ],
+  "port_types": [
+   "uintptr_t"
+  ]
  },
  {
   "ds": 343176,
@@ -19608,8 +19730,12 @@
    "fn_0376c8@0x377c5 MOV ['dword ptr [0x00053c88]', '0x0']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_gauge_other_off"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 343180,
@@ -19694,10 +19820,12 @@
   ],
   "image_u32": 0,
   "port_names": [
+   "g_dat_53d0c",
    "g_pool_53d0c"
   ],
   "port_types": [
-   "uint32_t"
+   "uint32_t",
+   "uint8_t *"
   ]
  },
  {
@@ -20464,8 +20592,12 @@
    "fn_03690b@0x369af MOV ['[0x00062aa0]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_62aa0"
+  ],
+  "port_types": [
+   "uint8_t *"
+  ]
  },
  {
   "ds": 404132,
@@ -21173,8 +21305,12 @@
    "fn_03cc6b@0x3cd6f MOV ['[0x00063354]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_63354"
+  ],
+  "port_types": [
+   "uint8_t *"
+  ]
  },
  {
   "ds": 406360,
@@ -21191,8 +21327,12 @@
    "fn_03d244@0x3d3f3 MOV ['[0x00063358]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_63358"
+  ],
+  "port_types": [
+   "uint8_t *"
+  ]
  },
  {
   "ds": 406364,
@@ -21720,8 +21860,12 @@
    "fn_03690b@0x36fb5 MOV ['[0x000639c4]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_639c4"
+  ],
+  "port_types": [
+   "uint32_t *"
+  ]
  },
  {
   "ds": 408008,
@@ -21893,8 +22037,12 @@
    "fn_03c853@0x3c87c INC ['dword ptr [0x000639e8]']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_639e8"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 408044,
@@ -21943,8 +22091,12 @@
    "fn_037922@0x37a57 MOV ['dword ptr [0x00063d10]', '0x0']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_63d10"
+  ],
+  "port_types": [
+   "uint32_t *"
+  ]
  },
  {
   "ds": 409044,
@@ -22011,8 +22163,12 @@
    "fn_03690b@0x370d5 MOV ['[0x00063e04]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_63e04"
+  ],
+  "port_types": [
+   "uint8_t *"
+  ]
  },
  {
   "ds": 409096,
@@ -22025,8 +22181,12 @@
    "fn_03690b@0x36ffd MOV ['[0x00063e08]', 'EAX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_63e08"
+  ],
+  "port_types": [
+   "uint32_t *"
+  ]
  },
  {
   "ds": 409100,
@@ -22649,8 +22809,12 @@
    "@0x3fe06 MOV ['byte ptr [EAX + 0x63e88]', '0x1']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_63eb2"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 409268,
@@ -23492,8 +23656,12 @@
    "heap_free_host@0x41c84 MOV ['byte ptr [0x00063fbd]', 'AH']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_heap_flag"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 409560,
@@ -23534,8 +23702,12 @@
    "fn_04933a@0x493a8 MOV ['dword ptr [0x00063ff8]', 'EDX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_node_list_done"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 409596,
@@ -23550,8 +23722,12 @@
    "fn_04933a@0x49396 MOV ['dword ptr [0x00063ffc]', 'EBX']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_node_list_active"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 409600,

@@ -121,3 +121,62 @@ corrected table at the same commit).
 | stuck when hit mid-kick | yes (same cells) | P14@86000 (`0x3→0x79` vs `0x4b`) | same |
 | fallen state barely happens | partial | record/resource blocks differ in all 21 windows (poison-filled `spr_block` buffers) | resource build path (`spr_block` f.c:2448), entity layout still unresolved |
 | enemy teleports | not yet | — | needs entity position field decode + I/O-port DSP sampling |
+
+## 6. Second gate pass: kill drive, symbol-mapping fixes, and what the records actually say
+
+`scripts/rig/drives/ep1_kill.txt` (same two anchors, then 72 s of alternating punch `ctrl` / kick `alt`
+with distance-closing nudges), output `/tmp/rig/route-k2`.
+
+Two rig defects surfaced before any behavioural conclusion could be drawn, both in the symbol map that
+feeds both the static audit and the state oracle (`scripts/audit/port_src.py`):
+
+1. **Type filter dropped the entity globals.** `uintptr_t` / `intptr_t` / `size_t` were not in
+   `TYPE_SIZE`, so every declaration using them was skipped outright -- including `uintptr_t g_dat_53c84`
+   (the guest's "second entity slot"). With them added the symbol table grows 514 → 574 declarations.
+2. **The address marker was being read from the wrong place.** Statements are segmented at top-level `;`,
+   but the port writes `uint8_t *g_player_ent = 0;      /* 0x53c7c ... */`, i.e. its own marker *after*
+   its own `;`. Comment bodies also contain `;`, which split statements into comment fragments.
+   `port_src._statements` now skips comment bodies and yields offsets, and the marker is taken from the
+   statement's tail plus a comment that starts on the same physical line as its `;`. Result: 415 → 491
+   mapped globals, 246 → 279 rig cells (0x53c7c player entity, 0x53c80 latched entity, 0x53c84, 0x53c88
+   now dumped on both sides), and zero disagreements between name-derived and comment-derived addresses.
+
+`gen_headers.py` also stopped picking the wrong owner of a cell: `g_dat_53c7c_null_warned` (a port-local
+debug flag that merely *looks* like DAT_00053c7c) was sorted ahead of `g_player_ent` alphabetically and
+replaced the player-entity pointer in the rig table. Selection is now by shape (pointer/widest first) and
+every contested cell is written to `scripts/audit/gen/port_dup_claims.json`; five cells are claimed by
+*different* port names -- `0x537ca`, `0x53c7c`, `0x53d0c` (`g_pool_53d0c` uint32_t[100] vs
+`g_dat_53d0c` uint8_t*, the docs/98 SFX pool), `0x5d0b4`, `0x63f90`. Two of those sit exactly on the
+items the playtest reports.
+
+Kill/EXP measurement (`ds_trace 0x639bc` = the room kill counter that feeds the quota,
+`0x53c68`, `0x6336c` = the stage-event request):
+
+```
+phase          0x639bc (orig | port->/mode)      0x53c68
+P80@102000     0x0 / 0x1                         0x0 / 0x2
+P112@114800    0x0|0x1->0x2 / 0x1                0x0|0x1->0x2 / 0x2
+```
+
+The port registers its first kill at ~102 s, the shipped game at ~114.8 s: both sides count kills, so the
+playtest's "no EXP on kill" is **not** a dead kill counter. It has to be downstream -- the per-kill score
+`e[+0xbb]` folded into `player[+0x52]` and totalled into `player[+0x2b]` (f.c:24799) -- which needs the
+entity record, and that is where the rig is blind:
+
+```
+cell g_player_ent ds=0x53c7c  rec 64B
+P65@95900 .. P96@108400   +0x17 0/80   +0x2b 0/80808080   +0x30 0/80   +0x1 0/80808080
+REC-NULL: orig block all zero, port block allocator-poison (0x80)
+```
+
+Across all 572 shipped-side samples DS `0x53c7c/0x53c80/0x53c84/0x53c88` read 0 while the port holds live
+pointers there, and the *cell* `0x53c68` reads 0 on the shipped side but 1-6 on the port. Ghidra says both
+cells are written (`0x53c7c` WRITE at `0x0003b01b` in `fn_03af18`; `0x53c68` READ_WRITE at `0x000111be`
+`fn_010efc` and `0x000113d0` `fn_0112fd`), so "zero in DS" cannot be the steady state of a live room.
+The shipped-side DS read itself is trustworthy (the exptab costs `0x12c/0x3e8/0xfa0` at `0x53c94-0x53c9c`
+and the resource pointers at `0x53c64/0x53c8c` read correctly), which leaves the representation: these
+cells hold **heap-relative values in the guest** while the port keeps host pointers, and the shipped-side
+record reader passes the raw value to the memory API as a physical address. That is the docs/94 family
+again, and until the shipped-side reader resolves heap-relative pointers the entity-level items
+(EXP-per-kill, fallen reachability, teleport position continuity) stay undetected. Recorded as the rig's
+next defect, not as a port finding.

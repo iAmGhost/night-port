@@ -1,5 +1,32 @@
 [
  {
+  "ds": 327696,
+  "name": "g_blk_50010",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 200,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 334176,
+  "name": "g_nonleap_tbl",
+  "ctype": "int16_t",
+  "guest_size": 0,
+  "host_size": 26,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 334202,
+  "name": "g_leap_tbl",
+  "ctype": "int16_t",
+  "guest_size": 0,
+  "host_size": 26,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
   "ds": 334348,
   "name": "g_dat_51a0c",
   "ctype": "uint8_t *",
@@ -15,7 +42,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 334540,
@@ -36,13 +63,40 @@
   "dupes": 0
  },
  {
+  "ds": 334884,
+  "name": "g_blk_51c24",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 335000,
+  "name": "g_dat_51c98",
+  "ctype": "int32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 337720,
+  "name": "g_tab_52738",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
   "ds": 337740,
   "name": "g_tab_5274c",
   "ctype": "float",
   "guest_size": 0,
   "host_size": 256,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 338100,
@@ -60,7 +114,7 @@
   "guest_size": 0,
   "host_size": 256,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 338820,
@@ -78,7 +132,7 @@
   "guest_size": 0,
   "host_size": 100,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 339004,
@@ -149,6 +203,15 @@
   "ctype": "uint32_t",
   "guest_size": 0,
   "host_size": 256,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340140,
+  "name": "g_dat_530ac",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
   "ptr": 0,
   "dupes": 0
  },
@@ -294,7 +357,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340472,
@@ -321,7 +384,43 @@
   "guest_size": 1,
   "host_size": 1,
   "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340796,
+  "name": "g_ss_saved",
+  "ctype": "uint16_t",
+  "guest_size": 2,
+  "host_size": 2,
+  "ptr": 0,
   "dupes": 0
+ },
+ {
+  "ds": 340816,
+  "name": "g_heap_head",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340820,
+  "name": "g_heap_cursor",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340824,
+  "name": "g_heap_highwater",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
  },
  {
   "ds": 340828,
@@ -330,7 +429,7 @@
   "guest_size": 0,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340840,
@@ -360,11 +459,38 @@
   "dupes": 0
  },
  {
+  "ds": 340868,
+  "name": "g_heap_seg_limit",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
   "ds": 340876,
   "name": "g_dat_5338c",
   "ctype": "uint32_t",
   "guest_size": 4,
   "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340880,
+  "name": "g_dat_53390",
+  "ctype": "int",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 340884,
+  "name": "g_stack_bound",
+  "ctype": "uintptr_t",
+  "guest_size": 4,
+  "host_size": 8,
   "ptr": 0,
   "dupes": 0
  },
@@ -378,6 +504,15 @@
   "dupes": 0
  },
  {
+  "ds": 340896,
+  "name": "g_dat_533a0",
+  "ctype": "uintptr_t",
+  "guest_size": 0,
+  "host_size": 8,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
   "ds": 340900,
   "name": "g_dat_533a4",
   "ctype": "uint32_t",
@@ -385,6 +520,33 @@
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
+ },
+ {
+  "ds": 340914,
+  "name": "g_heap_cfg_b2",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340915,
+  "name": "g_heap_cfg_b3",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340916,
+  "name": "g_heap_cfg_b4",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
  },
  {
   "ds": 340921,
@@ -420,7 +582,7 @@
   "guest_size": 1,
   "host_size": 1,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 341529,
@@ -430,6 +592,15 @@
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
+ },
+ {
+  "ds": 341540,
+  "name": "g_debug_break",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
  },
  {
   "ds": 341564,
@@ -481,6 +652,15 @@
   "name": "g_dat_5377c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 341888,
+  "name": "g_dat_53780",
+  "ctype": "uint32_t",
+  "guest_size": 0,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -630,6 +810,15 @@
   "dupes": 1
  },
  {
+  "ds": 343132,
+  "name": "g_dat_53c5c",
+  "ctype": "uintptr_t",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
   "ds": 343136,
   "name": "g_dat_53c60",
   "ctype": "uint32_t",
@@ -663,7 +852,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343152,
@@ -681,7 +870,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343160,
@@ -694,12 +883,39 @@
  },
  {
   "ds": 343164,
-  "name": "g_dat_53c7c_null_warned",
-  "ctype": "int",
+  "name": "g_player_ent",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 2
+ },
+ {
+  "ds": 343168,
+  "name": "g_latched_ent",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 343172,
+  "name": "g_dat_53c84",
+  "ctype": "uintptr_t",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 343176,
+  "name": "g_gauge_other_off",
+  "ctype": "uint32_t",
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343180,
@@ -744,7 +960,7 @@
   "guest_size": 0,
   "host_size": 256,
   "ptr": 0,
-  "dupes": 1
+  "dupes": 3
  },
  {
   "ds": 343508,
@@ -805,7 +1021,7 @@
   "name": "g_dat_53e9c",
   "ctype": "uint8_t",
   "guest_size": 4,
-  "host_size": 1,
+  "host_size": 256,
   "ptr": 0,
   "dupes": 1
  },
@@ -814,7 +1030,7 @@
   "name": "g_dat_53ea8",
   "ctype": "uint8_t",
   "guest_size": 0,
-  "host_size": 1,
+  "host_size": 256,
   "ptr": 0,
   "dupes": 1
  },
@@ -838,11 +1054,11 @@
  },
  {
   "ds": 381108,
-  "name": "g_dat_5d0b4",
-  "ctype": "uint8_t *",
+  "name": "g_tab_5d0b4",
+  "ctype": "uint8_t",
   "guest_size": 4,
-  "host_size": 8,
-  "ptr": 1,
+  "host_size": 256,
+  "ptr": 0,
   "dupes": 2
  },
  {
@@ -893,6 +1109,15 @@
  {
   "ds": 404124,
   "name": "g_dat_62a9c",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 404128,
+  "name": "g_dat_62aa0",
   "ctype": "uint8_t *",
   "guest_size": 4,
   "host_size": 8,
@@ -987,7 +1212,7 @@
   "guest_size": 0,
   "host_size": 200,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 404368,
@@ -1023,7 +1248,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 404828,
@@ -1068,7 +1293,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 406280,
@@ -1170,6 +1395,24 @@
   "dupes": 1
  },
  {
+  "ds": 406356,
+  "name": "g_dat_63354",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
+ },
+ {
+  "ds": 406360,
+  "name": "g_dat_63358",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
   "ds": 406364,
   "name": "g_dat_6335c",
   "ctype": "uint32_t",
@@ -1185,7 +1428,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 406372,
@@ -1221,7 +1464,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 2
+  "dupes": 3
  },
  {
   "ds": 406388,
@@ -1230,7 +1473,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 406392,
@@ -1383,7 +1626,16 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
+ },
+ {
+  "ds": 408004,
+  "name": "g_dat_639c4",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
  },
  {
   "ds": 408008,
@@ -1458,11 +1710,29 @@
   "dupes": 0
  },
  {
+  "ds": 408040,
+  "name": "g_dat_639e8",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
   "ds": 408044,
   "name": "g_dat_639ec",
   "ctype": "uint8_t *",
   "guest_size": 4,
   "host_size": 256,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 408848,
+  "name": "g_dat_63d10",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
   "ptr": 1,
   "dupes": 1
  },
@@ -1483,6 +1753,24 @@
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
+ },
+ {
+  "ds": 409092,
+  "name": "g_dat_63e04",
+  "ctype": "uint8_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 1
+ },
+ {
+  "ds": 409096,
+  "name": "g_dat_63e08",
+  "ctype": "uint32_t *",
+  "guest_size": 4,
+  "host_size": 8,
+  "ptr": 1,
+  "dupes": 0
  },
  {
   "ds": 409100,
@@ -1773,6 +2061,15 @@
   "dupes": 1
  },
  {
+  "ds": 409266,
+  "name": "g_dat_63eb2",
+  "ctype": "uint8_t",
+  "guest_size": 1,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
   "ds": 409268,
   "name": "g_dat_63eb4",
   "ctype": "uint8_t",
@@ -2049,7 +2346,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409484,
@@ -2140,6 +2437,33 @@
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
+ },
+ {
+  "ds": 409533,
+  "name": "g_heap_flag",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 1,
+  "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 409592,
+  "name": "g_node_list_done",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 2
+ },
+ {
+  "ds": 409596,
+  "name": "g_node_list_active",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 2
  },
  {
   "ds": 409604,

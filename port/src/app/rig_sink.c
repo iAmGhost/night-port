@@ -112,6 +112,119 @@ void rig_marker(long t_ms, const char *fmt, ...) {
     fflush(g_marks);
 }
 
+/* ---- per-frame screen signature -----------------------------------------------------------
+ * The comparable object is what each side *shows*: the original's raw frame (BGRX32 from the
+ * emulator) and the port's composited pixel buffer. A fixed 40x30 mean-luminance grid per frame lets
+ * the screen oracle score every frame of a route (1.2 KB/frame) instead of shipping 128 MB of
+ * bitmaps; whole frames are written as separate witness files only when the picture changes.
+ *
+ * The byte offsets are explicit arguments because the two sides do not agree on channel order in
+ * memory (the port's RGBA8888 word is little-endian, so its bytes are A,B,G,R) and the channel-order
+ * mistakes in docs/70 and docs/79 must show up as "a different permutation scores better" rather
+ * than as an unexplained difference. */
+#define RIG_GW 40
+#define RIG_GH 30
+
+static FILE *g_frames;
+static char g_frames_dir[1024];
+static int g_witness, g_witness_every, g_last_sig_changed;
+static unsigned char g_prev_sig[RIG_GW * RIG_GH];
+
+void rig_screen_init(const char *dir, int witness_every) {
+    char path[1024];
+    g_witness_every = witness_every;
+    if (!dir) return;
+    snprintf(g_frames_dir, sizeof g_frames_dir, "%s", dir);
+    mkdir(dir, 0777);      /* rig_screen_init runs before rig_init, which also mkdirs */
+    snprintf(path, sizeof path, "%s/frames.bin", dir);
+    g_frames = fopen(path, "wb");
+    fprintf(stderr, "rig_sink: frames %s -> %p\n", path, (void *)g_frames);
+    if (!g_frames) return;
+    uint32_t hdr[3] = {0x5247464eu /* NGFR */, 1u, RIG_GW * RIG_GH};
+    fwrite(hdr, sizeof hdr, 1, g_frames);
+}
+
+void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, int w, int h,
+                      int ri, int gi, int bi) {
+    if (!g_frames || !pixels || w <= 0 || h <= 0) return;
+    const unsigned char *px0 = (const unsigned char *)pixels;
+    unsigned char sig[RIG_GW * RIG_GH];
+    for (int gy = 0; gy < RIG_GH; gy++) {
+        int y = (int)((long long)gy * h / RIG_GH);
+        for (int gx = 0; gx < RIG_GW; gx++) {
+            int x = (int)((long long)gx * w / RIG_GW);
+            const unsigned char *px = px0 + 4 * ((size_t)y * w + x);
+            int r = px[ri], g = px[gi], b = px[bi];
+            sig[gy * RIG_GW + gx] = (unsigned char)((r * 77 + g * 150 + b * 29) >> 8);
+        }
+    }
+    g_last_sig_changed = memcmp(sig, g_prev_sig, sizeof sig) != 0;
+    if (g_last_sig_changed) memcpy(g_prev_sig, sig, sizeof sig);
+    /* 32 bytes, no compiler padding: field widths chosen so every member is naturally aligned.
+     * scripts/rig/{capture_original,diff_screen}.py read this exact layout. */
+    struct { int64_t t_ms; uint64_t frame; int32_t w, height, changed, pad; } rh =
+        { t_ms, frame, w, h, g_last_sig_changed, 0 };
+    fwrite(&rh, sizeof rh, 1, g_frames);
+    fwrite(sig, sizeof sig, 1, g_frames);
+    fflush(g_frames);
+
+    /* witness frames: bounded, only on change, so a route stays small */
+    if (g_witness_every && g_last_sig_changed &&
+        (g_witness++ % g_witness_every) == 0) {
+        char sub[1024], path[1200];
+        snprintf(sub, sizeof sub, "%s/frames", g_frames_dir);
+        mkdir(sub, 0777);                                   /* EEXIST is fine */
+        snprintf(path, sizeof path, "%s/%06llu_%dx%d.bin", sub, frame, w, h);
+        FILE *f = fopen(path, "wb");
+        if (f) { fwrite(px0, 4, (size_t)w * h, f); fclose(f); }
+    }
+}
+
+/* ---- PCM witness --------------------------------------------------------------------------------
+ * The container exposes no audio capture (0.85.1 openapi has capture/video/* only), so the port's own
+ * PCM path is the witness: the bytes the sys layer hands the SDL stream are tee'd to a WAV. The audio
+ * oracle compares onsets/presence/which slot by window, never waveform identity -- the original's
+ * side of that comparison comes from DS activity (scripts/rig/diff_activity.py). */
+static FILE *g_pcm;
+static uint64_t g_pcm_bytes;
+
+static void put32(unsigned char *p, unsigned v) {
+    p[0] = (unsigned char)v; p[1] = (unsigned char)(v >> 8);
+    p[2] = (unsigned char)(v >> 16); p[3] = (unsigned char)(v >> 24);
+}
+static void put16(unsigned char *p, unsigned v) { p[0] = (unsigned char)v; p[1] = (unsigned char)(v >> 8); }
+
+void rig_pcm_open(const char *dir) {
+    char path[1024];
+    if (!dir) return;
+    mkdir(dir, 0777);      /* rig_pcm_open runs before rig_init, which also mkdirs */
+    snprintf(path, sizeof path, "%s/pcm.wav", dir);
+    g_pcm = fopen(path, "wb");
+    if (!g_pcm) return;
+    /* 44-byte WAV header (sizes fixed up in rig_close). 22050 Hz mono 16-bit is what the board path
+     * produces (docs/34); diff_audio.py re-derives the real rate from the port's own record timeline
+     * rather than trusting this number. */
+    unsigned char h[44];
+    memcpy(h, "RIFF", 4);   put32(h + 4, 0x7fffffff); memcpy(h + 8, "WAVEfmt ", 8);
+    put32(h + 16, 16);     put16(h + 20, 1);          put16(h + 22, 1);
+    put32(h + 24, 22050);  put32(h + 28, 22050 * 2);  put16(h + 32, 2);   put16(h + 34, 16);
+    memcpy(h + 36, "data", 4); put32(h + 40, 0);
+    fwrite(h, 44, 1, g_pcm);
+}
+
+void rig_pcm_write(const void *bytes, size_t n) {
+    if (!g_pcm || !bytes) return;
+    fwrite(bytes, 1, n, g_pcm);
+    g_pcm_bytes += n;
+}
+
 void rig_close(void) {
+    if (g_pcm) {
+        uint32_t dsz = (uint32_t)(g_pcm_bytes < 0x7fffffff ? g_pcm_bytes : 0x7fffffff);
+        uint32_t riff = dsz + 36;
+        fseek(g_pcm, 4, SEEK_SET);  fwrite(&riff, 4, 1, g_pcm);
+        fseek(g_pcm, 40, SEEK_SET); fwrite(&dsz, 4, 1, g_pcm);
+        fclose(g_pcm); g_pcm = NULL;
+    }
     if (g_bin) fflush(g_bin);
 }

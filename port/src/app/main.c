@@ -111,6 +111,12 @@ static void palette_rgba(void) {
     if (sys_vga_dac_max() <= 63)                       /* 6-bit DAC values: scale the way a DAC does */
         for (int i = 0; i < 768; i++) g_palette8[i] = (uint8_t)((g_palette8[i] << 2) | (g_palette8[i] >> 4));
 }
+static long pt_now_ms(void);
+void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, int w, int h,
+                      int ri, int gi, int bi);
+void rig_pcm_write(const void *bytes, size_t n);
+static const char *g_rig_dir;
+
 static void present(void) {
     /* The room path composites a 320x200 frame (pitch 0x140, 0xfa00 bytes) and flips exactly those
      * 64000 bytes to the framebuffer start (fn_038098), while the slide path fills the whole 640x480
@@ -127,6 +133,10 @@ static void present(void) {
                       ((uint32_t)g_palette8[idx * 3 + 1] << 16) |
                       ((uint32_t)g_palette8[idx * 3 + 2] << 8) | 0xffu;
     }
+    if (g_rig_dir)
+        rig_screen_frame(pt_now_ms(), (unsigned long long)g_frames, g_pixels, vw, vh, 3, 2, 1);
+    { const char *rc = getenv("NIGHT_RIG_CONTROL");
+      if (rc && !strcmp(rc, "no_draw")) return;    /* composed and recorded, never shown */ }
     SDL_UpdateTexture(g_tex, NULL, g_pixels, vw * 4);
     SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255);
     SDL_RenderClear(g_ren);
@@ -267,7 +277,12 @@ static void audio_pump_drain_only(void) {
     static int16_t sink[2048];
     sys_audio_set_source(g_dat_63fb4);
     uint32_t got;
-    while ((got = sys_audio_fill(sink, 2048)) != 0) g_audio_drained += got * 2;
+    while ((got = sys_audio_fill(sink, 2048)) != 0) {
+        /* No host device is a headless rig, not a mute rig: the board's bytes are still produced, and
+         * the PCM witness still has to exist (docs/34: the game waits on the board, not the device). */
+        if (g_rig_dir) rig_pcm_write(sink, (size_t)got * 2);
+        g_audio_drained += got * 2;
+    }
     if (getenv("NIGHT_AUDIODBG") && (g_frames % 60) == 0)
         SDL_Log("audiodbg: frame=%u no-stream drained=%llu B transfers=%u stops=%u rate=%u width=%u "
                 "pending=%u pushed=%u", g_frames, (unsigned long long)g_audio_drained,
@@ -334,6 +349,7 @@ static void audio_pump(void) {
     while ((got = sys_audio_fill(buf, 2048)) != 0) {
         if (SDL_GetAudioStreamAvailable(g_astream) > 96000) break;   /* bound the latency */
         if (!SDL_PutAudioStreamData(g_astream, buf, (int)(got * 2))) { g_audio_drained += got * 2; break; }
+        if (g_rig_dir) rig_pcm_write(buf, (size_t)got * 2);
         g_audio_submitted += got * 2;
     }
     if (getenv("NIGHT_AUDIODBG") && (g_frames % 60) == 0)
@@ -408,6 +424,8 @@ void rig_init(const char *dir, int hz);
 void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes);
 void rig_marker(long t_ms, const char *fmt, ...);
 void rig_close(void);
+void rig_screen_init(const char *dir, int witness_every);
+void rig_pcm_open(const char *dir);
 static const char *g_rig_dir;
 static int g_rig_hz = 10;
 static FILE *g_manifest;
@@ -942,7 +960,7 @@ static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
     pt_drive();                                                /* the playtest script's key timeline */
     if (g_rig_dir) rig_poll(pt_now_ms(), (unsigned long long)g_frames,
-                           (unsigned long long)g_audio_submitted);
+                           (unsigned long long)(g_astream ? g_audio_submitted : g_audio_drained));
     shots_resource_edge();   /* names announced inside a nested screen are only visible from a spin point */
     warp_shots_poll();       /* dense frames while a host-warp screen is up */
     card_shots_poll(g_vid_w ? g_vid_w : sys_video_w());   /* the slide show runs inside one host step, so
@@ -1271,7 +1289,7 @@ int main(int argc, char **argv) {
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;
     if (!g_ren) { SDL_Log("no renderer: %s", SDL_GetError()); return 1; }
     g_perf_freq = SDL_GetPerformanceFrequency();
-    if (g_rig_dir) { rig_init(g_rig_dir, g_rig_hz); SDL_Log("rig: dumping %d DS cells to %s at %d Hz",
+    if (g_rig_dir) { rig_pcm_open(g_rig_dir); rig_screen_init(g_rig_dir, 10); rig_init(g_rig_dir, g_rig_hz); SDL_Log("rig: dumping %d DS cells to %s at %d Hz",
                         rig_cell_count(), g_rig_dir, g_rig_hz); }
 
     /* ---- port boot (the recipe the real-data test uses, docs/15) ---- */
@@ -1326,6 +1344,7 @@ int main(int argc, char **argv) {
         while (g_frames < frames_limit) { tick_pump(); if (g_quit && g_frames >= 2) break; }
     }
     dump_frame(g_frames);
+    if (g_rig_dir) rig_close();
     SDL_Log("frames presented: %d", g_frames);
 
     if (g_tex) SDL_DestroyTexture(g_tex);

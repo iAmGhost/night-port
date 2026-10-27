@@ -128,6 +128,10 @@ def main():
     ap.add_argument("--token-file", default="/tmp/rig/.token")
     ap.add_argument("--hz", type=float, default=4.0)
     ap.add_argument("--seconds", type=float, default=90.0)
+    ap.add_argument("--audio-capture", action="store_true",
+                    help="record the mixer inside the container (/capture/audio) for the audio oracle")
+    ap.add_argument("--no-heap", action="store_true",
+                    help="skip the 43 heap reads per sample (screen/activity runs do not need them)")
     ap.add_argument("--settle", type=float, default=3.0, help="seconds before the input timeline starts")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
@@ -167,6 +171,13 @@ def main():
             time.sleep(0.2)
         if anchor is None:
             sys.exit(f"anchor {kind} not reached within {limit}s")
+    if a.audio_capture:
+        # The capture starts at the anchor, so its t=0 is the same origin as the input timeline and
+        # the oracle can slice it by drive phase without a second alignment.
+        try:
+            api(a.base, token, "/api/v1/capture/audio/start", "POST", {})
+        except Exception as e:
+            print(f"audio capture unavailable: {e}", file=sys.stderr)
     t0 = time.time()
     api(a.base, token, "/api/v1/input/sequence", "POST", {"events": events})
 
@@ -177,6 +188,8 @@ def main():
     PTR_BYTES = 64
 
     def read_ptrs(ds):
+        if a.no_heap:
+            return b""
         out = b""
         for c in ptr_cells:
             v = int.from_bytes(ds[c["ds"] - DS_LO: c["ds"] - DS_LO + 4], "little")
@@ -210,6 +223,11 @@ def main():
             prev = (dsh, frh)
         time.sleep(1.0 / a.hz)
 
+    if a.audio_capture:
+        try:
+            api(a.base, token, "/api/v1/capture/audio/stop", "POST", {})
+        except Exception:
+            pass
     meta = {"ptr_cells": [{"ds": c["ds"], "name": c["name"], "rec_bytes": PTR_BYTES}
                           for c in ptr_cells],
             "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor, "hz": a.hz,

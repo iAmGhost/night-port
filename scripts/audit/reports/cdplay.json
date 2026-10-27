@@ -1,0 +1,11 @@
+{"int2f_sites":[
+{"addr":"0x48ff3","fn":"00048fe6","fname":"fn_048fe6","setup":""},
+{"addr":"0x49007","fn":"00048fe6","fname":"fn_048fe6","setup":""},
+{"addr":"0x49019","fn":"00048fe6","fname":"fn_048fe6","setup":""},
+{"addr":"0x49032","fn":"00048fe6","fname":"fn_048fe6","setup":""},
+{"addr":"0x49046","fn":"00048fe6","fname":"fn_048fe6","setup":""},
+{"addr":"0x490cb","fn":"000490b0","fname":"dos_realmode_setup","setup":""},
+{"addr":"0x490d7","fn":"000490b0","fname":"dos_realmode_setup","setup":""}],
+"cd_functions":[
+{"fn":"00048fe6","name":"fn_048fe6","size":202,"cells":{"DAT_000536c8@0x536c8":"WRITE", "DAT_000536c9@0x536c9":"WRITE", "DAT_00064010@0x64010":"DATA", "s_RATIONAL_DOS/4G_00051800@0x51800":"DATA"}},
+{"fn":"000490b0","name":"dos_realmode_setup","size":89,"cells":{"DAT_000536c8@0x536c8":"READ", "DAT_000536c9@0x536c9":"READ"}}]}

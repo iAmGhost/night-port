@@ -1,0 +1,14 @@
+# rig drive: the intro/title window, for the CD-audio schedule probe.
+# The first `wait ds` anchors both sides on the game's first CD-track selection (DAT_00053c44 becomes the
+# intro track's start LBA): process/session start is not comparable because the emulated DOS boot burns
+# ~20 s of host time before NIGHT selects anything, and the port reaches its first selection at 3.6 s.
+# Keys only advance the intro/title sequence; the game is not entered.
+3000 wait ds 0x53c44 !=0
+8000 key enter down
+8120 key enter up
+32000 key enter down
+32120 key enter up
+62000 key enter down
+62120 key enter up
+87000 key enter down
+87120 key enter up

@@ -75,11 +75,8 @@ def globals_():
                 continue
             elems = 1
             for d in DIM.findall(dims):
-                d = d.strip()
-                try:
-                    elems *= int(d, 0)
-                except ValueError:
-                    elems = -1
+                n = eval_dim(d.strip())
+                elems = elems * n if n > 0 else -1
             tsz = TYPE_SIZE.get(base, 4 if ptr else 0)
             addr = None
             mm = NAME_ADDR.search(name)
@@ -98,6 +95,30 @@ def globals_():
                 "init": (init or "").strip(), "file": fname, "line": lineno,
             })
     return out
+
+
+DIM_EXPR = re.compile(r"^[0-9a-fA-FxX+*/\- \t()]+$")
+
+
+def eval_dim(text):
+    """Dimension of an array declarator. Port tables are sized with expressions
+    (`uint32_t g_tab_52a1c[0x4ec/4]`), and a dimension that merely fails to parse must NOT collapse to
+    1 element: the rig then compares one byte against the guest's four and reports a false difference
+    (it did, for the kill-quota table). Returns -1 when the dimension is not a plain integer
+    expression, so the caller can mark the cell's size unknown instead of guessing."""
+    t = text.strip()
+    if not t or not DIM_EXPR.match(t):
+        return -1
+    try:
+        if re.fullmatch(r"0[0-9a-fA-Fx]+", t):
+            return int(t, 0)
+        v = eval(t, {"__builtins__": {}}, {})
+    except Exception:
+        return -1
+    # `/` in Python is true division, so `[0x4ec/4]` comes back as 314.0
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    return v if isinstance(v, int) and v > 0 else -1
 
 
 def functions():

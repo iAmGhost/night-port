@@ -247,10 +247,6 @@ def main():
         print(f"wrote {a.md}")
 
 
-if __name__ == "__main__":
-    main()
-
-
 # ---------------------------------------------------------------- CD-DA schedule
 # The game's music is CD-DA on both sides, so "is the music right" is a schedule question, not a
 # loudness question: which disc extent plays in which window. The port's witness records every play/stop
@@ -276,17 +272,17 @@ def load_cdda(port_dir):
     return raw, marks, cursors
 
 
-def rms_at(raw, byte_off, n_bytes, rate=44100):
-    """Mean |sample| over one slice of the s16le stereo CD-DA witness, or None past the end."""
+def rms_at(raw, byte_off, n_bytes):
+    """RMS over one slice of the s16le stereo CD-DA witness -- the same measure envelope() computes on
+    the original's capture, so the two profiles are directly comparable."""
     with open(raw, "rb") as f:
         f.seek(byte_off)
         b = f.read(n_bytes)
     if len(b) < 4:
         return None
-    import struct as _s
     n = len(b) // 2
-    v = _s.unpack(f"<{n}h", b[: n * 2])
-    return sum(abs(x) for x in v) / n if v else None
+    v = struct.unpack(f"<{n}h", b[: n * 2])
+    return (sum(x * x for x in v) / n) ** 0.5 if v else None
 
 
 def cdda_schedule(raw, marks, cursors, orig_env, bucket_ms=BUCKET_MS, step_ms=500, win_s=20.0):
@@ -312,11 +308,13 @@ def cdda_schedule(raw, marks, cursors, orig_env, bucket_ms=BUCKET_MS, step_ms=50
             continue
         fseg = _norm([sum(seg[i * FB:(i + 1) * FB]) / FB for i in range(len(seg) // FB)])
         fpro = _norm_prof(prof, FB)
-        best, blag = 0.0, 0
+        best, blag = -2.0, 0
+        # both sides are zero-mean unit-norm, so the dot product IS the Pearson correlation; dividing by
+        # the window length used to shrink every score to ~0.02 and made every track read NOT FOUND
         for lag in range(0, max(1, len(fpro) - len(fseg))):
-            s = sum(a * b for a, b in zip(fseg, fpro[lag:lag + len(fseg)])) / len(fseg)
-            if s > best:
-                best, blag = s, lag
+            sc = sum(a * b for a, b in zip(fseg, fpro[lag:lag + len(fseg)]))
+            if sc > best:
+                best, blag = sc, lag
         pt0 = t0 / 1000.0
         ot0 = blag * step_ms / 1000.0
         verdict = ("MATCH" if best > 0.8 and abs(ot0 - pt0) < 2.0 else
@@ -336,3 +334,7 @@ def _norm(v):
 
 def _norm_prof(prof, fb):
     return _norm([sum(prof[i * fb:(i + 1) * fb]) / fb for i in range(len(prof) // fb)])
+
+
+if __name__ == "__main__":
+    main()

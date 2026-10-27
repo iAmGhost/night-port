@@ -59,7 +59,8 @@ timeout 240 python3 "$HERE/diff_screen.py" --orig "$OUT/orig_screen/frames.bin" 
         > "$OUT/report_screen.txt" 2>&1
 if [ -f "$OUT/orig/audio.wav" ] && [ -f "$OUT/port/pcm.wav" ]; then
   timeout 120 python3 "$HERE/diff_audio.py" --orig "$OUT/orig/audio.wav" --port "$OUT/port/pcm.wav" \
-          --port-cells "$OUT/port/cells.bin" --drive "$DRIVE" --md "$OUT/report_audio.md" \
+          --port-cells "$OUT/port/cells.bin" --port-log "$OUT/port.log" --drive "$DRIVE" \
+          --md "$OUT/report_audio.md" \
           > "$OUT/report_audio.txt" 2>&1
 else
   say "audio oracle skipped (no captured WAV on one side)"

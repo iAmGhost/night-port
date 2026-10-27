@@ -17,6 +17,7 @@ those, and verdicts name the window and the missing/extra onset count.
 import argparse
 import json
 import os
+import re
 import struct
 import sys
 import wave
@@ -66,13 +67,15 @@ def envelope(s, rate):
     return out
 
 
-def envelope_from_windows(windows, bucket_ms=BUCKET_MS):
+def envelope_from_windows(windows, bucket_ms=BUCKET_MS, rate_fallback=0.0):
     """RMS/zcr buckets placed at real time: `windows` is [(t0_ms, t1_ms, samples, rate)] and the
     sample count in each window decides how much of that window's time is actually audible."""
     import math
     buckets = {}
     for t0, t1, seg, rate in windows:
-        if not seg or not rate:
+        if not seg:
+            continue
+        if not rate:
             continue
         step = max(1, int(rate * bucket_ms / 1000.0))
         for j in range(0, len(seg), step):
@@ -132,7 +135,8 @@ def main():
     ap.add_argument("--orig", required=True, help="WAV captured inside the container")
     ap.add_argument("--port", required=True, help="WAV from night --rig-dump (pcm.wav)")
     ap.add_argument("--drive", required=True)
-    ap.add_argument("--port-cells", help="the port's cells.bin, to re-derive the PCM sample rate")
+    ap.add_argument("--port-cells", help="the port's cells.bin: where the PCM was produced, per window")
+    ap.add_argument("--port-log", help="the port's log, for the board rate its pump reports")
     ap.add_argument("--md")
     ap.add_argument("--missing-onsets", type=int, default=3,
                     help="onset deficit that counts as missing audio in a window")
@@ -148,17 +152,32 @@ def main():
         # the local rate. (Assuming the PCM spans the whole run, as a fixed rate would, slides the
         # envelope and invents silence in the middle of a route.)
         rec = struct.Struct("<qQQQII")
+        pd = a.port_cells if os.path.isdir(a.port_cells) else os.path.dirname(a.port_cells)
+        rb = json.load(open(os.path.join(pd, "meta.json")))["record_bytes"]
+        if not a.port_log:
+            for lg in (os.path.join(pd, "port.log"), os.path.join(pd, "..", "port.log")):
+                if os.path.exists(lg):
+                    a.port_log = lg
+                    break
         rows = []
         with open(a.port_cells, "rb") as f:
-            f.read(16)
+            f.read(16)                              # NGRC header
             while True:
                 b = f.read(rec.size)
                 if len(b) < rec.size:
                     break
                 rows.append(rec.unpack(b))          # t_ms, frame, audio_bytes, screen, tick, n
+                f.read(rb)                          # the cell blob follows every record
         if len(rows) >= 2:
-            samples = sp
-            pos, out, rates = 0, [], []
+            # The board rate is whatever DSP command 0x40 last programmed (measured 8000 Hz in this
+            # build), and the WAV header only carries a nominal 22050, so take the rate from the port's
+            # own pump line and place the samples where the record timeline says they were produced.
+            board = rp
+            if a.port_log and os.path.exists(a.port_log):  # noqa: E501
+                m = re.findall(r"audio=(\d+)Hz", open(a.port_log).read())
+                if m:
+                    board = int(m[-1])
+            samples, pos, out = sp, 0, []
             for (t0, _, a0, _, _, _), (t1, _, a1, _, _, _) in zip(rows, rows[1:]):
                 dt = (t1 - t0) / 1000.0
                 if dt <= 0:
@@ -166,16 +185,16 @@ def main():
                 want = max(0, (a1 - a0)) // 2       # 16-bit samples produced in this window
                 seg = samples[pos:pos + want]
                 pos += want
-                rate = want / dt if want else 0.0
-                if rate:
-                    rates.append(rate)
-                out.append((t0, t1, seg, rate))
-            total = sum(len(o[2]) for o in out)
-            print(f"port PCM: {total} samples placed by record window "
-                  f"(header claimed {rp} Hz; window rates median "
-                  f"{sorted(rates)[len(rates)//2] if rates else 0:.0f} Hz, "
-                  f"{len(rates)} active windows of {len(out)})")
-            ep, rp = envelope_from_windows(out), rp
+                out.append((t0, t1, seg, board))
+            placed = sum(len(o[2]) for o in out)
+            active = sum(1 for o in out if o[2])
+            print(f"port PCM: {placed}/{len(sp)} samples placed into {active}/{len(out)} record windows"
+                  f" at the board rate {board} Hz ({placed/board:.1f} s of sound in "
+                  f"{(out[-1][0]-out[0][0])/1000.0:.1f} s of route)")
+            ep, rp = envelope_from_windows(out, rate_fallback=board), rp
+            if placed < len(sp):
+                print(f"  note: {len(sp)-placed} samples in the WAV were not accounted for by the "
+                      f"record byte counters; the envelope may under-report")
     eo, ep = envelope(so, ro), envelope(sp, rp)
     print(f"original: {len(so)/ro:.1f} s @{ro} Hz -> {len(eo)} buckets")
     print(f"port    : {len(sp)/rp:.1f} s @{rp} Hz -> {len(ep)} buckets")

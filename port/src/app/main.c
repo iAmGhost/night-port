@@ -443,6 +443,7 @@ void rig_init(const char *dir, int hz);
 void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes);
 void rig_marker(long t_ms, const char *fmt, ...);
 int  rig_ds_read(uint32_t ds, uint32_t *out);   /* current value of a DS-claiming global, by DS address */
+void rig_rebase(long long slip_ms);            /* move the dump timeline onto the script's anchor */
 void rig_close(void);
 void rig_screen_init(const char *dir, int witness_every);
 void rig_pcm_open(const char *dir);
@@ -581,6 +582,7 @@ static void pt_drive(void) {
             if (hit) {
                 long slip = t - e->t_ms;
                 for (int k = g_pt_i + 1; k < g_pt_n; k++) g_pt[k].t_ms += slip;
+                if (g_rig_dir) rig_rebase(slip);
                 g_pt_i++;
                 SDL_Log("script: anchored on ds %#x = %u at t=%ldms (rebased %+ldms)",
                         e->seq_at, v, t, slip);
@@ -608,6 +610,7 @@ static void pt_drive(void) {
                 snprintf(g_res_match, sizeof g_res_match, "%s", g_reslog[hit_at]);
                 long slip = t - e->t_ms;                     /* the rest of the timeline is relative to the anchor */
                 for (int k = g_pt_i + 1; k < g_pt_n; k++) g_pt[k].t_ms += slip;
+                if (g_rig_dir) rig_rebase(slip);
                 g_pt_i++;
                 SDL_Log("script: anchored on res '%s' at t=%ldms (rebased %+ldms)", g_res_match, t, slip);
                 continue;

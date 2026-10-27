@@ -24,6 +24,13 @@
 static FILE *g_bin, *g_meta, *g_marks;
 static long g_period_ms = 100;
 static long long g_next_ms;
+/* Script anchors move the timeline origin: the playtest script rebases its keys onto shipped game
+ * events, and the shipped side's rig t=0 is its own anchor. Without the same rebase here, the port's
+ * first phase is "boot" while the shipped side's first phase is "title card up", which made every DS
+ * cell look wrong at P0. */
+static long long g_t_shift_ms;
+
+void rig_rebase(long long slip_ms) { g_t_shift_ms += slip_ms; }
 static unsigned g_tick;
 static uint32_t g_rec_bytes;
 static uint32_t g_off[RIG_MAX];
@@ -90,7 +97,8 @@ void rig_init(const char *dir, int hz) {
 /* One record per cadence tick. `frame` is the port's presented-frame counter, `audio_bytes` the
  * PCM bytes handed to the audio device (the audio oracle's window bound); `screen_hash` stays zero
  * until the media oracle fills it in. */
-void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes) {
+void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_bytes) {
+    long t_ms = (long)(t_ms0 + g_t_shift_ms);
     if (!g_bin || t_ms < g_next_ms) return;
     g_next_ms = t_ms + g_period_ms;
 
@@ -119,7 +127,8 @@ void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_byte
 
 /* Windows for the diff tool: named events (scripted keys, scene changes) stamped on the same clock
  * as the records. */
-void rig_marker(long t_ms, const char *fmt, ...) {
+void rig_marker(long t_ms_in, const char *fmt, ...) {
+    long t_ms = (long)(t_ms_in + g_t_shift_ms);
     if (!g_marks) return;
     char buf[256];
     va_list ap;
@@ -162,7 +171,7 @@ void rig_screen_init(const char *dir, int witness_every) {
     fwrite(hdr, sizeof hdr, 1, g_frames);
 }
 
-void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, int w, int h,
+void rig_screen_frame(long t_ms_in, unsigned long long frame, const void *pixels, int w, int h,
                       int ri, int gi, int bi) {
     if (!g_frames || !pixels || w <= 0 || h <= 0) return;
     const unsigned char *px0 = (const unsigned char *)pixels;
@@ -181,7 +190,7 @@ void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, i
     /* 32 bytes, no compiler padding: field widths chosen so every member is naturally aligned.
      * scripts/rig/{capture_original,diff_screen}.py read this exact layout. */
     struct { int64_t t_ms; uint64_t frame; int32_t w, height, changed, pad; } rh =
-        { t_ms, frame, w, h, g_last_sig_changed, 0 };
+        { (long long)(t_ms_in + g_t_shift_ms), frame, w, h, g_last_sig_changed, 0 };
     fwrite(&rh, sizeof rh, 1, g_frames);
     fwrite(sig, sizeof sig, 1, g_frames);
     fflush(g_frames);

@@ -1,0 +1,8 @@
+# anchor on the first screen that stops changing (the disc/title card), then drive the menu
+anchor static 3.0 90
+0 key KBD_enter down
+60 key KBD_enter up
+10000 key KBD_enter down
+10060 key KBD_enter up
+20000 key KBD_space down
+20060 key KBD_space up

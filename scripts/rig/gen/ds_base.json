@@ -1,0 +1,38 @@
+{
+ "phys_ds_base": 1789952,
+ "ds_selector": 360,
+ "probes": [
+  [
+   "0x5274c",
+   1056964608,
+   "0x20774c"
+  ],
+  [
+   "0x52a1c",
+   1000,
+   "0x207a1c"
+  ]
+ ],
+ "stride64_matches": 6,
+ "stride64_mismatches": [
+  "0x7600",
+  "0xb600",
+  "0xf600",
+  "0x13600",
+  "0x27600",
+  "0x2b600",
+  "0x2f600",
+  "0x33600",
+  "0x37600",
+  "0x3b600",
+  "0x3f600",
+  "0x43600",
+  "0x4b600",
+  "0x53600",
+  "0x57600",
+  "0x5b600",
+  "0x5f600",
+  "0x63600"
+ ],
+ "note": "mismatches are cells the game has already written; they must NOT be used as calibration anchors, only as runtime state"
+}

@@ -1,0 +1,102 @@
+{
+ "runs": [
+  "/tmp/rig/det/run1",
+  "/tmp/rig/det/run2",
+  "/tmp/rig/det/run3"
+ ],
+ "compared_states": 125,
+ "entropy_cells": {
+  "0x5335c": {
+   "bytes_differing_runs": 125,
+   "name": "g_rng_state"
+  },
+  "0x5335d": {
+   "bytes_differing_runs": 125,
+   "name": "?"
+  },
+  "0x5335e": {
+   "bytes_differing_runs": 86,
+   "name": "?"
+  },
+  "0x5335f": {
+   "bytes_differing_runs": 86,
+   "name": "?"
+  },
+  "0x53492": {
+   "bytes_differing_runs": 4,
+   "name": "?"
+  },
+  "0x53493": {
+   "bytes_differing_runs": 4,
+   "name": "?"
+  },
+  "0x63e24": {
+   "bytes_differing_runs": 125,
+   "name": "g_dat_63e24"
+  },
+  "0x63e25": {
+   "bytes_differing_runs": 120,
+   "name": "?"
+  },
+  "0x63e28": {
+   "bytes_differing_runs": 122,
+   "name": "g_dat_63e28"
+  },
+  "0x63e30": {
+   "bytes_differing_runs": 125,
+   "name": "g_dat_63e30"
+  },
+  "0x63e31": {
+   "bytes_differing_runs": 125,
+   "name": "?"
+  },
+  "0x63e34": {
+   "bytes_differing_runs": 125,
+   "name": "g_dat_63e34"
+  },
+  "0x63e35": {
+   "bytes_differing_runs": 4,
+   "name": "?"
+  },
+  "0x63e38": {
+   "bytes_differing_runs": 125,
+   "name": "g_dat_63e38"
+  },
+  "0x63e39": {
+   "bytes_differing_runs": 34,
+   "name": "?"
+  },
+  "0x63e3c": {
+   "bytes_differing_runs": 125,
+   "name": "g_dat_63e3c"
+  },
+  "0x63e40": {
+   "bytes_differing_runs": 125,
+   "name": "g_dat_63e40"
+  },
+  "0x63e41": {
+   "bytes_differing_runs": 8,
+   "name": "?"
+  },
+  "0x63e50": {
+   "bytes_differing_runs": 13,
+   "name": "g_dat_63e50"
+  },
+  "0x63ea4": {
+   "bytes_differing_runs": 1,
+   "name": "g_dat_63ea4"
+  },
+  "0x63ec1": {
+   "bytes_differing_runs": 1,
+   "name": "g_dat_63ec1"
+  },
+  "0x63f08": {
+   "bytes_differing_runs": 124,
+   "name": "g_dat_63f08"
+  },
+  "0x63f09": {
+   "bytes_differing_runs": 6,
+   "name": "?"
+  }
+ }
+}

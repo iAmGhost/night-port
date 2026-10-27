@@ -17667,6 +17667,25 @@ static void test_cd_iso_real(void) {
               "the 5-byte TOC records {track, startLBA} carry the 0xc51 gap the gate compares (+6 / +0xb)");
         check(recs[0] == 1 && *(uint32_t *)(recs + 1) == 0, "record 0 describes TRACK 01 at LBA 0");
     }
+    /* audio sector addressing (docs/96, measured): the game's TOC records carry MSCDEX absolute LBAs
+     * (original live table: track 2 = 37262); TG_NIGHT.IMG starts at the TRACK 01 INDEX 01, so disc
+     * LBA 37262 must read file sector 37112 -- measured on the IMG: sector 37111 is the last MODE1
+     * sync sector (00 FF*6 00), 37112 the first audio sample of track 2. */
+    {
+        char imgpath[1024];
+        snprintf(imgpath, sizeof imgpath, "%s", cue);
+        char *dot = strrchr(imgpath, '.');
+        if (dot) strcpy(dot, ".IMG");
+        FILE *img = fopen(imgpath, "rb");
+        if (img) {
+            uint8_t a[2352], b[2352];
+            check(fseek(img, 37112L * 2352L, SEEK_SET) == 0 && fread(b, 1, 2352, img) == 2352 &&
+                  cd_iso_read_audio(37262, a) == 0 && memcmp(a, b, 2352) == 0,
+                  "cd_iso_read_audio(37262) returns IMG sector 37112 = disc LBA - 150 (the track-2 first frame)");
+            check(cd_iso_read_audio(149, a) == -1, "an audio LBA inside the 150-sector lead-in is refused");
+            fclose(img);
+        }
+    }
     check(sys_cd_audio_stop_calls() == 0 && g_video_ram[0] == 0,
           "the shipped disc passes the gate at once: no cdinsert.pcx, no CD stop");
 

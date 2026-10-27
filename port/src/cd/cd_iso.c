@@ -182,10 +182,19 @@ void cd_iso_root_records(uint8_t *recs, uint32_t n) {
     }
 }
 
-/* ---- raw sector read: the whole 2352 bytes, for CD-DA tracks ---- */
+/* ---- raw sector read: the whole 2352 bytes, for CD-DA tracks ----
+ * The LBAs the GAME passes here come from its own TOC table (fn_107b9 records): measured live on the
+ * original at DAT_00053c64 -> track 2 starts at 37262, and fn_10b1d's playing window for it is
+ * 37262..40415 (DAT_53c44/40, measured during the opening movie). Those are MSCDEX absolute LBAs
+ * (LBA 0 = 2 s of disc lead-in). TG_NIGHT.IMG instead starts at the track-01 INDEX 01: sector 37111
+ * is the last MODE1 sector (sync 00 FF FF FF FF FF FF 00) and 37112 the first audio sample of track 2
+ * -- so disc LBA 37262 <-> file sector 37112: exactly -150, confirmed at the other end too
+ * (measured lead-out 269453 - 150 = 269303 = the IMG's sector count). Reading the raw LBA as a file
+ * index played every track 2 s late; that is the "wrong music" the 2026-10-26 playtest heard. */
 int cd_iso_read_audio(uint32_t disc_lba, uint8_t *out2352) {
     if (!g_opened || !out2352) return -1;
-    if (fseek(g_img, (long)disc_lba * IMG_SECTOR, SEEK_SET) != 0) return -1;
+    if (disc_lba < 150u || disc_lba - 150u >= g_total_sectors) return -1;
+    if (fseek(g_img, (long)(disc_lba - 150u) * IMG_SECTOR, SEEK_SET) != 0) return -1;
     if (fread(out2352, 1, IMG_SECTOR, g_img) != IMG_SECTOR) return -1;
     return 0;
 }

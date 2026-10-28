@@ -143,3 +143,28 @@ Steps, cheapest first:
 - Step (a) fact: `fn_0376c8` has exactly **one caller**, `fn_03af18` (the game main) -- so the mid-life container switch happens once per main-loop pass, not from combat code. That makes the constructor-written container (`fn_010efc`) the one that governs combat, and pushes step (b) (the `0x88`-stride type table layout) to the front of the queue.
 - Step (b) entry point: DS `0x53ea0` (the `0x88`-stride entity-type table read by the constructor for `+0x25`) is referenced from a family of small accessor functions -- `fn_01f064`, `fn_020170`, `fn_02119c`, `fn_0221b8`, `fn_02319c`, `fn_0265ac`, `fn_02adf5`, `fn_02c838`, `fn_02fe80` -- i.e. the type table is read through per-field accessors, which is the fastest way to recover its field layout (and hence the action-container header) statically.
 - Tried `fn_01f064` as a field accessor: it is a large routine (own 0x80-byte frame, floats), not a per-field getter — so field offsets should instead be recovered from the **constructor reads** in `fn_010efc` (`+0x25` = `DAT_00053ea0[type*0x88]`, `+0x29` = `DAT_00053ea4[type*0x44]`, type at `+0x0d`) and the sibling `DAT_00053ea4` accessor set. Recorded so the next pass does not chase `fn_01f064`.
+
+## 9. Container capture works -- first real (state, slot) -> reaction-type readings
+
+New rig verb `t actdump <type> [bytes]` (`rig_dump_act` in `app/rig_sink.c`): writes the **loaded** action
+container for an entity type -- `g_dat_53818[type]` plus its bytes -- into the rig dump directory, with a
+trailer naming offset/length/heap base so offline tools can rebase. Safe form of the census that crashed in
+§3: the harness only copies bytes, the interpreter runs offline.
+
+`scripts/rig/drives/ep1_actdump.txt` dumps types 0,1,2,3,4,12,21,31 at t=72 s (`/tmp/rig/ad1`). Decoded
+offline with the shipped resolution (`lvl2 = *(container+0x04)`, `rec = *(lvl2 + 4*state)`, `nslots = *(rec)`,
+`atype = rec[slot+0x38]`):
+
+| type | level-2 table | distinct types | entries with type >= 22 |
+|---|---|---|---|
+| 0 (gun / player act) | +0x71d94 | 16 | 18 -- state 1/slot 54 -> 33, state 1/slot 58 -> 34, slot 57 -> 64, slot 53 -> 188 |
+| 31 (ep1 enemy) | +0x34b750 | 9 | 10 -- state 13/slot 36 -> 48, state 26/slot 36 -> 62, slot 55 -> 52 |
+| 2, 3 | container slot is 0 | 0 | 0 (no action container filled at load for those types) |
+
+Reading: knockdown-capable records exist in the shipped data for the player's act and the episode-1 enemy, at
+high slot indices (36..58) -- deep inside the per-state action array, i.e. combo territory. But values above
+32 (43, 48, 62, 64, 81, 144, 188, 225) exceed the reaction table's knockdown range 22..32, so `rec+slot+0x38`
+is not always a reaction index: the record must be bounded exactly (`nslots`, the `+0x6d` frame array, the
+stride of the type array) before the map can be quoted. Next step: bound the records rather than widen the
+scan -- and note that types 2/3 having an empty `g_dat_53818` slot is itself a candidate defect to check
+against the shipped loader.

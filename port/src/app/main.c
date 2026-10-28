@@ -455,7 +455,7 @@ static void autokey(void) {
 struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at, a2, a3; };
 static void shot_named(const char *event);
 static void key_apply(uint8_t sc, int make);
-enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3, PT_POKE_DS = 4, PT_ENT_POKE = 5 };
+enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3, PT_POKE_DS = 4, PT_ENT_POKE = 5, PT_ACT_DUMP = 6 };
 static struct pt_evt *g_pt;
 static int g_pt_n, g_pt_i;
 static const char *g_shots_dir;
@@ -470,6 +470,7 @@ int  rig_ds_write(uint32_t ds, uint32_t v);     /* scripted injection into the s
 int  rig_ent_poke(int slot, uint32_t off, uint32_t v);   /* write record+off in the +0x13f list walk */
 uint8_t *rig_ent_slot(int slot);                /* the dumper's entity walk, by slot index */
 int  rig_player_poke(uint32_t off, uint32_t v);  /* write record+off of the player entity */
+int  rig_dump_act(int type_idx, unsigned n, const char *dir);  /* raw action-container capture */
 void rig_rebase(long long slip_ms);            /* move the dump timeline onto the script's anchor */
 void rig_close(void);
 void rig_screen_init(const char *dir, int witness_every);
@@ -562,6 +563,11 @@ static void pt_load(const char *path) {
             e->seq_at = (uint32_t)strtoul(arg, NULL, 0);
             e->a2 = (uint32_t)strtoul(updown, NULL, 0);
             if (!e->seq_at) { SDL_Log("script: poke needs a DS address (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "actdump") && n >= 3) {
+            /* `t actdump 31` writes the loaded action container of entity type 31 next to the rig dump. */
+            e->kind = PT_ACT_DUMP;
+            e->seq_at = (uint32_t)strtoul(arg, NULL, 0);
+            e->a2 = (n >= 4) ? (uint32_t)strtoul(updown, NULL, 0) : 0x800u;
         } else if (!strcasecmp(verb, "play") && n >= 4) {
             /* `t play 0x17 0x28` writes record+off of THE PLAYER entity. The shipped hit code selects the
              * reaction type through the striker's state (docs/118 §2), so combo-position probes address the
@@ -627,6 +633,12 @@ static void pt_drive(void) {
     long t = pt_now_ms();
     while (g_pt_i < g_pt_n) {
         struct pt_evt *e = &g_pt[g_pt_i];
+        if (e->kind == PT_ACT_DUMP) {
+            int w = rig_dump_act((int)e->seq_at, e->a2, g_rig_dir);
+            SDL_Log("script: actdump type %u -> %d bytes at t=%ldms", e->seq_at, w, t);
+            g_pt_i++;
+            continue;
+        }
         if (e->kind == PT_POKE_DS) {
             int w = rig_ds_write(e->seq_at, e->a2);
             SDL_Log("script: poke ds %#x = %u (%s) at t=%ldms", e->seq_at, e->a2,

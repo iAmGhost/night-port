@@ -392,3 +392,27 @@ void rig_close(void) {
     }
     if (g_bin) fflush(g_bin);
 }
+
+/* Raw capture of a loaded action container (docs/118 §8). The in-process census that interpreted guest
+ * pointers crashed, so the rig instead writes bytes: the per-type container offset table at DS 0x53818
+ * (aliased with the named .act globals) plus the container's own bytes, and the (state -> record) level-2
+ * table is left for offline decoding where a wrong guess cannot fault. */
+int rig_dump_act(int type_idx, unsigned n, const char *dir) {
+    extern uint32_t g_dat_53818[];      /* DS 0x53818: per-type action-table heap offsets */
+    extern uintptr_t g_heap_base;
+    extern uint32_t g_heap_highwater;
+    if (type_idx < 0 || type_idx >= 0x104 || !dir || !g_heap_base) return 0;
+    uint32_t off = g_dat_53818[(size_t)type_idx];
+    char path[512];
+    snprintf(path, sizeof path, "%s/act_%03x.bin", dir, (unsigned)type_idx);
+    FILE *f = fopen(path, "wb");
+    if (!f) return 0;
+    uint8_t *hb = (uint8_t *)(uintptr_t)g_heap_base;
+    unsigned hi = g_heap_highwater ? g_heap_highwater : 0x400000;
+    if (off + n > hi) n = (off < hi) ? (hi - off) : 0;
+    fwrite(hb + off, 1, n, f);
+    fprintf(f, "\n# type=%d container_off=%u bytes=%u heap_base=%p highwater=%u\n",
+            type_idx, off, n, (void *)hb, g_heap_highwater);
+    fclose(f);
+    return (int)n;
+}

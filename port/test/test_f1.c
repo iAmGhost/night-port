@@ -10684,10 +10684,16 @@ static void test_fn_01441e(void)
 
     /* the victim's ACT record (flag byte +0x6c clear, no intangible window) */
     uint32_t co = heap_arena_alloc(0x20); memset(hb + co, 0, 0x20);
-    uint32_t rn = heap_arena_alloc(0x20); memset(hb + rn, 0, 0x20);
+    /* The victim's state is REPLACED by the reaction table for every hit (guest 0x00014c6c-0x00014cb4:
+     * the else arm is unconditional, docs/111), so the victim's container must resolve the reaction
+     * states too -- with atype 3 the shipped code puts the victim in 0x0d, and a lethal victim in 0x15.
+     * Map every state of this container to the same record so the end-of-pass re-latch is checked on the
+     * record the shipped code would actually be reading. */
+    uint32_t rn = heap_arena_alloc(0x100); memset(hb + rn, 0, 0x100);
     uint32_t an = heap_arena_alloc(0x80); memset(hb + an, 0, 0x80);
     uint32_t fn = heap_arena_alloc(0x20); memset(hb + fn, 0, 0x20);
-    *(uint32_t *)(hb + co + 4) = rn; *(uint32_t *)(hb + rn + 4u * 5) = an;
+    *(uint32_t *)(hb + co + 4) = rn;
+    for (int k = 0; k < 0x40; k++) *(uint32_t *)(hb + rn + 4u * k) = an;
     *(uint32_t *)(hb + an + 0x00) = 4; *(uint32_t *)(hb + an + 0x6d) = fn;
     for (int k = 0; k < 8; k++) *(uint16_t *)(hb + fn + 2u*k) = (uint16_t)k;
     hb[an + 0x69] = 0x11; *(uint16_t *)(hb + an + 0x6a) = 0x3456;
@@ -10749,7 +10755,9 @@ static void test_fn_01441e(void)
     *(uint32_t *)(O + 0x17) = 5; *(uint32_t *)(O + 0x11) = 3;
     *(uint32_t *)(O + 0x01) = 120; *(uint32_t *)(O + 0x05) = 10; *(uint32_t *)(O + 0x09) = 60;
     *(uint16_t *)(O + 0x29) = 3;
-    *(uint32_t *)(g_dat_53ea8 + 2u*0x88u + 0x0c) = 0x777;   /* the type table's +0x0c sound id */
+    /* DAT_00053ea8 IS DAT_00053e9c + 0xc (docs/109): the death latch reads the row's +0x0c dword, which
+     * the guest addresses as [idx*0x88 + 0x53ea8] with no extra +0xc. */
+    *(uint32_t *)(g_dat_53e9c + 2u*0x88u + 0x0c) = 0x777;   /* the type table's +0x0c sound id */
     g_dat_63364 = 0; g_dat_63368 = 0;
     fn_01441e(E);
     check(*(uint16_t *)(O + 0x29) == 0 && O[0x30] == 1 && O[0x5a] == 0,

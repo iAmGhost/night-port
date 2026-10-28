@@ -64,3 +64,20 @@ heap-relative resolution recorded as an open item in docs/115). Until then, inje
 port-side *reachability* probes (does the port ever produce the state when its precondition is forced), and
 the shipped comparison stays on identical keypress drives -- which is also why a fallen-state red/green is
 still open despite docs/117 and this experiment.
+
+## 5. Player-targeted injection (`play`), and why the first combo sweep proved nothing
+
+`12345 play 0x17 0x29` writes into **the player entity** (`rig_player_poke` -> `g_player_ent`), because the
+shipped hit code resolves the reaction type through the striker: in `fn_01441e` the record index is
+`*(e + 0x17)` where `e` is the attacker and `cur` the victim (the victim is written at `f.c:24518`). That is
+consistent with the user's reading -- *"maybe it's related with the player's combo state, not the period
+between damage"* -- and inconsistent with my docs/117 hypothesis, which the negative test in §2 already
+contradicts.
+
+The first sweep (`scripts/rig/drives/ep1_combo2.txt`: set the player's state to 0x8c..0x9f and a handful of
+combat states, then press attack once from each) executed all 27 injections but landed only 4 hits, with
+atype still {1,2}. The design is wrong: overwriting `+0x17` immediately before pressing attack cancels the
+animation that would have produced the combo position, so the state at hit time is whatever the fresh attack
+sets, not the injected one. A valid probe has to advance the *chain container* (`+0x123` list, the
+slot-consumption quantity docs/110 measured as divergent) or land the second hit of a genuine combo, and that
+needs the chain layout decoded first -- which is the same prerequisite as the census that crashed in §3.

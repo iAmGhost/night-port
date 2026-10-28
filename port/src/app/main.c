@@ -469,6 +469,7 @@ int  rig_ds_read(uint32_t ds, uint32_t *out);   /* current value of a DS-claimin
 int  rig_ds_write(uint32_t ds, uint32_t v);     /* scripted injection into the same table */
 int  rig_ent_poke(int slot, uint32_t off, uint32_t v);   /* write record+off in the +0x13f list walk */
 uint8_t *rig_ent_slot(int slot);                /* the dumper's entity walk, by slot index */
+int  rig_player_poke(uint32_t off, uint32_t v);  /* write record+off of the player entity */
 void rig_rebase(long long slip_ms);            /* move the dump timeline onto the script's anchor */
 void rig_close(void);
 void rig_screen_init(const char *dir, int witness_every);
@@ -561,6 +562,14 @@ static void pt_load(const char *path) {
             e->seq_at = (uint32_t)strtoul(arg, NULL, 0);
             e->a2 = (uint32_t)strtoul(updown, NULL, 0);
             if (!e->seq_at) { SDL_Log("script: poke needs a DS address (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "play") && n >= 4) {
+            /* `t play 0x17 0x28` writes record+off of THE PLAYER entity. The shipped hit code selects the
+             * reaction type through the striker's state (docs/118 §2), so combo-position probes address the
+             * player directly instead of guessing its slot in the list walk. */
+            e->kind = PT_ENT_POKE;
+            e->seq_at = 0xfffffffeu;                         /* sentinel: the player entity */
+            e->a2 = (uint32_t)strtoul(arg, NULL, 0);         /* offset in the record */
+            e->a3 = (uint32_t)strtoul(updown, NULL, 0);      /* value */
         } else if (!strcasecmp(verb, "ent") && n >= 4) {
             /* `t ent 2 0x17 0x15` writes 4 bytes at record+0x17 of entity slot 2 in the same +0x13f list
              * walk the state dumper uses, so the injected record is the one the oracle also samples. */
@@ -627,10 +636,13 @@ static void pt_drive(void) {
             continue;
         }
         if (e->kind == PT_ENT_POKE) {
-            int w = rig_ent_poke((int)e->seq_at, e->a2, e->a3);
-            SDL_Log("script: poke ent%02d +%#x = %#x (%s) at t=%ldms", (int)e->seq_at, e->a2, e->a3,
-                    w ? "ok" : "no such slot", t);
-            if (g_rig_dir) rig_marker(t, "poke ent%02d +%#x = %#x", (int)e->seq_at, e->a2, e->a3);
+            int w = (e->seq_at == 0xfffffffeu) ? rig_player_poke(e->a2, e->a3)
+                                               : rig_ent_poke((int)e->seq_at, e->a2, e->a3);
+            SDL_Log("script: %s +%#x = %#x (%s) at t=%ldms",
+                    e->seq_at == 0xfffffffeu ? "poke player" : "poke ent", e->a2, e->a3,
+                    w ? "ok" : "no such object", t);
+            if (g_rig_dir) rig_marker(t, "poke %s +%#x = %#x",
+                                      e->seq_at == 0xfffffffeu ? "player" : "ent", e->a2, e->a3);
             g_pt_i++;
             continue;
         }

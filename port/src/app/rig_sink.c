@@ -88,6 +88,15 @@ int rig_ent_poke(int slot, uint32_t off, uint32_t v) {
     return 1;
 }
 
+int rig_player_poke(uint32_t off, uint32_t v) {
+    /* The player is not necessarily in the list-walk order the ent## cells follow, and the shipped hit code
+     * reads the ATTACKER's state to pick the reaction type (fn_01441e: rec_e indexes by *(e+0x17) where e is
+     * the striker and cur the victim -- docs/118 §2). So combo-state probes need a direct player handle. */
+    if (!g_player_ent || off + 4u > RIG_REC) return 0;
+    memcpy(g_player_ent + off, &v, 4);
+    return 1;
+}
+
 int rig_ds_read(uint32_t ds, uint32_t *out) {
     for (int i = 0; i < rig_cell_count(); i++) {
         const struct rig_cell *c = rig_cell_at(i);

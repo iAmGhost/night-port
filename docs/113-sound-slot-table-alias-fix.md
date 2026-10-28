@@ -183,3 +183,30 @@ Caveat that must be settled before this becomes a fix target: this run logged
 announced plays sum to ~910 s, so the route ran with the port's audio path in counted mode. Re-run
 `route.sh` with a real (or dummy-but-streaming) SDL audio device and re-apply this probe: if track 2 is still
 absent, the defect is in the play/teardown path (the docs/106 flush), not in the capture.
+
+## Reproduced in a direct (non-route) run, and the capture path is faithful
+
+The same probe on a plain `./port/test/night --rig-dump /tmp/rig/rx2` run (no route.sh wrapper, 14000 frames)
+gives the identical result:
+
+```
+track 1  lba=0x918e  sector #2 -> byte 4,728      (0.0 s of stream)
+track 9  lba=0x2d320 sector #2 -> byte 7,420,584  (42.1 s)
+track 11 lba=0x367aa sector #2 -> byte 7,919,208  (44.9 s)
+track 2  lba=0x40415 sector #0 -> NOT PRESENT        stream total 267.8 s
+```
+
+and it also removes the "counted mode" caveat in the way I expected it to *not*: both runs log
+`cdda: … (no device: counted, not played)` because `g_cdda_stream` is only created when an SDL playback device
+opens (`main.c:275-285`), and in rig/CI runs the audio ladder ends in the null sink. But the witness is written
+inside the read loop, right after `cd_iso_read_audio` succeeds (`main.c:311`), and in no-device mode the read
+loop is paced by wall time (`el = elapsed * 75` sectors, `main.c:301-307`) instead of the 0.4 s planner lead.
+So `cdda.raw` is a faithful record of which sectors the port actually *read*, and 267.8 s of stream for a
+292 s run is exactly what wall-clock pacing predicts. Track 2 was announced ~11 s after the previous switch,
+leaving ~200 s of wall time -- more than enough to read its 19,639 sectors -- and none of them were read.
+
+Next discriminator (cheap, offline): probe a range of sectors for that selection, not just #0, and also the
+neighbouring LBA windows (0x40415-150, -1, +1, +150) and the *next* announced track's start. If some window
+matches, the port read the right audio at a wrong base offset for that one selection; if none matches, the
+play never armed a read at all for it (the docs/106 teardown path leaving `g_cdda_sectors` zero), which is a
+different fix.

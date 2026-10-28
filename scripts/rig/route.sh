@@ -10,6 +10,11 @@ set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 DRIVE=${1:-$HERE/drives/title_basic.txt}
+# Accept a bare drive name ("probe_cd") as well as a path: the original-side replay passes --drive straight
+# to a file open, so a bare name used to die with FileNotFoundError 'probe_cd' after the port half had
+# already run (48 MB of cell records wasted).
+if [ ! -f "$DRIVE" ] && [ -f "$HERE/drives/$DRIVE.txt" ]; then DRIVE="$HERE/drives/$DRIVE.txt"; fi
+if [ ! -f "$DRIVE" ]; then echo "route.sh: no such drive: $1 (nor $HERE/drives/$1.txt)" >&2; exit 2; fi
 DUR=${2:-30}
 OUT=${OUT:-/tmp/rig/route-$(date +%Y%m%d-%H%M%S)}
 PORT_ENV=${PORT_ENV:-}

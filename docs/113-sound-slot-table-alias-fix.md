@@ -159,3 +159,27 @@ only informative result, and it may just mean that track's first sector is non-b
 does not contain it at that position. Recorded so nobody quotes this as evidence either way: the check has to
 pick a non-blank sector (scan forward until the 2352-byte block is not constant) and align to the port's own
 play marks in `port/markers.jsonl` rather than searching from byte 0.
+
+## Same-LBA byte identity, refined -- track 2's announced sectors are absent from the port's stream
+
+Repeating the probe with non-constant sectors (skip any 2352-byte block whose first 512 bytes have <= 8
+distinct values, the mistake that made the first cut match blank lead-in sectors):
+
+```
+track  1 lba=0x918e  sector #2 -> cdda.raw byte 4,728      (2.0 s in)            byte-identical
+track  9 lba=0x2d320 sector #2 -> cdda.raw byte 7,420,584  (3,155 sectors, 42.1 s) byte-identical
+track 11 lba=0x367aa sector #2 -> cdda.raw byte 7,900,392  (3,359 sectors, 44.8 s) byte-identical
+track  2 lba=0x40415 sector #0 -> NOT PRESENT in 56 MB of stream                 <-- divergence
+```
+
+The witness announced `track index 2 lba=40415 sectors=19639` (the +10.9 s selection the schedule oracle
+scored as equivalent), yet none of that track's disc bytes ever reach the stream, while the other three
+tracks' bytes appear byte-for-byte. That is the localized lead for the UNSOLVED music cluster: the selection
+*decision* is right, the *data* for one of the selections never flows -- the same asymmetry the user reports
+by ear.
+
+Caveat that must be settled before this becomes a fix target: this run logged
+`cdda: track index 1 ... (no device: counted, not played)`, and `cdda.raw` totals 317.5 s while the four
+announced plays sum to ~910 s, so the route ran with the port's audio path in counted mode. Re-run
+`route.sh` with a real (or dummy-but-streaming) SDL audio device and re-apply this probe: if track 2 is still
+absent, the defect is in the play/teardown path (the docs/106 flush), not in the capture.

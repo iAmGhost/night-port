@@ -50,3 +50,28 @@ shipped *behaviour* by relying on a host property the language does not guarante
 4 of the 12 runs did not reach the 2500-frame budget within 150 s under ASan, so the nine-episode ASan soak
 in the closeout contract needs a larger `--cap` (or fewer frames) per seed; the sweep above is a *smoke*
 pass, not the soak.
+
+## 5. Fix applied to `mem_copy`, and the honest scope of the problem
+
+`mem_copy`'s dword loop now copies through byte pointers into a local `uint32_t` (two `__builtin_memcpy`
+calls). Semantics unchanged, and its own sites are clean: grepping the re-swept log for `f.c:41x` now yields
+**0 reports** (it was the single hottest site before).
+
+But the sweep also shows the problem is **systemic, not local**. Re-sweeping the same seeds:
+
+| seed | before | after |
+|---|---|---|
+| r0s0_st1 | 433 | 404 (389 **distinct** sites) |
+| r0s1_st2 | 385 | 312 |
+| r0s2_st3 | 424 | 364 (this seed now aborts under UBSan, `rc=134`) |
+
+So the remaining reports come from ~390 *different* lines per run. That is the port's central abstraction:
+guest memory is addressed as flat offsets and read through typed pointers
+(`*(const uint32_t *)(hb + rec + 0x20 + 4*i)` and friends) everywhere in `f.c`. On x86 that is what the
+shipped program does; in C it is undefined wherever the offset is not a multiple of the accessed type —
+which the guest's packed record layouts routinely violate (the faulting addresses cluster at `+2 mod 4`).
+
+Consequence for the closeout contract ("nine-episode ASan soak, 0 reports"): reaching 0 requires routing the
+flat-model accesses through unaligned-safe accessors across the whole f-layer — a mechanical but large
+refactor (or a per-record `packed` view type), not a spot fix. That should be scheduled as its own work item
+rather than claimed here. `make -C port test` is ALL PASS with the `mem_copy` change.

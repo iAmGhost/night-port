@@ -410,7 +410,12 @@ uint8_t *mem_copy(uint8_t *a, const uint8_t *b, uint32_t c) {
     const uint32_t *s = (const uint32_t *)(uintptr_t)b;
     while (n != 0) {
         n = n - 1;
-        *d = *s;
+        /* The guest copies dwords over flat addresses that are frequently only 2-byte aligned; x86
+         * allows that, C does not (docs/123). Same semantics, no undefined behaviour. */
+        uint32_t w;
+        /* through byte pointers: the sanitizer still asserts alignment for uint32_t* operands */
+        __builtin_memcpy(&w, (const uint8_t *)(const void *)s, sizeof w);
+        __builtin_memcpy((uint8_t *)(void *)d, &w, sizeof w);
         d = d + 1;
         s = s + 1;
     }

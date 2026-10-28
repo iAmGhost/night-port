@@ -1156,6 +1156,7 @@ static void tick_pump(void) {
      * NIGHT_SHOWSCREEN=levelup|status|help, NIGHT_SHOWSCREEN_AT=<frame>. */
     if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
     if (getenv("NIGHT_KEYTRACE")) g_key_trace = 1;
+    if (getenv("NIGHT_ACTTRACE")) g_act_trace = 1;
     if (getenv("NIGHT_HITTRACE")) g_hit_trace = 1;
     if (getenv("NIGHT_CHAINTRACE")) g_chain_trace = 1;
     if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
@@ -1463,6 +1464,18 @@ int main(int argc, char **argv) {
         while (g_frames < frames_limit) { tick_pump(); if (g_quit && g_frames >= 2) break; }
     }
     dump_frame(g_frames);
+    if (g_act_trace) {
+        static const char *why[] = {"matcher visits", "code0 mismatch", "slot consumed",
+                                    "codeK mismatch", "level too high", "len != k",
+                                    "face byte", "hurt target != 0x99", "rank gate",
+                                    "chain MATCHED"};
+        const uint32_t *c = act_trace_counts();
+        SDL_Log("act-chain census (.act matcher, docs/110):");
+        for (int i = 0; i < 10; i++) SDL_Log("  %-22s %u", why[i], c[i]);
+        const uint32_t *tg = act_trace_targets();
+        SDL_Log("  matched chain targets:");
+        for (int i = 0; i < 0x100; i++) if (tg[i]) SDL_Log("    target %#04x  %u", i, tg[i]);
+    }
     if (g_rig_dir) rig_close();
     SDL_Log("frames presented: %d", g_frames);
 

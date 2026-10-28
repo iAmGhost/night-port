@@ -8986,6 +8986,20 @@ int32_t fn_0174a2(uint8_t *s, int32_t param2, int32_t *out) {          /* 0x0174
 int g_menu_trace = 0;   /* host-side diagnostic (NIGHT_MENUBG=1): menu/screen traces, docs/60 and docs/61 */
 int g_key_trace = 0;    /* host-side diagnostic (NIGHT_KEYTRACE=1): ring marker stamps and player-state
                          * transitions around fn_03272f, used by the docs/92 combat-key run */
+/* host-side diagnostic (NIGHT_ACTTRACE=1, docs/110): a failure census of the .act chain matcher
+ * (LAB_000339c5 inside fn_03272f) -- the thing that turns a key sequence into a combo state. The
+ * playtest items "infinite punching", "missing hurt-stagger state" and "player stuck when hit
+ * mid-kick" all show up on the shipped side as the player entering states 0x0b/0x0c/0x36 from idle,
+ * and the port never enters them, so the census names which test rejects every candidate. */
+int g_act_trace = 0;
+enum { ACT_ELIGIBLE, ACT_CODE0, ACT_CONSUMED, ACT_CODEK, ACT_LEVEL, ACT_LEN, ACT_FACE,
+       ACT_HURT_NO99, ACT_RANK, ACT_MATCH, ACT_COUNT };
+static uint32_t g_act_counts[ACT_COUNT];
+static uint32_t g_act_targets[0x100];   /* histogram of chain targets that fully matched (docs/110) */
+const uint32_t *act_trace_targets(void) { return g_act_targets; }
+const uint32_t *act_trace_counts(void) { return g_act_counts; }
+#define ACTWHY(w) do { if (g_act_trace) g_act_counts[(w)]++; } while (0)
+
 int g_hit_trace = 0;    /* host-side diagnostic (NIGHT_HITTRACE=1, docs/94): one line per fn_01441e hit --
                          * attacker/victim/slot/atype/dmg and the victim's +0x29 hp before -> after */
 int g_rng_seed_override = -1;   /* host-side diagnostic (NIGHT_SEED=<int>, docs/107): pin the LCG seed
@@ -26464,6 +26478,7 @@ void fn_03272f(uint8_t *tbl)
 lab_chain:
     /* LAB_000339c5: the .act chain match -- see the header comment for the table layout. */
     if (!((uint32_t)PL32(0x17) < 0x15 || (uint32_t)PL32(0x17) > 0x1e) && PL32(0x17) != 5) return;
+    ACTWHY(ACT_ELIGIBLE);
     uint32_t count = *(const uint32_t *)(tbl + 0x00);                /* 0x00033a06 */
     for (uint32_t i = 0; i < count; i = i + 1) {
         uint8_t len = tbl[0x004 + i];                                /* 0x00033a11-17 */
@@ -26473,17 +26488,18 @@ lab_chain:
         if (s2 < 0) s2 = s2 + 10;
         const uint8_t *codes = hb + *(const uint32_t *)(tbl + 0x068 + i * 4);   /* stored as heap offsets */
         const uint8_t *lvls  = hb + *(const uint32_t *)(tbl + 0x1f8 + i * 4);
-        if (g_dat_63f14[s1] != codes[0]) continue;                   /* 0x00033a57-5f */
-        if (g_dat_63f1e[s2] == 1) continue;                          /* 0x00033a61-72 */
+        if (g_dat_63f14[s1] != codes[0]) { ACTWHY(ACT_CODE0); continue; }   /* 0x00033a57-5f */
+        if (g_dat_63f1e[s2] == 1) { ACTWHY(ACT_CONSUMED); continue; }  /* 0x00033a61-72 */
         uint32_t k = 1;                                              /* 0x00033a79-0x00033b18 */
         for (; k < (uint32_t)len; k = k + 1) {
             s1 = (s1 == 9) ? 0 : s1 + 1;
-            if (g_dat_63f14[s1] != codes[k]) break;
-            if ((uint32_t)lvls[k - 1] < g_dat_63f28[s1]) break;
+            if (g_dat_63f14[s1] != codes[k]) { ACTWHY(ACT_CODEK); break; }
+            if ((uint32_t)lvls[k - 1] < g_dat_63f28[s1]) { ACTWHY(ACT_LEVEL); break; }
         }
-        if (!((uint32_t)len == k)) continue;                          /* 0x00033b1f-0x00033b34 */
-        if (tbl[0x450 + i] > PL8(0x27)) continue;
+        if (!((uint32_t)len == k)) { ACTWHY(ACT_LEN); continue; }     /* 0x00033b1f-0x00033b34 */
+        if (tbl[0x450 + i] > PL8(0x27)) { ACTWHY(ACT_FACE); continue; }
         uint16_t target = *(const uint16_t *)(tbl + 0x388 + i * 2);
+        if (g_act_trace && target < 0x100) g_act_targets[target]++;
         uint8_t *pair = hb + *(const uint32_t *)(pl + 0x4a);
         if (target == 0x70) {                                        /* 0x00033b5c-0x00033b6c the pair link */
             int32_t *pc = (int32_t *)(pair + 0x52);
@@ -26523,7 +26539,7 @@ lab_chain:
             return;
         }
         if (10 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0x15) {  /* 0x00033cd8-0x00033d6a hurt */
-            if (target != 0x99) { fn_0348e2(); return; }
+            if (target != 0x99) { ACTWHY(ACT_HURT_NO99); fn_0348e2(); return; }
             g_dat_63f1e[s2] = 1;
             PL32(0x17) = target;
             record_event_latch(pl);                                  /* 0x00033d11-0x00033d3b */
@@ -26535,6 +26551,7 @@ lab_chain:
         if (PL32(0x17) == 1 || PL32(0x17) == 2 || PL32(0x17) == 0x66) { /* 0x00033d7d-0x00033e3c idle chain */
             if (g_dat_62b90[target] < 2 ||
                 g_dat_62b90[g_dat_62d58] == (uint32_t)g_dat_62b90[target] - 1) {
+                ACTWHY(ACT_MATCH);
                 g_dat_63f1e[s2] = 1;
                 PL32(0x17) = target;
                 record_event_latch(pl);                              /* 0x00033dee-0x00033e08 */

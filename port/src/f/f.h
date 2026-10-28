@@ -1180,6 +1180,10 @@ extern int g_rng_seed_override;         /* RNG seed pin (NIGHT_SEED, docs/107) *
 extern int g_chain_trace;             /* action-record-chain witness (NIGHT_CHAINTRACE=1, docs/107) */
 extern unsigned g_chain_trace_n;
 extern int g_hit_trace;                 /* hit-trace diagnostic (NIGHT_HITTRACE=1, docs/94) */
+
+extern int g_act_trace;                /* .act chain-match census (NIGHT_ACTTRACE=1, docs/110) */
+const uint32_t *act_trace_counts(void);  /* reason census, see f.c */
+const uint32_t *act_trace_targets(void); /* target(0x00..0xff) histogram of fully matched chain entries */
 void fn_0347e3(void);            /* 0x0347e3: keyboard dispatch pump over g_62c58 */
 extern uint8_t *const g_dat_62c75;  /* DAT_00062c75 == DAT_00062c58 + 0x1d: the CTRL slot (docs/92) */
 extern uint8_t *const g_dat_62c82;  /* DAT_00062c82 == DAT_00062c58 + 0x2a: the LSHIFT slot */

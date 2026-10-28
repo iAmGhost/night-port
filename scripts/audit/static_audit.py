@@ -193,7 +193,26 @@ def c3b_full_span_initializers(db):
     table that is shorter or longer than the shipped data hides. A mismatch is a transcription error in
     the port's table, not a runtime difference.
     """
-    out = []
+    # A DS address inside a shipped function body is CODE, not image data: the guest reads it with
+    # data xrefs (a table embedded between instructions), and the port reproduces the *semantics*
+    # rather than the bytes. Comparing those as initializers produced false positives -- the port's
+    # g_scale_48a36 {0,1,2,3,4,4,5,5,6} is the decoded scale ladder, while the image bytes at that
+    # address are instructions (feeding them in segfaults the fx fixtures). Filed separately.
+    bodies = sorted((int(f["body_start"], 16), int(f["body_end"], 16), f["name"]) for f in db.functions)
+    def code_owner(addr):
+        lo, hi = 0, len(bodies) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            a, b, n = bodies[mid]
+            if a <= addr <= b:
+                return n
+            if addr < a:
+                hi = mid - 1
+            else:
+                lo = mid + 1
+        return None
+
+    out, code_rows = [], []
     for g in port_src.globals_():
         init = g.get("init") or ""
         if g["ds"] is None or not init.startswith("= {"):
@@ -208,6 +227,12 @@ def c3b_full_span_initializers(db):
         vals = [int(t, 0) for t in toks]
         port = b"".join(v.to_bytes(width, "little", signed=(v < 0)) if -2 ** (8 * width - 1) <= v < 2 ** (8 * width)
                         else b"?" * width for v in vals)
+        owner = code_owner(g["ds"])
+        if owner:
+            code_rows.append({"ds": hex(g["ds"]), "name": g["name"], "inside": owner,
+                              "note": "address is inside a shipped function body (code, not image data); "
+                                      "compared bytes would be instructions"})
+            continue
         off = g["ds"] - ghidra_db.IMAGE_FILE_VS_DS
         if off < 0 or off + len(port) > len(db.image):
             out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port),
@@ -227,6 +252,8 @@ def c3b_full_span_initializers(db):
             out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port), "bad": len(bad),
                         "first": hex(g["ds"] + i0), "port": f"{port[i0]:#04x}", "image": f"{img[i0]:#04x}",
                         "runs": [f"{a:x}..{b:x}" for a, b in runs[:6]]})
+    for r in code_rows:
+        out.append(r)          # informational, but reported so the exclusion is auditable
     return out
 
 

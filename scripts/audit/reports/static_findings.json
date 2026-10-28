@@ -4159,20 +4159,6 @@
    "init": ""
   },
   {
-   "ds": 339720,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_dat_52f08",
-   "image_head": "02000000050000000600000006000000",
-   "init": "= {0}"
-  },
-  {
-   "ds": 337740,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_tab_5274c",
-   "image_head": "0000003f0000003f0000003f0000003f",
-   "init": "= {0}"
-  },
-  {
    "ds": 338460,
    "kind": "image-nonzero-port-zero",
    "name": "g_tab_52a1c",
@@ -4364,30 +4350,6 @@
    "note": "span runs outside the image-initialised DS region"
   },
   {
-   "ds": "0x5274c",
-   "name": "g_tab_5274c",
-   "span": 4,
-   "bad": 1,
-   "first": "0x5274f",
-   "port": "0x00",
-   "image": "0x3f",
-   "runs": [
-    "3..3"
-   ]
-  },
-  {
-   "ds": "0x51ad4",
-   "name": "g_rom_51ad4",
-   "span": 26,
-   "bad": 1,
-   "first": "0x51ae6",
-   "port": "0x00",
-   "image": "0x07",
-   "runs": [
-    "12..12"
-   ]
-  },
-  {
    "ds": "0x62d68",
    "name": "g_dat_62d68",
    "span": 4,
@@ -4452,20 +4414,6 @@
    ]
   },
   {
-   "ds": "0x48312",
-   "name": "g_coeff_48312",
-   "span": 90,
-   "bad": 88,
-   "first": "0x48312",
-   "port": "0x4e",
-   "image": "0x49",
-   "runs": [
-    "0..17",
-    "19..52",
-    "54..59"
-   ]
-  },
-  {
    "ds": "0x53e24",
    "name": "g_dat_53e24",
    "span": 1,
@@ -4473,16 +4421,10 @@
    "note": "span runs outside the image-initialised DS region"
   },
   {
-   "ds": "0x52f08",
-   "name": "g_dat_52f08",
-   "span": 4,
-   "bad": 1,
-   "first": "0x52f08",
-   "port": "0x00",
-   "image": "0x02",
-   "runs": [
-    "0..0"
-   ]
+   "ds": "0x48312",
+   "name": "g_coeff_48312",
+   "inside": "fn_048312",
+   "note": "address is inside a shipped function body (code, not image data); compared bytes would be instructions"
   }
  ],
  "c4_representation": [

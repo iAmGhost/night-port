@@ -56,11 +56,9 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"kind": "port-span-overlap", "a": "g_tab_52c3c", "a_span": ["0x52c3c", "0x5304c"], "b": "kXlat_5302c", "b_span": ["0x5302c", "0x5312c"], "overlap": 32}
   {"kind": "port-span-overlap", "a": "g_tab_52da4", "a_span": ["0x52da4", "0x52f34"], "b": "g_dat_52f08", "b_span": ["0x52f08", "0x53008"], "overlap": 44}
 
-## c3_image_init: 29 findings
+## c3_image_init: 27 findings
   {"ds": 340156, "kind": "image-nonzero-port-zero", "name": "g_dat_530bc", "image_head": "7f0000007f0000007f0000007f000000", "init": ""}
   {"ds": 339756, "kind": "image-nonzero-port-zero", "name": "g_tab_52f2c", "image_head": "16000000030000000200000006000000", "init": ""}
-  {"ds": 339720, "kind": "image-nonzero-port-zero", "name": "g_dat_52f08", "image_head": "02000000050000000600000006000000", "init": "= {0}"}
-  {"ds": 337740, "kind": "image-nonzero-port-zero", "name": "g_tab_5274c", "image_head": "0000003f0000003f0000003f0000003f", "init": "= {0}"}
   {"ds": 338460, "kind": "image-nonzero-port-zero", "name": "g_tab_52a1c", "image_head": "e8030000e8030000e8030000e8030000", "init": ""}
   {"ds": 338820, "kind": "image-nonzero-port-zero", "name": "g_tab_52b84", "image_head": "00000000000000000000000000000000", "init": ""}
   {"ds": 340012, "kind": "image-zero-port-nonzero", "name": "kXlat_5302c", "image_head": "00000000000000000000000000000000", "init": "= { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x"}
@@ -82,12 +80,12 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"ds": 341884, "kind": "image-nonzero-port-zero", "name": "g_dat_5377c", "image_head": "50460000", "init": "= 0"}
   {"ds": 341564, "kind": "image-nonzero-port-zero", "name": "g_dat_5363c", "image_head": "01000000", "init": "= 0"}
   {"ds": 341568, "kind": "image-nonzero-port-zero", "name": "g_dat_53640", "image_head": "10000000", "init": "= 0"}
+  {"ds": 340840, "kind": "image-nonzero-port-zero", "name": "g_dat_53368", "image_head": "2000", "init": ""}
+  {"ds": 334348, "kind": "image-zero-port-nonzero", "name": "g_dat_51a0c", "image_head": "00", "init": "= g_video_ram"}
 
-## c3b_full_span_initializers: 15 findings
+## c3b_full_span_initializers: 12 findings
   {"ds": "0x53c4c", "name": "g_dat_53c4c", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
   {"ds": "0x53818", "name": "g_dat_53818", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x5274c", "name": "g_tab_5274c", "span": 4, "bad": 1, "first": "0x5274f", "port": "0x00", "image": "0x3f", "runs": ["3..3"]}
-  {"ds": "0x51ad4", "name": "g_rom_51ad4", "span": 26, "bad": 1, "first": "0x51ae6", "port": "0x00", "image": "0x07", "runs": ["12..12"]}
   {"ds": "0x62d68", "name": "g_dat_62d68", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
   {"ds": "0x63f14", "name": "g_dat_63f14", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
   {"ds": "0x63f28", "name": "g_dat_63f28", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
@@ -96,9 +94,8 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"ds": "0x639ec", "name": "g_dat_639ec", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
   {"ds": "0x63f1e", "name": "g_dat_63f1e", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
   {"ds": "0x48a36", "name": "g_scale_48a36", "span": 18, "bad": 14, "first": "0x48a36", "port": "0x00", "image": "0x42", "runs": ["0..3", "5..7", "9..e", "10..10"]}
-  {"ds": "0x48312", "name": "g_coeff_48312", "span": 90, "bad": 88, "first": "0x48312", "port": "0x4e", "image": "0x49", "runs": ["0..17", "19..52", "54..59"]}
   {"ds": "0x53e24", "name": "g_dat_53e24", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x52f08", "name": "g_dat_52f08", "span": 4, "bad": 1, "first": "0x52f08", "port": "0x00", "image": "0x02", "runs": ["0..0"]}
+  {"ds": "0x48312", "name": "g_coeff_48312", "inside": "fn_048312", "note": "address is inside a shipped function body (code, not image data); compared bytes would be instructions"}
 
 ## c4_representation: 3 findings
   {"ds": 408044, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_639ec", "port_type": "uint8_t *", "guest_type": "undefined4", "image_u32": 0, "small_imm_stores": [], "indexed_reads": ["CMP dword ptr [EAX + 0x639ec] 0x0"], "n_reads": 26, "n_writes": 3}

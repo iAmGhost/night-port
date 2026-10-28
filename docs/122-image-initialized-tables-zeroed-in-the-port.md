@@ -54,3 +54,24 @@ These feed the fx/scaling path (`g_scale_48a36[idx]` at `f.c:11267`, `g_coeff_48
 so they are the highest-value next transcription audit — and unlike §2 they may have been "derived" from
 disassembly immediates rather than read from the image, which is precisely the failure mode this check was
 built to catch.
+
+## 5. Correction: the §4 rows were FALSE POSITIVES, and the check now says so
+
+Trying the same "transcribe the image bytes" treatment on `g_scale_48a36` **segfaulted the fx fixtures**:
+the bytes at `0x48a36` are instructions (`0x1442, 0x8948, 0x8002, …` as uint16), and the port's
+`{0, 1, 2, 3, 4, 4, 5, 5, 6}` is the *decoded scale ladder* that the guest computes there. The guest's data
+xrefs (`fn_048a48` reads `0x48a36`; `fn_048422` reads `0x48312`) are tables **embedded inside function
+bodies**, where a byte-for-byte initializer comparison is simply the wrong model.
+
+`c3b_full_span_initializers` therefore now resolves each DS address against the shipped function bodies
+(binary search over `body_start..body_end`) and routes those rows to an informational class
+(`"address is inside a shipped function body (code, not image data); compared bytes would be instructions"`)
+instead of filing them as mismatches. Re-run after that fix:
+
+```
+c3b rows 12 | real mismatches 0 | code-region (informational) 2 | BSS / outside the image region 10
+```
+
+So the honest state of the check is: it found the three real zeroed tables of §2 (now fixed), and its
+remaining rows are the two informational classes. `port/src/f/f.c` was reverted for the `g_scale_48a36`
+experiment; `make -C port test` is green again.

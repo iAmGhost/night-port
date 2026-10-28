@@ -60,3 +60,22 @@ count (227 vs 101), which is the remaining question for this cluster: the port's
 per-hit volume is larger (the `NIGHT_HITTRACE` census on this route: 91 fn_01441e hits, 56 with the player as
 victim), and the fallen family (`0x5b..0x66`, reached via atype 0x15..0x1f) still has to be measured against
 the shipped side now that the table tail is reachable.
+
+## Follow-up measurements on the fixed build (`/tmp/rig/rx1`)
+
+* **Fallen family `0x5b..0x66`: zero on both sides** over this drive (shipped 0, port 0). Those ids are the
+  pick-up / throw family in `fn_01441e` (`+0x17 == 0x65 || 0x99` -> `0x66`, and the table maps
+  atype `0x15..0x1f` onto `0x66..0x5b`), so `ep1_kill3` does not exercise them on either side: the "missing
+  fallen state" item needs a drive that produces a thrown/picked-up entity (or a player death), not more
+  punching. Recording this so the item is not judged on a drive that cannot show it.
+* **EXP did not regress**: player `+0x2b` is non-zero in 46 samples on the fixed build (the award/drain path
+  of docs/109 still runs), but it ends at 0 and the kill counter `DAT_000639bc` goes 0 -> 1 @231959 and back
+  to 0 @237293 in this run. The kill/quota and EXP sub-items therefore need a *longer* drive with several
+  kills inside the sampled window (the `ents-port2` run gave 0 -> 2 with `+0x2b` reaching 20); the counter
+  returning to 0 is itself a finding to chase (room re-entry resets it, or the quota announcement path clears
+  it -- `DAT_00053c80` / `DAT_0006336c` are the quota-announcement cells).
+* Reaction totals are now above the shipped side (227 vs 101 band samples) while the player half matches
+  (49 vs 47), so the remaining gap sits in non-player victims: the port resolves more hits
+  (`NIGHT_HITTRACE`: 91 hits, 56 on the player) or sees larger `atype` values. Next measurement: the
+  `atype`/`dmg` histogram from the HIT witness compared against the shipped records' `byte[record+slot+0x38]`
+  read through the memory API (`--chain-cells`), which is now the only unexplained quantity in this cluster.

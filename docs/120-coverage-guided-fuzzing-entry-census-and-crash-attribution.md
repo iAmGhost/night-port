@@ -100,3 +100,23 @@ plateau (round 1 added 17 of 18 seeds' worth of nothing) says the next gain is g
 3. **Shipped-side injection parity** through the emulator memory API, so injected-state experiments (including
    this crash attribution) become true differential statements.
 4. Stage 9 seeds need a longer `--cap`/`--frames` (it entered the fewest functions).
+
+## 8. Second independent sweep: the same ceiling (evidence that the grammar, not the seed count, is the limit)
+
+`/tmp/rig/fz10` — same nine stages, 18 seeds/round, **3 rounds**, `--frames 5200`, `--events 80`, cap 110 s:
+
+| round | union entered | corpus | SIGSEGVs (cumulative) |
+|---|---|---|---|
+| 0 | 251 / 503 | 10 | 3 |
+| 1 | 257 / 503 | 17 | 8 |
+| 2 | **262 / 503** | 20 | 10 |
+
+Independent of §3 (different seeds, longer frame budget, wider mutation): the union again stops at **262 / 503**
+with **241 never entered**. Two unrelated sweeps hitting the identical ceiling is the strongest available
+evidence that the input grammar saturates at ~52 % of the shipped-named function set; more seeds will not
+move it. The way past it is grammatical (§7.2): menus, pause/continue, CD-driven sequences and room
+transitions, chosen from the call graph around the 180 gap functions.
+
+This sweep predates the counterfactual crash attribution (it ran while that patch was being written), so its
+10 SIGSEGVs are labelled only by "the drive contains injections"; the re-verification in §5 (stripping the
+injections clears every crash) was established on the first sweep's canonical case.

@@ -7,7 +7,7 @@ SRC_F   = src/f/f.c src/f/fx_04794a.c
 SRC_SYS = src/sys/sys.c
 SRC_CD  = src/cd/cd_iso.c
 SRC_KEY = src/app/keymap.c
-SRC_RIG = src/app/rig_sink.c
+SRC_RIG = src/app/rig_sink.c src/app/rig_census.c src/gen/fn_table.c
 T       = test
 
 .PHONY: all test selftest app run clean
@@ -37,6 +37,23 @@ SDL_LIBS   ?= -L/opt/homebrew/lib -lSDL3
 app: $(T)/night
 $(T)/night: src/app/main.c $(SRC_RIG) src/f/rig_table.h src/f/rig_cells.h $(SRC_KEY) $(SRC_F) $(SRC_SYS) $(SRC_CD) src/app/keymap.h src/f/f.h src/sys/sys.h src/cd/cd_iso.h
 	$(CC) $(CFLAGS) -Isrc $(SDL_CFLAGS) -o $@ src/app/main.c $(SRC_RIG) $(SRC_KEY) $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SDL_LIBS) -lm
+# instrumented build for coverage-guided fuzzing (docs/120): every function entry is counted and keyed to
+# the shipped guest address that names it.
+$(T)/night-census: src/app/main.c src/app/rig_census.c src/gen/fn_table.c src/gen/fn_table.h \
+                   $(SRC_RIG) src/f/rig_table.h src/f/rig_cells.h $(SRC_KEY) $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SRC_CD)
+	$(CC) $(CFLAGS) -finstrument-functions -Isrc $(SDL_CFLAGS) -o $@ src/app/main.c src/app/rig_census.c \
+		src/gen/fn_table.c $(SRC_RIG) $(SRC_KEY) $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SDL_LIBS)
+
+# address- sanitizer build of the SDL host, for fuzz-crash triage
+$(T)/night-asan: src/app/main.c $(SRC_RIG) src/f/rig_table.h src/f/rig_cells.h $(SRC_KEY) $(SRC_F) \
+                 $(SRC_SYS) $(SRC_CD)
+	$(CC) $(CFLAGS) -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc $(SDL_CFLAGS) -o $@ \
+		src/app/main.c $(SRC_RIG) $(SRC_KEY) $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SDL_LIBS)
+
+asanapp: $(T)/night-asan
+
+censusapp: $(T)/night-census
+
 run: app
 	./$(T)/night
 

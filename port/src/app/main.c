@@ -473,6 +473,9 @@ int  rig_player_poke(uint32_t off, uint32_t v);  /* write record+off of the play
 int  rig_dump_act(int type_idx, unsigned n, const char *dir);  /* raw action-container capture */
 void rig_rebase(long long slip_ms);            /* move the dump timeline onto the script's anchor */
 void rig_close(void);
+int  rig_census_begin(void);                    /* per-function entry census (docs/120) */
+void rig_census_set_path(const char *path);
+unsigned rig_census_report(const char *path);
 void rig_screen_init(const char *dir, int witness_every);
 void rig_pcm_open(const char *dir);
 static const char *g_rig_dir;
@@ -1397,6 +1400,14 @@ static void tick_pump(void) {
 }
 
 int main(int argc, char **argv) {
+    if (getenv("NIGHT_CENSUS")) {
+        rig_census_begin();
+        const char *rd = NULL;
+        for (int i = 1; i + 1 < argc; i++) if (!strcmp(argv[i], "--rig-dump")) rd = argv[i + 1];
+        char cp[600];
+        snprintf(cp, sizeof cp, "%s/census.txt", rd ? rd : "/tmp");
+        rig_census_set_path(cp);
+    }
     const char *res_dir = "../NIGHT";
     int frames_limit = 0;
     /* NIGHT_DELAY_US re-times the modelled cost of one guest DOS clock read (see delay_units in f.c); 0
@@ -1543,6 +1554,11 @@ int main(int argc, char **argv) {
         const uint32_t *ta = act_trace_targets_all();
         SDL_Log("  targets offered by the container (one-shot inventory):");
         for (int i = 0; i < 0x100; i++) if (ta[i]) SDL_Log("    target %#04x  %u", i, ta[i]);
+    }
+    if (getenv("NIGHT_CENSUS")) {
+        char cp[600];
+        snprintf(cp, sizeof cp, "%s/census.txt", g_rig_dir ? g_rig_dir : "/tmp");
+        rig_census_report(cp);
     }
     if (g_rig_dir) rig_close();
     SDL_Log("frames presented: %d", g_frames);

@@ -141,3 +141,4 @@ Steps, cheapest first:
      (`play 0x17 <state>` plus the right slot), and the fallen item finally gets red-before / green-after
      against the shipped side.
 - Step (a) fact: `fn_0376c8` has exactly **one caller**, `fn_03af18` (the game main) -- so the mid-life container switch happens once per main-loop pass, not from combat code. That makes the constructor-written container (`fn_010efc`) the one that governs combat, and pushes step (b) (the `0x88`-stride type table layout) to the front of the queue.
+- Step (b) entry point: DS `0x53ea0` (the `0x88`-stride entity-type table read by the constructor for `+0x25`) is referenced from a family of small accessor functions -- `fn_01f064`, `fn_020170`, `fn_02119c`, `fn_0221b8`, `fn_02319c`, `fn_0265ac`, `fn_02adf5`, `fn_02c838`, `fn_02fe80` -- i.e. the type table is read through per-field accessors, which is the fastest way to recover its field layout (and hence the action-container header) statically.

@@ -206,6 +206,11 @@ def c3b_full_span_initializers(db):
             a, b, n = bodies[mid]
             if a <= addr <= b:
                 return n
+            # Data pools also sit in the few-byte gap just BEFORE a body (the guest reads them with a
+            # data xref from that function): 0x48a36 is 0x12 below fn_048a48's entry.
+            if 0 <= a - addr <= 0x40:
+                return n + " (data pool in the gap before the body)"
+            pass
             if addr < a:
                 hi = mid - 1
             else:

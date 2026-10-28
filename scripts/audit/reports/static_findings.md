@@ -93,8 +93,8 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"ds": "0x62c58", "name": "g_dat_62c58", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
   {"ds": "0x639ec", "name": "g_dat_639ec", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
   {"ds": "0x63f1e", "name": "g_dat_63f1e", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x48a36", "name": "g_scale_48a36", "span": 18, "bad": 14, "first": "0x48a36", "port": "0x00", "image": "0x42", "runs": ["0..3", "5..7", "9..e", "10..10"]}
   {"ds": "0x53e24", "name": "g_dat_53e24", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x48a36", "name": "g_scale_48a36", "inside": "fn_048a48 (data pool in the gap before the body)", "note": "address is inside a shipped function body (code, not image data); compared bytes would be instructions"}
   {"ds": "0x48312", "name": "g_coeff_48312", "inside": "fn_048312", "note": "address is inside a shipped function body (code, not image data); compared bytes would be instructions"}
 
 ## c4_representation: 3 findings

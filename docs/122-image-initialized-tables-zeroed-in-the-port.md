@@ -64,7 +64,9 @@ xrefs (`fn_048a48` reads `0x48a36`; `fn_048422` reads `0x48312`) are tables **em
 bodies**, where a byte-for-byte initializer comparison is simply the wrong model.
 
 `c3b_full_span_initializers` therefore now resolves each DS address against the shipped function bodies
-(binary search over `body_start..body_end`) and routes those rows to an informational class
+(binary search over `body_start..body_end`, **plus the 0x40-byte gap immediately before a body**, which is
+where `0x48a36` sits — 0x12 below `fn_048a48`'s entry, a data pool read by that function) and routes those
+rows to an informational class
 (`"address is inside a shipped function body (code, not image data); compared bytes would be instructions"`)
 instead of filing them as mismatches. Re-run after that fix:
 

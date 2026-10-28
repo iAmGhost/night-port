@@ -4399,26 +4399,17 @@
    "note": "span runs outside the image-initialised DS region"
   },
   {
-   "ds": "0x48a36",
-   "name": "g_scale_48a36",
-   "span": 18,
-   "bad": 14,
-   "first": "0x48a36",
-   "port": "0x00",
-   "image": "0x42",
-   "runs": [
-    "0..3",
-    "5..7",
-    "9..e",
-    "10..10"
-   ]
-  },
-  {
    "ds": "0x53e24",
    "name": "g_dat_53e24",
    "span": 1,
    "bad": null,
    "note": "span runs outside the image-initialised DS region"
+  },
+  {
+   "ds": "0x48a36",
+   "name": "g_scale_48a36",
+   "inside": "fn_048a48 (data pool in the gap before the body)",
+   "note": "address is inside a shipped function body (code, not image data); compared bytes would be instructions"
   },
   {
    "ds": "0x48312",

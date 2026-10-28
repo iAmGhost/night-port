@@ -178,6 +178,8 @@ def main():
     ap.add_argument("--seconds", type=float, default=90.0)
     ap.add_argument("--audio-capture", action="store_true",
                     help="record the mixer inside the container (/capture/audio) for the audio oracle")
+    ap.add_argument("--chain-cells", default="",
+                    help="comma-separated DS cells whose action-record chain (0x80 B) is also dumped")
     ap.add_argument("--no-heap", action="store_true",
                     help="skip the 43 heap reads per sample (screen/activity runs do not need them)")
     ap.add_argument("--settle", type=float, default=3.0, help="seconds before the input timeline starts")
@@ -282,13 +284,41 @@ def main():
     # the port (docs/94 family) and are deliberately not compared.
     PTR_BYTES = 0x160
 
+    # Second-level chain (docs/107): the action record an entity is running right now. The guest
+    # resolves it at 0x00012cf9-0x00012d0f as *(e+0x123) -> [+4] -> +4*e[+0x17] -> record, and reads
+    # byte[record+0x6c] as the gate for the knockback + EXP award (fn_012616 / fn_01441e). The rig
+    # dumps 0x80 bytes of that record for the cells named by --chain-cells so the gate byte is
+    # comparable on both sides instead of inferred.
+    chain_cells = {int(x, 16) for x in a.chain_cells.split(",")} if a.chain_cells else set()
+    CHAIN_BYTES = 0x80
+
+    def chain_block(blk):
+        if len(blk) < 0x127:
+            return bytes(CHAIN_BYTES)
+        p1 = int.from_bytes(blk[0x123:0x127], "little")
+        if not p1:
+            return bytes(CHAIN_BYTES)
+        rarr = read_at(a.base, token, p1 + 4, 4)
+        if len(rarr) < 4:
+            return bytes(CHAIN_BYTES)
+        rarr = int.from_bytes(rarr, "little")
+        st = int.from_bytes(blk[0x17:0x1b], "little") & 0x7FFFFFFF
+        rec = read_at(a.base, token, rarr + 4 * st, 4)
+        if len(rec) < 4:
+            return bytes(CHAIN_BYTES)
+        rec = int.from_bytes(rec, "little")
+        return read_at(a.base, token, rec, CHAIN_BYTES) if rec else bytes(CHAIN_BYTES)
+
     def read_ptrs(ds):
         if a.no_heap:
             return b""
         out = b""
         for c in ptr_cells:
             v = int.from_bytes(ds[c["ds"] - DS_LO: c["ds"] - DS_LO + 4], "little")
-            out += read_at(a.base, token, v, PTR_BYTES) if v else bytes(PTR_BYTES)
+            blk = read_at(a.base, token, v, PTR_BYTES) if v else bytes(PTR_BYTES)
+            out += blk
+            if c["ds"] in chain_cells:
+                out += chain_block(blk)
         return out
 
     states, prev = [], None
@@ -337,8 +367,14 @@ def main():
             api(a.base, token, "/api/v1/capture/audio/stop", "POST", {})
         except Exception:
             pass
-    meta = {"ptr_cells": [{"ds": c["ds"], "name": c["name"], "rec_bytes": PTR_BYTES}
-                          for c in ptr_cells],
+    # order must match read_ptrs: each chain block follows the entity block it was derived from
+    pcs = []
+    for c in ptr_cells:
+        pcs.append({"ds": c["ds"], "name": c["name"], "rec_bytes": PTR_BYTES})
+        if c["ds"] in chain_cells:
+            pcs.append({"ds": c["ds"], "name": c["name"] + ".act", "rec_bytes": CHAIN_BYTES,
+                        "chain": 1})
+    meta = {"ptr_cells": pcs,
             "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor,
             "ds_waits": ds_waits, "rebases": rebases, "hz": a.hz,
             "seconds": a.seconds, "states": len(states), "cycles": cyc,

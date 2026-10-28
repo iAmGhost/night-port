@@ -18,6 +18,7 @@
 #include <sys/types.h>
 
 #include "f/rig_cells.h"
+#include "f/f.h"                      /* g_heap_base / g_heap_arena_size (docs/107 heap-relative dump) */
 
 #define RIG_MAX 512
 
@@ -149,9 +150,25 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
     for (int i = 0; i < g_n; i++) {
         const struct rig_cell *c = rig_cell_at(i);
         memcpy(p + g_off[i], c->host, c->host_size);
-        if (g_recoff[i] != 0xffffffffu && c->host_size == 8) {
-            const void *obj = *(const void *const *)c->host;
-            if (obj) memcpy(p + g_recoff[i], obj, RIG_REC);   /* else: stays zero = "null pointer" */
+        if (c->ptr && c->host_size == 8) {
+            /* Pointer cells are dumped HEAP-RELATIVE (docs/107). The port's own model already keeps
+             * heap pointers as uint32 offsets from g_heap_base (f.h:418), but these globals are host
+             * pointers, so the raw 8 bytes changed on every launch (macOS ASLR) -- 74,947 cell-samples
+             * differed between two runs of one drive at t=16 ms, which made cross-run and cross-side
+             * record comparison useless. The low 4 bytes now hold the arena offset (the same shape the
+             * shipped DS holds, e.g. DAT_00051c27c = 0x51c27c); cells that point outside the arena
+             * (static tables) read 0 and are identified by their record block instead. */
+            const uint8_t *obj = *(const uint8_t *const *)c->host;
+            unsigned char *dst = p + g_off[i];
+            memset(dst, 0, 8);
+            if (obj) {
+                /* the port's own convention (f.h:431-435): a signed 32-bit arena-relative offset, so
+                 * objects outside the arena keep a stable, comparable value too */
+                int32_t off32 = (int32_t)(obj - (const uint8_t *)g_heap_base);
+                memcpy(dst, &off32, 4);
+            }
+            if (g_recoff[i] != 0xffffffffu && obj)
+                memcpy(p + g_recoff[i], obj, RIG_REC);   /* stays zero = "null pointer" */
         }
     }
     fwrite(p, g_rec_bytes, 1, g_bin);

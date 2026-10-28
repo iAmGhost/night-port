@@ -112,6 +112,11 @@ static void palette_rgba(void) {
         for (int i = 0; i < 768; i++) g_palette8[i] = (uint8_t)((g_palette8[i] << 2) | (g_palette8[i] >> 4));
 }
 static long pt_now_ms(void);
+static int g_fixed_step_calls = 0;      /* NIGHT_RIG_STEP_CALLS=<n>: the game clock follows the PRESENTED
+                                         * FRAME count instead of the wall clock (docs/107). n is the PIT
+                                         * rate in Hz the game programs (490); the tick count per frame is
+                                         * derived exactly, so a replayed drive produces one tick sequence. */
+static long g_fixed_fps = 60;           /* frames per second the fixed-step clock assumes */
 void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, int w, int h,
                       int ri, int gi, int bi);
 void rig_pcm_write(const void *bytes, size_t n);
@@ -482,6 +487,11 @@ static uint64_t g_pt_hash;
 static uint8_t g_pt_sample[2048];
 
 static long pt_now_ms(void) {
+    /* Fixed step (docs/107): the script clock, the rig stamps and the PIT handler all follow the
+     * presented-frame counter, so two runs of one drive are the same game. Wall-clock pumping made
+     * back-to-back runs diverge (26 vs 67 resolved hits on ep1_combat with the LCG seed pinned),
+     * because a host that falls behind re-anchors and drops ticks: keys then landed on other ticks. */
+    if (g_fixed_step_calls) return (long)((unsigned long long)g_frames * 1000ull / (unsigned long long)g_fixed_fps);
     return (long)((SDL_GetPerformanceCounter() - g_start_time) * 1000ull / g_perf_freq);
 }
 
@@ -1147,6 +1157,7 @@ static void tick_pump(void) {
     if (getenv("NIGHT_MENUBG")) g_menu_trace = 1;
     if (getenv("NIGHT_KEYTRACE")) g_key_trace = 1;
     if (getenv("NIGHT_HITTRACE")) g_hit_trace = 1;
+    if (getenv("NIGHT_CHAINTRACE")) g_chain_trace = 1;
     if (getenv("NIGHT_HUDDBG")) g_hud_trace = 1;
     if (getenv("NIGHT_ROOMDBG")) g_room_trace = 1;   /* stage room-chain witness (docs/90) */
     {   /* docs/88: drive the credit-less game-over branch the shipped way -- write the game's own state while
@@ -1273,7 +1284,7 @@ static void tick_pump(void) {
         }
         g_diag_next = now + g_perf_freq;
     }
-    if (now < g_tick_next) return;
+    if (now < g_tick_next && !g_fixed_step_calls) return;
     uint32_t hz = sys_pit_hz(0);                      /* fn_03ef29 programs PIT ch0 (0x982 -> 490 Hz) */
     if (hz == 0 && g_dat_63318) hz = 1193182u / g_dat_63318;   /* fn_03575d's ch2 user */
     if (hz == 0) hz = sys_clock_ticks_per_sec();
@@ -1288,6 +1299,23 @@ static void tick_pump(void) {
     }
     if (g_rig_ctl & 1) {
         g_pump_calls++;                                /* the pump runs; the shipped tick handler does not */
+    } else if (g_fixed_step_calls) {
+        /* Fixed step (NIGHT_RIG_STEP_CALLS, docs/107): the PIT handler advances a CONSTANT number of
+         * ticks per presented frame instead of following the wall clock. Wall-clock pumping made back-to-
+         * back runs of one drive diverge (38 hits vs 5 hits on ep1_combat with the same LCG seed), because
+         * a host that falls behind re-anchors and drops ticks -- so keys landed on different game ticks.
+         * With a fixed step the tick sequence is a function of the presented frame count alone, which is
+         * what replayable fuzzing and minimal repros need. 8 = 490 Hz / ~60 fps. */
+        static unsigned long s_step_frames;
+        if (g_frames != s_step_frames) {
+            s_step_frames = g_frames;
+            unsigned long want = (unsigned long)((unsigned long long)g_frames *
+                                                 (unsigned long long)g_fixed_step_calls /
+                                                 (unsigned long long)g_fixed_fps);
+            while (g_timer_calls < want && g_timer_calls < s_step_frames * 64ul + 64ul) {
+                fn_03ee88(); g_timer_calls++;
+            }
+        }
     } else {
         while (calls--) { fn_03ee88(); g_timer_calls++; }
     }
@@ -1413,6 +1441,15 @@ int main(int argc, char **argv) {
     /* ---- run ---- */
     if (setjmp(g_game_escape) == 0) {
         g_escape_armed = 1;
+    { const char *st = getenv("NIGHT_RIG_STEP_CALLS"); if (st) g_fixed_step_calls = atoi(st);
+      const char *fp = getenv("NIGHT_RIG_FPS"); if (fp) g_fixed_fps = atol(fp);
+      if (g_fixed_step_calls) SDL_Log("fixed step: %d PIT Hz / %ld fps -- game clock follows frames",
+                                      g_fixed_step_calls, g_fixed_fps); }
+    {   /* The LCG seed is taken inside fn_03af18 (0x03af59), so the pin must be in place BEFORE the
+         * game main runs, not in tick_pump (docs/107). */
+        const char *sd = getenv("NIGHT_SEED");
+        if (sd) g_rng_seed_override = atoi(sd);
+    }
         fn_03af18();                                  /* THE GAME MAIN (0x03af18) */
         SDL_Log("the game main returned");
     } else {

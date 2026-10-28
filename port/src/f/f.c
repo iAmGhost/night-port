@@ -8979,6 +8979,12 @@ int g_key_trace = 0;    /* host-side diagnostic (NIGHT_KEYTRACE=1): ring marker 
                          * transitions around fn_03272f, used by the docs/92 combat-key run */
 int g_hit_trace = 0;    /* host-side diagnostic (NIGHT_HITTRACE=1, docs/94): one line per fn_01441e hit --
                          * attacker/victim/slot/atype/dmg and the victim's +0x29 hp before -> after */
+int g_rng_seed_override = -1;   /* host-side diagnostic (NIGHT_SEED=<int>, docs/107): pin the LCG seed
+                                 * the guest would have taken from the timer at 0x03af59 */
+int g_chain_trace = 0;      /* host-side diagnostic (NIGHT_CHAINTRACE=1, docs/107): the action-record
+                             * chain (0x00012cf9-0x12d17) that gates the EXP award and knockback */
+unsigned g_chain_trace_n;
+
 static int g_dat_53c7c_null_warned;
 
 void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state machine */
@@ -25502,6 +25508,39 @@ void fn_012616(uint8_t *e)
         } else fn_01545e(e, -mv);
     }
 
+    if (g_chain_trace && g_chain_trace_n < 60000u) {
+        static unsigned g_gate_visits;
+        if (++g_gate_visits % 5000u == 1u)
+            fprintf(stderr, "GATEVISITS %u\n", g_gate_visits);
+        /* rig witness (docs/107): the action-record chain the EXP/knockback gate reads. The guest
+         * resolves it as *(e+0x123) -> [+4] -> +4*state -> record -> byte[+0x6c] at 0x00012cf9-0x12d17. */
+        uint32_t rec = *(const uint32_t *)(hb + rarr + *(const uint32_t *)(e + 0x17) * 4u);
+        const uint8_t *rp = hb + rec;
+        if ((uint32_t)e[0] == 1u)
+            fprintf(stderr, "CHAIN e=%p st=%u ptbl=%08x rarr=%08x rec=%08x flag=%u b0=%u b4=%u f16=%u\n",
+                    (void *)e, *(const uint32_t *)(e + 0x17), ptbl, rarr, rec, rp[0x6c],
+                    *(const uint32_t *)(rp + 0x00), *(const uint32_t *)(rp + 0x04), e[0x16]);
+        static unsigned g_rec_dumps;
+        if (g_rec_dumps < 6u) {                     /* one hex window per distinct record */
+            static uint32_t seen[6]; unsigned n = 0; int dup = 0;
+            for (; n < 6u; n++) if (seen[n] == rec) { dup = 1; break; }
+            if (!dup) {
+                seen[g_rec_dumps < 6u ? g_rec_dumps : 5] = rec; g_rec_dumps++;
+                fputs("RECDUMP ", stderr);
+                fprintf(stderr, "rec=%08x ptbl=%08x st=%u\n", rec, ptbl,
+                        *(const uint32_t *)(e + 0x17));
+                for (unsigned o = 0; o < 0x80u; o += 16u) {
+                    fprintf(stderr, "  %02x:", o);
+                    for (unsigned b = 0; b < 16u; b++) fprintf(stderr, " %02x", rp[o + b]);
+                    fputc('\n', stderr);
+                }
+                fputs("  PTBL:", stderr);
+                for (unsigned b = 0; b < 32u; b++) fprintf(stderr, " %02x", hb[ptbl + b]);
+                fputc('\n', stderr);
+            }
+        }
+        g_chain_trace_n++;
+    }
     if (*(const uint8_t *)(RECST(*(int32_t *)(e + 0x17)) + 0x6c) == 1) {  /* 0x00012d0f */
         if (e[0x16] != 0) {                                               /* 0x00012d23 */
             if (*(const int32_t *)(e + 0x1b) == 0) fn_01545e(e, -(int32_t)*(const int32_t *)(e + 0x42));
@@ -26613,6 +26652,12 @@ void fn_03af18(void) {
     fn_03690b();                                                       /* 0x03af4f */
     fn_010c3e();                                                       /* 0x03af54 */
     int32_t seed = fn_04297a(&probe);   /* 0x03af59 */
+    /* Host-side pin (docs/107): the guest seeds the LCG from a timer, so back-to-back port runs of the
+     * same drive get different combat outcomes (38 hits vs 0 hits on ep1_combat). The rig needs the
+     * port's own runs reproducible -- for minimal repros and for coverage-guided fuzzing -- so NIGHT_SEED
+     * overrides the timer seed while the shipped side keeps its measured entropy exclusion (docs/101). */
+    fprintf(stderr, "RNGSEED natural=%d pinned=%d\n", seed, g_rng_seed_override);
+    if (g_rng_seed_override >= 0) seed = g_rng_seed_override;
     prng_seed((uint32_t)seed);   /* 0x03af5e: fn_041ec3 seeds from EAX = fn_04297a's result */
 
 menu_loop:                                                             /* LAB_0003af69 */

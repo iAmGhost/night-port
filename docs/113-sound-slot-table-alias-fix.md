@@ -73,3 +73,30 @@ rx2 (after): 1,135,130 audio bytes, 137/1302 samples emitting audio  per-60s: {0
 which is exactly where this drive fights (the kill counter moves at 231 s, `NIGHT_HITTRACE` hits cluster
 there). Before the fix the combat stretch was silent apart from the music track. The shipped-side mixer A/B
 over the same window (`--audio-capture` + `diff_audio.py`) is the remaining presence proof for this item.
+
+## Shipped mixer A/B over the same route (route.sh, `ep1_kill3`, 300 s) -- a RIG gap, not a game result
+
+`OUT=/tmp/rig/rt-sfx scripts/rig/route.sh scripts/rig/drives/ep1_kill3.txt 300` captured the container mixer
+(`orig/audio.wav`, 46,906,916 B) and the port's PCM witness (`port/pcm.wav`, 890,824 B) and ran
+`diff_audio.py` per window:
+
+```
+P180@247800  orig onsets=1 active=1.00 rms= 821.8   | port onsets=0 active=0.00 rms=0.0   [SILENT]
+P181@248220  orig onsets=1 active=1.00 rms= 596.4   | port onsets=0 active=0.00 rms=0.0   [SILENT]
+P182@248640  orig onsets=1 active=1.00 rms= 898.6   | port onsets=0 active=0.00 rms=0.0   [SILENT]
+... 4 windows flagged, every combat-window row on the port side reads SILENT
+CD-DA schedule: port 3.4s/47.4s/50.1s/70.9s vs original 10.0s/95.5s/43.0s/52.0s, corr 0.15-0.21 [NOT FOUND]
+```
+
+Read this as a rig defect first: the state-side witness on the very same build plays 74 sound objects and the
+port's own PCM byte counter (docs/113 §before/after) rises by 660 KB concentrated in that stretch, yet the
+WAV the witness writes for the route contains almost nothing (890 KB over 300 s is ~4 s of 22 kHz 16-bit
+audio, and it is empty exactly where the counter says audio was produced). So the PCM witness and the counter
+are not the same stream: the witness is not capturing the mixer path that `fn_04185e` feeds (nor the CD-DA
+stream, which is also why every track fingerprint comes back NOT FOUND against the original mix).
+
+Consequences for the goal: (1) the "missing punch SFX" item keeps its state-side green signature
+(plays 0 -> 74, PCM counter 478 KB -> 1.14 MB) but has **no audio-oracle proof yet**; (2) the audio oracle's
+port half is a rig gap to fix before `closeout` can claim the audio diff green -- the witness must tap the
+device/mixer stream that carries SFX and the CD stream, not whatever sink produced `pcm.wav` here; (3) the
+music cluster (already re-opened by the user as UNSOLVED) will need that same tap.

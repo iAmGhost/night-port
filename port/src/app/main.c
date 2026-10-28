@@ -252,6 +252,17 @@ static uint64_t  g_cdda_clock, g_cdda_freq;      /* drain-model timing */
 static uint8_t   g_cdda_raw[2352];
 
 static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
+    /* MSCDEX semantics: the play request (fn_010570, request 0x1510 behind fn_010b1d's call) replaces
+     * whatever was playing -- the drive cannot play two tracks at once. The port reused one SDL stream
+     * and never flushed on replacement, so the previous track's queued sectors (the planner keeps a
+     * 30-sector / 0.4 s lead) played on top of the new track, and the witness showed NO stop mark at any
+     * track change (docs/105 §1: `play 1` at 3.66 s, `play 9` at 8.12 s, no stop for track 1 anywhere).
+     * That is the audible half of "music is still broken": every selection overlaps the old track. */
+    if (g_cdda_sectors != 0) {
+        if (g_rig_dir) rig_cdda_marker(pt_now_ms(), -1, g_cdda_lba, g_cdda_sectors);
+        if (g_cdda_stream) SDL_FlushAudioStream(g_cdda_stream);
+        g_cdda_sectors = 0; g_cdda_pos = 0;
+    }
     g_cdda_tracks++;
     g_cdda_lba = lba; g_cdda_sectors = sectors; g_cdda_pos = 0;
     g_cdda_clock = SDL_GetPerformanceCounter();

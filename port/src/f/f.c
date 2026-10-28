@@ -8996,6 +8996,9 @@ enum { ACT_ELIGIBLE, ACT_CODE0, ACT_CONSUMED, ACT_CODEK, ACT_LEVEL, ACT_LEN, ACT
        ACT_HURT_NO99, ACT_RANK, ACT_MATCH, ACT_COUNT };
 static uint32_t g_act_counts[ACT_COUNT];
 static uint32_t g_act_targets[0x100];   /* histogram of chain targets that fully matched (docs/110) */
+static uint32_t g_act_targets_all[0x100]; /* same, over EVERY entry the container offers, counted once */
+static int g_act_scanned = 0;
+const uint32_t *act_trace_targets_all(void) { return g_act_targets_all; }
 const uint32_t *act_trace_targets(void) { return g_act_targets; }
 const uint32_t *act_trace_counts(void) { return g_act_counts; }
 #define ACTWHY(w) do { if (g_act_trace) g_act_counts[(w)]++; } while (0)
@@ -24152,11 +24155,43 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
 
 /* DS 0x51b60: attack type -> the sprite state an entity enters when the hit lands (NIGHT.EXE data).
  * 0 is a no-op entry, 1..0x14 map onto the 0x0b..0x1e hurt states, 0x15..0x1f onto 0x66..0x5b. */
-static const uint32_t g_tab_51b60[0x20] = {
+/* DS 0x51b60: the reaction-state table, indexed by the hit's `atype` byte (0x00..0xff read from
+ * byte[record + slot + 0x38]). Image-initialised for the full 0x400 bytes (non-zero up to index
+ * 0xfa), transcribed verbatim -- an earlier version of the port kept only the first 0x20 entries,
+ * which is not enough for the atype values the shipped data produces (docs/110). */
+static const uint32_t g_tab_51b60[0x100] = {
     0x00, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11,
     0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
     0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x66, 0x65, 0x64,
     0x63, 0x62, 0x61, 0x60, 0x5f, 0x5e, 0x5d, 0x5b,
+    0x59, 0x57, 0x55, 0x53, 0x51, 0x4f, 0x4d, 0x4a,
+    0x47, 0x44, 0x41, 0x3e, 0x3b, 0x37, 0x33, 0x2f,
+    0x2b, 0x27, 0x23, 0x1f, 0x1b, 0x17, 0x13, 0x0f,
+    0x0b, 0x07, 0x04, 0x00, 0x00, 0x5c, 0x5d, 0x00,
+    0x00, 0x00, 0x5e, 0x52, 0x53, 0x54, 0x55, 0x00,
+    0x57, 0x58, 0x59, 0x5a, 0x9e9d9c00, 0xa09f, 0x01, 0xffffffc9,
+    0xfffffffb, 0xffffffd8, 0x05, 0x28, 0xfffffffb, 0x37, 0x05, 0xffffffb0,
+    0xffffffe2, 0xffffffce, 0xffffffec, 0x32, 0xffffffe2, 0x50, 0xffffffec, 0xffffffb0,
+    0x14, 0xffffffce, 0x1e, 0x32, 0x14, 0x50, 0x1e, 0x47,
+    0x50, 0x100, 0x8f, 0x47, 0xa4, 0x100, 0xc4, 0x15,
+    0x50, 0x47, 0xc4, 0x100, 0x50, 0x134, 0xc4, 0x14,
+    0x87, 0x40, 0xc3, 0xfe, 0x85, 0x130, 0xc3, 0x3f000000,
+    0x3f400000, 0x3f6147ae, 0x3f800000, 0x3fa00000, 0x3fc00000, 0x3fe00000, 0x40000000, 0x40200000,
+    0x40400000, 0x40800000, 0xd4, 0xdc, 0xe6, 0xf0, 0xfc, 0x108,
+    0x114, 0x11e, 0x128, 0x132, 0x13c, 0x144, 0x151, 0x15e,
+    0x169, 0x174, 0x17f, 0x18a, 0x195, 0x19d, 0x1a5, 0x1ad,
+    0x1b5, 0x1bd, 0x1c5, 0x1cd, 0x1d5, 0x1dd, 0x1e5, 0x1ed,
+    0x1f5, 0x1fd, 0x207, 0x211, 0x21b, 0x223, 0x22b, 0x235,
+    0x23f, 0x249, 0x253, 0x25b, 0x265, 0x26f, 0x279, 0x281,
+    0x289, 0x293, 0x29d, 0x2a7, 0x2b1, 0x2b9, 0x2c3, 0x2cd,
+    0x2d7, 0x2e1, 0x2e9, 0x2f3, 0x2fd, 0x307, 0x30f, 0x317,
+    0x321, 0x32b, 0x335, 0x33d, 0x345, 0x34d, 0x355, 0x35d,
+    0x365, 0x36d, 0x377, 0x381, 0x38b, 0x393, 0x39b, 0x3a5,
+    0x3af, 0x3b9, 0x3c3, 0x3cb, 0x3d5, 0x3df, 0x3e9, 0x3f3,
+    0x3fb, 0x405, 0x40f, 0x419, 0x421, 0x429, 0x433, 0x43d,
+    0x447, 0x44f, 0x457, 0x45f, 0x467, 0x46f, 0x477, 0x47f,
+    0x487, 0x48f, 0x497, 0x49f, 0x4a7, 0x4af, 0x4b7, 0x4bf,
+    0x4c7, 0x4cf, 0x4d7, 0x4df, 0x4e7, 0x4ef, 0x4f7, 0x4ff,
 };
 #define g_tab_51c68 ((const uint32_t *)(g_blk_51c24 + 0x44))   /* DS 0x51c68: entity type -> sound slot */
 
@@ -24449,13 +24484,21 @@ p1next:
         /* the non-flagged reaction (0x00014c4c-0x00014dd a) */
         *(uint16_t *)(cur + 0x50) = *(const uint16_t *)(hb + rec_e + 2u * (uint32_t)slot + 0x4a);
         *(int32_t *)(cur + 0x11) = 0;
-        if (cur == g_player_ent && *(const int32_t *)(cur + 0x17) == 0x97) {   /* 0x00014c6c-0x00014cb4 */
-            if (atype >= 1 && atype <= 9) {
-                *(uint8_t  *)(cur + 0x31) = 0;
-                *(int32_t *)(cur + 0x17) = 0x14;
-            } else {
-                *(int32_t *)(cur + 0x17) = g_tab_51b60[(uint32_t)atype];
-            }
+        /* 0x00014c6c-0x00014cb4. The shipped test is one flat condition, and its ELSE arm is not
+         * restricted to the player: EVERY victim gets its state replaced by the reaction table.
+         * The port used to gate the table on `victim == player && state == 0x97`, so no entity ever
+         * entered a reaction state here -- the shipped game spends samples in 0x0b/0x0c (atype 1/2)
+         * while the port spent none (docs/110 §2, docs/107). The player-in-0x97 case with
+         * 1 <= atype <= 9 is the exception, and it also clears +0x18..+0x1a. */
+        if (cur == g_player_ent && *(const int32_t *)(cur + 0x17) == 0x97 &&
+            atype != 0 && atype < 10) {
+            *(uint8_t  *)(cur + 0x31) = 0;
+            *(int32_t *)(cur + 0x17) = 0x14;
+            *(uint8_t  *)(cur + 0x18) = 0;
+            *(uint8_t  *)(cur + 0x19) = 0;
+            *(uint8_t  *)(cur + 0x1a) = 0;
+        } else {
+            *(int32_t *)(cur + 0x17) = g_tab_51b60[(uint32_t)atype & 0xffu];
         }
         if ((int16_t)*(const uint16_t *)(cur + 0x23) == 0 && atype >= 0x0b && atype <= 0x14) {
             *(uint8_t *)(cur + 0x30) = 1;                           /* 0x00014cd2 */
@@ -26480,6 +26523,24 @@ lab_chain:
     if (!((uint32_t)PL32(0x17) < 0x15 || (uint32_t)PL32(0x17) > 0x1e) && PL32(0x17) != 5) return;
     ACTWHY(ACT_ELIGIBLE);
     uint32_t count = *(const uint32_t *)(tbl + 0x00);                /* 0x00033a06 */
+    if (g_act_trace && !g_act_scanned) {
+        /* one-shot inventory of the whole chain container: which technique states does this entity's
+         * .act actually offer, independent of whether the current input ring can ask for them */
+        g_act_scanned = 1;
+        fprintf(stderr, "act container: count=%u\n", count);
+        for (uint32_t j = 0; j < count && j < 64; j = j + 1) {
+            uint8_t l = tbl[0x004 + j];
+            const uint8_t *cd = hb + *(const uint32_t *)(tbl + 0x068 + j * 4);
+            const uint8_t *lv = hb + *(const uint32_t *)(tbl + 0x1f8 + j * 4);
+            uint16_t tt = *(const uint16_t *)(tbl + 0x388 + j * 2);
+            if (tt < 0x100) g_act_targets_all[tt]++;
+            fprintf(stderr, "  entry %2u len=%u target=%#04x face=%#02x codes:", j, l, tt, tbl[0x450 + j]);
+            for (uint8_t q = 0; q < l && q < 8; q++) fprintf(stderr, " %02x", cd[q]);
+            fprintf(stderr, " lvls:");
+            for (uint8_t q = 0; q + 1 < l && q < 8; q++) fprintf(stderr, " %02x", lv[q]);
+            fprintf(stderr, "\n");
+        }
+    }
     for (uint32_t i = 0; i < count; i = i + 1) {
         uint8_t len = tbl[0x004 + i];                                /* 0x00033a11-17 */
         int32_t s1 = (int32_t)g_dat_63f50 - (int32_t)len;            /* 0x00033a1c-0x00033a44 */

@@ -1475,6 +1475,9 @@ int main(int argc, char **argv) {
         const uint32_t *tg = act_trace_targets();
         SDL_Log("  matched chain targets:");
         for (int i = 0; i < 0x100; i++) if (tg[i]) SDL_Log("    target %#04x  %u", i, tg[i]);
+        const uint32_t *ta = act_trace_targets_all();
+        SDL_Log("  targets offered by the container (one-shot inventory):");
+        for (int i = 0; i < 0x100; i++) if (ta[i]) SDL_Log("    target %#04x  %u", i, ta[i]);
     }
     if (g_rig_dir) rig_close();
     SDL_Log("frames presented: %d", g_frames);

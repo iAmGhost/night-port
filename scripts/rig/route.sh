@@ -17,7 +17,12 @@ if [ ! -f "$DRIVE" ] && [ -f "$HERE/drives/$DRIVE.txt" ]; then DRIVE="$HERE/driv
 if [ ! -f "$DRIVE" ]; then echo "route.sh: no such drive: $1 (nor $HERE/drives/$1.txt)" >&2; exit 2; fi
 DUR=${2:-30}
 OUT=${OUT:-/tmp/rig/route-$(date +%Y%m%d-%H%M%S)}
-PORT_ENV=${PORT_ENV:-}
+# The port's audio ladder opens the host default device and then walks every alternate device. On a host
+# where CoreAudio refuses devices slowly (measured: ~5 MINUTES per refused device on this machine), a rig
+# run can spend longer in audio probing than the whole drive. The rig witnesses (board PCM and the CD-DA
+# stream) are tee'd before the device, so a dummy driver costs nothing analytically: default to it, and let
+# PORT_ENV override for runs that genuinely want the host device.
+PORT_ENV=${PORT_ENV:-SDL_AUDIODRIVER=dummy}
 mkdir -p "$OUT"
 say() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 

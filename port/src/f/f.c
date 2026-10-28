@@ -2512,8 +2512,21 @@ uint32_t fn_03690b(void)
 
     g_639b8 = fn_04270d((const uint8_t *)"night.res", "rb");           /* 0x36915-.. */
     if (g_639b8 == 0) {
-        /* The original does NOT return here; it falls through into fn_0366a4 with a NULL reader. */
-        fn_036537((uint8_t *)"NIGHT.RES File Not Found!!!\n");         /* 0x36941 */
+        /* The original does NOT return here: fn_036537 prints the banner through the game's own printf
+         * and ends in fn_0423b7(0), i.e. it terminates. The guest passes a printf VARARGS BLOCK whose
+         * first slot holds the 32-bit flat address of the message (the "%s" of DAT_0005147c = "\n%s\n").
+         * Passing the string itself made the walk read the message's bytes as an address -> SIGSEGV at
+         * 0x4847494e ("NING") instead of printing and exiting (found by the rig running the port with no
+         * --res-dir; docs/116). */
+        static const char res_missing[] = "NIGHT.RES File Not Found!!!\n";
+        uint32_t msg_off = heap_malloc((uint32_t)sizeof res_missing);
+        if (msg_off) {
+            memcpy(flat_ofs(msg_off), res_missing, sizeof res_missing);
+            uint32_t blk[1] = { msg_off };
+            fn_036537((uint8_t *)blk);                     /* 0x36941 */
+        } else {
+            fn_036537((uint8_t *)"NIGHT.RES File Not Found!!!\n");   /* 0x36941, no flat room */
+        }
     }
     fn_0366a4((uint8_t *)g_639b8);                                    /* the file index */
 
@@ -10012,7 +10025,11 @@ uint8_t *fn_0451bc(uint8_t *out, uint8_t **cur, uint8_t *st, uint8_t *alt) {
             } else {
                 uint8_t *p = *cur; *cur = p + 4;
                 uint32_t ptr = *(uint32_t *)p;
-                src = (ptr == 0) ? alt : (uint8_t *)(uintptr_t)ptr;
+                /* A varargs slot in the shipped flat model holds a 32-bit ADDRESS, not a host pointer:
+                 * casting it to a pointer on a 64-bit host dereferences a truncated address (the
+                 * missing-NIGHT.RES banner path died with SIGSEGV at the string's own bytes).
+                 * Translate through the flat model, like every other guest address the port resolves. */
+                src = (ptr == 0) ? alt : flat_ofs(ptr);
             }
             st[0x14] &= 0xf9;
             has_prefix = 0;

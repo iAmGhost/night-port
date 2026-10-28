@@ -38,3 +38,27 @@ kill counter DAT_000639bc: 0 -> 2 @168891
 ```
 
 Shipped per-kill EXP is 10 (0 -> 10 after one kill, route-k3 t=272899), so 2 kills -> 20 matches.
+
+## Re-measure after the fix (`ent_list.py --orig ents-orig/orig --port ents-port2`, t=[150,300] s)
+
+```
+port states: 1x174 2x124 51x47 53x31 52x30 21x12 3x4        (0x0b/0x0c still ZERO; shipped 0x0b x25, 0x0c x54)
+EXP-award gates: port fail={type:410, +0x25=ff:12}   (before: {type:435, +0x30:171, +0x11:1, +0x05:5, +0x25=ff:15})
+position jumps >12 px: orig=370  port=83
+```
+
+So the award path is fixed (independently confirmed by the EXP total reaching 20), and the port's dying
+entities now clear the `+0x30`/`+0x11` gates that used to fail. Two sub-items stay red:
+
+1. **Reaction states 0x0b/0x0c: still zero on the port.** The reaction table `g_tab_51b60` has exactly one
+   consumer in the guest (`0x00014cab`, and it only fires for `victim == DAT_00053c7c && victim[+0x17] ==
+   0x97`), and neither side's samples ever show state `0x97` -- so the shipped `0x0b`/`0x0c` samples are NOT
+   produced by the table. Next step: split the hurt-band census by *which slot/entity* holds them (compare
+   the slot against the player pointer, and key the entity by `+0x0d` type index and `+0x123` action-table
+   value), then diff the action-chain transition for that same entity type; i.e. the states most likely come
+   from the entity's own action-record chain (`+0x11` frame index -> next-state arrays), not from combat.
+2. **"Enemy teleporting" is not supported by raw position jumps**: the shipped side has *more* >12 px
+   sample-to-sample jumps (370) than the port (83), and the quoted jumps are ordinary walking at 4 Hz
+   (17-23 px per ~310 ms). A valid signature has to separate movement-per-tick from discontinuities: use
+   the slot's own per-tick speed (dx / dticks) or a jump that exceeds the entity's animation speed by a
+   large factor, and check `+0x33 -> 0x33` style state changes at the jump.

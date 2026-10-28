@@ -11502,9 +11502,10 @@ static void test_fn_037922(void) {
     /* defensive: ensure the 8 globals start unset */
     g_dat_639c0 = g_dat_53c8c = g_dat_63e00 = 0; g_dat_639ec[0] = 0;
     g_dat_63d10 = g_dat_63dd4 = g_dat_53c00 = g_dat_53b3c = 0;
-    for (uint32_t i = 0; i < 100; i++) g_pool_53d0c[i] = 0;
-    /* pool[0] = a valid offset; two struct/container globals set */
-    g_pool_53d0c[0] = heap_malloc(0x20);
+    /* the DS 0x53d0c pool is modelled once, as host pointers in g_dat_53d0c (docs/112) */
+    for (uint32_t i = 0; i < 100; i++) g_dat_53d0c[i] = 0;
+    /* pool[0] = a valid object; two struct/container globals set */
+    g_dat_53d0c[0] = (uint8_t *)g_heap_base + heap_malloc(0x20);
     uint32_t so = heap_malloc(15*4);            /* fn_03de85-style struct, sub-objs zeroed */
     uint32_t *s = (uint32_t *)(g_heap_base + so); memset(s, 0, 15*4); g_dat_639c0 = s;
     uint32_t co = heap_malloc(2*4);             /* fn_0100d9 container {count=0, array=0} */

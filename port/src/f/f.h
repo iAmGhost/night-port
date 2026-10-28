@@ -1618,6 +1618,7 @@ extern uint8_t  g_dat_63eb4;       /* DAT_00063eb4: dash/attack key latch */
  * it. Returns 0 = game over, 1 = the player died, 2 = continued, -1 = aborted back to the title. */
 int32_t fn_03a829(void);
 extern const uint8_t g_tab_52b84[90]; /* 0x52b84: 1 = the room is entered offset by 120 px (9 stages x 10) */
-extern uint32_t g_tab_53d08[101];     /* 0x53d08: device command stream per element-event id */
+extern uint32_t g_sfx_plays;   /* element-event sounds played (docs/112) */
+extern uint32_t g_sfx_oob;     /* ... and events that fell outside the 100-entry pool */
 
 #endif

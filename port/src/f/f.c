@@ -22596,7 +22596,11 @@ const uint8_t g_tab_52b84[90] = {
 
 /* DAT_00053d08 (DS, 101 dwords, zero in the image): the device command stream to start for each element
  * event id (DAT_00063364). No producer found in the analysed set, so it stays zero-initialised. */
-uint32_t g_tab_53d08[101] = {0};
+/* DAT_00053d08 has no object of its own: it is the sound-slot table whose pool the loader fills at
+ * DAT_00053d0c (docs/112). The old g_tab_53d08[101] stood over the pool, over g_dat_53e24 and over the
+ * 0x53dd* globals -- the static audit files it as c2 port-span-overlap. */
+uint32_t g_sfx_plays = 0;   /* host-side witness (NIGHT_ACTTRACE): element-event sounds played */
+uint32_t g_sfx_oob = 0;     /* events whose slot index fell outside the 100-entry pool */
 
 /* fn_03a829  orig: 0x0003a829 (L9, 1216 B) -- THE ROOM PLAY LOOP: the body of one stage room, from the
  * CD track request to the transition that leaves the room. Called by fn_03af18 once per room.
@@ -22695,7 +22699,19 @@ int32_t fn_03a829(void)
         fn_038098(g_dat_633b0);                                        /* 0x0003ab31 sort, draw, pace */
         if (g_dat_63364 != 0) {                                        /* 0x0003ab36-0x0003ab67 element event */
             if (g_dat_63368 == 0) {
-                fn_04185e((uint8_t *)(uintptr_t)g_tab_53d08[g_dat_63364]);
+                /* DAT_00053d08 is the sound-slot table ONE DWORD BELOW the pool base DAT_00053d0c that
+                 * the master loader fills (guest 0x00036ef9 writes [i*4 + 0x53d0c] for the 100 voice
+                 * slots), so the entry the shipped player at 0x0003ab4b reads for event i is pool[i-1]
+                 * (the event index is never 0 here -- 0x0003ab31 tests it). The port modelled 0x53d08 as
+                 * its own array that nothing ever wrote, so this call always passed null: no hit, punch
+                 * or death sound ever played (docs/112). Entries beyond the pool are counted, not read. */
+                uint32_t ev = g_dat_63364;
+                if (ev >= 1u && ev <= 100u && g_dat_53d0c[ev - 1u]) {
+                    fn_04185e(g_dat_53d0c[ev - 1u]);
+                    g_sfx_plays++;
+                } else {
+                    g_sfx_oob++;
+                }
                 g_dat_63364 = 0;
             } else {
                 g_dat_63368 = g_dat_63368 - 1;

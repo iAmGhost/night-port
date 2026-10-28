@@ -1,5 +1,14 @@
 # 106: music cluster -- anchored schedule oracle, the one real defect, and two items closed as equivalent
 
+> **UNSOLVED (2026-10-28, user re-report on the current build).** The teardown fix in this page is real and
+> stays, but the music is still wrong in play: this page's green evidence (selection LBAs, stage-relative
+> deltas, 0 overlaps in the port's own stop/play witness) does NOT cover the audible symptom, so the oracle
+> was insufficient, not the fix complete. Do not treat the playtest item as closed; treat "the schedule and
+> witness look right but the player still hears the wrong music" as the open question, and note that the
+> witness is one-sided (the shipped side's CD stop is not observable). Re-opened for a second pass with a
+> two-sided audio oracle (per-window spectral/onset comparison of the container's captured WAV against the
+> port's PCM, not just play/stop bookkeeping).
+
 Date: 2026-10-28. Build before the fix: `port/test/night` at e3f872a. After: same tree plus the
 `cdda_play` teardown. Routes: `/tmp/rig/route-e1` (ep1_combat, 230 s; shipped side shared, port side
 re-dumped as `port2` = before, `port3` = after), probe route `/tmp/rig/cd-orig2` + `/tmp/rig/cd-port2`.

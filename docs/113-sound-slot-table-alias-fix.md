@@ -100,3 +100,23 @@ Consequences for the goal: (1) the "missing punch SFX" item keeps its state-side
 port half is a rig gap to fix before `closeout` can claim the audio diff green -- the witness must tap the
 device/mixer stream that carries SFX and the CD stream, not whatever sink produced `pcm.wav` here; (3) the
 music cluster (already re-opened by the user as UNSOLVED) will need that same tap.
+
+## Envelope alignment across offsets (scripts/rig/audio_align.py) -- a content difference, not a phase one
+
+Because the `NOT FOUND` schedule fingerprints could have been an alignment artifact, the two envelopes were
+compared at every offset up to +/-90 s (250 ms buckets, mean-removed dot product):
+
+```
+orig 1064 buckets @44100 Hz   port(cdda) 1271 buckets @44100 Hz
+corr at zero shift : +0.046
+best shift         : +31.0 s, corr +0.246
+activity: orig 0.98   port 0.99        (both sides are emitting sound essentially the whole time)
+```
+
+No offset makes the envelopes agree (best +0.246), so this is not "the right music at a shifted clock" --
+with both sides near-continuously active, the port is playing *different material at the same moments* (or a
+different track order). That is the machine-readable form of the still-UNSOLVED music cluster, and it is the
+right signature to attack next: `cd_schedule.py` (event-anchored LBA/track marks, docs/106) says the
+*selection* logic is equivalent on the probes it covered, so the divergence has to be in when tracks get
+replaced/stopped during play -- which is exactly where the docs/106 teardown fix landed and where the user's
+re-report says it is still wrong.

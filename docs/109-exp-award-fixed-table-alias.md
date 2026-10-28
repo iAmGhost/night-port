@@ -62,3 +62,28 @@ entities now clear the `+0x30`/`+0x11` gates that used to fail. Two sub-items st
    (17-23 px per ~310 ms). A valid signature has to separate movement-per-tick from discontinuities: use
    the slot's own per-tick speed (dx / dticks) or a jump that exceeds the entity's animation speed by a
    large factor, and check `+0x33 -> 0x33` style state changes at the jump.
+
+## The player half of the reaction gap, isolated by entity type (same two dumps)
+
+Splitting the hurt-band (+0x17 in 0x0b..0x1e) samples by the entity's own type index `+0x0d` and its action
+container `+0x123`:
+
+```
+ORIG  per-slot: ent00 x47, ent01 x36, ent02 x18
+ORIG  type idx(+0x0d): 31 x54 (act 0x51c27c)   0 x47 (act 0x24cb90)      <- idx 0 = the player
+PORT  per-slot: ent02 x18, ent01 x14, ent00 x6(player slot), ent03 x1, ent05 x1
+PORT  type idx(+0x0d): 31 x40 (act 0x34b744)   -- idx 0 (the player): ZERO samples
+```
+
+So the shipped player really does spend 47 samples in the reaction band while the port's player **never**
+enters it at all, which is the machine-detectable form of two playtest items at once ("missing hurt-stagger
+state / infinite punching" and "player stuck when hit mid-kick") -- and it pairs with the earlier census
+that the port's player sits in `0x33` (the punch state, 177 samples in route-k3) with no exit.
+Non-player entities (idx 31) do reach the band on the port (40 samples), so the gap is specific to the
+player's state machine (`fn_03272f` / `fn_012616` for the player node), not to the entity system in general.
+
+Next step (fresh session): the shipped player's action container is `+0x123 = 0x24cb90`; dump the player's
+action-record chain on both sides (the `--chain-cells 0x53c7c` read now has the corrected blob ordering) and
+diff the record the player is running at the moment the shipped side moves to `0x0b`/`0x0c`, plus the
+`+0x6c` gate byte of that record. The port's own `CHAIN`/`RECDUMP` witness (`NIGHT_CHAINTRACE=1`) already
+prints the same chain for entities; widen it to the player node to compare directly.

@@ -563,6 +563,11 @@ static void pt_load(const char *path) {
             e->seq_at = (uint32_t)strtoul(arg, NULL, 0);
             e->a2 = (uint32_t)strtoul(updown, NULL, 0);
             if (!e->seq_at) { SDL_Log("script: poke needs a DS address (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "heapdump")) {
+            /* `t heapdump 0x400000` captures the whole guest heap for offline structure decoding. */
+            e->kind = PT_ACT_DUMP;
+            e->seq_at = 0xffffffffu;                          /* sentinel: whole heap */
+            e->a2 = (n >= 3) ? (uint32_t)strtoul(arg, NULL, 0) : 0x400000u;
         } else if (!strcasecmp(verb, "actdump") && n >= 3) {
             /* `t actdump 31` writes the loaded action container of entity type 31 next to the rig dump. */
             e->kind = PT_ACT_DUMP;
@@ -634,7 +639,7 @@ static void pt_drive(void) {
     while (g_pt_i < g_pt_n) {
         struct pt_evt *e = &g_pt[g_pt_i];
         if (e->kind == PT_ACT_DUMP) {
-            int w = rig_dump_act((int)e->seq_at, e->a2, g_rig_dir);
+            int w = rig_dump_act(e->seq_at == 0xffffffffu ? -1 : (int)e->seq_at, e->a2, g_rig_dir);
             SDL_Log("script: actdump type %u -> %d bytes at t=%ldms", e->seq_at, w, t);
             g_pt_i++;
             continue;

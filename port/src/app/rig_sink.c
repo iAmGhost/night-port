@@ -401,8 +401,21 @@ int rig_dump_act(int type_idx, unsigned n, const char *dir) {
     extern uint32_t g_dat_53818[];      /* DS 0x53818: per-type action-table heap offsets */
     extern uintptr_t g_heap_base;
     extern uint32_t g_heap_highwater;
-    if (type_idx < 0 || type_idx >= 0x104 || !dir || !g_heap_base) return 0;
+    if (type_idx < -1 || type_idx >= 0x104 || !dir || !g_heap_base) return 0;
+    if (type_idx == -1) {                  /* `t heapdump <bytes>`: the whole guest heap, for offline decode */
+        uint8_t *h = (uint8_t *)(uintptr_t)g_heap_base;
+        unsigned cap = g_heap_highwater ? g_heap_highwater : 0x400000;
+        if (n && n < cap) cap = n;
+        char hp[512]; snprintf(hp, sizeof hp, "%s/heap.bin", dir);
+        FILE *hf = fopen(hp, "wb");
+        if (!hf) return 0;
+        fwrite(h, 1, cap, hf);
+        fprintf(hf, "\n# heap_base_off=0 bytes=%u highwater=%u\n", cap, g_heap_highwater);
+        fclose(hf);
+        return (int)cap;
+    }
     uint32_t off = g_dat_53818[(size_t)type_idx];
+    if (!off) return 0;                 /* that type has no action container at load */
     char path[512];
     snprintf(path, sizeof path, "%s/act_%03x.bin", dir, (unsigned)type_idx);
     FILE *f = fopen(path, "wb");

@@ -160,66 +160,29 @@ does not contain it at that position. Recorded so nobody quotes this as evidence
 pick a non-blank sector (scan forward until the 2352-byte block is not constant) and align to the port's own
 play marks in `port/markers.jsonl` rather than searching from byte 0.
 
-## Same-LBA byte identity, refined -- track 2's announced sectors are absent from the port's stream
+## Same-LBA byte identity -- CORRECTED: every announced track is byte-faithful (a rig bug of mine)
 
-Repeating the probe with non-constant sectors (skip any 2352-byte block whose first 512 bytes have <= 8
-distinct values, the mistake that made the first cut match blank lead-in sectors):
+The two sections previously written here ("track 2's announced sectors are absent", "the LBA-window probe found
+0 hits") are **withdrawn**. They were produced by a bug in my probe, not by the port: `main.c:284` logs the LBA
+in **decimal** (`lba=40415`), and I read it as hexadecimal `0x40415` = 263189 and searched the disc for that.
+`cd_schedule.py` was right all along (it prints the same value as `0x9ddf`).
 
-```
-track  1 lba=0x918e  sector #2 -> cdda.raw byte 4,728      (2.0 s in)            byte-identical
-track  9 lba=0x2d320 sector #2 -> cdda.raw byte 7,420,584  (3,155 sectors, 42.1 s) byte-identical
-track 11 lba=0x367aa sector #2 -> cdda.raw byte 7,900,392  (3,359 sectors, 44.8 s) byte-identical
-track  2 lba=0x40415 sector #0 -> NOT PRESENT in 56 MB of stream                 <-- divergence
-```
-
-The witness announced `track index 2 lba=40415 sectors=19639` (the +10.9 s selection the schedule oracle
-scored as equivalent), yet none of that track's disc bytes ever reach the stream, while the other three
-tracks' bytes appear byte-for-byte. That is the localized lead for the UNSOLVED music cluster: the selection
-*decision* is right, the *data* for one of the selections never flows -- the same asymmetry the user reports
-by ear.
-
-Caveat that must be settled before this becomes a fix target: this run logged
-`cdda: track index 1 ... (no device: counted, not played)`, and `cdda.raw` totals 317.5 s while the four
-announced plays sum to ~910 s, so the route ran with the port's audio path in counted mode. Re-run
-`route.sh` with a real (or dummy-but-streaming) SDL audio device and re-apply this probe: if track 2 is still
-absent, the defect is in the play/teardown path (the docs/106 flush), not in the capture.
-
-## Reproduced in a direct (non-route) run, and the capture path is faithful
-
-The same probe on a plain `./port/test/night --rig-dump /tmp/rig/rx2` run (no route.sh wrapper, 14000 frames)
-gives the identical result:
+Re-run with the decimal LBAs from the log, non-constant probe sectors, against all 47 MB of `port/cdda.raw`
+(rx2, a direct `--rig-dump` run, 267.8 s of stream):
 
 ```
-track 1  lba=0x918e  sector #2 -> byte 4,728      (0.0 s of stream)
-track 9  lba=0x2d320 sector #2 -> byte 7,420,584  (42.1 s)
-track 11 lba=0x367aa sector #2 -> byte 7,919,208  (44.9 s)
-track 2  lba=0x40415 sector #0 -> NOT PRESENT        stream total 267.8 s
+log time    play request                    first non-constant disc sector found in the port's stream
+00:06:16.7  index 1  lba=37262  (42.0 s)    byte 4,728      = 0.0 s of stream     byte-identical
+00:06:59.4  index 9  lba=185120 (369.3 s)   byte 7,420,584  = 42.1 s              byte-identical
+00:07:02.2  index 11 lba=223146 (238.1 s)   byte 7,919,208  = 44.9 s              byte-identical
+00:07:13.1  index 2  lba=40415  (261.9 s)   byte 9,840,792  = 55.8 s              byte-identical
+00:08:46.8  index 12 lba=241002 (238.2 s)   byte 26,368,296 = 149.5 s             byte-identical
+00:08:49.3  index 2  lba=40415  (261.9 s)   (same track re-armed 2.5 s later)
 ```
 
-and it also removes the "counted mode" caveat in the way I expected it to *not*: both runs log
-`cdda: … (no device: counted, not played)` because `g_cdda_stream` is only created when an SDL playback device
-opens (`main.c:275-285`), and in rig/CI runs the audio ladder ends in the null sink. But the witness is written
-inside the read loop, right after `cd_iso_read_audio` succeeds (`main.c:311`), and in no-device mode the read
-loop is paced by wall time (`el = elapsed * 75` sectors, `main.c:301-307`) instead of the 0.4 s planner lead.
-So `cdda.raw` is a faithful record of which sectors the port actually *read*, and 267.8 s of stream for a
-292 s run is exactly what wall-clock pacing predicts. Track 2 was announced ~11 s after the previous switch,
-leaving ~200 s of wall time -- more than enough to read its 19,639 sectors -- and none of them were read.
-
-Next discriminator (cheap, offline): probe a range of sectors for that selection, not just #0, and also the
-neighbouring LBA windows (0x40415-150, -1, +1, +150) and the *next* announced track's start. If some window
-matches, the port read the right audio at a wrong base offset for that one selection; if none matches, the
-play never armed a read at all for it (the docs/106 teardown path leaving `g_cdda_sectors` zero), which is a
-different fix.
-
-## LBA-window probe: the play never armed a read for that selection
-
-Probing track 2's selection across LBA offsets (-150, -1, 0, +1, +150, +300) and sectors (0,1,2,3,10,50) of
-`TG_NIGHT.IMG`, searching all 47 MB of `port/cdda.raw`: **0 hits** (rx2 run). So it is not a wrong-base-offset
-read -- the port never read *any* sector of the announced track 2 range. Combined with `main.c:301-311`
-(the read loop drains `g_cdda_sectors` starting at `g_cdda_lba + g_cdda_pos`), the shape is "the selection was
-announced but the read loop was left disarmed" -- i.e. the docs/106 teardown (`cdda_play` replacement) path,
-which is exactly where the music item was last touched and where the user still hears it wrong.
-
-Side probe: the stream's final 2352-byte block does not appear among the first 40,000 LBAs from the track-1
-start, consistent with the tail belonging to a later track region rather than to silence; that check is
-weak (bounded scan) and recorded as such.
+Every stream position equals its play request time, so the port's CD path reads the correct sectors of the
+correct track at the correct moment, bit for bit. Consequences: the read/teardown path is *not* the music
+defect; and the envelope mismatch recorded above is a property of the comparison (mixer capture vs a single
+stream at line level), not of the port. The music item therefore needs an oracle that recovers **which track
+is audible at which time on the shipped side** and compares that timeline to the port's play/stop marks --
+implemented next as `scripts/rig/cd_track_timeline.py`.

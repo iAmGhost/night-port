@@ -42,9 +42,22 @@ DS 0x53d08 is *not* a separate table. The guest reads it as `dword [EAX + 0x53d0
 *overlaps* `g_dat_53d0c` (0x53d08 + 4*101 = 0x53d08+0x194 covers the pool). In the shipped DS that dword holds
 `1000` next to the pool pointer, so it is a real DS neighbour produced at runtime (the region is not
 image-initialised: `0x53d08-0x7600 = 0x4c708` lies past the end of NIGHT.EXE, 0x4c217 bytes). The correct
-model is one DS-adjacent object, not two independent arrays; that is exactly what the static audit's DS
-interval-overlap check (the C-series) is for, and the overlap should be filed there before touching the SFX
-behaviour.
+model is one DS-adjacent object, not two independent arrays. Re-running the static audit confirms the check
+already files it (`reports/static_findings.json`, c2_aliasing):
+
+```
+{"kind":"port-span-overlap","a":"g_tab_53d08","a_span":["0x53d08","0x53e9c"],"b":"g_dat_53d0c","b_span":["0x53d0c","0x53d70"],"overlap":100}
+{"kind":"port-span-overlap","a":"g_tab_53d08","a_span":["0x53d08","0x53e9c"],"b":"g_dat_53e24","b_span":["0x53e24","0x53e2e"],"overlap":10}
+{"kind":"port-span-overlap","a":"g_tab_53d08","a_span":["0x53d08","0x53e9c"],"b":"g_dat_53dd4","b_span":["0x53dd4","0x53dd5"],"overlap":1}   (x5 more)
+```
+
+with `c7_ds_table_bases` showing why: base `0x53d0c` has 6 access sites in 5 functions, base `0x53d08` has
+exactly **one** (`fn_03a829`), and the shipped DS holds a single dword there (`1000`), not a 101-entry table.
+So `g_tab_53d08[101]` is an invented object that walks over the sound pool, five `0x53dd*` globals and
+`g_dat_53e24`; it has no writer in the port (only the declaration and one read, f.c:22698 via
+`g_dat_63364`). Filed as the next aliasing correction -- deliberately not changed in this commit, because the
+read at f.c:22698 has to be re-derived from the guest first (that site's index base is not the pool), and
+guessing it would break the SFX path that docs/109 just made observable.
 
 ## Semantics correction for docs/109 (kept, but re-labelled)
 

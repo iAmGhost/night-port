@@ -517,6 +517,12 @@
    "total": 2
   },
   {
+   "ds": 343720,
+   "reads": 2,
+   "writes": 0,
+   "total": 2
+  },
+  {
    "ds": 335172,
    "reads": 2,
    "writes": 0,
@@ -2693,20 +2699,6 @@
     "0x53d08",
     "0x53e9c"
    ],
-   "b": "g_pool_53d0c",
-   "b_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "overlap": 400
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_tab_53d08",
-   "a_span": [
-    "0x53d08",
-    "0x53e9c"
-   ],
    "b": "g_dat_53dd4",
    "b_span": [
     "0x53dd4",
@@ -2783,132 +2775,6 @@
     "0x53e2e"
    ],
    "overlap": 10
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_dat_53d0c",
-   "a_span": [
-    "0x53d0c",
-    "0x53d70"
-   ],
-   "b": "g_pool_53d0c",
-   "b_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "overlap": 100
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_pool_53d0c",
-   "a_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "b": "g_dat_53dd4",
-   "b_span": [
-    "0x53dd4",
-    "0x53dd5"
-   ],
-   "overlap": 1
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_pool_53d0c",
-   "a_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "b": "g_dat_53dd8",
-   "b_span": [
-    "0x53dd8",
-    "0x53dd9"
-   ],
-   "overlap": 1
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_pool_53d0c",
-   "a_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "b": "g_dat_53ddc",
-   "b_span": [
-    "0x53ddc",
-    "0x53ddd"
-   ],
-   "overlap": 1
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_pool_53d0c",
-   "a_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "b": "g_dat_53de0",
-   "b_span": [
-    "0x53de0",
-    "0x53de1"
-   ],
-   "overlap": 1
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_pool_53d0c",
-   "a_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "b": "g_dat_53de4",
-   "b_span": [
-    "0x53de4",
-    "0x53de5"
-   ],
-   "overlap": 1
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_pool_53d0c",
-   "a_span": [
-    "0x53d0c",
-    "0x53e9c"
-   ],
-   "b": "g_dat_53e24",
-   "b_span": [
-    "0x53e24",
-    "0x53e2e"
-   ],
-   "overlap": 10
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_dat_53e9c",
-   "a_span": [
-    "0x53e9c",
-    "0x5c8bc"
-   ],
-   "b": "g_dat_53ea8",
-   "b_span": [
-    "0x53ea8",
-    "0x53eac"
-   ],
-   "overlap": 4
-  },
-  {
-   "kind": "port-span-overlap",
-   "a": "g_dat_53e9c",
-   "a_span": [
-    "0x53e9c",
-    "0x5c8bc"
-   ],
-   "b": "g_dat_53ea8",
-   "b_span": [
-    "0x53ea8",
-    "0x540c8"
-   ],
-   "overlap": 544
   },
   {
    "kind": "port-span-overlap",
@@ -4211,20 +4077,6 @@
   },
   {
    "kind": "port-two-names-one-cell",
-   "ds": 343308,
-   "names": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
-   ],
-   "types": [
-    "uint8_t *",
-    "uint32_t",
-    "uint8_t *",
-    "uint32_t"
-   ]
-  },
-  {
-   "kind": "port-two-names-one-cell",
    "ds": 341962,
    "names": [
     "g_dat_537ca",
@@ -4617,6 +4469,9 @@
    "a3a8_dbl",
    "abs32",
    "act_block",
+   "act_trace_counts",
+   "act_trace_targets",
+   "act_trace_targets_all",
    "ai_blk_f32",
    "ai_blk_i32",
    "ai_cfg_i32",
@@ -19599,8 +19454,7 @@
     "g_dat_53c8c"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 12
   },
@@ -25510,8 +25364,7 @@
     "g_dat_53b3c"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 9
   },
@@ -25553,8 +25406,7 @@
     "g_dat_53c00"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 9
   },
@@ -25649,8 +25501,7 @@
     "g_dat_53c68"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 9
   },
@@ -25688,8 +25539,7 @@
     "g_dat_53c70"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 9
   },
@@ -25728,8 +25578,7 @@
     "g_player_ent"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 9
   },
@@ -25749,8 +25598,7 @@
     "g_latched_ent"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 9
   },
@@ -25770,8 +25618,7 @@
     "g_gauge_other_off"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 9
   },
@@ -27225,27 +27072,6 @@
    "score": 8
   },
   {
-   "base_a": "0x53c70",
-   "base_b": "0x53ea8",
-   "distance": "0x238",
-   "n_a": 20,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [
-    "fn_01441e",
-    "fn_035c5c"
-   ],
-   "port_name_a": [
-    "g_dat_53c70"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 8
-  },
-  {
    "base_a": "0x53c74",
    "base_b": "0x53c84",
    "distance": "0x10",
@@ -27446,8 +27272,7 @@
     "g_dat_53c94"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 8
   },
@@ -31543,8 +31368,7 @@
     "g_dat_53c28"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 7
   },
@@ -36254,8 +36078,7 @@
     "g_dat_53c5c"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 6
   },
@@ -36273,8 +36096,7 @@
     "g_dat_53c60"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 6
   },
@@ -36292,8 +36114,7 @@
     "g_dat_53c64"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 6
   },
@@ -36311,8 +36132,7 @@
     "g_dat_53c6c"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 6
   },
@@ -36330,8 +36150,7 @@
     "g_dat_53c74"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 6
   },
@@ -36349,8 +36168,7 @@
     "g_dat_53c78"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 6
   },
@@ -36368,8 +36186,7 @@
     "g_dat_53c84"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 6
   },
@@ -36384,8 +36201,7 @@
    "same_stride": false,
    "shared_functions": [],
    "port_name_a": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "port_name_b": [
     "g_dat_53dd8"
@@ -36403,8 +36219,7 @@
    "same_stride": false,
    "shared_functions": [],
    "port_name_a": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "port_name_b": [
     "g_dat_53ddc"
@@ -36422,8 +36237,7 @@
    "same_stride": false,
    "shared_functions": [],
    "port_name_a": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "port_name_b": [
     "g_dat_53e9c"
@@ -41586,8 +41400,7 @@
     "g_dat_53c4c"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 5
   },
@@ -41820,26 +41633,6 @@
    "score": 5
   },
   {
-   "base_a": "0x53c68",
-   "base_b": "0x53ea8",
-   "distance": "0x240",
-   "n_a": 19,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [
-    "fn_01441e"
-   ],
-   "port_name_a": [
-    "g_dat_53c68"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 5
-  },
-  {
    "base_a": "0x53c6c",
    "base_b": "0x53c94",
    "distance": "0x28",
@@ -41912,26 +41705,6 @@
    "score": 5
   },
   {
-   "base_a": "0x53c78",
-   "base_b": "0x53ea8",
-   "distance": "0x230",
-   "n_a": 18,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [
-    "fn_035c5c"
-   ],
-   "port_name_a": [
-    "g_dat_53c78"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 5
-  },
-  {
    "base_a": "0x53c7c",
    "base_b": "0x53de0",
    "distance": "0x164",
@@ -41953,27 +41726,6 @@
    "score": 5
   },
   {
-   "base_a": "0x53c7c",
-   "base_b": "0x53ea8",
-   "distance": "0x22c",
-   "n_a": 869,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [
-    "fn_01441e"
-   ],
-   "port_name_a": [
-    "g_dat_53c7c_null_warned",
-    "g_player_ent"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 5
-  },
-  {
    "base_a": "0x53c80",
    "base_b": "0x53c94",
    "distance": "0x14",
@@ -41988,26 +41740,6 @@
    ],
    "port_name_b": [
     "g_dat_53c94"
-   ],
-   "score": 5
-  },
-  {
-   "base_a": "0x53c80",
-   "base_b": "0x53ea8",
-   "distance": "0x228",
-   "n_a": 10,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [
-    "fn_01441e"
-   ],
-   "port_name_a": [
-    "g_latched_ent"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 5
   },
@@ -42048,26 +41780,6 @@
    "score": 5
   },
   {
-   "base_a": "0x53c88",
-   "base_b": "0x53ea8",
-   "distance": "0x220",
-   "n_a": 9,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [
-    "fn_01441e"
-   ],
-   "port_name_a": [
-    "g_gauge_other_off"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 5
-  },
-  {
    "base_a": "0x53c94",
    "base_b": "0x53de0",
    "distance": "0x14c",
@@ -42102,27 +41814,6 @@
    ],
    "port_name_b": [
     "g_dat_53e9c"
-   ],
-   "score": 5
-  },
-  {
-   "base_a": "0x53d0c",
-   "base_b": "0x53ea8",
-   "distance": "0x19c",
-   "n_a": 6,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [
-    "fn_01441e"
-   ],
-   "port_name_a": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 5
   },
@@ -50376,8 +50067,7 @@
     "g_dat_53c48"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 4
   },
@@ -50629,8 +50319,7 @@
     "g_dat_53c90"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 4
   },
@@ -61039,8 +60728,7 @@
     "g_dat_53c58"
    ],
    "port_name_b": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "score": 3
   },
@@ -74348,24 +74036,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53b3c",
-   "base_b": "0x53ea8",
-   "distance": "0x36c",
-   "n_a": 3,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53b3c"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c00",
    "base_b": "0x53dd4",
    "distance": "0x1d4",
@@ -74398,24 +74068,6 @@
    ],
    "port_name_b": [
     "g_dat_53de0"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53c00",
-   "base_b": "0x53ea8",
-   "distance": "0x2a8",
-   "n_a": 3,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c00"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 2
   },
@@ -74486,24 +74138,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c28",
-   "base_b": "0x53ea8",
-   "distance": "0x280",
-   "n_a": 4,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c28"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c48",
    "base_b": "0x53c50",
    "distance": "0x8",
@@ -74570,24 +74204,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c48",
-   "base_b": "0x53ea8",
-   "distance": "0x260",
-   "n_a": 4,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c48"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c4c",
    "base_b": "0x53dd4",
    "distance": "0x188",
@@ -74620,24 +74236,6 @@
    ],
    "port_name_b": [
     "g_dat_53de0"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53c4c",
-   "base_b": "0x53ea8",
-   "distance": "0x25c",
-   "n_a": 5,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c4c"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 2
   },
@@ -75369,24 +74967,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c58",
-   "base_b": "0x53ea8",
-   "distance": "0x250",
-   "n_a": 3,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c58"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c5c",
    "base_b": "0x53dd4",
    "distance": "0x178",
@@ -75419,24 +74999,6 @@
    ],
    "port_name_b": [
     "g_dat_53de0"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53c5c",
-   "base_b": "0x53ea8",
-   "distance": "0x24c",
-   "n_a": 30,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c5c"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 2
   },
@@ -75477,24 +75039,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c60",
-   "base_b": "0x53ea8",
-   "distance": "0x248",
-   "n_a": 12,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c60"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c64",
    "base_b": "0x53dd4",
    "distance": "0x170",
@@ -75527,24 +75071,6 @@
    ],
    "port_name_b": [
     "g_dat_53de0"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53c64",
-   "base_b": "0x53ea8",
-   "distance": "0x244",
-   "n_a": 17,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c64"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 2
   },
@@ -75621,24 +75147,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c6c",
-   "base_b": "0x53ea8",
-   "distance": "0x23c",
-   "n_a": 20,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c6c"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c70",
    "base_b": "0x53dd4",
    "distance": "0x164",
@@ -75707,24 +75215,6 @@
    ],
    "port_name_b": [
     "g_dat_53de0"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53c74",
-   "base_b": "0x53ea8",
-   "distance": "0x234",
-   "n_a": 8,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c74"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 2
   },
@@ -75856,24 +75346,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c84",
-   "base_b": "0x53ea8",
-   "distance": "0x224",
-   "n_a": 11,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c84"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c88",
    "base_b": "0x53dd4",
    "distance": "0x14c",
@@ -75946,24 +75418,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c8c",
-   "base_b": "0x53ea8",
-   "distance": "0x21c",
-   "n_a": 7,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c8c"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c90",
    "base_b": "0x53dd4",
    "distance": "0x144",
@@ -76000,24 +75454,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c90",
-   "base_b": "0x53ea8",
-   "distance": "0x218",
-   "n_a": 4,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c90"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53c94",
    "base_b": "0x53dd4",
    "distance": "0x140",
@@ -76036,24 +75472,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53c94",
-   "base_b": "0x53ea8",
-   "distance": "0x214",
-   "n_a": 5,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53c94"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53d0c",
    "base_b": "0x53dd4",
    "distance": "0xc8",
@@ -76064,8 +75482,7 @@
    "same_stride": false,
    "shared_functions": [],
    "port_name_a": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "port_name_b": [
     "g_dat_53dd4"
@@ -76083,8 +75500,7 @@
    "same_stride": false,
    "shared_functions": [],
    "port_name_a": [
-    "g_dat_53d0c",
-    "g_pool_53d0c"
+    "g_dat_53d0c"
    ],
    "port_name_b": [
     "g_dat_53de0"
@@ -76124,60 +75540,6 @@
    ],
    "port_name_b": [
     "g_dat_53e9c"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53dd4",
-   "base_b": "0x53ea8",
-   "distance": "0xd4",
-   "n_a": 2,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53dd4"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53dd8",
-   "base_b": "0x53ea8",
-   "distance": "0xd0",
-   "n_a": 11,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53dd8"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
-   "base_a": "0x53ddc",
-   "base_b": "0x53ea8",
-   "distance": "0xcc",
-   "n_a": 8,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53ddc"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
    ],
    "score": 2
   },
@@ -76200,24 +75562,6 @@
    "score": 2
   },
   {
-   "base_a": "0x53de0",
-   "base_b": "0x53ea8",
-   "distance": "0xc8",
-   "n_a": 2,
-   "n_b": 2,
-   "strides_a": [],
-   "strides_b": [],
-   "same_stride": false,
-   "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53de0"
-   ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
-   "score": 2
-  },
-  {
    "base_a": "0x53e9c",
    "base_b": "0x53ea8",
    "distance": "0xc",
@@ -76230,9 +75574,7 @@
    "port_name_a": [
     "g_dat_53e9c"
    ],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
+   "port_name_b": [],
    "score": 2
   },
   {
@@ -76246,9 +75588,7 @@
    "same_stride": false,
    "shared_functions": [],
    "port_name_a": [],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
+   "port_name_b": [],
    "score": 2
   },
   {
@@ -76262,9 +75602,7 @@
    "same_stride": false,
    "shared_functions": [],
    "port_name_a": [],
-   "port_name_b": [
-    "g_dat_53ea8"
-   ],
+   "port_name_b": [],
    "score": 2
   },
   {
@@ -76347,9 +75685,7 @@
    "strides_b": [],
    "same_stride": false,
    "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53ea8"
-   ],
+   "port_name_a": [],
    "port_name_b": [],
    "score": 2
   },
@@ -76363,9 +75699,7 @@
    "strides_b": [],
    "same_stride": false,
    "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53ea8"
-   ],
+   "port_name_a": [],
    "port_name_b": [],
    "score": 2
   },
@@ -76379,9 +75713,7 @@
    "strides_b": [],
    "same_stride": false,
    "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53ea8"
-   ],
+   "port_name_a": [],
    "port_name_b": [],
    "score": 2
   },
@@ -76395,9 +75727,7 @@
    "strides_b": [],
    "same_stride": false,
    "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53ea8"
-   ],
+   "port_name_a": [],
    "port_name_b": [],
    "score": 2
   },
@@ -76411,9 +75741,7 @@
    "strides_b": [],
    "same_stride": false,
    "shared_functions": [],
-   "port_name_a": [
-    "g_dat_53ea8"
-   ],
+   "port_name_a": [],
    "port_name_b": [],
    "score": 2
   },

@@ -1,8 +1,8 @@
 # Static equivalence audit (Ghidra DB vs port source)
 
-port globals with a DS address: 491 across 286 distinct DS cells; guest DS defined-data items: 1638; guest DS cells with accesses: 624
+port globals with a DS address: 487 across 285 distinct DS cells; guest DS defined-data items: 1638; guest DS cells with accesses: 624
 
-## c1_unmodelled: 347 findings
+## c1_unmodelled: 348 findings
   {"ds": 343736, "reads": 148, "writes": 0, "total": 148}
   {"ds": 343728, "reads": 80, "writes": 0, "total": 80}
   {"ds": 407992, "reads": 76, "writes": 1, "total": 77}
@@ -29,7 +29,7 @@ port globals with a DS address: 491 across 286 distinct DS cells; guest DS defin
   {"ds": 379072, "reads": 4, "writes": 1, "total": 5}
   {"ds": 379080, "reads": 4, "writes": 1, "total": 5}
 
-## c2_aliasing: 155 findings
+## c2_aliasing: 144 findings
   {"kind": "port-span-overlap", "a": "g_blk_51c24", "a_span": ["0x51c24", "0x51e00"], "b": "g_dat_51c98", "b_span": ["0x51c98", "0x51c9c"], "overlap": 4}
   {"kind": "port-span-overlap", "a": "g_tab_52738", "a_span": ["0x52738", "0x52b38"], "b": "g_tab_5274c", "b_span": ["0x5274c", "0x52c3c"], "overlap": 1004}
   {"kind": "port-span-overlap", "a": "g_tab_52738", "a_span": ["0x52738", "0x52b38"], "b": "g_tab_528b4", "b_span": ["0x528b4", "0x52b84"], "overlap": 644}
@@ -142,7 +142,7 @@ port globals with a DS address: 491 across 286 distinct DS cells; guest DS defin
   {"ds": "0x63e24", "n_sites": 24, "fns": ["fn_010d47", "fn_038098", "fn_0381d7", "fn_039c03", "fn_03a5f7", "fn_03a70e"]}
   {"ds": "0x63ec1", "n_sites": 24, "fns": ["fn_03272f", "fn_035d5d", "fn_035dfc", "fn_038445", "fn_038cde", "fn_038f3d"]}
 
-## c8_base_pair_aliasing: 5413 findings
+## c8_base_pair_aliasing: 5387 findings
   {"base_a": "0x53eb0", "base_b": "0x53eb8", "distance": "0x8", "n_a": 80, "n_b": 148, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_017f13", "fn_018e88", "fn_019e48", "fn_01aec8"], "port_name_a": [], "port_name_b": [], "score": 140}
   {"base_a": "0x639dc", "base_b": "0x639e0", "distance": "0x4", "n_a": 90, "n_b": 77, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_012efa", "fn_013908", "fn_0374ad", "fn_0376c8"], "port_name_a": ["g_dat_639dc"], "port_name_b": ["g_dat_639e0"], "score": 119}
   {"base_a": "0x53eb0", "base_b": "0x53eb4", "distance": "0x4", "n_a": 80, "n_b": 40, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_017f13", "fn_018e88", "fn_019e48", "fn_01aec8"], "port_name_a": [], "port_name_b": [], "score": 100}
@@ -169,7 +169,7 @@ port globals with a DS address: 491 across 286 distinct DS cells; guest DS defin
   {"base_a": "0x53c6c", "base_b": "0x53c7c", "distance": "0x10", "n_a": 20, "n_b": 869, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_015a1f", "fn_015b5b", "fn_015d16", "fn_015ed1"], "port_name_a": ["g_dat_53c6c"], "port_name_b": ["g_dat_53c7c_null_warned", "g_player
   {"base_a": "0x53c68", "base_b": "0x53c70", "distance": "0x8", "n_a": 19, "n_b": 20, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_010efc", "fn_0112fd", "fn_013aad", "fn_01441e"], "port_name_a": ["g_dat_53c68"], "port_name_b": ["g_dat_53c70"], "score": 49}
 
-## c5_dead_sides: guest-without-port=90 port-never-called=181
+## c5_dead_sides: guest-without-port=90 port-never-called=184
   guest_functi FUN_00041fa1
   guest_functi FUN_00042b7d
   guest_functi _entry
@@ -193,6 +193,9 @@ port globals with a DS address: 491 across 286 distinct DS cells; guest DS defin
   port_functio a3a8_dbl
   port_functio abs32
   port_functio act_block
+  port_functio act_trace_counts
+  port_functio act_trace_targets
+  port_functio act_trace_targets_all
   port_functio ai_blk_f32
   port_functio ai_blk_i32
   port_functio ai_cfg_i32
@@ -207,6 +210,3 @@ port globals with a DS address: 491 across 286 distinct DS cells; guest DS defin
   port_functio blk50_f64
   port_functio blt_rows
   port_functio board_in
-  port_functio board_out
-  port_functio bstat
-  port_functio canary_check

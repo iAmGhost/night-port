@@ -116,3 +116,27 @@ is the per-(type, state, slot) table of declared reaction types -- which is exac
 header: `+0x00` count, `+0x6d` frame array, `+0x38` type bytes, and how `DAT_00053ea0[type*0x88]`/
 `DAT_00053ea4[type*0x44]` point into it) is the next static task, and it is also the strongest candidate for
 the fidelity audit, because it is a guest data convention the port must mirror exactly.
+
+## 8. Decoding plan for the action container (the only thing keeping the fallen item open)
+
+Facts already established, so the next pass can start here rather than re-deriving:
+
+1. `entity+0x123` is set at spawn by `fn_010efc` (0x000110ae) from the type tables (`DAT_00053ea0[type*0x88]`,
+   `DAT_00053ea4[type*0x44]`) -- fixed per entity type; and rewritten only by `fn_0376c8` (0x00037846).
+2. `fn_01441e` reads it as: `lvl2 = *(hb + *(e+0x123) + 0x04)`, `rec_e = *(hb + lvl2 + 4*state)`,
+   `nslots = *(hb + rec_e)`, `fslot = e[+0x11] % nslots`, `frame = u16[hb + *(hb + rec_e + 0x6d) + 2*fslot]`,
+   `atype = hb[rec_e + slot + 0x38]`.
+3. Reaction targets: atype 1/2 -> 0x0b/0x0c (observed on ep1), atype 12 -> 0x15, atype 22..32 -> 0x66..0x5b.
+
+Steps, cheapest first:
+  a. `fn_0376c8` (the other writer) -- says what switches an entity's container mid-life; that is probably the
+     combo/stance switch, and it is one decompile.
+  b. `fn_010927`/the resource loader path that built the `0x88`-stride table -- gives the container header
+     layout (what lives at +0x00, +0x04, +0x6d, +0x38 per record) in the shipped bytes.
+  c. With (b), a **safe** census: walk it in Python over the extracted resources (`scratch/res`, the
+     `decode_act.py`/`decode_key.py` parsers are already byte-exact against the C decoders) and print the
+     (type, state, slot) -> atype map. No C witness, no crash risk -- the §3 crash came from resolving guest
+     pointers with an assumed layout inside the running port.
+  d. If the map shows a reachable 22+ for the player, the drive/injection to force it becomes mechanical
+     (`play 0x17 <state>` plus the right slot), and the fallen item finally gets red-before / green-after
+     against the shipped side.

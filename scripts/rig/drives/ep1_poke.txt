@@ -1,0 +1,397 @@
+# rig drive: ep1_combat prefix (same anchors) + 124 s of approach-and-attack, so the shipped
+# side is forced to land kills: kill counter 0x639bc, quota cells and the fallen states
+# 0x5b..0x66 then become observable. Generated from ep1_combat; do not edit the pattern by hand.
+47000 wait res title1.pcx
+47200 key enter down
+47350 key enter up
+49300 key enter down
+49450 key enter up
+60000 wait ds 0x53e9c >=1
+62000 key enter down
+62120 key enter up
+64000 key enter down
+64120 key enter up
+66000 key enter down
+66120 key enter up
+68000 key enter down
+68120 key enter up
+70000 key enter down
+70120 key enter up
+72000 key enter down
+72120 key enter up
+74000 key enter down
+74120 key enter up
+76000 key enter down
+76120 key enter up
+78000 key enter down
+78120 key enter up
+80000 key enter down
+80120 key enter up
+82000 key enter down
+82120 key enter up
+84000 key enter down
+84120 key enter up
+86000 key enter down
+86120 key enter up
+88000 key enter down
+88120 key enter up
+128000 ent 1 0x17 0x15
+128120 key lctrl down
+128190 key lctrl up
+128890 ent 2 0x17 0x15
+129010 key lctrl down
+129080 key lctrl up
+129780 ent 1 0x29 1
+129900 key lctrl down
+129970 key lctrl up
+130870 ent 1 0x17 0x15
+130990 key lctrl down
+131060 key lctrl up
+131760 ent 2 0x17 0x15
+131880 key lctrl down
+131950 key lctrl up
+132650 ent 1 0x29 1
+132770 key lctrl down
+132840 key lctrl up
+133740 ent 1 0x17 0x15
+133860 key lctrl down
+133930 key lctrl up
+134630 ent 2 0x17 0x15
+134750 key lctrl down
+134820 key lctrl up
+135520 ent 1 0x29 1
+135640 key lctrl down
+135710 key lctrl up
+136610 ent 1 0x17 0x15
+136730 key lctrl down
+136800 key lctrl up
+137500 ent 2 0x17 0x15
+137620 key lctrl down
+137690 key lctrl up
+138390 ent 1 0x29 1
+138510 key lctrl down
+138580 key lctrl up
+139480 ent 1 0x17 0x15
+139600 key lctrl down
+139670 key lctrl up
+140370 ent 2 0x17 0x15
+140490 key lctrl down
+140560 key lctrl up
+141260 ent 1 0x29 1
+141380 key lctrl down
+141450 key lctrl up
+142350 ent 1 0x17 0x15
+142470 key lctrl down
+142540 key lctrl up
+143240 ent 2 0x17 0x15
+143360 key lctrl down
+143430 key lctrl up
+144130 ent 1 0x29 1
+144250 key lctrl down
+144320 key lctrl up
+145220 ent 1 0x17 0x15
+145340 key lctrl down
+145410 key lctrl up
+146110 ent 2 0x17 0x15
+146230 key lctrl down
+146300 key lctrl up
+147000 ent 1 0x29 1
+147120 key lctrl down
+147190 key lctrl up
+148090 ent 1 0x17 0x15
+148210 key lctrl down
+148280 key lctrl up
+148980 ent 2 0x17 0x15
+149100 key lctrl down
+149170 key lctrl up
+149870 ent 1 0x29 1
+149990 key lctrl down
+150060 key lctrl up
+150960 ent 1 0x17 0x15
+151080 key lctrl down
+151150 key lctrl up
+151850 ent 2 0x17 0x15
+151970 key lctrl down
+152040 key lctrl up
+152740 ent 1 0x29 1
+152860 key lctrl down
+152930 key lctrl up
+153830 ent 1 0x17 0x15
+153950 key lctrl down
+154020 key lctrl up
+154720 ent 2 0x17 0x15
+154840 key lctrl down
+154910 key lctrl up
+155610 ent 1 0x29 1
+155730 key lctrl down
+155800 key lctrl up
+156700 ent 1 0x17 0x15
+156820 key lctrl down
+156890 key lctrl up
+157590 ent 2 0x17 0x15
+157710 key lctrl down
+157780 key lctrl up
+158480 ent 1 0x29 1
+158600 key lctrl down
+158670 key lctrl up
+159570 ent 1 0x17 0x15
+159690 key lctrl down
+159760 key lctrl up
+160460 ent 2 0x17 0x15
+160580 key lctrl down
+160650 key lctrl up
+161350 ent 1 0x29 1
+161470 key lctrl down
+161540 key lctrl up
+162440 ent 1 0x17 0x15
+162560 key lctrl down
+162630 key lctrl up
+163330 ent 2 0x17 0x15
+163450 key lctrl down
+163520 key lctrl up
+164220 ent 1 0x29 1
+164340 key lctrl down
+164410 key lctrl up
+165310 ent 1 0x17 0x15
+165430 key lctrl down
+165500 key lctrl up
+166200 ent 2 0x17 0x15
+166320 key lctrl down
+166390 key lctrl up
+167090 ent 1 0x29 1
+167210 key lctrl down
+167280 key lctrl up
+168180 ent 1 0x17 0x15
+168300 key lctrl down
+168370 key lctrl up
+169070 ent 2 0x17 0x15
+169190 key lctrl down
+169260 key lctrl up
+169960 ent 1 0x29 1
+170080 key lctrl down
+170150 key lctrl up
+171050 ent 1 0x17 0x15
+171170 key lctrl down
+171240 key lctrl up
+171940 ent 2 0x17 0x15
+172060 key lctrl down
+172130 key lctrl up
+172830 ent 1 0x29 1
+172950 key lctrl down
+173020 key lctrl up
+173920 ent 1 0x17 0x15
+174040 key lctrl down
+174110 key lctrl up
+174810 ent 2 0x17 0x15
+174930 key lctrl down
+175000 key lctrl up
+175700 ent 1 0x29 1
+175820 key lctrl down
+175890 key lctrl up
+176790 ent 1 0x17 0x15
+176910 key lctrl down
+176980 key lctrl up
+177680 ent 2 0x17 0x15
+177800 key lctrl down
+177870 key lctrl up
+178570 ent 1 0x29 1
+178690 key lctrl down
+178760 key lctrl up
+179660 ent 1 0x17 0x15
+179780 key lctrl down
+179850 key lctrl up
+180550 ent 2 0x17 0x15
+180670 key lctrl down
+180740 key lctrl up
+181440 ent 1 0x29 1
+181560 key lctrl down
+181630 key lctrl up
+182530 ent 1 0x17 0x15
+182650 key lctrl down
+182720 key lctrl up
+183420 ent 2 0x17 0x15
+183540 key lctrl down
+183610 key lctrl up
+184310 ent 1 0x29 1
+184430 key lctrl down
+184500 key lctrl up
+185400 ent 1 0x17 0x15
+185520 key lctrl down
+185590 key lctrl up
+186290 ent 2 0x17 0x15
+186410 key lctrl down
+186480 key lctrl up
+187180 ent 1 0x29 1
+187300 key lctrl down
+187370 key lctrl up
+188270 ent 1 0x17 0x15
+188390 key lctrl down
+188460 key lctrl up
+189160 ent 2 0x17 0x15
+189280 key lctrl down
+189350 key lctrl up
+190050 ent 1 0x29 1
+190170 key lctrl down
+190240 key lctrl up
+191140 ent 1 0x17 0x15
+191260 key lctrl down
+191330 key lctrl up
+192030 ent 2 0x17 0x15
+192150 key lctrl down
+192220 key lctrl up
+192920 ent 1 0x29 1
+193040 key lctrl down
+193110 key lctrl up
+194010 ent 1 0x17 0x15
+194130 key lctrl down
+194200 key lctrl up
+194900 ent 2 0x17 0x15
+195020 key lctrl down
+195090 key lctrl up
+195790 ent 1 0x29 1
+195910 key lctrl down
+195980 key lctrl up
+196880 ent 1 0x17 0x15
+197000 key lctrl down
+197070 key lctrl up
+197770 ent 2 0x17 0x15
+197890 key lctrl down
+197960 key lctrl up
+198660 ent 1 0x29 1
+198780 key lctrl down
+198850 key lctrl up
+199750 ent 1 0x17 0x15
+199870 key lctrl down
+199940 key lctrl up
+200640 ent 2 0x17 0x15
+200760 key lctrl down
+200830 key lctrl up
+201530 ent 1 0x29 1
+201650 key lctrl down
+201720 key lctrl up
+202620 ent 1 0x17 0x15
+202740 key lctrl down
+202810 key lctrl up
+203510 ent 2 0x17 0x15
+203630 key lctrl down
+203700 key lctrl up
+204400 ent 1 0x29 1
+204520 key lctrl down
+204590 key lctrl up
+205490 ent 1 0x17 0x15
+205610 key lctrl down
+205680 key lctrl up
+206380 ent 2 0x17 0x15
+206500 key lctrl down
+206570 key lctrl up
+207270 ent 1 0x29 1
+207390 key lctrl down
+207460 key lctrl up
+208360 ent 1 0x17 0x15
+208480 key lctrl down
+208550 key lctrl up
+209250 ent 2 0x17 0x15
+209370 key lctrl down
+209440 key lctrl up
+210140 ent 1 0x29 1
+210260 key lctrl down
+210330 key lctrl up
+211230 ent 1 0x17 0x15
+211350 key lctrl down
+211420 key lctrl up
+212120 ent 2 0x17 0x15
+212240 key lctrl down
+212310 key lctrl up
+213010 ent 1 0x29 1
+213130 key lctrl down
+213200 key lctrl up
+214100 ent 1 0x17 0x15
+214220 key lctrl down
+214290 key lctrl up
+214990 ent 2 0x17 0x15
+215110 key lctrl down
+215180 key lctrl up
+215880 ent 1 0x29 1
+216000 key lctrl down
+216070 key lctrl up
+216970 ent 1 0x17 0x15
+217090 key lctrl down
+217160 key lctrl up
+217860 ent 2 0x17 0x15
+217980 key lctrl down
+218050 key lctrl up
+218750 ent 1 0x29 1
+218870 key lctrl down
+218940 key lctrl up
+219840 ent 1 0x17 0x15
+219960 key lctrl down
+220030 key lctrl up
+220730 ent 2 0x17 0x15
+220850 key lctrl down
+220920 key lctrl up
+221620 ent 1 0x29 1
+221740 key lctrl down
+221810 key lctrl up
+222710 ent 1 0x17 0x15
+222830 key lctrl down
+222900 key lctrl up
+223600 ent 2 0x17 0x15
+223720 key lctrl down
+223790 key lctrl up
+224490 ent 1 0x29 1
+224610 key lctrl down
+224680 key lctrl up
+225580 ent 1 0x17 0x15
+225700 key lctrl down
+225770 key lctrl up
+226470 ent 2 0x17 0x15
+226590 key lctrl down
+226660 key lctrl up
+227360 ent 1 0x29 1
+227480 key lctrl down
+227550 key lctrl up
+228450 ent 1 0x17 0x15
+228570 key lctrl down
+228640 key lctrl up
+229340 ent 2 0x17 0x15
+229460 key lctrl down
+229530 key lctrl up
+230230 ent 1 0x29 1
+230350 key lctrl down
+230420 key lctrl up
+231320 ent 1 0x17 0x15
+231440 key lctrl down
+231510 key lctrl up
+232210 ent 2 0x17 0x15
+232330 key lctrl down
+232400 key lctrl up
+233100 ent 1 0x29 1
+233220 key lctrl down
+233290 key lctrl up
+234190 ent 1 0x17 0x15
+234310 key lctrl down
+234380 key lctrl up
+235080 ent 2 0x17 0x15
+235200 key lctrl down
+235270 key lctrl up
+235970 ent 1 0x29 1
+236090 key lctrl down
+236160 key lctrl up
+237060 ent 1 0x17 0x15
+237180 key lctrl down
+237250 key lctrl up
+237950 ent 2 0x17 0x15
+238070 key lctrl down
+238140 key lctrl up
+238840 ent 1 0x29 1
+238960 key lctrl down
+239030 key lctrl up
+239930 ent 1 0x17 0x15
+240050 key lctrl down
+240120 key lctrl up
+240820 ent 2 0x17 0x15
+240940 key lctrl down
+241010 key lctrl up
+241710 ent 1 0x29 1
+241830 key lctrl down
+241900 key lctrl up

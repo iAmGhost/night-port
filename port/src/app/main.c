@@ -452,10 +452,10 @@ static void autokey(void) {
  * device live the game runs at a different rate and a purely wall-clock script fires the menu keys in the
  * wrong places (docs/55). The leading number on a wait line is a timeout in ms, so a missing anchor cannot
  * hang the run. */
-struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at; };
+struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at, a2, a3; };
 static void shot_named(const char *event);
 static void key_apply(uint8_t sc, int make);
-enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3 };
+enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3, PT_POKE_DS = 4, PT_ENT_POKE = 5 };
 static struct pt_evt *g_pt;
 static int g_pt_n, g_pt_i;
 static const char *g_shots_dir;
@@ -465,7 +465,10 @@ static const char *g_shots_dir;
 void rig_init(const char *dir, int hz);
 void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes);
 void rig_marker(long t_ms, const char *fmt, ...);
-int  rig_ds_read(uint32_t ds, uint32_t *out);   /* current value of a DS-claiming global, by DS address */
+int  rig_ds_read(uint32_t ds, uint32_t *out);   /* current value of a DS-claiming cell */
+int  rig_ds_write(uint32_t ds, uint32_t v);     /* scripted injection into the same table */
+int  rig_ent_poke(int slot, uint32_t off, uint32_t v);   /* write record+off in the +0x13f list walk */
+uint8_t *rig_ent_slot(int slot);                /* the dumper's entity walk, by slot index */
 void rig_rebase(long long slip_ms);            /* move the dump timeline onto the script's anchor */
 void rig_close(void);
 void rig_screen_init(const char *dir, int witness_every);
@@ -549,6 +552,22 @@ static void pt_load(const char *path) {
             e->seq_at = (uint32_t)strtoul(updown, NULL, 0);
             snprintf(e->name, sizeof e->name, "%s", argv4);
             if (!e->seq_at) { SDL_Log("script: wait ds needs an address (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "poke") && n >= 3) {
+            /* State injection (docs/118): `t poke 0x639bc 0` writes a DS global through the rig's own
+             * cell table. Keypress-only replay cannot reach rare states (a knockdown needs a second hit
+             * while the victim is still reeling, docs/117), so forcing the precondition makes the shipped
+             * transition reachable on demand and comparable on both sides. */
+            e->kind = PT_POKE_DS;
+            e->seq_at = (uint32_t)strtoul(arg, NULL, 0);
+            e->a2 = (uint32_t)strtoul(updown, NULL, 0);
+            if (!e->seq_at) { SDL_Log("script: poke needs a DS address (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "ent") && n >= 4) {
+            /* `t ent 2 0x17 0x15` writes 4 bytes at record+0x17 of entity slot 2 in the same +0x13f list
+             * walk the state dumper uses, so the injected record is the one the oracle also samples. */
+            e->kind = PT_ENT_POKE;
+            e->seq_at = (uint32_t)strtoul(arg, NULL, 0);      /* slot */
+            e->a2 = (uint32_t)strtoul(updown, NULL, 0);       /* offset in the record */
+            e->a3 = (uint32_t)strtoul(argv4, NULL, 0);        /* value */
         } else {
             const char *kn = (!strcasecmp(verb, "key") && n >= 3) ? arg : verb;
             if (!strcasecmp(verb, "key") && n >= 3) e->make = !strcasecmp(updown, "down") || !strcasecmp(updown, "1");
@@ -599,6 +618,22 @@ static void pt_drive(void) {
     long t = pt_now_ms();
     while (g_pt_i < g_pt_n) {
         struct pt_evt *e = &g_pt[g_pt_i];
+        if (e->kind == PT_POKE_DS) {
+            int w = rig_ds_write(e->seq_at, e->a2);
+            SDL_Log("script: poke ds %#x = %u (%s) at t=%ldms", e->seq_at, e->a2,
+                    w ? "ok" : "no such cell", t);
+            if (g_rig_dir) rig_marker(t, "poke ds %#x = %u", e->seq_at, e->a2);
+            g_pt_i++;
+            continue;
+        }
+        if (e->kind == PT_ENT_POKE) {
+            int w = rig_ent_poke((int)e->seq_at, e->a2, e->a3);
+            SDL_Log("script: poke ent%02d +%#x = %#x (%s) at t=%ldms", (int)e->seq_at, e->a2, e->a3,
+                    w ? "ok" : "no such slot", t);
+            if (g_rig_dir) rig_marker(t, "poke ent%02d +%#x = %#x", (int)e->seq_at, e->a2, e->a3);
+            g_pt_i++;
+            continue;
+        }
         if (e->kind == PT_WAIT_DS) {
             uint32_t v = 0;
             int sz = rig_ds_read(e->seq_at, &v);

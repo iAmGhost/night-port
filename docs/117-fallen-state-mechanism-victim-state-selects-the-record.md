@@ -38,6 +38,12 @@ record supplies (`hb + *(u16*)(hb + rec_e + 0x6d) + 2*slot`, port `f.c:24272-242
 fallen entity's boxes are whatever the fallen state's record declares -- vulnerability to low attacks is data,
 and the port already resolves it the shipped way.
 
+> **Corrected by docs/118:** forcing the victim into state 0x15 for 659 entity-samples and landing hits
+> produced no type >= 22 and no fallen state, so the record index at guest 0x00014439-59 is **not** driven by
+> the injected victim state. The chain may be advanced by the attacker instead (or the `+0x123` container has
+> to be further along, cf. docs/110's slot-consumption divergence). Treat §1-§2 as a hypothesis with a
+> negative test, not as the mechanism.
+
 ## 3. Measurement on episode 1 drives (why the rig has not shown fallen states)
 
 `NIGHT_HITTRACE=1` census, port side, `--res-dir ./NIGHT`, `SDL_AUDIODRIVER=dummy`:

@@ -61,6 +61,33 @@ static uint32_t g_recoff[RIG_MAX];
  * Used by the playtest script's `wait ds ADDR OP VAL`, so both sides of the rig can anchor on the same
  * shipped DS event (a resource name cannot be used: every resource name is resident in DS all the time,
  * measured -- 435 name-shaped strings present at the title and unchanged after entering the game). */
+int rig_ds_write(uint32_t ds, uint32_t v) {
+    /* Scripted injection (docs/118): the same cell table the state oracle reads, so an injected value is
+     * observed by the oracle exactly like a value the game produced itself. */
+    for (int i = 0; i < rig_cell_count(); i++) {
+        const struct rig_cell *c = rig_cell_at(i);
+        if (c->ds != ds || !c->host) continue;
+        unsigned n = c->host_size < 4 ? c->host_size : 4u;
+        if (!n) continue;
+        memcpy((void *)c->host, &v, n);
+        return (int)n;
+    }
+    return 0;
+}
+
+uint8_t *rig_ent_slot(int slot) {
+    uint8_t *e = g_dat_53c70;                       /* entity list head, next at +0x13f (docs/108) */
+    for (int k = 0; k < slot && e; k++) e = *(uint8_t **)(e + 0x13f);
+    return e;
+}
+
+int rig_ent_poke(int slot, uint32_t off, uint32_t v) {
+    uint8_t *e = rig_ent_slot(slot);
+    if (!e || off + 4u > RIG_REC) return 0;
+    memcpy(e + off, &v, 4);
+    return 1;
+}
+
 int rig_ds_read(uint32_t ds, uint32_t *out) {
     for (int i = 0; i < rig_cell_count(); i++) {
         const struct rig_cell *c = rig_cell_at(i);

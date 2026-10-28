@@ -955,12 +955,12 @@
  },
  {
   "ds": 343308,
-  "name": "g_pool_53d0c",
-  "ctype": "uint32_t",
+  "name": "g_dat_53d0c",
+  "ctype": "uint8_t *",
   "guest_size": 0,
   "host_size": 256,
-  "ptr": 0,
-  "dupes": 3
+  "ptr": 1,
+  "dupes": 1
  },
  {
   "ds": 343508,

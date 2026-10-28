@@ -1257,7 +1257,8 @@ extern uint32_t *g_dat_63d10;  /* 0x63d10: struct host-ptr (fn_03d999) */
 extern uint32_t *g_dat_53b3c;  /* 0x53b3c: container host-ptr (fn_0100d9) */
 extern uint32_t *g_dat_63dd4;  /* 0x63dd4: struct host-ptr (fn_03d999) */
 extern uint32_t *g_dat_53c00;  /* 0x53c00: container host-ptr (fn_0100d9) */
-extern uint32_t  g_pool_53d0c[100];  /* 0x53d0c: 100 pooled object offsets */
+/* DAT_00053d0c is modelled once: g_dat_53d0c (the loaded voice-slot buffers). The old g_pool_53d0c
+   duplicate is removed -- docs/112. */
 void fn_037922(void);   /* 0x037922: clear-all-state -- free 100 pool + destruct+free+null 8 struct globals */
 void fn_0323f8(void);   /* 0x0323f8: drain entity list -- remove+free every node until empty */
 void fn_03237b(void);   /* 0x03237b: conditional drain -- remove+free nodes with dword@+0xd != 0; g_gauge_other_off=0 */

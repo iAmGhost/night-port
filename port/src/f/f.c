@@ -7801,14 +7801,15 @@ uint32_t *g_dat_63d10 = 0;     /* 0x63d10 */
 uint32_t *g_dat_53b3c = 0;     /* 0x53b3c */
 uint32_t *g_dat_63dd4 = 0;     /* 0x63dd4 */
 uint32_t *g_dat_53c00 = 0;     /* 0x53c00 */
-uint32_t  g_pool_53d0c[100] = {0};  /* 0x53d0c */
 
 static inline uint32_t host_to_off(uint8_t *p) {
     return (uint32_t)((uint8_t *)p - (uint8_t *)g_heap_base);
 }
 
 /* 0x037922 (L12, 480 B): clear-all-state cleanup. Frees the 100 pooled objects
- * (offsets in g_pool_53d0c; heap_free_host is NULL-tolerant for the unset ones),
+ * (the 100 slots live in g_dat_53d0c -- one object per DS address: an earlier revision of the port
+ * also carried g_pool_53d0c for the same 0x53d0c region, which left the rig reading an array nothing
+ * ever wrote; docs/112),
  * then for 8 struct/container globals: destruct (fn_03d999 or fn_0100d9 -- for
  * the side effect of freeing sub-objects) + free (heap_free_guard, offset =
  * host_ptr - base) + null. The destructor returns the input host ptr in the
@@ -7816,7 +7817,7 @@ static inline uint32_t host_to_off(uint8_t *p) {
 void fn_037922(void) {
     (void)canary_id(0, 0x60);
     for (uint32_t i = 0; i < 0x64; i++)
-        heap_free_host(g_pool_53d0c[i]);                /* 0x041c31 (NULL-tolerant) */
+        if (g_dat_53d0c[i]) heap_free_host(host_to_off(g_dat_53d0c[i]));   /* 0x041c31 */
     if (g_dat_639c0) { fn_03d999(g_dat_639c0, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_639c0)); g_dat_639c0 = 0; }
     if (g_dat_53c8c) { fn_03d999(g_dat_53c8c, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_53c8c)); g_dat_53c8c = 0; }
     if (g_dat_63e00) { fn_03d999(g_dat_63e00, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_63e00)); g_dat_63e00 = 0; }

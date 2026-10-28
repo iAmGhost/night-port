@@ -109,7 +109,7 @@ static const struct rig_cell g_rig_cells[] = /* 278 */ {
     {0x53c90, 4, 4, 0, &g_dat_53c90, "g_dat_53c90"},
     {0x53c94, 0, 120, 0, &g_dat_53c94, "g_dat_53c94"},
     {0x53d08, 0, 256, 0, &g_tab_53d08, "g_tab_53d08"},
-    {0x53d0c, 0, 256, 0, &g_pool_53d0c, "g_pool_53d0c"},
+    {0x53d0c, 0, 256, 1, &g_dat_53d0c, "g_dat_53d0c"},
     {0x53dd4, 4, 8, 1, &g_dat_53dd4, "g_dat_53dd4"},
     {0x53dd8, 4, 8, 1, &g_dat_53dd8, "g_dat_53dd8"},
     {0x53ddc, 4, 8, 1, &g_dat_53ddc, "g_dat_53ddc"},

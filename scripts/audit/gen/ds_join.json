@@ -19820,11 +19820,9 @@
   ],
   "image_u32": 0,
   "port_names": [
-   "g_dat_53d0c",
-   "g_pool_53d0c"
+   "g_dat_53d0c"
   ],
   "port_types": [
-   "uint32_t",
    "uint8_t *"
   ]
  },

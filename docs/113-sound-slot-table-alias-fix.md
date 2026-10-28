@@ -140,3 +140,22 @@ mixer capture is music+SFX at the game's own volume, while `cdda.raw` is the CD 
 Recorded as the open question for the music cluster: the next oracle step must compare *within a track*
 (spectral/onset fingerprints of the same LBA range, or a byte-identity check of the sectors the shipped game
 reads vs the port's `cdda.raw` for the same track) instead of whole-route envelopes.
+
+## First cut at same-LBA byte identity (needs refinement before it can be trusted)
+
+Checked whether the sectors the port handed the device (`port/cdda.raw`) are byte-identical to the ISO's
+sector user data (`(lba-150)*2352 + 24`, the mapping `cd_iso_read_audio` documents and the unit tests assert):
+
+```
+track 11 lba=0x367aa : pattern found at cdda.raw byte 0     <-- suspicious
+track  9 lba=0x2d320 : pattern found at cdda.raw byte 0     <-- suspicious
+track  2 lba=0x40415 : not found
+track  1 lba=0x918e  : pattern found at cdda.raw byte 0
+```
+
+Three hits at byte 0 for three different LBAs cannot be a real match -- those IMG offsets must be holding
+identical (most likely all-zero / lead-in) bytes, so the probe matched a blank sector. The track-2 miss is the
+only informative result, and it may just mean that track's first sector is non-blank while the port's stream
+does not contain it at that position. Recorded so nobody quotes this as evidence either way: the check has to
+pick a non-blank sector (scan forward until the 2352-byte block is not constant) and align to the port's own
+play marks in `port/markers.jsonl` rather than searching from byte 0.

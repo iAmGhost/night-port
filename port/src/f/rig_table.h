@@ -2,14 +2,18 @@
    included at the end of f.c so the file-scope statics are visible; see f/rig_cells.h */
 #include "rig_cells.h"
 
-static const struct rig_cell g_rig_cells[] = /* 277 */ {
+static const struct rig_cell g_rig_cells[] = /* 283 */ {
     {0x50010, 0, 200, 0, &g_blk_50010, "g_blk_50010"},
+    {0x5147c, 0, 1, 0, &g_dat_5147c, "g_dat_5147c"},
     {0x51960, 0, 26, 0, &g_nonleap_tbl, "g_nonleap_tbl"},
     {0x5197a, 0, 26, 0, &g_leap_tbl, "g_leap_tbl"},
     {0x51a0c, 4, 8, 1, &g_dat_51a0c, "g_dat_51a0c"},
     {0x51a10, 4, 4, 0, &g_dat_51a10, "g_dat_51a10"},
+    {0x51a58, 4, 26, 0, &g_serial_tpl_51a58, "g_serial_tpl_51a58"},
     {0x51acc, 4, 7, 0, &g_rom_51acc, "g_rom_51acc"},
     {0x51ad4, 4, 26, 0, &g_rom_51ad4, "g_rom_51ad4"},
+    {0x51b38, 4, 24, 0, &g_rm_call_tpl_51b38, "g_rm_call_tpl_51b38"},
+    {0x51b60, 0, 256, 0, &g_tab_51b60, "g_tab_51b60"},
     {0x51c24, 0, 256, 0, &g_blk_51c24, "g_blk_51c24"},
     {0x51c98, 4, 4, 0, &g_dat_51c98, "g_dat_51c98"},
     {0x52738, 0, 256, 0, &g_tab_52738, "g_tab_52738"},
@@ -26,6 +30,7 @@ static const struct rig_cell g_rig_cells[] = /* 277 */ {
     {0x52fb4, 0, 4, 0, &g_dat_52fb4, "g_dat_52fb4"},
     {0x52ff8, 1, 1, 0, &g_dat_52ff8, "g_dat_52ff8"},
     {0x52ffc, 0, 256, 0, &g_tab_52ffc, "g_tab_52ffc"},
+    {0x5302c, 0, 256, 0, &kXlat_5302c, "kXlat_5302c"},
     {0x530ac, 4, 4, 0, &g_dat_530ac, "g_dat_530ac"},
     {0x530b4, 4, 4, 0, &g_dat_530b4, "g_dat_530b4"},
     {0x530b8, 4, 4, 0, &g_dat_530b8, "g_dat_530b8"},
@@ -275,6 +280,7 @@ static const struct rig_cell g_rig_cells[] = /* 277 */ {
     {0x63fbd, 0, 1, 0, &g_heap_flag, "g_heap_flag"},
     {0x63ff8, 4, 4, 0, &g_node_list_done, "g_node_list_done"},
     {0x63ffc, 4, 4, 0, &g_node_list_active, "g_node_list_active"},
+    {0x64000, 4, 4, 0, &g_clock_ticks, "g_clock_ticks"},
     {0x64004, 0, 4, 0, &g_dat_64004, "g_dat_64004"},
     {0x64008, 0, 4, 0, &g_dat_64008, "g_dat_64008"},
     {0x64090, 4, 4, 0, &g_dat_64090, "g_dat_64090"},

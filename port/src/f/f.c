@@ -24193,7 +24193,7 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
  * byte[record + slot + 0x38]). Image-initialised for the full 0x400 bytes (non-zero up to index
  * 0xfa), transcribed verbatim -- an earlier version of the port kept only the first 0x20 entries,
  * which is not enough for the atype values the shipped data produces (docs/110). */
-static const uint32_t g_tab_51b60[0x100] = {
+static const uint32_t g_tab_51b60[0x100] = {   /* 0x51b60 */
     0x00, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11,
     0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
     0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x66, 0x65, 0x64,

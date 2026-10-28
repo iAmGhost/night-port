@@ -1,8 +1,8 @@
 # Static equivalence audit (Ghidra DB vs port source)
 
-port globals with a DS address: 487 across 285 distinct DS cells; guest DS defined-data items: 1638; guest DS cells with accesses: 624
+port globals with a DS address: 538 across 292 distinct DS cells; guest DS defined-data items: 1638; guest DS cells with accesses: 624
 
-## c1_unmodelled: 348 findings
+## c1_unmodelled: 343 findings
   {"ds": 343736, "reads": 148, "writes": 0, "total": 148}
   {"ds": 343728, "reads": 80, "writes": 0, "total": 80}
   {"ds": 407992, "reads": 76, "writes": 1, "total": 77}
@@ -29,7 +29,9 @@ port globals with a DS address: 487 across 285 distinct DS cells; guest DS defin
   {"ds": 379072, "reads": 4, "writes": 1, "total": 5}
   {"ds": 379080, "reads": 4, "writes": 1, "total": 5}
 
-## c2_aliasing: 144 findings
+## c2_aliasing: 149 findings
+  {"kind": "port-span-overlap", "a": "g_tab_51b60", "a_span": ["0x51b60", "0x51f60"], "b": "g_blk_51c24", "b_span": ["0x51c24", "0x51e00"], "overlap": 476}
+  {"kind": "port-span-overlap", "a": "g_tab_51b60", "a_span": ["0x51b60", "0x51f60"], "b": "g_dat_51c98", "b_span": ["0x51c98", "0x51c9c"], "overlap": 4}
   {"kind": "port-span-overlap", "a": "g_blk_51c24", "a_span": ["0x51c24", "0x51e00"], "b": "g_dat_51c98", "b_span": ["0x51c98", "0x51c9c"], "overlap": 4}
   {"kind": "port-span-overlap", "a": "g_tab_52738", "a_span": ["0x52738", "0x52b38"], "b": "g_tab_5274c", "b_span": ["0x5274c", "0x52c3c"], "overlap": 1004}
   {"kind": "port-span-overlap", "a": "g_tab_52738", "a_span": ["0x52738", "0x52b38"], "b": "g_tab_528b4", "b_span": ["0x528b4", "0x52b84"], "overlap": 644}
@@ -51,30 +53,24 @@ port globals with a DS address: 487 across 285 distinct DS cells; guest DS defin
   {"kind": "port-span-overlap", "a": "g_tab_52c3c", "a_span": ["0x52c3c", "0x5304c"], "b": "g_dat_52fb4", "b_span": ["0x52fb4", "0x52fb8"], "overlap": 4}
   {"kind": "port-span-overlap", "a": "g_tab_52c3c", "a_span": ["0x52c3c", "0x5304c"], "b": "g_dat_52ff8", "b_span": ["0x52ff8", "0x52ff9"], "overlap": 1}
   {"kind": "port-span-overlap", "a": "g_tab_52c3c", "a_span": ["0x52c3c", "0x5304c"], "b": "g_tab_52ffc", "b_span": ["0x52ffc", "0x53100"], "overlap": 80}
+  {"kind": "port-span-overlap", "a": "g_tab_52c3c", "a_span": ["0x52c3c", "0x5304c"], "b": "kXlat_5302c", "b_span": ["0x5302c", "0x5312c"], "overlap": 32}
   {"kind": "port-span-overlap", "a": "g_tab_52da4", "a_span": ["0x52da4", "0x52f34"], "b": "g_dat_52f08", "b_span": ["0x52f08", "0x53008"], "overlap": 44}
-  {"kind": "port-span-overlap", "a": "g_tab_52da4", "a_span": ["0x52da4", "0x52f34"], "b": "g_tab_52f2c", "b_span": ["0x52f2c", "0x52f54"], "overlap": 8}
-  {"kind": "port-span-overlap", "a": "g_dat_52f08", "a_span": ["0x52f08", "0x53008"], "b": "g_tab_52f2c", "b_span": ["0x52f2c", "0x52f54"], "overlap": 40}
-  {"kind": "port-span-overlap", "a": "g_dat_52f08", "a_span": ["0x52f08", "0x53008"], "b": "g_tab_52f90", "b_span": ["0x52f90", "0x52fb8"], "overlap": 40}
 
-## c3_image_init: 32 findings
+## c3_image_init: 29 findings
   {"ds": 340156, "kind": "image-nonzero-port-zero", "name": "g_dat_530bc", "image_head": "7f0000007f0000007f0000007f000000", "init": ""}
   {"ds": 339756, "kind": "image-nonzero-port-zero", "name": "g_tab_52f2c", "image_head": "16000000030000000200000006000000", "init": ""}
-  {"ds": 327696, "kind": "image-nonzero-port-zero", "name": "g_blk_50010", "image_head": "000000000000f8410000f8410000f841", "init": ""}
-  {"ds": 334884, "kind": "image-nonzero-port-zero", "name": "g_blk_51c24", "image_head": "27000000230000001f0000001b000000", "init": ""}
-  {"ds": 339720, "kind": "image-nonzero-port-zero", "name": "g_dat_52f08", "image_head": "02000000050000000600000006000000", "init": ""}
+  {"ds": 339720, "kind": "image-nonzero-port-zero", "name": "g_dat_52f08", "image_head": "02000000050000000600000006000000", "init": "= {0}"}
   {"ds": 337740, "kind": "image-nonzero-port-zero", "name": "g_tab_5274c", "image_head": "0000003f0000003f0000003f0000003f", "init": "= {0}"}
-  {"ds": 338100, "kind": "image-nonzero-port-zero", "name": "g_tab_528b4", "image_head": "09000000090000000900000005000000", "init": ""}
   {"ds": 338460, "kind": "image-nonzero-port-zero", "name": "g_tab_52a1c", "image_head": "e8030000e8030000e8030000e8030000", "init": ""}
-  {"ds": 339964, "kind": "image-nonzero-port-zero", "name": "g_tab_52ffc", "image_head": "01000000020000000200000001000000", "init": ""}
   {"ds": 338820, "kind": "image-nonzero-port-zero", "name": "g_tab_52b84", "image_head": "00000000000000000000000000000000", "init": ""}
+  {"ds": 340012, "kind": "image-zero-port-nonzero", "name": "kXlat_5302c", "image_head": "00000000000000000000000000000000", "init": "= { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x"}
   {"ds": 340828, "kind": "image-nonzero-port-zero", "name": "g_rng_state", "image_head": "01000000", "init": "= 0"}
-  {"ds": 340148, "kind": "image-nonzero-port-zero", "name": "g_dat_530b4", "image_head": "64000000", "init": ""}
+  {"ds": 340148, "kind": "image-nonzero-port-zero", "name": "g_dat_530b4", "image_head": "64000000", "init": "= 0"}
   {"ds": 340152, "kind": "image-nonzero-port-zero", "name": "g_dat_530b8", "image_head": "64000000", "init": "= 0"}
   {"ds": 340472, "kind": "image-nonzero-port-zero", "name": "g_dat_531f8", "image_head": "ffff0000", "init": "= 0"}
   {"ds": 409188, "kind": "image-zero-port-nonzero", "name": "g_dat_63e64", "image_head": "00000000", "init": "= 0x140"}
-  {"ds": 340224, "kind": "image-nonzero-port-zero", "name": "g_dat_53100", "image_head": "03000000", "init": ""}
   {"ds": 341529, "kind": "image-nonzero-port-zero", "name": "g_dat_53619", "image_head": "00010000", "init": "= 0"}
-  {"ds": 340140, "kind": "image-nonzero-port-zero", "name": "g_dat_530ac", "image_head": "20030000", "init": ""}
+  {"ds": 340140, "kind": "image-nonzero-port-zero", "name": "g_dat_530ac", "image_head": "20030000", "init": "= 0"}
   {"ds": 406448, "kind": "image-zero-port-nonzero", "name": "g_dat_633b0", "image_head": "00000000", "init": "= SCREEN_BASE"}
   {"ds": 406452, "kind": "image-zero-port-nonzero", "name": "g_dat_633b4", "image_head": "00000000", "init": "= SCREEN_BASE + SCREEN_SIZE"}
   {"ds": 335000, "kind": "image-nonzero-port-zero", "name": "g_dat_51c98", "image_head": "01000000", "init": "= 0"}
@@ -82,6 +78,10 @@ port globals with a DS address: 487 across 285 distinct DS cells; guest DS defin
   {"ds": 341888, "kind": "image-nonzero-port-zero", "name": "g_dat_53780", "image_head": "100e0000", "init": "= 0"}
   {"ds": 341892, "kind": "image-nonzero-port-zero", "name": "g_dat_53784", "image_head": "01000000", "init": "= 0"}
   {"ds": 341896, "kind": "image-nonzero-port-zero", "name": "g_dat_53788", "image_head": "45535400", "init": "= 0"}
+  {"ds": 341927, "kind": "image-nonzero-port-zero", "name": "g_dat_537a7", "image_head": "45445400", "init": "= 0"}
+  {"ds": 341884, "kind": "image-nonzero-port-zero", "name": "g_dat_5377c", "image_head": "50460000", "init": "= 0"}
+  {"ds": 341564, "kind": "image-nonzero-port-zero", "name": "g_dat_5363c", "image_head": "01000000", "init": "= 0"}
+  {"ds": 341568, "kind": "image-nonzero-port-zero", "name": "g_dat_53640", "image_head": "10000000", "init": "= 0"}
 
 ## c4_representation: 3 findings
   {"ds": 408044, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_639ec", "port_type": "uint8_t *", "guest_type": "undefined4", "image_u32": 0, "small_imm_stores": [], "indexed_reads": ["CMP dword ptr [EAX + 0x639ec] 0x0"], "n_reads": 26, "n_writes": 3}
@@ -90,16 +90,16 @@ port globals with a DS address: 487 across 285 distinct DS cells; guest DS defin
 
 ## c6_image_data_without_symbol: 56 findings
   {"ds_start": "0x52c3c", "ds_end": "0x52f3c", "cells": 192, "image_head": "ac000000ac000000ac000000ac000000", "immediates_pointing_nearby": 100, "distinct_base_constants": ["0x524bc", "0x52580", "0x525a8", "0x52738", "0x5274c", "0x528b4"], "port_models_anything_here": ["g_tab_52c3c", "g_tab_52c3c", "
-  {"ds_start": "0x528a8", "ds_end": "0x52b84", "cells": 183, "image_head": "0000003f0000003f0000003f09000000", "immediates_pointing_nearby": 58, "distinct_base_constants": ["0x520ac", "0x52170", "0x52198", "0x524bc", "0x52580", "0x525a8"], "port_models_anything_here": ["g_tab_528b4", "g_tab_52a1c", "g
+  {"ds_start": "0x528a8", "ds_end": "0x52b84", "cells": 183, "image_head": "0000003f0000003f0000003f09000000", "immediates_pointing_nearby": 58, "distinct_base_constants": ["0x520ac", "0x52170", "0x52198", "0x524bc", "0x52580", "0x525a8"], "port_models_anything_here": ["g_tab_528b4", "g_tab_528b4", "g
   {"ds_start": "0x531f8", "ds_end": "0x53334", "cells": 79, "image_head": "ffff000000000a00e5000000eb000000", "immediates_pointing_nearby": 107, "distinct_base_constants": ["0x52a1c", "0x52b84", "0x52be0", "0x52c3c", "0x52da4", "0x52f08"], "port_models_anything_here": ["g_dat_531f8", "g_dat_531f8"]}
-  {"ds_start": "0x51b64", "ds_end": "0x51c4c", "cells": 58, "image_head": "0b0000000c0000000d0000000e000000", "immediates_pointing_nearby": 134, "distinct_base_constants": ["0x5144c", "0x51450", "0x51454", "0x51458", "0x5145c", "0x5145e"], "port_models_anything_here": ["g_blk_51c24"]}
+  {"ds_start": "0x51b64", "ds_end": "0x51c4c", "cells": 58, "image_head": "0b0000000c0000000d0000000e000000", "immediates_pointing_nearby": 134, "distinct_base_constants": ["0x5144c", "0x51450", "0x51454", "0x51458", "0x5145c", "0x5145e"], "port_models_anything_here": ["g_blk_51c24", "g_blk_51c24"]}
   {"ds_start": "0x51c9c", "ds_end": "0x51d3c", "cells": 40, "image_head": "c9fffffffbffffffd8ffffff05000000", "immediates_pointing_nearby": 120, "distinct_base_constants": ["0x514ab", "0x514b3", "0x514bc", "0x514c5", "0x514ce", "0x514d7"], "port_models_anything_here": []}
   {"ds_start": "0x51850", "ds_end": "0x518e0", "cells": 36, "image_head": "0000f0bf010204081020408000010101", "immediates_pointing_nearby": 132, "distinct_base_constants": ["0x5144c", "0x51450", "0x51454", "0x51458", "0x5145c", "0x5145e"], "port_models_anything_here": []}
   {"ds_start": "0x530bc", "ds_end": "0x53100", "cells": 17, "image_head": "7f0000007f0000007f0000007f000000", "immediates_pointing_nearby": 107, "distinct_base_constants": ["0x52a1c", "0x52b84", "0x52be0", "0x52c3c", "0x52da4", "0x52f08"], "port_models_anything_here": ["g_dat_530bc", "g_dat_530bc"]}
-  {"ds_start": "0x5144c", "ds_end": "0x51484", "cells": 14, "image_head": "25640a00256420002564200025632000", "immediates_pointing_nearby": 121, "distinct_base_constants": ["0x5144c", "0x51450", "0x51454", "0x51458", "0x5145c", "0x5145e"], "port_models_anything_here": []}
+  {"ds_start": "0x5144c", "ds_end": "0x51484", "cells": 14, "image_head": "25640a00256420002564200025632000", "immediates_pointing_nearby": 121, "distinct_base_constants": ["0x5144c", "0x51450", "0x51454", "0x51458", "0x5145c", "0x5145e"], "port_models_anything_here": ["g_dat_5147c"]}
   {"ds_start": "0x537e4", "ds_end": "0x5380c", "cells": 10, "image_head": "0237030000019c1f03000002bd390300", "immediates_pointing_nearby": 160, "distinct_base_constants": ["0x52ff8", "0x52ffc", "0x5302c", "0x530ac", "0x530b0", "0x530b4"], "port_models_anything_here": []}
   {"ds_start": "0x51968", "ds_end": "0x51994", "cells": 11, "image_head": "78009700b500d400f300110130014e01", "immediates_pointing_nearby": 133, "distinct_base_constants": ["0x5144c", "0x51450", "0x51454", "0x51458", "0x5145c", "0x5145e"], "port_models_anything_here": ["g_leap_tbl"]}
-  {"ds_start": "0x52ffc", "ds_end": "0x5302c", "cells": 12, "image_head": "01000000020000000200000001000000", "immediates_pointing_nearby": 108, "distinct_base_constants": ["0x528b4", "0x52a1c", "0x52b84", "0x52be0", "0x52c3c", "0x52da4"], "port_models_anything_here": ["g_tab_52ffc"]}
+  {"ds_start": "0x52ffc", "ds_end": "0x5302c", "cells": 12, "image_head": "01000000020000000200000001000000", "immediates_pointing_nearby": 108, "distinct_base_constants": ["0x528b4", "0x52a1c", "0x52b84", "0x52be0", "0x52c3c", "0x52da4"], "port_models_anything_here": ["g_tab_52ffc", "g_tab_52ffc"]}
   {"ds_start": "0x519d0", "ds_end": "0x519f0", "cells": 8, "image_head": "3600cec9148887e1244b1b000284fee4", "immediates_pointing_nearby": 134, "distinct_base_constants": ["0x5144c", "0x51450", "0x51454", "0x51458", "0x5145c", "0x5145e"], "port_models_anything_here": []}
   {"ds_start": "0x536e0", "ds_end": "0x536f4", "cells": 5, "image_head": "01000000020000000200000003000000", "immediates_pointing_nearby": 161, "distinct_base_constants": ["0x52f08", "0x52f2c", "0x52f90", "0x52ff8", "0x52ffc", "0x5302c"], "port_models_anything_here": []}
   {"ds_start": "0x51c80", "ds_end": "0x51c98", "cells": 6, "image_head": "5700000058000000590000005a000000", "immediates_pointing_nearby": 122, "distinct_base_constants": ["0x51481", "0x51484", "0x5148e", "0x514ab", "0x514b3", "0x514bc"], "port_models_anything_here": []}
@@ -142,7 +142,7 @@ port globals with a DS address: 487 across 285 distinct DS cells; guest DS defin
   {"ds": "0x63e24", "n_sites": 24, "fns": ["fn_010d47", "fn_038098", "fn_0381d7", "fn_039c03", "fn_03a5f7", "fn_03a70e"]}
   {"ds": "0x63ec1", "n_sites": 24, "fns": ["fn_03272f", "fn_035d5d", "fn_035dfc", "fn_038445", "fn_038cde", "fn_038f3d"]}
 
-## c8_base_pair_aliasing: 5387 findings
+## c8_base_pair_aliasing: 5466 findings
   {"base_a": "0x53eb0", "base_b": "0x53eb8", "distance": "0x8", "n_a": 80, "n_b": 148, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_017f13", "fn_018e88", "fn_019e48", "fn_01aec8"], "port_name_a": [], "port_name_b": [], "score": 140}
   {"base_a": "0x639dc", "base_b": "0x639e0", "distance": "0x4", "n_a": 90, "n_b": 77, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_012efa", "fn_013908", "fn_0374ad", "fn_0376c8"], "port_name_a": ["g_dat_639dc"], "port_name_b": ["g_dat_639e0"], "score": 119}
   {"base_a": "0x53eb0", "base_b": "0x53eb4", "distance": "0x4", "n_a": 80, "n_b": 40, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_017f13", "fn_018e88", "fn_019e48", "fn_01aec8"], "port_name_a": [], "port_name_b": [], "score": 100}

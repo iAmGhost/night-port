@@ -38,7 +38,73 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7047,
+    "line": 7029,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 262164,
+  "chosen": "g_dat_40014",
+  "claims": [
+   {
+    "name": "g_dat_40014",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 937,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_40014",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 7550,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 327696,
+  "chosen": "g_blk_50010",
+  "claims": [
+   {
+    "name": "g_blk_50010",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 993,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_blk_50010",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 15386,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 334348,
+  "chosen": "g_dat_51a0c",
+  "claims": [
+   {
+    "name": "g_dat_51a0c",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 961,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_51a0c",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 7117,
     "ds_from_name": true
    }
   ]
@@ -60,7 +126,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25279,
+    "line": 25296,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 334884,
+  "chosen": "g_blk_51c24",
+  "claims": [
+   {
+    "name": "g_blk_51c24",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 994,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_blk_51c24",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 14314,
     "ds_from_name": true
    }
   ]
@@ -82,7 +170,7 @@
     "ctype": "int32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7791,
+    "line": 7804,
     "ds_from_name": true
    }
   ]
@@ -104,7 +192,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 5302,
+    "line": 5226,
     "ds_from_name": true
    }
   ]
@@ -126,7 +214,29 @@
     "ctype": "float",
     "ptr": 0,
     "file": "f.c",
-    "line": 5050,
+    "line": 5063,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 338100,
+  "chosen": "g_tab_528b4",
+  "claims": [
+   {
+    "name": "g_tab_528b4",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1566,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_tab_528b4",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 25189,
     "ds_from_name": true
    }
   ]
@@ -148,7 +258,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 5136,
+    "line": 5069,
     "ds_from_name": true
    }
   ]
@@ -170,7 +280,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25547,
+    "line": 25276,
     "ds_from_name": true
    }
   ]
@@ -192,7 +302,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 5029,
+    "line": 5042,
     "ds_from_name": true
    }
   ]
@@ -214,7 +324,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25255,
+    "line": 25272,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 339720,
+  "chosen": "g_dat_52f08",
+  "claims": [
+   {
+    "name": "g_dat_52f08",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1017,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_52f08",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 14822,
     "ds_from_name": true
    }
   ]
@@ -236,7 +368,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 27100,
+    "line": 26700,
     "ds_from_name": true
    }
   ]
@@ -258,7 +390,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26676,
+    "line": 26693,
     "ds_from_name": true
    }
   ]
@@ -280,7 +412,73 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7770,
+    "line": 7783,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 339964,
+  "chosen": "g_tab_52ffc",
+  "claims": [
+   {
+    "name": "g_tab_52ffc",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1618,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_tab_52ffc",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 26247,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 340140,
+  "chosen": "g_dat_530ac",
+  "claims": [
+   {
+    "name": "g_dat_530ac",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 745,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_530ac",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 4592,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 340148,
+  "chosen": "g_dat_530b4",
+  "claims": [
+   {
+    "name": "g_dat_530b4",
+    "ctype": "int32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 167,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_530b4",
+    "ctype": "int32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 834,
     "ds_from_name": true
    }
   ]
@@ -302,7 +500,7 @@
     "ctype": "int32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 905,
+    "line": 837,
     "ds_from_name": true
    }
   ]
@@ -330,6 +528,28 @@
   ]
  },
  {
+  "ds": 340224,
+  "chosen": "g_dat_53100",
+  "claims": [
+   {
+    "name": "g_dat_53100",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 452,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53100",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 24675,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 340228,
   "chosen": "g_dat_53104",
   "claims": [
@@ -346,7 +566,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 12953,
+    "line": 12962,
     "ds_from_name": true
    }
   ]
@@ -368,7 +588,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25269,
+    "line": 25286,
     "ds_from_name": true
    }
   ]
@@ -412,7 +632,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 15126,
+    "line": 15143,
     "ds_from_name": true
    }
   ]
@@ -434,7 +654,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2391,
+    "line": 2240,
     "ds_from_name": true
    }
   ]
@@ -456,8 +676,30 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8227,
+    "line": 8240,
     "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 340816,
+  "chosen": "g_heap_head",
+  "claims": [
+   {
+    "name": "g_heap_head",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 439,
+    "ds_from_name": false
+   },
+   {
+    "name": "g_heap_head",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 2959,
+    "ds_from_name": false
    }
   ]
  },
@@ -470,7 +712,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.h",
-    "line": 448,
+    "line": 440,
     "ds_from_name": false
    },
    {
@@ -478,7 +720,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2936,
+    "line": 2949,
     "ds_from_name": false
    }
   ]
@@ -500,7 +742,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2937,
+    "line": 2950,
     "ds_from_name": false
    }
   ]
@@ -544,7 +786,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26926,
+    "line": 26943,
     "ds_from_name": true
    }
   ]
@@ -566,8 +808,52 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2938,
+    "line": 2951,
     "ds_from_name": false
+   }
+  ]
+ },
+ {
+  "ds": 340880,
+  "chosen": "g_dat_53390",
+  "claims": [
+   {
+    "name": "g_dat_53390",
+    "ctype": "int",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 797,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53390",
+    "ctype": "int",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 5271,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 340892,
+  "chosen": "g_dat_5339c",
+  "claims": [
+   {
+    "name": "g_dat_5339c",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 789,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_5339c",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 27068,
+    "ds_from_name": true
    }
   ]
  },
@@ -588,7 +874,7 @@
     "ctype": "uintptr_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 27179,
+    "line": 27075,
     "ds_from_name": true
    }
   ]
@@ -610,7 +896,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2939,
+    "line": 2952,
     "ds_from_name": false
    }
   ]
@@ -632,7 +918,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2940,
+    "line": 2953,
     "ds_from_name": false
    }
   ]
@@ -654,7 +940,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2941,
+    "line": 2954,
     "ds_from_name": false
    }
   ]
@@ -676,7 +962,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26924,
+    "line": 26941,
     "ds_from_name": true
    }
   ]
@@ -698,7 +984,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6473,
+    "line": 6486,
     "ds_from_name": true
    }
   ]
@@ -720,7 +1006,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2942,
+    "line": 2955,
     "ds_from_name": true
    }
   ]
@@ -742,7 +1028,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 5443,
+    "line": 5427,
     "ds_from_name": true
    }
   ]
@@ -764,7 +1050,51 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6474,
+    "line": 6487,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 341564,
+  "chosen": "g_dat_5363c",
+  "claims": [
+   {
+    "name": "g_dat_5363c",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1393,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_5363c",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 10174,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 341568,
+  "chosen": "g_dat_53640",
+  "claims": [
+   {
+    "name": "g_dat_53640",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1410,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53640",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 10195,
     "ds_from_name": true
    }
   ]
@@ -786,7 +1116,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6475,
+    "line": 6488,
     "ds_from_name": true
    }
   ]
@@ -808,7 +1138,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 6464,
+    "line": 6477,
     "ds_from_name": true
    }
   ]
@@ -830,7 +1160,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6465,
+    "line": 6478,
     "ds_from_name": true
    }
   ]
@@ -852,7 +1182,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6461,
+    "line": 6474,
     "ds_from_name": true
    }
   ]
@@ -874,7 +1204,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6462,
+    "line": 6475,
     "ds_from_name": true
    }
   ]
@@ -896,7 +1226,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6463,
+    "line": 6476,
     "ds_from_name": true
    }
   ]
@@ -918,7 +1248,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6464,
+    "line": 6477,
     "ds_from_name": true
    }
   ]
@@ -940,7 +1270,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 6472,
+    "line": 6485,
     "ds_from_name": true
    },
    {
@@ -948,7 +1278,29 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 6471,
+    "line": 6484,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 341972,
+  "chosen": "g_dat_537d4",
+  "claims": [
+   {
+    "name": "g_dat_537d4",
+    "ctype": "char **",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 801,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_537d4",
+    "ctype": "char **",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 5278,
     "ds_from_name": true
    }
   ]
@@ -992,7 +1344,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7801,
+    "line": 7814,
     "ds_from_name": true
    }
   ]
@@ -1014,7 +1366,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7803,
+    "line": 7816,
     "ds_from_name": true
    }
   ]
@@ -1036,7 +1388,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2138,
+    "line": 2088,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 343108,
+  "chosen": "g_dat_53c44",
+  "claims": [
+   {
+    "name": "g_dat_53c44",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 228,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53c44",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 2045,
     "ds_from_name": true
    }
   ]
@@ -1102,7 +1476,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 787,
+    "line": 724,
     "ds_from_name": true
    }
   ]
@@ -1148,6 +1522,36 @@
     "file": "f.h",
     "line": 928,
     "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53c60",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 7024,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 343140,
+  "chosen": "g_dat_53c64",
+  "claims": [
+   {
+    "name": "g_dat_53c64",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 772,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53c64",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 5280,
+    "ds_from_name": true
    }
   ]
  },
@@ -1168,7 +1572,7 @@
     "ctype": "int32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7793,
+    "line": 7806,
     "ds_from_name": true
    }
   ]
@@ -1190,7 +1594,7 @@
     "ctype": "int32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7784,
+    "line": 7797,
     "ds_from_name": true
    }
   ]
@@ -1220,7 +1624,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7786,
+    "line": 7799,
     "ds_from_name": true
    }
   ]
@@ -1242,7 +1646,29 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7786,
+    "line": 7799,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 343160,
+  "chosen": "g_dat_53c78",
+  "claims": [
+   {
+    "name": "g_dat_53c78",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 200,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53c78",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 1100,
     "ds_from_name": true
    }
   ]
@@ -1264,7 +1690,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7780,
+    "line": 7793,
     "ds_from_name": false
    },
    {
@@ -1272,7 +1698,7 @@
     "ctype": "int",
     "ptr": 0,
     "file": "f.c",
-    "line": 9015,
+    "line": 9028,
     "ds_from_name": true
    }
   ]
@@ -1294,8 +1720,30 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7781,
+    "line": 7794,
     "ds_from_name": false
+   }
+  ]
+ },
+ {
+  "ds": 343172,
+  "chosen": "g_dat_53c84",
+  "claims": [
+   {
+    "name": "g_dat_53c84",
+    "ctype": "uintptr_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 134,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53c84",
+    "ctype": "uintptr_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 5147,
+    "ds_from_name": true
    }
   ]
  },
@@ -1316,7 +1764,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7794,
+    "line": 7807,
     "ds_from_name": false
    }
   ]
@@ -1338,7 +1786,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7798,
+    "line": 7811,
     "ds_from_name": true
    }
   ]
@@ -1360,7 +1808,7 @@
     "ctype": "int32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7793,
+    "line": 7806,
     "ds_from_name": true
    }
   ]
@@ -1410,6 +1858,28 @@
   ]
  },
  {
+  "ds": 343508,
+  "chosen": "g_dat_53dd4",
+  "claims": [
+   {
+    "name": "g_dat_53dd4",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 1008,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53dd4",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 15039,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 343512,
   "chosen": "g_dat_53dd8",
   "claims": [
@@ -1426,7 +1896,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 14940,
+    "line": 14833,
     "ds_from_name": true
    }
   ]
@@ -1448,7 +1918,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 15107,
+    "line": 15042,
     "ds_from_name": true
    }
   ]
@@ -1470,7 +1940,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 24870,
+    "line": 24887,
     "ds_from_name": true
    }
   ]
@@ -1492,7 +1962,29 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 24871,
+    "line": 24888,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 343588,
+  "chosen": "g_dat_53e24",
+  "claims": [
+   {
+    "name": "g_dat_53e24",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 1242,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_53e24",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 14589,
     "ds_from_name": true
    }
   ]
@@ -1506,7 +1998,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7787,
+    "line": 7800,
     "ds_from_name": true
    },
    {
@@ -1515,6 +2007,28 @@
     "ptr": 0,
     "file": "f.h",
     "line": 1213,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 381068,
+  "chosen": "g_dat_5d08c",
+  "claims": [
+   {
+    "name": "g_dat_5d08c",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 189,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_5d08c",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 875,
     "ds_from_name": true
    }
   ]
@@ -1536,7 +2050,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 908,
+    "line": 878,
     "ds_from_name": true
    }
   ]
@@ -1550,7 +2064,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7754,
+    "line": 7767,
     "ds_from_name": true
    },
    {
@@ -1566,7 +2080,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7763,
+    "line": 7776,
     "ds_from_name": true
    }
   ]
@@ -1588,7 +2102,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2429,
+    "line": 2365,
     "ds_from_name": true
    }
   ]
@@ -1632,7 +2146,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7753,
+    "line": 7766,
     "ds_from_name": true
    }
   ]
@@ -1654,7 +2168,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7779,
+    "line": 7792,
     "ds_from_name": true
    }
   ]
@@ -1676,7 +2190,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 3951,
+    "line": 3902,
     "ds_from_name": true
    }
   ]
@@ -1698,7 +2212,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 3875,
+    "line": 3888,
     "ds_from_name": true
    }
   ]
@@ -1720,7 +2234,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7768,
+    "line": 7781,
     "ds_from_name": true
    }
   ]
@@ -1742,7 +2256,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7767,
+    "line": 7780,
     "ds_from_name": true
    }
   ]
@@ -1764,7 +2278,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 27224,
+    "line": 26278,
     "ds_from_name": true
    }
   ]
@@ -1786,7 +2300,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7769,
+    "line": 7782,
     "ds_from_name": true
    }
   ]
@@ -1808,7 +2322,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7068,
+    "line": 7056,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 404836,
+  "chosen": "g_dat_62d64",
+  "claims": [
+   {
+    "name": "g_dat_62d64",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 934,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_62d64",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 7053,
     "ds_from_name": true
    }
   ]
@@ -1830,7 +2366,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7051,
+    "line": 7064,
     "ds_from_name": true
    }
   ]
@@ -2034,6 +2570,28 @@
   ]
  },
  {
+  "ds": 406348,
+  "chosen": "g_dat_6334c",
+  "claims": [
+   {
+    "name": "g_dat_6334c",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 121,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_6334c",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 4924,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 406352,
   "chosen": "g_dat_63350",
   "claims": [
@@ -2056,6 +2614,28 @@
   ]
  },
  {
+  "ds": 406356,
+  "chosen": "g_dat_63354",
+  "claims": [
+   {
+    "name": "g_dat_63354",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 1146,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63354",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 8585,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 406360,
   "chosen": "g_dat_63358",
   "claims": [
@@ -2072,7 +2652,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 8576,
+    "line": 8589,
     "ds_from_name": true
    }
   ]
@@ -2094,7 +2674,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 1103,
+    "line": 998,
     "ds_from_name": true
    }
   ]
@@ -2116,7 +2696,7 @@
     "ctype": "int32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8636,
+    "line": 8588,
     "ds_from_name": true
    }
   ]
@@ -2212,7 +2792,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7933,
+    "line": 7946,
     "ds_from_name": true
    },
    {
@@ -2220,7 +2800,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8577,
+    "line": 8590,
     "ds_from_name": true
    }
   ]
@@ -2242,7 +2822,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8578,
+    "line": 8591,
     "ds_from_name": true
    }
   ]
@@ -2264,7 +2844,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8579,
+    "line": 8592,
     "ds_from_name": true
    }
   ]
@@ -2286,7 +2866,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8580,
+    "line": 8593,
     "ds_from_name": true
    }
   ]
@@ -2308,7 +2888,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8581,
+    "line": 8594,
     "ds_from_name": true
    }
   ]
@@ -2330,7 +2910,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8582,
+    "line": 8595,
     "ds_from_name": true
    }
   ]
@@ -2358,6 +2938,28 @@
   ]
  },
  {
+  "ds": 406424,
+  "chosen": "g_dat_63398",
+  "claims": [
+   {
+    "name": "g_dat_63398",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 130,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63398",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 5012,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 406428,
   "chosen": "g_dat_6339c",
   "claims": [
@@ -2374,7 +2976,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26247,
+    "line": 26264,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 406432,
+  "chosen": "g_dat_633a0",
+  "claims": [
+   {
+    "name": "g_dat_633a0",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1048,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_633a0",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 2360,
     "ds_from_name": true
    }
   ]
@@ -2396,7 +3020,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25073,
+    "line": 24891,
     "ds_from_name": true
    }
   ]
@@ -2418,7 +3042,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26677,
+    "line": 26694,
     "ds_from_name": true
    }
   ]
@@ -2440,7 +3064,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26678,
+    "line": 26695,
     "ds_from_name": true
    }
   ]
@@ -2462,7 +3086,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7097,
+    "line": 7110,
     "ds_from_name": true
    }
   ]
@@ -2484,7 +3108,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7090,
+    "line": 7103,
     "ds_from_name": true
    }
   ]
@@ -2506,7 +3130,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7112,
+    "line": 7125,
     "ds_from_name": true
    }
   ]
@@ -2528,7 +3152,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7111,
+    "line": 7124,
     "ds_from_name": true
    }
   ]
@@ -2572,7 +3196,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7795,
+    "line": 7808,
     "ds_from_name": true
    }
   ]
@@ -2594,7 +3218,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7091,
+    "line": 7104,
     "ds_from_name": true
    }
   ]
@@ -2622,6 +3246,28 @@
   ]
  },
  {
+  "ds": 408012,
+  "chosen": "g_dat_639cc",
+  "claims": [
+   {
+    "name": "g_dat_639cc",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.h",
+    "line": 194,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_639cc",
+    "ctype": "uint8_t *",
+    "ptr": 1,
+    "file": "f.c",
+    "line": 1003,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 408016,
   "chosen": "g_dat_639d0",
   "claims": [
@@ -2638,7 +3284,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 1015,
+    "line": 1006,
     "ds_from_name": true
    }
   ]
@@ -2688,6 +3334,28 @@
   ]
  },
  {
+  "ds": 408028,
+  "chosen": "g_dat_639dc",
+  "claims": [
+   {
+    "name": "g_dat_639dc",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1047,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_639dc",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 7763,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 408032,
   "chosen": "g_dat_639e0",
   "claims": [
@@ -2704,7 +3372,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7963,
+    "line": 7764,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 408040,
+  "chosen": "g_dat_639e8",
+  "claims": [
+   {
+    "name": "g_dat_639e8",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 183,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_639e8",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 983,
     "ds_from_name": true
    }
   ]
@@ -2726,7 +3416,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7799,
+    "line": 7812,
     "ds_from_name": true
    }
   ]
@@ -2748,7 +3438,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7800,
+    "line": 7813,
     "ds_from_name": true
    }
   ]
@@ -2770,7 +3460,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7802,
+    "line": 7815,
     "ds_from_name": true
    }
   ]
@@ -2792,7 +3482,7 @@
     "ctype": "uint32_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7798,
+    "line": 7811,
     "ds_from_name": true
    }
   ]
@@ -2814,7 +3504,29 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 8575,
+    "line": 8588,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409108,
+  "chosen": "g_dat_63e14",
+  "claims": [
+   {
+    "name": "g_dat_63e14",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 448,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63e14",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 640,
     "ds_from_name": true
    }
   ]
@@ -2836,7 +3548,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 1094,
+    "line": 653,
     "ds_from_name": true
    }
   ]
@@ -2902,7 +3614,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2304,
+    "line": 2279,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409128,
+  "chosen": "g_dat_63e28",
+  "claims": [
+   {
+    "name": "g_dat_63e28",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 329,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63e28",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 2256,
     "ds_from_name": true
    }
   ]
@@ -3194,6 +3928,28 @@
   ]
  },
  {
+  "ds": 409184,
+  "chosen": "g_dat_63e60",
+  "claims": [
+   {
+    "name": "g_dat_63e60",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 352,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63e60",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 15140,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
   "ds": 409188,
   "chosen": "g_dat_63e64",
   "claims": [
@@ -3232,7 +3988,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 15222,
+    "line": 15143,
     "ds_from_name": true
    }
   ]
@@ -3254,7 +4010,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7111,
+    "line": 7124,
     "ds_from_name": true
    }
   ]
@@ -3276,7 +4032,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7119,
+    "line": 7124,
     "ds_from_name": true
    }
   ]
@@ -3364,7 +4120,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8226,
+    "line": 8239,
     "ds_from_name": true
    }
   ]
@@ -3386,7 +4142,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8223,
+    "line": 8236,
     "ds_from_name": true
    }
   ]
@@ -3408,7 +4164,29 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8224,
+    "line": 8237,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409266,
+  "chosen": "g_dat_63eb2",
+  "claims": [
+   {
+    "name": "g_dat_63eb2",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1006,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63eb2",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 14954,
     "ds_from_name": true
    }
   ]
@@ -3430,7 +4208,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26248,
+    "line": 26265,
     "ds_from_name": true
    }
   ]
@@ -3452,7 +4230,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 14986,
+    "line": 14957,
     "ds_from_name": true
    }
   ]
@@ -3474,7 +4252,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8225,
+    "line": 8238,
     "ds_from_name": true
    }
   ]
@@ -3496,7 +4274,29 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8222,
+    "line": 8235,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409283,
+  "chosen": "g_dat_63ec3",
+  "claims": [
+   {
+    "name": "g_dat_63ec3",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1244,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63ec3",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 24880,
     "ds_from_name": true
    }
   ]
@@ -3518,7 +4318,29 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 15025,
+    "line": 15042,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409299,
+  "chosen": "g_dat_63ed3",
+  "claims": [
+   {
+    "name": "g_dat_63ed3",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1158,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63ed3",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 8631,
     "ds_from_name": true
    }
   ]
@@ -3540,7 +4362,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8639,
+    "line": 8634,
     "ds_from_name": true
    }
   ]
@@ -3562,7 +4384,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 15026,
+    "line": 15043,
     "ds_from_name": true
    }
   ]
@@ -3584,7 +4406,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7766,
+    "line": 7779,
     "ds_from_name": true
    }
   ]
@@ -3606,7 +4428,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8409,
+    "line": 8422,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409364,
+  "chosen": "g_dat_63f14",
+  "claims": [
+   {
+    "name": "g_dat_63f14",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1169,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63f14",
+    "ctype": "uint8_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 7775,
     "ds_from_name": true
    }
   ]
@@ -3628,7 +4472,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8572,
+    "line": 8468,
     "ds_from_name": true
    }
   ]
@@ -3650,7 +4494,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7767,
+    "line": 7778,
     "ds_from_name": true
    }
   ]
@@ -3672,7 +4516,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 1899,
+    "line": 1652,
     "ds_from_name": true
    }
   ]
@@ -3694,7 +4538,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7765,
+    "line": 7778,
     "ds_from_name": true
    }
   ]
@@ -3738,7 +4582,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7991,
+    "line": 8004,
     "ds_from_name": true
    }
   ]
@@ -3760,7 +4604,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7992,
+    "line": 8005,
     "ds_from_name": true
    }
   ]
@@ -3782,7 +4626,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8100,
+    "line": 8080,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409440,
+  "chosen": "g_dat_63f60",
+  "claims": [
+   {
+    "name": "g_dat_63f60",
+    "ctype": "uint16_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1128,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63f60",
+    "ctype": "uint16_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 8039,
     "ds_from_name": true
    }
   ]
@@ -3804,7 +4670,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8049,
+    "line": 8062,
     "ds_from_name": true
    }
   ]
@@ -3826,7 +4692,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8048,
+    "line": 8061,
     "ds_from_name": true
    }
   ]
@@ -3848,7 +4714,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8051,
+    "line": 8064,
     "ds_from_name": true
    }
   ]
@@ -3870,7 +4736,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8050,
+    "line": 8063,
     "ds_from_name": true
    }
   ]
@@ -3892,7 +4758,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8053,
+    "line": 8066,
     "ds_from_name": true
    }
   ]
@@ -3914,7 +4780,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8052,
+    "line": 8065,
     "ds_from_name": true
    }
   ]
@@ -3936,7 +4802,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8055,
+    "line": 8068,
     "ds_from_name": true
    }
   ]
@@ -3958,7 +4824,29 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8054,
+    "line": 8067,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409476,
+  "chosen": "g_dat_63f84",
+  "claims": [
+   {
+    "name": "g_dat_63f84",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 324,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63f84",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 2219,
     "ds_from_name": true
    }
   ]
@@ -3981,6 +4869,44 @@
     "ptr": 0,
     "file": "f.h",
     "line": 1121,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63f88",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 7984,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63f88",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 12959,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409484,
+  "chosen": "g_dat_63f8c",
+  "claims": [
+   {
+    "name": "g_dat_63f8c",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 1104,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63f8c",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 7935,
     "ds_from_name": true
    }
   ]
@@ -4010,7 +4936,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8027,
+    "line": 8021,
     "ds_from_name": true
    }
   ]
@@ -4032,7 +4958,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7982,
+    "line": 7944,
     "ds_from_name": true
    }
   ]
@@ -4054,7 +4980,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7928,
+    "line": 7941,
     "ds_from_name": true
    }
   ]
@@ -4076,7 +5002,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7929,
+    "line": 7942,
     "ds_from_name": true
    }
   ]
@@ -4098,7 +5024,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7930,
+    "line": 7943,
     "ds_from_name": true
    }
   ]
@@ -4120,7 +5046,29 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 7932,
+    "line": 7945,
+    "ds_from_name": true
+   }
+  ]
+ },
+ {
+  "ds": 409520,
+  "chosen": "g_dat_63fb0",
+  "claims": [
+   {
+    "name": "g_dat_63fb0",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.h",
+    "line": 156,
+    "ds_from_name": true
+   },
+   {
+    "name": "g_dat_63fb0",
+    "ctype": "uint32_t",
+    "ptr": 0,
+    "file": "f.c",
+    "line": 721,
     "ds_from_name": true
    }
   ]
@@ -4142,7 +5090,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 7931,
+    "line": 7944,
     "ds_from_name": true
    }
   ]
@@ -4164,7 +5112,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 8238,
+    "line": 8251,
     "ds_from_name": true
    }
   ]
@@ -4186,7 +5134,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 2943,
+    "line": 2956,
     "ds_from_name": false
    }
   ]
@@ -4216,7 +5164,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 5419,
+    "line": 5432,
     "ds_from_name": false
    }
   ]
@@ -4246,7 +5194,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 5440,
+    "line": 5432,
     "ds_from_name": false
    }
   ]
@@ -4268,7 +5216,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 5021,
+    "line": 4887,
     "ds_from_name": true
    }
   ]
@@ -4290,7 +5238,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26927,
+    "line": 26944,
     "ds_from_name": true
    }
   ]

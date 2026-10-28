@@ -62,10 +62,35 @@ def _statements(text):
             line += text.count("\n", i, end)
             i = end
             continue
+        if c == '"' or c == "'":                                       # skip a literal: a brace inside a
+            q = c                                                       # string ('{' in a log format) used
+            i += 1                                                      # to unbalance depth and swallow
+            while i < len(text) and text[i] != q:                       # 90k+ characters into one
+                if text[i] == "\\":                                   # "statement", which is how whole
+                    i += 1                                              # ranges of declarations went unseen
+                elif text[i] == "\n":
+                    line += 1
+                i += 1
+            i += 1
+            continue
         if c == "{":
             depth += 1
         elif c == "}":
             depth -= 1
+            if depth == 0:
+                # A function definition ends with `}`, not `;`; without closing the segment here the next
+                # declaration is glued onto the whole body (90k+ characters) and DECL matches nothing --
+                # that is how entire ranges of DS globals went unseen. But an *initializer* array also
+                # closes at depth 0 (`uint32_t t[0x100] = { ... }`), so only treat the brace as a segment
+                # end when what precedes it looks like a signature (a `)` before the opening `{`).
+                seg = text[seg_start:i + 1]
+                ob = seg.find("{")
+                # the text before the first `{`, with comments removed, ends in `)` only for a definition
+                # signature -- an array declaration ends in `=` (and its doc comment may contain `()`).
+                pre = re.sub(r"/\*.*?\*/", " ", seg[:ob], flags=re.S).rstrip() if ob > 0 else ""
+                if ob > 0 and pre.endswith(")"):
+                    yield seg_line, seg_start, seg
+                    seg_start, seg_line = i + 1, line + 1
         elif c == ";" and depth == 0:
             yield seg_line, seg_start, text[seg_start:i + 1]
             seg_start, seg_line = i + 1, line + text.count("\n", seg_start, i + 1)

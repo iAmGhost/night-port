@@ -16,6 +16,22 @@
   ]
  },
  {
+  "ds": 229528,
+  "guest_symbol": null,
+  "guest_type": null,
+  "guest_size": null,
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
+  "image_u32": null,
+  "port_names": [
+   "s_38098"
+  ],
+  "port_types": [
+   "int"
+  ]
+ },
+ {
   "ds": 262160,
   "guest_symbol": null,
   "guest_type": null,
@@ -93,6 +109,22 @@
   ],
   "port_types": [
    "uint32_t"
+  ]
+ },
+ {
+  "ds": 295698,
+  "guest_symbol": null,
+  "guest_type": null,
+  "guest_size": null,
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
+  "image_u32": null,
+  "port_names": [
+   "g_coeff_48312"
+  ],
+  "port_types": [
+   "uint8_t"
   ]
  },
  {
@@ -7888,8 +7920,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 175318282,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_dat_5147c"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 332929,
@@ -9094,8 +9130,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 196634,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_serial_tpl_51a58"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 334428,
@@ -9366,8 +9406,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 786456,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_rm_call_tpl_51b38"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 334652,
@@ -9438,8 +9482,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_tab_51b60"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 334884,
@@ -17134,8 +17182,12 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "kXlat_5302c"
+  ],
+  "port_types": [
+   "uint8_t"
+  ]
  },
  {
   "ds": 340140,
@@ -23730,8 +23782,12 @@
    "calibrate_clock@0x45644 MOV ['dword ptr [0x00064000]', 'ESI']"
   ],
   "image_u32": 0,
-  "port_names": [],
-  "port_types": []
+  "port_names": [
+   "g_clock_ticks"
+  ],
+  "port_types": [
+   "uint32_t"
+  ]
  },
  {
   "ds": 409604,

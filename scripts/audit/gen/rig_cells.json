@@ -6,6 +6,15 @@
   "guest_size": 0,
   "host_size": 200,
   "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 332924,
+  "name": "g_dat_5147c",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 1,
+  "ptr": 0,
   "dupes": 0
  },
  {
@@ -33,7 +42,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 334352,
@@ -43,6 +52,15 @@
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
+ },
+ {
+  "ds": 334424,
+  "name": "g_serial_tpl_51a58",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 26,
+  "ptr": 0,
+  "dupes": 0
  },
  {
   "ds": 334540,
@@ -63,13 +81,31 @@
   "dupes": 0
  },
  {
+  "ds": 334648,
+  "name": "g_rm_call_tpl_51b38",
+  "ctype": "uint8_t",
+  "guest_size": 4,
+  "host_size": 24,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
+  "ds": 334688,
+  "name": "g_tab_51b60",
+  "ctype": "uint32_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
+  "dupes": 0
+ },
+ {
   "ds": 334884,
   "name": "g_blk_51c24",
   "ctype": "uint8_t",
   "guest_size": 0,
   "host_size": 256,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 335000,
@@ -105,7 +141,7 @@
   "guest_size": 0,
   "host_size": 256,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 338460,
@@ -159,7 +195,7 @@
   "guest_size": 0,
   "host_size": 256,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 339756,
@@ -204,6 +240,15 @@
   "guest_size": 0,
   "host_size": 256,
   "ptr": 0,
+  "dupes": 1
+ },
+ {
+  "ds": 340012,
+  "name": "kXlat_5302c",
+  "ctype": "uint8_t",
+  "guest_size": 0,
+  "host_size": 256,
+  "ptr": 0,
   "dupes": 0
  },
  {
@@ -213,7 +258,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340148,
@@ -222,7 +267,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340152,
@@ -249,7 +294,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340228,
@@ -402,7 +447,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340820,
@@ -483,7 +528,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340884,
@@ -501,7 +546,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 340896,
@@ -609,7 +654,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 341568,
@@ -618,7 +663,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 341720,
@@ -708,7 +753,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 342040,
@@ -780,7 +825,7 @@
   "guest_size": 0,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343112,
@@ -825,7 +870,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 1
+  "dupes": 2
  },
  {
   "ds": 343140,
@@ -834,7 +879,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343144,
@@ -879,7 +924,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343164,
@@ -906,7 +951,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343176,
@@ -960,7 +1005,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343512,
@@ -1005,7 +1050,7 @@
   "guest_size": 4,
   "host_size": 80,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 343708,
@@ -1023,7 +1068,7 @@
   "guest_size": 4,
   "host_size": 20,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 381088,
@@ -1257,7 +1302,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 404840,
@@ -1365,7 +1410,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 406352,
@@ -1383,7 +1428,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 406360,
@@ -1509,7 +1554,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 406428,
@@ -1527,7 +1572,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 406436,
@@ -1635,7 +1680,7 @@
   "guest_size": 4,
   "host_size": 8,
   "ptr": 1,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 408016,
@@ -1671,7 +1716,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 408032,
@@ -1698,7 +1743,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 408044,
@@ -1770,7 +1815,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409112,
@@ -1815,7 +1860,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409132,
@@ -1941,7 +1986,7 @@
   "guest_size": 0,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409188,
@@ -2049,7 +2094,7 @@
   "guest_size": 1,
   "host_size": 1,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409268,
@@ -2094,7 +2139,7 @@
   "guest_size": 1,
   "host_size": 1,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409296,
@@ -2112,7 +2157,7 @@
   "guest_size": 1,
   "host_size": 1,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409301,
@@ -2157,7 +2202,7 @@
   "guest_size": 0,
   "host_size": 16,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409374,
@@ -2238,7 +2283,7 @@
   "guest_size": 2,
   "host_size": 2,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409444,
@@ -2319,7 +2364,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409480,
@@ -2328,7 +2373,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 1
+  "dupes": 3
  },
  {
   "ds": 409484,
@@ -2337,7 +2382,7 @@
   "guest_size": 0,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409488,
@@ -2400,7 +2445,7 @@
   "guest_size": 4,
   "host_size": 4,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 409524,
@@ -2446,6 +2491,15 @@
   "host_size": 4,
   "ptr": 0,
   "dupes": 2
+ },
+ {
+  "ds": 409600,
+  "name": "g_clock_ticks",
+  "ctype": "uint32_t",
+  "guest_size": 4,
+  "host_size": 4,
+  "ptr": 0,
+  "dupes": 0
  },
  {
   "ds": 409604,

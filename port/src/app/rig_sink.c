@@ -18,7 +18,9 @@
 #include <sys/types.h>
 
 #include "f/rig_cells.h"
-#include "f/f.h"                      /* g_heap_base / g_heap_arena_size (docs/107 heap-relative dump) */
+#include "f/f.h"
+
+#define RIG_ENTS 12   /* entity-list slots dumped per sample */                      /* g_heap_base / g_heap_arena_size (docs/107 heap-relative dump) */
 
 #define RIG_MAX 512
 
@@ -47,6 +49,7 @@ void rig_rebase(long long slip_ms) { g_t_shift_ms -= slip_ms; }
 static unsigned g_tick;
 static uint32_t g_rec_bytes;
 static uint32_t g_off[RIG_MAX];
+static uint32_t g_ent_base;      /* offset of the first entity-list slot in the blob */
 static int g_n;
 #define RIG_REC 0x160          /* bytes of the object a pointer cell refers to, also dumped: the
                                 entity record the state oracle reads (EXP +0x2b, score +0x52,
@@ -112,6 +115,14 @@ void rig_init(const char *dir, int hz) {
     }
     g_rec_bytes = rec_off;
 
+    /* Entity-list walk (docs/108): the DS cell table only reaches the list HEAD (0x53c70) and TAIL
+     * (0x53c74), so every mid-list entity -- the one that dies, the one that gets hurt, the one whose
+     * EXP is awarded -- was invisible to the state oracle. The +0x13f "next" links are followed here
+     * and up to RIG_ENTS blocks are dumped per sample, in list order, so both sides can be compared
+     * slot by slot. */
+    g_ent_base = g_rec_bytes;
+    g_rec_bytes += RIG_ENTS * RIG_REC;
+
     uint32_t hdr[4] = {0x4352474eu /* NGRC */, 1u, g_rec_bytes, (uint32_t)g_n};
     fwrite(hdr, sizeof hdr, 1, g_bin);
 
@@ -123,6 +134,10 @@ void rig_init(const char *dir, int hz) {
                 i ? "," : "", c->ds, c->name, c->guest_size, c->host_size, c->ptr, g_off[i],
                 g_recoff[i], RIG_REC);
     }
+    for (int k = 0; k < RIG_ENTS; k++)
+        fprintf(g_meta, ",{\"ds\":%u,\"name\":\"ent%02d\",\"guest_size\":0,\"host_size\":%d,"
+                       "\"ptr\":2,\"offset\":%u,\"rec_offset\":%u,\"rec_bytes\":%d}",
+                0x53c70u, k, RIG_REC, g_ent_base + k * RIG_REC, g_ent_base + k * RIG_REC, RIG_REC);
     fprintf(g_meta, "]}\n");
     fflush(g_meta);
 }
@@ -169,6 +184,14 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
             }
             if (g_recoff[i] != 0xffffffffu && obj)
                 memcpy(p + g_recoff[i], obj, RIG_REC);   /* stays zero = "null pointer" */
+        }
+    }
+    /* walk the entity list from the head the same way fn_012616's sweep does */
+    {
+        uint8_t *e = g_dat_53c70;
+        for (int k = 0; k < RIG_ENTS && e; k++) {
+            memcpy(p + g_ent_base + k * RIG_REC, e, RIG_REC);
+            e = *(uint8_t **)(e + 0x13f);
         }
     }
     fwrite(p, g_rec_bytes, 1, g_bin);

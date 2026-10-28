@@ -178,6 +178,8 @@ def main():
     ap.add_argument("--seconds", type=float, default=90.0)
     ap.add_argument("--audio-capture", action="store_true",
                     help="record the mixer inside the container (/capture/audio) for the audio oracle")
+    ap.add_argument("--ents", type=int, default=0,
+                    help="walk the entity list and dump this many entity records per sample")
     ap.add_argument("--chain-cells", default="",
                     help="comma-separated DS cells whose action-record chain (0x80 B) is also dumped")
     ap.add_argument("--no-heap", action="store_true",
@@ -309,6 +311,23 @@ def main():
         rec = int.from_bytes(rec, "little")
         return read_at(a.base, token, rec, CHAIN_BYTES) if rec else bytes(CHAIN_BYTES)
 
+    def ent_walk(ds):
+        """Follow the entity list the way fn_0320f5's sweep does (head DAT_00053c70, "next" at +0x13f)
+        and dump PTR_BYTES per entity, in list order (docs/108). The DS cell table only reaches the head
+        and tail, so mid-list entities -- the ones that get hurt, die and award EXP -- were invisible."""
+        out = b""
+        e = int.from_bytes(ds[0x53c70 - DS_LO:0x53c70 - DS_LO + 4], "little")
+        for _ in range(a.ents):
+            if not e:
+                out += bytes(PTR_BYTES)
+                continue
+            blk = read_at(a.base, token, e, PTR_BYTES)
+            out += blk if len(blk) == PTR_BYTES else bytes(PTR_BYTES)
+            if len(blk) < 0x143:
+                break
+            e = int.from_bytes(blk[0x13f:0x143], "little")
+        return out
+
     def read_ptrs(ds):
         if a.no_heap:
             return b""
@@ -319,6 +338,8 @@ def main():
             out += blk
             if c["ds"] in chain_cells:
                 out += chain_block(blk)
+        if a.ents:
+            out += ent_walk(ds)
         return out
 
     states, prev = [], None
@@ -374,6 +395,8 @@ def main():
         if c["ds"] in chain_cells:
             pcs.append({"ds": c["ds"], "name": c["name"] + ".act", "rec_bytes": CHAIN_BYTES,
                         "chain": 1})
+    for k in range(a.ents or 0):
+        pcs.append({"ds": 0x53c70, "name": f"ent{k:02d}", "rec_bytes": PTR_BYTES, "ent": k})
     meta = {"ptr_cells": pcs,
             "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor,
             "ds_waits": ds_waits, "rebases": rebases, "hz": a.hz,

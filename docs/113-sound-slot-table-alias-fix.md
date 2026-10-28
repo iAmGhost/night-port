@@ -120,3 +120,23 @@ right signature to attack next: `cd_schedule.py` (event-anchored LBA/track marks
 *selection* logic is equivalent on the probes it covered, so the divergence has to be in when tracks get
 replaced/stopped during play -- which is exactly where the docs/106 teardown fix landed and where the user's
 re-report says it is still wrong.
+
+## The schedule and the envelope disagree -- what that leaves for the music item
+
+`cd_schedule.py` on the same capture (`--orig /tmp/rig/rt-sfx/orig --port /tmp/rig/rt-sfx/port`):
+
+```
+original: -15071 ms lba=0x2d320 t9 | +0 ms lba=0x367aa t11 | +9948 ms lba=0x9ddf t2
+port    : -56656 ms lba=0x918e t1 | -12569 ms lba=0x2d320 t9 | +0 ms t11 | +10944 ms t2
+selection-by-selection: same lba each time; deltas +2502 ms, +0 ms, +996 ms; 4 plays / 5 stops /
+                        0 changes without a stop (the docs/106 teardown invariant holds)
+```
+
+So the *schedule* oracle still says equivalent (only the boot-track selection is off by 2.5 s), while the
+*content* oracle says the envelopes never correlate (best +0.246 over +/-90 s) and the port's CD rms is
+~5.9x the shipped mix rms (4700 vs 800). Those two statements can only both be true if the comparison is not
+measuring the same thing: an RMS/onset envelope is a weak discriminator for continuous music, and the shipped
+mixer capture is music+SFX at the game's own volume, while `cdda.raw` is the CD stream alone at line level.
+Recorded as the open question for the music cluster: the next oracle step must compare *within a track*
+(spectral/onset fingerprints of the same LBA range, or a byte-identity check of the sectors the shipped game
+reads vs the port's `cdda.raw` for the same track) instead of whole-route envelopes.

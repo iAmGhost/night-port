@@ -120,3 +120,33 @@ transitions, chosen from the call graph around the 180 gap functions.
 This sweep predates the counterfactual crash attribution (it ran while that patch was being written), so its
 10 SIGSEGVs are labelled only by "the drive contains injections"; the re-verification in §5 (stripping the
 injections clears every crash) was established on the first sweep's canonical case.
+
+## 9. Third sweep with a different root drive: the plateau is not about the base (a clean negative)
+
+`--base scripts/rig/drives/title_basic.txt` (title/menu-rooted instead of the ep1 combat bring-up), nine
+stages, 9 seeds x 2 rounds (`/tmp/rig/fz11`): round 0 reached 237/503.
+
+Bitwise union of the coverage vectors:
+
+```
+combat-rooted grammar (fz9 + fz10):  267 / 503
+title-rooted grammar  (fz11):        237 / 503
+union of both grammars:              267 / 503     <- identical to combat alone
+functions only the title grammar reaches: 0
+functions only the combat grammar reaches: 30
+```
+
+So changing the root drive buys **nothing**: the title grammar is a strict subset. The plateau is therefore
+not caused by the base timeline -- it is that **random keys at random times never satisfy the game's
+ordering preconditions**. The unreached 236 functions are gated behind sequences (press Enter on the title,
+pick an episode from the slide show, wait for a card to finish, walk a room transition, survive/continue
+after death), and a uniform-random key stream almost never produces the required ordered sequence before
+the window closes.
+
+Consequence for the fuzzing design: the next grammatical unit is a **precondition-aware macro** -- a small
+ordered sequence with a wait-for-DS-condition release (the drive language already has `wait ds`, and the
+state oracle's cell table names the DS cells that gate each transition), mutated as a unit rather than as
+independent keystrokes. Concretely: derive the macro set from the call graph around the 180 gap functions
+(which port function calls the gap function, and which DS cell gates that caller), then fuzz macro sequences.
+Until then, report the coverage ceiling as ~267/503 with the 236-function gap list as the target, not as a
+bug-free claim.

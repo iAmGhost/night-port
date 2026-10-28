@@ -24,6 +24,7 @@ import time
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BIN = os.path.join(REPO, "port", "test", "night-census")
 BASE = os.path.join(REPO, "scripts", "rig", "drives", "ep1_kill3.txt")
+ALT_BASES = {}   # --base name -> drive file (docs/120 §8: the grammar, not the seed count, is the limit)
 OUT_DIR = "/tmp"
 
 # Gameplay alphabet, kept to keys the game actually consumes (validated against gen/kbd_names.txt).
@@ -36,9 +37,9 @@ def rng_keep(name):
     return (abs(hash(name)) % 4) == 0
 
 
-def read_base(until_ms):
+def read_base(until_ms, base=None):
     lines, steps = [], []
-    for raw in open(BASE):
+    for raw in open(base or BASE):
         s = raw.rstrip("\n")
         if not s.strip() or s.lstrip().startswith("#"):
             continue
@@ -112,6 +113,7 @@ def main():
     ap.add_argument("--window", default="62000,140000")
     ap.add_argument("--events", type=int, default=60)
     ap.add_argument("--inject", action="store_true")
+    ap.add_argument("--base", default="", help="seed-drive file (default: scripts/rig/drives/ep1_kill3.txt)")
     ap.add_argument("--rounds", type=int, default=1)
     ap.add_argument("--out", default="/tmp/rig/fuzz")
     a = ap.parse_args()
@@ -139,8 +141,11 @@ def main():
             w_lo = lo + rng.randrange(0, max(1, (hi - lo) // 3))
             w_hi = min(hi, w_lo + rng.randrange(20000, max(21000, (hi - lo) * 2 // 3)))
             lo, hi_ = lo, hi
-            src = corpus[rng.randrange(len(corpus))][1] if corpus and rnd else read_base(a.base_until)
+            src = corpus[rng.randrange(len(corpus))][1] if corpus and rnd else read_base(a.base_until, a.base)
             drive = src + mutate(rng, [], w_lo, w_hi, rng.randrange(a.events // 2, a.events * 2), a.inject)
+            if a.base:
+                drive = read_base(a.base_until, a.base) + mutate(rng, [], w_lo, w_hi,
+                                                                 rng.randrange(a.events // 2, a.events * 2), a.inject)
             jobs.append((stage, drive, f"r{rnd}s{i}_st{stage}"))
 
         # run in parallel batches of --workers
@@ -211,6 +216,7 @@ def main():
                 # the same function set usually means the mutation window, not the drive, is exhausted.
                 if new or rng_keep(name):
                     corpus.append((stage, open(os.path.join(sd, "drive.txt")).read().split("\n")))
+                src = None
                 print(f"  {name}: rc={rc} new_funcs={new} total={sum(covered)}", flush=True)
         curve.append(sum(covered))
         print(f"round {rnd}: coverage={sum(covered)}/{n} corpus={len(corpus)} crashes={len(crashes)}", flush=True)

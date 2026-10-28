@@ -81,3 +81,15 @@ animation that would have produced the combo position, so the state at hit time 
 sets, not the injected one. A valid probe has to advance the *chain container* (`+0x123` list, the
 slot-consumption quantity docs/110 measured as divergent) or land the second hit of a genuine combo, and that
 needs the chain layout decoded first -- which is the same prerequisite as the census that crashed in §3.
+
+## 6. Second negative test: DS 0x62d58 is not the combo lever
+
+`scripts/rig/drives/ep1_combo3.txt` pokes DS `0x62d58` (the action-chain state id seen in docs/107) through
+16 values and lands one attack per value: all 16 injections executed, 7 hits landed, **atype stayed {1, 2}**.
+So the chain position that selects a knockdown-type record is not that DS global. The record resolution reads
+the chain through the *entity's own* container -- `*(e + 0x123)`, then `*(hb + that + 0x04)`, then
+`+ 4 * *(e + 0x17)` (`f.c:24266`) -- so the quantity that must be advanced lives in heap records, and the
+probe needs that container's layout (how the slot cursor and the state index move) decoded from the
+disassembly before injection can force a combo finisher. Recorded as a negative test, not as evidence that
+the user's combo reading is wrong: the reading predicts the *striker's* record, and that is exactly the
+subsystem this probe failed to reach.

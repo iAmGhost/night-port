@@ -57,3 +57,19 @@ shipped reference (sampled at 6.5 Hz, so a floor): DAT_00063364 fires 4 times, i
 The rig has not yet A/B'd the *audio* of a combat window (container mixer capture vs the port's PCM sink, per
 docs/103) -- that is the remaining presence proof for "missing punch SFX"; the state-side evidence (a sound
 object actually reaches `fn_04185e` 74 times) is in place.
+
+## Port-side audio output before/after (the rig's own PCM byte counter, same drive and seed)
+
+The rig dump records the PCM sink's cumulative byte count per sample, so the SFX fix is visible without any
+human listening -- compare two runs of `ep1_kill3` at 6 Hz (`/tmp/rig/rx1` is the pre-fix build,
+`/tmp/rig/rx2` the fixed one):
+
+```
+rx1 (before): 477,970 audio bytes,  54/1308 samples emitting audio   per-60s: {0: 460804, 180: 17166}
+rx2 (after): 1,135,130 audio bytes, 137/1302 samples emitting audio  per-60s: {0: 460804, 60: 36070, 120: 21642, 180: 319972, 240: 296642}
+```
+
+2.4x more audio in total, and -- the part that matters -- the extra output lands in the 120-300 s stretch,
+which is exactly where this drive fights (the kill counter moves at 231 s, `NIGHT_HITTRACE` hits cluster
+there). Before the fix the combat stretch was silent apart from the music track. The shipped-side mixer A/B
+over the same window (`--audio-capture` + `diff_audio.py`) is the remaining presence proof for this item.

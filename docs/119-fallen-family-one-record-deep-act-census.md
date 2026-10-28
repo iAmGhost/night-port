@@ -96,3 +96,42 @@ equivalence argument (identical loaded-container census, verbatim reaction table
 adjacency) plus identical zero-sample behaviour on both sides. The follow-up that would extend it is a
 per-episode act census (`heapdump` at a settled point of each of the nine episodes) — the same primitive now
 works for any episode, and it also feeds the fuzzing coverage signal.
+
+## 2b. The pick-up / ground path at guest 0x00014de1+ (read directly, this turn)
+
+`fn_01441e` ends with a block the act census cannot see, because it does not depend on a record's atype at
+all (`f.c:24561-24577`, annotated 0x00014de1-0x00014e77):
+
+    if (e[+0x17] == 0x65 || e[+0x17] == 0x99) {          /* the ATTACKER is in a grab / lower-attack state */
+        if (flag == 0) {                                 /* victim not "flagged" */
+            e[+0x17]  = 0x66;                            /* attacker enters the ground family */
+            e[+0x50]  = u16[rec_e + 2*slot + 0x4a];
+            e[+0x11]  = 0;
+            fn_01545e(cur, -1);
+            cur[+0x17] = 0x1f;                           /* victim is lifted / held */
+            cur[+0x4a] = e - heap;   e[+0x4a] = cur - heap;  /* mutual link: the pair is now joined */
+
+Together with the table (0x15 -> 0x66, **0x16 -> 0x65**, 0x17 -> 0x64 ... 0x1f -> 0x5b) this is the real
+chain, and it matches the user's description: a hit whose record declares atype 0x16 puts the **victim into
+0x65**, and the next contact while it sits in 0x65 (or 0x99) routes through the pick-up block, moving the
+attacker to 0x66 and the victim to 0x1f. The "its hitbox changes, it is vulnerable to lower attacks"
+observation is a consequence of that state change, not a separate mechanism. The "several hits in a short
+period" part is visible one block earlier in the same function: damage only reaches `+0x29` (hit points)
+while the debt word `+0x23` is zero, otherwise it piles into `+0x23` / `+0x56`, and
+`+0x23 == 0 && atype in 0x0b..0x14` is what sets the lethal flag `+0x30 = 1` -- repeated hits inside one
+reaction window are what let a strong-class record finish the sequence.
+
+## 6. Injection cannot force the chain; the item rests on static equivalence
+
+`scripts/rig/drives/ep1_grab.txt` holds the player in the attacker states 0x65 / 0x99 / 0x66 / 0x5b / 0x64
+(six attempts each, `play 0x17 <state>` immediately before each attack): all hits still land with atype
+{1, 2}. `ep1_fallen.txt` does the same on an entity slot (120 injections, marker-confirmed). In both, the
+entity's own controller rewrites `+0x17` every frame, so a forced state never survives to the hit test. That
+is a stated limit of the injection primitive: it can hold a field between frames, it cannot hold a state that
+the entity's controller overwrites each frame.
+
+What can be asserted is static equivalence: the pick-up block is transcribed with the guest's own address
+annotations (0x00014de1-0x00014e77), the reaction table is verbatim, and the atype offset is proven from field
+adjacency rather than guessed. A follow-up that would close it dynamically is a controller-level drive --
+earning state 0x65 through the game's own move chain (which needs the chain/slot advance decoded in docs/110)
+-- and the per-episode act census this turn's `heapdump` primitive now makes cheap.

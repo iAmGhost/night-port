@@ -210,3 +210,16 @@ neighbouring LBA windows (0x40415-150, -1, +1, +150) and the *next* announced tr
 matches, the port read the right audio at a wrong base offset for that one selection; if none matches, the
 play never armed a read at all for it (the docs/106 teardown path leaving `g_cdda_sectors` zero), which is a
 different fix.
+
+## LBA-window probe: the play never armed a read for that selection
+
+Probing track 2's selection across LBA offsets (-150, -1, 0, +1, +150, +300) and sectors (0,1,2,3,10,50) of
+`TG_NIGHT.IMG`, searching all 47 MB of `port/cdda.raw`: **0 hits** (rx2 run). So it is not a wrong-base-offset
+read -- the port never read *any* sector of the announced track 2 range. Combined with `main.c:301-311`
+(the read loop drains `g_cdda_sectors` starting at `g_cdda_lba + g_cdda_pos`), the shape is "the selection was
+announced but the read loop was left disarmed" -- i.e. the docs/106 teardown (`cdda_play` replacement) path,
+which is exactly where the music item was last touched and where the user still hears it wrong.
+
+Side probe: the stream's final 2352-byte block does not appear among the first 40,000 LBAs from the track-1
+start, consistent with the tail belonging to a later track region rather than to silence; that check is
+weak (bounded scan) and recorded as such.

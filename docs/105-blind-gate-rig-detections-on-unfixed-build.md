@@ -285,3 +285,36 @@ Gate score after this pass: items 1 (music, three sub-behaviours), 2, 9 (SFX), 3
 and the state cluster of 2/11 are detected with a named window and DS region; item 6 (fallen) is an
 uncovered region (drive must produce kills) and item 8 (teleport) has a measured entity-count
 divergence but no validated position signature yet.
+
+## 8. Fourth gate pass: a drive that forces kills (ep1_kill3) closes the state-cluster items
+
+`scripts/rig/drives/ep1_kill3.txt` = the ep1_combat prefix verbatim (the anchors and the slide-stepping
+keys that k1/k2 were missing) plus 124 s of approach-and-attack. Route `/tmp/rig/route-k3`: 910 shipped
+samples, and now the shipped side really is fighting -- the entity census over t=[150,310] s:
+
+```
+state field +0x17 over cells g_dat_53c70 (head), g_dat_53c74 (tail), g_player_ent
+class            orig     port
+neutral          1045     3353
+hurt/stagger      124       33
+fallen 0x5b-0x66    0        0
+orig ids: 0x1x623 0x2x422 0x33x72 0xcx66 0xbx54 0x34x53 0x35x49 0x29x7 0x15x4 0x36x3
+port ids: 0x1x1964 0x2x1385 0x33x398 0x35x255 0x34x226 0x15x33 0x29x7 0x4x2 0x3x2
+```
+
+This is the signature for items 2 ("hurt/stagger missing", "infinite punching"), 6 ("fallen state barely
+happens") and 11 ("stuck when hit mid-kick"): the shipped game puts victims into `0x0b` (54 samples) and
+`0x0c` (66) -- the first two entries of the reaction table `g_tab_51b60` (DS 0x51b60, "attack type -> the
+sprite state an entity enters when the hit lands", f.c:24125) -- and the port **never enters either**, in
+160 s of combat. The table's own gate (f.c:24424) is `if (atype >= 1 && atype <= 9) cur[+0x17] =
+g_tab_51b60[atype]`, so `0x0b`/`0x0c` correspond to attack types 1 and 2; the port's only hit-ish state is
+`0x15`, which the table produces from attack type `0x0b`, i.e. the strong class -- and in an
+`NIGHT_HITTRACE=1` run over the same drive the port emitted **zero** `HIT` lines: `fn_01441e` never
+resolved a hit at all. Suspect region: `fn_01441e`'s pass 2 (the attack-slot frame-window scan,
+`word(rec[i*4]+8) <= frame < word(rec[i*4]+0xa)`) and the box/`fi` indexing docs/94 hypothesised.
+The `0x5b..0x66` band the same table maps (attack types 0x15..0x1f) is never entered on either side, so
+"fallen" is not a separate missing transition but the same absent reaction path.
+
+Screen pacing on the same route makes the same point from the visual side: picture changes per second
+orig 5.35 vs port 16.94 (ratio 0.32) -- the port is animating through states the shipped game never
+reaches, instead of holding the reaction states.

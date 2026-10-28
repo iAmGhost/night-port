@@ -93,3 +93,26 @@ probe needs that container's layout (how the slot cursor and the state index mov
 disassembly before injection can force a combo finisher. Recorded as a negative test, not as evidence that
 the user's combo reading is wrong: the reading predicts the *striker's* record, and that is exactly the
 subsystem this probe failed to reach.
+
+## 7. Where `+0x123` comes from (static, this turn) -- the lever is the striker's *state*, and it is per entity type
+
+Program-wide, only two sites write `entity+0x123`: `fn_010efc` at 0x000110ae (a second write at `fn_0376c8`:
+0x00037846). `fn_010efc` is the **entity constructor**: it fills the record from the type tables --
+`+0x25` from `DAT_00053ea0[type*0x88]`, `+0x29` (hit points, u16) from `DAT_00053ea4[type*0x44]`, `+0x0d` =
+type -- and then stores the action-container heap offset at `+0x123`. So the container is **fixed per entity
+type**, chosen at spawn; there is no per-hit chain cursor in a DS global to poke (consistent with the two
+negative tests above).
+
+Consequence for the fallen item: the only input to the record selection
+
+```
+rec_e = *(hb + *(hb + *(e+0x123) + 0x04) + 4 * *(e+0x17))
+atype = hb[rec_e + slot + 0x38]
+```
+
+is the striker's **state value** and the **slot** (`+0x11`, modulo `*(hb+rec_e)`). So the decisive measurement
+is the per-(type, state, slot) table of declared reaction types -- which is exactly the census that crashed in
+§3 because the record-array layout was assumed rather than decoded. Decoding that layout (the container
+header: `+0x00` count, `+0x6d` frame array, `+0x38` type bytes, and how `DAT_00053ea0[type*0x88]`/
+`DAT_00053ea4[type*0x44]` point into it) is the next static task, and it is also the strongest candidate for
+the fidelity audit, because it is a guest data convention the port must mirror exactly.

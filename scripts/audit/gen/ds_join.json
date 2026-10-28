@@ -20083,12 +20083,8 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
-  "port_names": [
-   "g_dat_53ea8"
-  ],
-  "port_types": [
-   "uint8_t"
-  ]
+  "port_names": [],
+  "port_types": []
  },
  {
   "ds": 343724,

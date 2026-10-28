@@ -2,7 +2,7 @@
    included at the end of f.c so the file-scope statics are visible; see f/rig_cells.h */
 #include "rig_cells.h"
 
-static const struct rig_cell g_rig_cells[] = /* 279 */ {
+static const struct rig_cell g_rig_cells[] = /* 278 */ {
     {0x50010, 0, 200, 0, &g_blk_50010, "g_blk_50010"},
     {0x51960, 0, 26, 0, &g_nonleap_tbl, "g_nonleap_tbl"},
     {0x5197a, 0, 26, 0, &g_leap_tbl, "g_leap_tbl"},
@@ -117,7 +117,6 @@ static const struct rig_cell g_rig_cells[] = /* 279 */ {
     {0x53de4, 4, 8, 1, &g_dat_53de4, "g_dat_53de4"},
     {0x53e24, 4, 80, 1, &g_dat_53e24, "g_dat_53e24"},
     {0x53e9c, 4, 256, 0, &g_dat_53e9c, "g_dat_53e9c"},
-    {0x53ea8, 0, 256, 0, &g_dat_53ea8, "g_dat_53ea8"},
     {0x5d08c, 4, 20, 0, &g_dat_5d08c, "g_dat_5d08c"},
     {0x5d0a0, 4, 20, 0, &g_dat_5d0a0, "g_dat_5d0a0"},
     {0x5d0b4, 4, 256, 0, &g_tab_5d0b4, "g_tab_5d0b4"},

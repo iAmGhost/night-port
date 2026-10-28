@@ -1099,7 +1099,13 @@ void fn_03b9b7(void) {
 }
 
 uint8_t *g_dat_53c78 = NULL;  /* DAT_00053c78: entity linked-list cursor */
-uint8_t  g_dat_53ea8[0x88 * 4]; /* DAT_00053ea8: 0x88-byte entry table (idx -> first dword copied to node+0x32) */
+/* DAT_00053ea8 is NOT a table of its own: it is DAT_00053e9c + 0xc, the same 0x88-stride
+ * entity-type table seen from a different field (docs/91 aliasing family, confirmed in docs/108).
+ * The port kept a separate array here, and nothing ever wrote it: the death path in fn_01441e read
+ * `g_dat_53ea8 + idx*0x88` and got 0 where the shipped game returns the entry's EXP value (measured
+ * idx=31: shipped row 0x54f14 dwords [0x23, 0x2, 0, 0xa, ...] -> +0x32 = 10, port -> 0), so
+ * fn_015295's award `*(g_player_ent + 0x52) += a0->0x32` added nothing and EXP never accumulated. */
+
 
 /* fn_00035c5c  orig: 0x00035c5c (L10, 178B)
  *   Entity-list init pass. Walks the entity linked list (head=DAT_00053c70,
@@ -7779,6 +7785,9 @@ int32_t  g_dat_53c6c = 0;      /* 0x53c6c */
 uint8_t *g_dat_53c70 = 0;      /* 0x53c70 (entity list head) */
 uint8_t *g_dat_53c74 = 0;      /* 0x53c74 (entity list tail) */
 uint8_t  g_dat_53e9c[0x88 * 0x104]; /* 0x53e9c: entity-type table, 0x104 (260) entries of stride 0x88 -- fn_010efc indexes it by entity type (0..0x103) with no bound check, and fn_037b03 only fills the 0x65 named entries from night%d.chr; (+0 dword/word, +4 byte, +8 word, +0x1c 100 B, +0x80/+0x84 word), filled by fn_037b03 from night%d.chr; overlaps the g_dat_53ea8/53eb8 views of the same DS region */
+
+uint8_t *const g_dat_53ea8 = g_dat_53e9c + 0x0c;  /* 0x53ea8 == 0x53e9c + 0xc (docs/91/docs/108): one
+                                                   * table, two names -- never a separate array */
 int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
@@ -24529,7 +24538,10 @@ score:
                     *(uint32_t *)(cur + 0x32) = 5;
                 } else {
                     *(uint32_t *)(cur + 0x32) =
-                        *(const uint32_t *)(g_dat_53ea8 + (size_t)*(const int32_t *)(cur + 0x0d) * 0x88u + 0x0c);
+                        *(const uint32_t *)(g_dat_53ea8 +            /* 0x00015067 MOV EDX,[EAX+0x53ea8]
+                                                with EAX = idx*0x88: the guest has NO extra +0xc, and
+                                                g_dat_53ea8 already is base+0xc (docs/108) */
+                                             (size_t)*(const int32_t *)(cur + 0x0d) * 0x88u);
                 }
             }
         }

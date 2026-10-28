@@ -198,7 +198,7 @@ extern uint8_t *g_dat_639d4;                  /* DAT_000639d4: drain cursor (fn_
 void fn_00035c5c(void);                         /* 0x00035c5c: entity-list init pass (walk + set fields) */
 extern uint8_t *g_dat_53c70;                    /* DAT_00053c70: entity list head */
 extern uint8_t *g_dat_53c78;                    /* DAT_00053c78: entity list cursor */
-extern uint8_t  g_dat_53ea8[];                  /* DAT_00053ea8: 0x88-byte entry table */
+extern uint8_t *const g_dat_53ea8;            /* DAT_00053ea8 == DAT_00053e9c + 0xc (docs/91/docs/108) */
 void fn_03ef29(uint32_t timer_value);           /* 0x03ef29: install IRQ 0x1c (divisor in EAX) */
 void fn_03feb8(void);                            /* 0x03feb8: install IRQ 9 + timer/DMA state init */
 void     fn_103e0(void);                        /* 0x0103e0: DPMI real-mode I/O wrapper (no-op) */

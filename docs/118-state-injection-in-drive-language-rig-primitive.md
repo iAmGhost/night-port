@@ -140,3 +140,4 @@ Steps, cheapest first:
   d. If the map shows a reachable 22+ for the player, the drive/injection to force it becomes mechanical
      (`play 0x17 <state>` plus the right slot), and the fallen item finally gets red-before / green-after
      against the shipped side.
+- Step (a) fact: `fn_0376c8` has exactly **one caller**, `fn_03af18` (the game main) -- so the mid-life container switch happens once per main-loop pass, not from combat code. That makes the constructor-written container (`fn_010efc`) the one that governs combat, and pushes step (b) (the `0x88`-stride type table layout) to the front of the queue.

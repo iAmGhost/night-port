@@ -63,6 +63,13 @@ def main():
     if not so or not sp:
         sys.exit("no ent## slots in one of the dumps -- re-dump with --ents / the rebuilt port binary")
     def base(cells, i):
+        # Use the dump's own per-cell offset. Summing rec_bytes over cells[:i] is wrong: cells outside the
+        # record area still carry rec_bytes (rec_offset -1), so the running sum drifted past the real
+        # position of every ent## slot (rig defect, docs/114).
+        c = cells[i]
+        off = c.get("offset")
+        if off is not None:
+            return off
         return sum(x.get("rec_bytes", 0) for x in cells[:i])
     ob = {i: base(oc, i) for i in range(len(oc))}
     pb = {i: base(pc, i) for i in range(len(pc))}
@@ -139,6 +146,10 @@ def main():
     print(f"entity samples: orig={live_o} port={live_p}")
     print(f"HURT-band (+0x17 in 0x0b..0x1e) samples: orig={ho} port={hp_}"
           + ("   <- missing hurt/stagger/fallen" if (ho and hp_ * 4 < ho) else ""))
+    # The two sides are sampled at different rates (route.sh: port --rig-hz 10, shipped --hz 4), so raw
+    # per-sample counts are not comparable; the fraction of live samples is (docs/115).
+    print(f"  normalised: orig={ho/live_o if live_o else 0:.3f} hurt samples/live sample, "
+          f"port={hp_/live_p if live_p else 0:.3f}  <- compare THIS, not raw counts")
     print("orig states:", sorted(st_o.items(), key=lambda kv: -kv[1])[:10])
     print("port states:", sorted(st_p.items(), key=lambda kv: -kv[1])[:10])
     print(f"position jumps >{a.jump}px: orig={len(jump_o)} port={len(jump_p)}"

@@ -83,6 +83,23 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"ds": 341564, "kind": "image-nonzero-port-zero", "name": "g_dat_5363c", "image_head": "01000000", "init": "= 0"}
   {"ds": 341568, "kind": "image-nonzero-port-zero", "name": "g_dat_53640", "image_head": "10000000", "init": "= 0"}
 
+## c3b_full_span_initializers: 15 findings
+  {"ds": "0x53c4c", "name": "g_dat_53c4c", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x53818", "name": "g_dat_53818", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x5274c", "name": "g_tab_5274c", "span": 4, "bad": 1, "first": "0x5274f", "port": "0x00", "image": "0x3f", "runs": ["3..3"]}
+  {"ds": "0x51ad4", "name": "g_rom_51ad4", "span": 26, "bad": 1, "first": "0x51ae6", "port": "0x00", "image": "0x07", "runs": ["12..12"]}
+  {"ds": "0x62d68", "name": "g_dat_62d68", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63f14", "name": "g_dat_63f14", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63f28", "name": "g_dat_63f28", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x62cd8", "name": "g_dat_62cd8", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x62c58", "name": "g_dat_62c58", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x639ec", "name": "g_dat_639ec", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63f1e", "name": "g_dat_63f1e", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x48a36", "name": "g_scale_48a36", "span": 18, "bad": 14, "first": "0x48a36", "port": "0x00", "image": "0x42", "runs": ["0..3", "5..7", "9..e", "10..10"]}
+  {"ds": "0x48312", "name": "g_coeff_48312", "span": 90, "bad": 88, "first": "0x48312", "port": "0x4e", "image": "0x49", "runs": ["0..17", "19..52", "54..59"]}
+  {"ds": "0x53e24", "name": "g_dat_53e24", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x52f08", "name": "g_dat_52f08", "span": 4, "bad": 1, "first": "0x52f08", "port": "0x00", "image": "0x02", "runs": ["0..0"]}
+
 ## c4_representation: 3 findings
   {"ds": 408044, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_639ec", "port_type": "uint8_t *", "guest_type": "undefined4", "image_u32": 0, "small_imm_stores": [], "indexed_reads": ["CMP dword ptr [EAX + 0x639ec] 0x0"], "n_reads": 26, "n_writes": 3}
   {"ds": 341808, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_53730", "port_type": "uint32_t *", "guest_type": "pointer", "image_u32": 14048, "small_imm_stores": [], "indexed_reads": [], "n_reads": 4, "n_writes": 0}

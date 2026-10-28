@@ -184,6 +184,52 @@ def c3_image_init(db, pmap):
     return out
 
 
+def c3b_full_span_initializers(db):
+    """Byte-compare every port global that carries BOTH a DS address and a brace initializer against the
+    shipped image at file offset DS-0x7600, over the PORT's own span (docs/121 §2).
+
+    This check exists because the Ghidra symbol often has no recorded size for exactly these tables, so
+    c3_image_init cannot reach them: the port's array width is then the only span being compared, and a
+    table that is shorter or longer than the shipped data hides. A mismatch is a transcription error in
+    the port's table, not a runtime difference.
+    """
+    out = []
+    for g in port_src.globals_():
+        init = g.get("init") or ""
+        if g["ds"] is None or not init.startswith("= {"):
+            continue
+        body = init[3:].strip()
+        if body.endswith("}"):
+            body = body[:-1]
+        toks = [t.strip() for t in body.split(",") if t.strip()]
+        if not toks or not all(re.fullmatch(r"0[xX][0-9a-fA-F]+|\d+", t) for t in toks):
+            continue                      # nested braces / string initializers: not a scalar table
+        width = g["type_size"]
+        vals = [int(t, 0) for t in toks]
+        port = b"".join(v.to_bytes(width, "little", signed=(v < 0)) if -2 ** (8 * width - 1) <= v < 2 ** (8 * width)
+                        else b"?" * width for v in vals)
+        off = g["ds"] - ghidra_db.IMAGE_FILE_VS_DS
+        if off < 0 or off + len(port) > len(db.image):
+            out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port),
+                        "bad": None, "note": "span runs outside the image-initialised DS region"})
+            continue
+        img = db.image[off:off + len(port)]
+        bad = [i for i in range(len(port)) if port[i] != img[i]]
+        if bad:
+            runs, i = [], 0
+            while i < len(bad):
+                j = i
+                while j + 1 < len(bad) and bad[j + 1] == bad[j] + 1:
+                    j += 1
+                runs.append((bad[i], bad[j]))
+                i = j + 1
+            i0 = bad[0]
+            out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port), "bad": len(bad),
+                        "first": hex(g["ds"] + i0), "port": f"{port[i0]:#04x}", "image": f"{img[i0]:#04x}",
+                        "runs": [f"{a:x}..{b:x}" for a, b in runs[:6]]})
+    return out
+
+
 def c4_representation(db, pmap):
     writes, reads = db.ds_write_sites(), db.ds_read_sites()
     guest_type = {int(d["addr"], 16): d["type"] for d in db.ds_data()}
@@ -350,6 +396,7 @@ def main():
         "c1_unmodelled": c1_unmodelled(db, pmap),
         "c2_aliasing": c2_aliasing(db, pmap),
         "c3_image_init": c3_image_init(db, pmap),
+        "c3b_full_span_initializers": c3b_full_span_initializers(db),
         "c4_representation": c4_representation(db, pmap),
         "c5_dead_sides": c5_dead_sides(db),
         "c6_image_data_without_symbol": c6_image_data_without_symbol(db, pmap),
@@ -363,7 +410,7 @@ def main():
     lines.append(f"port globals with a DS address: {sum(len(v) for v in pmap.values())} "
                  f"across {len(pmap)} distinct DS cells; guest DS defined-data items: "
                  f"{len(db.ds_data())}; guest DS cells with accesses: {len(db.ds_dir_counts())}")
-    for k in ("c1_unmodelled", "c2_aliasing", "c3_image_init", "c4_representation",
+    for k in ("c1_unmodelled", "c2_aliasing", "c3_image_init", "c3b_full_span_initializers", "c4_representation",
               "c6_image_data_without_symbol", "c7_ds_table_bases", "c8_base_pair_aliasing"):
         lines.append(f"\n## {k}: {len(res[k])} findings")
         for item in res[k][:25]:

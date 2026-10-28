@@ -57,12 +57,25 @@ timeout 120 python3 "$HERE/diff_activity.py" --orig "$OUT/orig" --port "$OUT/por
 timeout 240 python3 "$HERE/diff_screen.py" --orig "$OUT/orig_screen/frames.bin" \
         --port "$OUT/port/frames.bin" --orig-run "$OUT/orig" --md "$OUT/report_screen.md" \
         > "$OUT/report_screen.txt" 2>&1
+# The port writes TWO audio witnesses: port/pcm.wav (the sound board -- SFX) and port/cdda.raw
+# (the CD-DA stream, 44100 Hz stereo, the exact bytes handed to the device). The shipped mixer
+# capture contains both mixed together, so the oracle has to be run against each stream in turn:
+# against pcm.wav only, every CD-DA fingerprint came back NOT FOUND (docs/113).
 if [ -f "$OUT/orig/audio.wav" ] && [ -f "$OUT/port/pcm.wav" ]; then
   timeout 120 python3 "$HERE/diff_audio.py" --orig "$OUT/orig/audio.wav" --port "$OUT/port/pcm.wav" \
           --port-cells "$OUT/port/cells.bin" --port-log "$OUT/port.log" --drive "$DRIVE" \
-          --md "$OUT/report_audio.md" \
-          > "$OUT/report_audio.txt" 2>&1
-else
+          --md "$OUT/report_audio_sfx.md" \
+          > "$OUT/report_audio_sfx.txt" 2>&1
+  say "audio oracle: board/SFX stream"
+fi
+if [ -f "$OUT/orig/audio.wav" ] && [ -f "$OUT/port/cdda.raw" ]; then
+  timeout 60 python3 "$HERE/wav_wrap.py" "$OUT/port/cdda.raw" "$OUT/port/cdda.wav" > "$OUT/wav_wrap.txt" 2>&1
+  timeout 180 python3 "$HERE/diff_audio.py" --orig "$OUT/orig/audio.wav" --port "$OUT/port/cdda.wav" \
+          --port-log "$OUT/port.log" --drive "$DRIVE" --md "$OUT/report_audio_cd.md" \
+          > "$OUT/report_audio_cd.txt" 2>&1
+  say "audio oracle: CD-DA stream"
+fi
+if [ ! -f "$OUT/report_audio_sfx.txt" ] && [ ! -f "$OUT/report_audio_cd.txt" ]; then
   say "audio oracle skipped (no captured WAV on one side)"
 fi
 

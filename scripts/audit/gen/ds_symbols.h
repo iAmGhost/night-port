@@ -1016,7 +1016,7 @@ static const char *const g_ds_symbol_names[] = {
     "g_dat_53c8c",
     "g_dat_53c90",
     "g_dat_53c94",
-    "g_tab_53d08",
+    "?",
     "g_dat_53d0c",
     "g_dat_53dd4",
     "g_dat_53dd8",

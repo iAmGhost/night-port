@@ -19801,12 +19801,8 @@
   "writes": 0,
   "write_sites": [],
   "image_u32": 0,
-  "port_names": [
-   "g_tab_53d08"
-  ],
-  "port_types": [
-   "uint32_t"
-  ]
+  "port_names": [],
+  "port_types": []
  },
  {
   "ds": 343308,

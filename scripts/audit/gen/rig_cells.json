@@ -945,15 +945,6 @@
   "dupes": 1
  },
  {
-  "ds": 343304,
-  "name": "g_tab_53d08",
-  "ctype": "uint32_t",
-  "guest_size": 0,
-  "host_size": 256,
-  "ptr": 0,
-  "dupes": 1
- },
- {
   "ds": 343308,
   "name": "g_dat_53d0c",
   "ctype": "uint8_t *",

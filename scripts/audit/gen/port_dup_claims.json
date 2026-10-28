@@ -60,7 +60,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25263,
+    "line": 25279,
     "ds_from_name": true
    }
   ]
@@ -170,7 +170,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25531,
+    "line": 25547,
     "ds_from_name": true
    }
   ]
@@ -214,7 +214,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25239,
+    "line": 25255,
     "ds_from_name": true
    }
   ]
@@ -236,7 +236,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 27084,
+    "line": 27100,
     "ds_from_name": true
    }
   ]
@@ -258,7 +258,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26660,
+    "line": 26676,
     "ds_from_name": true
    }
   ]
@@ -368,7 +368,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25253,
+    "line": 25269,
     "ds_from_name": true
    }
   ]
@@ -544,7 +544,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26910,
+    "line": 26926,
     "ds_from_name": true
    }
   ]
@@ -588,7 +588,7 @@
     "ctype": "uintptr_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 27163,
+    "line": 27179,
     "ds_from_name": true
    }
   ]
@@ -676,7 +676,7 @@
     "ctype": "uint16_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26908,
+    "line": 26924,
     "ds_from_name": true
    }
   ]
@@ -1388,28 +1388,6 @@
   ]
  },
  {
-  "ds": 343304,
-  "chosen": "g_tab_53d08",
-  "claims": [
-   {
-    "name": "g_tab_53d08",
-    "ctype": "uint32_t",
-    "ptr": 0,
-    "file": "f.h",
-    "line": 1621,
-    "ds_from_name": true
-   },
-   {
-    "name": "g_tab_53d08",
-    "ctype": "uint32_t",
-    "ptr": 0,
-    "file": "f.c",
-    "line": 29796,
-    "ds_from_name": true
-   }
-  ]
- },
- {
   "ds": 343308,
   "chosen": "g_dat_53d0c",
   "claims": [
@@ -1492,7 +1470,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 24854,
+    "line": 24870,
     "ds_from_name": true
    }
   ]
@@ -1514,7 +1492,7 @@
     "ctype": "uint8_t *",
     "ptr": 1,
     "file": "f.c",
-    "line": 24855,
+    "line": 24871,
     "ds_from_name": true
    }
   ]
@@ -1786,7 +1764,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 27208,
+    "line": 27224,
     "ds_from_name": true
    }
   ]
@@ -2396,7 +2374,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26231,
+    "line": 26247,
     "ds_from_name": true
    }
   ]
@@ -2418,7 +2396,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 25057,
+    "line": 25073,
     "ds_from_name": true
    }
   ]
@@ -2440,7 +2418,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26661,
+    "line": 26677,
     "ds_from_name": true
    }
   ]
@@ -2462,7 +2440,7 @@
     "ctype": "uint32_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26662,
+    "line": 26678,
     "ds_from_name": true
    }
   ]
@@ -3452,7 +3430,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26232,
+    "line": 26248,
     "ds_from_name": true
    }
   ]
@@ -4312,7 +4290,7 @@
     "ctype": "uint8_t",
     "ptr": 0,
     "file": "f.c",
-    "line": 26911,
+    "line": 26927,
     "ds_from_name": true
    }
   ]

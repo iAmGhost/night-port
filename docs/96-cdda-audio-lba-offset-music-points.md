@@ -1,5 +1,10 @@
 # 96 — "Wrong music" = every CD-DA read was 150 sectors late; the track *requests* were already exact
 
+Superseded: docs/106 and docs/114 -- the LBA-offset hypothesis did not survive the anchored schedule oracle
+(same LBAs, same track lengths, deltas +1900/0/+109 ms); the real defect was the missing CD teardown at track
+replacement.
+
+
 Playtest item 2 (docs/manual-playtest/01-2026-10-26.md): "Wrong music for title /
 stage-slideshow / main stage."
 

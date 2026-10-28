@@ -1,5 +1,10 @@
 # 94 — Two-way combat: fn_013c4d/fn_01441e index the hit boxes by the FRAME NUMBER from `rec+0x6d`, not by the raw frame slot; and DAT_00053c88 (the "other" gauge) must stay in the entity-pointer representation
 
+Amended/superseded: docs/115 (the "enemy teleport" reading was a rig artifact -- slot re-linking, not a
+position jump; jumps 0.41 vs 0.43 per sample after the identity-link fix) and docs/119 (the hit-record slot
+arrays are six deep, proven from the dword/byte adjacency at +0x20 / +0x38).
+
+
 Playtest log item "Player cannot attack enemies, even enemy can't attack the player".
 
 ## 1. What the shipped code does (Ghidra, NIGHT.EXE, project ppk)

@@ -1,5 +1,10 @@
 # 98 — Missing SFX: the port never brought the sound board up, and slot-array cells 50..54/70..79 were modelled as NULL globals
 
+Amended/superseded: docs/113 -- DS 0x53d08 is the sound-slot table one dword below the pool base 0x53d0c
+(1-based), so fn_04185e must read pool[ev-1]; the port's invented g_tab_53d08[] was never written and no hit
+or punch sound ever played. Witness: played=74, outside-pool=0.
+
+
 Playtest item 6: "No sound effects (punch/kick/hit) in the port; original has them."
 
 ## 1. Where the calls died (port measurement)

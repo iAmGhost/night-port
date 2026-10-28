@@ -1,5 +1,11 @@
 # 99 — Kill-quota table is image data: one kill ending stage 1; plus stage-2 crash re-check and the hurt-state item
 
+Amended/superseded: docs/109 (DAT_00053ea8 is DAT_00053e9c+0xc -- EXP per kill is 10, the port awarded 0
+because of a duplicated unfilled array), docs/111 (the reaction-table lookup is unconditional; the port's
+player/state gate was invented) and docs/119 (the fallen family is entered by atype 0x15..0x1f plus the
+pick-up block at guest 0x00014de1+, not by hit spacing).
+
+
 Playtest items 8 and 9 (and a re-check of 10), closed alongside docs/92-98.
 
 ## 1. "Defeating any single enemy advances to stage 2" — root cause

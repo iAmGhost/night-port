@@ -807,7 +807,81 @@ void fn_00035ec2(void)
  *   heap_malloc wrapper: if (size == 0) size = 1; return heap_malloc(size).
  *   The original returns a 64-bit (EDX:EAX); EDX (param_2) is the caller's
  *   register (register-ABI), so the meaningful result is the 32-bit pointer. */
-uint32_t fn_00041bdc(uint32_t size) { if (size == 0) size = 1; return heap_malloc(size); }
+/* ---- arena lifetime witness (docs/135 §5; docs/128 open item 2) ------------------------------
+ * AddressSanitizer cannot see a lifetime error inside the port's own flat heap: every entity block
+ * lives in one arena, so a dangling entity pointer is still a valid host pointer and ASan stays quiet
+ * (that is exactly why docs/128's second fault needed a different instrument). This witness keeps an
+ * open-addressed set of the entity blocks the constructor has actually initialised, and reports when
+ * an allocation hands back a block that a live entity still owns. Gated by NIGHT_ARENADBG so ordinary
+ * runs are untouched; each (site, offset) reports once so a repeating corruption is visible without
+ * flooding. */
+#define ARENA_SLOTS 16384u
+static uint32_t g_arena_live[ARENA_SLOTS];        /* stores off+1; 0 = empty slot */
+static uint32_t g_arena_live_n;
+static uint32_t g_arena_reported;
+static int g_arena_dbg = -1;
+
+static int arena_dbg(void)
+{
+    if (g_arena_dbg < 0)
+        g_arena_dbg = (getenv("NIGHT_ARENADBG") || getenv("NIGHT_DEATHTRACE")) ? 1 : 0;
+    return g_arena_dbg;
+}
+
+/* A store of the dying flag onto the entity the port currently treats as the player. */
+static void arena_flag_check(const uint8_t *e, const char *site)
+{
+    if (!arena_dbg() || e == 0 || e != g_player_ent) return;
+    fprintf(stderr, "arena: %s set the dying flag (+0x30) on the PLAYER block off=%#x tick %u\n",
+            site, (unsigned)(e - (const uint8_t *)g_heap_base), (unsigned)g_dat_63f08);
+}
+
+static uint32_t arena_slot(uint32_t off)
+{
+    uint32_t h = (off * 2654435761u) & (ARENA_SLOTS - 1u);
+    for (uint32_t n = 0; n < ARENA_SLOTS; n++) {
+        if (g_arena_live[h] == 0 || g_arena_live[h] == off + 1u) return h;
+        h = (h + 1u) & (ARENA_SLOTS - 1u);
+    }
+    return h;
+}
+
+static void arena_live_add(uint32_t off)
+{
+    if (!arena_dbg() || off == 0) return;
+    uint32_t s = arena_slot(off);
+    if (g_arena_live[s] == 0) { g_arena_live[s] = off + 1u; g_arena_live_n++; }
+}
+
+static void arena_live_del(uint32_t off)
+{
+    if (!arena_dbg() || off == 0) return;
+    uint32_t s = arena_slot(off);
+    if (g_arena_live[s] == off + 1u) { g_arena_live[s] = 0; if (g_arena_live_n) g_arena_live_n--; }
+}
+
+static int arena_live_has(uint32_t off)
+{
+    if (!arena_dbg() || off == 0) return 0;
+    return g_arena_live[arena_slot(off)] == off + 1u;
+}
+
+/* An allocation handed back for a block that a live entity still occupies. */
+static void arena_alloc_check(uint32_t data, const char *site)
+{
+    if (!arena_dbg() || data == 0 || !arena_live_has(data)) return;
+    if (g_arena_reported++ < 16)
+        fprintf(stderr, "arena: %s returned off=%#x while %u entity blocks are live (tick %u)\n",
+                site, data, g_arena_live_n, (unsigned)g_dat_63f08);
+}
+
+uint32_t fn_00041bdc(uint32_t size)
+{
+    if (size == 0) size = 1;
+    uint32_t r = heap_malloc(size);
+    arena_alloc_check(r, "fn_00041bdc");
+    return r;
+}
 
 /* fn_00035d0f  orig: 0x00035d0f (L10, 77B)
  *   DMA channel busy-wait: three memory-poll spin loops on DAT_00063e88[AL]
@@ -1147,6 +1221,7 @@ void fn_00035c5c(void) {
         uint8_t *next = ((struct ua_uint8tp *)((g_dat_53c78 + 0x13f)))->v;
         if (g_dat_53c78[0] == 1 && g_dat_53c78[0x30] != 1) {
             g_dat_53c78[0x30] = 1;
+            arena_flag_check(g_dat_53c78, "fn_00035c5c");
             ((struct ua32 *)((g_dat_53c78 + 0x17)))->v = 0x15;
             ((struct ua32 *)((g_dat_53c78 + 0x11)))->v = 0;
             uint32_t idx = ((struct ua32 *)((g_dat_53c78 + 0xd)))->v;
@@ -1185,6 +1260,7 @@ uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg
                    int32_t type_idx, uint8_t kind)
 {
     (void)canary_id((uintptr_t)block, 0x24);                     /* 0x10efc-01 */
+    arena_live_add((uint32_t)(block - (const uint8_t *)g_heap_base));
     if ((uint32_t)type_idx == g_dat_63370) {                     /* 0x10f1d-26: the type index == the current
                                                                   * episode counter -> latch DAT_00053c80 (docs/89) */
         g_latched_ent = block;                                     /* 0x10f28-2b */
@@ -10294,7 +10370,12 @@ uint32_t to_upper(uint32_t c) { return (c>=0x61 && c<=0x7a) ? c-0x20 : c; } /* 0
 
 /* 0x041c28 (L1, 9 bytes): NULL-tolerant free. TEST EAX,EAX; JNZ heap_free_host
  * (0x41c31); RET. Tail-call: frees `data` only when nonzero, else returns. */
-void heap_free_guard(uint32_t data) { if (data) heap_free_host(data); }
+void heap_free_guard(uint32_t data)
+{
+    if (!data) return;
+    arena_live_del(data);          /* arena witness: this block stops being live (docs/135 §5) */
+    heap_free_host(data);
+}
 
 /* 0x045605: upper-case a NUL-terminated string in place. Faithful to the
  * disasm: for each byte until NUL, EAX = zero-extended byte, EAX = to_upper(EAX),
@@ -13915,6 +13996,7 @@ void fn_011827(uint8_t *src, int32_t dx, int32_t arg_ebx, int32_t dy, uint32_t s
         ((struct ua32 *)((ent + 0x1b)))->v = 1;                                       /* 0x011910 */
     }
     ent[0x30] = 1;                                                           /* 0x01191a: byte store */
+    arena_flag_check(ent, "fn_011827");
     ((struct ua32 *)((ent + 0x17)))->v = stack_arg;                                   /* 0x01191e-24 */
     if (((struct sa32 *)((src + 0x17)))->v != 4) {                               /* 0x01192a-2e */
         g_dat_63364 = 0x13;                                                  /* 0x011930 */
@@ -14422,6 +14504,26 @@ void fn_03203d(uint32_t base)
             cur = sys_linear0();
         }
         fn_012efa(cur, base);                                        /* 0x3207a-80 */
+        if (arena_dbg() && cur == g_player_ent) {
+            /* Watch the dying flag on the player block: which tick does it flip, and what does the
+             * record look like around it (docs/135 §5: no +0x30 writer in the port touches it). */
+            static uint8_t s_p30;
+            static uint32_t s_reports;
+            uint8_t now = *(const uint8_t *)(cur + 0x30);
+            if (now != s_p30 && s_reports < 8) {
+                s_reports++;
+                const uint8_t *r = cur;
+                fprintf(stderr,
+                        "arena: PLAYER +0x30 %u -> %u at tick %u (tickcount %u state %#x hp %d) "
+                        "window 0x28..0x38: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                        s_p30, now, (unsigned)g_dat_63f08, (unsigned)g_dat_63360,
+                        (unsigned)((struct sa32 *)((cur + 0x17)))->v,
+                        (int)((struct sa16 *)((cur + 0x29)))->v,
+                        r[0x28], r[0x29], r[0x2a], r[0x2b], r[0x2c], r[0x2d],
+                        r[0x2e], r[0x2f], r[0x30], r[0x31], r[0x32], r[0x33]);
+                s_p30 = now;
+            }
+        }
         cur = ((struct ua_uint8tp *)((cur + 0x13f)))->v;              /* 0x32085-8e */
     }
 }
@@ -14765,8 +14867,11 @@ void fn_0113e7(uint8_t *e)
         ((struct ua32 *)((c + 0x1b)))->v = 1;
     }
     a[0x30] = 1;                        ((struct ua32 *)((a + 0x17)))->v = 2;   /* 0x1164b-55 */
+    arena_flag_check(a, "fn_0x1164b a");
     b[0x30] = 1;                        ((struct ua32 *)((b + 0x17)))->v = 3;   /* 0x1165b-65 */
+    arena_flag_check(b, "fn_0x1164b b");
     c[0x30] = 1;                        ((struct ua32 *)((c + 0x17)))->v = 3;   /* 0x1166b-75 */
+    arena_flag_check(c, "fn_0x1164b c");
 
     if (e[0x30] != 1) return;                                     /* 0x1167b-7f */
     int32_t t = ((struct sa32 *)((e + 0x0d)))->v;                     /* 0x11685 */
@@ -24268,6 +24373,7 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
                 ent = NULL;                                            /* the original never checks it */
             }
             *(uint8_t *)(ent + 0x30) = 1;                              /* 0x000141c7-ca */
+            arena_flag_check(ent, "fn_01441e 0x141ca");
             ((struct ua32 *)((ent + 0x17)))->v = (uint32_t)v2c;                 /* 0x000141ce-0x000141d7 */
             int32_t fa = ((struct sa32 *)((a + 0x1b)))->v;
             if (a == g_player_ent) {                                    /* 0x000141da-0x000141f7 */
@@ -24548,6 +24654,7 @@ p1next:
             if ((int16_t)((struct sa16 *)((cur + 0x29)))->v <= 0) {
                 ((struct ua16 *)((cur + 0x29)))->v = 0;
                 *(uint8_t  *)(cur + 0x30) = 1;
+                arena_flag_check(cur, "fn_01441e 0x14900 debt-zero hp<=0");
             }
         } else if (cur == g_player_ent || ((struct sa32 *)((cur + 0x56)))->v == 0) {
             ((struct ua16 *)((cur + 0x23)))->v = (uint16_t)((int16_t)((struct ua16 *)((cur + 0x23)))->v - (int16_t)dmg);
@@ -24566,8 +24673,10 @@ p1next:
                                                    + (int16_t)((struct ua16 *)((cur + 0x23)))->v);
             ((struct ua16 *)((cur + 0x23)))->v = 0;
             *(uint8_t  *)(cur + 0x30) = 2;
+            arena_flag_check(cur, "fn_01441e 0x1498d debt settled, hp>0");
             if ((int16_t)((struct sa16 *)((cur + 0x29)))->v <= 0) {
                 *(uint8_t  *)(cur + 0x30) = 1;
+                arena_flag_check(cur, "fn_01441e 0x1499f hp<=0 after debt");
                 ((struct ua16 *)((cur + 0x29)))->v = 0;
             }
         }
@@ -24630,6 +24739,7 @@ p1next:
             }
             if ((uint32_t)cur[0x30] == 2u) {                        /* 0x00014c07-15 */
                 *(uint8_t *)(cur + 0x30) = 1;                       /* 0x00014c17-1a */
+                arena_flag_check(cur, "fn_01441e 0x14c1a");
                 *(uint8_t *)(cur + 0x31) = 0;                       /* 0x00014c1e-21 */
             }
             if (e == g_player_ent && ((struct sa32 *)((e + 0x17)))->v == 0x8c)
@@ -24658,9 +24768,11 @@ p1next:
         }
         if ((int16_t)((struct ua16 *)((cur + 0x23)))->v == 0 && atype >= 0x0b && atype <= 0x14) {
             *(uint8_t *)(cur + 0x30) = 1;                           /* 0x00014cd2 */
+            arena_flag_check(cur, "fn_01441e 0x14cd2");
         } else if ((int16_t)((struct sa16 *)((cur + 0x23)))->v == 0
                    && (int16_t)((struct sa16 *)((cur + 0x29)))->v == 0) {
             *(uint8_t  *)(cur + 0x30) = 1;                          /* 0x00014d03-06 */
+            arena_flag_check(cur, "fn_01441e 0x14d06");
             ((struct sa32 *)((cur + 0x17)))->v = 0x15;                        /* 0x00014d0d-10 */
             ((struct ua16 *)((cur + 0x50)))->v = 0x96;                       /* 0x00014d14-17 */
         }
@@ -25666,11 +25778,12 @@ void fn_012616(uint8_t *e)
                 if (e[0x30] == 1) {                                       /* 0x000129c4: the entity dies here */
                     if (getenv("NIGHT_DEATHTRACE"))
                         fprintf(stderr,
-                                "deathtrace: tick=%u off=%#x type=%u state=%#x hp=%d exp=%u %s\n",
+                                "deathtrace: tick=%u off=%#x type=%u state=%#x hp=%d exp=%u live=%d %s\n",
                                 (unsigned)g_dat_63f08, (unsigned)(e - hb), e[0],
                                 (unsigned)((struct sa32 *)((e + 0x17)))->v,
                                 (int)((struct sa16 *)((e + 0x29)))->v,
                                 (unsigned)((struct ua32 *)((e + 0x32)))->v,
+                                arena_live_has((uint32_t)(e - hb)),
                                 (e == g_player_ent) ? "PLAYER" : "");
                     if (e == g_player_ent) g_dat_6336c = 1;
                     else if (e == g_latched_ent) g_dat_6336c = 3;

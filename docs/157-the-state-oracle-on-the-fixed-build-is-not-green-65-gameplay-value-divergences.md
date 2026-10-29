@@ -12,7 +12,7 @@ Route: `/tmp/rig/g15` = `scripts/rig/drives/ep1_kill3.txt`, 300 s, `RIG_HZ=10`, 
 reports them under a named verdict while still printing the raw values:
 
 ```
-non-gameplay families: {'host_address_space': 2, 'arena_state': 3, 'dos_extender': 10}
+non-gameplay families: {'host_address_space': 2, 'arena_state': 3, 'dos_extender': 10, 'device_plumbing': 27}
 ```
 
 * `arena_state` — `0x53350` cursor, `0x53354` block base, `0x53358` high-water. Shipped's allocator starts at
@@ -22,20 +22,31 @@ non-gameplay families: {'host_address_space': 2, 'arena_state': 3, 'dos_extender
 * `dos_extender` — `0x53378, 0x5337c, 0x53384, 0x5338c, 0x53390, 0x53394, 0x533a0, 0x533b2, 0x533b9, 0x533bb`:
   selector-form addresses, config byte, device id. The port models the slots without the extender handshake.
 
-Effect on the tally: DIFF verdicts 76 → 65, DIFF-SIZE 16 → 13, and the 15 moved cells are each attached to a
-written reason rather than dropped.
+The fourth family is the one that was still "unattributed" in the first draft of this file. Reading the names
+out of the port's own header (`f.h:352-356, 1110-1143, 1190`) shows the `0x63e44..0x63f80` run is saved
+interrupt-handler addresses and sound-device transfer bookkeeping: IRQ 0x1c handler offset/segment (`0x63e44`,
+`0x63e48`), IRQ 9 handler offset/segment (`0x63e80`, `0x63e84`), saved device-ISR (`0x63f54`, `0x63f58`), saved
+INT 0x0a / 0x0b / 0x0d / 0x0f / 0x72 offset+segment pairs (`0x63f5c..0x63f80`, guest `0x040fb3`), device
+initialised flag / transfer bytes remaining / last chunk length / 24-bit DMA address byte (`0x63f90`, `0x63f94`,
+`0x63f98`, `0x63fac`), `g_ss_saved` (`0x5333c`: shipped holds selector `0x68`, the port has 0), and the sound
+slot base/index/IRQ-9 source byte (`0x63f0c`, `0x63f50`, `0x63f51`). The port models all of these with its own
+handler addresses and its own transfer accounting, so they cannot match; they are filed as `device_plumbing` and
+kept visible because that is exactly the state an SFX/CD-DA divergence would touch (docs/129, docs/131).
+
+Effect on the tally: DIFF verdicts 76 → 39, DIFF-SIZE 16 → 13. 42 cells moved into named families with written
+reasons; none was dropped silently.
 
 ```
 mode=orig-vs-port  cells=344  phases=274
 tally={'SIZE?': 35, 'PTR': 52, 'SAME': 64, 'REPR': 19, 'DIFF-SIZE': 13, 'DIFF': 65,
       'NON-GAMEPLAY:arena_state': 3, 'NON-GAMEPLAY:dos_extender': 10, 'NON-GAMEPLAY:host_address_space': 2,
       'ENTROPY': 14, 'DIFF-WIDTH': 7, 'REC-NULL': 14, 'REC-DIFF': 35, ...}
-residual same-width gameplay divergences: 65
+residual same-width gameplay divergences: 39
 ```
 
-## 2. What the 65 residual cells are
+## 2. What the 39 residual gameplay cells are
 
-They are almost entirely the game's live-state block, and they group the way the previous docs predicted:
+42 of the original 76 DIFF cells turned out to be host-modelled device/extender state (see §1). The remaining 39 are, and they group the way the previous docs predicted:
 
 | group | cells | already understood as |
 |---|---|---|
@@ -45,8 +56,10 @@ They are almost entirely the game's live-state block, and they group the way the
 | hit / reaction bookkeeping | `0x6335c`, `0x63360`, `0x63364`, `0x6336c`, `0x6339c`, `0x633b0`, `0x633b4`, `0x62d58`, `0x62d5c` | docs/155: hit code 11 lands on the port's player (67 samples) and never on shipped's (0) |
 | CD selection | `0x53c48` (`0x53c40`/`0x53c44` now DIFF-SIZE: no shipped span) | docs/131 / docs/135: selection arithmetic faithful, audibility and timing diverge |
 | CONTINUE countdown | `0x53100` | docs/134 §6 → docs/147: the 3→2 drop came from the spurious player death; on this route it still differs |
-| board / device block | `0x62a8c`, `0x62a90`, `0x62a94`, `0x63e44`, `0x63e48`, `0x63e5c`, `0x63e7c`, `0x63e80`, `0x63e84`, `0x63ea5`, `0x63ed0`, `0x63ed3`, `0x63ed5`, `0x63ed8`, `0x63f0c`, `0x63f50..0x63f80` (13 consecutive dwords), `0x63f90`, `0x63f94`, `0x63f98`, `0x63fac`, `0x63fb0`, `0x63fb8`, `0x63ffc` (`g_node_list_active`), `0x64000` (`g_clock_ticks`), `0x64090`, `0x64094` | not yet attributed |
-| misc | `0x51c98`, `0x5333c` (`g_ss_saved`), `0x53451`, `0x53640` | `g_ss_saved` is stack-switcher state and probably belongs in `dos_extender`; `0x51c98` was docs/134 §5's "rig-basis" cell |
+| asset / list bookkeeping | `0x62a8c` (zeroed by `fn_03ee0a` list-destroy: shipped `0`, port `0,9`), `0x62a90` (sprite record count, `fn_03df96`), `0x63ffc` (`g_node_list_active` head) | not yet attributed; `0x62a8c` is a concrete candidate (the port has a live 9 where shipped has 0) |
+| input state | `0x62a94` (kb input state value), `0x63ea5` (third key byte), `0x63ed0` / `0x63ed3` / `0x63ed5` / `0x63ed8` (select-held key bytes, title menu) | input-phase dependent: the docs/157 §3 analysis shows 12 flagged cells are equal at lag 0, i.e. window-edge flags, and this group is the likeliest member of that set |
+| clock | `0x64000` (`g_clock_ticks`) | docs/137 measured the logic clocks agreeing to 1.4 % (43.3 vs 42.7 units/s), so a tick-counter difference is expected between emulator and port; whether it is *only* a rate difference needs the tick rate compared directly |
+| misc | `0x51c98`, `0x53451`, `0x53640`, `0x53c48` (CD selection), `0x63e5c` (palette index, `fn_03f3be`) | `0x51c98` was docs/134 §5's "rig-basis" cell (values agree, flagged for missing shipped span) and should move out of DIFF once its span is recovered |
 
 So the honest reading is: the rig is not green, and it is not green in a *structured* way — the largest
 remaining divergence family is the population/camera cluster (docs/142 → docs/153 → docs/155), which is the
@@ -96,7 +109,8 @@ docs/132's "+0.8 s for 33/37 cells" claim is superseded by this run.
    with no shift (window-edge flags), 10 align only at 10 different shifts spread over ±35 s.
 2. Attribute the unattributed block (`0x63f50..0x63f80`, `0x62a8c..0x62a94`, `0x63e7c..0x63ea5`) to shipped
    symbols with writers named from `mem_access.json`, then verdict each.
-3. Move `g_ss_saved` (`0x5333c`) into `dos_extender` only after checking that no game decision reads it.
+3. ~~Move `g_ss_saved` into `dos_extender`~~ done as `device_plumbing` alongside the other saved-vector cells;
+   its label states the reason (shipped `0x68` vs port 0) so it stays checkable.
 4. Close the population/camera cluster (the one the media oracles already localize), which is also the head of
    the docs/155 hit-code-11 question.
 

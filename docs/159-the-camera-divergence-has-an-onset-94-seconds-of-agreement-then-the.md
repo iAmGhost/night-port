@@ -143,3 +143,35 @@ The rig defect that produced the wrong split is worth naming: the quiet-window a
 rig cell table, which does not contain the port's `ent##` record slots. Those slots are where almost all real
 port activity happens, so a scan over the shared table reports "nothing moved" for 27 of 27 windows. Fixed to
 iterate the port's own meta cell list.
+
+## 8. Flagged as unresolved: the oracle and an ad-hoc probe disagree about `P15`
+
+The oracle's own quiet-window scan says `P15@88000` is 64.0 s with 22 port samples and 13 cells moving
+(`ent00..ent03`, `0x53c68`, `0x53c74`, `0x51c98`, …). A throwaway probe written to ask "what is the port actually
+doing in that window" printed the opposite for the cells it looked at:
+
+```
+PORT samples in P15: 21
+  t=88062  g_dat_6336c=0  g_dat_53100=0  g_dat_53c68=0  g_dat_639dc=0  g_dat_63e14=0  g_dat_51c98=0 ...
+  t=151960 g_dat_6336c=0  g_dat_53100=0  g_dat_53c68=0  g_dat_639dc=0  g_dat_63e14=0  g_dat_51c98=0 ...
+```
+
+Entity count zero and command-list zero in a window where the oracle says 13 cells moved: the two readings cannot
+both be right, and by docs/143's rule the defect is in the reading layer, not the game. Two concrete suspects,
+both mine:
+
+1. **Time base.** The shipped `timeline.json` entries carry `t_wall` in **seconds** (`0.031`, `0.267`, `0.475`),
+   and `load_orig` converts that clock to drive-nominal milliseconds through `timeline.json["rebases"]`. The probe
+   compared raw `t_wall` values against window bounds expressed in nominal ms, so it selected the wrong shipped
+   states — the same class of bug as docs/158 §5's `t_ms` invention, one file later.
+2. **Cell mapping.** The probe looked names up in the *port* meta cell table by `offset`; entity-record slots and
+   DS cells have different offset conventions there (`offset` vs `rec_offset`), so a zero can be a misread rather
+   than a value.
+
+Until this is reconciled inside the oracle (one code path, one clock, one cell table), the honest statement is:
+**27 of 274 windows are shipped-quiet, 22 of them show non-entropy motion on the port side per the oracle's own
+scan, and the specific characterisation of the largest one (`P15`, 64.0 s) is contested by a probe and therefore
+not a finding yet.** §6's per-window cell lists stay as the oracle's output; the interpretation "the port animates
+entities where shipped's data segment is inert" is downgraded to a hypothesis with a known measurement conflict,
+and the first step to settle it is to have `diff_state.py` print, for each quiet window, both sides' entity count
+and command-list value from the same code path that produced the verdict.

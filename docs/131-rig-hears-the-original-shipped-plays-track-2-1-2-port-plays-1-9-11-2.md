@@ -70,9 +70,6 @@ high rate on both sides across the request window, plus the drive's own state, t
 request is cancelled within a few hundred ms. The rig now has both halves — audible presence and request
 state — so this can be answered as a differential statement.
 
-Also banked this turn: `scripts/rig/port_mix.py` per-play cursor model (docs/129 caveat removed), and the
-route `ep1_kill3` re-run with the corrected capture (`/tmp/rig/g6`) for the state/screen/audio tallies.
-
 ## 4. Phase-locking the two audio timelines (the capture does not start where the port's process starts)
 
 The container session boots the game, calibrates, and only then starts sampling, so capture seconds are offset
@@ -94,3 +91,37 @@ stage track mid-stage**, which the port never does. The track-11 absence stays o
 it at 48.305 s (cell value `0x367aa`, 238 s) yet no track-11 audio exists anywhere in the 266 s capture, so the
 request must be superseded before the drive's stream reaches the mixer — measuring that needs sampling above
 the 4 Hz dump cadence, i.e. a dedicated high-rate pass over 48–72 s on both sides.
+
+## 5. Replication on an independent run, and a cross-check from the state oracle
+
+A second `ep1_kill3` session (`/tmp/rig/g6`, 200 s, fresh boot, corrected 44100 capture) reproduces the two
+headline results with an independent fingerprint run:
+
+```
+lba 223146 (track 11): best peak-set IoU +0.380   -> absent, as in g5 (0.19-0.40)
+lba 40415  (track 2) : best peak-set IoU +0.766   -> present, as in g5 (0.85-0.99)
+```
+
+The port's play list on that run also shows the restart mechanism working *in the port*, just at a different
+moment than in the shipped mix:
+
+```
+play t=  3.53s idx=1  lba=37262  (42.0 s)     play t=234.27s idx=12 lba=241002 (238 s)
+play t= 47.35s idx=9  lba=185120             play t=235.58s idx=2  lba=40415   <- stage track RESTARTED
+play t= 50.16s idx=11 lba=223146
+play t= 70.48s idx=2  lba=40415
+```
+
+So `fn_010d47` (the guest's periodic CD refresh at 0x010d47, which re-selects the room track once
+`g_dat_63e38/490` exceeds `g_dat_53c48`, the current track's seconds) is wired and fires — the shipped game
+restarts the stage track at port-equivalent ~138.5 s, the port at 235.6 s. The mechanism is not missing; the
+*timing* and the *audibility of the intervening requests* are what diverge.
+
+Cross-check from the state oracle on the same run: the CD selection cells are now flagged
+(`DIFF 0x53c40`, `DIFF 0x53c44` — the current-track lba pair, docs/106), while the activity-profile oracle
+still scores **269/269 SAME**, i.e. the two sides change the same cells in the same phases but hold different
+track values for part of the route. The full state tally for g6 was `{'SIZE?': 32, 'PTR': 52, 'SAME': 53,
+'REPR': 22, 'DIFF': 110, 'ENTROPY': 14, 'REC-DIFF': 36, ...}` over 344 cells, which is far worse than the
+269/269 of the g2 route and needs its own triage (phase drift between the two 200 s sessions vs real value
+divergence).
+

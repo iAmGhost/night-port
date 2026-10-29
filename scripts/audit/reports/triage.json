@@ -1,15 +1,16 @@
 {
  "tally": {
-  "FILED-RUNTIME": 110,
-  "FILED-PRODUCER-CHECK": 12,
-  "FILED-READONLY": 7,
+  "FILED-RUNTIME": 107,
+  "FILED-PRODUCER-CHECK": 7,
+  "FILED-READONLY": 12,
   "EXPLAINED-UNACCESSED": 37,
-  "FILED-SPAN": 120,
+  "FILED-SPAN": 141,
   "EXPLAINED-SAME-TABLE": 3,
-  "FILED-VIEW": 63,
-  "FILED-REPR": 4,
-  "FILED-MODEL": 61,
-  "EXPLAINED-BY-SPAN": 19,
+  "FILED-VIEW": 65,
+  "FILED-REPR": 3,
+  "EXPLAINED-BY-SPAN": 41,
+  "FILED-MODEL": 24,
+  "EXPLAINED-SCRATCH": 15,
   "FILED-CALLGRAPH-GAP": 64,
   "EXPLAINED-DEAD": 25,
   "EXPLAINED-RENAMED": 1,
@@ -33,30 +34,9 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_52f08 @ 0x52f08",
-   "evidence": "image=02000000050000000600000006000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_tab_528b4 @ 0x528b4",
-   "evidence": "image=09000000090000000900000005000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_tab_52be0 @ 0x52be0",
-   "evidence": "image=00000000000000000000000000000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_tab_52ffc @ 0x52ffc",
-   "evidence": "image=01000000020000000200000001000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
+   "subject": "g_tab_52a1c @ 0x52a1c",
+   "evidence": "image=e8030000e8030000e8030000e8030000 port_init='' guest reads=1 writes=0, and nothing in the port ever writes 'g_tab_52a1c' -> shipped bytes were dropped",
+   "verdict": "FILED-READONLY"
   },
   {
    "check": "C3",
@@ -68,15 +48,22 @@
   {
    "check": "C3",
    "kind": "image-init",
+   "subject": "kXlat_5302c @ 0x5302c",
+   "evidence": "image=00000000000000000000000000000000 port_init='= { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x' guest reads=1 writes=0, and nothing in the port ever writes 'kXlat_5302c' -> shipped bytes were dropped",
+   "verdict": "FILED-READONLY"
+  },
+  {
+   "check": "C3",
+   "kind": "image-init",
    "subject": "g_rng_state @ 0x5335c",
-   "evidence": "image=01000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
+   "evidence": "image=01000000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
    "verdict": "FILED-PRODUCER-CHECK"
   },
   {
    "check": "C3",
    "kind": "image-init",
    "subject": "g_dat_530b4 @ 0x530b4",
-   "evidence": "image=64000000 port_init='' guest reads=1 writes=2",
+   "evidence": "image=64000000 port_init='= 0' guest reads=1 writes=2",
    "verdict": "FILED-RUNTIME"
   },
   {
@@ -103,16 +90,16 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_53100 @ 0x53100",
-   "evidence": "image=03000000 port_init='' guest reads=6 writes=4",
-   "verdict": "FILED-RUNTIME"
+   "subject": "g_dat_53619 @ 0x53619",
+   "evidence": "image=00010000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
+   "verdict": "FILED-PRODUCER-CHECK"
   },
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_53619 @ 0x53619",
-   "evidence": "image=00010000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
+   "subject": "g_dat_530ac @ 0x530ac",
+   "evidence": "image=20030000 port_init='= 0' guest reads=7 writes=1",
+   "verdict": "FILED-RUNTIME"
   },
   {
    "check": "C3",
@@ -131,9 +118,9 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_tab_5274c @ 0x5274c",
-   "evidence": "image=0000003f port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
+   "subject": "g_dat_51c98 @ 0x51c98",
+   "evidence": "image=01000000 port_init='= 0' guest reads=1 writes=4",
+   "verdict": "FILED-RUNTIME"
   },
   {
    "check": "C3",
@@ -141,6 +128,13 @@
    "subject": "g_dat_536dc @ 0x536dc",
    "evidence": "image=14000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
    "verdict": "FILED-PRODUCER-CHECK"
+  },
+  {
+   "check": "C3",
+   "kind": "image-init",
+   "subject": "g_dat_53780 @ 0x53780",
+   "evidence": "image=100e0000 port_init='= 0' guest reads=1 writes=1",
+   "verdict": "FILED-RUNTIME"
   },
   {
    "check": "C3",
@@ -174,29 +168,15 @@
    "check": "C3",
    "kind": "image-init",
    "subject": "g_dat_5363c @ 0x5363c",
-   "evidence": "image=01000000 port_init='' guest reads=3 writes=1",
+   "evidence": "image=01000000 port_init='= 0' guest reads=3 writes=1",
    "verdict": "FILED-RUNTIME"
   },
   {
    "check": "C3",
    "kind": "image-init",
    "subject": "g_dat_53640 @ 0x53640",
-   "evidence": "image=10000000 port_init='' guest reads=1 writes=1",
+   "evidence": "image=10000000 port_init='= 0' guest reads=1 writes=1",
    "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_51a10 @ 0x51a10",
-   "evidence": "image=01000000 port_init='' guest reads=3 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_tab_52a1c @ 0x52a1c",
-   "evidence": "image=e8030000 port_init='' guest reads=1 writes=0, and nothing in the port ever writes 'g_tab_52a1c' -> shipped bytes were dropped",
-   "verdict": "FILED-READONLY"
   },
   {
    "check": "C3",
@@ -208,9 +188,9 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_53338 @ 0x53338",
-   "evidence": "image=01 port_init='' guest reads=3 writes=1",
-   "verdict": "FILED-RUNTIME"
+   "subject": "g_dat_51a0c @ 0x51a0c",
+   "evidence": "image=00 port_init='= g_video_ram' guest reads=4 writes=0, and nothing in the port ever writes 'g_dat_51a0c' -> shipped bytes were dropped",
+   "verdict": "FILED-READONLY"
   },
   {
    "check": "C3",
@@ -230,14 +210,14 @@
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x52c3c..0x52f3c (192 cells)",
-   "evidence": "image_head=ac000000ac000000ac000000ac000000 bases=['0x524bc', '0x52580', '0x525a8', '0x52738', '0x5274c', '0x528b4'] reads=13 writes=0 port=['g_tab_52c3c', 'g_tab_52c3c', 'g_tab_52f2c', 'g_dat_52f08', 'g_tab_52da4', 'g_tab_52da4']",
+   "evidence": "image_head=ac000000ac000000ac000000ac000000 bases=['0x524bc', '0x52580', '0x525a8', '0x52738', '0x5274c', '0x528b4'] reads=13 writes=0 port=['g_tab_52c3c', 'g_tab_52c3c', 'g_tab_52f2c', 'g_dat_52f08', 'g_dat_52f08', 'g_tab_52da4', 'g_tab_52da4']",
    "verdict": "FILED-READONLY"
   },
   {
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x528a8..0x52b84 (183 cells)",
-   "evidence": "image_head=0000003f0000003f0000003f09000000 bases=['0x520ac', '0x52170', '0x52198', '0x524bc', '0x52580', '0x525a8'] reads=3 writes=0 port=['g_tab_528b4', 'g_tab_52a1c']",
+   "evidence": "image_head=0000003f0000003f0000003f09000000 bases=['0x520ac', '0x52170', '0x52198', '0x524bc', '0x52580', '0x525a8'] reads=3 writes=0 port=['g_tab_528b4', 'g_tab_528b4', 'g_tab_52a1c', 'g_tab_52a1c']",
    "verdict": "FILED-READONLY"
   },
   {
@@ -251,8 +231,8 @@
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x51b64..0x51c4c (58 cells)",
-   "evidence": "reads=1 writes=0 bases=['0x5144c', '0x51450', '0x51454', '0x51458', '0x5145c', '0x5145e'] port=[]",
-   "verdict": "FILED-RUNTIME"
+   "evidence": "image_head=0b0000000c0000000d0000000e000000 bases=['0x5144c', '0x51450', '0x51454', '0x51458', '0x5145c', '0x5145e'] reads=1 writes=0 port=['g_blk_51c24', 'g_blk_51c24']",
+   "verdict": "FILED-READONLY"
   },
   {
    "check": "C6",
@@ -279,8 +259,8 @@
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x5144c..0x51484 (14 cells)",
-   "evidence": "reads=13 writes=0 bases=['0x5144c', '0x51450', '0x51454', '0x51458', '0x5145c', '0x5145e'] port=[]",
-   "verdict": "FILED-RUNTIME"
+   "evidence": "image_head=25640a00256420002564200025632000 bases=['0x5144c', '0x51450', '0x51454', '0x51458', '0x5145c', '0x5145e'] reads=13 writes=0 port=['g_dat_5147c']",
+   "verdict": "FILED-READONLY"
   },
   {
    "check": "C6",
@@ -293,14 +273,14 @@
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x51968..0x51994 (11 cells)",
-   "evidence": "reads=2 writes=0 bases=['0x5144c', '0x51450', '0x51454', '0x51458', '0x5145c', '0x5145e'] port=[]",
-   "verdict": "FILED-RUNTIME"
+   "evidence": "image_head=78009700b500d400f300110130014e01 bases=['0x5144c', '0x51450', '0x51454', '0x51458', '0x5145c', '0x5145e'] reads=2 writes=0 port=['g_leap_tbl']",
+   "verdict": "FILED-READONLY"
   },
   {
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x52ffc..0x5302c (12 cells)",
-   "evidence": "image_head=01000000020000000200000001000000 bases=['0x528b4', '0x52a1c', '0x52b84', '0x52be0', '0x52c3c', '0x52da4'] reads=1 writes=0 port=['g_tab_52ffc']",
+   "evidence": "image_head=01000000020000000200000001000000 bases=['0x528b4', '0x52a1c', '0x52b84', '0x52be0', '0x52c3c', '0x52da4'] reads=1 writes=0 port=['g_tab_52ffc', 'g_tab_52ffc']",
    "verdict": "FILED-READONLY"
   },
   {
@@ -370,7 +350,7 @@
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x53780..0x5378c (3 cells)",
-   "evidence": "reads=2 writes=3 bases=['0x52f90', '0x52ff8', '0x52ffc', '0x5302c', '0x530ac', '0x530b0'] port=['g_dat_53784', 'g_dat_53784', 'g_dat_53788', 'g_dat_53788']",
+   "evidence": "reads=2 writes=3 bases=['0x52f90', '0x52ff8', '0x52ffc', '0x5302c', '0x530ac', '0x530b0'] port=['g_dat_53780', 'g_dat_53780', 'g_dat_53784', 'g_dat_53784', 'g_dat_53788', 'g_dat_53788']",
    "verdict": "FILED-RUNTIME"
   },
   {
@@ -517,7 +497,7 @@
    "check": "C6",
    "kind": "image-run-no-symbol",
    "subject": "0x52738..0x52778 (16 cells)",
-   "evidence": "image_head=64000000c80000002c01000090010000 bases=['0x520ac', '0x52170', '0x52198', '0x524bc', '0x52580', '0x525a8'] reads=4 writes=0 port=['g_tab_5274c']",
+   "evidence": "image_head=64000000c80000002c01000090010000 bases=['0x520ac', '0x52170', '0x52198', '0x524bc', '0x52580', '0x525a8'] reads=4 writes=0 port=['g_tab_52738', 'g_tab_52738', 'g_tab_5274c', 'g_tab_5274c']",
    "verdict": "FILED-READONLY"
   },
   {
@@ -621,8 +601,106 @@
   {
    "check": "C2",
    "kind": "port-span-overlap",
+   "subject": "g_tab_51b60 covers g_blk_51c24",
+   "evidence": "overlap=476B shipped base constants in the inner span: ['0x51c24', '0x51c91', '0x51c90', '0x51c68']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_51b60 covers g_dat_51c98",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x51c91', '0x51c90', '0x51c98', '0x51c9c']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_blk_51c24 covers g_dat_51c98",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x51c91', '0x51c90', '0x51c98', '0x51c9c']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52738 covers g_tab_5274c",
+   "evidence": "overlap=1004B shipped base constants in the inner span: ['0x52a1c', '0x52c3c', '0x52b84', '0x52be0']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52738 covers g_tab_528b4",
+   "evidence": "overlap=644B shipped base constants in the inner span: ['0x52a1c', '0x52b84', '0x528b4']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52738 covers g_tab_52a1c",
+   "evidence": "overlap=284B shipped base constants in the inner span: ['0x52da4', '0x52a1c', '0x52c3c', '0x52f08']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_5274c covers g_tab_528b4",
+   "evidence": "overlap=720B shipped base constants in the inner span: ['0x52a1c', '0x52b84', '0x528b4']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_5274c covers g_tab_52a1c",
+   "evidence": "overlap=544B shipped base constants in the inner span: ['0x52da4', '0x52a1c', '0x52c3c', '0x52f08']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_5274c covers g_tab_52b84",
+   "evidence": "overlap=90B shipped base constants in the inner span: ['0x52b84']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_5274c covers g_tab_52be0",
+   "evidence": "overlap=92B shipped base constants in the inner span: ['0x52c3c', '0x52be0']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
    "subject": "g_tab_528b4 covers g_tab_52a1c",
-   "evidence": "overlap=4B shipped base constants in the inner span: ['0x52a1c']",
+   "evidence": "overlap=360B shipped base constants in the inner span: ['0x52da4', '0x52a1c', '0x52c3c', '0x52f08']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52a1c covers g_tab_52b84",
+   "evidence": "overlap=90B shipped base constants in the inner span: ['0x52b84']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52a1c covers g_tab_52be0",
+   "evidence": "overlap=100B shipped base constants in the inner span: ['0x52c3c', '0x52be0']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52a1c covers g_tab_52c3c",
+   "evidence": "overlap=716B shipped base constants in the inner span: ['0x52ff8', '0x52da4', '0x5302c', '0x52ffc']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52a1c covers g_tab_52da4",
+   "evidence": "overlap=356B shipped base constants in the inner span: ['0x52da4', '0x52f08', '0x52f2c']",
    "verdict": "FILED-SPAN"
   },
   {
@@ -684,6 +762,13 @@
   {
    "check": "C2",
    "kind": "port-span-overlap",
+   "subject": "g_tab_52c3c covers kXlat_5302c",
+   "evidence": "overlap=32B shipped base constants in the inner span: ['0x53104', '0x5302c', '0x530b4', '0x530b0']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
    "subject": "g_tab_52da4 covers g_dat_52f08",
    "evidence": "overlap=44B shipped base constants in the inner span: ['0x52ff8', '0x52ffc', '0x52f08', '0x52f2c']",
    "verdict": "FILED-SPAN"
@@ -740,6 +825,20 @@
   {
    "check": "C2",
    "kind": "port-span-overlap",
+   "subject": "g_tab_52ffc covers kXlat_5302c",
+   "evidence": "overlap=212B shipped base constants in the inner span: ['0x53104', '0x5302c', '0x530b4', '0x530b0']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_tab_52ffc covers g_dat_530ac",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x530b0', '0x530ac']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
    "subject": "g_tab_52ffc covers g_dat_530b4",
    "evidence": "overlap=4B shipped base constants in the inner span: ['0x530b4', '0x530b0', '0x530ac', '0x530b8']",
    "verdict": "FILED-SPAN"
@@ -756,6 +855,69 @@
    "kind": "port-span-overlap",
    "subject": "g_tab_52ffc covers g_dat_530bc",
    "evidence": "overlap=64B shipped base constants in the inner span: ['0x530b4', '0x530bc', '0x530b8']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_dat_530ac",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x530b0', '0x530ac']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_dat_530b4",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x530b4', '0x530b0', '0x530ac', '0x530b8']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_dat_530b8",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x530b4', '0x530b0', '0x530bc', '0x530b8']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_dat_530bc",
+   "evidence": "overlap=64B shipped base constants in the inner span: ['0x530b4', '0x530bc', '0x530b8']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_dat_53100",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x53104', '0x53100']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_dat_53104",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x53104', '0x53108', '0x53100']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_tab_53108",
+   "evidence": "overlap=24B shipped base constants in the inner span: ['0x53104', '0x53108', '0x53120', '0x53100']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "kXlat_5302c covers g_tab_53120",
+   "evidence": "overlap=12B shipped base constants in the inner span: ['0x53120', '0x53138']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_dat_533a0 covers g_dat_533a4",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x533a4', '0x5339c', '0x533a0']",
    "verdict": "FILED-SPAN"
   },
   {
@@ -789,99 +951,22 @@
   {
    "check": "C2",
    "kind": "port-span-overlap",
-   "subject": "g_dat_53c94 covers g_tab_53d08",
-   "evidence": "overlap=4B shipped base constants in the inner span: ['0x53e9c', '0x53d0c', '0x53e24', '0x53e28']",
+   "subject": "g_dat_53c5c covers g_dat_53c60",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x53c58', '0x53c5c', '0x53c60', '0x53c64']",
    "verdict": "FILED-SPAN"
   },
   {
    "check": "C2",
    "kind": "port-span-overlap",
-   "subject": "g_tab_53d08 covers g_pool_53d0c",
-   "evidence": "overlap=400B shipped base constants in the inner span: ['0x53e9c', '0x53d0c', '0x53e24', '0x53e28']",
+   "subject": "g_player_ent covers g_dat_53c7c_null_warned",
+   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53c80', '0x53c74', '0x53c78', '0x53c7c']",
    "verdict": "FILED-SPAN"
   },
   {
    "check": "C2",
    "kind": "port-span-overlap",
-   "subject": "g_tab_53d08 covers g_dat_53dd4",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd4']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_tab_53d08 covers g_dat_53dd8",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd8', '0x53dd4']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_tab_53d08 covers g_dat_53ddc",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd8', '0x53ddc', '0x53dd4']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_tab_53d08 covers g_dat_53de0",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd8', '0x53ddc', '0x53de0']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_tab_53d08 covers g_dat_53de4",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53ddc', '0x53de4', '0x53de0']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_tab_53d08 covers g_dat_53e24",
-   "evidence": "overlap=10B shipped base constants in the inner span: ['0x53e24', '0x53e28', '0x53e2c']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_pool_53d0c covers g_dat_53dd4",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd4']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_pool_53d0c covers g_dat_53dd8",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd8', '0x53dd4']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_pool_53d0c covers g_dat_53ddc",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd8', '0x53ddc', '0x53dd4']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_pool_53d0c covers g_dat_53de0",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53dd8', '0x53ddc', '0x53de0']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_pool_53d0c covers g_dat_53de4",
-   "evidence": "overlap=1B shipped base constants in the inner span: ['0x53ddc', '0x53de4', '0x53de0']",
-   "verdict": "FILED-SPAN"
-  },
-  {
-   "check": "C2",
-   "kind": "port-span-overlap",
-   "subject": "g_pool_53d0c covers g_dat_53e24",
-   "evidence": "overlap=10B shipped base constants in the inner span: ['0x53e24', '0x53e28', '0x53e2c']",
+   "subject": "g_dat_53c84 covers g_gauge_other_off",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x53c80', '0x53c88', '0x53c8c', '0x53c84']",
    "verdict": "FILED-SPAN"
   },
   {
@@ -987,6 +1072,13 @@
    "kind": "port-span-overlap",
    "subject": "g_dat_63e50 covers g_dat_63ea5",
    "evidence": "overlap=1B shipped base constants in the inner span: ['0x63ea5', '0x63ea4']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_dat_63e50 covers g_dat_63eb2",
+   "evidence": "overlap=1B shipped base constants in the inner span: ['0x63eb2']",
    "verdict": "FILED-SPAN"
   },
   {
@@ -1286,6 +1378,34 @@
   {
    "check": "C2",
    "kind": "port-span-overlap",
+   "subject": "g_dat_63e50 covers g_heap_flag",
+   "evidence": "overlap=1B shipped base constants in the inner span: ['0x63fb8', '0x63fbd']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_dat_63e50 covers g_node_list_done",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x63ffc', '0x63ff8']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_dat_63e50 covers g_node_list_active",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x63ffc', '0x63ff8', '0x64000']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_dat_63e50 covers g_clock_ticks",
+   "evidence": "overlap=4B shipped base constants in the inner span: ['0x63ffc', '0x63ff8', '0x64000', '0x64004']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
    "subject": "g_dat_63e50 covers g_dat_64004",
    "evidence": "overlap=4B shipped base constants in the inner span: ['0x63ffc', '0x64000', '0x64008', '0x64004']",
    "verdict": "FILED-SPAN"
@@ -1337,6 +1457,13 @@
    "kind": "port-span-overlap",
    "subject": "g_dat_63e88 covers g_dat_63ea5",
    "evidence": "overlap=1B shipped base constants in the inner span: ['0x63ea5', '0x63ea4']",
+   "verdict": "FILED-SPAN"
+  },
+  {
+   "check": "C2",
+   "kind": "port-span-overlap",
+   "subject": "g_dat_63e88 covers g_dat_63eb2",
+   "evidence": "overlap=1B shipped base constants in the inner span: ['0x63eb2']",
    "verdict": "FILED-SPAN"
   },
   {
@@ -1496,16 +1623,23 @@
   {
    "check": "C2",
    "kind": "port-two-names-one-cell",
+   "subject": "0x53c7c g_dat_53c7c_null_warned,g_player_ent",
+   "evidence": "types=['uint8_t *', 'uint8_t *', 'int']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C2",
+   "kind": "port-two-names-one-cell",
    "subject": "0x537ca g_dat_537ca,g_dat_537ca_target",
    "evidence": "types=['uint8_t *', 'uint8_t', 'uint8_t *']",
    "verdict": "FILED-VIEW"
   },
   {
-   "check": "C4",
-   "kind": "guest-symbol-is-pointer-port-declares-integer",
-   "subject": "g_dat_53c7c_null_warned @ 0x53c7c",
-   "evidence": "port=int shipped=pointer image=0 R867/W2 ",
-   "verdict": "FILED-REPR"
+   "check": "C2",
+   "kind": "port-cell-inside-guest-item",
+   "subject": "{'kind': 'port-cell-inside-guest-item', 'ds': 327696, 'port': 'g_blk_50010', 'port_size': 200, 'guest_item': {'addr': '0x50004', 'end': '0x50010', 'size': 13, 'type': 'string', 'label': 's_cdinsert.pcx_00050004', 'nrefs': 0}}",
+   "evidence": "guest-side interval overlap",
+   "verdict": "FILED-VIEW"
   },
   {
    "check": "C4",
@@ -1531,23 +1665,16 @@
   {
    "check": "C1",
    "kind": "unmodelled-cell",
-   "subject": "0x63354",
-   "evidence": "R236/W8 image=0 sites=[\"fn_0374ad@0x3761f MOV ['[0x00063354]', 'EAX']\", \"fn_0376c8@0x377f1 MOV ['[0x00063354]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
    "subject": "0x53eb8",
-   "evidence": "R148/W0 image=0 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R148/W0 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eb0",
-   "evidence": "R80/W0 image=0 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R80/W0 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
@@ -1560,112 +1687,84 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51d5c",
-   "evidence": "R58/W0 image=1056964608 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R58/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51c9c",
-   "evidence": "R48/W0 image=4294967241 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R48/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51ca0",
-   "evidence": "R42/W0 image=4294967291 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R42/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eb4",
-   "evidence": "R40/W0 image=0 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R40/W0 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53f20",
-   "evidence": "R40/W0 image=0 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R40/W0 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53f1c",
-   "evidence": "R39/W0 image=0 sites=[]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53c5c",
-   "evidence": "R29/W1 image=0 sites=[\"fn_0104c7@0x10530 MOV ['dword ptr [0x00053c5c]', 'EBX']\"]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R39/W0 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51d68",
-   "evidence": "R27/W0 image=1065353216 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R27/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51ca4",
-   "evidence": "R24/W0 image=4294967256 sites=[]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x639c4",
-   "evidence": "R22/W1 image=0 sites=[\"fn_03690b@0x36fb5 MOV ['[0x000639c4]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R24/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53ea0",
-   "evidence": "R20/W1 image=0 sites=[\"fn_037b03@0x37ed8 MOV ['dword ptr [EDX + 0x53ea0]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R20/W1 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51ca8",
-   "evidence": "R21/W0 image=5 sites=[]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x63e08",
-   "evidence": "R18/W1 image=0 sites=[\"fn_03690b@0x36ffd MOV ['[0x00063e08]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R21/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53eb9",
-   "evidence": "R18/W0 image=0 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R18/W0 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x53670",
    "evidence": "R17/W1 image=0 sites=[\"fn_0461cc@0x46e37 XCHG ['word ptr [EBX + 0x8]', 'AX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x533b2",
-   "evidence": "R14/W1 image=0 sites=[\"fn_0420bc@0x421d1 MOV ['[0x000533b2]', 'AL']\"]",
    "verdict": "FILED-MODEL"
   },
   {
@@ -1699,93 +1798,9 @@
   {
    "check": "C1",
    "kind": "unmodelled-cell",
-   "subject": "0x53350",
-   "evidence": "R10/W2 image=0 sites=[\"heap_unlink@0x42caf MOV ['dword ptr [0x00053350]', 'EDX']\", \"heap_insert_init@0x42e56 MOV ['dword ptr [0x00053350]', 'EDX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x63ffc",
-   "evidence": "R9/W3 inside port span g_dat_63e50",
-   "verdict": "EXPLAINED-BY-SPAN"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53c84",
-   "evidence": "R9/W2 image=0 sites=[\"fn_0376c8@0x377d4 MOV ['[0x00053c84]', 'EAX']\", \"fn_03af18@0x3b025 MOV ['[0x00053c84]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53c80",
-   "evidence": "R8/W2 image=0 sites=[\"fn_010efc@0x10f2b MOV ['[0x00053c80]', 'EAX']\", \"fn_037b03@0x37b43 MOV ['dword ptr [0x00053c80]', '0x0']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x63eb2",
-   "evidence": "R9/W1 inside port span g_dat_63e50",
-   "verdict": "EXPLAINED-BY-SPAN"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53384",
-   "evidence": "R5/W5 image=0 sites=[\"fn_0420bc@0x420c8 MOV ['dword ptr [0x00053384]', 'EBX']\", \"fn_0420bc@0x42122 MOV ['dword ptr [0x00053384]', 'EBX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x63ff8",
-   "evidence": "R5/W5 inside port span g_dat_63e50",
-   "verdict": "EXPLAINED-BY-SPAN"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53c88",
-   "evidence": "R3/W6 image=0 sites=[\"fn_012616@0x12a1a MOV ['dword ptr [0x00053c88]', '0x0']\", \"fn_01441e@0x147fb MOV ['[0x00053c88]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
    "subject": "0x63f27",
    "evidence": "R9/W0 inside port span g_dat_63e50",
    "verdict": "EXPLAINED-BY-SPAN"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x530ac",
-   "evidence": "R7/W1 inside port span g_tab_52ffc",
-   "verdict": "EXPLAINED-BY-SPAN"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x63358",
-   "evidence": "R2/W5 image=0 sites=[\"fn_03690b@0x372e3 MOV ['dword ptr [0x00063358]', '0x0']\", \"fn_037b03@0x37b57 MOV ['dword ptr [0x00063358]', '0x0']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x51960",
-   "evidence": "R7/W0 image=2031616 sites=[]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x5197a",
-   "evidence": "R7/W0 image=2031616 sites=[]",
-   "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
@@ -1807,27 +1822,6 @@
    "subject": "0x5d0c4",
    "evidence": "R5/W1 inside port span g_tab_5d0b4",
    "verdict": "EXPLAINED-BY-SPAN"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53358",
-   "evidence": "R3/W3 image=0 sites=[\"heap_malloc@0x41b49 MOV ['dword ptr [0x00053358]', 'ECX']\", \"heap_malloc@0x41b86 MOV ['dword ptr [0x00053358]', 'EDX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53390",
-   "evidence": "R3/W3 image=0 sites=[\"fn_0420bc@0x420d2 MOV ['[0x00053390]', 'AX']\", \"fn_0420bc@0x4215a MOV ['word ptr [0x00053390]', 'DS']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x63e04",
-   "evidence": "R4/W1 image=0 sites=[\"fn_03690b@0x370d5 MOV ['[0x00063e04]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
@@ -1860,23 +1854,9 @@
   {
    "check": "C1",
    "kind": "unmodelled-cell",
-   "subject": "0x51c98",
-   "evidence": "R1/W4 image=1 sites=[\"fn_016fec@0x1701d MOV ['dword ptr [0x00051c98]', '0x2']\", \"fn_016fec@0x17138 MOV ['dword ptr [0x00051c98]', '0x1']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
    "subject": "0x53eac",
-   "evidence": "R4/W1 image=0 sites=[\"fn_037b03@0x37f3b MOV ['dword ptr [EDX + 0x53eac]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x53354",
-   "evidence": "R3/W2 image=0 sites=[\"heap_malloc@0x41b5f MOV ['dword ptr [0x00053354]', 'ECX']\", \"heap_unlink@0x42c9c MOV ['dword ptr [0x00053354]', 'EDX']\"]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R4/W1 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
@@ -1903,15 +1883,15 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51d3c",
-   "evidence": "R4/W0 image=20 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R4/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51d40",
-   "evidence": "R4/W0 image=135 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R4/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
@@ -1930,23 +1910,9 @@
   {
    "check": "C1",
    "kind": "unmodelled-cell",
-   "subject": "0x62aa0",
-   "evidence": "R3/W1 image=0 sites=[\"fn_03690b@0x369af MOV ['[0x00062aa0]', 'EAX']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
    "subject": "0x5d0b8",
    "evidence": "R3/W1 inside port span g_tab_5d0b4",
    "verdict": "EXPLAINED-BY-SPAN"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x533b3",
-   "evidence": "R3/W1 image=0 sites=[\"fn_0420bc@0x421d6 MOV ['byte ptr [0x000533b3]', 'AH']\"]",
-   "verdict": "FILED-MODEL"
   },
   {
    "check": "C1",
@@ -1973,8 +1939,8 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x51d70",
-   "evidence": "R3/W0 image=1069547520 sites=[]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R3/W0 inside port span g_tab_51b60",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
@@ -2015,29 +1981,8 @@
    "check": "C1",
    "kind": "unmodelled-cell",
    "subject": "0x5d895",
-   "evidence": "R3/W0 image=0 sites=[]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x63d10",
-   "evidence": "R1/W2 image=0 sites=[\"fn_03690b@0x37171 MOV ['[0x00063d10]', 'EAX']\", \"fn_037922@0x37a57 MOV ['dword ptr [0x00063d10]', '0x0']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x52738",
-   "evidence": "R3/W0 image=100 sites=[]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
-   "subject": "0x639e8",
-   "evidence": "R2/W2 image=0 sites=[\"fn_037b03@0x37bdf MOV ['dword ptr [0x000639e8]', '0x0']\", \"fn_03c853@0x3c87c INC ['dword ptr [0x000639e8]']\"]",
-   "verdict": "FILED-MODEL"
+   "evidence": "R3/W0 inside port span g_tab_5d884",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C1",
@@ -2063,13 +2008,6 @@
   {
    "check": "C1",
    "kind": "unmodelled-cell",
-   "subject": "0x53394",
-   "evidence": "R2/W1 image=0 sites=[\"fn_0420bc@0x4226c MOV ['dword ptr [0x00053394]', 'EDI']\"]",
-   "verdict": "FILED-MODEL"
-  },
-  {
-   "check": "C1",
-   "kind": "unmodelled-cell",
    "subject": "0x640bc",
    "evidence": "R3/W0 inside port span g_dat_63e50",
    "verdict": "EXPLAINED-BY-SPAN"
@@ -2084,9 +2022,205 @@
   {
    "check": "C1",
    "kind": "unmodelled-cell",
-   "subject": "0x533b4",
+   "subject": "0x5340a",
    "evidence": "R3/W0 image=0 sites=[]",
    "verdict": "FILED-MODEL"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x53410",
+   "evidence": "R3/W0 image=0 sites=[]",
+   "verdict": "FILED-MODEL"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x536e1",
+   "evidence": "R3/W0 image=33554432 sites=[]",
+   "verdict": "FILED-MODEL"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x536e0",
+   "evidence": "R3/W0 image=1 sites=[]",
+   "verdict": "FILED-MODEL"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x519bc",
+   "evidence": "R3/W0 image=4190503128 sites=[]",
+   "verdict": "FILED-MODEL"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x519be",
+   "evidence": "R3/W0 image=1086781894 sites=[]",
+   "verdict": "FILED-MODEL"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51a14",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51a3c",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51a40",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x53c54",
+   "evidence": "R1/W1 inside port span g_dat_53c4c",
+   "verdict": "EXPLAINED-BY-SPAN"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x53c52",
+   "evidence": "R1/W1 inside port span g_dat_53c4c",
+   "verdict": "EXPLAINED-BY-SPAN"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x53c50",
+   "evidence": "R1/W1 inside port span g_dat_53c4c",
+   "verdict": "EXPLAINED-BY-SPAN"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51a5c",
+   "evidence": "R2/W0 inside port span g_serial_tpl_51a58",
+   "verdict": "EXPLAINED-BY-SPAN"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51a84",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51a8c",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51a90",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51aa8",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51ab0",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51ab4",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51ad8",
+   "evidence": "R2/W0 inside port span g_rom_51ad4",
+   "verdict": "EXPLAINED-BY-SPAN"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51af0",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51af4",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51b08",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51b20",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51b24",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x51b50",
+   "evidence": "R2/W0 single/low-traffic access",
+   "verdict": "EXPLAINED-SCRATCH"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x53ea4",
+   "evidence": "R2/W0 inside port span g_dat_53e9c",
+   "verdict": "EXPLAINED-BY-SPAN"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x5d0a8",
+   "evidence": "R1/W1 inside port span g_dat_5d0a0",
+   "verdict": "EXPLAINED-BY-SPAN"
+  },
+  {
+   "check": "C1",
+   "kind": "unmodelled-cell",
+   "subject": "0x5d0a4",
+   "evidence": "R1/W1 inside port span g_dat_5d0a0",
+   "verdict": "EXPLAINED-BY-SPAN"
   },
   {
    "check": "C5",
@@ -2742,6 +2876,27 @@
   {
    "check": "C5",
    "kind": "port-fn-never-called",
+   "subject": "act_trace_counts",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "act_trace_targets",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "act_trace_targets_all",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
    "subject": "ai_blk_f32",
    "evidence": "no call site inside the port",
    "verdict": "FILED-RUNTIME"
@@ -3258,31 +3413,17 @@
    "verdict": "FILED-RUNTIME"
   },
   {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fpu_rndint",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fpu_state_save",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fx4794a_store",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
    "check": "C8",
    "kind": "overlapping-bases",
    "subject": "0x639dc (g_dat_639dc) vs 0x639e0 (g_dat_639e0)",
    "evidence": "distance=0x4 n=90/77 shared_fns=['fn_012efa', 'fn_013908', 'fn_0374ad']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x63354 (g_dat_63354) vs 0x63370 (g_dat_63370)",
+   "evidence": "distance=0x1c n=244/42 shared_fns=['fn_010d47', 'fn_012616', 'fn_0374ad']",
    "verdict": "FILED-VIEW"
   },
   {
@@ -3295,6 +3436,20 @@
   {
    "check": "C8",
    "kind": "overlapping-bases",
+   "subject": "0x63354 (g_dat_63354) vs 0x633b0 (g_dat_633b0)",
+   "evidence": "distance=0x5c n=244/43 shared_fns=['fn_038445', 'fn_039c03', 'fn_03a829']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x63354 (g_dat_63354) vs 0x636b8 (g_dat_636b8)",
+   "evidence": "distance=0x364 n=244/49 shared_fns=['fn_03af18']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
    "subject": "0x636b8 (g_dat_636b8) vs 0x639dc (g_dat_639dc)",
    "evidence": "distance=0x324 n=49/90 shared_fns=['fn_03af18']",
    "verdict": "FILED-VIEW"
@@ -3302,7 +3457,7 @@
   {
    "check": "C8",
    "kind": "overlapping-bases",
-   "subject": "0x53c6c (g_dat_53c6c) vs 0x53c7c (g_dat_53c7c_null_warned)",
+   "subject": "0x53c6c (g_dat_53c6c) vs 0x53c7c (g_dat_53c7c_null_warned,g_player_ent)",
    "evidence": "distance=0x10 n=20/869 shared_fns=['fn_015a1f', 'fn_015b5b', 'fn_015d16']",
    "verdict": "FILED-VIEW"
   },
@@ -3372,7 +3527,7 @@
   {
    "check": "C8",
    "kind": "overlapping-bases",
-   "subject": "0x53c68 (g_dat_53c68) vs 0x53c7c (g_dat_53c7c_null_warned)",
+   "subject": "0x53c68 (g_dat_53c68) vs 0x53c7c (g_dat_53c7c_null_warned,g_player_ent)",
    "evidence": "distance=0x14 n=19/869 shared_fns=['fn_013aad', 'fn_01441e', 'fn_016fec']",
    "verdict": "FILED-VIEW"
   },
@@ -3407,7 +3562,14 @@
   {
    "check": "C8",
    "kind": "overlapping-bases",
-   "subject": "0x53c70 (g_dat_53c70) vs 0x53c7c (g_dat_53c7c_null_warned)",
+   "subject": "0x63354 (g_dat_63354) vs 0x63360 (g_dat_63360)",
+   "evidence": "distance=0xc n=244/27 shared_fns=['fn_012616', 'fn_03a829', 'fn_03ce0b']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x53c70 (g_dat_53c70) vs 0x53c7c (g_dat_53c7c_null_warned,g_player_ent)",
    "evidence": "distance=0xc n=20/869 shared_fns=['fn_013aad', 'fn_01441e', 'fn_016fec']",
    "verdict": "FILED-VIEW"
   },
@@ -3423,6 +3585,13 @@
    "kind": "overlapping-bases",
    "subject": "0x639e0 (g_dat_639e0) vs 0x639ec (g_dat_639ec)",
    "evidence": "distance=0xc n=77/35 shared_fns=['fn_0374ad']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x63354 (g_dat_63354) vs 0x63398 (g_dat_63398)",
+   "evidence": "distance=0x44 n=244/18 shared_fns=['fn_012616', 'fn_0374ad', 'fn_0376c8']",
    "verdict": "FILED-VIEW"
   },
   {
@@ -3486,6 +3655,13 @@
    "kind": "overlapping-bases",
    "subject": "0x62c58 (g_dat_62c58) vs 0x62cd8 (g_dat_62cd8)",
    "evidence": "distance=0x80 n=19/10 shared_fns=['fn_032464', 'fn_0343d1', 'fn_034635']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x53c5c (g_dat_53c5c) vs 0x53c7c (g_dat_53c7c_null_warned,g_player_ent)",
+   "evidence": "distance=0x20 n=30/869 shared_fns=[]",
    "verdict": "FILED-VIEW"
   },
   {
@@ -3589,8 +3765,36 @@
   {
    "check": "C8",
    "kind": "overlapping-bases",
+   "subject": "0x51960 (g_nonleap_tbl) vs 0x5197a (g_leap_tbl)",
+   "evidence": "distance=0x1a n=4/4 shared_fns=['date_match_recur', 'date_norm', 'date_recur']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
    "subject": "0x633b0 (g_dat_633b0) vs 0x633b8 (g_dat_633b8)",
    "evidence": "distance=0x8 n=43/17 shared_fns=['fn_038445', 'fn_038f3d', 'fn_03a829']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x639c4 (g_dat_639c4) vs 0x639dc (g_dat_639dc)",
+   "evidence": "distance=0x18 n=23/90 shared_fns=['fn_03b718']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x639c4 (g_dat_639c4) vs 0x639e0 (g_dat_639e0)",
+   "evidence": "distance=0x1c n=23/77 shared_fns=['fn_03b718']",
+   "verdict": "FILED-VIEW"
+  },
+  {
+   "check": "C8",
+   "kind": "overlapping-bases",
+   "subject": "0x639c4 (g_dat_639c4) vs 0x639ec (g_dat_639ec)",
+   "evidence": "distance=0x28 n=23/35 shared_fns=['fn_03690b']",
    "verdict": "FILED-VIEW"
   },
   {
@@ -3631,77 +3835,7 @@
   {
    "check": "C8",
    "kind": "overlapping-bases",
-   "subject": "0x63ec0 (g_dat_63ec0) vs 0x63ed8 (g_dat_63ed8)",
-   "evidence": "distance=0x18 n=19/11 shared_fns=['fn_03272f', 'fn_038445', 'fn_038f3d']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63ec1 (g_dat_63ec1) vs 0x63ed0 (g_dat_63ed0)",
-   "evidence": "distance=0xf n=24/11 shared_fns=['fn_03272f', 'fn_038445', 'fn_038f3d']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63ec1 (g_dat_63ec1) vs 0x63ed8 (g_dat_63ed8)",
-   "evidence": "distance=0x17 n=24/11 shared_fns=['fn_03272f', 'fn_038445', 'fn_038f3d']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63ed0 (g_dat_63ed0) vs 0x63ed8 (g_dat_63ed8)",
-   "evidence": "distance=0x8 n=11/11 shared_fns=['fn_03272f', 'fn_038445', 'fn_038f3d']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63f14 (g_dat_63f14) vs 0x63f50 (g_dat_63f50)",
-   "evidence": "distance=0x3c n=11/27 shared_fns=['fn_03272f', 'fn_034353', 'fn_03442e']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63e89 (g_dat_63e89) vs 0x63ed3 (g_dat_63ed3)",
-   "evidence": "distance=0x4a n=19/16 shared_fns=['fn_038cde', 'fn_038f3d', 'fn_039c03']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63e89 (g_dat_63e89) vs 0x63ed5 (g_dat_63ed5)",
-   "evidence": "distance=0x4c n=19/16 shared_fns=['fn_038cde', 'fn_038f3d', 'fn_039c03']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63ea4 (g_dat_63ea4) vs 0x63ed3 (g_dat_63ed3)",
-   "evidence": "distance=0x2f n=21/16 shared_fns=['fn_038cde', 'fn_038f3d', 'fn_039c03']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63ea4 (g_dat_63ea4) vs 0x63ed5 (g_dat_63ed5)",
-   "evidence": "distance=0x31 n=21/16 shared_fns=['fn_038cde', 'fn_038f3d', 'fn_039c03']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "0x63fac (g_dat_63fac) vs 0x63fb4 (g_dat_63fb4)",
-   "evidence": "distance=0x8 n=13/13 shared_fns=['fn_04097e', 'fn_040b83', 'fn_040d09']",
-   "verdict": "FILED-VIEW"
-  },
-  {
-   "check": "C8",
-   "kind": "overlapping-bases",
-   "subject": "4561 further pairs",
+   "subject": "5406 further pairs",
    "evidence": "at least one base is not modelled by a port global",
    "verdict": "EXPLAINED-NOT-MODELLED"
   }

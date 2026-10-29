@@ -99,3 +99,19 @@ Two independent statements, which must not be merged:
 
 Filed as the concrete gate item still open: the music cluster's *content/timing* layer stays unresolved until
 the schedule oracle is anchored per route; the teardown layer is green.
+
+## 7. Regression from that parser fix, found when the closeout re-ran the audit chain
+
+`port_src._statements()` now yields `(lineno, offset, stmt)`, but `static_audit.port_written_names()`
+(`static_audit.py:58`) still unpacked two values, so **`triage.py` crashed outright** (`ValueError: too many
+values to unpack`) while `static_audit.py` itself kept working — the broken helper is only reached through
+`triage.py`. Fixed to unpack three; the adjudication runs again and reports:
+
+```
+FILED-RUNTIME 107 | FILED-SPAN 141 | FILED-VIEW 65 | FILED-CALLGRAPH-GAP 64 | FILED-MODEL 24
+FILED-READONLY 12 | FILED-REPR 3 | FILED-PRODUCER-CHECK 7
+EXPLAINED-UNACCESSED 37 | EXPLAINED-BY-SPAN 41 | EXPLAINED-DEAD 25 | EXPLAINED-SCRATCH 15 | +2 others
+```
+
+with `static_audit` itself unchanged at `c1 343 / c2 149 / c3 27 / c3b 12 / c4 3` (docs/122 numbers). The
+reports (`triage.json/.md`) were regenerated from the current tree and committed with the fix.

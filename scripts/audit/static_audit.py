@@ -55,7 +55,7 @@ def port_written_names():
     names = {g["name"] for g in port_src.globals_()}
     written = set()
     for _fname, text in port_src._files():
-        for _lineno, stmt in port_src._statements(text):
+        for _lineno, _off, stmt in port_src._statements(text):
             one = " ".join(stmt.split())
             head = one.lstrip()
             while head.startswith("/*"):

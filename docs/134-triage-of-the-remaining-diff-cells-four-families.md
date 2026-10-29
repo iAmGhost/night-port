@@ -55,3 +55,31 @@ So the 32-cell DIFF set is: ~10 extender-state cells to *classify*, 3 heap cells
 cells to *investigate*, 1 behavioural divergence to *fix*, 2 rig-basis rows to *re-verdict*, plus the
 CD-selection pair 0x53c40/0x53c44/0x53c48 already open under docs/131 and the entity-record rows
 (`REC-DIFF 36`, `REC-NULL 3`) tracked separately.
+
+## 6. `g_dat_53100` opened: the CONTINUE countdown ticks in the port and not in the shipped run
+
+Every shipped write to DS 0x53100, from the Ghidra access records:
+
+```
+WRITE  0x389f3  fn_038445  DEC  dword ptr [0x00053100]          -> port f.c:24997  (g_dat_53100 - 1)
+WRITE  0x395f2  fn_038f3d  INC  dword ptr [0x00053100]          -> port f.c:25196  (g_dat_53100 + 1, "one CONTINUE credit")
+WRITE  0x3abd3  fn_03a829  MOV  dword ptr [0x00053100], 3       -> reset
+WRITE  0x3abf5  fn_03a829  MOV  dword ptr [0x00053100], 3       -> reset
+READ   0x38606 / 0x387bb  fn_038445  PUSH  (draws the countdown)
+READ   0x389f3            fn_038445  DEC
+READ   0x3981f            fn_038f3d  PUSH  (status screen shows it)
+READ   0x3abc1            fn_03a829  CMP   [0x00053100], 0      (game-over test)
+```
+
+Measured on the same route: the shipped side holds `0x3` for **every** sample, while the port starts at 3 and
+reaches 2. Both sides have the decrement wired, so the divergence is *when it is reached*: the shipped
+`DEC` at 0x389f3 lives in `fn_038445`, the routine that draws and ticks the CONTINUE countdown, and the
+shipped run never enters that state (no death occurred on this drive), whereas the port's decrement at
+`f.c:24997` does get executed. The port's increment at `f.c:25196` is attributed to "one CONTINUE credit",
+while the shipped `INC` belongs to `fn_038f3d` — the status/level-up screen that docs/125 §6b already showed
+the port never reaches (`commits=0`). So one cell exposes both halves of the same problem: a countdown path
+that runs too early and a credit path that never runs.
+
+Next step for this item: instrument `fn_038445`'s entry on both sides (the shipped side through the state
+dump around `0x53100` writes, the port through a witness counter), and check the guard the port applies
+before `f.c:24997` against the guest's branch at 0x000389e0-0x000389f3.

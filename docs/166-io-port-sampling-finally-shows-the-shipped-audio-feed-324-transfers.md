@@ -74,3 +74,36 @@ active in 14 % of record windows.
    defect is pacing; if it totals several times more, the port is dropping material.
 3. **Same census on a title route**, where docs/165 §7 showed the shipped side plays disc music and the port's
    board produced two 0.24 s bursts: the census will say whether the shipped board even feeds during the title.
+
+## 5. Grouped by inter-event gap: the shipped board is a stream, the port's is a block
+
+Splitting the 324 events wherever the gap exceeds 1.5 s gives six feed bursts on this route:
+
+```
+start t      chunks   programmed bytes   span        quanta of 257
+108263 ms       77          890 839      4084 ms        3466
+135131 ms      107          656 228      6342 ms        2553
+117534 ms       59          518 685      3094 ms        2018
+124935 ms       63          413 319      3955 ms        1608
+145839 ms        9          367 776       471 ms        1431
+ 49945 ms        9           85 847       470 ms         334
+```
+
+Two regimes, and they are not the same thing:
+
+* **Long streaming bursts** (59-107 chunks, 257-byte ladder, 3-6.3 s): the driver feeding a sustained sound
+  continuously, chunk after chunk.
+* **Short high-quantum bursts** (9 chunks each, 85-368 kB in 0.47 s, i.e. individual transfers up toward 65 kB --
+  a whole 0x10000 buffer at once): the driver re-arming a full-buffer transfer rather than stepping through
+  quanta.
+
+Against the port's 3 609-byte block per play (≈ 0.33 s of 8-bit samples at the rate its board programs), the
+shipped side puts 85-891 kB into the board *per burst*.  The audio divergence is therefore architectural: the
+shipped driver keeps a **stream** running through the board and refills it in 256-byte quanta, while the port
+models audio as **one block per sound event** (docs/164 §6: 70 identical feeds of one block).  That explains why
+the mixer capture is active 96 % of the route while the port's board witness is silent in 86 % of record windows,
+and it does it without trusting the capture at all.
+
+Caveat kept on the record: the 1.5 s grouping is a heuristic.  A group may be several sounds, and a group's byte
+total is the sum of programmed transfer sizes, not decoded audio length -- but 85 kB against 3.6 kB is a factor of
+23, far outside what grouping ambiguity can produce.

@@ -8940,6 +8940,14 @@ void fn_0342ff(int32_t amount)
  *   same "caught" conditions is additionally nudged by (prng % 0x29) - 0x14 (the original signed
  *   idiv: jitter -20..+20).
  */
+static int walk_trace_on(void)                                      /* docs/152 §4: cached witness switch */
+{
+    static int v = -1;
+    if (v < 0) v = getenv("NIGHT_WALKTRACE") ? 1 : 0;
+    return v;
+}
+
+uint64_t g_step_player_01194c, g_step_player_012616;               /* per-frame step dispatch, player only */
 uint64_t g_walk_calls_34295, g_walk_sum_34295;              /* docs/152: .act-chain player movers */
 uint64_t g_walk_calls_342ff, g_walk_sum_342ff;
 
@@ -8953,6 +8961,9 @@ void walk_trace_report(void)                                      /* docs/149: s
     for (int i = 0; i < 65; i++)
         if (g_walk_hist_player[i]) fprintf(stderr, " %d:%d", i - 32, g_walk_hist_player[i]);
     fprintf(stderr, " tick=%u\n", g_dat_63e28);
+    fprintf(stderr, "WALK steps: fn_01194c_player=%llu fn_012616_player=%llu | stepped mover calls=%llu (%.3f per dispatch)\n",
+            (unsigned long long)g_step_player_01194c, (unsigned long long)g_step_player_012616,
+            (unsigned long long)(g_walk_calls_player - 0), 0.0);
     fprintf(stderr, "WALK movers: fn_034295 calls=%llu sum=%llu per=%.2f | fn_0342ff calls=%llu sum=%llu per=%.2f\n",
             (unsigned long long)g_walk_calls_34295, (unsigned long long)g_walk_sum_34295,
             g_walk_calls_34295 ? (double)g_walk_sum_34295 / (double)g_walk_calls_34295 : 0.0,
@@ -25688,6 +25699,7 @@ const uint32_t g_tab_531e0[5] = { 0x6c, 0x79, 0x87, 0x92, 0x9e };
  */
 void fn_01194c(uint8_t *e)
 {
+    if (walk_trace_on() && e == g_player_ent) g_step_player_01194c++;   /* docs/152 §4 */
     (void)canary_id((uintptr_t)e, 0x14);                                 /* 0x0001194c-52 probe */
     const uint32_t st = ((struct ua32 *)((e + 0x17)))->v;                   /* the jump-table index */
     const int32_t ty = ((struct sa32 *)((e + 0x0d)))->v;                     /* entity type / serial */
@@ -25846,6 +25858,7 @@ void fn_01194c(uint8_t *e)
  */
 void fn_012616(uint8_t *e)
 {
+    if (walk_trace_on() && e == g_player_ent) g_step_player_012616++;   /* docs/152 §4 */
     (void)canary_id((uintptr_t)e, 0x30);                                 /* 0x0001261b probe (push 0x30) */
     uint8_t *hb = (uint8_t *)g_heap_base;
     const uint32_t ptbl = ((struct ua32 *)((e + 0x123)))->v;                /* P1: action container */

@@ -171,6 +171,7 @@ extern uint32_t g_dat_63304;                    /* DAT_00063304: timer divisor (
 extern int32_t  g_dat_63308;                    /* DAT_00063308: rate/scale word (fn_0353d0 cmd 0x51 path writes it) */
 /* docs/149 walk witness (NIGHT_WALKTRACE): the mover fn_01545e call census. */
 void walk_trace_report(void);
+extern uint64_t g_step_player_01194c, g_step_player_012616;
 extern uint64_t g_walk_calls_34295, g_walk_sum_34295;
 extern uint64_t g_walk_calls_342ff, g_walk_sum_342ff;
 extern uint64_t g_walk_calls_all;

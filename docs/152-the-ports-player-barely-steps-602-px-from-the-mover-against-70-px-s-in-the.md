@@ -93,3 +93,40 @@ python3 scripts/rig/walk_rate.py --orig /tmp/rig/g12/orig --port /tmp/rig/g12/po
 uv run --with capstone scripts/audit/call_sites.py --target 0x1545e --before 6       # 26 callers, feeds of d
 uv run --with capstone scripts/audit/disasm.py --entry 0x34295 --end 0x34353         # the chain movers
 ```
+## 4b. The probe ran: 0.155 steps per player dispatch
+
+The two dispatch counters (`g_step_player_01194c`, `g_step_player_012616`, both printed by
+`NIGHT_WALKTRACE`) give the denominator the question needed, on the same 6000-frame run:
+
+```
+WALK steps: fn_01194c_player=3253 fn_012616_player=3253 | stepped mover calls=3610
+```
+
+* the player's step dispatch runs **3253** times in 6000 frames (the other ~45% is the slide-show/intro, where
+  `DAT_00053c68 == 0`), and `fn_01194c` and `fn_012616` run exactly once per dispatch each — so the dispatch
+  path is intact and not being skipped;
+* nonzero mover steps are **504**, i.e. **0.155 steps per dispatch**. Against the shipped reference of ~1 step
+  per walking frame, the port moves the player on roughly one in seven of its player frames.
+
+The state shares explain why, and they diverge (same route `/tmp/rig/g12`):
+
+| player state | shipped share | port share |
+|---|---|---|
+| `0x02` (walk) | 123 / 424 = **29%** | 164 / 1709 = **9.6%** |
+| `0x01` | 180 / 424 = 42% | 466 / 1709 = 27% |
+| `0x00` | 27 / 424 = 6% | 599 / 1709 = 35% (mostly the 544 slide-show samples) |
+| `0x15` (hit code 11) | **absent** | 215 / 1709 = 12.6% |
+
+So the port spends a third of the shipped time in the walking state and yet still travels further, because
+distance is dominated by the anchor stores of §1. Two follow-ups are now measurable rather than speculative:
+why the port leaves state `0x02` so early (the chain that selects it — docs/110), and why the player is put
+into `0x15` (hit code 11) 215 times when the shipped run of the same route never puts the player there at all.
+
+One more good piece of news, and one rig bug caught while measuring it. On the fixed build the type census of
+the 12 entity slots is `ORIG {0: 4644, 1: 413, 2: 31}` and `PORT {0: 16271, 1: 3981, 2: 256}` — normalised,
+0.97 vs 2.33 type-1 enemies per sample, which is docs/142's population divergence, but **type `0x24`
+(`enb-1.spr`), the attacker docs/137 blamed for the code-11 hit, no longer appears on either side**: docs/147's
+trip-count fix removed the extra population as well. The rig bug: the first version of that census reused one
+`collections.Counter` for both sides and printed identical numbers (`16271, 3981, 256` twice); the "both sides
+agree" reading was an artifact of the script, caught by the implausibility of exact equality, and fixed before
+the numbers above were quoted.

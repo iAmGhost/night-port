@@ -273,3 +273,30 @@ separately -- the 11 sites inside `fn_0113e7`, plus `fn_01441e`, `fn_03a829`, ..
 programming events *grouped by time* (9 -> 126 -> 189 events per minute, docs/166 §1).  A site that never fires
 in the port while the shipped minute-rate climbs is the specific missing trigger, and the docs/120 coverage
 census can already say whether that caller was ever entered.
+
+## 11. Per-call-site trigger census: 61 of 63 sample requests come from ONE site
+
+`fn_04185e` now prints `__builtin_return_address(0)` under `NIGHT_AUDIODUMP` (a `playsite` line).  Grouping the
+returns on `ep1_kill3`, 4000 frames:
+
+```
+   61 requests from one call site   (host return 0x104677418)
+    1 from 0x10467b9f8
+    1 from 0x10467b8ec
+```
+
+Which is the sharpest audio finding yet, and it is a *distribution* statement: the shipped side programs 324
+transfers across the route while the port's 63 sample requests on a shorter run come overwhelmingly from a single
+call site.  The 11 sites `fn_0113e7` carries in the shipped binary (`0x116c1..0x11819`) are wired in the port --
+they are simply not being taken.
+
+Two honest gaps, both filed rather than papered over:
+
+* **The site is not yet named.**  The returns are host addresses in a PIE binary and `nm` gives file addresses;
+  mapping needs the load slide (`atos -o port/test/night -l <slide>`, or printing the name from the generated
+  `src/gen/fn_table.c`, which already stores function pointers *and* their names side by side).  The count is
+  trustworthy; the attribution is not yet.
+* **The witness trap repeated itself.**  The first version of this witness printed nothing because its `fprintf`
+  again sat inside a trailing multi-line comment opened on the `if` line -- the exact defect recorded in §9.  The
+  binary check (`strings port/test/night | grep -c playsite` returning 0, then 1 after rewriting the comment
+  above the statement) is what caught it, which is why the rule exists.

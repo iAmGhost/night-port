@@ -8568,6 +8568,11 @@ unsigned long g_play_null;         /* ... entered with a null one (the DS 0x53d0
 void fn_04185e(uint8_t *cursor)
 {
     g_play_calls++;
+    /* docs/166 §11: which CALL SITE asked for the sample; mapped back to a symbol offline with nm.
+     * (Written once already inside a trailing block comment, which is why it printed nothing -- the same
+     * trap as docs/166 §9.) */
+    if (getenv("NIGHT_AUDIODUMP"))
+        fprintf(stderr, "playsite %p\n", __builtin_return_address(0));
     (void)canary_id((uintptr_t)cursor, 0x20);                         /* 0x4185e-63 */
     if (g_dat_63f90 == 0) return;                                     /* 0x41879-80 */
     if (g_dat_53338 == 0) return;                                     /* 0x41884-8b */

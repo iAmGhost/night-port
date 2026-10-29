@@ -6566,8 +6566,8 @@ uint32_t g_dat_53784 = 0x1;                /* DAT_00053784: TZ has-second-part f
  * and passed `&g_dat_53788`, which wrote 27 bytes past each global: a global buffer overflow that
  * silently clobbered whatever the compiler placed next, and the reason 0x53788/0x537a7 showed up as
  * value divergences in the state oracle (docs/133, found by static audit c9). */
-uint8_t g_dat_53788[0x1f];               /* DAT_00053788: TZ time prefix buf, 0x53788..0x537a6 */
-uint8_t g_dat_537a7[0x1f];               /* DAT_000537a7: TZ time2 prefix buf, 0x537a7..0x537c5 */
+uint8_t g_dat_53788[0x1f] = {0x45, 0x53, 0x54};   /* DAT_00053788: TZ prefix buf 0x53788..0x537a6; the shipped image holds "EST" here */
+uint8_t g_dat_537a7[0x1f] = {0x45, 0x44, 0x54};   /* DAT_000537a7: TZ prefix buf 0x537a7..0x537c5; the shipped image holds "EDT" here */
 uint32_t g_dat_5377c = 0x4650;                /* DAT_0005377c: TZ seconds */
 /* 0x53734/0x53758: two adjacent 36-byte struct dec_datetime reference dates
  * (the "recurring-event" anchors used by fn_049613). The TZ parser (fn_049a35/

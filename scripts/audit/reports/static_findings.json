@@ -4159,20 +4159,6 @@
    "init": ""
   },
   {
-   "ds": 341896,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_dat_53788",
-   "image_head": "45535400000000000000000000000000",
-   "init": ""
-  },
-  {
-   "ds": 341927,
-   "kind": "image-nonzero-port-zero",
-   "name": "g_dat_537a7",
-   "image_head": "45445400000000000000000000000000",
-   "init": ""
-  },
-  {
    "ds": 338460,
    "kind": "image-nonzero-port-zero",
    "name": "g_tab_52a1c",

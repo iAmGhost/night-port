@@ -135,12 +135,45 @@ displacements in the code are 16-bit (`[0x3784]` means DS 0x53784); the script a
 different value; weak-basis divergences are `DIFF-WIDTH` (spans disagree) or `DIFF-SIZE` (no shipped span),
 and the run prints `divergent cells: N of which same-width value divergences: M`.
 
-## 7. Open items filed here
+## 7. Rig defect found while checking the fix: the route ran a stale binary
+
+The first re-measurement after the transcriptions (`/tmp/rig/g8`, 120 s route) still showed zeros at every
+transcribed cell, and the DIFF cell set looked unchanged (37 cells, same list as docs/132's g6: 0x53100
+dropped, 0x53c48 added because the route was shorter). It was not a failed fix: `route.sh` invokes
+`./port/test/night` **without building it**, and that binary was 7 h older than the sources it was being
+used to test. Silent staleness invalidates every before/after claim the rig makes.
+
+Fixed in `scripts/rig/route.sh`: build the app target first, fail the route if the build fails, fail it again
+if any port source is still newer than `port/test/night`, and write `build_stamp.txt` (binary mtime) into the
+run directory so a route records which build it measured.
+
+Port-only re-measurement with the freshly built app (`--rig-dump /tmp/rig/q3`, ep1_kill3, 440 samples):
+
+```
+DS 0x5377c  50 46 00 00   -> 0x4650   (shipped 0x4650)
+DS 0x53780  10 0e 00 00   -> 0xe10    (shipped 0xe10)
+DS 0x53784  01 00 00 00   -> 0x1      (shipped 0x1)
+DS 0x530ac  20 03 00 00   -> 0x320    (shipped 0x320)
+DS 0x536dc  14 00 00 00   -> 0x14     (shipped 0x14)
+DS 0x51a10  01 00 00 00   -> 0x1      (shipped 0x1)
+DS 0x53368  20 00 00 00   -> 0x20     (shipped 0x20)
+```
+
+The two TZ *buffers* needed a brace initializer rather than a scalar one (the transcription pass handled
+scalars only); after `{0x45,0x53,0x54}` / `{0x45,0x44,0x54}` the port's dump reads
+`DS 0x53788 -> "EST"`, `DS 0x537a7 -> "EDT"`, byte-identical to the shipped region. c3b real byte
+mismatches: **0**. `make -C port test` ALL PASS.
+
+Consequence for the older runs: any route that measured a port binary older than its sources is suspect on
+*initial-value* questions. The oracles that compare value *transitions* (activity profiles, entity records,
+screen/audio windows) are less affected, but the closeout sweep must re-run with the build guard in place.
+
+## 8. Open items filed here
 
 1. Model the config-table build (guest 0x4aa49-0x4ab14) so `config_value_ptr` is live; that is the reason
    the whole TZ cluster was dead in the port.
-2. Re-measure the state-oracle DIFF set on a fresh route now that 36 cells have their shipped initial
-   values (`/tmp/rig/g8` run started against the fixed build; docs/132's g2/g6 baseline was 37 DIFF cells).
+2. Re-measure the state-oracle DIFF set on a fresh two-sided route with the build guard active (the g8
+   attempt is void, see §7); docs/132's g2/g6 baseline was 37 DIFF cells.
 3. Adjudicate the 12 `c3_image_init` rows that remain after the transcriptions.
 4. The 64 port cells with no shipped width at all still need Ghidra spans or access-derived widths before
    their verdicts carry weight.

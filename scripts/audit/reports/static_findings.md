@@ -56,11 +56,9 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"kind": "port-span-overlap", "a": "g_tab_52c3c", "a_span": ["0x52c3c", "0x5304c"], "b": "kXlat_5302c", "b_span": ["0x5302c", "0x5312c"], "overlap": 32}
   {"kind": "port-span-overlap", "a": "g_tab_52da4", "a_span": ["0x52da4", "0x52f34"], "b": "g_dat_52f08", "b_span": ["0x52f08", "0x53008"], "overlap": 44}
 
-## c3_image_init: 12 findings
+## c3_image_init: 10 findings
   {"ds": 340156, "kind": "image-nonzero-port-zero", "name": "g_dat_530bc", "image_head": "7f0000007f0000007f0000007f000000", "init": ""}
   {"ds": 339756, "kind": "image-nonzero-port-zero", "name": "g_tab_52f2c", "image_head": "16000000030000000200000006000000", "init": ""}
-  {"ds": 341896, "kind": "image-nonzero-port-zero", "name": "g_dat_53788", "image_head": "45535400000000000000000000000000", "init": ""}
-  {"ds": 341927, "kind": "image-nonzero-port-zero", "name": "g_dat_537a7", "image_head": "45445400000000000000000000000000", "init": ""}
   {"ds": 338460, "kind": "image-nonzero-port-zero", "name": "g_tab_52a1c", "image_head": "e8030000e8030000e8030000e8030000", "init": ""}
   {"ds": 338820, "kind": "image-nonzero-port-zero", "name": "g_tab_52b84", "image_head": "00000000000000000000000000000000", "init": ""}
   {"ds": 340012, "kind": "image-zero-port-nonzero", "name": "kXlat_5302c", "image_head": "00000000000000000000000000000000", "init": "= { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x"}

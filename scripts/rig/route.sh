@@ -29,6 +29,17 @@ say() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 say "route: drive=$DRIVE duration=${DUR}s out=$OUT"
 
 # ---- port side -------------------------------------------------------------------------
+# The rig must never run a binary older than the sources it is meant to be testing: docs/133 §8 caught a
+# before/after comparison made against a stale ./port/test/night, which silently reported the *old* values
+# for cells whose initializers had just been fixed. Build first, then record the stamp in the run dir.
+say "port: build (app target)"
+if ! ( cd "$ROOT" && make -C port app ) > "$OUT/build.log" 2>&1; then
+    say "port: BUILD FAILED (see $OUT/build.log)"; exit 1
+fi
+if [ -n "$(find port/src port/test/test_f1.c port/Makefile -newer port/test/night 2>/dev/null | head -1)" ]; then
+    say "port: WARNING a source is still newer than port/test/night"; exit 1
+fi
+printf 'binary=%s mtime=%s\n' "port/test/night" "$(stat -f '%Sm' port/test/night 2>/dev/null || stat -c '%y' port/test/night)" > "$OUT/build_stamp.txt"
 say "port: night --rig-dump"
 ( cd "$ROOT" && env $PORT_ENV timeout $((DUR + 40)) ./port/test/night --res-dir ./NIGHT \
       --script "$DRIVE" --rig-dump "$OUT/port" --rig-hz 10 --frames $((DUR * 60)) > "$OUT/port.log" 2>&1 )

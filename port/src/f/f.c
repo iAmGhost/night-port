@@ -1371,6 +1371,59 @@ uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg
  * links, rather than crashing or silently inventing state. */
 uint32_t g_walk_null_hits = 0;
 uint32_t g_list_null_links = 0;
+uint32_t g_flat_oob = 0;
+
+/* docs/146 §8: a flat-model hop has to land in memory the port actually owns.
+ * fn_012616 resolves its action record in two hops -- e[+0x123] -> container, container[+4] -> the record
+ * array, then array[4*state] -> the record -- and the port's arena is its own geometry (docs/125: the
+ * layout, not the guest's addresses). When a hop yields an offset outside the arena the guest and the port
+ * part company: the guest stays inside one large mapped DPMI block, the port computes a host pointer into
+ * nothing and dies with a bus error (measured: BUS at f.c:25775 in fn_012616, reached from fn_03209c, on a
+ * drive with no injection verbs at all). Substituting the zero page keeps the run alive and turns the hop
+ * into a counted, printed fact -- which is the only way to find out which producer wrote the bad offset.
+ * off+room must fit the widest read the callers make from a record (a record's own fields run to +0x75). */
+static uint8_t *f_heap_at(uint32_t off, const char *site, const uint8_t *e, uint32_t room)
+{
+    uint32_t cap = heap_arena_cap();
+    if (off < cap && room <= cap - off) return (uint8_t *)g_heap_base + off;
+    if (++g_flat_oob <= 6)
+        fprintf(stderr, "flat-heap: %s hop to 0x%x is outside the arena (cap=0x%x); entity type=%u state=0x%x\n",
+                site, off, (unsigned)cap, e ? (unsigned)e[0] : 0u,
+                e ? (unsigned)((struct ua32 *)((e + 0x17)))->v : 0u);
+    return sys_linear0();
+}
+/* docs/146 §8: a valid array pointer is not a valid *extent* -- and the extent is not the frame count.
+ *
+ * fn_012616 indexes the action record's Y/X delta arrays with the entity's frame counter e[+0x11] and the
+ * shipped code never bounds it. The first cut of this guard bounded it by `rec[+0x17]`, the byte the shipped
+ * code compares the counter against when it advances the state -- and that was WRONG, caught by the port's
+ * own fixtures, which pin the shipped behaviour and index these arrays past that byte:
+ *      [FAIL] record+0x71[frame] moves Y through fn_01545e and +0x75[frame] moves X through fn_01586b
+ * So the frame count is not the array length, and refusing an index above it changes behaviour. Filed as a
+ * mistaken fix rather than kept because it made a witness quiet.
+ *
+ * What is defensible is the *mapping* question: the guest reads whatever its one big mapped DPMI block
+ * holds at array+4*index, however far that is; the port dies instead (measured: BUS at f.c:25775 on a fuzz
+ * drive with no injection verbs, player in state 0x1 with the counter at 49, 50, ...). So reads whose
+ * address lies inside the arena are performed exactly as written -- same bytes, no invention -- and only a
+ * read the port cannot map at all is answered from the zero page and counted. That keeps the behaviour and
+ * turns the wild case into a printed fact: `flat-heap: XARR move index 49 ...`, which names the runaway
+ * counter instead of surviving its crash. */
+static int32_t f_arr_at(const int32_t *arr, int32_t idx, const uint8_t *rec, const char *site,
+                        const uint8_t *e)
+{
+    (void)rec;                       /* not an extent -- see the note above */
+    if (arr) {
+        long long off = (long long)((const uint8_t *)arr - (const uint8_t *)g_heap_base) + 4LL * idx;
+        if (off >= 0 && off + 4 <= (long long)heap_arena_cap())
+            return arr[idx];         /* the port can map it: read it as written */
+    }
+    if (++g_flat_oob <= 6)
+        fprintf(stderr, "flat-heap: %s index %d lands outside the arena; entity type=%u state=0x%x\n",
+                site, idx, e ? (unsigned)e[0] : 0u,
+                e ? (unsigned)((struct ua32 *)((e + 0x17)))->v : 0u);
+    return ((const struct sa32 *)(sys_linear0()))->v;
+}
 static uint8_t *f_ent_walk(uint8_t *cur, const char *site)
 {
     if (cur) return cur;
@@ -25747,10 +25800,11 @@ void fn_012616(uint8_t *e)
     (void)canary_id((uintptr_t)e, 0x30);                                 /* 0x0001261b probe (push 0x30) */
     uint8_t *hb = (uint8_t *)g_heap_base;
     const uint32_t ptbl = ((struct ua32 *)((e + 0x123)))->v;                /* P1: action container */
-    const uint32_t rarr = ((struct ua32 *)((hb + ptbl + 4)))->v;            /* P2: record array */
-#define RECST(idx) (hb + ((struct ua32 *)((hb + rarr + (uint32_t)(idx) * 4u)))->v)
-#define YARR(r) ((const int32_t *)(hb + ((struct ua32 *)(((r) + 0x71)))->v))   /* the record's Y delta array */
-#define XARR(r) ((const int32_t *)(hb + ((struct ua32 *)(((r) + 0x75)))->v))   /* the record's X delta array */
+    const uint32_t rarr = ((struct ua32 *)(f_heap_at(ptbl + 4, "P1 container", e, 4)))->v;   /* P2: record array */
+#define RECST(idx) (f_heap_at(((struct ua32 *)(f_heap_at(rarr + (uint32_t)(idx) * 4u, "P2 record array", e, 4)))->v, \
+                              "record", e, 0x80))
+#define YARR(r) ((const int32_t *)(f_heap_at(((struct ua32 *)(((r) + 0x71)))->v, "YARR array", e, 16)))   /* the record's Y delta array */
+#define XARR(r) ((const int32_t *)(f_heap_at(((struct ua32 *)(((r) + 0x75)))->v, "XARR array", e, 16)))   /* the record's X delta array */
 
     if (((struct sa32 *)((e + 0x17)))->v == 0x29)                                  /* 0x00012625-45 */
         ((struct ua32 *)((e + 0x17)))->v = 0x29;                                  /* four byte stores == dword */
@@ -25881,7 +25935,7 @@ void fn_012616(uint8_t *e)
                 mv = (((struct sa32 *)((e + 0x3e)))->v == 0x84) ? 2
                    : (((struct sa32 *)((e + 0x3e)))->v == 0x85) ? 3 : 0;
             } else {
-                mv = YARR(rec)[((struct sa32 *)((e + 0x11)))->v];
+                mv = f_arr_at(YARR(rec), ((struct sa32 *)((e + 0x11)))->v, rec, "YARR", e);
             }
         } else {
             rec2 = RECST(((struct sa32 *)((e + 0x3e)))->v);                         /* 0x00012b90 */
@@ -25944,24 +25998,24 @@ void fn_012616(uint8_t *e)
         if ((int32_t)e[0x16] < 2) {                                       /* 0x00012d69 jle */
             int32_t mv2;
             if (((struct ua32 *)((e + 0x17)))->v < 0x88 || 0x8b < ((struct ua32 *)((e + 0x17)))->v)
-                mv2 = XARR(rec)[((struct sa32 *)((e + 0x11)))->v];
+                mv2 = f_arr_at(XARR(rec), ((struct sa32 *)((e + 0x11)))->v, rec, "XARR", e);
             else
-                mv2 = XARR(rec2)[((struct sa32 *)((e + 0x42)))->v];
+                mv2 = f_arr_at(XARR(rec2), ((struct sa32 *)((e + 0x42)))->v, rec2, "XARR(rec2)", e);
             fn_015295(e, mv2);
         } else {
             ((struct sa32 *)((e + 0x11)))->v = ((struct sa32 *)((e + 0x11)))->v - 1;          /* 0x00012d79 */
             e[0x16] = e[0x16] - 1;
         }
         if ((-1 < ((struct sa32 *)((e + 5)))->v)                              /* 0x00012de0 */
-            && XARR(rec)[((struct sa32 *)((e + 0x11)))->v] != 0)
+            && f_arr_at(XARR(rec), ((struct sa32 *)((e + 0x11)))->v, rec, "XARR test", e) != 0)
             e[0x16] = 0;
     } else {
-        fn_01586b(e, XARR(rec)[((struct sa32 *)((e + 0x11)))->v]);            /* 0x00012e01 */
+        fn_01586b(e, f_arr_at(XARR(rec), ((struct sa32 *)((e + 0x11)))->v, rec, "XARR move", e));            /* 0x00012e01 */
     }
 
     if (e == g_player_ent && ((struct sa32 *)((g_player_ent + 0x17)))->v == 2) {      /* 0x00012e4f */
         ((struct sa32 *)((g_dat_63354 + 0x22)))->v
-            = ((struct sa32 *)((g_dat_63354 + 0x22)))->v + XARR(rec)[((struct sa32 *)((e + 0x11)))->v];
+            = ((struct sa32 *)((g_dat_63354 + 0x22)))->v + f_arr_at(XARR(rec), ((struct sa32 *)((e + 0x11)))->v, rec, "XARR room", e);
         if ((int32_t)*(const int32_t *)&g_dat_5d0a0[0x00] <= ((struct sa32 *)((e + 0x01)))->v
             && ((struct sa32 *)((e + 0x01)))->v <= (int32_t)*(const int32_t *)&g_dat_5d0a0[0x08]
             && (int32_t)*(const int32_t *)&g_dat_5d0a0[0x04] <= ((struct sa32 *)((e + 0x09)))->v

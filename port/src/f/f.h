@@ -1620,6 +1620,7 @@ int32_t fn_03a829(void);
 extern const uint8_t g_tab_52b84[90]; /* 0x52b84: 1 = the room is entered offset by 120 px (9 stages x 10) */
 extern uint32_t g_walk_null_hits;    /* docs/146 witness: count-bounded entity walks that ran past the chain end */
 extern uint32_t g_list_null_links;   /* docs/146 witness: fn_0112fd removes whose neighbour link was null */
+extern uint32_t g_flat_oob;          /* docs/146 witness: flat-model heap hops that land outside the arena */
 extern uint32_t g_sweep_null_hits;   /* docs/128 witness */
 extern uint32_t g_exp_awards, g_exp_added;      /* docs/126 witnesses */
 extern uint32_t g_exp_commits, g_exp_committed; /* docs/126 witnesses */

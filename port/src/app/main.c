@@ -55,6 +55,8 @@ struct UA_ATTR ua_uint8tp { uint8_t * v; };
 
 static uint8_t   g_node_pool[0x53800];       /* the resource node pool (docs/15 boot recipe) */
 static int       g_quit;
+static int       g_frame_budget;      /* docs/146 §9: --frames as a budget the game main actually stops at */
+static unsigned  g_budget_hits;
 static jmp_buf   g_game_escape;              /* unwinding out of the game main for shutdown */
 static int       g_escape_armed;
 
@@ -1413,6 +1415,19 @@ static void tick_pump(void) {
     if (now >= g_present_next) {
         present();
         g_frames++;
+        /* docs/146 §9: `--frames N` was only a floor. The pumped frame counter is checked *after* the game's
+         * own main loop unwinds (main.c:1560), so a run asked for 300 frames still played the whole episode:
+         * measured, `--frames 300` presented 11412 frames and took 221 s, because presentation is paced to
+         * wall time at 60 fps. Every wall-clock cap in the fuzz corpus was therefore cutting runs at an
+         * unpredictable point -- which is what docs/120 §6-§8 saw as rc=124 seeds, and why coverage per seed
+         * was not comparable. N is now a budget the game actually stops at. */
+        if (g_frame_budget && (int)g_frames >= g_frame_budget) {
+            if (!g_quit) {
+                g_budget_hits++;
+                fprintf(stderr, "frame budget: %d presented, unwinding the game main\n", g_frame_budget);
+            }
+            g_quit = 1;
+        }
         for (unsigned k = 0; k < sizeof g_dump_frames / sizeof g_dump_frames[0]; k++)
             if (g_frames == g_dump_frames[k]) dump_frame(g_frames);
         shots_poll();                                       /* named-event playtest screenshots */
@@ -1446,7 +1461,10 @@ int main(int argc, char **argv) {
     g_vga_window_ns = e_vgaws ? (uint32_t)atoi(e_vgaws) : 63u;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--res-dir") && i + 1 < argc) res_dir = argv[++i];
-        else if (!strcmp(argv[i], "--frames") && i + 1 < argc) frames_limit = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--frames") && i + 1 < argc) {
+            frames_limit = atoi(argv[++i]);
+            g_frame_budget = frames_limit;   /* docs/146 §9 */
+        }
         else if (!strcmp(argv[i], "--dump") && i + 1 < argc) g_dump_dir = argv[++i];
         else if (!strcmp(argv[i], "--autokey")) g_autokey = 1;
         else if (!strcmp(argv[i], "--script") && i + 1 < argc) pt_load(argv[++i]);

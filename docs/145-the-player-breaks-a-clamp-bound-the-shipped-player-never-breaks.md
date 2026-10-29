@@ -141,3 +141,45 @@ there -- not a clamp.
 Rig hygiene, restated: a bound quoted in a differential claim has to be tied to the accessor that reads it,
 not to the field that happens to have a convenient value. `room[+0x16]` looked like the answer because 195 sat
 just above 191.
+
+## 7. Second retraction: the port *does* enter 0x34 and 0x35 -- §6 was a top-6-truncation artifact
+
+§6 said the port has "no `0x34` or `0x35` samples at all". That came from reading a `most_common(6)` state
+census, where those states fell outside the top six. Listing the player's state *transitions* instead, from the
+same dumps:
+
+```
+shipped (397 transitions in 304 s)          port (342 transitions in 170 s)
+  0x01 -> 0x02   x64                          0x33 -> 0x01   x59
+  0x33 -> 0x01   x64                          0x01 -> 0x02   x54
+  0x01 -> 0x33   x53                          0x01 -> 0x33   x42
+  0x02 -> 0x01   x50                          0x02 -> 0x01   x35
+  0x01 -> 0x34   x30                          0x01 -> 0x34   x21
+  0x34 -> 0x01   x29                          0x02 -> 0x33   x19
+  0x01 -> 0x35   x26                          0x34 -> 0x01   x19
+  0x35 -> 0x01   x25                          0x35 -> 0x01   x18
+  0x0b -> 0x0c   x14                          0x01 -> 0x35   x17
+  0x02 -> 0x33   x13                          0x0b -> 0x0c   x13
+  0x0c -> 0x01   x7                           0x0c -> 0x0b    x7
+  0x02 -> 0x0b    x4                          0x15 -> 0x05    x5
+```
+
+Both sides cycle `0x01 <-> 0x33`, `0x01 <-> 0x34` and `0x01 <-> 0x35` with in/out counts that match each other
+to within one transition, and both run the `0x0b <-> 0x0c` reaction pair (the states docs/111 restored).
+Normalising by run length (shipped 304 s, port 170 s -- the port's counts are 0.56 of the shipped counts while
+its raw transition total is 0.86 of the shipped total) there is no missing behaviour family: the state machine
+is populated on both sides.
+
+Two things survive from §6 and one new observation replaces it:
+
+* the port's 168 samples in `0x15` (docs/137's hit-code-11 reaction state) and the shipped side's zero `0x15`
+  samples remain a real difference -- `0x15` never appears in the shipped transition list at all, and the port's
+  `0x15 -> 0x05` transitions are the only path into state `0x05`;
+* the shipped side's `0x35` residence (58 samples) versus the port's (46 by the transition tally) is a small
+  quantitative difference, not a missing family;
+* the surviving headline divergence is the one in docs/144 §1 -- position, not state: player x reaching 603
+  against 217, camera reaching 298 against 27, `px - cam > 0xbe` satisfied in 24% of samples against 0.6% --
+  with docs/145 §5 having removed the clamp as its explanation.
+
+Rig hygiene, second instance: a census truncated to a top-N is not an absence. State-family claims have to come
+from the transition list, which is what docs/137's `ent_list.py` census was for.

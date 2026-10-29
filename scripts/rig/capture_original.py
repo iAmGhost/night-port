@@ -95,10 +95,21 @@ def main():
                     help="physical address of DS offset 0 (from calibrate_ds.py); required when the "
                          "drive uses `wait ds`")
     ap.add_argument("--anchor-wait", type=float, default=90.0)
+    ap.add_argument("--io", default="", help="comma-separated I/O ports to census every tick, "
+                                             "e.g. 0x02,0x03,0x83,0x0a (docs/165 §9)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     token = open(a.token_file).read().strip()
 
+    # docs/165 §9: I/O-port sampling.  The shipped side's audio protocol is visible on the DMA controller
+    # (fn_040b83 writes the 24-bit transfer address to 0x02/0x03, the page to 0x83, and masks channel 1 on
+    # 0x0a), so sampling THOSE ports censuses the shipped side's transfers without touching the game.
+    # 0x22e (the SB read port) is deliberately NOT sampled: reading it pops the DSP acknowledge byte the
+    # game itself is waiting on, which would make the oracle change the thing it measures.
+    ports = [x.strip() for x in a.io.split(",") if x.strip()]
+    io_rows = None
+    if ports:
+        io_rows = open(os.path.join(a.out, "io.jsonl"), "w")
     out = open(os.path.join(a.out, "frames.bin"), "wb")
     out.write(struct.pack("<III", 0x5247464E, 1, GRID))
     # Same anchoring rule as replay_original.py: the input timeline is released when the picture stops
@@ -147,6 +158,7 @@ def main():
     if a.drive:
         post_segment(0)
     prev, n, witness, frames_dir = None, 0, 0, os.path.join(a.out, "frames")
+    prev_io, io_ticks, io_changes = {}, 0, {}
     sha_seen = {}
     while time.time() - t0 < a.seconds:
         raw = api(a.base, token, "/api/v1/video/frame?format=raw", timeout=60)
@@ -163,9 +175,26 @@ def main():
             with open(fp, "wb") as f:
                 f.write(raw)
             sha_seen[fp] = hashlib.sha1(raw).hexdigest()[:12]
+        if io_rows is not None:
+            vals = {}
+            for pt in ports:
+                try:
+                    vals[pt] = json.loads(api(a.base, token, f"/api/v1/io/port?port={pt}", timeout=15))["value"]
+                except Exception:
+                    continue
+            if vals:
+                io_ticks += 1
+                chg = {k: [prev_io.get(k), v] for k, v in vals.items() if prev_io.get(k) != v}
+                for k in chg:
+                    io_changes[k] = io_changes.get(k, 0) + 1
+                io_rows.write(json.dumps({"t_ms": now_ms, "frame": n, "vals": vals, "changed": chg}) + "\n")
+                prev_io = vals
         prev, n = sig, n + 1
         time.sleep(1.0 / a.hz)
     out.close()
+    if io_rows is not None:
+        io_rows.close()
+        print(f"io census: {io_ticks} samples of {ports}, register changes: {io_changes} -> {a.out}/io.jsonl")
     print(f"{n} frames -> {a.out}/frames.bin ({len(sha_seen)} witnesses)")
 
 

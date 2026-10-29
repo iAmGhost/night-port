@@ -72,7 +72,7 @@ sleep 10
 # the capture session must be able to evaluate `wait ds` anchors too, so it needs its own calibration
 timeout 120 python3 "$HERE/calibrate_ds.py" > "$OUT/calib2.log" 2>&1 || say "calibrate (session 2) failed"
 timeout $((DUR + 90)) python3 "$HERE/capture_original.py" --out "$OUT/orig_screen" --seconds "$DUR" \
-        --hz 25 --drive "$DRIVE" > "$OUT/capture.log" 2>&1
+        --hz 25 --drive "$DRIVE" ${RIG_IO:+--io "$RIG_IO"} > "$OUT/capture.log" 2>&1
 say "original: $(tail -1 "$OUT/capture.log")"
 timeout 20 curl -s --noproxy '*' -X POST -H "Authorization: Bearer $(cat /tmp/rig/.token)" \
     http://localhost:8386/api/v1/control/shutdown >/dev/null 2>&1 || true

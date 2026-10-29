@@ -83,30 +83,53 @@ PY
 uv run python3 -c "import json;m=json.load(open('scripts/audit/mem_access.json'));print([r for r in m if any(x.get('to')=='0x62a8c' for x in r.get('refs',[]))])"
 ```
 
-## 5. Retraction: the anchor was not a comparable event, and the clamp dynamics agree
+## 5. Retraction: the numbers in §3 came from a broken probe, and the cell is a phase artifact
 
-Measured on the same route, comparing the count against the room-script burst (`DAT_00063e14 88 -> 67`) instead
-of against the first live entity:
+> **The probe bug.** §3's times (`orig 400 ms`, `burst 5900 ms`, `port 60079 ms`) were produced by a throwaway
+> script that read `timeline.json` entries as `st.get("t_ms", k*100)`. Shipped timeline entries do not carry
+> `t_ms` at all — they carry `t_wall` (plus `ds_sha`, `frame_sha`, `mode`, `w`, `h`, `changed_ds`) — and
+> `diff_state.load_orig` converts the emulator clock into drive-nominal time through `timeline.json["rebases"]`.
+> So the script invented a fake clock (`k*100`), and every conclusion drawn from it is void.
+
+Re-measured through the oracle itself, with a **transition** anchor (`0x63e14 == 67`, the room-script drain, a
+event both sides define identically):
 
 ```
-ORIG: entity count nonzero at t=400 ms   (clamp count 0)   burst at 5900 ms   clamp 0 -> 9   then 9 for the rest
-PORT: entity count nonzero at t=60079 ms (clamp count 0)   burst at 70948 ms  clamp 0 -> 9   then 9 for the rest
-      (port frames anchor->burst = 571; player record +0x11 unchanged on both sides across the window)
+anchor 0x63e14:67: orig t=72005 ms, port t=70948 ms -> port timeline shifted by +1057 ms
+residual same-width gameplay divergences: 39 -> 38
+g_dat_62a8c: DIFF -> not flagged
 ```
 
-Both sides hold `0` before the burst and `9` after it, so the *behaviour* of the bound matches. What differs is
-when the burst happens in wall clock — 5.9 s vs 70.9 s — and that gap is a property of how the two sessions are
-brought up (the shipped replay is sitting on its title screen, which already owns entities, while the port has
-been through its own title/menu/slideshow), not a gameplay divergence inside the room.
+So the two sides were only ~1 s out of step, not 65 s; the clamp-count transition sat close enough to a phase
+window boundary for a 1 s slip to flip its verdict. **`0x62a8c` is a phase artifact and leaves the residual
+list.** There is no evidence that the port walks its opening with an empty clamp table, and §1's headline is
+withdrawn.
 
-Consequences that are stated rather than hidden:
+## 6. What came out of it: `--anchor` in the state oracle
 
-* **`0x62a8c` leaves the residual-divergence list as a phase artifact**, joining the 12 cells docs/157 §3 found
-  to be >90 % equal with no shift. It is not evidence about the camera cluster.
-* "First live entity" is a **bad anchor** for this game. An anchor has to be an event both sides define the same
-  way; a title screen that owns entities is not one. The rig-side rule docs/151 already states, and this is a
-  fresh instance: anchor on a transition (the command-list drain), never on a level measurement (a nonzero count).
-* What survives from this file: §1-§2 — the identity of `0x62a8c` as the count of `g_tab_5c8bc`, the fact that it
-  bounds the mover's wall scan on every step, and that its only writers are the room-script interpreter arms
-  `0x3ebdb` / `0x3ed17` and its clearers are `fn_037b03` / `fn_03ee0a`. The port-only extra drains
-  (`67 -> 66 -> 65 -> 64 -> 62 -> 61` at 172-223 s) remain the real anomaly, and those are docs/153's finding.
+`diff_state.py` now takes `--anchor <ds>:<value>`: it finds the first sample on each side whose DS cell holds
+that value and rebases the port timeline onto the original's before cutting any phase window. That is the
+docs/101 rule (align on an event, not a frame index) enforced inside the oracle rather than left to the operator
+— and a level measurement ("first nonzero entity count") is explicitly rejected as an anchor, because the
+shipped title screen already owns entities while the port is still booting.
+
+Residual gameplay divergences on `/tmp/rig/g15` after the anchor (38 cells):
+`0x51c98`, `0x53100`, `0x53451`, `0x53640`, `0x53c48`, `0x53c64`, `0x53c68`, `0x53c6c`, `0x53c88`,
+`0x62a90`, `0x62a94`, `0x62d58`, `0x62d5c`, `0x6335c`, `0x63360`, `0x63364`, `0x6336c`, `0x6339c`,
+`0x633b0`, `0x633b4`, `0x639bc`, `0x639c8`, `0x639d8`, `0x639dc`, `0x639e8`, `0x63e14`, `0x63e18`,
+`0x63e20`, `0x63e5c`, `0x63ea5`, `0x63ed0`, `0x63ed3`, `0x63ed5`, `0x63ed8`, `0x63ffc`, `0x64000`,
+`0x64090`, `0x64094`.
+
+The camera block (`0x639bc..0x639e8`), the population cells (`0x53c64/68/6c`, `0x53c88`) and the room command
+list (`0x63e14/18/20`) survive proper anchoring, which is what docs/142 → docs/153 → docs/155 point at: it is
+behavioural, not phasing.
+
+## 7. Reproduce
+
+```sh
+OUT=/tmp/rig/g15 RIG_HZ=10 RIG_ENTS=12 sh scripts/rig/route.sh scripts/rig/drives/ep1_kill3.txt 300
+python3 scripts/rig/diff_state.py --orig /tmp/rig/g15/orig --port /tmp/rig/g15/port \
+        --drive scripts/rig/drives/ep1_kill3.txt --anchor 0x63e14:67 --md /tmp/rig/g15/state_diff_anchored.md
+# the probe bug is reproducible: shipped timeline entries carry "t_wall", not "t_ms"
+python3 -c "import json;t=json.load(open('/tmp/rig/g15/orig/timeline.json'));print(list(t['timeline'][0].keys()))"
+```

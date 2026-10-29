@@ -197,6 +197,11 @@ def main():
     ap.add_argument("--drive", required=True)
     ap.add_argument("--md")
     ap.add_argument("--max-rows", type=int, default=60)
+    ap.add_argument("--anchor", default="",
+                    help="event anchor '<ds>:<value>' (e.g. 0x63e14:67): the first sample on each side whose DS cell "
+                         "holds that value. The port's dump timeline is rebased onto the original's, so phase windows "
+                         "compare the SAME shipped event on both sides instead of two different wall clocks (docs/101, "
+                         "docs/158 §5).")
     ap.add_argument("--update-entropy", action="store_true",
                     help="in --baseline mode, record measured-variable cells in entropy_cells.json")
     a = ap.parse_args()
@@ -218,6 +223,39 @@ def main():
         (orig_side, orig_ptrs), (other_side, other_ptrs) = load_orig(a.orig), load_port(a.port)
         mode = "orig-vs-port"
     is_port = mode == "orig-vs-port"
+
+    # docs/158 §5: "first live entity" is a bad anchor (the shipped title screen already owns entities at 400 ms
+    # while the port reaches its title at 60 s), and a level measurement is not a comparable event.  An anchor has
+    # to be a TRANSITION both sides define identically, so --anchor takes <ds>:<value> and re-phases the port side
+    # onto the original's clock before any window is cut.
+    anchor_shift = None
+    if a.anchor and mode == "orig-vs-port":
+        try:
+            dsx, val = a.anchor.split(":", 1)
+            ad, av = int(dsx, 0), int(val, 0)
+        except Exception:
+            sys.exit(f"--anchor expects <ds>:<value>, got {a.anchor!r}")
+        cell = next((c for c in cells if c["ds"] == ad), None)
+        if cell is None:
+            sys.exit(f"anchor DS {a.anchor} is not in the cell table")
+        w = max(1, cell["guest_size"] or cell["host_size"])
+        po = {c["name"]: c["offset"] for c in other_side[0][2] if c["ds"] == ad}
+        pofs = po.get(cell["name"])
+
+        def first_at(samples, portside):
+            for smp in sorted(samples, key=lambda x: x[0]):
+                o = pofs if portside else ad - DS_LO
+                if o is None or o + w > len(smp[1]):
+                    continue
+                if int.from_bytes(smp[1][o:o + w], "little") == av:
+                    return smp[0]
+            return None
+        t_o, t_p = first_at(orig_side, False), first_at(other_side, True)
+        if t_o is None or t_p is None:
+            sys.exit(f"anchor value {a.anchor} never appears (orig={t_o} port={t_p})")
+        anchor_shift = t_o - t_p
+        print(f"anchor {a.anchor}: orig t={t_o} ms, port t={t_p} ms -> port timeline shifted by {anchor_shift} ms")
+        other_side = [(s[0] + anchor_shift,) + s[1:] for s in other_side]
 
     # index samples by phase
     def bucket(samples):

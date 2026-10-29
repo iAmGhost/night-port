@@ -247,7 +247,7 @@ uint32_t sys_audio_fill(int16_t *dst, uint32_t frames) {
     while (got < frames && au_r != au_w) {
         if (au_width == 1) {
             uint8_t b = au_ring[au_r]; au_r = (au_r + 1) & (AUDIO_RING - 1);
-            dst[got++] = (int16_t)(((int32_t)b - 128) << 8);
+            dst[got++] = (int16_t)(((int32_t)b - 128) * 256);   /* <<8 on a negative value is UB; *256 is the same value */
         } else {
             if (((au_r + 1) & (AUDIO_RING - 1)) == au_w) break;      /* a half sample: wait */
             uint8_t lo = au_ring[au_r]; au_r = (au_r + 1) & (AUDIO_RING - 1);

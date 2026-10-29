@@ -17,6 +17,20 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+/* ---- unaligned flat-model views (docs/126) ----------------------------------
+ * The shipped record layout is packed and deliberately unaligned (dword stores at +0x01/+0x05/+0x17 ...
+ * read out of the entity constructor fn_010efc, docs/125 S1), so every typed access into it is a misaligned
+ * access in C terms.  A packed struct view is alignment-safe on gcc/clang and keeps the exact store width
+ * the shipped instruction used; scripts/port/unaligned_casts.py produces the rewrite.
+ * The packed attribute is what makes the view safe -- without it the ABI (and UBSan) still require the
+ * member's natural alignment, which is exactly what the shipped layout violates. */
+#if defined(__GNUC__)
+#  define UA_ATTR __attribute__((packed, aligned(1)))
+#else
+#  define UA_ATTR
+#endif
+struct UA_ATTR ua_uint8tp { uint8_t * v; };
+
 #include "f/rig_cells.h"
 #include "f/f.h"
 
@@ -77,7 +91,7 @@ int rig_ds_write(uint32_t ds, uint32_t v) {
 
 uint8_t *rig_ent_slot(int slot) {
     uint8_t *e = g_dat_53c70;                       /* entity list head, next at +0x13f (docs/108) */
-    for (int k = 0; k < slot && e; k++) e = *(uint8_t **)(e + 0x13f);
+    for (int k = 0; k < slot && e; k++) e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
     return e;
 }
 
@@ -227,7 +241,7 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
         uint8_t *e = g_dat_53c70;
         for (int k = 0; k < RIG_ENTS && e; k++) {
             memcpy(p + g_ent_base + k * RIG_REC, e, RIG_REC);
-            e = *(uint8_t **)(e + 0x13f);
+            e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
         }
     }
     fwrite(p, g_rec_bytes, 1, g_bin);

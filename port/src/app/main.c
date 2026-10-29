@@ -24,6 +24,21 @@
 #include "sys/sys.h"
 #include "keymap.h"
 
+/* ---- unaligned flat-model views (docs/126) ----------------------------------
+ * The shipped record layout is packed and deliberately unaligned (dword stores at +0x01/+0x05/+0x17 ...
+ * read out of the entity constructor fn_010efc, docs/125 S1), so every typed access into it is a misaligned
+ * access in C terms.  A packed struct view is alignment-safe on gcc/clang and keeps the exact store width
+ * the shipped instruction used; scripts/port/unaligned_casts.py produces the rewrite.
+ * The packed attribute is what makes the view safe -- without it the ABI (and UBSan) still require the
+ * member's natural alignment, which is exactly what the shipped layout violates. */
+#if defined(__GNUC__)
+#  define UA_ATTR __attribute__((packed, aligned(1)))
+#else
+#  define UA_ATTR
+#endif
+struct UA_ATTR ua32 { uint32_t v; };
+struct UA_ATTR ua_uint8tp { uint8_t * v; };
+
 #include <SDL3/SDL.h>
 
 #include <ctype.h>
@@ -1168,7 +1183,7 @@ static void ent_dump(void) {
         SDL_Log("  ent[%d] block=%p type(act)=%d type(spr)=%d world=%u,%u state=0x%x face=%u isPlayer=%d "
                 "sprfields=%08x %08x %08x",
                 k, (void *)e, ty, sty, x, y, st, face, e == g_player_ent,
-                *(uint32_t *)(e + 0x127), *(uint32_t *)(e + 0x12b), *(uint32_t *)(e + 0x12f));
+                ((struct ua32 *)((e + 0x127)))->v, ((struct ua32 *)((e + 0x12b)))->v, ((struct ua32 *)((e + 0x12f)))->v);
         /* Machine-readable form of the same record, with the shipped asset each type resolves to: this is what
          * scripts/playtest_check_entity_sprites.py asserts on (docs/73). */
         {
@@ -1178,9 +1193,9 @@ static void ent_dump(void) {
                     "rbase=%08x spr_struct=%p",
                     k, e == g_player_ent ? 1 : 0, ty, sty,
                     (ty >= 0 && ty < 0x65) ? sn[ty] : "?", (ty >= 0 && ty < 0x65) ? an[ty] : "?",
-                    *(uint32_t *)(e + 0x127), (void *)(sty >= 0 ? g_dat_639ec[sty] : NULL));
+                    ((struct ua32 *)((e + 0x127)))->v, (void *)(sty >= 0 ? g_dat_639ec[sty] : NULL));
         }
-        e = *(uint8_t **)(e + 0x13f);
+        e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
     }
 }
 
@@ -1502,7 +1517,7 @@ int main(int argc, char **argv) {
             const uint8_t *e = &g_tab_5d884[i * 0x15];
             char nm[13]; memcpy(nm, e, 12); nm[12] = 0;
             SDL_Log("res[%u] %-12s value=%u offset=%u", i, nm,
-                    *(const uint32_t *)(e + 0x0d), *(const uint32_t *)(e + 0x11));
+                    ((struct ua32 *)((e + 0x0d)))->v, ((struct ua32 *)((e + 0x11)))->v);
         }
     }
     sys_set_input_pump(input_pump);

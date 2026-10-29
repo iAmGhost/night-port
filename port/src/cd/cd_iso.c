@@ -33,6 +33,20 @@
  */
 #include "cd_iso.h"
 
+/* ---- unaligned flat-model views (docs/126) ----------------------------------
+ * The shipped record layout is packed and deliberately unaligned (dword stores at +0x01/+0x05/+0x17 ...
+ * read out of the entity constructor fn_010efc, docs/125 S1), so every typed access into it is a misaligned
+ * access in C terms.  A packed struct view is alignment-safe on gcc/clang and keeps the exact store width
+ * the shipped instruction used; scripts/port/unaligned_casts.py produces the rewrite.
+ * The packed attribute is what makes the view safe -- without it the ABI (and UBSan) still require the
+ * member's natural alignment, which is exactly what the shipped layout violates. */
+#if defined(__GNUC__)
+#  define UA_ATTR __attribute__((packed, aligned(1)))
+#else
+#  define UA_ATTR
+#endif
+struct UA_ATTR ua32 { uint32_t v; };
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -178,7 +192,7 @@ void cd_iso_root_records(uint8_t *recs, uint32_t n) {
         uint32_t tr = g_first_track + i;
         int32_t lba = cd_iso_track_lba(tr);
         recs[i * 5 + 0] = (uint8_t)tr;
-        *(uint32_t *)(recs + i * 5 + 1) = (uint32_t)lba;
+        ((struct ua32 *)((recs + i * 5 + 1)))->v = (uint32_t)lba;
     }
 }
 

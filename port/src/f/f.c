@@ -1351,6 +1351,10 @@ void fn_013aad(uint32_t a0) {
         for (int32_t j = 0; ; j++) {
             if (g_dat_53c68 - i - 1 <= j) break;         /* 0x13afd */
             uint8_t *nxt = ((struct ua_uint8tp *)((cur + 0x13f)))->v;   /* 0x13b12 */
+            if (!nxt) {                                                /* zero page, docs/128 */
+                g_sweep_null_hits++;
+                nxt = sys_linear0();
+            }
             int32_t ck = ((struct sa32 *)((cur + 0x9)))->v;
             int32_t nk = ((struct sa32 *)((nxt + 0x9)))->v;
             if (ck < nk) { cur = nxt; continue; }        /* 0x13b21 */
@@ -14394,8 +14398,20 @@ void fn_03203d(uint32_t base)
     uint8_t *cur = g_dat_53c70;                                      /* 0x32058-5d */
     for (uint32_t i = 0; ; i = i + 1) {                              /* 0x32060 / 0x3206c */
         if ((int32_t)i >= (int32_t)g_dat_53c68) break;               /* 0x3206f-78 (count re-read) */
+        if (!cur) {
+            /* The list walk is not re-validated (see the header: the count is re-read every test and a
+             * freed entity still links onward), so a stale list can end before the count does. The guest
+             * would then address DS:0 offset 0x30, and a DOS extender maps linear 0 to a zero page -- so
+             * read the same zero page here instead of faulting the host (docs/128, same modelling as
+             * fn_040839's null res node). */
+            if (++g_sweep_null_hits == 1)
+                fprintf(stderr, "draw sweep: entity slot %u of count %u has a NULL record "
+                                "(list head %p, list shorter than DAT_53c68)\n",
+                        i, g_dat_53c68, (void *)g_dat_53c70);
+            cur = sys_linear0();
+        }
         fn_012efa(cur, base);                                        /* 0x3207a-80 */
-        cur = ((struct ua_uint8tp *)((cur + 0x13f)))->v;                            /* 0x32085-8e */
+        cur = ((struct ua_uint8tp *)((cur + 0x13f)))->v;              /* 0x32085-8e */
     }
 }
 
@@ -22706,6 +22722,8 @@ const uint8_t g_tab_52b84[90] = {
 /* DAT_00053d08 has no object of its own: it is the sound-slot table whose pool the loader fills at
  * DAT_00053d0c (docs/112). The old g_tab_53d08[101] stood over the pool, over g_dat_53e24 and over the
  * 0x53dd* globals -- the static audit files it as c2 port-span-overlap. */
+uint32_t g_sweep_null_hits = 0;     /* host witness (docs/128): draw-sweep slots whose record pointer is NULL,
+                                   * i.e. DAT_53c68 counts more entities than the live +0x13f chain has */
 uint32_t g_exp_awards = 0, g_exp_added = 0;      /* host-side witness (docs/126): kills that reached the
                                                 * 0x15453 accumulator add, and the sum added */
 uint32_t g_exp_commits = 0, g_exp_committed = 0;  /* 0x00038fff commits: count and total moved to +0x2b */

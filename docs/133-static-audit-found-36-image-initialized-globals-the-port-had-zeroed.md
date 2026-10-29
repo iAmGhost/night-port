@@ -201,3 +201,22 @@ above family, 5 of them `image-zero-port-nonzero` representation rows: `SCREEN_B
 
 Next run in flight: `/tmp/rig/g9` (ep1_kill3, 150 s) is the first route executed under the new build guard,
 and is the re-measurement promised in §8 item 2.
+
+## 10. Red -> green on the state oracle (first route under the build guard)
+
+`/tmp/rig/g9`, ep1_kill3 150 s, port binary stamped `Oct 29 19:04:32` (built by the route itself):
+
+```
+g6 (before): tally DIFF 111 verdicts / 37 distinct DIFF cells, SAME 53
+g9 (after) : tally DIFF 74  verdicts / 32 distinct DIFF cells, SAME 66
+             divergent cells 97, of which same-width value divergences 74
+resolved by this doc's fixes: 0x530ac 0x530b4 0x530b8 0x53368 0x53619 0x5363c 0x536dc
+                              0x5377c 0x53780 0x53784 0x53788 0x537a7   (12 cells)
+```
+
+The whole TZ cluster (`0x5377c / 0x53780 / 0x53784 / 0x53788 / 0x537a7`) left the DIFF set; `0x537a7` now
+carries a `REPR` note (Ghidra defines the shipped symbol as 1 byte, the port's buffer is 31) rather than a
+value divergence. The remaining 32 DIFF cells are dominated by the DOS-extender memory-map family
+(`0x53350/0x53354/0x53358/0x53378/0x5337c/0x53384/0x5338c/0x53390/0x53394/0x533a0/0x533b2/0x533b9/0x533bb`,
+`0x51c24/0x51c98`, `0x531f4/0x531f8/0x53100`) plus the CD-selection pair `0x53c40/0x53c44` (docs/131) -- the
+next triage target, in the order docs/132 §4(a) -> (c).

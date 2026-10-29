@@ -174,3 +174,20 @@ episode content that the host warp flag skips past.
 Recorded as measured limits rather than smoothed over. What would actually move the number (not attempted
 in this goal): seed-directed targeting (pick a gap function, read its callers in the call graph, and
 construct a drive that reaches a caller), or instrumenting at a finer granularity than function entry.
+
+## 11. What the never-entered set actually contains (so the gap is not treated as opaque)
+
+Sampling `/tmp/rig/fz9/gap_functions.txt` (241 names):
+
+* Its head is **host-side helpers**, not shipped code: `act_trace_counts`, `act_trace_targets`,
+  `blit_stats_dump`, `blit_stats_on`, `canary_ss_save`, `cb_indirect_53644`, `cb_noop`, `cb_noop2`,
+  `const_64004`, `digit_chr`, `dispatch_a`. Counting them as "shipped coverage misses" would be wrong, which
+  is why §3 splits the 241 into **180 `fn_*`-named** and 61 host helpers.
+* Every sampled `fn_*` gap **has a call site in the port** -- `fn_00010a56` (f.c:871), `fn_000356ba` (857),
+  `fn_00035c5c` (1123), `fn_00035d0f` (799), `fn_0003b5c0` (7909), `fn_0003b67e` (1085), `fn_0003fade` (668),
+  `fn_000407f8` (693), `fn_0100d9` (7899), `fn_010376` (8502).
+
+So the gap is **call-path reachability, not missing wiring**: the functions are ported and called from
+somewhere, but no fuzzed drive ever activates the caller's branch. That is precisely the quantity a
+*call-graph-directed* seed targets (pick a gap function, read its callers, build a drive that reaches a
+caller's guard), which §10 lists as the unattempted route.

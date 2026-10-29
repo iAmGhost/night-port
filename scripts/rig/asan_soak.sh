@@ -24,7 +24,8 @@ for s in 1 2 3 4 5 6 7 8 9; do
     printf 'stage %s rc=%-3s ubsan=%-4s asan=%-3s segv=%-3s %s\n' "$s" "$rc" "$err" "$asan" "$seg" \
       "$(grep -o 'frames presented: [0-9]*' "$OUT/stage$s.log" | tail -1)"
   ) &
-  while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do wait -n; done
+  # bash 3.2 (macOS default) has no `wait -n`: poll instead of blocking on one pid
+  while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do sleep 2; done
 done
 wait
 echo "soak done -> $OUT"

@@ -404,9 +404,16 @@ static void audio_pump(void) {
     static int16_t buf[2048];
     uint32_t got;
     while ((got = sys_audio_fill(buf, 2048)) != 0) {
+        if (g_rig_dir) {
+            /* Rig mode: the port half of the audio oracle must not depend on a host device consuming.
+             * With SDL_AUDIODRIVER=dummy the stream is never drained, so the latency bound below used to
+             * break out of this loop after ~2 s of a 300 s route and pcm.wav came out silent (docs/129). */
+            rig_pcm_write(buf, (size_t)got * 2);
+            g_audio_submitted += got * 2;
+            continue;
+        }
         if (SDL_GetAudioStreamAvailable(g_astream) > 96000) break;   /* bound the latency */
         if (!SDL_PutAudioStreamData(g_astream, buf, (int)(got * 2))) { g_audio_drained += got * 2; break; }
-        if (g_rig_dir) rig_pcm_write(buf, (size_t)got * 2);
         g_audio_submitted += got * 2;
     }
     if (getenv("NIGHT_AUDIODBG") && (g_frames % 60) == 0)

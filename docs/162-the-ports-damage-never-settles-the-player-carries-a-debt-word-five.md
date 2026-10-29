@@ -58,6 +58,10 @@ enemies do not carry hp in this field at all; comparing enemy damage through `+0
 
 ## 3. Where the damage goes instead: the debt word and the accumulator
 
+> **Corrected by §9 before reading further:** these censuses walk the dump's `ent##` record slots and group
+> them by type byte, so the "player" row is *every type-0 slot*, not the record reached through
+> `g_player_ent`.  The player-specific, cadence-matched numbers are in §9, and they are smaller.
+
 `+0x23` (word) and `+0x56` (dword) censuses over live player samples:
 
 ```
@@ -191,3 +195,52 @@ positive debt, and `fn_0137c1` only ever *increments* it, so the candidates are 
 the settle at guest `0x14984` and the arming clear at `0x37756` -- and the measurement that separates them is a
 per-frame `+0x23`/`+0x56` trace on the port (existing witnesses) against the shipped dump's high-cadence
 `+0x23` series, time-aligned on the docs/158 anchor.
+
+## 9. Read through `g_player_ent` on one clock: the settle is NOT the divergence
+
+`scripts/rig/debt_trace.py` reads `+0x23`, `+0x56`, `+0x29` and `+0x30` from the player record block on both
+sides — the shipped dump has a `g_player_ent` pointer cell with its own block, the port has a `rec_offset` —
+aligned on the docs/158 transition anchor and resampled to the same 250 ms cadence on both sides:
+
+```
+ORIG 570 aligned buckets: debt>0 343, debt<=0 227, acc>0 52, flag0 390, flag2 180
+     transitions: HP 20, ARMED 1, SETTLE 1
+PORT 570 aligned buckets: debt>0 450, debt<=0 120, acc>0 71, flag0 487, flag2 52, flag1 21
+     transitions: HP 14, ARMED 2, SETTLE 1
+
+ARMED  shipped t=72220 debt 0 -> 1 (acc 100 -> 99)
+       port     t=72205 debt 0 -> 1 (acc 100 -> 99)      <- the same event, 15 ms apart
+SETTLE shipped t=248860 debt 5 -> 0 (hp 1000 -> 999)
+       port     t=203488 debt 1 -> 0 (hp 1000 -> 998)    <- one settle on EACH side
+```
+
+Three statements in this file have to be restated because of it.
+
+1. **The arming path is equivalent.**  Both sides arm the accumulator to 100 and start transferring it into
+   the debt 15 ms after the room-script drain.  §8's candidate "the port runs the arming clear more often"
+   is dead.
+2. **"the damage never settles" is wrong as a headline.**  There is exactly **one** settle on each side.
+   Before it, hits only chew the debt (which is what §8's witness lines show); after it the debt is zero and
+   the `0x148f8 sub word [hp], ax` arm applies damage directly.  The divergence is therefore *how long each
+   side spends with a positive debt* (shipped 60 % of aligned samples, port 79 %) and how many direct hp hits
+   follow (20 shipped, 14 port).
+3. **§3's magnitudes were inflated by the census basis.**  Reading every `ent##` slot and grouping by type
+   byte counted the player row as "all type-0 slots".  Through `g_player_ent` the flag `+0x30 == 2` appears in
+   180 shipped aligned samples against 52 port ones — a real divergence, but a factor of ~3.5, not 1228 vs 127.
+
+A probe defect found in the same pass and fixed: `debt_trace.py` first printed `HP` events with its two
+columns swapped (`hp 5 -> 0 (debt 1000 -> 999)`), which reads exactly backwards until noticed.  The labels are
+now explicit per event kind.
+
+## 10. What is left standing
+
+- Shipped's player spends less time owing damage and lands more direct hp hits (20 vs 14 aligned transitions;
+  over the whole route, the player identity's hp trace gives 24 events / 75 hp shipped against 11 / 40 port).
+- The debt is fed by `fn_0137c1`'s per-frame accumulator drain (guest `0x0138ea-fd`), identically on both
+  sides, and the port's accumulator is alive longer (`acc>0` in 71 aligned samples vs 52).
+- The port's `+0x30` census for the player carries `1` in 21 aligned samples where shipped carries none: a
+  lethal-flag state the shipped player never holds in this window.
+- Everything upstream that docs/161 §4 and docs/162 §4 checked (the spawn dispatcher's guards, the damage
+  multipliers, the two-word HP model, the stat block bytes) is faithful, so the search continues in the
+  *sequence* of hits: which `slot`/`atype`/`flag` combinations reach `fn_01441e`, and how often each side
+  reaches it at all.

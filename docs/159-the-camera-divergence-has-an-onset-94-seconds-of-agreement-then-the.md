@@ -96,7 +96,9 @@ Where both sides are actually sampled, the *jump sizes* agree closely (shipped +
 missing quiet states rather than with a camera-arithmetic divergence, and it makes the "port reaches 298 vs
 shipped 73" range gap partly a coverage gap.
 
-Rig consequence, filed as an open item: the shipped side needs a **fixed-cadence** DS capture (not
-change-triggered) before camera/population range comparisons can carry weight. `replay_original.py` already
-samples at a cadence for DS cells; what is missing is that its *timeline* only lists changed states, and the
-oracle's `bucket()` then carries the last sample forward — which silently equates "unchanged" with "agreement".
+Rig consequence, filed as an open item: the oracle should *report* shipped-quiet windows instead of papering
+over them. `replay_original.py` stores a state only when `changed_ds` says something moved, and `diff_state`'s
+`bucket()` carries the last sample forward (which is correct for value comparison but hides the fact that a
+13-second window had zero shipped activity while the port was busy). A `SHIPPED-QUIET` per-window verdict, with
+the window length and the port's step count in it, is the missing label — it turns "no disagreement" into a
+statement about the game rather than about the capture.

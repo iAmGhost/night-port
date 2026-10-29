@@ -150,3 +150,27 @@ independent keystrokes. Concretely: derive the macro set from the call graph aro
 (which port function calls the gap function, and which DS cell gates that caller), then fuzz macro sequences.
 Until then, report the coverage ceiling as ~267/503 with the 236-function gap list as the target, not as a
 bug-free claim.
+
+## 10. Macro grammar: third negative, the ceiling is stable at 267/503
+
+`--macros 10` (ordered sequences as units: title enter-wait-enter, menu walk, pause cycle, esc-then-wait,
+hold-then-release, walk direction, die-and-continue, emitted at 2.5-9 s anchors), stages 1-6, 6 seeds x 2
+rounds (`/tmp/rig/fz12`):
+
+```
+random-key grammar (fz9+fz10):  267 / 503
+macro grammar      (fz12):      240 / 503
+union:                          267 / 503
+reached only by the macro grammar: 0
+```
+
+Three independent grammars (combat-rooted random keys, title-rooted random keys, ordered macros) all land
+inside the same 267-function set. The never-entered set (236 shipped-named functions) is therefore **stable**
+under the fuzzing strategies tried, and the fuzz contract's "never-entered set shrinking run over run" is
+**not met** by keystroke-level mutation: whatever gates those functions is not reachable by any key sequence
+in a fixed-length window -- consistent with them being interrupt/service paths, error paths, or code behind
+episode content that the host warp flag skips past.
+
+Recorded as measured limits rather than smoothed over. What would actually move the number (not attempted
+in this goal): seed-directed targeting (pick a gap function, read its callers in the call graph, and
+construct a drive that reaches a caller), or instrumenting at a finer granularity than function entry.

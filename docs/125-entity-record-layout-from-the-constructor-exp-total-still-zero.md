@@ -69,3 +69,30 @@ value.
   first probes sliced `s[2]`, which produced the bogus "port has no record region" suspicion. There is no such
   defect: `meta.json` gives `record_bytes=30139` with 61 cells declaring 352-byte record regions, and the port
   blocks read fine.
+
+## 5. Self-correction: `+0x2b` is NOT a cumulative EXP total (read the writer before naming the field)
+
+`fn_0137c1` (guest `0x0137c1`, the HUD number display) is the routine that both **prints** `entity[+0x2b]`
+(5-glyph field, global font via `g_dat_63e04[0x34]/[0x38]`) and **ticks it**:
+
+```c
+if (entity[+0x52] != 0 && g_dat_63360 % 2 == 0) { entity[+0x2b]++; entity[+0x52]--; }   /* 0x0138ba-dc */
+if (entity[+0x56] != 0)                         { *(int16*)entity[+0x23]++; entity[+0x56]--; }  /* 0x0138ea-fd */
+```
+
+So `+0x2b` is a **displayed counter that ramps up while the `+0x52` countdown drains** — the shipped
+`0 → 0xa → 0x14` ladder is a timed ramp that then persists, not "10 EXP per kill". Naming it `exp_total` in
+§3 was an inference from the value pattern, which the writer contradicts. Field names must come from the
+writer, not the histogram.
+
+What that leaves as the defensible discriminator for the EXP item:
+
+```
++0x52 (the counter that drives the ramp):  shipped nonzero in 3 of 1300 samples (values 3, 8)
+                                          port nonzero in 0 of 2160 samples
++0x32: shipped 0x36 vs port 0x5 at that offset (magnitude, and possibly width, still unresolved)
+```
+
+Follow-up (filed, not yet chased): find the guest site that **sets** `entity[+0x52]` (the counter that
+`fn_0137c1` drains) and check whether the port ever writes it — that is the real gate for "EXP number does
+not move", and it is a *write-site* question in the flat model, not a DS-symbol question.

@@ -8881,6 +8881,10 @@ struct clamp_tab_5c8bc g_tab_5c8bc[512];   /* 0x5c8bc ROM clamp table; count = g
  */
 void fn_034295(int32_t amount)
 {
+    if (getenv("NIGHT_WALKTRACE")) {                       /* docs/152: how often the .act chain moves the player */
+        g_walk_calls_34295++;
+        g_walk_sum_34295 += (uint64_t)(amount < 0 ? -amount : amount);
+    }
     (void)canary_id(0, 0x20);                                                /* 0x34295-9a */
     if (g_dat_63ed3 != 0) {                                                  /* 0x342b0-b7 */
         if (((struct sa32 *)((g_player_ent + 0x1b)))->v == 0)                           /* 0x342be-c2 */
@@ -8900,6 +8904,10 @@ uint8_t g_dat_63ed5 = 0;   /* DAT_00063ed5: plain vertical-direction enable */
  */
 void fn_0342ff(int32_t amount)
 {
+    if (getenv("NIGHT_WALKTRACE")) {                       /* docs/152: how often the .act chain moves the player */
+        g_walk_calls_342ff++;
+        g_walk_sum_342ff += (uint64_t)(amount < 0 ? -amount : amount);
+    }
     (void)canary_id(0, 0x20);                                                /* 0x342ff-34304 */
     if (g_dat_63ed3 != 0) {                                                  /* 0x3431a-34321 */
         fn_01545e(g_player_ent, -amount);                                     /* 0x34323-3432d */
@@ -8932,9 +8940,50 @@ void fn_0342ff(int32_t amount)
  *   same "caught" conditions is additionally nudged by (prng % 0x29) - 0x14 (the original signed
  *   idiv: jitter -20..+20).
  */
+uint64_t g_walk_calls_34295, g_walk_sum_34295;              /* docs/152: .act-chain player movers */
+uint64_t g_walk_calls_342ff, g_walk_sum_342ff;
+
+void walk_trace_report(void)                                      /* docs/149: shutdown census */
+{
+    if (!getenv("NIGHT_WALKTRACE")) return;
+    fprintf(stderr, "WALK summary: all_calls=%llu player_calls=%llu sum|d|=%llu per_call=%.3f hist:",
+            (unsigned long long)g_walk_calls_all, (unsigned long long)g_walk_calls_player,
+            (unsigned long long)g_walk_sum_player,
+            g_walk_calls_player ? (double)g_walk_sum_player / (double)g_walk_calls_player : 0.0);
+    for (int i = 0; i < 65; i++)
+        if (g_walk_hist_player[i]) fprintf(stderr, " %d:%d", i - 32, g_walk_hist_player[i]);
+    fprintf(stderr, " tick=%u\n", g_dat_63e28);
+    fprintf(stderr, "WALK movers: fn_034295 calls=%llu sum=%llu per=%.2f | fn_0342ff calls=%llu sum=%llu per=%.2f\n",
+            (unsigned long long)g_walk_calls_34295, (unsigned long long)g_walk_sum_34295,
+            g_walk_calls_34295 ? (double)g_walk_sum_34295 / (double)g_walk_calls_34295 : 0.0,
+            (unsigned long long)g_walk_calls_342ff, (unsigned long long)g_walk_sum_342ff,
+            g_walk_calls_342ff ? (double)g_walk_sum_342ff / (double)g_walk_calls_342ff : 0.0);
+}
+
+uint64_t g_walk_calls_all;                                       /* docs/149 witness counters */
+uint64_t g_walk_calls_player;
+uint64_t g_walk_sum_player;
+int32_t g_walk_hist_player[65];
+
 void fn_01545e(uint8_t *e, int32_t d)
 {
     (void)canary_id(0, 0x2c);                                                /* 0x1545e-63 */
+
+    /* docs/149 witness: how often the mover is called for the player, and with which step.
+     * The shipped walk census is 60.7 px/s against a 43.3 steps/s logic clock (1.40 px/step);
+     * the port measures 70 px/s against 42.7 steps/s (1.64 px/step).  This line says which half
+     * of that product the port actually produces: call rate, step histogram, or both. */
+    static int wt = -1;
+    if (wt < 0) wt = getenv("NIGHT_WALKTRACE") ? 1 : 0;
+    if (wt) {
+        g_walk_calls_all++;
+        if (e == g_player_ent) {
+            g_walk_calls_player++;
+            g_walk_sum_player += (uint64_t)(d < 0 ? -d : d);
+            if (d >= -32 && d <= 32) g_walk_hist_player[d + 32]++;
+        }
+    }
+
     if (d == 0) return;                                                      /* 0x1547b-7f */
 
     int32_t lo, hi;                                                          /* 0x15485-0x154da */

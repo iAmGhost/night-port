@@ -1603,6 +1603,7 @@ int main(int argc, char **argv) {
         rig_census_report(cp);
     }
     if (g_rig_dir) rig_close();
+    walk_trace_report();
     SDL_Log("frames presented: %d", g_frames);
 
     if (g_tex) SDL_DestroyTexture(g_tex);

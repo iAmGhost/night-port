@@ -169,6 +169,15 @@ extern int32_t  g_dat_530b8;                    /* DAT_000530b8: timer rate mult
 extern int32_t  g_dat_530bc[16];                /* DAT_000530bc: 16-entry command table (fn_035b0c writes [a0&0xf]) */
 extern uint32_t g_dat_63304;                    /* DAT_00063304: timer divisor (fn_03565a denominator) */
 extern int32_t  g_dat_63308;                    /* DAT_00063308: rate/scale word (fn_0353d0 cmd 0x51 path writes it) */
+/* docs/149 walk witness (NIGHT_WALKTRACE): the mover fn_01545e call census. */
+void walk_trace_report(void);
+extern uint64_t g_walk_calls_34295, g_walk_sum_34295;
+extern uint64_t g_walk_calls_342ff, g_walk_sum_342ff;
+extern uint64_t g_walk_calls_all;
+extern uint64_t g_walk_calls_player;
+extern uint64_t g_walk_sum_player;
+extern int32_t  g_walk_hist_player[65];
+
 extern uint32_t g_dat_63330;                    /* DAT_00063330: last timer tick value */
 extern uint32_t g_dat_63324;                    /* DAT_00063324: IRQ/device enabled flag (gate + cleared by fn_034eb0) */
 extern uint32_t g_dat_63334;                    /* DAT_00063334: IRQ8 handler offset (isr_set arg) */

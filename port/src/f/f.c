@@ -1350,6 +1350,44 @@ uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg
     return block;                                                /* 0x112ef-2f2, RET 8 */
 }
 
+/* docs/146: modelling helpers for the entity list's two null-link shapes.
+ *
+ * (1) A count-bounded walk. The walks in this layer are bounded by the entity COUNT (g_dat_53c68, re-read
+ *     every iteration in the shipped code) while the list is only as long as its +0x13f chain, and a freed
+ *     entity keeps its stale link (docs/128) -- so the chain can end before the count does. On the guest
+ *     that is not a fault: the walk addresses linear 0 at an offset, which a DOS extender maps to a zero
+ *     page, so the node reads as all-zero bytes and the loop simply runs out. docs/128 established this for
+ *     fn_03203d and fn_040839; the fuzz sweep then found the same shape unguarded in six more walks and the
+ *     -O2 build faults there (fn_016fec, fn_032158, fn_0322f5, fn_03211f, fn_03209c, fn_01441e pass 1/3).
+ *
+ * (2) A remove whose neighbour is null. fn_0112fd picks head / tail / middle by comparing the node against
+ *     head and tail, then writes through the neighbour link. When head/tail/count disagree with the links
+ *     -- which only happens on a stale or injected list -- the "middle" branch has a null neighbour, and the
+ *     guest writes through [0 + 0x13f], i.e. into the same mapped page. Writing the substitution keeps the
+ *     model consistent instead of applying an offset to a null pointer, which is undefined in C (UBSan:
+ *     "applying non-zero offset 327 to null pointer").
+ *
+ * Both count separately so the rig can report how often the port's list bookkeeping disagreed with its own
+ * links, rather than crashing or silently inventing state. */
+uint32_t g_walk_null_hits = 0;
+uint32_t g_list_null_links = 0;
+static uint8_t *f_ent_walk(uint8_t *cur, const char *site)
+{
+    if (cur) return cur;
+    g_walk_null_hits++;
+    if (g_walk_null_hits == 1)
+        fprintf(stderr, "ent-walk: entity list chain ended before the count (first at %s)\n", site);
+    return sys_linear0();
+}
+static uint8_t *f_list_link(uint8_t *p, const char *site)
+{
+    if (p) return p;
+    g_list_null_links++;
+    if (g_list_null_links == 1)
+        fprintf(stderr, "ent-list: %s neighbour link is null while the node is neither head nor tail\n", site);
+    return sys_linear0();
+}
+
 /* fn_0112fd  orig: 0x000112fd (L10, 233B)
  *   Entity doubly-linked list REMOVE. Removes `node` (arg1) from the entity
  *   list (head=g_dat_53c70, tail=g_dat_53c74, count=g_dat_53c68); head/tail/
@@ -1364,16 +1402,16 @@ uint8_t *fn_0112fd(uint8_t *node, uint32_t arg2) {
     } else if (g_dat_53c70 == node) {                /* 0x11346: remove head */
         uint8_t *next = ((struct ua_uint8tp *)((node + 0x13f)))->v;
         g_dat_53c70 = next;                           /* 0x11359 */
-        ((struct ua_uint8tp *)((next + 0x147)))->v = NULL;           /* 0x11367: new head's prev=0 */
+        ((struct ua_uint8tp *)((f_list_link(next, "fn_0112fd head") + 0x147)))->v = NULL;           /* 0x11367: new head's prev=0 */
     } else if (g_dat_53c74 == node) {                /* 0x11373: remove tail */
         uint8_t *prev = ((struct ua_uint8tp *)((node + 0x147)))->v;
         g_dat_53c74 = prev;                           /* 0x11386 */
-        ((struct ua_uint8tp *)((prev + 0x13f)))->v = NULL;           /* 0x11394: new tail's next=0 */
+        ((struct ua_uint8tp *)((f_list_link(prev, "fn_0112fd tail") + 0x13f)))->v = NULL;           /* 0x11394: new tail's next=0 */
     } else {                                          /* 0x113a0: remove middle */
         uint8_t *next = ((struct ua_uint8tp *)((node + 0x13f)))->v;
         uint8_t *prev = ((struct ua_uint8tp *)((node + 0x147)))->v;
-        ((struct ua_uint8tp *)((prev + 0x13f)))->v = next;           /* 0x113b2: prev->next = next */
-        ((struct ua_uint8tp *)((next + 0x147)))->v = prev;           /* 0x113ca: next->prev = prev */
+        ((struct ua_uint8tp *)((f_list_link(prev, "fn_0112fd middle") + 0x13f)))->v = next;          /* 0x113b2: prev->next = next */
+        ((struct ua_uint8tp *)((f_list_link(next, "fn_0112fd middle") + 0x147)))->v = prev;          /* 0x113ca: next->prev = prev */
     }
     g_dat_53c68--;                                    /* 0x113d0 */
     return node;                                       /* 0x113d6 */
@@ -9334,6 +9372,7 @@ int32_t fn_016fec(uint8_t *s, int32_t yref) {                                /* 
     int32_t Yg = (int32_t)fn_0151d5(s) / 0xc;                           /* Y / 12 (signed) */
     uint8_t *node = g_dat_53c70;
     for (int32_t i = 0; i < g_dat_53c68; i++) {
+        node = f_ent_walk(node, "fn_016fec");
         if (node != g_player_ent && node != s &&
             (int32_t)(((struct ua32 *)((node + 0x1f)))->v) == 4) {
             int32_t nXg = (int32_t)fn_01519f(node) / 0x14;
@@ -9500,6 +9539,7 @@ void fn_032158(void) {                                            /* 0x032158: s
     if (g_dat_53c6c != 1) return;
     uint8_t *node = g_dat_53c70;
     for (int32_t i = 0; i < g_dat_53c68; i++) {
+        node = f_ent_walk(node, "fn_032158");
         if (node != g_player_ent &&
             (int32_t)(((struct ua32 *)((node + 0x117)))->v) == 0 &&
             (int32_t)(((struct ua32 *)((node + 0x1f)))->v) == 4 &&
@@ -24157,6 +24197,7 @@ void fn_0322f5(void)
     g_dat_53c78 = g_dat_53c70;                                     /* 0x00032312-0x00032317 */
     for (int32_t i = 0; ; i = i + 1) {                             /* 0x0003231c / 0x00032325 */
         if (i >= (int32_t)g_dat_53c68) break;                      /* 0x0003232e-0x00032334 */
+        g_dat_53c78 = f_ent_walk(g_dat_53c78, "fn_0322f5");
         if (g_dat_53c78 == g_player_ent || (uint32_t)g_dat_53c78[0] == 2u) {
             /* 0x00032336-0x00032352: skipped */
         } else {
@@ -24180,6 +24221,7 @@ void fn_0320f5(void)
     uint8_t *cur = g_dat_53c70;                                    /* 0x0003210d-15 */
     g_dat_63388 = 0;                                               /* 0x00032115-1f */
     for (int32_t i = 0; i < (int32_t)g_dat_53c68; i = i + 1) {      /* 0x0003211f-0x00032137 */
+        cur = f_ent_walk(cur, "fn_03211f");
         fn_01441e(cur);                                            /* 0x00032139-41 */
         cur = ((struct ua_uint8tp *)((cur + 0x13f)))->v;                          /* 0x00032141-4d */
     }
@@ -24196,6 +24238,7 @@ void fn_03209c(void)
     (void)canary_id(0, 0x24);                                         /* 0x000320a1 probe (push 0x24) */
     uint8_t *cur = g_dat_53c70;                                       /* 0x000320b4-b9 */
     for (int32_t i = 0; i < (int32_t)g_dat_53c68; i = i + 1) {         /* 0x000320bc-0x000320d4 */
+        cur = f_ent_walk(cur, "fn_03209c");
         fn_012616(cur);                                               /* 0x000320d9 */
         cur = ((struct ua_uint8tp *)((cur + 0x13f)))->v;                             /* 0x000320de-e7 */
     }
@@ -24516,6 +24559,7 @@ void fn_01441e(uint8_t *e)
     if (e == g_player_ent && ((struct sa32 *)((e + 0x17)))->v == 2) {   /* 0x000144bf-0x000144ce */
         uint8_t *cur = g_dat_53c70;                                /* [EBP-0x8] 0x000144d5 */
         for (int32_t i = 0; i < (int32_t)g_dat_53c68; i = i + 1) { /* 0x000144dd-0x000144f5 */
+            cur = f_ent_walk(cur, "fn_01441e pass1");
             uint32_t ro = ((struct ua32 *)((                     /* [EBP-0xc] 0x000144fb-1a */
                 hb + ((struct ua32 *)((hb + ((struct ua32 *)((cur + 0x123)))->v + 0x04)))->v
                    + 4u * (((struct ua32 *)((cur + 0x17)))->v & 0x7fffffffu))))->v;
@@ -24585,6 +24629,7 @@ p1next:
     /* ---- pass 3: the hit scan ---- */
     uint8_t *cur = g_dat_53c70;                                    /* 0x000146b5-ba */
     for (int32_t n = 0; n < (int32_t)g_dat_53c68; n = n + 1) {     /* 0x000146bd-0x000146d5 */
+        cur = f_ent_walk(cur, "fn_01441e pass3");
         if ((uint32_t)e[0] == (uint32_t)cur[0] || (uint32_t)cur[0] == 2u) goto hitnext;  /* 0x000146db-f6 */
         if ((uint32_t)*(const uint8_t *)(cur + 0x4e) == ((struct ua32 *)((e + 0x17)))->v &&
             (uint32_t)*(const uint8_t *)(cur + 0x4f) == (uint32_t)slot) goto hitnext;   /* 0x000146fb-0x00014719 */

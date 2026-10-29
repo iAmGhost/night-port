@@ -71,16 +71,79 @@ static int g_n;
                                 link fields at +0x13f/+0x143, which are not comparable */
 static uint32_t g_recoff[RIG_MAX];
 
+/* docs/146: the arena is the only memory a record dump may read. heap_arena_cap() is the port's own arena
+ * size (f.c:3002) and every heap_malloc object lives inside it (heap_malloc works in arena offsets,
+ * f.c:3429), so a value outside [g_heap_base, base+cap) is not an object: it is a static table, a stale
+ * number, or a poked junk pointer. Reading a fixed 352 bytes from such a value is what produced the rig's
+ * own out-of-bounds reads and the SIGSEGVs previously charged to the game (docs/120 §6, docs/128).
+ * rec_span() returns how many record bytes are really there, 0 = not a readable record source. */
+static uint64_t g_dump_oob;        /* record blocks refused: a reported blind spot, never fabricated bytes */
+static uint64_t g_poke_refused;
+static uint32_t rec_span(const uint8_t *obj)
+{
+    if (!obj || !g_heap_base) return 0;
+    const uint8_t *lo = (const uint8_t *)g_heap_base;
+    const uint8_t *hi = lo + (size_t)heap_arena_cap();
+    if (obj < lo || obj >= hi) return 0;
+    uint32_t room = (uint32_t)(hi - obj);
+    return room < RIG_REC ? room : RIG_REC;
+}
+
 /* Read the current value of one DS-claiming global by its DS address, little-endian, up to 4 bytes.
  * Used by the playtest script's `wait ds ADDR OP VAL`, so both sides of the rig can anchor on the same
  * shipped DS event (a resource name cannot be used: every resource name is resident in DS all the time,
  * measured -- 435 name-shaped strings present at the title and unchanged after entering the game). */
+/* docs/146: how many entities the list can actually be walked through. The state oracle already computes
+ * this (docs/137's count-vs-chain oracle); the injection path now asks the same question before it writes,
+ * because a count above the chain length is a state the shipped game cannot hold either: the count-bounded
+ * walks then read the zero page as an entity, and the record machinery (RECST/YARR at f.c:25751) follows
+ * the derived offsets out of any mapped region -- the guest faults on the same arithmetic, so a poke that
+ * creates it is not a test of the port, it is the rig writing an impossible state. Such pokes are refused
+ * and counted, and the fuzz corpus keeps only drives whose injections the shipped bookkeeping permits. */
+static uint32_t rig_chain_len(void)
+{
+    uint8_t *e = g_dat_53c70;
+    uint32_t n = 0;
+    while (e && rec_span(e) && n < 4096u) {
+        n++;
+        e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
+    }
+    return n;
+}
+
 int rig_ds_write(uint32_t ds, uint32_t v) {
     /* Scripted injection (docs/118): the same cell table the state oracle reads, so an injected value is
      * observed by the oracle exactly like a value the game produced itself. */
     for (int i = 0; i < rig_cell_count(); i++) {
         const struct rig_cell *c = rig_cell_at(i);
         if (c->ds != ds || !c->host) continue;
+        /* docs/146: a pointer cell does not hold a number, it holds an arena object, and DS-side that
+         * object is a uint32 offset from the heap base (f.h:418). Copying the literal into the host word
+         * turned the cell into a garbage host pointer (7 landing in the low half of a 64-bit address), and
+         * everything downstream that trusted the cell faulted -- the game dereferencing it, and this file's
+         * own 352-byte record read (ASan: "READ of size 352 ... located 63 bytes before global variable
+         * 'g_dat_53619'"). That is the whole "injection-induced SIGSEGV" family: a rig-semantics bug, not
+         * the port dying on a strange number. An injected pointer value is read as the DS reads it. */
+        if (ds == 0x53c68) {                       /* entity count: bookkeeping, not a free parameter */
+            uint32_t live = rig_chain_len();
+            if (v > live) {
+                g_poke_refused++;
+                fprintf(stderr, "rig: poke 0x53c68=%u rejected: the +0x13f chain only reaches %u entities\n",
+                        v, live);
+                return -1;
+            }
+        }
+        if (c->ptr && c->host_size == 8) {
+            uintptr_t obj = (uintptr_t)flat_ofs(v);
+            if (v != 0 && !rec_span((const uint8_t *)obj)) {
+                g_poke_refused++;
+                fprintf(stderr, "rig: poke 0x%05x rejected: pointer cell, %u is not an arena offset\n",
+                        ds, v);
+                return -1;
+            }
+            memcpy((void *)c->host, &obj, sizeof obj);
+            return 8;
+        }
         unsigned n = c->host_size < 4 ? c->host_size : 4u;
         if (!n) continue;
         memcpy((void *)c->host, &v, n);
@@ -91,13 +154,16 @@ int rig_ds_write(uint32_t ds, uint32_t v) {
 
 uint8_t *rig_ent_slot(int slot) {
     uint8_t *e = g_dat_53c70;                       /* entity list head, next at +0x13f (docs/108) */
-    for (int k = 0; k < slot && e; k++) e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
+    for (int k = 0; k < slot && e; k++) {
+        if (!rec_span(e)) return NULL;              /* docs/146: a link outside the arena is not an entity */
+        e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
+    }
     return e;
 }
 
 int rig_ent_poke(int slot, uint32_t off, uint32_t v) {
     uint8_t *e = rig_ent_slot(slot);
-    if (!e || off + 4u > RIG_REC) return 0;
+    if (!e || off + 4u > RIG_REC || off + 4u > rec_span(e)) return 0;
     memcpy(e + off, &v, 4);
     return 1;
 }
@@ -106,7 +172,7 @@ int rig_player_poke(uint32_t off, uint32_t v) {
     /* The player is not necessarily in the list-walk order the ent## cells follow, and the shipped hit code
      * reads the ATTACKER's state to pick the reaction type (fn_01441e: rec_e indexes by *(e+0x17) where e is
      * the striker and cur the victim -- docs/118 §2). So combo-state probes need a direct player handle. */
-    if (!g_player_ent || off + 4u > RIG_REC) return 0;
+    if (!g_player_ent || off + 4u > RIG_REC || off + 4u > rec_span(g_player_ent)) return 0;
     memcpy(g_player_ent + off, &v, 4);
     return 1;
 }
@@ -232,15 +298,20 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
                 int32_t off32 = (int32_t)(obj - (const uint8_t *)g_heap_base);
                 memcpy(dst, &off32, 4);
             }
-            if (g_recoff[i] != 0xffffffffu && obj)
-                memcpy(p + g_recoff[i], obj, RIG_REC);   /* stays zero = "null pointer" */
+            if (g_recoff[i] != 0xffffffffu && obj) {
+                uint32_t n = rec_span(obj);
+                if (n) memcpy(p + g_recoff[i], obj, n);
+                else g_dump_oob++;      /* block stays zero: the oracle sees "no data", not garbage */
+            }
         }
     }
     /* walk the entity list from the head the same way fn_012616's sweep does */
     {
         uint8_t *e = g_dat_53c70;
         for (int k = 0; k < RIG_ENTS && e; k++) {
-            memcpy(p + g_ent_base + k * RIG_REC, e, RIG_REC);
+            uint32_t n = rec_span(e);
+            if (!n) { g_dump_oob++; break; }     /* dangling link: stop and report, never read past the arena */
+            memcpy(p + g_ent_base + k * RIG_REC, e, n);
             e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
         }
     }
@@ -405,6 +476,9 @@ void rig_close(void) {
         fclose(g_pcm); g_pcm = NULL;
     }
     if (g_bin) fflush(g_bin);
+    if (g_dump_oob || g_poke_refused)
+        fprintf(stderr, "rig: record reads refused (outside arena)=%llu  pokes rejected (pointer cell)=%llu\n",
+                (unsigned long long)g_dump_oob, (unsigned long long)g_poke_refused);
 }
 
 /* Raw capture of a loaded action container (docs/118 §8). The in-process census that interpreted guest

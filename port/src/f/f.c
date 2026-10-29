@@ -8510,6 +8510,11 @@ void fn_040839(uint8_t *cursor)
         uint32_t kind = *cursor;        cursor += 1;                  /* 0x4086f-76 (inc then read) */
         uint32_t len  = (uint32_t)fn_0408c5(cursor);                  /* 0x4087c: 24-bit length */
         cursor += 3;                                                  /* 0x40884 */
+        /* docs/166 §7 census: which commands the device command stream actually carries.  (The first
+         * attempt at this witness printed nothing at all because the fprintf was written *inside* the
+         * multi-line comment that introduced it -- a patch defect, not a finding.) */
+        if (getenv("NIGHT_AUDIODUMP"))
+            fprintf(stderr, "cmdstream kind=%u len=%u\n", kind, len);
         if (kind == 0) return;                                        /* 0x4088c */
         if (kind == 1) { fn_04097e(cursor, len); return; }             /* 0x4089a */
         if (kind == 2) { fn_040b83(cursor, len); return; }             /* 0x408ad */

@@ -190,3 +190,49 @@ Next measurement named: a `kind` census witness at `fn_040839`'s dispatch (count
 stream length), compared against 324 shipped programming events.  If the port only ever decodes kind 1, the audio
 cluster's root cause is the command stream it is handing the walker, not the DMA model, not the mixer, and not the
 sample assets.
+
+## 8. The `kind` census: the port's command stream is 81 kind-1 commands and no kind-2 at all
+
+A witness at `fn_040839`'s dispatch (`NIGHT_AUDIODUMP`, `port/src/f/f.c:8512`) prints every command the device
+command stream actually carries.  On `ep1_kill3`, 6000 frames:
+
+```
+decoded commands: 81      kind=1 x81        kind=2 x0
+lengths:          3609 x79,  5348 x1,  5031 x1
+```
+
+That is the shape mismatch, localised.  The port's stream is **one kind-1 command per sound, carrying the whole
+block** (3 609 bytes 79 times).  The shipped side programs **324 transfers**, sizes on a 257-byte ladder, 313
+different addresses, one fixed page.  The walker's own dispatch explains why the two cannot agree:
+
+```c
+if (kind == 1) { fn_04097e(cursor, len); return; }   /* 0x4089a -- and RETURN */
+if (kind == 2) { fn_040b83(cursor, len); return; }   /* 0x408ad -- and RETURN */
+```
+
+Both arms **return**, so one call to the walker handles exactly one command.  The port therefore needs one stream
+command per transfer, and it only ever has kind-1 commands; the shipped side achieves 324 transfers without any
+kind-2 command in sight, which points at the *continuation* machinery rather than the stream content:
+
+* `fn_04097e` already models a chunked feed: `g_dat_63f94 = total - 2` (remaining), copy a chunk capped at
+  `0xffff` into the buffer base, `g_dat_63f94 -= len`, `g_dat_63fa8 += len` (cursor advances), `g_dat_63f98--`
+  (the device is told one byte fewer), then program DMA -- and `fn_040b83` is the *continuation* of exactly that
+  block ("one DMA chunk" of the same remaining/ cursor state).
+* In the shipped game the continuation is driven by the board's acknowledge / timer path: the driver re-programs
+  the next chunk when the previous transfer completes.  That is where a 257-byte ladder and a shifting address
+  with a fixed page come from naturally.
+* **Hypothesis to test, not to assume: the port never services that continuation.**  It arms once per sound
+  (81 arms, 81 transfers) and the remaining/cursor state it maintains is never advanced by a second chunk,
+  because nothing re-enters `fn_040b83` -- which the `sfxcopy` witness already measured at **zero calls**.
+  The test is the acknowledge traffic: count `inb` hits on the Sound Blaster read/status ports
+  (`0x22a`, `0x22e`) and the ISR firings per transfer.  If the port reads the ack and still never continues, the
+  defect is in the continuation logic; if it never reads the ack at all, the defect is that the handshake the
+  shipped driver depends on is not modelled.
+
+## 9. Patch defect caught while doing it
+
+The first version of this witness printed nothing, and the reason was mine, not the game's: the `fprintf` was
+written on the line *after* a block comment started, so it sat inside the comment.  The tell was
+`strings port/test/night | grep -c cmdstream` returning 0 while `grep -c cmdstream port/src/f/f.c` returned 1 --
+a witness that is not in the binary.  Added as a standing check: **confirm a new witness exists in the built
+binary before believing its silence.**

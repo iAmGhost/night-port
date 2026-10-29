@@ -92,12 +92,59 @@ port  count census: 3:866 0:473 6:330 4:114 1:109 7:62 5:61 9:28
 port  chain census: identical in all 2047 samples
 ```
 
-The distributions match on both sides; the shipped side's five off-by-one samples are spawn/free events
-landing between the DS read and the heap read inside one sample, not a corrupt list. So the port does **not**
-corrupt the entity list -- docs/128's crash was a fault-landing difference (already guarded through
-`sys_linear0`), not a bookkeeping divergence.
+On **each** side the count cell agrees with that side's own chain: the two censuses are identical per side
+(port: 2047/2047; orig: 486/491, the five off-by-one samples being spawn/free events landing between the DS
+read and the heap read inside one sample). So the port does **not** corrupt the entity list -- docs/128's
+crash was a fault-landing difference (already guarded through `sys_linear0`), not a bookkeeping divergence.
 
-## 6. Next measurement
+The **levels** however do not agree, and that is a divergence in its own right:
+
+```
+orig  live-entity count distribution: 2:238 3:191 1:32 4:23 0:3 5:3 6:1      (max 6, mode 2)
+port  live-entity count distribution: 3:866 0:473 6:330 4:114 1:109 7:62 5:61 9:28   (max 9, 24% at 5+)
+```
+
+In the 190-250 s window specifically, the shipped side averages 4.8 live entities per sample and the port
+7.6 -- the same window in which the port carries the extra type-0x24 population (§4). The port is running a
+**larger entity population**, which is also what makes more hits land.
+
+A first attempt to compare spawn *rates* (slot-level appearance events) is reported here as unusable rather
+than as a result: the two dumpers sample at 520 ms and 139 ms, so short-lived entities register as an
+appearance+disappearance pair on the port and are invisible on the shipped side, and the raw ratio (port
+type-31 54.2 vs orig 6.6 per 100 s) is dominated by that cadence gap. Rate comparison needs equal cadence on
+both sides (`--hz`), which is the right way to run it.
+
+## 6. The spawn path itself is faithful -- checked, not assumed
+
+The room-record opcode-1 handler `fn_03e20f` and its spawn helper were checked line by line against
+NIGHT.EXE (capstone, `scripts/audit/disasm.py --entry 0x3e42b`):
+
+```
+0x3e42b  mov  eax, 0x147 ; call 0x41bdc          ; block 0x147 (the port passes 0x14f, the widened node)
+0x3e444  mov  eax, 1     ; push eax            ; kind = 1
+0x3e44d  push dword ptr [eax + 1]              ; type index  -> record +0x0d
+0x3e453  mov  ecx, dword ptr [eax + 0xd]       ; Y           -> record +0x09
+0x3e456  xor  ebx, ebx                         ; arg_ebx = 0
+0x3e458  mov  edx, dword ptr [ebp - 0x10]      ; X           -> record +0x01
+0x3e45e  call 0x10efc
+```
+
+which is exactly the port's `e20f_spawn` (f.c:26321-26334). The population cap the handler compares against,
+`g_tab_528b4[(stage-1)*10 + room[+0x40]]`, is also faithful: the port's table (f.c:25431, 180 entries, 10
+columns x 18 rows, stride 0x28) matches `NIGHT.EXE` at `DS-0x7600` entry for entry -- caps of 9 with a few
+5s, and 1000 (effectively no cap) from row 10 on.
+
+(A false lead worth recording, because it was produced by the audit tooling rather than by the game: a
+quick regex over the initializer text reported 43 mismatches for this table. The regex had matched numbers
+in the surrounding comment, not array entries. Re-checked against the declared table: 0 mismatches. Lesson:
+a byte comparison must parse the initializer, not scrape digits near it.)
+
+So the extra population is not produced by wrong spawn arithmetic or a wrong cap: it comes from **more
+opcode-1 records being executed**, or from gates/coordinates that let records fire where the shipped run
+keeps them dormant (`rec[0] = 0` after a spawn is a one-shot arming, so a gate that passes earlier spawns
+more). That is where the type-0x24 population must come from.
+
+## 7. Next measurement
 
 Whoever creates the type-0x24 entity is the head of the chain that ends in the player death. Plan: add a
 loader witness (type index + object record offset + stage/room index) at the `.stg`/`.chr` object instantiation

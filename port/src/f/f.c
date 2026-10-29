@@ -26321,6 +26321,22 @@ uint8_t *f_warp_entity_spawn(const char *name)
 static uint8_t *e20f_spawn(int32_t anchor_x, const uint8_t *rec, int stamp_gate)
 {
     uint8_t *hb = (uint8_t *)g_heap_base;
+    if (getenv("NIGHT_SPAWNTRACE"))                                      /* host-side diagnostic, docs/137 */
+        fprintf(stderr, "SPAWN t=%d stamp=%d rec=%08x sub=%d gate=%d cgate=%d rx=%d ry=%d "
+                        "room11=%d cnt=%u cap=%u anchor=%d\n",
+                 (int)((struct sa32 *)((rec + 0x01)))->v, stamp_gate,
+                 (unsigned)(rec - (const uint8_t *)g_heap_base),
+                 (int)((struct sa32 *)((rec + 0x05)))->v,
+                 (int)((struct sa32 *)((rec + 0x11)))->v,
+                 (int)((struct sa32 *)((rec + 0x15)))->v,
+                 (int)((struct sa32 *)((rec + 0x09)))->v,
+                 (int)((struct sa32 *)((rec + 0x0d)))->v,
+                 g_dat_63354 ? (int)g_dat_63354[0x11] : -1,
+                 (unsigned)g_dat_53c68,
+                 (g_dat_63354 && g_dat_63370 > 0)
+                     ? (unsigned)g_tab_528b4[(g_dat_63370 - 1) * 10u
+                                             + ((struct ua32 *)((g_dat_63354 + 0x40)))->v] : 0u,
+                 anchor_x);
     uint32_t blk = fn_00041bdc(0x14f);                                   /* 0x0003e42b (orig 0x147) */
     uint8_t *ent = NULL;
     if (blk != 0) {                                                      /* 0x0003e43e */

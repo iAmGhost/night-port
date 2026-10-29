@@ -402,12 +402,15 @@ of those functions, so the writers are wired; the states simply are not reached 
 
 To compare state populations I histogrammed `state(+0x17)` over `state_*.heap.bin` on both sides.  The shipped
 side came out clean-looking (`0x28` x2889 for type 0, `0x29` x175 for type 1, `0x33/0x34/0x35`, `0x0b/0x0c`), the
-port side implausible (`0x3f, 0x100, 0x7f, 0x18`).  The shipped numbers are **partly an artifact of my own
-slicing**: each dump is 22 528 bytes, but the pointer cells are 52 x 352 = 18 304 bytes, so 4 224 bytes of
-*action-record chain blocks* (33 x 128) sit at the tail.  Slicing the whole file at a fixed 352-byte stride
-misaligns that tail and invents ~12 fake blocks.  The rule in docs/115 -- **use the dump's explicit block
-offsets, never a derived stride** -- was violated again; this is the fourth time this error class has shown up,
-which means the fix belongs in the dump format (write a block table next to the bytes), not in more care.
+port side implausible (`0x3f, 0x100, 0x7f, 0x18`).  My first reading of that gap blamed my own slicing, and that
+blame was wrong -- see the correction below.
+
+**§16 correction, filed immediately after writing it.**  The stride was not the bug.  This run's own
+`timeline.json` lists **64 pointer cells, every one `rec_bytes = 352`**, and 64 x 352 = 22 528 is exactly the
+heap file size -- there are no 128-byte chain blocks in `g15` because it was captured without `--chain-cells`.
+The actual error was deriving the cell list from the *shared* `gen/rig_cells.json` (52 pointer cells) instead of
+the run's own `timeline.json` (64), which is the same mistake docs/159 §6 already recorded once.  The shipped
+state histogram in §16 therefore stands, and the port-side implausible values stay a genuine symptom.
 
 Trustworthy from §14: the port's own in-process censuses, which read live records through the same pointers the
 game uses.  Not trustworthy yet: any cross-side record-field histogram built by striding a heap blob.

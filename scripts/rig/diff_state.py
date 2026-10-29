@@ -156,9 +156,11 @@ def hexs(values, limit=3):
 # to the function that writes it) instead of stopping at "the first differing byte" (blind-gate contract:
 # every detection names the divergent window AND the suspect function / DS region).
 ENTITY_FIELDS = [
-    # widths follow the shipped access width at each offset (state is a word read by MOVZX at
-    # 0x00014c6c; hp is a byte at fn_01441e's damage store; the rest are dwords)
-    (0x17, "state", 2), (0x29, "hp", 1), (0x2b, "exp_total", 2), (0x32, "exp_award", 2),
+    # Offsets and widths are NOT guesses: they are the store set of the shipped entity constructor
+    # fn_010efc (guest 0x00010f36-0x000112e6), whose stores are packed and deliberately unaligned
+    # (dword [EDX+0x1], [EDX+0x5], [EAX+0x17], ...; docs/125). Validated against shipped runtime
+    # values: hp@+0x29 = 0x3e8 (1000) decaying to 0x3e5, exp_total@+0x2b stepping 0 -> 0xa -> 0x14.
+    (0x17, "state", 4), (0x29, "hp", 2), (0x2b, "exp_total", 4), (0x32, "exp_award", 4),
     (0x4a, "link_ent", 4), (0x52, "score", 4), (0x56, "pos_x", 4), (0x6c, "chain_gate", 1),
     (0x73, "pos_y", 4), (0x123, "act_container", 4), (0x13f, "next_ent", 4),
 ]

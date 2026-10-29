@@ -26337,6 +26337,16 @@ static uint8_t *e20f_spawn(int32_t anchor_x, const uint8_t *rec, int stamp_gate)
                      ? (unsigned)g_tab_528b4[(g_dat_63370 - 1) * 10u
                                              + ((struct ua32 *)((g_dat_63354 + 0x40)))->v] : 0u,
                  anchor_x);
+    if (g_dat_63354 && getenv("NIGHT_SPAWNTRACE"))                       /* live room fields vs the dump's
+        for (int q = 0; q < 1; q++)                                      * record block, docs/142 §5 */
+        fprintf(stderr, "ROOM off=%08x b00=%d d00=%d b08@1=%d d08=%d d11=%d d32=%d d36=%d d40=%d\n",
+                 (unsigned)(g_dat_63354 - (const uint8_t *)g_heap_base),
+                 g_dat_63354[0x00], (int)((struct sa32 *)((g_dat_63354 + 0x00)))->v,
+                 g_dat_63354[0x08], (int)((struct sa32 *)((g_dat_63354 + 0x08)))->v,
+                 (int)((struct sa32 *)((g_dat_63354 + 0x11)))->v,
+                 (int)((struct sa32 *)((g_dat_63354 + 0x32)))->v,
+                 (int)((struct sa32 *)((g_dat_63354 + 0x36)))->v,
+                 (int)((struct ua32 *)((g_dat_63354 + 0x40)))->v);
     uint32_t blk = fn_00041bdc(0x14f);                                   /* 0x0003e42b (orig 0x147) */
     uint8_t *ent = NULL;
     if (blk != 0) {                                                      /* 0x0003e43e */

@@ -107,3 +107,36 @@ and it does it without trusting the capture at all.
 Caveat kept on the record: the 1.5 s grouping is a heuristic.  A group may be several sounds, and a group's byte
 total is the sum of programmed transfer sizes, not decoded audio length -- but 85 kB against 3.6 kB is a factor of
 23, far outside what grouping ambiguity can produce.
+
+## 6. The DMA address walks forward on the shipped side and never moves on the port's
+
+Pairing consecutive `0x02` changes into 16-bit address words:
+
+```
+0x02 changes 328 -> address words 327; DISTINCT addresses: 313
+most common adjacent pairs: (2053, 2568), (2568, 3082), (3082, 3596)   -- each step +514
+0x83 (page) constant: {1: 2678}      0x0a (mask) reads {255: 2678}
+```
+
+* **The shipped feed consumes a region forward.**  Almost every transfer is programmed at a different address, and
+  the recurring adjacent triples step by exactly **514 = 2 × 257** bytes -- the same 257 quantum the size ladder
+  showed.  The page never changes, so all of it lives in one buffer above 0x10000.  That is a stream being walked
+  through the board, chunk after chunk, not a set of separate one-shot sounds.
+* **The port's address never moves.**  docs/164 §6 recorded `dma_addr` for 60 consecutive transfers on the same
+  drive: `0x381c` in one boot, `0x781c` in another, **constant within a run**.  The port's model copies each sound
+  to the buffer base (`fn_04097e`'s `mem_copy(g_dat_63fb4, cursor, len)`) and arms a transfer at that base, so its
+  address has exactly one value per run while the shipped side has 313.
+* The mask register reading `255` in every sample is the idle "all masked" state and carries no information; it is
+  reported only to show the census is not silently missing a register.
+
+Two readings remain open and they are distinguishable, so the next measurement is named rather than guessed:
+
+1. **Stream reading**: the shipped side plays long samples in forward-stepped chunks, which would make 2.93 MB of
+   programmed DMA over 150 s a *continuous* board channel, and the port's 73 discrete effects are the wrong
+   architecture entirely.
+2. **Re-arm reading**: the same buffer is re-armed repeatedly and my address pairing mixes low/mid bytes across
+   bursts, inventing variety.
+
+The discriminator is the port's own copy cursor: if the shipped driver is walking forward, the *sequence of
+transfer sizes* and the *sequence of address deltas* must agree (delta == previous size + small residue).  That is
+checkable on the census already collected -- a mismatch rate near zero supports reading 1.

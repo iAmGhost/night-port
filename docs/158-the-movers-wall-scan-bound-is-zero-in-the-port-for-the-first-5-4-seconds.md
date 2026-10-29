@@ -1,4 +1,11 @@
-# docs/158 — the mover's wall-scan bound is zero in the port for the first 5.4 seconds of gameplay, where shipped has nine clamp records
+# docs/158 — what `0x62a8c` really is (the mover's wall-scan bound), and a retraction of this file's headline
+
+> **Correction, measured in the same session (see §5).** The headline claim — that the port walks the opening of
+> the episode with zero clamp records while shipped has nine — does not survive measurement. The anchor used
+> below ("first live entity") is *not* a comparable event: the shipped title screen already has live entities at
+> 400 ms, the port's title screen is reached at 60 s, and once the clamp-table count is compared **relative to
+> the room-script burst itself**, both sides go `0 -> 9` at that burst and both hold 9 afterwards. `0x62a8c`'s
+> DIFF verdict is a phase artifact, not a value divergence. The cell attribution in §1-§2 stands.
 
 Cell `0x62a8c`, which docs/157 §2 had parked under "asset / list bookkeeping, not yet attributed", turns out to be
 the **count of the trigger/wall table** `g_tab_5c8bc[0..count)` that bounds the mover's wall scan
@@ -75,3 +82,31 @@ O=[(st['t_ms'], u(open(f'/tmp/rig/g15/orig/state_{k:04d}.ds.bin','rb').read(), a
 PY
 uv run python3 -c "import json;m=json.load(open('scripts/audit/mem_access.json'));print([r for r in m if any(x.get('to')=='0x62a8c' for x in r.get('refs',[]))])"
 ```
+
+## 5. Retraction: the anchor was not a comparable event, and the clamp dynamics agree
+
+Measured on the same route, comparing the count against the room-script burst (`DAT_00063e14 88 -> 67`) instead
+of against the first live entity:
+
+```
+ORIG: entity count nonzero at t=400 ms   (clamp count 0)   burst at 5900 ms   clamp 0 -> 9   then 9 for the rest
+PORT: entity count nonzero at t=60079 ms (clamp count 0)   burst at 70948 ms  clamp 0 -> 9   then 9 for the rest
+      (port frames anchor->burst = 571; player record +0x11 unchanged on both sides across the window)
+```
+
+Both sides hold `0` before the burst and `9` after it, so the *behaviour* of the bound matches. What differs is
+when the burst happens in wall clock — 5.9 s vs 70.9 s — and that gap is a property of how the two sessions are
+brought up (the shipped replay is sitting on its title screen, which already owns entities, while the port has
+been through its own title/menu/slideshow), not a gameplay divergence inside the room.
+
+Consequences that are stated rather than hidden:
+
+* **`0x62a8c` leaves the residual-divergence list as a phase artifact**, joining the 12 cells docs/157 §3 found
+  to be >90 % equal with no shift. It is not evidence about the camera cluster.
+* "First live entity" is a **bad anchor** for this game. An anchor has to be an event both sides define the same
+  way; a title screen that owns entities is not one. The rig-side rule docs/151 already states, and this is a
+  fresh instance: anchor on a transition (the command-list drain), never on a level measurement (a nonzero count).
+* What survives from this file: §1-§2 — the identity of `0x62a8c` as the count of `g_tab_5c8bc`, the fact that it
+  bounds the mover's wall scan on every step, and that its only writers are the room-script interpreter arms
+  `0x3ebdb` / `0x3ed17` and its clearers are `fn_037b03` / `fn_03ee0a`. The port-only extra drains
+  (`67 -> 66 -> 65 -> 64 -> 62 -> 61` at 172-223 s) remain the real anomaly, and those are docs/153's finding.

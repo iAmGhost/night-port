@@ -25826,22 +25826,22 @@ void fn_012616(uint8_t *e)
 
     if (((struct sa16 *)((e + 0x50)))->v == 0) {                             /* 0x0001271e: no hold countdown */
         ((struct sa32 *)((e + 0x11)))->v = ((struct sa32 *)((e + 0x11)))->v + 1;
-        if (((int32_t)*(const uint8_t *)(rec + 0x17) <= ((struct sa32 *)((e + 0x11)))->v)
+        if (((int32_t)*(const uint8_t *)(rec + 0x5c) <= ((struct sa32 *)((e + 0x11)))->v)
             && (0xaa < ((struct ua32 *)((e + 0x17)))->v) && (((struct ua32 *)((e + 0x17)))->v < 0xae)) {
             ((struct sa32 *)((e + 0x17)))->v = ((struct sa32 *)((e + 0x17)))->v + 1;         /* 0x00012775 */
             ((struct ua32 *)((e + 0x11)))->v = 0;
         }
-        if (((int32_t)*(const uint8_t *)(rec + 0x17) <= ((struct sa32 *)((e + 0x11)))->v)
+        if (((int32_t)*(const uint8_t *)(rec + 0x5c) <= ((struct sa32 *)((e + 0x11)))->v)
             && (0xb4 < ((struct ua32 *)((e + 0x17)))->v) && (((struct ua32 *)((e + 0x17)))->v < 0xb9)) {
             ((struct sa32 *)((e + 0x17)))->v = ((struct sa32 *)((e + 0x17)))->v + 1;         /* 0x000127b1 */
             ((struct ua32 *)((e + 0x11)))->v = 0;
         }
-        if (((int32_t)*(const uint8_t *)(rec + 0x17) <= ((struct sa32 *)((e + 0x11)))->v)
+        if (((int32_t)*(const uint8_t *)(rec + 0x5c) <= ((struct sa32 *)((e + 0x11)))->v)
             && (0xbe < ((struct ua32 *)((e + 0x17)))->v) && (((struct ua32 *)((e + 0x17)))->v < 200)) {
             ((struct sa32 *)((e + 0x17)))->v = ((struct sa32 *)((e + 0x17)))->v + 1;         /* 0x000127ed */
             ((struct ua32 *)((e + 0x11)))->v = 0;
         }
-        if (e[0x31] == 0 || ((struct sa32 *)((e + 0x11)))->v < (int32_t)*(const uint8_t *)(rec + 0x17)) {
+        if (e[0x31] == 0 || ((struct sa32 *)((e + 0x11)))->v < (int32_t)*(const uint8_t *)(rec + 0x5c)) {
             if ((int32_t)((struct ua32 *)((rec + 0x00)))->v <= ((struct sa32 *)((e + 0x11)))->v) {
                 if (((struct sa32 *)((e + 0x17)))->v == 0x6f || ((struct sa32 *)((e + 0x17)))->v == 0x71) {  /* 0x000127f4 */
                     ((struct ua32 *)((e + 0x4a)))->v = 0;                         /* the pair link */

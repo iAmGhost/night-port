@@ -115,3 +115,26 @@ Open item, stated as a check rather than a conclusion: locate every guest write 
 port's placement; then make `DAT_63e14 / 63e18 / 63e1c / 63e20` a first-class oracle row (they are dumped on
 both sides) so a list-length divergence is reported automatically instead of discovered through an entity
 census.
+
+## 5. Every guest access to `DAT_00063e14` is placed faithfully -- and the counter gap has a cadence explanation
+
+`scripts/audit/mem_access.json` lists exactly four accesses to `DAT_00063e14` in the shipped binary, and the
+port has all four in the same functions:
+
+| guest | access | port |
+|---|---|---|
+| `fn_037b03` 0x37c88 | `MOV EAX, 0x63e14` (address passed to the `.stg` reader) | f.c:5070 |
+| `fn_037b03` 0x37cae | `CMP EAX, [0x63e14]` (record-loop bound) | f.c:5072 |
+| `fn_03e14c` 0x3e169 | `CMP [0x63e14], 1` | f.c:1897 |
+| `fn_03e14c` 0x3e1f8 | `DEC [0x63e14]` | f.c:1915 |
+
+There is no shipped increment the port is missing, so §4's drift is the port executing `fn_03e14c`'s unlink
+more often -- **or** it is the sampling cadence. `fn_037b03` re-reads the room script on (re)load and resets
+the count to 67, so a low-frequency sampler mostly sees 67 while a 10 Hz sampler catches the intermediate
+61/62/66 values between a unlink and the next reload. The shipped trace ran at 4 Hz, the port's at 10 Hz.
+
+Discriminating run started: `/tmp/rig/g11`, same drive, `RIG_HZ=10` and `RIG_ENTS=12` on the **shipped** side
+too, so `DAT_63e14` and the live-entity census can be compared sample-for-sample instead of normalised. If the
+shipped trace at 10 Hz also shows 61/62/66 excursions, §4's counter gap is a rig-cadence artifact and the
+enb-1 question stays where docs/137 §6 left it; if the shipped trace stays pinned at 67, the port is
+unlinking commands the shipped game leaves pending, and `fn_03e14c`'s call sites become the fix target.

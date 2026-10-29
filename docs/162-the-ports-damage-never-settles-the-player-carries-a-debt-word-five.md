@@ -219,7 +219,10 @@ Three statements in this file have to be restated because of it.
 1. **The arming path is equivalent.**  Both sides arm the accumulator to 100 and start transferring it into
    the debt 15 ms after the room-script drain.  §8's candidate "the port runs the arming clear more often"
    is dead.
-2. **"the damage never settles" is wrong as a headline.**  There is exactly **one** settle on each side.
+2. **"the damage never settles" is wrong as a headline -- and so is the way §9 counted it.**  The event census
+   found exactly one settle on each side, but at 250 ms sampling *several* settles inside one bucket are
+   invisible, so "one settle" is a statement about the sampling, not the behaviour.  §12's witness lines show
+   the behaviour directly: 52 hits land on the port's player and **hp changes in one of them**.
    Before it, hits only chew the debt (which is what §8's witness lines show); after it the debt is zero and
    the `0x148f8 sub word [hp], ax` arm applies damage directly.  The divergence is therefore *how long each
    side spends with a positive debt* (shipped 60 % of aligned samples, port 79 %) and how many direct hp hits
@@ -262,3 +265,42 @@ contradiction rather than a long-lived entity.
 The shipped side trips nothing; the port trips exactly the one identity whose "62-second one-shot record" I
 had already retracted.  Until the linkage itself is understood, `ent_life.py`'s per-type **counts** are usable
 and its per-type **lifetimes** are not -- the guard says so on the same line the numbers are printed on.
+
+## 12. Which hit combinations reach `fn_01441e`, and what they do (`NIGHT_HITTRACE`, 250 s run)
+
+Grouping the 81 hit events by attacker type/state, victim, record slot, action type and damage:
+
+```
+52 hits with the PLAYER as victim:
+   17 x  atk type=31 state=0x29  slot=0  atype=1   dmg=1
+   16 x  atk type=31 state=0x29  slot=1  atype=1   dmg=3
+   16 x  atk type=31 state=0x29  slot=2  atype=2   dmg=6
+    3 x  atk type=36 state=0x29  slot=0  atype=11  dmg=8
+
+29 hits with the PLAYER as attacker (states 0x33 x17, 0x34 x8, 0x35 x4)
+
+player state when a hit lands: 0x0b x33, 0x01 x6, 0x0c x5, 0x33 x3, 0x02 x3, 0x35 x2
+
+hp actually changed: 1 of the 52 player-victim lines
+```
+
+Four things fall out.
+
+1. **The damage is a repeating triple.**  One enemy (`type 31`, i.e. 0x1f, in state 0x29) hits through record
+   slots 0, 1, 2 with `atype` 1, 1, 2 and damage 1, 3, 6 — 17/16/16 times.  Those are the {1,3,6} quanta of
+   §2, and they arrive as one attack resolving through three hit-record slots, which is why the shipped side's
+   single hit can move hp by 10 (1+3+6).
+2. **51 of 52 hits change no hp at all.**  With ~185 damage delivered and only 40 hp lost, the debt word absorbs
+   the rest -- the mechanism §8 showed one line at a time, now counted.
+3. **`atype=11` lands on the player three times in the port** (attacker `type 36 state 0x29`, dmg 8).  docs/155
+   established that hit code 11 is normal for shipped enemies and never lands on the *shipped* player; the port
+   delivers it.  That is an independently reproducible divergence with a named field value.
+4. **The player is most often in reaction state 0x0b when hit** (33 of 52), i.e. docs/111's reaction table is
+   being exercised on the port; the shipped side's own state census (docs/108) puts it in the same family.
+
+The sharpest remaining asymmetry, from the §9 census read together with this one: the port's player debt word
+holds **100** in 281 samples, while the shipped census lists 90, 39, 29, 59, 49 and **never 100** -- the ramp
+that `fn_0137c1` builds (one unit per frame out of the accumulator) tops out at the accumulator's initial 100 on
+the port and sits there, while the shipped side's debt is always caught mid-drain.  The next measurement is
+therefore the accumulator's arming count: how many times per route each side writes `+0x56 = 100`
+(guest `0x377a1`), because a second arming re-runs the whole ramp and re-shields the player.

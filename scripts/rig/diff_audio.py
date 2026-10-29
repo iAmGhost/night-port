@@ -144,6 +144,7 @@ def main():
 
     so, ro = read_mono(a.orig)
     sp, rp = read_mono(a.port)
+    recon = None
     if a.port_cells and os.path.exists(a.port_cells):
         # The port's WAV header carries a *nominal* rate, but the board rate is whatever DSP command
         # 0x40 last programmed (measured 8000 Hz at the title) and PCM exists only while a transfer is
@@ -193,13 +194,22 @@ def main():
             print(f"port PCM: {placed}/{len(sp)} samples placed into {active}/{len(out)} record windows"
                   f" at the board rate {board} Hz ({placed/board:.1f} s of sound in "
                   f"{(out[-1][0]-out[0][0])/1000.0:.1f} s of route)")
-            ep, rp = envelope_from_windows(out, rate_fallback=board), rp
+            recon, rp = envelope_from_windows(out, rate_fallback=board), board
             if placed < len(sp):
                 print(f"  note: {len(sp)-placed} samples in the WAV were not accounted for by the "
                       f"record byte counters; the envelope may under-report")
-    eo, ep = envelope(so, ro), envelope(sp, rp)
+    eo = envelope(so, ro)
+    # RIG DEFECT (docs/164): the reconstructed envelope used to be thrown away two lines after it was
+    # built, by `eo, ep = envelope(so, ro), envelope(sp, rp)`.  That silently fell back to the WAV's
+    # nominal rate and treated the PCM as spanning the whole route -- exactly the artifact this function
+    # exists to avoid, and it is what made the port look silent in every fight window.
+    basis = "PCM placed per record window at the programmed board rate"
+    ep = recon
+    if ep is None:
+        ep = envelope(sp, rp)
+        basis = f"PCM span at the WAV header rate {rp} Hz (no per-window accounting available)"
     print(f"original: {len(so)/ro:.1f} s @{ro} Hz -> {len(eo)} buckets")
-    print(f"port    : {len(sp)/rp:.1f} s @{rp} Hz -> {len(ep)} buckets")
+    print(f"port    : {len(sp)/rp:.1f} s @{rp} Hz -> {len(ep)} buckets  [{basis}]")
     print("whole-route features")
     fo, fp = features(eo), features(ep)
     print(f"  original {fo}")

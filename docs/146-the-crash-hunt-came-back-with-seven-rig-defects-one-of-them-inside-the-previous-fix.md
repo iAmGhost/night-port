@@ -130,3 +130,90 @@ Open, honestly:
   (uninjected-pointer) drive. That is a candidate real port defect, not rig noise, and stays open.
 * The `[room-chain] fn_03cc6b got a NULL next link` witness still fires on this drive; the room chain is a
   separate walk with the same shape and has not been given the same treatment.
+
+## 8. A valid array pointer is not a valid extent — and the extent is not the frame count
+
+`fn_012616` indexes the action record's Y/X delta arrays with the entity's frame counter `e[+0x11]`; nothing
+in the shipped code bounds it. Following the bus error (`BUS at f.c:25775`, reached from `fn_03209c`, on
+fuzz drive `r0s1_st2`, which has **no injection verbs at all**) produced a witness with real numbers:
+
+```
+flat-heap: YARR index 49 outside the record's 3 frames; entity type=0 state=0x1
+flat-heap: XARR move index 49 outside the record's 3 frames; entity type=0 state=0x1
+```
+
+i.e. the player's frame counter ran to 49, 50, ... against a record whose frame byte says 3.
+
+**The first fix was wrong and is retracted here.** It bounded the index by `rec[+0x17]` — the byte the
+shipped code itself compares the counter against when it advances the state — and the port's own fixtures
+refused it:
+
+```
+[FAIL] record+0x71[frame] moves Y through fn_01545e and +0x75[frame] moves X through fn_01586b
+[FAIL] the player's Y delta is also accumulated into room+0x1e (the camera drag)
+[FAIL] fn_015295 folds e+0x3e into e+5 (clamped to 0) and the non-zero X delta clears e+0x16
+[FAIL] the same branch accumulates the X delta into room+0x22 even before the rectangle test
+```
+
+Those four tests pin the shipped behaviour, and they index these arrays past `rec[+0x17]` legitimately. So
+the frame count is **not** the array length, and a bound built on it changes behaviour: the witness went quiet
+by suppressing real reads, which is the worst possible outcome for a differential rig. `f_arr_at()` now
+performs any read the arena can map, exactly as written, and only answers from the zero page when the port
+genuinely cannot map the address — counted as `g_flat_oob` and printed. Behaviour preserved, wild case named.
+
+What remains open is the interesting half: *why* the player's counter reaches 49 against a 3-frame record.
+`scripts/rig/frame_counter.py` was written to ask the shipped side the same question from its own record
+dumps, and it currently reports `player records=0` on `/tmp/rig/g11` — the block-reading layer still uses the
+offset heuristic docs/124 said to retire, so it cannot answer yet. Filed as a rig gap, not worked around.
+
+## 9. `--frames N` was only a floor, so every fuzz cap was cutting runs at random
+
+The pumped-frame check lived *after* the game main unwound (main.c:1560). Asking for 300 frames therefore
+played the whole episode: **11 412 frames presented, 221 s wall** for `--frames 300`. Since presentation is
+paced to wall time (60 fps), the wall-clock caps in the fuzz corpus were the only real bound, and they cut
+each seed at an unpredictable point — which is what docs/120 §6–§8 recorded as `rc=124` seeds, and why
+coverage per seed was never comparable between sweeps.
+
+`g_frame_budget` makes the budget something the game main actually unwinds at:
+
+```
+frame budget: 300 presented, unwinding the game main
+frames presented: 300        rc=0    elapsed 6 s      (was 11412 frames, 221 s)
+```
+
+Consequences: fuzz runs are comparable seed to seed, a minutes-cap means what it says, and the nine-episode
+sanitizer soak becomes tractable.
+
+## 10. Whole stored corpus under sanitizers at the app's own optimisation level
+
+`scripts/rig/asan_o2_sweep.sh` replays every stored fuzz drive (each with the same `crc32`-derived family
+subset fuzz.py used) through `night-asan-o2`, capped at 200 s each, four at a time:
+
+```
+== clean=18 not-clean=0 total=18 ==
+```
+
+0 AddressSanitizer errors, 0 UBSan diagnostics, 0 SEGV, 0 BUS across the corpus — against 17/18 before this
+set of fixes. Two drives now report rejected injections instead of dying:
+
+```
+r2s4_st5     sanitizer=0 ended=1 pokes_rejected=2
+r0s0_st1     sanitizer=0 ended=1 pokes_rejected=1
+```
+
+which is the intended shape: an injection the shipped bookkeeping cannot hold is *refused and counted*, not
+survived as a crash or smuggled into the oracle as fabricated bytes.
+
+## 11. Status of the seven findings
+
+| # | finding | state |
+|---|---|---|
+| 1 | census build did not link (duplicate objects in the recipe) | fixed |
+| 2 | `poke` wrote raw integers into pointer cells | fixed, refused + counted |
+| 3 | dumper read 352 B from anything a pointer cell named | fixed, clamped + reported (1596 refusals on one long drive) |
+| 4 | zero page was 64 B wide | fixed (0x1000) |
+| 5 | seven unguarded count-bounded walks, invisible at -O1 | fixed via `f_ent_walk`, new `asanapp-o2` build exposes them |
+| 6 | `fn_0112fd` offset applied to a null neighbour | fixed + witnessed; the inconsistency it witnesses **stays open** |
+| 7 | injection could set a count the chain cannot back | refused against the live `+0x13f` chain |
+| 8 | array extent guess (`rec[+0x17]`) | **retracted** after the fixtures rejected it |
+| 9 | `--frames` was a floor, not a budget | fixed; 221 s → 6 s |

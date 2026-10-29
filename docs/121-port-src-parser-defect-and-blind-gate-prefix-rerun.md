@@ -77,3 +77,25 @@ build for this drive. Screen: 6 runs below the 0.88 score gate and the pacing fl
 3. Answer §2's aliasing question for 0x51b60 with the image bytes at file offset `0x51b60-0x7600`, and add the
    per-span overlap rows to the audit report.
 4. Then the gate re-run can be stated at cell level too, not only at record level.
+
+## 6. CD-schedule oracle re-run on the fresh route (g2): teardown invariant holds, timing alignment needs work
+
+`scripts/rig/cd_schedule.py --orig /tmp/rig/g2/orig --port /tmp/rig/g2/port` (the ep1_kill3 route):
+
+```
+port witness: 6 plays, 7 stops, 0 track changes with NO stop/teardown between them
+4 schedule divergence(s): deltas -11748 ms, +0 ms, -13048 ms, +15670 ms, and one DIFFERENT lba
+```
+
+Two independent statements, which must not be merged:
+
+1. **The docs/106 fix still holds and is now measured on a longer route**: 6 plays, 7 stops, **zero** track
+   replacements without a stop/teardown -- the invariant that the missing-CD-teardown defect violated.
+2. **The selection-timing comparison is not trustworthy on this route.** docs/106 measured the same selection
+   on a shorter drive at deltas of +1900 / 0 / +109 ms; here they are 12-20 s apart with one different LBA.
+   That is anchor-phase drift (the route's stage anchor fires at a different point in the two sides'
+   timelines), not evidence of a music defect. The oracle needs its `--anchor` cell chosen per route, or
+   event-anchored re-phasing of the whole CDDA stream, before its deltas can be quoted as findings.
+
+Filed as the concrete gate item still open: the music cluster's *content/timing* layer stays unresolved until
+the schedule oracle is anchored per route; the teardown layer is green.

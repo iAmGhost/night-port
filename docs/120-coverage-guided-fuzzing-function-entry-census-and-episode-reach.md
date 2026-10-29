@@ -94,3 +94,41 @@ Queued, in order:
 2. Re-run the family grammar across all nine stages with `AT` set, and report it against the 262/503 baseline in
    the same shape as §8's table so the comparison is honest.
 3. Keep the §12 frontier as the target list: 61 shallow functions whose caller is already entered.
+
+## 14. Nine-episode curve on the budgeted build (docs/146 §9): 0 crashes, coverage up in every episode
+
+`scripts/rig/episode_curve.sh` runs one fuzz session per episode with a fixed shape — 4 seeds, 2 rounds,
+4 workers, 6600-frame budget, 110 s wall cap, injections and family spawning on — and reports each stage's
+coverage plus the union of the coverage files. Run on the build that carries docs/146's fixes:
+
+| episode | docs/120 §5 (unbudgeted) | round 0 | round 1 | never-entered after | crashes |
+|---|---|---|---|---|---|
+| 1 | 222 | 220 | **234** | 269 | 0 |
+| 2 | 228 | 222 | **239** | 264 | 0 |
+| 3 | 231 | 222 | **231** | 272 | 0 |
+| 4 | 230 | 231 | **235** | 268 | 0 |
+| 5 | 238 | 241 | **241** | 262 | 0 |
+| 6 | 221 | 222 | **230** | 273 | 0 |
+| 7 | 236 | 240 | **241** | 262 | 0 |
+| 8 | 228 | 227 | **235** | 268 | 0 |
+| 9 | 199 | 214 | **215** | 288 | 0 |
+
+Two things the contract asked for, both measured:
+
+* **The never-entered set shrinks run over run in every episode** — 220→234, 222→239, 222→231, 231→235,
+  241→241 (episode 5 saturates on the first round), 222→230, 240→241, 227→235, 214→215.
+* **Zero crashes across all nine episodes.** The previous sweep of the same shape reported five crashes
+  (`fz16`: four `rc=-10`, one SIGSEGV) and `fz13b` reported a SIGSEGV that this section's investigation
+  (docs/146) traced to a rig write into a pointer cell plus six unguarded list walks. With those fixed the
+  corpus replays clean under `night-asan-o2` too: `clean=18 not-clean=0` (docs/146 §10).
+
+The union across the nine episodes is 250 of the 503 shipped-named functions, against 262 from the older
+18-seed × 3-round unbudgeted sweep — the shape here is deliberately smaller (4 seeds × 2 rounds per episode,
+9 separate sessions) so each episode gets a comparable budget instead of one shared corpus. The older ceiling
+still stands as the ceiling for this grammar family (§8–§10), and the frontier list in §12 is still the
+target: 61 shallow functions whose caller the corpus already enters.
+
+What the budget changed is *comparability*: with `--frames` acting as a floor (docs/146 §9) a seed's run was
+cut by wall clock at an unpredictable point, so the §5 numbers were partly an artifact of how far each seed
+happened to get. Here every seed plays its full 6600-frame budget or ends the episode, and the round-over-round
+growth is a statement about the corpus, not about timing luck.

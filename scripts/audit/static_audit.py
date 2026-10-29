@@ -218,20 +218,66 @@ def c3b_full_span_initializers(db):
         return None
 
     out, code_rows = [], []
+    # One DS cell can be declared twice (a `uint32_t g_x = 1;` definition in f.c and an `extern uint32_t
+    # g_x;` in f.h). Only the definition carries the initializer the loader-equivalent is, so a name is
+    # judged by its initialised declaration when one exists -- otherwise every header extern reads as a
+    # cell the port "left zero".
+    by_name = {}
     for g in port_src.globals_():
-        init = g.get("init") or ""
-        if g["ds"] is None or not init.startswith("= {"):
-            continue
-        body = init[3:].strip()
-        if body.endswith("}"):
-            body = body[:-1]
-        toks = [t.strip() for t in body.split(",") if t.strip()]
-        if not toks or not all(re.fullmatch(r"0[xX][0-9a-fA-F]+|\d+", t) for t in toks):
-            continue                      # nested braces / string initializers: not a scalar table
-        width = g["type_size"]
-        vals = [int(t, 0) for t in toks]
-        port = b"".join(v.to_bytes(width, "little", signed=(v < 0)) if -2 ** (8 * width - 1) <= v < 2 ** (8 * width)
-                        else b"?" * width for v in vals)
+        cur = by_name.get(g["name"])
+        if cur is None or (not cur.get("init") and g.get("init")):
+            by_name[g["name"]] = g
+    # A definition the statement parser misses (a declaration inside a dense comment block) still exists
+    # in the text, and a header `extern` must not be taken as the initialiser. So: if the parsed view has
+    # no initialiser, look for a non-extern definition line in the port's .c files and read its init.
+    src_text = {}
+    for path in ("f/f.c", "f/fx_04794a.c", "sys/sys.c", "cd/cd_iso.c", "app/main.c", "app/rig_sink.c"):
+        p = os.path.join(HERE, "..", "..", "port", "src", path)
+        if os.path.exists(p):
+            src_text[path] = open(p).read()
+    def definition_init(name):
+        for path, text in src_text.items():
+            for mm in re.finditer(r"^[^\n]*?\b" + re.escape(name) + r"\b\s*(\[[^\]]*\])*\s*(=[^;{]*)?[;,]",
+                                  text, re.M):
+                line = mm.group(0)
+                if "extern" in line.split(name)[0]:
+                    continue
+                return (mm.group(2) or "").strip()
+        return None
+    for g in by_name.values():
+        init = (g.get("init") or "").strip()
+        if not init:
+            found = definition_init(g["name"])
+            if found is not None:
+                init = found
+        if g["ds"] is None or g["ptr"]:
+            continue                       # host pointer slot vs guest offset: c4's family
+        if init.startswith("= {"):
+            body = init[3:].strip()
+            if body.endswith("}"):
+                body = body[:-1]
+            toks = [t.strip() for t in body.split(",") if t.strip()]
+            if not toks or not all(re.fullmatch(r"0[xX][0-9a-fA-F]+|\d+", t) for t in toks):
+                continue                   # nested braces / string initializers: not a scalar table
+            width = g["type_size"]
+            vals = [int(t, 0) for t in toks]
+            port = b"".join(v.to_bytes(width, "little", signed=(v < 0)) if -2 ** (8 * width - 1) <= v < 2 ** (8 * width)
+                            else b"?" * width for v in vals)
+            kind = "array-init"
+        elif init == "" or re.fullmatch(r"= -?(0[xX][0-9a-fA-F]+|\d+)", init):
+            # docs/133: scalars belong here too. A DS-marked scalar initialised to 0 -- explicitly or by
+            # BSS default -- claims the shipped cell starts zero. docs/132 §3's "port holds 0 where the
+            # shipped side holds a value" family is exactly this, and it hid a real defect: DS
+            # 0x5377c..0x537c5 is image-initialised with 18000 / 3600 / 1 / "EST" / "EDT".
+            if (g.get("elems") or 1) != 1:
+                continue
+            width = g["type_size"]
+            v = 0 if init == "" else int(init[1:], 0)
+            port = v.to_bytes(width, "little", signed=(v < 0)) \
+                if -2 ** (8 * width - 1) <= v < 2 ** (8 * width) else b"?" * width
+            kind = "scalar-init"
+        else:
+            continue                       # string/struct initializers: not comparable byte-wise
         owner = code_owner(g["ds"])
         if owner:
             code_rows.append({"ds": hex(g["ds"]), "name": g["name"], "inside": owner,
@@ -240,10 +286,12 @@ def c3b_full_span_initializers(db):
             continue
         off = g["ds"] - ghidra_db.IMAGE_FILE_VS_DS
         if off < 0 or off + len(port) > len(db.image):
-            out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port),
+            out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port), "kind": kind,
                         "bad": None, "note": "span runs outside the image-initialised DS region"})
             continue
-        img = db.image[off:off + len(port)]
+        img = db.image_at(g["ds"], len(port))
+        if img is None or img == b"\x00" * len(port):
+            continue                       # BSS / zero image bytes: nothing to transcribe
         bad = [i for i in range(len(port)) if port[i] != img[i]]
         if bad:
             runs, i = [], 0
@@ -254,8 +302,11 @@ def c3b_full_span_initializers(db):
                 runs.append((bad[i], bad[j]))
                 i = j + 1
             i0 = bad[0]
-            out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port), "bad": len(bad),
-                        "first": hex(g["ds"] + i0), "port": f"{port[i0]:#04x}", "image": f"{img[i0]:#04x}",
+            out.append({"ds": hex(g["ds"]), "name": g["name"], "span": len(port), "kind": kind,
+                        "bad": len(bad), "first": hex(g["ds"] + i0), "port": f"{port[i0]:#04x}",
+                        "image": f"{img[i0]:#04x}",
+                        "image_bytes": img[:24].hex(" "),
+                        "image_text": "".join(chr(c) if 32 <= c < 127 else "." for c in img[:24]),
                         "runs": [f"{a:x}..{b:x}" for a, b in runs[:6]]})
     for r in code_rows:
         out.append(r)          # informational, but reported so the exclusion is auditable
@@ -415,6 +466,74 @@ def c8_base_pair_aliasing(db, pmap):
     return keep
 
 
+def c9_access_width_vs_port_type(db, pmap):
+    """Every DS cell the guest touches through a *sized, absolute* operand, where the port's declared
+    element width is not one of the widths the shipped code actually moves there.
+
+    Ghidra only defines a data symbol where it can, so 66 of the rig's 283 cells had no shipped span at
+    all (docs/132 §3) and the state oracle had to fall back to the port's own width -- a comparison
+    basis nobody checked. The instruction text is independent evidence: `MOV AL, byte ptr [0x63384]`
+    says a byte lives at 0x63384. Findings are split by how actionable they are:
+
+      scalar-width-mismatch      a single-value global whose width contradicts the shipped access
+                                 (docs/133: 0x537a7 was a 4-byte global used as a 31-byte buffer)
+      byte-array-with-dword-fields  a flattened array whose fields the guest moves as wider values
+                                 (informational: the port reaches them through dword views)
+      host-pointer-vs-guest-offset the docs/94 offset-vs-pointer family, already filed by c4
+
+    A cell whose *defined* shipped span equals the port's element width is not a finding at all: a
+    narrow read of a wide cell (a byte read out of a dword global) is normal.
+    """
+    acc = db.ds_direct_widths()
+    dd = {int(d["addr"], 16): d for d in db.ds_data() if d.get("size")}
+    out = []
+    for addr, decls in sorted(pmap.items()):
+        ws = acc.get(addr)
+        if not ws:
+            continue
+        dspan = dd.get(addr, {}).get("size")
+        for d in decls:
+            if d.get("ptr"):
+                continue          # offset-vs-pointer is c4's finding, not a width question
+            slot = d.get("type_size") or 0
+            if not slot:
+                continue
+            if slot in ws:
+                continue
+            if dspan and dspan == slot:
+                continue          # matches the defined span; the access is just narrower
+            if d["name"].endswith("_ent") or d["ctype"].endswith("*") \
+                    or d["ctype"].startswith(("uintptr_t", "intptr_t")) and max(ws) == 4 and slot == 8:
+                kind = "host-pointer-vs-guest-offset"
+            elif (d.get("elems") or 1) > 1 or (d.get("elems") or 0) < 0 or d["ctype"].endswith("*"):
+                kind = "byte-array-with-dword-fields"
+            else:
+                kind = "scalar-width-mismatch"
+            out.append({"ds": hex(addr), "name": d["name"], "ctype": d["ctype"],
+                        "kind": kind, "shipped_defined_span": dspan,
+                        "elems": d.get("elems"), "port_elem_width": slot,
+                        "guest_access_widths": sorted(ws),
+                        "file": d.get("file"), "line": d.get("line")})
+    out.sort(key=lambda x: (x["kind"], x["ds"], x["name"]))
+    return out
+
+
+def c9_width_coverage(db, pmap):
+    """How much of the rig's comparison basis is actually shipped evidence (docs/132 §4(a))."""
+    acc = db.ds_direct_widths()
+    dd = {int(d["addr"], 16): d for d in db.ds_data() if d.get("size")}
+    n_def = n_acc = n_none = 0
+    for addr in sorted(pmap):
+        if addr in dd:
+            n_def += 1
+        elif addr in acc:
+            n_acc += 1
+        else:
+            n_none += 1
+    return {"port_cells": len(pmap), "shipped_size_from_defined_data": n_def,
+            "shipped_width_from_access_operand": n_acc, "no_shipped_width_at_all": n_none}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", default=os.path.join(HERE, "reports", "static_findings.json"))
@@ -434,6 +553,8 @@ def main():
         "c6_image_data_without_symbol": c6_image_data_without_symbol(db, pmap),
         "c7_ds_table_bases": c7_table_bases(db),
         "c8_base_pair_aliasing": c8_base_pair_aliasing(db, pmap),
+        "c9_access_width_vs_port_type": c9_access_width_vs_port_type(db, pmap),
+        "c9_width_coverage": c9_width_coverage(db, pmap),
     }
     with open(a.json, "w") as f:
         json.dump(res, f, indent=1, default=str)
@@ -443,11 +564,17 @@ def main():
                  f"across {len(pmap)} distinct DS cells; guest DS defined-data items: "
                  f"{len(db.ds_data())}; guest DS cells with accesses: {len(db.ds_dir_counts())}")
     for k in ("c1_unmodelled", "c2_aliasing", "c3_image_init", "c3b_full_span_initializers", "c4_representation",
-              "c6_image_data_without_symbol", "c7_ds_table_bases", "c8_base_pair_aliasing"):
+              "c6_image_data_without_symbol", "c7_ds_table_bases", "c8_base_pair_aliasing",
+              "c9_access_width_vs_port_type"):
         lines.append(f"\n## {k}: {len(res[k])} findings")
         for item in res[k][:25]:
             lines.append("  " + json.dumps(item, default=str)[:300])
     c5 = res["c5_dead_sides"]
+    cov = res["c9_width_coverage"]
+    lines.append(f"\n## c9 comparison-basis coverage: {cov['port_cells']} port DS cells -> "
+                 f"{cov['shipped_size_from_defined_data']} shipped span, "
+                 f"{cov['shipped_width_from_access_operand']} width only from the access operand, "
+                 f"{cov['no_shipped_width_at_all']} with no shipped width at all")
     lines.append(f"\n## c5_dead_sides: guest-without-port={len(c5['guest_functions_without_port_counterpart'])}"
                  f" port-never-called={len(c5['port_functions_never_called_in_port'])}")
     for k in c5:
@@ -456,7 +583,8 @@ def main():
     with open(a.md, "w") as f:
         f.write("\n".join(lines) + "\n")
     print("\n".join(lines[:3] + [f"wrote {a.json} and {a.md}"]))
-    print({k: (len(v) if isinstance(v, list) else {kk: len(vv) for kk, vv in v.items()})
+    print({k: (len(v) if isinstance(v, list) else {kk: (len(vv) if isinstance(vv, list) else vv)
+                                                    for kk, vv in v.items()})
            for k, v in res.items()})
 
 

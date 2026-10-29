@@ -56,46 +56,46 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"kind": "port-span-overlap", "a": "g_tab_52c3c", "a_span": ["0x52c3c", "0x5304c"], "b": "kXlat_5302c", "b_span": ["0x5302c", "0x5312c"], "overlap": 32}
   {"kind": "port-span-overlap", "a": "g_tab_52da4", "a_span": ["0x52da4", "0x52f34"], "b": "g_dat_52f08", "b_span": ["0x52f08", "0x53008"], "overlap": 44}
 
-## c3_image_init: 27 findings
+## c3_image_init: 12 findings
   {"ds": 340156, "kind": "image-nonzero-port-zero", "name": "g_dat_530bc", "image_head": "7f0000007f0000007f0000007f000000", "init": ""}
   {"ds": 339756, "kind": "image-nonzero-port-zero", "name": "g_tab_52f2c", "image_head": "16000000030000000200000006000000", "init": ""}
+  {"ds": 341896, "kind": "image-nonzero-port-zero", "name": "g_dat_53788", "image_head": "45535400000000000000000000000000", "init": ""}
+  {"ds": 341927, "kind": "image-nonzero-port-zero", "name": "g_dat_537a7", "image_head": "45445400000000000000000000000000", "init": ""}
   {"ds": 338460, "kind": "image-nonzero-port-zero", "name": "g_tab_52a1c", "image_head": "e8030000e8030000e8030000e8030000", "init": ""}
   {"ds": 338820, "kind": "image-nonzero-port-zero", "name": "g_tab_52b84", "image_head": "00000000000000000000000000000000", "init": ""}
   {"ds": 340012, "kind": "image-zero-port-nonzero", "name": "kXlat_5302c", "image_head": "00000000000000000000000000000000", "init": "= { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x"}
-  {"ds": 340828, "kind": "image-nonzero-port-zero", "name": "g_rng_state", "image_head": "01000000", "init": "= 0"}
-  {"ds": 340148, "kind": "image-nonzero-port-zero", "name": "g_dat_530b4", "image_head": "64000000", "init": "= 0"}
-  {"ds": 340152, "kind": "image-nonzero-port-zero", "name": "g_dat_530b8", "image_head": "64000000", "init": "= 0"}
-  {"ds": 340472, "kind": "image-nonzero-port-zero", "name": "g_dat_531f8", "image_head": "ffff0000", "init": "= 0"}
   {"ds": 409188, "kind": "image-zero-port-nonzero", "name": "g_dat_63e64", "image_head": "00000000", "init": "= 0x140"}
-  {"ds": 341529, "kind": "image-nonzero-port-zero", "name": "g_dat_53619", "image_head": "00010000", "init": "= 0"}
-  {"ds": 340140, "kind": "image-nonzero-port-zero", "name": "g_dat_530ac", "image_head": "20030000", "init": "= 0"}
   {"ds": 406448, "kind": "image-zero-port-nonzero", "name": "g_dat_633b0", "image_head": "00000000", "init": "= SCREEN_BASE"}
   {"ds": 406452, "kind": "image-zero-port-nonzero", "name": "g_dat_633b4", "image_head": "00000000", "init": "= SCREEN_BASE + SCREEN_SIZE"}
-  {"ds": 335000, "kind": "image-nonzero-port-zero", "name": "g_dat_51c98", "image_head": "01000000", "init": "= 0"}
   {"ds": 341724, "kind": "image-nonzero-port-zero", "name": "g_dat_536dc", "image_head": "14000000", "init": ""}
-  {"ds": 341888, "kind": "image-nonzero-port-zero", "name": "g_dat_53780", "image_head": "100e0000", "init": "= 0"}
-  {"ds": 341892, "kind": "image-nonzero-port-zero", "name": "g_dat_53784", "image_head": "01000000", "init": "= 0"}
-  {"ds": 341896, "kind": "image-nonzero-port-zero", "name": "g_dat_53788", "image_head": "45535400", "init": "= 0"}
-  {"ds": 341927, "kind": "image-nonzero-port-zero", "name": "g_dat_537a7", "image_head": "45445400", "init": "= 0"}
-  {"ds": 341884, "kind": "image-nonzero-port-zero", "name": "g_dat_5377c", "image_head": "50460000", "init": "= 0"}
-  {"ds": 341564, "kind": "image-nonzero-port-zero", "name": "g_dat_5363c", "image_head": "01000000", "init": "= 0"}
-  {"ds": 341568, "kind": "image-nonzero-port-zero", "name": "g_dat_53640", "image_head": "10000000", "init": "= 0"}
-  {"ds": 340840, "kind": "image-nonzero-port-zero", "name": "g_dat_53368", "image_head": "2000", "init": ""}
   {"ds": 334348, "kind": "image-zero-port-nonzero", "name": "g_dat_51a0c", "image_head": "00", "init": "= g_video_ram"}
 
-## c3b_full_span_initializers: 12 findings
-  {"ds": "0x53c4c", "name": "g_dat_53c4c", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x53818", "name": "g_dat_53818", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x62d68", "name": "g_dat_62d68", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x63f14", "name": "g_dat_63f14", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x63f28", "name": "g_dat_63f28", "span": 4, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x62cd8", "name": "g_dat_62cd8", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x62c58", "name": "g_dat_62c58", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x639ec", "name": "g_dat_639ec", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x63f1e", "name": "g_dat_63f1e", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x53e24", "name": "g_dat_53e24", "span": 1, "bad": null, "note": "span runs outside the image-initialised DS region"}
-  {"ds": "0x48a36", "name": "g_scale_48a36", "inside": "fn_048a48 (data pool in the gap before the body)", "note": "address is inside a shipped function body (code, not image data); compared bytes would be instructions"}
-  {"ds": "0x48312", "name": "g_coeff_48312", "inside": "fn_048312", "note": "address is inside a shipped function body (code, not image data); compared bytes would be instructions"}
+## c3b_full_span_initializers: 139 findings
+  {"ds": "0x63398", "name": "g_dat_63398", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x53c84", "name": "g_dat_53c84", "span": 8, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63fb0", "name": "g_dat_63fb0", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63304", "name": "g_dat_63304", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63308", "name": "g_dat_63308", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63330", "name": "g_dat_63330", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63324", "name": "g_dat_63324", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63334", "name": "g_dat_63334", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x6330c", "name": "g_dat_6330c", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63338", "name": "g_dat_63338", "span": 2, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x6333c", "name": "g_dat_6333c", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x639e8", "name": "g_dat_639e8", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x6335c", "name": "g_dat_6335c", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x639d8", "name": "g_dat_639d8", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x639c8", "name": "g_dat_639c8", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x53c44", "name": "g_dat_53c44", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x53c40", "name": "g_dat_53c40", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63f84", "name": "g_dat_63f84", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63e28", "name": "g_dat_63e28", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63e24", "name": "g_dat_63e24", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63e3c", "name": "g_dat_63e3c", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63e38", "name": "g_dat_63e38", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63e40", "name": "g_dat_63e40", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63e30", "name": "g_dat_63e30", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
+  {"ds": "0x63e2c", "name": "g_dat_63e2c", "span": 4, "kind": "scalar-init", "bad": null, "note": "span runs outside the image-initialised DS region"}
 
 ## c4_representation: 3 findings
   {"ds": 408044, "why": "port-declares-pointer-guest-looks-numeric", "score": 2, "port_name": "g_dat_639ec", "port_type": "uint8_t *", "guest_type": "undefined4", "image_u32": 0, "small_imm_stores": [], "indexed_reads": ["CMP dword ptr [EAX + 0x639ec] 0x0"], "n_reads": 26, "n_writes": 3}
@@ -182,6 +182,21 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   {"base_a": "0x636b8", "base_b": "0x639dc", "distance": "0x324", "n_a": 49, "n_b": 90, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_03af18"], "port_name_a": ["g_dat_636b8"], "port_name_b": ["g_dat_639dc"], "score": 52}
   {"base_a": "0x53c6c", "base_b": "0x53c7c", "distance": "0x10", "n_a": 20, "n_b": 869, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_015a1f", "fn_015b5b", "fn_015d16", "fn_015ed1"], "port_name_a": ["g_dat_53c6c"], "port_name_b": ["g_dat_53c7c_null_warned", "g_player
   {"base_a": "0x53c68", "base_b": "0x53c70", "distance": "0x8", "n_a": 19, "n_b": 20, "strides_a": [], "strides_b": [], "same_stride": false, "shared_functions": ["fn_010efc", "fn_0112fd", "fn_013aad", "fn_01441e"], "port_name_a": ["g_dat_53c68"], "port_name_b": ["g_dat_53c70"], "score": 49}
+
+## c9_access_width_vs_port_type: 11 findings
+  {"ds": "0x53e9c", "name": "g_dat_53e9c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": -1, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.h", "line": 1213}
+  {"ds": "0x53e9c", "name": "g_dat_53e9c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 35360, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 7894}
+  {"ds": "0x5d08c", "name": "g_dat_5d08c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.h", "line": 189}
+  {"ds": "0x5d08c", "name": "g_dat_5d08c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 901}
+  {"ds": "0x5d0a0", "name": "g_dat_5d0a0", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.h", "line": 190}
+  {"ds": "0x5d0a0", "name": "g_dat_5d0a0", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 904}
+  {"ds": "0x53394", "name": "g_stack_bound", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.h", "line": 16}
+  {"ds": "0x53c5c", "name": "g_dat_53c5c", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.h", "line": 365}
+  {"ds": "0x53c5c", "name": "g_dat_53c5c", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.c", "line": 681}
+  {"ds": "0x53c84", "name": "g_dat_53c84", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.h", "line": 134}
+  {"ds": "0x53c84", "name": "g_dat_53c84", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.c", "line": 5232}
+
+## c9 comparison-basis coverage: 292 port DS cells -> 217 shipped span, 11 width only from the access operand, 64 with no shipped width at all
 
 ## c5_dead_sides: guest-without-port=90 port-never-called=184
   guest_functi FUN_00041fa1

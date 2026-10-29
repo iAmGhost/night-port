@@ -4,6 +4,8 @@
   "name": "g_blk_50010",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 200,
   "ptr": 0,
   "dupes": 1
@@ -13,6 +15,8 @@
   "name": "g_dat_5147c",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 0
@@ -22,6 +26,8 @@
   "name": "g_nonleap_tbl",
   "ctype": "int16_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 2,
   "host_size": 26,
   "ptr": 0,
   "dupes": 0
@@ -31,6 +37,8 @@
   "name": "g_leap_tbl",
   "ctype": "int16_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 2,
   "host_size": 26,
   "ptr": 0,
   "dupes": 0
@@ -40,6 +48,8 @@
   "name": "g_dat_51a0c",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -49,6 +59,8 @@
   "name": "g_dat_51a10",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -58,6 +70,8 @@
   "name": "g_serial_tpl_51a58",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 26,
   "ptr": 0,
   "dupes": 0
@@ -67,6 +81,8 @@
   "name": "g_rom_51acc",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 7,
   "ptr": 0,
   "dupes": 0
@@ -76,6 +92,8 @@
   "name": "g_rom_51ad4",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 26,
   "ptr": 0,
   "dupes": 0
@@ -85,6 +103,8 @@
   "name": "g_rm_call_tpl_51b38",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -94,6 +114,8 @@
   "name": "g_tab_51b60",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 0
@@ -103,6 +125,8 @@
   "name": "g_blk_51c24",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -112,6 +136,8 @@
   "name": "g_dat_51c98",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -121,6 +147,8 @@
   "name": "g_tab_52738",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -130,6 +158,8 @@
   "name": "g_tab_5274c",
   "ctype": "float",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -139,6 +169,8 @@
   "name": "g_tab_528b4",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -148,6 +180,8 @@
   "name": "g_tab_52a1c",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -157,6 +191,8 @@
   "name": "g_tab_52b84",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 90,
   "ptr": 0,
   "dupes": 0
@@ -166,6 +202,8 @@
   "name": "g_tab_52be0",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 100,
   "ptr": 0,
   "dupes": 1
@@ -175,6 +213,8 @@
   "name": "g_tab_52c3c",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -184,6 +224,8 @@
   "name": "g_tab_52da4",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -193,6 +235,8 @@
   "name": "g_dat_52f08",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -202,6 +246,8 @@
   "name": "g_tab_52f2c",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 40,
   "ptr": 0,
   "dupes": 0
@@ -211,6 +257,8 @@
   "name": "g_tab_52f90",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 40,
   "ptr": 0,
   "dupes": 1
@@ -220,6 +268,8 @@
   "name": "g_dat_52fb4",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -229,6 +279,8 @@
   "name": "g_dat_52ff8",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -238,6 +290,8 @@
   "name": "g_tab_52ffc",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -247,6 +301,8 @@
   "name": "kXlat_5302c",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 0
@@ -256,6 +312,8 @@
   "name": "g_dat_530ac",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -265,6 +323,8 @@
   "name": "g_dat_530b4",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -274,6 +334,8 @@
   "name": "g_dat_530b8",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -283,6 +345,8 @@
   "name": "g_dat_530bc",
   "ctype": "int32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 64,
   "ptr": 0,
   "dupes": 1
@@ -292,6 +356,8 @@
   "name": "g_dat_53100",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -301,6 +367,8 @@
   "name": "g_dat_53104",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -310,6 +378,8 @@
   "name": "g_tab_53108",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -319,6 +389,8 @@
   "name": "g_tab_53120",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -328,6 +400,8 @@
   "name": "g_tab_53138",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -337,6 +411,8 @@
   "name": "g_tab_53150",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -346,6 +422,8 @@
   "name": "g_tab_53168",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -355,6 +433,8 @@
   "name": "g_tab_53180",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -364,6 +444,8 @@
   "name": "g_tab_53198",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -373,6 +455,8 @@
   "name": "g_tab_531b0",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -382,6 +466,8 @@
   "name": "g_tab_531c8",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 24,
   "ptr": 0,
   "dupes": 0
@@ -391,6 +477,8 @@
   "name": "g_tab_531e0",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 20,
   "ptr": 0,
   "dupes": 1
@@ -400,6 +488,8 @@
   "name": "g_dat_531f4",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -409,6 +499,8 @@
   "name": "g_dat_531f8",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -418,6 +510,8 @@
   "name": "g_dat_53334",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -427,6 +521,8 @@
   "name": "g_dat_53338",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -436,6 +532,8 @@
   "name": "g_ss_saved",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 0
@@ -445,6 +543,8 @@
   "name": "g_heap_head",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -454,6 +554,8 @@
   "name": "g_heap_cursor",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -463,6 +565,8 @@
   "name": "g_heap_highwater",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -472,6 +576,8 @@
   "name": "g_rng_state",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -481,6 +587,8 @@
   "name": "g_dat_53368",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -490,6 +598,8 @@
   "name": "g_dat_53378",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -499,6 +609,8 @@
   "name": "g_dat_5337c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -508,6 +620,8 @@
   "name": "g_heap_seg_limit",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -517,6 +631,8 @@
   "name": "g_dat_5338c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -526,6 +642,8 @@
   "name": "g_dat_53390",
   "ctype": "int",
   "guest_size": 4,
+  "guest_access_width": 2,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -535,6 +653,8 @@
   "name": "g_stack_bound",
   "ctype": "uintptr_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 0,
   "dupes": 0
@@ -544,6 +664,8 @@
   "name": "g_dat_5339c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -553,6 +675,8 @@
   "name": "g_dat_533a0",
   "ctype": "uintptr_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 0,
   "dupes": 1
@@ -562,6 +686,8 @@
   "name": "g_dat_533a4",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -571,6 +697,8 @@
   "name": "g_heap_cfg_b2",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -580,6 +708,8 @@
   "name": "g_heap_cfg_b3",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -589,6 +719,8 @@
   "name": "g_heap_cfg_b4",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -598,6 +730,8 @@
   "name": "g_dat_533b9",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -607,6 +741,8 @@
   "name": "g_dat_533bb",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -616,6 +752,8 @@
   "name": "g_dat_5340c",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -625,6 +763,8 @@
   "name": "g_dat_53451",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -634,6 +774,8 @@
   "name": "g_dat_53619",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -643,6 +785,8 @@
   "name": "g_debug_break",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 0
@@ -652,6 +796,8 @@
   "name": "g_dat_5363c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -661,6 +807,8 @@
   "name": "g_dat_53640",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -670,6 +818,8 @@
   "name": "g_dat_536d8",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -679,6 +829,8 @@
   "name": "g_dat_536dc",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -688,6 +840,8 @@
   "name": "g_dat_53730",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -697,6 +851,8 @@
   "name": "g_dat_5377c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -706,6 +862,8 @@
   "name": "g_dat_53780",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -715,6 +873,8 @@
   "name": "g_dat_53784",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -722,18 +882,22 @@
  {
   "ds": 341896,
   "name": "g_dat_53788",
-  "ctype": "uint32_t",
+  "ctype": "uint8_t",
   "guest_size": 0,
-  "host_size": 4,
+  "guest_access_width": null,
+  "elem_size": 1,
+  "host_size": 31,
   "ptr": 0,
   "dupes": 1
  },
  {
   "ds": 341927,
   "name": "g_dat_537a7",
-  "ctype": "uint32_t",
+  "ctype": "uint8_t",
   "guest_size": 1,
-  "host_size": 4,
+  "guest_access_width": 1,
+  "elem_size": 1,
+  "host_size": 31,
   "ptr": 0,
   "dupes": 1
  },
@@ -742,6 +906,8 @@
   "name": "g_dat_537ca",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 2
@@ -751,6 +917,8 @@
   "name": "g_dat_537d4",
   "ctype": "char **",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -760,6 +928,8 @@
   "name": "g_dat_53818",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -769,6 +939,8 @@
   "name": "g_dat_53b3c",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -778,6 +950,8 @@
   "name": "g_dat_53c00",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -787,6 +961,8 @@
   "name": "g_dat_53c28",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -796,6 +972,8 @@
   "name": "g_dat_53c2c",
   "ctype": "uint32_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -805,6 +983,8 @@
   "name": "g_dat_53c30",
   "ctype": "uint32_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -814,6 +994,8 @@
   "name": "g_dat_53c40",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -823,6 +1005,8 @@
   "name": "g_dat_53c44",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -832,6 +1016,8 @@
   "name": "g_dat_53c48",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -841,6 +1027,8 @@
   "name": "g_dat_53c4c",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 9,
   "ptr": 0,
   "dupes": 1
@@ -850,6 +1038,8 @@
   "name": "g_dat_53c58",
   "ctype": "uint32_t",
   "guest_size": 2,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -859,6 +1049,8 @@
   "name": "g_dat_53c5c",
   "ctype": "uintptr_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 0,
   "dupes": 1
@@ -868,6 +1060,8 @@
   "name": "g_dat_53c60",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 2
@@ -877,6 +1071,8 @@
   "name": "g_dat_53c64",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -886,6 +1082,8 @@
   "name": "g_dat_53c68",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -895,6 +1093,8 @@
   "name": "g_dat_53c6c",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -904,6 +1104,8 @@
   "name": "g_dat_53c70",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 2
@@ -913,6 +1115,8 @@
   "name": "g_dat_53c74",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -922,6 +1126,8 @@
   "name": "g_dat_53c78",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -931,6 +1137,8 @@
   "name": "g_player_ent",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 2
@@ -940,6 +1148,8 @@
   "name": "g_latched_ent",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -949,6 +1159,8 @@
   "name": "g_dat_53c84",
   "ctype": "uintptr_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 0,
   "dupes": 1
@@ -958,6 +1170,8 @@
   "name": "g_gauge_other_off",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -967,6 +1181,8 @@
   "name": "g_dat_53c8c",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -976,6 +1192,8 @@
   "name": "g_dat_53c90",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -985,6 +1203,8 @@
   "name": "g_dat_53c94",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 120,
   "ptr": 0,
   "dupes": 1
@@ -994,6 +1214,8 @@
   "name": "g_dat_53d0c",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 256,
   "ptr": 1,
   "dupes": 1
@@ -1003,6 +1225,8 @@
   "name": "g_dat_53dd4",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1012,6 +1236,8 @@
   "name": "g_dat_53dd8",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1021,6 +1247,8 @@
   "name": "g_dat_53ddc",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1030,6 +1258,8 @@
   "name": "g_dat_53de0",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1039,6 +1269,8 @@
   "name": "g_dat_53de4",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1048,6 +1280,8 @@
   "name": "g_dat_53e24",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 80,
   "ptr": 1,
   "dupes": 1
@@ -1057,6 +1291,8 @@
   "name": "g_dat_53e9c",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -1066,6 +1302,8 @@
   "name": "g_dat_5d08c",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 1,
   "host_size": 20,
   "ptr": 0,
   "dupes": 1
@@ -1075,6 +1313,8 @@
   "name": "g_dat_5d0a0",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 1,
   "host_size": 20,
   "ptr": 0,
   "dupes": 1
@@ -1084,6 +1324,8 @@
   "name": "g_tab_5d0b4",
   "ctype": "uint8_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 2
@@ -1093,6 +1335,8 @@
   "name": "g_tab_5d884",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -1102,6 +1346,8 @@
   "name": "g_dat_62a8c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1111,6 +1357,8 @@
   "name": "g_dat_62a90",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1120,6 +1368,8 @@
   "name": "g_dat_62a94",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1129,6 +1379,8 @@
   "name": "g_dat_62a98",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1138,6 +1390,8 @@
   "name": "g_dat_62a9c",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1147,6 +1401,8 @@
   "name": "g_dat_62aa0",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1156,6 +1412,8 @@
   "name": "g_dat_62aa4",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1165,6 +1423,8 @@
   "name": "g_dat_62aa8",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1174,6 +1434,8 @@
   "name": "g_dat_62aac",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1183,6 +1445,8 @@
   "name": "g_dat_62ab0",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1192,6 +1456,8 @@
   "name": "g_dat_62ab4",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1201,6 +1467,8 @@
   "name": "g_dat_62ab8",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1210,6 +1478,8 @@
   "name": "g_dat_62abc",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1219,6 +1489,8 @@
   "name": "g_dat_62ac0",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1228,6 +1500,8 @@
   "name": "g_dat_62ac4",
   "ctype": "uint8_t *",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1237,6 +1511,8 @@
   "name": "g_dat_62ac8",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 200,
   "ptr": 0,
   "dupes": 1
@@ -1246,6 +1522,8 @@
   "name": "g_dat_62b90",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 200,
   "ptr": 0,
   "dupes": 1
@@ -1255,6 +1533,8 @@
   "name": "g_dat_62c58",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 128,
   "ptr": 0,
   "dupes": 1
@@ -1264,6 +1544,8 @@
   "name": "g_dat_62cd8",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 128,
   "ptr": 0,
   "dupes": 1
@@ -1273,6 +1555,8 @@
   "name": "g_dat_62d58",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1282,6 +1566,8 @@
   "name": "g_dat_62d5c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1291,6 +1577,8 @@
   "name": "g_dat_62d60",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1300,6 +1588,8 @@
   "name": "g_dat_62d64",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1309,6 +1599,8 @@
   "name": "g_dat_62d68",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -1318,6 +1610,8 @@
   "name": "g_dat_63304",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1327,6 +1621,8 @@
   "name": "g_dat_63308",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1336,6 +1632,8 @@
   "name": "g_dat_6330c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -1345,6 +1643,8 @@
   "name": "g_dat_63318",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1354,6 +1654,8 @@
   "name": "g_dat_63324",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1363,6 +1665,8 @@
   "name": "g_dat_6332c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1372,6 +1676,8 @@
   "name": "g_dat_63330",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1381,6 +1687,8 @@
   "name": "g_dat_63334",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1388,9 +1696,11 @@
  {
   "ds": 406328,
   "name": "g_dat_63338",
-  "ctype": "uint32_t",
+  "ctype": "uint16_t",
   "guest_size": 2,
-  "host_size": 4,
+  "guest_access_width": 2,
+  "elem_size": 2,
+  "host_size": 2,
   "ptr": 0,
   "dupes": 1
  },
@@ -1399,6 +1709,8 @@
   "name": "g_dat_6333c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1408,6 +1720,8 @@
   "name": "g_dat_6334c",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1417,6 +1731,8 @@
   "name": "g_dat_63350",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1426,6 +1742,8 @@
   "name": "g_dat_63354",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1435,6 +1753,8 @@
   "name": "g_dat_63358",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1444,6 +1764,8 @@
   "name": "g_dat_6335c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1453,6 +1775,8 @@
   "name": "g_dat_63360",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1462,6 +1786,8 @@
   "name": "g_dat_63364",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1471,6 +1797,8 @@
   "name": "g_dat_63368",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1480,6 +1808,8 @@
   "name": "g_dat_6336c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1489,6 +1819,8 @@
   "name": "g_dat_63370",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 3
@@ -1498,6 +1830,8 @@
   "name": "g_dat_63374",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1507,6 +1841,8 @@
   "name": "g_dat_63378",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 1,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1516,6 +1852,8 @@
   "name": "g_dat_6337c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 1,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1523,18 +1861,22 @@
  {
   "ds": 406400,
   "name": "g_dat_63380",
-  "ctype": "uint32_t",
+  "ctype": "uint8_t",
   "guest_size": 1,
-  "host_size": 4,
+  "guest_access_width": 1,
+  "elem_size": 1,
+  "host_size": 1,
   "ptr": 0,
   "dupes": 1
  },
  {
   "ds": 406404,
   "name": "g_dat_63384",
-  "ctype": "uint32_t",
+  "ctype": "uint8_t",
   "guest_size": 1,
-  "host_size": 4,
+  "guest_access_width": 1,
+  "elem_size": 1,
+  "host_size": 1,
   "ptr": 0,
   "dupes": 1
  },
@@ -1543,6 +1885,8 @@
   "name": "g_dat_63388",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1552,6 +1896,8 @@
   "name": "g_dat_63398",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1561,6 +1907,8 @@
   "name": "g_dat_6339c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1570,6 +1918,8 @@
   "name": "g_dat_633a0",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1577,9 +1927,11 @@
  {
   "ds": 406436,
   "name": "g_dat_633a4",
-  "ctype": "uint8_t",
+  "ctype": "uint32_t",
   "guest_size": 4,
-  "host_size": 1,
+  "guest_access_width": 4,
+  "elem_size": 4,
+  "host_size": 4,
   "ptr": 0,
   "dupes": 1
  },
@@ -1588,6 +1940,8 @@
   "name": "g_dat_633a8",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1597,6 +1951,8 @@
   "name": "g_dat_633ac",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1606,6 +1962,8 @@
   "name": "g_dat_633b0",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1615,6 +1973,8 @@
   "name": "g_dat_633b4",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1624,6 +1984,8 @@
   "name": "g_dat_633b8",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -1633,6 +1995,8 @@
   "name": "g_dat_636b8",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -1642,6 +2006,8 @@
   "name": "g_dat_639bc",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1651,6 +2017,8 @@
   "name": "g_dat_639c0",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1660,6 +2028,8 @@
   "name": "g_dat_639c4",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1669,6 +2039,8 @@
   "name": "g_dat_639c8",
   "ctype": "int32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1678,6 +2050,8 @@
   "name": "g_dat_639cc",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1687,6 +2061,8 @@
   "name": "g_dat_639d0",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1696,6 +2072,8 @@
   "name": "g_dat_639d4",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1705,6 +2083,8 @@
   "name": "g_dat_639d8",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1714,6 +2094,8 @@
   "name": "g_dat_639dc",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1723,6 +2105,8 @@
   "name": "g_dat_639e0",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1732,6 +2116,8 @@
   "name": "g_dat_639e4",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 0
@@ -1741,6 +2127,8 @@
   "name": "g_dat_639e8",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1750,6 +2138,8 @@
   "name": "g_dat_639ec",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 256,
   "ptr": 1,
   "dupes": 1
@@ -1759,6 +2149,8 @@
   "name": "g_dat_63d10",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1768,6 +2160,8 @@
   "name": "g_dat_63dd4",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1777,6 +2171,8 @@
   "name": "g_dat_63e00",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1786,6 +2182,8 @@
   "name": "g_dat_63e04",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -1795,6 +2193,8 @@
   "name": "g_dat_63e08",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1804,6 +2204,8 @@
   "name": "g_dat_63e0c",
   "ctype": "uint32_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 0
@@ -1813,6 +2215,8 @@
   "name": "g_dat_63e14",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1822,6 +2226,8 @@
   "name": "g_dat_63e18",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1831,6 +2237,8 @@
   "name": "g_dat_63e1c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1840,6 +2248,8 @@
   "name": "g_dat_63e20",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1849,6 +2259,8 @@
   "name": "g_dat_63e24",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1858,6 +2270,8 @@
   "name": "g_dat_63e28",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1867,6 +2281,8 @@
   "name": "g_dat_63e2c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1876,6 +2292,8 @@
   "name": "g_dat_63e30",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1885,6 +2303,8 @@
   "name": "g_dat_63e34",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1894,6 +2314,8 @@
   "name": "g_dat_63e38",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1903,6 +2325,8 @@
   "name": "g_dat_63e3c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1912,6 +2336,8 @@
   "name": "g_dat_63e40",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1921,6 +2347,8 @@
   "name": "g_dat_63e44",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1930,6 +2358,8 @@
   "name": "g_dat_63e48",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -1939,6 +2369,8 @@
   "name": "g_dat_63e4a",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -1948,6 +2380,8 @@
   "name": "g_dat_63e4c",
   "ctype": "uint32_t",
   "guest_size": 1,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1957,6 +2391,8 @@
   "name": "g_dat_63e50",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1
@@ -1966,6 +2402,8 @@
   "name": "g_dat_63e58",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1975,6 +2413,8 @@
   "name": "g_dat_63e5c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1984,6 +2424,8 @@
   "name": "g_dat_63e60",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -1993,6 +2435,8 @@
   "name": "g_dat_63e64",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2002,6 +2446,8 @@
   "name": "g_dat_63e68",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2011,6 +2457,8 @@
   "name": "g_dat_63e78",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2020,6 +2468,8 @@
   "name": "g_dat_63e7c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2029,6 +2479,8 @@
   "name": "g_dat_63e80",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2038,6 +2490,8 @@
   "name": "g_dat_63e84",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -2047,6 +2501,8 @@
   "name": "g_dat_63e86",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2056,6 +2512,8 @@
   "name": "g_dat_63e88",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 128,
   "ptr": 0,
   "dupes": 0
@@ -2065,6 +2523,8 @@
   "name": "g_dat_63e89",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2074,6 +2534,8 @@
   "name": "g_dat_63ea4",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2083,6 +2545,8 @@
   "name": "g_dat_63ea5",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2092,6 +2556,8 @@
   "name": "g_dat_63eb2",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2101,6 +2567,8 @@
   "name": "g_dat_63eb4",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2110,6 +2578,8 @@
   "name": "g_dat_63ebe",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2119,6 +2589,8 @@
   "name": "g_dat_63ec0",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2128,6 +2600,8 @@
   "name": "g_dat_63ec1",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2137,6 +2611,8 @@
   "name": "g_dat_63ec3",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2146,6 +2622,8 @@
   "name": "g_dat_63ed0",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2155,6 +2633,8 @@
   "name": "g_dat_63ed3",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2164,6 +2644,8 @@
   "name": "g_dat_63ed5",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2173,6 +2655,8 @@
   "name": "g_dat_63ed8",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2182,6 +2666,8 @@
   "name": "g_dat_63f08",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2191,6 +2677,8 @@
   "name": "g_dat_63f0c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2200,6 +2688,8 @@
   "name": "g_dat_63f14",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 16,
   "ptr": 0,
   "dupes": 1
@@ -2209,6 +2699,8 @@
   "name": "g_dat_63f1e",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 16,
   "ptr": 0,
   "dupes": 1
@@ -2218,6 +2710,8 @@
   "name": "g_dat_63f28",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 64,
   "ptr": 0,
   "dupes": 1
@@ -2227,6 +2721,8 @@
   "name": "g_dat_63f4c",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2236,6 +2732,8 @@
   "name": "g_dat_63f50",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2245,6 +2743,8 @@
   "name": "g_dat_63f51",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2254,6 +2754,8 @@
   "name": "g_dat_63f54",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2263,6 +2765,8 @@
   "name": "g_dat_63f58",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -2272,6 +2776,8 @@
   "name": "g_dat_63f5c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2281,6 +2787,8 @@
   "name": "g_dat_63f60",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -2290,6 +2798,8 @@
   "name": "g_dat_63f64",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2299,6 +2809,8 @@
   "name": "g_dat_63f68",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -2308,6 +2820,8 @@
   "name": "g_dat_63f6c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2317,6 +2831,8 @@
   "name": "g_dat_63f70",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -2326,6 +2842,8 @@
   "name": "g_dat_63f74",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2335,6 +2853,8 @@
   "name": "g_dat_63f78",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -2344,6 +2864,8 @@
   "name": "g_dat_63f7c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2353,6 +2875,8 @@
   "name": "g_dat_63f80",
   "ctype": "uint16_t",
   "guest_size": 2,
+  "guest_access_width": 2,
+  "elem_size": 2,
   "host_size": 2,
   "ptr": 0,
   "dupes": 1
@@ -2362,6 +2886,8 @@
   "name": "g_dat_63f84",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2371,6 +2897,8 @@
   "name": "g_dat_63f88",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 3
@@ -2380,6 +2908,8 @@
   "name": "g_dat_63f8c",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2389,6 +2919,8 @@
   "name": "g_63f90",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 2
@@ -2398,6 +2930,8 @@
   "name": "g_dat_63f94",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2407,6 +2941,8 @@
   "name": "g_dat_63f98",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2416,6 +2952,8 @@
   "name": "g_dat_63f9c",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2425,6 +2963,8 @@
   "name": "g_dat_63fa8",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -2434,6 +2974,8 @@
   "name": "g_dat_63fac",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2443,6 +2985,8 @@
   "name": "g_dat_63fb0",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2452,6 +2996,8 @@
   "name": "g_dat_63fb4",
   "ctype": "uint8_t *",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 8,
   "host_size": 8,
   "ptr": 1,
   "dupes": 1
@@ -2461,6 +3007,8 @@
   "name": "g_dat_63fb8",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2470,6 +3018,8 @@
   "name": "g_heap_flag",
   "ctype": "uint8_t",
   "guest_size": 0,
+  "guest_access_width": 1,
+  "elem_size": 1,
   "host_size": 1,
   "ptr": 0,
   "dupes": 1
@@ -2479,6 +3029,8 @@
   "name": "g_node_list_done",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 2
@@ -2488,6 +3040,8 @@
   "name": "g_node_list_active",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 2
@@ -2497,6 +3051,8 @@
   "name": "g_clock_ticks",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -2506,6 +3062,8 @@
   "name": "g_dat_64004",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
@@ -2515,6 +3073,8 @@
   "name": "g_dat_64008",
   "ctype": "uint32_t",
   "guest_size": 0,
+  "guest_access_width": null,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -2524,6 +3084,8 @@
   "name": "g_dat_64090",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -2533,6 +3095,8 @@
   "name": "g_dat_64094",
   "ctype": "uint32_t",
   "guest_size": 4,
+  "guest_access_width": 4,
+  "elem_size": 4,
   "host_size": 4,
   "ptr": 0,
   "dupes": 0
@@ -2542,6 +3106,8 @@
   "name": "g_dat_640c0",
   "ctype": "uint8_t",
   "guest_size": 1,
+  "guest_access_width": null,
+  "elem_size": 1,
   "host_size": 256,
   "ptr": 0,
   "dupes": 1

@@ -9,6 +9,7 @@ raw part .object2 is BSS (loader-zeroed). Verified at load against two shipped s
 import collections
 import json
 import os
+import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DS_LO, DS_HI = 0x50000, 0x66000
@@ -139,6 +140,39 @@ class Db:
                 if DS_LO <= a <= DS_HI:
                     seen.setdefault(a, set()).add(d)
         return {a for a, ds in seen.items() if ds == {"stack"}}
+
+    def ds_access_widths(self):
+        """addr -> {"direct": {widths}, "based": {widths}} for the DS range.
+
+        Ghidra only labels a data symbol when it could define one, so many real globals have no
+        defined_data row and the rig had no shipped width for them (docs/132 §3). The access record does
+        carry the operand size (`MOV EAX, dword ptr [0x53378]`), so a width can be read off the
+        disassembly -- but only for an operand whose bracket holds *nothing but the address*.
+        `MOV EAX, dword ptr [EAX+0x53d08]` touches EAX+0x53d08, not DS 0x53d08: Ghidra records the
+        displacement as the reference, and counting it as a width for the DS cell is a false positive
+        (docs/113's sound-slot table is read exactly that way). The two kinds are therefore kept apart.
+        """
+        widths = {"byte": 1, "word": 2, "dword": 4, "fword": 6, "qword": 8, "tbyte": 10,
+                  "xmmword": 16, "ymmword": 32}
+        pat = re.compile(r"\b(byte|word|dword|fword|qword|tbyte|xmmword|ymmword) ptr \[([^\]]*?)"
+                         r"(0x[0-9a-f]{4,8})\]", re.I)
+        out = {}
+        for m in self.mem_access:
+            for a, d in self.dirs(m):
+                if d == "stack" or not (DS_LO <= a <= DS_HI):
+                    continue
+                for op in m.get("ops", []):
+                    for mm in pat.finditer(op):
+                        if int(mm.group(3), 16) != a:
+                            continue
+                        inner = mm.group(2).strip()
+                        w = widths[mm.group(1).lower()]
+                        kind = "direct" if not inner else "based"
+                        out.setdefault(a, {"direct": set(), "based": set()})[kind].add(w)
+        return out
+
+    def ds_direct_widths(self):
+        return {a: v["direct"] for a, v in self.ds_access_widths().items() if v["direct"]}
 
     def ds_write_sites(self):
         out = {}

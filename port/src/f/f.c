@@ -33,7 +33,7 @@ struct UA_ATTR uafl { float v; };
 int32_t  g_video_stride = 0;
 uint16_t g_ss_saved = 0;
 uintptr_t  g_stack_bound = 0;
-uint32_t g_rng_state = 0;      /* DAT_0005335c: PRNG state (LCG in 0x41e9f) */
+uint32_t g_rng_state = 0x1;      /* DAT_0005335c: PRNG state (LCG in 0x41e9f) */
 
 /* put_px  orig: 0x040024
  *   base[c * DAT_00040010 + b] = d
@@ -856,15 +856,17 @@ int fn_00035dfc(void) {
     }
 }
 
-int32_t  g_dat_530b4 = 0;  /* DAT_000530b4: timer rate multiplier (set by game) */
-int32_t  g_dat_530b8 = 0;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
+int32_t  g_dat_530b4 = 0x64;  /* DAT_000530b4: timer rate multiplier (set by game) */
+int32_t  g_dat_530b8 = 0x64;  /* DAT_000530b8: timer rate multiplier #2 (used by fn_035b91) */
 int32_t  g_dat_530bc[16]; /* DAT_000530bc: 16-entry command table; fn_035b0c writes [a0&0xf]=a2 */
 uint32_t g_dat_63304 = 0;  /* DAT_00063304: timer divisor (denominator in fn_03565a) */
 int32_t  g_dat_63308 = 0;  /* DAT_00063308: rate/scale word (written by fn_0353d0 cmd-0x51 path) */
 uint32_t g_dat_63330 = 0;  /* DAT_00063330: last timer tick value (written by fn_0356ba) */
 uint32_t g_dat_63324 = 0;  /* DAT_00063324: IRQ/device enabled flag (gate + cleared by fn_034eb0) */
 uint32_t g_dat_63334 = 0;  /* DAT_00063334: IRQ8 handler offset (isr_set arg) */
-uint32_t g_dat_63338 = 0;  /* DAT_00063338: IRQ8 handler segment (isr_set arg, low 16) */
+uint16_t g_dat_63338 = 0;  /* DAT_00063338: IRQ8 handler segment (isr_set arg). Guest span is a WORD
+                             * (word write at 0x34de9, word read at 0x34edd); static audit c9 (docs/133)
+                             * flagged the port's 4-byte declaration. */
 uint32_t g_dat_6333c = 0;  /* DAT_0006333c: memory block freed via fn_041c31 (fn_034eb0) */
 
 /* fn_000356ba  orig: 0x000356ba (L11, 76B)
@@ -2318,7 +2320,7 @@ uint32_t g_dat_63318 = 0;   /* DAT_00063318: PIT ch0 divisor (clamped to [1,0x10
 uint32_t g_dat_63e50[256];  /* DAT_00063e50: per-register palette cache (color<<shift) */
 uint32_t g_dat_63e5c = 0;   /* DAT_00063e5c: palette index (fn_03f3be) */
 uint32_t g_dat_63e58 = 0;   /* DAT_00063e58: palette index (fn_03f410) */
-uint32_t g_dat_531f4 = 0x140; /* DAT_000531f4: VESA row width (init'd at runtime by 0x03f15f) */
+uint32_t g_dat_531f4 = 0x10000; /* DAT_000531f4: VESA row width (init'd at runtime by 0x03f15f) */
 uint32_t g_dat_63e64 = 0x140; /* DAT_00063e64: VESA bytes-per-line/pitch (init'd at runtime by 0x03f15f) */
 uint32_t g_dat_63e4c = 0;   /* DAT_00063e4c: palette color shift amount (a DWORD in the original: 0x3f2ea incs it as a dword) */
 void fn_03ee88(void)
@@ -4623,7 +4625,7 @@ uint32_t fn_041340(uint32_t cmd) {
  * consecutive reads with bit 0x40 SET; when the bit clears (i < 0x2000) it writes
  * outb(g_dat_530ac, arg) and returns 0; if the bit stays set for all 0x2000 reads it
  * returns -1 (timeout) and does not write. */
-uint32_t g_dat_530ac = 0;  /* DAT_000530ac: device port base */
+uint32_t g_dat_530ac = 0x320;  /* DAT_000530ac: device port base */
 int32_t fn_0358c7(uint8_t arg) {
     (void)canary_id((uintptr_t)arg, 0x28);               /* 0x358c7-0x358cc */
     int32_t i = 0;
@@ -6547,27 +6549,35 @@ const char *fn_049b84(const char *s, uint32_t *out) {
     return p;                                        /* position after parsed string */
 }
 
-uint32_t g_dat_536dc = 0;                 /* DAT_000536dc: node index bound */
+uint32_t g_dat_536dc = 0x14;                 /* DAT_000536dc: node index bound */
 /* DAT_00053730 is a data-segment table in the original (it sits in the BSS block right after
  * DAT_000536dc), not a heap allocation, so the port backs it with a static array by default.
  * Tests may still point it at their own table; the earlier NULL default made fn_044bec and
  * fn_0492d0 fault for callers that never touched the table. */
 static uint32_t s_dev53730[256];
 uint32_t *g_dat_53730 = s_dev53730;      /* DAT_00053730: node/device table (4B each; byte1=flags) */
-uint32_t g_dat_53780 = 0;                /* DAT_00053780: TZ range diff */
-uint32_t g_dat_53784 = 0;                /* DAT_00053784: TZ has-second-part flag */
-uint32_t g_dat_53788 = 0;                /* DAT_00053788: TZ time prefix buf (4B) */
-uint32_t g_dat_537a7 = 0;                /* DAT_000537a7: TZ time2 prefix buf (4B) */
-uint32_t g_dat_5377c = 0;                /* DAT_0005377c: TZ seconds */
+uint32_t g_dat_53780 = 0xe10;                /* DAT_00053780: TZ range diff */
+uint32_t g_dat_53784 = 0x1;                /* DAT_00053784: TZ has-second-part flag */
+/* DAT_00053788 / DAT_000537a7: the two TZ prefix buffers written by parse_time_str.
+ * parse_time_str copies up to 0x1e characters and a NUL (0x49aae clamp, 0x49ae2 store), i.e. 31 bytes,
+ * at whatever buffer address it is handed. In the shipped data region the two buffers are exactly
+ * 0x1f apart (0x53788 + 0x1f = 0x537a7) and the second one ends at 0x537c5, four bytes before
+ * DAT_000537ca -- so the writes are in bounds *there*. The port declared both as 4-byte `uint32_t`
+ * and passed `&g_dat_53788`, which wrote 27 bytes past each global: a global buffer overflow that
+ * silently clobbered whatever the compiler placed next, and the reason 0x53788/0x537a7 showed up as
+ * value divergences in the state oracle (docs/133, found by static audit c9). */
+uint8_t g_dat_53788[0x1f];               /* DAT_00053788: TZ time prefix buf, 0x53788..0x537a6 */
+uint8_t g_dat_537a7[0x1f];               /* DAT_000537a7: TZ time2 prefix buf, 0x537a7..0x537c5 */
+uint32_t g_dat_5377c = 0x4650;                /* DAT_0005377c: TZ seconds */
 /* 0x53734/0x53758: two adjacent 36-byte struct dec_datetime reference dates
  * (the "recurring-event" anchors used by fn_049613). The TZ parser (fn_049a35/
  * fn_049c76) writes only their first dword, hence the (uint32_t*) casts there. */
 struct dec_datetime g_dat_53734;         /* DAT_00053734: reference date G1 */
 struct dec_datetime g_dat_53758;         /* DAT_00053758: reference date G2 */
-static uint8_t g_dat_537ca_target = 0;   /* flag byte (0 -> fn_049613 returns 0) */
+static uint8_t g_dat_537ca_target = 0xa7;   /* flag byte (0 -> fn_049613 returns 0) */
 uint8_t *g_dat_537ca = &g_dat_537ca_target; /* DAT_000537ca: ptr to enable flag */
 uint8_t  g_dat_533bb = 0;                /* DAT_000533bb: classify-enable threshold */
-uint32_t g_dat_53619 = 0;                /* DAT_00053619: 0x200 => default binary */
+uint32_t g_dat_53619 = 0x100;                /* DAT_00053619: 0x200 => default binary */
 uint32_t g_dat_536d8 = 0;                /* DAT_000536d8: create-mode xor (load-time 0) */
 
 /* ---- 0x04574a / 0x049506 / 0x0495eb: recurring-event date sub-unit ----
@@ -6782,13 +6792,13 @@ void fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3) {
     const char *val = config_value_ptr("TZ");   /* DAT_00051840 = "TZ" */
     if (!val) return;                             /* no TZ config -> early return */
     g_dat_53784 = 0;
-    char *pcVar1 = parse_time_str(val, (char *)&g_dat_53788, &g_dat_5377c);
+    char *pcVar1 = parse_time_str(val, (char *)g_dat_53788, &g_dat_5377c);
     if (*pcVar1 == 0) {
-        g_dat_537a7 = 0;
+        g_dat_537a7[0] = 0;
     } else {
         g_dat_53784 = 1;
         uint32_t local_10 = g_dat_5377c - 0xe10;  /* 0xe10 = 3599 */
-        pcVar1 = parse_time_str(pcVar1, (char *)&g_dat_537a7, &local_10);
+        pcVar1 = parse_time_str(pcVar1, (char *)g_dat_537a7, &local_10);
         g_dat_53780 = g_dat_5377c - local_10;
         if (*pcVar1 == ',') {
             pcVar1 = (char *)fn_049b84(pcVar1 + 1, (uint32_t *)&g_dat_53734);
@@ -6805,13 +6815,13 @@ void fn_049a35(uint32_t p1, uint32_t p2, uint32_t p3) {
 void fn_049c76(const char *s, uint32_t p2, uint32_t p3, uint32_t p4) {
     (void)p2; (void)p3; (void)p4;
     g_dat_53784 = 0;
-    char *pcVar1 = parse_time_str(s, (char *)&g_dat_53788, &g_dat_5377c);
+    char *pcVar1 = parse_time_str(s, (char *)g_dat_53788, &g_dat_5377c);
     if (*pcVar1 == 0) {
-        g_dat_537a7 = 0;
+        g_dat_537a7[0] = 0;
     } else {
         g_dat_53784 = 1;
         uint32_t local_10 = 0x3840;                    /* 14400 (4h) */
-        pcVar1 = parse_time_str(pcVar1, (char *)&g_dat_537a7, &local_10);
+        pcVar1 = parse_time_str(pcVar1, (char *)g_dat_537a7, &local_10);
         g_dat_53780 = 18000u - local_10;               /* 5h - second secs */
         if (*pcVar1 == ',') {
             pcVar1 = (char *)fn_049b84(pcVar1 + 1, (uint32_t *)&g_dat_53734);
@@ -7864,7 +7874,7 @@ uint32_t g_dat_63f08 = 0;
 uint8_t  g_dat_62cd8[128] = {0};
 uint8_t  g_dat_62c58[128] = {0};
 uint32_t g_dat_62d5c = 0;  /* DAT_00062d5c: frame counter (decremented by fn_0347e3) */
-uint8_t  g_dat_52ff8 = 0;  /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
+uint8_t  g_dat_52ff8 = 0x1;  /* DAT_00052ff8: keyboard pump enabled (gate for fn_0347e3) */
 /* docs/92: the shipped fn_03442e reads DAT_00062c75/0x62c82/0x62c8e/0x62c90 -- those addresses ARE
  * DAT_00062c58[0x1d / 0x2a / 0x36 / 0x38], the scan-code slot array, NOT separate globals. They stood as
  * independent zeroed bytes nothing wrote, so the Ctrl+Alt / Ctrl+Shift / Alt+Shift combo markers 0x67 /
@@ -7885,7 +7895,7 @@ uint8_t  g_dat_53e9c[0x88 * 0x104]; /* 0x53e9c: entity-type table, 0x104 (260) e
 
 uint8_t *const g_dat_53ea8 = g_dat_53e9c + 0x0c;  /* 0x53ea8 == 0x53e9c + 0xc (docs/91/docs/108): one
                                                    * table, two names -- never a separate array */
-int32_t  g_dat_51c98 = 0;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
+int32_t  g_dat_51c98 = 0x1;   /* DAT_00051c98 (collision mode flag: 1=reinit->2, 2=active) */
 int32_t  g_dat_53c90 = 0;   /* DAT_00053c90 (player-event latch) */
 int32_t  g_dat_53c68 = 0;      /* 0x53c68 (entity count) */
 uint32_t g_gauge_other_off = 0;      /* 0x53c88 (Ghidra g_dwGaugeOtherEntityDs): DS-relative heap offset of the
@@ -8327,7 +8337,7 @@ uint8_t  g_dat_63e89 = 0;           /* 0x63e89: abort/quit byte */
  * and DS 0x51a10 = 1, both matching the port, and DS 0x53340 is the "Stack Overflow!" string). The port
  * had 0, which silently muted every sample the game tried to play -- fn_04185e returns at its
  * `DAT_53338 == 0` guard, so no DSP command and no DMA transfer was ever programmed (docs/55). */
-uint8_t g_dat_53338 = 1;
+uint8_t g_dat_53338 = 0x1;
 uint8_t g_dat_63fb8 = 0;   /* DAT_00063fb8: device-command-stream started flag */
 
 /* fn_04185e  orig: 0x0004185e (L12, 95 B) -- START THE DEVICE COMMAND STREAM (EAX = cursor passed
@@ -8676,8 +8686,9 @@ uint32_t g_dat_63370 = 0;      /* 0x63370: the episode counter (Ghidra g_dwEpiso
 uint32_t g_dat_63374 = 0;      /* 0x63374: = g_player_ent->0x2b (0x03cc6b) */
 uint32_t g_dat_63378 = 0;      /* 0x63378: = (byte)g_player_ent->0x27 (0x03cc6b) */
 uint32_t g_dat_6337c = 0;      /* 0x6337c: = (byte)g_player_ent->0x26 (0x03cc6b) */
-uint32_t g_dat_63380 = 0;      /* 0x63380: = (byte)g_player_ent->0x25 (0x03cc6b) */
-uint32_t g_dat_63384 = 0;      /* 0x63384: = (byte)g_player_ent->0x28 (0x03cc6b) */
+uint8_t  g_dat_63380 = 0;      /* 0x63380: = (byte)g_player_ent->0x25 (0x03cc6b). Byte-sized in the
+                                * shipped layout: `MOV byte ptr [0x63380]` is the only direct access. */
+uint8_t  g_dat_63384 = 0;      /* 0x63384: = (byte)g_player_ent->0x28 (0x03cc6b). Byte-sized likewise. */
 
 /* ---- 0x01586b (L10, 435 B): clamp a0[9] to [min,max] after adding a1 ----
  * canary PUSH 0x2c;CALL 0x418ee. a0 (EAX) = item byte-buffer, a1 (EDX) = delta.
@@ -10258,7 +10269,7 @@ void delay_units(uint32_t arg)   /* 0x4564f (also thunk 0x042958) */
 }
 
 /* ---- L0 batch E (2): swap-global + jump-table field accessor ---- */
-uint32_t g_dat_5363c = 0;                       /* DAT_0005363c */
+uint32_t g_dat_5363c = 0x1;                       /* DAT_0005363c */
 uint32_t swap_dat_5363c(uint32_t v)   /* 0x45ae8 */
 {
     uint32_t old = g_dat_5363c;              /* 0x45aef EAX=[0x5363c] */
@@ -10277,7 +10288,7 @@ uint32_t stack_depth(void)   /* 0x4917e */
     int local;
     return (uint32_t)((uintptr_t)&local - g_stack_bound);
 }
-uint32_t g_dat_53640 = 0;                    /* DAT_00053640 */
+uint32_t g_dat_53640 = 0x10;                    /* DAT_00053640 */
 void set_53640(void) { g_dat_53640 = 0x8000; }              /* 0x49187 */
 uint32_t to_upper(uint32_t c) { return (c>=0x61 && c<=0x7a) ? c-0x20 : c; } /* 0x494bd */
 
@@ -15246,7 +15257,7 @@ int32_t fn_03a224(void)
 
 uint32_t g_dat_63e60 = 0;   /* DAT_00063e60: VBE ModeInfoBlock +0x10 (bytes per line) */
 uint32_t g_dat_63e68 = 0;   /* DAT_00063e68: VBE ModeInfoBlock +0x14 (Y resolution) */
-uint32_t g_dat_531f8 = 0;   /* DAT_000531f8: DAT_000531f4 - 1 (the modulus mask of the linear screen model) */
+uint32_t g_dat_531f8 = 0xffff;   /* DAT_000531f8: DAT_000531f4 - 1 (the modulus mask of the linear screen model) */
 
 /* fn_03f15f  orig: 0x0003f15f (L12, 606 B) -- THE VESA MODE SET: it puts the screen in VBE mode
  *   0x101 (640x480x8) and fills the geometry globals every blit in the game reads.
@@ -24785,7 +24796,7 @@ hitnext:
 }
 /* DS 0x53100..0x53150 (NIGHT.EXE initialized data): the game-over / CONTINUE screen layer tables.
  * Copied into the stack frame on every entry, then scrolled in place. */
-uint32_t g_dat_53100 = 3;                                       /* DAT_00053100: CONTINUE countdown, decremented once per game-over pass */
+uint32_t g_dat_53100 = 0x3;                                       /* DAT_00053100: CONTINUE countdown, decremented once per game-over pass */
 static uint32_t g_tab_53108[6] = { 0x46, 0xa5, 0xd3, 0xe4, 0xe5, 0xd9 };  /* DS 0x53108: per-layer destination offset */
 static uint32_t g_tab_53120[6] = { 0x1d, 0x1d, 0x44, 0x5a, 0x6c, 0xae };  /* DS 0x53120: per-layer column width */
 static uint32_t g_tab_53138[6] = { 0x00, 0x01, 0x02, 0x02, 0x01, 0x00 };  /* DS 0x53138: scroll phase -> which of the three screens */
@@ -24994,7 +25005,9 @@ slide:
 /* =================================================================== */
 
 uint8_t  g_dat_63ec3 = 0;    /* 0x63ec3: "the help pages are being shown" mode byte */
-uint8_t  g_dat_633a4 = 0;    /* 0x633a4: the level-up screen's "help already shown once" flag */
+uint32_t  g_dat_633a4 = 0;    /* 0x633a4: the level-up screen's "help already shown once" flag.
+                               * The shipped cell is a DWORD and the game stores a dword 1 there
+                               * (0x000391cc), which also clears 0x633a5-0x633a7; nothing reads those. */
 uint8_t *g_dat_53de0 = 0;    /* DAT_00053de0: the "selection committed" command-cursor record */
 uint8_t *g_dat_53de4 = 0;    /* DAT_00053de4: the "screen entered" command-cursor record */
 
@@ -25389,7 +25402,7 @@ const uint32_t g_tab_52da4[100] = {
 
 /* DAT_00051a10: the sound-effect enable flag (dword; the title menu's entry 2 toggles it from f[2]).
  * Nothing in the image writes it, so it holds the initialised value 1. */
-uint32_t g_dat_51a10 = 1;
+uint32_t g_dat_51a10 = 0x1;
 /* DS 0x531e0: five dwords, the Y (start_row) of each entry of the title menu drawn by fn_00039c03.
  * Image data, no producer in the EXE (scripts/extract_ds.py 0x531e0 0x14). */
 const uint32_t g_tab_531e0[5] = { 0x6c, 0x79, 0x87, 0x92, 0x9e };
@@ -26802,7 +26815,7 @@ lab_chain:
  * slot 0 is never addressed by the game. */
 uint32_t g_tab_52f2c[0xa] = { 0x16, 0x3, 0x2, 0x6, 0x0, 0x0, 0x3, 0x0, 0x1, 0x3 };
 uint32_t g_tab_52f90[0xa] = { 0x0, 0x1, 0x1, 0x2, 0x0, 0x4, 0x3, 0x1, 0x1, 0x3 };
-uint32_t g_dat_52fb4 = 3;              /* DAT_00052fb4: the stage-9 ending slide-show gate */
+uint32_t g_dat_52fb4 = 0x3;              /* DAT_00052fb4: the stage-9 ending slide-show gate */
 uint32_t g_dat_633a8 = 0;              /* the two varargs of the "Thank You" print (no conversions) */
 uint32_t g_dat_633ac = 0;
 
@@ -27052,7 +27065,7 @@ uint32_t g_dat_53384, g_dat_53398, g_dat_533b5, g_dat_533b0;
 uint8_t  g_dat_533bc, g_dat_533b2, g_dat_533b3;
 uint16_t g_dat_533b9;
 uintptr_t g_dat_53380, g_dat_53394, g_dat_53364;
-uint16_t g_dat_53368;
+uint16_t g_dat_53368 = 0x20;   /* DAT_00053368: image-initialised (NIGHT.EXE byte at 0x53368 is 0x20) */
 uint8_t  g_dat_640c0[0x100];       /* flat 0x140c0: the trimmed command tail, then the env copy */
 uint32_t g_startup_zero_len;       /* the BSS extent the startup computed (see startup_body) */
 uint32_t g_startup_ret_slot;       /* the [ESP-4] return-slot chain the calls hand over */

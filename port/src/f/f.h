@@ -174,7 +174,7 @@ extern uint32_t g_dat_63324;                    /* DAT_00063324: IRQ/device enab
 extern uint32_t g_dat_63334;                    /* DAT_00063334: IRQ8 handler offset (isr_set arg) */
 extern uint32_t g_dat_6330c;                    /* DAT_0006330c: timer-tick counter (fn_034c40) */
 extern void   (*g_cb_63334)(void);              /* host callable for the CALL through DAT_00063334 */
-extern uint32_t g_dat_63338;                    /* DAT_00063338: IRQ8 handler segment (isr_set arg, low 16) */
+extern uint16_t g_dat_63338;                    /* DAT_00063338: IRQ8 handler segment (isr_set arg, low 16) */
 extern uint32_t g_dat_6333c;                    /* DAT_0006333c: memory block freed via fn_041c31 (fn_034eb0) */
 void fn_00010a56(void);                         /* 0x00010a56: CD track-entry submit (no-op, feeds fn_00010570) */
 void fn_0003f592(void);                         /* 0x0003f592: VGA vline to A0000 + palette (no-op, unmodeled buffer) */
@@ -1151,8 +1151,8 @@ extern uint32_t g_dat_63370;   /* 0x63370: mode flag (0x03cc6b) */
 extern uint32_t g_dat_63374;   /* 0x63374: = g_player_ent->0x2b (0x03cc6b) */
 extern uint32_t g_dat_63378;   /* 0x63378: = (byte)g_player_ent->0x27 (0x03cc6b) */
 extern uint32_t g_dat_6337c;   /* 0x6337c: = (byte)g_player_ent->0x26 (0x03cc6b) */
-extern uint32_t g_dat_63380;   /* 0x63380: = (byte)g_player_ent->0x25 (0x03cc6b) */
-extern uint32_t g_dat_63384;   /* 0x63384: = (byte)g_player_ent->0x28 (0x03cc6b) */
+extern uint8_t  g_dat_63380;   /* 0x63380: = (byte)g_player_ent->0x25 (0x03cc6b) */
+extern uint8_t  g_dat_63384;   /* 0x63384: = (byte)g_player_ent->0x28 (0x03cc6b) */
 void fn_03cc6b(uint8_t *a0);   /* 0x03cc6b: state machine (g_639e4 toggle, g_63354/58, kb-config copy, g_639e0++) */
 void fn_034295(int32_t amount);  /* 0x034295: the player's STATE-GATED vertical move (DAT_63ed3 reversed / DAT_63ed5 plain, plus [player+0x1b] must be 0 / 1) */
 extern uint8_t g_dat_63ed3;      /* DAT_00063ed3: reversed vertical-direction flag */
@@ -1242,7 +1242,7 @@ extern uint32_t *g_dat_63e0c;  /* DAT_00063e0c: "pause.spr" struct (fn_03d8d4) *
 extern uint8_t *g_dat_53e24[10];   /* DAT_00053e24..0x53e48: cells 70..79 of the DAT_53d0c slot array (docs/98 live-verified), the combat-SFX streams picked by entity type (fn_0113e7); wired by fn_03690b */
 extern uint8_t *g_dat_53d0c[100]; /* DAT_00053d0c: 100 sound-slot buffers ("1.voc".."100.voc") */
 extern uint8_t  g_dat_63ec3;   /* DAT_00063ec3: level-up screen "help pages showing" mode byte */
-extern uint8_t  g_dat_633a4;   /* DAT_000633a4: level-up screen "help already shown" flag */
+extern uint32_t g_dat_633a4;   /* DAT_000633a4: level-up screen "help already shown" flag */
 extern uint8_t *g_dat_53de0;   /* DAT_00053de0: "selection committed" command-cursor record */
 extern uint8_t *g_dat_53de4;   /* DAT_00053de4: "screen entered" command-cursor record */
 void fn_038f3d(int32_t variant);   /* 0x038f3d: THE LEVEL-UP / STATUS SCREEN (6 rows, exp spending,
@@ -1332,8 +1332,8 @@ extern uint32_t g_dat_536d8;              /* DAT_000536d8: create-mode xor (load
 extern uint32_t *g_dat_53730;            /* DAT_00053730: node table (4B each; byte1=flags) */
 extern uint32_t g_dat_53780;             /* DAT_00053780: TZ range diff */
 extern uint32_t g_dat_53784;             /* DAT_00053784: TZ has-second-part flag (0/1) */
-extern uint32_t g_dat_53788;             /* DAT_00053788: TZ time prefix buf (4B) */
-extern uint32_t g_dat_537a7;             /* DAT_000537a7: TZ time2 prefix buf (4B) */
+extern uint8_t  g_dat_53788[0x1f];      /* DAT_00053788: TZ time prefix buf, 0x53788..0x537a6 (31B) */
+extern uint8_t  g_dat_537a7[0x1f];      /* DAT_000537a7: TZ time2 prefix buf, 0x537a7..0x537c5 (31B) */
 extern uint32_t g_dat_5377c;             /* DAT_0005377c: TZ seconds */
 extern struct dec_datetime g_dat_53734;      /* DAT_00053734: recurring-event reference date G1 */
 extern struct dec_datetime g_dat_53758;      /* DAT_00053758: recurring-event reference date G2 */

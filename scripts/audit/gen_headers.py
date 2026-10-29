@@ -19,23 +19,46 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GEN = os.path.join(HERE, "gen")
 
 
+def width_from_access(acc_w, addr):
+    """The operand width(s) the guest actually moves through this address, as recorded text.
+
+    This is an ACCESS width, not a symbol span: `MOV EAX, dword ptr [0x51b60]` proves a dword is read at
+    the head of a 256-byte table, it does not prove the table is 4 bytes. So it never replaces
+    defined_data's size in the dump table -- it is carried alongside it, and static_audit c9 uses it to
+    catch a port global whose element type is a different width from every shipped access at that cell.
+    """
+    ws = acc_w.get(addr)
+    if not ws:
+        return None
+    if isinstance(ws, dict):
+        direct = ws.get("direct") or set()
+        return max(direct) if direct else None
+    return max(ws)
+
+
 def main():
     os.makedirs(GEN, exist_ok=True)
     db = ghidra_db.Db()
     pmap = static_audit.port_global_map()
     reads, writes = db.ds_read_sites(), db.ds_write_sites()
     dd_by_addr = {int(d["addr"], 16): d for d in db.ds_data()}
-
+    # docs/132 §3: 66 of the 283 rig cells had no shipped width because Ghidra never *defined* a data
+    # symbol there. The disassembly still states the operand size, so recover the width from the accesses.
+    acc_w = db.ds_access_widths()
     rows = []
     for addr in sorted(set(db.ds_dir_counts()) | set(dd_by_addr) | set(pmap)):
         d = dd_by_addr.get(addr)
         decls = pmap.get(addr, [])
         img = db.image_u32(addr) if db.in_image(addr) else None
+        gsz = d["size"] if d and d.get("size") else None
         rows.append({
             "ds": addr,
             "guest_symbol": d["label"] if d else None,
             "guest_type": d["type"] if d else None,
-            "guest_size": d["size"] if d else None,
+            "guest_size": gsz,
+            "guest_access_width": width_from_access(acc_w, addr),
+            "guest_access_widths_direct": sorted(acc_w.get(addr, {}).get("direct", [])),
+            "guest_access_widths_based": sorted(acc_w.get(addr, {}).get("based", [])),
             "reads": len(reads.get(addr, [])),
             "writes": len(writes.get(addr, [])),
             "write_sites": [f"{w[1]}@{w[0]} {w[2]} {w[3]}" for w in writes.get(addr, [])][:6],
@@ -97,11 +120,13 @@ def main():
                                            bool(port_src.NAME_ADDR.search(x["name"]))} for x in decls]})
         g = dd_by_addr.get(addr)
         gsz = (g["size"] if g and g.get("size") else 0)
+        aw = width_from_access(acc_w, addr)
         # a pointer field occupies 8 host bytes but 4 guest bytes: keep both, the differ reports the
         # pair rather than guessing which side is wrong.
         slot = 8 if d["ptr"] else d["type_size"]
         hsz = max(1, min(256, d["elems"] * slot)) if slot else 0
         rec = {"ds": addr, "name": d["name"], "ctype": d["ctype"], "guest_size": gsz,
+               "guest_access_width": aw, "elem_size": slot,
                "host_size": hsz, "ptr": 1 if d["ptr"] else 0, "dupes": len(decls) - 1}
         (cells if ghidra_db.DS_LO <= addr < ghidra_db.DS_HI else unmapped).append(rec)
     with open(os.path.join(GEN, "port_dup_claims.json"), "w") as f:

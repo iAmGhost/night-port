@@ -1917,10 +1917,10 @@ static void test_049a35(void) {
     check(g_dat_53784 == 0xdead, "  no TZ -> early return (53784 unchanged)");
     static const char *t1[] = {"TZ=-05:00:00", 0};
     g_dat_537d4 = (char**)t1;
-    g_dat_53784 = 0xdead; g_dat_537a7 = 0xdead; g_dat_5377c = 0xdead;
+    g_dat_53784 = 0xdead; g_dat_537a7[0] = 0xdead; g_dat_5377c = 0xdead;
     fn_049a35(0,0,0);
     check(g_dat_53784 == 0, "  -05:00:00 -> 53784=0");
-    check(g_dat_537a7 == 0, "  -05:00:00 -> 537a7=0");
+    check(g_dat_537a7[0] == 0, "  -05:00:00 -> 537a7=0");
     check((int32_t)g_dat_5377c == -18000, "  -05:00:00 -> 5377c=-18000");
     static const char *t2[] = {"TZ=-05:00:00 -07:00:00", 0};
     g_dat_537d4 = (char**)t2;
@@ -1932,15 +1932,32 @@ static void test_049a35(void) {
 
 static void test_049c76(void) {
     printf("fn_049c76 (0x049c76) TZ range parser (direct string)\n");
-    g_dat_53784 = 0xdead; g_dat_537a7 = 0xdead; g_dat_5377c = 0xdead;
+    g_dat_53784 = 0xdead; g_dat_537a7[0] = 0xdead; g_dat_5377c = 0xdead;
     fn_049c76("-05:00:00", 0, 0, 0);
     check(g_dat_53784 == 0, "  -05:00:00 -> 53784=0");
-    check(g_dat_537a7 == 0, "  -05:00:00 -> 537a7=0");
+    check(g_dat_537a7[0] == 0, "  -05:00:00 -> 537a7=0");
     check((int32_t)g_dat_5377c == -18000, "  -05:00:00 -> 5377c=-18000");
     g_dat_53784 = 0; g_dat_53780 = 0xdead;
     fn_049c76("-05:00:00 -07:00:00", 0, 0, 0);
     check(g_dat_53784 == 1, "  two times -> 53784=1");
     check(g_dat_53780 == 18000u - (uint32_t)(int32_t)(-25200), "  two times -> 53780=18000-(-25200)");
+    /* docs/133: the prefix buffers are 31 bytes in the shipped layout (0x53788 and 0x537a7 are
+     * exactly 0x1f apart) and parse_time_str writes up to 0x1e chars + NUL. A prefix longer than a
+     * dword is normal -- this asserts the buffers really hold them, which the old 4-byte globals
+     * could not do without writing past themselves (ASan: global-buffer-overflow in parse_time_str). */
+    memset(g_dat_53788, 0, sizeof g_dat_53788);
+    memset(g_dat_537a7, 0, sizeof g_dat_537a7);
+    fn_049c76("NIGHT-TIMEZONE-CONFIG-XX:12:34:56", 0, 0, 0);
+    check(strcmp((char *)g_dat_53788, "NIGHT") == 0, "  long prefix 1 -> 53788=\"NIGHT\"");
+    check(strcmp((char *)g_dat_537a7, "TIMEZONE") == 0, "  long prefix 2 -> 537a7=\"TIMEZONE\"");
+    /* 30 chars is the clamp (0x49aae): 30 chars + NUL = 31 = the buffer's whole span */
+    memset(g_dat_53788, 0, sizeof g_dat_53788);
+    fn_049c76("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:1:2:3", 0, 0, 0);   /* 30 A's */
+    check(strlen((char *)g_dat_53788) == 30 && g_dat_53788[30] == 0,
+          "  30-char prefix fills the 31-byte buffer exactly");
+    memset(g_dat_53788, 0, sizeof g_dat_53788);
+    fn_049c76("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB:1:2:3", 0, 0, 0); /* 31 A's -> clamped to 30 */
+    check(strlen((char *)g_dat_53788) == 30, "  31-char prefix clamps to 30 (0x49aae)");
 }
 
 static void test_045a82(void) {

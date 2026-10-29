@@ -246,20 +246,31 @@ def main():
     rows = []
     for c in cells:
         ds, gsz, hsz, ptr = c["ds"], c["guest_size"], c["host_size"], c["ptr"]
+        gaw = c.get("guest_access_width")
         # With no shipped size for the symbol, compare the port's own width; where the two widths
         # differ, compare the overlap and keep the disagreement as a finding of its own.
         gs = gsz or hsz
         w = min(gs, hsz)
+        # docs/132 §4(b): a plain DIFF must mean "same shipped width, same compared width, different
+        # value". Where the comparison basis itself is weak -- no shipped width, or the two sides
+        # disagree about the width -- a value disagreement is filed as DIFF-SIZE / DIFF-WIDTH so the
+        # DIFF count cannot be read as a proven divergence.
+        basis = "ok"
         if any((ds + k) in entropy for k in range(max(gs, hsz))):
             verdict, note = "ENTROPY", "varies across identical replays of the original"
         elif ptr:
             verdict, note = "PTR", f"host slot {hsz}B vs guest {gsz}B (offset-vs-pointer, docs/94 family)"
         elif gsz and gsz != hsz:
-            verdict, note = "REPR", f"width {gsz}B guest vs {hsz}B port; compared the first {w}B"
+            verdict, note, basis = "REPR", f"width {gsz}B guest vs {hsz}B port; compared the first {w}B", "width"
         elif not gsz:
-            verdict, note = "SIZE?", f"no shipped size for this symbol; compared {w}B"
+            # No shipped *span* for this cell, but the operand text may still state the element width
+            # (gen/ds_join.json guest_access_widths): carry it into the note so the reader can tell a
+            # byte field flattened into a 256-byte port array from a genuine value divergence.
+            ev = f"; shipped reads/writes move {gaw}B there" if gaw else ""
+            verdict, note, basis = "SIZE?", f"no shipped span for this symbol; compared {w}B{ev}", "size"
         else:
             verdict, note = "SAME", ""
+        bad_verdict = {"ok": "DIFF", "width": "DIFF-WIDTH", "size": "DIFF-SIZE"}[basis]
         per_phase = []
         if verdict in ("SAME", "REPR", "SIZE?"):
             off_p = poff.get(c["name"])
@@ -277,9 +288,10 @@ def main():
                 vo = sorted(so, key=lambda x: (len(x), x))[0]
                 vp = sorted(sp, key=lambda x: (len(x), x))[0]
                 at = next((i for i in range(w) if vo[i] != vp[i]), 0)
-                detail = f"@{hex(ds + at)} {vo[at]:#04x} vs {vp[at]:#04x}"
-                verdict = "DIFF"
-                per_phase.append((label, "DIFF", hexs(so), hexs(sp)))
+                ndiff = sum(1 for i in range(w) if vo[i] != vp[i])
+                detail = f"@{hex(ds + at)} {vo[at]:#04x} vs {vp[at]:#04x} ({ndiff}/{w} bytes differ)"
+                verdict = bad_verdict
+                per_phase.append((label, bad_verdict, hexs(so), hexs(sp)))
                 rows_note = note + f"; first differing byte {detail}"
                 note = rows_note
         rows.append({"ds": hex(ds), "name": c["name"], "guest_size": gsz, "host_size": hsz,
@@ -363,14 +375,18 @@ def main():
 
     tally = collections.Counter(r["verdict"] for r in rows)
     print(f"mode={mode}  cells={len(rows)}  phases={len(phases)}  tally={dict(tally)}")
+    bad = sum(1 for r in rows if r["verdict"].startswith("DIFF"))
+    hard = sum(1 for r in rows if r["verdict"] == "DIFF")
+    print(f"divergent cells: {bad}  of which same-width value divergences: {hard}")
     shown = 0
     for r in rows:
-        if r["verdict"] in ("DIFF", "REPR", "PTR", "REC-DIFF", "REC-NULL") and shown < a.max_rows:
+        if r["verdict"] in ("DIFF", "DIFF-WIDTH", "DIFF-SIZE", "REPR", "PTR", "REC-DIFF", "REC-NULL") \
+                and shown < a.max_rows:
             shown += 1
             dph = [p for p in r["phases"] if p[1] != "SAME"]
-            print(f'{r["verdict"]:6s} {r["ds"]} {r["name"]:24s} g={r["guest_size"]} h={r["host_size"]} '
+            print(f'{r["verdict"]:11s} {r["ds"]} {r["name"]:24s} g={r["guest_size"]} h={r["host_size"]} '
                   f'{r["note"]}' + (f'  {"; ".join(f"{p[0]}:{p[1]} orig={p[2]} port={p[3]}" for p in dph[:2])}'
-                                    if r["verdict"] == "DIFF" else ""))
+                                    if r["verdict"].startswith("DIFF") else ""))
     if a.md:
         os.makedirs(os.path.dirname(a.md), exist_ok=True)
         with open(a.md, "w") as f:
@@ -392,7 +408,7 @@ def main():
         path = os.path.join(GEN, "entropy_cells.json")
         doc = json.load(open(path)) if os.path.exists(path) else {"entropy_cells": {}}
         for r in rows:
-            if r["verdict"] in ("DIFF", "HEAP"):
+            if r["verdict"] in ("DIFF", "DIFF-WIDTH", "DIFF-SIZE", "HEAP"):
                 doc["entropy_cells"][r["ds"]] = {"name": r["name"],
                                                  "reason": "varies across identical replays "
                                                            "(allocation address / timing)"}
@@ -401,7 +417,7 @@ def main():
               f"{len(json.load(open(path))['entropy_cells'])} measured-variable cells")
 
     if mode == "baseline":
-        bad = [r for r in rows if r["verdict"] == "DIFF"]
+        bad = [r for r in rows if r["verdict"].startswith("DIFF")]
         print("FP CONTROL (original vs original):", "PASS" if not bad else f"FAIL ({len(bad)} DIFF)")
         sys.exit(0 if not bad else 1)
 

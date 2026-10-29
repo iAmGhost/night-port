@@ -667,6 +667,13 @@ void fn_03f410(uint32_t color) { palette_set(g_dat_63e58, color); }
  *   No DPMI in the flat model -> no-op. The DAT_00053c5c-2 read only feeds the
  *   DPMI argument and has no observable flat-model effect, so it is not
  *   dereferenced; the global is tracked for fidelity. */
+static int walk_trace_on(void)                                      /* docs/152 §4: cached witness switch */
+{
+    static int v = -1;
+    if (v < 0) v = getenv("NIGHT_WALKTRACE") ? 1 : 0;
+    return v;
+}
+
 uint32_t g_dat_63e14 = 0;   /* DAT_00063e14: 2-node swap counter (fn_03e14c) */
 uint32_t g_dat_63e18 = 0;   /* DAT_00063e18: cached prev-node offset (fn_03e14c) */
 uint32_t g_dat_63e1c = 0;   /* DAT_00063e1c: cached next-node offset (fn_03e14c) */
@@ -1981,7 +1988,16 @@ void fn_01072f(void) {
  * prev and clear that prev's next; else if g_dat_63e1c==a0 -> cache a0's next and clear
  * that next's prev; else -> swap a0's prev<->next links (a 2-node rotation). Decrement
  * the counter; return a0. */
+uint64_t g_cmd_unlink_calls;                                       /* docs/153: fn_03e14c call census */
+
 uint32_t fn_03e14c(uint32_t a0, uint32_t a1) {
+    if (walk_trace_on()) {                                          /* docs/153 */
+        g_cmd_unlink_calls++;
+        if (g_cmd_unlink_calls <= 64)
+            fprintf(stderr, "UNLINK #%llu a0=%u counter_before=%u e18=%u e1c=%u e20=%u\n",
+                    (unsigned long long)g_cmd_unlink_calls, a0, g_dat_63e14,
+                    g_dat_63e18, g_dat_63e1c, g_dat_63e20);
+    }
     (void)canary_id(0, 0x24);
     (void)a1;   /* stored to [EBP-4], never read */
     uint8_t *hb = (uint8_t *)g_heap_base;
@@ -8940,13 +8956,6 @@ void fn_0342ff(int32_t amount)
  *   same "caught" conditions is additionally nudged by (prng % 0x29) - 0x14 (the original signed
  *   idiv: jitter -20..+20).
  */
-static int walk_trace_on(void)                                      /* docs/152 §4: cached witness switch */
-{
-    static int v = -1;
-    if (v < 0) v = getenv("NIGHT_WALKTRACE") ? 1 : 0;
-    return v;
-}
-
 uint64_t g_step_player_01194c, g_step_player_012616;               /* per-frame step dispatch, player only */
 uint64_t g_walk_calls_34295, g_walk_sum_34295;              /* docs/152: .act-chain player movers */
 uint64_t g_walk_calls_342ff, g_walk_sum_342ff;
@@ -8964,6 +8973,8 @@ void walk_trace_report(void)                                      /* docs/149: s
     fprintf(stderr, "WALK steps: fn_01194c_player=%llu fn_012616_player=%llu | stepped mover calls=%llu (%.3f per dispatch)\n",
             (unsigned long long)g_step_player_01194c, (unsigned long long)g_step_player_012616,
             (unsigned long long)(g_walk_calls_player - 0), 0.0);
+    fprintf(stderr, "WALK unlink: fn_03e14c calls=%llu counter_final=%u\n",
+            (unsigned long long)g_cmd_unlink_calls, g_dat_63e14);
     fprintf(stderr, "WALK movers: fn_034295 calls=%llu sum=%llu per=%.2f | fn_0342ff calls=%llu sum=%llu per=%.2f\n",
             (unsigned long long)g_walk_calls_34295, (unsigned long long)g_walk_sum_34295,
             g_walk_calls_34295 ? (double)g_walk_sum_34295 / (double)g_walk_calls_34295 : 0.0,

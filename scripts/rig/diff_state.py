@@ -265,19 +265,35 @@ def main():
         cells that only matter once, like a kill counter)."""
         srt = sorted(samples, key=lambda s: s[0])
         b = collections.defaultdict(list)
+        raw = collections.Counter()          # samples actually captured inside the window
         for label, t0, t1 in phases:
             inside = [s[1] for s in srt if t0 <= s[0] < t1]
+            raw[label] = len(inside)
             if not inside:
                 prior = [s[1] for s in srt if s[0] < t0]
                 inside = [prior[-1]] if prior else []
             b[label] = inside
-        return b
+        return b, raw
 
     def span_t(samples):
         ts = [s[0] for s in samples]
         return f"n={len(ts)} t=[{min(ts)}..{max(ts)}]" if ts else "n=0"
     print(f"samples: orig {span_t(orig_side)} | {'port' if is_port else 'other'} {span_t(other_side)}")
-    ob, pb = bucket(orig_side), bucket(other_side)
+    ob, o_raw = bucket(orig_side)
+    pb, p_raw = bucket(other_side)
+    # docs/159 §5: the shipped dump is change-triggered over the WHOLE DS group, so a window with zero shipped
+    # samples means nothing in 0x50000..0x650bf changed during it.  Carrying the last sample forward is correct
+    # for comparing values but it silently turns "the original was idle" into "the two sides agree".  A quiet
+    # window is now labelled with its length and the other side's activity, so the claim stays checkable.
+    quiet = {}
+    for label, t0, t1 in phases:
+        if o_raw[label] == 0:
+            quiet[label] = (int(t1 - t0), p_raw[label])
+    if quiet:
+        tot = sum(v[0] for v in quiet.values())
+        act = sum(1 for v in quiet.values() if v[1] > 0)
+        print(f"shipped-quiet windows: {len(quiet)} of {len(phases)}  ({tot / 1000.0:.1f} s of the route; "
+              f"{act} of them with the other side taking samples in the same window)")
     poff = {}
     if is_port:
         poff = {c["name"]: c["offset"] for c in other_side[0][2]}
@@ -294,6 +310,7 @@ def main():
             for dsx, label in spec["cells"].items():
                 fam[int(dsx, 16)] = {"family": fname, "label": label,
                                      "reason": spec["reason"], "docs": spec["docs"]}
+    phases_dict = {lbl: (t0, t1) for lbl, t0, t1 in phases}
     rows = []
     for c in cells:
         ds, gsz, hsz, ptr = c["ds"], c["guest_size"], c["host_size"], c["ptr"]
@@ -330,6 +347,12 @@ def main():
         if verdict in ("SAME", "REPR", "SIZE?") or basis == "family":
             off_p = poff.get(c["name"])
             for label, _t0, _t1 in phases:
+                if o_raw.get(label, 0) == 0:
+                    per_phase.append((label, "SHIPPED-QUIET",
+                                      f"no shipped sample in "
+                                      f"{(phases_dict[label][1]-phases_dict[label][0]) / 1000.0:.1f} s",
+                                      f"{p_raw.get(label,0)} other-side samples"))
+                    continue
                 ov = [b[ds - DS_LO:ds - DS_LO + w] for b in ob.get(label, [])]
                 pv = [b[off_p:off_p + w] for b in pb.get(label, [])] if off_p is not None else []
                 if not ov or not pv:

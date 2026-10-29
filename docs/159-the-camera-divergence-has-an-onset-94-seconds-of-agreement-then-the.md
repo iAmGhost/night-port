@@ -102,3 +102,23 @@ over them. `replay_original.py` stores a state only when `changed_ds` says somet
 13-second window had zero shipped activity while the port was busy). A `SHIPPED-QUIET` per-window verdict, with
 the window length and the port's step count in it, is the missing label — it turns "no disagreement" into a
 statement about the game rather than about the capture.
+
+## 6. Done: the oracle now labels quiet windows instead of hiding them
+
+`diff_state.py` counts shipped samples captured *inside* each window (before the carry-forward) and reports:
+
+```
+anchor 0x63e14:67: orig t=72005 ms, port t=70948 ms -> port timeline shifted by +1057 ms
+shipped-quiet windows: 27 of 274  (89.8 s of the route; 27 of them with the other side taking samples)
+residual same-width gameplay divergences: 38
+```
+
+Every quiet window is also written per-cell as `SHIPPED-QUIET` with its length and the port's sample count for
+that window, so a reader can see which comparisons were between two live sides and which were between a static
+original and a busy port. The residual stays 38 — none of those cells was disagreement-only-in-quiet-windows —
+which is the point: the count is now a statement about comparable windows.
+
+On this route 89.8 s of 387 s had a completely static shipped DS block while the port kept stepping in every
+one of those 27 windows. That is the next behaviour to explain, and it is a cleaner question than "why is the
+camera range different": the port is animating something during 27 windows in which the shipped program changed
+no byte of its data segment.

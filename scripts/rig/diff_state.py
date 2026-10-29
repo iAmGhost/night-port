@@ -212,6 +212,7 @@ def main():
     for c in cells:
         span[c["name"]] = (c["ds"], c["guest_size"], c["host_size"], c["ptr"])
     phases = phases_from_drive(a.drive)
+    phases_dict = {lbl: (t0, t1) for lbl, t0, t1 in phases}
 
     if a.baseline:
         (orig_side, orig_ptrs), (other_side, other_ptrs) = (load_orig(a.baseline[0]),
@@ -312,9 +313,35 @@ def main():
         ent_only = len(quiet) - len(real)
         print(f"shipped-quiet windows: {len(quiet)} of {len(phases)}  ({tot / 1000.0:.1f} s of the route); "
               f"{len(real)} of them the other side changed a NON-entropy cell in, {ent_only} entropy-motion only")
+        # docs/159 §8: settle the reading-layer conflict inside the oracle -- one code path, one clock, one cell
+        # table -- by printing BOTH sides' entity count and room command list for each quiet window, read with
+        # exactly the offsets the verdict loop uses.
+        probe = {}
+        for c in cells:
+            if c["ds"] in (0x53c68, 0x63e14, 0x639dc):
+                probe[c["ds"]] = c
+        pby = {c["name"]: c for c in other_side[0][2]}   # the port's own blob offsets (docs/159 §8)
+
+        def rd(sample, c, portside):
+            cc = pby.get(c["name"], c) if portside else c
+            o = (cc.get("offset") if cc.get("offset") is not None else cc.get("rec_offset")) \
+                if portside else cc["ds"] - DS_LO
+            if o is None or o + 4 > len(sample):
+                return None
+            return int.from_bytes(sample[o:o + 4], "little")
         for k, v in sorted(real.items(), key=lambda kv: -len(kv[1][2]))[:8]:
-            print(f"   {k}: {v[0] / 1000.0:.1f} s quiet, {v[1]} other-side samples, "
-                  f"{len(v[2])} cells moving: {', '.join(v[2][:8])}")
+            t0, t1 = phases_dict[k]
+            last_o = ob.get(k, [])[-1] if ob.get(k) else None
+            ins = [x[1] for x in sorted(other_side, key=lambda x: x[0]) if t0 <= x[0] < t1]
+            def line(sample, portside):
+                return " ".join(("none" if sample is None else
+                                 f"{c['name']}={rd(sample, c, portside)}")
+                                for c in (probe.get(0x53c68), probe.get(0x63e14), probe.get(0x639dc)) if c)
+            print(f"   {k}: {v[0] / 1000.0:.1f} s quiet, {v[1]} other-side samples, {len(v[2])} cells moving: "
+                  f"{', '.join(v[2][:8])}")
+            print(f"        shipped carried sample: {line(last_o, False)}")
+            if ins:
+                print(f"        port first/last in window: {line(ins[0], True)} | {line(ins[-1], True)}")
     poff = {}
     if is_port:
         poff = {c["name"]: c["offset"] for c in other_side[0][2]}
@@ -331,7 +358,6 @@ def main():
             for dsx, label in spec["cells"].items():
                 fam[int(dsx, 16)] = {"family": fname, "label": label,
                                      "reason": spec["reason"], "docs": spec["docs"]}
-    phases_dict = {lbl: (t0, t1) for lbl, t0, t1 in phases}
     rows = []
     for c in cells:
         ds, gsz, hsz, ptr = c["ds"], c["guest_size"], c["host_size"], c["ptr"]

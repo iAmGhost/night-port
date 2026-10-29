@@ -175,3 +175,29 @@ not a finding yet.** §6's per-window cell lists stay as the oracle's output; th
 entities where shipped's data segment is inert" is downgraded to a hypothesis with a known measurement conflict,
 and the first step to settle it is to have `diff_state.py` print, for each quiet window, both sides' entity count
 and command-list value from the same code path that produced the verdict.
+
+## 9. Resolved inside the oracle: the port's camera is 78 while shipped's is parked at 0
+
+`diff_state.py` now prints, for every quiet window, both sides' entity count (`0x53c68`), room command list
+(`0x63e14`) and camera x (`0x639dc`), read through the same offsets the verdict loop uses and the port's own blob
+offsets (§8's fix). The conflict dissolves:
+
+```
+   P29@162570: 0.7 s quiet, 7 other-side samples, 18 cells moving: ent00..ent03, 0x53c68, 0x53c6c, ...
+        shipped carried sample: g_dat_53c68=3  g_dat_63e14=67  g_dat_639dc=0
+        port first/last in window: g_dat_53c68=3  g_dat_63e14=67  g_dat_639dc=78
+   P31@163400: (same reading)   shipped cam=0   port cam=78
+   P24@160160: (same reading)   shipped cam=0   port cam=78
+```
+
+So: **entity count and command list agree (3 and 67 on both sides); the camera does not — shipped is parked at 0
+for a whole 0.7 s window (and 64 s in `P15`) while the port holds 78.** The §8 probe's `g_dat_639dc=0` for the
+port was the misread, exactly as docs/143's rule predicts: a dump-agrees-with-dump / disagrees-with-live conflict
+locates the defect in the reading layer.
+
+That restores the camera divergence as a finding, and sharpens it: the disagreement is a *parked vs scrolled*
+state, held constant across whole windows, with the population and the command list in agreement at the same
+moment. The scroll guard at `f.c:13774-13901` (`room[+0x36]` / `room[+0x32]` with the `DAT_00053c68 == 1` escape
+arms) is the code that decides parked vs scrolled, and docs/143's queued question — which block `room[+0x32]`
+and `room[+0x36]` actually belong to — is now the blocking measurement, because at the disagreement moment the
+port's camera sits at 78 = a value the scroll-right arm produces (`+3` per call, 26 calls) while shipped stays 0.

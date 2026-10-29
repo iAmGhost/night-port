@@ -8,8 +8,9 @@ actionable, `scripts/audit/reports/gap_frontier.json` splits it by *who calls it
 ```
 base sweep /tmp/rig/fz10/coverage.txt   (nine-stage, 18 seeds, 3 rounds)
   never entered, resolved against the shipped function table : 199
-  SHALLOW  -- at least one caller IS entered by the fuzz corpus : 34
-  NO KNOWN CALLER in the extracted graph                      : 165
+  SHALLOW  -- at least one caller IS entered by the fuzz corpus : 61
+  NO KNOWN CALLER in the extracted graph                       : 55
+  (of the 61 shallow, 4 have three or more covered callers)
 ```
 
 (An earlier version of this cut reported "shallow = 0" because `callees` are stored as guest *addresses*
@@ -44,7 +45,7 @@ Concrete next fuzz grammar, ordered by what the frontier says rather than by key
 3. **`cb_indirect_53644` under `fn_0451bc`**: docs/116 fixed a fault in exactly this family; entering the
    indirect callback under the banner-walk path is the remaining coverage question there.
 
-165 functions have no caller in the extracted graph at all -- those are not fuzz targets yet: either the
+55 functions have no caller in the extracted graph at all (and 83 are reached only by callers that are themselves never entered) -- those are not fuzz targets yet: either the
 extractor missed an indirect call site (a table of function pointers is how this binary dispatches, cf.
 `g_tab_5271c` / `g_tab_523a4`) or the function is reached through one. Resolving indirect dispatch is a static
 audit task, not a fuzz task, and it should precede any further fuzz sweep: without it the frontier understates

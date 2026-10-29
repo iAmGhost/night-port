@@ -53,7 +53,11 @@ timeout 120 python3 "$HERE/calibrate_ds.py" > "$OUT/calib1.log" 2>&1 || { say "c
 # RIG_ENTS=N walks the entity list (+0x13f) on the shipped side, matching the port dumper's ent## cells:
 # entity-level oracles (speed model, hurt band, EXP gates) need it on BOTH sides or they compare nothing.
 ENTS=""
-if [ -n "${RIG_ENTS:-}" ]; then ENTS="--ents $RIG_ENTS"; fi
+# Default to the port dumper's slot count: without it the shipped side has no ent## cells and every
+# entity-level question (docs/136 §7's reaction-code comparison, the EXP gate tuple, the +0x30 dying
+# flag) is unanswerable from a route. RIG_ENTS=0 still turns it off.
+if [ -z "${RIG_ENTS+x}" ]; then RIG_ENTS=12; fi
+if [ -n "${RIG_ENTS:-}" ] && [ "$RIG_ENTS" != 0 ]; then ENTS="--ents $RIG_ENTS"; fi
 timeout $((DUR + 120)) python3 "$HERE/replay_original.py" --drive "$DRIVE" --out "$OUT/orig" \
         --seconds "$DUR" --hz ${RIG_HZ:-4} --audio-capture $ENTS > "$OUT/replay.log" 2>&1
 # the WAV lands inside the container; the mount is /work, so pull it out next to the state snapshots

@@ -83,3 +83,12 @@ that runs too early and a credit path that never runs.
 Next step for this item: instrument `fn_038445`'s entry on both sides (the shipped side through the state
 dump around `0x53100` writes, the port through a witness counter), and check the guard the port applies
 before `f.c:24997` against the guest's branch at 0x000389e0-0x000389f3.
+
+## 7. Correction to §6 (superseded by docs/135)
+
+The guard suspected here *is* reproduced: shipped dispatches on `cmp [0x1336c],1` and the port reaches the
+same credits block only through `if (g_dat_6336c == 1) break;` inside a `for (;;)` loop. fn_038445 has one
+call site on both sides. The 3 -> 2 change in `g_dat_53100` is therefore a *legitimate* CONTINUE path entered
+because the port's player entity died -- with 992 of 1000 hit points (docs/135 §4). This item is reclassified
+from "missing guard" to "spurious player death", and its open question is entity-block lifetime, not the
+room controller's dispatch.

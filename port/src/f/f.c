@@ -25664,6 +25664,14 @@ void fn_012616(uint8_t *e)
                     rec = RECST(((struct sa32 *)((e + 0x17)))->v);
                 }
                 if (e[0x30] == 1) {                                       /* 0x000129c4: the entity dies here */
+                    if (getenv("NIGHT_DEATHTRACE"))
+                        fprintf(stderr,
+                                "deathtrace: tick=%u off=%#x type=%u state=%#x hp=%d exp=%u %s\n",
+                                (unsigned)g_dat_63f08, (unsigned)(e - hb), e[0],
+                                (unsigned)((struct sa32 *)((e + 0x17)))->v,
+                                (int)((struct sa16 *)((e + 0x29)))->v,
+                                (unsigned)((struct ua32 *)((e + 0x32)))->v,
+                                (e == g_player_ent) ? "PLAYER" : "");
                     if (e == g_player_ent) g_dat_6336c = 1;
                     else if (e == g_latched_ent) g_dat_6336c = 3;
                     else if (g_gauge_other_off == (uint32_t)(uintptr_t)(e - hb)) g_gauge_other_off = 0;

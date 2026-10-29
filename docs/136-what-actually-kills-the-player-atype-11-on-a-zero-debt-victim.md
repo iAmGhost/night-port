@@ -75,3 +75,25 @@ layer, not the reaction table, not the death dispatch -- is the source of the pl
 Three runs of the same drive flagged the player at ticks 5832 / 6513 / 7643 / 7732 with hp 992..1000: the
 trigger is reachable on this route in every run, at a different phase (docs/101's entropy cells), so it is not
 a boundary case of one seed.
+
+## 7. Queued measurement, written down so the next run does not have to rediscover it
+
+The open question is a single byte, and both sides can produce it:
+
+- Port side: the drive-language verb `actdump <type> [bytes]` (implemented as `rig_dump_act()` in
+  `port/src/app/rig_sink.c`) captures the *loaded* action container for an entity type. For type 36 the chain
+  the game walks is `lvl2 = *(hb + *(e+0x123) + 4)`, `rec_e = *(hb + lvl2 + 4*state)`, and the reaction code is
+  `byte[rec_e + slot + 0x38]` -- with `state = 0x1d` and `slot = 0` for the hit measured in §4. The port
+  already reports the value it uses through `NIGHT_HITTRACE` (`atype=11`).
+- Shipped side: the same container is on the CD image under `NIGHT/` (the `.act` archives read by the master
+  loader); the shipped value for the same (type, state, slot) triple is therefore readable from the asset
+  without the emulator, and independently from the entity/action records captured in `state_*.heap.bin`
+  (docs/118's census route).
+
+Decision rule: if the shipped byte is outside 0x0b..0x14, the port is resolving the chain to the wrong record
+or the wrong slot (docs/110 §"port consumes slots more often, per-slot level field is large"), and that
+resolution -- not the CD layer, not the reaction table, not the death dispatch -- is the root of the
+player-death cluster and, through it, the CONTINUE-countdown DIFF cell (docs/134 §7) and the extra CD idx12
+selection (docs/135 §2). If the shipped byte is inside 0x0b..0x14, then the shipped game really does kill the
+player on this drive and the divergence is elsewhere in the timeline (docs/131's phase offset), which would
+retire the "spurious death" reading of docs/135.

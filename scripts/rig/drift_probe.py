@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--max-lag", type=float, default=40.0)
     ap.add_argument("--step", type=float, default=0.5)
     ap.add_argument("--grid-hz", type=float, default=2.0)
+    ap.add_argument("--cells-from-md", default="", help="parse DIFF rows out of a diff_state.py --md report")
     ap.add_argument("--cells", default="", help="comma list; default = cells flagged by the state oracle")
     ap.add_argument("--width", type=int, default=4)
     a = ap.parse_args()
@@ -38,8 +39,18 @@ def main():
     off = {c["ds"]: c["offset"] for c in pcells}
     DS_LO = getattr(dt, "DS_LO", 0x50000)
 
+    a.cells_from_md = a.cells_from_md or None
     if a.cells:
         cells = [int(x, 0) for x in a.cells.split(",")]
+    elif getattr(a, "cells_from_md", None):
+        # docs/157 §3: the probe has to sample THE SAME cells the oracle flagged, otherwise "N of M cells
+        # align under a shift" says nothing about whether a flagged divergence is a phase artifact.
+        import re as _re
+        cells = sorted({int(m, 16) for m in
+                        _re.findall(r"\|\s*(?:DIFF|DIFF-WIDTH|DIFF-SIZE)\s*\|\s*(0x[0-9a-f]{4,6})\b",
+                                    open(a.cells_from_md).read())})
+        if not cells:
+            sys.exit(f"no DIFF rows found in {a.cells_from_md}")
     else:
         cells = sorted(off.keys())
 
@@ -69,8 +80,13 @@ def main():
         o, p = trace(orig, ad, False), trace(port, ad, True)
         if all(v is None for v in o) or all(v is None for v in p):
             continue
-        base = sum(1 for x, y in zip(o, p) if x is not None and y is not None and x == y)
-        best = (-1, 0.0)
+        # docs/157 §3(a): equality is only defined on grid slots where BOTH sides have a sample.  Dividing
+        # by the whole grid made unrelated cells share a floor of 0.838 -- that number is the fraction of the
+        # timeline where the port had produced its first sample, not a comparison result.
+        cmp0 = sum(1 for x, y in zip(o, p) if x is not None and y is not None)
+        eq0 = sum(1 for x, y in zip(o, p) if x is not None and y is not None and x == y)
+        lag0 = eq0 / max(1, cmp0)
+        cands = []
         for si in range(nshift):
             sh = (si * a.step) - a.max_lag
             d = int(sh * a.grid_hz)
@@ -80,22 +96,36 @@ def main():
                 if 0 <= j < nt and o[k] is not None and p[j] is not None:
                     tot += 1
                     eq += (o[k] == p[j])
-            if tot > nt * 0.5 and eq / tot > best[1]:
-                best = (sh, eq / tot)
-        if best[0] != 0 or True:
-            rows.append((ad, base / max(1, nt), best[0], best[1]))
+            if tot > nt * 0.5:
+                cands.append((eq / tot, sh))
+        # docs/157 §3(b): ties (constant cells reach the same equality at every shift) used to resolve to the
+        # first candidate, i.e. -max_lag, which then looked like a measured offset.  Pick the equality the
+        # data actually supports at the SMALLEST |lag|, and remember whether the winner sits on the boundary.
+        best_eq, best_lag = lag0, 0
+        for eq, sh in sorted(cands, key=lambda c: (-c[0], abs(c[1]))):
+            if eq > best_eq + 1e-9:
+                best_eq, best_lag = eq, sh
+            elif abs(sh) < abs(best_lag) and eq >= best_eq:
+                best_eq, best_lag = eq, sh
+            break
+        rows.append((ad, lag0, best_lag, best_eq, abs(best_lag) >= a.max_lag - 1e-9))
 
     rows.sort(key=lambda r: -r[3])
-    print("cell            equal@lag0   best lag   equal@best")
-    for ad, e0, sh, e in rows[:40]:
-        print("0x%05x          %6.3f      %+7.1f s     %6.3f" % (ad, e0, sh, e))
+    print("cell            equal@lag0   best lag   equal@best   note")
+    for ad, e0, sh, e, edge in rows[:40]:
+        note = "boundary lag (artifact)" if edge else ("already aligned at lag 0" if sh == 0 else "shifted")
+        print("0x%05x          %6.3f      %+7.1f s     %6.3f   %s" % (ad, e0, sh, e, note))
     good = [r for r in rows if r[3] > 0.9]
-    if good:
-        lags = sorted(r[1] for r in good)
-        print("\ncells that become >90%% equal under some shift: %d of %d" % (len(good), len(rows)))
-        print("their shifts: median %+.1f s, min %+.1f s, max %+.1f s" %
-              (lags[len(lags) // 2], lags[0], lags[-1]))
-    print("cells never >90%% equal: %d" % sum(1 for r in rows if r[3] <= 0.9))
+    good_shifted = [r for r in good if r[2] != 0 and not r[4]]
+    already = [r for r in good if r[2] == 0]
+    edge = [r for r in good if r[4]]
+    print("\ncells >90%% equal with NO shift: %d of %d" % (len(already), len(rows)))
+    if good_shifted:
+        lags = sorted(r[2] for r in good_shifted)
+        print("cells >90%% equal only after a NON-boundary shift: %d  (median %+.1f s, min %+.1f, max %+.1f)"
+              % (len(good_shifted), lags[len(lags) // 2], lags[0], lags[-1]))
+    print("cells whose only alignment sits on the search boundary (not a measurement): %d" % len(edge))
+    print("cells never >90%% equal at any shift: %d" % sum(1 for r in rows if r[3] <= 0.9))
 
 
 if __name__ == "__main__":

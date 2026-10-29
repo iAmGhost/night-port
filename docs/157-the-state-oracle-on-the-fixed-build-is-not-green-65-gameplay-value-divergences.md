@@ -52,34 +52,48 @@ So the honest reading is: the rig is not green, and it is not green in a *struct
 remaining divergence family is the population/camera cluster (docs/142 → docs/153 → docs/155), which is the
 same cluster the media oracles report as the pacing flag.
 
-## 3. The drift probe does not reproduce on this route, and its output must not be read as alignment
+## 3. The drift probe first reported an artifact, then it was fixed and re-measured
 
-docs/132 reported "only 4/37 cells become >90 % equal, all at +0.8 s; 33 never align". Re-run on `/tmp/rig/g15`
-with the current script:
+docs/132 reported "only 4/37 cells become >90 % equal, all at +0.8 s; 33 never align". Re-running the probe on
+`/tmp/rig/g15` initially produced `137 of 283 cells align, median +0.8 s` with `equal@lag0 = 0.838` for
+unrelated cells — and all three parts of that were rig defects, now fixed in `drift_probe.py`:
+
+* **`equal@lag0 = 0.838` was a coverage floor, not a comparison.** Equality was counted over slots where both
+  sides had a sample but divided by the whole grid, so every cell inherited the fraction of the timeline after
+  the port's first sample. The ratio is now taken over comparable slots only.
+* **The "best lag" was pinned to the search boundary.** Constant cells reach the same equality at every shift,
+  and ties resolved to the first candidate — exactly `-max_lag` (`-40.0 s`) — which then read like a measured
+  offset. Ties now resolve to the smallest `|lag|`, and any winner sitting on the boundary is labelled
+  `boundary lag (artifact)`.
+* **The probe sampled a different cell set from the oracle.** None of the flagged cells appeared in its output,
+  so "137 of 283 align" said nothing about the flagged divergences. `--cells-from-md` now feeds it the oracle's
+  own DIFF / DIFF-WIDTH / DIFF-SIZE rows.
+
+Corrected measurement over the 84 cells the oracle flagged on this route:
 
 ```
-cells that become >90% equal under some shift: 137 of 283
-their shifts: median +0.8 s, min +0.7 s, max +0.8 s
-cells never >90% equal: 146
+cell            equal@lag0   best lag   equal@best   note
+0x53c68           0.353         -1.5 s     0.363   shifted        (entity population: docs/137)
+0x63f14           0.461        -21.5 s     0.529   shifted
+0x63f98           0.512        -16.5 s     0.522   shifted
+
+cells >90% equal with NO shift: 12 of 84
+cells >90% equal only after a NON-boundary shift: 10  (median +12.0 s, min -33.5, max +35.0)
+cells whose only alignment sits on the search boundary (not a measurement): 0
+cells never >90% equal at any shift: 62
 ```
 
-Two things are wrong with that and they are rig problems, not game findings:
-
-* `equal@lag0` is `0.838` for a large block of cells (e.g. `0x50010`, `0x51960`, `0x51ad4`, `0x531c8`) — the
-  same number for cells that have nothing in common. A shared baseline that is exactly the same for
-  constant-image cells and live cells means the grid comparison is dominated by something other than the cell.
-* the best lag for those rows is `-40.0 s`, which is the `--max-lag` boundary. A best shift pinned to the edge
-  of the search window is a search artifact, not a measurement.
-
-Also, `drift_probe.py` samples a different cell set from `diff_state.py`: none of the 65 residual cells
-(`0x53c68`, `0x639dc`, `0x63e14`, `0x64000`, …) appear in its output, so "137 of 283 align" says nothing about
-whether the flagged divergences are phase artifacts. Before any "state diffs are green modulo re-phasing" claim
-can be made, `drift_probe.py` must (a) sample the same cell set as the oracle, (b) refuse to report a best lag
-that sits on the search boundary, and (c) explain the `0.838` baseline. Tracked as a rig defect.
+Read honestly: **62 of the 84 flagged cells are value divergences, not phase artifacts.** The 12 that align at
+lag 0 are flagged by window edges rather than content and should be re-checked before being called findings;
+the 10 that align only after a shift do so at 10 *different* shifts spanning −33.5 s to +35 s, which is not a
+timeline offset — a cell that "aligns" at an arbitrary lag inside a ±40 s window is weak evidence of anything.
+docs/132's "+0.8 s for 33/37 cells" claim is superseded by this run.
 
 ## 4. What has to happen before this closeout item can be called green
 
-1. Fix `drift_probe.py` as above, then state how many of the 65 cells are re-phaseable and how many are not.
+1. ~~Fix `drift_probe.py` as above, then state how many of the 65 cells are re-phaseable and how many are
+   not.~~ **Done in the same pass**: 62 of 84 flagged cells never exceed 90 % equality at any shift, 12 align
+   with no shift (window-edge flags), 10 align only at 10 different shifts spread over ±35 s.
 2. Attribute the unattributed block (`0x63f50..0x63f80`, `0x62a8c..0x62a94`, `0x63e7c..0x63ea5`) to shipped
    symbols with writers named from `mem_access.json`, then verdict each.
 3. Move `g_ss_saved` (`0x5333c`) into `dos_extender` only after checking that no game decision reads it.

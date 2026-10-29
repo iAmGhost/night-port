@@ -321,3 +321,24 @@ Standing fix for the rig, named rather than guessed: **resolve the name in the p
 binary-search that table against `__builtin_return_address(0)` and print the symbol directly -- no slide, no `nm`,
 no PIE arithmetic.  Until that is done the census statement stays exactly as strong as the data supports:
 **61 of 63 sample requests on this drive come from one call site**, and that site is unnamed.
+
+## 13. The site, named in-process: `fn_03f6bc+0x208`
+
+`dladdr()` resolves `__builtin_return_address(0)` to a symbol and offset inside the running port, which is what
+§12 said to do and it works with no slide, no `nm`, no PIE arithmetic:
+
+```
+   61 playsite fn_03f6bc+0x208
+    1 playsite fn_03a224+0x4b0
+```
+
+`fn_03f6bc` is the **timed-event tick walker** (the function whose 61-dword tick table at `DS 0x53200` had an
+out-of-bounds walk, fixed in docs/126).  So on this drive the port asks for a sample from the *timed-event*
+path 61 times and from one other site once -- while the shipped binary's biggest cluster of sample requests,
+the 11 sites inside `fn_0113e7` (`0x116c1..0x11819`, described in the port's own header comment as "fn_0113e7's
+ten combat-SFX slots"), contributes **nothing** here.
+
+That is not a coverage gap: `fn_0113e7` is *not* in `scripts/audit/reports/gap_frontier.json`'s never-entered
+set, so the fuzz census does enter it.  The divergence is that its sound-trigger arms are not reached on this
+route -- which is the same gating family as docs/136 (a hit that never reaches the code that applies it) and
+docs/162 §13 (the accumulator re-arm), and it is now measurable as a per-site count on both sides.

@@ -7935,6 +7935,7 @@ void fn_015295(uint8_t *a0, int32_t a1) {
     if (node_off)
         fn_0003b5c0((uint8_t *)(g_heap_base + node_off),
                     a0 == g_latched_ent ? 1 : 0, a0_32, a0_1, a0_9 - 0x1e);
+    g_exp_awards++; g_exp_added += a0_32;           /* witness (docs/126) */
     *(uint32_t *)(g_player_ent + 0x52) += a0_32;    /* 0x15453 accumulator */
 }
 uint8_t *const g_dat_53eb8 = g_dat_53e9c + 0x1c;   /* 0x53eb8 == 0x53e9c + 0x1c: the per-entry script-byte
@@ -22679,6 +22680,9 @@ const uint8_t g_tab_52b84[90] = {
 /* DAT_00053d08 has no object of its own: it is the sound-slot table whose pool the loader fills at
  * DAT_00053d0c (docs/112). The old g_tab_53d08[101] stood over the pool, over g_dat_53e24 and over the
  * 0x53dd* globals -- the static audit files it as c2 port-span-overlap. */
+uint32_t g_exp_awards = 0, g_exp_added = 0;      /* host-side witness (docs/126): kills that reached the
+                                                * 0x15453 accumulator add, and the sum added */
+uint32_t g_exp_commits = 0, g_exp_committed = 0;  /* 0x00038fff commits: count and total moved to +0x2b */
 uint32_t g_sfx_plays = 0;   /* host-side witness (NIGHT_ACTTRACE): element-event sounds played */
 uint32_t g_sfx_oob = 0;     /* events whose slot index fell outside the 100-entry pool */
 
@@ -25033,6 +25037,7 @@ void fn_038f3d(int32_t variant)
     }
     int32_t sel[6];                                                     /* [EBP-0x11c .. -0x108] */
 
+    g_exp_commits++; g_exp_committed += *(int32_t *)(P + 0x52);   /* witness (docs/126) */
     *(int32_t *)(P + 0x2b) = *(int32_t *)(P + 0x2b) + *(int32_t *)(P + 0x52);  /* 0x00038fff-0x00039003 */
     *(int32_t *)(P + 0x52) = 0;                                         /* 0x0003900b */
     for (int k = 0; k < 6; k = k + 1) sel[k] = 0;                       /* 0x00039012-19 fn_041e20(.,0,0x18) */

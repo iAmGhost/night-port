@@ -96,3 +96,35 @@ What that leaves as the defensible discriminator for the EXP item:
 Follow-up (filed, not yet chased): find the guest site that **sets** `entity[+0x52]` (the counter that
 `fn_0137c1` drains) and check whether the port ever writes it — that is the real gate for "EXP number does
 not move", and it is a *write-site* question in the flat model, not a DS-symbol question.
+
+## 6. Retraction: §3's EXP divergence was NOT reproducible — the port shows the same 0 → 0xa → 0x14 ladder
+
+Re-running the port alone on the same drive with the record dump enabled at 4 Hz
+(`./port/test/night --script scripts/rig/drives/ep1_kill3.txt --rig-dump /tmp/rig/xp4 --rig-hz 4`, 876 samples,
+676 live player-record samples) and reading the fields at the constructor-derived offsets:
+
+```
+port   shown(+0x2b): 0x0 ×317, 0xa ×146, 0x14 ×211      shipped: 0x0 ×741, 0xa ×212, 0x14 ×332
+port   acc(+0x52)  : 0x0 ×674, 0x2 ×1, 0x6 ×1           shipped: 0x0 ×1285, 0x3 ×2, 0x8 ×1
+port   hp(+0x29)   : 0x3e8 in all live samples          shipped: 0x3e8 with 0x3e5 / 0x3dd dips
+```
+
+The ladder is identical. So the §3 claim ("exp_total never reaches the shipped 10/20 ladder") was an artifact
+of the `/tmp/rig/g2` run — in that dump the `g_player_ent` record block was filler (`0xaa`) in 434 of 2160
+samples and the live samples carried the drive's different fight/damage profile. Lesson recorded as rig
+hygiene: a record-field claim must state the run, the sample cadence (`--rig-hz`) and the live-sample count,
+because a pointer-cell block can be *unallocated* in some samples and a window with no kills has nothing to
+compare.
+
+### 6b. How the EXP number actually moves (write sites, from the port's transcription of the guest)
+
+* kill award: `*(g_player_ent + 0x52) += victim[+0x32]` at guest `0x15453` (port `f.c:7938`),
+  plus `+= e[+0xbb]` (`f.c:24734`);
+* HUD roll-up: `fn_0137c1` ramps `+0x2b` up while `+0x52` drains, on even ticks (`0x0138ba-dc`);
+* status screen: `fn_038f3d` (guest `0x00038f3d`, THE LEVEL-UP / STATUS SCREEN) folds the pending
+  experience in one shot: `P[+0x2b] += P[+0x52]; P[+0x52] = 0` (`0x00038fff-0x0003900b`).
+
+Witnesses added for this (`NIGHT_ACTTRACE` block): `exp award path: adds=2 added=20 commits=0 committed=0`,
+i.e. on this drive the kill award fires twice for 20 points and the **status-screen fold never runs** —
+consistent with `fn_038f3d` being one of the never-entered functions in the fuzz census (docs/120). The
+visible ladder therefore comes from the roll-up on both sides, which the census confirms.

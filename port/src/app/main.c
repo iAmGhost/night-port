@@ -1550,6 +1550,8 @@ int main(int argc, char **argv) {
         const uint32_t *tg = act_trace_targets();
         SDL_Log("  matched chain targets:");
         for (int i = 0; i < 0x100; i++) if (tg[i]) SDL_Log("    target %#04x  %u", i, tg[i]);
+        SDL_Log("exp award path: adds=%u added=%u commits=%u committed=%u",
+                g_exp_awards, g_exp_added, g_exp_commits, g_exp_committed);
         SDL_Log("element-event sounds: played=%u outside-pool=%u", g_sfx_plays, g_sfx_oob);
         const uint32_t *ta = act_trace_targets_all();
         SDL_Log("  targets offered by the container (one-shot inventory):");

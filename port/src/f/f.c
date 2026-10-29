@@ -15161,6 +15161,14 @@ void fn_0113e7(uint8_t *e)
     c[0x30] = 1;                        ((struct ua32 *)((c + 0x17)))->v = 3;   /* 0x1166b-75 */
     arena_flag_check(c, "fn_0x1164b c");
 
+    /* docs/166 §14: the death-SFX dispatcher is gated on entity+0x30 == 1.  Census what value it
+     * actually finds on the way in, because docs/135 and docs/162 measured +0x30 values of 0, 2 and
+     * (stale) 7 -- and never 1. */
+    if (getenv("NIGHT_AUDIODUMP")) {
+        static unsigned g_esc_in;
+        if (++g_esc_in <= 2000 || (g_esc_in % 500u) == 0u)
+            fprintf(stderr, "esc30 in=%u e30=%u type=%u\n", g_esc_in, e[0x30], e[0x00]);
+    }
     if (e[0x30] != 1) return;                                     /* 0x1167b-7f */
     int32_t t = ((struct sa32 *)((e + 0x0d)))->v;                     /* 0x11685 */
     if (t >= 0x0c && t <= 0x11) {                                 /* 0x116c6: sound-slot indirection */
@@ -25836,6 +25844,14 @@ const uint32_t g_tab_531e0[5] = { 0x6c, 0x79, 0x87, 0x92, 0x9e };
  */
 void fn_01194c(uint8_t *e)
 {
+    /* docs/166 §14: entry census for the dispatcher that owns the SND arms (fn_0113e7's caller,
+     * reached from fn_012616 only for entities whose type byte is <= 1). */
+    if (getenv("NIGHT_AUDIODUMP")) {
+        static unsigned g_disp_in;
+        if (++g_disp_in <= 1500 || (g_disp_in % 500u) == 0u)
+            fprintf(stderr, "disp in=%u type=%u state=%02x e30=%u\n",
+                    g_disp_in, e[0x00], (unsigned)(((struct sa32 *)((e + 0x17)))->v & 0xff), e[0x30]);
+    }
     if (walk_trace_on() && e == g_player_ent) g_step_player_01194c++;   /* docs/152 §4 */
     (void)canary_id((uintptr_t)e, 0x14);                                 /* 0x0001194c-52 probe */
     const uint32_t st = ((struct ua32 *)((e + 0x17)))->v;                   /* the jump-table index */

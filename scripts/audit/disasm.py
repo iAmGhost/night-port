@@ -67,6 +67,10 @@ def main():
     ap.add_argument("--end", type=lambda x: int(x, 16))
     ap.add_argument("--bytes", type=lambda x: int(x, 0), default=0)
     ap.add_argument("--search", help="hex byte pattern to locate (prints the implied base)")
+    ap.add_argument("--all", action="store_true",
+                    help="with --search: list EVERY hit, its guest address, its enclosing function, and the "
+                         "decoded instruction.  Without this the tool prints only the first hit, which is what "
+                         "made byte-pattern absence claims misleading (docs/166 §15).")
     ap.add_argument("--mnem", default="", help="only show instructions whose mnemonic contains this")
     ap.add_argument("--verify", action="store_true")
     a = ap.parse_args()
@@ -79,12 +83,48 @@ def main():
         verify(image)
     if a.search:
         pat = bytes.fromhex(a.search)
-        n = image.count(pat)
+        hits = []
         i = image.find(pat)
-        print(f"pattern {a.search}: {n} hit(s), first at file {i:#x}")
-        if i >= 0:
-            print("to get its guest address: guest = file + 0x2600 (code)")
-        return
+        while i >= 0:
+            hits.append(i)
+            i = image.find(pat, i + 1)
+        print(f"pattern {a.search}: {len(hits)} hit(s), first at file {hits[0] if hits else -1:#x}")
+        if not hits:
+            return
+        print("to get its guest address: guest = file + 0x2600 (code)")
+        if not a.all:
+            return
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        fns = json.load(open(os.path.join(HERE, "functions.json")))
+        spans = sorted((int(f["entry"], 16), int(f["entry"], 16) + int(f.get("body_bytes") or 0), f["name"])
+                       for f in fns if f.get("entry"))
+
+        def owner(g):
+            lo, hi = 0, len(spans) - 1
+            while lo <= hi:
+                m = (lo + hi) // 2
+                if spans[m][1] <= g:
+                    lo = m + 1
+                elif spans[m][0] > g:
+                    hi = m - 1
+                else:
+                    return spans[m][2]
+            return "?"
+
+        per_fn = {}
+        for off in hits:
+            g = off + CODE_BASE
+            fn = owner(g)
+            per_fn.setdefault(fn, []).append(g)
+            # disassemble the owning body so the hit lands on an instruction boundary
+            start = next((e for e, _h, n2 in spans if n2 == fn), g)
+            body = image[start - CODE_BASE: start - CODE_BASE + 0x1000]
+            ctx = [x for x in md.disasm(body, start) if g - 0x10 <= x.address <= g + 0x10]
+            line = next((f"{x.mnemonic} {x.op_str}" for x in ctx if x.address == g), "<undecoded>")
+            print(f"  {g:#07x}  {fn:<12s}  {line}")
+        print("# per function:")
+        for fn, gs in sorted(per_fn.items(), key=lambda kv: -len(kv[1])):
+            print(f"  {len(gs):>3d}  {fn}")
     if a.entry is None:
         return
     off = a.entry - CODE_BASE

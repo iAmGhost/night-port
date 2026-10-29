@@ -342,3 +342,72 @@ That is not a coverage gap: `fn_0113e7` is *not* in `scripts/audit/reports/gap_f
 set, so the fuzz census does enter it.  The divergence is that its sound-trigger arms are not reached on this
 route -- which is the same gating family as docs/136 (a hit that never reaches the code that applies it) and
 docs/162 §13 (the accumulator re-arm), and it is now measurable as a per-site count on both sides.
+
+## 14. Why the sound-dispatch arms never fire: the states they live under are never entered
+
+Two entry censuses in the port (`NIGHT_AUDIODUMP`), `ep1_kill3`, 4000 frames.
+
+`fn_01194c` -- the dispatcher that owns the sound arms (29 `SND` arms, i.e. `fn_0113e7(e)` calls, matching the
+29 call sites `call_sites.py` finds in the shipped 956-instruction body):
+
+```
+entered 2500 times      type: 1 x1001, 0 x501 (sampled prints)
+state (+0x17) seen:     0x01 x925, 0x02 x575, 0x00 x2      (1502 sampled prints, nothing else)
+entity+0x30 seen:       0 x1502     -- never 1
+```
+
+`fn_0113e7` -- the function that holds the 11 sound-trigger arms, entered **zero** times (0 witness lines while
+the witness is confirmed present in the binary).
+
+Its own gate is `if (e[0x30] != 1) return;` (guest `0x1167b-7f`), and the dispatcher's arms sit under states
+`0x15, 0x16, 0x17, 0x18, 0x1e, 0x8d` (`st < 0x1a` / `st == 0x16` / ... range tree at `f.c:25867+`).  The port's
+dispatched entities are in states 0, 1, 2 with `+0x30 == 0`, so **every sound arm is above the state the entities
+actually reach**.  This is a state-population divergence upstream of the SFX plumbing, not a broken SFX chain:
+docs/113 (sound-slot alias) and docs/164 (`NIGHT_PLAYVOC=7` plays a real VOC block) still hold, and the only
+samples the port requests on this drive come from the timed-event path (`fn_03f6bc+0x208`, 61 of 62).
+
+The shipped gate chain feeding the dispatcher was decoded verbatim (`0x12644-0x126a5`) and the port reproduces
+it faithfully -- which **killed a candidate defect** I had formed: shipped does *not* promote `type = 1`
+unconditionally when `entity[+0x11] > 0x12`; both promotions are state-gated (`state == 0x1d && +0x11 > 0x2d`,
+`state == 0x16 && +0x11 > 0x12`) behind `e != player && type == 0`.  Checked against the disassembly instead of
+assumed, so nothing was "fixed".
+
+## 15. Byte-pattern absence claims need the register variants, and pattern hits are not instructions
+
+Hunting the writers of the state field:
+
+| pattern | meaning | hits |
+|---|---|---|
+| `8b4017` | `mov eax, [eax+0x17]` (read) | 18 |
+| `c60001` | `mov byte [eax], 1` | 7 |
+| `c74017 / c77f17 / c77617` | `mov dword [eax/edi/esi+0x17], imm32` | 0 |
+| `894017 / 895817 / 894817 / 897017 / 897817` | `mov [eax+0x17], eax/ebx/ecx/esi/edi` | 0 |
+| `895017` | `mov [eax+0x17], edx` | **32** |
+
+The ModRM byte encodes the *base register*, so `[eax+0x17]`, `[edi+0x17]`, `[esi+0x17]` are different patterns;
+searching one and concluding "nobody writes the state field" would have been a false absence.  The guest writes
+it exclusively through `edx`-source stores.
+
+`disasm.py --search` made this worse than it needed to be: it reported only the *first* hit.  It now has `--all`,
+which lists every hit with its guest address, enclosing function and decoded instruction.  Doing so exposed a
+second rule: of 32 pattern hits, only **14 decode as the intended store on an instruction boundary** -- the rest
+are bytes inside other encodings.  Pattern counts overstate instruction counts.
+
+Mapped writers of `entity[+0x17]`: `fn_03272f` (4 sites, the `.act` chain matcher of docs/110), the per-type
+entity-controller family `fn_02319c, fn_024bf9, fn_0265ac, fn_027bec, fn_029709, fn_02adf5, fn_02c838, fn_02e2cc,
+fn_02fe1e, fn_031f5f` (1-2 each), plus `fn_01441e` (the hit code).  The port has state-write sites in **all 14**
+of those functions, so the writers are wired; the states simply are not reached on this route.
+
+## 16. Rig defect filed: fixed-stride slicing of the shipped heap dump (fourth occurrence of this error class)
+
+To compare state populations I histogrammed `state(+0x17)` over `state_*.heap.bin` on both sides.  The shipped
+side came out clean-looking (`0x28` x2889 for type 0, `0x29` x175 for type 1, `0x33/0x34/0x35`, `0x0b/0x0c`), the
+port side implausible (`0x3f, 0x100, 0x7f, 0x18`).  The shipped numbers are **partly an artifact of my own
+slicing**: each dump is 22 528 bytes, but the pointer cells are 52 x 352 = 18 304 bytes, so 4 224 bytes of
+*action-record chain blocks* (33 x 128) sit at the tail.  Slicing the whole file at a fixed 352-byte stride
+misaligns that tail and invents ~12 fake blocks.  The rule in docs/115 -- **use the dump's explicit block
+offsets, never a derived stride** -- was violated again; this is the fourth time this error class has shown up,
+which means the fix belongs in the dump format (write a block table next to the bytes), not in more care.
+
+Trustworthy from §14: the port's own in-process censuses, which read live records through the same pointers the
+game uses.  Not trustworthy yet: any cross-side record-field histogram built by striding a heap blob.

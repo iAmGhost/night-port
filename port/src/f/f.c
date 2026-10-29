@@ -26347,13 +26347,13 @@ static uint8_t *e20f_spawn(int32_t anchor_x, const uint8_t *rec, int stamp_gate)
                  (int)((struct sa32 *)((g_dat_63354 + 0x32)))->v,
                  (int)((struct sa32 *)((g_dat_63354 + 0x36)))->v,
                  (int)((struct ua32 *)((g_dat_63354 + 0x40)))->v);
-    if (g_dat_63354 && getenv("NIGHT_ROOMHEX"))                          /* identity check against the dump's
-        for (int q = 0; q < 1; q++) {                                   * record block, docs/143 */
-            fprintf(stderr, "ROOMHEX ");
-            for (int k = 0; k < 0x48; k++)
-                fprintf(stderr, "%02x", g_dat_63354[k]);
-            fprintf(stderr, "\n");
-        }
+    /* identity check against the dump's record block, docs/143 */
+    if (g_dat_63354 && getenv("NIGHT_ROOMHEX")) {
+        fprintf(stderr, "ROOMHEX ");
+        for (int k = 0; k < 0x48; k++)
+            fprintf(stderr, "%02x", g_dat_63354[k]);
+        fprintf(stderr, "\n");
+    }
     uint32_t blk = fn_00041bdc(0x14f);                                   /* 0x0003e42b (orig 0x147) */
     uint8_t *ent = NULL;
     if (blk != 0) {                                                      /* 0x0003e43e */

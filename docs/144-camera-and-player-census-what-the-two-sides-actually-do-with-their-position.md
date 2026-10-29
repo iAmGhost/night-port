@@ -103,3 +103,52 @@ so far is downstream of it.
    (`fn_017637`/`fn_0174a2`/`fn_01519f` family, and the `0x140`-relative clamp), then diff against f.c's copies.
 3. Finish the identity check on the spawn path: print `fn_03ed6f`'s room *parameter* pointer alongside the
    global, so the byte-vs-dword disagreement at `+0x11` is attributed to a specific object.
+
+## 6. Self-correction: §3's "+0x11 paradox" was my arithmetic error, and the record reading is sound
+
+`35584` is `0x8B00`, not `0x8B40`. The dump's room block at `+0x10..+0x14` is `00 00 8b 00`, so
+
+* `byte[+0x11] = 0x00` -- which is exactly what the live `NIGHT_SPAWNTRACE` witness printed (`room11=0`);
+* `dword[+0x11] = 0x00008b00 = 35584` -- which is exactly what the live `ROOM` line printed (`d11=35584`).
+
+A byte of 0 and a dword of 0x8B00 at the same address are perfectly consistent (the dword's low byte *is* that
+zero byte). There was never a contradiction, so docs/143 §5's "the dump and the live witness disagree at
++0x11" is void, and docs/142 §4's field reading of this block stands. `f.c:22876` (`room = g_dat_63354`) and
+`f.c:22941` (`fn_03d4e4(room)`) already said the camera path reads this very block.
+
+Corrected room-record stop-bound census, same dumps, all samples:
+
+| field | shipped | port |
+|---|---|---|
+| `+0x2a` left stop | 0 in 976/976 | 0 ×861, **232 ×454, 100 ×259** |
+| `+0x2e` right stop | 0 in 976/976 | 0 in 1574/1574 |
+| `+0x32` left stop-2 | 0 | 0 |
+| `+0x36` right stop-2 | 0 in 976/976 | 0 ×1147, **617 ×427** |
+| `+0x3a` / `+0x3b` disable bytes | 0 / 0 | 0 / 0 |
+
+The `617` closes the camera question quantitatively: the guard allows the right scroll only while
+`cam + 0x140 <= room[+0x36]`, i.e. `cam <= 617 - 320 = 297` -- and the port's camera maximum over the whole
+run is **298**. The port's camera is pinned by exactly that stop bound. The shipped side has no such bound
+(every stop field is 0) yet its camera never leaves 27, so the shipped camera is *not* limited by a bound at
+all: its own precondition `player[+1] - cam > 0xbe` is simply never satisfied (§1: 6 samples in 976).
+
+## 7. What the shipped player is doing instead
+
+Player state census from the same record dumps:
+
+```
+shipped states: 0x01 x362, 0x02 x240, 0x33 x81, 0x0c x62, 0x0b x59, 0x35 x58
+port    states: 0x01 x601, 0x02 x283, 0x15 x168, 0x33 x116, 0x00 x109, 0x0b x94
+```
+
+The shipped run spends 139 samples in the `0x33 / 0x35` family (with `0x34` seen in docs/137) -- the states the
+port itself labels as the rope / single-axis family (`f.c:20467`: "`e + 0x17 == 0x34`: the single-axis rope").
+The port run spends 168 samples in `0x15` (the state the stride-4 reaction table produces for hit code 11,
+docs/137) and 109 samples in state 0, and has no `0x35` samples at all.
+
+So on the same drive the shipped player is parked in a rope/climb family inside one screen (x never past 217,
+camera never past 27) while the port's player walks two screens to the right. That reframes the chain once
+more, and this time at the top: **the port advances the room while the shipped game sits still.** docs/139's
+`DAT_00063e14` command consumption, docs/142's camera scroll and everything downstream of it are consequences
+of that, and the state census says where to look next: the `0x33/0x34/0x35` family and whoever puts the player
+into it.

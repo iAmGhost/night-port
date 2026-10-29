@@ -164,3 +164,30 @@ consecutive-sample runs (or from chain-slot occupancy) is queued before any "ene
 3. Track `+0x23`/`+0x56` per player identity over aligned time at high cadence and find the first sample where
    the port's debt is positive while shipped's is zero — the same "first divergence" method that worked for the
    entity population in `pop_align.py`.
+
+## 8. The witness shows the mechanism frame by frame (`NIGHT_HITTRACE`, 250 s run)
+
+```
+HIT atk(type=31 st=29) vic(type=0 PLAYER st=01) slot=0 atype=1 dmg=1 hp 1000->1000 debt 99 ovs 0
+HIT atk(type=31 st=29) vic(type=0 PLAYER st=0b) slot=1 atype=1 dmg=3 hp 1000->1000 debt 96 ovs 0
+HIT atk(type=31 st=29) vic(type=0 PLAYER st=0b) slot=2 atype=2 dmg=6 hp 1000->1000 debt 90 ovs 0
+HIT atk(type=31 st=29) vic(type=0 PLAYER st=01) slot=0 atype=1 dmg=1 hp 1000->1000 debt 89 ovs 0
+HIT atk(type=0  st=33) vic(type=31       st=02) slot=0 atype=2 dmg=2 hp 0->0        debt 33 ovs 0
+```
+
+Every hit on the player **subtracts from the debt word and leaves hp untouched** (100 → 99 → 96 → 90 → 89 …),
+which is the shipped `0x14964` arm working as written: damage only reaches `+0x29` when the debt reaches
+`<= 0`.  Rejections are cheap to count in the same log: 81 `HIT` lines against **11 `GATE1` rejections**
+(victim carries `+0x30 == 1`, freshly spawned and inert) and **1 `GATE2` rejection** (the intangible frame
+window) — so the hit test is not where the damage is being lost.  The loss is the settle threshold.
+
+The player's debt is armed by `fn_0377xx`-side code, not by the hit path: the port clears it
+(`g_player_ent + 0x23 = 0` at guest `0x37756`, `f.c:5509`) and puts the 100 into the **accumulator**
+(`g_player_ent + 0x56 = (int16)g_dat_53e9c[0]`, guest `0x377a1`, `f.c:5512`); `fn_0137c1` then moves one unit
+per frame from the accumulator into the debt (guest `0x0138ea-fd`).  Since the shipped dump shows the debt at
+zero in 70 % of the player's live samples and the port's at non-zero in 83 %, the open question is now sharp
+and narrow: **what brings the shipped player's debt back to zero, and how often?**  `fn_01441e` never writes a
+positive debt, and `fn_0137c1` only ever *increments* it, so the candidates are the two paths that zero it --
+the settle at guest `0x14984` and the arming clear at `0x37756` -- and the measurement that separates them is a
+per-frame `+0x23`/`+0x56` trace on the port (existing witnesses) against the shipped dump's high-cadence
+`+0x23` series, time-aligned on the docs/158 anchor.

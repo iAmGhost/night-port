@@ -67,25 +67,55 @@ def census(blocks, label):
         print(f"  max counter {worst[0]} on slot {worst[2]} state 0x{worst[1]:x}")
 
 
+def port_blocks(path):
+    samples, cells = load_port(path)
+    ents = [c for c in cells if str(c.get("name", "")).startswith("ent")]
+    out = []
+    for smp in samples:
+        blob = smp[1]
+        for c in ents:
+            off = c.get("offset")
+            if off is None:
+                continue
+            ln = c.get("rec_bytes") or 0x160
+            out.append((c["name"], blob[off:off + 0x160]))
+    return out
+
+
+def orig_blocks(path):
+    """The shipped dumper stores one fixed-size block per pointer cell, concatenated in the order
+    timeline.json records. Block size is derived from that file (docs/124: read the dump's own geometry,
+    never guess it)."""
+    import json
+    tl = json.load(open(os.path.join(path, "timeline.json")))
+    # ptr_cells entries are dicts ({'ds':..,'name':..,'rec_bytes':..}); the name is what identifies a slot
+    names = [c.get("name") if isinstance(c, dict) else c for c in (tl.get("ptr_cells") or [])]
+    out = []
+    for smp in load_orig(path)[0]:
+        heap = smp[2] if len(smp) > 2 else b""
+        if not names or not heap:
+            continue
+        bs = len(heap) // len(names)
+        for j, n in enumerate(names):
+            if str(n).startswith("ent"):
+                out.append((n, heap[j * bs:(j + 1) * bs]))
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--orig", required=True)
     ap.add_argument("--port", required=True)
     a = ap.parse_args()
-    for label, path, loader in (("ORIG", a.orig, load_orig), ("PORT", a.port, load_port)):
+    for label, path in (("ORIG", a.orig), ("PORT", a.port)):
         if not os.path.isdir(path):
             print(f"{label}: no dump at {path}")
             continue
-        data = loader(path)
-        samples = data[0]
-        blocks = []
-        for s in samples:
-            # orig sample: (t, ds, heap_blocks dict of cell -> bytes); port: (t, heap, cells, dict)
-            d = s[2] if len(s) >= 3 and isinstance(s[2], dict) else (s[3] if len(s) > 3 and isinstance(s[3], dict) else {})
-            for cell, blk in (d or {}).items():
-                name = cell if isinstance(cell, str) else str(cell)
-                if name.startswith("ent") and isinstance(blk, (bytes, bytearray)):
-                    blocks.append((name, bytes(blk)))
+        try:
+            blocks = orig_blocks(path) if label == "ORIG" else port_blocks(path)
+        except Exception as exc:
+            print(f"{label}: unreadable ({exc})")
+            continue
         census(blocks, label)
 
 

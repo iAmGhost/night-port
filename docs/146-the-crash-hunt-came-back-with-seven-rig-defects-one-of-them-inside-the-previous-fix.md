@@ -217,3 +217,31 @@ survived as a crash or smuggled into the oracle as fabricated bytes.
 | 7 | injection could set a count the chain cannot back | refused against the live `+0x13f` chain |
 | 8 | array extent guess (`rec[+0x17]`) | **retracted** after the fixtures rejected it |
 | 9 | `--frames` was a floor, not a budget | fixed; 221 s → 6 s |
+
+## 12. The shipped side answers the §8 question: the counter runs long on both sides, the port runs longer
+
+`scripts/rig/frame_counter.py` measures the entity frame counter (`+0x11`, from the constructor's store set,
+docs/125) on the player record, shipped and port, from the route dumps. Two rig bugs had to be cleared first:
+the block extraction ignored the dump's own pointer-cell entries (`ptr_cells` are dicts, the *name* is what
+identifies a slot), and it inferred the shipped block size instead of deriving it — `len(heap.bin) /
+len(ptr_cells)` = 352 B, matching the port's record width. With those fixed:
+
+```
+ORIG (g10, ep1_kill3, 170 s):  player records=488   +0x11 max=63  median=30   >3 in 366/488
+PORT (same drive):             player records=1544  +0x11 max=88  median=42   >3 in 1198/1544
+```
+
+So the question §8 raised is answered against the shipped binary, not by assumption: **the shipped player's
+counter also runs far past the record's frame byte** (max 63 here, in 75% of samples), which is exactly why
+bounding the array index by `rec[+0x17]` was wrong and why the fixtures rejected it. Indexing the Y/X delta
+arrays deep is normal shipped behaviour; the port's only real problem was that a deep index eventually walks
+off the end of its own arena, where the guest stays inside its one big mapped block.
+
+What is left as a genuine divergence is the magnitude, in the same direction as docs/142's camera finding:
+the port's player counter reaches 88 where the shipped reaches 63, and its median is 42 against 30 — the port's
+player stays in the same action ~40% longer. That is a measurement of *how long the action runs*, not of array
+semantics, and it is the number to chase next.
+
+Note the sample-count asymmetry (1544 vs 488 records): the port dumps at 10 Hz, the shipped side at 4 Hz on
+this route. The max/median are cadence-independent; the ratios are not, and are quoted anyway because the
+direction is the same at either cadence (docs/115's cadence rule).

@@ -74,3 +74,32 @@ or computed from the wrong value.
 3. Make `DAT_639dc` a first-class oracle row with its *trace*, not just its value -- a camera that scrolls
    where the original stands still is a whole-family divergence, and every screen/pacing/spawn flag downstream
    of it is expected to close once it does.
+
+## 4. Queued step 1 is measured: the room's scroll-right limit is the divergent field
+
+The room record (`g_dat_63354`) is dumped on both sides (352-byte record block per sample), so its fields were
+read directly:
+
+| field | shipped (976 samples) | port (1574 samples) |
+|---|---|---|
+| `room[+0x00]` x_lo | 0 | 0 |
+| `room[+0x08]` x_hi | 1600 | 1600 |
+| `room[+0x32]` scroll-left limit | 0 | 0 |
+| **`room[+0x36]` scroll-right limit** | **0 in 976/976** | **0 in 1147, 617 in 427** |
+| `room[+0x11]` | 35584 | 35584 |
+| `room[+0x40]` track index | 0 | 0 |
+
+Everything the camera logic reads is identical between the sides **except** `room[+0x36]`: the port's room
+record carries a scroll-right limit of 617 for 27% of samples where the shipped record has 0.
+
+That inverts the naive reading of the scroll condition. With `room[+0x36] == 0` the guard
+`room[+0x36] == 0 || cam + 0x140 <= room[+0x36]` *permits* the call to `fn_03cb38` -- and the shipped camera
+still parks at 0/24/27, which means the shipped clamp inside `fn_03cb38` (the `MOV [0x639dc], EAX` writes at
+0x3cb98, and the room's own extent) is what stops it. The port instead advances to 298 in a room whose record
+it believes has a 617-pixel scroll window. So the divergence is in **what `room[+0x36]` holds**, i.e. in the
+room-record loader (`fn_03cad3` / the room-node reader that writes +0x32/+0x36), not in the scroll arithmetic.
+
+Next check, unchanged in shape and now narrowed to one field: dump the guest writes to the room node's `+0x36`
+(who stores it, from which source value) and compare with the port's room loader. If the shipped loader leaves
+`+0x36` at 0 for this room and the port fills 617, the clamp never engages in the port, the camera scrolls
+300 pixels, the camera-relative spawn gates open, and everything in docs/137/138/139 follows.

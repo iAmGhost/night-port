@@ -286,14 +286,35 @@ def main():
     # for comparing values but it silently turns "the original was idle" into "the two sides agree".  A quiet
     # window is now labelled with its length and the other side's activity, so the claim stays checkable.
     quiet = {}
-    for label, t0, t1 in phases:
-        if o_raw[label] == 0:
-            quiet[label] = (int(t1 - t0), p_raw[label])
+    if True:
+        p_srt = sorted(other_side, key=lambda x: x[0])
+        for label, t0, t1 in phases:
+            if o_raw[label]:
+                continue
+            ps = [x[1] for x in p_srt if t0 <= x[0] < t1]
+            moved = set()
+            # the port's own cell table, not the shared rig table: entity record slots (ent00..) live only there
+            pc = other_side[0][2] if is_port else cells
+            for i in range(1, len(ps)):
+                for c in pc:
+                    w0 = max(1, c["host_size"])
+                    if any((c["ds"] + k) in entropy for k in range(max(w0, c["guest_size"] or 1))):
+                        continue          # entropy cells are excluded on BOTH sides (docs/101)
+                    co = c.get("offset", c.get("rec_offset"))
+                    if co is None or co + w0 > len(ps[i]):
+                        continue
+                    if ps[i][co:co + w0] != ps[i - 1][co:co + w0]:
+                        moved.add(c["name"])
+            quiet[label] = (int(t1 - t0), len(ps), sorted(moved))
     if quiet:
         tot = sum(v[0] for v in quiet.values())
-        act = sum(1 for v in quiet.values() if v[1] > 0)
-        print(f"shipped-quiet windows: {len(quiet)} of {len(phases)}  ({tot / 1000.0:.1f} s of the route; "
-              f"{act} of them with the other side taking samples in the same window)")
+        real = {k: v for k, v in quiet.items() if v[2]}
+        ent_only = len(quiet) - len(real)
+        print(f"shipped-quiet windows: {len(quiet)} of {len(phases)}  ({tot / 1000.0:.1f} s of the route); "
+              f"{len(real)} of them the other side changed a NON-entropy cell in, {ent_only} entropy-motion only")
+        for k, v in sorted(real.items(), key=lambda kv: -len(kv[1][2]))[:8]:
+            print(f"   {k}: {v[0] / 1000.0:.1f} s quiet, {v[1]} other-side samples, "
+                  f"{len(v[2])} cells moving: {', '.join(v[2][:8])}")
     poff = {}
     if is_port:
         poff = {c["name"]: c["offset"] for c in other_side[0][2]}

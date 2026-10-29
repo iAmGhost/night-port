@@ -118,7 +118,28 @@ that window, so a reader can see which comparisons were between two live sides a
 original and a busy port. The residual stays 38 — none of those cells was disagreement-only-in-quiet-windows —
 which is the point: the count is now a statement about comparable windows.
 
-On this route 89.8 s of 387 s had a completely static shipped DS block while the port kept stepping in every
-one of those 27 windows. That is the next behaviour to explain, and it is a cleaner question than "why is the
-camera range different": the port is animating something during 27 windows in which the shipped program changed
-no byte of its data segment.
+On this route 89.8 s of 387 s had no shipped sample at all. The claim "the port was animating while the shipped
+program was frozen" needed the same treatment as everything else in this file: measure which cells the port
+actually changed inside those windows, excluding entropy cells on both sides (docs/101), and using the port's own
+cell table so the entity record slots (`ent00..ent11`) are visible. Result — **5 of 27 are entropy motion only
+(agreement), 22 of 27 carry real gameplay motion on the port side**:
+
+```
+shipped-quiet windows: 27 of 274  (89.8 s of the route); 22 with non-entropy port activity, 5 entropy-only
+   P15@88000  : 64.0 s quiet, 22 port samples, 13 cells: ent00, ent01, ent02, ent03, 0x51c98, 0x53c68, 0x53c74...
+   P17@155000 :  2.6 s quiet, 25 port samples, 13 cells: ent00..ent02, 0x62a94, 0x63360, 0x6339c...
+   P29@162570 :  0.7 s quiet,  7 port samples, 18 cells: ent00..ent03, 0x53c68, 0x53c6c, 0x53c74...
+   (plus 19 more windows of 0.7-2.6 s, all moving entity records, 0x53c68 entity count, and the hit/gauge
+    bookkeeping 0x63360 / 0x6339c)
+```
+
+So the finding survives, but with the right shape: a **64-second window** (`P15`, anchor-relative ~+16 s) in which
+no masked byte of the shipped data segment changed while the port moved its player and enemy records, its entity
+count (`0x53c68`) and its hit/gauge bookkeeping (`0x63360`, `0x6339c`) across 22 samples — and 19 further
+short windows of the same character. The rig's first rephrasing was wrong (it counted 27/27 as "port active");
+with entropy cells excluded and record slots visible, 5 of them are pure clock/RNG motion and are agreement.
+
+The rig defect that produced the wrong split is worth naming: the quiet-window activity scan iterated the shared
+rig cell table, which does not contain the port's `ent##` record slots. Those slots are where almost all real
+port activity happens, so a scan over the shared table reports "nothing moved" for 27 of 27 windows. Fixed to
+iterate the port's own meta cell list.

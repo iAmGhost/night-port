@@ -128,3 +128,17 @@ Witnesses added for this (`NIGHT_ACTTRACE` block): `exp award path: adds=2 added
 i.e. on this drive the kill award fires twice for 20 points and the **status-screen fold never runs** —
 consistent with `fn_038f3d` being one of the never-entered functions in the fuzz census (docs/120). The
 visible ladder therefore comes from the roll-up on both sides, which the census confirms.
+
+## 6c. Two side results from re-running the pre-fix build (`d22e4a7` in `/tmp/prefix`)
+
+* **Independent red for the docs/116 SEGV.** Running the pre-fix binary with `--res-dir NIGHT` from the
+  worktree (where `NIGHT/` is not checked out) crashed with `rc=139` right after
+  `disc: NIGHT/TG_NIGHT.CUE not readable`, i.e. the missing-resource path still dereferenced a flat-model
+  offset as a host pointer. Pointing `--res-dir` at the real `NIGHT/` directory, the same pre-fix binary
+  runs to completion (`frames presented: 12106`), and the current build never crashes in that path at all.
+  That is a rig-produced before/after pair for that item, no human inspection involved.
+* **The EXP ladder cannot be shown red at record level on that build.** Its `meta.json` declares 243 cells
+  but none of their record regions carries an entity record (`hp@+0x29 == 0x3e8` matches zero blocks), which
+  matches docs/121's note that the pre-fix build predates the entity-slot dumper. So the EXP item's red side
+  is documented from the *static* aliasing defect (docs/109) plus the pre-fix award-path zero, not from a
+  record census; the green side is the 0 → 0xa → 0x14 ladder above.

@@ -50,3 +50,47 @@ extractor missed an indirect call site (a table of function pointers is how this
 `g_tab_5271c` / `g_tab_523a4`) or the function is reached through one. Resolving indirect dispatch is a static
 audit task, not a fuzz task, and it should precede any further fuzz sweep: without it the frontier understates
 how shallow the gap really is.
+
+## 13. The state-directed grammar, wired and measured: family spawning reaches some of it and also breaks the port
+
+`scripts/rig/fuzz.py --families N` now sets `NIGHT_WARP_ENTITY` per seed to a 4-name subset of the shipped
+`.spr` families, which is the direct route into the shallow cluster named in §12 (the per-type entity
+controllers selected by `entity.type`). Two rig details had to be fixed to make it usable:
+
+* the subset index used `abs(hash(seed_dir))`, and Python salts `hash()` per process -- a crash found in one
+  sweep could not be re-run. It is `zlib.crc32(seed_dir.encode())` now, so a seed's family set is reproducible.
+* `NIGHT_WARP_ENTITY` alone is refused in a warped run: the request is checked every frame and at the frame a
+  warp-stage jump lands there is no room yet -- `warp-entity: ena-1 deferred at frame 54: no live room record
+  (the room loop owns the entity list)`. `NIGHT_WARP_ENTITY_AT=<frame>` defers the request until the room loop
+  is live, and then it works: `warp-entity: ena-1 type=31 frame=3038 spawned`,
+  `warp-entity: enc-1 type=41 frame=3038 spawned`, while a family the episode never loaded is refused with the
+  honest reason -- `ene-1 deferred ... this episode never loaded the type's .spr block`.
+
+Measured coverage (census universe 503 shipped-named functions):
+
+| sweep | stages | families | AT | coverage | crashes |
+|---|---|---|---|---|---|
+| fz13 | 1 | 15 | -- | 233/503 | 0 |
+| fz13b | 1 | 15 | 3000 | 236/503 | **1 (SIGSEGV)** |
+| fz15 | 1,3,5,7,9 | 15 | 3000 | 248/503 | 0 |
+| fz10 (baseline, no families) | 1-9 | -- | -- | **262/503** | 0 |
+
+So family spawning on five stages is not yet comparable to the nine-stage baseline, and on stage 1 alone it adds
+3 functions over the same-shape run. The ceiling from §8-§10 is not broken by this either -- but the sweep did
+produce something more interesting than a number:
+
+**the SIGSEGV in `fz13b/r1s2_st1` is caused by the spawned families, not by the keys.** That drive has zero
+`poke`/`ent`/`play` verbs, and re-running the *same* drive without `NIGHT_WARP_ENTITY` under the census binary
+returns `rc=0` (`frames presented: 5537`, clean unwind), while with families it dies with signal 11. Under the
+ASan build the same families on the base `ep1_kill3` drive spawn cleanly and report nothing, so the fault needs
+the specific family subset (now reproducible) plus the seed's key window to reproduce, and it lives in the
+spawned-entity path rather than in the input path.
+
+Queued, in order:
+
+1. Reproduce `fz13b/r1s2_st1` with its crc32 family subset under `night-asan` and localise the fault. A crash
+   produced by *adding an entity of a family the episode did not script* is a candidate real port defect (the
+   same family of problem as docs/128's dangling entity pointer), not merely rig noise.
+2. Re-run the family grammar across all nine stages with `AT` set, and report it against the 262/503 baseline in
+   the same shape as §8's table so the comparison is honest.
+3. Keep the §12 frontier as the target list: 61 shallow functions whose caller is already entered.

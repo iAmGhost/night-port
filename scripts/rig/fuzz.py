@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import time
+import zlib
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BIN = os.path.join(REPO, "port", "test", "night-census")
@@ -105,11 +106,34 @@ def macros(rng, lo, hi, n, gap_lo, gap_hi):
     return ev
 
 
+# docs/120 §12: the gap frontier says the never-entered set is a *state* problem, not a key problem --
+# the shallow cluster (fn_016b8f / fn_017ca6 under fn_017f13 / fn_018e88 / fn_019e48 / fn_01aec8) is the
+# per-type entity controller family, selected by entity.type. NIGHT_WARP_ENTITY asks the shipped opcode-1
+# spawn shape for named .spr families, so --families rotates family subsets per seed and the census can
+# reach controllers scripted play never clears a way to.
+FAM_POOL = ["ena-1", "enc-1", "end-1", "ene-1", "enf-1", "eng-1", "enh-1", "eni-1",
+            "enb-1", "enm-1", "ens-1", "enr-1", "enl-1", "mark", "dust"]
+FAMS = []
+
+
+def fam_subset(seed_dir):
+    if not FAMS:
+        return ""
+    # docs/120 §13: abs(hash(...)) is salted per process, so a seed's family subset was not
+    # reproducible -- a crash found by one sweep could not be re-run. crc32 is stable.
+    k = zlib.crc32(seed_dir.encode()) % max(1, len(FAMS))
+    sub = FAMS[k:k + 4] or FAMS[:4]
+    return ",".join(sub)
+
+
 def run(seed_dir, drive, stage, cap, frames):
     os.makedirs(seed_dir, exist_ok=True)
     dpath = os.path.join(seed_dir, "drive.txt")
     open(dpath, "w").write("\n".join(drive) + "\n")
     env = dict(os.environ, NIGHT_CENSUS="1", SDL_AUDIODRIVER="dummy")
+    w = fam_subset(seed_dir)
+    if w:
+        env["NIGHT_WARP_ENTITY"] = w
     cmd = [BIN, "--res-dir", os.path.join(REPO, "NIGHT"), "--script", dpath,
            "--rig-dump", seed_dir, "--rig-hz", "1", "--frames", str(frames)]
     if stage:
@@ -134,6 +158,7 @@ def load_census(seed_dir, n):
     return b if len(b) == n else None
 
 def main():
+    global FAMS
     ap = argparse.ArgumentParser()
     ap.add_argument("--episodes", default="1")
     ap.add_argument("--seeds", type=int, default=6)
@@ -149,7 +174,11 @@ def main():
     ap.add_argument("--base", default="", help="seed-drive file (default: scripts/rig/drives/ep1_kill3.txt)")
     ap.add_argument("--rounds", type=int, default=1)
     ap.add_argument("--out", default="/tmp/rig/fuzz")
+    ap.add_argument("--families", type=int, default=0,
+                    help="spawn N shipped .spr families per seed via NIGHT_WARP_ENTITY (docs/120 §12)")
     a = ap.parse_args()
+    FAMS = FAM_POOL[:max(0, a.families)]
+
 
     stages = [int(x) for x in a.episodes.split(",")]
     lo, hi = (int(x) for x in a.window.split(","))

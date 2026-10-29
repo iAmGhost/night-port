@@ -163,7 +163,14 @@ uint8_t *rig_ent_slot(int slot) {
 
 int rig_ent_poke(int slot, uint32_t off, uint32_t v) {
     uint8_t *e = rig_ent_slot(slot);
-    if (!e || off + 4u > RIG_REC || off + 4u > rec_span(e)) return 0;
+    /* docs/154: `off + 4u` OVERFLOWED for a probe drive's `ent N 0xffffffff 0`, wrapping to 3 and
+     * passing the bound test -- the rig then wrote 4 bytes at e+0xffffffff and ASan reported a WRITE
+     * BUS at rig_sink.c:167.  Bound the offset arithmetically first, then against the record span. */
+    if (!e || off > RIG_REC - 4u || off + 4u < off || off + 4u > rec_span(e)) {
+        if (e) { g_poke_refused++; fprintf(stderr, "rig: ent poke slot=%d off=0x%x refused (outside record)\n",
+                                             slot, off); }
+        return 0;
+    }
     memcpy(e + off, &v, 4);
     return 1;
 }
@@ -172,7 +179,11 @@ int rig_player_poke(uint32_t off, uint32_t v) {
     /* The player is not necessarily in the list-walk order the ent## cells follow, and the shipped hit code
      * reads the ATTACKER's state to pick the reaction type (fn_01441e: rec_e indexes by *(e+0x17) where e is
      * the striker and cur the victim -- docs/118 §2). So combo-state probes need a direct player handle. */
-    if (!g_player_ent || off + 4u > RIG_REC || off + 4u > rec_span(g_player_ent)) return 0;
+    if (!g_player_ent || off > RIG_REC - 4u || off + 4u < off
+        || off + 4u > rec_span(g_player_ent)) {          /* docs/154: same overflow guard */
+        if (g_player_ent) { g_poke_refused++; fprintf(stderr, "rig: player poke off=0x%x refused\n", off); }
+        return 0;
+    }
     memcpy(g_player_ent + off, &v, 4);
     return 1;
 }

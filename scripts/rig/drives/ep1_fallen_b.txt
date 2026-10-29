@@ -1,0 +1,37 @@
+# rig drive: ep1_combat prefix (same anchors) + 124 s of approach-and-attack, so the shipped
+# side is forced to land kills: kill counter 0x639bc, quota cells and the fallen states
+# 0x5b..0x66 then become observable. Generated from ep1_combat; do not edit the pattern by hand.
+47000 wait res title1.pcx
+47200 key enter down
+47350 key enter up
+49300 key enter down
+49450 key enter up
+60000 wait ds 0x53e9c >=1
+62000 key enter down
+62120 key enter up
+64000 key enter down
+64120 key enter up
+66000 key enter down
+66120 key enter up
+68000 key enter down
+68120 key enter up
+70000 key enter down
+70120 key enter up
+72000 key enter down
+72120 key enter up
+74000 key enter down
+74120 key enter up
+76000 key enter down
+76120 key enter up
+78000 key enter down
+78120 key enter up
+80000 key enter down
+80120 key enter up
+82000 key enter down
+82120 key enter up
+84000 key enter down
+84120 key enter up
+86000 key enter down
+86120 key enter up
+88000 key enter down
+88120 key enter up

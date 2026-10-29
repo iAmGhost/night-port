@@ -236,3 +236,40 @@ written on the line *after* a block comment started, so it sat inside the commen
 `strings port/test/night | grep -c cmdstream` returning 0 while `grep -c cmdstream port/src/f/f.c` returned 1 --
 a witness that is not in the binary.  Added as a standing check: **confirm a new witness exists in the built
 binary before believing its silence.**
+
+## 10. No hidden continuation path: the gap is trigger frequency, not wiring
+
+Three checks, all run against the shipped binary rather than assumed.
+
+1. **`fn_040b83` has exactly one caller in the shipped code.**  `scripts/audit/call_sites.py --target 0x40b83`:
+
+   ```
+   callers of 0x40b83: 1     --> call at 0x408ad: call 0x40b83   (inside fn_040839, the walker)
+   ```
+
+   So the shipped game reaches the chunk feeder *only* through the same one-command-per-call walker the port has.
+   There is no continuation routine the port failed to port.
+
+2. **The port's streams really do end where the walker stops them.**  A peek witness at the dispatch prints the
+   four bytes at `cursor + len` before returning: **73 out of 73 read `00,00,00,00`**, i.e. the kind-0 terminator.
+   The assets the port hands the walker contain one command each; nothing is being left unread.
+
+3. **The trigger wiring is present in the port.**  `fn_04185e` has **9 callers** in the shipped binary, and
+   `fn_0113e7` alone contains **11 call sites** to it (`0x116c1, 0x116e4, 0x11707, 0x1172a, 0x1174d, 0x11770,
+   0x11793, 0x117b6, 0x117d9, 0x117f9, 0x11819 -- 23 bytes apart, a dispatcher table shape`), with `fn_01441e`
+   (the hit code) contributing another.  The port calls `fn_04185e` from `fn_03f6bc`, `fn_0113e7`, `fn_03a70e`,
+   `fn_03a224`, `fn_03a829`, `fn_01441e`, `fn_038445` and `fn_038f3d`.
+
+Put together: shipped programs 324 DMA transfers and the port 73-81 feeds on the same route, one transfer per
+walker call on **both** sides, and neither side has an unread continuation.  The difference is therefore **how
+often the game asks for a sample** -- roughly 4x on this route -- not how the ask is carried out.
+
+Caveat stated: 324 DMA programming events are used as a proxy for shipped walker calls, valid because the port's
+own census shows a strict 1:1 (73 feeds, 73 transfers).  If a single shipped arm programs more than one transfer,
+the ratio overstates the trigger gap.
+
+Next measurement named: a per-call-site trigger census in the port (count each `fn_04185e` call site
+separately -- the 11 sites inside `fn_0113e7`, plus `fn_01441e`, `fn_03a829`, ...), compared against the shipped
+programming events *grouped by time* (9 -> 126 -> 189 events per minute, docs/166 §1).  A site that never fires
+in the port while the shipped minute-rate climbs is the specific missing trigger, and the docs/120 coverage
+census can already say whether that caller was ever entered.

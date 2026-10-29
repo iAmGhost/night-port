@@ -8516,6 +8516,14 @@ void fn_040839(uint8_t *cursor)
         if (getenv("NIGHT_AUDIODUMP"))
             fprintf(stderr, "cmdstream kind=%u len=%u\n", kind, len);
         if (kind == 0) return;                                        /* 0x4088c */
+        /* docs/166 §10: the walker returns after ONE command.  If the asset really carries a stream, the
+         * next record is sitting right at cursor+len and is never read -- peek at it, which is the cleanest
+         * way to tell "the stream has more commands" from "the stream is one whole-block command". */
+        if (getenv("NIGHT_AUDIODUMP")) {
+            const uint8_t *nx = cursor + len;
+            fprintf(stderr, "cmdpeek kind=%u len=%u nxt=%02x,%02x,%02x,%02x\n", kind, len,
+                    nx[0], nx[1], nx[2], nx[3]);
+        }
         if (kind == 1) { fn_04097e(cursor, len); return; }             /* 0x4089a */
         if (kind == 2) { fn_040b83(cursor, len); return; }             /* 0x408ad */
         cursor += len;                                                /* 0x408b7 */

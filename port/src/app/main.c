@@ -1604,6 +1604,7 @@ int main(int argc, char **argv) {
     }
     if (g_rig_dir) rig_close();
     walk_trace_report();
+    act_census_report();
     SDL_Log("frames presented: %d", g_frames);
 
     if (g_tex) SDL_DestroyTexture(g_tex);

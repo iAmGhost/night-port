@@ -2613,6 +2613,11 @@ uint8_t *g_dat_62aa0, *g_dat_62aa4, *g_dat_62aa8, *g_dat_62aac, *g_dat_62ab0;
 uint8_t *g_dat_62ab4, *g_dat_62ab8, *g_dat_62abc, *g_dat_62ac0, *g_dat_62ac4;
 uint8_t *g_dat_62a98, *g_dat_62a9c;
 uint32_t *g_dat_53c28, *g_dat_53c2c, *g_dat_53c30;
+/* docs/156: every action container this run LOADED, remembered.  DS 0x53818 only shows what happens to be
+ * loaded at the moment of the census (the loader at 0x37da9 fills entries and 0x373d3 clears them), so a
+ * shutdown census that reads only the array silently covers a subset of the episode's action data. */
+static struct { uint32_t type, block; } g_act_load[192];
+uint32_t g_act_load_n;
 uint32_t g_dat_53818[0x104] = {0};  /* 0x53818: per-type action-table heap offsets, 0x104 (260) slots -- one per entity type 0..0x103. Proof of the span: the array ends exactly at DAT_00053c28 (0x53818 + 0x104*4 = 0x53c28), the gun action table it also holds. Slots 0xc9 and 0xfa are shared tables that the per-type teardown must skip; only slots 0..0x64 have names in the stage loader. Element 0 = gun.act. */
 uint32_t *g_dat_63e08, *g_dat_63e0c;
 
@@ -5190,6 +5195,11 @@ stage_records:
                     : (uint8_t *)fn_03d8d4((uint32_t *)((uint8_t *)g_heap_base + a), kTypeSprNames[t]);
                 uint32_t b = heap_malloc(8);                        /* 0x37d86 */
                 g_dat_53818[t] = b;                                 /* 0x37da9: heap offset */
+                if (b != 0 && g_act_load_n < 192u) {                /* docs/156 census recorder */
+                    g_act_load[g_act_load_n].type = (uint32_t)t;
+                    g_act_load[g_act_load_n].block = b;
+                    g_act_load_n++;
+                }
                 if (b != 0) (void)fn_010010((uint8_t *)g_heap_base + b, kTypeActNames[t]);
                 fn_04247a(g_639b8, pos, 0);                         /* 0x37dd8: restore stream pos */
             }
@@ -8959,6 +8969,84 @@ void fn_0342ff(int32_t amount)
 uint64_t g_step_player_01194c, g_step_player_012616;               /* per-frame step dispatch, player only */
 uint64_t g_walk_calls_34295, g_walk_sum_34295;              /* docs/152: .act-chain player movers */
 uint64_t g_walk_calls_342ff, g_walk_sum_342ff;
+
+/* docs/156: action-data census.  Walks every action container the episode LOADED (DS 0x53818 is the
+ * per-type action-table heap-offset array, 0x104 entries) through the same chain the guest uses at
+ * 0x00014743-0x00014786 -- block = 0x53818[type], lvl2 = *(block + 4), record = *(lvl2 + 4*state) -- and
+ * reports, for every (type, state, slot) the data actually contains, which reaction code
+ * byte[record + slot + 0x38] yields and which victim state g_tab_51b60[code] maps it to.
+ *
+ * This is the static half of the fallen-state question (ledger item 6): the fallen family is states
+ * 0x5b..0x66, and g_tab_51b60 maps codes 0x16..0x20 and 0x3e/0x3f/0x43 into that band.  If no loaded
+ * container in an episode produces one of those codes, then nothing in that episode's data can put an
+ * entity into a fallen state, and "fallen state is almost missing" has no differential defect to fix. */
+static const uint32_t g_tab_51b60[0x100];   /* defined below at DS 0x51b60; declared for the census */
+static unsigned g_ac_react, g_ac_fallen, g_ac_far, g_ac_other, g_ac_zero, g_ac_recs, g_ac_printed;
+
+static void act_census_block(uint8_t *hb, uint32_t used, uint32_t t, uint32_t blk)
+{
+    if (!blk || blk + 8u > used) return;
+    uint32_t lvl2 = ((struct ua32 *)(hb + blk + 4))->v;
+    if (!lvl2 || lvl2 + 8u > used) return;
+    for (uint32_t st = 0; st < 0x200u; ++st) {
+        uint32_t p = lvl2 + 4u * st;
+        if (p + 4u > used) break;
+        uint32_t rec = ((struct ua32 *)(hb + p))->v;
+        if (!rec || rec + 0x40u > used) continue;
+        g_ac_recs++;
+        for (int sl = 0; sl < 8; ++sl) {
+            uint32_t q = rec + (uint32_t)sl + 0x38u;
+            if (q >= used) break;
+            uint8_t code = hb[q];
+            if (!code) { g_ac_zero++; continue; }
+            uint32_t state = g_tab_51b60[code & 0xffu];
+            if (state >= 0x5bu && state <= 0x66u) {
+                /* docs/118 proved the hit-slot field holds 0..5 from dword-array adjacency, so slots 6..7
+                 * read into the FOLLOWING record and are reported apart, never counted as evidence. */
+                if (sl < 6) {
+                    g_ac_fallen++;
+                    if (g_ac_printed < 40u) {
+                        fprintf(stderr, "ACTCENSUS fallen type=%u state=%02x slot=%d code=0x%02x -> state %02x\n",
+                                t, st, sl, code, state);
+                        g_ac_printed++;
+                    }
+                } else g_ac_far++;
+            } else if (state >= 0x0bu && state <= 0x1eu) g_ac_react++;
+            else g_ac_other++;
+        }
+    }
+}
+
+void act_census_report(void)
+{
+    if (!getenv("NIGHT_ACTCENSUS")) return;
+    extern uint32_t g_dat_53818[];
+    uint32_t used = heap_arena_used();
+    uint8_t *hb = (uint8_t *)(uintptr_t)g_heap_base;
+    if (!hb || !used) return;
+    uint32_t seen[400]; unsigned nseen = 0, blocks = 0;
+    for (uint32_t i = 0; i < g_act_load_n && i < 192u; ++i) {
+        uint32_t b = g_act_load[i].block;
+        if (!b || b + 8u > used) continue;
+        if (nseen < 400u) { for (unsigned j = 0; j < nseen; ++j) if (seen[j] == b) { b = 0; break; } }
+        if (!b) continue;
+        if (nseen < 400u) seen[nseen++] = b;
+        blocks++;
+        if (getenv("NIGHT_ACTCENSUS_LIST")) fprintf(stderr, "ACTCENSUS loaded type=%u block=%#x\n", g_act_load[i].type, b);
+        act_census_block(hb, used, g_act_load[i].type, b);
+    }
+    for (uint32_t t = 0; t < 0x104u; ++t) {
+        uint32_t b = g_dat_53818[t];
+        if (!b || b + 8u > used) continue;
+        if (nseen < 400u) { for (unsigned j = 0; j < nseen; ++j) if (seen[j] == b) continue; }
+        if (nseen < 400u) seen[nseen++] = b;
+        blocks++;
+        act_census_block(hb, used, t, b);
+    }
+    fprintf(stderr, "ACTCENSUS blocks=%u records=%u  reaction-band=%u  FALLEN(slots 0-5)=%u  "
+                    "fallen(slots 6-7, out of band)=%u  other=%u  zero=%u\n",
+            blocks, g_ac_recs, g_ac_react, g_ac_fallen, g_ac_far, g_ac_other, g_ac_zero);
+}
 
 void walk_trace_report(void)                                      /* docs/149: shutdown census */
 {

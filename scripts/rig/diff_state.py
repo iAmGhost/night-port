@@ -166,7 +166,18 @@ ENTITY_FIELDS = [
 ]
 
 
+def looks_like_entity(b):
+    """Only name fields when the block plausibly IS an entity record: the constructor's type byte is a
+    small id and the state dword stays inside the id alphabet. Without this gate the candidate names are
+    applied to record-array blocks (0x51a0c, 0x53b3c ...) and read as nonsense."""
+    if len(b) < 0x1b:
+        return False
+    return b[0] < 0x40 and int.from_bytes(b[0x17:0x1b], "little") < 0x200
+
+
 def field_diff(a, b):
+    if not (looks_like_entity(a) and looks_like_entity(b)):
+        return []
     out = []
     for off, nm, w in ENTITY_FIELDS:
         if off + w > min(len(a), len(b)):

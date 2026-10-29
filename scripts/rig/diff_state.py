@@ -243,6 +243,19 @@ def main():
     poff = {}
     if is_port:
         poff = {c["name"]: c["offset"] for c in other_side[0][2]}
+    # docs/134 triage made machine-readable (scripts/audit/gen/oracle_families.json): cells that are
+    # DOS-extender or host-address-space bookkeeping get a NAMED verdict instead of DIFF, with their raw
+    # value sets still printed, so "not game state" is a claim the reader can check rather than a filter.
+    fam = {}
+    fpath = os.path.join(GEN, "oracle_families.json")
+    if os.path.exists(fpath):
+        doc = json.load(open(fpath))
+        for fname, spec in doc.items():
+            if fname.startswith("_"):
+                continue
+            for dsx, label in spec["cells"].items():
+                fam[int(dsx, 16)] = {"family": fname, "label": label,
+                                     "reason": spec["reason"], "docs": spec["docs"]}
     rows = []
     for c in cells:
         ds, gsz, hsz, ptr = c["ds"], c["guest_size"], c["host_size"], c["ptr"]
@@ -256,7 +269,10 @@ def main():
         # disagree about the width -- a value disagreement is filed as DIFF-SIZE / DIFF-WIDTH so the
         # DIFF count cannot be read as a proven divergence.
         basis = "ok"
-        if any((ds + k) in entropy for k in range(max(gs, hsz))):
+        if ds in fam:
+            f = fam[ds]
+            verdict, note, basis = f"NON-GAMEPLAY:{f['family']}", f"{f['label']} -- {f['reason']}", "family"
+        elif any((ds + k) in entropy for k in range(max(gs, hsz))):
             verdict, note = "ENTROPY", "varies across identical replays of the original"
         elif ptr:
             verdict, note = "PTR", f"host slot {hsz}B vs guest {gsz}B (offset-vs-pointer, docs/94 family)"
@@ -270,9 +286,10 @@ def main():
             verdict, note, basis = "SIZE?", f"no shipped span for this symbol; compared {w}B{ev}", "size"
         else:
             verdict, note = "SAME", ""
-        bad_verdict = {"ok": "DIFF", "width": "DIFF-WIDTH", "size": "DIFF-SIZE"}[basis]
+        bad_verdict = {"ok": "DIFF", "width": "DIFF-WIDTH", "size": "DIFF-SIZE",
+                       "family": verdict}[basis]
         per_phase = []
-        if verdict in ("SAME", "REPR", "SIZE?"):
+        if verdict in ("SAME", "REPR", "SIZE?") or basis == "family":
             off_p = poff.get(c["name"])
             for label, _t0, _t1 in phases:
                 ov = [b[ds - DS_LO:ds - DS_LO + w] for b in ob.get(label, [])]
@@ -377,7 +394,14 @@ def main():
     print(f"mode={mode}  cells={len(rows)}  phases={len(phases)}  tally={dict(tally)}")
     bad = sum(1 for r in rows if r["verdict"].startswith("DIFF"))
     hard = sum(1 for r in rows if r["verdict"] == "DIFF")
+    fam_rows = [r for r in rows if r["verdict"].startswith("NON-GAMEPLAY:")]
+    per_fam = collections.Counter(r["verdict"].split(":", 1)[1] for r in fam_rows)
     print(f"divergent cells: {bad}  of which same-width value divergences: {hard}")
+    print(f"non-gameplay families (docs/134, scripts/audit/gen/oracle_families.json): {dict(per_fam)}")
+    resid = sorted({(r["ds"], r["name"]) for r in rows if r["verdict"] == "DIFF"})
+    print(f"residual same-width gameplay divergences: {len(resid)}")
+    for d, n in resid:
+        print(f"   {d} {n}")
     shown = 0
     for r in rows:
         if r["verdict"] in ("DIFF", "DIFF-WIDTH", "DIFF-SIZE", "REPR", "PTR", "REC-DIFF", "REC-NULL") \

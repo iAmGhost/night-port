@@ -1,0 +1,37 @@
+{
+  "_purpose": "docs/134 triage, made machine-readable. These DS cells are compared by the state oracle but are NOT game-state: they are DOS-extender / host-address-space bookkeeping, so a value disagreement between the shipped program and the port cannot be read as a behavioural divergence. diff_state.py reports them under a named verdict instead of DIFF, and prints the raw values so the claim stays checkable.",
+  "_rule": "a cell joins a family only with a written reason and a docs reference; the raw value sets are still printed in the report.",
+  "arena_state": {
+    "reason": "Allocator bookkeeping for the port's own flat heap. The port reserves offset 0..0x3f as a NULL guard (f.c:3209 `s_arena_used = 0x40`) while the shipped DPMI allocator starts at 0x08, and the cursor/highwater counts track allocation order rather than game state. Absolute equality is not meaningful; the structural invariant (nonzero, monotone nondecreasing) is checked instead.",
+    "docs": ["docs/134 §2", "docs/146 §4"],
+    "cells": {
+      "0x53350": "g_heap_head: allocation cursor",
+      "0x53354": "g_heap_cursor: block-base pointer",
+      "0x53358": "g_heap_highwater: size high-water"
+    }
+  },
+  "host_address_space": {
+    "reason": "Framebuffer geometry constants of the shipped DOS program (A0000 segment window). The port renders into its own buffer and models these as its own offsets, so the numbers differ by construction. They are kept visible because blit/clip code reads them (docs/134 §3 named them as candidates for the pacing/clip divergence); they are not evidence of a behavioural difference on their own.",
+    "docs": ["docs/134 §3"],
+    "cells": {
+      "0x531f4": "g_dat_531f4: framebuffer start (shipped 0xa0000 vs port 0x10000)",
+      "0x531f8": "g_dat_531f8: framebuffer end (shipped 0x9ffff vs port 0x9ffff-ish model)"
+    }
+  },
+  "dos_extender": {
+    "reason": "DPMI/DOS-extender memory-map and device state: selector bases, a config byte, a device id. The shipped program obtains these from the extender at run time; the port models the slots without reproducing the extender handshake, so no game decision reads them. docs/132 §4 first identified this family as half of the port-holds-zero group.",
+    "docs": ["docs/132 §4", "docs/134 §1"],
+    "cells": {
+      "0x53378": "selector-form address",
+      "0x5337c": "selector-form address",
+      "0x53384": "selector-form address",
+      "0x5338c": "selector-form address",
+      "0x53390": "selector-form address",
+      "0x53394": "selector-form address",
+      "0x533a0": "selector-form address",
+      "0x533b2": "config byte",
+      "0x533b9": "config byte",
+      "0x533bb": "config byte"
+    }
+  }
+}

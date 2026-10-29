@@ -42,7 +42,10 @@ autolock = false
 [midi]
 mididevice = none
 [mixer]
-rate = 22050
+; 44100, not 22050: the capture endpoint writes whatever the mixer produced into a 44100 Hz WAV header, so a
+; 22050 mixer yields a rate-mismatched capture (54.7% of consecutive samples identical in the old captures) and
+; every sample-level or fine-spectral comparison against 44.1 kHz CD-DA was invalid (docs/130)
+rate = 44100
 blocksize = 256
 prebuffer = 30
 [serial]
@@ -65,7 +68,9 @@ webserver_bind_address = 0.0.0.0
 webserver_allow_remote = true
 [autoexec]
 mount C /work/game
-imgmount D /work/game/TG_NIGHT.CUE -t iso
+; -t cdrom, NOT -t iso: an iso-type mount exposes only the data track, so CD-DA tracks are silent in the
+; emulator and the shipped-side mixer capture can never contain music (docs/129 audio_ncc NCC~0.1-0.2)
+imgmount D /work/game/TG_NIGHT.CUE -t cdrom
 C:
 CONF
 if [ "${RUN_GAME:-1}" = "1" ]; then

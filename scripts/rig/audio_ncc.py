@@ -18,8 +18,15 @@ def load_wav(path):
     a = np.frombuffer(d[:len(d)//2*2], dtype='<i2').astype(np.float64)
     return a.reshape(-1, ch).mean(axis=1), rate
 
-def disc(path, lba, sectors):
-    f = open(path, 'rb'); f.seek((lba - 150) * 2352 + 24)
+def disc(path, lba, sectors, header=24):
+    """Read `sectors` raw sectors starting at disc lba.
+
+    header=24 skips the MODE1/2352 sync+header of a DATA sector. It must be 0 for an AUDIO track: in this
+    image (TG_NIGHT.CUE: TRACK 01 MODE1/2352, TRACK 02..15 AUDIO) an audio sector is 2352 bytes of PCM, so
+    skipping 24 bytes shifts the template by 12 stereo frames (~0.27 ms) and sample-level NCC then scores
+    ~0.1 even when the capture contains exactly those samples (docs/130).
+    """
+    f = open(path, 'rb'); f.seek((lba - 150) * 2352 + header)
     d = f.read(sectors * 2352)
     a = np.frombuffer(d, dtype='<i2').astype(np.float64)
     return a.reshape(-1, 2).mean(axis=1), 44100
@@ -47,6 +54,8 @@ def main():
     ap.add_argument('--tracks', required=True, help='index:lba:sectors:disc_offset_s[:expected_capture_s]')
     ap.add_argument('--seg-s', type=float, default=4.0)
     ap.add_argument('--search-s', type=float, default=45.0)
+    ap.add_argument('--sector-header', type=int, default=24,
+                    help='24 for a MODE1 data sector, 0 for an AUDIO track (docs/130)')
     a = ap.parse_args()
     tgt, rate = load_wav(a.wav)
     print(f'{a.wav}: {len(tgt)/rate:.0f} s @ {rate} Hz')
@@ -55,7 +64,7 @@ def main():
         doff = int(p[3]) if len(p) > 3 else 30
         exp = int(p[4]) if len(p) > 4 else None
         # one CD sector = 2352 B = 588 stereo frames = 1/75 s, so seconds must be converted to sectors
-        d, _ = disc(a.img, lba, (doff + int(a.seg_s)) * 75 + 1)
+        d, _ = disc(a.img, lba, (doff + int(a.seg_s)) * 75 + 1, header=int(a.sector_header))
         tpl = d[doff*rate:(doff+int(a.seg_s))*rate]
         if exp is None:
             lo, hi = 0, max(0, len(tgt) - len(tpl) - 1)

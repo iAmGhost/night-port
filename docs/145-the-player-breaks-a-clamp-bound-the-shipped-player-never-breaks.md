@@ -90,3 +90,54 @@ i.e. the per-type movement controllers.
 3. Only after (1) and (2): re-run the state oracle and the position census. If the clamp holds, the camera
    census, `DAT_00063e14`, the population census, the hit-code-11 death, the CONTINUE countdown and the extra
    CD selection are all expected to collapse together -- they are one chain, not six bugs.
+
+## 5. Retraction: 195 is the *vertical* clamp, and neither side breaks it -- §2's headline is void
+
+§2 attached `room[+0x16] = 195` to the player's horizontal position. It does not belong to that axis. The two
+accessors the clamp functions use are one line apart in the port (f.c:7943-7944):
+
+```c
+uint32_t fn_01519f(const uint8_t *p) { return p[+0x01] - g_dat_639dc; }   /* x minus camera x */
+uint32_t fn_0151d5(const uint8_t *p) { return p[+0x09] - g_dat_639e0; }   /* y minus camera y */
+```
+
+`fn_016a60` and `fn_017637` call `fn_0151d5` -- so their `F` is **vertical** position relative to camera y, and
+139 / 195 are a vertical band. The horizontal clamp is `fn_0174a2`, which calls `fn_01519f` and clamps to
+`[0, 0x140)` = `[0, 320)`.
+
+Measured against the right axes, from the same player-record dumps:
+
+| | y[+0x09] range | y in [139,195] | y > 195 | y < 139 | px - cam range | px - cam >= 320 |
+|---|---|---|---|---|---|---|
+| shipped | 0 .. 173 | 976/980 | **0** | 4 | -30 .. 191 | **0** |
+| port | 0 .. 177 | 1574/2047 | **0** | 473 | -30 .. 305 | **0** |
+
+* vertical: neither side ever exceeds 195, and both sit overwhelmingly at 139 (shipped 794 samples, port 809).
+  The port's 473 samples below 139 are all exactly `y = 0`, which is the count of *not-live* player records
+  docs/137 §4 counted in the same run -- they are empty record blocks, not clamp violations.
+* horizontal: the clamp is `[0, 320)` and the port's worst case is 305, inside it.
+
+So the "191 vs 195, five pixels apart" argument in §2 was a coincidence between a horizontal measurement and a
+vertical bound, and §2's conclusion (and with it §1's framing of the chain's head) does not stand. The
+§1 measurements themselves -- the clamp fields being byte-identical on both sides, and the port's player being
+110 px further right at 18% of samples -- remain true; what was wrong is the mechanism attached to them.
+
+## 6. What is actually open
+
+Nothing in the clamp path explains the travel difference. The remaining difference in the same dumps is what
+the player is *doing*:
+
+```
+shipped states: 0x01 x362, 0x02 x240, 0x33 x81, 0x0c x62, 0x0b x59, 0x35 x58   (139 samples in 0x33/0x34/0x35)
+port    states: 0x01 x601, 0x02 x283, 0x15 x168, 0x33 x116, 0x00 x109, 0x0b x94 (0 samples in 0x34/0x35)
+```
+
+The shipped player spends 139 samples in the `0x33 / 0x34 / 0x35` family (the rope / single-axis family named
+at `f.c:20467`) and reaches x = 217; the port's player has no `0x34` or `0x35` samples at all, spends 168 in
+the hit-code-11 reaction state `0x15`, and reaches x = 603. The travel difference is a *behaviour* difference,
+so the queued question is who moves the player into `0x34` / `0x35` in the shipped game and what holds it
+there -- not a clamp.
+
+Rig hygiene, restated: a bound quoted in a differential claim has to be tied to the accessor that reads it,
+not to the field that happens to have a convenient value. `room[+0x16]` looked like the answer because 195 sat
+just above 191.

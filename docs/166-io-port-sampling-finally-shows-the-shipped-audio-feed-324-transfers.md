@@ -300,3 +300,24 @@ Two honest gaps, both filed rather than papered over:
   again sat inside a trailing multi-line comment opened on the `if` line -- the exact defect recorded in §9.  The
   binary check (`strings port/test/night | grep -c playsite` returning 0, then 1 after rewriting the comment
   above the statement) is what caught it, which is why the rule exists.
+
+## 12. Naming the site failed, and why -- recorded as a rig gap
+
+Two attempts, both rejected:
+
+* **`nm` mapping.**  The first symbol grab used `grep " t fn_"` and found **nothing**, because Mach-O prefixes C
+  symbols with an underscore: the correct pattern is ` t _fn_`, which yields 410 `fn_*` symbols.  The addresses
+  still did not line up.
+* **PIE suppression.**  Building with `-Wl,-no_pie` did not take effect: the dominant return moved from
+  `0x104677418` to `0x1049df418` between two runs, i.e. the binary is still being loaded at a randomized base.
+* **Slide search.**  Trying every slide that aligns the dominant return onto an `fn_*` symbol, scored by how many
+  returns land within 0x4000 after a symbol, gives several candidates that all resolve at **offset 0x0** in two
+  different functions (`fn_showscreen_gate`/`fn_107b9`, `fn_0003fade`/`fn_03690b`, `fn_0450da`/`fn_0353d0`, ...).
+  A call site at offset 0 in two unrelated functions is not a measurement, it is an under-determined fit: two
+  returns cannot pin a slide.
+
+Standing fix for the rig, named rather than guessed: **resolve the name in the process**, not offline.
+`port/src/gen/fn_table.c` already stores the function pointers and their names side by side, so the witness can
+binary-search that table against `__builtin_return_address(0)` and print the symbol directly -- no slide, no `nm`,
+no PIE arithmetic.  Until that is done the census statement stays exactly as strong as the data supports:
+**61 of 63 sample requests on this drive come from one call site**, and that site is unnamed.

@@ -23,6 +23,34 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from diff_audio import read_mono, envelope, features, phases_from_drive, slice_buckets, BUCKET_MS  # noqa: E402
 
+def audio_music_windows(capture_wav, cdda_raw, hop_s=2.0, win_s=2.0, npeaks=6):
+    """Which seconds of the shipped MIXER capture contain disc music, judged by content rather than by a DS
+    cell (docs/165 §4: a stop leaves the last LBA in 0x53c44, so the cell cannot say when the drive is silent).
+    The port's own CD-DA stream (cdda.raw, byte-faithful to the disc -- docs/114) supplies the templates;
+    presence is the peak-set IoU of docs/131, whose measured band is 0.966 for a real match against 0.19-0.43
+    for unrelated material."""
+    import numpy as np
+    from music_melody import peak_sets, iou
+    cx, crate = read_mono(capture_wav)
+    cx = np.asarray(cx, dtype=np.float64)
+    raw = open(cdda_raw, "rb").read()
+    frames = len(raw) // 4
+    st = np.frombuffer(raw[:frames * 4], dtype="<i2").reshape(frames, 2)
+    tx = st.mean(axis=1)
+    cap = peak_sets(cx, crate, hop_s, win_s, npeaks)
+    tpl = peak_sets(tx, 44100, hop_s, win_s, npeaks)
+    tpl = [t for t in tpl if t]
+    out = []
+    for i, c in enumerate(cap):
+        t0 = i * hop_s
+        if not c:
+            out.append((t0, t0 + win_s, 0.0))
+            continue
+        best = max((iou(c, t) for t in tpl), default=0.0)
+        out.append((t0, t0 + win_s, best))
+    return out
+
+
 DS_LO = 0x50000                     # docs/124: the dump's DS window starts at the segment base, not 0x51000
 TRACK_CELL = 0x53c44
 TRACK_ALT = (0x53c40, 0x53c48)
@@ -98,6 +126,10 @@ def main():
                     help="bucket RMS above which the capture is treated as music-dominated (sanity check only)")
     ap.add_argument("--md")
     ap.add_argument("--max-buckets", type=int, default=4000)
+    ap.add_argument("--mask", choices=("ds", "audio"), default="ds",
+                    help="ds = track LBA cell (blind to stop gaps, docs/165 §4); "
+                         "audio = content match against the port's byte-faithful disc stream")
+    ap.add_argument("--iou", type=float, default=0.6, help="peak-set IoU counting as disc music (docs/131 band)")
     a = ap.parse_args()
 
     run = a.run.rstrip("/")
@@ -190,6 +222,23 @@ def main():
     mapped = [b for b in range(n_buckets) if bucket_ms_of(b) is not None]
     cd_on = {b: armed(bucket_ms_of(b)) for b in mapped}
 
+    # The audio mask is the one that can see silence: a bucket is "music" only if its own content matches the
+    # port's byte-faithful disc stream.  Bucket times here are CAPTURE-clock, which is what the content was
+    # taken from.
+    if a.mask == "audio":
+        cw, cr = os.path.join(odir, "audio.wav"), os.path.join(pdir, "cdda.raw")
+        if not os.path.exists(cr):
+            print(f"audio mask unavailable: no {cr}; falling back to the DS-cell mask")
+        else:
+            music = audio_music_windows(cw, cr)
+            n_ok = sum(1 for w in music if w[2] >= a.iou)
+            print(f"audio mask: {len(music)} capture windows, best peak-set IoU anywhere "
+                  f"{max((w[2] for w in music), default=0):.2f}; {n_ok} windows at or above {a.iou}")
+            for w in sorted(music, key=lambda w: -w[2])[:6]:
+                print(f"     capture {w[0]:6.1f}-{w[1]:<6.1f}s  IoU={w[2]:.2f}")
+            cd_on = {b: any(w[0] - 1.0 <= b * BUCKET_MS / 1000.0 < w[1] + 1.0 and w[2] >= a.iou
+                            for w in music) for b in mapped}
+
     def triple(b, prev_b):
         return (bucket_ms_of(b), eo[b][0], eo[b][1], prev_b is not None and b - prev_b == 1)
 
@@ -280,9 +329,11 @@ def main():
                   f"{cp['onsets']:3d} {cp['active_frac']:.2f} {cp['mean_rms']:8.1f}   {v}")
         if a.md:
             with open(a.md, "w") as f:
-                f.write("# SFX oracle with CD-DA masked out (docs/164 §7)\n\n")
+                f.write("# SFX oracle with CD-DA masked out (docs/164 §7, docs/165)\n\n")
                 f.write("- clock mapping: piecewise capture -> nominal over the state series\n")
-                f.write(f"- capture buckets: CD-armed {len(buckets_cd)}, CD-silent {len(buckets_sfx)}\n")
+                f.write(f"- mask basis: {a.mask}\n")
+                f.write(f"- capture buckets mapped: {len(mapped)}; armed {len(pairs_cd)}, "
+                        f"unarmed (the board's share) {len(pairs_sfx)}\n")
                 f.write(f"- port board PCM: {placed} samples in {sum(1 for w in wins if w[2])} record windows "
                         f"at {board} Hz\n\n")
                 f.write("| window | orig SFX onsets | orig SFX active | orig rms | port onsets | port active | verdict |\n")

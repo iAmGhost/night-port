@@ -72,3 +72,41 @@ the pre-music window therefore has a shipped side with **no track selected at al
 board sound — directly comparable to the port's `pcm.wav`.  `title_basic.txt` for 45 s was launched as
 `/tmp/rig/g17` for exactly that reason; the mask reports 0 armed buckets there, and the comparison is clean
 without needing any stop-gap detection at all.
+
+## 7. The mask that actually works is content-based
+
+`--mask audio` scores each 2 s window of the shipped mixer capture against the **port's own CD-DA stream**
+(`port/cdda.raw`, byte-faithful to the disc per docs/114) with docs/131's semitone peak-set IoU, whose measured
+band is 0.966 for a true match against 0.19-0.43 for unrelated material; a window at or above 0.6 is disc music,
+everything else is the board's share.
+
+```
+/tmp/rig/g17  title_basic.txt, 45 s:   19 windows, 18 at or above 0.6, best IoU 1.00
+                capture buckets armed 378, board share 9
+                port board PCM: 10375 samples in 2 of 225 record windows
+
+  P0@0      orig 2 onsets active 1.00 rms 972.7 | port 0 onsets active 0.00 rms 0.0   [SILENT]
+  P1@10000  orig 0                                    | port 2 onsets active 1.00 rms 473.0 [NO-CD-SILENCE]
+
+/tmp/rig/g16  ep1_kill3.txt, 150 s:    66 windows, 64 at or above 0.6, best IoU 1.00
+```
+
+Two things this buys, and one it does not.
+
+* **The shipped side really is playing disc music at the title**, and its melodic peak sets match the port's disc
+  stream **exactly** (IoU 1.00 in 18 of 19 windows, and 64 of 66 on the fight route).  The music item's content
+  half is confirmed equivalent by a selective test, not by an energy test.
+* **The first mask-honest SFX signal**: in the title route's first 10 s the shipped side has board-share activity
+  (2 onsets, active in 100 % of its 9 buckets, mean RMS 973) while the port's board stream produced nothing there
+  (its whole route has 10 375 samples in 2 record windows).  Filed as a signal, not yet as a defect: a content
+  mask can also call a music window "board share" when that window's peak set simply did not match, so this needs
+  a second confirmation (disc TRACK 01 data, or the port's own VOC decodes) before it is attributed.
+* **It does not make the fight route decidable.**  Even the content mask finds only 2 non-music windows in 150 s of
+  `ep1_kill3`, so the SFX gate stays a coverage problem: the drive, not the oracle, is what is missing.
+
+## 8. Rig operation note
+
+The project `.venv` carries PIL but not numpy, so the numpy-dependent oracles (`music_melody.py`,
+`music_presence.py`, `audio_ncc.py`, `disc_search.py`, `onset_align.py`, and `sfx_mask.py --mask audio`) run as
+`uv run --with numpy python scripts/rig/<name>.py ...`; the non-numpy path (`sfx_mask.py --mask ds`) runs on the
+plain interpreter.

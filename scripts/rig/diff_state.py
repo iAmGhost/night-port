@@ -152,6 +152,30 @@ def hexs(values, limit=3):
     return ",".join(out) + ("..." if len(values) > limit else "")
 
 
+# Entity-record fields the shipped disassembly names, so a record diff LOCALIZES to a field (and hence
+# to the function that writes it) instead of stopping at "the first differing byte" (blind-gate contract:
+# every detection names the divergent window AND the suspect function / DS region).
+ENTITY_FIELDS = [
+    # widths follow the shipped access width at each offset (state is a word read by MOVZX at
+    # 0x00014c6c; hp is a byte at fn_01441e's damage store; the rest are dwords)
+    (0x17, "state", 2), (0x29, "hp", 1), (0x2b, "exp_total", 2), (0x32, "exp_award", 2),
+    (0x4a, "link_ent", 4), (0x52, "score", 4), (0x56, "pos_x", 4), (0x6c, "chain_gate", 1),
+    (0x73, "pos_y", 4), (0x123, "act_container", 4), (0x13f, "next_ent", 4),
+]
+
+
+def field_diff(a, b):
+    out = []
+    for off, nm, w in ENTITY_FIELDS:
+        if off + w > min(len(a), len(b)):
+            continue
+        va = int.from_bytes(a[off:off + w], "little")
+        vb = int.from_bytes(b[off:off + w], "little")
+        if va != vb:
+            out.append(f"{nm}@+0x{off:02x} {va:#x}/{vb:#x}")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--orig", help="original run dir (replay_original.py output)")
@@ -312,9 +336,13 @@ def main():
                     verdict = "REC-VARIES"      # record contents embed allocation addresses: expected
                 a_, b_ = nz_o[0], nz_p[0]
                 at = next((k for k in range(RB) if a_[k] != b_[k]), 0)
+                nbad = sum(1 for k in range(min(len(a_), len(b_))) if a_[k] != b_[k])
+                fld = field_diff(a_, b_)
                 verdict = "REC-DIFF"
-                per.append((label, "REC-DIFF", f"rec+0x{at:02x}={a_[at]:#04x}",
-                            f"rec+0x{at:02x}={b_[at]:#04x}"))
+                per.append((label, "REC-DIFF",
+                            f"{nbad}B differ; rec+0x{at:02x}={a_[at]:#04x}",
+                            f"rec+0x{at:02x}={b_[at]:#04x}"
+                            + ("  <== " + "; ".join(fld) if fld else "")))
             base = next((c["ds"] for c in cells if c["name"] == name), 0)
             rows.append({"ds": hex(base), "name": name + "#rec", "guest_size": RB, "host_size": RB,
                          "verdict": verdict, "note": "raw block at the pointer cell's target",

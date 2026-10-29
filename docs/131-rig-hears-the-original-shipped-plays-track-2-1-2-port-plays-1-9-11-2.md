@@ -72,3 +72,25 @@ state — so this can be answered as a differential statement.
 
 Also banked this turn: `scripts/rig/port_mix.py` per-play cursor model (docs/129 caveat removed), and the
 route `ep1_kill3` re-run with the corrected capture (`/tmp/rig/g6`) for the state/screen/audio tallies.
+
+## 4. Phase-locking the two audio timelines (the capture does not start where the port's process starts)
+
+The container session boots the game, calibrates, and only then starts sampling, so capture seconds are offset
+from the port's process seconds. The DS cells give the anchor: on the shipped side `0x53c44 / 0x53c40 / 0x53c48`
+current-lba/sectors changed exactly **once in 0–60 s, at capture t = 48.305 ms+48 s**, from lba `0x2d320`
+(track 9, 0x171 = 369 s) to `0x367aa` (track 11, `0xee` = 238 s); the port issues the same pair of requests at
+47.354 s and 50.190 s. Taking the track-11 request as the shared event gives an offset of about **+1.9 s**
+(shipped capture = port time + 1.9 s), so the audible positions translate to:
+
+| audible event (shipped) | capture s | port-equivalent s | what the port does there |
+|---|---|---|---|
+| track 2 begins | 12.4 | **10.5** | still inside the intro track (played 3.5–45.2 s) |
+| track 1 begins | 99 | **97** | inside track 11 (50.2–154 s) |
+| track 2 begins again | 140.4 | **138.5** | inside track 11, no restart at all |
+
+Two claims that survive the anchoring, both rig-only findings: the shipped game has **stage-track audio at
+port-equivalent ~10.5 s**, where the port is still playing the intro track; and the shipped game **restarts the
+stage track mid-stage**, which the port never does. The track-11 absence stays open: the shipped side requests
+it at 48.305 s (cell value `0x367aa`, 238 s) yet no track-11 audio exists anywhere in the 266 s capture, so the
+request must be superseded before the drive's stream reaches the mixer — measuring that needs sampling above
+the 4 Hz dump cadence, i.e. a dedicated high-rate pass over 48–72 s on both sides.

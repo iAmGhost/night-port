@@ -84,3 +84,34 @@ whether the shipped run appends them at all on this drive. Concretely:
 
 The population numbers from docs/137 §5 are consistent with an append-side defect: the port's live-entity count
 distribution (max 9, 24% of samples at 5 or more) sits above the shipped one (max 6, mode 2).
+
+## 4. The command list is on both sides, but its record counter is not
+
+The commands are not invented by the port: `stage%d.stg` is read as a dword record count into `DAT_00063e14`
+followed by that many 0x59-byte records, each appended by `fn_03e0a0` (f.c:5070-5074, guest 0x37c8d-0x37cdc).
+So the enb-1 (`t=36`) opcode-1 commands exist in the shipped asset, and the shipped run does carry a command
+list. Reading the three list globals straight out of the shipped DS dumps and the port's cell records:
+
+```
+                      DAT_63e14 (record count)              DAT_63e18 (list head) nonzero
+shipped (491 samples) 67 x456, 88 x33, 0 x2                 489 / 491
+port     (2047 samples) 67 x752, 0 x473, 61 x427, 66 x231,  1574 / 2047
+                       88 x109, 62 x27
+```
+
+The shipped side keeps the count at the value the `.stg` declared (67, or 88 in the window where a different
+stage's script is loaded) and essentially always has a list head. The port's count wanders down to 61/62 and
+is zero in 23% of samples. The zeros are plausibly the phases the shipped sampling never covered (its trace
+starts at 47 s, the port's at 0 s), but **61/62 vs a constant 67 is not a phase effect**: the port's
+`fn_03e14c` decrements `g_dat_63e14` on every unlink (`g_dat_63e14--;  /* DEC [0x63e14] (always) */`,
+f.c:1915) and nothing brings it back up until the next stage load, while the shipped run's value does not
+drift. Since a record is only *consumed* (unlinked and freed) when the interpreter clears its opcode byte, a
+counter that drifts down on the port while the list keeps being retried is the signature of unlinking records
+the shipped game would have left pending -- which is exactly the shape needed to explain both the extra
+enb-1 spawns and the larger live-entity population in docs/137 §5.
+
+Open item, stated as a check rather than a conclusion: locate every guest write to `DAT_00063e14` (the
+`DEC` inside `fn_0003e14c`, the load in the `.stg` reader, and any increment) and compare each against the
+port's placement; then make `DAT_63e14 / 63e18 / 63e1c / 63e20` a first-class oracle row (they are dumped on
+both sides) so a list-length divergence is reported automatically instead of discovered through an entity
+census.

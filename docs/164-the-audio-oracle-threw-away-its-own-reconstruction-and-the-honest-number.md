@@ -87,3 +87,37 @@ Read while checking the coverage claim, so the next measurement starts from fact
 The 7 manual-playtest items are all checked with ROOT CAUSE / DOCS / EVIDENCE in
 `docs/manual-playtest/02-2026-10-28.md`, but **the state and audio diffs are not green**, so the goal is not
 complete and no completion claim is being made.
+
+## 6. The board path, measured with witnesses instead of inferred
+
+`NIGHT_AUDIODUMP` (already in `sys.c:184`) dumps the exact bytes each DMA arm puts on the wire.  60 transfers on
+`ep1_kill3`, 6000 frames: **all 60 carry `n=3607`, `width=1`, `rate=10989`, `ch=1` and byte-identical content**
+(`7f 80 80 81 83 89 8f 90 ...`).  That looked like "the port sends the same samples for every sound", so the
+feed side got a witness too, and the picture is different:
+
+```
+sfxfeed (fn_04097e)   73 calls      audiodump (DMA transfers)  73   <- one feed per transfer
+sfxcopy (fn_040b83)    0 calls      -- the duplicated feeder is never used on this route
+sfxplay (element-event path, f.c:23207)  10
+distinct feed sizes:   3609 x70, 5348 x1, 5031 x1, 4916 x1
+```
+
+* **The transfer path is not dropping the sound identity.**  Three feeds carry different block sizes, so different
+  sounds do reach the wire; 70 of the 73 feeds are the *same* 3609-byte block, and `n = 3607 = 3609 - 2` matches
+  the header stripping in `fn_04097e` (`total - 2` at `0x40a23-29`, the device is told one byte fewer at
+  `0x40a9a`).  The open question is now behavioural: *why is one 3609-byte sample fed 70 times* on this drive.
+* **No address bug in `au_start()` after all.**  It reads `au_src[0 .. n-1]`, which is right, because the feeder
+  programs the DMA address *from the buffer base*: `g_dat_63fac = g_dat_63fb4 (+ ds_lin)` at `f.c:8308/8312` and
+  `outb(0x02/0x03)` plus page `0x83` from that value (`fn_040b83`'s documented burst).  The recorded
+  `dma_addr` (0x381c on one boot, 0x781c on another -- varies per boot, never per transfer) is that buffer's own
+  address.  A real candidate was checked and not filed.
+* **`AUDIO_RING` is not the constraint** (1 << 17 bytes vs a 3607-byte block), and the 8-bit conversion in
+  `sys_audio_fill` (`(b - 128) * 256`) is correct, so the low level is not a ring overflow or a signedness slip.
+* The witnesses are env-gated (`NIGHT_AUDIODUMP`) and cost nothing when unset.
+
+## 7. Consequence for the audio gate
+
+The SFX verdicts in §2 still compare a *mixed* container capture (board + CD-DA) against a board-only stream, so
+they cannot clear or fail the gate.  With the feed census in hand, the comparable statement is now countable on
+both sides: **one feed per transfer, 73 feeds on this route, 70 of them the same block** -- and the shipped side
+has to answer the same three numbers before "missing punch SFX" can be called fixed or open by the rig alone.

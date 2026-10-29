@@ -8395,6 +8395,10 @@ uint32_t fn_040fb3(void) {
  * into both functions; it is kept duplicated here for 1:1 fidelity), except that the first
  * device command is g_dat_63f9c directly -- no 0x14 comparison. */
 void fn_04097e(uint8_t *hdr, uint32_t total) {
+    if (getenv("NIGHT_AUDIODUMP")) {                                /* docs/164 §6 witness */
+        fprintf(stderr, "sfxfeed total=%u cmd=0x%x head=%02x%02x%02x%02x\n", total, (unsigned)hdr[1],
+                hdr[0], hdr[1], hdr[2], hdr[3]);
+    }
     uint32_t b0 = hdr[0];                                          /* 0x4099b-a5 */
     uint32_t b1 = hdr[1];                                          /* 0x409a8-b2 */
     fn_040948(b0);                                                 /* 0x409b8 */
@@ -8447,6 +8451,13 @@ void fn_04097e(uint8_t *hdr, uint32_t total) {
  * count low byte and count high byte. */
 void fn_040b83(uint8_t *src, uint32_t unused_edx) {
     (void)unused_edx;                                              /* 0x40b9d: dead [ebp-4] */
+    if (getenv("NIGHT_AUDIODUMP")) {
+        /* docs/164 §6 witness: every DMA transfer in this route carried the SAME 3607 bytes.  This line says
+         * whether the *source* the game hands the feeder actually varies -- if it does, the loss is between the
+         * copy and the wire; if it does not, the game is being handed one sample block for every sound. */
+        fprintf(stderr, "sfxcopy remain=%u head=%02x%02x%02x%02x%02x%02x src=%p\n", g_dat_63f94,
+                src[0], src[1], src[2], src[3], src[4], src[5], (void *)src);
+    }
     g_dat_63fa8 = src;                                             /* 0x40ba0-a3 */
     if (g_dat_63f94 > 0xffffu) {                                   /* 0x40ba8 jle */
         g_dat_63f98 = 0xffff;                                      /* 0x40bb4 */
@@ -23205,6 +23216,8 @@ int32_t fn_03a829(void)
                 if (ev >= 1u && ev <= 100u && g_dat_53d0c[ev - 1u]) {
                     fn_04185e(g_dat_53d0c[ev - 1u]);
                     g_sfx_plays++;
+                    if (getenv("NIGHT_AUDIODUMP"))                  /* docs/164 §6: which sound, in order */
+                        fprintf(stderr, "sfxplay no=%u\n", g_sfx_plays);
                 } else {
                     g_sfx_oob++;
                 }

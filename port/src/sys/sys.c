@@ -183,8 +183,11 @@ static void au_start(void) {
         /* Diagnostic: the exact sample bytes the game's DMA arm put on the wire, plus the programmed rate.
          * Compared offline against an independent decode of the shipped .voc assets (docs/57 basis), this turns
          * "effects transfer" into "the hardware receives the shipped samples at the shipped rate". */
-        fprintf(stderr, "audiodump n=%u rate=%u width=%u ch=%d bytes=",
-                n, au_rate_hz, au_width, (int)dma_armed);
+        /* docs/164 §6: the transfer's *address* is programmed by the game (24-bit on ports 0x02/0x03 plus the
+         * page on 0x83) but au_start() reads au_src[0..n-1] regardless.  Print what was programmed so the
+         * "same bytes every sound" measurement can say whether the game actually varies the address. */
+        fprintf(stderr, "audiodump n=%u rate=%u width=%u ch=%d dma_addr=%06x bytes=",
+                n, au_rate_hz, au_width, (int)dma_armed, dma_addr[(uint8_t)dma_armed]);
         for (uint32_t i = 0; i < (n < 256u ? n : 256u); i++) fprintf(stderr, "%02x", au_src[i]);
         fprintf(stderr, "\n");
     }

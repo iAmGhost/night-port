@@ -103,3 +103,38 @@ Next check, unchanged in shape and now narrowed to one field: dump the guest wri
 (who stores it, from which source value) and compare with the port's room loader. If the shipped loader leaves
 `+0x36` at 0 for this room and the port fills 617, the clamp never engages in the port, the camera scrolls
 300 pixels, the camera-relative spawn gates open, and everything in docs/137/138/139 follows.
+
+## 5. §4's field reading is provisional -- a rig-identity check is required before it can carry weight
+
+The same dump gives a value that contradicts a live witness, and that has to be reported before the
+`room[+0x36]` claim is used for anything:
+
+* the dumped room block holds `35584` (0x8B40) at record `+0x11` on **both** sides, i.e. the byte at `+0x11`
+  would be `0x40`;
+* but `fn_03e20f` tests `room[0x11] == 0` as a **byte**, and the `NIGHT_SPAWNTRACE` witness -- which reads the
+  live `g_dat_63354[0x11]` in the running port -- printed `room11=0` on all seven spawn events (docs/138 §1).
+
+Both dump sides agree with each other and disagree with the live byte, which is the signature of a
+**record-identity or field-offset problem in the dumper**, not of a game difference: the room node almost
+certainly carries list links before the fields `fn_03e20f` reads (command records in the same family keep
+`+0x4d`/`+0x51` links and are 0x59 bytes), so "byte at record offset +0x11" in the dump is not necessarily
+"`room[0x11]`" in the interpreter's sense. The x_lo/x_hi agreement (0 / 1600) is consistent with a shifted
+window too -- those are the kind of values that repeat across a block.
+
+Required check, and it is cheap because the witness already exists: extend the `NIGHT_SPAWNTRACE` line to
+print the live `room[+0x32]`, `room[+0x36]`, `room[+0x00]`, `room[+0x08]` and `room[+0x11]` bytes/dwords, and
+compare them against the same samples' dumped room-block bytes. If they line up only after a fixed shift, the
+dump's room-record layout needs that shift applied in `replay_original.py` / the port dumper (a rig fix, per
+the rule that a rig defect gets fixed rather than smoothed), and only then is §4's `0` vs `617` a statement
+about the game rather than about the dumper.
+
+Until that check passes, the defensible claims in this document are the ones taken straight from DS cells,
+which need no record-block interpretation:
+
+* shipped `DAT_000639dc` (camera x) never exceeds 27 and parks on {0, 12, 24, 25, 26, 27}; the port reaches 298
+  across 74 distinct values; `DAT_000639e0` (camera y) is 0 everywhere on both sides.
+* shipped `DAT_00063e14` never leaves 67 (920/980 samples); the port drops to 61/62/64/65/66 in 711/2047.
+* shipped live entity count is 99% at 4 or fewer; the port has 24% of samples at 6 or more.
+
+All three are DS-cell or chain-walk measurements, and all three are consistent with the same cause: the port
+scrolls a camera the shipped game keeps still.

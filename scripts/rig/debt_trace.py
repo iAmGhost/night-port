@@ -122,6 +122,20 @@ def main():
                     events[tag].append(("ARMED", t, pv["debt"], cur["debt"], pv["acc"], cur["acc"]))
                 if pv["hp"] != cur["hp"]:
                     events[tag].append(("HP", t, pv["hp"], cur["hp"], pv["debt"], cur["debt"]))
+                if (pv["acc"] or 0) <= 0 and (cur["acc"] or 0) > 0:
+                    # a re-arm of the accumulator (guest 0x377a1 writes 100 into +0x56).  Each re-arm restarts
+                    # fn_0137c1's ramp and re-shields the player, so the COUNT of re-arms is the quantity docs/162
+                    # §12 queued.  At 250 ms a full drain-and-rearm can hide inside one bucket, so this is a
+                    # lower bound, and it is stated as one.
+                    events[tag].append(("ACC_REARM", t, pv["acc"], cur["acc"], pv["debt"], cur["debt"]))
+            if cur["hp"] is not None and pv is not None and cur["hp"] < pv["hp"]:
+                d = pv["hp"] - cur["hp"]
+                # hp is a signed word and the record block can be a freed/garbage block (docs/128/161 found the
+                # player pointer reading a block with x ~ -1.4e9); an implausible drop is a BAD READ, not damage.
+                if d > 2000:
+                    stats[tag]["bad_reads"] += 1
+                else:
+                    stats[tag]["hp_lost"] += d
             prev[tag] = cur
 
     for tag in ("ORIG", "PORT"):
@@ -132,7 +146,9 @@ def main():
             kind, t, a0, a1, b0, b1 = e
             # event tuples carry (a0,a1) = debt or hp pair and (b0,b1) = the paired field; label each kind
             # explicitly so the two columns cannot be read swapped (docs/162 §9 caught exactly that here).
-            if kind == "HP":
+            if kind == "ACC_REARM":
+                print(f"   {kind:10s} t={t:>7} acc {a0} -> {a1} (debt {b0} -> {b1})")
+            elif kind == "HP":
                 print(f"   {kind:7s} t={t:>7} debt {a0} -> {a1} (hp {b0} -> {b1})")
             elif kind == "SETTLE":
                 print(f"   {kind:7s} t={t:>7} debt {a0} -> {a1} (hp {b0} -> {b1})")

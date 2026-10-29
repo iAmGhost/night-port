@@ -304,3 +304,27 @@ that `fn_0137c1` builds (one unit per frame out of the accumulator) tops out at 
 the port and sits there, while the shipped side's debt is always caught mid-drain.  The next measurement is
 therefore the accumulator's arming count: how many times per route each side writes `+0x56 = 100`
 (guest `0x377a1`), because a second arming re-runs the whole ramp and re-shields the player.
+
+## 13. Accumulator re-arms, and a garbage-read filter that had to be added first
+
+`debt_trace.py` extended to count accumulator re-arms (`+0x56` going from <= 0 to > 0, guest `0x377a1` writing
+100) and total hp lost, on the same aligned 570-bucket window:
+
+```
+ORIG: debt>0 343  debt<=0 227  acc>0 52  flag0 390 flag2 180  hp_lost 65
+      events: HP 20, ACC_REARM 1, ARMED 1, SETTLE 1     (ACC_REARM t=48093 acc 0 -> 100)
+PORT: debt>0 450  debt<=0 120  acc>0 71  flag0 487 flag2 52 flag1 21 flag7 ...  hp_lost 40
+      events: HP 14, ACC_REARM 2, ARMED 2, SETTLE 1     (ACC_REARM t=61739 acc 0 -> 100)
+```
+
+- **hp_lost 65 shipped vs 40 port** over the aligned window — the same direction as the whole-route trace
+  (75 vs 40), reached now by a second, independent path.
+- **The accumulator is armed once on the shipped side and at least twice on the port's.**  This is a *lower
+  bound*: a full drain-and-re-arm can hide inside a 250 ms bucket.  It is also the mechanism that explains
+  §12's asymmetry — a second arming restarts `fn_0137c1`'s ramp, and while the ramp runs the debt is positive,
+  which is precisely the state in which `fn_01441e` refuses to touch hp.
+- A `+0x30 == 7` sample appeared in the port's census.  The shipped code only ever writes 0, 1 or 2 into that
+  byte (four `mov byte [eax+0x30], 2` sites and eleven `... , 1` sites, found by pattern search), so a 7 is not
+  a state -- it is the player pointer reading a stale block, the docs/128 dangling-record family again.  The
+  first hp accounting summed a 22 846 hp "loss" from such a read; the tool now discards drops above 2000 and
+  counts them as `bad_reads` instead.

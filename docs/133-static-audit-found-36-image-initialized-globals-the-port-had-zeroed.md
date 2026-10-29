@@ -177,3 +177,27 @@ screen/audio windows) are less affected, but the closeout sweep must re-run with
 3. Adjudicate the 12 `c3_image_init` rows that remain after the transcriptions.
 4. The 64 port cells with no shipped width at all still need Ghidra spans or access-derived widths before
    their verdicts carry weight.
+
+## 9. Negative result: bulk-transcribing the *array* cells left by c3 was unsafe, and was reverted
+
+c3 still lists 5 `image-nonzero-port-zero` cells: `0x530bc g_dat_530bc[16]`, `0x52f2c g_tab_52f2c[10]`,
+`0x52a1c g_tab_52a1c[0x4ec/4]`, `0x52b84 g_tab_52b84[90]`, `0x536dc g_dat_536dc` (the last one is already
+transcribed -- c3 reports it because c3 has the same header-`extern` blind spot that c3b had to fix, so it is
+reading the uninitialized declaration in `f.h`).
+
+An automated transcription pass was tried and reverted. It matched `g_tab_52a1c` with `elems = 315`
+(span 1260 B) because `port_src` evaluates the declaration `g_tab_52a1c[0x4ec/4]` differently from the
+`host_size` the rig uses, and rewrote an initializer that **already byte-matched the image** (c3b reports
+zero mismatches for it) into a 315-dword dump that reaches 1000 bytes past the symbol and duplicates bytes
+belonging to other modelled globals. Rule recorded: byte-wise transcription is safe only where the shipped
+span and the port's declared span agree -- for arrays whose shape comes from a dim expression, confirm the
+span first (Ghidra symbol width or the access stride), then transcribe. `g_dat_530bc` is a further distinct
+case: the shipped image bytes there are non-zero, but `fn_035b0c` writes every slot at runtime, so the
+initial value is unreachable state rather than a transcription error.
+
+State after the revert: `make -C port test` ALL PASS, c3b real byte mismatches 0, c3 rows 10 (5 of them the
+above family, 5 of them `image-zero-port-nonzero` representation rows: `SCREEN_BASE` mirrors at 0x633b0 /
+0x633b4, `g_video_ram` at 0x51a0c, `g_dat_63e64 = 0x140`, `kXlat_5302c`).
+
+Next run in flight: `/tmp/rig/g9` (ep1_kill3, 150 s) is the first route executed under the new build guard,
+and is the re-measurement promised in §8 item 2.

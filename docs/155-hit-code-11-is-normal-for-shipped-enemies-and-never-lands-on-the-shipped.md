@@ -51,3 +51,24 @@ OUT=/tmp/rig/g15 RIG_HZ=10 RIG_ENTS=12 sh scripts/rig/route.sh scripts/rig/drive
 NIGHT_HITTRACE=1 ./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
     --warp-stage 1 --frames 6000 2>&1 | grep "HIT atk" | head
 ```
+
+## 4. One suspect path audited and cleared
+
+The victim-flag decision that gates whether a hit is treated as a "player-style reaction" looked like the
+docs/111 defect class (a player-specific special case), because the port has one at `f.c:24781-24790`:
+
+```c
+if (cur == g_player_ent) {
+    if (cur[+0x05] != 0) flag = byte[ro + 0x6c];
+    else { cs = cur[+0x17]; flag = (cs >= 0x15 && cs <= 0x1e) ? byte[ro + 0x6c] : 0; }
+} else flag = byte[ro + 0x6c];
+```
+
+The shipped body has the same shape (`0x14789-0x147c6`): `cmp victim, [DAT_53c7c]` -> `jne` read-the-byte;
+for the player, `cmp [victim+5], 0` -> non-zero reads the byte; otherwise `cmp [victim+0x17], 0x15` /
+`cmp [victim+0x17], 0x1e` and only that window reads the byte, with `mov [ebp-0x14], 0` on the else path. The
+port is faithful, so this is **not** where the port's player acquires hit code 11. Notably the shipped
+condition for the player is satisfiable only when the player's state is already `0x15..0x1e`, which is the same
+window the divergence is about — worth remembering when the attacker-side question is answered.
+
+Reproduce: `uv run --with capstone scripts/audit/disasm.py --entry 0x14789 --end 0x147d0`.

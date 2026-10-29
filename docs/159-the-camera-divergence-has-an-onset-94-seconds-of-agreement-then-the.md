@@ -9,7 +9,20 @@ first disagreement: anchor +93.9 s   (orig cam=0, port cam=78, port entity count
 max camera x: orig 73, port 298
 ```
 
-**Everything agrees until anchor +93.9 s.** For the first 94 seconds after the room script drains, the two sides
+> **Caveat published immediately (measured in the same pass).** The shipped dump is *change-triggered*
+> (`timeline.json` entries carry `changed_ds`; docs/151 notes the shipped side only records a state when it
+> changes), so a window with no shipped sample cannot produce a disagreement. Counting aligned steps per window:
+>
+> ```
+> ORIG anchor+80..93 s :  0 shipped samples     PORT anchor+80..93 s : 126 port steps
+> ORIG anchor+93..105 s: 73 shipped samples     PORT anchor+93..105 s: 117 port steps
+> ORIG anchor+105..140 s: 226 shipped samples   PORT anchor+105..140 s: 343 port steps
+> ```
+>
+> So "94 seconds of agreement" is **94 seconds of no shipped samples**, and the onset is really "the first window
+> in which shipped sampled at all and the two sides disagreed". The usable statements are the per-window ones
+> below, and closing this properly needs a shipped-side capture at a fixed cadence rather than a change-triggered
+> one. For the first 94 seconds after the room script drains, the two sides
 hold the same camera value at every aligned sample. Then the port jumps to 78 while shipped stays at 0, and the
 port goes on to 298 against shipped's 73 maximum.
 
@@ -67,3 +80,23 @@ bad=[t-ao for t,c in O for tc,cc in [min(P,key=lambda x:abs(x[0]-t))] if abs(tc-
 print('disagreements',len(bad),'of',len(O),'first at anchor+',min(bad) if bad else None,'ms')
 PY
 ```
+
+## 5. Per-window step census (the honest version of this measurement)
+
+Aligned sample steps and camera jumps of >= 6 px, anchored on `DAT_00063e14 == 67`:
+
+| window | shipped samples | shipped jumps >= 6 px | port steps | port jumps >= 6 px |
+|---|---|---|---|---|
+| anchor +80..93 s | **0** | 0 | 126 | 10 |
+| anchor +93..105 s | 73 | 2 (max +9 px) | 117 | 8 (max +7 px) |
+| anchor +105..140 s | 226 | 13 (max +10 / −10 px) | 343 | 21 (max +8 px) |
+
+Where both sides are actually sampled, the *jump sizes* agree closely (shipped +9/+10 px, port +7/+8 px) and the
+*sample densities* do not (shipped 73 vs port 117 in the same 12 s). That is consistent with the shipped dump
+missing quiet states rather than with a camera-arithmetic divergence, and it makes the "port reaches 298 vs
+shipped 73" range gap partly a coverage gap.
+
+Rig consequence, filed as an open item: the shipped side needs a **fixed-cadence** DS capture (not
+change-triggered) before camera/population range comparisons can carry weight. `replay_original.py` already
+samples at a cadence for DS cells; what is missing is that its *timeline* only lists changed states, and the
+oracle's `bucket()` then carries the last sample forward — which silently equates "unchanged" with "agreement".

@@ -182,6 +182,42 @@ def main():
     gates(rows_o, "ORIG")
     gates(rows_p, "PORT")
 
+    # ---- how far ahead of the camera is the player? (docs/161) ---------------
+    # Both policy arms are pure geometry: right opens when px - cam > 0xbe, left when px - cam < 0x82.
+    # If the two sides disagree about that difference, the camera divergence is downstream of player speed
+    # or camera follow, not of the room bounds.
+    def lead(rows, title):
+        vals = sorted(s32(r["px"]) - s32(r["cam"]) for r in rows
+                      if r["px"] is not None and r["cam"] is not None)
+        if not vals:
+            return
+        q = lambda f: vals[min(len(vals) - 1, int(f * len(vals)))]
+        print(f"\n== {title} player lead px-cam: n={len(vals)} min={vals[0]} p10={q(0.10)} "
+              f"median={q(0.50)} p90={q(0.90)} max={vals[-1]}")
+        print(f"   past the right gate (>190): {sum(1 for v in vals if v > 0xbe)}   "
+              f"past the left gate (<130): {sum(1 for v in vals if v < 0x82)}   "
+              f"in the dead band [130..190]: {sum(1 for v in vals if 0x82 <= v <= 0xbe)}")
+
+    lead(rows_o, "ORIG")
+    lead(rows_p, "PORT")
+
+    # ---- who is moving: the player or the camera? (docs/161) --------------
+    def travel(rows, title):
+        pc = [(s32(r["px"]), s32(r["cam"])) for r in rows if r["px"] is not None and r["cam"] is not None]
+        dx = [b[0] - a[0] for a, b in zip(pc, pc[1:])] or [0]
+        dc = [b[1] - a[1] for a, b in zip(pc, pc[1:])]
+        absurd = [(i, a, b) for i, (a, b) in enumerate(pc) if abs(a) > 100000 or abs(b) > 100000]
+        print(f"\n== {title} travel per sample: |dpx| p50={sorted(abs(v) for v in dx)[len(dx)//2]} "
+              f"max={max(abs(v) for v in dx)}  total |dpx|={sum(abs(v) for v in dx)}  "
+              f"net dpx={pc[-1][0] - pc[0][0]}")
+        print(f"   camera: nonzero moves {sum(1 for v in dc if v)}/{len(dc)}  "
+              f"max |dcam|={max((abs(v) for v in dc), default=0)}  total |dcam|={sum(abs(v) for v in dc)}  "
+              f"net dcam={pc[-1][1] - pc[0][1]}")
+        print(f"   absurd px/cam samples (|v|>100000): {len(absurd)}  first three: {absurd[:3]}")
+
+    travel(rows_o, "ORIG")
+    travel(rows_p, "PORT")
+
 
 if __name__ == "__main__":
     main()

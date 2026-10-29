@@ -74,6 +74,37 @@ def mutate(rng, base, window_lo, window_hi, n_events, inject):
     ev.sort(key=lambda s: int(s.split()[0]))
     return base + ev
 
+# Precondition-aware MACROS: short ordered sequences that a uniform-random key stream almost never
+# produces by accident, and that the game's gating requires (title -> episode select, slide-show
+# advance, pause/continue, room transition). Emitted as units at spaced anchors (docs/120 §9).
+MACROS = {
+    "enter_wait_enter":   ["return tap", "700", "return tap", "700", "return tap"],
+    "menu_walk":          ["down tap", "400", "down tap", "400", "return tap", "900", "right tap", "return tap"],
+    "pause_cycle":        ["p tap", "600", "space tap", "600", "p tap", "400", "return tap"],
+    "esc_then_wait":      ["esc tap", "1200", "return tap", "600", "esc tap"],
+    "hold_then_release":  ["lctrl down", "120", "lctrl up", "120", "lctrl down", "900", "lctrl up",
+                           "400", "space tap", "600", "lctrl tap"],
+    "walk_dir":           ["right down", "1500", "right up", "300", "left down", "1500", "left up"],
+    "die_and_continue":   ["down tap", "300", "return tap", "1500", "return tap", "1500", "space tap"],
+}
+
+
+def macros(rng, lo, hi, n, gap_lo, gap_hi):
+    ev, t = [], rng.randrange(lo, hi, 20)
+    for _ in range(n):
+        body = MACROS[rng.choice(list(MACROS))]
+        cur = t
+        for tok in body:
+            if tok.isdigit():
+                cur += int(tok)
+            else:
+                ev.append(f"{cur} key {tok}")
+                cur += 40
+        t = cur + rng.randrange(gap_lo, gap_hi, 20)
+    ev.sort(key=lambda x: int(x.split()[0]))
+    return ev
+
+
 def run(seed_dir, drive, stage, cap, frames):
     os.makedirs(seed_dir, exist_ok=True)
     dpath = os.path.join(seed_dir, "drive.txt")
@@ -113,6 +144,8 @@ def main():
     ap.add_argument("--window", default="62000,140000")
     ap.add_argument("--events", type=int, default=60)
     ap.add_argument("--inject", action="store_true")
+    ap.add_argument("--macros", type=int, default=0, help="emit N ordered macro sequences per seed")
+    ap.add_argument("--macro-gap", default="2500,9000")
     ap.add_argument("--base", default="", help="seed-drive file (default: scripts/rig/drives/ep1_kill3.txt)")
     ap.add_argument("--rounds", type=int, default=1)
     ap.add_argument("--out", default="/tmp/rig/fuzz")
@@ -142,10 +175,12 @@ def main():
             w_hi = min(hi, w_lo + rng.randrange(20000, max(21000, (hi - lo) * 2 // 3)))
             lo, hi_ = lo, hi
             src = corpus[rng.randrange(len(corpus))][1] if corpus and rnd else read_base(a.base_until, a.base)
-            drive = src + mutate(rng, [], w_lo, w_hi, rng.randrange(a.events // 2, a.events * 2), a.inject)
+            mlo, mhi = (int(x) for x in a.macro_gap.split(","))
+            mac = macros(rng, lo, hi, a.macros, mlo, mhi) if a.macros else []
+            drive = src + mutate(rng, [], w_lo, w_hi, rng.randrange(a.events // 2, a.events * 2), a.inject) + mac
             if a.base:
                 drive = read_base(a.base_until, a.base) + mutate(rng, [], w_lo, w_hi,
-                                                                 rng.randrange(a.events // 2, a.events * 2), a.inject)
+                                                                 rng.randrange(a.events // 2, a.events * 2), a.inject) + mac
             jobs.append((stage, drive, f"r{rnd}s{i}_st{stage}"))
 
         # run in parallel batches of --workers

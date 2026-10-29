@@ -5470,6 +5470,13 @@
    "ai_fput",
    "ai_rec_i32",
    "ai_script_byte",
+   "arena_alloc_check",
+   "arena_dbg",
+   "arena_flag_check",
+   "arena_live_add",
+   "arena_live_del",
+   "arena_live_has",
+   "arena_slot",
    "blit_stats_dump",
    "blit_stats_on",
    "blk50_f32",
@@ -5505,6 +5512,10 @@
    "ent_spr_trace",
    "ent_trace_budget",
    "entspr_dump",
+   "f_arr_at",
+   "f_ent_walk",
+   "f_heap_at",
+   "f_list_link",
    "f_type_act_names",
    "f_type_spr_names",
    "f_warp_entity_spawn",
@@ -110927,7 +110938,7 @@
     4
    ],
    "file": "f.c",
-   "line": 7894
+   "line": 8061
   },
   {
    "ds": "0x5d08c",
@@ -110955,7 +110966,7 @@
     4
    ],
    "file": "f.c",
-   "line": 901
+   "line": 975
   },
   {
    "ds": "0x5d0a0",
@@ -110983,7 +110994,7 @@
     4
    ],
    "file": "f.c",
-   "line": 904
+   "line": 978
   },
   {
    "ds": "0x53394",
@@ -111053,7 +111064,7 @@
     4
    ],
    "file": "f.c",
-   "line": 5232
+   "line": 5399
   }
  ],
  "c9_width_coverage": {

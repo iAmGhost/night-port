@@ -1,8 +1,8 @@
 {
  "tally": {
-  "FILED-RUNTIME": 107,
-  "FILED-PRODUCER-CHECK": 7,
-  "FILED-READONLY": 12,
+  "FILED-RUNTIME": 96,
+  "FILED-PRODUCER-CHECK": 3,
+  "FILED-READONLY": 10,
   "EXPLAINED-UNACCESSED": 37,
   "FILED-SPAN": 141,
   "EXPLAINED-SAME-TABLE": 3,
@@ -55,50 +55,8 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_rng_state @ 0x5335c",
-   "evidence": "image=01000000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_530b4 @ 0x530b4",
-   "evidence": "image=64000000 port_init='= 0' guest reads=1 writes=2",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_530b8 @ 0x530b8",
-   "evidence": "image=64000000 port_init='= 0' guest reads=1 writes=0, and nothing in the port ever writes 'g_dat_530b8' -> shipped bytes were dropped",
-   "verdict": "FILED-READONLY"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_531f8 @ 0x531f8",
-   "evidence": "image=ffff0000 port_init='= 0' guest reads=0 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
    "subject": "g_dat_63e64 @ 0x63e64",
    "evidence": "image=00000000 port_init='= 0x140' guest reads=6 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_53619 @ 0x53619",
-   "evidence": "image=00010000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_530ac @ 0x530ac",
-   "evidence": "image=20030000 port_init='= 0' guest reads=7 writes=1",
    "verdict": "FILED-RUNTIME"
   },
   {
@@ -118,13 +76,6 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_51c98 @ 0x51c98",
-   "evidence": "image=01000000 port_init='= 0' guest reads=1 writes=4",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
    "subject": "g_dat_536dc @ 0x536dc",
    "evidence": "image=14000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes",
    "verdict": "FILED-PRODUCER-CHECK"
@@ -132,78 +83,8 @@
   {
    "check": "C3",
    "kind": "image-init",
-   "subject": "g_dat_53780 @ 0x53780",
-   "evidence": "image=100e0000 port_init='= 0' guest reads=1 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_53784 @ 0x53784",
-   "evidence": "image=01000000 port_init='= 0' guest reads=0 writes=2",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_53788 @ 0x53788",
-   "evidence": "image=45535400 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_537a7 @ 0x537a7",
-   "evidence": "image=45445400 port_init='= 0' guest reads=2 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_5377c @ 0x5377c",
-   "evidence": "image=50460000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes",
-   "verdict": "FILED-PRODUCER-CHECK"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_5363c @ 0x5363c",
-   "evidence": "image=01000000 port_init='= 0' guest reads=3 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_53640 @ 0x53640",
-   "evidence": "image=10000000 port_init='= 0' guest reads=1 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_53368 @ 0x53368",
-   "evidence": "image=2000 port_init='' guest reads=1 writes=1",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
    "subject": "g_dat_51a0c @ 0x51a0c",
    "evidence": "image=00 port_init='= g_video_ram' guest reads=4 writes=0, and nothing in the port ever writes 'g_dat_51a0c' -> shipped bytes were dropped",
-   "verdict": "FILED-READONLY"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_52ff8 @ 0x52ff8",
-   "evidence": "image=01 port_init='= 0' guest reads=1 writes=6",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C3",
-   "kind": "image-init",
-   "subject": "g_dat_537ca_target @ 0x537ca",
-   "evidence": "image=a7 port_init='= 0' guest reads=1 writes=0, and nothing in the port ever writes 'g_dat_537ca_target' -> shipped bytes were dropped",
    "verdict": "FILED-READONLY"
   },
   {
@@ -2953,6 +2834,55 @@
   {
    "check": "C5",
    "kind": "port-fn-never-called",
+   "subject": "arena_alloc_check",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "arena_dbg",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "arena_flag_check",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "arena_live_add",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "arena_live_del",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "arena_live_has",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "arena_slot",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
    "subject": "blit_stats_dump",
    "evidence": "no call site inside the port",
    "verdict": "FILED-RUNTIME"
@@ -3198,6 +3128,34 @@
   {
    "check": "C5",
    "kind": "port-fn-never-called",
+   "subject": "f_arr_at",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "f_ent_walk",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "f_heap_at",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
+   "subject": "f_list_link",
+   "evidence": "no call site inside the port",
+   "verdict": "FILED-RUNTIME"
+  },
+  {
+   "check": "C5",
+   "kind": "port-fn-never-called",
    "subject": "f_type_act_names",
    "evidence": "no call site inside the port",
    "verdict": "FILED-RUNTIME"
@@ -3332,83 +3290,6 @@
    "check": "C5",
    "kind": "port-fn-never-called",
    "subject": "fn_0003fade",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_00040788",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_000407f8",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_00041bdc",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_015b5b_core",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_03af18_ending_slideshow",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_03f6bc_impl",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_04295d_keywait",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_047d4e_epi",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fn_showscreen_gate",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fp_0442fa_default",
-   "evidence": "no call site inside the port",
-   "verdict": "FILED-RUNTIME"
-  },
-  {
-   "check": "C5",
-   "kind": "port-fn-never-called",
-   "subject": "fpu_init",
    "evidence": "no call site inside the port",
    "verdict": "FILED-RUNTIME"
   },

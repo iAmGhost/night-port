@@ -183,20 +183,20 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
 
 ## c9_access_width_vs_port_type: 11 findings
   {"ds": "0x53e9c", "name": "g_dat_53e9c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": -1, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.h", "line": 1213}
-  {"ds": "0x53e9c", "name": "g_dat_53e9c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 35360, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 7894}
+  {"ds": "0x53e9c", "name": "g_dat_53e9c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 35360, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 8061}
   {"ds": "0x5d08c", "name": "g_dat_5d08c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.h", "line": 189}
-  {"ds": "0x5d08c", "name": "g_dat_5d08c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 901}
+  {"ds": "0x5d08c", "name": "g_dat_5d08c", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 975}
   {"ds": "0x5d0a0", "name": "g_dat_5d0a0", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.h", "line": 190}
-  {"ds": "0x5d0a0", "name": "g_dat_5d0a0", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 904}
+  {"ds": "0x5d0a0", "name": "g_dat_5d0a0", "ctype": "uint8_t", "kind": "byte-array-with-dword-fields", "shipped_defined_span": 4, "elems": 20, "port_elem_width": 1, "guest_access_widths": [4], "file": "f.c", "line": 978}
   {"ds": "0x53394", "name": "g_stack_bound", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.h", "line": 16}
   {"ds": "0x53c5c", "name": "g_dat_53c5c", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.h", "line": 365}
   {"ds": "0x53c5c", "name": "g_dat_53c5c", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.c", "line": 681}
   {"ds": "0x53c84", "name": "g_dat_53c84", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.h", "line": 134}
-  {"ds": "0x53c84", "name": "g_dat_53c84", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.c", "line": 5232}
+  {"ds": "0x53c84", "name": "g_dat_53c84", "ctype": "uintptr_t", "kind": "host-pointer-vs-guest-offset", "shipped_defined_span": 4, "elems": 1, "port_elem_width": 8, "guest_access_widths": [4], "file": "f.c", "line": 5399}
 
 ## c9 comparison-basis coverage: 292 port DS cells -> 217 shipped span, 11 width only from the access operand, 64 with no shipped width at all
 
-## c5_dead_sides: guest-without-port=90 port-never-called=184
+## c5_dead_sides: guest-without-port=90 port-never-called=195
   guest_functi FUN_00041fa1
   guest_functi FUN_00042b7d
   guest_functi _entry
@@ -231,9 +231,9 @@ port globals with a DS address: 538 across 292 distinct DS cells; guest DS defin
   port_functio ai_fput
   port_functio ai_rec_i32
   port_functio ai_script_byte
-  port_functio blit_stats_dump
-  port_functio blit_stats_on
-  port_functio blk50_f32
-  port_functio blk50_f64
-  port_functio blt_rows
-  port_functio board_in
+  port_functio arena_alloc_check
+  port_functio arena_dbg
+  port_functio arena_flag_check
+  port_functio arena_live_add
+  port_functio arena_live_del
+  port_functio arena_live_has

@@ -5,7 +5,7 @@ Port source is deliberately untouched in this pass: the blind gate must run agai
 | verdict | count |
 |---|---|
 | FILED-SPAN | 141 |
-| FILED-RUNTIME | 107 |
+| FILED-RUNTIME | 96 |
 | FILED-VIEW | 65 |
 | FILED-CALLGRAPH-GAP | 64 |
 | EXPLAINED-BY-SPAN | 41 |
@@ -13,8 +13,8 @@ Port source is deliberately untouched in this pass: the blind gate must run agai
 | EXPLAINED-DEAD | 25 |
 | FILED-MODEL | 24 |
 | EXPLAINED-SCRATCH | 15 |
-| FILED-READONLY | 12 |
-| FILED-PRODUCER-CHECK | 7 |
+| FILED-READONLY | 10 |
+| FILED-PRODUCER-CHECK | 3 |
 | EXPLAINED-SAME-TABLE | 3 |
 | FILED-REPR | 3 |
 | EXPLAINED-RENAMED | 1 |
@@ -60,26 +60,18 @@ Port source is deliberately untouched in this pass: the blind gate must run agai
 - **FILED-SPAN** g_tab_52c3c covers g_tab_52da4 — overlap=400B shipped base constants in the inner span: ['0x52da4', '0x52f08', '0x52f2c']
 - **FILED-SPAN** g_tab_52c3c covers g_dat_52f08 — overlap=256B shipped base constants in the inner span: ['0x52ff8', '0x52ffc', '0x52f08', '0x52f2c']
 
-## C3: 27 adjudicated, 27 filed
+## C3: 10 adjudicated, 10 filed
 - **FILED-RUNTIME** g_dat_530bc @ 0x530bc — image=7f0000007f0000007f0000007f000000 port_init='' guest reads=0 writes=1
 - **FILED-PRODUCER-CHECK** g_tab_52f2c @ 0x52f2c — image=16000000030000000200000006000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
 - **FILED-READONLY** g_tab_52a1c @ 0x52a1c — image=e8030000e8030000e8030000e8030000 port_init='' guest reads=1 writes=0, and nothing in the port ever writes 'g_tab_52a1c' -> shipped bytes were dropped
 - **FILED-PRODUCER-CHECK** g_tab_52b84 @ 0x52b84 — image=00000000000000000000000000000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
 - **FILED-READONLY** kXlat_5302c @ 0x5302c — image=00000000000000000000000000000000 port_init='= { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x' guest reads=1 writes=0, and nothing in the port ever writes 'kXlat_5302c' -> shipped bytes were dropped
-- **FILED-PRODUCER-CHECK** g_rng_state @ 0x5335c — image=01000000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes
-- **FILED-RUNTIME** g_dat_530b4 @ 0x530b4 — image=64000000 port_init='= 0' guest reads=1 writes=2
-- **FILED-READONLY** g_dat_530b8 @ 0x530b8 — image=64000000 port_init='= 0' guest reads=1 writes=0, and nothing in the port ever writes 'g_dat_530b8' -> shipped bytes were dropped
-- **FILED-RUNTIME** g_dat_531f8 @ 0x531f8 — image=ffff0000 port_init='= 0' guest reads=0 writes=1
 - **FILED-RUNTIME** g_dat_63e64 @ 0x63e64 — image=00000000 port_init='= 0x140' guest reads=6 writes=1
-- **FILED-PRODUCER-CHECK** g_dat_53619 @ 0x53619 — image=00010000 port_init='= 0' but the port writes this global itself -> compare its producer against the shipped bytes
-- **FILED-RUNTIME** g_dat_530ac @ 0x530ac — image=20030000 port_init='= 0' guest reads=7 writes=1
 - **FILED-RUNTIME** g_dat_633b0 @ 0x633b0 — image=00000000 port_init='= SCREEN_BASE' guest reads=42 writes=1
 - **FILED-RUNTIME** g_dat_633b4 @ 0x633b4 — image=00000000 port_init='= SCREEN_BASE + SCREEN_SIZE' guest reads=8 writes=1
-- **FILED-RUNTIME** g_dat_51c98 @ 0x51c98 — image=01000000 port_init='= 0' guest reads=1 writes=4
 - **FILED-PRODUCER-CHECK** g_dat_536dc @ 0x536dc — image=14000000 port_init='' but the port writes this global itself -> compare its producer against the shipped bytes
-- **FILED-RUNTIME** g_dat_53780 @ 0x53780 — image=100e0000 port_init='= 0' guest reads=1 writes=1
-- **FILED-RUNTIME** g_dat_53784 @ 0x53784 — image=01000000 port_init='= 0' guest reads=0 writes=2
-- _15 FILED-RUNTIME (the state oracle decides):_ g_dat_530bc @ 0x530bc; g_dat_530b4 @ 0x530b4; g_dat_531f8 @ 0x531f8; g_dat_63e64 @ 0x63e64; g_dat_530ac @ 0x530ac; g_dat_633b0 @ 0x633b0; g_dat_633b4 @ 0x633b4; g_dat_51c98 @ 0x51c98; g_dat_53780 @ 0x53780; g_dat_53784 @ 0x53784
+- **FILED-READONLY** g_dat_51a0c @ 0x51a0c — image=00 port_init='= g_video_ram' guest reads=4 writes=0, and nothing in the port ever writes 'g_dat_51a0c' -> shipped bytes were dropped
+- _4 FILED-RUNTIME (the state oracle decides):_ g_dat_530bc @ 0x530bc; g_dat_63e64 @ 0x63e64; g_dat_633b0 @ 0x633b0; g_dat_633b4 @ 0x633b4
 
 ## C4: 3 adjudicated, 3 filed
 - **FILED-REPR** g_dat_639ec @ 0x639ec — port=uint8_t * shipped=undefined4 image=0 R26/W3 ['CMP dword ptr [EAX + 0x639ec] 0x0']

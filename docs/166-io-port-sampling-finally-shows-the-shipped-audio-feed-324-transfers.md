@@ -140,3 +140,53 @@ Two readings remain open and they are distinguishable, so the next measurement i
 The discriminator is the port's own copy cursor: if the shipped driver is walking forward, the *sequence of
 transfer sizes* and the *sequence of address deltas* must agree (delta == previous size + small residue).  That is
 checkable on the census already collected -- a mismatch rate near zero supports reading 1.
+
+## 7. Reading 1 fails its test, and the failure points at a specific port path
+
+First the semantics were verified rather than assumed.  The port's own transcription of the shipped programming
+burst (`port/src/f/f.c:8472-8480`, carrying the guest addresses) writes:
+
+```c
+outb(0x0a, 5);                        /* 0x40c1a: mask ch        */
+outb(0x0c, 0);                        /* 0x40c26: clear flip-flop*/
+outb(0x0b, 0x49);                     /* 0x40c35: preset         */
+outb(0x02, g_dat_63fac & 0xff);       /* 0x40c4b: addr low       */
+outb(0x02, (g_dat_63fac >> 8) & 0xff);/* 0x40c64: addr mid       */
+outb(0x83, (g_dat_63fac >> 0x10)&0xff;/* 0x40c7d: page register  */
+outb(0x03, g_dat_63f98 & 0xff);       /* 0x40c93: count low      */
+outb(0x03, (g_dat_63f98 >> 8) & 0xff);/* 0x40cac: count high     */
+outb(0x0a, 1);                        /* 0x40cbb: unmask ch      */
+```
+
+So `0x02` really is the channel-1 address (written twice through the flip-flop) and `0x03` really is the count --
+the census is measuring what it claims.
+
+**The forward-walk test, run against the census already collected:** pair each programming event with the next one
+and ask whether the address delta equals the previous transfer's size.
+
+```
+aligned programming events (both registers within 400 ms): 327
+address delta == previous transfer size:  44        mismatched: 282
+residues scatter: +39564, -59971, -557, +10302, -41672, -22178, ...
+```
+
+Reading 1 (a contiguous stream walked forward) **fails**: 44 of 326 steps fit, 282 do not, with residues tens of
+kilobytes wide.  The shipped driver does not walk -- it **seeks**: each transfer is programmed at a fresh offset
+inside the one fixed page (`0x83` constant at 1), 313 distinct addresses across 324 events.
+
+That reframes the divergence, and it lands on a specific place in the port:
+
+* Both feeders in the port come from the **same walker**: `fn_040839` decodes a device command stream and
+  dispatches `kind == 1 -> fn_04097e(cursor, len)` (arm and start a transfer, `f.c:8514`) and
+  `kind == 2 -> fn_040b83(cursor, len)` (**one DMA chunk** of a device transfer, `f.c:8515`).
+* On the measured drive the port ran `fn_04097e` **73 times and `fn_040b83` zero times** (the `sfxcopy` witness in
+  docs/164 §6).  The shipped side's shape -- many transfers, sizes on a 257-byte ladder, addresses varying while
+  the page stays fixed -- is the **chunk** shape, i.e. the kind-2 path, repeatedly.
+* So the open question is now concrete and narrow: *why does the port's command stream never contain a kind-2
+  chunk on this route*, when the shipped side's DMA traffic looks like nothing else.  That is a claim about the
+  command stream the port feeds the walker, testable by censusing the `kind` values `fn_040839` actually sees.
+
+Next measurement named: a `kind` census witness at `fn_040839`'s dispatch (counts per kind, plus the cursor and
+stream length), compared against 324 shipped programming events.  If the port only ever decodes kind 1, the audio
+cluster's root cause is the command stream it is handing the walker, not the DMA model, not the mixer, and not the
+sample assets.

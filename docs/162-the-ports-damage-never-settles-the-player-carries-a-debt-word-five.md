@@ -244,3 +244,21 @@ now explicit per event kind.
   multipliers, the two-word HP model, the stat block bytes) is faithful, so the search continues in the
   *sequence* of hits: which `slot`/`atype`/`flag` combinations reach `fn_01441e`, and how often each side
   reaches it at all.
+
+## 11. The lifetime oracle now catches its own contradictions
+
+The §6 retraction was hand-discovered.  `ent_life.py` now checks the arithmetic of its own links: a link only
+ever forms between adjacent samples, so an identity whose time span exceeds what its link count permits is a
+contradiction rather than a long-lived entity.
+
+```
+== ORIG: 1842 samples with live records, 63 identities (median sample gap 152 ms)
+== PORT: 1675 samples with live records, 77 identities (median sample gap 100 ms)
+   SELF-CONTRADICTION: 1 identity spans more time than its link count permits --
+   lifetime numbers from this run are NOT usable:
+      id=4 type=0x02 span=62273 ms in 5 samples
+```
+
+The shipped side trips nothing; the port trips exactly the one identity whose "62-second one-shot record" I
+had already retracted.  Until the linkage itself is understood, `ent_life.py`'s per-type **counts** are usable
+and its per-type **lifetimes** are not -- the guard says so on the same line the numbers are printed on.

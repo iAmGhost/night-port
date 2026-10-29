@@ -91,6 +91,7 @@ def main():
         live = []                      # entities alive in the current sample
         seen = {}                      # id -> latest state of every identity ever tracked (docs/161 §7):
                                        # censusing `live` alone would only ever describe the LAST sample
+        tstamps = []                   # every sample time that had live records
         nxt = 0
         n_samples = 0
         flags = collections.defaultdict(collections.Counter)      # type -> +0x30 value -> sample count
@@ -107,6 +108,7 @@ def main():
                 continue
             n_samples += 1
             t = s[0]
+            tstamps.append(t)
             for b in rows:
                 flags[b[0]][field(b, 0x30, 1)] += 1
                 states[b[0]][s32(field(b, 0x17, 4))] += 1
@@ -168,7 +170,22 @@ def main():
         by_type = collections.defaultdict(list)
         for e in seen.values():
             by_type[e["type"]].append(e)
-        print(f"== {tag}: {n_samples} samples with live records, {nxt} distinct identities")
+        # Self-policing guard (docs/162 §11).  Links only ever form between adjacent samples, so an identity
+        # that spans far more time than its sample count allows is a CONTRADICTION, not a long-lived entity --
+        # the 62273 ms / 5-sample "record" that made me write and then retract a lifetime claim.  Flag it here
+        # instead of discovering it by hand next time.
+        spans = sorted(e["t1"] - e["t0"] for e in seen.values())
+        gaps = sorted(b - a for a, b in zip(tstamps, tstamps[1:])) or [100]
+        med_gap = gaps[len(gaps) // 2]
+        bad = [e for e in seen.values()
+               if e["n"] > 1 and (e["t1"] - e["t0"]) > (e["n"] + 1) * med_gap * 3]
+        print(f"== {tag}: {n_samples} samples with live records, {nxt} distinct identities "
+              f"(median sample gap {med_gap} ms)")
+        if bad:
+            print(f"   SELF-CONTRADICTION: {len(bad)} identities span more time than their link count permits "
+                  f"-- lifetime numbers from this run are NOT usable:")
+            for e in sorted(bad, key=lambda e: e["t1"] - e["t0"], reverse=True)[:5]:
+                print(f"      id={e['id']} type={e['type']:#04x} span={e['t1'] - e['t0']} ms in {e['n']} samples")
         for ty, rows in sorted(by_type.items()):
             life = [(e["t1"] - e["t0"]) for e in rows]
             nsamp = [e["n"] for e in rows]

@@ -1,5 +1,13 @@
 # 232 — Item 1 root cause located: the CD-age counter is aged by the shipped's *timer IRQ* (`fn_03ee88`), which the port fires from its frame pump
 
+> **SUPERSEDED by docs/234 (`fix-music` measurement pass).** The shipped side of this note is sound: `DS 0x63e38`
+> is aged only by the installed timer IRQ `fn_03ee88`, and the port calls that handler from its frame pump.
+> The diagnosis built on it is not: the port's CD age does **not** freeze on the title route (it advanced at
+> 660 ticks/s across the whole dump window, 66 per 0.1 s sample), and the port does request -- and stream --
+> the title track and the room track on time when the route is run without `--rig-dump`.  The 166.7 s hold and
+> the 65 s no-sample hole in docs/183/docs/184 were dump-IO skew, not port behaviour.  A wait-aging fix was
+> implemented here and reverted; docs/234 §2-§4 carry the runs.
+
 Fix task: `fix-music`.  Red evidence was committed first (docs/183 `94a74ab`, docs/184 `743d3be`, docs/185
 `ec382a7`, gate report docs/226 `4ea273d`).  This document closes docs/184 §4's remaining question and names the
 one measurement the fix needs.

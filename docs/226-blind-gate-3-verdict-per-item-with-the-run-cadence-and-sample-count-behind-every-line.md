@@ -11,7 +11,7 @@ Docs/94, 96, 98, 99 §2 were treated as hypotheses; each is marked confirmed or 
 
 | # | item | verdict | new oracle needed | doc |
 |---|---|---|---|---|
-| 1 | intro music never switches to title | **DETECTED-AND-LOCALIZED** | `res` marker stream + track-request witness | 183, 184, 185, 187, 188 |
+| 1 | intro music never switches to title | **DETECTED-AND-LOCALIZED** *(withdrawn by docs/234: the timing behind it was a `--rig-dump` artifact)* | `res` marker stream + track-request witness | 183, 184, 185, 187, 188 |
 | 2a | kill EXP text garbled | **DETECTED-AND-LOCALIZED** | glyph witness + blit-bbox probe | 210, 211, 214, 215, 218, 219, 221 |
 | 2b | EXP gain per enemy type | **DETECTED-AND-LOCALIZED** | record-sampling oracle (`exp_award.py`) | 186-190, 199, 203 |
 | 3 | upgrade menu lights every row | **DETECTED-AND-LOCALIZED** | `NIGHT_LUMENU` witness + time-paired screen oracle | 206, 207 |
@@ -37,6 +37,13 @@ is the one claim the rig cannot reproduce; it is recorded as a negative with its
   ids (docs/188 supersedes docs/187's queue-value reading, which superseded docs/186's constant reading).
 * Hypothesis status: docs/94 §"music selection table" **superseded** (the table is right); the defect is the
   call path, not the table.
+* **SUPERSEDED by docs/234 — the verdict for this item is withdrawn.**  Both numbers behind the row above (the
+  166.7 s hold of track 1 and the 65 s no-sample hole) were taken from a `--rig-dump` run, and the dump's own
+  I/O moved the port's title-track request from 42 s to 178 s.  Run the same drive and the same binary without
+  the dump and the port requests 37262 → 185120 → 223146 → **40415** (`0x9ddf`, the title/room track shipped
+  selects), and the frozen baseline `4ea273d` does it at 12 / 45 / 48 / 77 s.  The selection oracle therefore
+  does not separate the port from the shipped on this route; what is left open is whether the *audible stream*
+  follows the selection, which has to be measured on audio content (docs/234 §5), not on dump timing.
 
 ## Item 2a — the EXP label blit
 

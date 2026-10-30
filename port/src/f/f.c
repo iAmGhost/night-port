@@ -15781,6 +15781,25 @@ uint8_t  g_dat_63ed8 = 0;          /* 0x63ed8: the mirrored select-held key byte
  *   (0/1 = which menu entry, 3 = quit/timeout). */
 int32_t fn_03a224(void)
 {
+    /* docs/233 host witness (NIGHT_TITLEDBG=1): phase timings inside the title screen.  The shipped game
+     * reaches its own title CD request (0x3a43d-42, fn_10b1d(9)) within ~30 s of boot, measured from the
+     * shipped-side selection timeline; the port needs ~180 s on the same drive, so the phase that eats the
+     * time has to be named before anything is changed. */
+    static int s_trace = -1;
+    static uint64_t s_t0, s_tprev;
+    static uint64_t s_menu_iters;
+    if (s_trace < 0) { const char *e = getenv("NIGHT_TITLEDBG"); s_t0 = 0; s_tprev = 0; (void)e; }
+#define TITLE_PHASE(what)                                                        \
+    do {                                                                         \
+        if (s_trace < 0) s_trace = (getenv("NIGHT_TITLEDBG") != 0) ? 1 : 0;      \
+        if (!s_trace) break;                                                     \
+        uint64_t now = sys_now_us();                                             \
+        if (!s_t0) { s_t0 = now; s_tprev = now; }                                \
+        fprintf(stderr, "titlephase %-26s dt=%7llu ms  total=%8llu ms  tick=%u\n", \
+                (what), (unsigned long long)((now - s_tprev) / 1000ull),          \
+                (unsigned long long)((now - s_t0) / 1000ull), (unsigned)g_dat_63e24); \
+        s_tprev = now;                                                           \
+    } while (0)
     (void)canary_id(0, 0x68);                                      /* 0x3a224-29 */
     int32_t sel = 0, hold = 0;                                     /* [EBP-8], [EBP-4] */
     uint32_t buf[4] = { 0, 0, 0, 0 };                              /* [EBP-0x24] (buf[2] never allocated) */
@@ -15798,6 +15817,7 @@ int32_t fn_03a224(void)
         fn_036417((const char *)name, (uint8_t *)g_heap_base + buf[i], 0);  /* 0x3a2af-bf */
     }
     fn_036417("title1.pcx", (uint8_t *)g_heap_base + buf[3], 1);    /* 0x3a2c5-d2 (0x516a7) */
+    TITLE_PHASE("after title*.pcx loads");
 
     for (int32_t row = 0; row < 0x1e0; row += 2) {                 /* 0x3a2d7-eb wipe */
         sys_key_spin();
@@ -15812,6 +15832,7 @@ int32_t fn_03a224(void)
         if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 ||
             g_dat_63ea5 != 0 || g_dat_63ec0 != 0) break;           /* 0x3a38c-b4 */
     }
+    TITLE_PHASE("after wipe");
     if (!(g_dat_63ec1 != 0 || g_dat_63ea4 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0)) {
         for (int32_t i = 0; i < 0x400; i++) {                      /* 0x3a3bb-407 */
             delay_units(1);                                        /* 0x3a3d3-d8 (thunk 0x42958 -> 0x4564f) */
@@ -15819,11 +15840,13 @@ int32_t fn_03a224(void)
                 g_dat_63ea5 != 0 || g_dat_63ec0 != 0) break;
         }
     }
+    TITLE_PHASE("after delay rounds");
     while (g_dat_63ec1 != 0 || g_dat_63ea4 != 0 ||
            g_dat_63ea5 != 0 || g_dat_63ec0 != 0)                   /* 0x3a409-431 release drain */
         sys_key_spin();
-
+    TITLE_PHASE("after release drain");
     g_dat_63f08 = 0;                                               /* 0x3a433 */
+    TITLE_PHASE("at fn_10b1d(9)");
     fn_10b1d(9);                                                   /* 0x3a43d-42 (orig EAX = 9) */
     fn_04185e(g_dat_53dd4);                                        /* 0x3a447-4c attract stream */
     for (;;) {                                                     /* 0x3a451-524 the menu */
@@ -15840,7 +15863,10 @@ int32_t fn_03a224(void)
         fn_00035ec2();                                             /* 0x3a4ed */
         fn_03f462(0, 0, 0x280, 0x1e0, (const uint8_t *)g_heap_base + buf[sel]);  /* 0x3a4f2-50a */
         if ((int32_t)g_dat_63f08 > 0xc4e) { sel = 3; break; }       /* 0x3a50f-522 demo timeout */
+        if (s_trace && (++s_menu_iters % 500) == 0) TITLE_PHASE("menu loop");
     }
+    if (s_trace) { TITLE_PHASE("menu exit"); }
+#undef TITLE_PHASE
     if (g_dat_63e89 != 0) sel = 3;                                 /* 0x3a529-532 */
     if (sel != 3) fn_04185e(g_dat_53ddc);                           /* 0x3a539-544 the start stream */
     fn_0406f5(g_dat_636b8, 0x32);                                  /* 0x3a549-53 51-frame fade-out */

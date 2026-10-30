@@ -1397,7 +1397,15 @@ static void tick_pump(void) {
          * back runs of one drive diverge (38 hits vs 5 hits on ep1_combat with the same LCG seed), because
          * a host that falls behind re-anchors and drops ticks -- so keys landed on different game ticks.
          * With a fixed step the tick sequence is a function of the presented frame count alone, which is
-         * what replayable fuzzing and minimal repros need. 8 = 490 Hz / ~60 fps. */
+         * what replayable fuzzing and minimal repros need. 8 = 490 Hz / ~60 fps.
+         *
+         * docs/234: a wait-aging term (age the handler by the cooperative retrace/DOS-clock waits too) was
+         * tried here for item 1 and REVERTED: the claim it was meant to repair -- the port holding one CD
+         * track for 166.7 s and never selecting the room track -- turned out to be a --rig-dump artifact.
+         * DAT_63e38 advanced at 660 ticks/s throughout the same dump run (0.1 s steps of 66), and the same
+         * drive on the same binary without the dump selects 37262 -> 185120 -> 223146 -> 40415 exactly like
+         * the shipped side.  A clock term driven by wait counts would have perturbed the calibrated pacing
+         * (docs/167 §21) to fix nothing. */
         static unsigned long s_step_frames;
         if (g_frames != s_step_frames) {
             s_step_frames = g_frames;

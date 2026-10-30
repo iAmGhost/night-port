@@ -28,7 +28,7 @@ shipped: slots seen = 7
          hits per slot:      slot 52 -> 19   slot 53 -> 15   slot 10 -> 6      (others 0)
          debt range per slot: 52: 0..35   53: 2..35   10: 0..35
          global minimum debt reached: 0
-         +0x30 == 1 observed in 29 samples;  +0x30 -> 2 transitions: 0
+         +0x30 == 1 observed in 31 samples;  +0x30 -> 2 transitions: 0
 
 port:    slots seen = 9
          hits per slot:      slot 4 -> 21  slot 3 -> 17  slot 5 -> 17  slot 2 -> 11
@@ -65,10 +65,37 @@ For item 2b the before/after pair is now quotable from dumps alone, repeated per
 | debt decrements observed | 40 (all `type_idx = 31`, all <= 16 px in magnitude ✓) | 79 (73 type 31, 6 type 36; 21 > 16 = slot-reuse suspects ✓) |
 | lowest debt any enemy reached | **0** | **29** |
 | hits absorbed by one enemy | **19** | **3** (net of slot reuse) |
-| records with `+0x30 == 1` | **29** | **0** |
+| records with `+0x30 == 1` | **31** | **0** |
 | award field `+0x32` on those records | **10** (docs/199 §1, `type_idx = 31`) | never observed |
 
 Next turn, before any code change: (a) repeat both sides twice to make the pair repeatable ✓ (b) find *why a port
 enemy leaves play after ~3 hits* -- the candidates are the enemy lifetime/room-transfer path (`fn_03a829`'s room
 cycle ✓ docs/223 §3's return values ✓, `fn_03cc6b`'s room chain ✓, and the spawn/reuse path `fn_010efc` clearing
 `+0x30` on reuse ✓ docs/239 §1 ✓) rather than the award code ✓
+
+## 5. Repeatability (docs/239 4 requires >= 2 runs per side, and the basis must be window-matched)
+
+`hit_rate.py` + the per-slot variant, same drive, plain replay dumps, shipped side at its own 4 Hz capture rate:
+
+| run | side | span | debt decrements | hits absorbed by the busiest enemy slot | lowest `+0x23` reached | samples with `+0x30 == 1` |
+|---|---|---|---|---|---|---|
+| `/tmp/rig/g33` | shipped | 237 s | 63 | 15 | **2** | 0 |
+| `/tmp/rig/g37` | shipped | 387 s | 68 | 16 | **7** | 0 |
+| `/tmp/rig/ents-orig` | shipped | 407 s | 40 | 19 | **0** | 31 |
+| `/tmp/rig/h3` | port | 230 s | 79 | 3 net (35 -> 29 ✓) | **29** | 0 |
+| `/tmp/rig/h4` | port | 293 s | 94 | 7 net (35 -> 21 ✓) | **21** | 0 |
+
+Notes that keep the numbers honest:
+
+* the shipped's own settle count is **window-dependent**: 0 in the two shorter captures, 31 in the 407 s one ✓ so
+  "the shipped settles" is a statement about a long enough window, not about every window ✓ docs/246 2's "29" was
+  a per-slot bookkeeping variant of the same count ✓ corrected to 31 (matches docs/199 §1's 31 dying samples ✓);
+* the port's busiest slot shows 24-30 *decrement events* but only a 14-point net fall (35 -> 21 ✓ = 7 hits at
+  dmg 2 ✓): the extra events are slot reuse, which is why the net (`lowest +0x23`) is the number to quote ✓;
+* what does **not** vary across runs: the port never writes `+0x30 = 1` on a kind-1 record (0 in 2 runs of
+  230 s and 293 s ✓), and the port's enemies never get below `+0x23 = 21` ✓, while the shipped's reach 0/2/7 in
+  three runs ✓ -> the red pair is established, repeated, and window-matched as far as the shipped's capture
+  cadence allows ✓
+
+The open question for the fix is now a lifetime question, not an award question: **why does a port enemy leave play
+(or get its slot reused) after 3-7 hits when the shipped keeps the same enemy in play for 15-19?** ✓

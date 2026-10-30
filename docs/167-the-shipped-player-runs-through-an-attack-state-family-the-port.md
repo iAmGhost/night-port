@@ -377,3 +377,32 @@ Two conclusions, and a coverage gap:
 
 The run-to-run spread in the selection census (20 vs 0 selections of `0x35`) is the non-determinism of §7 showing
 up again, which is why both runs are printed rather than one.
+
+## 16. The writes are faithful, so the port's dumped values for those cells contradict the live variable
+
+Two measurements that should agree, and do not:
+
+* the witness at the writes: 99 chain matches on the 12 000-frame run, every one `target=51 lv=1 k=1` (and the
+  other selections `52`, `53`), i.e. `g_dat_62d58` receives only members of the shipped alphabet and
+  `g_dat_62d5c` receives `1` -- exactly the shipped census `0x0 x1829, 0x1 x17`;
+* the dump of the same two cells in the same run: 541 and 544 distinct values, topped by `0x0`, `0x3f000000`
+  (float 0.5), `0x3e8` (1000), `0xac0000`, `0x80808080` (the poison fill).
+
+The cell table is not the obvious culprit: each of `DS 0x63360, 0x6339c, 0x62d58, 0x62d5c` is claimed by exactly
+**one** port global with `guest_size = host_size = 4` and zero duplicate claims anywhere in
+`gen/rig_cells.json`.  So either the dumper is not reading the C object those names denote -- most plausibly it
+resolves the DS address through the flat-model arena for these cells (docs/94's heap-offset family, where DS
+addresses are read as arena offsets and land on record bytes full of floats and `0x80` poison) -- or the port
+writes the same bytes through a DS-aliased path as well as through the named global (docs/112's
+one-address-two-objects family).
+
+Why this matters beyond these two cells: **the value state oracle's remaining 38 same-width divergences are
+read from these dumps.**  If a slice of them are the dump reading arena bytes instead of the live global, then
+those divergences are statements about the rig, not the port -- the same class of finding as docs/131's audio
+"216/275 windows active" artifact.
+
+Test that settles it, named precisely: at the witness site print, for the same tick, `(void *)&g_dat_62d58`,
+`&g_dat_62d58`'s value, and the arena offset the cell dump used; then compare against the bytes the oracle reads
+for that sample.  Equal bytes means the dump is right and the port really does write floats into those globals
+(a real defect).  Different bytes means the cell table's address model is the defect, and the 38 divergences must
+be re-counted after fixing it before any "state diffs green" claim is made.

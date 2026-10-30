@@ -8191,6 +8191,15 @@ void fn_015295(uint8_t *a0, int32_t a1) {
     uint32_t a0_1   = ((struct ua32 *)((a0 + 1)))->v;       /* a0->1  */
     uint32_t a0_9   = ((struct ua32 *)((a0 + 9)))->v;       /* a0->9  */
     uint32_t a0_32  = ((struct ua32 *)((a0 + 0x32)))->v;    /* a0->32 */
+    /* docs/211 witness (NIGHT_POPUPDBG=1): the shipped posts the kill number itself into the
+     * floating-number list -- 0x01541d `mov ecx, [eax+0x32]` is the value fn_03b718 renders. */
+    static int s_popup_left = 40;
+    if (s_popup_left > 0 && getenv("NIGHT_POPUPDBG")) {
+        s_popup_left--;
+        fprintf(stderr, "popup post: a0+0=%u a0+0x17=%u a0+0x29=%u +0x32=%d ent+1=%d ent+9=%d latched=%d\n",
+                (unsigned)a0[0], (unsigned)a0[0x17], (unsigned)((struct ua16 *)((a0 + 0x29)))->v,
+                (int)a0_32, (int)a0_1, (int)a0_9, (int)(a0 == g_latched_ent));
+    }
     uint32_t node_off = heap_malloc(0x21);  /* orig 0x19 +8 (widened prev) */
     if (node_off)
         fn_0003b5c0((uint8_t *)(g_heap_base + node_off),

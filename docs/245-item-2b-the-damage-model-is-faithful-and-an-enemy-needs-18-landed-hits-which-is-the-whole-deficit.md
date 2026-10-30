@@ -92,3 +92,32 @@ so the experiment is a **drive parameter sweep**, and it is machine-only:
 If no variant lands 18 hits, the honest conclusion is the one docs/244 §5 already points at: the alignment
 shortfall is a consequence of the logic-cadence residual (docs/168, docs/203, docs/205), and item 2b's gate moves
 behind the pacing item.
+
+## 5. New tool, and a rig discrepancy it exposed (open)
+
+`scripts/rig/hit_rate.py` counts landed hits from the dumps alone: a decrease of `word[record + 0x23]` between
+consecutive samples of the same record slot is one damage application (0x1495e is the only writer of that field on
+this path ✓ docs/245 1 ✓), and the `+0x30 -> 2 / == 1` transitions are read straight from the record.
+
+Port side works (`/tmp/rig/h3`, current build):
+
+```
+== port: samples=1500 span=229.6s enemy-record-samples=1968 debt-decrease events=79 -> 0.34 hits/s
+   per type_idx: [(31, 73), (36, 6)]
+   settle transitions: +0x30->2 seen 0 times, +0x30 == 1 seen 0 times
+```
+
+Two caveats recorded rather than smoothed over:
+
+1. **79 debt-decrease events vs 8 `DMG` witness lines** ✓ The dump-side count is inflated: a slot that gets
+   re-assigned to a different enemy (lower `+0x23` ✓) also looks like a decrease ✓ The script splits decrease
+   magnitudes (`<= 16` vs `> 16`) to make that visible, and the settled headline stays the witness-side one
+   (docs/242 §2) until the slot-reuse cases are excluded ✓
+2. **The shipped side reports `enemy-record-samples = 0`** ✓ even though docs/199 §1 measured 1460 shipped kind-1
+   record samples from the same dump ✓ so `hit_rate.py`'s shipped-side walker does not match `exp_award.py`'s ✓
+   The shipped dump's `ptr_cells` list (63 cells, each `rec_bytes = 352`) starts with `g_dat_51a0c`,
+   `g_dat_53730`, `g_dat_537ca`, ... whose blocks are pointer-valued (kind bytes 64, 69, 56, 34 ✓ i.e. the
+   "kind 56/34/7/8" populations of docs/242 §1 ✓), and the tool's stricter gate (`kind == 1`,
+   `type_idx < 0x1000`, `state < 0x100`) accepts none of them ✓ **Open rig defect: reconcile the two walkers
+   before any shipped-side hit-rate number is quoted** ✓ Until then the shipped's hit count is only known through
+   its outcome (31 dying samples carrying award 10 ✓ docs/199 §1), not through a hit census ✓

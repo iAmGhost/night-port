@@ -77,10 +77,30 @@ instead of only when the game loop happens to pump.  Which rate to use is the la
   (`/tmp/rig/g33/orig/state_*.ds.bin`, 90 112 B = a 0x16000 window) at offset `0x63e38 - 0x52000` gives **0 in all
   413 states** (as do 0x63e24, 0x63e40, 0x63f08) -- the assumed window base is wrong, so this is not a shipped
   value.  `timeline.json` in that dump carries `events` (drive key timeline) but no per-state wall stamps.
-* Next measurement (before the change lands): take the shipped counter directly -- a shipped-side capture whose
-  `wait ds 0x63e38 >= N` probes bracket a known wall interval (the drive's own key events are stamped, e.g.
-  `t=47200 ms` enter in `/tmp/rig/g33/orig/timeline.json`), or a `DS` window read at the base that
-  `cells_reader.py`/`calibrate_ds.py` actually use.  Quote the rate as ticks per wall second with the sample count.
+* Second attempt, also negative, and the reason: `state_*.ds.bin` is **not** a flat DS window.  Scanning the two
+  end states of `/tmp/rig/g33/orig` for dwords that grew by > 10 000 found 72 candidates whose implied window
+  bases are ragged (`off 0x0f1f -> base 0x62f19`, `off 0x0fd0 -> base 0x62e68`, `off 0x1124 -> base 0x62d14`),
+  i.e. the blob is a per-cell stream, not `[window_start, window_start+0x16000)` -- so raw offset reads cannot
+  name `DS 0x63e38` on the shipped side.
+* The measurement to run instead (the rig already reads arbitrary DS dwords on the shipped side): a short shipped
+  drive that brackets the counter with ascending `wait ds` probes, e.g.
+
+  ```
+  anchor static 3.0 90
+  47000 wait res title1.pcx
+  47200 key enter down
+  47350 key enter up
+  60000 wait ds 0x63e38 >=490
+  60000 wait ds 0x63e38 >=980
+  60000 wait ds 0x63e38 >=1470
+  60000 wait ds 0x63e38 >=2450
+  ```
+
+  `timeline.json`'s `ds_waits` records `{t_ms, ds, op, val, observed, hit}` for each (it already did for
+  `0x53e9c`: `t_ms 859, observed 100, hit true`), so consecutive `observed` values against their `t_ms` give the
+  shipped counter's rate as ticks per wall second directly, with the sample count quoted.  The expected order of
+  magnitude is 490 ticks per second (the divisor in `fn_010d47`), against the port's current
+  `NIGHT_RIG_STEP_CALLS = 665` per game step.
 
 Then the green measurement is already scripted: the canonical 150 s route
 (`scripts/rig/route.sh scripts/rig/drives/ep1_title_music.txt`, pinned `NIGHT_RIG_STEP_CALLS=665

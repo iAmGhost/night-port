@@ -48,3 +48,25 @@ Named test, and it is the same test docs/171 §3 asked for: compare the loaded a
 the record that produced the extra records (`type = 0x02`, docs/156's `NIGHT_ACTCENSUS` containers plus the
 `actdump` drive verb), rather than counting spawn calls.  Spawn counts are an *output* of the record stream; the
 rig has never compared the record streams themselves, and both docs/171 and docs/175 now converge on that gap.
+
+## 4. First run of the record-stream capture, and why it came back empty
+
+`scripts/rig/drives/ep1_actall.txt` is the drive built for exactly this comparison: 278 lines that `actdump`
+types 0..N at `t = 72 s` each.  Running it (`--frames 8000`, calibrated cadence) captured nothing:
+
+```
+script: actdump type 0 -> 0 bytes at t=45450ms
+script: actdump type 1 -> 0 bytes at t=45450ms
+script: actdump type 2 -> 0 bytes at t=45450ms
+```
+
+`actdump` captures containers that are *currently loaded*, and docs/156 §2 established that the loader fills the
+per-type slots at guest `0x37da9` and clears them at `0x373d3` -- so a container is only dumpable inside the
+window where its episode has loaded it, and this run reached the dump verbs at 45.45 s, before the 72 s anchors the
+drive schedules, with nothing loaded.
+
+Consequence for the named test: the record-stream comparison has to ride the **census recorder**, not the drive
+verb.  `NIGHT_ACTCENSUS` records each container at the load site (docs/156's `g_act_load[]` recorder, which is how
+the 5-35 containers-per-episode coverage numbers were produced), so the byte-level capture should hang off that
+site -- dump on load, per episode, instead of asking for a type at a wall-clock moment.  That is the concrete fix
+to the capture path before any record-stream equivalence claim can be made.

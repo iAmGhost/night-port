@@ -1,0 +1,22 @@
+# rig drive for item 1 of docs/manual-playtest/03-2026-10-29.md (docs/182 §2 row 1):
+# reach the title screen, skip the intro with a keypress, then SIT there.  Nothing after 41 s
+# on purpose: the question is what the game asks the CD for while it waits on the title screen,
+# so the drive must not advance into an episode.
+anchor static 3.0 90
+0 key enter down
+60 key enter up
+10000 key enter down
+10060 key enter up
+20000 key space down
+20060 key space up
+30000 key enter down
+30060 key enter up
+40000 key enter down
+40060 key enter up
+
+# Route length is set by the LAST scripted event, not by --frames: main.c:1164 quits 2.5 s after the
+# script is exhausted (g_pt_done_ms), which silently truncated an earlier run of this drive at 42.5 s of
+# a 120 s request.  These read-only predicates carry the timeline past the shipped title-track selection
+# (~38 s on the original side) without touching game state.
+70000 wait ds 0x53c44 >=0
+100000 wait ds 0x53c44 >=0

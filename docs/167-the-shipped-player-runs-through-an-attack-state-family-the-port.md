@@ -442,3 +442,41 @@ Next two tests, named:
 2. Timestamp the corruption: sample the four globals every rig tick and record the tick at which each first
    leaves the sane alphabet, then compare that tick against the witnesses (`chaintgt`, `sttr`, `cnttick`) to see
    which code phase is running when it happens.
+
+## 18. The corruption is text, and it lands before the player exists
+
+Sampling the four globals per rig tick (`/tmp/rig/q4`, 12 000 frames, 2002 samples) and reporting the first
+sample whose value is outside the alphabet the witnesses observe:
+
+```
+DS 0x62d58  implausible 846/2002  first at sample 6: 0x100          neighbours 0x0 0x0 [0x100] 0x0 0x5040200
+DS 0x62d5c  implausible 805/2002  first at sample 6: 0x1000101      neighbours 0x0 0x0 [0x1000101] 0x0 0x2010103
+DS 0x63360  implausible 638/2002  first at sample 27: 0x2e323100    neighbours 0x2 0x0 [0x2e323100] 0x6f762e30 0x636f
+DS 0x6339c  implausible 651/2002  first at sample 17: 0x1000000     neighbours 0x0 0x0 [0x1000000] 0x1000004 0x0
+```
+
+`0x2e323100`, `0x6f762e30`, `0x636f` are **ASCII** (`..12`, `0.ve`, `oc`): the region is being overwritten with
+text, alongside `0x3f000000` (float 0.5) and `0x3e8` (1000).  And every first occurrence happens at
+**tick 6-27, where the player record does not exist yet and zero entities are walked** -- i.e. during the
+title/slide-show phase, not during combat.
+
+So the writer is in the start-up path, and it aims at the neighbourhood of `DS 0x62d58 / 0x62d5c / 0x63360 /
+0x6339c` in the port's layout.  Because the addresses of the dumped objects were proven identical to the globals
+(§17) and AddressSanitizer reports nothing on a 12 000-frame combat run (`0` ASan errors, `0` UBSan runtime
+errors, no `global-buffer-overflow`), the store is *inside some declared object's bounds*: the target object is
+simually the wrong one -- a DS-address alias or a buffer whose declared span covers these globals -- not a wild
+pointer.
+
+**Rig defect fixed on the way (sixth in this cluster).**  The first `records.jsonl` was unparseable:
+`JSONDecodeError: Invalid control character at line 1 column 512`, because the sidecar used a 512-byte line
+buffer and kept formatting past the end, truncating a record mid-string.  Buffer raised to 2048 with a
+`len > sizeof line - 128 -> break` guard so a half-written record is never emitted; 2000 lines now parse
+cleanly.  Rule: a sidecar the oracle cannot read is worse than no sidecar, and its emit path needs an explicit
+overflow guard.
+
+Next test, named: run the **title/slide-show phase only** (a few hundred frames) under AddressSanitizer with
+`NIGHT_RIGDBG` sampling the four globals each tick, and correlate the first bad tick with the resource-name
+strings the phase is known to handle (`un.act`, `gun.act`, seen in the shipped DS neighbourhood of the player
+pointer).  If ASan stays silent there too, the write goes through the flat-model DS window (`f_heap_at` /
+`mem_copy` aimed at a DS-aliased address) and the audit needs a new static check for stores whose target is a DS
+address rather than a named global.

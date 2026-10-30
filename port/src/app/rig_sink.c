@@ -339,7 +339,9 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
     {
         uint8_t *e = g_dat_53c70;
         uint64_t oob0 = g_dump_oob;
-        char line[512]; int len = 0;
+        /* docs/167 §17 rig defect: a 512-byte line buffer truncated the JSON mid-string, which made
+         * records.jsonl unparseable -- a sidecar that the oracle cannot read is worse than none. */
+        char line[2048]; int len = 0;
         const uint8_t *hb = (const uint8_t *)g_heap_base;
         len += snprintf(line + len, sizeof line - len, "{\"tick\":%llu,\"player\":",
                         (unsigned long long)g_tick);
@@ -352,6 +354,7 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
             uint32_t n = rec_span(e);
             if (!n) { g_dump_oob++; break; }     /* dangling link: stop and report, never read past the arena */
             memcpy(p + g_ent_base + k * RIG_REC, e, n);
+            if (len > (int)sizeof line - 128) break;      /* never emit a half-written record */
             uint32_t st, ac; uint16_t hp; uint8_t f30;
             memcpy(&st, e + 0x17, 4); memcpy(&ac, e + 0x11, 4);
             memcpy(&hp, e + 0x29, 2); f30 = e[0x30];

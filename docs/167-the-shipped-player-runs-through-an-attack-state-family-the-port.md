@@ -480,3 +480,55 @@ strings the phase is known to handle (`un.act`, `gun.act`, seen in the shipped D
 pointer).  If ASan stays silent there too, the write goes through the flat-model DS window (`f_heap_at` /
 `mem_copy` aimed at a DS-aliased address) and the audit needs a new static check for stores whose target is a DS
 address rather than a named global.
+
+## 19. RETRACTION: §18's "corruption" was my own reader mis-framing cells.bin
+
+§18 is wrong and is withdrawn.  The dumps were being read as `record_bytes`-sized records starting at byte 0.
+`rig_sink.c` does not write that layout: there is a **16-byte file header**, and each record is a **40-byte packed
+header** (`t_ms, frame, audio_bytes, screen_hash, tick, n`, written at `rig_sink.c:304-307`) followed by the
+`record_bytes` payload.  Reading with a 30 188-byte stride instead of 30 228, and with no 16-byte offset, drifts
+56 bytes per record -- which is exactly what turns game state into `0x2e323100` (`..12`) and `0x3f000000`
+(0.5f): I was reading *inside other cells' payloads*, and the "text and floats written over four globals" story
+was a statement about my reader.
+
+Framing fixed (`scripts/rig/cells_reader.py`, which now refuses a stream whose payload is not a whole number of
+records): `/tmp/rig/q4`, 12 000 frames, 2000 samples, `stride=30228`, `tail=0`, header ticks 0,1,2,3 at
+t_ms 16,116,216,316 (100 ms cadence).  Corrected reads:
+
+```
+DS 0x62d58  distinct=4     0x33 x920   0x0 x820   0x34 x253   0x35 x7
+DS 0x62d5c  distinct=1     0x0 x2000
+DS 0x63360  distinct=1377  0x0 x578    0x2597 x31  0x1 x17
+DS 0x6339c  distinct=67    0x0 x1423   0xd x39     0x6 x39    0x3 x37
+```
+
+So there is **no corruption**: the chain-target cell holds members of the shipped alphabet, and `DS 0x6339c`
+(the idle timer) is live in the port's dump after all -- which weakens §8's "cell-owner contamination" reading
+of those two cells too.
+
+The corrected player census from `records.jsonl` (1507 of 2000 samples carry a player block) also supersedes
+parts of §13 and §14:
+
+| state | port samples | streaks | longest | shipped (g15) |
+|---|---|---|---|---|
+| `0x01` | 601 | 149 | **101 samples = 10.1 s** | 462, 195 streaks, 55 |
+| `0x02` | 227 | 55 | 17 | 268, 74, 13 |
+| `0x0b` | 193 | 32 | 13 | 60, 15 |
+| `0x0c` | 178 | 31 | 7 | 72, 15 |
+| `0x33` | 131 | 72 | 2 | 85 samples region, 71, 2 |
+| `0x34` | 35 | 18 | 3 | 57 |
+| **`0x35`** | **3** | **1** | **3** | 58, 27 transitions into it |
+| **`0x28`** | **0** | 0 | 0 | **722 samples = 72.2 s in one streak** |
+
+What actually survives on this axis, narrowed to two facts:
+
+1. **`0x35` is entered, but barely** -- 3 samples in one streak, against shipped's 58 samples reached by 27
+   transitions.  The chain-target cell agrees: `0x35` in 7 samples vs shipped's 198.  So the divergence is in how
+   often the chain *routes* to `0x35`, not in whether `0x35` exists.
+2. **`0x28` is never entered** -- the only state in the family the port does not reach at all, and the one the
+   500-tick idle timer forces.  With `DS 0x6339c` now known to be live in the dump, that timer can be measured
+   cross-side from the dumps directly instead of through in-process witnesses.
+
+Rig rule added: `scripts/rig/cells_reader.py` is the only sanctioned way to read `cells.bin` -- 16-byte file
+header, 40-byte packed record header, then payload -- and it raises if the payload does not divide evenly, which
+is what would have caught this on the first read.

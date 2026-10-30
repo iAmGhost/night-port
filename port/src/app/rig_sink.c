@@ -38,7 +38,7 @@ struct UA_ATTR ua_uint8tp { uint8_t * v; };
 
 #define RIG_MAX 512
 
-static FILE *g_bin, *g_meta, *g_marks;
+static FILE *g_bin, *g_meta, *g_marks, *g_recs;
 /* CD-DA witness. The port plays its music straight off the disc through a separate SDL stream, so a
  * witness on the DSP/PCM path alone cannot see the music at all -- and in the shipped game the music is
  * CD-DA as well, which is what the container's mixer capture records. cdda.raw holds the s16le stereo
@@ -212,6 +212,12 @@ void rig_init(const char *dir, int hz) {
     g_meta = fopen(path, "w");
     snprintf(path, sizeof path, "%s/markers.jsonl", dir);
     g_marks = fopen(path, "w");
+    /* docs/167 §12: provenance sidecar.  Every dumped record block is listed with the arena offset it was
+     * read from, how many bytes were really there, and its state/action-code/hp triple, so the oracle can
+     * REJECT an implausible block instead of comparing it.  Stale/dangling blocks (docs/128) then show up as
+     * a counted blind spot rather than silently corrupting a cross-side comparison. */
+    snprintf(path, sizeof path, "%s/records.jsonl", dir);
+    g_recs = fopen(path, "w");
     snprintf(path, sizeof path, "%s/cdda.raw", dir);
     g_cdda = fopen(path, "wb");
     snprintf(path, sizeof path, "%s/cdda.jsonl", dir);
@@ -319,12 +325,31 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
     /* walk the entity list from the head the same way fn_012616's sweep does */
     {
         uint8_t *e = g_dat_53c70;
+        uint64_t oob0 = g_dump_oob;
+        char line[512]; int len = 0;
+        const uint8_t *hb = (const uint8_t *)g_heap_base;
+        len += snprintf(line + len, sizeof line - len, "{\"tick\":%llu,\"player\":",
+                        (unsigned long long)g_tick);
+        if (g_player_ent)
+            len += snprintf(line + len, sizeof line - len, "%lld",
+                            (long long)((const uint8_t *)g_player_ent - hb));
+        else len += snprintf(line + len, sizeof line - len, "null");
+        len += snprintf(line + len, sizeof line - len, ",\"ents\":[");
         for (int k = 0; k < RIG_ENTS && e; k++) {
             uint32_t n = rec_span(e);
             if (!n) { g_dump_oob++; break; }     /* dangling link: stop and report, never read past the arena */
             memcpy(p + g_ent_base + k * RIG_REC, e, n);
+            uint32_t st, ac; uint16_t hp; uint8_t f30;
+            memcpy(&st, e + 0x17, 4); memcpy(&ac, e + 0x11, 4);
+            memcpy(&hp, e + 0x29, 2); f30 = e[0x30];
+            len += snprintf(line + len, sizeof line - len,
+                            "%s{\"o\":%lld,\"n\":%u,\"type\":%u,\"st\":%u,\"ac\":%u,\"hp\":%u,\"f30\":%u}",
+                            k ? "," : "", (long long)(e - hb), n, e[0], st, ac, hp, f30);
             e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
         }
+        len += snprintf(line + len, sizeof line - len, "],\"refused\":%llu}\n",
+                        (unsigned long long)(g_dump_oob - oob0));
+        if (g_recs) { fwrite(line, 1, (size_t)len, g_recs); if ((g_tick & 15) == 0) fflush(g_recs); }
     }
     fwrite(p, g_rec_bytes, 1, g_bin);
     free(p);

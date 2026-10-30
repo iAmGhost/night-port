@@ -269,3 +269,39 @@ Named fix rather than a workaround: make the dumper prove what it dumped.  `rig_
 from plus the docs/128 magic word (freed blocks marked `0xdeadbeef`), and the oracle should reject any block
 whose state/action-code/hp triple is outside the alphabet the witnesses observe -- then the mismatch becomes a
 measured count of stale blocks instead of a silent corruption of the comparison.
+
+## 13. With provenance the port side reads clean -- and three divergences become specific
+
+`rig_sink.c` now writes `records.jsonl` next to `cells.bin`: every sample lists the arena offset `g_player_ent`
+points at, and for each walked entity slot the offset it was read from, the byte span actually available, and the
+`(type, state, action, hp, +0x30)` tuple.  Re-running `ep1_kill3`, 12 000 frames, fixed step + pinned seed,
+10 Hz, and identifying the player block by **offset equality** with `g_player_ent`:
+
+```
+samples 2000, refused blocks 0
+player block identified in 1370 samples;  +0x30 = 0 in all of them;  hp = 1000 in all of them (never changed)
+state census: 0x1 x574, 0x2 x306, 0x0 x232, 0x33 x120, 0x34 x69, 0x0c x38, 0x0b x31
+streaks:  0x1  173 streaks, longest 44 samples = 4.4 s   (shipped: 195, longest 55 = 5.5 s)
+          0x2   62 streaks, longest 19 = 1.9 s           (shipped: 74, longest 13)
+          0x33  85 streaks, mean 1.4, longest 2          (shipped: 71, mean 1.2, longest 2)
+          0x34  24 streaks, mean 2.9, longest 3          (shipped: 57 samples)
+          0x35  NEVER HELD                                (shipped: 58 samples, 1->35 x27 / 35->1 x24)
+          0x28  NEVER HELD                                (shipped: 1 streak of 722 samples = 72.2 s)
+          0x0b   6 streaks / 0x0c 6 streaks               (shipped: 15 / 15)
+entity slots walked per sample: mean 1.87, max 5         (refused 0 -- no dangling link on this run)
+```
+
+So the §12 trust problem is gone: `refused 0`, `+0x30` takes the single value 0, `hp` is 1000 throughout, and the
+states are all members of the shipped alphabet.  Against shipped the remaining gaps are now specific rather than
+atmospheric:
+
+1. **`0x35` is never entered** even though `0x33` and `0x34` are, with the same streak shape as shipped.  A
+   missing member of the attack family, not a missing family -- that is a concrete, testable hole.
+2. **The longest idle is 4.4 s against 5.5 s**, which is exactly the margin that decides whether the 500-tick
+   forced transition fires: the port's counter tops at 210-400 ticks while shipped crossed 500 once, and `0x28`
+   (72 s of dwell on the shipped side) is never entered.
+3. **`hp` never changes on the port's player in 2000 samples** (1000 throughout) while the shipped player was at
+   925 by t=112 s.  Combined with docs/162 §12 (51 of 52 hits change no hp because the debt word absorbs them),
+   the port now measures as *no* hp change at all on this route.
+
+`0x0b/0x0c` at 6 streaks each against shipped's 15 remain the reaction-state residue of the same picture.

@@ -27013,6 +27013,12 @@ void fn_03272f(uint8_t *tbl)
     (void)canary_id((uintptr_t)tbl, 0x3c);                          /* 0x00032734 probe (push 0x3c) */
     /* docs/167 §6: is this function reached at all, and what does the +0x30 gate (guest 0x3274f-0x3275a,
      * "if player[+0x30] == 1 jump to the epilogue") see? */
+    if (getenv("NIGHT_RIGDBG") && getenv("NIGHT_STTRACE")) {
+        static int once;                              /* docs/167 §16: the live addresses, same process */
+        if (!once++) fprintf(stderr, "livevar g_dat_62d58=%p g_dat_62d5c=%p g_dat_63360=%p g_dat_6339c=%p\n",
+                             (void *)&g_dat_62d58, (void *)&g_dat_62d5c,
+                             (void *)&g_dat_63360, (void *)&g_dat_6339c);
+    }
     if (getenv("NIGHT_STTRACE")) {
         static unsigned f_n;
         if (++f_n <= 1200)

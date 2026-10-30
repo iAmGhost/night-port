@@ -228,6 +228,19 @@ void rig_init(const char *dir, int hz) {
     }
     g_n = rig_cell_count();
     if (g_n > RIG_MAX) g_n = RIG_MAX;
+    /* docs/167 §16: address-model check.  For the cells whose dumped values contradict the witness, print the
+     * host pointer the dumper will read.  Compare against &g_dat_62d58 printed from f.c: same pointer means the
+     * port genuinely writes those bytes, different pointer means the dump is reading something else. */
+    if (getenv("NIGHT_RIGDBG")) {
+        for (int i = 0; i < g_n; i++) {
+            const struct rig_cell *c = rig_cell_at(i);
+            if (!c->name) continue;
+            if (!strcmp(c->name, "g_dat_62d58") || !strcmp(c->name, "g_dat_62d5c") ||
+                !strcmp(c->name, "g_dat_63360") || !strcmp(c->name, "g_dat_6339c"))
+                fprintf(stderr, "cellmap %s ds=%08x host=%p host_size=%u ptr=%u\n",
+                        c->name, c->ds, (void *)c->host, c->host_size, c->ptr);
+        }
+    }
     uint32_t off = 0;
     for (int i = 0; i < g_n; i++) {
         g_off[i] = off;

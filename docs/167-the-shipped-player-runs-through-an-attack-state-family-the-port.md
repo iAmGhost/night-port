@@ -406,3 +406,39 @@ Test that settles it, named precisely: at the witness site print, for the same t
 for that sample.  Equal bytes means the dump is right and the port really does write floats into those globals
 (a real defect).  Different bytes means the cell table's address model is the defect, and the 38 divergences must
 be re-counted after fixing it before any "state diffs green" claim is made.
+
+## 17. The address test says the dump is right -- so the garbage is real memory in the port
+
+The §16 test ran, and it is unambiguous.  Printing the dumper's host pointer for each cell and, in the same
+process, the address of the C global the cell name denotes:
+
+```
+cellmap g_dat_62d58 ds=00062d58 host=0x106cbd48c      livevar g_dat_62d58=0x106cbd48c
+cellmap g_dat_62d5c ds=00062d5c host=0x106cbd404      livevar g_dat_62d5c=0x106cbd404
+cellmap g_dat_63360 ds=00063360 host=0x106cbd3ec      livevar g_dat_63360=0x106cbd3ec
+cellmap g_dat_6339c ds=0006339c host=0x106cbd480      livevar g_dat_6339c=0x106cbd480
+```
+
+Identical for all four.  So `cells.bin` really is a picture of those globals, and the `0x3f000000` / `0x80808080`
+/ `0xac0000` values the oracle sees **are what the port actually holds there at those samples**.  This is a port
+defect, not a rig artifact -- and the static audit files **zero findings** for these four addresses (no span
+overlap, no duplicate claim), so it is runtime-only and only the rig can see it.
+
+Two observations that constrain the hunt.  The four globals sit within 0x100 bytes of each other in the port's
+layout (`0x…3ec`, `0x…404`, `0x…480`, `0x…48c`), consistent with a single stray write landing on that region.
+And `0x3f000000` is the float `0.5`, the value the camera-rate table `g_tab_5274c` is made of (docs/122) -- a
+float array being written where dwords of game state belong.
+
+Revised consequence for the closeout: some of the 38 same-width value divergences may be this corruption showing
+through, rather than semantic mismatches, so they have to be re-counted after the writer is found before any
+"state diffs green" claim.
+
+Next two tests, named:
+
+1. Re-run `ep1_kill3` under the ASan build looking specifically for `global-buffer-overflow`.  The nine-episode
+   soak reported no AddressSanitizer errors, which means whatever writes here stays *inside some declared
+   object's bounds* -- so the writer is an intentional store aimed at the wrong object (a DS-address alias of a
+   float array), not a wild pointer.
+2. Timestamp the corruption: sample the four globals every rig tick and record the tick at which each first
+   leaves the sane alphabet, then compare that tick against the witnesses (`chaintgt`, `sttr`, `cnttick`) to see
+   which code phase is running when it happens.

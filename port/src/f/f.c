@@ -3706,20 +3706,34 @@ uint32_t cmdline_count(struct cmd_ctx *ctx)
 
 /* ---- L0 batch B (9): buffered emit + event dispatch ---- */
 
-/* Event table (DAT_000537dc). Keys/flags from the original; fn pointers are
- * wired to the ported handlers once they land (NULL = not yet ported; the
- * dispatch skips NULL fns, matching `OR EAX,EAX; JZ exit`). */
+/* Event table (DAT_000537dc).  Keys/flags from the original; fn pointers are wired to the ported handlers once
+ * they land (NULL = not yet ported; the dispatch skips NULL fns, matching `OR EAX,EAX; JZ exit`).
+ *
+ * docs/181: this table IS the entry mechanism the audit could not see from CALL edges.  The shipped startup body
+ * fn_0420bc ends by calling dispatch_a(0xff) at 0x422c7 -- "run every registered entry" -- and only then calls
+ * fn_0445c9 (the game main chain) at 0x422ce, so a routine listed here has no CALL site anywhere in NIGHT.EXE and
+ * still runs before the title screen.  That is why fn_04589e and fn_04933a looked unreachable in docs/179/docs/180
+ * while their published cells (DS 0x53378, DS 0x5337c, DS 0x64090, DS 0x64094) are already filled in the shipped
+ * run's very first memory sample.  The shipped table read out of a runtime dump agrees with the key layout here
+ * byte for byte (see docs/181 §2).
+ *
+ * An unwired entry carries flag 2, NOT flag 0 with a NULL handler.  dispatch_a picks the LAST entry whose key
+ * passes and then does `OR EAX,EAX; JZ exit` -- a NULL handler aborts the whole dispatch, so a single NULL at a
+ * high index silently disables every lower one.  In the shipped table read out of a runtime dump all eight entries
+ * already carry flag 2 (docs/181 §2), i.e. every one had been consumed, so marking an unmodelled entry as consumed
+ * reproduces the observable dispatch behaviour without inventing a body for it. */
 struct ev_entry g_evtab[10] = {
-    { 0, 0x20, NULL },  /* 0x537dc: 0x418e6 */
-    { 0, 0x20, NULL },  /* 0x537e2: 0x43702 */
-    { 0, 0x01, NULL },  /* 0x537e8: 0x41f9c */
-    { 0, 0x02, NULL },  /* 0x537ee: 0x439bd */
-    { 0, 0x20, NULL },  /* 0x537f4: 0x4561d */
-    { 0, 0x20, NULL },  /* 0x537fa: 0x4589e */
-    { 0, 0x20, NULL },  /* 0x53800: 0x4933a */
-    { 0, 0x20, NULL },  /* 0x53806: 0x4aa49 */
-    { 0, 0x01, NULL },  /* 0x5380c: 0x41fa1 */
-    { 0, 0x20, NULL },  /* 0x53812: 0x493b2 */
+    { 2, 0x20, NULL },  /* 0x537dc: 0x418e6 (canary_ss_save -- modelled, not yet wired; see docs/181 §4) */
+    { 2, 0x20, NULL },  /* 0x537e2: 0x43702 (no port counterpart) */
+    { 2, 0x01, NULL },  /* 0x537e8: 0x41f9c (no port counterpart) */
+    { 2, 0x02, NULL },  /* 0x537ee: 0x439bd (no port counterpart) */
+    { 2, 0x20, NULL },  /* 0x537f4: 0x4561d (calibrate_clock -- modelled; wiring it is a clock-rate question,
+                         * docs/181 §4, kept out of this change so the timing calibration stays attributable) */
+    { 0, 0x20, fn_04589e },  /* 0x537fa: 0x4589e -- publishes DAT_00053378/0x5337c then DAT_00064090/0x64094 */
+    { 0, 0x20, fn_04933a },  /* 0x53800: 0x4933a -- the only modelled writer of DAT_00053451 */
+    { 2, 0x20, NULL },  /* 0x53806: 0x4aa49 -- lies in the resource-name data region, not in code (docs/181 §3) */
+    { 2, 0x01, NULL },  /* 0x5380c: 0x41fa1 (fn_041fa1 -- modelled, not yet wired) */
+    { 2, 0x20, NULL },  /* 0x53812: 0x493b2 (no port counterpart) */
 };
 
 uint32_t emit_chars(struct emit_ctx *ctx, uintptr_t **pos)
@@ -4677,6 +4691,8 @@ uint32_t fn_048fe6(uint32_t arg1, uint32_t arg2)
 
 void dispatch_a(uint32_t key)
 {
+    static int evtrace = -1;
+    if (evtrace < 0) evtrace = getenv("NIGHT_EVTRACE") ? 1 : 0;
     for (;;) {                                          /* 0x4461f outer */
         uint8_t al = (uint8_t)key;                     /* 0x4462d AL=DL */
         int best = -1;
@@ -4685,9 +4701,11 @@ void dispatch_a(uint32_t key)
             if (g_evtab[i].key > al) continue;         /* 0x44638 JA */
             best = i; al = g_evtab[i].key;             /* 0x4463d/4463f */
         }
-        if (best < 0) break;                           /* 0x44647/44649 EBX==EDI */
+        if (evtrace) fprintf(stderr, "evtrace scan best=%d fn=%p\n", best, (void *)g_evtab[best].fn);
+        if (best < 0) { if (evtrace) fprintf(stderr, "evtrace exit: no entry\n"); break; }
         void (*fn)(void) = g_evtab[best].fn;
-        if (!fn) break;                                /* 0x44650 OR/JZ */
+        if (!fn) { if (evtrace) fprintf(stderr, "evtrace exit: NULL handler at idx %d\n", best); break; }
+        if (evtrace) fprintf(stderr, "evtrace call idx=%d\n", best);
         fn();                                          /* 0x44655 */
         g_evtab[best].flag = 2;                        /* 0x44658 */
         /* 0x4465b JMP loop: re-init, re-scan */

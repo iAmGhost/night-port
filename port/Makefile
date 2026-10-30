@@ -17,7 +17,11 @@ all: test
 $(T)/test_f1: $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SRC_KEY) src/f/f.h src/sys/sys.h src/cd/cd_iso.h src/app/keymap.h
 	$(CC) $(CFLAGS) -Isrc -o $@ $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SRC_KEY)
 
-test: $(T)/test_f1
+# docs/181 §5: `test` used to build ONLY the fixture binary.  An app edit (f.c, main.c) therefore left
+# port/test/night stale -- measured as 4 hours older than src/f/f.c -- and `make -C port test` still printed
+# ALL PASS while every rig dump kept replaying the previous binary.  The app binary is now a prerequisite, so a
+# green suite cannot be produced from a stale app.
+test: $(T)/test_f1 $(T)/night
 	./$(T)/test_f1
 
 # res pipeline (verified decoders) — needs SDL3 for png_out

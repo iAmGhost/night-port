@@ -1566,6 +1566,12 @@ int main(int argc, char **argv) {
         const char *sd = getenv("NIGHT_SEED");
         if (sd) g_rng_seed_override = atoi(sd);
     }
+        /* docs/181 §2: shipped's startup body fn_0420bc ends `call dispatch_a(0xff)` at 0x422c7 and only then
+         * `call fn_0445c9` at 0x422ce, so every entry in the event table (DAT_000537dc) runs BEFORE the pre-main
+         * half of the entry thunk.  Neither fn_0420bc nor fn_042046 is called in this port (main.c goes straight to
+         * fn_03af18), which is why the routines registered there -- fn_04589e, fn_04933a -- have no CALL site in the
+         * shipped binary either and still publish their cells before the title screen. */
+        dispatch_a(0xff);                               /* 0x422c7: run the registered event-table entries */
         fn_0445c9_startup();                            /* docs/173 §5: 0x0445d8-0x0445fe -- the entry thunk's
                                                           * pre-main half, which shipped runs before the game
                                                           * main; it is what sets DAT_00053640 = 0x8000 */

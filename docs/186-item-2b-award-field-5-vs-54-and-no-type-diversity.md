@@ -74,3 +74,24 @@ What stays open is instance identity, not alignment: the two sides' admissible r
 (`0x15` port vs `0x34/0x35/0x36` shipped), so this is a value comparison across comparable-but-not-identical records.
 Fixing the award therefore needs the shipped **writer** of `+0x32` and `+0x36` named (a disassembly question, not a
 dump question), which is the next action for this item.
+
+## 6. The shipped writers of `+0x32` (decoded, boundary-checked)
+
+`disasm.py --search ... --all` (the `--all` flag matters: pattern hits that are not on an instruction boundary are
+listed as decoded instructions, per docs/166 §15):
+
+```
+mov dword ptr [eax + 0x32], 5      0x15054  fn_01441e
+mov dword ptr [eax + 0x32], 0x2e   0x335c1  fn_03272f
+mov dword ptr [eax + 0x32], 0x2d   0x335cf  fn_03272f
+mov dword ptr [eax + 0x32], edx    0x15070  fn_01441e
+mov dword ptr [eax + 0x32], edx    0x3202f  fn_031f5f
+mov dword ptr [eax + 0x32], edx    0x35cf6  fn_035c5c
+```
+
+So `+0x32` has **six** writers on the shipped side, including one that stores the literal `5` (inside `fn_01441e`, the
+same hit-resolution function that carries the award site) and two in `fn_03272f` that store 46 and 45.  The
+"shipped 53/54 vs port 5" statement is therefore a statement about *which writer ran*, not about a constant the game
+uses for EXP: the port reproduces the `5` store, while the shipped records observed in §2 were last written by one of
+the dynamic `= edx` sites.  Before any fix, the per-type question has to be re-run with the writers separated -- the
+award operand and the `+0x32` scratch field may not even be the same quantity at the same moment.

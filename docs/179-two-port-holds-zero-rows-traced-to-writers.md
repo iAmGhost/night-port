@@ -71,3 +71,30 @@ Named test, replacing §3 item 2: dump what the port stores in the dispatch tabl
 `dispatch_b` and `cb_indirect_53644`, and check whether `fn_04589e` and `fn_04933a` appear as entries there.  If the
 port's table entries are missing, that single table explains three "port holds zero" rows -- `0x53451`, `0x64090`,
 `0x64094` -- without touching any of their bodies.
+
+## 5. The first version of the reachability check was wrong in both directions
+
+`scripts/audit/uncalled_port_fns.py` (new) tried to list port functions with no call site and cross-check the
+shipped caller count:
+
+```
+port functions with no call site: 3
+  fn_0003e14c   f.c:26624   shipped direct callers: 2
+  fn_041c31     f.c:951     shipped direct callers: 18
+  fn_04295d     f.c:15859   shipped direct callers: 1
+```
+
+Every one of those three is a false positive, and the two functions the check was written to catch are **absent**:
+
+- `fn_041c31` is the shipped name of the port's **`heap_free_host`**, which is called (`f.c:3542`, `4843`, `4844`).
+  `fn_04295d` is **`get_key`**.  The port renamed them, so a textual search for the shipped name finds a definition
+  and no calls.
+- `fn_04933a` and `fn_04589e` *are* uncalled, but they never define a call-looking occurrence beyond their own
+  definition plus comments that mention `name(`, so the "occurrences == 1 means uncalled" rule discarded them.
+
+Both failures come from the same shortcut: counting name mentions in source text.  The port already carries the
+authoritative mapping -- `port/src/gen/fn_table.c` stores shipped function names next to their host pointers, and
+docs/166 §12 used it with `dladdr()` to name a call site in-process.  A reachability census has to ask *the table*
+which host function each shipped name is, then look at that function's identity, not its spelling.  Until it is
+rewritten that way, `uncalled_port_fns.json` is a rig artifact and not a finding; the two real facts this turn
+established stay the ones in §1 and §4.

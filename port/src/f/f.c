@@ -25902,7 +25902,10 @@ void fn_038f3d(int32_t variant)
             const uint32_t *s4 = lvl ? (const uint32_t *)(hb + lvl[1])  : (const uint32_t *)hb;
             const uint32_t *s8 = lvl ? (const uint32_t *)(hb + lvl[2])  : (const uint32_t *)hb;
             const uint32_t *so = lvl ? (const uint32_t *)(hb + lvl[13]) : (const uint32_t *)hb;
-            int32_t n = sel[page], shown = sel[page];
+            /* docs/228 (item 3): the shipped reads the ROW's own purchase count -- 0x3985b-0x3986e
+             * `eax = i*4; eax = [eax + ebp-0x11c]; [ebp-0x50] = eax; [ebp-0x4c] = eax` -- and only the
+             * "+1 while the cursor sits on this row" test is indexed by the cursor (0x3988d-0x398ac). */
+            int32_t n = sel[i], shown = sel[i];
             if (frame % 0x32 > 0x19 && i == page && shown < selMax[i]) n = shown + 1;
             if (g_lumenu_trace) fprintf(stderr, "lumenu frame=%d page=%d i=%d sel[page]=%d sel[i]=%d n=%d shown=%d max=%d\n",
                                         (int)frame, (int)page, (int)i, (int)sel[page], (int)sel[i], (int)n, (int)shown, (int)selMax[i]);

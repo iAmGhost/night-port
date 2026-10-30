@@ -3163,6 +3163,28 @@ static int glyph_trace_on(void)
     if (v < 0) { const char *e = getenv("NIGHT_GLYPHDBG"); v = (e && e[0] == '1'); }
     return v;
 }
+
+/* Host diagnostic (docs/221): a window into ONE fn_03bb42 call.  The caller arms the probe, makes the
+ * call, and reads back how many canvas pixels the blit actually wrote and the bounding box they cover
+ * (canvas coordinates, 0x140 = 320 stride).  It observes the shipped blit's own writes, so it is the
+ * per-frame grid measurement of a draw site without needing a capture-basis match between the two
+ * dumps (docs/202, docs/205). */
+static int      s_blit_probe;
+static uint32_t s_blit_px;
+static int32_t  s_blit_x0, s_blit_x1, s_blit_y0, s_blit_y1;
+static void blit_probe_note(uint32_t canvas_off, uint32_t n)
+{
+    if (!s_blit_probe || !n) return;
+    s_blit_px += n;
+    int32_t x = (int32_t)(canvas_off % 0x140);
+    int32_t y = (int32_t)(canvas_off / 0x140);
+    int32_t x1 = x + (int32_t)n - 1;
+    if (s_blit_px == n) { s_blit_x0 = x; s_blit_x1 = x1; s_blit_y0 = y; s_blit_y1 = y; }
+    if (x < s_blit_x0) s_blit_x0 = x;
+    if (x1 > s_blit_x1) s_blit_x1 = x1;
+    if (y < s_blit_y0) s_blit_y0 = y;
+    if (y > s_blit_y1) s_blit_y1 = y;
+}
 #define GLYPH_TRACE(tagname, budget, rle_, dest_, srow_, col_, rows_)              \
     do {                                                                          \
         if (glyph_trace_on() && (budget) > 0 && (dest_) >= 0 && (srow_) >= 0) {    \
@@ -7685,12 +7707,13 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                 if (left > col_acc) {
                     int32_t skip = left - col_acc;
                     int32_t cnt = (int32_t)rl - skip;
-                    if (cnt > 0) mem_copy(video_map(db + (uint32_t)left), data + skip, (uint32_t)cnt);
+                    if (cnt > 0) { blit_probe_note(db - base + (uint32_t)left, (uint32_t)cnt); mem_copy(video_map(db + (uint32_t)left), data + skip, (uint32_t)cnt); }
                 } else if (col_acc + (int32_t)rl > right) {
                     int32_t ovf = col_acc + (int32_t)rl - right;
                     int32_t cnt = (int32_t)rl - ovf;
-                    if (cnt > 0) mem_copy(video_map(db + (uint32_t)col_acc), data, (uint32_t)cnt);
+                    if (cnt > 0) { blit_probe_note(db - base + (uint32_t)col_acc, (uint32_t)cnt); mem_copy(video_map(db + (uint32_t)col_acc), data, (uint32_t)cnt); }
                 } else {
+                    blit_probe_note(db - base + (uint32_t)col_acc, rl);
                     mem_copy(video_map(db + (uint32_t)col_acc), data, rl);
                 }
                 p += rl;
@@ -14553,11 +14576,37 @@ void fn_03b718(uint8_t *entity, uint32_t base)
                   dy - 0xf, col, rows, rle_base + glyph, 0);                /* 0x3b7db */
     }
 
+    if (glyph_trace_on()) {                     /* docs/221 witness: array index used by the tail call */
+        static int s_tail_left = 8;
+        if (s_tail_left > 0) {
+            s_tail_left--;
+            const uint32_t *a1 = (const uint32_t *)((const uint8_t *)g_heap_base + f[1]);
+            const uint32_t *a2 = (const uint32_t *)((const uint8_t *)g_heap_base + f[2]);
+            const uint32_t *a3 = (const uint32_t *)((const uint8_t *)char_table);
+            fprintf(stderr, "valuedisp_tail font=%s count=%u arraysize=%#x "
+                    "port[+0x2c]=idx11 col=%u rows=%u glyph=%#x | shipped[+0x28]=idx10 col=%u rows=%u glyph=%#x\n",
+                    (f == fa) ? "A" : "B", (unsigned)f[0], (unsigned)(f[0] * 4),
+                    a1[11], a2[11], a3[11], a1[10], a2[10], a3[10]);
+        }
+    }
+    s_blit_probe = glyph_trace_on();
+    s_blit_px = 0; s_blit_x0 = s_blit_x1 = s_blit_y0 = s_blit_y1 = -1;
     fn_03bb42(base, ex - (int32_t)g_dat_639dc - ((f == fa) ? 0xf : 0x18),
               dy - ((f == fa) ? 0xe : 0xd),
               (int32_t)((struct ua32 *)(((const uint8_t *)g_heap_base + f[1] + 0x2c)))->v,
               ((struct ua32 *)(((const uint8_t *)g_heap_base + f[2] + 0x2c)))->v,
               rle_base + ((struct ua32 *)(((const uint8_t *)g_heap_base + f[13] + 0x2c)))->v, 0); /* 0x3b83b / 0x3b914 */
+    if (s_blit_probe) {
+        static int s_tailblit_left = 6;
+        if (s_blit_probe && s_tailblit_left > 0) {
+            s_tailblit_left--;
+            fprintf(stderr, "valuedisp_tail_blit wrote=%u px bbox x %d..%d y %d..%d (%dx%d)\n",
+                    s_blit_px, s_blit_x0, s_blit_x1, s_blit_y0, s_blit_y1,
+                    (s_blit_x0 >= 0 ? s_blit_x1 - s_blit_x0 + 1 : 0),
+                    (s_blit_y0 >= 0 ? s_blit_y1 - s_blit_y0 + 1 : 0));
+        }
+        s_blit_probe = 0;
+    }
 
     uint32_t off = (uint32_t)(entity - (const uint8_t *)g_heap_base);        /* arg of 0x041c28 */
     if (g_dat_63360 % 3 == 0)                                              /* 0x3b91d-27 */

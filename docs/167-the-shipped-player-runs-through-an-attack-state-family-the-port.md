@@ -305,3 +305,30 @@ atmospheric:
    the port now measures as *no* hp change at all on this route.
 
 `0x0b/0x0c` at 6 streaks each against shipped's 15 remain the reaction-state residue of the same picture.
+
+## 14. The shipped chain matcher *does* target 0x35 -- 198 of 1846 samples; the port's copy of that cell is unreadable
+
+`DAT_00062d58` is the target state id a chain match remembers (docs/110's table), `DAT_00062d5c` its chain level
+byte.  Read straight out of the shipped DS dumps:
+
+```
+shipped DS 0x62d58: 0x33 x1453   0x35 x198   0x34 x108   0x0 x78   0x36 x9      (1846 samples)
+shipped DS 0x62d5c: 0x0 x1829    0x1 x17
+```
+
+So the shipped matcher's target alphabet is exactly the attack family whose member the port is missing: `0x33`,
+`0x34`, **`0x35` (11% of samples)**, `0x36`.  Combined with §13 -- the port enters `0x33` and `0x34` but never
+`0x35` -- the hole is a specific chain target, not an absent mechanism.
+
+The port's side of the same comparison is blocked by dump contamination, again: the port dumps both cells with
+541 and 544 distinct values topped by `0x0`, `0x3f000000` (the float 0.5, i.e. the camera-rate table family from
+docs/122), `0x3e8`, `0xac0000`, `0x80808080` -- two adjacent cells returning nearly the same contaminant
+histogram, which is the signature of a wrong `offset`/`host_size` pair or an overlapping claim, not of game
+state.  Same signature docs/167 §8 found on `DS 0x63360` / `DS 0x6339c`.
+
+Next measurement, named narrowly enough to run: a witness at the port's writes to `g_dat_62d58` (the chain-match
+retarget inside `fn_03272f`, docs/110's `LAB_000339c5` region) logging the target id and the ring state that
+produced it, then a census of which target ids the port can select.  If `0x35` is selectable but never selected,
+the defect is in the ring/level gating (docs/110 already measured two divergences there: the port consumes slots
+more often, and the per-slot level field is large).  If `0x35` is not selectable at all, the loaded chain table
+is the suspect and docs/110's `actdump` witness can compare it against the shipped container bytes.

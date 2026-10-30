@@ -35,3 +35,23 @@ SHIPPED (state frames, docs/200)
    zero HUD field (docs/197 §1).  `gate3-exp-text` stays open until the rig can point at a glyph-level difference on
    the unfixed build, which needs (a) the per-frame changed-pixel count + bbox the rig does not emit yet
    (docs/200 §3), and (b) the `exp.spr` glyph raster comparison named in docs/200 §4.
+
+## 4. The glyph witness does work, and what it reports (correcting the impression from docs/196's null result)
+
+`NIGHT_GLYPHDBG=1` on the canonical route prints 160 `menucell tag=…` lines: 80 `stagespr`, **80 `expnum`**, 0
+`numfield5`, 0 `valuedisp`.  The `expnum` lines are `fn_0137c1`'s HUD field, drawn exactly where the shipped code
+puts it (`dest=65, 71, 77, …` = `0x41 + slot*6`, `srow=20` = `0x14`, `col=5 rows=7`).  Every slot carries the same
+stream because the value is 0 and the `char_table[1]` alias makes the pad glyph and the digit glyph identical
+(docs/192 §2):
+
+```
+stream = 01 00 04 fe fe fe fe | 01 00 05 fe f4 fe fe f4 | 01 00 05 94 f4 94 94 f4
+         01 00 05 95 f4 95 95 f4 | 01 00 05 96 f4 96 96 f4 | 01 00 05 97 97 97 …
+```
+
+Decoded with the row-RLE format the shipped blitter uses (per row: run count, then colAdvance, runLen, literals)
+that is a 4-pixel first row, then 5-pixel rows narrowing at the left edge with a constant inner column — i.e. a
+**legible 5x7 digit**, not a corrupt glyph.  So docs/196 §1's "the glyph witness printed nothing" is corrected here:
+the witness prints, the HUD field is drawn at the shipped coordinates, and the drawn glyph is well-formed.  Item 2a's
+garble therefore still has no glyph-level witness behind it on this route, and the two live leads stay the ones in
+docs/200 §4 (compare `exp.spr` rasters against shipped ink) and docs/199 (the award value that never arrives).

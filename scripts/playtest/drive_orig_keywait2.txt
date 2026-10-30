@@ -1,0 +1,41 @@
+# Original-side level-up / status presentation timeline (docs/85), attempt 5.
+# Measured in attempts 2-4: in a live room `writemem 0x6336c 2` IS consumed by the room loop
+# (0x0003ac2a, DAT_0006336c == 2 = exit reached -> fn_03d244, the level-up transition), the DAC fades
+# out (fn_0406f5 at room+0x48, 50 rows; measured per-frame mean/ch-ratio 0.725 -> 0.146 over 14 samples)
+# and the screen that settles is a shipped HELP card (help8.pcx: 100.00% within +-3, MAE 1.57,
+# as-captured order; help9/3/4/6/5/2/7 follow it at 95-98%). fn_038f3d waits ONE KEY per picture, so a
+# drive that presses Enter in bursts blows past the level-up picture itself (attempt 4 pressed 24 keys
+# and ended on a help card). Here: one exit, then one key per recorded window, so every picture of the
+# presentation is sampled separately.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+writemem 0x63370 2
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+shot stage_play
+readmem 0x63354
+readptr 0x53c7c
+readmem 0x63370
+record gameplay 4000
+writemem 0x6336c 2
+record p00 2500
+key enter 150
+record p01 2500
+key enter 150
+record p02 2500
+key enter 150
+record p03 2500
+key enter 150
+record p04 2500
+key enter 150
+sleep 400
+record hold_a 3000
+record hold_b 3000
+record hold_c 3000
+readmem 0x63370
+stop

@@ -14780,6 +14780,27 @@ static void entspr_dump(uint8_t *e, uint32_t base, uint32_t spr, int32_t x, int3
      * at dest > 0x13f and clips at the right/bottom edge, so an off-screen entity's dump would only record bytes the
      * blitter never wrote (24 of 48 stage-1 composites were like that on the first version of this check). */
     if (!ent_spr_trace() || x < 0 || y < 0 || x + W > 0x140 || y + H > 0xc8) return;
+    /* docs/213 (NIGHT_ENTGEOM=1): the four sprite-array values the two mirror arms consume, next to the
+     * dest the arm produced -- x = worldx - X - camX (face 0) or worldx - (W - X) - camX (face 1). */
+    {
+        static int geom_left = -1;
+        if (geom_left < 0) {
+            const char *be = getenv("NIGHT_ENTGEOMBUDGET");
+            geom_left = (be && atoi(be) > 0) ? atoi(be) : 400;
+        }
+        if (geom_left > 0 && getenv("NIGHT_ENTGEOM")) {
+            geom_left--;
+            uint8_t *hb_ = (uint8_t *)g_heap_base;
+            int32_t X_ = (int32_t)((struct ua32 *)(hb_ + ((struct ua32 *)((e + 0x137)))->v + 4u * spr))->v;
+            int32_t Y_ = (int32_t)((struct ua32 *)(hb_ + ((struct ua32 *)((e + 0x13b)))->v + 4u * spr))->v;
+            fprintf(stderr, "entsprgeom spr=%u W=%d H=%d X=%d Y=%d worldx=%d camx=%d face=%d dest=%d arm=%s tick=%u player=%d\n",
+                    (unsigned)spr, (int)W, (int)H, X_, Y_,
+                    (int)(int32_t)((struct ua32 *)(e + 0x01))->v, (int)g_dat_639dc,
+                    (int)(int32_t)((struct sa32 *)(e + 0x1b))->v, (int)x,
+                    (int32_t)((struct sa32 *)(e + 0x1b))->v ? "mirror" : "forward",
+                    (unsigned)g_dat_63360, (int)(e == g_player_ent));
+        }
+    }
     uint32_t actq = 0; memcpy(&actq, e + 0x123, 4);
     int tq = -1;
     for (uint32_t t_ = 0; t_ < 0x65u; t_++) if (g_dat_53818[t_] == actq && actq) { tq = (int)t_; break; }

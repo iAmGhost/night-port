@@ -202,3 +202,41 @@ same guest site** (`shipped 498` from `DS 0x6339c` in the shipped DS blob; `port
 witness at the same statement), not from record dumps on either side.  Record-dump-based streak numbers are
 trustworthy on the shipped side (`state_*.heap.bin`, blocks read through `timeline.json`'s `ptr_cells`) and are
 **not** trustworthy on the port side for `g_player_ent`.
+
+## 11. The whole chain, with the shipped side's own clock: 5.5 s of idle at t=112 s, then 0x28 forever
+
+Locating the 55-sample streak in time and looking at what happens at its end:
+
+```
+sample 1119  t=111.9s  state 0x1   ac=21  hp=925
+sample 1120  t=112.0s  state 0x1   ac=30  hp=925
+sample 1121  t=112.1s  state 0x1   ac=39  hp=925
+sample 1122  t=112.2s  state 0x1   ac=49  hp=925
+sample 1123  t=112.3s  state 0x1   ac=58  hp=925     <- 55 consecutive state-1 samples (106.9s..112.3s)
+sample 1124  t=112.4s  state 0x28  ac=8   hp=925     <- forced transition, action code reset
+sample 1125  t=112.5s  state 0x28  ac=17  hp=925
+   ... 0x28 continues to sample 1845 (t=184.5s, the end of the capture): 722 samples = 72.2 s
+```
+
+Two things the timestamps make unambiguous.  First, the action code `+0x11` advances **+9 per sample** while the
+player idles in state 1 -- the same rate as `DS 0x63360` -- so the idle timer, the action code and the frame
+counter are all per-frame quantities, and 55 samples x 9 ticks = 495 ~ the 498 the counter reached: the
+`== 500` test fires at the *end* of a 5.5 s idle stretch.  Second, HP is constant (925) across the whole
+transition, so nothing combat-related caused it: it is the idle timer alone.  After it fires, `0x28` never
+releases for the remaining 72 s of the capture.
+
+The port is faithful in mechanism (same site, same condition, same 1:1 coupling -- its frame counter advanced
+exactly 2999 across 3000 visits of the increment site) and diverges only in **dwell length**: its longest
+state-1 run at that site is 210 frames (83 in the other run), 2.4x short of the 498 the shipped player
+accumulated.  The upstream candidate is the population divergence measured in docs/161 and docs/162 -- the port
+carries ~30% more type-1 enemies and 294 samples with >5 entities against shipped's 3 -- so the port's player
+is kept busy and never idles long enough for the timer to fire.
+
+That closes the loop opened by docs/166 §14: the sound-dispatch arms live under states `0x15, 0x16, 0x17, 0x18,
+0x1e, 0x8d`, and `fn_03272f`'s own dispatcher has an explicit branch for `0x28` (`if (st < 0x29)
+lab_0003284e(pl)`).  A state the shipped player occupies for 39% of the run is a state the port never enters,
+which is a single upstream cause for the SFX-arm census, the playtest item "player stuck when hit mid-kick", and
+part of the reaction-state under-population (`0x0b/0x0c`: port 17/17 and 4/3 vs shipped 60/72).
+
+Not fixed, and deliberately not "fixed" here: the dwell difference is a *consequence* to be traced through the
+population numbers, not a value to be tuned at the timer.

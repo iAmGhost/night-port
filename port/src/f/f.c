@@ -23266,8 +23266,8 @@ int32_t fn_03a829(void)
         if (getenv("NIGHT_STTRACE")) {
             static unsigned c_n;
             if (++c_n <= 3000)
-                fprintf(stderr, "cnttick n=%u val=%u state=%d\n", c_n, g_dat_6339c,
-                        (int)((struct sa32 *)((pl + 0x17)))->v);
+                fprintf(stderr, "cnttick n=%u val=%u fc=%u state=%d\n", c_n, g_dat_6339c,
+                        g_dat_63360, (int)((struct sa32 *)((pl + 0x17)))->v);
         }
         /* 0x0003ab90-0x0003abb4: the /10 quotient is discarded, only the %10 test matters (as in fn_03d244). */
         if (g_dat_63360 % 10 == 0) fn_03d606((uintptr_t)room);

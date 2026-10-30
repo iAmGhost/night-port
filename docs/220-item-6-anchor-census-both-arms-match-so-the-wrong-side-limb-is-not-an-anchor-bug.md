@@ -75,3 +75,24 @@ while the shipped writes them flipped at spawn time, the limb lands on the wrong
 That is measurable: dump `+0x12b/+0x12f/+0x133/+0x137` (W/H/R/X arrays) per chain target for that struct on both
 sides at the moment of the attack, on a drive that puts the player at `camx == 0` with `worldx` at its minimum --
 which `ep1_leftedge` already provides (min worldx 15, camx 0, 232 left-edge composites).
+
+## 4. What `fn_03bebb` actually is (its head, guest 0x0003bedc-0x0003bf5e)
+
+It is the *clipping* blitter, and its bail tests are the pair the port has no equivalent of:
+
+```
+0x3bedc  [ebp-0x14] = 0
+0x3bee3  if (dest_x > 0x140) goto end                     ; 320 columns
+0x3beec  if (dest_x + col_arg < 0) goto end               ; the right-hand edge test
+0x3befb  if (dest_y > 0xc8) goto end                      ; 200 rows
+0x3bf04  if (dest_y + row_arg < 0) goto end
+0x3bf13  if (dest_y >= 0) -> the drawing path
+         else: consume the row's runs without drawing   ; 0x3bf26-0x3bf5e: -dest_y iterations,
+                                                       ; stream cursor += 2 per run, data skipped
+```
+
+So a part placed above the canvas top is *consumed* (its RLE is walked and discarded) rather than clamped into
+view, and a part whose anchor plus column/row extent falls off the left or top is dropped outright.  `fn_03bb42`
+(docs/212 §4's mutually exclusive clip arms) is a different helper with different bounds; item 6's case goes
+through *this* one.  Whether its column walk reverses the runs is the remaining half of candidate (a) and needs
+its drawing path (0x0003bf84 onward), which is the next read.

@@ -11540,12 +11540,31 @@ static void test_fn_037922(void) {
 }
 
 static void test_fn_035d_spin(void) {
-    printf("fn_035d5d + fn_035dfc (0x035d5d/0x035dfc): 4-flag DMA busy-waits (degenerate no-op standins)\n");
+    printf("fn_035d5d + fn_035dfc (0x035d5d/0x035dfc): card key gates -- press-and-release, press-or-ESC\n");
     /* g_dat_63e88 (the DMA/channel-status buffer holding all 5 spin flags) must be untouched */
     for (int i = 0; i < 0x80; i++) g_dat_63e88[i] = (uint8_t)i;
-    uint8_t before0 = g_dat_63e88[0x1c];   /* 0x63ea4 */
+    /* fn_00035d5d = THE CARD KEY-WAIT (docs/231): A) drain a held key (0x35d75-0x35d9d),
+     * B) spin until a game key is pressed (0x35d9f-0x35dc9), C) spin until it is released
+     * (0x35dcb-0x35df5).  A no-op standin cannot satisfy the first check: with a key held on entry
+     * the scripted release is only applied while the gate spins, so the latch would still be set. */
+    sys_key_script_clear();
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;   /* a latch left set by an earlier
+     * test would park phase A/C forever: the gate has no timeout, exactly like the shipped bytes */
+    g_dat_63ec1 = 1;                            /* phase A: space is already held on entry */
+    sys_key_script_add(2, &g_dat_63ec1, 0);     /* released -> A exits */
+    sys_key_script_add(4, &g_dat_63ea4, 1);     /* a fresh press arrives -> B exits */
+    sys_key_script_add(6, &g_dat_63ea4, 0);     /* and is released -> C exits */
     fn_00035d5d();
-    check(g_dat_63e88[0x1c] == before0, "  fn_035d5d: no side effect on flags");
+    check(g_dat_63ec1 == 0, "  fn_035d5d: drains a key held on entry (no-op would leave it set)");
+    check(g_dat_63ea4 == 0 && g_dat_63ea5 == 0 && g_dat_63ec0 == 0 && g_dat_63ec1 == 0,
+          "  fn_035d5d: returns only after press AND release, latches clear");
+    /* second timeline: nothing held on entry -> phase B waits for the press at tick 4 */
+    sys_key_script_clear();
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    sys_key_script_add(4, &g_dat_63ea5, 1);
+    sys_key_script_add(6, &g_dat_63ea5, 0);
+    fn_00035d5d();
+    check(g_dat_63ea5 == 0, "  fn_035d5d: an idle entry still consumes one press-and-release");
     /* fn_00035dfc = THE GAME-KEY WAIT (docs/97): drain a held game key, then a press -> 0, ESC -> 1.
      * The four bytes are the measured press latches (docs/92): 63ea4 enter, 63ea5 punch, 63ec0 kick,
      * 63ec1 space; ESC latch 63e89. */
@@ -12667,8 +12686,13 @@ static void test_fn_038f3d(void)
     /* ---- scenario A: the loop is left at once, so only the set-up and the teardown run ---- */
     g_dat_63ec3 = 0; g_dat_633a4 = 0;                      /* help1.pcx is shown first, then latched */
     sys_key_script_clear();
-    sys_key_script_add(1, &g_dat_63e89, 1);                /* leave the frame loop after one frame */
-    sys_key_script_add(2, &g_dat_63e89, 0);                /* ... and clear it for the release drain */
+    /* The intro card is a key gate (fn_00035f1b("help1.pcx") at 0x000391b1 then fn_00035d5d at
+     * 0x000391d3, docs/231): it drains a held key, waits for one press, then waits for the release.
+     * Space is used so the confirm latch stays clear and no purchase happens. */
+    sys_key_script_add(1, &g_dat_63ec1, 1);                /* the intro card's press */
+    sys_key_script_add(2, &g_dat_63ec1, 0);                /* ... released */
+    sys_key_script_add(3, &g_dat_63e89, 1);                /* leave the frame loop after one frame */
+    sys_key_script_add(4, &g_dat_63e89, 0);                /* ... and clear it for the release drain */
     g_dat_63e89 = 0; g_dat_63eb2 = g_dat_63ebe = 0;
     g_dat_63ea4 = g_dat_63ec1 = g_dat_63ea5 = g_dat_63ec0 = 0;
     g_dat_63ed0 = g_dat_63ed8 = g_dat_63ed3 = g_dat_63ed5 = 0;
@@ -14031,6 +14055,12 @@ static void test_fn_010c3e(void) {
     memset(g_video_ram, 0, 0x10000);
     g_cd_polls = 0;
     g_cd_ready_at = 3;                            /* polls 1-2: count 3, then the 0xc50 gap */
+    /* Each failed poll shows cdinsert.pcx and then the card key gate fn_00035d5d (0x000391d3 /
+     * 0x0010ca2, docs/231): two prompt rounds need two press-and-release pairs. */
+    sys_key_script_clear();
+    g_dat_63ec1 = g_dat_63ea4 = g_dat_63ea5 = g_dat_63ec0 = 0;
+    sys_key_script_add(1, &g_dat_63ec1, 1); sys_key_script_add(2, &g_dat_63ec1, 0);
+    sys_key_script_add(3, &g_dat_63ec1, 1); sys_key_script_add(4, &g_dat_63ec1, 0);
     fn_010c3e();
     check(g_cd_polls == 3,
           "an entry count that is not 0xf and a record gap of 0xc50 both fail, so it retries (3 polls)");
@@ -16780,8 +16810,12 @@ static void test_fn_03d244(void) {
     *(uint32_t *)(P + 0x2b) = 5000;
     P[0x27] = 2; P[0x28] = 3; P[0x26] = 4; P[0x25] = 5;
     sys_key_script_clear();
-    sys_key_script_add(1, &g_dat_63e89, 1);            /* the status screen leaves after one frame */
-    sys_key_script_add(2, &g_dat_63e89, 0);
+    /* fn_038f3d's intro card is a key gate (0x000391b1 present / 0x000391d3 fn_00035d5d, docs/231):
+     * one press-and-release of space is consumed before the loop-exit latch is applied. */
+    sys_key_script_add(1, &g_dat_63ec1, 1);            /* intro card press */
+    sys_key_script_add(2, &g_dat_63ec1, 0);            /* ... released */
+    sys_key_script_add(3, &g_dat_63e89, 1);            /* the status screen leaves after one frame */
+    sys_key_script_add(4, &g_dat_63e89, 0);
 
     fn_03d244(node1);
 
@@ -16804,8 +16838,10 @@ static void test_fn_03d244(void) {
 
     /* second call: the chain has ended, and the player faces the other way */
     sys_key_script_clear();
-    sys_key_script_add(1, &g_dat_63e89, 1);
-    sys_key_script_add(2, &g_dat_63e89, 0);
+    sys_key_script_add(1, &g_dat_63ec1, 1);            /* intro card press (0x000391d3 gate) */
+    sys_key_script_add(2, &g_dat_63ec1, 0);            /* ... released */
+    sys_key_script_add(3, &g_dat_63e89, 1);
+    sys_key_script_add(4, &g_dat_63e89, 0);
     *(uint32_t *)(node2 + 0) = *(const uint32_t *)(node1 + 0);   /* the stream node is reused */
     g_dat_63398 = 1; g_dat_63360 = 21;
     fn_03d244(node2);

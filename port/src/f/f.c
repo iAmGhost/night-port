@@ -898,16 +898,30 @@ uint32_t fn_00041bdc(uint32_t size)
  *   (documented degenerate case). No flat-model observable effect. */
 void fn_00035d0f(void) {}
 
-/* fn_00035d5d  orig: 0x00035d5d (L10, 158B) -- 4-flag DMA/channel busy-wait.
- *   Spins on three nested 4-flag checks over g_dat_63e88[] bytes: A=[0x39]
- *   (0x63ec1), B=[0x1c] (0x63ea4), C=[0x1d] (0x63ea5), D=[0x38] (0x63ec0).
- *   The first check waits until all four are clear, but the second and third
- *   checks JUMP BACK (re-spin) when all four are clear -- so with the flat
- *   model's static zero-initialized g_dat_63e88 the routine never makes
- *   progress and would loop forever (degenerate spin, like fn_00035ec2 / the
- *   DMA handshake in fn_00035d0f). No register args are read; no observable
- *   effect. No-op standin. */
-void fn_00035d5d(void) {}
+/* fn_00035d5d  orig: 0x00035d5d (L10, 158B) -- THE CARD KEY-WAIT: one press-and-release gate.
+ *   0x00035d5d-0x00035d6f is `push 0x1c; call 0x418ee` + the push/push prologue.  0x000418ee is the
+ *   Borland stack-check thunk (`xchg [esp+4], eax; call 0x41901`) and 0x00041901 is _CHKSP (remaining
+ *   stack vs DAT_00053394, SS vs DAT_0005333c) -- host-side bookkeeping, not modelled.
+ *   The body is three phases over the measured press latches of docs/92 (0x63ea4 enter, 0x63ea5
+ *   punch, 0x63ec0 kick, 0x63ec1 space):
+ *   A) 0x35d75-0x35d9b -- any latch set reaches `jmp 0x35d9d -> jmp 0x35d75` (re-spin); all four
+ *      clear reaches 0x35d9f, i.e. drain a key that is already being held.
+ *   B) 0x35d9f-0x35dc5 -- the all-clear path reaches 0x35dc9 `jmp 0x35d9f` and KEEPS spinning, while
+ *      any set latch leaves via 0x35dcb: wait for a PRESS.
+ *   C) 0x35dcb-0x35df1 -- any latch still set reaches 0x35de8 / 0x35df3 `jmp 0x35dcb` (re-spin); all
+ *      four clear reaches 0x35df5 pop/pop/ret: drain the release.
+ *   The previous note here read B and C as "jump back when all four are clear -- degenerate spin, no
+ *   observable effect" and made the routine a no-op.  That reading is inverted (B spins *while clear,
+ *   waiting for a press), and the no-op is why fn_038f3d's cards -- 0x3948c present / 0x39491 wait,
+ *   and help8.pcx at 0x39625-2f with 0x3964f -- advanced without a keypress (docs/231). */
+void fn_00035d5d(void) {
+    while (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0)   /* A: 0x35d75-0x35d9d */
+        sys_key_spin();
+    while (!(g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0)) /* B: 0x35d9f-0x35dc9 */
+        sys_key_spin();
+    while (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0)   /* C: 0x35dcb-0x35df3 */
+        sys_key_spin();
+}
 
 /* fn_00035dfc  orig: 0x00035dfc -- THE GAME-KEY WAIT (the slide-show and card key gates).
  * Disassembled body (0x35e14-0x35eb6, dumped by scripts/ghidra_scripts/DumpKeyWait.java):

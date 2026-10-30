@@ -12362,20 +12362,23 @@ static void test_fn_03b718(void) {
     /* control blocks + objects live in the ARENA; cells +0x04/+0x08/+0x34/+0x38 hold heap OFFSETS */
     uint8_t *hbx = (uint8_t *)g_heap_base;
     uint32_t oc0 = heap_malloc(0x3c), oc4 = heap_malloc(0x3c);
-    uint32_t o4 = heap_malloc(0x34), o8 = heap_malloc(0x34);
+    /* docs/227: the shipped sizes every parallel array at count*4 = 11*4 = 0x2c (fn_03de85), and the
+     * terminator/label record is index 10 (+0x28).  The fixture used to reserve 0x34 and park the label
+     * values at +0x2c, which is one dword past the shipped allocation -- it encoded the port's defect. */
+    uint32_t o4 = heap_malloc(0x2c), o8 = heap_malloc(0x2c);
     uint32_t oA = heap_malloc(0x34), oB = heap_malloc(0x34);
     uint32_t orA = heap_malloc(0x310), orB = heap_malloc(0x310);
-    memset(hbx + o4, 0, 0x34); memset(hbx + o8, 0, 0x34);
-    memset(hbx + oA, 0, 0x34); memset(hbx + oB, 0, 0x34);
+    memset(hbx + o4, 0, 0x2c); memset(hbx + o8, 0, 0x34);
+    memset(hbx + oA, 0, 0x2c); memset(hbx + oB, 0, 0x34);
     for (uint32_t c = '0'; c <= '9'; c++) {
         *(uint32_t *)(hbx + oA + (c - 0x30) * 4) = (c - '0') * 28;
         *(uint32_t *)(hbx + oB + (c - 0x30) * 4) = (c - '0') * 48;
     }
     memcpy(hbx + orA, rleA, 0x310); memcpy(hbx + orB, rleB, 0x310);
-    *(uint32_t *)(hbx + o4 + 0x2c) = 3;                 /* terminator col  (orig +0x28) */
-    *(uint32_t *)(hbx + o8 + 0x2c) = 2;                 /* terminator rows (orig +0x28) */
-    *(uint32_t *)(hbx + oA + 0x2c) = 0x300;
-    *(uint32_t *)(hbx + oB + 0x2c) = 0x300;
+    *(uint32_t *)(hbx + o4 + 0x28) = 3;                 /* terminator col  (shipped 0x3b801: [f[1]+0x28]) */
+    *(uint32_t *)(hbx + o8 + 0x28) = 2;                 /* terminator rows (shipped 0x3b801/0x3b8da) */
+    *(uint32_t *)(hbx + oA + 0x28) = 0x300;             /* label glyph offset in the char table (0x3b7f5) */
+    *(uint32_t *)(hbx + oB + 0x28) = 0x300;
     for (uint32_t blk = 0; blk < 2; blk++) {
         uint32_t *b = (uint32_t *)(hbx + (blk ? oc4 : oc0));
         for (int k = 0; k < 15; k++) b[k] = 0;
@@ -12400,7 +12403,7 @@ static void test_fn_03b718(void) {
     check(okA, "  A (entity[0]==0): 12345 -> five digit glyphs, 5 px advance, 7 rows");
     int okT = 1;
     for (int r = 0; r < 2; r++) if (scr[(1 + r)*0x140 + (100 - 0xf)] != 0xaf) okT = 0;
-    check(okT, "  A: terminator glyph from the control block at dest-0xf, 2 rows (rows/col from +0x2c)");
+    check(okT, "  A: terminator glyph from the control block at dest-0xf, 2 rows (rows/col from +0x28 = record 10, docs/227)");
 
     memset(scr, 0, 0x10000);
     ent[0] = 1;                                         /* font B: 0xb advance, 12 rows, col 10 */
@@ -12412,7 +12415,7 @@ static void test_fn_03b718(void) {
     check(okB, "  B (entity[0]!=0): same number in the second font, 0xb advance, 12 rows");
     int okTb = 1;
     for (int r = 0; r < 2; r++) if (scr[(2 + r)*0x140 + (100 - 0x18)] != 0xbf) okTb = 0;
-    check(okTb, "  B: terminator at dest-0x18 with start_row-0xd (rows 2, col from +0x2c)");
+    check(okTb, "  B: terminator at dest-0x18 with start_row-0xd (rows 2, col from +0x28 = record 10, docs/227)");
     ent[0] = 0;
 
     check(*(uint32_t *)(ent + 0x05) == 0, "  DAT_63360 %% 3 != 0 leaves the age counter alone");

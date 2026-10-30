@@ -14584,18 +14584,23 @@ void fn_03b718(uint8_t *entity, uint32_t base)
             const uint32_t *a2 = (const uint32_t *)((const uint8_t *)g_heap_base + f[2]);
             const uint32_t *a3 = (const uint32_t *)((const uint8_t *)char_table);
             fprintf(stderr, "valuedisp_tail font=%s count=%u arraysize=%#x "
-                    "port[+0x2c]=idx11 col=%u rows=%u glyph=%#x | shipped[+0x28]=idx10 col=%u rows=%u glyph=%#x\n",
+                    "used[+0x28]=idx10 col=%u rows=%u glyph=%#x | neighbour[+0x2c]=idx11 col=%u rows=%u glyph=%#x\n",
                     (f == fa) ? "A" : "B", (unsigned)f[0], (unsigned)(f[0] * 4),
-                    a1[11], a2[11], a3[11], a1[10], a2[10], a3[10]);
+                    a1[10], a2[10], a3[10], a1[11], a2[11], a3[11]);
         }
     }
     s_blit_probe = glyph_trace_on();
     s_blit_px = 0; s_blit_x0 = s_blit_x1 = s_blit_y0 = s_blit_y1 = -1;
     fn_03bb42(base, ex - (int32_t)g_dat_639dc - ((f == fa) ? 0xf : 0x18),
               dy - ((f == fa) ? 0xe : 0xd),
-              (int32_t)((struct ua32 *)(((const uint8_t *)g_heap_base + f[1] + 0x2c)))->v,
-              ((struct ua32 *)(((const uint8_t *)g_heap_base + f[2] + 0x2c)))->v,
-              rle_base + ((struct ua32 *)(((const uint8_t *)g_heap_base + f[13] + 0x2c)))->v, 0); /* 0x3b83b / 0x3b914 */
+              /* docs/221/docs/227: the shipped tail call reads the LAST record (dword index 10,
+               * displacement +0x28) of each parallel array -- 0x3b7f5/0x3b801/0x3b80c (font A) and
+               * 0x3b8ce/0x3b8da/0x3b8e5 (font B).  fn_03de85 sizes every array at count*4 = 0x2c for the
+               * 11-record system.spr, so the previous +0x2c read one dword PAST the allocation and picked
+               * up the neighbouring dword (49), drawing a 4x49 pile instead of record 10's 13x6 "EXP" label. */
+              (int32_t)((struct ua32 *)(((const uint8_t *)g_heap_base + f[1] + 0x28)))->v,
+              ((struct ua32 *)(((const uint8_t *)g_heap_base + f[2] + 0x28)))->v,
+              rle_base + ((struct ua32 *)(((const uint8_t *)g_heap_base + f[13] + 0x28)))->v, 0); /* 0x3b801/0x3b80c (A), 0x3b8da/0x3b8e5 (B) */
     if (s_blit_probe) {
         static int s_tailblit_left = 6;
         if (s_blit_probe && s_tailblit_left > 0) {

@@ -93,7 +93,7 @@ The dumper is not reading a different object: `NIGHT_RIGDBG=1` prints
 
 ```
 cellmap g_dat_62d58 ds=00062d58 host=0x106bbd48c host_size=4 ptr=0
-cellmap g_dat_62d5c ds=00062d5c host=0x1006bbd404 host_size=4 ptr=0
+cellmap g_dat_62d5c ds=00062d5c host=0x106bbd404 host_size=4 ptr=0
 ```
 
 (one 4-byte cell each, `dupes: 1` in `scripts/audit/gen/rig_cells.json`, no alias).  The difference is therefore

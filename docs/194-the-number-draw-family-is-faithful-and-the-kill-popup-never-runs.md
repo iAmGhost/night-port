@@ -50,3 +50,22 @@ hang off is not completing (`+0x30` never reaching 1 in 1 108 of 1 396 attempts,
 `+0x30 = 1` — reported `calls=0` in the same run).  The next concrete step is therefore `fn_035c5c`'s absence itself:
 who calls it on the shipped side (its only known caller chain is `fn_01441e → fn_04185e / fn_03ee0a / fn_00035c5c` at
 `0x150c8-0x150fa`, and the port models that trio at `f.c:25276-25280`) and why the port's copy runs zero times.
+
+## 4. The `+0x30` writer census, run to test that framing — no writer is missing
+
+`field_writers.py --disp 0x30` walks all 523 bodies: 57 instructions touch `[reg+0x30]`, and every store of the
+value `fn_015295`'s first gate wants (`1`) is modelled in the port:
+
+| shipped store | site | port |
+|---|---|---|
+| `byte [eax+0x30], 0` (init) | `fn_010efc` 0x10fe2 | `f.c:1290` region |
+| `byte [eax+0x30], 1` ×3 | `fn_0113e7` 0x11651 / 0x11662 / 0x11673 | `f.c:15244-15248` (`a/b/c[0x30] = 1`) |
+| `byte [eax+0x30], 1` | `fn_011827` 0x1191a | `f.c:14373` |
+| `byte [eax+0x30], 1` | `fn_013c4d` 0x141ca | `f.c:24774` |
+| `byte [eax+0x30], 1` / `, 2` | `fn_01441e` 0x14913 / 0x1498d / 0x1499f | `f.c:25057 / 25076 / 25079` |
+
+So item 2's blocker is **not** a missing store: it is that the paths which perform these stores (the escort spawn
+`fn_0113e7`, the mirrored-companion spawn `fn_011827`, and the `fn_01441e` branch at `0x14913`) are not being reached
+for the entities this route produces — the same population/coverage divergence that docs/161 §5 and docs/172 §4 keep
+pointing at.  The gate census (docs/190) and this writer census together say: the flag machinery is modelled, the
+route never exercises it.

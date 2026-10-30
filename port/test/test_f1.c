@@ -17881,18 +17881,26 @@ static void test_ds_constant_tables(void) {
     {
         uint32_t dw = 0;
         memcpy(&dw, (const uint8_t *)&g_ds_53200 + 61 * 4, 4);      /* DAT_53200 + 61*4 == DAT_532f4 */
-        check(dw == (uint32_t)g_ds_53200.tab_532f4[0],
-              "  the past-the-table dword IS DAT_532f4[0] (0: the byte table has no shipped producer)");
+        /* docs/176: DAT_532f4 IS image-initialised -- NIGHT.EXE file offset 0x4bcf4 holds the 68 bytes this block declares, and 64 of them
+         * match the shipped run's DS 0x532f4 byte-for-byte over a whole route.  The aliasing proof used to
+         * lean on the table being all zero, which was the disproved hypothesis; assert the real bytes. */
+        check(dw == 0x21000100u,
+              "  the past-the-table dword IS DAT_532f4[0..3] = 00 01 00 21 (the shipped image's bytes)");
         uint8_t save[4];
         memcpy(save, g_ds_53200.tab_532f4, 4);
         g_ds_53200.tab_532f4[0] = 0x11;
         g_ds_53200.tab_532f4[1] = 0x22;
         uint32_t dw2 = 0;
         memcpy(&dw2, (const uint8_t *)&g_ds_53200 + 61 * 4, 4);
-        check(dw2 == 0x00002211u,
+        check(dw2 == 0x21002211u,
               "  seeding DAT_532f4 changes that dword: the aliasing is real, not padding");
         memcpy(g_ds_53200.tab_532f4, save, 4);
     }
+    check(g_ds_53200.tab_532f4[23] == 0x1f && g_ds_53200.tab_532f4[24] == 0x09 &&
+          g_ds_53200.tab_532f4[59] == 0x1f && g_ds_53200.tab_532f4[60] == 0x1d &&
+          g_ds_53200.tab_532f4[63] == 0x00 && g_ds_53200.tab_532f4[64] == 0x10,
+          "  DAT_532f4 carries the shipped slot-index ladder, 68 bytes transcribed from NIGHT.EXE "
+          "0x4bcf4 (docs/176: shipped's live byte at +64 is 0x20, written by code at runtime)");
     check(TAB532_WALK_LIMIT == 0x44u && g_tab532_walk_clamped == 0,
           "  the walk stops at the byte table's 68 entries (the read that leaves the block first)");
 }

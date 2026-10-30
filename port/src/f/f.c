@@ -8553,7 +8553,11 @@ struct ds_53200_block g_ds_53200 = {      /* 0x53200..0x53338: one contiguous bl
     0x000003e1, 0x000003e6, 0x000003e9, 0x000003f9, 0x00000404, 0x0000040b, 0x0000040f, 0x00000418, 0x0000041e, 0x0000043d,
     0x0000043e
     },
-    { 0 }   /* 0x532f4: DAT_53d0c sound-slot indices, 68 bytes; no producer inside the EXE */
+    { 0x00, 0x01, 0x00, 0x21, 0x0a, 0x01, 0x01, 0x11, 0x00, 0x01, 0x00, 0x12, 0x12, 0x02, 0x12, 0x12,
+     0x12, 0x12, 0x01, 0x01, 0x01, 0x02, 0x02, 0x1f, 0x09, 0x0b, 0x01, 0x11, 0x0a, 0x0a, 0x12, 0x12,
+     0x00, 0x01, 0x00, 0x02, 0x01, 0x0b, 0x21, 0x0a, 0x0a, 0x12, 0x12, 0x04, 0x00, 0x01, 0x00, 0x02,
+     0x02, 0x01, 0x01, 0x02, 0x02, 0x09, 0x09, 0x08, 0x09, 0x08, 0x08, 0x1f, 0x1d, 0x00, 0x00, 0x00,
+     0x10, 0x02, 0x00, 0x00 }    /* 0x532f4: sound-slot index table, 64 bytes transcribed from NIGHT.EXE file offset 0x4bcf4 (== DS 0x532f4 - 0x7600).  docs/176: the shipped run holds these bytes at DS 0x532f4 (byte-identical for 64 of them against state_*.ds.bin over a whole route) while the port had { 0 }, so fn_03f6bc's timed-event walk read 0 where the game read a sound-slot index.  The last 4 bytes of the declared 0x44 stay 0: shipped's byte at +64 is 0x20 at runtime vs 0x10 in the image, i.e. written by code, and +65..67 are 0 in both. */
 };
 uint32_t g_tab532_walk_clamped = 0;   /* host witness for the fn_03f6bc tick-table walk (docs/83) */
 uint32_t g_tab532_walk_max = 0;       /* highest cursor any fn_03f6bc walk reached (docs/83) */
@@ -14435,7 +14439,7 @@ static uint32_t fn_03f6bc_impl(const char *name)
              * DAT_532f4.  Indexing g_tab_53200[] that far is out of bounds (UBSan: "index 61 out of
              * bounds for type uint32_t[61]"); the contiguous block view reproduces what the shipped
              * load actually reads (docs/126). */
-            if (getenv("NIGHT_SFXDBG")) fprintf(stderr, "sfx: 3f6bc slot byte=%u\n", (unsigned)g_tab_532f4[cursor]);
+            if (getenv("NIGHT_SFXDBG")) fprintf(stderr, "sfx: 3f6bc cursor=%u tick_idx=%u slot byte=%u tbl[%u]=%u\n", cursor, (unsigned)(uint16_t)idx, (unsigned)g_tab_532f4[cursor], cursor, (unsigned)g_ds_53200.tab_532f4[cursor]);
             fn_04185e(g_dat_53d0c[(uint32_t)g_tab_532f4[cursor]]);            /* 0x3f7a9-c0 (byte -> slot array) */
             cursor = cursor + 1;                                              /* 0x3f7c5-c8 */
             if (cursor > g_tab532_walk_max) g_tab532_walk_max = cursor;

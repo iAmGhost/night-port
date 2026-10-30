@@ -1620,6 +1620,8 @@ int main(int argc, char **argv) {
         SDL_Log("fn_01441e walk census (docs/236 4): kind 0..7 = %u %u %u %u %u %u %u %u",
                 g_1441e_gate_kind[0], g_1441e_gate_kind[1], g_1441e_gate_kind[2], g_1441e_gate_kind[3],
                 g_1441e_gate_kind[4], g_1441e_gate_kind[5], g_1441e_gate_kind[6], g_1441e_gate_kind[7]);
+        SDL_Log("fn_01441e 0x150c8 latch census (docs/240): latch NULL %u  live-not-this %u  identity %u",
+                g_1441e_latch_hits[0], g_1441e_latch_hits[1], g_1441e_latch_hits[2]);
         SDL_Log("fn_01441e walk census (docs/236 4): +0x30 seen 0..7 = %u %u %u %u %u %u %u %u",
                 g_1441e_gate_set[0], g_1441e_gate_set[1], g_1441e_gate_set[2], g_1441e_gate_set[3],
                 g_1441e_gate_set[4], g_1441e_gate_set[5], g_1441e_gate_set[6], g_1441e_gate_set[7]);

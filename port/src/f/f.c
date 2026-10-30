@@ -1239,6 +1239,7 @@ uint8_t *g_dat_53c78 = NULL;  /* DAT_00053c78: entity linked-list cursor */
 uint32_t g_settle_pass_calls, g_settle_pass_nodes, g_settle_pass_sets, g_settle_flag2, g_settle_flag1_other;
 /* docs/236 §4: what does fn_01441e's list actually walk, and what settle byte does it find there? */
 uint32_t g_1441e_gate_set[8], g_1441e_gate_kind[8];
+uint32_t g_1441e_latch_hits[3];   /* docs/240: [0] latch cell NULL, [1] live but not this record, [2] identity match */
 /* docs/190 §2: who sets the dying/settle flag +0x30 that fn_015295's first gate demands?
  * fn_00035c5c (the list init pass, 0x00035cc7-0x35cf6) sets 1; fn_01441e's 0x0001504d sets 2. */
 void fn_00035c5c(void) {
@@ -25488,6 +25489,7 @@ score:
                 ((struct ua16 *)((cur + 0x50)))->v = 0x78;
                 *(uint8_t  *)(cur + 0x31) = 0;
             }
+            g_1441e_latch_hits[g_latched_ent == NULL ? 0 : (cur == g_latched_ent ? 2 : 1)]++;
             if (cur == g_latched_ent) {                              /* 0x000150c8-0x000150fa */
                 fn_04185e(g_dat_53d0c[g_tab_51c68[((struct ua32 *)((e + 0x0d)))->v]]);
                 fn_03ee0a();

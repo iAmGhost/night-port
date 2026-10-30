@@ -1615,6 +1615,8 @@ int main(int argc, char **argv) {
         SDL_Log("exp award gates (fn_015295, docs/190): +0x30!=1 %u  +0x25==ff %u  +5!=0 %u  +0x11<=0x15 %u  +0x00!=1 %u  reached %u",
                 g_exp_gate_hits[0], g_exp_gate_hits[1], g_exp_gate_hits[2], g_exp_gate_hits[3],
                 g_exp_gate_hits[4], g_exp_gate_hits[5]);
+        SDL_Log("fn_015295 HP at the +5!=0 gate (docs/239 4): <0 %u  1..3 %u  4..15 %u  16..99 %u  >=100 %u",
+                g_exp_gate_hp[0], g_exp_gate_hp[1], g_exp_gate_hp[2], g_exp_gate_hp[3], g_exp_gate_hp[4]);
         SDL_Log("fn_01441e walk census (docs/236 4): kind 0..7 = %u %u %u %u %u %u %u %u",
                 g_1441e_gate_kind[0], g_1441e_gate_kind[1], g_1441e_gate_kind[2], g_1441e_gate_kind[3],
                 g_1441e_gate_kind[4], g_1441e_gate_kind[5], g_1441e_gate_kind[6], g_1441e_gate_kind[7]);

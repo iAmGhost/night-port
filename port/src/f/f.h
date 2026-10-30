@@ -1638,6 +1638,7 @@ extern uint32_t g_flat_oob;          /* docs/146 witness: flat-model heap hops t
 extern uint32_t g_sweep_null_hits;   /* docs/128 witness */
 extern uint32_t g_exp_awards, g_exp_added;      /* docs/126 witnesses */
 extern uint32_t g_exp_gate_hits[6];
+extern uint32_t g_exp_gate_hp[5];   /* docs/239: HP buckets at the +5!=0 gate */
 extern uint32_t g_numdraw_38c23, g_numdraw_383a4, g_numdraw_bb42;  /* docs/195 §1b */
 extern uint32_t g_settle_pass_calls, g_settle_pass_nodes, g_settle_pass_sets, g_settle_flag2, g_settle_flag1_other;
 extern uint32_t g_1441e_gate_set[8], g_1441e_gate_kind[8];   /* docs/236 §4 */ /* docs/190 §2 */            /* docs/190 §1: fn_015295 gate census */

@@ -64,7 +64,12 @@ def main():
                     continue
                 if op.mem.disp not in disps:
                     continue
-                # first operand is the destination for the store-like mnemonics we keep
+                # docs/239: the memory operand must be the DESTINATION.  In Intel syntax that means it is
+                # operand 0; `mov eax, [ecx+0x30]` has the field as operand 1 and is a READ, which the old
+                # guard let through (it only rejected non-store mnemonics at operand 0), inflating every
+                # --disp census this tool has ever produced.
+                if idx != 0:
+                    continue
                 if idx == 0 and ins.mnemonic.upper() not in ("MOV", "ADD", "SUB", "AND", "OR", "XOR", "SHL",
                                                               "SHR", "SAL", "SAR", "INC", "DEC", "NEG", "NOT"):
                     continue

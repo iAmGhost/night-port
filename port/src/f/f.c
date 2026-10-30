@@ -8249,7 +8249,10 @@ void fn_015295(uint8_t *a0, int32_t a1) {
     if (p5->v > 0) p5->v = 0;                      /* 0x152c4 */
     if (a0[0x30] != 1) { g_exp_gate_hits[0]++; return; }   /* 0x152d1/152dc: dying flag */
     if (a0[0x25] == 0xff) { g_exp_gate_hits[1]++; return; } /* 0x152e9: already settled */
-    if (p5->v != 0) { g_exp_gate_hits[2]++; return; }       /* 0x152f9 (a0->5 must be 0) */
+    if (p5->v != 0) { g_exp_gate_hits[2]++;                        /* docs/239 §4: how far short of 0 is HP? */
+                      { int32_t h = p5->v; int b = h < 0 ? 0 : (h <= 3 ? 1 : (h <= 15 ? 2 : (h <= 99 ? 3 : 4)));
+                        g_exp_gate_hp[b]++; }
+                      return; }
     if (((struct sa32 *)((a0 + 0x11)))->v <= 0x15) { g_exp_gate_hits[3]++; return; } /* 0x15304 */
     a0[0x25] = 0xff;                               /* 0x1530e */
     if (a0[0] != 1) { g_exp_gate_hits[4]++; return; }        /* 0x1531c: record kind */
@@ -23395,6 +23398,7 @@ uint32_t g_exp_commits = 0, g_exp_committed = 0;  /* 0x00038fff commits: count a
  * [0] +0x30!=1 (0x152d1)  [1] +0x25==0xff (0x152e9)  [2] +5!=0 (0x152f9)  [3] +0x11<=0x15 (0x15304)
  * [4] +0x00!=1 (0x1531c)  [5] reached the award (g_exp_awards counts the same thing). */
 uint32_t g_exp_gate_hits[6];
+uint32_t g_exp_gate_hp[5];      /* docs/239: HP buckets at the "HP must be 0" gate (0=<0, 1=1..3, 2=4..15, 3=16..99, 4=>=100) */
 uint32_t g_sfx_plays = 0;   /* host-side witness (NIGHT_ACTTRACE): element-event sounds played */
 uint32_t g_sfx_oob = 0;     /* events whose slot index fell outside the 100-entry pool */
 

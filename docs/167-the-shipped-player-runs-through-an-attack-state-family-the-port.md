@@ -240,3 +240,32 @@ part of the reaction-state under-population (`0x0b/0x0c`: port 17/17 and 4/3 vs 
 
 Not fixed, and deliberately not "fixed" here: the dwell difference is a *consequence* to be traced through the
 population numbers, not a value to be tuned at the timer.
+
+## 12. The port's record dumps are systematically unreliable -- the port-side oracle is the witness family
+
+§10 flagged `g_player_ent`; the same check on the walked `ent##` records fails too.  Selecting the block that is
+plausibly the player (type byte 0, state < 0x400, 0 < hp <= 1000) from the 12 `ent##` blocks over 2171 samples
+(100 ms cadence, `meta.json.period_ms`):
+
+```
+plausible player blocks: 286 of 2171 samples
+state census in those blocks: 0x0 x251, 0x79 x5, 0x2 x5, 0x7 x5, 0x7f x4, 0x40 x3, 0x1 x3, 0x87 x3
++0x30 values: 35 distinct, including 56, 88, 131, 199, 224, 246
+state 0x01 streaks: 3, longest 1 sample          state 0x02: 5 streaks, longest 1 sample
+```
+
+Against the same run's in-process witness, which reports sane states (`1`, `0xb`, `0x33`), 498-tick-scale idle
+dwell, and `+0x30` values 0/2 only.  The dump and the game disagree, and the disagreement is systematic, not
+occasional: `0x79 / 0x7f / 0x87` states and `+0x30 == 246` are not values the port's own code produces.
+
+Standing rule, replacing several earlier habits: **on the port side, record-level claims come from the witness
+family** (`NIGHT_STTRACE`, `NIGHT_HITTRACE`, `NIGHT_ACTTRACE`, `NIGHT_DEATHTRACE`, the arena sanitizer), which
+read the live record through the same pointers the game uses.  `cells.bin`/`ent##` blocks are usable for
+*presence* counts (docs/161/docs/162's entity-population numbers) but not for field-level claims about the
+player's state machine -- including some of docs/162's record histograms, which need this caveat attached.
+
+Named fix rather than a workaround: make the dumper prove what it dumped.  `rig_sink.c:319-327` walks
+`g_dat_53c70` and copies `rec_span(e)` bytes per link; it should stamp each block with the arena offset it came
+from plus the docs/128 magic word (freed blocks marked `0xdeadbeef`), and the oracle should reject any block
+whose state/action-code/hp triple is outside the alphabet the witnesses observe -- then the mismatch becomes a
+measured count of stale blocks instead of a silent corruption of the comparison.

@@ -71,3 +71,32 @@ victim on the port side; the shipped side names it through `DS 0x62d58`/the enti
 block to be the one whose pointer cell value changed at that step.  If the shipped blocks cannot be tied to named
 entities, item 2b's per-type comparison has to come from the **screen oracle** (the number the HUD prints) instead of
 record bytes.
+
+## 4. Where the port's chain targets go: computed, written, then invisible
+
+`NIGHT_STTRACE=1` on the port (`port/test/night --script drives/ep1_kill3.txt --frames 9000`, i.e. the same 150 s
+route as `g33`) prints the chain-match witness at the five sites `f.c:27370, 27379, 27391, 27400, 27413`, each of
+which is `g_dat_62d58 = target; g_dat_62d5c = lvls[k-1]; chain_target_log(...)`:
+
+```
+94 witness lines, all at site "match"
+  55 x target=51 (0x33) lv=1
+  21 x target=52 (0x34) lv=1
+  18 x target=53 (0x35) lv=1
+```
+
+So the port **does** compute `0x34` and `0x35` (39 of 94 matches), the same state-id family shipped selects, and it
+does write them into the cell.  Yet the dumped cell on the identical route holds only `0x33` (787 samples) and `0x0`
+(713), and `DS 0x62d5c` is 0 in all 1 500 samples even though every witness line carries `lv=1`.
+
+The dumper is not reading a different object: `NIGHT_RIGDBG=1` prints
+
+```
+cellmap g_dat_62d58 ds=00062d58 host=0x106bbd48c host_size=4 ptr=0
+cellmap g_dat_62d5c ds=00062d5c host=0x1006bbd404 host_size=4 ptr=0
+```
+
+(one 4-byte cell each, `dupes: 1` in `scripts/audit/gen/rig_cells.json`, no alias).  The difference is therefore
+**persistence**, not observation: on the shipped side `0x34`/`0x35`/`0x36` survive long enough to be sampled at 4 Hz
+(20/19/4 states of 413), while on the port side they are overwritten before the next 10 Hz sample.  That is the row
+to chase for items 3 and 4, both of which are about the combo/technical-level state the chain machinery feeds.

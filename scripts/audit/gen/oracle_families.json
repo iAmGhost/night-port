@@ -78,5 +78,12 @@
    "0x63fb0": "g_dat_63fb0: the segment fn_00040788 stored",
    "0x63fb8": "g_dat_63fb8: device command-stream started flag"
   }
+ },
+ "clock_stamp": {
+  "reason": "Absolute uptime/time-of-day stamp carried beside the room-script counters. Both sides advance it by the same quantum while their epochs are unrelated -- shipped 3682232 -> 3683288 (+1056) between state_0020 and state_0080, port 1631896 -> 1632952 (+1056) between dump samples 500 and 800 of the same route. Absolute equality is therefore meaningless; only the increments are comparable, exactly as with the heap pointers docs/134 \u00a73 treated.",
+  "docs": "docs/176 \u00a76 measurement pass; docs/134 \u00a73 (relative-comparison rule); docs/101 (the 0x63e24..0x63e40 clock block is entropy-masked -- this cell sits just outside that block)",
+  "cells": {
+   "0x63e18": "g_dat_63e18: uptime stamp, same +1056 quantum on both sides, different epoch"
+  }
  }
 }

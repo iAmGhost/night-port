@@ -151,3 +151,26 @@ The shipped timeline always begins near +47 s (boot/replay warm-up) and is stret
 residual count there measures the *window coverage*, not the port.  Rule recorded: the state oracle's numbers are
 only quotable from the canonical 150 s route (`RIG_HZ=10`), and any report where `shipped-quiet windows` exceeds a
 few tens of 274 is a statement about the rig.
+
+## 8. Same pass, one more reclassification: DS 0x63e18 is an uptime stamp, not game state
+
+Reading the cell on both sides of `/tmp/rig/g27`:
+
+```
+shipped  state_0020 -> state_0080 : 3682232 -> 3683288   (+1056)
+port     sample 500  -> sample 800 : 1631896 -> 1632952   (+1056)
+```
+
+Same quantum, unrelated epochs -- the signature docs/134 §3 used for the heap pointers.  It sits at `0x63e18`,
+just outside the `0x63e24..0x63e40` clock block that docs/101 entropy-masked, which is why it kept surfacing as a
+gameplay divergence.  Added as the fifth non-gameplay family (`clock_stamp`) in
+`scripts/audit/gen/oracle_families.json` with the increment evidence and the rule "compare increments, never
+absolute values".  Re-running the oracle on the same dumps:
+
+```
+non-gameplay families: host_address_space 2, device_plumbing 27, arena_state 3, dos_extender 10, clock_stamp 1
+residual same-width gameplay divergences: 34      (was 35)
+```
+
+`0x63e1c` and `0x63e20` stay in the gameplay list deliberately: no increment evidence exists for them, and
+`0x63e20` is the common port-holds-zero / shipped-holds-value shape rather than a stamp.

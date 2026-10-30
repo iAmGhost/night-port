@@ -46,6 +46,21 @@ port     kind 2 (reaction): samples=14   y: 179 .. 181
   separation docs/195 §1a counted on the 352 `GATE4` rejections (`172 - 150 = 22`, `172 - 155 = 17` ✓), and it is a
   placement defect in the *enemy*, not in the attacker and not in the threshold ✓
 
+**Sample-size caveat, stated before anyone quotes this table:** the shipped side contributes only **33 admissible
+enemy samples** over the window (the shipped dump stores 12 record cells per state, 413 states, and 38 of the 71
+kind-1 rows are junk slots), against **336** on the port side ✓ So "the port occupies 32 Y values" is solid, while
+"the shipped occupies exactly two" is a *lower bound on the shipped's occupancy* -- it is what the shipped was
+caught doing, not proof it never passes through 139-193 ✓ The comparison that is safe to quote is the one that does
+not depend on sample size: **the shared ground value 193 is the port's single most frequent enemy Y (107 samples)
+and the player's Y is 172 on both sides** ✓ so the excess Y values are the port's own ✓
+
+Follow-up on the spawn side, since it is the obvious suspect and it is *not* the defect: the shipped's spawn call
+(0x0003e444-0x0003e45e: `push 1` kind, `push [rec+1]` type, `ECX = [rec + 0x0d]` Y, `EBX = 0`,
+`EDX = [ebp-0x10]` X, `call 0x10efc`) is what `e20f_spawn` does (`f.c:27001-27004`, same citations ✓✓) ✓ So the
+Y handed to the constructor is read from the same field on both sides, and the excess spread must come from what
+happens to the record **after** spawn (the step dispatch's movement / ground handling, `fn_01194c` 0x1194c and its
+`fn_011827` reaction moves at 0x119b6-0x119ca), not from the spawn Y ✓
+
 ## 3. Why that is the item-2b blocker, with the counters
 
 Same route, `NIGHT_ACTTRACE` census on the current build (`/tmp/rig/x2`, docs/237 §3):
@@ -69,17 +84,18 @@ rather than three ✓
 
 ## 4. Open sub-question the next measurement has to answer
 
-Why do the shipped's enemies sit on 193 / 150 while the port's drift?
+Where does the port's extra Y spread come from, if the spawn read is faithful (§3)?
 
-* `fn_010efc` (the constructor) receives the spawn Y as an argument (`f.c:1312` area reads the `.chr` row for the
-  type ✓ and `fn_03e20f`'s spawn tails pass the Y) ✓ the shipped's `.chr` row 31 carries `+0x14 = 300`,
-  `+0x18 = 150` (docs/237 §1 witness) ✓ — 150 is one of the two shipped ground lines ✓ candidate: the shipped
-  *snaps* the spawn Y to a floor value taken from the row (or from the room record), the port passes the raw value;
-* `fn_011827` / `fn_01194c` (the step dispatch and its reaction spawners) move entities by the pushed `dx/dy`
-  (e.g. `0x119ad cmp [e+0x11], 0x3a` then `push 4; mov ebx,-4; mov edx,-10` at 0x119b6-0x119ca) ✓ — if the port's
-  per-step gravity/ground clamp differs, the Y spread grows ✓
-
-Next measurement: per-kind Y *time series* on both dumps for the 60-150 s window (already available from the two
-dump sets) plus a `NIGHT_SPAWNTRACE` print of the Y each spawn passes to `fn_010efc` ✓ and the shipped-side
-comparison via `wait ds` on the spawn-Y cell if a bare-displacement read exists (run
-`imm_scan.py --imm <disp>` with the docs/237 §4 fix ✓).
+* ruled out: the spawn Y argument -- `0x3e453 mov ecx, [rec + 0x0d]` vs `f.c:27002` ✓ identical;
+* ruled out: the Y gate itself (§1, byte-faithful ✓) and the attacker's Y (§2, 172 on both sides ✓);
+* open, in priority order:
+  1. the per-step vertical movement / ground clamp: `fn_01194c` (the step dispatch, `f.c:26146`) and `fn_011827`
+     (0x11827, whose caller pushes the dy -- e.g. `0x119b6 push 4; 0x119bd mov ebx,-4; 0x119c2 mov edx,-10` ✓).
+     Compare the shipped's Y updates (`add [e + 9], ...` sites inside 0x1194c-0x1260d) with the port's model, and
+     check for a ground clamp the shipped applies and the port does not;
+  2. `fn_031f10(cur, 5)` / the state-queue paths that write Y when a state changes (0x149bd-c5 ✓ modelled at
+     `f.c:25274+`);
+  3. the room record's `+0x0d` content itself (would show up as a *constant* wrong Y, which §2 does not show ✓).
+* measurement that decides it: a per-record Y trace on the port (`NIGHT_HITTRACE`'s `ay`/`by9` lines already give
+  the pairs it tests ✓ 352 lines ✓) against a Y trace from the shipped dumps for the same room, and the shipped-side
+  `add [e + 9]` writer census via `field_writers.py --disp 0x9` with the data filter docs/189 §3 requires ✓

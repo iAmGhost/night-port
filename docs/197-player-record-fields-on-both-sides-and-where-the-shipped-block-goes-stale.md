@@ -4,6 +4,14 @@
 Run: canonical route (`/tmp/rig/g33`, drive `ep1_kill3.txt`, 413 shipped states, 1 500 port samples, 274 drive phases),
 cell `g_player_ent` = DS `0x53c7c`, record snapshot 352 B on both sides.
 
+## 0. Which "EXP text" item 2a means (reporter's clarification, recorded here first)
+
+The playtest report means **the EXP text that appears when an enemy dies** — not the number field drawn on the
+HUD.  Everything in §1 below (the `fn_0137c1` HUD field, docs/191 §2's crop of `P. 00000`) is therefore a
+measurement of a *different* field, kept only as a control.  The kill-time number is drawn by `fn_038c23`
+(only caller: `fn_038f3d` at `0x3983a`, x `0x68`, y `0xac`) or `fn_038445`'s two calls to `fn_0383a4`
+(x `0x118`, y `0xae`), value `g_dat_53100` (docs/195 §1b, docs/196).  docs/182's row 2a now says this.
+
 ## 1. What the port's HUD field actually holds (item 2a, port side)
 
 A witness in `fn_0137c1` (`NIGHT_EXPVIEW=1`, `f.c` after the `pad = 5 - len` line) logs the value it is about to draw:

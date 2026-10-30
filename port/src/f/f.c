@@ -24660,6 +24660,16 @@ void fn_03209c(void)
  * other value only does it when A and B face the same way, going to 0xab if the player's byte +0x27 == 4
  * else 0xa0, and both return 0 afterwards (the hit is consumed by the reaction). Otherwise the generic
  * tail runs: B is turned to face A (only when that agrees with B's own facing rule), and 1 is returned. */
+
+/* docs/199: NIGHT_SET30 witness -- which +0x30 writer actually runs, and on what record. */
+static void set30_trace(const char *site, const uint8_t *rec) {
+    static int left = 4000;
+    if (!getenv("NIGHT_SET30") || left-- <= 0) return;
+    fprintf(stderr, "set30 site=%s kind=%u type_idx=%d hp=%d state=%#x player=%d\n", site, rec[0],
+            (int)((struct sa32 *)((rec + 0x0d)))->v, (int)((struct sa16 *)((rec + 0x29)))->v,
+            (unsigned)((struct sa32 *)((rec + 0x17)))->v, (rec == g_player_ent));
+}
+
 int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
 {
     (void)canary_id((uintptr_t)a, 0x84);                          /* 0x00013c4d-52 stack probe (0x84) */
@@ -24783,6 +24793,7 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
             } else {
                 ent = NULL;                                            /* the original never checks it */
             }
+    set30_trace("f.c:24786", ent);
             *(uint8_t *)(ent + 0x30) = 1;                              /* 0x000141c7-ca */
             arena_flag_check(ent, "fn_01441e 0x141ca");
             ((struct ua32 *)((ent + 0x17)))->v = (uint32_t)v2c;                 /* 0x000141ce-0x000141d7 */
@@ -25066,6 +25077,7 @@ p1next:
             ((struct ua16 *)((cur + 0x29)))->v = (uint16_t)((int16_t)((struct ua16 *)((cur + 0x29)))->v - (int16_t)dmg);
             if ((int16_t)((struct sa16 *)((cur + 0x29)))->v <= 0) {
                 ((struct ua16 *)((cur + 0x29)))->v = 0;
+    set30_trace("f.c:25069", cur);
                 *(uint8_t  *)(cur + 0x30) = 1;
                 arena_flag_check(cur, "fn_01441e 0x14900 debt-zero hp<=0");
             }
@@ -25085,9 +25097,11 @@ p1next:
             ((struct ua16 *)((cur + 0x29)))->v = (uint16_t)((int16_t)((struct ua16 *)((cur + 0x29)))->v
                                                    + (int16_t)((struct ua16 *)((cur + 0x23)))->v);
             ((struct ua16 *)((cur + 0x23)))->v = 0;
+    set30_trace("f.c:25088", cur);
             *(uint8_t  *)(cur + 0x30) = 2;
             arena_flag_check(cur, "fn_01441e 0x1498d debt settled, hp>0");
             if ((int16_t)((struct sa16 *)((cur + 0x29)))->v <= 0) {
+    set30_trace("f.c:25091", cur);
                 *(uint8_t  *)(cur + 0x30) = 1;
                 arena_flag_check(cur, "fn_01441e 0x1499f hp<=0 after debt");
                 ((struct ua16 *)((cur + 0x29)))->v = 0;
@@ -25151,6 +25165,7 @@ p1next:
                 }
             }
             if ((uint32_t)cur[0x30] == 2u) {                        /* 0x00014c07-15 */
+    set30_trace("f.c:25154", cur);
                 *(uint8_t *)(cur + 0x30) = 1;                       /* 0x00014c17-1a */
                 arena_flag_check(cur, "fn_01441e 0x14c1a");
                 *(uint8_t *)(cur + 0x31) = 0;                       /* 0x00014c1e-21 */
@@ -25180,10 +25195,12 @@ p1next:
             ((struct sa32 *)((cur + 0x17)))->v = g_tab_51b60[(uint32_t)atype & 0xffu];
         }
         if ((int16_t)((struct ua16 *)((cur + 0x23)))->v == 0 && atype >= 0x0b && atype <= 0x14) {
+    set30_trace("f.c:25183", cur);
             *(uint8_t *)(cur + 0x30) = 1;                           /* 0x00014cd2 */
             arena_flag_check(cur, "fn_01441e 0x14cd2");
         } else if ((int16_t)((struct sa16 *)((cur + 0x23)))->v == 0
                    && (int16_t)((struct sa16 *)((cur + 0x29)))->v == 0) {
+    set30_trace("f.c:25187", cur);
             *(uint8_t  *)(cur + 0x30) = 1;                          /* 0x00014d03-06 */
             arena_flag_check(cur, "fn_01441e 0x14d06");
             ((struct sa32 *)((cur + 0x17)))->v = 0x15;                        /* 0x00014d0d-10 */
@@ -25266,6 +25283,14 @@ score:
             if (delta != 0 && e == g_player_ent)
                 ((struct sa32 *)((g_player_ent + 0xbb)))->v += (uint32_t)delta;
         }
+        if (getenv("NIGHT_TYPETABLE")) {                          /* docs/199: is fn_01441e's settle block reached? */
+            static int s_sc = 60;
+            if (s_sc-- > 0)
+                fprintf(stderr, "settlecheck: kind=%u type_idx=%d hp=%d +0x30=%u +0x5a=%u +0x32=%u player=%d\n",
+                        cur[0], (int)((struct sa32 *)((cur + 0x0d)))->v,
+                        (int)((struct sa16 *)((cur + 0x29)))->v, cur[0x30], cur[0x5a],
+                        (unsigned)((struct ua32 *)((cur + 0x32)))->v, (cur == g_player_ent));
+        }
         if ((uint32_t)cur[0x30] == 1u) {                           /* 0x00015003-0x00015070 */
             if (cur != g_player_ent) {
                 if ((uint32_t)cur[0x5a] == 0u &&
@@ -25273,9 +25298,19 @@ score:
                     g_settle_flag2++;
                     *(uint8_t  *)(cur + 0x5a) = 1;
                     *(uint8_t  *)(cur + 0x31) = 1;
+    set30_trace("f.c:25284", cur);
                     *(uint8_t  *)(cur + 0x30) = 2;
                     ((struct ua32 *)((cur + 0x32)))->v = 5;
                 } else {
+                    if (getenv("NIGHT_TYPETABLE")) {                /* docs/199: what does the per-type row say? */
+                        static int s_tt = 40;
+                        if (s_tt-- > 0)
+                            fprintf(stderr, "typetable: type_idx=%d row+0xc=%u (award) row+0=%u kind=%u hp=%d\n",
+                                    (int)((struct sa32 *)((cur + 0x0d)))->v,
+                                    (unsigned)((struct ua32 *)((g_dat_53ea8 + (size_t)((struct sa32 *)((cur + 0x0d)))->v * 0x88u)))->v,
+                                    (unsigned)((struct ua32 *)((g_dat_53e9c + (size_t)((struct sa32 *)((cur + 0x0d)))->v * 0x88u)))->v,
+                                    cur[0], (int)((struct sa16 *)((cur + 0x29)))->v);
+                    }
                     ((struct ua32 *)((cur + 0x32)))->v =
                         ((struct ua32 *)((g_dat_53ea8 +            /* 0x00015067 MOV EDX,[EAX+0x53ea8]
                                                 with EAX = idx*0x88: the guest has NO extra +0xc, and

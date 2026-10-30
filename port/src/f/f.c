@@ -27756,7 +27756,13 @@ uintptr_t g_dat_533a0 = 0;
  * game main fn_03af18, and -- when the main returns -- the terminate path fn_0423b7.
  * PORT NOTE: the original's high half (EDX) is undefined at that point, so the port feeds 0; with a
  * live stack the original takes the same "reserve" side of the branch. */
-void fn_0445c9(void) {
+/* docs/173 §5: the thunk's pre-main half, split out so the port can run it.  The port enters the game main
+ * directly (main.c calls fn_03af18), and neither fn_0420bc nor fn_042046 -- the wrappers around startup_body(),
+ * the only callers of fn_0445c9 -- is ever called, so the thunk's side effects never happened: DS 0x53640 kept
+ * the image value 0x10 where shipped holds 0x8000 from set_53640 (0x49187, invoked here at 0x0445fe, BEFORE the
+ * game main at 0x04460e). */
+void fn_0445c9_startup(void)
+{
     uint8_t frame;                                                       /* &stack0xfffffff8 */
     uint32_t eax = stack_depth();                                        /* 0x0445d8 (fn_04917e) */
     uint32_t edx = 0;
@@ -27769,6 +27775,10 @@ void fn_0445c9(void) {
     }
     g_dat_533a0 = g_dat_533a0 + g_dat_5339c;                             /* 0x0445f4 */
     set_53640();                                                         /* 0x0445fe */
+}
+
+void fn_0445c9(void) {
+    fn_0445c9_startup();
     fn_03af18();                                                         /* 0x04460e */
     fn_0423b7(0, 0, 0, 0);                                               /* 0x044613 */
 }

@@ -61,3 +61,51 @@ stack-reservation pair `DAT_0005339c` / `DAT_000533a0`), then re-measure these t
 `0x53640 = 0x10`, `0x53451 = 0x00`, calltrace 0.  Green: `0x53640 = 0x8000`, `0x53451` low byte `0x04`, and the two
 rows leaving the DIFF set.  If the values then match but the clamp's *effect* diverges, `f.c:3441`'s call sites
 become the next measurable item.
+
+## 5. The fix, and the red -> green
+
+The thunk was unreachable for a structural reason: `fn_0445c9` is called only from `startup_body()` (the port's
+model of the DOS4GW startup body, `f.c:27626`), whose wrappers `fn_0420bc` / `fn_042046` (`f.c:27735`, `f.c:27741`)
+have **no caller anywhere** -- `main.c:1569` enters `fn_03af18` (the game main) directly.
+
+Fix: split the thunk's pre-main half out and run it before the game main, exactly where the shipped order has it
+(`set_53640` at guest `0x0445fe`, game main at `0x04460e`):
+
+```c
+void fn_0445c9_startup(void) { ...stack reservation...; set_53640(); }   /* 0x0445d8-0x0445fe */
+void fn_0445c9(void) { fn_0445c9_startup(); fn_03af18(); fn_0423b7(0,0,0,0); }
+```
+
+and in `main.c`, `fn_0445c9_startup();` immediately before `fn_03af18();`.
+
+```
+before:  calltrace set_53640 = 0 calls ;  DS 0x53640 = 0x10 in 1000/1000 samples
+after :  calltrace set_53640 #1        ;  DS 0x53640 = 0x8000 in 1000/1000 samples
+```
+
+Shipped holds `0x8000` in 424/424 samples, so the cell now agrees, and `0x53640` left the oracle's DIFF rows on a
+fresh 150 s route (`/tmp/rig/g22`).  Value-oracle tally on the same drive, calibrated cadence:
+
+| | g20 (before) | g22 (after) |
+|---|---|---|
+| SAME | 64 | **67** |
+| DIFF | 38 | **35** |
+| DIFF-SIZE | 13 | 12 |
+| REC-SAME | 15 | **19** |
+| REC-NULL | 11 | **7** |
+| activity profile | 269/269 SAME | 269/269 SAME |
+
+`make -C port test` ALL PASS.  `DS 0x533a0` now carries a host stack address (the reservation the thunk records);
+the oracle already classifies it `NON-GAMEPLAY:dos_extender`, so it adds no noise, but it is a host value and is
+not comparable -- recorded rather than hidden.
+
+## 6. What is still open on this axis
+
+`DS 0x53451` stays DIFF (`0x04` shipped vs `0x00` port): its writer is `fn_04933a` ("rebuild the active node list
+from the file-structure table"), which is still called zero times and is in `gap_frontier`'s `never` and
+`no_known_caller` sets.  Unlike the entry thunk, its caller is not yet identified in the shipped call graph, so it
+stays a named coverage gap rather than a fixed item.
+
+*(Self-note: the first attempt at the `f.h` declaration for `fn_0445c9_startup` put the new line inside the
+continuation of `fn_0445c9`'s multi-line comment -- the docs/169 shape again, caught by the compiler rather than
+by reading the diff.  Declarations go after a comment is closed.)*

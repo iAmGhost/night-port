@@ -1566,6 +1566,9 @@ int main(int argc, char **argv) {
         const char *sd = getenv("NIGHT_SEED");
         if (sd) g_rng_seed_override = atoi(sd);
     }
+        fn_0445c9_startup();                            /* docs/173 §5: 0x0445d8-0x0445fe -- the entry thunk's
+                                                          * pre-main half, which shipped runs before the game
+                                                          * main; it is what sets DAT_00053640 = 0x8000 */
         fn_03af18();                                  /* THE GAME MAIN (0x03af18) */
         SDL_Log("the game main returned");
     } else {

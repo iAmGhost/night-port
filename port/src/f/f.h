@@ -796,7 +796,9 @@ extern uint16_t g_dat_53368;
 extern uint8_t  g_dat_640c0[0x100];
 extern uint32_t g_startup_zero_len, g_startup_ret_slot;
 
-void     fn_0445c9(void);            /* 0x0445c9: the entry thunk (stack reservation, DAT_00053640, the game main, terminate) */
+void     fn_0445c9(void);            /* 0x0445c9: the entry thunk (stack reservation, DAT
+                                     * 0x53640 setter, game main, terminate path) */
+void     fn_0445c9_startup(void);    /* docs/173 §5: the thunk's pre-main half, 0x0445d8-0x0445fe */
 extern uint32_t  g_dat_5339c;       /* DAT_0005339c: stack reservation offset for the entry thunk */
 extern uintptr_t g_dat_533a0;       /* DAT_000533a0: the reserved stack base recorded by the entry thunk */
 void     fn_03af18(void);            /* 0x03af18: THE GAME MAIN (menu loop, stage cycle, room-clear/continue/game-over/abort routing, slide shows) */

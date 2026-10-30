@@ -21,3 +21,17 @@ kill through the paths that set the settle flag and reach the award, and the sin
 gate.  docs/161 (camera population) and docs/162 (damage debt) are upstream of that gate; this census is the "before"
 number any fix to the kill path has to move, and it is quoted with the pinned environment because the same drive run
 unpinned gives different counters (docs/191 §1).
+
+## 1a. The Y gate's tolerance is a constant, so the rejections are placement, not threshold
+
+Parsing all 352 `GATE4` lines out of that run (`GATE4 y <ay> vs <by> dl=<dl>`):
+
+```
+dl = 7 in 352 of 352 lines          (abs: min 7, median 7, p90 7, max 7)
+sample pairs: (172, 147) (172, 153) (172, 147) (139, 163) (139, 162) ...
+```
+
+`dl` never varies, so it is the shipped fixed allowance (the `7` the gate compares against), not a small shortfall:
+the rejected pairs sit **15-24 pixels** apart vertically.  The gate is therefore behaving as written; what is wrong is
+the vertical placement of the attacker relative to its target — the population/altitude question docs/161 §5 opened,
+not a threshold to adjust here.

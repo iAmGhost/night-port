@@ -1,4 +1,10 @@
-# 215 — Item 2a screen half: the field region is localized, the port paints a rising two-glyph cluster there, the shipped frame paints nothing
+# 215 — Item 2a screen half (superseded in part): the port's cluster is real; the shipped "no ink" table was computed with the wrong frame stride and is void (docs/218 §1-3)
+
+> **§2 of this document is void.**  The shipped `frame.bin` payload is 2560 bytes per row (15-byte header
+> `320, 200, 0xa00`), and the region diffs quoted below indexed rows as `y*320*4`.  With the correct stride the
+> shipped's kill number *is* in the presented frame, at the coordinates its own arithmetic predicts, rising and
+> dying on schedule -- see docs/218 §3.  §1 (the port side) and §3 (the digit-index arithmetic is faithful) stand.
+
 
 ## 1. Port: the kill number is visible and rises, at the witnessed coordinates
 

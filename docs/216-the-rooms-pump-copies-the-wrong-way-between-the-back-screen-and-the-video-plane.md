@@ -1,4 +1,14 @@
-# 216 — A copy the port runs backwards: guest 0x00038154 `cpy_dw(0xa0000, 0x3e80, base)` vs `f.c:15388`
+# 216 — RETRACTED (see docs/218 §2): the copy direction here was read backwards
+
+> **This document's central claim is wrong and superseded by docs/218 §2.**  cdecl pushes arguments
+> right-to-left, so `push 0xa0000` / `push 0x3e80` / `push [ebp-4]` at guest 0x00038154-0x00038168 passes
+> arg1 = `[ebp-4]` (source, the composite buffer), arg2 = 0x3e80, arg3 = 0xa0000 (destination, the video plane) --
+> and the callee body confirms the slots (`edi = [ebp+0x10]` destination, `esi = [ebp+8]` source,
+> `rep movsd es:[edi], [esi]`).  The shipped therefore presents the composite into the video plane, exactly as the
+> port does.  The instruction sequence, the caller evidence (`0x0003ab27 mov eax,[0x133b0]; call 0x38098`) and the
+> blit census below are accurate; the direction -- and every consequence drawn from it -- is withdrawn.  It is kept
+> because "a fix based on this would have inverted a working copy" is a fact worth recording.
+
 
 ## 1. The shipped instruction sequence and what it means
 

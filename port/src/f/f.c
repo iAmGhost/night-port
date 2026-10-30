@@ -1299,6 +1299,17 @@ uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg
                    int32_t type_idx, uint8_t kind)
 {
     (void)canary_id((uintptr_t)block, 0x24);                     /* 0x10efc-01 */
+    /* docs/251 witness (NIGHT_RECBUILD=1): every record construction, counted. docs/251 left two
+     * readings of the port's 50 `+0x23` restarts -- a wholesale rewrite of a live record, or a fresh
+     * construction that the e20f_spawn witness (7 calls) does not account for. fn_010efc 0x10f53 is the
+     * only shipped store that can put a new type_idx into a record (docs/249), so this count decides
+     * which reading is true: ~7 means the restarts are not constructions, ~56 means a spawn path
+     * bypasses e20f_spawn. */
+    if (getenv("NIGHT_RECBUILD"))
+        fprintf(stderr, "RECBUILD kind=%u type=%u off=%u x=%d y=%d caller=%p\n",
+                (unsigned)kind, (unsigned)type_idx,
+                (unsigned)(block - (const uint8_t *)g_heap_base), arg_edx, arg_ecx,
+                __builtin_return_address(0));
     /* docs/174: was this block already live?  fn_00041bdc handing out a block some live entity still owns is
      * the docs/128 dangling-pointer family, and the only route found by which the player's own record could
      * ever receive entity+0x30 == 1 (docs/135) -- a flag the shipped player never takes (docs/167 §9). */

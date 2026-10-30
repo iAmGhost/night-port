@@ -119,3 +119,28 @@ family, and it is the same family whose one-shot spawn records docs/174 §4 coun
 
 Tooling added: `NIGHT_ACTCENSUS_SLOTS="type:state"` witness printing a record's eight hit codes, which turns any
 "this hit should not exist" claim into a byte-level lookup against the loaded shipped record.
+
+## 7. On the aligned route neither side fields type 36 at all
+
+`pop_align.py` on `/tmp/rig/g20` (12 entity-list slots per sample, aligned on the room-script drain):
+
+```
+ORIG 771 live-record samples: [(type 1, 554), (type 0, 171), (type 2, 46)]
+PORT 601 live-record samples: [(type 1, 407), (type 0, 166), (type 2, 28)]
+```
+
+No type 36 appears on **either** side in the aligned window, while the code-11 hit on the port's player was
+recorded by `NIGHT_HITTRACE` on longer runs (docs/162 §12, 12 000-frame drives).  Two things follow, and both are
+limits rather than conclusions:
+
+1. The type-36 attacker is an **episode/route-dependent** population, not something this route exercises -- so
+   "shipped never fields it" is only established *for the routes the rig has run*, exactly the caveat docs/167 §6
+   recorded about frame budgets.
+2. The 12-slot entity census can under-sample: `NIGHT_HITTRACE` saw type-36 attackers that this census does not,
+   so census and witness are measuring different slices and neither is a complete population record.
+
+Honest status of the narrowed question: it is *not* closed.  What is established is that the record data carries
+code 11 (§6), that the spawn call sites are faithful (§2), and that on the routes dumped so far, type 36 is absent
+on both sides -- so the next measurement must be a *longer* aligned route (the 12 000-frame regime where the hit
+actually happens) with the census taken at the same cadence on both sides, before any claim about who fields
+type-36 attackers.

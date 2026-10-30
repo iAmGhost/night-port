@@ -13980,6 +13980,15 @@ void fn_0137c1(uint8_t *entity, uint32_t base) {
     itoa32s(((struct sa32 *)((entity + 0x2b)))->v, buf, 10);                /* 0x0137e6-ec */
     int len = str_len(buf);                                       /* 0x0137f1-79 */
     int pad = 5 - len;                                            /* 0x0137fc-04 */
+    {                                                                       /* docs/197: NIGHT_EXPVIEW witness */
+        static int s_vw = -1, s_left = 400;
+        if (s_vw < 0) s_vw = getenv("NIGHT_EXPVIEW") ? 1 : 0;
+        if (s_vw && s_left-- > 0)
+            fprintf(stderr, "expview display=%d pending=%d len=%d pad=%d x0=%d\n",
+                    (int)((struct sa32 *)((entity + 0x2b)))->v,
+                    (int)((struct sa32 *)((entity + 0x52)))->v, len, pad,
+                    (pad > 0 ? 0x41 : (pad) * 6 + 0x41));
+    }
     const uint32_t *char_table = (const uint32_t *)((uint8_t *)g_heap_base + ((struct ua32 *)((g_dat_63e04 + 0x34)))->v);
     const uint8_t *rle_base = (const uint8_t *)g_heap_base + ((struct ua32 *)((g_dat_63e04 + 0x38)))->v;
     for (int i = 0; i < pad; i++) {                               /* 0x00013807-52 (blank glyphs) */

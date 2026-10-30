@@ -49,13 +49,47 @@ def drive_events(path):  # kept for drives without DS waits
     return ev
 
 
+# docs/181 §6: this function crashed mid-route with "IndexError: index out of range" while reading a
+# non-paletted frame, because it indexed as if every frame were 4 bytes per pixel.  The route changes VGA mode
+# (the game runs mode 13h for graphics and mode 3 for the text banner), and a mode-3 reply is not 4 bytes per
+# pixel; the first frames succeeded and the mode change is what killed the session.  A rig that dies at a mode
+# transition silently drops the second half of a capture session, which is exactly how a "no audio report" and a
+# half-length pacing number ended up in g33's report.
+BPP_OF = {"BGRX": 4, "RGBX": 4, "RGBA": 4, "ARGB": 4, "ABGR": 4, "XRGB": 4, "XBGR": 4,
+          "RGB565": 2, "BGR565": 2, "565": 2, "INDEX8": 1, "P8": 1, "INDEX": 1, "PALETTE8": 1}
+
+
+def frame_geom(info, n_px):
+    """Bytes per pixel, taken from the reply and cross-checked against the payload actually delivered."""
+    w, h, pitch = info["width"], info["height"], info["pitch"]
+    # `pitch` is BYTES per row in this reply (the paletted path has always indexed that way), so the payload a
+    # frame needs is pitch*h -- NOT pitch*h*bpp.  Getting this wrong turns a valid 32-bit frame into a bogus
+    # 8-bit one, which is how a first version of this validator mangled a mode-13h grid into zeros.
+    fmt = (info.get("pixel_format") or "").upper().replace(" ", "")
+    bpp = 1 if info.get("is_paletted") else BPP_OF.get(fmt)
+    inferred = False
+    if bpp and pitch < w * bpp:                       # the format claim contradicts the row stride
+        bpp = None
+    if bpp is None:
+        fits = [b for b in (4, 2, 1) if pitch >= w * b]
+        bpp = max(fits) if fits else 0
+        inferred = bpp > 0
+    if n_px < pitch * h or bpp == 0:
+        return w, h, pitch, 0, fmt, inferred
+    return w, h, pitch, bpp, fmt, inferred
+
+
 def signature(raw, info):
     """40x30 mean-luminance grid from whatever the emulator says the frame is."""
-    w, h, pitch = info["width"], info["height"], info["pitch"]
     px = raw[15:]                                        # 15-byte header: w,h,pitch,bpp,...
-    bpp = info.get("pixel_format", "")
+    w, h, pitch, bpp, bpp_s, inferred = frame_geom(info, len(px))
+    if bpp == 0:
+        raise ValueError(
+            "frame geometry is not self-consistent: %dx%d pitch=%d format=%r paletted=%r, %d payload bytes "
+            "(no bytes-per-pixel of 4/2/1 fits the stride, or the payload is shorter than pitch*height)"
+            % (w, h, pitch, info.get("pixel_format"), info.get("is_paletted"), len(px)))
     pal = None
-    if info.get("is_paletted"):
+    if bpp == 1:
         need = pitch * h
         if len(px) >= need + 768:
             pal = px[need:need + 768]
@@ -65,13 +99,18 @@ def signature(raw, info):
         row = y * pitch
         for gx in range(40):
             x = gx * w // 40
-            if info.get("is_paletted"):
+            if bpp == 1:
                 idx = px[row + x]
                 if pal:
                     r, g, b = pal[idx * 3], pal[idx * 3 + 1], pal[idx * 3 + 2]
                 else:
                     r = g = b = idx                  # documented degradation: no palette in the reply
-            elif "BGRX" in bpp:
+            elif bpp == 2:                           # 565: 5-6-5, order as delivered
+                # `row` is already y*pitch here -- multiplying again walks off the end of the payload,
+                # the same class of error as reading the wrong blob in docs/167 §19.
+                v = px[row + x * 2] | (px[row + x * 2 + 1] << 8)
+                r, g, b = (v >> 11) << 3, ((v >> 5) & 0x3F) << 2, (v & 0x1F) << 3
+            elif "BGRX" in bpp_s:
                 o = row + x * 4
                 b, g, r = px[o], px[o + 1], px[o + 2]
             else:                                    # RGBX / RGBA
@@ -158,11 +197,19 @@ def main():
     if a.drive:
         post_segment(0)
     prev, n, witness, frames_dir = None, 0, 0, os.path.join(a.out, "frames")
+    last_geom = None
     prev_io, io_ticks, io_changes = {}, 0, {}
     sha_seen = {}
     while time.time() - t0 < a.seconds:
         raw = api(a.base, token, "/api/v1/video/frame?format=raw", timeout=60)
         info = json.loads(api(a.base, token, "/api/v1/video/frame/info"))
+        geom = frame_geom(info, len(raw) - 15)
+        if geom != last_geom:
+            print("mode change: %dx%d pitch=%d format=%r paletted=%r -> %d B/px%s, %d payload bytes"
+                  % (geom[0], geom[1], geom[2], info.get("pixel_format"), info.get("is_paletted"),
+                     geom[3], " (inferred from the stride, the reply's format claim does not fit it)"
+                     if geom[5] else "", len(raw) - 15))
+            last_geom = geom
         sig = signature(raw, info)
         changed = sig != prev
         now_ms = int((time.time() - t0) * 1000)

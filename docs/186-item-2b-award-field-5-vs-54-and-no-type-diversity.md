@@ -95,3 +95,20 @@ same hit-resolution function that carries the award site) and two in `fn_03272f`
 uses for EXP: the port reproduces the `5` store, while the shipped records observed in §2 were last written by one of
 the dynamic `= edx` sites.  Before any fix, the per-type question has to be re-run with the writers separated -- the
 award operand and the `+0x32` scratch field may not even be the same quantity at the same moment.
+
+## 7. Who reaches the two dynamic writers
+
+```
+branch_xrefs.py --target 0x31f5f   ->  2 edges: CALL from fn_012616 at 0x12837, CALL from fn_012616 at 0x129a7
+branch_xrefs.py --target 0x35c5c   ->  1 edge : CALL from fn_01441e at 0x150f5
+```
+
+`fn_035c5c` is called from **inside `fn_01441e`** -- the same function that stores the literal `5` at `0x15054` and
+`EDX` at `0x15070` -- so the two values live on one code path: a record passes through `+0x32 = 5`, then `+0x32 = edx`
+via `fn_035c5c` at `0x150f5`, all within the hit-resolution function.  `fn_031f5f` is reached only from `fn_012616`
+(two sites).  That is the shape the per-type census has to separate: the port's `5` is not a rival of shipped's
+`53/54`, it may be the *earlier* value on the same path, overwritten before the kill award reads it.
+
+Next measurement for this item, with existing tools: read `+0x32` across **consecutive** samples of one named record
+through a kill, on both sides, and print the transition sequence -- a value timeline distinguishes "the port never
+writes the big value" from "the port writes 5 and stops".

@@ -9043,6 +9043,18 @@ static void act_census_block(uint8_t *hb, uint32_t used, uint32_t t, uint32_t bl
         uint32_t rec = ((struct ua32 *)(hb + p))->v;
         if (!rec || rec + 0x40u > used) continue;
         g_ac_recs++;
+        {   /* docs/175 §6: NIGHT_ACTCENSUS_SLOTS="type:state" prints the hit-slot codes of one record,
+             * the exact lookup fn_01441e performs (atype = hb[rec + slot + 0x38]). */
+            const char *want = getenv("NIGHT_ACTCENSUS_SLOTS");
+            if (want) {
+                unsigned wt = 0, ws = 0;
+                if (sscanf(want, "%u:%u", &wt, &ws) == 2 && wt == t && ws == st) {
+                    fprintf(stderr, "ACTSLOTS type=%u state=%#x rec=%#x codes:", t, st, rec);
+                    for (int k = 0; k < 8; ++k) fprintf(stderr, " %u", hb[rec + (uint32_t)k + 0x38u]);
+                    fprintf(stderr, "\n");
+                }
+            }
+        }
         for (int sl = 0; sl < 8; ++sl) {
             uint32_t q = rec + (uint32_t)sl + 0x38u;
             if (q >= used) break;

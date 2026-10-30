@@ -92,3 +92,30 @@ byte-for-byte compare against the resource file is the wrong test -- the compari
 (`scripts/extract_res.py` / `scripts/decode_act.py`, which is byte-exact against the C `act_decode` per the
 selftest) rather than against the container file.  Recorded before anyone spends a session proving an equality
 that the packing makes meaningless.
+
+## 6. The hit code 11 *is* in the shipped data -- for exactly that attacker
+
+`NIGHT_ACTCENSUS_SLOTS="type:state"` prints the hit-slot codes of one record through the same lookup
+`fn_01441e` uses (`atype = hb[rec + slot + 0x38]` via `lvl2 = *(block+4)`, `rec = *(lvl2 + 4*state)`).  On
+`ep1_kill3` (12 000 frames, 21 loaded blocks):
+
+```
+ACTSLOTS type=36 state=0x29 rec=0x33f9c0 codes: 11 0 0 0 0 0 7 0      <- slot 0 carries code 11
+ACTSLOTS type=36 state=0x19 rec=0x33e490 codes: 0 0 0 0 0 0 0 0
+ACTSLOTS type=36 state=0x00 rec=0x33bca0 codes: 0 0 0 0 0 0 0 0
+```
+
+docs/174 §3 asked whether the shipped record for the attacker that produced the code-11 hit on the port's player
+(`type=36 st=0x29 slot=0 atype=11 dmg=8`, docs/162 §12) carries code 11 at all.  It does: **slot 0 of that record
+is 11**, and the neighbouring states of the same type carry no hit codes.  The containers are the shipped assets
+loaded by the port's loader, so this is shipped data, not a port transcription.
+
+Consequence, and it narrows the cluster further: the divergence is **not** in the record decode and **not** in the
+hit table.  Code 11 exists in the data on both sides; what differs is that the port *owns a type-36 attacker in
+state 0x29 adjacent to the player* while docs/155 showed shipped never applies 11 to the player.  So the open
+question is now a single one: **why does the port field type-36 attackers that the shipped run does not field (or
+never brings to the player)?**  That is the spawn/population item, narrowed from "extra entities" to one named
+family, and it is the same family whose one-shot spawn records docs/174 §4 counted.
+
+Tooling added: `NIGHT_ACTCENSUS_SLOTS="type:state"` witness printing a record's eight hit codes, which turns any
+"this hit should not exist" claim into a byte-level lookup against the loaded shipped record.

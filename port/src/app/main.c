@@ -1601,6 +1601,8 @@ int main(int argc, char **argv) {
         for (int i = 0; i < 0x100; i++) if (tg[i]) SDL_Log("    target %#04x  %u", i, tg[i]);
         SDL_Log("exp award path: adds=%u added=%u commits=%u committed=%u",
                 g_exp_awards, g_exp_added, g_exp_commits, g_exp_committed);
+        SDL_Log("settle-flag writers (docs/190 §2): fn_035c5c calls=%u nodes=%u sets(+0x30=1)=%u  fn_01441e sets(+0x30=2)=%u",
+                g_settle_pass_calls, g_settle_pass_nodes, g_settle_pass_sets, g_settle_flag2);
         SDL_Log("exp award gates (fn_015295, docs/190): +0x30!=1 %u  +0x25==ff %u  +5!=0 %u  +0x11<=0x15 %u  +0x00!=1 %u  reached %u",
                 g_exp_gate_hits[0], g_exp_gate_hits[1], g_exp_gate_hits[2], g_exp_gate_hits[3],
                 g_exp_gate_hits[4], g_exp_gate_hits[5]);

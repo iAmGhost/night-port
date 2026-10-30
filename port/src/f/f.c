@@ -1222,11 +1222,17 @@ uint8_t *g_dat_53c78 = NULL;  /* DAT_00053c78: entity linked-list cursor */
  *   0x88-byte table entry selected by the node's index field). No-op when the
  *   list is empty (the flat model's state before data load).
  *   POINTER-WIDTH ADAPTATION: next@+0x13f widened to an 8-byte read. */
+uint32_t g_settle_pass_calls, g_settle_pass_nodes, g_settle_pass_sets, g_settle_flag2, g_settle_flag1_other;
+/* docs/190 §2: who sets the dying/settle flag +0x30 that fn_015295's first gate demands?
+ * fn_00035c5c (the list init pass, 0x00035cc7-0x35cf6) sets 1; fn_01441e's 0x0001504d sets 2. */
 void fn_00035c5c(void) {
+    g_settle_pass_calls++;
     g_dat_53c78 = g_dat_53c70;
     while (g_dat_53c78 != NULL) {
+        g_settle_pass_nodes++;
         uint8_t *next = ((struct ua_uint8tp *)((g_dat_53c78 + 0x13f)))->v;
         if (g_dat_53c78[0] == 1 && g_dat_53c78[0x30] != 1) {
+            g_settle_pass_sets++;
             g_dat_53c78[0x30] = 1;
             arena_flag_check(g_dat_53c78, "fn_00035c5c");
             ((struct ua32 *)((g_dat_53c78 + 0x17)))->v = 0x15;
@@ -25252,6 +25258,7 @@ score:
             if (cur != g_player_ent) {
                 if ((uint32_t)cur[0x5a] == 0u &&
                     (int16_t)((struct sa16 *)((cur + 0x29)))->v != 0) {
+                    g_settle_flag2++;
                     *(uint8_t  *)(cur + 0x5a) = 1;
                     *(uint8_t  *)(cur + 0x31) = 1;
                     *(uint8_t  *)(cur + 0x30) = 2;

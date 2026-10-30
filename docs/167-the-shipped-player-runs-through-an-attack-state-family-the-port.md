@@ -141,3 +141,39 @@ run count, never from a single run.
   (a wrap), and `0x6339c` values like 1 056 964 608 -- while the in-process witness sees a sane counter topping
   at 210.  So the rate comparison between the two sides through these cells is unusable until the cell owner is
   resolved (docs/112 / docs/121's contested-cell family); the in-process numbers stand, the DS-cell ones do not.
+
+## 9. What actually crosses the 500 threshold: a 5.5 s idle streak, and the port's longest is 210 ticks
+
+Streak census on the shipped player record (`state_*.heap.bin`, blocks followed through `g_player_ent`):
+
+| state | streaks | longest streak | mean |
+|---|---|---|---|
+| `0x01` | 195 | **55 samples = 5.5 s** | 2.4 |
+| `0x02` | 74 | 13 samples = 1.3 s | 3.6 |
+| `0x28` | **1** | **722 samples = 72.2 s** | 722 |
+| `0x33` | 71 | 2 samples = 0.2 s | 1.2 |
+| `0x0b` | 15 | 8 samples | 4.0 |
+| `0x0c` | 15 | 5 samples | 4.8 |
+
+The two ends of that table are the whole story.  A 55-sample idle streak at the measured 9 frame-counter ticks per
+sample is **~495 ticks**, and the idle counter (same code site, same condition on both sides) tops out at **498**
+-- so exactly one streak crossed the `== 500` threshold, and the player entered `0x28` **once** and stayed there
+for **72.2 s**.  `0x33` appears as 71 streaks averaging 1.2 samples: attacks are short, the stuck state is long.
+
+On the same scale the port's longest accumulation at that site is **210 ticks** (83 in the other run), i.e. the
+port's player never idles for the ~5.5 s the shipped player does, so the forced transition never fires and the
+72-second `0x28` dwell is never reproduced.  Both numbers are counted at the same guest site under the same
+condition (`player[+0x17] == 1` -> `++DS 0x6339c`, else `= 0`), so they are comparable without any timing
+alignment.
+
+Also measured here: the shipped player's `+0x30` flag takes only **0 and 2** across 1842 samples -- never `1`.
+So `fn_03272f`'s opening gate (`if player[+0x30] == 1` jump to the epilogue, guest `0x3274f-0x3275a`) is not
+taken on the shipped side either, and the port's observed `flag=0` matches it.
+
+### Rig trap, fifth occurrence of the "read the right blob" class
+
+While computing these streaks I read `+0x17` out of `state_*.ds.bin` and got `0x2e6e7567` (778990951) with the
+block starting `75 6e 2e 61 63 74 00 ...` = `un.act\0gun.act\0...`.  That is not the player record: in the DS
+blob, `DS 0x53c7c` is just the four pointer bytes plus whatever else sits in DS.  The record bytes live in
+`state_*.heap.bin`, which is the blob where `read_ptrs` **followed** the pointer (`read_at(value, 0x160)`).  The
+§1 and §2 numbers came from `heap.bin` and stand; any cross-side record claim must name which blob it read.

@@ -25823,7 +25823,10 @@ void fn_038f3d(int32_t variant)
             if (g_lumenu_trace) fprintf(stderr, "lumenu frame=%d page=%d i=%d sel[page]=%d sel[i]=%d n=%d shown=%d max=%d\n",
                                         (int)frame, (int)page, (int)i, (int)sel[page], (int)sel[i], (int)n, (int)shown, (int)selMax[i]);
             if (n != 0) {
+                static int s_lurow_left = 42;   /* NIGHT_GLYPHDBG=1: the upgrade-bar cell actually blitted */
                 int32_t idx = gbase[i] + n - 1;
+                GLYPH_TRACE("lurow", s_lurow_left, hb + lvl[14] + so[idx], barX[i], barY[i],
+                            (int)s4[idx], (int)s8[idx]);
                 fn_03bb42(g_dat_633b0, barX[i], barY[i], (int32_t)s4[idx],
                           s8[idx], hb + lvl[14] + so[idx], 0);
             }

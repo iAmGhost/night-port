@@ -34,11 +34,12 @@ def s16(blk, off):
 
 def plausible(blk):
     """Kind-1 enemy records carry +0x29 == 0, so docs/186's HP-bound gate must not be used here (docs/245 2)."""
-    return blk[0] == 1 and u(blk, 0x17, 4) < 0x100 and u(blk, 0x0d, 4) < 0x1000
+    st = u(blk, 0x17, 4) & 0x7FFFFFFF          # the shipped masks the same field at 0x14749 (docs/245 5)
+    return blk[0] == 1 and st < 0x100 and u(blk, 0x0d, 4) < 0x1000
 
 
 def records(sample, cells, side):
-    if side == "orig":
+    if side == "shipped":
         _t, _ds, heap = sample
         off = 0
         for c in cells:

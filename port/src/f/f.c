@@ -1239,6 +1239,8 @@ uint8_t *g_dat_53c78 = NULL;  /* DAT_00053c78: entity linked-list cursor */
 uint32_t g_settle_pass_calls, g_settle_pass_nodes, g_settle_pass_sets, g_settle_flag2, g_settle_flag1_other;
 /* docs/236 §4: what does fn_01441e's list actually walk, and what settle byte does it find there? */
 uint32_t g_1441e_gate_set[8], g_1441e_gate_kind[8];
+int g_1586b_trace = 4000;
+int g_yclamp_trace = 0;
 uint32_t g_1441e_latch_hits[3];   /* docs/240: [0] latch cell NULL, [1] live but not this record, [2] identity match */
 /* docs/190 §2: who sets the dying/settle flag +0x30 that fn_015295's first gate demands?
  * fn_00035c5c (the list init pass, 0x00035cc7-0x35cf6) sets 1; fn_01441e's 0x0001504d sets 2. */
@@ -9463,6 +9465,7 @@ int32_t fn_016b8f(uint8_t *e, int32_t step, int32_t cmp_ebx, int32_t cmp_ecx,
 }
 
 void fn_01586b(uint8_t *a0, uint32_t a1) {
+    g_yclamp_trace = getenv("NIGHT_YCLAMP") != NULL;
     (void)canary_id(0, 0x2c);                                /* 0x1586b/15870 */
     int32_t d = (int32_t)a1;
     if (d == 0) return;                                       /* 0x15888/1588c */
@@ -9483,6 +9486,11 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
         }
     }
     int32_t cur = ((struct sa32 *)((a0 + 9)))->v;
+    if (g_yclamp_trace && g_1586b_trace-- > 0) {                  /* docs/242: bounds + clamp outcome */
+        printf("[yclamp] kind=%u x=%d y=%d d=%d mn=%d mx=%d room[+0x10]=%u camY=%d rows=%u\n",
+               a0[0], (int)((struct sa32 *)((a0 + 1)))->v, (int)cur, (int)d, (int)mn, (int)mx,
+               (unsigned)g_dat_63354[0x10], (int)g_dat_639e0, g_dat_62a8c);
+    }
     if (cur < mn || cur > mx) {
         ((struct sa32 *)((a0 + 9)))->v = cur + d;                        /* 0x159df (no clamp) */
     } else {
@@ -9635,6 +9643,8 @@ const uint32_t *act_trace_targets(void) { return g_act_targets; }
 const uint32_t *act_trace_counts(void) { return g_act_counts; }
 #define ACTWHY(w) do { if (g_act_trace) g_act_counts[(w)]++; } while (0)
 
+int g_13c4d_entry = 4000;
+int g_1441e_dmg = 4000;
 int g_hit_trace = 0;    /* host-side diagnostic (NIGHT_HITTRACE=1, docs/94): one line per fn_01441e hit --
                          * attacker/victim/slot/atype/dmg and the victim's +0x29 hp before -> after */
 int g_rng_seed_override = -1;   /* host-side diagnostic (NIGHT_SEED=<int>, docs/107): pin the LCG seed
@@ -24831,6 +24841,11 @@ static void set30_trace(const char *site, const uint8_t *rec) {
 int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
 {
     (void)canary_id((uintptr_t)a, 0x84);                          /* 0x00013c4d-52 stack probe (0x84) */
+    if (g_hit_trace && g_13c4d_entry-- > 0)
+        fprintf(stderr, "ENTER13c4d kind %u/%u stateA=%#x stateB=%#x yA=%d yB=%d\n",
+                a[0], b[0], (unsigned)((struct sa32 *)((a + 0x17)))->v,
+                (unsigned)((struct sa32 *)((b + 0x17)))->v,
+                (int)((struct ua32 *)((a + 0x09)))->v, (int)((struct ua32 *)((b + 0x09)))->v);
     uint8_t *hb = (uint8_t *)g_heap_base;
 
     if (*(const uint8_t *)(b + 0x30) == 1) {
@@ -24872,11 +24887,11 @@ int32_t fn_013c4d(uint8_t *a, uint8_t *b, const uint8_t *rec, int32_t rec_off)
     int32_t ay  = (int32_t)((struct ua32 *)((a + 0x09)))->v;
     int32_t by9 = (int32_t)((struct ua32 *)((b + 0x09)))->v;
     if (ay + dl < by9) {
-        if (g_hit_trace) fprintf(stderr, "GATE4 y %d vs %d dl=%d\n", ay, by9, dl);
+        if (g_hit_trace) fprintf(stderr, "GATE4 kind %u/%u ty %d/%d y %d vs %d dl=%d\n", a[0], b[0], (int)((struct sa32 *)((a + 0x0d)))->v, (int)((struct sa32 *)((b + 0x0d)))->v, ay, by9, dl);
         return 0;                                                  /* 0x00013d87-90 -> 0x0001434f */
     }
     if (ay - dl > by9) {
-        if (g_hit_trace) fprintf(stderr, "GATE4 y %d vs %d dl=%d\n", ay, by9, dl);
+        if (g_hit_trace) fprintf(stderr, "GATE4 kind %u/%u ty %d/%d y %d vs %d dl=%d\n", a[0], b[0], (int)((struct sa32 *)((a + 0x0d)))->v, (int)((struct sa32 *)((b + 0x0d)))->v, ay, by9, dl);
         return 0;                                                  /* 0x00013d92-0x00013daf */
     }
 
@@ -25230,6 +25245,12 @@ p1next:
             dmg = (int32_t)((struct ua32 *)((hb + rec_e + 4u * (uint32_t)slot + 0x20)))->v;
         }
 
+        if (g_hit_trace && g_1441e_dmg-- > 0)
+            fprintf(stderr, "DMG vic kind=%u ty=%d debt=%d hp=%d dmg=%d flag=%d Akind=%u Aty=%d\n",
+                    cur[0], (int)((struct ua32 *)((cur + 0x0d)))->v,
+                    (int)(int16_t)((struct ua16 *)((cur + 0x23)))->v,
+                    (int)(int16_t)((struct ua16 *)((cur + 0x29)))->v, dmg, flag, e[0],
+                    (int)((struct ua32 *)((e + 0x0d)))->v);
         /* the two-word HP model (0x000148e7-0x000149a3) */
         if ((int16_t)((struct ua16 *)((cur + 0x23)))->v == 0) {
             ((struct ua16 *)((cur + 0x29)))->v = (uint16_t)((int16_t)((struct ua16 *)((cur + 0x29)))->v - (int16_t)dmg);

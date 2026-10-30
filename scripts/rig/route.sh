@@ -26,7 +26,14 @@ OUT=${OUT:-/tmp/rig/route-$(date +%Y%m%d-%H%M%S)}
 # (fn_03af18 / 0x03af59 -> fn_04297a), and two identical 4000-frame runs of the SAME binary and drive
 # differed: 844 vs 816 fn_03272f entries, idle-timer ending at 35 vs 13.  Port-side oracle numbers were
 # therefore carrying run-to-run variance until this line existed.
-PORT_ENV=${PORT_ENV:-SDL_AUDIODRIVER=dummy NIGHT_SEED=${RIG_SEED:-13579}}
+# docs/167 §21 clock calibration: the shipped frame-counter cell DS 0x63360 advances 9 or 10 quanta per 100 ms
+# (933 steps of 9, 789 of 10 on g15).  The port's default wall-clock pump gives 7 (677 of 1297), i.e. the port
+# runs its game clock ~26% slow, and every timed threshold in a comparison is then skewed.  NIGHT_RIG_STEP_CALLS
+# is the PIT-handler calls per second the fixed-step mode drives; 490 reproduces the 7-quantum behaviour, 665
+# reproduces shipped's distribution (346 steps of 9, 346 of 10), 700 overshoots (703 of 10).  The oracle runs at
+# the calibrated cadence so both sides tick at the same rate; the port's unpinned real-time loop staying at 7 is
+# a separate, real pacing defect and is filed as such.
+PORT_ENV=${PORT_ENV:-SDL_AUDIODRIVER=dummy NIGHT_SEED=${RIG_SEED:-13579} NIGHT_RIG_STEP_CALLS=${RIG_STEP:-665} NIGHT_RIG_FPS=${RIG_FPS:-60}}
 mkdir -p "$OUT"
 say() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 

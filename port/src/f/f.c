@@ -27046,10 +27046,14 @@ void fn_03272f(uint8_t *tbl)
     if (PL32(0x17) == 0x66 &&                                       /* 0x00032779-0x0003280e the pair break */
         (key = fn_03493e(), key == '*' || key == '6')) {
         uint8_t *pair = hb + ((struct ua32 *)((pl + 0x4a)))->v;   /* heap offset; 0 = no pair (not guarded) */
-        if (getenv("NIGHT_STTRACE") && pair == g_player_ent)          /* docs/167 §5: the chain matcher's
-            fprintf(stderr, "chainreset player state=%d ac=%d\n",                     /* reset site, the first
-                    ((struct sa32 *)((pair + 0x17)))->v,                              /* suspect for the missing
-                    ((struct sa32 *)((pair + 0x11)))->v);                             /* attack states */
+        /* docs/167 §5 witness: the chain matcher's pair-reset site.  The comments are kept ABOVE the
+         * statements because in commit 865338d this very block's trailing comment swallowed the real store
+         * `pair[+0x17] = 1; pair[+0x11] = 0;` and the suite lost it for many commits (docs/169). */
+        if (getenv("NIGHT_STTRACE") && pair == g_player_ent)
+            fprintf(stderr, "chainreset player state=%d ac=%d\n",
+                    ((struct sa32 *)((pair + 0x17)))->v,
+                    ((struct sa32 *)((pair + 0x11)))->v);
+        ((struct sa32 *)((pair + 0x17)))->v = 1;  ((struct sa32 *)((pair + 0x11)))->v = 0;
         ((struct ua32 *)((pair + 0x4a)))->v = 0; ((struct ua16 *)((pair + 0x50)))->v = 0;
         PL32(0x17) = 1; PL32(0x11) = 0; ((struct ua32 *)((pl + 0x4a)))->v = 0; PL16(0x50) = 0;
         fn_0348e2();

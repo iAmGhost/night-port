@@ -1,0 +1,7 @@
+{
+ "ds_cells": [
+  "0x53200",
+  "0x532f4"
+ ],
+ "why": "DS regions modelled as struct members are outside the declaration scan (docs/176 \u00a71); claims verified against NIGHT.EXE at file offset ds-0x7600"
+}

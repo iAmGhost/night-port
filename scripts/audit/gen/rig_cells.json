@@ -118,7 +118,7 @@
   "elem_size": 4,
   "host_size": 256,
   "ptr": 0,
-  "dupes": 0
+  "dupes": 1
  },
  {
   "ds": 334884,
@@ -504,6 +504,32 @@
   "host_size": 4,
   "ptr": 0,
   "dupes": 1
+ },
+ {
+  "ds": 340480,
+  "name": "g_ds_53200.tab_53200",
+  "ctype": "struct member",
+  "guest_size": 244,
+  "guest_access_width": 0,
+  "elem_size": 1,
+  "host_size": 244,
+  "ptr": 0,
+  "dupes": 0,
+  "struct_member": 1,
+  "image_head": "e5000000eb000000"
+ },
+ {
+  "ds": 340724,
+  "name": "g_ds_53200.tab_532f4",
+  "ctype": "struct member",
+  "guest_size": 64,
+  "guest_access_width": 0,
+  "elem_size": 1,
+  "host_size": 64,
+  "ptr": 0,
+  "dupes": 0,
+  "struct_member": 1,
+  "image_head": "000100210a010111"
  },
  {
   "ds": 340788,

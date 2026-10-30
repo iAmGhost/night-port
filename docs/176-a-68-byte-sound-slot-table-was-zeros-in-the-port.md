@@ -100,3 +100,54 @@ disguise.  Where the shipped image can answer, assert the image's bytes.
 3. **Sound identity proof**: to show the fix changes *which* audio the board emits, the rig needs per-transfer
    payload digests.  `NIGHT_AUDIODUMP`'s payloads are truncated in the stderr log, so a digest must be taken inside
    the witness, not scraped from the log.
+
+## 6. Coverage closed: the region is now inside the oracle, and the boundary was wrong by 4 bytes
+
+`gen_headers.py` now carries explicit struct-block claims, each checked against `NIGHT.EXE` at file offset
+`ds - 0x7600` before it may become a dumped cell, and refuses to duplicate a cell a top-level global already owns:
+
+```
+rig_table: struct-block claim 0x53334 already held by g_dat_53334 -- not duplicated
+    {0x53200, 244, 244, 0, &g_ds_53200.tab_53200, "g_ds_53200.tab_53200"},
+    {0x532f4,  64,  64, 0, &g_ds_53200.tab_532f4,  "g_ds_53200.tab_532f4"},
+    {0x53334,   4,   4, 0, &g_dat_53334,           "g_dat_53334"},
+```
+
+The 4-byte split matters: the first pass claimed `0x532f4 + 68`, and the oracle immediately reported
+
+```
+DIFF 0x532f4 g_ds_53200.tab_532f4 g=68 h=68 ; first differing byte @0x53334 0x20 vs 0x10 (1/68 bytes differ)
+```
+
+i.e. a *neighbouring symbol's* runtime value surfacing as a defect in the table.  `defined_data.json` defines
+`DAT_00053334` as its own symbol (`0x53334..0x53337`, 4 B, `nrefs 0`), and 64 is exactly the span whose image bytes
+match the shipped run.  With the span corrected the table leaves the divergence list entirely.
+
+Canonical route (`ep1_kill3`, 150 s, `RIG_HZ=10`, `/tmp/rig/g27`, fixed build, 346 cells):
+
+```
+residual same-width gameplay divergences: 35          (unchanged from the same route before the fix)
+0x53200 (244 B) and 0x532f4 (64 B) are absent from the divergence list -> SAME
+```
+
+So the tick table and the slot table are now proven faithful **by the oracle**, not by hand, and the sound-slot
+transcription is confirmed not to move the residual state count -- consistent with §3: it changes which sound is
+requested, not the state trajectory.
+
+## 7. A rig-measurement trap hit while proving it: route duration changes what the oracle can compare
+
+Short routes were run first (`ep1_kill3` 45 s, `/tmp/rig/g24`, `/tmp/rig/g25`, `/tmp/rig/g26`) and looked like an
+improvement -- residual divergences 30 and 31 instead of 35.  They are not comparable, and the sample ranges show
+why:
+
+```
+g20 150 s:  orig n=424 t=[47231..284206]   port n=1500 t=[16..236316]     overlap 47..236 s
+g26  45 s:  orig n=156 t=[47226..178933]   port n= 450 t=[16.. 54650]     overlap 47..54.6 s  -> 244 of 274 windows SHIPPED-QUIET
+g27 150 s:  orig n=853 t=[47220..284009]   port n=1500 t=[16..227883]     overlap 47..228 s   -> 57 of 274 shipped-quiet
+```
+
+The shipped timeline always begins near +47 s (boot/replay warm-up) and is stretched relative to wall clock, so a
+45 s route barely reaches it: two thirds of the comparison windows have no shipped sample at all, and a smaller
+residual count there measures the *window coverage*, not the port.  Rule recorded: the state oracle's numbers are
+only quotable from the canonical 150 s route (`RIG_HZ=10`), and any report where `shipped-quiet windows` exceeds a
+few tens of 274 is a statement about the rig.

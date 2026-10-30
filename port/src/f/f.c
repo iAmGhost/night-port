@@ -9135,6 +9135,13 @@ void fn_01545e(uint8_t *e, int32_t d)
         }
     }
 
+    /* docs/171: the step handed to this mover is g_tab_52ffc[(frame%4)*3 + e[+0x25]], and the image table is
+     * non-zero only for indices 0..11.  Sample which slot byte selected the index, and with what d, so the
+     * d==0 deficit (docs/152: 3167 of 3715 player calls) can be attributed to an index rather than assumed. */
+    if (wt && e == g_player_ent && (g_walk_calls_all % 100) == 0)
+        fprintf(stderr, "walkslot slot25=%u d=%d frame=%u calls=%u\n", e[0x25], d,
+                (unsigned)g_dat_63360, g_walk_calls_player);
+
     if (d == 0) return;                                                      /* 0x1547b-7f */
 
     int32_t lo, hi;                                                          /* 0x15485-0x154da */

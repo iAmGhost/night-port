@@ -70,3 +70,25 @@ verb.  `NIGHT_ACTCENSUS` records each container at the load site (docs/156's `g_
 the 5-35 containers-per-episode coverage numbers were produced), so the byte-level capture should hang off that
 site -- dump on load, per episode, instead of asking for a type at a wall-clock moment.  That is the concrete fix
 to the capture path before any record-stream equivalence claim can be made.
+
+## 5. The capture path fixed: dump on load, and it captures the attacker type
+
+`act_census_dump()` now hangs off the census recorder (`NIGHT_ACTCENSUS_DUMP=<dir>`), and on `ep1_kill3`
+12 000 frames it wrote 9 containers while the same run's census reported
+`blocks=21 records=3159 reaction-band=1881 FALLEN(slots 0-5)=1`:
+
+```
+type001_0018f788.bin  type011_00356b80.bin  type031_0034b744.bin  type032_00241d68.bin
+type036_0033bbc4.bin  type037_0038fb68.bin  type041_00350fc8.bin  type042_0037fd50.bin
+type046_003a26e4.bin                        (8192 B each)
+```
+
+`type036` is the attacker family docs/174 §3 named (`type=36 st=0x29 slot=0 atype=11`), so the record that produced
+the code-11 hit on the port's player is now captured as bytes.
+
+One negative result that shapes the comparison: the first 64 bytes of every dumped container are **not found** in
+`NIGHT/NIGHT.RES`.  The assets in `NIGHT.RES` are packed and the loader expands them into the arena, so a raw
+byte-for-byte compare against the resource file is the wrong test -- the comparison has to go through the decoder
+(`scripts/extract_res.py` / `scripts/decode_act.py`, which is byte-exact against the C `act_decode` per the
+selftest) rather than against the container file.  Recorded before anyone spends a session proving an equality
+that the packing makes meaningless.

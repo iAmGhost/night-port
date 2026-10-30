@@ -9066,6 +9066,25 @@ static void act_census_block(uint8_t *hb, uint32_t used, uint32_t t, uint32_t bl
     }
 }
 
+static void act_census_dump(uint32_t type, uint32_t block, const uint8_t *hb, uint32_t used)
+{
+    /* docs/175 §4: dump ON LOAD from the census recorder, instead of asking a drive for a type at a
+     * wall-clock moment -- containers are filled at 0x37da9 and cleared at 0x373d3, so the drive verb
+     * found 0 bytes for every type.  This is the capture path the action-record comparison needs. */
+    const char *dir = getenv("NIGHT_ACTCENSUS_DUMP");
+    if (!dir || !dir[0]) return;
+    uint32_t n = used - block;
+    if (n > 0x2000u) n = 0x2000u;
+    if (n < 16u) return;
+    char path[512];
+    snprintf(path, sizeof path, "%s/type%03u_%.8x.bin", dir, type, block);
+    FILE *f = fopen(path, "wb");
+    if (!f) return;
+    fwrite(hb + block, 1, n, f);
+    fclose(f);
+    fprintf(stderr, "ACTDUMP wrote %s %u bytes\n", path, n);
+}
+
 void act_census_report(void)
 {
     if (!getenv("NIGHT_ACTCENSUS")) return;
@@ -9083,6 +9102,7 @@ void act_census_report(void)
         blocks++;
         if (getenv("NIGHT_ACTCENSUS_LIST")) fprintf(stderr, "ACTCENSUS loaded type=%u block=%#x\n", g_act_load[i].type, b);
         act_census_block(hb, used, g_act_load[i].type, b);
+        act_census_dump(g_act_load[i].type, g_act_load[i].block, hb, used);
     }
     for (uint32_t t = 0; t < 0x104u; ++t) {
         uint32_t b = g_dat_53818[t];

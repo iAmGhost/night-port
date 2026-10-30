@@ -53,3 +53,24 @@ identified by the same walk the oracle uses) and compare the byte window, not on
 - Item 2a (garbled EXP text) stays open: the number the HUD prints is `player[+0x2b]` via `fn_0137c1` (a 5-glyph
   field that `fn_0137c1` itself ramps while `+0x52` drains, docs/125 §5), and the screen-side comparison of that
   region has not been run yet.
+
+## 5. The byte-window calibration, done (docs/124's caveat answered)
+
+Same run, admissible records, the whole window instead of one dword:
+
+```
+PORT  t=193.5 s  type=00  win +0x2c..0x38: 00 00 00 00 00 01 05 00 00 00 00 00 00 00   hp=03e8 state=0x15
+SHIP  blk12      type=00  win +0x2c..0x38: 00 00 00 00 00 02 35 00 00 00 36 00 00      hp=03e8 state=0x34
+SHIP  blk12      type=00  win +0x2c..0x38: 00 00 00 00 00 01 36 00 00 00 36 00 00      hp=03e8 state=0x35
+SHIP  blk12      type=00  win +0x2c..0x38: 00 00 00 00 00 00 36 00 00 00 36 00 00      hp=03e8 state=0x36
+```
+
+The offset-by-one worry is answered: `hp` is `0x3e8` at the same offset on both sides, and the shipped record carries
+its award value at **two** offsets (`0x36` at `+0x32` and `0x36` at `+0x36`), not at an offset shifted by one.  The
+port carries `5` at `+0x32` and `0` at `+0x36`.  So the divergence is record *content*, not a mis-read dword, and the
+`+0x31` byte (1/2 on shipped, 1 on port) sits where the shipped record also changes.
+
+What stays open is instance identity, not alignment: the two sides' admissible records are in different states
+(`0x15` port vs `0x34/0x35/0x36` shipped), so this is a value comparison across comparable-but-not-identical records.
+Fixing the award therefore needs the shipped **writer** of `+0x32` and `+0x36` named (a disassembly question, not a
+dump question), which is the next action for this item.

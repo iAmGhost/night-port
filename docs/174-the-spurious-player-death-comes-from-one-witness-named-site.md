@@ -58,3 +58,30 @@ path.  The named next measurement: read the shipped action-record census for the
 (type 36, state 0x29, hit slot 0) and ask whether the shipped record for that combination carries code 11 --
 the docs/156 `NIGHT_ACTCENSUS` data already holds the container list, and docs/155 already shows the shipped side
 never applies 11 to the player.
+
+## 4. The extra population is the same spawn family that carries the dying flag
+
+`pop_align.py` on the calibrated route (`/tmp/rig/g20`, anchored on the room-script drain):
+
+```
+FIRST population divergence at t=167445 ms: shipped count=3 (3 live records), port count=4 (4 live records)
+   PORT  ent00: type=0x01 state=0xc  hp=0    flag30=0  x=188 y=166
+   PORT  ent01: type=0x00 state=0x1  hp=1000 flag30=0  x=228 y=173      <- the player
+   PORT  ent02: type=0x01 state=0x2  hp=0    flag30=0  x=259 y=176
+   PORT  ent03: type=0x02 state=0x1  hp=0    flag30=1  x=191 y=182      <- the extra record
+   ORIG  ent00: type=0x01 state=0x1  hp=0    flag30=0  x=86  y=141
+   ORIG  ent01: type=0x00 state=0x36 hp=1000 flag30=0  x=90  y=167      <- shipped player in a rope/climb state
+   ORIG  ent02: type=0x01 state=0x1  hp=0    flag30=0  x=161 y=193
+aligned buckets where port count > shipped count: 44 of 171
+```
+
+The extra record is `type=0x02` with **`flag30 = 1`** -- the "retire me at the end of the step" flag, on a record
+with `hp = 0`.  That is the same transient spawn family docs/135 counted (146 of 148 deaths were type 2) and the
+same family whose writers are `fn_011827` and the three-way spawn at guest `0x1164b-0x11675` -- the two places
+that write `+0x30 = 1`.  The port therefore both **creates more** of these one-shot records than shipped and
+**leaves the flag set on the player** through `fn_01441e @0x14cd2`; both symptoms sit on the spawn/hit-selection
+boundary rather than on the entity list mechanics.
+
+Shipped's own state at that instant is worth noting too: its player is in `0x36` (the rope/climb family,
+docs/144 §7) while the port's is in `0x01` -- the population and the state-family divergences are visible in the
+same sample.

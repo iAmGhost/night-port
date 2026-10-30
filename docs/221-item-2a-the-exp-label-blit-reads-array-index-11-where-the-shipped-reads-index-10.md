@@ -106,3 +106,13 @@ Before fixing, the same convention must be audited everywhere the port indexes t
 the comment above `fn_03b718` ("the +0x28 dwords inside the pointed-to objects are the port's +0x2c")
 asserts the equivalence generally, and `fn_03de85` sizes the arrays at `count*4` -- for any resource with
 `count` records, `+0x2c` is index `count`, i.e. out of bounds whenever `count == 11`.
+
+Two sibling sites in the same file show that the `+0x2c`/`+0x30` idiom is real but resource-specific, which is
+why the bug is local to `fn_03b718`: `fn_03ace9` (`f.c:7771-7803`, guest 0x0003ad70 / 0x0003adbb / 0x0003ae3f /
+0x0003ae80) reads `cb[1]+0x2c`, `cb[2]+0x2c`, `cb[13]+0x2c` and the `+0x30` triplets from the *same* kind of
+block (font B, `DS 0x639c4`), and there the two records it names are `system2.spr` records 11 and 12 -- col 118
+x rows 27 and col 94 x rows 27, both present in a 13-entry array.  So `+0x2c`/`+0x30` = index 11/12 is correct
+for `fn_03ace9`, and `fn_03b718`'s tail call appears to have inherited that shape of read while the shipped's
+tail call asks for index 10.  The audit for the fix is therefore "every read of `+0x2c`/`+0x30` inside the
+arrays that `fn_03de85` sized at `count*4`, checked against the shipped instruction's displacement", not a
+global rewrite.

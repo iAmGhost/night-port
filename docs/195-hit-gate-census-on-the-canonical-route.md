@@ -35,3 +35,20 @@ sample pairs: (172, 147) (172, 153) (172, 147) (139, 163) (139, 162) ...
 the rejected pairs sit **15-24 pixels** apart vertically.  The gate is therefore behaving as written; what is wrong is
 the vertical placement of the attacker relative to its target — the population/altitude question docs/161 §5 opened,
 not a threshold to adjust here.
+
+## 1b. Who is allowed to draw a number, and where (for item 2a's draw site)
+
+`branch_xrefs.py --target 0x383a4 --target 0x38c23` gives the complete incoming edge set for the two integer-draw
+routines, and every edge is modelled in the port:
+
+```
+0x383a4 <- fn_038445 at 0x3861e   -> f.c:25421  fn_0383a4(g_dat_633b0, hb+digits, 0x118, 0xae, g_dat_53100)
+0x383a4 <- fn_038445 at 0x387d3   -> f.c:25467  (same geometry, second site)
+0x38c23 <- fn_038f3d at 0x3983a   -> f.c:25765  fn_038c23(g_dat_633b0, num1, 0x68, 0xac, g_dat_53100)
+```
+
+The only number draw hanging off the EXP machinery is therefore `fn_038f3d`'s call at `0x3983a` — `fn_038f3d` is the
+routine that folds `player[+0x52]` into the HUD field `+0x2b` (docs/189 §1) — drawn at x `0x68`, y `0xac`, 6 cols per
+glyph.  Item 2a's "EXP text" must come from that site (or from `fn_038445`'s two, at y `0xae`), and its value is
+`g_dat_53100`; the run that drew no `expnum` glyph at all also reported `commits=0` from `fn_038f3d`, so the next
+measurement for `gate3-exp-text` is whether `0x3983a` is reached at all, not which glyph table entry is used.

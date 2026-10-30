@@ -14,7 +14,7 @@ import bisect
 import os
 import sys
 
-from capstone import Cs, CS_ARCH_X86, CS_MODE_32
+from capstone import Cs, CS_ARCH_X86, CS_MODE_32, CS_OPT_MEM
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXE = os.path.join(HERE, "..", "..", "NIGHT", "NIGHT.EXE")
@@ -63,7 +63,14 @@ def main():
         for ins in md.disasm(image[addr - CODE_BASE: a.end - CODE_BASE], addr):
             n += 1
             last = ins.address + ins.size
-            imm_hit = want_imm is not None and any(o.imm == want_imm for o in ins.operands)
+            # docs/237: [0x3c80]-style operands are MEMORY with a bare displacement, and capstone keeps
+            # that in op.mem.disp, not op.imm -- so a plain --imm scan silently missed every DS cell read
+            # written as `mov eax, [0x3c7c]` (the docs/14 alias family).  Match both forms.
+            imm_hit = want_imm is not None and any(
+                o.imm == want_imm or
+                (getattr(o, "mem", None) is not None and o.mem.disp == want_imm
+                 and o.mem.base == 0 and o.mem.index == 0)
+                for o in ins.operands)
             call_hit = want_call is not None and ins.mnemonic == "call" and ins.operands \
                 and ins.operands[0].imm == want_call
             if not (imm_hit or call_hit):

@@ -1237,6 +1237,8 @@ uint8_t *g_dat_53c78 = NULL;  /* DAT_00053c78: entity linked-list cursor */
  *   list is empty (the flat model's state before data load).
  *   POINTER-WIDTH ADAPTATION: next@+0x13f widened to an 8-byte read. */
 uint32_t g_settle_pass_calls, g_settle_pass_nodes, g_settle_pass_sets, g_settle_flag2, g_settle_flag1_other;
+/* docs/236 §4: what does fn_01441e's list actually walk, and what settle byte does it find there? */
+uint32_t g_1441e_gate_set[8], g_1441e_gate_kind[8];
 /* docs/190 §2: who sets the dying/settle flag +0x30 that fn_015295's first gate demands?
  * fn_00035c5c (the list init pass, 0x00035cc7-0x35cf6) sets 1; fn_01441e's 0x0001504d sets 2. */
 void fn_00035c5c(void) {
@@ -1252,7 +1254,14 @@ void fn_00035c5c(void) {
             ((struct ua32 *)((g_dat_53c78 + 0x17)))->v = 0x15;
             ((struct ua32 *)((g_dat_53c78 + 0x11)))->v = 0;
             uint32_t idx = ((struct ua32 *)((g_dat_53c78 + 0xd)))->v;
-            ((struct ua32 *)((g_dat_53c78 + 0x32)))->v = ((struct ua32 *)((g_dat_53ea8 + idx * 0x88)))->v;
+            uint32_t award = ((struct ua32 *)((g_dat_53ea8 + idx * 0x88)))->v;
+            if (getenv("NIGHT_SETTLEDBG")) {                        /* docs/236: what does the per-type read return? */
+                static int s_sd = 40;
+                if (s_sd-- > 0)
+                    fprintf(stderr, "settlepass: node=%p kind=%u idx=%u table=%u (row+0xc of idx*0x88)\n",
+                            (void *)g_dat_53c78, g_dat_53c78[0], idx, award);
+            }
+            ((struct ua32 *)((g_dat_53c78 + 0x32)))->v = award;
         }
         g_dat_53c78 = next;
     }
@@ -5294,8 +5303,28 @@ stage_records:
         fn_04192e(e + 0x14, 1, 2, (uint8_t *)g_639b8);
         fn_04192e(e + 0x18, 1, 2, (uint8_t *)g_639b8);
         fn_04192e(e + 0x1c, 10, 10, (uint8_t *)g_639b8);            /* 100-byte per-type table */
-        fn_04192e(e + 0x80, 1, 2, (uint8_t *)g_639b8);
+        fn_04192e(e + 0x80, 1, 2, (uint8_t *)g_639b8);             /* docs/236: restored -- an edit almost dropped this fill */
         fn_04192e(e + 0x84, 1, 2, (uint8_t *)g_639b8);
+    }
+    if (getenv("NIGHT_CHRDBG")) {                                   /* docs/236: does the .chr load actually land? */
+        static const uint32_t kRows[] = {0u, 1u, 31u};
+        uint8_t *io = (uint8_t *)g_639b8;
+        fprintf(stderr, "chrload: io=%p flags=%02x cursor=%u remain=%d buf=%u handle=%u size=%u\n",
+                (void *)io, io ? io[0x0c] : 0xffu,
+                io ? (unsigned)((struct ua32 *)(io + 0x00))->v : 0u,
+                io ? (int)((struct sa32 *)(io + 0x04))->v : 0,
+                io ? (unsigned)((struct ua32 *)(io + 0x08))->v : 0u,
+                io ? (unsigned)((struct ua32 *)(io + 0x10))->v : 0u,
+                io ? (unsigned)((struct ua32 *)(io + 0x14))->v : 0u);
+        for (size_t k = 0; k < sizeof kRows / sizeof kRows[0]; k++) {
+            const uint8_t *r = g_dat_53e9c + (size_t)kRows[k] * 0x88u;
+            fprintf(stderr, "chrrow %u: +0=%u +4=%u +8=%u +c=%u +14=%u +18=%u +80=%u +84=%u\n",
+                    kRows[k],
+                    (unsigned)((struct ua32 *)(r + 0x00))->v, (unsigned)((struct ua32 *)(r + 0x04))->v,
+                    (unsigned)((struct ua32 *)(r + 0x08))->v, (unsigned)((struct ua32 *)(r + 0x0c))->v,
+                    (unsigned)((struct ua32 *)(r + 0x14))->v, (unsigned)((struct ua32 *)(r + 0x18))->v,
+                    (unsigned)((struct ua32 *)(r + 0x80))->v, (unsigned)((struct ua32 *)(r + 0x84))->v);
+        }
     }
 }
 
@@ -25415,6 +25444,8 @@ score:
                         (int)((struct sa16 *)((cur + 0x29)))->v, cur[0x30], cur[0x5a],
                         (unsigned)((struct ua32 *)((cur + 0x32)))->v, (cur == g_player_ent));
         }
+        g_1441e_gate_set[cur[0x30] < 8 ? cur[0x30] : 7]++;
+        g_1441e_gate_kind[cur[0x00] < 8 ? cur[0x00] : 7]++;              /* docs/236 §4 census */
         if ((uint32_t)cur[0x30] == 1u) {                           /* 0x00015003-0x00015070 */
             if (cur != g_player_ent) {
                 if ((uint32_t)cur[0x5a] == 0u &&

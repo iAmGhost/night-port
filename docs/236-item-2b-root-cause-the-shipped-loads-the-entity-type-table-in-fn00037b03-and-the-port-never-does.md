@@ -1,5 +1,11 @@
 # 236 — Item 2b root cause located: the shipped loads the 260-entry entity-type table in `fn_037b03`; the port reads that table but never fills it, so every per-type value -- the EXP award included -- is 0
 
+> **SUPERSEDED in part by docs/237.** §2's "the port never fills the table" is retracted: `f.c:5296-5307` models all
+> ten `.chr` accesses, and the new `NIGHT_CHRDBG` witness measures row 31 as (35, 2, 0, 10) -- identical to the
+> shipped's measured row.  §3's "the flat-5 store at 0x15054 is unmodelled" is retracted: `((struct ua32 *)((cur +
+> 0x32)))->v = 5;` is present (uncited).  What survives: §1's shipped branch structure, and the fact that the award
+> chain never runs -- docs/237 §3 localises it to `fn_01441e`'s walk visiting 26 slots, all with `+0x30 == 0`.
+
 Task: `fix-exp-values` (item 2b, "EXP gain must be checked per enemy type").  This is a localization document; the
 fix and its red/green pair come next.  It supersedes docs/189's headline ("no per-type EXP table exists") and
 completes docs/199's open sub-question.

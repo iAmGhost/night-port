@@ -95,3 +95,8 @@ claim about the shipped's room chain can be quoted.
 4. Screen oracle for "the floor is unrendered": measure the room floor band in the video arena
    (`fn_03f15f`'s linear model, `f.c` composite, docs/208 §4) rather than the presented frame, because the two
    dumps' presentation bases are not comparable (docs/202, docs/205).
+
+> **Corrected by docs/223 §3.**  Section 3's inference ("no writer exists for that +0x11 byte, so stage 2 is
+> unreachable") is wrong: `fn_03c853` itself fills it from the resource stream (guest 0x0003c88c-0x0003c8a5,
+> port `f.c:1040-1041`), `stage1.wal` carries 0 there, and the chain terminator is the `+0x34c` NULL link at
+> guest 0x0003ca5e.  The census rows in §2 stand.

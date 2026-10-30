@@ -177,3 +177,28 @@ block starting `75 6e 2e 61 63 74 00 ...` = `un.act\0gun.act\0...`.  That is not
 blob, `DS 0x53c7c` is just the four pointer bytes plus whatever else sits in DS.  The record bytes live in
 `state_*.heap.bin`, which is the blob where `read_ptrs` **followed** the pointer (`read_at(value, 0x160)`).  The
 §1 and §2 numbers came from `heap.bin` and stand; any cross-side record claim must name which blob it read.
+
+## 10. The port's own `g_player_ent` record block is not readable -- so §9's comparison uses tick units
+
+Trying the same streak census on the port side through its dump gives:
+
+```
+g_player_ent  (rec_bytes 352, guest_size 4, ptr 2)   1726 samples
+top state(+0x17): 0x0 x803, 0x3f x33, 0x3e800 x20, 0x900 x20, 0x80808080 x18, 0x2400 x18
++0x30 values: 100 distinct values 0..255
+state 0x01 streaks: 14, longest 2 samples      (shipped: 195, longest 55 samples)
+```
+
+`0x80808080` is the poison fill and `0x3e800 / 0x900 / 0x2400` are byte-shifted readings of other fields, so this
+is the dump, not the game.  `port/src/app/rig_sink.c:291-318` dumps a pointer cell heap-relative and fills its
+record block with `memcpy(p + g_recoff[i], obj, rec_span(obj))`, i.e. whatever `obj` currently is, while the
+entity records the oracle can trust are the `ent##` blocks produced by walking the list head `g_dat_53c70`
+(`rig_sink.c:319-327`) -- a cell named `g_player_ent` is not the same thing as a walked entity record.  This is
+the same open item docs/108 filed ("four pointer-shaped globals differ in every sample -- the port stores *host*
+pointers in guest-shaped tables").
+
+Consequence for §9, stated precisely: the port-vs-shipped idle comparison is quoted in **ticks counted at the
+same guest site** (`shipped 498` from `DS 0x6339c` in the shipped DS blob; `port 210 / 83` from the in-process
+witness at the same statement), not from record dumps on either side.  Record-dump-based streak numbers are
+trustworthy on the shipped side (`state_*.heap.bin`, blocks read through `timeline.json`'s `ptr_cells`) and are
+**not** trustworthy on the port side for `g_player_ent`.

@@ -8175,12 +8175,13 @@ void fn_015295(uint8_t *a0, int32_t a1) {
     struct sa32 *p5 = (struct sa32 *)(a0 + 5);     /* +5 is unaligned in the shipped layout */
     p5->v += a1;                                   /* 0x152b8 */
     if (p5->v > 0) p5->v = 0;                      /* 0x152c4 */
-    if (a0[0x30] != 1) return;                     /* 0x152d1/152dc */
-    if (a0[0x25] == 0xff) return;                  /* 0x152e9 */
-    if (p5->v != 0) return;                        /* 0x152f9 (a0->5 must be 0) */
-    if (((struct sa32 *)((a0 + 0x11)))->v <= 0x15) return;   /* 0x15304 (a0->11 must be > 0x15) */
+    if (a0[0x30] != 1) { g_exp_gate_hits[0]++; return; }   /* 0x152d1/152dc: dying flag */
+    if (a0[0x25] == 0xff) { g_exp_gate_hits[1]++; return; } /* 0x152e9: already settled */
+    if (p5->v != 0) { g_exp_gate_hits[2]++; return; }       /* 0x152f9 (a0->5 must be 0) */
+    if (((struct sa32 *)((a0 + 0x11)))->v <= 0x15) { g_exp_gate_hits[3]++; return; } /* 0x15304 */
     a0[0x25] = 0xff;                               /* 0x1530e */
-    if (a0[0] != 1) return;                        /* 0x1531c */
+    if (a0[0] != 1) { g_exp_gate_hits[4]++; return; }        /* 0x1531c: record kind */
+    g_exp_gate_hits[5]++;
     uint32_t a0_1   = ((struct ua32 *)((a0 + 1)))->v;       /* a0->1  */
     uint32_t a0_9   = ((struct ua32 *)((a0 + 9)))->v;       /* a0->9  */
     uint32_t a0_32  = ((struct ua32 *)((a0 + 0x32)))->v;    /* a0->32 */
@@ -23219,6 +23220,10 @@ uint32_t g_sweep_null_hits = 0;     /* host witness (docs/128): draw-sweep slots
 uint32_t g_exp_awards = 0, g_exp_added = 0;      /* host-side witness (docs/126): kills that reached the
                                                 * 0x15453 accumulator add, and the sum added */
 uint32_t g_exp_commits = 0, g_exp_committed = 0;  /* 0x00038fff commits: count and total moved to +0x2b */
+/* docs/190 §1: per-gate census for fn_015295 -- how many candidate kills each shipped test rejects.
+ * [0] +0x30!=1 (0x152d1)  [1] +0x25==0xff (0x152e9)  [2] +5!=0 (0x152f9)  [3] +0x11<=0x15 (0x15304)
+ * [4] +0x00!=1 (0x1531c)  [5] reached the award (g_exp_awards counts the same thing). */
+uint32_t g_exp_gate_hits[6];
 uint32_t g_sfx_plays = 0;   /* host-side witness (NIGHT_ACTTRACE): element-event sounds played */
 uint32_t g_sfx_oob = 0;     /* events whose slot index fell outside the 100-entry pool */
 

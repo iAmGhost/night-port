@@ -29,3 +29,24 @@ blank glyph) instead of `fn_038c23` (index `-0xc0`, where `0` is glyph 0).  That
 and the next measurement is a screen-side one: crop the original's frames at the moment the shipped game shows the
 kill EXP text (`x 0x68, y 0xac` region for `fn_038c23`, `x 0x41, y 0x14` for `fn_0137c1`) and see which region
 changes, then check the same region on the port.
+
+## 2. The other candidate for the kill-time text: the record-driven glyph blit
+
+`fn_03df96` (guest `0x3df96`, port `f.c:14049`) is the remaining routine that can put text-shaped glyphs on screen: it
+walks the `g_dat_62a90` records (14-byte stride at `g_dat_5d0b4`), and for each record blits glyph `rec[0]` with
+`fn_03bb42` at `dest_off = rec[4] - font->x_tbl[g] - g_dat_639dc + rnd(rec[0x10])`,
+`start_row = rec[8] - font->y_tbl[g] - g_dat_639e0`, `col = font->col_tbl[g]`, `rows = font->rowcount_tbl[g]`,
+`mode = rec[0xc]`, font = global `g_dat_63dfc`.  Its complete incoming edge set is three calls, all modelled:
+
+```
+fn_03801b @0x3804e  -> f.c:15118
+fn_038098 @0x38107  -> f.c:15335
+fn_0381d7 @0x382e1  -> f.c:15413
+```
+
+i.e. it is part of the per-frame present/composite chain rather than the kill path, so a kill-time EXP string would
+have to be *posted* as one of these records by the kill code.  That is the concrete thing to look for next: a writer
+into the `g_dat_62a90` record block (or the `g_dat_5d0b4` stride area) at the moment of a kill — a write census over
+`field_writers.py` for the records' displacements, then a check of whether the port performs the same store.  If the
+port never posts the record, item 2a's garble is the *absence or partial fill* of that record, and the drawn glyphs
+come from a stale record (which is exactly what a "garbled" string looks like).

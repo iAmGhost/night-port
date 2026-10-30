@@ -5685,6 +5685,8 @@ extern void fn_0429ea(const char *msg, uint32_t param2);
 uint8_t  g_dat_53451 = 0;   /* DAT_00053451: file-structure flag */
 
 void fn_04933a(void) {
+    static int n49;                                    /* docs/173: DS 0x53451 stays 0 in the port; shipped 0x04 */
+    if (getenv("NIGHT_CALLTRACE") && ++n49 <= 3) fprintf(stderr, "calltrace fn_04933a #%d\n", n49);
     g_dat_53451 = (g_dat_53451 & 0xf8) | 0x4;                 /* 0x4933d-56 */
     uint8_t *base = g_ndpool;
     uint32_t ecx = 0x53410;                                   /* 0x49351 */
@@ -10665,7 +10667,13 @@ uint32_t stack_depth(void)   /* 0x4917e */
     return (uint32_t)((uintptr_t)&local - g_stack_bound);
 }
 uint32_t g_dat_53640 = 0x10;                    /* DAT_00053640 */
-void set_53640(void) { g_dat_53640 = 0x8000; }              /* 0x49187 */
+void set_53640(void) {                                          /* 0x49187 */
+    /* docs/173: the shipped run holds 0x8000 in DS 0x53640 from early on while the port keeps the image value
+     * 0x10 for the whole route -- so this setter never runs in the port.  Count it. */
+    static int n;
+    if (getenv("NIGHT_CALLTRACE") && ++n <= 3) fprintf(stderr, "calltrace set_53640 #%d\n", n);
+    g_dat_53640 = 0x8000;
+}
 uint32_t to_upper(uint32_t c) { return (c>=0x61 && c<=0x7a) ? c-0x20 : c; } /* 0x494bd */
 
 /* 0x041c28 (L1, 9 bytes): NULL-tolerant free. TEST EAX,EAX; JNZ heap_free_host

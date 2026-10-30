@@ -25631,8 +25631,11 @@ static uint32_t g_tab_531c8[6] = { 0x06, 0x06, 0x0a, 0x0c, 0x0c, 0x0c };
  * every key-release drain are true busy-waits, so the loop is only left through DAT_63e89/63eb2/63ebe;
  * the CD re-seek test is `DAT_63e38 / 0x1ea > DAT_00053c48` (the IDIV remainder in EDX is discarded --
  * Ghidra's "% 0x1ea" rendering is wrong, verified at 0x00039a20-0x00039a3b). */
+static int g_lumenu_trace = 0;   /* NIGHT_LUMENU=1: per-row upgrade-bar index census (docs/206) */
+
 void fn_038f3d(int32_t variant)
 {
+    if (!g_lumenu_trace) { const char *lv = getenv("NIGHT_LUMENU"); g_lumenu_trace = (lv && *lv && *lv != '0'); }
     if (g_menu_trace) fprintf(stderr, "fn_038f3d enter variant=%d\n", (int)variant);   /* host-side diagnostic */
     (void)canary_id(0, 0x168);                                          /* 0x00038f3d-42 */
     uint8_t *hb = (uint8_t *)g_heap_base;
@@ -25817,6 +25820,8 @@ void fn_038f3d(int32_t variant)
             const uint32_t *so = lvl ? (const uint32_t *)(hb + lvl[13]) : (const uint32_t *)hb;
             int32_t n = sel[page], shown = sel[page];
             if (frame % 0x32 > 0x19 && i == page && shown < selMax[i]) n = shown + 1;
+            if (g_lumenu_trace) fprintf(stderr, "lumenu frame=%d page=%d i=%d sel[page]=%d sel[i]=%d n=%d shown=%d max=%d\n",
+                                        (int)frame, (int)page, (int)i, (int)sel[page], (int)sel[i], (int)n, (int)shown, (int)selMax[i]);
             if (n != 0) {
                 int32_t idx = gbase[i] + n - 1;
                 fn_03bb42(g_dat_633b0, barX[i], barY[i], (int32_t)s4[idx],

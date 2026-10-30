@@ -9474,9 +9474,11 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
     int32_t mx;
     if (p[0x10] == 0) mx = (int32_t)(((struct sa32 *)((p + 0x16)))->v + g_dat_639e0);     /* 0x158b4-158c2 */
     else { uint8_t *q = rec_ptr_get(p, 0x34c); mx = (int32_t)(((struct sa32 *)((q + 0x16)))->v + g_dat_639e0); } /* 0x158c7-158db */
+    int clamp_row = -1;
     if (a0[0] <= 1) {                                          /* 0x158e1-158eb (a0[0] > 1 skips) */
         for (uint32_t i = 0; i < g_dat_62a8c; i++) {
-            struct clamp_tab_5c8bc *t = &g_tab_5c8bc[i];
+            struct clamp_tab_5c8bc *t = &g_tab_5c8bc[i];            if (clamp_row < 0 && ((struct sa32 *)((a0 + 1)))->v > t->a1_lo &&
+                ((struct sa32 *)((a0 + 1)))->v < t->a1_hi) clamp_row = (int)i;   /* docs/244 witness only */
             int32_t key = ((struct sa32 *)((a0 + 1)))->v;
             int32_t v = ((struct sa32 *)((a0 + 9)))->v + d;
             if (key > t->a1_lo && key < t->a1_hi) {
@@ -9487,9 +9489,28 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
     }
     int32_t cur = ((struct sa32 *)((a0 + 9)))->v;
     if (g_yclamp_trace && g_1586b_trace-- > 0) {                  /* docs/242: bounds + clamp outcome */
+        struct clamp_tab_5c8bc *w = (clamp_row >= 0) ? &g_tab_5c8bc[clamp_row] : NULL;
+        if (g_1586b_trace == 3999)
+            for (uint32_t r = 0; r < g_dat_62a8c && r < 16; r++)
+                printf("[clamprows] %u a1[%d,%d] v[%d,%d]\n", r, g_tab_5c8bc[r].a1_lo,
+                       g_tab_5c8bc[r].a1_hi, g_tab_5c8bc[r].v_lo, g_tab_5c8bc[r].v_hi);
         printf("[yclamp] kind=%u x=%d y=%d d=%d mn=%d mx=%d room[+0x10]=%u camY=%d rows=%u\n",
                a0[0], (int)((struct sa32 *)((a0 + 1)))->v, (int)cur, (int)d, (int)mn, (int)mx,
                (unsigned)g_dat_63354[0x10], (int)g_dat_639e0, g_dat_62a8c);
+        {   /* docs/244: the action record's Y-delta array value against the delta actually passed */
+            int32_t arrv = -0x7fffffff, fr = -1;
+            uint32_t c1 = ((struct ua32 *)((a0 + 0x123)))->v;
+            if (c1) {
+                uint32_t c2 = ((struct ua32 *)((g_heap_base + c1 + 4)))->v;
+                uint32_t an = ((struct ua32 *)((g_heap_base + c2 +
+                              4u * (((struct ua32 *)((a0 + 0x17)))->v & 0x7fffffffu))))->v;
+                uint32_t ap = ((struct ua32 *)((g_heap_base + an + 0x75)))->v;
+                fr = (int32_t)((struct ua32 *)((a0 + 0x11)))->v;
+                if (ap) arrv = (int32_t)((const int32_t *)(g_heap_base + ap))[fr];
+            }
+            printf("[ydelta] kind=%u state=%#x frame=%d arr[frame]=%d passed_d=%d\n", a0[0],
+                   (unsigned)((struct ua32 *)((a0 + 0x17)))->v & 0x7fffffffu, fr, arrv, (int)d);
+        }
     }
     if (cur < mn || cur > mx) {
         ((struct sa32 *)((a0 + 9)))->v = cur + d;                        /* 0x159df (no clamp) */

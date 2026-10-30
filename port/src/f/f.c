@@ -1267,6 +1267,12 @@ uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg
                    int32_t type_idx, uint8_t kind)
 {
     (void)canary_id((uintptr_t)block, 0x24);                     /* 0x10efc-01 */
+    /* docs/174: was this block already live?  fn_00041bdc handing out a block some live entity still owns is
+     * the docs/128 dangling-pointer family, and the only route found by which the player's own record could
+     * ever receive entity+0x30 == 1 (docs/135) -- a flag the shipped player never takes (docs/167 §9). */
+    if (arena_dbg() && arena_live_has((uint32_t)(block - (const uint8_t *)g_heap_base)))
+        fprintf(stderr, "arena double-alloc off=%u block=%p kind=%u\n",
+                (unsigned)(block - (const uint8_t *)g_heap_base), (void *)block, block[0x00]);
     arena_live_add((uint32_t)(block - (const uint8_t *)g_heap_base));
     if ((uint32_t)type_idx == g_dat_63370) {                     /* 0x10f1d-26: the type index == the current
                                                                   * episode counter -> latch DAT_00053c80 (docs/89) */

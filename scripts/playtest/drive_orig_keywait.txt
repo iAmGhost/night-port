@@ -1,0 +1,10 @@
+# Original-side level-up / status presentation timeline (docs/85), attempt 5.
+# Measured in attempts 2-4: in a live room `writemem 0x6336c 2` IS consumed by the room loop
+record before_press 2500
+key enter 150
+sleep 400
+record hold_a 2500
+record hold_b 2500
+record hold_c 2500
+readmem 0x63370
+stop

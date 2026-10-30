@@ -1,0 +1,33 @@
+# Shipped-side key-wait measurement for item 4 (docs/209 §4).
+# Prefix is the sequence that reached live gameplay in docs/85 / drive_orig_levelup.txt.
+# After the exit latch is written, exactly ONE press, then long key-free windows: this measures
+# whether the shipped picture persists after a single press+release (key-wait) or advances on its own.
+record boot 5000
+wait_mode 200 150
+record fli 6000
+wait_mode 480 180
+record title_melt 6000
+key enter 150
+sleep 1200
+writemem 0x63370 2
+record slides 9000
+key_until_mode_stable 200 enter 30 1200 4
+shot stage_play
+readmem 0x63354
+readptr 0x53c7c
+readmem 0x63370
+record gameplay 4000
+readmem 0x6336c
+writemem 0x6336c 2
+record k0_before 2500
+key enter 150
+record k1_after_press 3000
+record k2_keyfree 3000
+record k3_keyfree 3000
+record k4_keyfree 3000
+key enter 150
+record k5_after_press 3000
+record k6_keyfree 3000
+readmem 0x6336c
+readmem 0x63370
+stop

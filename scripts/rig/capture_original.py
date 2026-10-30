@@ -24,11 +24,16 @@ GRID = 40 * 30
 REC = struct.Struct("<qQiiii")     # t_ms, frame, w, h, changed, pad -- 32 B, rig_sink.c layout
 
 
-def api(base, token, path, method="GET", body=None, timeout=30):
-    data = json.dumps(body).encode() if body is not None else None
+def api(base, token, path, method="GET", body=None, timeout=30, raw=None):
+    if raw is not None:
+        data, ctype = raw, "application/octet-stream"
+    elif body is not None:
+        data, ctype = json.dumps(body).encode(), "application/json"
+    else:
+        data, ctype = None, "application/json"
     req = urllib.request.Request(base + path, data=data, method=method,
                                  headers={"Authorization": "Bearer " + token,
-                                          "Content-Type": "application/json"})
+                                          "Content-Type": ctype})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
@@ -213,6 +218,48 @@ def main():
         sig = signature(raw, info)
         changed = sig != prev
         now_ms = int((time.time() - t0) * 1000)
+        # Rig correction: this session used to post only segment 0 and never advance past a `wait ds`
+        # anchor, so every key and every DS injection after the first anchor was silently dropped from the
+        # screen-capture half of a route (a drive whose gameplay keys sit after `wait ds` captured a
+        # key-free screen run).  The segment walk and the poke executor now mirror replay_original.py.
+        if a.drive and phys_base is not None:
+            while seg_i + 1 < len(segments):
+                w = segments[seg_i]["wait"]
+                if not w:
+                    break
+                v, hit = ds_cond(a.base, token, phys_base, w)
+                if not hit and now_ms < w["t"] + shift:
+                    break
+                shift = now_ms - w["t"]
+                seg_i += 1
+                post_segment(seg_i)
+            for pk in segments[seg_i].get("pokes", []):
+                if pk.get("done") or now_ms < pk["t"] + shift:
+                    continue
+                if "rec" in pk:
+                    from replay_original import DS_LO
+                    pv = int.from_bytes(api(a.base, token,
+                                            f"/api/v1/memory/{phys_base + pk['rec'] - DS_LO}/4",
+                                            timeout=30), "little")
+                    if not pv:
+                        pk["done"] = True
+                        print("play rec %x: no record pointer at t=%d ms" % (pk["rec"], now_ms), flush=True)
+                        continue
+                    addr = pv + pk["off"]
+                    api(a.base, token, f"/api/v1/memory/{addr}", "PUT",
+                        raw=pk["val"].to_bytes(4, "little"), timeout=30)
+                    back = int.from_bytes(api(a.base, token, f"/api/v1/memory/{addr}/4", timeout=30), "little")
+                    pk["done"] = True
+                    print("play rec %x+%x (rec %x) <- %d : read back %d at t=%d ms"
+                          % (pk["rec"], pk["off"], pv, pk["val"], back, now_ms), flush=True)
+                    continue
+                addr = phys_base + pk["ds"]
+                api(a.base, token, f"/api/v1/memory/{addr}", "PUT",
+                    raw=pk["val"].to_bytes(4, "little"), timeout=30)
+                back = int.from_bytes(api(a.base, token, f"/api/v1/memory/{addr}/4", timeout=30), "little")
+                pk["done"] = True
+                print("poke %x <- %d : read back %d at t=%d ms" % (pk["ds"], pk["val"], back, now_ms),
+                      flush=True)
         out.write(REC.pack(now_ms, n, info["width"], info["height"], 1 if changed else 0, 0))
         out.write(sig)
         out.flush()

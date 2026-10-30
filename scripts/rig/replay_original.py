@@ -41,11 +41,19 @@ def masked_digest(ds, mask):
 CHUNK = 0x4000
 
 
-def api(base, token, path, method="GET", body=None, timeout=30):
-    data = json.dumps(body).encode() if body is not None else None
+def api(base, token, path, method="GET", body=None, timeout=30, raw=None):
+    if raw is not None:
+        data = raw
+        ctype = "application/octet-stream"
+    elif body is not None:
+        data = json.dumps(body).encode()
+        ctype = "application/json"
+    else:
+        data = None
+        ctype = "application/json"
     req = urllib.request.Request(base + path, data=data, method=method,
                                  headers={"Authorization": "Bearer " + token,
-                                          "Content-Type": "application/json"})
+                                          "Content-Type": ctype})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 
@@ -148,6 +156,12 @@ def parse_events(steps):
             # lookup itself -- all 435 resource names are resident in DS all the time -- so the shipped
             # side anchors on `anchor static` plus the `wait ds` lines instead. Recorded, not executed.
             continue
+        elif f[1] == "poke" and len(f) >= 4:
+            # `t poke 0x6336c 2` -- the same state injection the port's own script applies (main.c:584,
+            # docs/118).  It is executed by the sampler loop when its (rebased) time arrives, so both
+            # sides write the same DS global at the same point of the same anchored timeline.
+            segs[-1].setdefault("pokes", []).append({"t": int(f[0]), "ds": int(f[2], 0),
+                                                     "val": int(f[3], 0)})
         elif f[1] == "wait" and len(f) >= 5 and f[2] == "ds":
             m = re.match(r"(!=|==|>=|<=)(.+)$", f[4])
             if not m:
@@ -155,6 +169,17 @@ def parse_events(steps):
             segs[-1]["wait"] = {"t": int(f[0]), "ds": int(f[3], 0), "op": m.group(1),
                                 "val": int(m.group(2), 0)}
             segs.append({"events": [], "wait": None})
+        elif f[1] in ("play", "ent", "heapdump", "actdump", "shot"):
+            if f[1] == "play" and len(f) >= 4:
+                # `t play 0x27 1` writes offset 0x27 of THE PLAYER record (port main.c:603).  The shipped
+                # side can do the same write: DS 0x53c7c is the player record pointer, and the memory API
+                # answers guest-linear addresses directly (read_at does exactly that for every pointer cell).
+                segs[-1].setdefault("pokes", []).append({"t": int(f[0]), "rec": 0x53c7c,
+                                                         "off": int(f[2], 0), "val": int(f[3], 0)})
+                continue
+            # Port-only drive steps (record pokes, heap dumps, named screenshots): recorded in the
+            # drive record but not executed here, so one drive file can drive both sides.
+            continue
         else:
             sys.exit(f"unknown drive step: {' '.join(f)}")
     return segs
@@ -238,6 +263,7 @@ def main():
             print(f"audio capture unavailable: {e}", file=sys.stderr)
     t0 = time.time()
     seg_i, ds_waits = 0, []
+    poke_log = []                                    # executed DS injections, docs/118 on the shipped side
     # The anchor is a rebase point with an implied nominal: the shipped side releases the timeline when
     # the title card is steady, so the first segment's nominal times collapse onto that moment (the port
     # rebases the same way, onto its own `wait res title1.pcx`). Without this the drive's 120000 ms
@@ -381,6 +407,39 @@ def main():
                              "observed": v, "hit": bool(hit), "shift_ms": shift})
             seg_i += 1
             post_segment(seg_i)
+        # DS injections due in the already-posted segment (same rebased clock as the keys above)
+        for pk in segments[seg_i].get("pokes", []):
+            if pk.get("done") or now_ms < pk["t"] + shift:
+                continue
+            if "rec" in pk:
+                pv = int.from_bytes(api(a.base, token,
+                                        f"/api/v1/memory/{phys_base + pk['rec'] - DS_LO}/4", timeout=30),
+                                    "little")
+                if not pv:
+                    print(f"play: DS {pk['rec']:#x} holds no record pointer at t={now_ms} ms", flush=True)
+                    pk["done"] = True
+                    poke_log.append({"t_ms": now_ms, "nominal": pk["t"], "rec": hex(pk["rec"]),
+                                     "off": hex(pk["off"]), "want": pk["val"], "read_back": None,
+                                     "skipped": "null record pointer"})
+                    continue
+                addr = pv + pk["off"]
+                api(a.base, token, f"/api/v1/memory/{addr}", "PUT",
+                    raw=pk["val"].to_bytes(4, "little"), timeout=30)
+                back = int.from_bytes(api(a.base, token, f"/api/v1/memory/{addr}/4", timeout=30), "little")
+                pk["done"] = True
+                poke_log.append({"t_ms": now_ms, "nominal": pk["t"], "rec": hex(pk["rec"]),
+                                 "off": hex(pk["off"]), "want": pk["val"], "read_back": back})
+                print(f"play rec {pk['rec']:#x}+{pk['off']:#x} (rec {pv:#x}) <- {pk['val']} : "
+                      f"read back {back} at t={now_ms} ms", flush=True)
+                continue
+            addr = phys_base + pk["ds"]
+            api(a.base, token, f"/api/v1/memory/{addr}", "PUT",
+                raw=pk["val"].to_bytes(4, "little"), timeout=30)
+            back = int.from_bytes(api(a.base, token, f"/api/v1/memory/{addr}/4", timeout=30), "little")
+            pk["done"] = True
+            poke_log.append({"t_ms": now_ms, "nominal": pk["t"], "ds": hex(pk["ds"]),
+                             "want": pk["val"], "read_back": back})
+            print(f"poke {pk['ds']:#x} <- {pk['val']} : read back {back} at t={now_ms} ms", flush=True)
         time.sleep(1.0 / a.hz)
 
     if a.audio_capture:
@@ -399,7 +458,7 @@ def main():
         pcs.append({"ds": 0x53c70, "name": f"ent{k:02d}", "rec_bytes": PTR_BYTES, "ent": k})
     meta = {"ptr_cells": pcs,
             "drive": os.path.abspath(a.drive), "events": events, "anchor": anchor,
-            "ds_waits": ds_waits, "rebases": rebases, "hz": a.hz,
+            "ds_waits": ds_waits, "rebases": rebases, "pokes": poke_log, "hz": a.hz,
             "seconds": a.seconds, "states": len(states), "cycles": cyc,
             "res_events": res_events, "timeline": states}
     json.dump(meta, open(os.path.join(a.out, "timeline.json"), "w"), indent=1)

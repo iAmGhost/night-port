@@ -13923,7 +13923,9 @@ void fn_03a5f7(const uint8_t *base) {
  *     rle = rle_base + glyph_off;
  *     fn_03bb42(base, (1-i)*7 + col0, start_row, col=6, rows=7, rle, mode=0);
  *   } */
+uint32_t g_numdraw_38c23, g_numdraw_383a4, g_numdraw_bb42; /* docs/195 §1b: is any integer-draw site reached? */
 void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number) {
+    g_numdraw_38c23++;
     (void)canary_id(0, 0x3c);                                     /* PUSH 0x3c;CALL 0x418ee */
     char buf[16];
     itoa32s(number, buf, 10);                                     /* 0x038c4f */
@@ -14015,6 +14017,7 @@ void fn_0137c1(uint8_t *entity, uint32_t base) {
  * font[0x34]/[0x38] widened to 8B host ptrs at 0x34/0x3c (pointer-width adaptation, cf. 0x038c23).
  * glyph_off = char_table - 0x40 + d*4 (SAME convention as 0x038c23). */
 void fn_0383a4(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number) {
+    g_numdraw_383a4++;
     (void)canary_id(0, 0x40);                                     /* PUSH 0x40;CALL 0x418ee */
     char buf[16];
     itoa32s(number, buf, 10);                                     /* 0x0383c5-d0 */

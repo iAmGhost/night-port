@@ -8188,6 +8188,11 @@ static uint8_t tbl53eb8_get(int32_t idx)
 
 void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */
     uint8_t c = p[0x31];
+    /* docs/167 §15: this is the DEFERRED path -- a chain match routed through here lands in the entity's
+     * 5-slot queue at +0x32 + c*4 and is applied later, not to player+0x17 directly. */
+    if (getenv("NIGHT_STTRACE"))
+        fprintf(stderr, "savepush val=%u slot=%u c=%u is_player=%d state=%d\n", val, c, c,
+                p == g_player_ent, (int)((struct sa32 *)((p + 0x17)))->v);
     if (c < 5) { ((struct ua32 *)((p + 0x32 + c*4)))->v = val; p[0x31] = c + 1; }
 }
 void fn_0348e2(void) {                                          /* 0x0348e2 */
@@ -26994,6 +26999,15 @@ static void lab_attack_ready(uint8_t *pl, int st, uint8_t key)
  *     (DAT_00062d58 = target state, DAT_00062d5c = chain level byte), gated by the per-id tables
  *     DAT_00062b90 (chain level of an id) and DAT_00062ac8 (its group).
  */
+/* docs/167 §14: which chain targets can the port actually select?  shipped's DAT_00062d58 census is
+ * 0x33 x1453 / 0x35 x198 / 0x34 x108 / 0x0 x78 / 0x36 x9; the port's DS copy of that cell is contaminated, so
+ * watch the writes instead of the dump. */
+static void chain_target_log(uint32_t target, uint32_t lv, int k, const char *site)
+{
+    if (getenv("NIGHT_STTRACE"))
+        fprintf(stderr, "chaintgt %s target=%u lv=%u k=%d\n", site, target, lv, k);
+}
+
 void fn_03272f(uint8_t *tbl)
 {
     (void)canary_id((uintptr_t)tbl, 0x3c);                          /* 0x00032734 probe (push 0x3c) */
@@ -27002,9 +27016,11 @@ void fn_03272f(uint8_t *tbl)
     if (getenv("NIGHT_STTRACE")) {
         static unsigned f_n;
         if (++f_n <= 1200)
-            fprintf(stderr, "actfn n=%u tbl=%p player_flag=%u player_state=%d timer=%u\n",
-                    f_n, (void *)tbl, g_player_ent ? g_player_ent[0x30] : 0xff,
-                    g_player_ent ? (int)((struct sa32 *)((g_player_ent + 0x17)))->v : -1, g_dat_6339c);
+            fprintf(stderr, "actfn n=%u flag=%u state=%d timer=%u saved=%d gate42=%d\n",
+                    f_n, g_player_ent ? g_player_ent[0x30] : 0xff,
+                    g_player_ent ? (int)((struct sa32 *)((g_player_ent + 0x17)))->v : -1, g_dat_6339c,
+                    g_player_ent ? (int)((struct sa32 *)((g_player_ent + 0x3e)))->v : -1,
+                    g_player_ent ? (int)((struct sa32 *)((g_player_ent + 0x42)))->v : -1);
     }
     uint8_t *pl = g_player_ent;                                      /* 0x0003274a */
     uint8_t *hb = (uint8_t *)g_heap_base;
@@ -27266,7 +27282,7 @@ lab_chain:
             (target == 0x65 || target == 0x30 || target == 0x31)) {   /* 0x00033c42-0x00033cd8 direct */
             g_dat_63f1e[s2] = 1;
             PL32(0x17) = target; PL16(0x50) = 0; PL32(0x11) = 0; PL8(0x31) = 0;
-            g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+            g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1]; chain_target_log(target, lvls[k - 1], k, "match");
             return;
         }
         if (10 < (uint32_t)PL32(0x17) && (uint32_t)PL32(0x17) < 0x15) {  /* 0x00033cd8-0x00033d6a hurt */
@@ -27275,7 +27291,7 @@ lab_chain:
             PL32(0x17) = target;
             record_event_latch(pl);                                  /* 0x00033d11-0x00033d3b */
             PL16(0x50) = 0; PL32(0x11) = 0;
-            g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+            g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1]; chain_target_log(target, lvls[k - 1], k, "match");
             return;
         }
         if (lvls[len - 1] == 0) fn_0348e2();                          /* 0x00033d6a-0x00033d7d */
@@ -27287,7 +27303,7 @@ lab_chain:
                 PL32(0x17) = target;
                 record_event_latch(pl);                              /* 0x00033dee-0x00033e08 */
                 PL16(0x50) = 0; PL32(0x11) = 0;
-                g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+                g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1]; chain_target_log(target, lvls[k - 1], k, "match");
                 return;
             }
         } else if (PL32(0x17) == 0x70) {                              /* 0x00033e3c-0x00033e96 pair chain */
@@ -27296,7 +27312,7 @@ lab_chain:
                     g_dat_63f1e[s2] = 1;
                     fn_031f10(pl, target);
                     PL16(0x50) = 0;
-                    g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+                    g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1]; chain_target_log(target, lvls[k - 1], k, "match");
                     return;
                 }
                 fn_0348e2();
@@ -27309,7 +27325,7 @@ lab_chain:
                 g_dat_63f1e[s2] = 1;
                 fn_031f10(pl, target);
                 PL16(0x50) = 0;
-                g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1];
+                g_dat_62d58 = target; g_dat_62d5c = lvls[k - 1]; chain_target_log(target, lvls[k - 1], k, "match");
                 return;
             }
         }

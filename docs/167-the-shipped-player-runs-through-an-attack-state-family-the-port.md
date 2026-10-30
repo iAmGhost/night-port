@@ -332,3 +332,48 @@ produced it, then a census of which target ids the port can select.  If `0x35` i
 the defect is in the ring/level gating (docs/110 already measured two divergences there: the port consumes slots
 more often, and the per-slot level field is large).  If `0x35` is not selectable at all, the loaded chain table
 is the suspect and docs/110's `actdump` witness can compare it against the shipped container bytes.
+
+## 15. `0x35` is selectable but the deferred-state machinery is never exercised on this drive
+
+A witness at the port's writes to `g_dat_62d58` (5 sites) plus one at `fn_031f10` answers §14's question, and the
+answer splits.
+
+`fn_031f10` is the **deferred** path, and the census shows what it really does:
+
+```c
+void fn_031f10(uint8_t *p, uint32_t val) {            /* 0x031f10 */
+    uint8_t c = p[0x31];
+    if (c < 5) { ((struct ua32 *)((p + 0x32 + c*4)))->v = val; p[0x31] = c + 1; }
+}
+```
+
+It never touches `p[+0x17]`: it appends the target to a five-slot queue at `+0x32 + c*4` guarded by the count
+`p[+0x31]` -- which is why docs/108 noted the constructor zeroes `+0x32..+0x45`, and why `f.c:2116` reads
+`a0->0x17 = a0->0x32` (pop slot 0).  The `PL32(0x17) = PL32(0x3e); PL32(0x11) = 0x39;` restore in `fn_03272f`
+(§4) is the matching consume side.
+
+Measured on `ep1_kill3`, 12 000 frames, two runs:
+
+```
+chain-match target selections:   run A: 0x33 x58  0x34 x21  0x35 x20
+                                 run B: 0x33 x82  0x34 x22  0x35 x0
+fn_031f10 (savepush) calls:      0 in both runs
+player +0x3e:  0 in all 1200 sampled visits      player +0x42: 0 in all 1200 sampled visits
+```
+
+Two conclusions, and a coverage gap:
+
+1. **`0x35` is selectable** -- the chain matcher does choose it (20 times in one run, 0 in the other).  It is not
+   a missing table entry, so §14's "not selectable at all" branch is ruled out on this drive.  Because the player
+   state census never records `0x35`, and a `0x33` streak averages only 1.2 samples at 10 Hz, the likeliest reading
+   is that the port's `0x35` is entered but released within a sampling interval -- shipped held it long enough to
+   be sampled 58 times with 27 transitions into it.
+2. **The deferred/saved-state machinery is completely unexercised on this drive**: `fn_031f10` is never called, so
+   the queue at `+0x32..+0x45` never fills, `+0x3e` and `+0x42` never become non-zero, and the "back to the attack
+   it interrupted" restore can neither run nor be compared.  That machinery is exactly where the playtest item
+   "player stuck when hit mid-kick" would live, and it is a **drive-coverage** gap: `ep1_kill3` never interrupts a
+   chain mid-flight.  A drive that starts an attack and takes a hit before the chain completes is needed before
+   any claim about that item is possible -- the same class of gap docs/117 recorded for the fallen states.
+
+The run-to-run spread in the selection census (20 vs 0 selections of `0x35`) is the non-determinism of §7 showing
+up again, which is why both runs are printed rather than one.

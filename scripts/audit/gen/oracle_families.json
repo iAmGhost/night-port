@@ -83,7 +83,19 @@
   "reason": "Absolute uptime/time-of-day stamp carried beside the room-script counters. Both sides advance it by the same quantum while their epochs are unrelated -- shipped 3682232 -> 3683288 (+1056) between state_0020 and state_0080, port 1631896 -> 1632952 (+1056) between dump samples 500 and 800 of the same route. Absolute equality is therefore meaningless; only the increments are comparable, exactly as with the heap pointers docs/134 \u00a73 treated.",
   "docs": "docs/176 \u00a76 measurement pass; docs/134 \u00a73 (relative-comparison rule); docs/101 (the 0x63e24..0x63e40 clock block is entropy-masked -- this cell sits just outside that block)",
   "cells": {
-   "0x63e18": "g_dat_63e18: uptime stamp, same +1056 quantum on both sides, different epoch"
+   "0x63e18": "g_dat_63e18: uptime stamp, same +1056 quantum on both sides, different epoch",
+   "0x64000": "g_clock_ticks: shipped constant 189143 across 853 samples, port 0 -- a frozen tick stamp, not a counter",
+   "0x63e20": "shipped holds absolute values up to 5567560, port 0; sits just outside the 0x63e24..0x63e40 clock block docs/101 entropy-masked"
+  }
+ },
+ "flat_pointer_slot": {
+  "reason": "DS slots that hold a flat-model address rather than a game quantity. Over the whole canonical route (g27, 853 shipped / 1500 port samples) each one carries a SINGLE constant in the allocated-arena range: 0x53c64 shipped 1691872, 0x63ffc shipped 1691956, 0x633b0 shipped 2207800, 0x633b4 shipped 2273336. Absolute equality across two processes' address spaces is not a property the port can satisfy any more than the heap cursor cells of docs/134 \u00a73; only the roles (which block is being pointed at) are comparable, and those need the relative-to-base rule that docs/134 \u00a73 named.",
+  "docs": "docs/178 \u00a72 (series-shape census of the residual rows); docs/134 \u00a73; docs/128 (flat heap is the port's own arena)",
+  "cells": {
+   "0x53c64": "constant 1691872 on shipped over 853 samples",
+   "0x63ffc": "g_node_list_active: constant 1691956 on shipped",
+   "0x633b0": "constant 2207800 on shipped",
+   "0x633b4": "constant 2273336 on shipped"
   }
  }
 }

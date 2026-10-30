@@ -112,3 +112,21 @@ python3 scripts/audit/static_audit.py && python3 scripts/audit/triage.py
 | game clock | port loop ~70 ticks/s vs shipped ~95 — **open port defect** (docs/168 §2a); oracle calibrated to 665 PIT Hz |
 | chain reachability | 262-267 of 503 functions entered under three fuzz grammars; 236-241 never entered; state-directed family injection reached 248 max |
 | pair/deferred chain fixtures | green again after docs/169's restore |
+
+## 6. Standing sweep re-run on the current build (after docs/173, docs/175, docs/176)
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Port unit + fixture suite | `make -C port test` | **ALL PASS** (including the rewritten `DAT_532f4` fixtures, docs/176 §4) |
+| Nine-episode sanitizer soak | `scripts/rig/asan_soak.sh` | 9/9 `rc=0`, `ubsan=0`, `asan=0`, `segv=0`; 987-4000 frames presented per stage (`/tmp/rig/soak`) |
+| Canonical state route | `OUT=/tmp/rig/g27 RIG_HZ=10 scripts/rig/route.sh ep1_kill3 150` | 346 cells; SAME 69, DIFF 35, DIFF-SIZE 14, PTR 52, REPR 19, SIZE? 34; **35 residual same-width gameplay divergences**; activity-profile oracle 271/271 SAME |
+| Coverage-guided fuzz | `scripts/rig/fuzz.py --episodes 1..9 --seeds 9 --workers 4 --cap 110 --frames 5200 --inject` | `247/503` functions entered, **0 crashes** (`/tmp/rig/fz14`); the same plateau as the earlier 262-267/503 sweeps at higher seed counts |
+
+Two quotability rules that this re-run depends on:
+
+1. **Route duration.** State-oracle counts are comparable only on the canonical 150 s route.  On 45 s routes the
+   shipped timeline (which starts near +47 s and runs stretched relative to wall clock) overlaps the port timeline
+   for under 8 s, 244 of 274 windows come back SHIPPED-QUIET, and the residual count drops to 30-31 without the
+   port changing at all (docs/176 §7).
+2. **Cadence.** `RIG_HZ=10` on the shipped side; the route script's default of 4 Hz produced 156 shipped samples
+   where 424-853 are needed for the same window grid.

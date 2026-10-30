@@ -74,3 +74,70 @@ sites, run on the same drive, compared against §2's transition table.  The comp
 frame alignment, so it is immune to the timing problems docs/158/docs/165 had to solve.  Whatever `from -> to`
 pair the port cannot produce is the specific defect, and `fn_03272f`'s reset site is the first suspect because
 it is the only state store in the chain matcher.
+
+## 6. §3 was a frame-budget artifact -- corrected by measuring with a longer budget
+
+§3 concluded from a 4000-frame run that the port's player never enters `0x33-0x35`.  At 12 000 frames the same
+drive gives a transition profile that matches the shipped table almost line for line:
+
+```
+port run 2 (12000 frames)              shipped (docs/167 §2)
+0x1 -> 0x33   x73                      0x01 -> 0x02   x73
+0x33 -> 0x1   x73                      0x33 -> 0x01   x70
+0x1 -> 0x2    x69                      0x01 -> 0x33   x60
+0x2 -> 0x1    x68                      0x02 -> 0x01   x56
+0x1 -> 0x34   x29   0x34->0x1 x29      0x01 -> 0x34   x31   0x34->0x1 x31
+0x1 -> 0x35   x25   0x35->0x1 x25      0x01 -> 0x35   x27   0x35->0x1 x24
+0xb -> 0xc     x4   0xc ->0x1  x3      0x0b -> 0x0c   x15   0x0c->0x01 x12
+```
+
+So the attack-state family **is** present in the port.  What §3 saw was a 4000-frame run that only reaches the
+first few seconds of play: 4 transitions logged, all `1 -> 0xb -> 0xc -> 1`.  Rule recorded: a port-side
+"never happens" claim needs the frame budget stated **and** the phase the budget actually reaches; 4000 frames of
+this drive is not 300 s of play (docs/108 already measured that `--frames 300` presented 11 412 frames).
+
+Two divergences survive the longer budget:
+
+* **`0x28` never appears in the port** -- shipped holds the player there for 722/1842 samples (39%).  The only
+  writer of `0x28` found is the idle-timer forced transition, and the port's check site never sees `500`: the
+  in-process witness at `f.c:26996` reported the largest value reaching the comparison as **83** and **210** on
+  two 12 000-frame runs, `val=500` observed **zero** times.  The comparison itself is faithful -- shipped at
+  guest `0x32760` is `cmp dword ptr [0x1339c], 0x1f4` / `jne`, an equality, exactly as rendered.
+* **Reaction states are under-populated in the port**: `0x0b/0x0c` appear 17/17 and 4/3 times per run against
+  shipped's 60/72.
+
+The shipped timer's shape, read out of the shipped DS dump: `DS 0x63360` (frame counter) advances **+9 per
+100 ms sample** (90/s) and `DS 0x6339c` advances **+1 per frame-counter tick** whenever `player[+0x17] == 1`
+(ratio measured 1.000), climbing 406, 415, 424, 433, 442, 452, 461, 470, 479, 489, 498 -- it crosses 500
+*between* samples.  The shipped block at guest `0x3ab68-0x3ab81` is reproduced faithfully by the port
+(`inc [0x63360]`; `if (player[+0x17] == 1) ++timer; else timer = 0`), so the divergence is behavioural: the
+port's player does not sit in state 1 long enough -- 210 ticks max against a threshold of 500.
+
+## 7. Port-side non-determinism, reproduced and quantified (docs/108's open residual)
+
+Two runs of the *same binary, same drive, same --frames* differ:
+
+| configuration | `fn_03272f` entries | idle-timer max at the check | player transitions |
+|---|---|---|---|
+| no pins, 4000 frames | 844 vs 816 | 35 vs 13 | 1 vs 1 |
+| `NIGHT_SEED=13579`, 4000 frames | 905 vs 244 | 101 vs 71 | 4 vs 1 |
+| `NIGHT_SEED=13579` + `NIGHT_RIG_STEP_CALLS=490` + `NIGHT_RIG_FPS=60`, 12 000 frames | 1200 (cap) vs 1200 (cap) | 83 vs 210 | 328 vs 404 |
+
+Cause of the first row is `main.c:1379` -- `if (now < g_tick_next && !g_fixed_step_calls) return;` -- the tick
+pump converts wall time into PIT calls and re-anchors when the host falls behind.  Pinning the step *and* the
+seed narrows it but does not remove it, confirming docs/108's "STILL OPEN" line with a crisp symptom: the same
+script produces 328 or 404 player state changes.  Consequence for the rig: any port-side count is quoted with a
+run count, never from a single run.
+
+## 8. Two rig defects filed while doing it
+
+* **The witness-trap from docs/166 §9 happened a third time.**  `cntchk` printed nothing for a whole measurement
+  cycle and I nearly reported "`fn_03272f` never reaches the 500 check" -- `strings port/test/night | grep -c
+  cntchk` = 0 proved the block was empty because three trailing comment lines opened a comment on the `if`
+  line and closed it on the `fprintf` line.  After rewriting the comments above the statement, `strings` = 1 and
+  the check was logged 844 times in that same run.
+* **Cell-owner contamination for `DS 0x63360` / `DS 0x6339c` in the port dump.**  Reading those two cells out of
+  `cells.bin` gives a frame counter whose median per-sample delta is **0** and whose max is **4 294 967 295**
+  (a wrap), and `0x6339c` values like 1 056 964 608 -- while the in-process witness sees a sane counter topping
+  at 210.  So the rate comparison between the two sides through these cells is unusable until the cell owner is
+  resolved (docs/112 / docs/121's contested-cell family); the in-process numbers stand, the DS-cell ones do not.

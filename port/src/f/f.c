@@ -23262,6 +23262,13 @@ int32_t fn_03a829(void)
         g_dat_63360 = g_dat_63360 + 1;                                 /* 0x0003ab6c-74 frame counter */
         if (((struct sa32 *)((pl + 0x17)))->v == 1) g_dat_6339c = g_dat_6339c + 1;
         else g_dat_6339c = 0;                                          /* 0x0003ab79-0x0003ab8b idle timer */
+        /* docs/167 §6: how often does the idle timer actually tick, and where does it stand? */
+        if (getenv("NIGHT_STTRACE")) {
+            static unsigned c_n;
+            if (++c_n <= 3000)
+                fprintf(stderr, "cnttick n=%u val=%u state=%d\n", c_n, g_dat_6339c,
+                        (int)((struct sa32 *)((pl + 0x17)))->v);
+        }
         /* 0x0003ab90-0x0003abb4: the /10 quotient is discarded, only the %10 test matters (as in fn_03d244). */
         if (g_dat_63360 % 10 == 0) fn_03d606((uintptr_t)room);
         heap_chain_check("fn_03a829");   /* host probe: name allocator-chain corruption at its source */
@@ -26011,6 +26018,21 @@ void fn_01194c(uint8_t *e)
  */
 void fn_012616(uint8_t *e)
 {
+    /* docs/167 §5: player state-transition witness.  fn_012616 is the entity step function, so this samples
+     * the player once per sweep and yields the same (from -> to, action code) transition set the shipped
+     * record dump gives (docs/167 §2), which makes the comparison a set difference rather than a timing
+     * alignment. */
+    if (getenv("NIGHT_STTRACE") && e == g_player_ent) {
+        static int32_t st_last = 0x7fffffff;
+        static unsigned st_n;
+        int32_t st = ((struct sa32 *)((e + 0x17)))->v;
+        int32_t ac = ((struct sa32 *)((e + 0x11)))->v;
+        if (st != st_last && ++st_n <= 4000) {
+            fprintf(stderr, "sttr from=%d to=%d ac=%d hp=%d flag30=%u\n",
+                    st_last, st, ac, (int)(((struct sa16 *)((e + 0x29)))->v), e[0x30]);
+            st_last = st;
+        }
+    }
     if (walk_trace_on() && e == g_player_ent) g_step_player_012616++;   /* docs/152 §4 */
     (void)canary_id((uintptr_t)e, 0x30);                                 /* 0x0001261b probe (push 0x30) */
     uint8_t *hb = (uint8_t *)g_heap_base;
@@ -26975,16 +26997,37 @@ static void lab_attack_ready(uint8_t *pl, int st, uint8_t key)
 void fn_03272f(uint8_t *tbl)
 {
     (void)canary_id((uintptr_t)tbl, 0x3c);                          /* 0x00032734 probe (push 0x3c) */
+    /* docs/167 §6: is this function reached at all, and what does the +0x30 gate (guest 0x3274f-0x3275a,
+     * "if player[+0x30] == 1 jump to the epilogue") see? */
+    if (getenv("NIGHT_STTRACE")) {
+        static unsigned f_n;
+        if (++f_n <= 1200)
+            fprintf(stderr, "actfn n=%u tbl=%p player_flag=%u player_state=%d timer=%u\n",
+                    f_n, (void *)tbl, g_player_ent ? g_player_ent[0x30] : 0xff,
+                    g_player_ent ? (int)((struct sa32 *)((g_player_ent + 0x17)))->v : -1, g_dat_6339c);
+    }
     uint8_t *pl = g_player_ent;                                      /* 0x0003274a */
     uint8_t *hb = (uint8_t *)g_heap_base;
     if (PL8(0x30) == 1) return;                                     /* 0x0003274f-0x00032759 dying */
+    /* docs/167 §6: the equality at 500 is shipped-faithful (cmp dword [0x6339c], 0x1f4 / jne at guest
+     * 0x32760), so watch which value the check actually sees.  NOTE: this witness was written once as a
+     * trailing comment and silently compiled to an empty if-block -- the third occurrence of the trap in
+     * docs/166 §9. */
+    if (getenv("NIGHT_STTRACE")) {
+        static unsigned k_n;
+        if (++k_n <= 1500)
+            fprintf(stderr, "cntchk n=%u val=%u\n", k_n, g_dat_6339c);
+    }
     if (g_dat_6339c == 500) { PL32(0x17) = 0x28; PL32(0x11) = 0; }   /* 0x00032759-0x00032779 */
 
     uint8_t key;
     if (PL32(0x17) == 0x66 &&                                       /* 0x00032779-0x0003280e the pair break */
         (key = fn_03493e(), key == '*' || key == '6')) {
         uint8_t *pair = hb + ((struct ua32 *)((pl + 0x4a)))->v;   /* heap offset; 0 = no pair (not guarded) */
-        ((struct sa32 *)((pair + 0x17)))->v = 1;  ((struct sa32 *)((pair + 0x11)))->v = 0;
+        if (getenv("NIGHT_STTRACE") && pair == g_player_ent)          /* docs/167 §5: the chain matcher's
+            fprintf(stderr, "chainreset player state=%d ac=%d\n",                     /* reset site, the first
+                    ((struct sa32 *)((pair + 0x17)))->v,                              /* suspect for the missing
+                    ((struct sa32 *)((pair + 0x11)))->v);                             /* attack states */
         ((struct ua32 *)((pair + 0x4a)))->v = 0; ((struct ua16 *)((pair + 0x50)))->v = 0;
         PL32(0x17) = 1; PL32(0x11) = 0; ((struct ua32 *)((pl + 0x4a)))->v = 0; PL16(0x50) = 0;
         fn_0348e2();

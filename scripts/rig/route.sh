@@ -22,7 +22,11 @@ OUT=${OUT:-/tmp/rig/route-$(date +%Y%m%d-%H%M%S)}
 # run can spend longer in audio probing than the whole drive. The rig witnesses (board PCM and the CD-DA
 # stream) are tee'd before the device, so a dummy driver costs nothing analytically: default to it, and let
 # PORT_ENV override for runs that genuinely want the host device.
-PORT_ENV=${PORT_ENV:-SDL_AUDIODRIVER=dummy}
+# docs/167 §7: NIGHT_SEED is pinned for every rig run.  Without it the port seeds its LCG from a timer
+# (fn_03af18 / 0x03af59 -> fn_04297a), and two identical 4000-frame runs of the SAME binary and drive
+# differed: 844 vs 816 fn_03272f entries, idle-timer ending at 35 vs 13.  Port-side oracle numbers were
+# therefore carrying run-to-run variance until this line existed.
+PORT_ENV=${PORT_ENV:-SDL_AUDIODRIVER=dummy NIGHT_SEED=${RIG_SEED:-13579}}
 mkdir -p "$OUT"
 say() { printf '%s  %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 

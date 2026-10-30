@@ -112,3 +112,37 @@ via `fn_035c5c` at `0x150f5`, all within the hit-resolution function.  `fn_031f5
 Next measurement for this item, with existing tools: read `+0x32` across **consecutive** samples of one named record
 through a kill, on both sides, and print the transition sequence -- a value timeline distinguishes "the port never
 writes the big value" from "the port writes 5 and stops".
+
+## 8. The value timeline settles the shape of the divergence
+
+`+0x32` per slot/block, changes only, same run (`g33`).  Port (10 Hz):
+
+```
+ent00  ... 188.6s:0x0  ->  193.5s:0x5
+ent02  ... 180.5s:0x0  ->  209.7s:0x5
+```
+
+Shipped (4 Hz, block index = the order `timeline.json`'s `ptr_cells` lists):
+
+```
+blk12  g_player_ent  0042:0x35  ->  0043:0x36  ->  0176:0x5
+blk53  ent01         0042:0x35  ->  0043..0153:0x36  ->  0176,0207,0265:0x5
+blk52  ent00         0083,0102:0x36  ->  0238,0268:0x5
+blk9   g_dat_53c70   identical to blk52      blk10 g_dat_53c74  0045,0052,0082:0x36
+blk54  ent02         0045,0052,0081:0x36  ->  0194:0x5
+```
+
+So the port's `5` is **not** a rival of shipped's `53/54`: shipped itself becomes `0x5` later in the same record's
+life (`0x35 -> 0x36 -> 0x5`).  The port writes the `5` and never the `0x35/0x36` that precedes it.  That is the
+precise statement item 2b needs: **the writer that produces 53/54 is missing or never reaches the record in the
+port**, while the writer that produces 5 (`fn_01041e`'s literal-5 store at `0x15054`... cited as `fn_01441e`) is
+present on both sides.
+
+Two side observations that matter for the tooling, not the verdict: `blk9` (`g_dat_53c70`) and `blk52` (`ent00`) carry
+identical timelines, i.e. the same record is reached through two pointer cells (docs/112's alias family), and shipped's
+`g_dat_53c74` block holds `0x36` too -- so a census that de-duplicates by value would under-count, and one that
+doesn't will double-count the same record.
+
+Next: disassemble the region that runs before `state 0x34/0x35/0x36` is reached (`fn_01441e`'s path, plus
+`fn_031f5f`/`fn_035c5c`) and find which of them writes 53/54 -- none of the six decoded stores used an immediate of
+53 or 54, so the value arrives through `edx`, i.e. from a register the port may compute differently or not at all.

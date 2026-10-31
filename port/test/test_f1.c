@@ -4217,7 +4217,10 @@ static void test_fn_04589e(void) {
     uint8_t *tail = flat_ofs(g_dat_5337c);          /* block + 8 (source bytes incl. NUL) */
     check(memcmp(tail - 8, "ABC\0DEF", 7) == 0, "  copy tokenized in place (space -> NUL)");
     check(*(uint32_t *)tail == 0x11223344u, "  DAT_5338c dword appended at DAT_5337c");
-    char **tok = (char **)(tail + 4);               /* token-pointer array */
+    /* The port widens this array to 8-byte entries (host pointers) and starts it at the first
+     * pointer-aligned address at or after tail+4, which is what f.c does -- writing a char* through
+     * an address that is only 4-aligned is the UBSan report docs/262 recorded on every route. */
+    char **tok = (char **)(((uintptr_t)(tail + 4) + 7u) & ~(uintptr_t)7u);   /* token-pointer array */
     check(tok[0] == (char *)tail - 8 && tok[1] == (char *)tail - 4,
           "  array holds the 2 in-place token pointers");
     check(tok[2] == NULL, "  out[count] terminator written");

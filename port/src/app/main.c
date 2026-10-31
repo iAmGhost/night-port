@@ -1637,6 +1637,8 @@ int main(int argc, char **argv) {
         SDL_Log("input ring (docs/264): cursor=%u codes=%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x consumed=%u,%u,%u,%u,%u,%u,%u,%u,%u,%u",
                 act_ring_cursor(), rc[0], rc[1], rc[2], rc[3], rc[4], rc[5], rc[6], rc[7], rc[8], rc[9],
                 rf[0], rf[1], rf[2], rf[3], rf[4], rf[5], rf[6], rf[7], rf[8], rf[9]);
+        const int *ch = act_cursor_hist();
+        SDL_Log("cursor histogram at fn_03272f entry (docs/264): %d,%d,%d,%d,%d,%d,%d,%d,%d,%d", ch[0], ch[1], ch[2], ch[3], ch[4], ch[5], ch[6], ch[7], ch[8], ch[9]);
     }
     if (getenv("NIGHT_CENSUS")) {
         char cp[600];

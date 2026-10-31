@@ -7400,7 +7400,11 @@ void fn_04589e(void) {
      * the terminator is still written at out[count] (same 32->64 adaptation used for
      * pointer fields elsewhere in this port). */
     uint32_t arr = cnt1 * (uint32_t)sizeof(char *);               /* [ESP+4] array bytes */
-    uint32_t buf_off = heap_malloc(arr + 4u + nbytes);            /* 0x0458d2 */
+    /* +7: the widened array is placed at the first 8-aligned address at or after tail+4 (below),
+     * so the allocation must cover the worst-case pad. A host pointer is 8 bytes, and writing one
+     * through an 8-byte-aligned pointer into a 4-aligned address is what UBSan reported on every
+     * route (docs/262): f.c:7374 "store to misaligned address ... for type 'char *'". */
+    uint32_t buf_off = heap_malloc(arr + 4u + nbytes + 7u);       /* 0x0458d2 */
     if (buf_off == 0) {                                           /* 0x0458db -> 0x045937 */
         g_dat_5337c = 0;
         g_dat_53378 = 0;
@@ -7411,7 +7415,10 @@ void fn_04589e(void) {
         g_dat_5337c = (uint32_t)(tail - (uint8_t *)g_heap_base);
         ((struct ua32 *)(tail))->v = g_dat_5338c;                          /* 0x04590f */
         char *endp2 = NULL;
-        char **toks = (char **)(tail + 4);                        /* 0x045916 out array */
+        /* 0x045916 out array: the shipped's array starts at tail+4 with 4-byte entries; the port's
+         * entries are 8 bytes, so the widened array starts at tail+4 rounded up to the pointer's own
+         * alignment. Same content, aligned address (docs/265). */
+        char **toks = (char **)(((uintptr_t)(tail + 4) + 7u) & ~(uintptr_t)7u);
         tokenize((char *)buf, toks, &endp2);                      /* 0x04591c in-place */
         g_dat_53378 = cnt1;                                       /* 0x045929 */
         toks[cnt1 - 1] = NULL;                                    /* 0x04592f out[count] = 0 */
@@ -9691,6 +9698,8 @@ uint32_t act_level_accum(void) { return g_dat_63e28; }
  * dominated by code 29 (0x1d) -- the code the 0x33/0x34/0x35/0x36 technique entries ask for -- with
  * 72 (0x48) and 102 (0x66) also present, and DAT_00063f1e[0..9] is mostly 1 (consumed). The port
  * must show the same ring on the same route, or the 'len != k' dominance is a ring-feeding defect. */
+int g_cursor_hist[16];
+const int *act_cursor_hist(void) { return g_cursor_hist; }
 const uint8_t *act_ring_codes(void) { return g_dat_63f14; }
 const uint8_t *act_ring_flags(void) { return g_dat_63f1e; }
 uint32_t act_ring_cursor(void) { return g_dat_63f50; }
@@ -27399,6 +27408,8 @@ static void chain_target_log(uint32_t target, uint32_t lv, int k, const char *si
 
 void fn_03272f(uint8_t *tbl)
 {
+    if (g_act_trace) g_cursor_hist[g_dat_63f50 & 0x0fu]++;   /* docs/264 7: the shipped's cursor
+     * distribution over 244 samples is {0:21,1:12,2:14,3:118,4:12,5:13,6:14,7:13,8:11,9:16} */
     (void)canary_id((uintptr_t)tbl, 0x3c);                          /* 0x00032734 probe (push 0x3c) */
     /* docs/167 §6: is this function reached at all, and what does the +0x30 gate (guest 0x3274f-0x3275a,
      * "if player[+0x30] == 1 jump to the epilogue") see? */

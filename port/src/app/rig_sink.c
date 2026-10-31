@@ -38,7 +38,7 @@ struct UA_ATTR ua_uint8tp { uint8_t * v; };
 
 #define RIG_MAX 512
 
-static FILE *g_bin, *g_meta, *g_marks, *g_recs;
+static FILE *g_bin, *g_meta, *g_marks, *g_recs, *g_pre;
 /* CD-DA witness. The port plays its music straight off the disc through a separate SDL stream, so a
  * witness on the DSP/PCM path alone cannot see the music at all -- and in the shipped game the music is
  * CD-DA as well, which is what the container's mixer capture records. cdda.raw holds the s16le stereo
@@ -218,6 +218,12 @@ void rig_init(const char *dir, int hz) {
      * a counted blind spot rather than silently corrupting a cross-side comparison. */
     snprintf(path, sizeof path, "%s/records.jsonl", dir);
     g_recs = fopen(path, "w");
+    /* docs/288: a player-geometry sidecar, kept in its own file so no existing reader of records.jsonl
+     * (scripts/rig/diff_state.py) sees a layout change.  It carries the fields item 6 needs -- the player
+     * record's world X (+0x01), Y (+0x09), state (+0x17), the facing/mirror byte (+0x1b) that picks the
+     * draw arm (shipped 0x13db7 `cmp [eax+0x1b],0`) and hp (+0x29) -- because records.jsonl has no X/Y. */
+    snprintf(path, sizeof path, "%s/player_recs.jsonl", dir);
+    g_pre = fopen(path, "w");
     snprintf(path, sizeof path, "%s/cdda.raw", dir);
     g_cdda = fopen(path, "wb");
     snprintf(path, sizeof path, "%s/cdda.jsonl", dir);
@@ -366,6 +372,18 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
         len += snprintf(line + len, sizeof line - len, "],\"refused\":%llu}\n",
                         (unsigned long long)(g_dump_oob - oob0));
         if (g_recs) { fwrite(line, 1, (size_t)len, g_recs); if ((g_tick & 15) == 0) fflush(g_recs); }
+        if (g_pre && g_player_ent) {
+            uint32_t pn = rec_span(g_player_ent);
+            if (pn >= 0x2c) {
+                int32_t px, py; uint32_t pst; uint8_t pf1b; uint16_t php;
+                memcpy(&px, g_player_ent + 0x01, 4); memcpy(&py, g_player_ent + 0x09, 4);
+                memcpy(&pst, g_player_ent + 0x17, 4); pf1b = g_player_ent[0x1b];
+                memcpy(&php, g_player_ent + 0x29, 2);
+                fprintf(g_pre, "{\"tick\":%llu,\"x\":%d,\"y\":%d,\"st\":%u,\"f1b\":%u,\"hp\":%u}\n",
+                        (unsigned long long)g_tick, px, py, pst, pf1b, php);
+                if ((g_tick & 15) == 0) fflush(g_pre);
+            }
+        }
     }
     fwrite(p, g_rec_bytes, 1, g_bin);
     free(p);

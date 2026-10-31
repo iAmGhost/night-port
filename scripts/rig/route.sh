@@ -48,7 +48,15 @@ if ! ( cd "$ROOT" && make -C port app ) > "$OUT/build.log" 2>&1; then
     say "port: BUILD FAILED (see $OUT/build.log)"; exit 1
 fi
 if [ -n "$(find port/src port/test/test_f1.c port/Makefile -newer port/test/night 2>/dev/null | head -1)" ]; then
-    say "port: WARNING a source is still newer than port/test/night"; exit 1
+    # make compares timestamps to one-second granularity, so an edit that lands in the same second as
+    # the link leaves the target "up to date" while find -newer (sub-second) still reports the source
+    # as newer -- the guard tripped spuriously on two runs (docs/266). Resolve it by rebuilding the app
+    # target from scratch, then re-check; only give up if the binary is still older than a source.
+    say "port: guard tripped, rebuilding app target with -B"
+    ( cd "$ROOT" && make -C port app -B ) >> "$OUT/build.log" 2>&1 || { say "port: REBUILD FAILED"; exit 1; }
+    if [ -n "$(find port/src port/test/test_f1.c port/Makefile -newer port/test/night 2>/dev/null | head -1)" ]; then
+        say "port: WARNING a source is still newer than port/test/night after -B"; exit 1
+    fi
 fi
 printf 'binary=%s mtime=%s\n' "port/test/night" "$(stat -f '%Sm' port/test/night 2>/dev/null || stat -c '%y' port/test/night)" > "$OUT/build_stamp.txt"
 say "port: night --rig-dump"

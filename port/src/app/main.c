@@ -700,16 +700,23 @@ static void pt_drive(void) {
     if (!g_pt || !g_pt_n) return;
     long t = pt_now_ms();
     static int rep_delay = -1, rep_every = -1;
+    static int rep_pulse = 1;                      /* docs/280: "pulse" emits break+make, "make" emits a bare make */
     if (rep_delay < 0) {
         const char *a = getenv("NIGHT_KEY_REPEAT_DELAY"), *b = getenv("NIGHT_KEY_REPEAT_EVERY");
+        const char *m = getenv("NIGHT_KEY_REPEAT_MODE");
         rep_delay = a ? atoi(a) : 250;             /* BIOS typematic delay default */
         rep_every = b ? atoi(b) : 100;             /* BIOS typematic rate default */
+        rep_pulse = (!m || strcmp(m, "make") != 0) ? 1 : 0;
     }
     if (!(g_rig_ctl & 2)) {                        /* no_input: keys withheld, repeats withheld too */
         for (int i = 0; i < g_pt_held_n; i++) {
             if (t - g_pt_held[i].down_ms >= rep_delay && t - g_pt_held[i].rep_ms >= rep_every) {
                 g_pt_held[i].rep_ms = t;
-                if (g_rig_dir) rig_marker(t, "key %#02x repeat", g_pt_held[i].sc);
+                if (g_rig_dir) rig_marker(t, "key %#02x repeat%s", g_pt_held[i].sc, rep_pulse ? "-pulse" : "");
+                /* docs/280: night_key_apply only credits g_dat_62cd8 on a make that arrives while the
+                 * slot state is still held but the held byte is clear (shipped 0x3fdf2-0x3fe26), so a
+                 * repeat has to look like a press again for the repeat credit to be earned at all. */
+                if (rep_pulse) key_apply(g_pt_held[i].sc | 0x80, 0);
                 key_apply(g_pt_held[i].sc, 1);
             }
         }

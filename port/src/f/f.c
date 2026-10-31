@@ -9752,6 +9752,11 @@ const uint32_t *act_trace_counts(void) { return g_act_counts; }
  * fails at WHICH stage, with the code the entry wanted against the code the ring actually held at that
  * slot. Bounded so the log cannot flood. */
 static unsigned g_chain_why_left = 60;
+/* docs/279: dump the *contents* of every chain table fn_03272f is actually handed. fn_03a829 selects
+ * between DS 0x62a98 and DS 0x62a9c by the player's state (shipped 0x3aaea-0x3ab13: cmp [player+0x17],0x66
+ * / 0x70 -> 0x62a9c, else 0x62a98), so "which entries can match" depends on which table is live. */
+static uintptr_t g_act_tbl_seen[4];
+static unsigned g_act_tbl_n;
 static void chain_why(uint32_t entry, uint32_t len, uint32_t k, uint32_t cursor, const char *why,
                       int want, int got)
 {
@@ -27693,6 +27698,24 @@ lab_chain:
             fprintf(stderr, " lvls:");
             for (uint8_t q = 0; q + 1 < l && q < 8; q++) fprintf(stderr, " %02x", lv[q]);
             fprintf(stderr, "\n");
+        }
+    }
+    if (g_act_trace) {
+        int fresh = (g_act_tbl_n < 4);
+        for (uint32_t q = 0; q < g_act_tbl_n && fresh; q = q + 1)
+            if (g_act_tbl_seen[q] == (uintptr_t)tbl) fresh = 0;
+        if (fresh) {
+            g_act_tbl_seen[g_act_tbl_n] = (uintptr_t)tbl;
+            g_act_tbl_n = g_act_tbl_n + 1;
+            fprintf(stderr, "acttab #%u tbl=%p sel=%s entries=%u\n", g_act_tbl_n, (void *)tbl,
+                    (uintptr_t)tbl == (uintptr_t)g_dat_62a9c ? "62a9c(technique)"
+                    : (uintptr_t)tbl == (uintptr_t)g_dat_62a98 ? "62a98(attack)" : "other", count);
+            for (uint32_t e = 0; e < count && e < 24; e = e + 1) {
+                const uint8_t *cd = hb + ((struct ua32 *)((tbl + 0x068 + e * 4)))->v;
+                fprintf(stderr, "acttab entry=%u len=%u codes=%02x %02x %02x %02x target=%u face=%u\n",
+                        e, tbl[0x004 + e], cd[0], cd[1], cd[2], cd[3],
+                        (unsigned)((struct ua16 *)((tbl + 0x388 + e * 2)))->v, tbl[0x450 + e]);
+            }
         }
     }
     for (uint32_t i = 0; i < count; i = i + 1) {

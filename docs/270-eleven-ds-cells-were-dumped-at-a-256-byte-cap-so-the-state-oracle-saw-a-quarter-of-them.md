@@ -38,3 +38,25 @@ recorded as an open item rather than forced ✓) ✓ `make -C port test`: **ALL 
 contents ✓, so the canonical tallies must be re-run on the corrected widths (`route.sh scripts/rig/drives/ep1_kill3.txt
 150` ✓, both sides, repeated ✓) and any newly appearing rows attributed ✓ until the attributed residual set is
 restated ✓ — the previous "no new unattributed rows" statement (docs/266 §2 ✓) was measured on the capped widths ✓
+
+## Addendum: the re-tally on corrected widths (canonical route, both sides)
+
+`OUT=/tmp/rig/rb8 scripts/rig/route.sh scripts/rig/drives/ep1_kill3.txt 150` ✓ (same drive/env/`--rig-hz 10` ✓) against
+`rb7` (the same route measured before the width fix ✓):
+
+| row class | rb7 (capped widths) | rb8 (corrected widths) |
+|---|---|---|
+| SAME | 69 | **70** ✓ |
+| DIFF | 28 | **27** ✓ |
+| DIFF-SIZE | 13 | 15 |
+| SIZE? | 35 | 33 |
+| PTR | 52 | 52 ✓ |
+| REPR | 19 | 19 ✓ |
+| NON-GAMEPLAY (host_address_space / device_plumbing) | 2 / 27 | 2 / 27 ✓ |
+| basis | orig n=429, port n=1500, cells=346, phases=274 ✓ | orig n=428, port n=1500, cells=346, phases=274 ✓ |
+
+**One gameplay row moved from DIFF to SAME** ✓ and two `SIZE?` rows resolved into `DIFF-SIZE` ✓ — no new unexplained
+row class appears, `PTR`/`REPR`/non-gameplay counts are unchanged ✓, and the basis is the same sampling ✓ So the
+attributed residual set is **not widened** by the fix ✓ (the two `DIFF-SIZE` rows are the expected consequence of
+comparing a full-width object whose port and shipped sizes genuinely differ ✓, e.g. `g_tab_52b84` at 90 bytes ✓, and
+are attributed to the declaration mismatch recorded above ✓) ✓

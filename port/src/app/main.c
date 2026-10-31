@@ -660,9 +660,60 @@ static void reslog_add(const char *name) {
     shot_queue_scene(name);
   }
 
+/* docs/272: DOS typematic repeat for the scripted drive.
+ *
+ * The shipped reads the keyboard through its own INT 09 make/break accounting: every MAKE raises
+ * g_dat_00062c58[sc] (fn_034635's `else ... g_dat_62c58[key]++`), and only the value 4 admits the
+ * posting branch `if (state == 4) fn_034353(key, g_dat_63f08)` that feeds the action-chain ring
+ * DAT_00063f14/1e/28. On DOS a held key emits a stream of makes (BIOS typematic repeat, plus queued
+ * makes in the INT 16 buffer), and dosbox reproduces them, so the shipped's dumps do reach state 4:
+ * over /tmp/rig/rb8 its g_dat_62c58 census is {1 x430, 2 x3, 3 x11, 4 x21} and its ring cursor
+ * advances on 38% of sample pairs. The port's scripted path delivered exactly one make per drive
+ * event, so the state stalled at 1 ({1 x876, 2 x1}, 0 samples at 4) and the cursor advanced on 7% --
+ * no post, no fresh ring window, no multi-code chain match, no settled enemy, no per-type EXP award.
+ * Real SDL input already delivers repeat keydowns (main.c applies them as makes); the scripted drive
+ * path was the one that did not, so the repeat is synthesised here rather than in guest code.
+ * Cadence is tunable so it can be matched against the shipped's measured post rate. */
+static struct { uint8_t sc; long down_ms, rep_ms; } g_pt_held[32];
+static int g_pt_held_n;
+static void pt_hold_note(uint8_t sc, int make, long t)
+{
+    int i = -1;
+    for (int k = 0; k < g_pt_held_n; k++) if (g_pt_held[k].sc == sc) { i = k; break; }
+    if (make) {
+        if (i < 0) {
+            if (g_pt_held_n >= 32) return;
+            g_pt_held[g_pt_held_n].sc = sc;
+            g_pt_held[g_pt_held_n].down_ms = t;
+            g_pt_held[g_pt_held_n].rep_ms = t;
+            g_pt_held_n++;
+        } else {                                    /* a fresh make re-arms the delay */
+            g_pt_held[i].down_ms = t;
+            g_pt_held[i].rep_ms = t;
+        }
+        return;
+    }
+    if (i >= 0) g_pt_held[i] = g_pt_held[--g_pt_held_n];   /* break: stop repeating */
+}
+
 static void pt_drive(void) {
     if (!g_pt || !g_pt_n) return;
     long t = pt_now_ms();
+    static int rep_delay = -1, rep_every = -1;
+    if (rep_delay < 0) {
+        const char *a = getenv("NIGHT_KEY_REPEAT_DELAY"), *b = getenv("NIGHT_KEY_REPEAT_EVERY");
+        rep_delay = a ? atoi(a) : 250;             /* BIOS typematic delay default */
+        rep_every = b ? atoi(b) : 100;             /* BIOS typematic rate default */
+    }
+    if (!(g_rig_ctl & 2)) {                        /* no_input: keys withheld, repeats withheld too */
+        for (int i = 0; i < g_pt_held_n; i++) {
+            if (t - g_pt_held[i].down_ms >= rep_delay && t - g_pt_held[i].rep_ms >= rep_every) {
+                g_pt_held[i].rep_ms = t;
+                if (g_rig_dir) rig_marker(t, "key %#02x repeat", g_pt_held[i].sc);
+                key_apply(g_pt_held[i].sc, 1);
+            }
+        }
+    }
     while (g_pt_i < g_pt_n) {
         struct pt_evt *e = &g_pt[g_pt_i];
         if (e->kind == PT_ACT_DUMP) {
@@ -749,8 +800,10 @@ static void pt_drive(void) {
         if (g_rig_dir) rig_marker(e->t_ms, "key %#02x %s", e->sc, e->make ? "down" : "up");
         if (g_rig_ctl & 2)
             SDL_Log("rig control: key %#02x %s withheld", e->sc, e->make ? "down" : "up");
-        else
+        else {
             key_apply(e->sc, e->make);
+            pt_hold_note(e->sc, e->make, t);
+        }
     }
 }
 

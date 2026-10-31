@@ -27970,7 +27970,11 @@ menu_loop:                                                             /* LAB_00
 
 room_start:                                                            /* LAB_0003b05a */
     slide = 0;
-    if (fn_03f15f() == 1) {                                            /* 0x03b066 */
+    int32_t vesa_ok = fn_03f15f();                                     /* 0x03b066 */
+    if (getenv("NIGHT_ROOMSTART"))
+        fprintf(stderr, "roomstart: stage=%u vesa=%d slides=%u roomrec=%p\n",
+                g_dat_63370, vesa_ok, g_tab_52f2c[g_dat_63370], (void *)g_dat_63354);
+    if (vesa_ok == 1) {                                                /* 0x03b066 */
         if (g_tab_52f2c[g_dat_63370] != 0) {                           /* 0x03b072 */
             fn_10b1d(11);   /* track 11 in EAX */                                            /* 0x03b08e: CD track 11 */
             fn_041e20(g_dat_636b8, 0, 0x300);                          /* 0x03b09f */
@@ -28011,9 +28015,12 @@ room_start:                                                            /* LAB_00
     }
     fn_000405a7();                                                     /* LAB_0003b1ad */
 
+    static int g_rs_log;
     for (;;) {                                                         /* 0x03b1b7 */
         int32_t r = fn_03a829();
         fn_00010dde();
+        if (getenv("NIGHT_ROOMSTART") && r != 0 && g_rs_log++ < 40)
+            fprintf(stderr, "roomloop: r=%d stage=%u\n", r, g_dat_63370);
         if (r == 1) break;                                             /* room clear */
         if (r != 2) {
             if (r != 0) {
@@ -28056,10 +28063,13 @@ room_start:                                                            /* LAB_00
         room_end_slideshow(&slide);
     }
     g_dat_63370 += 1;                                                  /* 0x03b52b: next stage */
+    if (getenv("NIGHT_ROOMSTART")) fprintf(stderr, "tail: stage=%u\n", g_dat_63370);
     fn_00010dde();
     fn_000405a7();
     if (g_player_ent[0x30] != 1) fn_038f3d(1);                          /* 0x03b54c */
+    if (getenv("NIGHT_ROOMSTART")) fprintf(stderr, "tail: levelup call done\n");
     fn_0374ad();
+    if (getenv("NIGHT_ROOMSTART")) fprintf(stderr, "tail: stage reset done\n");
     goto room_start;
 
 ending:                                                                /* LAB_0003b2b1 */

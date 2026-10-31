@@ -501,6 +501,18 @@ int  rig_census_begin(void);                    /* per-function entry census (do
 void rig_census_set_path(const char *path);
 unsigned rig_census_report(const char *path);
 void rig_screen_init(const char *dir, int witness_every);
+
+/* docs/292 §5.3: witness frames were written every 10th changed frame with no way to raise the density, so a
+ * room phase could end up with zero pixel witnesses (lk1: all 67 320x200 bins landed in the 15-42 s card phase).
+ * NIGHT_RIG_SCREEN_EVERY=N now controls it (default 10, clamped to 1..100). */
+static int rig_screen_every(void)
+{
+    const char *v = getenv("NIGHT_RIG_SCREEN_EVERY");
+    int n = v ? atoi(v) : 10;
+    if (n < 1) n = 1;
+    if (n > 100) n = 100;
+    return n;
+}
 void rig_pcm_open(const char *dir);
 static const char *g_rig_dir;
 static int g_rig_hz = 10;
@@ -1582,7 +1594,7 @@ int main(int argc, char **argv) {
     g_ren = g_win ? SDL_CreateRenderer(g_win, "gpu,metal,software") : NULL;
     if (!g_ren) { SDL_Log("no renderer: %s", SDL_GetError()); return 1; }
     g_perf_freq = SDL_GetPerformanceFrequency();
-    if (g_rig_dir) { rig_pcm_open(g_rig_dir); rig_screen_init(g_rig_dir, 10); rig_init(g_rig_dir, g_rig_hz); SDL_Log("rig: dumping %d DS cells to %s at %d Hz",
+    if (g_rig_dir) { rig_pcm_open(g_rig_dir); rig_screen_init(g_rig_dir, rig_screen_every()); rig_init(g_rig_dir, g_rig_hz); SDL_Log("rig: dumping %d DS cells to %s at %d Hz",
                         rig_cell_count(), g_rig_dir, g_rig_hz); }
 
     /* ---- port boot (the recipe the real-data test uses, docs/15) ---- */

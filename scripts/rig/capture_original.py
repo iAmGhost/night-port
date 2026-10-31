@@ -79,6 +79,16 @@ def frame_geom(info, n_px):
         fits = [b for b in (4, 2, 1) if pitch >= w * b]
         bpp = max(fits) if fits else 0
         inferred = bpp > 0
+    if bpp and n_px < pitch * h and n_px % pitch == 0:
+        # docs/292 §5.2 / docs/287 §4: a mode change mid-session leaves the header describing the OLD mode
+        # while the payload is the NEW one (640x480 header over a 512000-byte payload). Derive the geometry
+        # from what was actually delivered instead of dying: 512000 / 2560 = 200 rows, 2560 / 4 = 640 columns
+        # at 4 bytes -- note this is 640 COLUMNS, not 320 columns at 8 bytes (measured: adjacent 4-byte groups
+        # are identical in only 69% of cases, so nothing is duplicated).
+        h = n_px // pitch
+        if pitch % bpp == 0:
+            w = pitch // bpp
+        inferred = True
     if n_px < pitch * h or bpp == 0:
         return w, h, pitch, 0, fmt, inferred
     return w, h, pitch, bpp, fmt, inferred

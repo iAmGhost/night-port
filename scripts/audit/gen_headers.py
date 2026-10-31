@@ -124,7 +124,11 @@ def main():
         # a pointer field occupies 8 host bytes but 4 guest bytes: keep both, the differ reports the
         # pair rather than guessing which side is wrong.
         slot = 8 if d["ptr"] else d["type_size"]
-        hsz = max(1, min(256, d["elems"] * slot)) if slot else 0
+        # docs/270: the old 256-byte cap silently truncated 11 DS cells whose declaration is larger
+        # (g_tab_51b60, g_dat_53818, g_dat_63e50, g_tab_52c3c ... all 1024), so the state oracle only ever
+        # saw the first quarter of those objects and a census across widths was possible (docs/269 3).
+        # The cap is raised to the largest declared DS object; the differ still reports size mismatches.
+        hsz = max(1, min(1024, d["elems"] * slot)) if slot else 0
         rec = {"ds": addr, "name": d["name"], "ctype": d["ctype"], "guest_size": gsz,
                "guest_access_width": aw, "elem_size": slot,
                "host_size": hsz, "ptr": 1 if d["ptr"] else 0, "dupes": len(decls) - 1}

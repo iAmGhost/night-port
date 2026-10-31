@@ -1,7 +1,7 @@
 {
  "guest_defined_data_rows": 2214,
  "guest_ds_rows": 1638,
- "ds_join_rows": 1833,
+ "ds_join_rows": 1835,
  "ds_cells_touched": 624,
  "guest_functions": 530,
  "port_fn_names": 405,

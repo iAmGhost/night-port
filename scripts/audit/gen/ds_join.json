@@ -19,6 +19,46 @@
   ]
  },
  {
+  "ds": 82974,
+  "guest_symbol": null,
+  "guest_type": null,
+  "guest_size": null,
+  "guest_access_width": null,
+  "guest_access_widths_direct": [],
+  "guest_access_widths_based": [],
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
+  "image_u32": null,
+  "port_names": [
+   "g_1441e_dmg",
+   "g_1441e_latch_hits"
+  ],
+  "port_types": [
+   "int",
+   "uint32_t"
+  ]
+ },
+ {
+  "ds": 88171,
+  "guest_symbol": null,
+  "guest_type": null,
+  "guest_size": null,
+  "guest_access_width": null,
+  "guest_access_widths_direct": [],
+  "guest_access_widths_based": [],
+  "reads": 0,
+  "writes": 0,
+  "write_sites": [],
+  "image_u32": null,
+  "port_names": [
+   "g_1586b_trace"
+  ],
+  "port_types": [
+   "int"
+  ]
+ },
+ {
   "ds": 229528,
   "guest_symbol": null,
   "guest_type": null,

@@ -116,7 +116,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -127,7 +127,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 1,
-  "host_size": 256,
+  "host_size": 476,
   "ptr": 0,
   "dupes": 1
  },
@@ -149,7 +149,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -160,7 +160,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -171,7 +171,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 720,
   "ptr": 0,
   "dupes": 1
  },
@@ -182,7 +182,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -215,7 +215,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -226,7 +226,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 400,
   "ptr": 0,
   "dupes": 1
  },
@@ -292,7 +292,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 260,
   "ptr": 0,
   "dupes": 1
  },
@@ -956,7 +956,7 @@
   "guest_size": 4,
   "guest_access_width": 4,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -1242,7 +1242,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 8,
-  "host_size": 256,
+  "host_size": 800,
   "ptr": 1,
   "dupes": 1
  },
@@ -1319,7 +1319,7 @@
   "guest_size": 4,
   "guest_access_width": 4,
   "elem_size": 1,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -1352,7 +1352,7 @@
   "guest_size": 4,
   "guest_access_width": null,
   "elem_size": 1,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 2
  },
@@ -1363,7 +1363,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 1,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },
@@ -1627,7 +1627,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 800,
   "ptr": 0,
   "dupes": 1
  },
@@ -2012,7 +2012,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 1,
-  "host_size": 256,
+  "host_size": 768,
   "ptr": 0,
   "dupes": 1
  },
@@ -2023,7 +2023,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 1,
-  "host_size": 256,
+  "host_size": 768,
   "ptr": 0,
   "dupes": 1
  },
@@ -2166,7 +2166,7 @@
   "guest_size": 4,
   "guest_access_width": 4,
   "elem_size": 8,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 1,
   "dupes": 1
  },
@@ -2419,7 +2419,7 @@
   "guest_size": 0,
   "guest_access_width": null,
   "elem_size": 4,
-  "host_size": 256,
+  "host_size": 1024,
   "ptr": 0,
   "dupes": 1
  },

@@ -10740,12 +10740,20 @@ static void test_fn_01441e(void)
           "01441e equal +0x1c/+0x20 box corners return before any hit is resolved");
     ax1c[3] = -20; ax20[3] = 20;
 
-    /* (2) pass 2 gate: no slot window covers the current frame */
-    *(uint16_t *)(hb + ae + 0x08) = 20; *(uint16_t *)(hb + ae + 0x0a) = 30;
+    /* (2) pass 2 gate: no slot window is still unfinished at the current frame.
+     * 0x0001467b-0x0001469d accepts row i when word[rec_e+4i+8] > e[0x11] OR (only if that
+     * fails) word[rec_e+4i+0xa] > e[0x11], so a row is skipped only when BOTH thresholds are at
+     * or below the frame counter -- the shipped game ACCEPTS (20,30) at frame 3, and the old
+     * fixture relied on the port's invented lower-bound test (docs/263). */
+    for (int w = 0; w < 6; w++) {
+        *(uint16_t *)(hb + ae + 4u * w + 0x08) = 1;
+        *(uint16_t *)(hb + ae + 4u * w + 0x0a) = 2;
+    }
     fn_01441e(E);
     check(O[0x46] == 0 && *(uint32_t *)(O + 0x29) == 50,
-          "01441e an attack animation whose slot windows miss the frame returns");
+          "01441e an attack animation with no unfinished slot window returns");
     *(uint16_t *)(hb + ae + 0x08) = 0; *(uint16_t *)(hb + ae + 0x0a) = 10;
+    *(uint16_t *)(hb + ae + 0x0c) = 20; *(uint16_t *)(hb + ae + 0x0e) = 30;
 
     /* (3) the hit itself */
     O[0] = 3; *(uint32_t *)(O + 0x29) = 50;

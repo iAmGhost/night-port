@@ -25204,7 +25204,14 @@ p1next:
         uint32_t w1 = ((struct ua16 *)((hb + rec_e + 4u * (uint32_t)i + 0x08)))->v;
         uint32_t w2 = ((struct ua16 *)((hb + rec_e + 4u * (uint32_t)i + 0x0a)))->v;
         int32_t fr = (int32_t)((struct ua32 *)((e + 0x11)))->v;
-        if ((int32_t)w1 <= fr && (int32_t)w2 > fr) { slot = i; break; }
+        /* 0x0001467b-0x0001469d: the shipped accepts row i when EITHER threshold word is
+         * greater than the frame counter -- `word[rec_e+4i+8] > e[0x11]` jumps straight to the
+         * accept at 0x146a1, and only if that fails does it test `word[rec_e+4i+0xa] > e[0x11]`.
+         * There is no lower-bound test: the earlier `w1 <= fr` here was an invented condition
+         * (docs/263) that rejected row 0 whenever its start threshold was above frame 0, which
+         * is the common case, so the slot -- and with it byte[rec_e+slot+0x38], the reaction
+         * code that indexes g_tab_51b60 -- was the wrong row's code. */
+        if ((int32_t)w1 > fr || (int32_t)w2 > fr) { slot = i; break; }
     }
     if (i == 6) {
         if (g_hit_trace && e == g_player_ent) {

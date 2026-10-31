@@ -87,3 +87,65 @@ destination the shipped's faithful arithmetic computes from the same record valu
 would show a wrong-side limb directly, with no dependence on cadence, capture geometry, or colour convention ✓
 If that census matches the arithmetic, item 6 closes as "not reproducible on HEAD" ✓ and the report should be
 attributed to the pre-fix walking/clamp behaviour that docs/254 and docs/292 §2 fixed ✓
+
+## 5. Addendum: a first screen-oracle pair (port-side), a rig correction about the shipped frame layout, and the signal that survives
+
+### 5.1 A modal-background census is required; a fixed threshold saturates
+
+Censusing the left edge (`x < 100`, rows 140-200) with a fixed "any channel > 40" test counts **every** pixel as
+ink in both dumps (4800 px/frame in both ✓ saturated ✗) — it cannot see a 23-row shift ✗ The usable instrument
+is **delta against that dump's own modal picture** (per-pixel modal luminance over its own binned frames ✓,
+delta > 24 ✓), which is per-dump and therefore free of the cross-side colour-convention ban (docs/287 §2 ✓) ✓
+
+```
+left-edge delta row-band, rows 120-200                    meanRow   rows<170 / rows>=170   top rows
+PORT pre-fix  /tmp/rig/le4b_pre  (140 binned frames)      158.8     275671 / 145146 = 1.90  140,141,142,149,151,154
+PORT post-fix /tmp/rig/le4b/port ( 67 binned frames)      160.2     167241 / 108813 = 1.54  171,181,187,195,198
+PORT clean-key /tmp/rig/lk1/port ( 67 binned frames)      159.8     170835 / 108277 = 1.58  171,172,175,181,187,198
+```
+
+so the guard fix does move the left-edge screen activity (`1.90 → 1.54 ✓`, top rows `140-154 → 171-198 ✓`) and the
+post-fix run matches the independent clean-key run (`1.54 vs 1.58 ✓`). Caveat recorded: the pre-fix run's mode
+mix is itself different (19003 vs 3587 `320x200` frames in `frames.bin` ✓), so this is a red/green *pair for the
+guard defect*, not a controlled limb measurement ✗
+
+### 5.2 RIG CORRECTION: a `320x200`-labelled shipped frame payload is 640 columns × 4 bytes
+
+`/tmp/rig/lk1/orig/state_*.frame.bin` payloads are 512015 B = 15-byte header + 512000 B ✓ with stride 2560 ✓
+Two layouts fit that number: 320 columns × 8 B (docs/218's reading ✓) or **640 columns × 4 B** ✓ Direct test:
+compare each 4-byte group with the next 4 bytes — if the 320 columns were stored twice, adjacent groups would be
+identical almost everywhere ✓ Measured over 20 frames: **439884 identical vs 200116 differing (69 % ✓)** ✗ not a
+duplication ✓✓ → the payload is **640 columns × 200 rows at 4 B** ✓✓ (which is also what `capture_original.py`
+itself assumed when it reported `640x480 pitch=2560 … 512000 payload bytes` in docs/287 §4 ✓✓).
+Consequence: my first shipped-side row census (which parsed 320 columns × 8 B ✓) mapped rows 2× wrong and is
+**void** ✗ Re-parsed correctly (640 columns, rows = i // 640 ✓, left edge `x < 200` ✓):
+
+```
+SHIPPED /tmp/rig/lk1 (140 frames, own modal baseline): meanRow 151.1, rows<170 / >=170 = 262505/59513 = 4.41,
+                                                        top rows 120,139,140,141,144,162
+PORT    /tmp/rig/lk1 ( 67 frames, own modal baseline): meanRow 159.8,                                     = 1.58,
+                                                        top rows 171,172,175,181,187,198
+```
+
+**This is the strongest surviving item-6 signal**: on the *same drive* (`ep1_keylatch.txt` ✓), with the same modal
+delta method ✓ and identical player state at the left edge (`Y = 172 ✓, +0x1b = 0 ✓, state 0 ✓`), the shipped's
+left-edge picture activity sits mostly **above** row 170 (4.41 ✓) while the port's sits mostly **below** it
+(1.58 ✓) — i.e. the port composites the left-edge content roughly 30-40 screen rows lower than the shipped does ✓
+That is a *view-geometry* (destination-Y) difference, not a facing/mirror difference ✓ and it is item 6's family ✓
+
+**Why it is not yet a gate:** each side's delta is measured against its own modal picture, and the two dumps
+sample at different rates (~4 Hz shipped vs 10 Hz port ✓), so a shape ratio across sides is cadence-fragile ✓
+(docs/277 §1, docs/279 §4 ✓). The admissible version is an **event-anchored single-frame pair**: pick, on each
+side, the frame at the same game event (room entry — the shipped's `state_NNNN.frame.bin` samples carry `t_ms` ✓
+via `load_orig`, the port's `frames.bin` records carry `t_ms` ✓), census that one frame's delta-vs-modal row band
+on each side, and compare ✓ one frame per side ✓ no cadence dependence ✓
+
+### 5.3 Standing rules added by this stretch
+
+1. Never hand-roll a payload parser: the `8 bytes per column` reading (docs/218) broke a row mapping by 2× ✓ —
+   settle layout questions with a direct structural test (adjacent-group identity ✓ payload arithmetic ✓).
+2. A screen census needs a per-dump baseline (modal picture ✓); a fixed ink threshold saturates on room art ✓
+3. Mode-mix differences (`320x200` vs `640x480` frame counts ✓) must be quoted whenever a before/after screen
+   pair comes from two different builds ✓ otherwise the pair silently compares phases ✓
+4. A red/green pair produced by the *same* instrument on two builds is admissible for the defect it isolates ✓
+   but it is not a substitute for a both-sides pair on the reported symptom ✓

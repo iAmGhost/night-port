@@ -9523,12 +9523,19 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
                    (unsigned)((struct ua32 *)((a0 + 0x17)))->v & 0x7fffffffu, fr, arrv, (int)d);
         }
     }
-    if (cur < mn || cur > mx) {
-        ((struct sa32 *)((a0 + 9)))->v = cur + d;                        /* 0x159df (no clamp) */
+    /* docs/254: the shipped's outer test is a SINGLE comparison. 0x159d1 `mov eax,[eax+9]` /
+     * 0x159d4 `cmp eax, [ebp-0x10]` / 0x159d7 `jle 0x159e4` -> the unclamped branch is taken only when
+     * cur > mx (0x159d9-0x159df add-and-jump). Every other case -- INCLUDING cur < mn -- falls into
+     * 0x159e4-0x15a14, which adds and then clamps into [mn, mx] (min clamp 0x159f3-0x159fe, max clamp
+     * 0x15a09-0x15a14). The port used `cur < mn || cur > mx`, which lets a record that has drifted below
+     * mn keep drifting instead of being pinned back at it: that is why the shipped parks the player at
+     * its lower bound (139 in 878/972 samples, docs/253 §3) while the port oscillates (416/875 at 172). */
+    if (cur > mx) {
+        ((struct sa32 *)((a0 + 9)))->v = cur + d;                        /* 0x159d9-df: cur > mx, no clamp */
     } else {
-        int32_t nv = cur + d;                                  /* 0x159ea */
-        if (nv < mn) nv = mn;                                  /* 0x159fe */
-        else if (nv > mx) nv = mx;                             /* 0x15a14 */
+        int32_t nv = cur + d;                                  /* 0x159e4-ea */
+        if (nv < mn) nv = mn;                                  /* 0x159f0-fc: jge 0x15a03 not taken */
+        else if (nv > mx) nv = mx;                             /* 0x15a03-14 */
         ((struct sa32 *)((a0 + 9)))->v = nv;
     }
 }

@@ -78,3 +78,15 @@ backed by a same-drive, event-anchored, both-sides screen measurement rather tha
   structurally (adjacent-group identity ✓) before using it ✓
 * A screen instrument must be able to produce witnesses in the phase under study — density and phase coverage are
   part of the instrument, not an afterthought ✓
+
+## 5. Regression sweep after the two rig changes (fb551a4)
+
+* `make -C port test` → **ALL PASS** ✓ (the `test` target rebuilds `port/test/night` ✓ docs/181 §5 ✓)
+* nine-episode ASan/UBSan soak `/tmp/rig/soak293` → stages 1-9 `rc=0 ubsan=0 asan=0 segv=0` ✓ 4000 frames each ✓,
+  and `grep -l "ERROR: AddressSanitizer|runtime error|Segmentation"` over its logs returns no file ✓
+* coverage-guided fuzz (`--episodes 1..9 --seeds 12 --workers 3 --cap 120`) → **257/503 functions covered,
+  never-entered 246, 0 crashes** ✓ (baseline 248/503 ✓, previous measurement 252/503 ✓)
+* state oracle on the same room drive (`/tmp/rig/rm5`) → activity profiles 271, **phases 168, tally {'SAME': 271}** ✓
+  (i.e. every activity-profile phase matched ✓), divergent runs 10 ✓, channel-order 0.703 ok ✓
+* canonical route residual after the walking-guard fix (`/tmp/rig/rb11`) → `SAME 71, DIFF 26, SIZE? 34, PTR 52,
+  REPR 20, DIFF-SIZE 14` ✓ vs `/tmp/rig/rb10` `SAME 70, DIFF 27` ✓ → one row closed ✓ no new unexplained class ✓

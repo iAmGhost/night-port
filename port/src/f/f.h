@@ -1198,6 +1198,9 @@ extern int g_hit_trace;                 /* hit-trace diagnostic (NIGHT_HITTRACE=
 extern int g_act_trace;                /* .act chain-match census (NIGHT_ACTTRACE=1, docs/110) */
 const uint32_t *act_trace_counts(void);  /* reason census, see f.c */
 const uint32_t *act_trace_targets(void); /* target(0x00..0xff) histogram of fully matched chain entries */
+const uint32_t *act_level_array(void);   /* docs/264: DAT_00063f28[0..9] as the gate sees it */
+uint32_t act_level_value(void);          /* DAT_00063f08 (raised +1 per 7 of DAT_00063e28) */
+uint32_t act_level_accum(void);          /* DAT_00063e28 accumulator */
 const uint32_t *act_trace_targets_all(void); /* target histogram over every container entry */
 void fn_0347e3(void);            /* 0x0347e3: keyboard dispatch pump over g_62c58 */
 extern uint8_t *const g_dat_62c75;  /* DAT_00062c75 == DAT_00062c58 + 0x1d: the CTRL slot (docs/92) */

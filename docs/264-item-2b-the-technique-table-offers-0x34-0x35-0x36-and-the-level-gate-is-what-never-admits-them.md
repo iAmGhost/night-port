@@ -120,3 +120,32 @@ route and compare against the shipped's `{14,29,30,39,56,70,...}` census ✓ —
 fix is in whatever feeds `DAT_00063e28` (`f.c:2563`'s `g_dat_63e28 += ...` chain ✓: the accumulator's input is the
 quantity the shipped accumulates per held/pressed key ✓), and the gate for that fix is already written: the ACTTRACE
 reason census dropping "level too high" from 552 ✓ and the matched-target census gaining 0x34/0x35/0x36 ✓
+
+## 6. Self-correction of §5: the port's level array is NOT stuck below the threshold
+
+A probe was added (`act_level_array()` / `act_level_value()` / `act_level_accum()` in `f.c` next to
+`act_trace_targets_all` ✓ printed under `NIGHT_ACTTRACE` in `main.c` ✓) and read on the same canonical route:
+
+```
+port  : DAT_63f08 = 10257   DAT_63e28 = 3    DAT_63f28[0..9] = 41, 9977, 40, 52, 19, 76, 95, 10257, 95, 9934
+shipped (244-sample census, docs/264 §5): DAT_63f28[0..9] values in {0,4,10,11,13,14,15,29,30,37,39,40,48,56,57,70,99,148}
+port census this run: level too high 394, len != k 3244, chain MATCHED 51, matched target 0x33 only
+```
+
+So the port's array carries values **above** 0x1e in 9 of 10 slots ✓ — §5's conclusion "the port's level-array
+construction is the defect site" is **withdrawn** ✓ (I inferred it from the rejection count without measuring the
+array ✓ the measurement was cheap and it changed the answer ✓) ✓ Both sides also carry junk-magnitude entries
+(port 9977/9934/10257 ✓, shipped 1220/2298/3653/8051 ✓ — the shipped writes this array with dword writes at byte
+stride ✓ docs/264 §2's memset site is its reset ✓) ✓
+
+Sharpened open question: the dominant rejection is **`len != k` (3244 ✓)**, i.e. the input-ring walk
+(`g_dat_63f14[s1..]` vs the entry's code list `1d 1d …` ✓ `f.c:27614-27630` ✓) never completes a multi-code chain ✓,
+while the single-code entry (`0x33`, `codes: 1d` ✓) succeeds 51-65 times ✓ — so the port reproduces *single*-press
+techniques and never *two-press* ones ✓ The shipped, on the identical key drive, reaches 0x34/0x35 ✓, so the
+divergence is in the ring contents / the slot-cursor arithmetic (`s1 = g_dat_63f50 - len` with the `+10` wrap ✓
+against the shipped's `[base + 0x13f14]`/`[base + 0x13f1e]` reads ✓ `0x33a57`/`0x33a64` ✓) or in how the ring is fed
+per key event ✓ `DAT_00063f50` measured 3 in the shipped's sample 0900 and distributed `{0:21, 1:12, 2:14, 3:118,
+4:12, 5:13, 6:14, 7:13, 8:11, 9:16}` over 244 samples ✓ — a cursor that does move ✓ Next census: per-entry rejection
+attribution (which entry index fails at which stage ✓) plus the shipped's `DAT_00063f14[0..9]` / `DAT_00063f1e[0..9]`
+ring contents read offline out of its DS window ✓, compared against the port's `g_dat_63f14` / `g_dat_63f1e` at the
+same moment ✓

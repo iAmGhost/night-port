@@ -1629,6 +1629,10 @@ int main(int argc, char **argv) {
         const uint32_t *ta = act_trace_targets_all();
         SDL_Log("  targets offered by the container (one-shot inventory):");
         for (int i = 0; i < 0x100; i++) if (ta[i]) SDL_Log("    target %#04x  %u", i, ta[i]);
+        const uint32_t *lv = act_level_array();
+        SDL_Log("combo/technical level (docs/264): DAT_63f08=%u DAT_63e28=%u DAT_63f28[0..9]=%u,%u,%u,%u,%u,%u,%u,%u,%u,%u",
+                act_level_value(), act_level_accum(), lv[0], lv[1], lv[2], lv[3], lv[4],
+                lv[5], lv[6], lv[7], lv[8], lv[9]);
     }
     if (getenv("NIGHT_CENSUS")) {
         char cp[600];

@@ -9678,6 +9678,14 @@ static uint32_t g_act_targets[0x100];   /* histogram of chain targets that fully
 static uint32_t g_act_targets_all[0x100]; /* same, over EVERY entry the container offers, counted once */
 static int g_act_scanned = 0;
 const uint32_t *act_trace_targets_all(void) { return g_act_targets_all; }
+
+/* docs/264 §5 probe: the combo/technical level the fn_03272f gate consumes. The shipped's own
+ * DAT_00063f28[0..9] census (read offline out of its DS dump) holds values up to 148, far above the
+ * 0x1e the 0x34/0x35/0x36 technique entries require, while the port logs 552 "level too high"
+ * rejections -- so the port's array needs to be comparable on the same route. */
+const uint32_t *act_level_array(void) { return g_dat_63f28; }
+uint32_t act_level_value(void) { return g_dat_63f08; }
+uint32_t act_level_accum(void) { return g_dat_63e28; }
 const uint32_t *act_trace_targets(void) { return g_act_targets; }
 const uint32_t *act_trace_counts(void) { return g_act_counts; }
 #define ACTWHY(w) do { if (g_act_trace) g_act_counts[(w)]++; } while (0)

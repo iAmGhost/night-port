@@ -91,3 +91,9 @@ contract's fault clause is satisfied on both route families ✓
 * Root cause of the *symptom the rig saw*: two key gates (`fn_038f3d`'s Shift/Esc exit ✓, `fn_00035dfc`'s four
   game-key card gate ✓) that a drive must satisfy, plus the pacing residual that makes the port arrive at them
   ~2.5× later in wall time than the shipped ✓
+
+## 6. Soak re-run on the committed source (`/tmp/rig/soak287`, commit 2a93bac)
+
+```
+stage 1..9: rc=0 ubsan=0 asan=0 segv=0, 4000 frames presented each  ->  9/9 clean ✓
+```

@@ -375,12 +375,24 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
         if (g_pre && g_player_ent) {
             uint32_t pn = rec_span(g_player_ent);
             if (pn >= 0x2c) {
-                int32_t px, py; uint32_t pst; uint8_t pf1b; uint16_t php;
+                int32_t px, py, pexp, pacc, psrc, prai; uint32_t pst; uint8_t pf1b; uint16_t php;
                 memcpy(&px, g_player_ent + 0x01, 4); memcpy(&py, g_player_ent + 0x09, 4);
                 memcpy(&pst, g_player_ent + 0x17, 4); pf1b = g_player_ent[0x1b];
                 memcpy(&php, g_player_ent + 0x29, 2);
-                fprintf(g_pre, "{\"tick\":%llu,\"x\":%d,\"y\":%d,\"st\":%u,\"f1b\":%u,\"hp\":%u}\n",
-                        (unsigned long long)g_tick, px, py, pst, pf1b, php);
+                /* docs/297: the EXP family the shipped's fn_0137c1 climbs on the player --
+                 *   +0x2b is what fn_0137c1 prints (itoa32s(entity+0x2b), 0x137e6);
+                 *   +0x52 is the pending accumulator it drains (0x138ba-de: even tick -> +0x2b++, --0x52);
+                 *   +0xbb is the source the shipped's fn_01441e tail transfers into +0x52 (0x15161-8c);
+                 *   +0x56 is the sibling accumulator that drains into the +0x23 term (0x138ea-fd).
+                 * The shipped dump exposes the same fields on its own g_player_ent record block. */
+                memcpy(&pexp, g_player_ent + 0x2b, 4);
+                if (pn >= 0x56) { memcpy(&pacc, g_player_ent + 0x52, 4); memcpy(&prai, g_player_ent + 0x56, 4); }
+                else { pacc = 0; prai = 0; }
+                psrc = 0;
+                if (pn >= 0xbf) memcpy(&psrc, g_player_ent + 0xbb, 4);
+                fprintf(g_pre, "{\"tick\":%llu,\"x\":%d,\"y\":%d,\"st\":%u,\"f1b\":%u,\"hp\":%u,"
+                               "\"exp2b\":%d,\"acc52\":%d,\"srcbb\":%d,\"rai56\":%d}\n",
+                        (unsigned long long)g_tick, px, py, pst, pf1b, php, pexp, pacc, psrc, prai);
                 if ((g_tick & 15) == 0) fflush(g_pre);
             }
         }

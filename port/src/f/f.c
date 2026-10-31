@@ -8836,6 +8836,8 @@ extern int g_act_trace;
 static unsigned g_kd_tick, g_kd_34735, g_kd_34635, g_kd_post, g_kd_armed, g_kd_case;
 static unsigned g_kd_slot_hist[0x80];   /* which slots fn_0347e3 actually sees armed */
 static unsigned g_kd_post_34735, g_kd_post_34635;   /* docs/274: posts attributed at the CALL SITE */
+unsigned g_kd_post_cd8_nz, g_kd_post_cd8_zero;      /* docs/280: posts split by the repeat credit at post time */
+static unsigned g_kd_cd8_max[128];                  /* docs/280: highest repeat credit ever seen per key */
 static void keydisp_note(const char *who)
 {
     if (!g_act_trace) return;
@@ -8851,6 +8853,14 @@ static void keydisp_note(const char *who)
                 g_kd_348e2, g_kd_3442e,
                 (unsigned)g_dat_52ff8, (unsigned)g_dat_62c58[0x1c], (unsigned)g_dat_62c58[0x1d],
                 (unsigned)g_dat_62c58[0x38], g_kd_armed, g_kd_case);
+        fprintf(stderr, "acttrace: posts with repeat-credit>0 = %u   with credit==0 (climb ends) = %u\n",
+                g_kd_post_cd8_nz, g_kd_post_cd8_zero);
+        fprintf(stderr, "acttrace: max repeat credit: ");
+        for (int q = 0, shown = 0; q < 128 && shown < 8; q++) {
+            if (g_dat_62cd8[q] > g_kd_cd8_max[q]) g_kd_cd8_max[q] = g_dat_62cd8[q];
+            if (g_kd_cd8_max[q]) { fprintf(stderr, "%#x:%u ", q, g_kd_cd8_max[q]); shown++; }
+        }
+        fprintf(stderr, "\n");
     if (!strcmp(who, "tick") && g_kd_tick % 2000000 == 0) {
         fprintf(stderr, "acttrace: armed-slot histogram (top): ");
         for (int q = 0, shown = 0; q < 0x80 && shown < 8; q++)
@@ -8862,6 +8872,10 @@ static void keydisp_note(const char *who)
 void fn_034735(uint8_t idx) {                                    /* 0x034735: per-key state mach
     keydisp_note("34735");                                      /* 0x034735: per-key state machine */
     if (g_dat_62c58[idx] == 4) {
+        /* docs/280: a post keeps the climb alive only if the repeat credit g_dat_62cd8 is still
+         * non-zero (then state=1 and the 1->2->3->4 walk restarts); with cd8==0 the slot drops to 0
+         * and nothing dispatches again until the next key make. */
+        if (g_dat_62cd8[idx] != 0) g_kd_post_cd8_nz++; else g_kd_post_cd8_zero++;
         g_kd_post_34735++;
         fn_034353(idx, g_dat_63f08);
         if (g_dat_62cd8[idx] != 0) { g_dat_62c58[idx] = 1; g_dat_62cd8[idx]--; }

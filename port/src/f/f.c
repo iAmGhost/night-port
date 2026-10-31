@@ -8825,7 +8825,34 @@ uint32_t fn_0351dc(uint8_t **cursor) {                     /* 0x0351dc: unsigned
     return val;
 }
 
-void fn_034735(uint8_t idx) {                                    /* 0x034735: per-key state machine (62c58/62cd8) */
+/* docs/272: dispatch/post counters for the keyboard state machine, so "does fn_034735/fn_034635 ever
+ * run per tick?" is answerable from the log instead of inferred. NIGHT_ACTTRACE=1 arms them. */
+extern int g_act_trace;
+static unsigned g_kd_tick, g_kd_34735, g_kd_34635, g_kd_post, g_kd_armed, g_kd_case;
+static unsigned g_kd_slot_hist[0x80];   /* which slots fn_0347e3 actually sees armed */
+static void keydisp_note(const char *who)
+{
+    if (!g_act_trace) return;
+    if (!strcmp(who, "tick")) g_kd_tick++;
+    else if (!strcmp(who, "34735")) g_kd_34735++;
+    else if (!strcmp(who, "34635")) g_kd_34635++;
+    else g_kd_post++;
+    if ((g_kd_tick + g_kd_34735 + g_kd_34635 + g_kd_post) % 500 == 1)   /* periodic witness, cheap */
+        fprintf(stderr, "acttrace: fn_0347e3=%u fn_034735=%u fn_034635=%u fn_034353=%u "
+                        "gate52ff8=%u slot[0x1c]=%u slot[0x1d]=%u slot[0x38]=%u armed_ticks=%u case_hits=%u\n",
+                g_kd_tick, g_kd_34735, g_kd_34635, g_kd_post,
+                (unsigned)g_dat_52ff8, (unsigned)g_dat_62c58[0x1c], (unsigned)g_dat_62c58[0x1d],
+                (unsigned)g_dat_62c58[0x38], g_kd_armed, g_kd_case);
+    if (!strcmp(who, "tick") && g_kd_tick % 2000000 == 0) {
+        fprintf(stderr, "acttrace: armed-slot histogram (top): ");
+        for (int q = 0, shown = 0; q < 0x80 && shown < 8; q++)
+            if (g_kd_slot_hist[q]) { fprintf(stderr, "%#x:%u ", q, g_kd_slot_hist[q]); shown++; }
+        fprintf(stderr, "\n");
+    }
+}
+
+void fn_034735(uint8_t idx) {                                    /* 0x034735: per-key state mach
+    keydisp_note("34735");                                      /* 0x034735: per-key state machine */
     if (g_dat_62c58[idx] == 4) {
         fn_034353(idx, g_dat_63f08);
         if (g_dat_62cd8[idx] != 0) { g_dat_62c58[idx] = 1; g_dat_62cd8[idx]--; }
@@ -8843,12 +8870,15 @@ void fn_034735(uint8_t idx) {                                    /* 0x034735: pe
  * index is ignored. After the loop, decrement the frame counter g_62d5c if non-zero.
  * No return value. */
 void fn_0347e3(void) {
+    keydisp_note("tick");
+    if (g_act_trace) { for (int q = 0; q < 0x80; q++) if (g_dat_62c58[q]) { g_kd_armed++; g_kd_slot_hist[q]++; break; } }
     (void)canary_id(0, 0x24);                                   /* PUSH 0x24;CALL 0x418ee */
     if (g_dat_52ff8 == 0) return;                               /* 0x347fb/cf */
     for (uint32_t i = 0; i < 0x80; i++) {                       /* 0x34808-0x3481e */
         if (g_dat_62c58[i] == 0) continue;                      /* 0x34824-0x34834 */
         switch (i) {                                            /* 0x3483a-0x348c3 */
         case 0x1d: case 0x2a: case 0x2c: case 0x36: case 0x38:
+            g_kd_case++;
             fn_034735((uint8_t)i); break;                       /* 0x34851 */
         case 0x48: case 0x4b: case 0x4d: case 0x50:
             fn_034635((uint8_t)i); break;                       /* 0x34842 */
@@ -8895,6 +8925,7 @@ void fn_03cad3(const uint8_t *p) {                                /* 0x03cad3 */
     g_dat_639e4 = p[16];
 }
 void fn_034353(uint8_t a, uint32_t b) {                            /* 0x034353 */
+    keydisp_note("post");
     if (g_key_trace) fprintf(stderr, "keytrace: ring stamp marker=%#02x t=%u\n", a, b);
     g_dat_63f14[g_dat_63f50] = a;
     g_dat_63f28[g_dat_63f50] = b - g_dat_63f0c;
@@ -9719,7 +9750,8 @@ unsigned g_chain_trace_n;
 
 static int g_dat_53c7c_null_warned;
 
-void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state machine */
+void fn_034635(uint8_t key) {                                  /* 0x034635: keyboard input state
+    keydisp_note("34635");                                      /* 0x034635: keyboard input state machine */
     key = key & 0xff;
     uint8_t state = g_dat_62c58[key];
     if (state == 4) {

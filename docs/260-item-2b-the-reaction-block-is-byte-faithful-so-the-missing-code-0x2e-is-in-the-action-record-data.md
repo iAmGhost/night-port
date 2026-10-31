@@ -51,3 +51,22 @@ routine and queue posts ✓, the per-type table ✓, the damage model ✓, `fn_0
 `g_tab_51b60` ✓ (docs/259 ✓), and the entire reaction block including the atype load ✓ (this doc ✓); **open** = the
 action-record bytes at `+0x38 + slot` ✓, which decide whether reaction code 0x2e -- and thus the shipped's
 0x33/0x34/0x35 player states, its descent into the hit band, and its per-type EXP award -- ever appear in the port ✓
+
+## Addendum: the port loads the .act files at runtime, so "the record bytes differ" needs a sharper form
+
+`f.c:2813-2815` build the action tables by **name** at runtime -- `g_dat_53c28 = act_block("gun.act")`,
+`g_dat_53c2c = act_block("gun1.act")`, `g_dat_53c30 = act_block("gun2.act")` ✓ (the shipped's own resource-name
+literals appear at `f.c:2774-2775`: 0x524bc "mark.act", 0x52580 "dust.act" ✓) -- and there is **no static action
+table in `f.c`** ✓ (a grep for static act/action tables returns 0 ✓) ✓ So the port reads the same `.act` bytes the
+shipped does ✓ and the byte at `+0x38 + slot` cannot differ by *data* unless the **index or the record base**
+differs ✓ Two remaining readings, both cheap:
+
+1. **the slot differs**: `[ebp-0x2c]` (shipped) is the animation frame slot the `rec + 0x6d` array maps the action
+   slots to ✓ and the port computes the same mapping (`idx_a = (e+0x11) % *rec`, `v34 = u16[rec+0x6d array + 2*idx_a]`
+   ✓ `f.c:25386-25388` ✓); the port's own witness prints `slotA=2,3,4` on the v5a route ✓, so comparing the slot
+   sequence between the two sides (the shipped side via its `+0x11` values ✓ dump-visible ✓) decides it ✓;
+2. **the record base differs**: `act_block()` resolves a name to a heap block ✓ and if the port binds a different
+   `.act` row to the player's punch/kick chain (docs/107's CHAIN witness prints `rec=`/`farrA=` ✓), then `+0x38`
+   lands on a different row ✓ and the shipped's 0x2e would sit in the row the port never selects ✓
+
+Either way the defect is in the **action-table binding/index**, not in a table's harvested bytes ✓

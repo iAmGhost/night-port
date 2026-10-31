@@ -37,3 +37,16 @@ count behind each measurement in the cited doc ✓
    an open declaration-reconciliation item, deliberately not forced wider ✓
 3. `route.sh`'s `report_audio.txt` naming ✓ and the standing cadence rule that dump-side runs support *what* and
    *where* claims but never pacing/latency claims (docs/234 §3 ✓).
+
+## ERRATUM (docs/295)
+
+* §4's audio rows are superseded: they quoted `/tmp/rig/rb10` ✓; the final sweep's own run is `/tmp/rig/rb11` ✓
+  (`report_audio_cd.txt`: orig 1331 buckets / onsets 9 / active_frac 0.959 ✓ vs port 5591 / 4 / 0.991 ✓;
+  `report_audio_sfx.txt`: port PCM into 99/1499 record windows ✓ attribution unchanged ✓).
+* §1 row 6's "closed, no surviving wrong-side defect" and its closure-by-attribution are **withdrawn** ✓ item 6 is
+  **provisional**: no wrong-side defect was located, the reported left-edge-attack scenario does not isolate on
+  either side (`/tmp/rig/le5`: zero bound-and-attack samples on both sides ✓), and the decisive footprint test has
+  not been run ✓ (docs/295 §2 ✓)
+* §1's "blind verdict" column overstates items 1 and 5 ✓: item 1's blind detection was withdrawn (docs/234 ✓) and
+  item 5's crash half was NOT REPRODUCIBLE (docs/226 gap 3 ✓) ✓ the rig detected and localized four of six ✓
+  (docs/295 §3 ✓)

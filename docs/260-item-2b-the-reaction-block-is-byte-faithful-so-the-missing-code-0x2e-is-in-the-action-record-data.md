@@ -70,3 +70,20 @@ differs ✓ Two remaining readings, both cheap:
    lands on a different row ✓ and the shipped's 0x2e would sit in the row the port never selects ✓
 
 Either way the defect is in the **action-table binding/index**, not in a table's harvested bytes ✓
+
+## Addendum 2: the shipped's own `.act` data *does* carry reaction code 0x2e -- in the player's action tables
+
+Scanning the extracted resources (`scratch/res/*.act` ✓ the same files `act_block()` resolves ✓) for the byte `0x2e`:
+
+```
+gun.act    size 79342   0x2e occurrences: 44   first: 0x1d02, 0x5b84, 0xdbd9, 0xdbdb, 0xdbdd, ...
+gun1.act   size 79788   0x2e occurrences: 45   first: 0x1d02, 0x5b5e, 0x5b84, 0xda71, 0xda73, ...
+gun2.act   size 80932   0x2e occurrences: 46   first: 0x1d02, 0x51d6, 0x51fc, 0x6086, 0x60ac, ...
+boss1.act  35038 -> 0 ;  boss2.act 22442 -> 1 ;  boss3-1/2/3.act -> 0/1/2 ;  boss4.act -> 3
+```
+
+**0x2e is present in the three `gun*.act` tables the port loads as `g_dat_53c28/53c2c/53c30`** ✓ (`f.c:2813-2815` ✓
+the player's gun/attack action tables ✓) and is rare in the enemy tables ✓ -- which matches the measured asymmetry:
+the port's hits are atype 1/2 (the *enemy attacking the player* band ✓) and the missing 0x2e belongs to the
+**player's own attack records** ✓✓ So the data is there ✓ the port just never reads the row+slot where it lives ✓
+candidate (2) (which `.act` row / which slot the player's punch-kick chain resolves to ✓) is the remaining target ✓

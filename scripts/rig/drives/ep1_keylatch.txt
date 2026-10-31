@@ -1,0 +1,33 @@
+# rig drive (docs/292): key-latch test. Bring-up as ep1_kill3, then at 80-83 s press LEFT once and RELEASE
+# it, then inject no directional event at all until 105 s. Question: does DAT_00063ed3 (Left, scan 0x4b)
+# go back to 0 after the release, or does the shipped latch it?  /tmp/rig/le4b showed the shipped holding
+# 63ed3=1 from 109.7 s to the end of the run while its 63ed8 (Down) toggled cleanly -- that asymmetry is
+# what decides whether the left-edge facing difference is a port defect or a replay-injection artifact.
+anchor static 3.0 90
+47000 wait res title1.pcx
+47200 key enter down
+47350 key enter up
+49300 key enter down
+49450 key enter up
+60000 wait ds 0x53e9c >=1
+62000 key enter down
+62120 key enter up
+64000 key enter down
+64120 key enter up
+66000 key enter down
+66120 key enter up
+68000 key enter down
+68120 key enter up
+70000 key enter down
+70120 key enter up
+72000 key enter down
+72120 key enter up
+74000 key enter down
+74120 key enter up
+80000 key left down
+83000 key left up
+86000 key tab up
+90000 key tab up
+94000 key tab up
+98000 key tab up
+102000 key tab up

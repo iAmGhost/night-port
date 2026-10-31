@@ -23566,6 +23566,8 @@ int32_t fn_03a829(void)
         fn_0381d7(g_dat_633b0, 1, 0, 0x78, (int32_t)g_dat_63398);
     g_dat_6336c = 0; g_dat_63360 = 0; g_dat_63e28 = 0; g_dat_63e24 = 0; /* 0x0003a9e1-0x0003aa04 */
     fn_0348e2();                                                       /* 0x0003aa0e one ring slot */
+    if (g_act_trace) { static unsigned n_wipe; if (++n_wipe % 200 == 1)
+        fprintf(stderr, "acttrace: per-room key-state wipe #%u (fn_0348e2 + memset 62c58/62cd8)\n", n_wipe); }
     fn_041e20(g_dat_62c58, 0, 0x80);                                   /* 0x0003aa1f per-key flags */
     fn_041e20(g_dat_62cd8, 0, 0x80);                                   /* 0x0003aa30 per-key counters */
 

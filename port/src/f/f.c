@@ -8327,7 +8327,12 @@ void fn_031f10(uint8_t *p, uint32_t val) {                      /* 0x031f10 */
                 p == g_player_ent, (int)((struct sa32 *)((p + 0x17)))->v);
     if (c < 5) { ((struct ua32 *)((p + 0x32 + c*4)))->v = val; p[0x31] = c + 1; }
 }
+/* docs/275 §3: entry counters for the two ring-writer helpers. fn_0348e2 is the null-entry push
+ * (0x34901 mov byte [eax+0x13f14], 0) and fn_03442e the combination poster; their ratio to the posts
+ * is what the 33 %-fill / all-consumed ring signature predicts. */
+unsigned g_kd_348e2, g_kd_3442e;
 void fn_0348e2(void) {                                          /* 0x0348e2 */
+    g_kd_348e2++;
     g_dat_63f14[g_dat_63f50] = 0;
     g_dat_63f28[g_dat_63f50] = g_dat_63f08;
     g_dat_63f50++;
@@ -8840,8 +8845,10 @@ static void keydisp_note(const char *who)
     else g_kd_post++;
     if ((g_kd_tick + g_kd_34735 + g_kd_34635 + g_kd_post) % 500 == 1)   /* periodic witness, cheap */
         fprintf(stderr, "acttrace: fn_0347e3=%u post_from_34735=%u post_from_34635=%u fn_034353=%u "
+                        "null_push_fn0348e2=%u combo_fn03442e=%u "
                         "gate52ff8=%u slot[0x1c]=%u slot[0x1d]=%u slot[0x38]=%u armed_ticks=%u case_hits=%u\n",
                 g_kd_tick, g_kd_post_34735, g_kd_post_34635, g_kd_post,
+                g_kd_348e2, g_kd_3442e,
                 (unsigned)g_dat_52ff8, (unsigned)g_dat_62c58[0x1c], (unsigned)g_dat_62c58[0x1d],
                 (unsigned)g_dat_62c58[0x38], g_kd_armed, g_kd_case);
     if (!strcmp(who, "tick") && g_kd_tick % 2000000 == 0) {
@@ -8892,6 +8899,7 @@ void fn_0347e3(void) {
 }
 
 void fn_03442e(uint8_t x) {                                      /* 0x03442e */
+    g_kd_3442e++;
     uint8_t y = 0;
     uint8_t z = 0;
     if (x == 0x1d) {

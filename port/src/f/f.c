@@ -8830,6 +8830,7 @@ uint32_t fn_0351dc(uint8_t **cursor) {                     /* 0x0351dc: unsigned
 extern int g_act_trace;
 static unsigned g_kd_tick, g_kd_34735, g_kd_34635, g_kd_post, g_kd_armed, g_kd_case;
 static unsigned g_kd_slot_hist[0x80];   /* which slots fn_0347e3 actually sees armed */
+static unsigned g_kd_post_34735, g_kd_post_34635;   /* docs/274: posts attributed at the CALL SITE */
 static void keydisp_note(const char *who)
 {
     if (!g_act_trace) return;
@@ -8838,9 +8839,9 @@ static void keydisp_note(const char *who)
     else if (!strcmp(who, "34635")) g_kd_34635++;
     else g_kd_post++;
     if ((g_kd_tick + g_kd_34735 + g_kd_34635 + g_kd_post) % 500 == 1)   /* periodic witness, cheap */
-        fprintf(stderr, "acttrace: fn_0347e3=%u fn_034735=%u fn_034635=%u fn_034353=%u "
+        fprintf(stderr, "acttrace: fn_0347e3=%u post_from_34735=%u post_from_34635=%u fn_034353=%u "
                         "gate52ff8=%u slot[0x1c]=%u slot[0x1d]=%u slot[0x38]=%u armed_ticks=%u case_hits=%u\n",
-                g_kd_tick, g_kd_34735, g_kd_34635, g_kd_post,
+                g_kd_tick, g_kd_post_34735, g_kd_post_34635, g_kd_post,
                 (unsigned)g_dat_52ff8, (unsigned)g_dat_62c58[0x1c], (unsigned)g_dat_62c58[0x1d],
                 (unsigned)g_dat_62c58[0x38], g_kd_armed, g_kd_case);
     if (!strcmp(who, "tick") && g_kd_tick % 2000000 == 0) {
@@ -8854,6 +8855,7 @@ static void keydisp_note(const char *who)
 void fn_034735(uint8_t idx) {                                    /* 0x034735: per-key state mach
     keydisp_note("34735");                                      /* 0x034735: per-key state machine */
     if (g_dat_62c58[idx] == 4) {
+        g_kd_post_34735++;
         fn_034353(idx, g_dat_63f08);
         if (g_dat_62cd8[idx] != 0) { g_dat_62c58[idx] = 1; g_dat_62cd8[idx]--; }
         else                       { g_dat_62c58[idx] = 0; }
@@ -9756,9 +9758,10 @@ void fn_034635(uint8_t key) {                                  /* 0x034635: keyb
     uint8_t state = g_dat_62c58[key];
     if (state == 4) {
         if (key == 0x4d || key == 0x4b) {
-            if (g_dat_62a94 == 0) fn_034353((uint8_t)(0xb1 - key), g_dat_63f08);
-            else                   fn_034353((uint8_t)(key + 0x19), g_dat_63f08);
+            if (g_dat_62a94 == 0) { g_kd_post_34635++; fn_034353((uint8_t)(0xb1 - key), g_dat_63f08); }
+            else                   { g_kd_post_34635++; fn_034353((uint8_t)(key + 0x19), g_dat_63f08); }
         } else {
+            g_kd_post_34635++;
             fn_034353(key, g_dat_63f08);
         }
         if (g_dat_62cd8[key] != 0) { g_dat_62c58[key] = 1; g_dat_62cd8[key]--; }

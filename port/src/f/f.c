@@ -9748,6 +9748,19 @@ const uint32_t *act_trace_targets(void) { return g_act_targets; }
 const uint32_t *act_trace_counts(void) { return g_act_counts; }
 #define ACTWHY(w) do { if (g_act_trace) g_act_counts[(w)]++; } while (0)
 
+/* docs/278: per-entry rejection trace. The census says WHICH reason dominates; this says WHICH ENTRY
+ * fails at WHICH stage, with the code the entry wanted against the code the ring actually held at that
+ * slot. Bounded so the log cannot flood. */
+static unsigned g_chain_why_left = 60;
+static void chain_why(uint32_t entry, uint32_t len, uint32_t k, uint32_t cursor, const char *why,
+                      int want, int got)
+{
+    if (!g_act_trace || !g_chain_why_left) return;
+    g_chain_why_left--;
+    fprintf(stderr, "chainwhy entry=%u len=%u k=%u cursor=%u why=%s want=%d got=%d\n",
+            entry, len, k, cursor, why, want, got);
+}
+
 int g_13c4d_entry = 4000;
 int g_1441e_dmg = 4000;
 int g_hit_trace = 0;    /* host-side diagnostic (NIGHT_HITTRACE=1, docs/94): one line per fn_01441e hit --
@@ -27690,15 +27703,15 @@ lab_chain:
         if (s2 < 0) s2 = s2 + 10;
         const uint8_t *codes = hb + ((struct ua32 *)((tbl + 0x068 + i * 4)))->v;   /* stored as heap offsets */
         const uint8_t *lvls  = hb + ((struct ua32 *)((tbl + 0x1f8 + i * 4)))->v;
-        if (g_dat_63f14[s1] != codes[0]) { ACTWHY(ACT_CODE0); continue; }   /* 0x00033a57-5f */
-        if (g_dat_63f1e[s2] == 1) { ACTWHY(ACT_CONSUMED); continue; }  /* 0x00033a61-72 */
+        if (g_dat_63f14[s1] != codes[0]) { ACTWHY(ACT_CODE0); chain_why(i, len, 0, g_dat_63f50, "code0", codes[0], g_dat_63f14[s1]); continue; }   /* 0x00033a57-5f */
+        if (g_dat_63f1e[s2] == 1) { ACTWHY(ACT_CONSUMED); chain_why(i, len, 0, g_dat_63f50, "consumed", 0, g_dat_63f1e[s2]); continue; }  /* 0x00033a61-72 */
         uint32_t k = 1;                                              /* 0x00033a79-0x00033b18 */
         for (; k < (uint32_t)len; k = k + 1) {
             s1 = (s1 == 9) ? 0 : s1 + 1;
-            if (g_dat_63f14[s1] != codes[k]) { ACTWHY(ACT_CODEK); break; }
+            if (g_dat_63f14[s1] != codes[k]) { ACTWHY(ACT_CODEK); chain_why(i, len, k, g_dat_63f50, "codek", codes[k], g_dat_63f14[s1]); break; }
             if ((uint32_t)lvls[k - 1] < g_dat_63f28[s1]) { ACTWHY(ACT_LEVEL); break; }
         }
-        if (!((uint32_t)len == k)) { ACTWHY(ACT_LEN); continue; }     /* 0x00033b1f-0x00033b34 */
+        if (!((uint32_t)len == k)) { ACTWHY(ACT_LEN); chain_why(i, len, k, g_dat_63f50, "len", len, k); continue; }     /* 0x00033b1f-0x00033b34 */
         if (tbl[0x450 + i] > PL8(0x27)) { ACTWHY(ACT_FACE); continue; }
         uint16_t target = ((struct ua16 *)((tbl + 0x388 + i * 2)))->v;
         if (g_act_trace && target < 0x100) g_act_targets[target]++;

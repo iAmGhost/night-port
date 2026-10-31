@@ -1200,6 +1200,9 @@ const uint32_t *act_trace_counts(void);  /* reason census, see f.c */
 const uint32_t *act_trace_targets(void); /* target(0x00..0xff) histogram of fully matched chain entries */
 const uint32_t *act_level_array(void);   /* docs/264: DAT_00063f28[0..9] as the gate sees it */
 uint32_t act_level_value(void);          /* DAT_00063f08 (raised +1 per 7 of DAT_00063e28) */
+const uint8_t *act_ring_codes(void);   /* DAT_00063f14[0..9] as fn_03272f sees it */
+const uint8_t *act_ring_flags(void);   /* DAT_00063f1e[0..9] consumed flags */
+uint32_t act_ring_cursor(void);        /* DAT_00063f50 slot cursor */
 uint32_t act_level_accum(void);          /* DAT_00063e28 accumulator */
 const uint32_t *act_trace_targets_all(void); /* target histogram over every container entry */
 void fn_0347e3(void);            /* 0x0347e3: keyboard dispatch pump over g_62c58 */

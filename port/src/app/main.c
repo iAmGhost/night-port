@@ -1633,6 +1633,10 @@ int main(int argc, char **argv) {
         SDL_Log("combo/technical level (docs/264): DAT_63f08=%u DAT_63e28=%u DAT_63f28[0..9]=%u,%u,%u,%u,%u,%u,%u,%u,%u,%u",
                 act_level_value(), act_level_accum(), lv[0], lv[1], lv[2], lv[3], lv[4],
                 lv[5], lv[6], lv[7], lv[8], lv[9]);
+        const uint8_t *rc = act_ring_codes(), *rf = act_ring_flags();
+        SDL_Log("input ring (docs/264): cursor=%u codes=%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x,%02x consumed=%u,%u,%u,%u,%u,%u,%u,%u,%u,%u",
+                act_ring_cursor(), rc[0], rc[1], rc[2], rc[3], rc[4], rc[5], rc[6], rc[7], rc[8], rc[9],
+                rf[0], rf[1], rf[2], rf[3], rf[4], rf[5], rf[6], rf[7], rf[8], rf[9]);
     }
     if (getenv("NIGHT_CENSUS")) {
         char cp[600];

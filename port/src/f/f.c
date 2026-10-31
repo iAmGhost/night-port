@@ -9686,6 +9686,14 @@ const uint32_t *act_trace_targets_all(void) { return g_act_targets_all; }
 const uint32_t *act_level_array(void) { return g_dat_63f28; }
 uint32_t act_level_value(void) { return g_dat_63f08; }
 uint32_t act_level_accum(void) { return g_dat_63e28; }
+
+/* docs/264 §6: the shipped's DAT_00063f14[0..9] input ring, read offline out of its DS dump, is
+ * dominated by code 29 (0x1d) -- the code the 0x33/0x34/0x35/0x36 technique entries ask for -- with
+ * 72 (0x48) and 102 (0x66) also present, and DAT_00063f1e[0..9] is mostly 1 (consumed). The port
+ * must show the same ring on the same route, or the 'len != k' dominance is a ring-feeding defect. */
+const uint8_t *act_ring_codes(void) { return g_dat_63f14; }
+const uint8_t *act_ring_flags(void) { return g_dat_63f1e; }
+uint32_t act_ring_cursor(void) { return g_dat_63f50; }
 const uint32_t *act_trace_targets(void) { return g_act_targets; }
 const uint32_t *act_trace_counts(void) { return g_act_counts; }
 #define ACTWHY(w) do { if (g_act_trace) g_act_counts[(w)]++; } while (0)

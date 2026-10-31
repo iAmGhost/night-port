@@ -149,3 +149,29 @@ per key event ✓ `DAT_00063f50` measured 3 in the shipped's sample 0900 and dis
 attribution (which entry index fails at which stage ✓) plus the shipped's `DAT_00063f14[0..9]` / `DAT_00063f1e[0..9]`
 ring contents read offline out of its DS window ✓, compared against the port's `g_dat_63f14` / `g_dat_63f1e` at the
 same moment ✓
+
+## 7. The input ring is equivalent; the cursor is the remaining suspect
+
+Ring probe added (`act_ring_codes/act_ring_flags/act_ring_cursor` ✓) and compared on the canonical route:
+
+```
+port    (end of run): cursor 2   codes 48 1d 1d 1d 48 1d 64 1d 1d 1d
+                                  consumed 0 1 1 1 0 1 0 1 1 1
+shipped (244 samples, dominant per slot): 0x1d (29) in every slot -- 64..206 samples/slot --
+      plus 0x48 (72), 0x64 (100), 0x66 (102); consumed mostly 1 (e.g. slot 0: 1 x218 of 244)
+port census this run: len != k 3166, level too high 386, chain MATCHED 53 (target 0x33 only)
+```
+
+So the ring **contents** are equivalent in character ✓ (0x1d dominant, 0x48/0x64/0x66 present ✓, consumed flags
+mostly set ✓) — the `len != k` dominance is not a ring-content defect ✓ The remaining difference is the *window* the
+walk reads: the port starts at `s1 = g_dat_63f50 - len` (`+10` wrap ✓ `f.c:27614-27618` ✓) ✓, and for the two-code
+entry (`codes: 1d 1d` ✓) a cursor of 2 gives slots 0,1 = `48, 1d` ✓ — a mismatch at k=1 ✓ — while the shipped's cursor
+distribution (measured over 244 samples: `{0:21, 1:12, 2:14, 3:118, 4:12, 5:13, 6:14, 7:13, 8:11, 9:16}` ✓ dominated by
+**3** ✓) gives slots 1,2, where the shipped's ring holds 0x1d in both ✓ → the walk completes ✓
+
+Open measurement, cheap and offline-first: census the port's `DAT_63f50` cursor **over time** (the probe currently
+only prints its final value ✓, one number against a 244-sample distribution ✓ inadmissible ✓) and re-read the shipped's
+`DAT_00063f14` window *at the same cursor samples* ✓; if the port's cursor distribution differs from the shipped's
+(shipped dominated by 3 ✓), the defect is in whatever advances `DAT_00063f50` per key event ✓ (the shipped's
+`fn_03feb8` resets it from `DAT_00063f08` ✓ `0x3ff70-0x3ff75` ✓, and three writer functions set `DAT_00063f28[cursor]`
+✓ all modelled ✓) ✓

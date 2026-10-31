@@ -27382,8 +27382,14 @@ static void record_event_latch(uint8_t *pl)
 static void lab_0003284e(uint8_t *pl)
 {
     uint8_t key = fn_03493e();                                    /* 0x0003284e-54 */
-    if (g_dat_63ed8 != 0 || g_dat_63ed0 != 0 ||                    /* 0x00032854-87 */
-        g_dat_63ed3 != 0 || g_dat_63ed5 != 0) {
+    /* docs/291: the shipped admits this body only when a HORIZONTAL key is held. 0x3285f-0x3287c is a
+     * je-chain: `cmp [63ed0],0 / je next` -> (63ed0 != 0) jumps to the body; `cmp [63ed3],0 / je next`
+     * -> (63ed3 != 0) falls into the body; `cmp [63ed5],0 / je 0x3294d` -> with no horizontal key the
+     * body is SKIPPED ENTIRELY. DAT_00063ed8 is never tested here -- it appears only inside the vertical
+     * sub-branch at 0x328cc. The port's guard also admitted 63ed8, so a jump/up key press alone walked
+     * the player and forced state 2 (docs/291 §2). */
+    if (g_dat_63ed0 != 0 || g_dat_63ed3 != 0 ||                     /* 0x0003285f-0x3287c */
+        g_dat_63ed5 != 0) {
         int32_t step = (int32_t)g_tab_52ffc[(((int32_t)g_dat_63360 % 4) * 3) + PL8(0x25)];
         if (g_dat_63ed0 == 0) {                                   /* 0x000328b2-cc */
             if (g_dat_63ed8 != 0) fn_01586b(pl, step);

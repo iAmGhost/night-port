@@ -1,3 +1,10 @@
+> **RETRACTED by docs/291.** §1's per-state facing shares are a cadence artifact (port dumps at 10 Hz,
+> > the shipped replay at ~4 Hz, and the player's `+0x1b` oscillates with a ~0.8 s period — 23 flip events over
+> > 1086 samples in the port's own dump ✓). §2's "five handlers the shipped never touches" is wrong: the scan
+> > used `entry + body_bytes`, which stops short of `body_end`, and the shipped's flip tails sit in exactly that
+> > gap (`fn_017f13` 0x18e51-0x18e78, `fn_018e88` 0x19e11-0x19e38 ✓). Kept only as the record of how the
+> > measurement was made and why it failed; use docs/288 §3 (bound state identical on both sides ✓) and docs/291 ✓.
+
 # 290 — Item 6 gets its first rig-visible red signal: the port flips the mirror/facing flag (`record+0x1b`) during the attack states far more often than the shipped does
 
 ## 1. The measurement (`/tmp/rig/le4`, drive `ep1_leftedge2.txt`, both sides, 220 s)

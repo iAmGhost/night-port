@@ -269,6 +269,7 @@ void rig_cdda_sample(long t_ms, const void *bytes, unsigned n);
 static SDL_AudioStream *g_cdda_stream;
 static uint32_t  g_cdda_lba, g_cdda_sectors, g_cdda_pos;
 static uint64_t  g_cdda_bytes, g_cdda_sector_reads;
+static uint64_t  g_cdda_budget;        /* sectors of wall time the device could have consumed (docs/302) */
 static uint32_t  g_cdda_tracks;
 static uint64_t  g_cdda_clock, g_cdda_freq;      /* drain-model timing */
 static uint8_t   g_cdda_raw[2352];
@@ -287,6 +288,7 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     }
     g_cdda_tracks++;
     g_cdda_lba = lba; g_cdda_sectors = sectors; g_cdda_pos = 0;
+    g_cdda_budget = 0;
     g_cdda_clock = SDL_GetPerformanceCounter();
     if (!g_cdda_freq) g_cdda_freq = SDL_GetPerformanceFrequency();
     if (g_adev && !g_cdda_stream && g_audio_dst.freq) {
@@ -312,13 +314,24 @@ static void cdda_stop(void) {
 static void cdda_pump(void) {
     if (!g_cdda_sectors) return;
     uint32_t want = 0;
+    uint64_t now = SDL_GetPerformanceCounter();
+    if (!g_cdda_freq) g_cdda_freq = SDL_GetPerformanceFrequency();
+    uint64_t el = (now - g_cdda_clock) * 75 / g_cdda_freq;       /* sectors of wall time since the PLAY */
+    g_cdda_clock += el * g_cdda_freq / 75;
+    g_cdda_budget += el;
+    /* docs/302: the CD-DA reader had no notion of elapsed time in the device-bound branch -- it asked for
+     * a fixed 30 sectors on EVERY pump call, and the pump runs about 100 times per frame, so each call
+     * read its full 16-sector cap: measured 53311 sectors (710.8 s of audio) pushed during a 195 s run on
+     * /tmp/rig/le8, ratio 3.64x real time (a first attempt that kept the 30-sector allowance per call made
+     * it worse, 4.49x -- an allowance re-granted per call is not a lead).  A sector *budget* that
+     * accumulates with wall time, plus one 30-sector / 0.4 s cushion granted at PLAY, keeps the queue
+     * bounded, which is what makes an audible track switch possible at all: the track-change log was
+     * already correct, the heard stream lagged it by minutes (playtest 04-2026-11-02 item 1). */
     if (g_cdda_stream) {
-        want = sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, 30, 16);   /* ~0.4 s lead, 16-sector chunks */
+        uint64_t allowed = g_cdda_budget + 30;                    /* cushion granted once, at the PLAY */
+        want = (g_cdda_pos >= allowed) ? 0
+             : sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, (uint32_t)(allowed - g_cdda_pos), 16);
     } else {
-        uint64_t now = SDL_GetPerformanceCounter();
-        if (!g_cdda_freq) g_cdda_freq = SDL_GetPerformanceFrequency();
-        uint64_t el = (now - g_cdda_clock) * 75 / g_cdda_freq;       /* sectors of wall time */
-        g_cdda_clock += el * g_cdda_freq / 75;
         want = sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, (uint32_t)(el ? el : 1), 16);
     }
     for (uint32_t i = 0; i < want; i++) {

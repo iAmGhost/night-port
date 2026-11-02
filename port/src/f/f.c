@@ -3222,6 +3222,45 @@ static void blit_probe_note(uint32_t canvas_off, uint32_t n)
     if (y < s_blit_y0) s_blit_y0 = y;
     if (y > s_blit_y1) s_blit_y1 = y;
 }
+
+/* docs/301 host diagnostic: a strict ROW-CROSSING detector for the sprite blit.  The plane is 0x140 bytes
+ * per row (320 columns), so a write whose byte span crosses a row boundary puts part of a sprite at the
+ * END OF THE PREVIOUS ROW -- which is what the playtest report saw (a fragment of the player at the
+ * screen's right edge while the player stands at the left edge, docs/301 §2).  It flags only
+ *   - a span that leaves the plane (off < 0 or off_hi >= 0xfa00), or
+ *   - a span whose start column is to the RIGHT of its end column, i.e. it wrapped over a row boundary.
+ * A draw that stays inside one row is never reported, so a hit is a geometric fact, not a threshold.
+ * Armed by NIGHT_BLITEDGE=1. */
+static int  s_blit_edge;
+static long s_blit_edge_n;
+static int32_t blit_edge_col(int32_t v) { int32_t r = v % 0x140; return r < 0 ? r + 0x140 : r; }
+static void blit_edge_note(int32_t off_lo, int32_t off_hi, int32_t mode, int32_t dest_off,
+                           int32_t col, int32_t srow, uint32_t row_count)
+{
+    if (!s_blit_edge)
+        return;
+    if (off_lo >= 0 && off_hi < 0xfa00 && blit_edge_col(off_lo) <= blit_edge_col(off_hi))
+        return;                                   /* entirely inside one row: nothing to report */
+    if (++s_blit_edge_n <= 400) {
+        int32_t px = g_player_ent ? (int32_t)((const struct ua32 *)((g_player_ent + 0x01)))->v : -9999;
+        int32_t py = g_player_ent ? (int32_t)((const struct ua32 *)((g_player_ent + 0x09)))->v : -9999;
+        int32_t mf = g_player_ent ? (int32_t)((const struct sa32 *)((g_player_ent + 0x1b)))->v : -9999;
+        fprintf(stderr, "blitedge n=%ld mode=%d dest=%d col=%d srow=%d rows=%u span=%d..%d "
+                        "col_in_row=%d..%d row=%d..%d player_x=%d player_y=%d player_mirror=%d\n",
+                s_blit_edge_n, mode, dest_off, col, srow, row_count, off_lo, off_hi,
+                blit_edge_col(off_lo), blit_edge_col(off_hi),
+                (off_lo >= 0 ? off_lo : -((-off_lo + 0x13f) / 0x140 * 0x140)) / 0x140,
+                off_hi / 0x140, px, py, mf);
+    }
+}
+static int blit_edge_on(void)
+{
+    if (!s_blit_edge) {
+        const char *e = getenv("NIGHT_BLITEDGE");
+        s_blit_edge = (e && e[0] == '1') ? 1 : 0;
+    }
+    return s_blit_edge;
+}
 #define GLYPH_TRACE(tagname, budget, rle_, dest_, srow_, col_, rows_)              \
     do {                                                                          \
         if (glyph_trace_on() && (budget) > 0 && (dest_) >= 0 && (srow_) >= 0) {    \
@@ -7771,13 +7810,18 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                 if (left > col_acc) {
                     int32_t skip = left - col_acc;
                     int32_t cnt = (int32_t)rl - skip;
-                    if (cnt > 0) { blit_probe_note(db - base + (uint32_t)left, (uint32_t)cnt); mem_copy(video_map(db + (uint32_t)left), data + skip, (uint32_t)cnt); }
+                    if (cnt > 0) { blit_probe_note(db - base + (uint32_t)left, (uint32_t)cnt);
+                        if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + left, (int32_t)(db - base) + left + cnt - 1, 0, dest_off, col, start_row, row_count);
+                        mem_copy(video_map(db + (uint32_t)left), data + skip, (uint32_t)cnt); }
                 } else if (col_acc + (int32_t)rl > right) {
                     int32_t ovf = col_acc + (int32_t)rl - right;
                     int32_t cnt = (int32_t)rl - ovf;
-                    if (cnt > 0) { blit_probe_note(db - base + (uint32_t)col_acc, (uint32_t)cnt); mem_copy(video_map(db + (uint32_t)col_acc), data, (uint32_t)cnt); }
+                    if (cnt > 0) { blit_probe_note(db - base + (uint32_t)col_acc, (uint32_t)cnt);
+                        if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + col_acc, (int32_t)(db - base) + col_acc + cnt - 1, 0, dest_off, col, start_row, row_count);
+                        mem_copy(video_map(db + (uint32_t)col_acc), data, (uint32_t)cnt); }
                 } else {
                     blit_probe_note(db - base + (uint32_t)col_acc, rl);
+                    if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + col_acc, (int32_t)(db - base) + col_acc + (int32_t)rl - 1, 0, dest_off, col, start_row, row_count);
                     mem_copy(video_map(db + (uint32_t)col_acc), data, rl);
                 }
                 p += rl;
@@ -7801,12 +7845,19 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                 if (left > col_acc) {
                     int32_t skip = left - col_acc;
                     int32_t cnt = (int32_t)rl - skip;
-                    if (cnt > 0) cpy_back(video_map(db - (uint32_t)(col_acc + skip)), data + skip, (int)cnt);
+                    if (cnt > 0) {
+                        if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - (col_acc + skip); blit_edge_note(o - cnt + 1, o, 1, dest_off, col, start_row, row_count); }
+                        cpy_back(video_map(db - (uint32_t)(col_acc + skip)), data + skip, (int)cnt);
+                    }
                 } else if (col_acc + (int32_t)rl > col) {
                     int32_t ovf = col_acc + (int32_t)rl - col;
                     int32_t cnt = (int32_t)rl - ovf;
-                    if (cnt > 0) cpy_back(video_map(db - (uint32_t)col + 1), data, (int)cnt);
+                    if (cnt > 0) {
+                        if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - col + 1; blit_edge_note(o - cnt + 1, o, 1, dest_off, col, start_row, row_count); }
+                        cpy_back(video_map(db - (uint32_t)col + 1), data, (int)cnt);
+                    }
                 } else {
+                    if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - col_acc; blit_edge_note(o - (int32_t)rl + 1, o, 1, dest_off, col, start_row, row_count); }
                     cpy_back(video_map(db - (uint32_t)col_acc), data, (int)rl);
                 }
                 p += rl;

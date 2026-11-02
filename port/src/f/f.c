@@ -9154,8 +9154,8 @@ void fn_034295(int32_t amount)
     }
 }
 
-uint8_t g_dat_63ed3 = 0;   /* DAT_00063ed3: reversed vertical-direction flag (also read by 0x012616) */
-uint8_t g_dat_63ed5 = 0;   /* DAT_00063ed5: plain vertical-direction enable */
+uint8_t g_dat_63ed3 = 0;   /* DAT_00063ed3: arrow LEFT held (scancode 0x4b); fn_01545e(-step) + mirror=1 */
+uint8_t g_dat_63ed5 = 0;   /* DAT_00063ed5: arrow RIGHT held (scancode 0x4d); fn_01545e(+step) + mirror=0 */
 
 /* fn_0342ff  orig: 0x000342ff (L11, 84 B) -- THE PLAYER'S UNGATED VERTICAL MOVE: the same two
  * direction sources as fn_034295 but without the [player+0x1b] state gate.
@@ -15936,8 +15936,8 @@ void fn_038cde(void)
 
 uint8_t *g_dat_53dd4 = 0;          /* DAT_00053dd4: the title screen's "attract" command cursor */
 uint8_t *g_dat_53ddc = 0;          /* DAT_00053ddc: the title screen's "start" command cursor */
-uint8_t  g_dat_63ed0 = 0;          /* 0x63ed0: select-held key byte (title menu) */
-uint8_t  g_dat_63ed8 = 0;          /* 0x63ed8: the mirrored select-held key byte */
+uint8_t  g_dat_63ed0 = 0;          /* 0x63ed0: arrow UP held (BIOS scancode 0x48, keymap.c:47) */
+uint8_t  g_dat_63ed8 = 0;          /* 0x63ed8: arrow DOWN held (BIOS scancode 0x50, keymap.c:48) */
 
 /* fn_03a224  orig: 0x0003a224 (L12, 879 B) -- THE TITLE SCREEN, returning the menu choice.
  *   fn_03f645(); four 0x4b000 blocks through fn_041af8: buf[3] and the scratch buffer, then in a
@@ -27382,14 +27382,20 @@ static void record_event_latch(uint8_t *pl)
 static void lab_0003284e(uint8_t *pl)
 {
     uint8_t key = fn_03493e();                                    /* 0x0003284e-54 */
-    /* docs/291: the shipped admits this body only when a HORIZONTAL key is held. 0x3285f-0x3287c is a
-     * je-chain: `cmp [63ed0],0 / je next` -> (63ed0 != 0) jumps to the body; `cmp [63ed3],0 / je next`
-     * -> (63ed3 != 0) falls into the body; `cmp [63ed5],0 / je 0x3294d` -> with no horizontal key the
-     * body is SKIPPED ENTIRELY. DAT_00063ed8 is never tested here -- it appears only inside the vertical
-     * sub-branch at 0x328cc. The port's guard also admitted 63ed8, so a jump/up key press alone walked
-     * the player and forced state 2 (docs/291 §2). */
-    if (g_dat_63ed0 != 0 || g_dat_63ed3 != 0 ||                     /* 0x0003285f-0x3287c */
-        g_dat_63ed5 != 0) {
+    /* docs/300 (retracts docs/291 §2): the shipped's admission chain STARTS at 0x00032856 with the DOWN
+     * byte.  keymap.c maps the arrow scancodes 0x48 Up -> 63ed0, 0x4b Left -> 63ed3, 0x4d Right -> 63ed5,
+     * 0x50 Down -> 63ed8, and the chain is
+     *   0x32856 cmp [63ed8],0 / jne 0x32868 -> jmp 0x32873 -> body (0x32882)   DOWN admits the body
+     *   0x3285f cmp [63ed0],0 / je  0x3286a ; fallthrough 0x32868 jmp 0x32873  UP admits it
+     *   0x3286a cmp [63ed3],0 / je  0x32875 ; fallthrough 0x32873 jmp 0x32882  LEFT admits it
+     *   0x32875 cmp [63ed5],0 / je  0x3294d                                    RIGHT admits it, else skip
+     * so ANY of the four arrows enters the body.  docs/291 read the chain as starting at 0x3285f and
+     * concluded 63ed8 was untested; that dropped Down-only walking entirely (docs/300: phase A of
+     * drives/ep1_downonly.txt moved Y in 0 of 390 samples).  fn_01586b is the VERTICAL mover (Up -> -step
+     * at 0x328c5, Down -> +step at 0x328dd); fn_01545e is the HORIZONTAL one (Left -> -step + mirror at
+     * 0x328f5-0x328ff, Right -> +step at 0x32908). */
+    if (g_dat_63ed8 != 0 || g_dat_63ed0 != 0 ||                     /* 0x00032856-0x3287c */
+        g_dat_63ed3 != 0 || g_dat_63ed5 != 0) {
         int32_t step = (int32_t)g_tab_52ffc[(((int32_t)g_dat_63360 % 4) * 3) + PL8(0x25)];
         if (g_dat_63ed0 == 0) {                                   /* 0x000328b2-cc */
             if (g_dat_63ed8 != 0) fn_01586b(pl, step);

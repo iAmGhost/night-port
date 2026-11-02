@@ -211,13 +211,18 @@ Each row names the gate, the run path, and the number as measured this session.
     **0.13 → 0.16**. Both runs presented 9 000 of 9 000 frames, so this is not a frame-drop artifact — it
     is the pacing side effect of the CD-DA pacing fixes (`docs/302` measured the same sign on the left-edge
     route, 0.54 → 1.36). The pacing residual remains the largest un-attributed difference in the rig.
-* Coverage-guided fuzz census: `/tmp/rig/fuzz309` (9 episodes, 24 seeds) — **no sanitizer or SEGV
-  witness** in any of its 24 `run.log` files, 23 runs `rc=0` and **1 run `rc=124`** (`r0s12_st4`, killed by
-  the 120 s `--cap` while the machine was running the soak and a route concurrently); coverage
-  **237/503** against `fuzz305`'s 254/503 on the same 24-seed basis. A deeper 48-seed census
-  `/tmp/rig/fuzz310` is running; its number is quoted when it lands. Coverage under load is not
-  comparable to coverage on an idle machine, so the drop is recorded as a measurement-basis difference,
-  not a coverage regression — and not as a pass either.
+* Coverage-guided fuzz census, 9 episodes, run twice this session:
+  * `/tmp/rig/fuzz309` (24 seeds): **no sanitizer or SEGV witness** in any of its 24 `run.log` files,
+    23 runs `rc=0` and **1 run `rc=124`** (`r0s12_st4`); coverage **237/503**.
+  * `/tmp/rig/fuzz310` (48 seeds): **48 seed runs, 47 `rc=0`, 1 `rc=124` (the same seed, `r0s12_st4`)**,
+    and **no `ERROR: AddressSanitizer`, no UBSan `runtime error`, no `Segmentation fault` line in any of the
+    48 `run.log` files** ✓ 0 crashes ✓; coverage **233/503**, never entered 270.
+  * The cap kills are a measurement-basis artifact, not a hang: the census binary is
+    `port/test/night-census`, which runs at ~52 fps, and `--cap` is 120 s — `r0s12_st4` was killed at
+    t = 119.4 s with `frames=6191` advancing normally while its drive runs to t = 132.3 s.
+  * Coverage is a **range, not a gate**: 254/503 (`fuzz305`, 24 seeds), 237/503 (`fuzz309`, 24 seeds),
+    233/503 (`fuzz310`, 48 seeds). More seeds did not produce more coverage; the greedy corpus path varies
+    run to run. The crash census is the part that is stable, and it is green.
 
 ## 8. The shipped side could not be re-captured, and what that changes
 
@@ -248,8 +253,9 @@ section 7 that comes from it is quoted with that limitation.
 4. **No shipped-side latch census** for item 2: the hits-per-attack oracle reads the port's
    `records.jsonl`. A shipped-side equivalent would need the entity records (`RIG_ENTS=12` ent## cells do
    exist in route runs) turned into the same identity rule.
-5. **Fuzz coverage** 237–254 of 503 shipped-named functions; the never-entered list (249–266 names) is
-   untriaged.
+5. **Fuzz coverage** sits at 233–254 of 503 shipped-named functions across three censuses; the
+   never-entered list (249–270 names) is untriaged, and `--cap 120` truncates any census run whose drive is
+   longer than ~120 s.
 6. **Item 2's audible garble** is closed only at the blit level (`docs/227`'s footprint probe, `valuedisp`
    index 10), not as a rendered-text comparison against the shipped (`docs/305` §2).
 7. **g_tab_52b84 declaration width** stays at 90 bytes against a 360-byte read from a different declaration
@@ -317,4 +323,6 @@ Kept visible because each one cost a measurement that looked like a result:
    after `play 0x27 1` / `play 0x28 2` and measures a menu with two purchased rows; `AT=2600` sits before
    the player exists and dereferences `g_player_ent` (`docs/288`: a rig artifact, not a port guard).
 9. **Under load, coverage and rate numbers are not comparable across runs.** `fuzz309` (237/503, one seed
-   killed by the 120 s cap) against `fuzz305` (254/503) is a basis difference first and a signal second.
+   killed by the 120 s cap) against `fuzz305` (254/503) is a basis difference first and a signal second —
+   and `fuzz310` settled it: 48 seeds gave **233/503**, so coverage varies with the greedy path rather than
+   with seed count, and only the crash census (0 in 48 runs) is a gate.

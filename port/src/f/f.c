@@ -16291,6 +16291,49 @@ void fn_038ae0(void)
     fn_03f15f();                                     /* 0x38b24 */
 }
 
+/* Host-side debug shortcut for the attract chain, never set by the game: `--skip-intro` /
+ * NIGHT_SKIP_INTRO=1 (docs/309).  fn_03af18's menu loop runs the company-logo card and the opening
+ * movie before the title menu, and on this machine that is the most expensive part of every rig run:
+ * measured on a normal `ep1_kill3` boot with NIGHT_RESLOG=1, `logo.pcx` is looked up at t=0.16 s,
+ * `opening.fli` at t=7.33 s and the title pages only at t=39.5 s -- ~39 s of wall time per run spent on
+ * two 0x400-iteration delay_units(1) holds (0x38a80-a9e, 0x38ab3-ad5) plus a 900-frame .fli.
+ *
+ * The shortcut keeps the bookkeeping the two steps leave behind -- fn_03f15f (the VESA mode set that
+ * fn_038a20 opens with at 0x38a38 and fn_038ae0 closes with at 0x38b24, so the title sequence still
+ * finds 640x480), fn_10b1d(1) (the CD track/TOC read at 0x38b02 that starts track 1, so the music
+ * schedule is untouched) and fn_00010dde (0x38b1f) -- and spends no wall time on fades, holds or frames.
+ *
+ * It is a *harness* affordance, not a game behaviour: the counters below are the witness, the default is
+ * off, and it must not be used on oracle routes -- it moves the wall clock of everything downstream, so
+ * audio-schedule comparisons and any drive anchored on `wait res opening.fli` are void under it. */
+int g_skip_intro = 0;                     /* 0 = the shipped's attract chain, unchanged */
+int g_intro_steps_run = 0;                /* logo-card + opening-movie pairs actually presented */
+int g_intro_steps_skipped = 0;            /* pairs the shortcut replaced */
+int g_intro_skip_mode_sets = 0;           /* witness: fn_03f15f calls the shortcut kept (must stay 2 per pair) */
+int g_intro_skip_cd_track = -1;           /* witness: the CD track number fn_10b1d was still asked to start (must stay 1) */
+
+void fn_03af18_attract_steps(void)   /* host-side extraction of 0x03af6e + 0x03af73, like fn_03af18_ending_slideshow */
+{
+    if (g_skip_intro) {
+        fn_03f15f(); g_intro_skip_mode_sets++;                          /* 0x38a38 / 0x38b24 mode set */
+        fn_10b1d(1); g_intro_skip_cd_track = 1;                         /* 0x38b02: CD track 1 still starts */
+        fn_00010dde();                                                  /* 0x38b1f */
+        fn_03f15f(); g_intro_skip_mode_sets++;                          /* 0x38b24 */
+        g_intro_steps_skipped++;
+        static int s_logged;
+        if (!s_logged) {
+            s_logged = 1;
+            fprintf(stderr, "skip-intro: company-logo hold and opening.fli replaced by their "
+                            "mode/CD bookkeeping (fn_03f15f, fn_10b1d(1), fn_00010dde); "
+                            "not valid for audio-schedule or intro-anchored routes\n");
+        }
+        return;
+    }
+    fn_038a20();                                                        /* 0x03af6e */
+    fn_038ae0();                                                        /* 0x03af73 */
+    g_intro_steps_run++;
+}
+
 uint32_t g_dat_533a4 = 0;                    /* DAT_000533a4: a key already consumed / input pending */
 uint32_t g_dpmi_free_dos_paragraphs = 0x10000; /* the DPMI 0x0031 "Get Free DOS Memory" reply the flat model cannot produce */
 
@@ -28052,8 +28095,7 @@ void fn_03af18(void) {
 
 menu_loop:                                                             /* LAB_0003af69 */
     for (;;) {
-        fn_038a20();                                                   /* 0x03af6e */
-        fn_038ae0();                                                   /* 0x03af73 */
+        fn_03af18_attract_steps();     /* 0x03af6e logo card + 0x03af73 opening movie, or the --skip-intro shortcut */
         int32_t m = fn_03a224();                                       /* 0x03af78 */
         if (m == 1) { fn_037306(); return; }                           /* 0x03af86-95 */
         if (m != 3) break;                                             /* 0x03af98 */

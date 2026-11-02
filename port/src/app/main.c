@@ -1638,6 +1638,8 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--shots") && i + 1 < argc) g_shots_dir = argv[++i];
         else if (!strcmp(argv[i], "--shot-limit") && i + 1 < argc) g_shot_limit = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot-delay") && i + 1 < argc) g_shot_delay_ms = (Uint64)atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--skip-intro")) g_skip_intro = 1;   /* host debug: skip the logo hold + opening.fli (docs/309) */
+        else if (!strcmp(argv[i], "--skip-intro")) g_skip_intro = 1;   /* host debug: skip the logo hold + opening.fli movie (docs/309) */
         else if (!strcmp(argv[i], "--warp-episode") && i + 1 < argc) g_warp_episode = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--warp-stage") && i + 1 < argc) g_warp_stage = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--rig-dump") && i + 1 < argc) g_rig_dir = argv[++i];
@@ -1669,6 +1671,28 @@ int main(int argc, char **argv) {
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
     { const char *be = getenv("NIGHT_BOARD"); if (!be || strcmp(be, "0") != 0) board_boot(); }   /* the original ships with the board live (DAT_53334=0x220 at the title, docs/98); NIGHT_BOARD=0 opts out */
+    {   /* Host debug shortcut (docs/309): `--skip-intro` or NIGHT_SKIP_INTRO=1 replaces fn_03af18's
+         * attract chain (company-logo card with its two 0x400-unit holds, then the opening.fli movie,
+         * ~39 s of wall time on this machine) with the bookkeeping those two steps leave behind.  It is a
+         * harness affordance only: it moves the wall clock of everything downstream, so audio-schedule
+         * comparisons and drives anchored on `wait res opening.fli` are void while it is on. */
+        const char *si = getenv("NIGHT_SKIP_INTRO");
+        if (si && strcmp(si, "0") != 0) g_skip_intro = 1;
+        if (g_skip_intro) SDL_Log("skip-intro: ACTIVE -- logo card and opening.fli will be skipped "
+                                  "(not valid for audio-schedule or intro-anchored oracle runs)");
+    }
+    {   /* Host debug shortcut (docs/309): `--skip-intro` or NIGHT_SKIP_INTRO=1 replaces fn_03af18's attract
+         * chain -- fn_038a20 (company-logo card, two 0x400-iteration delay_units(1) holds) and fn_038ae0
+         * (the opening.fli movie) -- with the bookkeeping those two steps leave behind.  Measured on a plain
+         * ep1_kill3 boot with NIGHT_RESLOG=1: logo.pcx at t=0.16 s, opening.fli at t=7.33 s, title pages at
+         * t=39.5 s and stage1.wal at t=42.7 s, so the shortcut saves ~39 s of wall time in every run.
+         * Harness affordance only: it moves the wall clock of everything downstream, so audio-schedule
+         * comparisons and drives anchored on `wait res opening.fli` are void while it is on. */
+        const char *si = getenv("NIGHT_SKIP_INTRO");
+        if (si && strcmp(si, "0") != 0) g_skip_intro = 1;
+        if (g_skip_intro) SDL_Log("skip-intro: ACTIVE -- logo card and opening.fli are skipped "
+                                  "(not valid for audio-schedule or intro-anchored oracle runs)");
+    }
     if (getenv("NIGHT_SOUND")) g_dat_53338 = 1;  /* the title menu's SOUND toggle (fn_039c03) is off by
                                                   * default in the shipped image; force it on for tests */
     sys_set_res_hook(reslog_add);

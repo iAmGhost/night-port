@@ -18401,6 +18401,35 @@ static void test_sound_enable_default(void) {
     check(g_dat_53338 == 1, "the sound enable byte starts enabled, as the shipped image initializes it");
 }
 
+/* ---- the --skip-intro shortcut (host debug switch, docs/309) ---- */
+static void test_skip_intro_shortcut(void)
+{
+    printf("--skip-intro: the host shortcut for fn_03af18's 0x03af6e + 0x03af73 attract pair\n");
+    check(g_skip_intro == 0, "  the shortcut is off by default: the shipped's attract chain is what runs");
+
+    int saved_run = g_intro_steps_run, saved_skip = g_intro_steps_skipped;
+    int saved_mode = g_intro_skip_mode_sets, saved_track = g_intro_skip_cd_track;
+
+    g_skip_intro = 1;
+    g_intro_steps_run = 0; g_intro_steps_skipped = 0; g_intro_skip_mode_sets = 0; g_intro_skip_cd_track = -1;
+    fn_03af18_attract_steps();
+    check(g_intro_steps_skipped == 1 && g_intro_steps_run == 0,
+          "  with the flag one shortcut runs and neither fn_038a20 (the logo card's two 0x400-iteration delay_units holds) nor fn_038ae0 (opening.fli) runs");
+    check(g_intro_skip_mode_sets == 2,
+          "  ... while both VESA mode sets the pair carries stay in place (0x38a38 and 0x38b24), so the title sequence still finds 640x480");
+    check(g_intro_skip_cd_track == 1,
+          "  ... and the CD track read at 0x38b02 is still asked for track 1, so the music schedule is untouched by the shortcut");
+
+    g_skip_intro = 0;
+    g_intro_steps_run = 0; g_intro_steps_skipped = 0; g_intro_skip_mode_sets = 0; g_intro_skip_cd_track = -1;
+    fn_03af18_attract_steps();
+    check(g_intro_steps_run == 1 && g_intro_steps_skipped == 0 && g_intro_skip_mode_sets == 0,
+          "  with the flag cleared the same call runs the shipped's pair (fn_038a20 + fn_038ae0) and records no shortcut");
+
+    g_intro_steps_run = saved_run; g_intro_steps_skipped = saved_skip;
+    g_intro_skip_mode_sets = saved_mode; g_intro_skip_cd_track = saved_track;
+}
+
 int main(void) {
     if (getenv("TF1TRACE")) { extern int g_hit_trace; g_hit_trace = 1; }
 
@@ -18878,6 +18907,7 @@ int main(void) {
     test_device_bringup();
     test_fn_0420bc();
     test_cd_iso_real();
+    test_skip_intro_shortcut();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */
     /* test_fn_03a829() is #if 0'd out: see the note above its definition */
     printf(failures ? "== FAIL (%d) ==\n" : "== ALL PASS ==\n", failures);

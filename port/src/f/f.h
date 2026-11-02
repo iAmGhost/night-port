@@ -370,6 +370,16 @@ extern uint32_t g_dpmi_free_dos_paragraphs; /* the DPMI 0x0031 free-memory reply
 void fn_03ae8e(void);   /* 0x03ae8e: THE FREE-MEMORY GATE -- DPMI 0x0031 reply < 0x17c -> set the mode, paint ram.pcx, wait for a key, terminate. */
 void fn_038a20(void);   /* 0x038a20: THE COMPANY-LOGO SCREEN -- VESA set, palette clear, logo.pcx, DAC fade in/out with two 0x400-unit holds. */
 void fn_038ae0(void);   /* 0x038ae0: THE OPENING MOVIE STEP -- CD track 1, the opening.fli timed-event player, then the VESA mode is restored. */
+void fn_03af18_attract_steps(void);   /* host extraction of 0x03af6e + 0x03af73; --skip-intro replaces the pair with its mode/CD bookkeeping (docs/309) */
+extern int g_skip_intro;              /* host debug: 0 = the shipped's attract chain (default), 1 = skip the logo hold + opening.fli */
+extern int g_intro_steps_run;         /* witness: logo-card + opening-movie pairs actually presented */
+extern int g_intro_steps_skipped;     /* witness: pairs replaced by the shortcut */
+void fn_03af18_attract_steps(void);   /* host-side extraction of 0x03af6e + 0x03af73 in fn_03af18's menu loop; --skip-intro replaces the pair with its mode/CD bookkeeping (docs/309) */
+extern int g_skip_intro;              /* host debug: 0 = the shipped's attract chain (default), 1 = skip the logo card hold and the opening.fli movie */
+extern int g_intro_steps_run;         /* witness: logo-card + opening-movie pairs actually presented */
+extern int g_intro_steps_skipped;     /* witness: pairs replaced by the shortcut */
+extern int g_intro_skip_mode_sets;    /* witness: fn_03f15f calls the shortcut kept (2 per pair) */
+extern int g_intro_skip_cd_track;     /* witness: the CD track fn_10b1d was still asked to start (1) */
 int32_t fn_03f15f(void);   /* 0x03f15f: THE VESA MODE SET (mode 0x101, 640x480x8) -- fills DAT_531f4/531f8/63e4c/63e58/63e5c/63e60/63e64/63e68; returns 1, or 0 with a banner when VESA or the mode set fails. */
 extern uint32_t g_dat_531f4;               /* DAT_000531f4: VESA row width (VBE[0x8]<<10), init'd by 0x03f15f */
 extern uint32_t g_dat_63e64;               /* DAT_00063e64: VESA bytes-per-line/pitch (VBE[0x12]), init'd by 0x03f15f */

@@ -49,7 +49,7 @@ Data sectors are sync-headed; the regions the game asks for are not, and their 1
 audio-shaped ✓✓ Combined with docs/302 §2 (dumped blocks located verbatim in the IMG at the requested LBAs
 ✓), **the port's CD-DA stream is the disc's own audio** ✓
 
-`NIGHT/TG_NIGHT.CUE`, on the other hand, gives the emulator no audio to play:
+`TG_NIGHT.CUE` declares one `FILE` block whose tracks inherit the image, so the audio tracks do have a source:
 
 ```
 FILE "TG_NIGHT.IMG" BINARY
@@ -63,9 +63,10 @@ FILE "TG_NIGHT.IMG" BINARY
   ... TRACK 15 AUDIO
 ```
 
-Track 01 is the only track with a mode and a data source in practice; tracks 02-15 are declared AUDIO with
-index offsets only ✓ Whatever the emulator's CD-DA support is, the capture proves it produced none of these
-samples ✓
+Track 02's index `08:14:62` = (8·60+14)·75 + 62 = 37 112 = the IMG sector the port reads for the shipped's
+`lba 37262` request ✓ (the 150-sector offset that docs/96 established and the `cd_iso` fixture asserts ✓).  So
+the cue is not the problem: **the emulator rendered none of those samples** ✓ Whatever DOSBox-family CD-DA
+support exists, the capture proves it produced no Red Book audio for this mount ✓
 
 ## 4. What this means for item 1
 
@@ -83,11 +84,16 @@ samples ✓
 
 ## 5. Next step for the comparison basis (open)
 
-Make the shipped side actually play the audio tracks: a corrected cue that gives each AUDIO track its own
-`FILE "TG_NIGHT.IMG" BINARY <mm:ss:ff>` offset, re-capture, and re-run `audio_ncc.py`.  If NCC then approaches
-1, the content oracle becomes usable and item 1 can be gated on content too; if it stays at noise, the shipped
-music is unobservable in this harness and item 1 must be gated on schedule + rate only ✓ That experiment is
-the next action, not a conclusion of this doc ✓
+The blocker is the emulator's CD-DA path, not the cue.  Options, in increasing cost:
+
+1. Inspect `dosbox-automation`'s CD-DA support and mixer settings (config keys / build-time support) and re-run
+   the capture if a volume or device switch is off ✓
+2. Give the shipped side a *board* music comparison instead: capture only the board stream on both sides and
+   compare that, treating CD-DA as out of scope for this harness ✓
+3. Accept the limit and gate item 1 on schedule + rate + disc-content identity only (what §2-§3 already
+   establish ✓).
+
+This is the next action, not a conclusion of this doc ✓
 
 ## 6. Standing rules
 

@@ -3235,19 +3235,19 @@ static int  s_blit_edge;
 static long s_blit_edge_n;
 static int32_t blit_edge_col(int32_t v) { int32_t r = v % 0x140; return r < 0 ? r + 0x140 : r; }
 static void blit_edge_note(int32_t off_lo, int32_t off_hi, int32_t mode, int32_t dest_off,
-                           int32_t col, int32_t srow, uint32_t row_count)
+                           int32_t col, int32_t srow, uint32_t row_count, int site)
 {
     if (!s_blit_edge)
         return;
     if (off_lo >= 0 && off_hi < 0xfa00 && blit_edge_col(off_lo) <= blit_edge_col(off_hi))
         return;                                   /* entirely inside one row: nothing to report */
-    if (++s_blit_edge_n <= 400) {
+    if (++s_blit_edge_n <= 400 || s_blit_edge_n % 500 == 0) {
         int32_t px = g_player_ent ? (int32_t)((const struct ua32 *)((g_player_ent + 0x01)))->v : -9999;
         int32_t py = g_player_ent ? (int32_t)((const struct ua32 *)((g_player_ent + 0x09)))->v : -9999;
         int32_t mf = g_player_ent ? (int32_t)((const struct sa32 *)((g_player_ent + 0x1b)))->v : -9999;
-        fprintf(stderr, "blitedge n=%ld mode=%d dest=%d col=%d srow=%d rows=%u span=%d..%d "
+        fprintf(stderr, "blitedge n=%ld site=%d mode=%d dest=%d col=%d srow=%d rows=%u span=%d..%d "
                         "col_in_row=%d..%d row=%d..%d player_x=%d player_y=%d player_mirror=%d\n",
-                s_blit_edge_n, mode, dest_off, col, srow, row_count, off_lo, off_hi,
+                s_blit_edge_n, site, mode, dest_off, col, srow, row_count, off_lo, off_hi,
                 blit_edge_col(off_lo), blit_edge_col(off_hi),
                 (off_lo >= 0 ? off_lo : -((-off_lo + 0x13f) / 0x140 * 0x140)) / 0x140,
                 off_hi / 0x140, px, py, mf);
@@ -7684,7 +7684,7 @@ void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
 void fn_03bebb(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                uint32_t row_count, const uint8_t *rle, int32_t mode, uint8_t fill_byte) {
     (void)canary_id((uintptr_t)base, 0x3c);
-    if (dest_off > 0x13f) return;
+    if (dest_off > 0x140) return;   /* 0x3bee3-ee: cmp [ebp-0xc],0x140 / jg (docs/303 §8) */
     if ((int32_t)(dest_off + col) < 0) return;
     if (start_row > 0xc8) return;
     if ((int32_t)(start_row + (int32_t)row_count) < 0) return;
@@ -7772,7 +7772,7 @@ void fn_03bebb(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
 void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                uint32_t row_count, const uint8_t *rle, int32_t mode) {
     (void)canary_id((uintptr_t)base, 0x48);
-    if (dest_off > 0x13f) return;
+    if (dest_off > 0x140) return;   /* 0x3bb6a-71: cmp [ebp-0xc],0x140 / jg (docs/303 §8) */
     if ((int32_t)(dest_off + col) < 0) return;
     if (start_row > 0xc8) return;
     if ((int32_t)(start_row + (int32_t)row_count) < 0) return;
@@ -7811,17 +7811,17 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                     int32_t skip = left - col_acc;
                     int32_t cnt = (int32_t)rl - skip;
                     if (cnt > 0) { blit_probe_note(db - base + (uint32_t)left, (uint32_t)cnt);
-                        if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + left, (int32_t)(db - base) + left + cnt - 1, 0, dest_off, col, start_row, row_count);
+                        if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + left, (int32_t)(db - base) + left + cnt - 1, 0, dest_off, col, start_row, row_count, 1);
                         mem_copy(video_map(db + (uint32_t)left), data + skip, (uint32_t)cnt); }
                 } else if (col_acc + (int32_t)rl > right) {
                     int32_t ovf = col_acc + (int32_t)rl - right;
                     int32_t cnt = (int32_t)rl - ovf;
                     if (cnt > 0) { blit_probe_note(db - base + (uint32_t)col_acc, (uint32_t)cnt);
-                        if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + col_acc, (int32_t)(db - base) + col_acc + cnt - 1, 0, dest_off, col, start_row, row_count);
+                        if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + col_acc, (int32_t)(db - base) + col_acc + cnt - 1, 0, dest_off, col, start_row, row_count, 2);
                         mem_copy(video_map(db + (uint32_t)col_acc), data, (uint32_t)cnt); }
                 } else {
                     blit_probe_note(db - base + (uint32_t)col_acc, rl);
-                    if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + col_acc, (int32_t)(db - base) + col_acc + (int32_t)rl - 1, 0, dest_off, col, start_row, row_count);
+                    if (blit_edge_on()) blit_edge_note((int32_t)(db - base) + col_acc, (int32_t)(db - base) + col_acc + (int32_t)rl - 1, 0, dest_off, col, start_row, row_count, 3);
                     mem_copy(video_map(db + (uint32_t)col_acc), data, rl);
                 }
                 p += rl;
@@ -7846,18 +7846,27 @@ void fn_03bb42(uint32_t base, int32_t dest_off, int32_t start_row, int32_t col,
                     int32_t skip = left - col_acc;
                     int32_t cnt = (int32_t)rl - skip;
                     if (cnt > 0) {
-                        if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - (col_acc + skip); blit_edge_note(o - cnt + 1, o, 1, dest_off, col, start_row, row_count); }
+                        if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - (col_acc + skip); blit_edge_note(o - cnt + 1, o, 1, dest_off, col, start_row, row_count, 4); }
                         cpy_back(video_map(db - (uint32_t)(col_acc + skip)), data + skip, (int)cnt);
                     }
                 } else if (col_acc + (int32_t)rl > col) {
                     int32_t ovf = col_acc + (int32_t)rl - col;
                     int32_t cnt = (int32_t)rl - ovf;
+                    /* docs/303: the shipped anchors this clipped run on the SAME cursor as the unclipped
+                     * one (0x3be55-0x3be58: mov eax,[ebp-0x10]; sub eax,[ebp-0x24] -> db - col_acc) and only
+                     * shortens the count.  The port used `db - col + 1` instead, which shifts the run left by
+                     * (col - col_acc - 1) columns; with dest_off < 0 that lands past column 0 and cpy_back --
+                     * which writes DOWNWARD from its first argument (0x40475: do { *a=*b; b++; a--; } while)
+                     * -- spills the tail into the previous row's columns 319, 318 ...  A mirrored sprite at
+                     * the left screen edge therefore paints a slab at the RIGHT edge of the row above
+                     * (playtest 03-2026-10-29 item 6 / 04-2026-11-02 item E).  Witness: 43 000+ crossings,
+                     * every one at this site (site=5), e.g. span 53438..53440 = cols 318..0, rows 166..167. */
                     if (cnt > 0) {
-                        if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - col + 1; blit_edge_note(o - cnt + 1, o, 1, dest_off, col, start_row, row_count); }
-                        cpy_back(video_map(db - (uint32_t)col + 1), data, (int)cnt);
+                        if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - col_acc; blit_edge_note(o - cnt + 1, o, 1, dest_off, col, start_row, row_count, 5); }
+                        cpy_back(video_map(db - (uint32_t)col_acc), data, (int)cnt);
                     }
                 } else {
-                    if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - col_acc; blit_edge_note(o - (int32_t)rl + 1, o, 1, dest_off, col, start_row, row_count); }
+                    if (blit_edge_on()) { int32_t o = (int32_t)(db - base) - col_acc; blit_edge_note(o - (int32_t)rl + 1, o, 1, dest_off, col, start_row, row_count, 6); }
                     cpy_back(video_map(db - (uint32_t)col_acc), data, (int)rl);
                 }
                 p += rl;

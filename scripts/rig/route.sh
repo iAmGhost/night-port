@@ -134,7 +134,8 @@ fi
   echo "- generated: $(date -u +%FT%TZ)"
   echo "- port env: \`${PORT_ENV:-none}\`"
   echo
-  for f in report_state.txt report_activity.txt report_screen.txt report_audio.txt; do
+  for f in report_state.txt report_activity.txt report_screen.txt report_audio_sfx.txt report_audio_cd.txt; do
+    [ -f "$OUT/$f" ] || continue      # docs/287 §4: the summary used to cat a report_audio.txt that no leg writes
     echo "## $f"; echo '```'; cat "$OUT/$f"; echo '```'; echo
   done
 } > "$OUT/DIVERGENCE.md"

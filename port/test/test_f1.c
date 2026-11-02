@@ -11859,7 +11859,7 @@ static void test_fn_03rle(void) {
     memset(scr, 0, 0x10000);
     fn_03bebb(base, 0x200, 0, 300, 1, rle, 0, 0xEE);
     int ok7 = 1; for (int x = 0; x < 40; x++) if (scr[x]) { ok7 = 0; break; }
-    check(ok7, "  bounds: dest_off>0x13f returns without writing");
+    check(ok7, "  bounds: dest_off>0x140 returns without writing (shipped cmp 0x140/jg, docs/303 §8)");
 
     /* --- FILL mode1 (reverse): run skip=0 len=5, col=20 -> [15,20) --- */
     memset(scr, 0, 0x10000);
@@ -11881,6 +11881,29 @@ static void test_fn_03rle(void) {
         if (scr[x] != want) { ok9 = 0; break; }
     }
     check(ok9, "  copy mode1 (reverse): run@col0 len5 -> cpy_back reversed [C4..C0] at [15,20)");
+
+    /* --- COPY mode1, dest_off < 0 AND a run that overflows the clipped width (docs/303) --------------
+     * The configuration the suite never had: a mirrored copy whose destination column is off the left
+     * edge.  dest_off=-5, col0=44 -> the shipped reduces the width (0x3bd97-0x3bda0: col += dest_off -> 39)
+     * and the row cursor sits at col 38 (db = row*0x140 + dest_off + col0 - 1).  The run skip=30 len=20
+     * overflows: 30 + 20 > 39, so the shipped's clip site runs 0x3be36-0x3be5c and computes
+     *     count = rl - ovf = 9,  dst = [ebp-0x10] - [ebp-0x24] = db - col_acc   (0x3be55-0x3be58)
+     * cpy_back (0x040475) writes DOWNWARD from dst, so the nine bytes land on cols 0..8 of the SAME row.
+     * The port instead anchored the run at `db - col + 1` (col 0), which makes cpy_back write its tail at
+     * cols 312..319 of the row ABOVE -- a slab of the sprite at the right screen edge (playtest
+     * 03-2026-10-29 item 6).  start_row=1 so the spill is observable inside the buffer. */
+    memset(scr, 0, 0x10000);
+    uint16_t runs10[2] = {30, 20};
+    enc_rle_row(rle, runs10, 1);
+    fn_03bb42(base, -5, 1, 44, 1, rle, 1);
+    int ok10 = 1, ok11 = 1;
+    for (int x = 0; x < 320; x++) if (scr[x]) ok10 = 0;                 /* the row above must be untouched */
+    for (int x = 0; x < 320; x++) {                                     /* this row: exactly cols 0..8 */
+        uint8_t want = (x < 9) ? (uint8_t)(0xC0 + (8 - x)) : 0;
+        if (scr[0x140 + x] != want) ok11 = 0;
+    }
+    check(ok10, "  copy mode1 clip: dest_off<0 + run overflow writes NOTHING in the row above (docs/303)");
+    check(ok11, "  copy mode1 clip: dst = db - col_acc, nine bytes land on cols 0..8 of the sprite's own row");
 
     (void)base;
 }

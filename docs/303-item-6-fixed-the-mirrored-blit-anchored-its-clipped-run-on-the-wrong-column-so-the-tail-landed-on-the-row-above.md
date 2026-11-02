@@ -1,7 +1,7 @@
 # 303 — item 6 root cause: the mirrored blit anchored its clipped run on the wrong column, so the tail landed on the row above — at the right screen edge
 
 Date: 2026-11-02.  Item: playtest `docs/manual-playtest/03-2026-10-29.md` item 6 ("attacking at the far
-left edge draws the leg/arm sprite on the right side") and `04-2026-11-02.md` item E (a sprite fragment at
+left edge draws the leg/arm sprite on the right side") and `04-2026-11-02.md` item 5 (a sprite fragment at
 the right edge).  docs/301 confirmed the artifact is real and refuted three hypotheses; this doc closes the
 mechanism.
 

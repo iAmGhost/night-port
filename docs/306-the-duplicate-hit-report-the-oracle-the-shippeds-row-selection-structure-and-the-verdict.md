@@ -1,6 +1,6 @@
 # 306 — The duplicate-hit report: the oracle, the shipped's row-selection structure, and the verdict that docs/263 was an over-relaxation
 
-Playtest item (docs/manual-playtest/04-2026-11-02.md item B): one attack make lands several hits on the same
+Playtest item (docs/manual-playtest/04-2026-11-02.md item 2): one attack make lands several hits on the same
 enemy at once.  Suspect named in the goal: docs/263's relaxation of `fn_01441e`'s action-row selection to
 "either threshold".
 

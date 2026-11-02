@@ -1,6 +1,6 @@
 # 307 — The music delay is an unbounded read-ahead queue: 4.2-10.0 s of old-track audio sat in front of every new track
 
-Playtest item (docs/manual-playtest/04-2026-11-02.md item C): tracks do change on the recent build, but with an
+Playtest item (docs/manual-playtest/04-2026-11-02.md item 1): tracks do change on the recent build, but with an
 audible delay.  docs/302 fixed the *rate* (3.64x real time -> 1.04x); this note is about the *latency*, which the
 rate gate could not see.
 

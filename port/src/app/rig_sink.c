@@ -361,12 +361,18 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
             if (!n) { g_dump_oob++; break; }     /* dangling link: stop and report, never read past the arena */
             memcpy(p + g_ent_base + k * RIG_REC, e, n);
             if (len > (int)sizeof line - 128) break;      /* never emit a half-written record */
-            uint32_t st, ac; uint16_t hp; uint8_t f30;
+            uint32_t st, ac; uint16_t hp; uint8_t f30; int32_t d23; uint32_t pool56;
             memcpy(&st, e + 0x17, 4); memcpy(&ac, e + 0x11, 4);
             memcpy(&hp, e + 0x29, 2); f30 = e[0x30];
+            /* docs/306: +0x23 is the term the shipped's hit path decrements (f.c:25457 DMG witness calls it
+             * `debt`) and +0x56 is the damage pool, so a dump-side hit census needs these two.  hp (+0x29)
+             * never moves on the canonical route (0 decreases in 1500 samples of /tmp/rig/rb15), which is why
+             * a hits-per-attack oracle cannot be built from it. */
+            memcpy(&d23, e + 0x23, 4); memcpy(&pool56, e + 0x56, 4);
             len += snprintf(line + len, sizeof line - len,
-                            "%s{\"o\":%lld,\"n\":%u,\"type\":%u,\"st\":%u,\"ac\":%u,\"hp\":%u,\"f30\":%u}",
-                            k ? "," : "", (long long)(e - hb), n, e[0], st, ac, hp, f30);
+                            "%s{\"o\":%lld,\"n\":%u,\"type\":%u,\"st\":%u,\"ac\":%u,\"hp\":%u,\"f30\":%u,"
+                            "\"d23\":%d,\"pool\":%u}",
+                            k ? "," : "", (long long)(e - hb), n, e[0], st, ac, hp, f30, d23, pool56);
             e = ((struct ua_uint8tp *)((e + 0x13f)))->v;
         }
         len += snprintf(line + len, sizeof line - len, "],\"refused\":%llu}\n",

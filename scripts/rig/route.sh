@@ -65,6 +65,28 @@ say "port: night --rig-dump"
 say "port: done ($(wc -c < "$OUT/port/cells.bin" 2>/dev/null || echo 0) bytes of cell records)"
 
 # ---- original side, session 1: state + heap replay -------------------------------------
+# REUSE_ORIG=<previous route out dir> takes the shipped halves (orig/, orig_screen/) from an earlier
+# route instead of booting containers.  The shipped side is pinned (cycles 120000, core normal, fixed
+# drive -- docs/100), so a cached capture is a legitimate comparison basis.  On 2026-11-03 the OrbStack
+# engine stopped answering `docker run` / `docker exec` at all (40 s and 400 s timeouts, rc=124, no
+# output; port 8386 still forwarded by OrbStack but the API answers nothing), so this is the only way to
+# keep the canonical-route oracle running.  The reuse is stamped in REUSE_ORIGIN.txt and recorded in
+# docs/308: a reused shipped half measures PORT change against a FIXED shipped reference, which is what a
+# regression gate needs -- it does not re-verify the shipped side itself.
+if [ -n "${REUSE_ORIG:-}" ]; then
+  for sub in orig orig_screen; do
+    if [ ! -d "$REUSE_ORIG/$sub" ]; then say "REUSE_ORIG: $REUSE_ORIG/$sub missing"; exit 2; fi
+    cp -R "$REUSE_ORIG/$sub" "$OUT/$sub" || { say "REUSE_ORIG: copy failed"; exit 2; }
+  done
+  {
+    echo "reused shipped halves from: $REUSE_ORIG"
+    echo "  state dumps:  $(ls "$OUT/orig"/state_*.ds.bin 2>/dev/null | wc -l)"
+    echo "  screen frames: $(find "$OUT/orig_screen" -name '??????_*.bin' 2>/dev/null | wc -l)"
+    echo "  audio wav:     $(ls "$OUT/orig"/audio.wav 2>/dev/null || echo none)"
+    echo "  note: cached deterministic shipped capture, NOT a fresh container run (docs/308)"
+  } > "$OUT/REUSE_ORIGIN.txt"
+  say "original: REUSED from $REUSE_ORIG (no container booted -- see REUSE_ORIGIN.txt)"
+else
 say "original: boot + calibrate + replay"
 RUN_GAME=1 bash "$HERE/bringup.sh" > "$OUT/bringup1.log" 2>&1
 sleep 10
@@ -95,6 +117,7 @@ timeout $((DUR + 90)) python3 "$HERE/capture_original.py" --out "$OUT/orig_scree
 say "original: $(tail -1 "$OUT/capture.log")"
 timeout 20 curl -s --noproxy '*' -X POST -H "Authorization: Bearer $(cat /tmp/rig/.token)" \
     http://localhost:8386/api/v1/control/shutdown >/dev/null 2>&1 || true
+fi   # end of the REUSE_ORIG / live-container branch
 
 # ---- oracles ---------------------------------------------------------------------------
 say "oracles"

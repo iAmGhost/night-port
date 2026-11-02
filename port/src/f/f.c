@@ -5270,16 +5270,28 @@ const char *const *f_type_act_names(void) { return kTypeActNames; }
 
 uint8_t *g_dat_6334c = NULL;   /* DAT_0006334c: room-chain head (the first stage node) */
 
-/* Host-side debug warp (docs/52, `--warp-stage N`): the stage number is what every per-stage name in
- * this loader is built from (`stage%d.wal`, `st%ds.spr`, `stage%d.stg`, `night%d.chr`) and what the
- * spawn tables are indexed by, so overriding it here is enough to enter any episode for a playability
- * sweep. Never set by the game itself; 0 = off. */
+/* Host-side debug warps (docs/52, split recorded in docs/308).
+ *   --warp-episode N  forces DAT_00063370 -- Ghidra's g_dwEpisodeCounter, 1..9.  It is the number every
+ *                     per-stage name in this loader is built from (`stage%d.wal`, `st%ds.spr`,
+ *                     `stage%d.stg`, `night%d.chr`) and what the spawn tables are indexed by, so
+ *                     overriding it enters any episode for a playability sweep.  The shipped calls this
+ *                     counter "stage"; docs/301 recorded that the old single flag took ONLY this number, so
+ *                     "episode 1, stage 2" was not expressible and `--warp-stage 2` landed on episode 2.
+ *   --warp-stage M    selects the M-th stage of THAT episode (1-based), which is what a player means by
+ *                     "episode 1, stage 2".  It is applied after the room chain exists, by walking the
+ *                     shipped's own next-room link (node+0x34c, set at 0x3caa2, docs/90) and installing that
+ *                     node as the current room exactly as fn_03cc6b does when the game clears a room
+ *                     (g_dat_63354 = c at 0x3ccb5 / 0x3cd6f, mirrored to g_dat_63358 at 0x3cccf / 0x3cd89),
+ *                     then re-arming camera and bounds with fn_03cad3 as this loader does for the head at
+ *                     0x37bfe.  No room is skipped in the data: the chain is read whole, only the current
+ *                     room is chosen.  Never set by the game itself; 0 = off. */
+int g_warp_episode = 0;
 int g_warp_stage = 0;
 
 void fn_037b03(int32_t resume_flag)
 {
     (void)canary_id((uintptr_t)resume_flag, 0xa4);                  /* 0x37b03-08 */
-    if (g_warp_stage > 0) g_dat_63370 = (uint32_t)g_warp_stage;
+    if (g_warp_episode > 0) g_dat_63370 = (uint32_t)g_warp_episode;
     g_dat_62a8c = 0;                                                /* 0x37b1e */
     g_dat_62a90 = 0;                                                /* 0x37b28 */
     fn_041e20(g_dat_5d08c, 0, 0x14);                                /* 0x37b3e */
@@ -5298,6 +5310,29 @@ void fn_037b03(int32_t resume_flag)
     g_dat_639e8 = 0;                                                /* 0x37bdf */
     fn_03c853(g_dat_6334c, (uint8_t *)g_639b8);                     /* 0x37bf4 */
     fn_03cad3(g_dat_6334c);                                         /* 0x37bfe */
+    if (g_warp_stage > 1 && g_dat_6334c != NULL) {                  /* host warp: enter stage M of this episode */
+        uint8_t *n = g_dat_6334c;
+        int32_t hops = 0;
+        for (int32_t i = 1; i < g_warp_stage; i++) {
+            uint8_t *nx = rec_ptr_get(n, 0x34c);                    /* the shipped's next-room link (0x3caa2) */
+            if (nx == NULL) break;
+            n = nx; hops++;
+        }
+        if (hops + 1 == g_warp_stage) {
+            g_dat_63354 = n;                                        /* 0x3ccb5 / 0x3cd6f as fn_03cc6b does */
+            g_dat_63358 = n;                                        /* 0x3cccf / 0x3cd89 mirror */
+            fn_03cad3(n);                                           /* camera + band of the chosen room */
+            printf("[warp] episode=%u stage=%d node#%u hops=%d rooms=%u camX=%d camY=%d band=%u\n",
+                   (unsigned)g_dat_63370, g_warp_stage,
+                   (unsigned)((struct ua32 *)((n + 0x40)))->v, hops, (unsigned)g_dat_639d8,
+                   (int)g_dat_639dc, (int)g_dat_639e0, (unsigned)g_dat_639e4);
+            fflush(stdout);
+        } else {
+            printf("[warp] stage=%d unreachable: episode %u has %u stage nodes\n",
+                   g_warp_stage, (unsigned)g_dat_63370, (unsigned)g_dat_639d8);
+            fflush(stdout);
+        }
+    }
     cur = (uint8_t *)&g_dat_63370;
     fn_0428f8(name, (const uint8_t *)"st%ds.spr", &cur);             /* 0x37c03-13 */
     uint32_t s_off = heap_malloc(0x3c);                             /* 0x37c20 */

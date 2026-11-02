@@ -119,7 +119,8 @@ void fn_049a0b(uint32_t *seconds, struct dec_datetime *out, uint32_t p3, uint32_
 void fn_03eff2(void);                          /* 0x03eff2: install IRQ 0x1c (FPU) handler (flag-guarded) */
 void fn_03ffab(void);                          /* 0x03ffab: install IRQ 9 handler (flag-guarded) */
 extern uint8_t *g_dat_6334c;   /* DAT_0006334c: stage room-chain head */
-extern int g_warp_stage;   /* host debug: force the stage number in fn_037b03 (docs/52) */
+extern int g_warp_episode; /* host debug: force DAT_00063370, the episode counter, in fn_037b03 (docs/52, docs/308) */
+extern int g_warp_stage;   /* host debug: force the stage-within-episode index (the M-th room-chain node) (docs/308) */
 /* Host-side debug warp (docs/84, NIGHT_WARP_ENTITY=name,name,...): resolve a shipped per-type .spr
  * name to its entity type, ask whether the spawn is legal right now, and spawn it the way the shipped
  * room-record opcode 1 does. 0xffffffff = no such shipped type. */

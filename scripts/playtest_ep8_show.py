@@ -23,7 +23,7 @@ CARD = "na80001.pcx"
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--app", default="port/test/night")
-    ap.add_argument("--frames", default="4300")   # the show frame sits at ~frame 2800 of a --warp-stage 8 run
+    ap.add_argument("--frames", default="4300")   # the show frame sits at ~frame 2800 of a --warp-episode 8 run
     ap.add_argument("--min-within", type=float, default=99.5)
     a = ap.parse_args()
     env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy", NIGHT_RESLOG="1")
@@ -31,7 +31,7 @@ def main() -> int:
     app = os.path.abspath(a.app)
     app_dir = os.path.dirname(app)
     cwd = os.path.dirname(app_dir) if os.path.basename(app_dir) == "test" else app_dir
-    r = subprocess.run([app, "--warp-stage", "8", "--script",
+    r = subprocess.run([app, "--warp-episode", "8", "--script",
                         "../scripts/playtest/route_walk_fight.txt", "--shots", out, "--no-audio",
                         "--frames", a.frames, "--shot-limit", "200"],
                        cwd=cwd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

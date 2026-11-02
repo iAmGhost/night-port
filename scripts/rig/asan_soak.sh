@@ -20,7 +20,7 @@ for s in 1 2 3 4 5 6 7 8 9; do
   (
     ASAN_OPTIONS=detect_leaks=0:abort_on_error=0 UBSAN_OPTIONS=print_stacktrace=0 \
     SDL_AUDIODRIVER=dummy \
-    timeout "$CAP" $BIN --res-dir ./NIGHT --script "$BASE" --warp-stage "$s" --frames "$FRAMES" \
+    timeout "$CAP" $BIN --res-dir ./NIGHT --script "$BASE" --warp-episode "$s" --frames "$FRAMES" \
       > "$OUT/stage$s.log" 2>&1
     rc=$?
     err=$(grep -c "runtime error" "$OUT/stage$s.log")

@@ -137,7 +137,7 @@ def run(seed_dir, drive, stage, cap, frames):
     cmd = [BIN, "--res-dir", os.path.join(REPO, "NIGHT"), "--script", dpath,
            "--rig-dump", seed_dir, "--rig-hz", "1", "--frames", str(frames)]
     if stage:
-        cmd += ["--warp-stage", str(stage)]
+        cmd += ["--warp-episode", str(stage)]
     t0 = time.time()
     try:
         r = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=cap)
@@ -225,7 +225,7 @@ def main():
                 cmd = [BIN, "--res-dir", os.path.join(REPO, "NIGHT"), "--script", os.path.join(sd, "drive.txt"),
                        "--rig-dump", sd, "--rig-hz", "1", "--frames", str(a.frames)]
                 if stage:
-                    cmd += ["--warp-stage", str(stage)]
+                    cmd += ["--warp-episode", str(stage)]
                 lg = open(os.path.join(sd, "run.log"), "w")
                 procs.append((name, stage, sd, subprocess.Popen(cmd, env=dict(os.environ, NIGHT_CENSUS="1",
                                                                              SDL_AUDIODRIVER="dummy"),
@@ -257,7 +257,7 @@ def main():
                         cmd2 = [BIN, "--res-dir", os.path.join(REPO, "NIGHT"), "--script", cf,
                                 "--rig-dump", cfd, "--rig-hz", "1", "--frames", str(a.frames)]
                         if stage:
-                            cmd2 += ["--warp-stage", str(stage)]
+                            cmd2 += ["--warp-episode", str(stage)]
                         try:
                             rc2 = subprocess.run(cmd2, env=dict(os.environ, NIGHT_CENSUS="1",
                                                                 SDL_AUDIODRIVER="dummy"),

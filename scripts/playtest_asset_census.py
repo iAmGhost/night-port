@@ -30,14 +30,14 @@ ROUTE_TITLE = "../scripts/playtest/route_attract_wait.txt"
 cell_re = re.compile(r"menucell tag=(\S+) k=(\d+) dest=(?:0x)?([0-9a-f]+) srow=(-?\d+) col=(\d+) rows=(\d+)"
                      r"(?: type=(-?\d+) spr=(\S+) act=(\S+))?.*? stream=([0-9a-f]+)")
 
-RUNS = [("stage%d" % n, ["--warp-stage", str(n), "--script", ROUTE_SHOW],
+RUNS = [("stage%d" % n, ["--warp-episode", str(n), "--script", ROUTE_SHOW],
          {"NIGHT_ENTSPR": "1", "NIGHT_HUDDBG": "1", "NIGHT_GLYPHDBG": "1", "NIGHT_ENTBUDGET": "400"})
         for n in range(1, 10)]
 ROUTE_WALK = "../scripts/playtest/route_walk_fight.txt"
 RUNS += [("setup", ["--script", "../scripts/playtest/route_setup_menu.txt"], {"NIGHT_MENUBG": "1"}),
          ("pausemenu", ["--script", "../scripts/playtest/route_pause_menu.txt"], {"NIGHT_MENUBG": "1"})]
 
-RUNS += [("walk%d" % n, ["--warp-stage", str(n), "--script", ROUTE_WALK],
+RUNS += [("walk%d" % n, ["--warp-episode", str(n), "--script", ROUTE_WALK],
           {"NIGHT_ENTSPR": "1", "NIGHT_HUDDBG": "1", "NIGHT_GLYPHDBG": "1", "NIGHT_ENTBUDGET": "400"})
          for n in range(1, 10)]
 ROUTE_LU = "../scripts/playtest/route_levelup_warp.txt"
@@ -185,7 +185,7 @@ def main() -> int:
                     stems.append(extra)
         else:
             stems = EP_ENT[n].split(",")
-        collect("ent%d" % n, ["--warp-stage", str(n), "--script", ROUTE_WALK,
+        collect("ent%d" % n, ["--warp-episode", str(n), "--script", ROUTE_WALK,
                               "NIGHT_WARP_ENTITY=" + ",".join(stems[:24]),
                               "NIGHT_WARP_ENTITY_AT=600"],
                 {"NIGHT_ENTSPR": "1", "NIGHT_HUDDBG": "1", "NIGHT_GLYPHDBG": "1",

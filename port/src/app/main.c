@@ -274,6 +274,51 @@ static uint32_t  g_cdda_tracks;
 static uint64_t  g_cdda_clock, g_cdda_freq;      /* drain-model timing */
 static uint8_t   g_cdda_raw[2352];
 
+#define CDDA_CUSHION_SECTORS 30u   /* 0.4 s: the allowance granted at PLAY, and the queue ceiling (docs/307) */
+
+/* Bytes the DEVICE consumes for one Red Book sector: the CD-DA stream is created at 44100 Hz stereo and
+ * resampled to whatever the opened device wants, while SDL_GetAudioStreamAvailable() counts device bytes. */
+static uint64_t cdda_dev_bytes_per_sector(void) {
+    if (!g_audio_dst.freq) return 2352;
+    return (uint64_t)2352 * g_audio_dst.freq / 44100 + 1;
+}
+
+static uint32_t cdda_avail(void);
+
+/* docs/307: request-to-audible witness (NIGHT_CDDADBG=1, needs --rig-dump).  `pushed` is what the port has
+ * handed to SDL, `avail` is SDL_GetAudioStreamAvailable() -- the bytes still sitting in the stream and
+ * therefore NOT yet audible -- and `pulled` = pushed - avail is what the device has taken out.  A track
+ * switch flushes the stream, so the avail recorded on the flush line is exactly the amount of old-track
+ * audio that had been queued ahead of the device's audible head: that queue is the switch delay. */
+static FILE    *g_cdda_pipe;
+static long     g_cdda_pipe_next;
+static uint32_t g_cdda_cur_index = 0xffffffffu;
+
+static void cdda_pipe_open(void) {
+    if (g_cdda_pipe || !g_rig_dir || !getenv("NIGHT_CDDADBG")) return;
+    char path[1024];
+    snprintf(path, sizeof path, "%s/cdda_pipe.jsonl", g_rig_dir);
+    g_cdda_pipe = fopen(path, "w");
+    if (g_cdda_pipe)
+        fprintf(g_cdda_pipe, "{\"ev\":\"device\",\"freq\":%d,\"channels\":%d,"
+                             "\"bytes_per_sector\":2352,\"sectors_per_s\":75}\n",
+                (int)g_audio_dst.freq, (int)g_audio_dst.channels);
+}
+
+static uint32_t cdda_avail(void) {
+    return g_cdda_stream ? (uint32_t)SDL_GetAudioStreamAvailable(g_cdda_stream) : 0u;
+}
+
+static void cdda_pipe_log(const char *ev, uint32_t avail) {
+    if (!g_cdda_pipe) return;
+    fprintf(g_cdda_pipe, "{\"t_ms\":%ld,\"ev\":\"%s\",\"avail\":%u,\"pushed\":%llu,\"pulled\":%lld,"
+                          "\"pos\":%u,\"budget\":%llu,\"index\":%u}\n",
+            pt_now_ms(), ev, avail, (unsigned long long)g_cdda_bytes,
+            (long long)g_cdda_bytes - (long long)avail, g_cdda_pos,
+            (unsigned long long)g_cdda_budget, g_cdda_cur_index);
+    fflush(g_cdda_pipe);
+}
+
 static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     /* MSCDEX semantics: the play request (fn_010570, request 0x1510 behind fn_010b1d's call) replaces
      * whatever was playing -- the drive cannot play two tracks at once. The port reused one SDL stream
@@ -281,11 +326,16 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
      * 30-sector / 0.4 s lead) played on top of the new track, and the witness showed NO stop mark at any
      * track change (docs/105 §1: `play 1` at 3.66 s, `play 9` at 8.12 s, no stop for track 1 anywhere).
      * That is the audible half of "music is still broken": every selection overlaps the old track. */
-    if (g_cdda_sectors != 0) {
+    if (g_cdda_sectors != 0) {                                     /* the outgoing track is still live */
         if (g_rig_dir) rig_cdda_marker(pt_now_ms(), -1, g_cdda_lba, g_cdda_sectors);
-        if (g_cdda_stream) SDL_FlushAudioStream(g_cdda_stream);
-        g_cdda_sectors = 0; g_cdda_pos = 0;
     }
+    /* docs/307: flush UNCONDITIONALLY.  Three of the four switches on the canonical route entered here with
+     * g_cdda_sectors already 0 (the old track's sector count had run out), so the old branch skipped the flush
+     * and left 0.8-1.9 MB of old-track audio queued in the stream ahead of the new track's samples -- 4.2-10.0 s
+     * of audible delay, measured with scripts/rig/cdda_delay.py on /tmp/rig/mt1 and /tmp/rig/mt2. */
+    cdda_pipe_log("flush", cdda_avail());        /* old audio still queued ahead of the audible head */
+    if (g_cdda_stream) SDL_FlushAudioStream(g_cdda_stream);
+    g_cdda_sectors = 0; g_cdda_pos = 0;
     g_cdda_tracks++;
     g_cdda_lba = lba; g_cdda_sectors = sectors; g_cdda_pos = 0;
     g_cdda_budget = 0;
@@ -303,10 +353,14 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     SDL_Log("cdda: track index %u lba=%u sectors=%u (%.1f s)%s", index, lba, sectors,
             sectors / 75.0, g_cdda_stream ? "" : " (no device: counted, not played)");
     if (g_rig_dir) rig_cdda_marker(pt_now_ms(), (long)index, lba, sectors);
+    cdda_pipe_open();
+    g_cdda_cur_index = index;
+    cdda_pipe_log("play", cdda_avail());
 }
 
 static void cdda_stop(void) {
     if (g_rig_dir) rig_cdda_marker(pt_now_ms(), -1, g_cdda_lba, g_cdda_sectors);
+    cdda_pipe_log("stop", cdda_avail());
     g_cdda_sectors = 0; g_cdda_pos = 0;
     if (g_cdda_stream) SDL_FlushAudioStream(g_cdda_stream);
 }
@@ -328,9 +382,22 @@ static void cdda_pump(void) {
      * bounded, which is what makes an audible track switch possible at all: the track-change log was
      * already correct, the heard stream lagged it by minutes (playtest 04-2026-11-02 item 1). */
     if (g_cdda_stream) {
-        uint64_t allowed = g_cdda_budget + 30;                    /* cushion granted once, at the PLAY */
+        uint64_t allowed = g_cdda_budget + CDDA_CUSHION_SECTORS;   /* cushion granted once, at the PLAY */
         want = (g_cdda_pos >= allowed) ? 0
              : sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, (uint32_t)(allowed - g_cdda_pos), 16);
+        /* docs/307: the reader must never run further than the cushion ahead of what the device has actually
+         * taken.  Wall time alone does not bound the queue -- on the canonical route the port fed at 1.10-1.11x
+         * real time while the device drained at 0.95x, so the stream ended up holding 3.75 MB = 19.5 s of audio
+         * (0.8-1.9 MB of it at each switch), and every new track had to queue behind the old one. */
+        uint64_t av = cdda_avail();
+        uint64_t bps_sector = cdda_dev_bytes_per_sector();
+        uint64_t cap = (uint64_t)CDDA_CUSHION_SECTORS * bps_sector;
+        if (av >= cap) {
+            want = 0;
+        } else {
+            uint64_t room = (cap - av) / bps_sector;
+            if (room < want) want = (uint32_t)room;
+        }
     } else {
         want = sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, (uint32_t)(el ? el : 1), 16);
     }
@@ -339,6 +406,12 @@ static void cdda_pump(void) {
         if (g_cdda_stream && !SDL_PutAudioStreamData(g_cdda_stream, g_cdda_raw, 2352)) { g_cdda_sectors = 0; break; }
         g_cdda_bytes += 2352; g_cdda_sector_reads++; g_cdda_pos++;
         if (g_rig_dir) rig_cdda_sample(pt_now_ms(), g_cdda_raw, 2352);
+    }
+    if (g_cdda_pipe) {                                /* throttled pipe sample (docs/307) */
+        uint32_t av = cdda_avail();
+        long t = pt_now_ms();
+        if (want && g_cdda_pos == want) cdda_pipe_log("first_feed", av);
+        if (t >= g_cdda_pipe_next) { cdda_pipe_log("pipe", av); g_cdda_pipe_next = t + 40; }
     }
 }
 

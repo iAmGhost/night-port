@@ -55,6 +55,7 @@ def census(d):
     inst = 0                       # identity-instance counter
     hits = defaultdict(list)       # (identity, window) -> [tick, old, new]
     makes = []                     # (start_tick, end_tick, states)
+    pst_of = {}                    # tick -> player state (+0x17), the first half of the shipped's latch key
     win_of = {}                    # tick -> window index
     cur = None
     for r in recs:
@@ -66,6 +67,7 @@ def census(d):
             if po is not None and e["o"] == po:
                 pst = e["st"] & 0x7FFFFFFF
                 break
+        pst_of[tick] = pst
         inatk = pst in ATTACK
         if inatk:
             if cur is None:
@@ -103,9 +105,15 @@ def census(d):
     per_window = defaultdict(int)
     for (ident, w), ev in hits.items():
         per_window[w] += len(ev)
+    per_latch = defaultdict(list)          # (ident, window, player state at the hit) -> events
+    for (ident, w), ev in hits.items():
+        for t, a, b in ev:
+            per_latch[(ident, w, pst_of.get(t))].append((t, a, b))
+    latch_dist = Counter(len(v) for v in per_latch.values())
     dist = Counter(len(v) for v in hits.values())
     multi = {k: v for k, v in hits.items() if len(v) >= 2}
     return dict(recs=len(recs), makes=len(makes), identities=inst, pairs=len(hits),
+                latch_dist=latch_dist, per_latch=per_latch,
                 events=sum(len(v) for v in hits.values()), dist=dist, multi=multi,
                 per_window=per_window, hits=hits, makes_list=makes)
 
@@ -122,6 +130,12 @@ def main():
         print(f"   (make,victim) pairs with >=1 hit={c['pairs']}  hit events={c['events']}")
         print(f"   hits per (make,victim) distribution: {sorted(c['dist'].items())}")
         print(f"   makes that hit the same victim >=2 times: {len({w for (_, w) in c['multi']})}")
+        print(f"   hits per (make, victim, player state) -- the shipped's latch key 0x14706/0x14716: "
+              f"{sorted(c['latch_dist'].items())}")
+        for k, v in sorted(c['per_latch'].items(), key=lambda kv: -len(kv[1]))[:3]:
+            if len(v) >= 2:
+                print(f"     LATCH MISS ident={k[0]} state=0x{k[2]:02x} ticks "
+                      f"{[t for t, _, _ in v]} falls {[f'{a}->{b}' for _, a, b in v]}")
         mx = sorted(c["multi"].items(), key=lambda kv: -len(kv[1]))[:5]
         for (ident, w), ev in mx:
             mk = c["makes_list"][w]

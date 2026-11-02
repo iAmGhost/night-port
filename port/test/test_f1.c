@@ -10744,10 +10744,12 @@ static void test_fn_01441e(void)
     ax1c[3] = -20; ax20[3] = 20;
 
     /* (2) pass 2 gate: no slot window is still unfinished at the current frame.
-     * 0x0001467b-0x0001469d accepts row i when word[rec_e+4i+8] > e[0x11] OR (only if that
-     * fails) word[rec_e+4i+0xa] > e[0x11], so a row is skipped only when BOTH thresholds are at
-     * or below the frame counter -- the shipped game ACCEPTS (20,30) at frame 3, and the old
-     * fixture relied on the port's invented lower-bound test (docs/263). */
+     * 0x0001467b-0x146a9 (docs/306): `w1 > fr` jumps to 0x1469f, which is a stub `jmp 0x146a9` back to the
+     * next-row path, so a row whose START threshold is above the frame counter is skipped; the accept block
+     * 0x146a1 is reachable only from 0x1469d, which runs only when w1 <= fr.  The shipped's rule is therefore
+     * `w1 <= fr && w2 > fr`.  Here all six rows are (1,2) at frame 3, so no window is open under that rule.
+     * (docs/263 read the first jump's target as the accept block and relaxed the port to "either threshold";
+     * that relaxation is what this fixture now contradicts.) */
     for (int w = 0; w < 6; w++) {
         *(uint16_t *)(hb + ae + 4u * w + 0x08) = 1;
         *(uint16_t *)(hb + ae + 4u * w + 0x0a) = 2;
@@ -10755,6 +10757,29 @@ static void test_fn_01441e(void)
     fn_01441e(E);
     check(O[0x46] == 0 && *(uint32_t *)(O + 0x29) == 50,
           "01441e an attack animation with no unfinished slot window returns");
+
+    /* (2b) the discriminator between the two readings of 0x00014685 (docs/306): at frame 3 row 0 is a FUTURE
+     * window (20,30) and row 1 is the live one (0,10).  The shipped skips row 0 (w1=20 > 3 lands on the
+     * next-row stub) and accepts row 1, so the attack that lands is row 1's -- damage 11 at dword[ae+0x24],
+     * and the victim records the row index it was hit by in byte +0x4f.  A selection that accepts a row whose
+     * window has not started picks row 0 instead (damage 7, slot 0), which is what the port did with docs/263's
+     * "either threshold", and it is also what let one attack make hit the same victim several times: the
+     * shipped's dedupe at 0x000146fb-0x14719 skips a victim whose (+0x4e, +0x4f) pair matches the current
+     * (state, slot), so a slot that changes every pass never repeats a key. */
+    *(uint16_t *)(hb + ae + 0x08) = 20; *(uint16_t *)(hb + ae + 0x0a) = 30;  /* row 0: future only */
+    *(uint16_t *)(hb + ae + 0x0c) = 0;  *(uint16_t *)(hb + ae + 0x0e) = 10;  /* row 1: live at frame 3 */
+    *(uint32_t *)(hb + ae + 0x24) = 11;                                       /* damage of row 1 */
+    hb[ae + 0x39] = 3;                                /* row 1's reaction code, same as row 0's */
+    for (int w = 0; w < 6; w++) hb[ae + 0x56 + w] = 20;                       /* Y tolerance per row */
+    *(uint8_t *)(O + 0x4e) = 0; *(uint8_t *)(O + 0x4f) = 0;                   /* clear the dedupe pair */
+    *(uint16_t *)(O + 0x29) = 50;
+    fn_01441e(E);
+    check(*(uint16_t *)(O + 0x29) == 39 && O[0x4f] == 1,
+          "01441e a row whose window has not started yet is skipped: frame 3 takes row 1, not row 0");
+    check(O[0x4e] == 5,
+          "01441e the victim's dedupe byte +0x4e records the attacker state");
+    *(uint32_t *)(O + 0x17) = 5; *(uint32_t *)(O + 0x11) = 3;   /* restore what the landed hit re-wrote */
+    *(uint8_t *)(O + 0x4e) = 0; *(uint8_t *)(O + 0x4f) = 0;     /* and clear the dedupe pair again */
     *(uint16_t *)(hb + ae + 0x08) = 0; *(uint16_t *)(hb + ae + 0x0a) = 10;
     *(uint16_t *)(hb + ae + 0x0c) = 20; *(uint16_t *)(hb + ae + 0x0e) = 30;
 

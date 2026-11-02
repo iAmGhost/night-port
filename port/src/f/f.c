@@ -25366,14 +25366,16 @@ p1next:
         uint32_t w1 = ((struct ua16 *)((hb + rec_e + 4u * (uint32_t)i + 0x08)))->v;
         uint32_t w2 = ((struct ua16 *)((hb + rec_e + 4u * (uint32_t)i + 0x0a)))->v;
         int32_t fr = (int32_t)((struct ua32 *)((e + 0x11)))->v;
-        /* 0x0001467b-0x0001469d: the shipped accepts row i when EITHER threshold word is
-         * greater than the frame counter -- `word[rec_e+4i+8] > e[0x11]` jumps straight to the
-         * accept at 0x146a1, and only if that fails does it test `word[rec_e+4i+0xa] > e[0x11]`.
-         * There is no lower-bound test: the earlier `w1 <= fr` here was an invented condition
-         * (docs/263) that rejected row 0 whenever its start threshold was above frame 0, which
-         * is the common case, so the slot -- and with it byte[rec_e+slot+0x38], the reaction
-         * code that indexes g_tab_51b60 -- was the wrong row's code. */
-        if ((int32_t)w1 > fr || (int32_t)w2 > fr) { slot = i; break; }
+        /* 0x0001467b-0x146a9 (docs/306): accept row i only when its window CONTAINS the current action frame,
+         * i.e. w1 <= fr && w2 > fr.  Read the branches by their targets: `w1 > fr` jumps to 0x1469f, which is a
+         * two-byte stub `jmp 0x146a9` back to the next-row path -- a row whose start threshold is above the
+         * frame counter is SKIPPED -- and the accept block 0x146a1 is reachable only from 0x1469d, which runs
+         * only when w1 <= fr.  docs/263 took `jg 0x1469f` for `jg 0x146a1`, called the w1 test "invented", and
+         * relaxed the rule to `w1 > fr || w2 > fr`; that let not-yet-live rows be selected, which changed the
+         * accepted slot from pass to pass and so broke the shipped's per-victim dedupe at 0x146fb-0x14719 (its
+         * key is the pair (attacker state, accepted slot), and fn_01441e writes that pair at 0x14812/0x1481b),
+         * letting one attack make land several hits on the same victim. */
+        if ((int32_t)w1 <= fr && (int32_t)w2 > fr) { slot = i; break; }
     }
     if (i == 6) {
         if (g_hit_trace && e == g_player_ent) {

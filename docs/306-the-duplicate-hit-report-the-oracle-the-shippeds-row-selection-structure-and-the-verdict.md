@@ -123,10 +123,50 @@ has 8 writes, and the only subtractor is `0x14964 fn_01441e sub word[edx+0x23], 
 `+0x23` is a legitimate hit witness (the raiser at `0x138f6` belongs to `fn_0137c1` and, per docs/252 §3, only
 ever touches the player).
 
-## 5. What has not been claimed yet
+## 5. The fix, and the measurement that gates it
 
-Nothing has been fixed in this note.  The gate for the fix (task `hit-fix`) is: restore `w1 <= fr && w2 > fr`,
-restore the two fixtures docs/263 rewrote so they assert the shipped's window rule, show those fixtures red on
-the pre-fix line and green on the fixed line, and re-run `hits_per_attack.py` twice on HEAD with the phase
-matched (player X, room, mirror) so the multi-hit makes disappear while the total hit volume stays in the
-baseline's range.
+`port/src/f/f.c` now reads `if ((int32_t)w1 <= fr && (int32_t)w2 > fr) { slot = i; break; }` -- the shipped's
+window test -- with a comment naming the mis-read target.  That is a one-line revert of docs/263 plus its
+comment.
+
+**Fixture.** `port/test/test_f1.c` case (2b): frame 3, row 0 = `(20,30)` (window not started), row 1 = `(0,10)`
+(live), rows 2-5 = `(1,2)` (closed), damages 7 and 11 at `dword[ae+0x20]` / `dword[ae+0x24]`.  The shipped
+skips row 0 and lands row 1: `O[+0x29] 50 -> 39` and `O[0x4f] == 1`.
+
+| source line | result |
+|---|---|
+| `w1 > fr \|\| w2 > fr` (docs/263, HEAD before this fix) | `[FAIL] 01441e a row whose window has not started yet is skipped: frame 3 takes row 1, not row 0` -- the only failure in the suite |
+| `w1 <= fr && w2 > fr` (this fix) | that check passes, `make -C port test` = `== ALL PASS ==` |
+
+The fixture was written first and run against the unfixed line, so the red is not inferred from the green.
+docs/263's rewritten case (2) -- all six rows `(1,2)` at frame 3 -- is left in place because it is genuinely
+the nothing-live case under *both* readings; the missing test was the future-window case, which is why the
+suite agreed with the wrong rule for three weeks.
+
+**Rig.** Same drive, same pinned env, same `--frames 9000 --rig-hz 10`, and `hits_per_attack.py` extended with
+a second census keyed on the shipped's latch pair -- `(make, victim, player state at the hit)`, the dump-side
+shadow of `cmp [victim+0x4e], attacker[+0x17]` at `0x14706` plus `cmp [victim+0x4f], slot` at `0x14716`.
+
+| run | build | makes | hit events | pairs | max hits per (make,victim) | hits per (make,victim,state) |
+|---|---|---|---|---|---|---|
+| `/tmp/rig/h306/head1` | relaxed | 99 | 4 | 3 | 2 | `{1:4}` |
+| `/tmp/rig/h306/head2` | relaxed | 114 | 7 | 5 | 3 | `{1:5, 2:1}` |
+| `/tmp/rig/h306/fix1` | fixed | 98 | 15 | 12 | 2 | `{1:15}` |
+| `/tmp/rig/h306/fix2` | fixed | 118 | 9 | 8 | 2 | `{1:9}` |
+
+The latch miss in `head2` is the literal defect: victim `o=1631896` took two falls **inside a single attack
+state** -- ticks 981 and 982, both while the player sat in `0x35`, `23 -> 9` then `9 -> 2`.  Under the shipped's
+dedupe that pair of events cannot both happen, and after the fix neither fixed run produces one: every one of
+the 15 and 9 hit events sits alone in its `(make, victim, state)` cell.
+
+What remains is *not* a duplicate: fixed-run makes that show two hits do so across two states (`0x34` then
+`0x35`, e.g. `fix2` ticks 856 and 858, `26->22` then `22->15`), which is exactly what the shipped's latch key
+permits -- a different state selects a different action record and may therefore land one hit each.
+
+Phase match across the four runs: all four enter the room and fight (1074-1095 player samples, `Y` dominated by
+139 and 172, entry at `X = -30`), the fixed runs land 24 hit events against the relaxed runs' 11 while spread
+over 20 victims rather than 8.  Endpoint X differs between runs (241-384) because the runs' combat outcomes
+differ; that is the effect being measured, not a phase difference.
+
+docs/263's own before/after (30 -> 79 landed hits, enemy `+0x23` floor 23 -> 15) is now re-labelled: those were
+not gains, they were the relaxation letting not-yet-live rows land damage.

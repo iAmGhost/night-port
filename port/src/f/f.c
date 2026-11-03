@@ -87,6 +87,8 @@ void blit_stats_dump(void) {
 }
 
 static int g_blit_stats_on;   /* set by blit_stats_on() from the host */
+int g_blit_bad_reported;      /* witness counter: blt_rows calls whose row count left the shipped's 1..0xc8 band (NIGHT_BLITDBG=1, docs/311) */
+int g_ce0b_arms[4];           /* witness counter: fn_03ce0b dispatch census over B0/B1/B2/B3 (docs/311) */
 void blit_stats_on(void) { g_blit_stats_on = 1; }
 void cpy_dw(uint32_t *a, int n, uint32_t *c) {
     if (g_blit_stats_on) bstat(__builtin_return_address(0), (unsigned long)n * 4u, c, (unsigned long)n * 4u);
@@ -103,6 +105,20 @@ void cpy_dw(uint32_t *a, int n, uint32_t *c) {
  * a = src, s = src pitch, w = width, h = rows, c = dst, t = dst pitch
  */
 void blt_rows(uint8_t *a, int s, uint32_t w, int h, uint8_t *c, int t) {
+    /* Host witness (NIGHT_BLITDBG=1, docs/311): the shipped's row loop is a DEC/JNE at 0x040bf-0x040c0, so a
+     * row count of 0 or a negative one is NOT a no-op -- it runs ~4e9 rows and writes past the end of the
+     * destination.  A playthrough faulted exactly there (ASan: BUS on a WRITE at f.c:115 in blt_rows, called
+     * from fn_03ce0b <- fn_038098 <- fn_03a829 <- fn_03af18), so name every call whose row count leaves the
+     * shipped's own 1..200 band, with the caller, instead of letting the runaway loop fault silently. */
+    static int s_dbg = -1;
+    if (s_dbg < 0) s_dbg = getenv("NIGHT_BLITDBG") ? 1 : 0;
+    if (s_dbg && (h <= 0 || h > 0xc8) && g_blit_bad_reported < 40) {
+        g_blit_bad_reported++;
+        fprintf(stderr, "blitdbg: blt_rows h=%d w=%#x src=%p dst=%p spitch=%d dpitch=%d rows_bytes=%ld "
+                        "from=%p (h outside the shipped's 1..0xc8 band; its DEC/JNE loop would run %u rows)\n",
+                h, w, (void *)a, (void *)c, s, t, (long)w * (long)h, __builtin_return_address(0),
+                (unsigned)(h <= 0 ? 0u - (uint32_t)h : (uint32_t)h));
+    }
     if (g_blit_stats_on) bstat(__builtin_return_address(0), (unsigned long)w * (unsigned long)(h < 0 ? 0 : h), c, (unsigned long)w * (unsigned long)h);
     do {
         uint32_t uw = w >> 1;
@@ -7673,9 +7689,16 @@ void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
                 video_map(g_dat_639dc + ((struct ua32 *)((e+0x348)))->v - ((struct ua32 *)((e+0)))->v)[3]);
     }
     if (g_dat_639e4 == 0) {          /* B0 */
+        g_ce0b_arms[0]++;
         uint32_t sa = base + ((struct ua32 *)((e + 0x348)))->v - ((struct ua32 *)((e + 0x0)))->v;
         blt_rows(stage_map(sa), (int)((struct ua32 *)((e + 0x1a)))->v, 0x140, 0xc8, dst, 0x140);
-    } else if (g0 < ((struct ua32 *)((e + 0x4)))->v) {          /* B1 */
+    } else if ((int32_t)g0 < (int32_t)((struct ua32 *)((e + 0x4)))->v) {          /* B1: shipped 0x3ce79 CMP / 0x3ce7c JGE -- SIGNED */
+        g_ce0b_arms[1]++;
+        if (getenv("NIGHT_BLITDBG") && g_ce0b_arms[1] <= 8)
+            fprintf(stderr, "blitdbg: fn_03ce0b arm=B1 mode=%u g0=%d e[0]=%d e[4]=%d e[0xc]=%d e[0x1a]=%u\n",
+                    (unsigned)g_dat_639e4, (int)g0, (int32_t)((struct ua32 *)((e + 0x0)))->v,
+                    (int32_t)((struct ua32 *)((e + 0x4)))->v, (int32_t)((struct ua32 *)((e + 0xc)))->v,
+                    (unsigned)((struct ua32 *)((e + 0x1a)))->v);
         uint64_t w354b; memcpy(&w354b, e + 0x354, sizeof w354b);   /* unaligned-safe */
         uint8_t *s1 = (uint8_t *)(uintptr_t)w354b;   /* orig ent[0x350] = sibling ptr, shifted to +0x354 (widened +0x34c link) */
         uint32_t sp1 = ((struct ua32 *)((s1 + 0x1a)))->v;
@@ -7687,18 +7710,41 @@ void fn_03ce0b(uint8_t *ent, uint8_t *dst) {
         uint32_t sa1b = ((struct ua32 *)((s1 + 0x348)))->v + base - ((struct ua32 *)((s1 + 0x0)))->v
                        + sp1 * (0xc8 - h1b);
         blt_rows(stage_map(sa1b), (int)sp1, 0x140, (int)h1b, dst, 0x140);
-    } else if (g0 + 0xc8 > ((struct ua32 *)((e + 0xc)))->v) {    /* B2 */
+    } else if ((int32_t)(g0 + 0xc8) > (int32_t)((struct ua32 *)((e + 0xc)))->v) {    /* B2: shipped 0x3cf65 CMP / 0x3cf68 JLE -- SIGNED */
+        g_ce0b_arms[2]++;
+        if (getenv("NIGHT_BLITDBG") && g_ce0b_arms[2] <= 8)
+            fprintf(stderr, "blitdbg: fn_03ce0b arm=B2 mode=%u g0=%d e[0]=%d e[4]=%d e[0xc]=%d e[0x1a]=%u\n",
+                    (unsigned)g_dat_639e4, (int)g0, (int32_t)((struct ua32 *)((e + 0x0)))->v,
+                    (int32_t)((struct ua32 *)((e + 0x4)))->v, (int32_t)((struct ua32 *)((e + 0xc)))->v,
+                    (unsigned)((struct ua32 *)((e + 0x1a)))->v);
         uint32_t h2a = ((struct ua32 *)((e + 0xc)))->v - g0;
-        uint32_t sa2a = ((struct ua32 *)((e + 0x348)))->v + (g0 - ((struct ua32 *)((e + 0)))->v) * 0x140;
+        /* 0x3cfa0-0x3cfbc: a = e[0x348] + (g0 - e[0x04]) * 0x140 -- the row delta uses the record's Y field
+         * (+0x04), not its X field (+0x00): 0x3cfa5 loads EAX = g0, 0x3cfa8 SUB EAX,[EDX+4], 0x3cfab IMUL
+         * EDX,EAX,0x140, 0x3cfba ADD EAX,EDX.  Multiplying a column delta by a row pitch is the docs/300
+         * axis error, and here it produced the out-of-window dst/src the playthrough faulted on. */
+        uint32_t sa2a = ((struct ua32 *)((e + 0x348)))->v
+                      + (g0 - ((struct ua32 *)((e + 0x4)))->v) * 0x140;
         blt_rows(stage_map(sa2a), (int)((struct ua32 *)((e + 0x1a)))->v, 0x140, (int)h2a, dst, 0x140);
         uint64_t w34cb; memcpy(&w34cb, e + 0x34c, sizeof w34cb);   /* unaligned-safe */
         uint8_t *s2 = (uint8_t *)(uintptr_t)w34cb;   /* ent[0x34c] = sibling ptr (64-bit) */
-        uint32_t h2b = g0 - ((struct ua32 *)((e + 0)))->v;
-        uint32_t do2b = (uint32_t)((int)((0xc8 - g0) + ((struct ua32 *)((e + 0)))->v) * (int)0x140);
+        /* 0x3cfe5-0x3cf10: h = g0 - e[0x04] -- MOV EAX,[0x139e0]; MOV EDX,[EBP-8]; SUB EAX,[EDX+4]; PUSH EAX.
+         * The port used the record's X field (+0x00) here.  The rig's own route witnessed the consequence
+         * (NIGHT_BLITDBG=1, /tmp/rig/g311a): arm B2 with mode=1 g0=1 e[0]=3280 e[4]=0 e[0xc]=200 e[0x1a]=320
+         * produced `blt_rows h=-3279 ... rows_bytes=-1049280`, i.e. a negative row count handed to the shipped's
+         * DEC/JNE loop, which then writes past the destination -- the same fault shape as the playtest's
+         * ASan BUS in blt_rows (its dump carried the matching src pitch 0x780 = 1920). */
+        uint32_t h2b = g0 - ((struct ua32 *)((e + 0x4)))->v;
+        /* 0x3cfca-0x3cfe1: c = dst + ((0xc8 - g0) + e[0x04]) * 0x140 -- 0x3cfca MOV EDX,0xc8, 0x3cfcf SUB
+         * EDX,[0x139e0], 0x3cfd8 ADD EDX,[EAX+4], 0x3cfdb IMUL EDX,0x140, 0x3cfe1 ADD EDX,[EBP-4] */
+        uint32_t do2b = (uint32_t)(((int)(0xc8 - g0) + (int32_t)((struct ua32 *)((e + 0x4)))->v) * (int)0x140);
         uint32_t sa2b = ((struct ua32 *)((s2 + 0x348)))->v + base - ((struct ua32 *)((s2 + 0x0)))->v;
         blt_rows(stage_map(sa2b), (int)((struct ua32 *)((s2 + 0x1a)))->v, 0x140, (int)h2b, dst + do2b, 0x140);
     } else {                                      /* B3 */
-        uint32_t sa = ((struct ua32 *)((e + 0x348)))->v + (g0 - ((struct ua32 *)((e + 0)))->v) * ((struct ua32 *)((e + 0x1a)))->v;
+        g_ce0b_arms[3]++;
+        /* 0x3d049-0x3d066: a = e[0x348] + (g0 - e[0x04]) * e[0x1a] -- 0x3d051 SUB EAX,[EDX+4],
+         * 0x3d059 IMUL EDX,[EAX+0x1a], 0x3d066 ADD EAX,EDX (again the Y field, not +0x00). */
+        uint32_t sa = ((struct ua32 *)((e + 0x348)))->v
+                    + (g0 - ((struct ua32 *)((e + 0x4)))->v) * ((struct ua32 *)((e + 0x1a)))->v;
         blt_rows(stage_map(sa), (int)((struct ua32 *)((e + 0x1a)))->v, 0x140, 0xc8, dst, 0x140);
     }
     /* common epilogue */

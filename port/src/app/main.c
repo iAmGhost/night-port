@@ -1690,8 +1690,13 @@ int main(int argc, char **argv) {
          * comparisons and drives anchored on `wait res opening.fli` are void while it is on. */
         const char *si = getenv("NIGHT_SKIP_INTRO");
         if (si && strcmp(si, "0") != 0) g_skip_intro = 1;
-        if (g_skip_intro) SDL_Log("skip-intro: ACTIVE -- logo card and opening.fli are skipped "
-                                  "(not valid for audio-schedule or intro-anchored oracle runs)");
+        if (g_skip_intro) {   /* printed once: this env block is reached by more than one boot pass, and the
+                               * 2026-11-03 playtest log showed the same statement twice (docs/311) */
+            static int s_si_logged = 0;
+            if (!s_si_logged) { s_si_logged = 1;
+                SDL_Log("skip-intro: ACTIVE -- logo card and opening.fli are skipped "
+                        "(not valid for audio-schedule or intro-anchored oracle runs)"); }
+        }
     }
     if (getenv("NIGHT_SOUND")) g_dat_53338 = 1;  /* the title menu's SOUND toggle (fn_039c03) is off by
                                                   * default in the shipped image; force it on for tests */

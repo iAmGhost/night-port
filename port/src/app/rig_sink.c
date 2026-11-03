@@ -457,11 +457,14 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
                 else { pacc = 0; prai = 0; }
                 psrc = 0;
                 if (pn >= 0xbf) memcpy(&psrc, g_player_ent + 0xbb, 4);
-                fprintf(g_pre, "{\"tick\":%llu,\"x\":%d,\"y\":%d,\"st\":%u,\"f1b\":%u,\"hp\":%u,"
+                fprintf(g_pre, "{\"tick\":%llu,\"o\":%lld,\"n\":%u,\"tag\":%u,\"x\":%d,\"y\":%d,"
+                               "\"st\":%u,\"f1b\":%u,\"hp\":%u,"
                                "\"exp2b\":%d,\"acc52\":%d,\"srcbb\":%d,\"rai56\":%d,"
                                "\"md\":%d,\"adv\":%d,\"wk\":%lu,\"wa\":%lu,\"wv\":%lu,"
                                "\"f30\":%u,\"ag\":%lu}\n",
-                        (unsigned long long)g_tick, px, py, pst, pf1b, php, pexp, pacc, psrc, prai,
+                        (unsigned long long)g_tick, (long long)((const uint8_t *)g_player_ent - (const uint8_t *)g_heap_base),
+                        (unsigned)pn, (unsigned)g_player_ent[0],
+                        px, py, pst, pf1b, php, pexp, pacc, psrc, prai,
                         f_rig_menu_depth(), f_rig_chain_advances(),
                         f_walk_body_calls(), f_walk_admit_calls(), f_walk_vert_calls(),
                         (unsigned)g_player_ent[0x30], f_act_flag_gate());

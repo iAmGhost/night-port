@@ -100,21 +100,31 @@ From tick 780 on, `g_player_ent` reads as **host pointer words in every field** 
 * the follow call at 0x3d5f8 therefore never gets its condition (`playerY ≥ camY + 194`) ✓ `DAT_639e0`
   changes only at room installs ✓ "the camera does not follow the player down" ✓
 
-So item D's remaining root cause is not in `fn_03cc6b` and not in the scroll stores: **the player record
-pointer stops naming a record during episode 1's third room node.**  Round-2 item C ("clearing stage 2 re-enters
-the same map with no enemies") and round-4 item H (the menu opening on a glitched picture) sit on the same
-window, so this is the highest-value lead in the set.
+So item D's remaining root cause is not in `fn_03cc6b` and not in the scroll stores: **the block that
+`g_player_ent` names is overwritten while the pointer stays put.**  `/tmp/rig/w314n` (offset and span now in the
+sidecar) settles which of the two it is:
+
+```
+tick=23   off=+0x3a75d8 span=0x160 tag=0   st=0        y=172      hp=1000   adv=0
+tick=725  off=+0x3a75d8 span=0x160 tag=43  st=garbage  y=garbage  hp=11051  adv=2  ag=289
+```
+
+The offset and the span never change, so no re-point happens ✓ and the shipped's own store census agrees: the
+only two writers of the player pointer in NIGHT.EXE are 0x3774c (stage loader) and 0x3b01b (the same construction
+in `fn_03af18`'s tail), both modelled (`f.c:5803`, `f.c:28404`) ✓ **The record's tag byte goes 0 → 43** while its
+body turns into host pointers: something reuses or overruns the player's 0x160-byte block during episode 1's
+third room node.  Round-2 item C ("clearing stage 2 re-enters the same map with no enemies") and round-4 item H
+(the menu opening on a glitched picture) sit in the same window, so this is the highest-value lead in the set.
 
 ## 5. Next
 
-1. Make `player_recs.jsonl` carry the record's arena offset and span, and diff it against `records.jsonl`'s
-   admitted records per sample: does `g_player_ent` (DS `DAT_53c7c`) get re-pointed, and where — at the
-   `fn_03d244` advance, at `fn_037b03`'s room reload, or at a record construction (`fn_010efc` ✓ which is the
-   shipped's latch site 0x10f1d-0x10f2b)?
-2. Re-check `DAT_53c7c`'s writers against the shipped store census (`imm_scan --imm 0x13c7c`): docs/252 §1's
-   lesson is that a re-point needs no construction, and docs/310's that "no writer exists" needs a store census,
-   not a grep.
-3. Then re-measure item D on the same drive: green = during a held-Down window in `+0x18da60`, the player's Y
-   climbing to the band bottom (195), the `0x3d5f8` call firing, `[vgate]` gate-true counts > 0 and `DAT_639e0`
-   climbing toward the node's `+0x0c - 200 = 200` ✓ plus a `test_f1.c` fixture pinning the two `inc` arms and the
-   caller's polarity (the two existing fixtures now do the caller ✓ a store-level fixture is still owed ✓).
+1. Find the writer that turns the player's block into pointer words: candidates are a record construction that
+   reuses the block (`fn_010efc` ✓ the shipped's latch site 0x10f1d-0x10f2b ✓ docs/247/252's slot-identity
+   family ✓), an overrun past the 0x160 span, or `fn_041e20`/`memset` with a size that exceeds the record.  The
+   shipped's store census must be built per displacement (`field_writers.py ✓ docs/297`) rather than by grep,
+   and docs/310's rule applies: "no writer exists" needs a census, not a pattern search.
+2. Then re-measure item D on the same drive: green = during a held-Down window in `+0x18da60`, the player's Y
+   climbing to the band bottom (195), the 0x3d5f8 call firing, `[vgate]` gate-true counts > 0 and `DAT_639e0`
+   climbing toward the node's `+0x0c - 200 = 200` ✓ plus a `test_f1.c` fixture pinning the two `inc` arms (the
+   caller's polarity is now pinned by the two rewritten `fn_03d4e4` fixtures ✓ a store-level fixture is still
+   owed ✓).

@@ -67,6 +67,8 @@ static Uint32       *g_pixels;
 static uint8_t       g_pal[768];
 
 static int      g_frames;                    /* frames presented */
+static long     g_menu_frames;               /* frames presented while fn_038f3d owned the keyboard (docs/313) */
+static unsigned g_menu_posts;                /* key posts the menu drive posted (docs/313) */
 static Uint64   g_present_next;
 static Uint64   g_perf_freq;
 
@@ -565,7 +567,12 @@ static void autokey(void) {
 struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at, a2, a3; };
 static void shot_named(const char *event);
 static void key_apply(uint8_t sc, int make);
-enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3, PT_POKE_DS = 4, PT_ENT_POKE = 5, PT_ACT_DUMP = 6 };
+enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3, PT_POKE_DS = 4, PT_ENT_POKE = 5, PT_ACT_DUMP = 6,
+       PT_WAIT_STATE = 7, PT_MENU = 8 };
+/* PT_WAIT_STATE (docs/313) anchors on the two rig counters f.c keeps: level-up-screen nesting
+ * (f_rig_menu_depth) and room-chain advances (f_rig_chain_advances).  A fixed-time key plan stalls inside
+ * fn_038f3d -- it leaves only on Esc/LShift/RShift (0x3920a-31) -- so a stage route must wait for the screen
+ * to open, hand it its keys, wait for it to close, and only then continue walking. */
 static struct pt_evt *g_pt;
 static int g_pt_n, g_pt_i;
 static const char *g_shots_dir;
@@ -579,7 +586,9 @@ int  rig_ds_read(uint32_t ds, uint32_t *out);   /* current value of a DS-claimin
 int  rig_ds_write(uint32_t ds, uint32_t v);     /* scripted injection into the same table */
 int  rig_ent_poke(int slot, uint32_t off, uint32_t v);   /* write record+off in the +0x13f list walk */
 uint8_t *rig_ent_slot(int slot);                /* the dumper's entity walk, by slot index */
-int  rig_player_poke(uint32_t off, uint32_t v);  /* write record+off of the player entity */
+int  rig_player_poke(uint32_t off, uint32_t v);
+int  rig_latched_poke(uint32_t off, uint32_t v);
+int  rig_guardian_poke(uint32_t off, uint32_t v);   /* write record+off of DAT_53c80, the latched guardian */  /* write record+off of the player entity */
 int  rig_dump_act(int type_idx, unsigned n, const char *dir);  /* raw action-container capture */
 void rig_rebase(long long slip_ms);            /* move the dump timeline onto the script's anchor */
 void rig_close(void);
@@ -679,6 +688,22 @@ static void pt_load(const char *path) {
             e->seq_at = (uint32_t)strtoul(updown, NULL, 0);
             snprintf(e->name, sizeof e->name, "%s", argv4);
             if (!e->seq_at) { SDL_Log("script: wait ds needs an address (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "wait") && n >= 3 && !strcasecmp(arg, "state")) {
+            /* `t wait state menu-open`, `t wait state menu-closed`, `t wait state advance 1` (docs/313).
+             * The number is only a timeout, as with every other wait. */
+            e->kind = PT_WAIT_STATE;
+            snprintf(e->name, sizeof e->name, "%s", updown);
+            e->a2 = (n >= 4) ? (uint32_t)strtoul(argv4, NULL, 0) : 0;
+            if (!e->name[0]) { SDL_Log("script: wait state needs a predicate (line ignored)"); continue; }
+        } else if (!strcasecmp(verb, "menu")) {
+            /* `t menu 150000` (docs/313): park the timeline here and drive the level-up screen by witness,
+             * not by a fixed number of key presses: post Enter (its card wait accepts Enter/CTRL/ALT/Space,
+             * docs/97) and Esc (the screen's own exit test, 0x3920a-31) until fn_038f3d returns.  The number
+             * is only the timeout.  Fixed key counts are what left earlier runs "stuck on the upgrade menu"
+             * -- measured 14857 of 16000 frames menu-owned on scripts/rig/drives/ep1_walk_st2.txt. */
+            e->kind = PT_MENU;
+            e->a3 = 0;                                   /* next scheduled post, set when it becomes current */
+            e->seq_at = 0;                               /* posts made so far */
         } else if (!strcasecmp(verb, "poke") && n >= 3) {
             /* State injection (docs/118): `t poke 0x639bc 0` writes a DS global through the rig's own
              * cell table. Keypress-only replay cannot reach rare states (a knockdown needs a second hit
@@ -706,6 +731,17 @@ static void pt_load(const char *path) {
             e->seq_at = 0xfffffffeu;                         /* sentinel: the player entity */
             e->a2 = (uint32_t)strtoul(arg, NULL, 0);         /* offset in the record */
             e->a3 = (uint32_t)strtoul(updown, NULL, 0);      /* value */
+        } else if (!strcasecmp(verb, "guardian") && n >= 3) {
+            e->kind = PT_ENT_POKE;
+            e->seq_at = 0xfffffffcu;                         /* sentinel: the episode-type record */
+            e->a2 = (uint32_t)strtoul(arg, NULL, 0);
+            e->a3 = (uint32_t)strtoul(updown, NULL, 0);
+        } else if (!strcasecmp(verb, "latched") && n >= 3) {
+            /* `t latched 0x30 1` -- see rig_latched_poke() in rig_sink.c. */
+            e->kind = PT_ENT_POKE;
+            e->seq_at = 0xfffffffdu;                         /* sentinel: the latched (guardian) entity */
+            e->a2 = (uint32_t)strtoul(arg, NULL, 0);
+            e->a3 = (uint32_t)strtoul(updown, NULL, 0);
         } else if (!strcasecmp(verb, "ent") && n >= 4) {
             /* `t ent 2 0x17 0x15` writes 4 bytes at record+0x17 of entity slot 2 in the same +0x13f list
              * walk the state dumper uses, so the injected record is the one the oracle also samples. */
@@ -836,15 +872,83 @@ static void pt_drive(void) {
             continue;
         }
         if (e->kind == PT_ENT_POKE) {
-            int w = (e->seq_at == 0xfffffffeu) ? rig_player_poke(e->a2, e->a3)
-                                               : rig_ent_poke((int)e->seq_at, e->a2, e->a3);
-            SDL_Log("script: %s +%#x = %#x (%s) at t=%ldms",
-                    e->seq_at == 0xfffffffeu ? "poke player" : "poke ent", e->a2, e->a3,
+            const char *who = (e->seq_at == 0xfffffffeu) ? "player"
+                            : (e->seq_at == 0xfffffffdu) ? "latched"
+                            : (e->seq_at == 0xfffffffcu) ? "guardian" : NULL;
+            int w = who ? (!strcmp(who,"player") ? rig_player_poke(e->a2, e->a3)
+                        : !strcmp(who,"latched") ? rig_latched_poke(e->a2, e->a3)
+                        : rig_guardian_poke(e->a2, e->a3))
+                        : rig_ent_poke((int)e->seq_at, e->a2, e->a3);
+            SDL_Log("script: poke %s +%#x = %#x (%s) at t=%ldms", who ? who : "ent", e->a2, e->a3,
                     w ? "ok" : "no such object", t);
-            if (g_rig_dir) rig_marker(t, "poke %s +%#x = %#x",
-                                      e->seq_at == 0xfffffffeu ? "player" : "ent", e->a2, e->a3);
+            if (g_rig_dir) rig_marker(t, "poke %s +%#x = %#x", who ? who : "ent", e->a2, e->a3);
             g_pt_i++;
             continue;
+        }
+        if (e->kind == PT_MENU) {
+            if (f_rig_menu_depth() == 0) {
+                long slip = t - e->t_ms;
+                for (int k = g_pt_i + 1; k < g_pt_n; k++) g_pt[k].t_ms += slip;
+                if (g_rig_dir) rig_rebase(slip);
+                g_pt_i++;
+                SDL_Log("script: level-up screen left after %u posts (menu frames so far %ld) at t=%ldms "
+                        "(rebased %+ldms)", e->seq_at, g_menu_frames, t, slip);
+                if (g_rig_dir) rig_marker(t, "menu left posts=%u", e->seq_at);
+                continue;
+            }
+            if (t >= e->t_ms) {
+                SDL_Log("script: menu drive timed out after %u posts, screen still open at t=%ldms",
+                        e->seq_at, t);
+                g_pt_i++;
+                continue;
+            }
+            if (t >= (long)e->a3) {
+                /* Press, hold, release -- never down-and-up in the same pass.  The screen's own release drain
+                 * (0x38edc-f21, f.c:26402) and the per-room key wipe (fn_0348e2) can consume a press that both
+                 * edges of a same-instant pair hide between two reads of DAT_63e89: the latch witness shows the
+                 * byte does rise and fall during the stuck window (18 transitions in /tmp/rig/w313f, ticks
+                 * 63934-67237) while the test at 0x3920a never sees it.  A held key is what a hand does. */
+                if (e->make) {
+                    key_apply(e->sc, 0); pt_hold_note(e->sc, 0, t);
+                    e->make = 0;
+                    e->a3 = (uint32_t)(t + 400);
+                } else {
+                    e->sc = (e->seq_at % 4 == 3) ? 0x01 : 0x1c;      /* Esc every 4th press, else Enter */
+                    e->make = 1;
+                    e->seq_at++;
+                    g_menu_posts++;
+                    key_apply(e->sc, 1); pt_hold_note(e->sc, 1, t);
+                    e->a3 = (uint32_t)(t + 800);
+                    if (g_rig_dir) rig_marker(t, "menu press %s", e->sc == 0x01 ? "esc" : "enter");
+                }
+            }
+            return;
+        }
+        if (e->kind == PT_WAIT_STATE) {
+            int depth = f_rig_menu_depth();
+            int adv = f_rig_chain_advances();
+            int hit;
+            if (!strcasecmp(e->name, "menu-open")) hit = depth > 0;
+            else if (!strcasecmp(e->name, "menu-closed")) hit = depth == 0;
+            else if (!strcasecmp(e->name, "advance")) hit = adv >= (int)e->a2;
+            else { SDL_Log("script: unknown wait state '%s' (continuing)", e->name); hit = 1; }
+            if (hit) {
+                long slip = t - e->t_ms;
+                for (int k = g_pt_i + 1; k < g_pt_n; k++) g_pt[k].t_ms += slip;
+                if (g_rig_dir) rig_rebase(slip);
+                g_pt_i++;
+                SDL_Log("script: anchored on state '%s' (menu_depth=%d advances=%d) at t=%ldms (rebased %+ldms)",
+                        e->name, depth, adv, t, slip);
+                if (g_rig_dir) rig_marker(t, "state %s depth=%d advances=%d", e->name, depth, adv);
+                continue;
+            }
+            if (t >= e->t_ms) {
+                SDL_Log("script: wait state '%s' timed out at t=%ldms (menu_depth=%d advances=%d) (continuing)",
+                        e->name, t, depth, adv);
+                g_pt_i++;
+                continue;
+            }
+            return;
         }
         if (e->kind == PT_WAIT_DS) {
             uint32_t v = 0;
@@ -1511,6 +1615,8 @@ static void tick_pump(void) {
     }
     if (getenv("NIGHT_ENTDBG")) ent_dump();
         if (getenv("NIGHT_BLITSTATS")) blit_stats_dump();
+        blit_witness_census();   /* docs/312: prints only when NIGHT_BLITDBG is set */
+        blit_edge_census();      /* docs/312: registers the NIGHT_BLITEDGE exit census */
         if (getenv("NIGHT_HEAPDUMP")) { static int s_hd; if (!s_hd && g_dat_63360 >= 900 && !s_hd++) {
             FILE *fp = fopen("/tmp/heap.bin", "wb");
             if (fp) { fwrite((const void *)g_heap_base, 1, heap_arena_cap_get(), fp); fclose(fp); }
@@ -1581,6 +1687,7 @@ static void tick_pump(void) {
     if (now >= g_present_next) {
         present();
         g_frames++;
+        if (f_rig_menu_depth() > 0) g_menu_frames++;
         /* docs/146 §9: `--frames N` was only a floor. The pumped frame counter is checked *after* the game's
          * own main loop unwinds (main.c:1560), so a run asked for 300 frames still played the whole episode:
          * measured, `--frames 300` presented 11412 frames and took 221 s, because presentation is paced to
@@ -1837,6 +1944,9 @@ int main(int argc, char **argv) {
     walk_trace_report();
     act_census_report();
     SDL_Log("frames presented: %d", g_frames);
+    SDL_Log("stage-walk census: menu-owned frames %ld of %d (%.1f%%), room-chain advances %d, menu posts %u",
+            g_menu_frames, g_frames, g_frames ? 100.0 * (double)g_menu_frames / (double)g_frames : 0.0,
+            f_rig_chain_advances(), g_menu_posts);
 
     if (g_tex) SDL_DestroyTexture(g_tex);
     if (g_ren) SDL_DestroyRenderer(g_ren);

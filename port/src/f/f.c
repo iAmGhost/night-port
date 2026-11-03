@@ -89,6 +89,29 @@ void blit_stats_dump(void) {
 static int g_blit_stats_on;   /* set by blit_stats_on() from the host */
 int g_blit_bad_reported;      /* witness counter: blt_rows calls whose row count left the shipped's 1..0xc8 band (NIGHT_BLITDBG=1, docs/311) */
 int g_ce0b_arms[4];           /* witness counter: fn_03ce0b dispatch census over B0/B1/B2/B3 (docs/311) */
+unsigned long g_blit_calls;   /* witness counter: every blt_rows call (docs/312: "0 out-of-band" is only a
+                               * result if the routine ran at all, so the total has to be quotable) */
+
+/* docs/312: the arms counters and the bad-call counter had no exit print -- a run with zero witness lines was
+ * indistinguishable from a run where fn_03ce0b never dispatched.  Named census, NIGHT_BLITDBG only. */
+static void blit_witness_census_atexit(void)
+{
+    fprintf(stderr,
+            "blitdbg census: blt_rows calls=%lu out_of_band=%d fn_03ce0b arms B0=%d B1=%d B2=%d B3=%d\n",
+            g_blit_calls, g_blit_bad_reported, g_ce0b_arms[0], g_ce0b_arms[1], g_ce0b_arms[2],
+            g_ce0b_arms[3]);
+}
+
+void blit_witness_census(void)
+{
+    /* Registered once, fired at process exit: the harness returns from the game main more than once per run
+     * (longjmp unwinds and restart passes), so printing at the call site prints at the FIRST exit, when the
+     * counters are still 0 -- a census of zeros is the broken-instrument failure of docs/289, not a result. */
+    static int s_registered;
+    if (!getenv("NIGHT_BLITDBG") || s_registered) return;
+    s_registered = 1;
+    atexit(blit_witness_census_atexit);
+}
 void blit_stats_on(void) { g_blit_stats_on = 1; }
 void cpy_dw(uint32_t *a, int n, uint32_t *c) {
     if (g_blit_stats_on) bstat(__builtin_return_address(0), (unsigned long)n * 4u, c, (unsigned long)n * 4u);
@@ -112,6 +135,7 @@ void blt_rows(uint8_t *a, int s, uint32_t w, int h, uint8_t *c, int t) {
      * shipped's own 1..200 band, with the caller, instead of letting the runaway loop fault silently. */
     static int s_dbg = -1;
     if (s_dbg < 0) s_dbg = getenv("NIGHT_BLITDBG") ? 1 : 0;
+    g_blit_calls++;
     if (s_dbg && (h <= 0 || h > 0xc8) && g_blit_bad_reported < 40) {
         g_blit_bad_reported++;
         fprintf(stderr, "blitdbg: blt_rows h=%d w=%#x src=%p dst=%p spitch=%d dpitch=%d rows_bytes=%ld "
@@ -159,6 +183,15 @@ void hline_set(uint8_t *a, int b, int c, int d, uint32_t e, uint8_t f) {
 
 int g_hud_trace = 0;   /* NIGHT_HUDDBG: log the gauge panel geometry (docs/50) */
 int g_room_trace = 0;  /* NIGHT_ROOMDBG: stage room chain -- count, per-node links, the terminator (docs/90) */
+
+/* Rig scaffolding for the stage-walk automation (docs/313).  Both counters are host-side bookkeeping, NOT
+ * shipped DS cells: the drive script needs to know when the level-up screen owns the keyboard (fn_038f3d
+ * leaves only on Esc/LShift/RShift, 0x3920a-31, so a fixed-time key plan stalls inside it) and how many room
+ * chains the game has advanced (a chain advance is what a player means by 'clearing a stage', docs/312 §4). */
+int g_menu_depth = 0;
+int g_room_advances = 0;
+int f_rig_menu_depth(void) { return g_menu_depth; }
+int f_rig_chain_advances(void) { return g_room_advances; }
 
 /* vline_set  orig: 0x040506
  *   p = a + d*b + c; do { *p = f; p += b; e--; } while (e)
@@ -1336,6 +1369,12 @@ uint8_t *fn_010efc(uint8_t *block, int32_t arg_edx, int32_t arg_ebx, int32_t arg
     if ((uint32_t)type_idx == g_dat_63370) {                     /* 0x10f1d-26: the type index == the current
                                                                   * episode counter -> latch DAT_00053c80 (docs/89) */
         g_latched_ent = block;                                     /* 0x10f28-2b */
+        if (getenv("NIGHT_LATCHDBG"))                              /* docs/312: which record becomes the episode's
+                                                                    * guardian, named at the latch itself */
+            fprintf(stderr, "latch: type=%u kind=%u off=%#x x=%d y=%d tick=%u\n",
+                    (unsigned)type_idx, (unsigned)kind,
+                    (unsigned)(block - (const uint8_t *)g_heap_base), arg_edx, arg_ecx,
+                    (unsigned)g_dat_63f08);
     }
     block[0x00] = kind;                                          /* 0x10f30-36 */
     ((struct ua32 *)((block + 0x01)))->v = (uint32_t)arg_edx;             /* 0x10f38-3e */
@@ -3249,14 +3288,20 @@ static void blit_probe_note(uint32_t canvas_off, uint32_t n)
  * Armed by NIGHT_BLITEDGE=1. */
 static int  s_blit_edge;
 static long s_blit_edge_n;
+static long s_blit_edge_seen;   /* docs/312: how many spans the probe actually inspected -- a crossing count of 0 is only
+                               * a result if the probe was looking (docs/289: an instrument reading zeros is broken until proven otherwise) */
+static long s_blit_edge_inrow;
 static int32_t blit_edge_col(int32_t v) { int32_t r = v % 0x140; return r < 0 ? r + 0x140 : r; }
 static void blit_edge_note(int32_t off_lo, int32_t off_hi, int32_t mode, int32_t dest_off,
                            int32_t col, int32_t srow, uint32_t row_count, int site)
 {
     if (!s_blit_edge)
         return;
-    if (off_lo >= 0 && off_hi < 0xfa00 && blit_edge_col(off_lo) <= blit_edge_col(off_hi))
+    s_blit_edge_seen++;
+    if (off_lo >= 0 && off_hi < 0xfa00 && blit_edge_col(off_lo) <= blit_edge_col(off_hi)) {
+        s_blit_edge_inrow++;
         return;                                   /* entirely inside one row: nothing to report */
+    }
     if (++s_blit_edge_n <= 400 || s_blit_edge_n % 500 == 0) {
         int32_t px = g_player_ent ? (int32_t)((const struct ua32 *)((g_player_ent + 0x01)))->v : -9999;
         int32_t py = g_player_ent ? (int32_t)((const struct ua32 *)((g_player_ent + 0x09)))->v : -9999;
@@ -3269,6 +3314,22 @@ static void blit_edge_note(int32_t off_lo, int32_t off_hi, int32_t mode, int32_t
                 off_hi / 0x140, px, py, mf);
     }
 }
+static void blit_edge_census_atexit(void)
+{
+    fprintf(stderr, "blitedge census: spans_inspected=%ld inside_one_row=%ld crossings=%ld\n",
+            s_blit_edge_seen, s_blit_edge_inrow, s_blit_edge_n);
+}
+
+void blit_edge_census(void)
+{
+    static int s_registered;
+    const char *e = getenv("NIGHT_BLITEDGE");        /* not s_blit_edge: the probe arms lazily on the first
+                                                       * blit, and registering atexit after exit() starts is UB */
+    if (!e || e[0] != '1' || s_registered) return;
+    s_registered = 1;
+    atexit(blit_edge_census_atexit);
+}
+
 static int blit_edge_on(void)
 {
     if (!s_blit_edge) {
@@ -5360,6 +5421,10 @@ stage_records:
     fn_0367c9((const char *)name);                                  /* 0x37c73 */
     fn_04192e((uint8_t *)&g_dat_63e14, 1, 4, (uint8_t *)g_639b8);   /* 0x37c8d */
     g_dat_62a90 = 0;                                                /* 0x37c92 */
+    static uint32_t s_stg_tag1[0x100];                                  /* NIGHT_STGDBG (docs/312 item B): the
+                                                                         * type indices this stage's stage%d.stg
+                                                                         * declares on its tag-1 spawn records, counted
+                                                                         * at the loader itself */
     for (uint32_t i = 0; (int32_t)i < (int32_t)g_dat_63e14; i = i + 1) {   /* 0x37ca5-e57 */
         uint32_t rec_off = heap_malloc(0x59);                       /* 0x37cbf */
         uint32_t nn = (rec_off == 0) ? 0 : fn_03e0a0(rec_off, (uint8_t *)g_639b8);    /* 0x37cdc: offset model */
@@ -5367,6 +5432,20 @@ stage_records:
         if (rec == NULL) continue;                                  /* latent: orig dereferences NULL */
         if (rec[0] == 1) {                                          /* 0x37cf0 */
             uint32_t t = ((struct ua32 *)((rec + 1)))->v;
+            if (getenv("NIGHT_STGDBG") && t < 0x100u) s_stg_tag1[t]++;
+            if (t == g_dat_63370)                                       /* NIGHT_STGDBG (docs/312 item B): the
+                                                                         * tag-1 spawn record whose type IS the episode
+                                                                         * counter -- the shipped's boss: it is the only
+                                                                         * record fn_010efc's latch at 0x10f1d-26 can
+                                                                         * turn into DAT_00053c80, whose death is what
+                                                                         * arm 3 (0x00012a10) reports as DAT_6336c = 3 */
+                fprintf(stderr, "stgboss stage=%u rec=%08x sub=%d x=%d y=%d zone=%d posmode=%d\n",
+                        g_dat_63370, (unsigned)(rec - (const uint8_t *)g_heap_base),
+                        (int)((struct sa32 *)((rec + 0x05)))->v,
+                        (int)((struct sa32 *)((rec + 0x09)))->v,
+                        (int)((struct sa32 *)((rec + 0x0d)))->v,
+                        (int)((struct sa32 *)((rec + 0x11)))->v,
+                        (int)((struct sa32 *)((rec + 0x15)))->v);
             if (t < 0x65u && g_dat_639ec[t] == NULL) {              /* 0x37d05 */
                 int32_t pos = fn_042928((uint8_t *)g_639b8);        /* 0x37d2c: remember stream pos */
                 uint32_t a = heap_malloc(0x3c);                     /* 0x37d39 */
@@ -5392,6 +5471,13 @@ stage_records:
             g_dat_62a90 = g_dat_62a90 + 1;
             rec[0] = 0;                                             /* 0x37e54 */
         }
+    }
+    if (getenv("NIGHT_STGDBG")) {
+        fprintf(stderr, "stgdbg stage=%u records=%u tag1:", g_dat_63370, g_dat_63e14);
+        for (uint32_t t = 0; t < 0x100u; t++)
+            if (s_stg_tag1[t]) fprintf(stderr, " %u:%u", t, s_stg_tag1[t]);
+        fprintf(stderr, "\n");
+        memset(s_stg_tag1, 0, sizeof s_stg_tag1);
     }
     cur = (uint8_t *)&g_dat_63370;
     fn_0428f8(name, (const uint8_t *)"night%d.chr", &cur);           /* 0x37e5c-6c */
@@ -9776,6 +9862,26 @@ void fn_03cc6b(uint8_t *a0) {
                    (int)g_dat_639e4);
         }
         return;
+    }
+    if (g_room_trace) {
+        /* docs/313 item D: name the vertical-follow gate's inputs on every visit, so "the camera never follows"
+         * can be told apart from "fn_03cc6b was never called" and "the gate's record is not the next node".
+         * The shipped computes, at 0x3cd29-0x3cd42 and 0x3cde3-0x3cdfc:
+         *   eax = [[ebp-4]+0x34c]; eax = [eax+0xc]; sub eax,0xc8; cmp eax,[0x139e0]; jle skip; inc [0x139e0]
+         * and at 0x3cd4d-0x3cd60: eax = [[ebp-4]+0x34c]; eax = [eax+4]; dec eax; cmp eax,[0x139e0]; jne skip */
+        static unsigned vgate_visits;
+        vgate_visits++;
+        if (vgate_visits <= 40 || vgate_visits % 250 == 0) {
+            int32_t n4 = (int32_t)((const struct ua32 *)((c + 0x4)))->v;
+            int32_t nc = (int32_t)((const struct ua32 *)((c + 0xc)))->v;
+            printf("[vgate] visit#%u e4=%u node=%#x next=+%#x next+4-1=%d next+c-0xc8=%d camY=%d "
+                   "inc_would_fire=%d camX=%d rooms=%u stage=%u\n",
+                   vgate_visits, (unsigned)g_dat_639e4,
+                   (unsigned)((const struct ua32 *)((a0 + 0x40)))->v,
+                   (unsigned)(c - (uint8_t *)g_heap_base), n4 - 1, nc - 0xc8,
+                   (int)g_dat_639e0, (nc - 0xc8 > (int32_t)g_dat_639e0), (int)g_dat_639dc,
+                   (unsigned)g_dat_639d8, (unsigned)g_dat_63370);
+        }
     }
     if (g_dat_639e4 == 0) {                                     /* 0x3cc8f */
         if (g_dat_639dc == ((struct ua32 *)(c))->v) {                    /* 0x3cca4 */
@@ -14623,7 +14729,8 @@ void fn_03cbd9(uint8_t *subj) {
  *           else if (DAT_00053c68 == 1) fn_03cbd9(DAT_63354);
  *       }
  *   }
- *   if (DAT_000639e0 + 0xc2 > player[+9]) fn_03cc6b(DAT_63354) ; vertical follow / room change
+ *   if !(DAT_000639e0 + 0xc2 > player[+9]) fn_03cc6b(DAT_63354) ; vertical follow / room change (0x3d5f1 JG
+ *   is the SKIP branch: the call happens only when the player's Y has reached camY + 194)
  *
  * Quirk kept: the two bound pairs are tested in sequence, so a non-zero +0x2e/+0x2a can veto the move
  * entirely while the second pair (+0x36/+0x32) only downgrades it to "allowed when DAT_53c68 == 1". */
@@ -14659,7 +14766,16 @@ void fn_03d4e4(uint8_t *room) {
             }
         }
     }
-    if ((int32_t)g_dat_639e0 + 0xc2 > (int32_t)((struct ua32 *)((g_player_ent + 0x09)))->v)
+    /* 0x3d5dd-f8:  MOV EAX,[0x53c7c] / MOV EDX,[0x139e0] / ADD EDX,0xc2 / CMP EDX,[EAX+9] / JG 0x3d5fd /
+     * CALL 0x3cc6b.  The shipped SKIPS the vertical-follow call when camY + 0xc2 is above the player's Y, and
+     * calls it only when the player has descended to camY + 194 or lower on screen.  The port had the test the
+     * other way round (f.c before this line: `if (camY + 0xc2 > player+9) fn_03cc6b(...)`) -- the shipped's
+     * skip branch transcribed as the call branch -- so the port followed the view down exactly when the shipped
+     * refused to, and stopped following once the player got low enough to need it.  That inversion is the
+     * round-4 item D report ('the vertical camera must follow the player the way the horizontal camera does,
+     * until the room's bottom is reached'): measured red on /tmp/rig/w313g, DAT_639e0 = {0, 1} across 16000
+     * frames with the player's record Y fixed at 172. */
+    if (!((int32_t)g_dat_639e0 + 0xc2 > (int32_t)((struct ua32 *)((g_player_ent + 0x09)))->v))
         fn_03cc6b(g_dat_63354);                                    /* 0x3d5dd-f8 */
 }
 
@@ -23886,6 +24002,15 @@ int32_t fn_03a829(void)
         /* 0x0003ab90-0x0003abb4: the /10 quotient is discarded, only the %10 test matters (as in fn_03d244). */
         if (g_dat_63360 % 10 == 0) fn_03d606((uintptr_t)g_dat_63354);   /* 0x0003aba4 MOV EAX,[0x13354] */
         heap_chain_check("fn_03a829");   /* host probe: name allocator-chain corruption at its source */
+        if (g_dat_6336c && g_room_trace) {              /* rig witness (docs/313): does fn_03a829's loop ever
+                                                         * observe a request, or does a drive poke land only in
+                                                         * the prologue clears at 0x3a95a / 0x3a9e1? */
+            static unsigned n_req;
+            if (++n_req <= 40)
+                fprintf(stderr, "[request] seen #%u req=%u advances=%u room=+%#x stage=%u\n", n_req,
+                        (unsigned)g_dat_6336c, (unsigned)g_room_advances,
+                        (unsigned)(g_dat_63354 - (uint8_t *)g_heap_base), (unsigned)g_dat_63370);
+        }
         if (g_dat_6336c == 1) break;                                   /* 0x0003abc0 gone for good */
         if (g_dat_6336c == 3) { g_dat_6336c = 0; return 1; }           /* 0x0003abca-0x0003abdd died */
         if (g_dat_6336c == 2) {                                        /* 0x0003ac2a-0x0003ac7b exit rect */
@@ -26172,7 +26297,17 @@ static uint32_t g_tab_531c8[6] = { 0x06, 0x06, 0x0a, 0x0c, 0x0c, 0x0c };
  * Ghidra's "% 0x1ea" rendering is wrong, verified at 0x00039a20-0x00039a3b). */
 static int g_lumenu_trace = 0;   /* NIGHT_LUMENU=1: per-row upgrade-bar index census (docs/206) */
 
+static void fn_038f3d_body(int32_t variant);
+
+/* The shipped body is unchanged; only nesting bookkeeping is added around it (rig scaffolding, docs/313). */
 void fn_038f3d(int32_t variant)
+{
+    g_menu_depth++;
+    fn_038f3d_body(variant);
+    g_menu_depth--;
+}
+
+static void fn_038f3d_body(int32_t variant)
 {
     if (!g_lumenu_trace) { const char *lv = getenv("NIGHT_LUMENU"); g_lumenu_trace = (lv && *lv && *lv != '0'); }
     if (g_menu_trace) fprintf(stderr, "fn_038f3d enter variant=%d\n", (int)variant);   /* host-side diagnostic */
@@ -27204,6 +27339,7 @@ void fn_03d244(uint8_t *node)
                 (void *)node, (void *)nxt, (nxt != NULL) ? "next node" : "g_dat_63350 (terminator)",
                 (unsigned)g_dat_63370, (unsigned)g_dat_63398, (int)g_dat_639e0);
     g_dat_63354 = (nxt != NULL) ? nxt : g_dat_63350;                 /* 0x0003d29b / 0x0003d2a2 */
+    g_room_advances++;   /* rig scaffolding: one call of fn_03d244 is one stage advance (docs/313) */
 
     if (g_room_trace) fprintf(stderr, "[room-chain] fn_03d244 -> fn_038f3d(1) level-up screen entry\n");
     fn_038f3d(1);                                                    /* 0x0003d2ac-b1 */
@@ -27411,6 +27547,40 @@ void fn_03e20f(uint8_t *rec)
     const int32_t gate = ((struct sa32 *)((rec + 0x11)))->v;
     const int32_t cgate = ((struct sa32 *)((rec + 0x15)))->v;
 
+    if (rec[0] == 1 && getenv("NIGHT_SPAWNTRACE")) {                    /* docs/312 item B: evaluate EVERY gate the
+                                                                         * spawn arm tests and print the verdict, so a
+                                                                         * record that never spawns is localised to a
+                                                                         * gate instead of inferred from its absence;
+                                                                         * the episode's own type (the boss, the only
+                                                                         * latch candidate) is logged without a cap */
+        const int32_t bt = (int32_t)((struct sa32 *)((rec + 0x01)))->v;
+        const int32_t rl = (int32_t)*(const uint32_t *)&g_dat_5d08c[0x00];
+        const int32_t rr = (int32_t)*(const uint32_t *)&g_dat_5d08c[0x08];
+        const int32_t rt = (int32_t)*(const uint32_t *)&g_dat_5d08c[0x04];
+        const int32_t rb = (int32_t)*(const uint32_t *)&g_dat_5d08c[0x0c];
+        const int32_t cap = (room && g_dat_63370 > 0)
+            ? (int32_t)g_tab_528b4[(g_dat_63370 - 1) * 10u
+                                   + ((struct ua32 *)((room + 0x40)))->v] : 0;
+        const int32_t rxl = room ? (int32_t)((struct sa32 *)((room + 0x00)))->v : 0;
+        const int32_t rxr = room ? (int32_t)((struct sa32 *)((room + 0x08)))->v : 0;
+        static uint32_t s_strace[0x100];
+        const int is_boss = ((uint32_t)bt == g_dat_63370);
+        if (is_boss || s_strace[(unsigned)bt & 0xffu]++ < 300u)
+            fprintf(stderr, "SPAWN%c rec=%08x t=%d sub=%d gate=%d cgate=%d rx=%d ry=%d room11=%d "
+                            "camx=%d camy=%d cnt=%u cap=%d capok=%d rect=[%d,%d,%d,%d] inrect=%d "
+                            "camband=%d roomx=[%d,%d] inx=%d inxw=%d col=%u stage=%u latched=%u\n",
+                    is_boss ? 'B' : 'T',
+                    (unsigned)(rec - (const uint8_t *)g_heap_base), bt, sub, gate, cgate, rx, ry,
+                    room ? room[0x11] : -1, camx, camy, (unsigned)g_dat_53c68, cap,
+                    (int)(((int32_t)g_dat_53c68) < cap), rl, rr, rt, rb,
+                    (int)(rl <= rx && rx <= rr && rt <= ry && ry <= rb),
+                    (int)(camy <= ry && ry <= camy + 0xc8),
+                    rxl, rxr, (int)(rxl <= rx && rx <= rxr),
+                    (int)(camx <= rx && rx <= camx + 0x172),
+                    room ? (unsigned)((struct ua32 *)((room + 0x40)))->v : 0u,
+                    (unsigned)g_dat_63370,
+                    (unsigned)(g_latched_ent ? (g_latched_ent - (const uint8_t *)g_heap_base) : 0u));
+    }
     switch (rec[0]) {                                                    /* 0x0003ed40 (dec al, >5 -> default) */
     case 1:
         if (room[0x11] == 0) {                                           /* 0x0003e24e-58 */

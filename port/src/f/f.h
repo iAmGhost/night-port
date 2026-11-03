@@ -30,6 +30,8 @@ extern uint32_t g_vga_retrace_us;      /* the 0x3DA wait model's retrace interva
 extern uint64_t g_vga_retrace_waits;   /* retrace waits run so far */
 void blit_stats_on(void);
 void blit_stats_dump(void);
+void blit_witness_census(void);
+void blit_edge_census(void);      /* docs/312: NIGHT_BLITEDGE exit census (spans inspected vs crossings) */   /* docs/312: NIGHT_BLITDBG exit census (calls, out-of-band, fn_03ce0b arms) */
 
 /* h rows of w bytes: odd byte, then w>>1 words;
  * src += s - w, dst += t - w per row                          orig: 0x040491 */
@@ -973,6 +975,11 @@ uint32_t *fn_03d8d4(uint32_t *s, const char *name); /* 0x03d8d4: clear s[1..14] 
 /* The 101-entry per-type resource NAME tables (image constants: DS 0x51d88 / 0x52198); exposed so the test
  * can hash them against a copy read out of NIGHT.EXE (docs/48/49: a one-slot slip draws the wrong sprite). */
 const char *const *f_type_spr_names(void);
+
+/* Rig scaffolding (docs/313): level-up-screen nesting and room-chain advance count, as seen by the drive
+ * script's `wait state` anchors.  Host-side counters, not shipped DS cells. */
+int f_rig_menu_depth(void);
+int f_rig_chain_advances(void);
 const char *const *f_type_act_names(void);
 uint32_t *fn_03d999(uint32_t *a0, uint32_t a1); /* 0x03d999: wrapper -- fn_03dcbd(a0); return a0 (a1 unused) */
 uint32_t fn_03de85(uint32_t *s, uint32_t count, uint32_t last_size); /* 0x03de85: struct ctor -- free old (fn_03dcbd), alloc 14 sub-objs at +0x4..+0x38, return 1 */

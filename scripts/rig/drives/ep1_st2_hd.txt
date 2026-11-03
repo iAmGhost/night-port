@@ -1,0 +1,13 @@
+# rig drive (goal task-1, docs/312): the stage-2 basis window.  Run with --warp-episode 2 so DAT_63370 is the
+# playtester's stage 2 from the first room (the rig's warp sets the counter at room init, f.c fn_037b03 / shipped
+# 0x00037b03; the stage's own resources -- stage2.stg, night2.chr, st2s.spr, stage2.wal -- are chosen off the same
+# counter, docs/310).  Room clears go through DAT_6336c = 2, the exit-rect arm fn_03a829 handles at
+# 0x0003ac2a-0x0003ac7b; arm 3 is never poked.  Esc follows because fn_038f3d (which fn_03d244 opens at
+# 0x0003d2ac on every room-chain step) leaves only on Esc/LShift/RShift (0x0003920a-31), and Enter carries the
+# card wait inside it (fn_00035dfc accepts Enter/CTRL/ALT/Space, docs/97).
+2000 wait res title1.pcx
+
+2500 key enter down
+2650 key enter up
+4000 key enter down
+6000 heapdump 0x400000

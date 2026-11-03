@@ -15770,13 +15770,19 @@ static void test_fn_03cb38_pair(void) {
     room[0x3b] = 0; room[0x3a] = 0;
     g_dat_639e0 = 0;                                              /* vertical state */
     g_dat_639dc = 200;                                            /* 300-200 = 100 < 0x82 -> left runs */
+    *(uint32_t *)(player + 0x09) = 0x200;                          /* camY+0xc2 = 194 > 512 is FALSE -> the call runs */
     fn_03d4e4(room);
     check(g_dat_639dc == 199, "player near the left edge (< 0x82) -> fn_03cbd9 ran (cam--)");
-    check(g_dat_639e0 == 1, "DAT_639e0+0xc2 > player[+9] -> fn_03cc6b ran (its g_639e0++ branch)");
-    g_dat_639e0 = 0; *(uint32_t *)(player + 0x09) = 0x200;         /* 0xc2 > 0x200 false */
+    /* The shipped's branch at 0x3d5ee-0x3d5f8 is CMP EDX,[EAX+9] / JG 0x3d5fd / CALL 0x3cc6b: the JG is the
+     * SKIP, so the vertical follow only runs once the player's Y has reached camY + 194.  These two checks used
+     * to assert the opposite (a fixture written from the port's inverted test, docs/263 §4's failure class --
+     * when disassembly and a test disagree, fix the test and say so), which is what let the round-4 item D
+     * inversion through: docs/313 §4. */
+    check(g_dat_639e0 == 1, "player at or below camY+0xc2 -> fn_03cc6b ran (its g_639e0++ branch, 0x3d5f1)");
+    g_dat_639e0 = 0; *(uint32_t *)(player + 0x09) = 50;             /* 194 > 50 TRUE -> shipped jumps over the call */
     g_dat_639dc = 150;                                            /* 300-150 = 150: between both gates */
     fn_03d4e4(room);
-    check(g_dat_639e0 == 0 && g_dat_639dc == 150, "between the two x thresholds and below the vertical threshold -> nothing moves");
+    check(g_dat_639e0 == 0 && g_dat_639dc == 150, "between the two x thresholds and above the vertical threshold -> nothing moves");
 #undef F
 #undef INFIELD
 }

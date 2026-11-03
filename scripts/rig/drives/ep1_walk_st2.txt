@@ -1,0 +1,83 @@
+# Stage-walk drive (docs/313): reach EPISODE 1, STAGE 2 the way a player does, then stand at the bottom.
+#
+# Why this exists: the previous "stage 2" bases were wrong twice over.  `--warp-episode 2` loads episode 2
+# (a different map, docs/312 0a) and `--warp-stage 2` installs a node without re-loading that stage's
+# background (the playtester saw stage 1's subway art still painted in ep1-stg2).  Neither can carry a
+# camera or sprite claim.  This drive uses no warp flag at all: it walks episode 1's own room chain.
+#
+# A stage advance is one call of fn_03d244 (it swaps DAT_63354 to node+0x34c, or to the terminator
+# g_dat_63350 at the last node, 0x3d286-0x3d2a2) and the harness counts those calls (f_rig_chain_advances,
+# f.c rig scaffolding).  Each advance opens the level-up screen (fn_038f3d(1) at 0x3d2ac), which leaves only
+# on Esc/LShift/RShift (0x3920a-31) -- so the drive waits for it (`wait state menu-open`), hands it Esc, and
+# waits again (`wait state menu-closed`) instead of guessing when it finished.  The fixed-time key plans that
+# spent most of their budget inside fn_038f3d are what the playtester meant by "stuck on the upgrade menu".
+#
+# The requests are arm 2 (DAT_6336c = 2, the exit-rect arm fn_03a829 handles at 0x3ac2a-0x3ac7b and
+# fn_00012dcc writes at 0x12e8f-0x12ef0).  Arm 3 (the latched guardian dying) is the only arm that ends an
+# episode, and it is not what a stage-1-to-stage-2 transition uses (docs/312 4).  Right is held so the player
+# is walking toward the exit rect when the request lands, as in play.
+#
+# Measurement window for item D: after the menu closes, Down is held for ~36 s and then Right is held --
+# the playtester's own order ("only after the bottom did I reach enemies").  DAT_639e0 (the vertical scroll
+# row), DAT_639dc (horizontal), DAT_639e4 (scroll-active flag) and the [vgate] gate census cover that window.
+#
+# Menu macro (docs/313): the screen fn_038f3d(1) opens at 0x3d2ac begins in fn_00035dfc's card wait, which
+# accepts only Enter/CTRL/ALT/Space (docs/97); Esc alone cannot leave it, and the run then burns its frame
+# budget inside the screen -- measured 10858 of 12000 frames menu-owned on the first attempt.  The macro here
+# advances the cards with Enter pairs and only then sends Esc (0x3920a-31 is the exit test).
+2000 wait res title1.pcx
+2500 key enter down
+2650 key enter up
+4000 key enter down
+4150 key enter up
+5500 key enter down
+5650 key enter up
+7000 key enter down
+7150 key enter up
+8500 key enter down
+8650 key enter up
+10000 key enter down
+10150 key enter up
+11500 key right down
+14700 key esc down
+14850 key esc up
+16200 key esc down
+16350 key esc up
+17700 key esc down
+17850 key esc up
+19200 key esc down
+19350 key esc up
+20700 key esc down
+20850 key esc up
+22200 key esc down
+22350 key esc up
+23700 key esc down
+23850 key esc up
+25200 key esc down
+25350 key esc up
+26700 key esc down
+26850 key esc up
+28200 key esc down
+28350 key esc up
+29700 key esc down
+29850 key esc up
+31200 key esc down
+31350 key esc up
+32700 key esc down
+32850 key esc up
+12000 poke 0x6336c 2
+13200 poke 0x6336c 2
+14400 poke 0x6336c 2
+15600 key esc down
+15750 key esc up
+19700 key esc down
+19850 key esc up
+23800 key esc down
+23950 key esc up
+33400 wait state advance 1
+73400 menu 120000
+75400 key right up
+76400 key down down
+106400 key down up
+107400 key right down
+115400 key right up

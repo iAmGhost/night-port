@@ -188,6 +188,58 @@ int rig_player_poke(uint32_t off, uint32_t v) {
     return 1;
 }
 
+/* `t latched <off> <val>` writes a field of g_latched_ent -- DAT_00053c80, the record latched at construction
+ * when its type index equals the episode counter (shipped 0x00010f1d-0x00010f2b).  Setting +0x30 = 1 there is the
+ * state the shipped's own damage path reaches when that record's life runs out (the same flag fn_03a829's death
+ * walk tests at 0x000129c4), so the rig can make the guardian die and let the shipped's code produce the
+ * clear request it writes next at 0x00012a10 -- the drive never pokes DAT_6336c = 3 itself. */
+int rig_latched_poke(uint32_t off, uint32_t v) {
+    if (!g_latched_ent || off > RIG_REC - 4u || off + 4u < off || off + 4u > rec_span(g_latched_ent)) {
+        if (g_latched_ent) { g_poke_refused++; fprintf(stderr, "rig: latched poke off=0x%x refused\n", off); }
+        return 0;
+    }
+    fprintf(stderr, "rig: latched record off=%#x type=%u given +%#x = %#x\n",
+            (unsigned)(g_latched_ent - (const uint8_t *)g_heap_base), (unsigned)g_latched_ent[0x00], off, v);
+    memcpy(g_latched_ent + off, &v, 4);
+    return 1;
+}
+
+/* `t guardian <off> <val>` -- state injection on the record the shipped treats as the stage's requirement.
+ * DAT_00053c80 is latched only while a record whose type index equals the episode counter is being constructed
+ * (0x00010f1d-0x00010f2b) and is cleared at room init (0x00037b43), so a `latched` poke often lands on a null
+ * latch (/tmp/rig/st2h: "poke latched +0x30 = 0x1 (no such object)").  This walks the same +0x13f entity list the
+ * state dumper uses and takes the first live kind-1 record whose +0x0d type index equals g_dat_63370 -- the record
+ * the shipped would latch -- and writes the field the caller asks for.  What is injected is the record's own state
+ * (+0x30 = 1, the flag the death walk tests at 0x000129c4); the clear request at 0x00012a10-1a and fn_03af18's
+ * `g_dat_63370 += 1` at 0x0003b52b are then produced by the shipped's code, not by the rig. */
+int rig_guardian_poke(uint32_t off, uint32_t v) {
+    if (off > RIG_REC - 4u || off + 4u < off) { g_poke_refused++; return 0; }
+    for (int slot = 0; slot < 64; slot++) {
+        uint8_t *e = rig_ent_slot(slot);
+        if (!e || e[0x00] != 1 || (uint32_t)e[0x0d] != g_dat_63370) continue;
+        if (off + 4u > rec_span(e)) continue;
+        int32_t st; uint16_t hp; memcpy(&st, e + 0x17, 4); memcpy(&hp, e + 0x29, 2);
+        fprintf(stderr, "guardian-poke: slot=%d rec=%#x kind=%u type=%u state=%#x hp=%d given +%#x = %#x\n",
+                slot, (unsigned)(e - (const uint8_t *)g_heap_base), (unsigned)e[0x00], (unsigned)e[0x0d],
+                (int)st, (int)hp, off, v);
+        memcpy(e + off, &v, 4);
+        return 1;
+    }
+    static int s_why;                                              /* docs/312: name what the list walk actually
+                                                                    * holds when no episode-type record is found */
+    if (s_why++ < 3) {
+        fprintf(stderr, "guardian-poke: no record with type == episode %u; list walk holds:", (unsigned)g_dat_63370);
+        for (int k = 0; k < 12; k++) {
+            uint8_t *r = rig_ent_slot(k);
+            if (!r) break;
+            fprintf(stderr, " [%d kind=%u type=%u hp=%d st=%#x]", k, r[0x00], r[0x0d],
+                    (int)((int16_t)((r[0x29]) | (r[0x2a] << 8))), (int)(r[0x17] & 0x7f));
+        }
+        fprintf(stderr, "\n");
+    }
+    return 0;
+}
+
 int rig_ds_read(uint32_t ds, uint32_t *out) {
     for (int i = 0; i < rig_cell_count(); i++) {
         const struct rig_cell *c = rig_cell_at(i);
@@ -405,6 +457,28 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
     }
     fwrite(p, g_rec_bytes, 1, g_bin);
     free(p);
+
+    /* docs/312 (goal task-1): NIGHT_RIG_GUARDIAN_KILL=<n> injects the DYING FLAG on the record the shipped has
+     * latched in DAT_00053c80, at most <n> times, the first times a latch exists.  +0x30 = 1 is the flag
+     * fn_03a829's death walk tests at 0x000129c4; the clear request at 0x00012a10-1a, fn_03a829's return 1 at
+     * 0x0003ac14-0x0003ac25, fn_03af18's `if (r == 1) break` at 0x0003b1c1 and the stage increment at
+     * 0x0003b52b are all then produced by the shipped's own code.  The rig never pokes DAT_6336c = 3.
+     * It has to be latch-triggered rather than time-triggered because DAT_53c80 is cleared at room init
+     * (0x00037b43) and re-latched only when a record whose type index equals the episode counter is constructed
+     * (0x00010f1d-0x00010f2b): timed pokes landed on a null latch in /tmp/rig/st2h and /tmp/rig/st2j. */
+    static uint32_t s_gkill;
+    static unsigned s_gfired;
+    if (!s_gfired) { const char *e = getenv("NIGHT_RIG_GUARDIAN_KILL"); s_gkill = e ? (uint32_t)atoi(e) : 0; }
+    if (s_gkill && s_gfired < s_gkill && g_latched_ent) {
+        uint8_t *r = g_latched_ent;
+        int32_t st; memcpy(&st, r + 0x17, 4);
+        fprintf(stderr, "guardian-kill: tick=%u latch rec=%#x kind=%u type=%u st=%#x x=%d y=%d given +0x30 = 1\n",
+                g_tick, (unsigned)(r - (const uint8_t *)g_heap_base), r[0x00], r[0x0d], st,
+                (int)(int32_t)((unsigned)r[0x01] | ((unsigned)r[0x02] << 8) | ((unsigned)r[0x03] << 16) | ((unsigned)r[0x04] << 24)),
+                (int)(int32_t)((unsigned)r[0x09] | ((unsigned)r[0x0a] << 8) | ((unsigned)r[0x0b] << 16) | ((unsigned)r[0x0c] << 24)));
+        uint32_t one = 1; memcpy(r + 0x30, &one, 4);
+        s_gfired++;
+    }
     g_tick++;
     if ((g_tick & 15) == 0) fflush(g_bin);
 }

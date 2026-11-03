@@ -1,0 +1,27 @@
+# rig drive (goal task-9, docs/317): the stage-3 opening slide show -- fn_03af18's "%ds%d.pcx" loop
+# (0x03b0d0 name, fn_03628e load, 0x03b0ec LOAD fade, CALL 0x00035dfc at 0x03b0f1, 0x03b116 fade-out, slide++)
+# with count g_tab_52f2c[3] = 6 cards.  Reached the way the shipped itself reaches it: --warp-episode 3 puts the
+# shipped's own stage counter (DAT_00063370) to 3, then `play 0x30 1` stamps the player record dying, which the
+# shipped's death walk (0x000129c4 test -> 0x000129ed request 1) turns into the room loop's request-1 break ->
+# fn_03af18's tail -> LAB_0003b05a (the slides).  Arm 1 (the player is gone) -- not a poke of 3.
+# One Enter per card is what the gate is supposed to do; NIGHT_SLIDEDBG counts cards, NIGHT_KEYDBG counts the
+# enter-latch (DAT_00063ea4) rising edges, so "cards per press" is a count, not a latency claim.
+2000 wait res title1.pcx
+
+2500 key enter down
+2650 key enter up
+4000 key enter down
+4150 key enter up
+5500 key enter down
+5650 key enter up
+7000 key enter down
+7150 key enter up
+8500 key enter down
+8650 key enter up
+10000 key enter down
+10150 key enter up
+11500 key enter down
+11650 key enter up
+
+22000 key enter down
+22200 key enter up

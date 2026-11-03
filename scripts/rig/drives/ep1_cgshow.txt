@@ -1,0 +1,38 @@
+# rig drive (goal task-9, docs/317): the CG picture show (fn_03a70e, "na%d%04d.pcx", count = DAT_52f08[stage])
+# armed by fn_03a829's band test on the latched DAT_00053c80 record, then ONE Enter press.
+# The shipped's press gate (0x3a785-0x3a7a4) breaks when DAT_63ec1 or DAT_63ea4 is *already* non-zero and never
+# clears a latch, so "one press skips the whole strip" is testable as: pictures consumed per press, and how many
+# pictures entered the gate with a latch already held (the fn_03a70e NIGHT_SHOWDBG witness counts both).
+# Bring-up: skip-intro ON, Enter pairs clear the title cards (fn_00035dfc accepts Enter/Space/CTRL/ALT, docs/97).
+# Walk right and down so the camera band can reach the latched record (witnessed in ep1 at x=4061 y=369).
+2000 wait res title1.pcx
+
+2500 key enter down
+2650 key enter up
+4000 key enter down
+4150 key enter up
+5500 key enter down
+5650 key enter up
+7000 key enter down
+7150 key enter up
+8500 key enter down
+8650 key enter up
+10000 key enter down
+10150 key enter up
+11500 key enter down
+11650 key enter up
+13000 key enter down
+13150 key enter up
+14500 key enter down
+14650 key enter up
+16000 key enter down
+16150 key enter up
+
+18000 key right down
+19000 key down down
+60000 key down up
+61000 key down down
+70000 key right up
+
+75000 key enter down
+75300 key enter up

@@ -1,0 +1,73 @@
+# rig drive (goal task-9, docs/317): the stage-3 opening slide show -- fn_03af18's "%ds%d.pcx" loop
+# (0x03b0d0 name, fn_03628e load, 0x03b0ec LOAD fade, CALL 0x00035dfc at 0x03b0f1, 0x03b116 fade-out, slide++)
+# with count g_tab_52f2c[3] = 6 cards.  Reached the way the shipped itself reaches it: --warp-episode 3 puts the
+# shipped's own stage counter (DAT_00063370) to 3, then `play 0x30 1` stamps the player record dying, which the
+# shipped's death walk (0x000129c4 test -> 0x000129ed request 1) turns into the room loop's request-1 break ->
+# fn_03af18's tail -> LAB_0003b05a (the slides).  Arm 1 (the player is gone) -- not a poke of 3.
+# One Enter per card is what the gate is supposed to do; NIGHT_SLIDEDBG counts cards, NIGHT_KEYDBG counts the
+# enter-latch (DAT_00063ea4) rising edges, so "cards per press" is a count, not a latency claim.
+2000 wait res title1.pcx
+
+2500 key enter down
+2650 key enter up
+4000 key enter down
+4150 key enter up
+5500 key enter down
+5650 key enter up
+7000 key enter down
+7150 key enter up
+8500 key enter down
+8650 key enter up
+10000 key enter down
+10150 key enter up
+11500 key enter down
+11650 key enter up
+13000 key enter down
+13150 key enter up
+14500 key enter down
+14650 key enter up
+16000 key enter down
+16150 key enter up
+
+18000 play 0x30 1        # stamp the player record dying: the shipped's request-1 arm
+
+22000 key enter down
+22200 key enter up
+24000 key enter down
+24200 key enter up
+26000 key enter down
+26200 key enter up
+28000 key enter down
+28200 key enter up
+30000 key enter down
+30200 key enter up
+32000 key enter down
+32200 key enter up
+34000 key enter down
+34200 key enter up
+36000 key enter down
+36200 key enter up
+38000 key enter down
+38200 key enter up
+40000 key enter down
+40200 key enter up
+42000 key enter down
+42200 key enter up
+44000 key enter down
+44200 key enter up
+46000 key enter down
+46200 key enter up
+48000 key enter down
+48200 key enter up
+50000 key enter down
+50200 key enter up
+52000 key enter down
+52200 key enter up
+54000 key enter down
+54200 key enter up
+56000 key enter down
+56200 key enter up
+58000 key enter down
+58200 key enter up
+60000 key enter down
+60200 key enter up

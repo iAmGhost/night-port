@@ -206,8 +206,20 @@ int f_rig_chain_advances(void) { return g_room_advances; }
  * record Y pinned at 172 in episode 1's second and third room nodes, and "the clamp refused it" and "the mover
  * never ran" look identical from a state census -- these two counters separate them. */
 unsigned long g_walk_body_calls, g_walk_vert_calls, g_walk_admit_calls, g_act_flag_gate;
+unsigned long g_show_runs, g_show_pics, g_show_press_stuck;
+unsigned long g_slide_cards, g_slide_cards_stuck; unsigned long g_keywait_edges; unsigned long g_keywait_calls, g_keywait_ret0, g_keywait_ret1, g_keywait_spins_run;   /* docs/317: fn_00035dfc slide-gate census */
 unsigned long g_act_resolver_calls;
 unsigned long f_act_resolver_calls(void) { return g_act_resolver_calls; }
+unsigned long f_show_runs(void) { return g_show_runs; }
+unsigned long f_show_pics(void) { return g_show_pics; }
+unsigned long f_show_press_stuck(void) { return g_show_press_stuck; }
+unsigned long f_slide_cards(void) { return g_slide_cards; }
+unsigned long f_slide_cards_stuck(void) { return g_slide_cards_stuck; }
+unsigned long f_keywait_edges(void) { return g_keywait_edges; }
+unsigned long f_keywait_calls(void) { return g_keywait_calls; }
+unsigned long f_keywait_ret0(void) { return g_keywait_ret0; }
+unsigned long f_keywait_ret1(void) { return g_keywait_ret1; }
+unsigned long f_keywait_spins(void) { return g_keywait_spins_run; }
 unsigned long g_request_seen;
 unsigned long f_act_flag_gate(void) { return g_act_flag_gate; }
 unsigned long f_walk_body_calls(void) { return g_walk_body_calls; }
@@ -1005,16 +1017,41 @@ void fn_00035d5d(void) {
  * not the guessed 0x63eb2/0x63ebe pair of docs/60. The port stubbed this as a no-op returning
  * 0, which is why every card of the stage slide-show auto-advanced (playtest item 3). */
 int fn_00035dfc(void) {
+    /* docs/317 witness (NIGHT_SLIDEDBG): count every rising edge of the four press latches seen from inside
+     * the gate, with the Enter key-state slot DAT_00062c58[0x1c] alongside it.  One scripted Enter press
+     * consumed all six cards of the stage-3 opening slide show (/tmp/rig/e318c), and every card entered the
+     * gate with all four latches zero -- so a latch is being *re-set* inside the wait, and these edges name
+     * how many times and at which spin. */
+    const int kwdbg = getenv("NIGHT_SLIDEDBG") != 0;
+    g_keywait_calls++;
+    uint8_t prev4[4] = { g_dat_63ec1, g_dat_63ea4, g_dat_63ea5, g_dat_63ec0 };
+    unsigned long spins = 0;
     while (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0)   /* A: drain a held key */
         sys_key_spin();
     for (;;) {                                                         /* B/C: wait for a press */
+        if (kwdbg && ++spins <= 60) {
+            uint8_t now4[4] = { g_dat_63ec1, g_dat_63ea4, g_dat_63ea5, g_dat_63ec0 };
+            for (int q = 0; q < 4; q++)
+                if (now4[q] && !prev4[q]) {
+                    g_keywait_edges++;
+                    fprintf(stderr, "keywait: edge #%u latch[%d]=%u spin=%u keystate[0x1c]=%u\n",
+                            (unsigned)g_keywait_edges, q, now4[q], (unsigned)spins,
+                            (unsigned)g_dat_62c58[0x1c]);
+                }
+            for (int q = 0; q < 4; q++) prev4[q] = now4[q];
+        }
+        if (kwdbg) g_keywait_spins_run++;
         if (g_dat_63e89) {                                             /* 0x35e68 */
             while (g_dat_63e89) sys_key_spin();                        /* 0x35e71 */
+            g_keywait_ret1++;
             return 1;
         }
         if (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0) {
+            if (kwdbg) fprintf(stderr, "keywait: press arm taken at spin %u (enter=%u space=%u punch=%u kick=%u)\n",
+                               (unsigned)spins, g_dat_63ea4, g_dat_63ec1, g_dat_63ea5, g_dat_63ec0);
             while (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0)  /* 0x35e85..35ead */
                 sys_key_spin();
+            g_keywait_ret0++;
             return 0;                                                 /* 0x35eaf */
         }
         sys_key_spin();                                                 /* keeps pump + scripted tests moving */
@@ -16077,6 +16114,16 @@ void fn_03a70e(void)
     uint32_t save28 = g_dat_63e28;                                 /* [EBP-8] = DAT_63e28 */
     g_dat_52ff8 = 0;                                               /* 0x3a73d */
     int32_t count = (int32_t)g_dat_52f08[g_dat_63370 & 0x3fu];      /* 0x3a7c5: [&DAT_52f08 + stage*4] */
+    /* docs/317 witness (NIGHT_SHOWDBG): the shipped's press gate at 0x3a785-0x3a7a4 is "break when
+     * DAT_63ec1 or DAT_63ea4 is already non-zero" -- it never clears a latch and never requires a rising
+     * edge.  A picture is therefore consumed with NO key press at all whenever a latch is still set when
+     * the wait is entered, and the whole strip then runs in one go.  Count exactly that: how many pictures
+     * entered its press gate with a latch already held, and which byte held it. */
+    const int showdbg = getenv("NIGHT_SHOWDBG") != 0;
+    g_show_runs++;
+    if (showdbg)
+        fprintf(stderr, "show: entry stage=%u count=%d latches esc=%u enter=%u punch=%u kick=%u space=%u pumpoff=1\n",
+                g_dat_63370, count, g_dat_63e89, g_dat_63ea4, g_dat_63ea5, g_dat_63ec0, g_dat_63ec1);
 
     do {
         uint8_t name[24];                                          /* [EBP-0x20] */
@@ -16090,9 +16137,25 @@ void fn_03a70e(void)
                   video_map((uint32_t)g_dat_633b0 + 0xa8c0u), 0x5140u);
         fn_036041((const char *)name, 0);                          /* 0x3a77e-84 */
 
+        if (showdbg) {
+            g_show_pics++;
+            fprintf(stderr, "show: pic %d/%d pre-latch enter=%u space=%u esc=%u\n", idx + 1, count,
+                    g_dat_63ea4, g_dat_63ec1, g_dat_63e89);
+            if (g_dat_63ec1 || g_dat_63ea4) {
+                g_show_press_stuck++;
+                fprintf(stderr, "show: pic %d press gate satisfied with NO press (latch already held)\n", idx + 1);
+            }
+        }
         for (;;) {                                                 /* 0x3a789-9f key wait */
-            if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0) break;
-            if (g_dat_63e89 != 0) break;                           /* loop tail: while (DAT_63e89 == 0) */
+            if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0) {
+                if (showdbg) fprintf(stderr, "show: pic %d press taken by %s\n", idx + 1,
+                                     g_dat_63ec1 ? "space(63ec1)" : "enter(63ea4)");
+                break;
+            }
+            if (g_dat_63e89 != 0) {                                /* loop tail: while (DAT_63e89 == 0) */
+                if (showdbg) fprintf(stderr, "show: pic %d press gate aborted by esc(63e89)\n", idx + 1);
+                break;
+            }
             sys_port_spin();   /* the original spins on bytes the keyboard IRQ / pump (fn_0347e3,
                                 * gated by DAT_52ff8) update asynchronously; without the cooperative
                                 * pump here the wait can never end -- the picture show deadlocked at
@@ -28474,8 +28537,27 @@ room_start:                                                            /* LAB_00
                 fn_0428f8(name, (const uint8_t *)"%ds%d.pcx", &cur);   /* 0x03b0d0 */
                 fn_03628e((const char *)name, 0);                      /* 0x03b0dd */
                 fn_040660(g_dat_636b8, 0x19);                          /* 0x03b0ec */
-                if (getenv("NIGHT_SLIDEDBG")) fprintf(stderr, "slide: card %u/%u wait\n", slide + 1, g_tab_52f2c[g_dat_63370]);
-                if (fn_00035dfc() == 1) {                              /* 0x03b0f1 */
+                /* docs/317 witness (NIGHT_SLIDEDBG): fn_00035dfc's gate is "wait until DAT_63ec1/63ea4/
+                 * 63ea5/63ec0 becomes non-zero" (0x35e14-0x35e66), and NOTHING in the slide loop or in the
+                 * gate clears a latch.  So a card that enters the gate with a latch already held needs no key
+                 * press at all -- which is what "one Enter press skips the whole dialogue" must mean.  Name
+                 * the byte that made the gate pass without a press. */
+                if (getenv("NIGHT_SLIDEDBG")) {
+                    g_slide_cards++;
+                    fprintf(stderr, "slide: card %u/%u wait pre-latch enter=%u space=%u punch=%u kick=%u esc=%u pump=%u\n",
+                            slide + 1, g_tab_52f2c[g_dat_63370], g_dat_63ea4, g_dat_63ec1, g_dat_63ea5,
+                            g_dat_63ec0, g_dat_63e89, g_dat_52ff8);
+                    if (g_dat_63ec1 || g_dat_63ea4 || g_dat_63ea5 || g_dat_63ec0) {
+                        g_slide_cards_stuck++;
+                        fprintf(stderr, "slide: card %u gate held a latch with NO press\n", slide + 1);
+                    }
+                }
+                int kwret = fn_00035dfc();                             /* 0x03b0f1 */
+                if (getenv("NIGHT_SLIDEDBG"))
+                    fprintf(stderr, "slide: card %u gate returned %d post-latch enter=%u space=%u punch=%u kick=%u esc=%u spins=%u edges=%u\n",
+                            slide + 1, kwret, g_dat_63ea4, g_dat_63ec1, g_dat_63ea5, g_dat_63ec0,
+                            g_dat_63e89, (unsigned)f_keywait_spins(), (unsigned)f_keywait_edges());
+                if (kwret == 1) {                              /* 0x03b0f1 */
                     fn_0406f5(g_dat_636b8, 0x19);
                     goto hold;                                         /* 0x03b105 */
                 }

@@ -1941,6 +1941,11 @@ int main(int argc, char **argv) {
                 g_1441e_gate_kind[4], g_1441e_gate_kind[5], g_1441e_gate_kind[6], g_1441e_gate_kind[7]);
         SDL_Log("fn_01441e 0x150c8 latch census (docs/240): latch NULL %u  live-not-this %u  identity %u",
                 g_1441e_latch_hits[0], g_1441e_latch_hits[1], g_1441e_latch_hits[2]);
+        SDL_Log("fn_03a70e CG picture-show census (docs/317): shows_run=%u pictures=%u press_gate_with_no_press=%u",
+                (unsigned)f_show_runs(), (unsigned)f_show_pics(), (unsigned)f_show_press_stuck());
+        SDL_Log("fn_00035dfc slide-gate census (docs/317): cards=%u gate-with-no-press=%u",
+                (unsigned)f_slide_cards(), (unsigned)f_slide_cards_stuck());
+        SDL_Log("fn_00035dfc press-latch edge census (docs/317): rising edges seen inside the gate = %u", (unsigned)f_keywait_edges());
         SDL_Log("fn_01441e walk census (docs/236 4): +0x30 seen 0..7 = %u %u %u %u %u %u %u %u",
                 g_1441e_gate_set[0], g_1441e_gate_set[1], g_1441e_gate_set[2], g_1441e_gate_set[3],
                 g_1441e_gate_set[4], g_1441e_gate_set[5], g_1441e_gate_set[6], g_1441e_gate_set[7]);

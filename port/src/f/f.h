@@ -983,6 +983,16 @@ int f_rig_chain_advances(void);
 unsigned long f_walk_body_calls(void);
 /* docs/316 S4: the player action resolver invocation count, so a drive can wait for gameplay. */
 unsigned long f_act_resolver_calls(void);
+unsigned long f_show_runs(void);
+unsigned long f_show_pics(void);
+unsigned long f_show_press_stuck(void);
+unsigned long f_slide_cards(void);
+unsigned long f_slide_cards_stuck(void);
+unsigned long f_keywait_edges(void);
+unsigned long f_keywait_calls(void);
+unsigned long f_keywait_ret0(void);
+unsigned long f_keywait_ret1(void);
+unsigned long f_keywait_spins(void);
 unsigned long f_walk_vert_calls(void);
 const char *const *f_type_act_names(void);
 uint32_t *fn_03d999(uint32_t *a0, uint32_t a1); /* 0x03d999: wrapper -- fn_03dcbd(a0); return a0 (a1 unused) */

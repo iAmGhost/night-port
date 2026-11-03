@@ -199,8 +199,10 @@
 60000 wait state advance 1
 60100 key right up
 60200 menu 90000
+60300 wait state menu-closed
 60400 key down down
 90400 key down up
-91400 key right down
+90500 menu 90000
+90600 key right down
 111400 key right up
 111500 menu 90000

@@ -10,6 +10,14 @@
 #include <string.h>
 #include <dlfcn.h>
 
+/* docs/314: which source line handed a block to the free?  The witness in heap_free_guard needs it, and
+ * a __builtin_return_address is not usable here -- macOS ld folds identical code, so a return address can
+ * name a symbol whose body contains no free at all (measured: fn_029709, whose body has zero free calls). */
+static int g_free_site_line;
+static void rig_free_site(int line) { g_free_site_line = line; }
+static void heap_free_at(int line, uint32_t off) { rig_free_site(line); heap_free_guard(off); }
+#define HEAP_FREE(off) heap_free_at(__LINE__, (uint32_t)(off))
+
 /* ---- unaligned flat-model views (docs/126) ----------------------------------
  * The shipped record layout is packed and deliberately unaligned (dword stores at +0x01/+0x05/+0x17 ...
  * read out of the entity constructor fn_010efc, docs/125 S1), so every typed access into it is a misaligned
@@ -198,6 +206,7 @@ int f_rig_chain_advances(void) { return g_room_advances; }
  * record Y pinned at 172 in episode 1's second and third room nodes, and "the clamp refused it" and "the mover
  * never ran" look identical from a state census -- these two counters separate them. */
 unsigned long g_walk_body_calls, g_walk_vert_calls, g_walk_admit_calls, g_act_flag_gate;
+unsigned long g_request_seen;
 unsigned long f_act_flag_gate(void) { return g_act_flag_gate; }
 unsigned long f_walk_body_calls(void) { return g_walk_body_calls; }
 unsigned long f_walk_vert_calls(void) { return g_walk_vert_calls; }
@@ -1273,7 +1282,7 @@ void fn_03b9b7(void) {
         uint8_t *next = ((struct ua_uint8tp *)((g_dat_639d4 + 0x11)))->v;      /* 0x3b9e7 */
         fn_0003b67e(g_dat_639d4);                               /* 0x3ba00 remove */
         uint32_t off = (uint32_t)((uint8_t *)g_dat_639d4 - (uint8_t *)g_heap_base);
-        heap_free_guard(off);                                    /* 0x3ba05 (0x041c28) */
+        HEAP_FREE(off);                                    /* 0x3ba05 (0x041c28) */
         g_dat_639d4 = next;                                      /* 0x3ba1e */
     }
 }
@@ -1602,7 +1611,7 @@ void fn_0323f8(void) {
         uint8_t *next = ((struct ua_uint8tp *)((cur + 0x13f)))->v;     /* [cur+0x13f] */
         uint8_t *rem = fn_0112fd(cur, 0);               /* 0x0112fd, returns node */
         uint32_t off = (uint32_t)((uint8_t *)rem - (uint8_t *)g_heap_base);
-        heap_free_guard(off);                            /* 0x041c28 (NULL-tolerant) */
+        HEAP_FREE(off);                            /* 0x041c28 (NULL-tolerant) */
         cur = next;                                      /* [EBP-4]=next */
     }
 }
@@ -1618,7 +1627,7 @@ void fn_03237b(void) {
         if (((struct ua32 *)((cur + 0xd)))->v != 0) {            /* dword flag @+0xd */
             uint8_t *rem = fn_0112fd(cur, 0);
             uint32_t off = (uint32_t)((uint8_t *)rem - (uint8_t *)g_heap_base);
-            heap_free_guard(off);
+            HEAP_FREE(off);
         }
         cur = next;
     }
@@ -2156,7 +2165,7 @@ void fn_03ee0a(void) {
         uint32_t next = ((struct ua32 *)((hb + g_dat_63e20 + 0x51)))->v; /* 0x3ee35/3a */
         uint32_t p = g_dat_63e20;                               /* 0x3ee40/45 */
         if (p != 0)                                             /* 0x3ee48/4c */
-            heap_free_guard(fn_03e14c(p, 0));                   /* 0x3ee4e/53/58 */
+            HEAP_FREE(fn_03e14c(p, 0));                   /* 0x3ee4e/53/58 */
         g_dat_63e20 = next;                                     /* 0x3ee69/6c */
     }
     g_dat_62a8c = 0;                                            /* 0x3ee73 */
@@ -5652,23 +5661,23 @@ void fn_037347(void)
         if (i == 0xc9u || i == 0xfau) continue;                              /* 0x373xx: shared tables */
         if (g_dat_639ec[i] == NULL) continue;                                /* 0x3737f (gates the body) */
         (void)fn_03d999((uint32_t *)g_dat_639ec[i], 0);                      /* 0x3738a */
-        heap_free_guard((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x3738f */
+        HEAP_FREE((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x3738f */
         uint32_t ao = g_dat_53818[i];                                        /* 0x3739a */
         if (ao != 0) {                                                       /* 0x373a3 */
             (void)fn_0100d9((uint32_t *)(hb + ao));                          /* 0x373ae */
-            heap_free_guard(ao);                                             /* 0x373b3 */
+            HEAP_FREE(ao);                                             /* 0x373b3 */
         }
         g_dat_639ec[i] = NULL;                                               /* 0x373c6 */
         g_dat_53818[i] = 0;                                                  /* 0x373d3 */
     }
     if (g_dat_63dfc != NULL) {                                               /* 0x373e2 */
         (void)fn_03d999((uint32_t *)g_dat_63dfc, 0);                         /* 0x373eb */
-        heap_free_guard((uint32_t)((uint8_t *)g_dat_63dfc - hb));            /* 0x373f0 */
+        HEAP_FREE((uint32_t)((uint8_t *)g_dat_63dfc - hb));            /* 0x373f0 */
     }
     g_dat_63dfc = NULL;                                                      /* 0x373fb */
     if (g_dat_6334c != NULL) {                                               /* 0x37404 */
         uint32_t r = fn_03c72b((uint32_t)(g_dat_6334c - hb));                /* 0x37411 */
-        heap_free_guard(r);                                                  /* 0x37416 */
+        HEAP_FREE(r);                                                  /* 0x37416 */
     }
     g_dat_6334c = NULL;                                                      /* 0x37421 */
 }
@@ -5685,23 +5694,23 @@ void fn_0374ad(void)
         if (i == 0xc9u || i == 0xfau) continue;                              /* shared tables, never freed */
         if (g_dat_639ec[i] == NULL) continue;                                /* 0x37522 */
         (void)fn_03d999((uint32_t *)g_dat_639ec[i], 0);                      /* 0x37542 */
-        heap_free_guard((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x37547 */
+        HEAP_FREE((uint32_t)(g_dat_639ec[i] - hb));                    /* 0x37547 */
         uint32_t ao = g_dat_53818[i];                                        /* 0x3755e */
         if (ao != 0) {                                                       /* 0x3756b */
             (void)fn_0100d9((uint32_t *)(hb + ao));                          /* 0x37572 */
-            heap_free_guard(ao);                                             /* 0x37577 */
+            HEAP_FREE(ao);                                             /* 0x37577 */
         }
         g_dat_639ec[i] = NULL;                                               /* 0x3758e */
         g_dat_53818[i] = 0;                                                  /* 0x3759e */
     }
     if (g_dat_63dfc != NULL) {                                               /* 0x375b9 */
         (void)fn_03d999((uint32_t *)g_dat_63dfc, 0);                         /* 0x375c0 */
-        heap_free_guard((uint32_t)((uint8_t *)g_dat_63dfc - hb));            /* 0x375c5 */
+        HEAP_FREE((uint32_t)((uint8_t *)g_dat_63dfc - hb));            /* 0x375c5 */
     }
     g_dat_63dfc = NULL;                                                      /* 0x375d6 */
     if (g_dat_6334c != NULL) {                                               /* 0x375e8 */
         uint32_t r = fn_03c72b((uint32_t)(g_dat_6334c - hb));                /* 0x375f3 */
-        heap_free_guard(r);                                                  /* 0x375f8 */
+        HEAP_FREE(r);                                                  /* 0x375f8 */
     }
     g_dat_6334c = NULL;                                                      /* 0x37609 */
     fn_037b03(0);                                                            /* 0x37615 full reload */
@@ -5876,7 +5885,7 @@ void fn_010927(void) {
     sys_cd_root_header(rsp);           /* PORT SEAM: the real-mode MSCDEX reply, see sys.h */
     mem_copy(bufA, rsp, 7);                                      /* 0x010996-a4: bufA <- *g_dat_53c5c */
     g_dat_53c60 = (uint32_t)bufA[2] - (uint32_t)bufA[1] + 1u;    /* 0x0109a9-b6 */
-    if (g_dat_53c64 != 0) heap_free_guard(g_dat_53c64);          /* 0x0109bc-ca */
+    if (g_dat_53c64 != 0) HEAP_FREE(g_dat_53c64);          /* 0x0109bc-ca */
     g_dat_53c64 = heap_malloc((g_dat_53c60 + 1) * 5);            /* 0x0109cf-dd */
     for (uint32_t i = 0; i < g_dat_53c60; i++) {                 /* 0x0109e2-a18 */
         (void)((uint32_t)bufA[1] + i);                           /* frame (discarded) */
@@ -7544,7 +7553,7 @@ uint32_t fn_03c72b(uint32_t ent_off) {
     if (child_p) {
         uint32_t child = (uint32_t)(child_p - (uint8_t *)g_heap_base);   /* 0x3c757-5d [ebp-0x14] */
         uint32_t r = fn_03c72b(child);                          /* 0x3c76b (EDX=0) */
-        heap_free_guard(r);                                     /* 0x3c770 free the child */
+        HEAP_FREE(r);                                     /* 0x3c770 free the child */
                                                                 /* 0x3c775 [ebp-0x10] unused */
     }
     if (((struct ua32 *)((ent + 0x348)))->v != 0) {                      /* 0x3c784-8b */
@@ -8474,14 +8483,14 @@ void fn_037922(void) {
     (void)canary_id(0, 0x60);
     for (uint32_t i = 0; i < 0x64; i++)
         if (g_dat_53d0c[i]) heap_free_host(host_to_off(g_dat_53d0c[i]));   /* 0x041c31 */
-    if (g_dat_639c0) { fn_03d999(g_dat_639c0, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_639c0)); g_dat_639c0 = 0; }
-    if (g_dat_53c8c) { fn_03d999(g_dat_53c8c, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_53c8c)); g_dat_53c8c = 0; }
-    if (g_dat_63e00) { fn_03d999(g_dat_63e00, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_63e00)); g_dat_63e00 = 0; }
-    if (g_dat_639ec[0]) { fn_03d999(g_dat_639ec[0], 0); heap_free_guard(host_to_off(g_dat_639ec[0])); g_dat_639ec[0] = 0; }
-    if (g_dat_63d10) { fn_03d999(g_dat_63d10, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_63d10)); g_dat_63d10 = 0; }
-    if (g_dat_53b3c) { fn_0100d9(g_dat_53b3c); heap_free_guard(host_to_off((uint8_t *)g_dat_53b3c)); g_dat_53b3c = 0; }
-    if (g_dat_63dd4) { fn_03d999(g_dat_63dd4, 0); heap_free_guard(host_to_off((uint8_t *)g_dat_63dd4)); g_dat_63dd4 = 0; }
-    if (g_dat_53c00) { fn_0100d9(g_dat_53c00); heap_free_guard(host_to_off((uint8_t *)g_dat_53c00)); g_dat_53c00 = 0; }
+    if (g_dat_639c0) { fn_03d999(g_dat_639c0, 0); HEAP_FREE(host_to_off((uint8_t *)g_dat_639c0)); g_dat_639c0 = 0; }
+    if (g_dat_53c8c) { fn_03d999(g_dat_53c8c, 0); HEAP_FREE(host_to_off((uint8_t *)g_dat_53c8c)); g_dat_53c8c = 0; }
+    if (g_dat_63e00) { fn_03d999(g_dat_63e00, 0); HEAP_FREE(host_to_off((uint8_t *)g_dat_63e00)); g_dat_63e00 = 0; }
+    if (g_dat_639ec[0]) { fn_03d999(g_dat_639ec[0], 0); HEAP_FREE(host_to_off(g_dat_639ec[0])); g_dat_639ec[0] = 0; }
+    if (g_dat_63d10) { fn_03d999(g_dat_63d10, 0); HEAP_FREE(host_to_off((uint8_t *)g_dat_63d10)); g_dat_63d10 = 0; }
+    if (g_dat_53b3c) { fn_0100d9(g_dat_53b3c); HEAP_FREE(host_to_off((uint8_t *)g_dat_53b3c)); g_dat_53b3c = 0; }
+    if (g_dat_63dd4) { fn_03d999(g_dat_63dd4, 0); HEAP_FREE(host_to_off((uint8_t *)g_dat_63dd4)); g_dat_63dd4 = 0; }
+    if (g_dat_53c00) { fn_0100d9(g_dat_53c00); HEAP_FREE(host_to_off((uint8_t *)g_dat_53c00)); g_dat_53c00 = 0; }
 }
 
 /* 0x015295 (L11, 456 B): ENTITY TICK.
@@ -10110,7 +10119,7 @@ uint32_t fn_0100d9(uint32_t *s) {                                   /* 0x0100d9:
             uint32_t off = array[i];
             if (off != 0) {
                 fn_010376((uint8_t *)(g_heap_base + off), 0);   /* destroy struct fields */
-                heap_free_guard(off);                            /* free the struct */
+                HEAP_FREE(off);                            /* free the struct */
             }
         }
         heap_free_host(array_off);                               /* free the array */
@@ -11250,9 +11259,30 @@ uint32_t to_upper(uint32_t c) { return (c>=0x61 && c<=0x7a) ? c-0x20 : c; } /* 0
 
 /* 0x041c28 (L1, 9 bytes): NULL-tolerant free. TEST EAX,EAX; JNZ heap_free_host
  * (0x41c31); RET. Tail-call: frees `data` only when nonzero, else returns. */
+
 void heap_free_guard(uint32_t data)
 {
     if (!data) return;
+    /* docs/314: the settle path stamps the PLAYER record (+0x30 = 1 at fn_01441e 0x00014cd2) and the block
+     * then turns into pointer words.  A free would do exactly that (the allocator's own links land in the
+     * first bytes) while g_player_ent keeps pointing at it.  Name the free when it is the player's block. */
+    if (arena_dbg() && g_player_ent &&
+        (const uint8_t *)g_heap_base + data == g_player_ent) {
+        const uint8_t *hb = (const uint8_t *)g_heap_base;
+        const char *held = "-";
+        for (uint32_t i = 0; i < 0x104u; i++) {                       /* DS 0x53818: per-type action tables */
+            if (g_dat_53818[i] == data) { held = "53818"; break; }
+        }
+        for (uint32_t i = 0; i < 0x100u && held[0] == '-'; i++) {    /* DS 0x639ec: per-type sprite records */
+            if (g_dat_639ec[i] && g_dat_639ec[i] - hb == data) { held = "639ec"; break; }
+        }
+        if (held[0] == '-' && g_dat_53c70 && g_dat_53c70 == g_player_ent) held = "list-head";
+        if (held[0] == '-' && g_dat_53c74 && g_dat_53c74 == g_player_ent) held = "list-tail";
+        if (held[0] == '-' && g_dat_53c78 && g_dat_53c78 == g_player_ent) held = "list-cursor";
+        fprintf(stderr, "arena: FREE on the PLAYER block off=%#x tick %u state %#x held-by=%s site=f.c:%d\n",
+                data, (unsigned)g_dat_63f08,
+                (unsigned)((const struct ua32 *)(g_player_ent + 0x17))->v, held, g_free_site_line);
+    }
     arena_live_del(data);          /* arena witness: this block stops being live (docs/135 §5) */
     heap_free_host(data);
 }
@@ -15101,7 +15131,7 @@ void fn_03b718(uint8_t *entity, uint32_t base)
         ((struct ua32 *)((entity + 0x05)))->v = ((struct ua32 *)((entity + 0x05)))->v + 1;
     if ((int32_t)((struct ua32 *)((entity + 0x05)))->v > 0x28) {                     /* 0x3b936-3a */
         fn_0003b67e(entity);                                               /* 0x3b941 */
-        heap_free_guard(off);                                              /* 0x3b946 */
+        HEAP_FREE(off);                                              /* 0x3b946 */
     }
 }
 
@@ -24041,7 +24071,17 @@ int32_t fn_03a829(void)
                         (unsigned)g_dat_6336c, (unsigned)g_room_advances,
                         (unsigned)(g_dat_63354 - (uint8_t *)g_heap_base), (unsigned)g_dat_63370);
         }
-        if (g_dat_6336c == 1) break;                                   /* 0x0003abc0 gone for good */
+        /* docs/315: is a request ever SEEN here?  The shipped writes DAT_6336c from ten sites (imm_scan:
+         * 0x000129ed/0x12a04/0x12a5d/0x12eba/0x12ee7 set 1/3/4/2/2, 0x0003a976/0x3a9dc/0x3abb7/0x3ac14/0x3ac67
+         * clear it) and reads it only at the bottom of the room loop, 0x0003abae onward.  This witness says
+         * which iteration sees a nonzero request and what the loop counter is at that moment -- the difference
+         * between "the request was never written" and "the loop never reached the test". */
+        if (getenv("NIGHT_REQUESTDBG") && g_dat_6336c != 0 && g_request_seen++ < 40)
+            fprintf(stderr, "[request] seen tick=%u value=%u iter=%u room=%#x stage=%u\n",
+                    (unsigned)g_dat_63f08, g_dat_6336c, (unsigned)g_request_seen,
+                    (unsigned)(g_dat_63354 ? (uintptr_t)g_dat_63354 - (uintptr_t)g_heap_base : 0),
+                    g_dat_63370);
+        if (g_dat_6336c == 1) break;                                   /* 0x0003abae arm 1: player died */
         if (g_dat_6336c == 3) { g_dat_6336c = 0; return 1; }           /* 0x0003abca-0x0003abdd died */
         if (g_dat_6336c == 2) {                                        /* 0x0003ac2a-0x0003ac7b exit rect */
             fn_0381d7(g_dat_633b0, 1, 0, 0x50, (int32_t)g_dat_63398);
@@ -26245,7 +26285,7 @@ slide:
         fn_0406f5(g_dat_633b8, 0x32);                                  /* 0x0003898a-94: fade out */
         if (digits != 0) {                                             /* 0x00038999-0x000389ba */
             (void)fn_03d999((uint32_t *)(hb + digits), 0);
-            heap_free_guard(digits);
+            HEAP_FREE(digits);
         }
         digits = 0;                                                    /* 0x000389c6 */
         for (int32_t i = 0; i < 3; i = i + 1) heap_free_host(bufp[i]); /* 0x000389cd-0x000389f1 */
@@ -26582,9 +26622,9 @@ static void fn_038f3d_body(int32_t variant)
     while (g_dat_63eb2 != 0 || g_dat_63ebe != 0) sys_key_spin();
 
     heap_free_host(o_pcx);                                               /* 0x00039b49-4d (fn_041c31) */
-    if (num2 != 0) { (void)fn_03d999(num2, 0); heap_free_guard(o_n2); }
-    if (num1 != 0) { (void)fn_03d999(num1, 0); heap_free_guard(o_n1); }
-    if (lvl  != 0) { (void)fn_03d999(lvl,  0); heap_free_guard(o_lvl); }
+    if (num2 != 0) { (void)fn_03d999(num2, 0); HEAP_FREE(o_n2); }
+    if (num1 != 0) { (void)fn_03d999(num1, 0); HEAP_FREE(o_n1); }
+    if (lvl  != 0) { (void)fn_03d999(lvl,  0); HEAP_FREE(o_lvl); }
     if (variant == 1) fn_00010dde();                                     /* 0x00039bfa */
 }
 
@@ -26988,7 +27028,7 @@ void fn_012616(uint8_t *e)
                         if (quota <= (int32_t)g_dat_639bc) g_dat_6336c = 4;   /* 0x00012a55 jl */
                     }
                     fn_0112fd(e, 0);                                      /* 0x00012a6c */
-                    heap_free_guard((uint32_t)(e - hb));                  /* 0x00012a71 (fn_00041c28) */
+                    HEAP_FREE((uint32_t)(e - hb));                  /* 0x00012a71 (fn_00041c28) */
                     return;
                 }
             }
@@ -27436,7 +27476,7 @@ void fn_03ed6f(void)
             uint32_t next = ((struct ua32 *)((hb + g_dat_63e20 + 0x51)))->v; /* 0x0003edb4-bc */
             uint32_t cur = g_dat_63e20;                                   /* 0x0003edbf-c4 */
             if (cur != 0)                                                 /* 0x0003edc7 */
-                (void)heap_free_guard(fn_03e14c(cur, 0));                 /* 0x0003edd2 / 0x0003edd7 */
+                (void)HEAP_FREE(fn_03e14c(cur, 0));                 /* 0x0003edd2 / 0x0003edd7 */
             g_dat_63e20 = next;                                           /* 0x0003ede1-e8 */
         } else {
             g_dat_63e20 = ((struct ua32 *)((hb + g_dat_63e20 + 0x51)))->v;    /* 0x0003edf2-fa */
@@ -28457,8 +28497,9 @@ room_start:                                                            /* LAB_00
     for (;;) {                                                         /* 0x03b1b7 */
         int32_t r = fn_03a829();
         fn_00010dde();
-        if (getenv("NIGHT_ROOMSTART") && r != 0 && g_rs_log++ < 40)
-            fprintf(stderr, "roomloop: r=%d stage=%u\n", r, g_dat_63370);
+        if (getenv("NIGHT_ROOMSTART") && g_rs_log++ < 60)
+            fprintf(stderr, "roomloop: r=%d stage=%u credits53100=%u player=%#x\n", r, g_dat_63370,
+                    g_dat_53100, (unsigned)(g_player_ent ? (uintptr_t)g_player_ent - (uintptr_t)g_heap_base : 0));
         if (r == 1) break;                                             /* room clear */
         if (r != 2) {
             if (r != 0) {
@@ -28516,7 +28557,7 @@ ending:                                                                /* LAB_00
     g_dat_63370 = 1;                                                   /* 0x03b3f1 */
     if (g_player_ent != NULL) {
         fn_0112fd(g_player_ent, 0);                                     /* 0x03b413: entity remove */
-        heap_free_guard((uint32_t)(g_player_ent - (uint8_t *)g_heap_base));   /* 0x03b418 (fn_041c28) */                                                 /* 0x03b418: heap free */
+        HEAP_FREE((uint32_t)(g_player_ent - (uint8_t *)g_heap_base));   /* 0x03b418 (fn_041c28) */                                                 /* 0x03b418: heap free */
     }
     fn_037347();
     g_dat_63398 = 0;

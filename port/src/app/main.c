@@ -944,6 +944,17 @@ static void pt_drive(void) {
             if (!strcasecmp(e->name, "menu-open")) hit = depth > 0;
             else if (!strcasecmp(e->name, "menu-closed")) hit = depth == 0;
             else if (!strcasecmp(e->name, "advance")) hit = adv >= (int)e->a2;
+            /* docs/316 S4: "resolver" anchors on the player action resolver owning the frame.  A level-up menu
+             * (fn_038f3d) or a card wait (fn_00035dfc) swallows a key window while fn_03272f itself is still
+             * called 1900+ times a run, so a gameplay key must be pressed only after this counter advances:
+             * /tmp/rig/w316b's 150-sample Down window had admissions frozen 1930->1930 (menu_depth=0, state 0x1). */
+            else if (!strcasecmp(e->name, "resolver")) {
+                static unsigned long res_seen;
+                unsigned long now = f_act_resolver_calls();
+                if (res_seen == 0) res_seen = now;
+                hit = now > res_seen;
+                if (hit) res_seen = 0;
+            }
             else { SDL_Log("script: unknown wait state '%s' (continuing)", e->name); hit = 1; }
             if (hit) {
                 long slip = t - e->t_ms;

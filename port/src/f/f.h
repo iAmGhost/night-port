@@ -981,6 +981,8 @@ const char *const *f_type_spr_names(void);
 int f_rig_menu_depth(void);
 int f_rig_chain_advances(void);
 unsigned long f_walk_body_calls(void);
+/* docs/316 S4: the player action resolver invocation count, so a drive can wait for gameplay. */
+unsigned long f_act_resolver_calls(void);
 unsigned long f_walk_vert_calls(void);
 const char *const *f_type_act_names(void);
 uint32_t *fn_03d999(uint32_t *a0, uint32_t a1); /* 0x03d999: wrapper -- fn_03dcbd(a0); return a0 (a1 unused) */

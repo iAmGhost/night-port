@@ -206,6 +206,8 @@ int f_rig_chain_advances(void) { return g_room_advances; }
  * record Y pinned at 172 in episode 1's second and third room nodes, and "the clamp refused it" and "the mover
  * never ran" look identical from a state census -- these two counters separate them. */
 unsigned long g_walk_body_calls, g_walk_vert_calls, g_walk_admit_calls, g_act_flag_gate;
+unsigned long g_act_resolver_calls;
+unsigned long f_act_resolver_calls(void) { return g_act_resolver_calls; }
 unsigned long g_request_seen;
 unsigned long f_act_flag_gate(void) { return g_act_flag_gate; }
 unsigned long f_walk_body_calls(void) { return g_walk_body_calls; }
@@ -9911,12 +9913,16 @@ void fn_03cc6b(uint8_t *a0) {
         static unsigned vgate_visits;
         vgate_visits++;
         if (vgate_visits <= 40 || vgate_visits % 250 == 0) {
-            int32_t n4 = (int32_t)((const struct ua32 *)((c + 0x4)))->v;
-            int32_t nc = (int32_t)((const struct ua32 *)((c + 0xc)))->v;
+            /* docs/316 §3: at a chain terminator the next link is clear, and a witness that reads [c+4]/[c+0xc]
+             * dereferences address 0x4/0xc and faults -- the same NULL-link class the modelled code fixed at
+             * b5355d3.  A witness must not be less careful than the code it watches: name the NULL, do not
+             * fault on it, or a rig crash is indistinguishable from a game crash. */
+            int32_t n4 = (c ? (int32_t)((const struct ua32 *)((c + 0x4)))->v : -1);
+            int32_t nc = (c ? (int32_t)((const struct ua32 *)((c + 0xc)))->v : -1);
             printf("[vgate] visit#%u e4=%u node=%#x next=+%#x next+4-1=%d next+c-0xc8=%d camY=%d "
                    "inc_would_fire=%d camX=%d rooms=%u stage=%u\n",
                    vgate_visits, (unsigned)g_dat_639e4,
-                   (unsigned)((const struct ua32 *)((a0 + 0x40)))->v,
+                   (a0 ? (unsigned)((const struct ua32 *)((a0 + 0x40)))->v : 0u),
                    (unsigned)(c - (uint8_t *)g_heap_base), n4 - 1, nc - 0xc8,
                    (int)g_dat_639e0, (nc - 0xc8 > (int32_t)g_dat_639e0), (int)g_dat_639dc,
                    (unsigned)g_dat_639d8, (unsigned)g_dat_63370);
@@ -27960,6 +27966,10 @@ void fn_03272f(uint8_t *tbl)
     if (g_act_trace) g_cursor_hist[g_dat_63f50 & 0x0fu]++;   /* docs/264 7: the shipped's cursor
      * distribution over 244 samples is {0:21,1:12,2:14,3:118,4:12,5:13,6:14,7:13,8:11,9:16} */
     (void)canary_id((uintptr_t)tbl, 0x3c);                          /* 0x00032734 probe (push 0x3c) */
+    g_act_resolver_calls++;                                          /* docs/316 §4: is the resolver owning the
+                                                                      * frame at all?  A drive needs to wait for
+                                                                      * this counter to advance before it presses a
+                                                                      * key meant for gameplay. */
     /* docs/167 §6: is this function reached at all, and what does the +0x30 gate (guest 0x3274f-0x3275a,
      * "if player[+0x30] == 1 jump to the epilogue") see? */
     if (getenv("NIGHT_RIGDBG") && getenv("NIGHT_STTRACE")) {

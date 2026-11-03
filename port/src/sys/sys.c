@@ -643,6 +643,23 @@ static int g_vid_w = 320, g_vid_h = 200;   /* the current display geometry */
 int  sys_video_w(void) { return g_vid_w; }
 int  sys_video_h(void) { return g_vid_h; }
 
+/* The shipped's VGA mode set (fn_000405a7 / fn_00040570).  Those two build a real-mode register
+ * record whose FIRST DWORD is the AX the interrupt will see -- 0x13 at 0x000405bf
+ * (`mov word ptr [ebp - 0x1c], 0x13`) and 3 in fn_00040570 -- and hand it to fn_041e51(selector,
+ * &record, &record), whose chain fn_041e38 -> fn_043324 -> fn_04335c loads EAX/EBX/ECX/EDX/ESI/EDI out
+ * of [EDI] at offsets 0/4/8/0xc/0x10/0x14 (0x0004336d-0x0004337b), i.e. the record IS a register set
+ * and dword 0 is AX.  AX = 0x13 is VGA mode 13h = 320x200x256, the room screen; AX = 3 is text mode 3
+ * = 720x400 (fn_00040570 is called from the title-abort fn_037306 at 0x37331, where the shipped really
+ * is in 720x400 text -- docs/46 captured it).  Only mode 13h is wired to the presentation here; the
+ * text-mode half is recorded in docs/321 as an open modelling item rather than guessed at.
+ * The shipped's own frame dumps flip 640x480 (card shows) and 320x200 (rooms) at exactly the phases
+ * these calls sit in (/tmp/rig/rb320/orig_screen/frames.bin: 640x480 t9..46338, 320x200 t46338..47699,
+ * 640x480 t47699..62802, 320x200 t62802..62903, 640x480 t62903..73900, 320x200 t73900..76357). */
+void sys_vga_set_mode(uint16_t al)
+{
+    if (al == 0x13) { g_vid_w = 320; g_vid_h = 200; }
+}
+
 uint16_t sys_vesa_set_mode(uint16_t mode)
 {
     /* VBE mode numbers the game asks for: 0x101 = 640x480x8 (fn_03f15f), 0x100 = 640x400x8. */

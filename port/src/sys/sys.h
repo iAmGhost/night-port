@@ -233,6 +233,9 @@ typedef void (*sys_res_hook_fn)(const char *name);
 void sys_set_res_hook(sys_res_hook_fn fn);
 void sys_res_notify(const char *name);
 
+/* The shipped's VGA mode set (fn_000405a7 asks for AX = 0x13 = 320x200x256). */
+void sys_vga_set_mode(uint16_t al);
+
 void     sys_cd_audio_stop(void);
 uint32_t sys_cd_audio_stop_calls(void);
 void     sys_cd_audio_stop_reset(void);

@@ -790,10 +790,24 @@ void fn_0003fade(void) {}
 void fn_00040570(void) {}
 
 /* fn_000405a7  orig: 0x000405a7 (L10, 54B)
- *   Same as fn_00040570 but the request struct word0=0x13 -- the MSCDEX "stop audio"
- *   real-mode request. Flat-model no-op, except that the modern CD backend is told (and
- *   counts it) so callers such as the disc gate fn_010c3e stay observable. */
-void fn_000405a7(void) { sys_cd_audio_stop(); }
+ *   THE VGA MODE SET, mode 13h (320x200x256) -- not an audio request.
+ *   0x000405bf `mov word ptr [ebp - 0x1c], 0x13` puts 0x13 in the first slot of a register record,
+ *   0x000405c5-0x000405d0 passes it twice plus the selector 0x10 to fn_041e51, and that chain
+ *   (fn_041e51 -> fn_041e38 -> fn_043324 -> fn_04335c) loads EAX/EBX/ECX/EDX/ESI/EDI from the record at
+ *   0x0004336d-0x0004337b, so the record is a register set and its dword 0 -- 0x13 -- is AX.
+ *   Its sibling fn_00040570 is the same shape with AX = 3 (text mode 3 = 720x400), called from the
+ *   title-abort fn_037306 at 0x37331 and from fn_036537 at 0x36552.
+ *   Seven call sites, every one of them a "put the screen back to 320x200" moment: 0x10caf (after the
+ *   cdinsert.pcx wait, fn_010c3e), 0x365aa (fn_036570, room bringup), 0x38af8 (fn_038ad0, before the
+ *   track-1 select at 0x38afd), 0x3a57d (the tail of the CG picture show fn_03a70e), and 0x3b1ad /
+ *   0x3b52b / one more in fn_03af18 -- 0x3b52b sits BETWEEN the stage-clear end slides and
+ *   `mov eax,1 / call 0x38f3d` at 0x3b542-0x3b547, which is the ordering the 2026-11-03 item-H report
+ *   turns on (docs/321).
+ *   The host part is the presentation geometry (sys_vga_set_mode).  sys_cd_audio_stop() is kept only as
+ *   the port's CD bookkeeping hook -- the earlier reading that this routine IS the shipped's audio stop
+ *   is superseded by the bytes above, and whether the shipped stops CD-DA at these sites cannot be
+ *   tested on this basis (docs/304: the shipped half carries no CD-DA). */
+void fn_000405a7(void) { sys_vga_set_mode(0x13); sys_cd_audio_stop(); }
 
 /* fn_000407f8  orig: 0x000407f8 (L10, 64B)
  *   DPMI real-mode request: builds a stack struct (dword0=0x101, +canary) and

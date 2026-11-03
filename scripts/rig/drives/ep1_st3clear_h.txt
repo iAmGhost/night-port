@@ -1,0 +1,85 @@
+# docs/321 item-H basis: reach the stage-clear tail on a legitimate stage-3 basis (--warp-episode 3,
+# i.e. DAT_63370 = 3, the shipped's own stage counter -- not an episode-2 map).
+#
+# The tail runs only when fn_03a829 RETURNS 1: 0x3b1b7 stores the return value, 0x3b1bf `cmp eax,1 /
+# jne 0x3b553` gates it, and the only arm that returns 1 is DAT_6336c == 3 (0x3abca-0x3abdd: clear the
+# request, return 1).  Arms 2 and 4 only advance rooms (0x3ac2a-0x3acb1 fall through to `call 0x10d47 /
+# jmp 0x3aa2b`, docs/312).  In the game, 3 is written by fn_00012dcc at 0x12a04 when the record being
+# removed equals DAT_00053c80 (the latched guardian, 0x129fc `cmp eax,[0x3c80]`); a rig poke writes the
+# same request cell, so every claim from this drive is an arm-3-poke claim.
+#
+# Timing (the /tmp/rig/h321a and /tmp/rig/h321b lessons): DAT_63370 becomes 3 only at t~40 s here, and a
+# request written before fn_03a829's per-room frame loop is running is never consumed -- DAT_6336c sat at
+# 3 for the rest of /tmp/rig/h321b (samples 20..end).  The request is cleared at routine ENTRY
+# (0x3a95a / 0x3a9e1), not per iteration, so the poke below lands while the loop is provably running and
+# is taken at the bottom-of-loop test (0x3abae onward) on the next iteration.
+#
+# Stage 3's opening cards are g_tab_52f2c[3] = 6 "%ds3.pcx" slides, each needing one press (docs/317),
+# so Enter pairs run until the room loop owns the frame loop.  fn_038f3d leaves only on
+# Esc/LShift/RShift (0x3920a-31), with press -> hold -> release (docs/314: same-instant pairs hide the
+# Esc latch byte).
+2000 wait res title1.pcx
+2500 key enter down
+2650 key enter up
+4000 key enter down
+4150 key enter up
+5500 key enter down
+5650 key enter up
+7000 key enter down
+7150 key enter up
+8500 key enter down
+8650 key enter up
+10000 key enter down
+10150 key enter up
+12000 key right down
+42000 key enter down
+42150 key enter up
+43500 key enter down
+43650 key enter up
+45000 key enter down
+45150 key enter up
+46500 key enter down
+46650 key enter up
+48000 key enter down
+48150 key enter up
+49500 key enter down
+49650 key enter up
+51000 key enter down
+51150 key enter up
+52500 key enter down
+52650 key enter up
+54000 key enter down
+55150 key enter up
+56500 key enter down
+56650 key enter up
+58000 key enter down
+58150 key enter up
+59500 key enter down
+59650 key enter up
+61000 key enter down
+61150 key enter up
+62500 key enter down
+62650 key enter up
+75000 poke 0x6336c 3
+77500 poke 0x6336c 3
+80000 poke 0x6336c 3
+82500 poke 0x6336c 3
+85000 key esc down
+85800 key esc up
+80000 key enter down
+80150 key enter up
+81500 key enter down
+81650 key enter up
+83000 key enter down
+83150 key enter up
+84500 key enter down
+84650 key enter up
+86000 key enter down
+86150 key enter up
+87500 key enter down
+87650 key enter up
+89000 key enter down
+89150 key enter up
+90500 key enter down
+90650 key enter up
+92000 key right up

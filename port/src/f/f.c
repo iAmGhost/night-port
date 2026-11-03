@@ -23759,6 +23759,19 @@ uint32_t g_sfx_oob = 0;     /* events whose slot index fell outside the 100-entr
  * the entity list down to one node the room clear counters (room+0x32/+0x36) are zeroed, and fn_010d47
  * keeps the CD refreshed. Returns 0 = game over, 1 = died, 2 = continued, -1 = aborted to the title.
  */
+/* The room chain's +0x34c link is clear on the last node of a stage (the chain dump calls it the terminator,
+ * guest 0x0003ca5e), and BOTH clear arms read [link+0x11] through it unguarded -- shipped 0x0003ac4f-0x0003ac5a
+ * and 0x0003ac86-0x0003ac91.  On DOS that read lands on mapped memory and the room loop simply continues; on the
+ * host it is a read of address 0x11 and a SEGV (ASan: `SEGV on unknown address 0x000000000011` in fn_03a829,
+ * /tmp/rig/st2asan).  Model the mapped page rather than add a test the shipped does not perform: the port already
+ * does exactly this for the null command stream (sys_linear0(), f.c:8744) and notes that heap offset 0 is mapped
+ * garbage on DOS (f.c:2334). */
+static uint8_t *room_link_or_zero(uint8_t *room)
+{
+    uint8_t *link = rec_ptr_get(room, 0x34c);
+    return link ? link : (uint8_t *)sys_linear0();
+}
+
 int32_t fn_03a829(void)
 {
     (void)canary_id(0, 0x3c);                                          /* 0x0003a82e probe (push 0x3c) */
@@ -23883,11 +23896,11 @@ int32_t fn_03a829(void)
              * [node+0x34c], else g_dat_63350), so passing the entry-time local re-selected the node the loop
              * had already left -- the witnessed stage-2 item C, "clearing the stage re-enters the same map with
              * no enemies" (docs/312).  The chain link at +0x34c is a widened host pointer in this port. */
-            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(g_dat_63354, 0x34c) + 0x11);
+            g_dat_63398 = *(const uint8_t *)(room_link_or_zero(g_dat_63354) + 0x11);
             g_dat_6336c = 0;
             fn_03d244(g_dat_63354);
         } else if (g_dat_6336c == 4) {                                 /* 0x0003ac80-0x0003accd quota met */
-            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(g_dat_63354, 0x34c) + 0x11);   /* 0x0003ac86-91 */
+            g_dat_63398 = *(const uint8_t *)(room_link_or_zero(g_dat_63354) + 0x11);   /* 0x0003ac86-91 */
             g_dat_6336c = 0;
             fn_03d244(g_dat_63354);                                          /* 0x0003aca8 / 0x0003acad */
         }

@@ -41,3 +41,23 @@ pacing row (`orig 2.67 vs port 23.81 changes per s`, ratio 0.11, the docs/168 pa
 `REUSE_ORIG` reuses the shipped half, so this sweep cannot re-verify the shipped side (docs/307).  The container
 engine for a fresh shipped capture is unresponsive on this machine, so no new shipped half exists; that gap is
 recorded rather than papered over.
+
+## 3. Re-check after item H landed (`2336118`)
+
+Item H changes the host presentation geometry, so the sweep rows above (taken at `8fd5c2a`) were re-run
+on the new HEAD before anything was quoted from them.
+
+| leg | run | number |
+|---|---|---|
+| unit suite | `make -C port test` | ALL PASS (also re-run after the fix, in the `/tmp/rig/h321e` build) |
+| canonical route, shipped half reused | `/tmp/rig/rb321` and `/tmp/rig/rb322` (two runs, `REUSE_ORIG=/tmp/rig/rb15 … route.sh scripts/rig/drives/ep1_kill3.txt 150`) | state `cells=346 phases=274 tally {'SIZE?': 34, 'PTR': 52, SAME 70, 'REPR': 19, 'DIFF-SIZE': 14, 'DIFF': 27}`, **27 same-width residuals**; activity 271 cells / 275 phases `{'SAME': 271}`; screen 1422 aligned pairs, **score 0.7088**, 8 divergent runs -- identical to `rb320`'s screen and activity rows |
+| residual-set diff | `/tmp/rig/rb320.res.txt` vs `/tmp/rig/rb321.res.txt` vs `/tmp/rig/rb322.res.txt` | exactly one cell new: **`0x63ed8 g_dat_63ed8`**, present in both post-fix runs and absent pre-fix |
+
+`g_dat_63ed8` is the key-state byte `fn_038f3d` tests at 0x39732 (`cmp byte [0x13ed8], 0`), i.e. one of
+the latch bytes of the docs/292 family.  `sys_vga_set_mode()` writes only `sys.c`'s geometry variables,
+and `grep -n "sys_video_w\|sys_video_h" port/src/f/f.c` returns nothing -- the modelled game code never
+reads them -- so no modelled store changed.  The plausible mechanism is the one docs/310 warns about:
+drives are wall-clock anchored, a mode change costs a texture rebuild in `main.c:ensure_mode`, and the
+phases the state oracle pairs therefore land slightly differently.  The row is recorded as a new residual
+rather than explained away: the count moved 26 -> 27 on the canonical route, and the screen/activity rows
+did not move at all.

@@ -193,6 +193,16 @@ int g_room_advances = 0;
 int f_rig_menu_depth(void) { return g_menu_depth; }
 int f_rig_chain_advances(void) { return g_room_advances; }
 
+/* docs/314: how often the walking body (LAB_0003284e, shared by states 1, 2, 0x28) and the vertical mover it
+ * calls on a DOWN byte (fn_01586b, +step at 0x000328dd) actually run.  The stage-walk runs show the player's
+ * record Y pinned at 172 in episode 1's second and third room nodes, and "the clamp refused it" and "the mover
+ * never ran" look identical from a state census -- these two counters separate them. */
+unsigned long g_walk_body_calls, g_walk_vert_calls, g_walk_admit_calls, g_act_flag_gate;
+unsigned long f_act_flag_gate(void) { return g_act_flag_gate; }
+unsigned long f_walk_body_calls(void) { return g_walk_body_calls; }
+unsigned long f_walk_vert_calls(void) { return g_walk_vert_calls; }
+unsigned long f_walk_admit_calls(void) { return g_walk_admit_calls; }
+
 /* vline_set  orig: 0x040506
  *   p = a + d*b + c; do { *p = f; p += b; e--; } while (e)
  * a = base, b = step (pitch), c = column, d = row, e = length, f = pixel
@@ -9765,7 +9775,7 @@ int32_t fn_016b8f(uint8_t *e, int32_t step, int32_t cmp_ebx, int32_t cmp_ecx,
 }
 
 void fn_01586b(uint8_t *a0, uint32_t a1) {
-    g_yclamp_trace = getenv("NIGHT_YCLAMP") != NULL;
+    g_yclamp_trace = getenv("NIGHT_YCLAMP_FULL") != NULL;
     (void)canary_id(0, 0x2c);                                /* 0x1586b/15870 */
     int32_t d = (int32_t)a1;
     if (d == 0) return;                                       /* 0x15888/1588c */
@@ -9773,7 +9783,27 @@ void fn_01586b(uint8_t *a0, uint32_t a1) {
     int32_t mn = (int32_t)(((struct sa32 *)((p + 0x12)))->v + g_dat_639e0);   /* 0x15892-158a0 */
     int32_t mx;
     if (p[0x10] == 0) mx = (int32_t)(((struct sa32 *)((p + 0x16)))->v + g_dat_639e0);     /* 0x158b4-158c2 */
-    else { uint8_t *q = rec_ptr_get(p, 0x34c); mx = (int32_t)(((struct sa32 *)((q + 0x16)))->v + g_dat_639e0); } /* 0x158c7-158db */
+    else { uint8_t *q = rec_ptr_get(p, 0x34c); mx = (int32_t)(((struct sa32 *)((q + 0x16)))->v + g_dat_639e0); }
+    /* docs/314: the band a record is clamped to, printed only when it CHANGES.  fn_01586b runs for every
+     * record on every frame, so a per-call print turns the measured run into a print-bound run (the [yclamp]
+     * block below caps itself at 4000 lines and still inflated a stage-walk run enough that the drive's
+     * wall-clock key plan never reached gameplay -- docs/302's rate lesson applied to my own witness).
+     * NIGHT_YCLAMP now selects this light witness; NIGHT_YCLAMP_FULL selects the heavy per-call one. */
+    static int s_band_on = -1;
+    if (s_band_on < 0) s_band_on = getenv("NIGHT_YCLAMP") != NULL;
+    if (s_band_on && a0[0] <= 1) {
+        static int32_t b_mn = 0x7fffffff, b_mx = 0x7fffffff;
+        static unsigned b_n;
+        if (mn != b_mn || mx != b_mx) {
+            b_mn = mn; b_mx = mx;
+            if (++b_n <= 60)
+                printf("[band] #%u kind=%u x=%d y=%d d=%d mn=%d mx=%d camY=%d room=+%#x next=%#x\n",
+                       b_n, (unsigned)a0[0], (int)((struct sa32 *)((a0 + 1)))->v,
+                       (int)((struct sa32 *)((a0 + 9)))->v, (int)d, (int)mn, (int)mx, (int)g_dat_639e0,
+                       (unsigned)(g_dat_63354 - (uint8_t *)g_heap_base),
+                       (g_dat_63354[0x10] ? (unsigned)(rec_ptr_get(g_dat_63354, 0x34c) - g_heap_base) : 0u));
+        }
+    } /* 0x158c7-158db */
     int clamp_row = -1;
     if (a0[0] <= 1) {                                          /* 0x158e1-158eb (a0[0] > 1 skips) */
         for (uint32_t i = 0; i < g_dat_62a8c; i++) {
@@ -27770,6 +27800,7 @@ static void record_event_latch(uint8_t *pl)
 static void lab_0003284e(uint8_t *pl)
 {
     uint8_t key = fn_03493e();                                    /* 0x0003284e-54 */
+    g_walk_body_calls++;
     /* docs/300 (retracts docs/291 §2): the shipped's admission chain STARTS at 0x00032856 with the DOWN
      * byte.  keymap.c maps the arrow scancodes 0x48 Up -> 63ed0, 0x4b Left -> 63ed3, 0x4d Right -> 63ed5,
      * 0x50 Down -> 63ed8, and the chain is
@@ -27784,9 +27815,10 @@ static void lab_0003284e(uint8_t *pl)
      * 0x328f5-0x328ff, Right -> +step at 0x32908). */
     if (g_dat_63ed8 != 0 || g_dat_63ed0 != 0 ||                     /* 0x00032856-0x3287c */
         g_dat_63ed3 != 0 || g_dat_63ed5 != 0) {
+        g_walk_admit_calls++;
         int32_t step = (int32_t)g_tab_52ffc[(((int32_t)g_dat_63360 % 4) * 3) + PL8(0x25)];
         if (g_dat_63ed0 == 0) {                                   /* 0x000328b2-cc */
-            if (g_dat_63ed8 != 0) fn_01586b(pl, step);
+            if (g_dat_63ed8 != 0) { g_walk_vert_calls++; fn_01586b(pl, step); }
         } else {
             fn_01586b(pl, -step);
         }
@@ -27907,7 +27939,14 @@ void fn_03272f(uint8_t *tbl)
     }
     uint8_t *pl = g_player_ent;                                      /* 0x0003274a */
     uint8_t *hb = (uint8_t *)g_heap_base;
-    if (PL8(0x30) == 1) return;                                     /* 0x0003274f-0x00032759 dying */
+    if (PL8(0x30) == 1) {                                            /* 0x0003274f-0x00032759 dying */
+        /* docs/314: this gate is what makes fn_03272f do nothing at all -- no walking body, no vertical
+         * mover, no keyboard response.  It is the same flag whose setter produces DAT_6336c = 1 at
+         * 0x000129ed, so a player record carrying +0x30 == 1 while its HP is full both silences the
+         * resolver and asks the room loop to leave.  The counter says how long that lasts. */
+        g_act_flag_gate++;
+        return;
+    }
     /* docs/167 §6: the equality at 500 is shipped-faithful (cmp dword [0x6339c], 0x1f4 / jne at guest
      * 0x32760), so watch which value the check actually sees.  NOTE: this witness was written once as a
      * trailing comment and silently compiled to an empty if-block -- the third occurrence of the trap in

@@ -980,6 +980,8 @@ const char *const *f_type_spr_names(void);
  * script's `wait state` anchors.  Host-side counters, not shipped DS cells. */
 int f_rig_menu_depth(void);
 int f_rig_chain_advances(void);
+unsigned long f_walk_body_calls(void);
+unsigned long f_walk_vert_calls(void);
 const char *const *f_type_act_names(void);
 uint32_t *fn_03d999(uint32_t *a0, uint32_t a1); /* 0x03d999: wrapper -- fn_03dcbd(a0); return a0 (a1 unused) */
 uint32_t fn_03de85(uint32_t *s, uint32_t count, uint32_t last_size); /* 0x03de85: struct ctor -- free old (fn_03dcbd), alloc 14 sub-objs at +0x4..+0x38, return 1 */

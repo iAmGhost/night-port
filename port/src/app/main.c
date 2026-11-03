@@ -702,6 +702,7 @@ static void pt_load(const char *path) {
              * is only the timeout.  Fixed key counts are what left earlier runs "stuck on the upgrade menu"
              * -- measured 14857 of 16000 frames menu-owned on scripts/rig/drives/ep1_walk_st2.txt. */
             e->kind = PT_MENU;
+            e->a2 = (n >= 4) ? (uint32_t)strtoul(argv4, NULL, 0) : 60000;   /* drive duration, not a deadline */
             e->a3 = 0;                                   /* next scheduled post, set when it becomes current */
             e->seq_at = 0;                               /* posts made so far */
         } else if (!strcasecmp(verb, "poke") && n >= 3) {
@@ -886,8 +887,19 @@ static void pt_drive(void) {
             continue;
         }
         if (e->kind == PT_MENU) {
+            /* The line's own time is when the macro BECOMES current (after a `wait state` rebase it can land a
+             * few ms after the advance it is meant to handle); its timeout is a duration measured from there.
+             * Treating the line time as the deadline made the macro expire with 0 posts -- /tmp/rig/w314d:
+             * "menu drive timed out after 0 posts, screen still open at t=39250ms", twice, and 14450 of 16000
+             * frames were menu-owned. */
             if (f_rig_menu_depth() == 0) {
-                long slip = t - e->t_ms;
+                /* A `menu` line that finds no screen open must NOT rebase.  /tmp/rig/w314g had 17 such lines,
+                 * each shifting every later line by -60000 ms, which slid the tail of the drive into the past
+                 * (`key 0x4d up (t=-737000ms)`, `key 0x50 down` and `up` 500 ms apart) and left the DOWN latch
+                 * DAT_00063ed8 at 0 in 1334/1334 samples -- the run never held Down at all. */
+                if (e->seq_at == 0) { g_pt_i++; continue; }
+                long slip = t - (long)e->a2;   /* how long the macro ran: push the tail LATER (it blocked the
+                 * timeline), not earlier -- subtracting the deadline pulled the whole tail ~85 s backwards. */
                 for (int k = g_pt_i + 1; k < g_pt_n; k++) g_pt[k].t_ms += slip;
                 if (g_rig_dir) rig_rebase(slip);
                 g_pt_i++;
@@ -896,6 +908,7 @@ static void pt_drive(void) {
                 if (g_rig_dir) rig_marker(t, "menu left posts=%u", e->seq_at);
                 continue;
             }
+            if (e->seq_at == 0 && e->a2) { long dur = (long)e->a2; e->t_ms = t + dur; e->a2 = (uint32_t)t; }
             if (t >= e->t_ms) {
                 SDL_Log("script: menu drive timed out after %u posts, screen still open at t=%ldms",
                         e->seq_at, t);
@@ -1947,6 +1960,8 @@ int main(int argc, char **argv) {
     SDL_Log("stage-walk census: menu-owned frames %ld of %d (%.1f%%), room-chain advances %d, menu posts %u",
             g_menu_frames, g_frames, g_frames ? 100.0 * (double)g_menu_frames / (double)g_frames : 0.0,
             f_rig_chain_advances(), g_menu_posts);
+    SDL_Log("walk census: walking-body (LAB_0003284e) calls %lu, player DOWN fn_01586b calls %lu",
+            f_walk_body_calls(), f_walk_vert_calls());
 
     if (g_tex) SDL_DestroyTexture(g_tex);
     if (g_ren) SDL_DestroyRenderer(g_ren);

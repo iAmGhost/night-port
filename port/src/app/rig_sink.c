@@ -17,6 +17,15 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+/* docs/314: rig phase counters and the walking-body counters, declared here because rig_sink.c keeps its own
+ * view of the port rather than including f.c's header. */
+int f_rig_menu_depth(void);
+int f_rig_chain_advances(void);
+unsigned long f_walk_body_calls(void);
+unsigned long f_walk_vert_calls(void);
+unsigned long f_walk_admit_calls(void);
+unsigned long f_act_flag_gate(void);
+
 /* ---- unaligned flat-model views (docs/126) ----------------------------------
  * The shipped record layout is packed and deliberately unaligned (dword stores at +0x01/+0x05/+0x17 ...
  * read out of the entity constructor fn_010efc, docs/125 S1), so every typed access into it is a misaligned
@@ -449,8 +458,13 @@ void rig_poll(long t_ms0, unsigned long long frame, unsigned long long audio_byt
                 psrc = 0;
                 if (pn >= 0xbf) memcpy(&psrc, g_player_ent + 0xbb, 4);
                 fprintf(g_pre, "{\"tick\":%llu,\"x\":%d,\"y\":%d,\"st\":%u,\"f1b\":%u,\"hp\":%u,"
-                               "\"exp2b\":%d,\"acc52\":%d,\"srcbb\":%d,\"rai56\":%d}\n",
-                        (unsigned long long)g_tick, px, py, pst, pf1b, php, pexp, pacc, psrc, prai);
+                               "\"exp2b\":%d,\"acc52\":%d,\"srcbb\":%d,\"rai56\":%d,"
+                               "\"md\":%d,\"adv\":%d,\"wk\":%lu,\"wa\":%lu,\"wv\":%lu,"
+                               "\"f30\":%u,\"ag\":%lu}\n",
+                        (unsigned long long)g_tick, px, py, pst, pf1b, php, pexp, pacc, psrc, prai,
+                        f_rig_menu_depth(), f_rig_chain_advances(),
+                        f_walk_body_calls(), f_walk_admit_calls(), f_walk_vert_calls(),
+                        (unsigned)g_player_ent[0x30], f_act_flag_gate());
                 if ((g_tick & 15) == 0) fflush(g_pre);
             }
         }

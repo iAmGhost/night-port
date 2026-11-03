@@ -26385,6 +26385,27 @@ static uint32_t g_tab_53168[6] = { 0x18, 0x1a, 0x1b, 0x1b, 0x1b, 0x1b };
 static uint32_t g_tab_53180[6] = { 0x45, 0x5e, 0x6f, 0x83, 0x97, 0xaa };
 static uint32_t g_tab_53198[6] = { 0x12, 0x12, 0x55, 0x7a, 0x7a, 0x7a };
 static uint32_t g_tab_531b0[6] = { 0x04, 0x04, 0x02, 0x01, 0x01, 0x01 };
+
+/* NIGHT_BUYDBG witness (docs/319, goal task-5 / round-4 item G): one line per purchase attempt inside
+ * fn_038f3d, printing the row cursor, that row's level before/after, the cost word actually read out of
+ * g_dat_53c94, the EXP cell P[+0x2b] before/after and the three fields that decide how many stacked bars a
+ * purchase adds: P[+0x23] (pending HP, word), P[+0x28] (the level indexing the HP table DAT_00052738) and
+ * P[+0x56] (the max-HP dword). */
+static int s_buydbg = -1;
+static unsigned long g_buy_attempts, g_buy_ok, g_buy_reject_max, g_buy_reject_poor, g_buy_refund;
+static void buy_witness_census_atexit(void);
+static void buy_dbg_init(void)
+{
+    if (s_buydbg >= 0) return;                                            /* decide once, at first use */
+    s_buydbg = getenv("NIGHT_BUYDBG") ? 1 : 0;
+    if (s_buydbg) atexit(buy_witness_census_atexit);                       /* 03ff479 census idiom */
+}
+static void buy_witness_census_atexit(void)
+{
+    if (!s_buydbg) return;
+    printf("buydbg census: attempts=%lu committed=%lu rejected_max=%lu rejected_poor=%lu refund=%lu\n",
+           g_buy_attempts, g_buy_ok, g_buy_reject_max, g_buy_reject_poor, g_buy_refund);
+}
 static uint32_t g_tab_531c8[6] = { 0x06, 0x06, 0x0a, 0x0c, 0x0c, 0x0c };
 
 /* fn_038f3d  orig: 0x00038f3d (L16, 3270 B) -- THE LEVEL-UP / STATUS SCREEN.
@@ -26455,6 +26476,20 @@ static void fn_038f3d_body(int32_t variant)
     uint8_t *P = g_player_ent;                                           /* DAT_00053c7c */
 
     int32_t page = 0;                                                   /* [EBP-0x60] the row cursor */
+    /* Rig probe (docs/319, goal task-5): NIGHT_BUYDBG_ROW=<n> parks the row cursor on row n at screen entry.
+     * The cursor is reachable only by held arrow keys with a 0x13-iteration typematic (0x000396a0-0x00039767),
+     * and a scripted hold cannot land it on a chosen row: /tmp/rig/g319d/g319e/g319f/g319g together produced
+     * purchases on rows 0 and 2 only, never on row 1 -- the row that takes the HP branch at 0x3954f-0x395e2.
+     * This is a probe, not shipped behaviour: every claim made with it says so. */
+    static int dbg_forced_row = -2;
+    if (dbg_forced_row == -2) {
+        const char *fr = getenv("NIGHT_BUYDBG_ROW");
+        dbg_forced_row = fr ? atoi(fr) : -1;
+    }
+    if (dbg_forced_row >= 0) {
+        page = dbg_forced_row;
+        printf("[buydbg] probe: row cursor forced to %d at level-up screen entry (not shipped input)\n", page);
+    }
     int32_t up_ctr = 0, down_ctr = 0;                                   /* [EBP-0x5c] [EBP-0x58] */
     int32_t frame = 0;                                                  /* [EBP-0x70] */
     int32_t help_up = 0, help_down = 0;                                 /* [EBP-0x74] [EBP-0x48] */
@@ -26561,13 +26596,29 @@ static void fn_038f3d_body(int32_t variant)
         }
 
         if (g_dat_63ea4 != 0 || g_dat_63ec1 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0) {
+            buy_dbg_init();
+            const int32_t dbg_page = page, dbg_sel = sel[page];
+            const int32_t dbg_exp = ((struct sa32 *)((P + 0x2b)))->v;
+            const int32_t dbg_hp23 = (int32_t)(int16_t)((struct ua16 *)((P + 0x23)))->v;
+            const int32_t dbg_hp28 = (int32_t)P[0x28];
+            const int32_t dbg_max56 = ((struct sa32 *)((P + 0x56)))->v;
+            int dbg_commit = 0;
+            if (s_buydbg) g_buy_attempts++;
             int32_t cost = (int32_t)g_dat_53c94[(uint32_t)page * 5u + (uint32_t)sel[page]];
             if (((struct sa32 *)((P + 0x2b)))->v < cost || selMax[page] <= sel[page]) {  /* 0x000394d2-0x00039520 */
+                if (s_buydbg) {
+                    printf("[buy] row=%d sel=%d cost=%d exp=%d rowmax=%d -> REJECT (%s)\n",
+                           dbg_page, dbg_sel, cost, dbg_exp, selMax[dbg_page],
+                           (dbg_exp < cost) ? "not enough EXP" : "row at max level");
+                    if (dbg_exp < cost) g_buy_reject_poor++;
+                    else                g_buy_reject_max++;
+                }
                 if (sel[page] < selMax[page]) fn_035f1b("help8.pcx", 1);       /* 0x00039625-2f */
                 else                          fn_035f1b("help9.pcx", 1);       /* 0x00039610-1b */
                 fn_04185e(g_dat_53de0);                                    /* 0x00039640-4a */
                 fn_00035d5d();                                             /* 0x0003964f */
             } else {
+                dbg_commit = 1;
                 ((struct sa32 *)((P + 0x2b)))->v = ((struct sa32 *)((P + 0x2b)))->v - cost;  /* 0x0003952a-34 */
                 if (page == 5) {                                         /* 0x000395f5-0x00039607 */
                     g_dat_53100 = g_dat_53100 + 1;                       /* one CONTINUE credit */
@@ -26576,11 +26627,21 @@ static void fn_038f3d_body(int32_t variant)
                     sel[page] = sel[page] + 1;                           /* 0x00039542-47 */
                     if (page == 4 || page == 1) {                        /* 0x0003954f-0x000395cf */
                         if (page == 4) sel[4] = 0;                       /* 0x00039557 */
-                        int32_t ship = (int32_t)g_tab_52738[(uint32_t)sel[1] * 4u];
+                        /* 0x0003956e-0x00039586 and 0x000395d0-d7: the shipped forms the offset as bytes
+                         * (mov edx, sel[1]; shl edx, 2; [edx + 0x2738]), which is ELEMENT sel[1] of a dword
+                         * table -- the shipped's own DS window holds 100, 200, 300, 400, 500 there.  The port
+                         * used the byte offset as an element index and read four entries too far: level 1 gave
+                         * 500 and level 2 gave element 8 (0x3f000000), truncated to the word 0 -- the red run
+                         * /tmp/rig/g319h shows P[+0x23] 100 -> 500 then 500 -> 0 on one purchase each. */
+                        int32_t ship = (int32_t)g_tab_52738[(uint32_t)sel[1]];
                         if ((int32_t)(int16_t)((struct ua16 *)((P + 0x23)))->v == ship) {
+                            /* 0x00039588-0x000395a9: byte offset page*0x14 + sel[page]*4 in the 6x5 exptab
+                             * block = element page*5 + sel[page] (the same form the cost read at 0x000394d2
+                             * uses).  The port multiplied the entry index by 4 again and refunded the cost of
+                             * a different level. */
                             ((struct sa32 *)((P + 0x2b)))->v = ((struct sa32 *)((P + 0x2b)))->v
-                                                   + (int32_t)g_dat_53c94[(uint32_t)sel[page] * 4u
-                                                                         + (uint32_t)page * 0x14u];
+                                                   + (int32_t)g_dat_53c94[(uint32_t)page * 5u
+                                                                          + (uint32_t)sel[page]];
                             fn_04185e(g_dat_53de0);                      /* 0x000395a5-b6 */
                         } else {
                             fn_04185e(g_dat_53ddc);                      /* 0x000395c2 */
@@ -26591,6 +26652,14 @@ static void fn_038f3d_body(int32_t variant)
                         fn_04185e(g_dat_53ddc);                          /* 0x000395f0 */
                     }
                 }
+            }
+            if (s_buydbg && dbg_commit) {
+                g_buy_ok++;
+                printf("[buy] row=%d sel %d->%d cost=%d exp %d->%d hp23 %d->%d level28 %d->%d max56 %d->%d\n",
+                       dbg_page, dbg_sel, sel[dbg_page], cost, dbg_exp,
+                       ((struct sa32 *)((P + 0x2b)))->v, dbg_hp23,
+                       (int32_t)(int16_t)((struct ua16 *)((P + 0x23)))->v, dbg_hp28, (int32_t)P[0x28],
+                       dbg_max56, ((struct sa32 *)((P + 0x56)))->v);
             }
             while (g_dat_63ea4 != 0) sys_key_spin();                     /* 0x00039654-61 */
             while (g_dat_63ec1 != 0 || g_dat_63ea5 != 0 || g_dat_63ec0 != 0) sys_key_spin();

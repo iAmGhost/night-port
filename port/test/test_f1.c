@@ -12793,6 +12793,51 @@ static void test_fn_038f3d(void)
     check(*(uint32_t *)(P + 0x2b) == 5000 - 300,
           "038f3d spends the row-0/column-0 cost from the exptab table DAT_00053c94 (5000 - 300)");
 
+    /* ---- scenario C (docs/319, round-4 item G): a purchase on the health row must write the table entry the
+     * shipped's byte offset actually addresses.  The shipped forms [sel[1]*4 + 0x2738] (0x0003956e-86, and the
+     * store at 0x000395d0-d7 reads the WORD of the same entry), which is ELEMENT sel[1] of a dword table; the
+     * shipped's own DS window holds 100, 200, 300, 400, 500 there.  The port used the byte offset as an element
+     * index (g_tab_52738[sel[1] * 4]), four entries too far, and the runtime red /tmp/rig/g319h showed
+     * P[+0x23] 100 -> 500 on one purchase and 500 -> 0 on the next. */
+    {
+        static const uint32_t shipped_hp_rows[5] = { 100, 200, 300, 400, 500 };
+        int rows_ok = 1;
+        for (int k = 0; k < 5; k++) {
+            g_tab_52738[k] = shipped_hp_rows[k];
+            if (g_tab_52738[k] != shipped_hp_rows[k]) rows_ok = 0;
+        }
+        check(rows_ok, "038f3d's HP table DAT_00052738 rows 0..4 = 100,200,300,400,500 (shipped DS window read)");
+
+        for (int i = 0; i < 30; i++) g_dat_53c94[i] = 0;
+        g_dat_53c94[1 * 5 + 0] = 600;                     /* row 1 (health) level 0, shipped exptab.dat */
+        g_dat_53c94[1 * 5 + 1] = 2000;                    /* row 1 level 1 */
+        *(uint32_t *)(node + 0) = data_off; *(uint32_t *)(node + 4) = total;
+        *(uint32_t *)(node + 8) = data_off + total;
+        *(uint32_t *)(P + 0x2b) = 5000; *(uint32_t *)(P + 0x52) = 0;
+        P[0x27] = 0; P[0x28] = 0; P[0x26] = 0; P[0x25] = 0;   /* sel[1] = 0 on entry */
+        *(uint16_t *)(P + 0x23) = 100;
+        g_dat_63e89 = 0; g_dat_63ed0 = 0; g_dat_63ed8 = 0;
+        sys_key_script_clear();
+        /* fn_038f3d's own key waits (fn_00035d5d at 0x000391d6 / 0x00039491 / 0x0003964a) consume scripted
+         * ticks too, so the Down latch is held across three ticks: any screen iteration that sees it held with
+         * its repeat counter at 0 moves the cursor exactly once (0x000396e8-0x00039721). */
+        sys_key_script_add(1, &g_dat_63ed8, 1);            /* Down held ... */
+        sys_key_script_add(2, &g_dat_63ed8, 1);
+        sys_key_script_add(3, &g_dat_63ed8, 1);
+        sys_key_script_add(4, &g_dat_63ed8, 0);            /* ... released well before the 0x13 repeat */
+        sys_key_script_add(5, &g_dat_63ea4, 1);            /* confirm on the row the cursor sits on */
+        sys_key_script_add(6, &g_dat_63ea4, 0);
+        sys_key_script_add(7, &g_dat_63e89, 1);            /* leave the frame loop (0x0003920a-31) */
+        sys_key_script_add(8, &g_dat_63e89, 0);
+        fn_038f3d(1);
+        check(P[0x28] == 1,
+              "038f3d row-1 purchase raises the level byte player[+0x28] 0 -> 1 (one step per purchase)");
+        check(*(uint16_t *)(P + 0x23) == 200,
+              "038f3d row-1 purchase writes player[+0x23] = DAT_00052738[1] = 200, the shipped's element (the byte-offset-as-index bug gave 500)");
+        check(*(uint32_t *)(P + 0x2b) == 5000 - 600,
+              "038f3d spends the row-1/column-0 cost 600 from DAT_00053c94");
+    }
+
     for (int i = 0; i < 30; i++) g_dat_53c94[i] = cost_save[i];
     g_player_ent = s_pc; g_dat_53100 = s_100; g_dat_633a4 = (uint8_t)s_3a4;
     g_dat_63ec3 = (uint8_t)s_ec3; g_dat_63e89 = (uint8_t)s_e89;

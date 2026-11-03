@@ -1,0 +1,60 @@
+# rig drive (goal task-5, round-4 item G, docs/319): make purchases inside fn_038f3d on the HEALTH row and
+# read the step per purchase.
+#
+# Room clears go through DAT_6336c = 2 (the exit-rect arm, 0x3ac2a-0x3ac7b) exactly as in ep1_st2.txt, which
+# produced six level-up screen entries on /tmp/rig/l312e; fn_03d244 opens fn_038f3d(1) at 0x3d2ac on that arm.
+# EXP is injected with the documented player-record poke (`play +0x2b`, docs/118) because the award chain gives
+# nothing on this route: /tmp/rig/g319b/port on this drive reached the purchase gate with exp = 0, so a
+# keys-only drive can only ever print "not enough EXP".  Every claim from this drive is a poke-armed claim.
+# `menurow <ms> <rows>` (docs/319) parks the row cursor by pressing Down `rows` times inside the screen before
+# its Enter/Esc cycle: fixed-time Down lines land before the screen is open -- /tmp/rig/g319b held Down from
+# 20.0 s to 21.8 s while the screen opened later, so both purchases landed on row 0 and the HP row was never
+# touched.  Row 1 is the row whose level indexes the HP table DAT_00052738 (100/200/300/400/500, shipped DS
+# window read) and is committed to player+0x28 at 0x39aa2-aae; the same purchase writes player+0x23 from that
+# table at 0x3956e-0x395e2.  Enter (DAT_00063ea4) is the purchase key (0x394bf-0x39534), Esc leaves (0x3920a-31).
+2000 wait res title1.pcx
+2500 key enter down
+3200 key enter up
+4000 key enter down
+4700 key enter up
+5500 key enter down
+6200 key enter up
+7000 key enter down
+7700 key enter up
+8500 key enter down
+9200 key enter up
+10000 key enter down
+10700 key enter up
+12000 key enter down
+12700 key enter up
+15000 key enter down
+15700 key enter up
+18000 key right down
+19000 key right up
+19600 play 0x2b 5000
+20000 key down down
+20600 poke 0x6336c 2
+21800 key down up
+22000 menurow 90000 1
+23200 key enter down
+24000 key enter up
+26000 key right down
+27000 key right up
+27600 play 0x2b 5000
+28000 key down down
+28600 poke 0x6336c 2
+29800 key down up
+30000 menurow 90000 1
+31200 key enter down
+32000 key enter up
+34000 key right down
+35000 key right up
+35600 play 0x2b 5000
+36000 key down down
+36600 poke 0x6336c 2
+37800 key down up
+38000 menurow 90000 1
+39200 key enter down
+40000 key enter up
+34000 key enter down
+34800 key enter up

@@ -564,11 +564,11 @@ static void autokey(void) {
  * device live the game runs at a different rate and a purely wall-clock script fires the menu keys in the
  * wrong places (docs/55). The leading number on a wait line is a timeout in ms, so a missing anchor cannot
  * hang the run. */
-struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at, a2, a3; };
+struct pt_evt { long t_ms; int kind; uint8_t sc; int make; char name[40]; uint32_t seq_at, a2, a3, a4; };
 static void shot_named(const char *event);
 static void key_apply(uint8_t sc, int make);
 enum { PT_KEY = 0, PT_SHOT = 1, PT_WAIT = 2, PT_WAIT_DS = 3, PT_POKE_DS = 4, PT_ENT_POKE = 5, PT_ACT_DUMP = 6,
-       PT_WAIT_STATE = 7, PT_MENU = 8 };
+       PT_WAIT_STATE = 7, PT_MENU = 8, PT_MENU_ROW = 9 };
 /* PT_WAIT_STATE (docs/313) anchors on the two rig counters f.c keeps: level-up-screen nesting
  * (f_rig_menu_depth) and room-chain advances (f_rig_chain_advances).  A fixed-time key plan stalls inside
  * fn_038f3d -- it leaves only on Esc/LShift/RShift (0x3920a-31) -- so a stage route must wait for the screen
@@ -705,6 +705,17 @@ static void pt_load(const char *path) {
             e->a2 = (n >= 4) ? (uint32_t)strtoul(argv4, NULL, 0) : 60000;   /* drive duration, not a deadline */
             e->a3 = 0;                                   /* next scheduled post, set when it becomes current */
             e->seq_at = 0;                               /* posts made so far */
+        } else if (!strcasecmp(verb, "menurow") && n >= 3) {
+            /* `t menurow 120000 1` (docs/319): the `menu` macro, but it first presses Down `rows` times so the
+             * fn_038f3d row cursor (DAT_00063ed8, one press = one row, 0x000396a0-0x00039767) is parked on a
+             * chosen row before the Enter/Esc cycle begins.  Fixed-time Down lines land before the screen is
+             * open -- /tmp/rig/g319b held Down from 20.0 s to 21.8 s while the screen opened later, so both
+             * purchases landed on row 0 and the HP row was never touched. */
+            e->kind = PT_MENU_ROW;                                          /* `t menurow 120000 1` */
+            e->a2 = (n >= 3) ? (uint32_t)strtoul(arg, NULL, 0) : 60000;      /* drive duration */
+            e->a4 = (n >= 4) ? (uint32_t)strtoul(updown, NULL, 0) : 1u;      /* Down presses first */
+            e->a3 = 0;
+            e->seq_at = 0;
         } else if (!strcasecmp(verb, "poke") && n >= 3) {
             /* State injection (docs/118): `t poke 0x639bc 0` writes a DS global through the rig's own
              * cell table. Keypress-only replay cannot reach rare states (a knockdown needs a second hit
@@ -886,7 +897,7 @@ static void pt_drive(void) {
             g_pt_i++;
             continue;
         }
-        if (e->kind == PT_MENU) {
+        if (e->kind == PT_MENU || e->kind == PT_MENU_ROW) {
             /* The line's own time is when the macro BECOMES current (after a `wait state` rebase it can land a
              * few ms after the advance it is meant to handle); its timeout is a duration measured from there.
              * Treating the line time as the deadline made the macro expire with 0 posts -- /tmp/rig/w314d:
@@ -897,6 +908,17 @@ static void pt_drive(void) {
                  * each shifting every later line by -60000 ms, which slid the tail of the drive into the past
                  * (`key 0x4d up (t=-737000ms)`, `key 0x50 down` and `up` 500 ms apart) and left the DOWN latch
                  * DAT_00063ed8 at 0 in 1334/1334 samples -- the run never held Down at all. */
+                if (e->kind == PT_MENU_ROW && e->seq_at == 0) {
+                    /* The screen a `menurow` line must drive opens a moment later than the line becomes
+                     * current: the request-2 poke is consumed at fn_03a829's loop tail and fn_03d244 calls
+                     * fn_038f3d(1) at 0x3d2ac only after that.  Skipping the line the instant it became current
+                     * is what left /tmp/rig/g319c at "menu-owned frames 0 of 9000" with zero purchase attempts.
+                     * Hold (no rebase -- docs/314's -60000 ms slide) for up to 15 s for the chain to open it. */
+                    if (t < e->t_ms + 15000) return;
+                    SDL_Log("script: menurow gave up, level-up screen never opened at t=%ldms", t);
+                    g_pt_i++;
+                    continue;
+                }
                 if (e->seq_at == 0) { g_pt_i++; continue; }
                 long slip = t - (long)e->a2;   /* how long the macro ran: push the tail LATER (it blocked the
                  * timeline), not earlier -- subtracting the deadline pulled the whole tail ~85 s backwards. */
@@ -924,15 +946,29 @@ static void pt_drive(void) {
                 if (e->make) {
                     key_apply(e->sc, 0); pt_hold_note(e->sc, 0, t);
                     e->make = 0;
-                    e->a3 = (uint32_t)(t + 400);
+                    /* A row key must be released within one fn_038f3d iteration of its make: the shipped's
+                     * cursor repeats a HELD row key every 0x13 screen iterations (0x000396d4-0x00039767), so an
+                     * 800 ms hold moved the cursor TWICE (/tmp/rig/g319d bought on row 2, not 1), and a 400 ms
+                     * hold moved it not at all (/tmp/rig/g319e, /tmp/rig/g319f: three purchases, all row 0).
+                     * A `menurow` Down is therefore released on the very next pass; Enter keeps the 400 ms. */
+                    e->a3 = (uint32_t)(t + ((e->kind == PT_MENU_ROW && e->sc == 0x50) ? 0 : 400));
+                } else {
+                if (e->kind == PT_MENU_ROW && e->a4 && e->seq_at < e->a4) {
+                    e->sc = 0x50;                                    /* Down: move the row cursor once */
                 } else {
                     e->sc = (e->seq_at % 4 == 3) ? 0x01 : 0x1c;      /* Esc every 4th press, else Enter */
+                }
                     e->make = 1;
                     e->seq_at++;
                     g_menu_posts++;
                     key_apply(e->sc, 1); pt_hold_note(e->sc, 1, t);
-                    e->a3 = (uint32_t)(t + 800);
-                    if (g_rig_dir) rig_marker(t, "menu press %s", e->sc == 0x01 ? "esc" : "enter");
+                    /* fn_038f3d's row-cursor typematic counter repeats a HELD key after 0x13 frames
+                     * (0x000396d4-0x00039767), so an 800 ms hold moves the cursor twice: /tmp/rig/g319d's single
+                     * Down post landed the cursor on row 2, not row 1 (the HP row).  A `menurow` press is
+                     * released after 150 ms (~9 pinned frames at NIGHT_RIG_FPS=60) -- one row per post. */
+                    e->a3 = (uint32_t)(t + (e->kind == PT_MENU_ROW ? 400 : 800));
+                    if (g_rig_dir) rig_marker(t, "menu press %s",
+                                              e->sc == 0x01 ? "esc" : (e->sc == 0x50 ? "down" : "enter"));
                 }
             }
             return;

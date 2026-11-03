@@ -23830,7 +23830,12 @@ int32_t fn_03a829(void)
             }
         }
         fn_0320f5();                                                   /* 0x0003ab18 hit test */
-        fn_03d4e4(room);                                               /* 0x0003ab22 camera policy */
+        /* 0x0003ab18 MOV EAX,[0x13354] then 0x0003ab1d CALL 0x3d4e4: the camera policy is handed the CURRENT
+         * room record, re-read every iteration.  fn_03cc6b (the previous iteration's vertical arm) and fn_03d244
+         * (a clear arm) both swap DAT_63354, and fn_03d4e4's stop-limit tests read the record's +0x2a/+0x2e/
+         * +0x32/+0x36/+0x3a/+0x3b -- with the entry-time local those limits were the previous room's, which is
+         * the witnessed stage-2 item A: DAT_639e0 climbed while the player's X/Y held still. */
+        fn_03d4e4(g_dat_63354);
         fn_03ed6f();                                                   /* 0x0003ab27 script pump */
         fn_038098(g_dat_633b0);                                        /* 0x0003ab31 sort, draw, pace */
         if (g_dat_63364 != 0) {                                        /* 0x0003ab36-0x0003ab67 element event */
@@ -23866,24 +23871,29 @@ int32_t fn_03a829(void)
                         g_dat_63360, (int)((struct sa32 *)((pl + 0x17)))->v);
         }
         /* 0x0003ab90-0x0003abb4: the /10 quotient is discarded, only the %10 test matters (as in fn_03d244). */
-        if (g_dat_63360 % 10 == 0) fn_03d606((uintptr_t)room);
+        if (g_dat_63360 % 10 == 0) fn_03d606((uintptr_t)g_dat_63354);   /* 0x0003aba4 MOV EAX,[0x13354] */
         heap_chain_check("fn_03a829");   /* host probe: name allocator-chain corruption at its source */
         if (g_dat_6336c == 1) break;                                   /* 0x0003abc0 gone for good */
         if (g_dat_6336c == 3) { g_dat_6336c = 0; return 1; }           /* 0x0003abca-0x0003abdd died */
         if (g_dat_6336c == 2) {                                        /* 0x0003ac2a-0x0003ac7b exit rect */
             fn_0381d7(g_dat_633b0, 1, 0, 0x50, (int32_t)g_dat_63398);
-            /* the room chain link at +0x34c is a widened host pointer in this port (cf. fn_03cc6b) */
-            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(room, 0x34c) + 0x11);
+            /* Both operands are the CURRENT record, re-read here: 0x0003ac4f MOV EAX,[0x13354] / 0x0003ac54
+             * MOV EAX,[EAX+0x34c] / 0x0003ac5a MOV AL,[EAX+0x11], and 0x0003ac71 MOV EAX,[0x13354] before
+             * 0x0003ac76 CALL 0x3d244.  fn_03d244 advances DAT_63354 itself (0x0003d286-0x0003d2a2: nxt =
+             * [node+0x34c], else g_dat_63350), so passing the entry-time local re-selected the node the loop
+             * had already left -- the witnessed stage-2 item C, "clearing the stage re-enters the same map with
+             * no enemies" (docs/312).  The chain link at +0x34c is a widened host pointer in this port. */
+            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(g_dat_63354, 0x34c) + 0x11);
             g_dat_6336c = 0;
-            fn_03d244(room);
+            fn_03d244(g_dat_63354);
         } else if (g_dat_6336c == 4) {                                 /* 0x0003ac80-0x0003accd quota met */
-            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(room, 0x34c) + 0x11);
+            g_dat_63398 = *(const uint8_t *)(rec_ptr_get(g_dat_63354, 0x34c) + 0x11);   /* 0x0003ac86-91 */
             g_dat_6336c = 0;
-            fn_03d244(room);
+            fn_03d244(g_dat_63354);                                          /* 0x0003aca8 / 0x0003acad */
         }
         if (g_dat_53c68 == 1) {                                        /* 0x0003acd2-0x0003ace1 all clear */
-            ((struct ua32 *)((room + 0x32)))->v = 0;
-            ((struct ua32 *)((room + 0x36)))->v = 0;
+            ((struct ua32 *)((g_dat_63354 + 0x32)))->v = 0;   /* 0x0003acbb MOV EAX,[0x13354] */
+            ((struct ua32 *)((g_dat_63354 + 0x36)))->v = 0;   /* 0x0003acc7 MOV EAX,[0x13354] */
         }
         fn_010d47();                                                   /* 0x0003ace6 (EAX = the discarded /10) */
     }
@@ -27173,9 +27183,18 @@ void fn_03d244(uint8_t *node)
     fn_0406f5(g_dat_63354 + 0x48, 0x32);                             /* 0x0003d274-81 */
 
     uint8_t *nxt = rec_ptr_get(node, 0x34c);                      /* 0x0003d286-95 */
+    if (g_room_trace)                                              /* NIGHT_ROOMDBG=1 (docs/312): the room chain
+                                                                    * step itself, not just the loaded chain -- which
+                                                                    * node was current, what +0x34c held, and whether the
+                                                                    * terminator (g_dat_63350) took over */
+        fprintf(stderr, "[room-chain] fn_03d244 node=%p next=%p -> %s stage=%u DAT_63398=%u DAT_639e0=%d\n",
+                (void *)node, (void *)nxt, (nxt != NULL) ? "next node" : "g_dat_63350 (terminator)",
+                (unsigned)g_dat_63370, (unsigned)g_dat_63398, (int)g_dat_639e0);
     g_dat_63354 = (nxt != NULL) ? nxt : g_dat_63350;                 /* 0x0003d29b / 0x0003d2a2 */
 
+    if (g_room_trace) fprintf(stderr, "[room-chain] fn_03d244 -> fn_038f3d(1) level-up screen entry\n");
     fn_038f3d(1);                                                    /* 0x0003d2ac-b1 */
+    if (g_room_trace) fprintf(stderr, "[room-chain] fn_038f3d(1) returned\n");
     fn_03cad3(g_dat_63354);                                          /* 0x0003d2b6-bb */
 
     uint8_t *P = g_player_ent;

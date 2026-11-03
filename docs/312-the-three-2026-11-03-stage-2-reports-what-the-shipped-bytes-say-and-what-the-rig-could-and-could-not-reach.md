@@ -287,4 +287,29 @@ pairs (`444c2aa` ✓ `b5355d3` ✓); and the re-entry-with-no-enemies shape, whi
 
 ## 5. Sweep (same build as the fixes)
 
-_(filled in below once `/tmp/rig/sweep312` completes)_
+Sweep run `/tmp/rig/rb17` = `scripts/rig/route.sh scripts/rig/drives/ep1_kill3.txt 150` in `REUSE_ORIG` mode
+(`REUSE_ORIG=/tmp/rig/rb15`, the canonical 150 s route, skip-intro OFF, pinned
+`NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`).  `REUSE_ORIG` re-measures the port against a
+frozen shipped half, so it can only show that the port did not move away from that baseline; it cannot
+re-verify the shipped side (docs/307 rule).
+
+| leg | run | number |
+| --- | --- | --- |
+| state oracle (346 cells, 274 phases) | `/tmp/rig/rb17/report_state.txt` | tally `SIZE? 34, PTR 52, SAME 70, REPR 19, DIFF-SIZE 14, DIFF 27, NON-GAME …`; 47 divergent cells, **27 same-width gameplay residuals** -- the same 27 rows docs/289 §records them, no new ones |
+| activity profiles | `/tmp/rig/rb17/report_activity.txt` | 271 cells, 275 phases, `tally={'SAME': 271}` |
+| screen oracle | `/tmp/rig/rb17/report_screen.txt` | orig 1422 frames / 204 distinct / 18.6 changes per s; port 18000 frames / 4534 distinct / 78.8 per s; 1422 aligned pairs, route score **0.7088**; 8 divergent runs (score < 0.88) |
+| audio legs | `/tmp/rig/rb17/report_audio_sfx.txt`, `report_audio_cd.txt` | every phase `SAME`; the cd leg carries the docs/304 instrument floor (the shipped half is an emulator mixer capture with no CD-DA in it) |
+| soak | `/tmp/rig/sweep312` leg 1 | 9 episodes, 9/9 `rc=0`, 0 sanitizer lines, 4000 frames each |
+| fuzz | `/tmp/rig/sweep312` leg 2 | 40 seeds, 9 episodes, **0 sanitizer/SEGV**; coverage 234/503 cells (coverage is a range across censuses, the crash census is the gate) |
+| blit census | `/tmp/rig/rb17` leg | 268 `blt_rows` calls, 0 out-of-band -- **reclassified**: that run used `--warp-episode 2`, which is episode 2, not episode 1 stage 2 (docs/312 §0a) |
+
+### Legs re-measured on the current HEAD (`14d6b6a`), because the sweep predates items D-to-G
+
+| leg | run | number |
+| --- | --- | --- |
+| item 6 left-edge row-crossing probe (`NIGHT_BLITEDGE=1 NIGHT_BLITDBG=1`, `ep1_leftedge4.txt`) | `/tmp/rig/t11le` | `spans_inspected=2265525 inside_one_row=2265525 crossings=0`; `blt_rows calls=5159 out_of_band=0`, arms `B0=5159 B1=0 B2=0 B3=0` |
+| docs/300 straight-down walking rerun (`NIGHT_YCLAMP=1`, `ep1_downonly.txt`) | `/tmp/rig/t11dn` | player Y 172 -> **195** by sidecar tick 57 and stays (the band is `mn=139 mx=195 camY=0`); walking-body calls 5204, player DOWN `fn_01586b` calls 4753, 0 menu-owned frames |
+| item 2b dump-side award census (`scripts/rig/exp_award.py --orig /tmp/rig/rb17/orig --port /tmp/rig/rb17/port`) | as shown | shipped `type_idx=31` award values `{0, 5, 10}` = port `{0, 5, 10}`; port dying records 123, of which `kind=1 type_idx=31 award(+0x32)=10` 44 times; the shipped side also lists `type_idx=33554432` / `4278190080` which are the pointer-following cells of docs/252, not types |
+| item 3 level-up basis | `/tmp/rig/g319c`, `/tmp/rig/g319d`, `/tmp/rig/g319h`, `/tmp/rig/g319i` | the "23778 row visits / 1879 drawn cursor previews / 0 lit-without-purchase" census witness is **no longer in the build** (`/tmp/rig/l312e/run.log` emits no census line, and no `row visits` string survives in `port/src`); the equivalent claim is now the `NIGHT_BUYDBG` census -- `attempts / committed / rejected_max / rejected_poor / refund` -- which on these runs is `attempts=2..4 committed=2 rejected_poor=0..2 refund=0` with every purchase stepping `sel` by exactly 1 |
+| stage-2 screen tally | -- | **not answerable on this machine today**: the only cached shipped half is `/tmp/rig/rb15`, captured on the canonical `ep1_kill3.txt` route, which never leaves stage 1, and the dosbox-automation container engine is unresponsive, so no fresh shipped stage-2 capture exists.  Stated as a gap rather than compared. |
+

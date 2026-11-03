@@ -7,7 +7,9 @@ authors = [
     { name = "", email = "" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "capstone>=5.0.9",
+]
 
 [project.scripts]
 night-port = "night_port:main"

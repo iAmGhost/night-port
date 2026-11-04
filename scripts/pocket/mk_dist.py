@@ -157,6 +157,16 @@ def main():
         # switch, and the core's printf diagnostics (memstat, disc/track selection, load/save reports) go to
         # that 40x30 CP437 terminal (of_terminal.h).  Index 2 -- appended, so indexes 0/1 above keep their
         # positions for of_interact_get().
+        # The core-side screen switch.  The SDK-standard "Pocket LCD" entry below it is stored by the
+        # firmware, but what an openfpgaOS app can actually act on is of_video_set_display_mode()
+        # (OF_DISPLAY_TERMINAL / OF_DISPLAY_FRAMEBUFFER / OF_DISPLAY_OVERLAY, of_video.h:43-45), and
+        # "Game + log" is the one that makes a hardware run readable without a card reader (docs/336).
+        {"name": "NIGHT Screen", "id": 71, "type": "list", "enabled": True, "persist": True,
+         "address": "0xF7000108", "defaultval": 0, "options": [
+             {"value": "0x00000000", "name": "Game"},
+             {"value": "0x00000001", "name": "Terminal"},
+             {"value": "0x00000002", "name": "Game + log"},
+         ]},
         {"name": "Pocket LCD", "id": 70, "type": "list", "enabled": True, "persist": True,
          "address": "0xF7000000", "defaultval": 0, "mask": "0xFFFCFFFF", "options": [
              {"value": "0x00000000", "name": "On"},

@@ -27,5 +27,6 @@ int  of_setting_sfx_vol(void);
 int  of_setting_cdda(void);
 int  of_setting_pad(void);
 int  of_setting_tick_hz(void);        /* 0 = the PIT rate the game programs */
+int  of_setting_screen(void);         /* 0 game, 1 terminal, 2 game + log overlay */
 
 #endif /* NIGHT_OF_SAVE_H */

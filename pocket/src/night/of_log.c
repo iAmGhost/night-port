@@ -64,6 +64,17 @@ int of_log_open(void) {
     char name[64];
     scan[0] = 0;
 
+    /* Bare name first: openfpgaOS-Quake writes its config/save slots with fopen("quake.cfg","wb"), and the
+     * SDK maps a bare filename onto the bound slot.  The d_ino scan below is the fallback AND the witness --
+     * whatever readdir did list gets written into the log. */
+    if ((g_log = fopen("night.log", "w"))) {
+        setvbuf(g_log, (char *)0, _IONBF, 0);
+        of_log_line("log: slot %d via bare name \"night.log\"\n", LOG_SLOT);
+        if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0) of_log_line("%s", scan);
+        else of_log_line("%s", scan);
+        return 0;
+    }
+
     if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0 && (g_log = fopen(name, "w"))) {
         setvbuf(g_log, (char *)0, _IONBF, 0);
         of_log_line("log: slot %d via \"%s\"\n", LOG_SLOT, name);
@@ -72,6 +83,15 @@ int of_log_open(void) {
     }
     for (unsigned i = 0; i < sizeof want / sizeof want[0]; i++) {
         scan[0] = 0;
+        char bare[32];
+        snprintf(bare, sizeof bare, "night_%d.sav", want[i] - 10);
+        if ((g_log = fopen(bare, "w"))) {
+            setvbuf(g_log, (char *)0, _IONBF, 0);
+            of_log_line("log: save slot %d used as the diagnostic trail via bare name \"%s\"\n", want[i], bare);
+            slot_name(want[i], name, sizeof name, scan, sizeof scan);
+            of_log_line("%s", scan);
+            return 0;
+        }
         if (slot_name(want[i], name, sizeof name, scan, sizeof scan) == 0 && (g_log = fopen(name, "w"))) {
             setvbuf(g_log, (char *)0, _IONBF, 0);
             of_log_line("log: slot %d (save slot) used as the diagnostic trail via \"%s\"\n", want[i], name);

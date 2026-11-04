@@ -64,6 +64,7 @@ static int      g_slot = 1;
 static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
 static int      g_tick_hz   = 0;   /* 0 = whatever PIT rate the game programs; see of_setting_tick_hz */
+static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
 static int16_t gauge_of(const save_blob_t *b)  { return (int16_t)(b->player[0x23 - PLAYER_WIN_OFF] | (b->player[0x24 - PLAYER_WIN_OFF] << 8)); }
@@ -108,6 +109,8 @@ static int slot_path(int slot, char *out, size_t n) {
 static int slot_path(int slot, char *out, size_t n) {
     if (slot < 0 || slot >= OF_SAVE_SLOTS) { snprintf(g_err, sizeof g_err, "slot %d out of range", slot); return -1; }
     uint32_t want = SAVE_STAGE_FIRST + (uint32_t)slot;
+    char want_name[32];
+    snprintf(want_name, sizeof want_name, "night_%d.sav", slot);
     DIR *d = opendir("/");
     if (!d) { snprintf(g_err, sizeof g_err, "opendir(/) failed"); return -1; }
     struct dirent *e;
@@ -116,7 +119,15 @@ static int slot_path(int slot, char *out, size_t n) {
         if ((uint32_t)e->d_ino - 1u == want) { snprintf(out, n, "%s", e->d_name); found = 1; break; }
     }
     closedir(d);
-    if (!found) { snprintf(g_err, sizeof g_err, "slot %u not bound by the instance", want); return -1; }
+    if (!found) {
+        /* A nonvolatile slot whose file does not exist yet is not listed by readdir at all -- the firmware
+         * keeps save data under Saves/<platform>/common/ (measured on this card: quake.cfg lives at
+         * Saves/quake/common/, and Saves/night/common/ was created for us but left empty).  openfpgaOS-Quake
+         * writes its cfg/sav slots with a plain fopen on the BARE name, which the SDK maps to the bound slot,
+         * so that is the fallback rather than declaring the slot unreachable (docs/336). */
+        snprintf(out, n, "%s", want_name);
+        return 0;
+    }
     return 0;
 }
 #endif
@@ -253,6 +264,7 @@ void of_settings_load(void) {
      * is wired, in which case night.ini's [night] values stand. */
     int mv = (int)of_interact_get(0);
     int tk = (int)of_interact_get(1);
+    g_screen = (int)of_interact_get(2);            /* interact.json "NIGHT Screen", index 2 */
     if (mv != 0 || tk != 0) {
         g_music_vol = clamp_vol(mv);
         if (tk >= 60 && tk <= 490) g_tick_hz = tk;
@@ -261,8 +273,8 @@ void of_settings_load(void) {
         printf("settings: interact silent, using night.ini\n");
     }
 #endif
-    printf("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d\n",
-           g_music_vol, g_sfx_vol, g_cdda_on, g_pad_on, g_tick_hz);
+    printf("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
+           g_music_vol, g_sfx_vol, g_cdda_on, g_pad_on, g_tick_hz, g_screen);
 }
 
 int of_setting_music_vol(void) { return g_music_vol; }
@@ -270,3 +282,4 @@ int of_setting_sfx_vol(void)   { return g_sfx_vol; }
 int of_setting_cdda(void)      { return g_cdda_on; }
 int of_setting_pad(void)       { return g_pad_on; }
 int of_setting_tick_hz(void)   { return g_tick_hz; }
+int of_setting_screen(void)    { return g_screen; }

@@ -636,7 +636,9 @@ int main(int argc, char **argv) {
 #endif
     }
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
-    if (of_log_open() != 0) printf("log: slot 9 (night.log) not openable; diagnostics stay on stdout\n");
+    static int g_log_ok;
+    g_log_ok = (of_log_open() == 0) ? 1 : 0;
+    if (!g_log_ok) printf("log: slot 9 (night.log) not openable; diagnostics go to the screen instead\n");
     NLOG_STEP("boot start");
     if (getenv("NIGHT_RIG_STEP_CALLS")) {
         int hz = atoi(getenv("NIGHT_RIG_STEP_CALLS"));
@@ -674,9 +676,22 @@ int main(int argc, char **argv) {
 #endif
 
     of_settings_load();                        /* os.ini [night] on the device, env on the desktop */
-    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d\n",
+    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
          of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
-         of_setting_tick_hz());
+         of_setting_tick_hz(), of_setting_screen());
+#ifndef OF_PC
+    /* The screen switch the core can actually honour is of_video_set_display_mode() (of_video.h:43-45):
+     * OF_DISPLAY_TERMINAL shows only the 40x30 console the host's printf writes to, OF_DISPLAY_OVERLAY puts
+     * that text over the game picture, which is what makes a hung run readable on the device itself.  When
+     * the log slot is not writable the overlay becomes the default, so a run is never unreadable. */
+    {
+        int scr = of_setting_screen();
+        int mode = (scr == 1) ? OF_DISPLAY_TERMINAL : (scr == 2) ? OF_DISPLAY_OVERLAY : OF_DISPLAY_FRAMEBUFFER;
+        if (!g_log_ok && scr == 0) mode = OF_DISPLAY_OVERLAY;
+        of_video_set_display_mode(mode);
+        NLOG("screen: menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
+    }
+#endif
     if (!of_setting_cdda()) g_off |= OFF_CDDA;
     if (!of_setting_pad())  g_off |= OFF_PAD;
     if (g_load_slot >= 0) {                    /* a restore arms the warp basis from the blob */

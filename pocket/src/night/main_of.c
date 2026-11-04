@@ -173,6 +173,62 @@ static uint8_t downscale_2x2(const uint8_t *src, int x, int y) {
     return best;
 }
 
+/* The same rule, written for the device.  The version above costs 84 ms for one 640x480 frame on the 100 MHz
+ * core -- measured on hardware as "stages ... copy=84458us" -- because for every one of the 76 800 output
+ * pixels it calls a function, materialises a four-byte array, runs a 16-iteration counting loop over it, and
+ * reads the palette twelve times.  That single stage is why the 490 Hz tick pump only ever gets one pump per
+ * present(): 84 ms of copying leaves 12 ticks a second, and a slide animated by ticks looks frozen.
+ *
+ * Here the four candidates come out of two aligned word loads per two output pixels, the uniform 2x2 block --
+ * which is what a static slide is made of almost everywhere -- returns after three comparisons, and the
+ * palette is consulted only for the ties that actually need it. */
+static inline uint8_t maj4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
+    if (a == b && a == c && a == d) return a;
+    int ab = (a == b), ac = (a == c), ad = (a == d);
+    int bc = (b == c), bd = (b == d), cd = (c == d);
+    int na = 1 + ab + ac + ad, nb = 1 + ab + bc + bd;
+    int nc = 1 + ac + bc + cd, nd = 1 + ad + bd + cd;
+    const uint8_t *p = g_pal_rgb;
+    uint8_t best = a; int bestn = na;
+    int bestlum = p[a * 3] + p[a * 3 + 1] + p[a * 3 + 2];
+    if (nb > bestn || (nb == bestn && p[b * 3] + p[b * 3 + 1] + p[b * 3 + 2] > bestlum)) {
+        best = b; bestn = nb; bestlum = p[b * 3] + p[b * 3 + 1] + p[b * 3 + 2];
+    }
+    if (nc > bestn || (nc == bestn && p[c * 3] + p[c * 3 + 1] + p[c * 3 + 2] > bestlum)) {
+        best = c; bestn = nc; bestlum = p[c * 3] + p[c * 3 + 1] + p[c * 3 + 2];
+    }
+    if (nd > bestn || (nd == bestn && p[d * 3] + p[d * 3 + 1] + p[d * 3 + 2] > bestlum)) best = d;
+    return best;
+}
+
+static void downscale_2x2_frame(const uint8_t *src, uint8_t *fb) {
+    if (((uintptr_t)src & 3u) || ((uintptr_t)fb & 3u)) {      /* misaligned: keep the general path */
+        for (int y = 0; y < PANEL_H; y++)
+            for (int x = 0; x < PANEL_W; x++)
+                fb[y * PANEL_W + x] = downscale_2x2(src, x, y);
+        return;
+    }
+    const uint32_t *s32 = (const uint32_t *)(const void *)src;
+    uint32_t *d32 = (uint32_t *)(void *)fb;
+    const int srow = 2 * PANEL_W / 4, drow = PANEL_W / 4;      /* words per source / panel row */
+    for (int y = 0; y < PANEL_H; y++) {
+        const uint32_t *r0 = s32 + (size_t)(2 * y) * srow;
+        const uint32_t *r1 = r0 + srow;
+        uint32_t *out = d32 + (size_t)y * drow;
+        for (int g = 0; g < drow; g++) {
+            const uint32_t w00 = r0[2 * g], w01 = r0[2 * g + 1];
+            const uint32_t w10 = r1[2 * g], w11 = r1[2 * g + 1];
+            out[g] =
+                (uint32_t)maj4((uint8_t)w00, (uint8_t)(w00 >> 8), (uint8_t)w10, (uint8_t)(w10 >> 8)) |
+                ((uint32_t)maj4((uint8_t)(w00 >> 16), (uint8_t)(w00 >> 24),
+                                (uint8_t)(w10 >> 16), (uint8_t)(w10 >> 24)) << 8) |
+                ((uint32_t)maj4((uint8_t)w01, (uint8_t)(w01 >> 8), (uint8_t)w11, (uint8_t)(w11 >> 8)) << 16) |
+                ((uint32_t)maj4((uint8_t)(w01 >> 16), (uint8_t)(w01 >> 24),
+                                (uint8_t)(w11 >> 16), (uint8_t)(w11 >> 24)) << 24);
+        }
+    }
+}
+
 /* Panel witness: the 320x240 indexed panel as the Pocket would show it, written as a PPM the
  * analysis tools can look at.  NIGHT_PANEL_SHOT=<dir> (desktop builds only). */
 #ifdef OF_PC
@@ -210,7 +266,18 @@ static int g_display_applied = -1;      /* what the display path was actually la
 /* Stage maxima for present().  The device reports pres=110331us for a call that costs 110-335us on the desktop
  * shim, so the four things it does are timed separately: asking for the display mode, pushing the palette,
  * copying/scaling the frame into the surface, and the flush/flip pair. */
+static int g_log_ok;                             /* the diagnostic slot opened (file scope: the readout reports it) */
 static uint32_t g_us_mode, g_us_pal, g_us_copy, g_us_flush, g_us_flip, g_us_flip_max;
+static uint32_t g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip;
+
+/* Frame-change sampling, device path only.  The 640x480 downscale is the costliest thing this host does (the
+ * device charged 84 ms for one frame of it), and a slide is static between the game's own screen updates, so
+ * the source is sampled at a stride of 64 bytes and a byte-identical sample skips the copy.  The skip is
+ * capped at 8 presents in a row, so a change confined to unsampled pixels cannot stay hidden for long. */
+static uint32_t g_smp_off[8192];
+static uint8_t g_smp_val[8192];
+static size_t g_smp_n, g_smp_geom;
+static unsigned g_skip_streak, g_present_skips;
 static void stage_max(uint32_t *mx, uint64_t d) { if (d > (uint64_t)*mx) *mx = (uint32_t)d; }
 
 /* Readout for the 40-column console.  A logo that the game never leaves and a game that moved on but is not
@@ -253,10 +320,28 @@ static void present(void) {
     int vh = g_view_320x200 ? GAME_H : sys_video_h();
     if (vw <= 0 || vh <= 0) return;
 
+#ifndef OF_PC
+    if (g_smp_geom != (size_t)vw * vh) {            /* (re)build the sample set when the mode changes */
+        size_t k = 0;
+        for (size_t o = 0; o < (size_t)vw * vh && k < sizeof g_smp_off / sizeof g_smp_off[0]; o += 64u)
+            g_smp_off[k++] = (uint32_t)o;
+        g_smp_n = k;
+        g_smp_geom = (size_t)vw * vh;
+    }
+#endif
+
     palette_push();
     t2 = sys_now_us();
     uint8_t *fb = of_video_surface();
     const uint8_t *src = g_video_ram;               /* indexed pixels, linear in the A0000 arena */
+
+    int skip = 0;
+#ifndef OF_PC
+    skip = 1;
+    for (size_t i = 0; i < g_smp_n; i++)
+        if (g_smp_val[i] != src[g_smp_off[i]]) { skip = 0; break; }
+    if (skip && g_skip_streak >= 8u) skip = 0;      /* bounded staleness, never an unbounded freeze */
+#endif
 
 #ifdef OF_PC
     if (g_rig_dir) {                 /* the game's own composed picture, at its own resolution */
@@ -275,6 +360,7 @@ static void present(void) {
     }
 #endif
 
+    if (!skip) {
     if (vw == GAME_W && vh == GAME_H) {
         memset(fb, 0, (size_t)BAR_ROWS * PANEL_W);
         uint8_t *dst = fb + (size_t)BAR_ROWS * PANEL_W;
@@ -282,9 +368,7 @@ static void present(void) {
         memset(fb + (size_t)(BAR_ROWS + GAME_H) * PANEL_W, 0,
                (size_t)(PANEL_H - BAR_ROWS - GAME_H) * PANEL_W);
     } else if (vw == 2 * PANEL_W && vh == 2 * PANEL_H) {
-        for (int y = 0; y < PANEL_H; y++)
-            for (int x = 0; x < PANEL_W; x++)
-                fb[y * PANEL_W + x] = downscale_2x2(src, x, y);
+        downscale_2x2_frame(src, fb);
     } else {
         /* An unexpected mode: copy the overlapping region 1:1 rather than guess a scale. */
         int w = vw < PANEL_W ? vw : PANEL_W;
@@ -293,6 +377,11 @@ static void present(void) {
         for (int y = 0; y < h; y++)
             memcpy(fb + (size_t)y * PANEL_W, src + (size_t)y * vw, (size_t)w);
     }
+    }                                        /* end of "if (!skip)" */
+#ifndef OF_PC
+    for (size_t i = 0; i < g_smp_n; i++) g_smp_val[i] = src[g_smp_off[i]];
+    if (skip) { g_present_skips++; g_skip_streak++; } else g_skip_streak = 0;
+#endif
 #ifdef OF_PC
     if (getenv("NIGHT_PANEL_SHOT") && (g_frames % (unsigned)(getenv("NIGHT_PANEL_EVERY") ? atoi(getenv("NIGHT_PANEL_EVERY")) : 40)) == 20u)
         panel_shot();
@@ -302,16 +391,17 @@ static void present(void) {
     t4 = sys_now_us();
     of_video_flip();
     t5 = sys_now_us();
-#ifndef OF_PC
     stage_max(&g_us_mode, t1 - t0);
     stage_max(&g_us_pal, t2 - t1);
     stage_max(&g_us_copy, t3 - t2);
     stage_max(&g_us_flush, t4 - t3);
     stage_max(&g_us_flip, t5 - t4);
     stage_max(&g_us_flip_max, t5 - t0);
-#else
-    (void)t0; (void)t1; (void)t2; (void)t3; (void)t4; (void)t5;
-#endif
+    g_lus_mode = (uint32_t)(t1 - t0);
+    g_lus_pal = (uint32_t)(t2 - t1);
+    g_lus_copy = (uint32_t)(t3 - t2);
+    g_lus_flush = (uint32_t)(t4 - t3);
+    g_lus_flip = (uint32_t)(t5 - t4);
 }
 
 /* ---- sound board bring-up (docs/98) ----------------------------------------------------
@@ -692,11 +782,13 @@ static void tick_pump(void) {
                      g_view_320x200, vw, vh, g_view_prev, g_vw_prev, g_vh_prev);
                 g_view_prev = g_view_320x200; g_vw_prev = vw; g_vh_prev = vh;
             }
-            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u\n",
-                 g_present_us, g_present_us_max, g_pump_calls, g_timer_calls);
-            NLOG("stages mode=%u pal=%u copy=%u flush=%u flip=%u all=%u\n",
-                 g_us_mode, g_us_pal, g_us_copy, g_us_flush, g_us_flip, g_us_flip_max);
-            NLOG("pump reanchor=%u frames=%u hz=%u\n", g_pump_reanchor, g_frames, hz);
+            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u\n",
+                 g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips);
+            NLOG("stages last m=%u p=%u c=%u f=%u x=%u | max all=%u copy=%u flip=%u\n",
+                 g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip,
+                 g_us_flip_max, g_us_copy, g_us_flip);
+            NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
+                 g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
             NLOG("audio cdda=%u/%u/%u plays=%u xfer=%u voices=%u\n",
                  of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays,
                  sys_audio_transfers(), 32u);
@@ -724,7 +816,6 @@ int main(int argc, char **argv) {
 #endif
     }
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
-    static int g_log_ok;
     g_log_ok = (of_log_open() == 0) ? 1 : 0;
     if (!g_log_ok) printf("log: the diagnostic slot is not openable; the terminal is the only trail\n");
     else atexit(of_log_close);          /* a fclose is what commits a nonvolatile slot (README:466) */
@@ -777,11 +868,23 @@ int main(int argc, char **argv) {
     {
         int scr = of_setting_screen();
         int mode = (scr == 1) ? OF_DISPLAY_TERMINAL : (scr == 2) ? OF_DISPLAY_OVERLAY : OF_DISPLAY_FRAMEBUFFER;
-        if (!g_log_ok && scr == 0) mode = OF_DISPLAY_OVERLAY;
+        /* Not overridden any more.  This used to read "if the log slot is not openable, force OVERLAY", and on
+         * the device the log slot is not openable -- so every run that was not asked for Terminal came up as
+         * OF_DISPLAY_OVERLAY (of_video.h:44-46: "white terminal text over framebuffer"), which is exactly what
+         * the screenshots show: text over the game while the menu says On.  The game screen is what the menu
+         * asked for; a log failure is reported, it is not compensated for by changing the user's display. */
         g_display_mode = mode;
         g_display_applied = mode;
         of_video_set_display_mode(mode);
         NLOG("screen: ini/menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
+        NLOG("log ok=%d bytes=%ld\n", g_log_ok, of_log_bytes());
+#ifndef OF_PC
+        {   /* What the file layer thinks of the name we open the log on. */
+            uint32_t sid = 0;
+            int fr = of_file_slot_find("night.cfg", &sid);
+            NLOG("file: slot_find(night.cfg)=%d id=%u\n", fr, sid);
+        }
+#endif
         NLOG("================================================\n");
         NLOG("=== NIGHT (openfpgaOS) -- console overlay test ===\n");
         NLOG("================================================\n");

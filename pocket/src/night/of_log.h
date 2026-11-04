@@ -9,6 +9,7 @@ int  of_log_open(void);
 /* One line: written to stdout AND appended to the log, flushed per line.  A core that is killed, faults,
  * or simply never returns leaves its whole trail on the card. */
 void of_log_line(const char *fmt, ...);
-void of_log_close(void);                /* fclose, which is what commits a nonvolatile slot */
+void of_log_close(void);
+long of_log_bytes(void);                 /* ftell of the log, or -1 when nothing is open */                /* fclose, which is what commits a nonvolatile slot */
 
 #endif /* NIGHT_OF_LOG_H */

@@ -61,6 +61,8 @@ static FILE *log_open_write(const char *name) {
     return f;
 }
 
+long of_log_bytes(void) { return g_log ? ftell(g_log) : -1L; }   /* how much the OS has actually taken */
+
 void of_log_close(void) {
     if (!g_log) return;
     fflush(g_log);

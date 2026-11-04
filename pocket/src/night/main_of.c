@@ -205,6 +205,29 @@ static void panel_shot(void) {
 static int g_display_mode = OF_DISPLAY_FRAMEBUFFER;
 #endif
 
+/* Readout for the 40-column console.  A logo that the game never leaves and a game that moved on but is not
+ * being shown look identical on the LCD -- so the host states, once a second, what geometry it is presenting,
+ * a hash of the game's own framebuffer, how much of the palette is lit, and what a present() costs.  Lines are
+ * kept short on purpose: a 100-character line wraps into unreadability at 40 columns. */
+static uint32_t g_sig, g_sig_prev, g_sig_changes;
+static int g_view_prev = -1, g_vw_prev = -1, g_vh_prev = -1;
+static uint32_t g_present_us, g_present_us_max;
+
+static uint32_t fb_signature(int vw, int vh) {
+    const uint8_t *p = g_video_ram;
+    size_t n = (size_t)vw * vh;
+    uint32_t h = 2166136261u;
+    for (size_t i = 0; i < n; i += 37u) h = (h ^ p[i]) * 16777619u;
+    return h;
+}
+
+static int pal_lit(void) {
+    int c = 0;
+    for (int i = 0; i < 256; i++)
+        if (g_pal_rgb[i * 3] || g_pal_rgb[i * 3 + 1] || g_pal_rgb[i * 3 + 2]) c++;
+    return c;
+}
+
 static void present(void) {
     if (g_off & OFF_PRESENT) return;
 #ifndef OF_PC
@@ -606,7 +629,11 @@ static void tick_pump(void) {
     g_pump_calls++;
 
     if (now >= g_present_next_us) {
+        uint64_t t0 = sys_now_us();
         present();
+        uint32_t d = (uint32_t)(sys_now_us() - t0);
+        if (d > g_present_us_max) g_present_us_max = d;
+        g_present_us = d;
         g_frames++;
         g_present_next_us = now + PRESENT_PERIOD_US;
         if (g_frames_limit && g_frames >= (uint32_t)g_frames_limit) g_quit = 1;
@@ -623,6 +650,26 @@ static void tick_pump(void) {
                sys_audio_transfers(), g_of_sfx_plays,
                of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), (unsigned long long)g_clock_rate_us);
         s_last_ticks = g_timer_calls;
+
+        /* The presentation half, in four short lines the LCD can actually render. */
+        {
+            int vw = g_view_320x200 ? GAME_W : sys_video_w();
+            int vh = g_view_320x200 ? GAME_H : sys_video_h();
+            g_sig = (vw > 0 && vh > 0) ? fb_signature(vw, vh) : 0u;
+            if (g_sig != g_sig_prev) { g_sig_changes++; g_sig_prev = g_sig; }
+            NLOG("view=%d %dx%d sig=%08lx chg=%u pal=%d\n",
+                 g_view_320x200, vw, vh, (unsigned long)g_sig, g_sig_changes, pal_lit());
+            if (vw != g_vw_prev || vh != g_vh_prev || g_view_320x200 != g_view_prev) {
+                NLOG("video CHANGED: view=%d %dx%d (was %d %dx%d)\n",
+                     g_view_320x200, vw, vh, g_view_prev, g_vw_prev, g_vh_prev);
+                g_view_prev = g_view_320x200; g_vw_prev = vw; g_vh_prev = vh;
+            }
+            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u\n",
+                 g_present_us, g_present_us_max, g_pump_calls, g_timer_calls);
+            NLOG("audio cdda=%u/%u/%u plays=%u xfer=%u voices=%u\n",
+                 of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays,
+                 sys_audio_transfers(), 32u);
+        }
     }
     g_depth--;
     if (g_quit) longjmp(g_game_escape, 1);
@@ -648,7 +695,8 @@ int main(int argc, char **argv) {
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
     static int g_log_ok;
     g_log_ok = (of_log_open() == 0) ? 1 : 0;
-    if (!g_log_ok) printf("log: slot 9 (night.log) not openable; diagnostics go to the screen instead\n");
+    if (!g_log_ok) printf("log: the diagnostic slot is not openable; the terminal is the only trail\n");
+    else atexit(of_log_close);          /* a fclose is what commits a nonvolatile slot (README:466) */
     NLOG_STEP("boot start");
     if (getenv("NIGHT_RIG_STEP_CALLS")) {
         int hz = atoi(getenv("NIGHT_RIG_STEP_CALLS"));

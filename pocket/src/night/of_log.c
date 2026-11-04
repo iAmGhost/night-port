@@ -35,10 +35,43 @@
 #define LOG_FALLBACKS   { 17, 16, 15 }       /* save slots: the nonvolatile type a core is known to write */
 
 static FILE *g_log;
+static char g_path[64];            /* the name the log is actually open on, for the reopen below */
+static unsigned g_lines, g_commits;
+
+/* SDK README:466 -- "Dirty save files are committed through the bridge when closed."  A FILE* held open for a
+ * whole run is never closed, so under that rule nothing it wrote was ever eligible to reach the card: four
+ * hardware runs flushed every line and night.log / night.cfg stayed at 0 bytes.  openfpgaOS-Quake never meets
+ * the problem, because every quake.cfg and sN.sav write it does is fopen/fwrite/fclose.  So the log closes and
+ * reopens on a cadence -- a commit a hung or killed run still reaches. */
+static void log_commit(void) {
+    if (!g_log || !g_path[0]) return;
+    fclose(g_log);
+    g_log = fopen(g_path, "a");
+    if (g_log) setvbuf(g_log, (char *)0, _IONBF, 0);
+    g_commits++;
+}
+
+/* fopen plus the two things every open site needs: remember the name (for the reopen) and keep the line
+ * buffer off, so a core that dies mid-run left what it knew. */
+static FILE *log_open_write(const char *name) {
+    FILE *f = fopen(name, "w");
+    if (!f) return 0;
+    snprintf(g_path, sizeof g_path, "%s", name);
+    setvbuf(f, (char *)0, _IONBF, 0);
+    return f;
+}
+
+void of_log_close(void) {
+    if (!g_log) return;
+    fflush(g_log);
+    fclose(g_log);
+    g_log = 0;
+    g_commits++;
+}
 
 #ifdef OF_PC
 int of_log_open(void) {
-    g_log = fopen("scratch/pocket/night.log", "w");
+    g_log = log_open_write("scratch/pocket/night.log");
     return g_log ? 0 : -1;
 }
 #else
@@ -73,16 +106,14 @@ int of_log_open(void) {
      * one openfpgaOS-Quake's sys_of.c uses for quake.cfg.  The d_ino scan is the fallback AND the witness:
      * whatever readdir did list gets written into the log. */
     of_file_slot_register(LOG_SLOT, LOG_NAME);
-    if ((g_log = fopen(LOG_NAME, "w"))) {
-        setvbuf(g_log, (char *)0, _IONBF, 0);
+    if ((g_log = log_open_write(LOG_NAME))) {
         of_log_line("log: slot %d registered as \"%s\"\n", LOG_SLOT, LOG_NAME);
         if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0) of_log_line("%s", scan);
         else of_log_line("%s", scan);
         return 0;
     }
 
-    if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0 && (g_log = fopen(name, "w"))) {
-        setvbuf(g_log, (char *)0, _IONBF, 0);
+    if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0 && (g_log = log_open_write(name))) {
         of_log_line("log: slot %d via \"%s\"\n", LOG_SLOT, name);
         of_log_line("%s", scan);
         return 0;
@@ -92,15 +123,13 @@ int of_log_open(void) {
         char bare[32];
         snprintf(bare, sizeof bare, "night_%d.sav", want[i] - 10);
         of_file_slot_register(want[i], bare);
-        if ((g_log = fopen(bare, "w"))) {
-            setvbuf(g_log, (char *)0, _IONBF, 0);
+        if ((g_log = log_open_write(bare))) {
             of_log_line("log: save slot %d used as the diagnostic trail via bare name \"%s\"\n", want[i], bare);
             slot_name(want[i], name, sizeof name, scan, sizeof scan);
             of_log_line("%s", scan);
             return 0;
         }
-        if (slot_name(want[i], name, sizeof name, scan, sizeof scan) == 0 && (g_log = fopen(name, "w"))) {
-            setvbuf(g_log, (char *)0, _IONBF, 0);
+        if (slot_name(want[i], name, sizeof name, scan, sizeof scan) == 0 && (g_log = log_open_write(name))) {
             of_log_line("log: slot %d (save slot) used as the diagnostic trail via \"%s\"\n", want[i], name);
             of_log_line("%s", scan);
             return 0;
@@ -118,4 +147,5 @@ void of_log_line(const char *fmt, ...) {
     vfprintf(g_log, fmt, ap);
     va_end(ap);
     fflush(g_log);
+    if (++g_lines % 8u == 0u) log_commit();
 }

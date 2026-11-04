@@ -30,11 +30,11 @@
 #include <dirent.h>
 #endif
 
-#define LOG_SLOT        19         /* the last documented app save slot (APF file ids 10-19, README:462) */
-#define LOG_NAME        "save:9"   /* the SDK's own save alias: testdemo/test_saves.c:16 writes "save:9","wb" */
-#define LOG_NAME_2      "night_9.sav"       /* the same slot under the name the instance JSON binds */
-#define LOG_NAME_3      "night.cfg"         /* slot 8, README:462 says an app should not use it -- tried last */
-#define LOG_FALLBACKS   { 17, 16, 15 }       /* the eight game save slots stand in if none of those open */
+#define LOG_SLOT        17         /* a save slot of our own: 10-16 are the game saves, 17 is the log */
+#define LOG_NAME        "save:7"   /* the SDK save alias for APF slot 17 (save_0/save:0 is id 10) */
+#define LOG_NAME_2      "nightlog.sav"      /* the same slot under the name the instance JSON binds */
+#define LOG_NAME_3      "night_6.sav"       /* a game save slot, if neither of the above opens */
+#define LOG_FALLBACKS   { 16, 15, 14 }       /* game save slots stand in if none of those open */
 
 static FILE *g_log;
 static char g_path[64];            /* the name the log is actually open on, for the reopen below */

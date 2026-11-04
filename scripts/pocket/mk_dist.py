@@ -38,9 +38,9 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.10"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.12"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
-SAVE_SLOTS = 8              # saves live in ids 10..17
+SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
 
 
@@ -119,8 +119,6 @@ def main():
         # writable app save slots are "mapped to APF file IDs 10-19".  A log on id 9 sits in neither category,
         # which is the plain explanation for fopen("night.log","w") answering yes and the file staying at 0
         # bytes through three hardware runs.
-        {"id": 8, "name": "Shared Config", "required": False, "parameters": "0x84", "nonvolatile": True,
-         "address": "0x20380000", "size_maximum": "0x40000", "extensions": ["cfg", "bin"]},
     ]
     data_slots += [
         {"id": 10 + i, "name": f"Save {i}", "required": False, "parameters": "0x84", "nonvolatile": True,
@@ -132,13 +130,13 @@ def main():
         for i in range(SAVE_SLOTS)
     ]
     data_slots.append(
-        {"id": 19, "name": "Log Save", "required": False, "parameters": "0x84", "nonvolatile": True,
+        {"id": 17, "name": "Log Save", "required": False, "parameters": "0x84", "nonvolatile": True,
          # The trail lives in an app save slot, not in slot 8.  README:462 is explicit -- "Slot 8 is reserved
          # for SDK/shared config and is not an app save slot", while the writable app save slots are "mapped to
          # APF file IDs 10-19" -- and README:478 says the same saves are reachable through the aliases
          # "save_0".."save_9" / "save:0".."save:9", which is exactly how the SDK's own test writes one
          # (src/apps/testdemo/test_saves.c:16 fopen("save:9","wb")).  Six runs of a log on slot 8 wrote nothing.
-         "address": "0x20340000", "size_maximum": "0x40000", "extensions": ["sav"]})
+         "address": "0x%08X" % (0x20100000 + 0x40000 * 7), "size_maximum": "0x40000", "extensions": ["sav"]})
     for sid in sorted(ts):
         data_slots.append({"id": sid, "name": ts[sid].split("/")[-1], "required": False,
                            "parameters": 0, "extensions": ["bin"], "deferload": True})
@@ -222,10 +220,9 @@ def main():
         {"id": 3, "filename": f"{APP}.elf"},
         {"id": 4, "filename": "NIGHT.RES"},
     ]
-    inst_slots.append({"id": 8, "filename": f"{APP}.cfg"})
     for i in range(SAVE_SLOTS):
         inst_slots.append({"id": 10 + i, "filename": f"{APP}_{i}.sav"})
-    inst_slots.append({"id": 19, "filename": f"{APP}_9.sav"})   # the diagnostic trail, written by of_log.c
+    inst_slots.append({"id": 17, "filename": "nightlog.sav"})   # the diagnostic trail, written by of_log.c
     for sid in sorted(ts):
         inst_slots.append({"id": sid, "filename": ts[sid]})
     if len(inst_slots) > 32:
@@ -260,7 +257,12 @@ def main():
         # diagnostic view and is now something the card owner chooses, not something the dist ships with:
         # on hardware it drew the readout over the game and looked like a broken screen (docs/336, 0.1.7
         # reported dm=2 on the device because this line said SCREEN=2).
+        # SCREEN: 0 game only, 1 terminal only, 2 console over the game, -1 follow the menu's Pocket LCD value.
+        # It is pinned here rather than left to the menu because the interact bridge is ambiguous: five
+        # variables share 0xF7000000, and a value of 0 is both "On" and "nothing was carried".
         "SCREEN=0\n"
+        "BLIT_SKIP=1\n"       # skip the 640x480->320x240 blit while the source is unchanged (max 8 in a row)
+        "PRESENT_SYNC=1\n"    # wait for each flip to be presented before writing the surface again
         "TICK_HZ=490\n"
     )
 
@@ -275,6 +277,7 @@ def main():
         + "".join(f"| `{fn}` | {sid} | CDDA track {int(fn[-6:-4])} of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |\n"
                   for sid, fn in sorted(ts.items()))
         + f"| `{APP}_0..{SAVE_SLOTS - 1}.sav` | 10-{9 + SAVE_SLOTS} | save slots, created by the game on the first save |\n"
+        + f"| `nightlog.sav` | 17 | the host's diagnostic trail, opened through the SDK alias `save:7` |\n"
         + f"| `{APP}.cfg` | 8 | the host's diagnostic trail (phases, clock probe, memstat) -- read it after a run |\n"
         + "\nSettings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL` 0-255, "
           "`CDDA=1` mutes the CD music, `PAD=1` ignores the pad (edit the file on the card). On a desktop "

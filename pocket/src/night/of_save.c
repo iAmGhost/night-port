@@ -36,7 +36,7 @@
 
 #define SAVE_MAGIC   0x5653474eu   /* 'NGSV' */
 #define SAVE_VERSION 1u
-#define SAVE_STAGE_FIRST 10u       /* instance slot ids 10..17 = night_0.sav .. night_7.sav */
+#define SAVE_STAGE_FIRST 10u       /* instance slot ids 10..16 = night_0.sav .. night_6.sav */
 /* The instance filename a save slot is bound to -- the name that has to reach of_file_slot_register() too. */
 static const char *save_fname(int slot, char *out, size_t n) { snprintf(out, n, "night_%d.sav", slot); return out; }
 #define SAVE_FILE(slot)  save_fname((slot), savebuf, sizeof savebuf)
@@ -275,13 +275,16 @@ void of_settings_load(void) {
      * CDDA_OFF=0 / PAD_OFF=0 say what they mean, and the old short keys still work for old cards. */
     g_cdda_on   = cfg_int("cdda_off", cfg_int("cdda", 0, "NIGHT_CDDA_OFF"), "NIGHT_CDDA_OFF") == 0;
     g_pad_on    = cfg_int("pad_off",  cfg_int("pad",  0, "NIGHT_PAD_OFF"),  "NIGHT_PAD_OFF")  == 0;
-    g_screen    = cfg_int("screen",      0, "NIGHT_SCREEN");   /* night.ini [night] SCREEN= */
+    /* night.ini decides by default; SCREEN=-1 hands the switch to the menu's Pocket LCD value.  A card the
+     * owner edited is a deliberate instruction, and the interact bridge has already proved itself ambiguous
+     * (five variables share 0xF7000000, and 0 is both "On" and "the bridge carried nothing"). */
+    g_screen    = cfg_int("screen",      0, "NIGHT_SCREEN");   /* 0 game, 1 terminal, 2 overlay, -1 follow menu */
     g_tick_hz   = cfg_int("tick_hz",     0, "NIGHT_TICK_HZ");  /* 0 = whatever rate the game programs */
     /* Two knobs for the two hardware faults under investigation, each off/on from the card so a run changes
      * one thing at a time: BLIT_SKIP=0 stops the host skipping the blit when its sampled bytes say the frame
      * is unchanged (a stale-present theory for the ghosting), PRESENT_SYNC=0 stops waiting for the flip to be
      * presented (a tearing theory).  Both default to the cautious setting. */
-    g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
+    g_blit_skip = cfg_int("blit_skip",   1, "NIGHT_BLIT_SKIP");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
     /* of_interact_get() indexes by position in interact.json; the reserved SDK entries now occupy the first
@@ -305,8 +308,7 @@ void of_settings_load(void) {
         /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
          * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
          * stays as the route for a card-only diagnostic run (SCREEN=2 asks for the log overlaid on the game). */
-        if (lcd == OF_PLCD_TERMINAL) g_screen = 1;
-        else if (lcd == OF_PLCD_GAME || lcd == OF_PLCD_LCD_OFF) g_screen = 0;
+        if (g_screen < 0) g_screen = (lcd == OF_PLCD_TERMINAL) ? 1 : 0;
     }
 #endif
 

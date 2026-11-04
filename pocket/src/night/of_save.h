@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-#define OF_SAVE_SLOTS 8          /* data slot ids 10..17; the manifest budget (docs/334 §7) */
+#define OF_SAVE_SLOTS 7          /* data slot ids 10..16; id 17 is the diagnostic log (of_log.c) */
 
 /* Resolve + open one of the instance's save slots (ids 10..19 -> night_N.sav).
  * Returns 0 on success.  On the desktop build the slots are ordinary files under

@@ -23,10 +23,6 @@
                 "filename": "NIGHT.RES"
             },
             {
-                "id": 8,
-                "filename": "night.cfg"
-            },
-            {
                 "id": 10,
                 "filename": "night_0.sav"
             },
@@ -56,11 +52,7 @@
             },
             {
                 "id": 17,
-                "filename": "night_7.sav"
-            },
-            {
-                "id": 19,
-                "filename": "night_9.sav"
+                "filename": "nightlog.sav"
             },
             {
                 "id": 18,

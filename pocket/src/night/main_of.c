@@ -883,7 +883,7 @@ static void diag_panel(unsigned hz) {
 #endif
 
 static void file_probe(void) {
-    static const char *names[] = { "night.cfg", "night_0.sav", "night_7.sav", "NIGHT.RES", "track02.bin" };
+    static const char *names[] = { "nightlog.sav", "night_0.sav", "night_6.sav", "NIGHT.RES", "track02.bin" };
     for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
         uint32_t sid = 0;
         int r = of_file_slot_find(names[i], &sid);
@@ -901,14 +901,14 @@ static void file_probe(void) {
         closedir(d);
         NLOG("probe dir listed %d (cap 12)\n", n);
     }
-    FILE *f = fopen("night_0.sav", "wb");
-    if (!f) { NLOG("probe fopen night_0.sav wb FAILED\n"); }
+    FILE *f = fopen("night_6.sav", "wb");        /* a game save slot, so the probe cannot touch the log */
+    if (!f) { NLOG("probe fopen night_6.sav wb FAILED\n"); }
     else {
         static const char mark[] = "NIGHT-PROBE-0001";                 /* 17 bytes, NUL included */
         size_t w = fwrite(mark, 1, sizeof mark, f);
         fclose(f);                                                     /* the close a bridge commits on */
         NLOG("probe wrote %u then closed\n", (unsigned)w);
-        f = fopen("night_0.sav", "rb");
+        f = fopen("night_6.sav", "rb");
         if (!f) { NLOG("probe reopen FAILED\n"); }
         else {
             char buf[32]; size_t g = fread(buf, 1, 16, f); fclose(f);
@@ -1000,6 +1000,8 @@ int main(int argc, char **argv) {
         of_video_set_display_mode(mode);
         NLOG("screen: ini/menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
         NLOG("log ok=%d bytes=%ld\n", g_log_ok, of_log_bytes());
+        NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
+             (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
         file_probe();
 #ifndef OF_PC
         {   /* What the file layer thinks of the name we open the log on. */

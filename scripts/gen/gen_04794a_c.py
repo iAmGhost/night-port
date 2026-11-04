@@ -12,6 +12,7 @@ Register-ABI (matches the wrappers 0x0478e2/0x0478f0/0x04791a):
 Returns (EDX<<32)|EAX as uint64_t.
 """
 import re
+import os as _os, sys as _sys; _d=_os.path.dirname(_os.path.abspath(__file__)); _sys.path[:0]=[_d]+[_os.path.join(_d,"..",x) for x in ("ref","analysis","gen")]  # sibling analysis modules
 from fp_04794a_ref import INSNS
 
 R32 = {'EAX', 'EBX', 'ECX', 'EDX', 'ESI', 'EBP', 'EDI'}

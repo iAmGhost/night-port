@@ -1,9 +1,9 @@
 #ifndef FP_04794A_CTEST_H
 #define FP_04794A_CTEST_H
 /* Differential vectors for fn_04794a (0x0004794a). Expected (lo,hi) are the
- * ground-truth outputs of the mini x86 emulator scratch/fp_04794a_ref.py
+ * ground-truth outputs of the mini x86 emulator scripts/ref/fp_04794a_ref.py
  * (faithful execution of the 149-instruction Ghidra disasm). Regenerate:
- * python3 scratch/gen_04794a_testvec.py */
+ * python3 scripts/gen/gen_04794a_c.py, vectors from scripts/ref/fp_04794a_ref.py */
 typedef struct{uint32_t eax,edx,ebx,ecx,esi,lo,hi;} f4794a_vec_t;
 static const f4794a_vec_t f4794a_vecs[]={
 {0x0u,0x0u,0x6d6c3d78u,0xf1c1f66u,0x5e863de5u,0x6d6c3d78u,0xf1c1f66u},

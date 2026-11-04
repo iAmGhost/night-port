@@ -1,0 +1,452 @@
+00012efa  6838000000               push 0x38
+00012eff  e8eae90200               call 0x418ee
+00012f04  53                       push ebx
+00012f05  51                       push ecx
+00012f06  56                       push esi
+00012f07  57                       push edi
+00012f08  55                       push ebp
+00012f09  89e5                     mov ebp, esp
+00012f0b  81ec10000000             sub esp, 0x10
+00012f11  8945f8                   mov dword ptr [ebp - 8], eax
+00012f14  8955fc                   mov dword ptr [ebp - 4], edx
+00012f17  8b45f8                   mov eax, dword ptr [ebp - 8]
+00012f1a  8a4030                   mov al, byte ptr [eax + 0x30]
+00012f1d  25ff000000               and eax, 0xff
+00012f22  83f801                   cmp eax, 1
+00012f25  751a                     jne 0x12f41
+00012f27  bb17000000               mov ebx, 0x17
+00012f2c  a160330100               mov eax, dword ptr [0x13360]
+00012f31  8b1560330100             mov edx, dword ptr [0x13360]
+00012f37  c1fa1f                   sar edx, 0x1f
+00012f3a  f7fb                     idiv ebx
+00012f3c  83fa05                   cmp edx, 5
+00012f3f  7e02                     jle 0x12f43
+00012f41  eb13                     jmp 0x12f56
+00012f43  8b45f8                   mov eax, dword ptr [ebp - 8]
+00012f46  8a00                     mov al, byte ptr [eax]
+00012f48  25ff000000               and eax, 0xff
+00012f4d  83f802                   cmp eax, 2
+00012f50  0f8c31050000             jl 0x13487
+00012f56  8b45f8                   mov eax, dword ptr [ebp - 8]
+00012f59  8b5017                   mov edx, dword ptr [eax + 0x17]
+00012f5c  81e2ffffff7f             and edx, 0x7fffffff
+00012f62  c1e202                   shl edx, 2
+00012f65  8b45f8                   mov eax, dword ptr [ebp - 8]
+00012f68  8b8023010000             mov eax, dword ptr [eax + 0x123]
+00012f6e  8b4004                   mov eax, dword ptr [eax + 4]
+00012f71  01d0                     add eax, edx
+00012f73  8b00                     mov eax, dword ptr [eax]
+00012f75  8945f4                   mov dword ptr [ebp - 0xc], eax
+00012f78  8b55f8                   mov edx, dword ptr [ebp - 8]
+00012f7b  8b5211                   mov edx, dword ptr [edx + 0x11]
+00012f7e  89d0                     mov eax, edx
+00012f80  c1fa1f                   sar edx, 0x1f
+00012f83  8b5df4                   mov ebx, dword ptr [ebp - 0xc]
+00012f86  f73b                     idiv dword ptr [ebx]
+00012f88  01d2                     add edx, edx
+00012f8a  8b45f4                   mov eax, dword ptr [ebp - 0xc]
+00012f8d  8b406d                   mov eax, dword ptr [eax + 0x6d]
+00012f90  01c2                     add edx, eax
+00012f92  31c0                     xor eax, eax
+00012f94  668b02                   mov ax, word ptr [edx]
+00012f97  8945f0                   mov dword ptr [ebp - 0x10], eax
+00012f9a  8b45f8                   mov eax, dword ptr [ebp - 8]
+00012f9d  8a4030                   mov al, byte ptr [eax + 0x30]
+00012fa0  25ff000000               and eax, 0xff
+00012fa5  83f802                   cmp eax, 2
+00012fa8  751d                     jne 0x12fc7
+00012faa  bb14000000               mov ebx, 0x14
+00012faf  a160330100               mov eax, dword ptr [0x13360]
+00012fb4  8b1560330100             mov edx, dword ptr [0x13360]
+00012fba  c1fa1f                   sar edx, 0x1f
+00012fbd  f7fb                     idiv ebx
+00012fbf  85d2                     test edx, edx
+00012fc1  0f8454030000             je 0x1331b
+00012fc7  8b45f8                   mov eax, dword ptr [ebp - 8]
+00012fca  83781b00                 cmp dword ptr [eax + 0x1b], 0
+00012fce  0f858f010000             jne 0x13163
+00012fd4  8b45f4                   mov eax, dword ptr [ebp - 0xc]
+00012fd7  8a406c                   mov al, byte ptr [eax + 0x6c]
+00012fda  25ff000000               and eax, 0xff
+00012fdf  83f801                   cmp eax, 1
+00012fe2  0f85d7000000             jne 0x130bf
+00012fe8  b8d0000000               mov eax, 0xd0
+00012fed  50                       push eax
+00012fee  8b55f8                   mov edx, dword ptr [ebp - 8]
+00012ff1  31c0                     xor eax, eax
+00012ff3  8a421b                   mov al, byte ptr [edx + 0x1b]
+00012ff6  50                       push eax
+00012ff7  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+00012ffa  c1e002                   shl eax, 2
+00012ffd  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013000  8b9233010000             mov edx, dword ptr [edx + 0x133]
+00013006  01d0                     add eax, edx
+00013008  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001300b  8b9227010000             mov edx, dword ptr [edx + 0x127]
+00013011  0310                     add edx, dword ptr [eax]
+00013013  52                       push edx
+00013014  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+00013017  c1e002                   shl eax, 2
+0001301a  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001301d  8b922f010000             mov edx, dword ptr [edx + 0x12f]
+00013023  01c2                     add edx, eax
+00013025  8b02                     mov eax, dword ptr [edx]
+00013027  8b12                     mov edx, dword ptr [edx]
+00013029  c1fa1f                   sar edx, 0x1f
+0001302c  2bc2                     sub eax, edx
+0001302e  d1f8                     sar eax, 1
+00013030  50                       push eax
+00013031  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+00013034  c1e202                   shl edx, 2
+00013037  8b45f8                   mov eax, dword ptr [ebp - 8]
+0001303a  8b802b010000             mov eax, dword ptr [eax + 0x12b]
+00013040  01d0                     add eax, edx
+00013042  8b08                     mov ecx, dword ptr [eax]
+00013044  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+00013047  c1e002                   shl eax, 2
+0001304a  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001304d  8b922f010000             mov edx, dword ptr [edx + 0x12f]
+00013053  01c2                     add edx, eax
+00013055  8b02                     mov eax, dword ptr [edx]
+00013057  8b12                     mov edx, dword ptr [edx]
+00013059  c1fa1f                   sar edx, 0x1f
+0001305c  2bc2                     sub eax, edx
+0001305e  d1f8                     sar eax, 1
+00013060  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013063  8b5209                   mov edx, dword ptr [edx + 9]
+00013066  01c2                     add edx, eax
+00013068  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+0001306b  c1e002                   shl eax, 2
+0001306e  8b5df8                   mov ebx, dword ptr [ebp - 8]
+00013071  8b9b3b010000             mov ebx, dword ptr [ebx + 0x13b]
+00013077  01d8                     add eax, ebx
+00013079  2b10                     sub edx, dword ptr [eax]
+0001307b  2b15e0390100             sub edx, dword ptr [0x139e0]
+00013081  89d3                     mov ebx, edx
+00013083  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013086  8b4005                   mov eax, dword ptr [eax + 5]
+00013089  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001308c  8b5205                   mov edx, dword ptr [edx + 5]
+0001308f  c1fa1f                   sar edx, 0x1f
+00013092  2bc2                     sub eax, edx
+00013094  d1f8                     sar eax, 1
+00013096  01c3                     add ebx, eax
+00013098  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+0001309b  c1e002                   shl eax, 2
+0001309e  8b55f8                   mov edx, dword ptr [ebp - 8]
+000130a1  8b9237010000             mov edx, dword ptr [edx + 0x137]
+000130a7  01d0                     add eax, edx
+000130a9  8b55f8                   mov edx, dword ptr [ebp - 8]
+000130ac  8b5201                   mov edx, dword ptr [edx + 1]
+000130af  2b10                     sub edx, dword ptr [eax]
+000130b1  2b15dc390100             sub edx, dword ptr [0x139dc]
+000130b7  8b45fc                   mov eax, dword ptr [ebp - 4]
+000130ba  e872910200               call 0x3c231
+000130bf  8b45f8                   mov eax, dword ptr [ebp - 8]
+000130c2  8a401b                   mov al, byte ptr [eax + 0x1b]
+000130c5  25ff000000               and eax, 0xff
+000130ca  50                       push eax
+000130cb  8b5df0                   mov ebx, dword ptr [ebp - 0x10]
+000130ce  c1e302                   shl ebx, 2
+000130d1  8b45f8                   mov eax, dword ptr [ebp - 8]
+000130d4  8b9033010000             mov edx, dword ptr [eax + 0x133]
+000130da  01da                     add edx, ebx
+000130dc  8b45f8                   mov eax, dword ptr [ebp - 8]
+000130df  8b8027010000             mov eax, dword ptr [eax + 0x127]
+000130e5  0302                     add eax, dword ptr [edx]
+000130e7  50                       push eax
+000130e8  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+000130eb  c1e202                   shl edx, 2
+000130ee  8b45f8                   mov eax, dword ptr [ebp - 8]
+000130f1  8b802f010000             mov eax, dword ptr [eax + 0x12f]
+000130f7  01d0                     add eax, edx
+000130f9  ff30                     push dword ptr [eax]
+000130fb  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+000130fe  c1e202                   shl edx, 2
+00013101  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013104  8b802b010000             mov eax, dword ptr [eax + 0x12b]
+0001310a  01d0                     add eax, edx
+0001310c  8b08                     mov ecx, dword ptr [eax]
+0001310e  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013111  8b4005                   mov eax, dword ptr [eax + 5]
+00013114  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013117  034209                   add eax, dword ptr [edx + 9]
+0001311a  89c3                     mov ebx, eax
+0001311c  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+0001311f  c1e002                   shl eax, 2
+00013122  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013125  8b923b010000             mov edx, dword ptr [edx + 0x13b]
+0001312b  01d0                     add eax, edx
+0001312d  2b18                     sub ebx, dword ptr [eax]
+0001312f  2b1de0390100             sub ebx, dword ptr [0x139e0]
+00013135  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+00013138  c1e202                   shl edx, 2
+0001313b  8b45f8                   mov eax, dword ptr [ebp - 8]
+0001313e  8b8037010000             mov eax, dword ptr [eax + 0x137]
+00013144  01c2                     add edx, eax
+00013146  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013149  8b4001                   mov eax, dword ptr [eax + 1]
+0001314c  2b02                     sub eax, dword ptr [edx]
+0001314e  2b05dc390100             sub eax, dword ptr [0x139dc]
+00013154  89c2                     mov edx, eax
+00013156  8b45fc                   mov eax, dword ptr [ebp - 4]
+00013159  e8e4890200               call 0x3bb42
+0001315e  e9b3010000               jmp 0x13316
+00013163  8b45f4                   mov eax, dword ptr [ebp - 0xc]
+00013166  8a406c                   mov al, byte ptr [eax + 0x6c]
+00013169  25ff000000               and eax, 0xff
+0001316e  83f801                   cmp eax, 1
+00013171  0f85ed000000             jne 0x13264
+00013177  b8d0000000               mov eax, 0xd0
+0001317c  50                       push eax
+0001317d  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013180  8a401b                   mov al, byte ptr [eax + 0x1b]
+00013183  25ff000000               and eax, 0xff
+00013188  50                       push eax
+00013189  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+0001318c  c1e202                   shl edx, 2
+0001318f  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013192  8b8033010000             mov eax, dword ptr [eax + 0x133]
+00013198  01c2                     add edx, eax
+0001319a  8b45f8                   mov eax, dword ptr [ebp - 8]
+0001319d  8b8027010000             mov eax, dword ptr [eax + 0x127]
+000131a3  0302                     add eax, dword ptr [edx]
+000131a5  50                       push eax
+000131a6  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+000131a9  c1e202                   shl edx, 2
+000131ac  8b45f8                   mov eax, dword ptr [ebp - 8]
+000131af  8b802f010000             mov eax, dword ptr [eax + 0x12f]
+000131b5  01c2                     add edx, eax
+000131b7  8b02                     mov eax, dword ptr [edx]
+000131b9  8b12                     mov edx, dword ptr [edx]
+000131bb  c1fa1f                   sar edx, 0x1f
+000131be  2bc2                     sub eax, edx
+000131c0  d1f8                     sar eax, 1
+000131c2  50                       push eax
+000131c3  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+000131c6  c1e002                   shl eax, 2
+000131c9  8b55f8                   mov edx, dword ptr [ebp - 8]
+000131cc  8b922b010000             mov edx, dword ptr [edx + 0x12b]
+000131d2  01c2                     add edx, eax
+000131d4  8b0a                     mov ecx, dword ptr [edx]
+000131d6  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+000131d9  c1e202                   shl edx, 2
+000131dc  8b45f8                   mov eax, dword ptr [ebp - 8]
+000131df  8b802f010000             mov eax, dword ptr [eax + 0x12f]
+000131e5  01c2                     add edx, eax
+000131e7  8b02                     mov eax, dword ptr [edx]
+000131e9  8b12                     mov edx, dword ptr [edx]
+000131eb  c1fa1f                   sar edx, 0x1f
+000131ee  2bc2                     sub eax, edx
+000131f0  d1f8                     sar eax, 1
+000131f2  8b5df8                   mov ebx, dword ptr [ebp - 8]
+000131f5  8b5b09                   mov ebx, dword ptr [ebx + 9]
+000131f8  01c3                     add ebx, eax
+000131fa  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+000131fd  c1e002                   shl eax, 2
+00013200  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013203  8b923b010000             mov edx, dword ptr [edx + 0x13b]
+00013209  01c2                     add edx, eax
+0001320b  2b1a                     sub ebx, dword ptr [edx]
+0001320d  2b1de0390100             sub ebx, dword ptr [0x139e0]
+00013213  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013216  8b4005                   mov eax, dword ptr [eax + 5]
+00013219  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001321c  8b5205                   mov edx, dword ptr [edx + 5]
+0001321f  c1fa1f                   sar edx, 0x1f
+00013222  2bc2                     sub eax, edx
+00013224  d1f8                     sar eax, 1
+00013226  01c3                     add ebx, eax
+00013228  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+0001322b  c1e002                   shl eax, 2
+0001322e  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013231  8b922b010000             mov edx, dword ptr [edx + 0x12b]
+00013237  01d0                     add eax, edx
+00013239  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+0001323c  c1e202                   shl edx, 2
+0001323f  8b75f8                   mov esi, dword ptr [ebp - 8]
+00013242  8bb637010000             mov esi, dword ptr [esi + 0x137]
+00013248  01f2                     add edx, esi
+0001324a  8b00                     mov eax, dword ptr [eax]
+0001324c  2b02                     sub eax, dword ptr [edx]
+0001324e  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013251  8b5201                   mov edx, dword ptr [edx + 1]
+00013254  29c2                     sub edx, eax
+00013256  2b15dc390100             sub edx, dword ptr [0x139dc]
+0001325c  8b45fc                   mov eax, dword ptr [ebp - 4]
+0001325f  e8cd8f0200               call 0x3c231
+00013264  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013267  8a401b                   mov al, byte ptr [eax + 0x1b]
+0001326a  25ff000000               and eax, 0xff
+0001326f  50                       push eax
+00013270  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+00013273  c1e202                   shl edx, 2
+00013276  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013279  8b8033010000             mov eax, dword ptr [eax + 0x133]
+0001327f  01d0                     add eax, edx
+00013281  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013284  8b9227010000             mov edx, dword ptr [edx + 0x127]
+0001328a  0310                     add edx, dword ptr [eax]
+0001328c  52                       push edx
+0001328d  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+00013290  c1e002                   shl eax, 2
+00013293  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013296  8b922f010000             mov edx, dword ptr [edx + 0x12f]
+0001329c  01d0                     add eax, edx
+0001329e  ff30                     push dword ptr [eax]
+000132a0  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+000132a3  c1e202                   shl edx, 2
+000132a6  8b45f8                   mov eax, dword ptr [ebp - 8]
+000132a9  8b802b010000             mov eax, dword ptr [eax + 0x12b]
+000132af  01d0                     add eax, edx
+000132b1  8b08                     mov ecx, dword ptr [eax]
+000132b3  8b45f8                   mov eax, dword ptr [ebp - 8]
+000132b6  8b4005                   mov eax, dword ptr [eax + 5]
+000132b9  8b55f8                   mov edx, dword ptr [ebp - 8]
+000132bc  034209                   add eax, dword ptr [edx + 9]
+000132bf  89c3                     mov ebx, eax
+000132c1  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+000132c4  c1e002                   shl eax, 2
+000132c7  8b55f8                   mov edx, dword ptr [ebp - 8]
+000132ca  8b923b010000             mov edx, dword ptr [edx + 0x13b]
+000132d0  01d0                     add eax, edx
+000132d2  2b18                     sub ebx, dword ptr [eax]
+000132d4  2b1de0390100             sub ebx, dword ptr [0x139e0]
+000132da  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+000132dd  c1e002                   shl eax, 2
+000132e0  8b55f8                   mov edx, dword ptr [ebp - 8]
+000132e3  8b922b010000             mov edx, dword ptr [edx + 0x12b]
+000132e9  01d0                     add eax, edx
+000132eb  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+000132ee  c1e202                   shl edx, 2
+000132f1  8b75f8                   mov esi, dword ptr [ebp - 8]
+000132f4  8bb637010000             mov esi, dword ptr [esi + 0x137]
+000132fa  01f2                     add edx, esi
+000132fc  8b00                     mov eax, dword ptr [eax]
+000132fe  2b02                     sub eax, dword ptr [edx]
+00013300  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013303  8b5201                   mov edx, dword ptr [edx + 1]
+00013306  29c2                     sub edx, eax
+00013308  2b15dc390100             sub edx, dword ptr [0x139dc]
+0001330e  8b45fc                   mov eax, dword ptr [ebp - 4]
+00013311  e82c880200               call 0x3bb42
+00013316  e96c010000               jmp 0x13487
+0001331b  8b45f8                   mov eax, dword ptr [ebp - 8]
+0001331e  83781b00                 cmp dword ptr [eax + 0x1b], 0
+00013322  0f85aa000000             jne 0x133d2
+00013328  b89c000000               mov eax, 0x9c
+0001332d  50                       push eax
+0001332e  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013331  8a401b                   mov al, byte ptr [eax + 0x1b]
+00013334  25ff000000               and eax, 0xff
+00013339  50                       push eax
+0001333a  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+0001333d  c1e202                   shl edx, 2
+00013340  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013343  8b8033010000             mov eax, dword ptr [eax + 0x133]
+00013349  01c2                     add edx, eax
+0001334b  8b45f8                   mov eax, dword ptr [ebp - 8]
+0001334e  8b8027010000             mov eax, dword ptr [eax + 0x127]
+00013354  0302                     add eax, dword ptr [edx]
+00013356  50                       push eax
+00013357  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+0001335a  c1e202                   shl edx, 2
+0001335d  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013360  8b802f010000             mov eax, dword ptr [eax + 0x12f]
+00013366  01d0                     add eax, edx
+00013368  ff30                     push dword ptr [eax]
+0001336a  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+0001336d  c1e202                   shl edx, 2
+00013370  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013373  8b802b010000             mov eax, dword ptr [eax + 0x12b]
+00013379  01d0                     add eax, edx
+0001337b  8b08                     mov ecx, dword ptr [eax]
+0001337d  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013380  8b4005                   mov eax, dword ptr [eax + 5]
+00013383  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013386  034209                   add eax, dword ptr [edx + 9]
+00013389  89c3                     mov ebx, eax
+0001338b  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+0001338e  c1e202                   shl edx, 2
+00013391  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013394  8b803b010000             mov eax, dword ptr [eax + 0x13b]
+0001339a  01d0                     add eax, edx
+0001339c  2b18                     sub ebx, dword ptr [eax]
+0001339e  2b1de0390100             sub ebx, dword ptr [0x139e0]
+000133a4  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+000133a7  c1e002                   shl eax, 2
+000133aa  8b55f8                   mov edx, dword ptr [ebp - 8]
+000133ad  8b9237010000             mov edx, dword ptr [edx + 0x137]
+000133b3  01c2                     add edx, eax
+000133b5  8b45f8                   mov eax, dword ptr [ebp - 8]
+000133b8  8b4001                   mov eax, dword ptr [eax + 1]
+000133bb  2b02                     sub eax, dword ptr [edx]
+000133bd  2b05dc390100             sub eax, dword ptr [0x139dc]
+000133c3  89c2                     mov edx, eax
+000133c5  8b45fc                   mov eax, dword ptr [ebp - 4]
+000133c8  e8ee8a0200               call 0x3bebb
+000133cd  e9b5000000               jmp 0x13487
+000133d2  b89c000000               mov eax, 0x9c
+000133d7  50                       push eax
+000133d8  8b55f8                   mov edx, dword ptr [ebp - 8]
+000133db  31c0                     xor eax, eax
+000133dd  8a421b                   mov al, byte ptr [edx + 0x1b]
+000133e0  50                       push eax
+000133e1  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+000133e4  c1e202                   shl edx, 2
+000133e7  8b45f8                   mov eax, dword ptr [ebp - 8]
+000133ea  8b8033010000             mov eax, dword ptr [eax + 0x133]
+000133f0  01d0                     add eax, edx
+000133f2  8b55f8                   mov edx, dword ptr [ebp - 8]
+000133f5  8b9227010000             mov edx, dword ptr [edx + 0x127]
+000133fb  0310                     add edx, dword ptr [eax]
+000133fd  52                       push edx
+000133fe  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+00013401  c1e202                   shl edx, 2
+00013404  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013407  8b802f010000             mov eax, dword ptr [eax + 0x12f]
+0001340d  01d0                     add eax, edx
+0001340f  ff30                     push dword ptr [eax]
+00013411  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+00013414  c1e002                   shl eax, 2
+00013417  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001341a  8b922b010000             mov edx, dword ptr [edx + 0x12b]
+00013420  01d0                     add eax, edx
+00013422  8b08                     mov ecx, dword ptr [eax]
+00013424  8b45f8                   mov eax, dword ptr [ebp - 8]
+00013427  8b4005                   mov eax, dword ptr [eax + 5]
+0001342a  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001342d  034209                   add eax, dword ptr [edx + 9]
+00013430  89c3                     mov ebx, eax
+00013432  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+00013435  c1e002                   shl eax, 2
+00013438  8b55f8                   mov edx, dword ptr [ebp - 8]
+0001343b  8b923b010000             mov edx, dword ptr [edx + 0x13b]
+00013441  01d0                     add eax, edx
+00013443  2b18                     sub ebx, dword ptr [eax]
+00013445  2b1de0390100             sub ebx, dword ptr [0x139e0]
+0001344b  8b45f0                   mov eax, dword ptr [ebp - 0x10]
+0001344e  c1e002                   shl eax, 2
+00013451  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013454  8b922b010000             mov edx, dword ptr [edx + 0x12b]
+0001345a  01d0                     add eax, edx
+0001345c  8b55f0                   mov edx, dword ptr [ebp - 0x10]
+0001345f  c1e202                   shl edx, 2
+00013462  8b75f8                   mov esi, dword ptr [ebp - 8]
+00013465  8bb637010000             mov esi, dword ptr [esi + 0x137]
+0001346b  01f2                     add edx, esi
+0001346d  8b00                     mov eax, dword ptr [eax]
+0001346f  2b02                     sub eax, dword ptr [edx]
+00013471  8b55f8                   mov edx, dword ptr [ebp - 8]
+00013474  8b5201                   mov edx, dword ptr [edx + 1]
+00013477  29c2                     sub edx, eax
+00013479  2b15dc390100             sub edx, dword ptr [0x139dc]
+0001347f  8b45fc                   mov eax, dword ptr [ebp - 4]
+00013482  e8348a0200               call 0x3bebb
+00013487  89ec                     mov esp, ebp
+00013489  5d                       pop ebp
+0001348a  5f                       pop edi
+0001348b  5e                       pop esi
+0001348c  59                       pop ecx
+0001348d  5b                       pop ebx
+0001348e  c3                       ret 

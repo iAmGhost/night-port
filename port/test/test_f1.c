@@ -3457,7 +3457,7 @@ static void test_fn_04574a_date_cluster(void) {
 
 static void test_fn_049613(void) {
     printf("fn_049613 (recurring-event date arithmetic, 236 ins)\n");
-    /* Differential vectors from scratch/fp_049613_ref.py (independent ref).
+    /* Differential vectors from scripts/ref/fp_049613_ref.py (independent ref).
      * struct dec_datetime field order: sec,min,hour,day,month,year,dow,doy,mode.
      * G1==G2 cases -> fn_0495eb==0 (cmp=0); mode!=0 cases -> fn_049506 returns
      * doy directly (no fn_04574a dependence), so every vector is deterministic. */
@@ -3877,14 +3877,14 @@ static void test_fn_047f54(void) {
             break;
         }
     }
-    check(ok, "  all 2009 differential vectors match reference (scratch/fp_047f54_ref.py)");
+    check(ok, "  all 2009 differential vectors match reference (scripts/ref/fp_047f54_ref.py)");
 }
 
 /* fn_04794a (0x0004794a): complex fixed-point normalize, 149-ins register-ABI
  * routine (EAX:EDX in, EBX,ECX,ESI exponent; returns (EDX<<32)|EAX). The C port
  * is a disasm-faithful translation (port/src/f/fx_04794a.c) verified by
 differential testing against the ground-truth mini x86 emulator
- * (scratch/fp_04794a_ref.py). Vectors below are the emulator's outputs. */
+ * (scripts/ref/fp_04794a_ref.py). Vectors below are the emulator's outputs. */
 static void test_fn_04794a(void) {
     int pass = 0, fail = 0;
     for (int i = 0; i < F4794A_VECS_N; i++) {
@@ -3902,7 +3902,7 @@ static void test_fn_04794a(void) {
     }
     printf("fn_04794a (0x0004794a, fixed-point normalize, %d diff vectors): %d pass, %d fail\n",
            F4794A_VECS_N, pass, fail);
-    check(fail == 0, "  all vectors match ground-truth emulator (scratch/fp_04794a_ref.py)");
+    check(fail == 0, "  all vectors match ground-truth emulator (scripts/ref/fp_04794a_ref.py)");
 }
 
 /* fn_0478f0/0478e2/04791a (0x0478xx): fn_04794a wrappers. Verified
@@ -4981,7 +4981,7 @@ static void test_fn_048754(void) {
 }
 
 /* fn_048422 (L3, 354B): FPU/fx128 composite. Differential test against the
- * independently-built Python reference (scratch/fp_048422_ref.py), which composes
+ * independently-built Python reference (scripts/ref/fp_048422_ref.py), which composes
  * the verified 04794a/047b79/047d4e refs and mirrors the ported 048f4c/048f9e/
  * 04791a. Vectors cover: sentinel(+/-), exp>=0x3fff(+scale2 sign-XOR), threshold
  * (3 sub-cases + boundary no-ops), no-blocks, sign-restore, exp==0, all-zero. */
@@ -5017,8 +5017,8 @@ static void test_fn_048422(void) {
 }
 
 static void test_fn_0487b0(void) {
-    /* 0x0487b0 differential vectors from scratch/fp_0487b0_ref.py (fixed ref, trace-
-     * faithful to scratch/dis_0487b0.txt). Covers all 4 (branch, path) combos:
+    /* 0x0487b0 differential vectors from scripts/ref/fp_0487b0_ref.py (fixed ref, trace-
+     * faithful to analysis/disasm/dis_0487b0.txt). Covers all 4 (branch, path) combos:
      * if/else (magic-hi compare) x jz(fw==0 short path)/f0e(fx_from_s32 path). */
     struct { uint32_t lo, hi; uint16_t exp; uint32_t elo, ehi; uint16_t eexp; } V[] = {
         {0x12345678,0xabcdef90,0x2000, 0xb174e748,0xb16a7222,0xfc0b}, /* else/f0e */
@@ -5051,7 +5051,7 @@ static void test_fn_0487b0(void) {
 }
 
 static void test_fn_04876d(void) {
-    /* 0x04876d differential vectors from scratch/fp_04876d_ref.py (composes the
+    /* 0x04876d differential vectors from scripts/ref/fp_04876d_ref.py (composes the
      * verified fp_0487b0_ref + fp_047d4e_ref). a=EAX, b=EDX. Verifies the glue:
      * a=0487b0(a); b=a*b (in place); b=b*const (in place, esi=(b.exp<<16)|0x3fff).
      * Covers 0487b0 underflow (a->0), if-branch boundary, sentinel, 10 random. */
@@ -5091,7 +5091,7 @@ static void test_fn_04876d(void) {
 
 static void test_fn_048c8c(void) {
     /* fn_048c8c (0x048c8c, L2, 467B, 163 insns) in-place fx128 composite. Diff vectors
-     * from scratch/fp_048c8c_ref.py (composes fp_04791a/047d4e/04794a/047b79 ref ports).
+     * from scripts/ref/fp_048c8c_ref.py (composes fp_04791a/047d4e/04794a/047b79 ref ports).
      * Covers: zero/special inputs, normalized positive (exp 0x3f00-0x4020), normalized
      * negative (exp bit15 set, 0x8000-0xc010), random exp band 0x3e00-0x4040.
      * NOTE: for all normalizable inputs the chain overflows at t2 (sq*const) so the
@@ -5171,7 +5171,7 @@ static void test_fn_048c8c(void) {
 
 static void test_fn_048a48(void) {
     /* fn_048a48 (0x048a48, L3, 502B, 171 insns) differential vectors from
-     * scratch/fp_048a48_ref.py (composes fp_0485eb_ref + fp_04794a_ref + fp_047d4e_ref
+     * scripts/ref/fp_048a48_ref.py (composes fp_0485eb_ref + fp_04794a_ref + fp_047d4e_ref
      * + fp_0487b0_ref._f4c + fp_047b79_ref). In-place: a={lo,hi,exp}, esi in {0,1,2}
      * (the 3 L4 thunks). Covers 0485eb align-subtract, sign block, F-flags, AL&1,
      * underflow (d2<-0x20), every scale, f4c/f9e/ch branches, 047b79. */
@@ -5350,7 +5350,7 @@ static void test_fn_04836c(void) {
 
 static void test_fn_048e60(void) {
     printf("fn_048e60 (0x048e60, 128-bit fixed-point normalize + Newton divide)\n");
-    /* Differential vs independent reference (scratch/fp_048e60.py). */
+    /* Differential vs independent reference (scripts/ref/fp_048e60.py). */
     struct { uint32_t in[3], exp[3]; const char *name; } cases[] = {
         {{0x12345678,0x80000001,0x00000000},{0xbbc2b2f8,0xb504f334,0x00001fff},"Newton exp=0"},
         {{0x00000001,0x80000002,0x00000001},{0x00000000,0x80000001,0x00002000},"Newton div2"},
@@ -5375,7 +5375,7 @@ static void test_fn_048e60(void) {
 
 static void test_fn_0485eb(void) {
     printf("fn_0485eb (0x0485eb, 64-bit align-subtract-normalize, register-ABI)\n");
-    /* Differential vs independent asm-mirror reference (scratch/fp_0485eb_ref.py). */
+    /* Differential vs independent asm-mirror reference (scripts/ref/fp_0485eb_ref.py). */
     unsigned bad = 0;
     for (unsigned i = 0; i < v0485eb_n; i++) {
         const v0485eb_t *v = &v0485eb_v[i];
@@ -6776,7 +6776,7 @@ static void test_fn_048053(void) {
             ok = 0; break;
         }
     }
-    check(ok, "  all differential vectors match reference (scratch/fp_048053_ref.py)");
+    check(ok, "  all differential vectors match reference (scripts/ref/fp_048053_ref.py)");
 }
 
 static void test_fn_047b79(void) {
@@ -6792,7 +6792,7 @@ static void test_fn_047b79(void) {
             ok = 0; break;
         }
     }
-    check(ok, "  all 3000 differential vectors match reference (scratch/fp_047b79_ref.py)");
+    check(ok, "  all 3000 differential vectors match reference (scripts/ref/fp_047b79_ref.py)");
     uint32_t oe, od; uint16_t osi;
     fn_047b79(0,0,0,0,0, &oe,&od,&osi);
     check(oe==0 && od==0xc0000000u && osi==0xffff, "  B=0,A=0 marker (0,0xC0000000,0xffff)");
@@ -11227,7 +11227,7 @@ static void test_fn_04a367(void) {
 
 static void test_fn_04a48f(void) {
     printf("fn_04a48f (0x04a48f, double -> fixed/exponent decimal-ASCII string)\n");
-    /* Differential vs scratch/fp_04a48f_ref.py (independent re-implementation of the
+    /* Differential vs scripts/ref/fp_04a48f_ref.py (independent re-implementation of the
      * control flow + primitives). Each vector: d, width, format -> out, *p_cnt, *p_flag.
      * Covers: inf/nan (±), 0, small integers (fast path), negative flag, non-'F' format,
      * fractional (frac!=0), and multi-call paths. */

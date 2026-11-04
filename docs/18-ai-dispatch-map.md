@@ -9,7 +9,7 @@ note exists so the handler ports have a fixed map to work toward.
 ABI: `EAX = entity block` (Ghidra renders the `PUSH imm; CALL 0x0418ee` stack probe as
 `iVar1 = FUN_000418ee()`, but the probe preserves EAX, so `iVar1` is the entity). Ghidra's function length is
 991 B; the STATUS row lists 1153 B for the entry (the extra bytes are the trailing epilogue/next-entry gap) —
-re-derive the exact span with `scratch/fdis.py 31a8e` before porting.
+re-derive the exact span with `scripts/analysis/fdis.py 31a8e` before porting.
 
 Two shared state-machine arms run for every entity, then the per-type handler is dispatched:
 
@@ -82,7 +82,7 @@ Notes for the ports:
 
 ## Recon pass: 0x017f13 (behaviour 0x00) -- ready to port
 
-`scratch/fnskel.py 17f13 0f64` (condensed skeleton; keep the script for the other 17 handlers).
+`scripts/analysis/fnskel.py 17f13 0f64` (condensed skeleton; keep the script for the other 17 handlers).
 
 * 3940 B, **978 instructions**, **55 calls**, and **every callee is already ported** -- confirmed
   against the STATUS `[x]` rows: `fn_01519f`/`fn_0151d5` (entity get-x / get-y), `fn_041f76` (abs32),
@@ -148,7 +148,7 @@ The swing region is NOT a constant variant here: sprite 0x2a plans Y only ((play
 0x5005c, latch at entity frame 0x32, window 0x33..0x46) and sprite 0x2c keeps the *line* through the
 player -- entity[0xdb] slope, entity[0xe3] intercept -- stepping the anchor->player segment over 50
 frames (DS 0x50064/0x5006c/0x50074) and reading the other axis off that line.  Both use new pool
-doubles; scratch/aidd.py annotates call targets and DS constants (data file offset = VA - 0x7600).
+doubles; scripts/analysis/aidd.py annotates call targets and DS constants (data file offset = VA - 0x7600).
 Ambush distance and the walk marker byte are per-handler (0x3c / ',' here).
 
 ### Ported: 0x027bec (behaviour-0x22)
@@ -231,7 +231,7 @@ and entity[0xe7] instead of entity[0xe7]. The arm is a SWING, not the 0x02fe1e c
   CAUTION when reading the listing: `mov eax, dword ptr [ebp-8]` lines are load-bearing (they restore the
   entity pointer between table-indexed accesses) -- do not filter them out when re-reading.
 
-INSTRUCTION-STREAM TOOL (scratch/aidiff_insns.py, use this instead of the pseudo diff): pass two VAs.
+INSTRUCTION-STREAM TOOL (scripts/analysis/aidiff_insns.py, use this instead of the pseudo diff): pass two VAs.
 It disassembles both with capstone, masks EVERY immediate/displacement, and SequenceMatchers the
 mnemonic stream (so stack-slot renames and branch-target shifts vanish); `--consts` then re-compares
 the matched pairs with only branch/call targets masked, i.e. prints the genuine constant
@@ -251,7 +251,7 @@ too-close restore in 0x0265ac (both paths clamped) but BEFORE it in 0x029709 (re
 only prng()%2 side slots; a script row whose col-1 byte is '.' (0x2b) drops the walk's 6 px Y
 tolerance in 0x029709. RESOLVED, do not re-derive: the family's x87 divisors are ordinary initialised image data. Capstone prints DS-relative displacements without Ghidra's +0x50000 image base, so `qword ptr [0x44]` is DS 0x50044. Pool (scripts/extract_ds.py 0x50010 192 -> g_blk_50010): DS 0x50014/0x50018/0x5001c/0x50020 = float 31.0 x4, 0x50044 = 20.0, 0x5009c/0xa4/0xac = 30.0, 0x500b4/0xbc/0xc4 = 27.0, 0x500cc = 20.0.
 
-HANDLER FRONTIER (recomputed with a corrected pending/callee scan, scratch/frontier-style): every one of
+HANDLER FRONTIER (recomputed with a corrected pending/callee scan, scripts/frontier.py-style): every one of
 the 9 remaining handlers is gated ONLY on folded helpers (0x0418ee canary prologue, 0x041e9f prng,
 0x041f76 abs, 0x041f7e modulo) plus 0x01586b / 0x017927, which are BOTH already ported. None of them is
 waiting on real work, so the AI campaign is a straight reading queue, ordered cheapest first:
@@ -264,12 +264,12 @@ entity[0x5f] latch (4 reads). Downstream of them sit 0x031a8e (needs all of them
 per-frame AI loop) and 0x03a829 (the frame driver), so the handler queue is the critical path to a
 loading stage.
 
-FAMILY TEMPLATE STATUS (scratch/aicases.py, comparing each pending handler's canonical pseudo case-by-case against fn_01bea8): 0x01f064, 0x020170, 0x0221b8 differ ONLY in case 0x00, and 0x02119c also differs in case 0x0b -- so those five are body-generation jobs (pattern: scratch/gen_01df8b.py) rather than fresh reads. 0x02319c, 0x024bf9, 0x0265ac, 0x027bec (and probably the other 6-7 KB entries) have no `switch(` in their pseudo at all -- they use if-chains, so they must be read on their own.
+FAMILY TEMPLATE STATUS (scripts/analysis/aicases.py, comparing each pending handler's canonical pseudo case-by-case against fn_01bea8): 0x01f064, 0x020170, 0x0221b8 differ ONLY in case 0x00, and 0x02119c also differs in case 0x0b -- so those five are body-generation jobs (pattern: scripts/gen/gen_01df8b.py) rather than fresh reads. 0x02319c, 0x024bf9, 0x0265ac, 0x027bec (and probably the other 6-7 KB entries) have no `switch(` in their pseudo at all -- they use if-chains, so they must be read on their own.
 
-Older progress: (6 of 18 -- 0x01cf64/behaviours 0x05+0x09+0x0a added: the MODE-in-EDX handler, a recon gate, and a script-row-based spot chooser; use `scratch/aicases.py` to diff the family per switch-case, and `scratch/gen_01cf64.py` shows the body-generation pattern).
+Older progress: (6 of 18 -- 0x01cf64/behaviours 0x05+0x09+0x0a added: the MODE-in-EDX handler, a recon gate, and a script-row-based spot chooser; use `scripts/analysis/aicases.py` to diff the family per switch-case, and `scripts/gen/gen_01cf64.py` shows the body-generation pattern).
 
 Older progress: (5 of 18 -- 0x01bea8/behaviour 0x04 added: a split slot draw `v%%100<0x32 -> v%%8+2 (2..9)` else `prng%%2 (0/1)`, and the player-Y write parked before keep_x/keep_y):
-  Use `python3 scratch/aicdiff.py <addrA> <addrB>` -- it canonicalizes Ghidra local names per function and drops rename/declaration-only hunks, which is the whole trick: a 45-hunk raw diff becomes the 1-2 hunks that actually differ.
+  Use `python3 scripts/analysis/aicdiff.py <addrA> <addrB>` -- it canonicalizes Ghidra local names per function and drops rename/declaration-only hunks, which is the whole trick: a 45-hunk raw diff becomes the 1-2 hunks that actually differ.
 
 Older progress: (4 of 18): **0x017f13** (behaviour 0x00), **0x018e88** (behaviour 0x01),
 **0x019e48** (behaviour 0x02), **0x01aec8** (behaviour 0x03 -- the chooser alternates on entity[0x5f]
@@ -337,7 +337,7 @@ Derived facts (from `analysis/disasm/FUN_0001cf64.txt`, size 4134, 1080 insns):
   twelve action routines are reached with the same register ABI, and the tail (mv_a -> 0x1545e,
   mv_b -> 0x1586b, facing vs the player) is the same. case 0x0c differs from the siblings (no
   `prng % 0x14 == 2` split there -- see the 0x0001d.. case-0x0c block).
-* Tooling for the next pass: `python3 scratch/aicdiff.py <addrA> <addrB>` canonicalizes Ghidra local
+* Tooling for the next pass: `python3 scripts/analysis/aicdiff.py <addrA> <addrB>` canonicalizes Ghidra local
   names per function and drops rename-only hunks (it reduced 0x01bea8 vs 0x01aec8 to the chooser
   alone); for handlers that diverge as much as this one, prefer
-  `uv run --quiet --with capstone python3 scratch/fnskel.py <addr>` and diff the condensed skeletons.
+  `uv run --quiet --with capstone python3 scripts/analysis/fnskel.py <addr>` and diff the condensed skeletons.

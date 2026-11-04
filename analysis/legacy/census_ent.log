@@ -1,0 +1,305 @@
+ent1      warp-entity: boss1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: dust deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: ena-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: ena-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: enb-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: enb-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: enc-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: enc-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: end-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: mark deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: mboss1-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent1      warp-entity: boss1 type=1 frame=2570 spawned
+ent1      warp-entity: dust type=250 frame=2570 spawned
+ent1      warp-entity: ena-1 type=31 frame=2570 spawned
+ent1      warp-entity: ena-2 type=32 frame=2570 spawned
+ent1      warp-entity: enb-1 type=36 frame=2570 spawned
+ent1      warp-entity: enb-2 type=37 frame=2570 spawned
+ent1      warp-entity: enc-1 type=41 frame=2570 spawned
+ent1      warp-entity: enc-2 type=42 frame=2570 spawned
+ent1      warp-entity: end-1 type=46 frame=2570 spawned
+ent1      warp-entity: mark type=201 frame=2570 spawned
+ent1      warp-entity: mboss1-1 type=11 frame=2570 spawned
+ent1      composites attributed to a shipped .spr:   580   assets:  15  ['boss1.spr', 'dust.spr', 'ena-1.spr', 'ena-2.spr', 'enb-1.spr', 'enb-2.spr', 'enc-1.spr', 'enc-2.spr'] ...
+ent1      loaded by the game's own loader:    20   loaded but not drawn:   5  ['face.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+ent2      warp-entity: boss2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: dust deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: ene-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: ene-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: enf-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: enf-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: eng-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: eng-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: eng-3 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: mark deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: mboss1-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: mboss2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent2      warp-entity: boss2 type=2 frame=2573 spawned
+ent2      warp-entity: dust type=250 frame=2573 spawned
+ent2      warp-entity: ene-1 type=51 frame=2573 spawned
+ent2      warp-entity: ene-2 type=52 frame=2573 spawned
+ent2      warp-entity: enf-1 type=56 frame=2573 spawned
+ent2      warp-entity: enf-2 type=57 frame=2573 spawned
+ent2      warp-entity: eng-1 type=61 frame=2573 spawned
+ent2      warp-entity: eng-2 type=62 frame=2573 spawned
+ent2      warp-entity: eng-3 type=63 frame=2573 spawned
+ent2      warp-entity: mark type=201 frame=2573 spawned
+ent2      warp-entity: mboss1-2 type=12 frame=2573 spawned
+ent2      warp-entity: mboss2 type=13 frame=2573 spawned
+ent2      composites attributed to a shipped .spr:   580   assets:  16  ['boss2.spr', 'dust.spr', 'ene-1.spr', 'ene-2.spr', 'enf-1.spr', 'enf-2.spr', 'eng-1.spr', 'eng-2.spr'] ...
+ent2      loaded by the game's own loader:    21   loaded but not drawn:   5  ['face.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+ent3      warp-entity: boss3-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: dust deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: enh-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: enh-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: eni-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: eni-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: enj-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: enj-3 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: mark deferred at frame 602: no live room record (the room loop owns the entity list)
+ent3      warp-entity: boss3-1 type=3 frame=2572 spawned
+ent3      warp-entity: dust type=250 frame=2572 spawned
+ent3      warp-entity: enh-1 type=71 frame=2572 spawned
+ent3      warp-entity: enh-2 type=72 frame=2572 spawned
+ent3      warp-entity: eni-1 type=76 frame=2572 spawned
+ent3      warp-entity: eni-2 type=77 frame=2572 spawned
+ent3      warp-entity: enj-1 type=81 frame=2572 spawned
+ent3      warp-entity: enj-3 type=83 frame=2572 spawned
+ent3      warp-entity: mark type=201 frame=2572 spawned
+ent3      composites attributed to a shipped .spr:   580   assets:  13  ['boss3-1.spr', 'dust.spr', 'enh-1.spr', 'enh-2.spr', 'eni-1.spr', 'eni-2.spr', 'enj-1.spr', 'enj-3.spr'] ...
+ent3      loaded by the game's own loader:    18   loaded but not drawn:   5  ['face.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+ent4      warp-entity: boss3-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent4      warp-entity: dust deferred at frame 602: no live room record (the room loop owns the entity list)
+ent4      warp-entity: ene-3 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent4      warp-entity: ene-4 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent4      warp-entity: enf-3 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent4      warp-entity: mark deferred at frame 602: no live room record (the room loop owns the entity list)
+ent4      warp-entity: boss3-2 type=4 frame=2572 spawned
+ent4      warp-entity: dust type=250 frame=2572 spawned
+ent4      warp-entity: ene-3 type=53 frame=2572 spawned
+ent4      warp-entity: ene-4 type=54 frame=2572 spawned
+ent4      warp-entity: enf-3 type=58 frame=2572 spawned
+ent4      warp-entity: mark type=201 frame=2572 spawned
+ent4      composites attributed to a shipped .spr:   580   assets:  10  ['boss3-2.spr', 'dust.spr', 'ene-3.spr', 'ene-4.spr', 'enf-3.spr', 'exp.spr', 'gage.spr', 'gun.spr'] ...
+ent4      loaded by the game's own loader:    15   loaded but not drawn:   5  ['face.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+ent5      warp-entity: boss3-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent5      warp-entity: dust deferred at frame 603: no live room record (the room loop owns the entity list)
+ent5      warp-entity: enk-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent5      warp-entity: enk-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent5      warp-entity: mark deferred at frame 603: no live room record (the room loop owns the entity list)
+ent5      warp-entity: boss3-3 type=5 frame=2573 spawned
+ent5      warp-entity: dust type=250 frame=2573 spawned
+ent5      warp-entity: enk-1 type=86 frame=2573 spawned
+ent5      warp-entity: enk-2 type=87 frame=2573 spawned
+ent5      warp-entity: mark type=201 frame=2573 spawned
+ent5      composites attributed to a shipped .spr:   580   assets:   9  ['boss3-3.spr', 'dust.spr', 'enk-1.spr', 'enk-2.spr', 'exp.spr', 'gage.spr', 'gun.spr', 'mark.spr'] ...
+ent5      loaded by the game's own loader:    14   loaded but not drawn:   5  ['face.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+ent6      warp-entity: boss4 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: dust deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: ena-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: ena-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: ena-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: enb-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: enb-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: enc-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: enc-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: enc-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: end-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: end-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: end-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: mark deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: mboss1-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent6      warp-entity: boss4 type=6 frame=2574 spawned
+ent6      warp-entity: dust type=250 frame=2574 spawned
+ent6      warp-entity: ena-1 type=31 frame=2574 spawned
+ent6      warp-entity: ena-2 type=32 frame=2574 spawned
+ent6      warp-entity: ena-3 type=33 frame=2574 spawned
+ent6      warp-entity: enb-1 type=36 frame=2574 spawned
+ent6      warp-entity: enb-2 type=37 frame=2574 spawned
+ent6      warp-entity: enc-1 type=41 frame=2574 spawned
+ent6      warp-entity: enc-2 type=42 frame=2574 spawned
+ent6      warp-entity: enc-3 type=43 frame=2574 spawned
+ent6      warp-entity: end-1 type=46 frame=2574 spawned
+ent6      warp-entity: end-2 type=47 frame=2574 spawned
+ent6      warp-entity: end-3 type=48 frame=2574 spawned
+ent6      warp-entity: mark type=201 frame=2574 spawned
+ent6      warp-entity: mboss1-1 type=11 frame=2574 spawned
+ent6      composites attributed to a shipped .spr:   576   assets:  19  ['boss4.spr', 'dust.spr', 'ena-1.spr', 'ena-2.spr', 'ena-3.spr', 'enb-1.spr', 'enb-2.spr', 'enc-1.spr'] ...
+ent6      loaded by the game's own loader:    24   loaded but not drawn:   5  ['face.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+ent7      warp-entity: boss5 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: dust deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: ena-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: ena-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: ena-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: enb-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: enb-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: enb-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: enb-4 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: enc-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: enc-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: enc-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: end-1 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: end-2 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: end-3 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: end-4 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: mark deferred at frame 603: no live room record (the room loop owns the entity list)
+ent7      warp-entity: boss5 type=7 frame=2573 spawned
+ent7      warp-entity: dust type=250 frame=2573 spawned
+ent7      warp-entity: ena-1 type=31 frame=2573 spawned
+ent7      warp-entity: ena-2 type=32 frame=2573 spawned
+ent7      warp-entity: ena-3 type=33 frame=2573 spawned
+ent7      warp-entity: enb-1 type=36 frame=2573 spawned
+ent7      warp-entity: enb-2 type=37 frame=2573 spawned
+ent7      warp-entity: enb-3 type=38 frame=2573 spawned
+ent7      warp-entity: enb-4 type=39 frame=2573 spawned
+ent7      warp-entity: enc-1 type=41 frame=2573 spawned
+ent7      warp-entity: enc-2 type=42 frame=2573 spawned
+ent7      warp-entity: enc-3 type=43 frame=2573 spawned
+ent7      warp-entity: end-1 type=46 frame=2573 spawned
+ent7      warp-entity: end-2 type=47 frame=2573 spawned
+ent7      warp-entity: end-3 type=48 frame=2573 spawned
+ent7      warp-entity: end-4 type=49 frame=2573 spawned
+ent7      warp-entity: mark type=201 frame=2573 spawned
+ent7      composites attributed to a shipped .spr:   576   assets:  21  ['boss5.spr', 'dust.spr', 'ena-1.spr', 'ena-2.spr', 'ena-3.spr', 'enb-1.spr', 'enb-2.spr', 'enb-3.spr'] ...
+ent7      loaded by the game's own loader:    27   loaded but not drawn:   6  ['face.spr', 'mboss1-1.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+ent8      warp-entity: boss6 deferred at frame 603: no live room record (the room loop owns the entity list)
+ent8      warp-entity: dust deferred at frame 603: no live room record (the room loop owns the entity list)
+ent8      warp-entity: mark deferred at frame 603: no live room record (the room loop owns the entity list)
+ent8      warp-entity: boss6 type=8 frame=2573 spawned
+ent8      warp-entity: dust type=250 frame=2573 spawned
+ent8      warp-entity: mark type=201 frame=2573 spawned
+ent8      composites attributed to a shipped .spr:   500   assets:   6  ['boss6.spr', 'dust.spr', 'exp.spr', 'gage.spr', 'gun.spr', 'mark.spr']
+ent8      loaded by the game's own loader:    12   loaded but not drawn:   6  ['face.spr', 'over.spr', 'pause.spr', 'st8s.spr', 'system.spr', 'system2.spr']
+ent9      warp-entity: boss7 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: dust deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: enh-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: enh-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: enh-3 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: eni-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: eni-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: eni-3 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: eni-4 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: enj-1 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: enj-2 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: enj-3 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: enj-4 deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: mark deferred at frame 602: no live room record (the room loop owns the entity list)
+ent9      warp-entity: boss7 type=9 frame=2573 spawned
+ent9      warp-entity: dust type=250 frame=2573 spawned
+ent9      warp-entity: enh-1 type=71 frame=2573 spawned
+ent9      warp-entity: enh-2 type=72 frame=2573 spawned
+ent9      warp-entity: enh-3 type=73 frame=2573 spawned
+ent9      warp-entity: eni-1 type=76 frame=2573 spawned
+ent9      warp-entity: eni-2 type=77 frame=2573 spawned
+ent9      warp-entity: eni-3 type=78 frame=2573 spawned
+ent9      warp-entity: eni-4 type=79 frame=2573 spawned
+ent9      warp-entity: enj-1 type=81 frame=2573 spawned
+ent9      warp-entity: enj-2 type=82 frame=2573 spawned
+ent9      warp-entity: enj-3 type=83 frame=2573 spawned
+ent9      warp-entity: enj-4 type=84 frame=2573 spawned
+ent9      warp-entity: mark type=201 frame=2573 spawned
+ent9      composites attributed to a shipped .spr:   576   assets:  18  ['boss7.spr', 'dust.spr', 'enh-1.spr', 'enh-2.spr', 'enh-3.spr', 'eni-1.spr', 'eni-2.spr', 'eni-3.spr'] ...
+ent9      loaded by the game's own loader:    23   loaded but not drawn:   5  ['face.spr', 'over.spr', 'pause.spr', 'system.spr', 'system2.spr']
+
+== observed draws by family ==
+  ena      DRAWN: ena-1.spr, ena-2.spr, ena-3.spr
+  enb      DRAWN: enb-1.spr, enb-2.spr, enb-3.spr, enb-4.spr
+  enc      DRAWN: enc-1.spr, enc-2.spr, enc-3.spr
+  end      DRAWN: end-1.spr, end-2.spr, end-3.spr, end-4.spr
+  ene      DRAWN: ene-1.spr, ene-2.spr, ene-3.spr, ene-4.spr
+  enf      DRAWN: enf-1.spr, enf-2.spr, enf-3.spr
+  eng      DRAWN: eng-1.spr, eng-2.spr, eng-3.spr
+  enh      DRAWN: enh-1.spr, enh-2.spr, enh-3.spr
+  eni      DRAWN: eni-1.spr, eni-2.spr, eni-3.spr, eni-4.spr
+  enj      DRAWN: enj-1.spr, enj-2.spr, enj-3.spr, enj-4.spr
+  enk      DRAWN: enk-1.spr, enk-2.spr
+  enl      not observed
+  st1s     DRAWN: st1s.spr
+  st2s     DRAWN: st2s.spr
+  st3s     DRAWN: st3s.spr
+  st4s     DRAWN: st4s.spr
+  st5s     DRAWN: st5s.spr
+  st6s     DRAWN: st6s.spr
+  st7s     DRAWN: st7s.spr
+  st8s     not observed
+  st9s     DRAWN: st9s.spr
+  mboss1   DRAWN: mboss1-1.spr, mboss1-2.spr
+  mboss2   DRAWN: mboss2.spr
+  mboss3   not observed
+  mboss4   not observed
+  mboss5   not observed
+  mboss6   not observed
+  boss1    DRAWN: boss1.spr
+  boss2    DRAWN: boss2.spr
+  boss3    DRAWN: boss3-1.spr, boss3-2.spr, boss3-3.spr
+  boss4    DRAWN: boss4.spr
+  boss5    DRAWN: boss5.spr
+  boss6    DRAWN: boss6.spr
+  boss7    DRAWN: boss7.spr
+  dust     DRAWN: dust.spr
+  mark     DRAWN: mark.spr
+  exp      DRAWN: exp.spr
+  face     not observed
+  gage     DRAWN: gage.spr
+  gun      DRAWN: gun.spr
+  levelup  not observed
+  over     not observed
+  pause    not observed
+  system   not observed
+
+total distinct .spr assets seen drawn: 62 of 75 extracted (75 files)
+extracted but never drawn in these runs: 13: face.spr, gun1.spr, gun2.spr, levelup.spr, mboss6.spr, number1.spr, number2.spr, number3.spr, over.spr, pause.spr, st8s.spr, system.spr, system2.spr
+
+== family matrix: drawn / only loaded / never referenced in these runs ==
+  ena       drawn             episodes: ent1,ent6,ent7
+  enb       drawn             episodes: ent1,ent6,ent7
+  enc       drawn             episodes: ent1,ent6,ent7
+  end       drawn             episodes: ent1,ent6,ent7
+  ene       drawn             episodes: ent2,ent4
+  enf       drawn             episodes: ent2,ent4
+  eng       drawn             episodes: ent2
+  enh       drawn             episodes: ent3,ent9
+  eni       drawn             episodes: ent3,ent9
+  enj       drawn             episodes: ent3,ent9
+  enk       drawn             episodes: ent5
+  enl       never referenced  episodes: -
+  st1s      drawn             episodes: ent1
+  st2s      drawn             episodes: ent2
+  st3s      drawn             episodes: ent3
+  st4s      drawn             episodes: ent4
+  st5s      drawn             episodes: ent5
+  st6s      drawn             episodes: ent6
+  st7s      drawn             episodes: ent7
+  st8s      loaded only       episodes: ent8
+  st9s      drawn             episodes: ent9
+  mboss1    drawn             episodes: ent1,ent2,ent6,ent7
+  mboss2    drawn             episodes: ent2
+  mboss3    never referenced  episodes: -
+  mboss4    never referenced  episodes: -
+  mboss5    never referenced  episodes: -
+  mboss6    never referenced  episodes: -
+  boss1     drawn             episodes: ent1
+  boss2     drawn             episodes: ent2
+  boss3     drawn             episodes: ent3,ent4,ent5
+  boss4     drawn             episodes: ent6
+  boss5     drawn             episodes: ent7
+  boss6     drawn             episodes: ent8
+  boss7     drawn             episodes: ent9
+  dust      drawn             episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  mark      drawn             episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  exp       drawn             episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  face      loaded only       episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  gage      drawn             episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  gun       drawn             episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  levelup   never referenced  episodes: -
+  over      loaded only       episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  pause     loaded only       episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  system    loaded only       episodes: ent1,ent2,ent3,ent4,ent5,ent6,ent7,ent8,ent9
+  mboss1    drawn             episodes: ent1,ent2,ent6,ent7
+  mboss2    drawn             episodes: ent2
+  mboss1-1  never referenced  episodes: -
+  mboss1-2  never referenced  episodes: -
+  number1   never referenced  episodes: -
+  number2   never referenced  episodes: -
+  number3   never referenced  episodes: -
+composites whose stream was not found in an extracted .spr, by trace tag: AMBIGUOUS(3)=27, AMBIGUOUS-NAMED(None|2)=12, stagespr=12, AMBIGUOUS(2)=6

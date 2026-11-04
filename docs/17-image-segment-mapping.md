@@ -19,7 +19,7 @@ bytes) is byte-identical to Ghidra's bytes there, so the delta is the segment ma
 
 ## Tooling
 
-* `scratch/fdis.py` — code listings (`VA - 0x2600`).
+* `scripts/analysis/fdis.py` — code listings (`VA - 0x2600`).
 * `scripts/extract_ds.py <va-hex> <len> [name]` — emits a C `uint8_t name[] = { ... }` initializer for a
   data-segment range through the `VA - 0x7600` mapping.
 

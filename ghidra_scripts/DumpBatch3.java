@@ -12,7 +12,7 @@ public class DumpBatch3 extends GhidraScript {
     public void run() throws Exception {
         DecompInterface dec = new DecompInterface();
         dec.openProgram(currentProgram);
-        FileWriter w = new FileWriter("~/Git/night-port/scratch/ghidra/batch3_dump.c");
+        FileWriter w = new FileWriter("~/Git/night-port/analysis/disasm/batch3_dump.c");
         for (int i = 0; i < names.length; i++) {
             Address a = toAddr(addrs[i]);
             Function f = getFunctionAt(a);

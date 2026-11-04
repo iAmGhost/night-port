@@ -7,7 +7,7 @@ be executed without re-deriving anything.
 ## The engine is self-contained — its dispatch tables are its own arms
 
 `scripts/extract_fpu_tables.py` dumps both ROM tables as C initializers (output in
-`scratch/fpu_tables.txt`). Every entry is a far pointer `offset:3`, and selector 3 maps
+`analysis/tables/fpu_tables.txt`). Every entry is a far pointer `offset:3`, and selector 3 maps
 `flat = 0x40000 + offset`, so:
 
 * **table1 @ DS-relative ROM `0x45e78`, 48 entries** (`0x45e78..0x45f37`, table2 starts right after) —
@@ -56,8 +56,8 @@ selector 3 is `+0x40000`.
 
 ## Why it was not attempted blind in a limited session
 
-846 instructions (`scratch/dis_0461cc.txt`, produced by
-`uv run --with capstone python scratch/fdis.py 0x461cc 2998`) and ~30 substantial arms: transcribing it in
+846 instructions (`analysis/disasm/dis_0461cc.txt`, produced by
+`uv run --with capstone python scripts/analysis/fdis.py 0x461cc 2998`) and ~30 substantial arms: transcribing it in
 one pass risks leaving a half-ported engine inside an otherwise fully verified `f.c`. The staged order
 above (prologue + tables + one arm per step, each pinned by a register-file differential check as
 `docs/30` proposes) is the safe route.
@@ -81,4 +81,4 @@ above (prologue + tables + one arm per step, each pinned by a register-file diff
   (eight dwords = the faulting context's base registers); `cmp ax, 0xf801` at `0x462de` is on the
   *synthesised* `AX = (modrm << 8) | (opcode & 7)`, not on a saved register — no unknown slot needed there.
 * Assets: `scripts/extract_fpu_tables.py` now also emits `kFpuTable3` and `kFpuTable1b`
-  (all four tables in `scratch/fpu_tables.txt`).
+  (all four tables in `analysis/tables/fpu_tables.txt`).

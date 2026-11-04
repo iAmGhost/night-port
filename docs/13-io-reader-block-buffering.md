@@ -1,7 +1,7 @@
 # The chunked resource reader is block-buffered — seek semantics and the test gotcha
 
 Added 2026-07-13 while testing `fn_03f6bc` (the timed event player). An earlier draft of this note
-claimed a port-side positioning **bug**; a minimal repro (`scratch/io_pos_repro.c`) disproved it. What
+claimed a port-side positioning **bug**; a minimal repro (`analysis/probes/io_pos_repro.c`) disproved it. What
 follows is the verified behaviour — worth knowing before wiring the real CD/.IMG backend and before
 writing any test that drives the reader twice.
 
@@ -61,6 +61,6 @@ position inside the buffered range with `fn_04247a(g_639b8, pos, 0)`).
 
 ```sh
 cd port
-cc -std=c11 -O0 -g -Isrc -o ../scratch/io_pos_repro ../scratch/io_pos_repro.c \
-   src/f/f.c src/f/fx_04794a.c src/sys/sys.c -lm && ../scratch/io_pos_repro
+cc -std=c11 -O0 -g -Isrc -o /tmp/io_pos_repro analysis/probes/io_pos_repro.c \
+   src/f/f.c src/f/fx_04794a.c src/sys/sys.c -lm && /tmp/io_pos_repro
 ```

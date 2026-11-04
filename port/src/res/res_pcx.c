@@ -30,7 +30,7 @@ int pcx_decode(const uint8_t *d, size_t n, Pcx *p) {
 
     /* Display palette = RAW file bytes (RGB order, no shift). Verified
      * against a neutral-profile DOSBox capture of the original menu
-     * (scratch/dosbox/captures/neu_menu2.png): the original DAC palette is
+     * (analysis/refs/neu_menu2.png): the original DAC palette is
      * full 0-255 range and screenshot pixels match file bytes within ~20.
      * The loader's `SHR byte, 2` (FUN_0003628e @0x36314) applies to the
      * working buffer DAT_000636b8 (software shade/dither math); the DAC

@@ -7,10 +7,10 @@ records what has been measured so far, so the next session does not repeat the w
 
 ## Ground truth available offline
 
-`scratch/dosbox/captures/` holds real captures (`obs_4_stage.png` is the title/attract screen: dark red
+`analysis/refs/` holds real captures (`obs_4_stage.png` is the title/attract screen: dark red
 sunset sky, black city silhouette, white menu text). `port/src/res/res_pcx.c` records the verified rule for
 slides: the display palette is the **raw last 768 bytes of the PCX, RGB order, no shift** — cross-checked
-against `scratch/dosbox/captures/neu_menu2.png`.
+against `analysis/refs/neu_menu2.png`.
 
 The extracted resource tree (`scratch/res`, 174 PCXs) is available, e.g. `title1.pcx`, `title3.pcx`,
 `title4.pcx`, `logo.pcx`, `1s1.pcx`, `stage4.pcx`.

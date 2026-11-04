@@ -80,7 +80,7 @@ tie-break, and counts ambiguity (`AMBIGUOUS(n)`, `AMBIGUOUS-NAMED(...)`) instead
 reports `loaded` (the `NIGHT_RESLOG=1` lookup trace) beside `drawn`, and runs a phase-2 `ent<n>` pass
 per episode whose warp list is that episode's own loaded set (with `EP_ENT` as the standalone fallback).
 
-## 5. Family matrix (phase-2 `ent*` runs only, `scratch/census_ent.log`)
+## 5. Family matrix (phase-2 `ent*` runs only, `analysis/legacy/census_ent.log`)
 
 ```
 ena enb enc end ene enf eng enh eni enj enk   drawn
@@ -142,7 +142,7 @@ the opcode-5 absence is a second, independent stage-8 data observation for that 
 ```sh
 make -C port app
 CENSUS_FRAMES=9000 python3 -u scripts/playtest_asset_census.py        # full sweep (phase 1 + phase 2)
-python3 -u scripts/playtest_asset_census.py ent > scratch/census_ent.log   # phase 2 only (~10 min/episode)
+python3 -u scripts/playtest_asset_census.py ent > analysis/legacy/census_ent.log   # phase 2 only (~10 min/episode)
 ./port/test/test_f1 | sed -n '/host entity warp/,/^$/p'               # the 10 new checks
 make -C port test && make -C port selftest                            # ALL PASS / ALL PASS
 ```

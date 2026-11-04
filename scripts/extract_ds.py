@@ -3,7 +3,7 @@
 
 NIGHT.EXE is a flat DOS32A (Watcom) image whose segments are NOT contiguous in the file:
 
-    code / rodata :  file offset = VA - 0x2600     (what scratch/fdis.py uses)
+    code / rodata :  file offset = VA - 0x2600     (what scripts/analysis/fdis.py uses)
     data segment  :  file offset = VA - 0x7600     (verified: the dword table at DS 0x51c24
                                                     is byte-identical to Ghidra's image bytes)
 

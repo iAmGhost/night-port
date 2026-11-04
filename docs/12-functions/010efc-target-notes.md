@@ -7,7 +7,7 @@ pair `0x0374ad` / `0x0376c8` (the latter calls it as
 
 * Listing: `analysis/disasm/FUN_00010efc.txt` (capstone; read in slices).
 * Decomp: `analysis/pseudo/021_FUN_00010efc_010efc.c`.
-* Full work plan + ABI derivation: `scratch/PORT_010EFC_SPEC.md` (scratch is git-ignored).
+* Full work plan + ABI derivation: `analysis/notes/PORT_010EFC_SPEC.md` (scratch is git-ignored).
 
 ## ABI (capstone, from the prologue)
 
@@ -22,7 +22,7 @@ pair `0x0374ad` / `0x0376c8` (the latter calls it as
 | [EBP+0x10] | param5 (dword) — compared against `DAT_00063370`; on equality the block is published to `DAT_0003c80` |
 | [EBP+0x14] | param6 (byte) → stored at block[0] |
 
-## Shape (from `scratch/skel.py`, so the listing never had to be read into context)
+## Shape (from `scripts/analysis/skel.py`, so the listing never had to be read into context)
 
 * **No loops** (zero backward jumps) — a straight-line, branch-heavy initialiser.
 * Only three calls: the `0x418ee` guard, `0x41e20` (already ported fill) and `0x41e9f`.

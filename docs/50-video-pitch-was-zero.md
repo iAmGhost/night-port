@@ -35,7 +35,7 @@ Before / after (`02-shots/01-playing-episode1-sprites-fixed.bmp` → `02-shots/0
 | 0 | 100 px of gauge colour at x=31..130 (nothing should be drawn there) | background |
 | 23..24 | empty | gauge fill, x=31..130 |
 
-Compared against the original capture `scratch/stage1-screenshot.png` (portrait, `EXP 00000`, the filled
+Compared against the original capture `analysis/refs/stage1-screenshot.png` (portrait, `EXP 00000`, the filled
 bar sitting directly under the EXP row) the HUD layout now agrees.
 
 ## Regression test

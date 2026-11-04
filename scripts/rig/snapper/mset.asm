@@ -1,0 +1,7 @@
+BITS 16
+ORG 0x100
+mov ah,0
+mov al,3
+int 0x10
+mov ah,0x4C
+int 0x21

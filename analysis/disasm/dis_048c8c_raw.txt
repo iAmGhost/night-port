@@ -1,0 +1,188 @@
+# 0x048c8c (L2, 467 B, 163 insns) -- RAW DISASM (ground truth; Ghidra decomp is ABI-unreliable here)
+# FPU/fx128 composite. Single-arg IN-PLACE: EDI=EAX=a {lo@0,hi@4,exp@8 word,sign=byte9 bit7}.
+# Sole caller FUN_000461cc (big parser/dispatcher). Callees (all ported):
+#   0x04791a x2, 0x047d4e (fx_mul64) x3, 0x04794a x4, 0x047b79 x1.
+# Structure (from raw trace):
+#  1) ESI=0 (neg flag); CX=a->exp; clear byte9 sign.
+#  2) zero-test: exp==0 && hi==0 && lo==0 -> skip normalize (ECX=0).
+#  3) if a->exp<0: ESI=-1; a=fn_04791a(a, b={0,0x80000000}, exp_hi=0xbfff) in-place; flip byte9 sign.
+#  4) normalize: BX=a->exp+4; ECX=0(carry/flag); (EAX,EDX)=(lo,hi);
+#     while BX<0x3fff: (lo,hi,ECX)<<=1, BX--   [left-shift, EXP-GROWS toward 0x3ffe]
+#     while hi sign<0: (lo,hi)>>=1 (drop), BX-- ; if hi==0&&lo==0: BX=0
+#     write a={lo,hi,BX}
+#  5) math chain: (EAX,EDX)=a; ESI=(a->exp<<16)|a->exp; sq=fn_047d4e(a,a) [square];
+#     t1=fn_04794a(sq, b=(0x1bf21f8c,0xa6829a79), ESI=(0x40030000|a->exp));
+#     t2=fn_047d4e(t1, b=(0x9d7bfdb,0xec96f0d6), ESI=(0x3ffa0000|a->exp));
+#     t3=fn_04794a(t2, b=(0xe536e187,0xe6d5051a), ESI=(0x40010000|a->exp));
+#     t4=fn_047d4e(t3, a, ESI=rol16((a->exp<<16)|a->exp));
+#     u=fn_04794a(t4, t1, ESI=(t1.exp^0x8000)<<16|...);  v=fn_04794a(t4b, t1, ...);
+#     r=fn_047b79(u.lo,u.hi, v-lo..., v.hi); a={r.lo,r.hi,r.exp}
+#  6) poly-eval loop over 10-byte-stride coeff table @0x48c64, iterating the CARRY FLAG ECX
+#     (bit 0 = first coeff): for each set bit, a=fn_047d4e(coeff[i], a, ESI=(a->exp<<16)|coeff[i].exp).
+#  7) a->exp += (neg flag ESI); a=fn_04791a(a, b={0,0x80000000}, exp_hi=0xbfff) in-place [final scale].
+# NOTE: step 5 register/stack juggling (EBP=ESP at 0x48d51; XCHG-based arg passing) needs care in the ref.
+# C-MIRROR DEFERRED to fresh context (163 insns + fp_048c8c_ref.py + diff test).
+# ============================================================
+00048c8c: PUSH EBP
+00048c8d: PUSH EDI
+00048c8e: PUSH ESI
+00048c8f: PUSH EDX
+00048c90: PUSH ECX
+00048c91: PUSH EBX
+00048c92: MOV EDI, EAX
+00048c94: SUB ESI, ESI
+00048c96: MOV CX, word ptr [EDI + 0x8]
+00048c9a: AND byte ptr [EDI + 0x9], 0x7f
+00048c9e: CMP word ptr [EDI + 0x8], 0x0
+00048ca3: JNZ 0x00048cae
+00048ca5: CMP dword ptr [EDI + 0x4], 0x0
+00048ca9: JNZ 0x00048cae
+00048cab: CMP dword ptr [EDI], 0x0
+00048cae: JZ 0x00048d16
+00048cb0: OR CX, CX
+00048cb3: JNS 0x00048ccf
+00048cb5: DEC ESI
+00048cb6: PUSH 0xbfff
+00048cbb: PUSH 0x80000000
+00048cc0: PUSH 0x0
+00048cc2: MOV EAX, EDI
+00048cc4: MOV EBX, EDI
+00048cc6: CALL 0x0004791a
+00048ccb: XOR byte ptr [EBX + 0x9], 0x80
+00048ccf: MOV BX, word ptr [EDI + 0x8]
+00048cd3: ADD BX, 0x4
+00048cd7: SUB ECX, ECX
+00048cd9: MOV EDX, dword ptr [EDI + 0x4]
+00048cdc: MOV EAX, dword ptr [EDI]
+00048cde: CMP BX, 0x3fff
+00048ce3: JC 0x00048cef
+00048ce5: ADD EAX, EAX
+00048ce7: ADC EDX, EDX
+00048ce9: ADC ECX, ECX
+00048ceb: DEC BX
+00048ced: JMP 0x00048cde
+00048cef: OR EDX, EDX
+00048cf1: JNZ 0x00048cf5
+00048cf3: OR EAX, EAX
+00048cf5: JNZ 0x00048cfb
+00048cf7: SUB EBX, EBX
+00048cf9: JMP 0x00048d0b
+00048cfb: OR EDX, EDX
+00048cfd: JS 0x00048d07
+00048cff: ADD EAX, EAX
+00048d01: ADC EDX, EDX
+00048d03: DEC BX
+00048d05: JMP 0x00048cfb
+00048d07: SUB BX, 0x4
+00048d0b: MOV dword ptr [EDI], EAX
+00048d0d: MOV dword ptr [EDI + 0x4], EDX
+00048d10: MOV word ptr [EDI + 0x8], BX
+00048d14: JMP 0x00048d18
+00048d16: SUB ECX, ECX
+00048d18: PUSH ESI
+00048d19: PUSH ECX
+00048d1a: MOV EAX, dword ptr [EDI]
+00048d1c: MOV EDX, dword ptr [EDI + 0x4]
+00048d1f: MOV SI, word ptr [EDI + 0x8]
+00048d23: SHL ESI, 0x10
+00048d26: MOV SI, word ptr [EDI + 0x8]
+00048d2a: MOV EBX, EAX
+00048d2c: MOV ECX, EDX
+00048d2e: CALL 0x00047d4e
+00048d33: PUSH EAX
+00048d34: PUSH EDX
+00048d35: PUSH ESI
+00048d36: MOV ECX, 0xa6829a79
+00048d3b: MOV EBX, 0x1bf21f8c
+00048d40: AND ESI, 0xffff
+00048d46: OR ESI, 0x40030000
+00048d4c: CALL 0x0004794a
+00048d51: MOV EBP, ESP
+00048d53: XCHG dword ptr [EBP + 0x8], EAX
+00048d56: XCHG dword ptr [EBP + 0x4], EDX
+00048d59: XCHG dword ptr [EBP], ESI
+00048d5c: MOV ECX, 0xec96f0d6
+00048d61: MOV EBX, 0x9d7bfdb
+00048d66: AND ESI, 0xffff
+00048d6c: OR ESI, 0x3ffa0000
+00048d72: CALL 0x00047d4e
+00048d77: MOV ECX, 0xe6d5051a
+00048d7c: MOV EBX, 0xe536e187
+00048d81: AND ESI, 0xffff
+00048d87: OR ESI, 0x40010000
+00048d8d: CALL 0x0004794a
+00048d92: MOV EBX, dword ptr [EDI]
+00048d94: MOV ECX, dword ptr [EDI + 0x4]
+00048d97: ROL ESI, 0x10
+00048d9a: MOV SI, word ptr [EDI + 0x8]
+00048d9e: ROL ESI, 0x10
+00048da1: CALL 0x00047d4e
+00048da6: PUSH EAX
+00048da7: PUSH EDX
+00048da8: PUSH ESI
+00048da9: XOR ESI, 0x8000
+00048daf: ROL ESI, 0x10
+00048db2: MOV SI, word ptr [EBP]
+00048db6: ROL ESI, 0x10
+00048db9: MOV EBX, dword ptr [EBP + 0x8]
+00048dbc: MOV ECX, dword ptr [EBP + 0x4]
+00048dbf: CALL 0x0004794a
+00048dc4: XCHG dword ptr [EBP + -0x4], EAX
+00048dc7: XCHG dword ptr [EBP + -0x8], EDX
+00048dca: XCHG dword ptr [EBP + -0xc], ESI
+00048dcd: ROL ESI, 0x10
+00048dd0: MOV SI, word ptr [EBP]
+00048dd4: ROL ESI, 0x10
+00048dd7: MOV EBX, dword ptr [EBP + 0x8]
+00048dda: MOV ECX, dword ptr [EBP + 0x4]
+00048ddd: CALL 0x0004794a
+00048de2: ROL ESI, 0x10
+00048de5: MOV SI, word ptr [EBP + -0xc]
+00048de9: ROL ESI, 0x10
+00048dec: POP ECX
+00048ded: POP ECX
+00048dee: POP EBX
+00048def: CALL 0x00047b79
+00048df4: MOV dword ptr [EDI], EAX
+00048df6: MOV dword ptr [EDI + 0x4], EDX
+00048df9: MOV word ptr [EDI + 0x8], SI
+00048dfd: ADD ESP, 0xc
+00048e00: POP ECX
+00048e01: LEA ESI, [0x48c64]
+00048e07: OR ECX, ECX
+00048e09: JZ 0x00048e3f
+00048e0b: SHR ECX, 0x1
+00048e0d: JNC 0x00048e3a
+00048e0f: PUSH ECX
+00048e10: PUSH ESI
+00048e11: MOV AX, word ptr [EDI + 0x8]
+00048e15: MOV ECX, dword ptr [EDI + 0x4]
+00048e18: MOV EBX, dword ptr [EDI]
+00048e1a: SHL EAX, 0x10
+00048e1d: MOV AX, word ptr CS:[ESI + 0x8]
+00048e22: MOV EDX, dword ptr CS:[ESI + 0x4]
+00048e26: MOV ESI, dword ptr CS:[ESI]
+00048e29: XCHG EAX, ESI
+00048e2a: CALL 0x00047d4e
+00048e2f: MOV dword ptr [EDI], EAX
+00048e31: MOV dword ptr [EDI + 0x4], EDX
+00048e34: MOV word ptr [EDI + 0x8], SI
+00048e38: POP ESI
+00048e39: POP ECX
+00048e3a: LEA ESI, [ESI + 0xa]
+00048e3d: JMP 0x00048e07
+00048e3f: POP ESI
+00048e40: ADD word ptr [EDI + 0x8], SI
+00048e44: MOV EAX, EDI
+00048e46: PUSH 0xbfff
+00048e4b: PUSH 0x80000000
+00048e50: PUSH 0x0
+00048e52: MOV EBX, EDI
+00048e54: CALL 0x0004791a
+00048e59: POP EBX
+00048e5a: POP ECX
+00048e5b: POP EDX
+00048e5c: POP ESI
+00048e5d: POP EDI
+00048e5e: POP EBP
+00048e5f: RET

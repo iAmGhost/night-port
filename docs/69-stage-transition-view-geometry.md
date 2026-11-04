@@ -15,7 +15,7 @@ From the `stage1.pcx` hold into gameplay (`/tmp/nightport/st1trans3`, `NIGHT_DEN
 
 Healthy gameplay frames measure edge noise 28-31 (docs/54's metric); the sheared intro frames measured 58.6.
 68-82 is garbage: for ~1.8 s the port presented a **320-pitch, 320x200 room frame read at 640x480 geometry**, so
-the frame is sheared 2x over whatever 640x480 card was in the window before it. `scratch/st1_startup_640_noisy.png`
+the frame is sheared 2x over whatever 640x480 card was in the window before it. `analysis/refs/st1_startup_640_noisy.png`
 (kept as `docs/manual-playtest/07-shots/stage1_transition_port_before_sheared.png`) shows it: the stage card's
 lower part is intact while its top is noise with a HUD strip in it.
 

@@ -1,7 +1,7 @@
 # 92 — The combat keys, measured AND read from the shipped IRQ handler: the host aliased nothing, and the port's combo latches are slot-array bytes modelled as separate globals
 
 Playtest log items "Keybinds are wrong" (README.TXT) and "Player cannot attack enemies" — input half.
-Raw evidence persisted in `scratch/kbd/`: `kbd_handler_dis.txt` (the guest's INT 9 handler,
+Raw evidence persisted in `analysis/disasm/kbd/`: `kbd_handler_dis.txt` (the guest's INT 9 handler,
 0x0003fd40-0x0003fe92, plus its installer fn_03658d-piece at 0x3feb8), `keyxrefs_full.txt` (every xref to
 the DS key bytes), `kbd_family_full.txt` (decompiles of fn_034353/0343d1/03442e/034635/034735/0347e3/
 0348e2/03493e). Probes: `scripts/playtest/probe_orig_combat_keys.txt` (+2, modlatches, zx_sc) with logs
@@ -9,7 +9,7 @@ the DS key bytes), `kbd_family_full.txt` (decompiles of fn_034353/0343d1/03442e/
 
 ## 1. What the shipped keyboard handler actually does (0x0003fd40, installed on IRQ 9 by fn_03658d)
 
-Linear disassembly (scratch/kbd/kbd_handler_dis.txt) reads port 0x60 and, per event:
+Linear disassembly (analysis/disasm/kbd/kbd_handler_dis.txt) reads port 0x60 and, per event:
 
 ```
 scan = in(0x60); idx = scan & 0x7f; break = scan & 0x80

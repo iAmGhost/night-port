@@ -95,7 +95,7 @@ $ file scratch/res/1.voc
 Creative Labs voice data - version 1.10
 ```
 
-Full inventory JSON (name/offset/size): `scratch/res_inventory.json`.
+Full inventory JSON (name/offset/size): `analysis/tables/res_inventory.json`.
 
 ---
 

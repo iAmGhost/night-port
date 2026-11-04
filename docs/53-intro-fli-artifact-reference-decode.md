@@ -10,7 +10,7 @@ ffmpeg -v error -i scratch/res/opening.fli -fps_mode passthrough /tmp/fli/%03d.p
 ```
 
 The port's own frames come from the playtest harness (`NIGHT` shots tagged `fli` during playback).
-`scratch/fli_compare.py` reduces both sides to 80x50 luma and reports the nearest reference frame per
+`scripts/analysis/fli_compare.py` reduces both sides to 80x50 luma and reports the nearest reference frame per
 port shot plus the worst row of the difference.
 
 Result: the port's `.fli` frames do **not** match any reference frame (`L1 ≈ 42` with a saturated

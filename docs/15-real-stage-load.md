@@ -141,10 +141,10 @@ The stage lifecycle is therefore fully covered over shipped data: `fn_03690b` ->
 `fn_0376c8` -> `fn_037347`, including the original's quirk that `DAT_63354` is left dangling at the freed
 room chain.
 
-Debug probes kept for reference: `scratch/real_chain_probe.c` (region chain walk + anomalies),
-`scratch/real_block_probe.c` (block-header validation of everything a teardown frees),
-`scratch/real_teardown_probe.c` (free-order replica with a double-free bitset), `scratch/floor_probe.c`
-(region granularity), `scratch/real_act_free.c` (first repro).
+Debug probes kept for reference: `analysis/probes/real_chain_probe.c` (region chain walk + anomalies),
+`analysis/probes/real_block_probe.c` (block-header validation of everything a teardown frees),
+`analysis/probes/real_teardown_probe.c` (free-order replica with a double-free bitset), `analysis/probes/floor_probe.c`
+(region granularity), `analysis/probes/real_act_free.c` (first repro).
 
 ## Suite
 

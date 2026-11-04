@@ -2,7 +2,7 @@
 
 Status: **ANALYZED** (disasm + ROM tables + structure + ABI). Python ref + C mirror + diff
 tests: **DEFERRED to next context** (236 insn; started fresh, setup cost consumed budget).
-Full disasm saved to `scratch/dis_049613_raw.txt` (236 instructions).
+Full disasm saved to `analysis/disasm/dis_049613_raw.txt` (236 instructions).
 
 ## ABI (confident)
 ```c
@@ -89,7 +89,7 @@ lock the transcription.
 
 ## PORTED + DIFF-VERIFIED (2026-07-12)
 All checklist items below are done:
-1. Python ref `scratch/fp_049613_ref.py` — mirrors the disasm (both passes verbatim). The
+1. Python ref `scripts/ref/fp_049613_ref.py` — mirrors the disasm (both passes verbatim). The
    transitive `fn_0495eb -> fn_049506 -> fn_04574a -> fn_0498f6` cycle is broken because
    `fn_049506` builds its temp struct with `mode=0`, so `fn_04574a(temp)` takes the
    `TEST EBX,EBX;JGE` path and SKIPS the `fn_049613` call (no recursion). `fxnum` corrected

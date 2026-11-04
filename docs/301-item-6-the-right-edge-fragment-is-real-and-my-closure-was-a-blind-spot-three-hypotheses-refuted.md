@@ -2,7 +2,7 @@
 
 Date: 2026-11-02.  Playtest report `docs/manual-playtest/04-2026-11-02.md` item 5:
 "when the player moves to the leftmost side, a partial sprite of the player appears at the right side of the
-screen" (`scratch/graphic-glitch.png`).  This is goal item 6.
+screen" (`analysis/refs/graphic-glitch.png`).  This is goal item 6.
 
 ## 1. The closure in docs/298/docs/299 is void
 

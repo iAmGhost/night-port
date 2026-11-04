@@ -2,7 +2,7 @@
 
 Decoded from the LE binary via Ghidra MCP (function addresses below) and verified by
 round-trip parsers over **every** file of each type in the container (see
-`scratch/res_inventory.json`). Container spec itself: `docs/02-container.md`.
+`analysis/tables/res_inventory.json`). Container spec itself: `docs/02-container.md`.
 
 Legend: `u8/u16/u32` = little-endian. All parsers must consume the file **exactly**
 (no trailing bytes); that invariant is how these formats were cracked.
@@ -37,7 +37,7 @@ byte b:
   `FUN_00038a20` (logo/init), `FUN_0003a829` (per stage frame) and
   `FUN_00038445` (menu palette animation). Verified empirically: a
   neutral-profile DOSBox capture of the original menu
-  (`scratch/dosbox/captures/neu_menu2.png`) shows full 0-255 channel range
+  (`analysis/refs/neu_menu2.png`) shows full 0-255 channel range
   and pixels match the raw file palette bytes within ~20, while a `>>2` DAC
   would cap all channels at 63.
 - Loader writes through VESA window at `A0000` (`DAT_000a0000`), advancing 64 KB

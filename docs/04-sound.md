@@ -6,7 +6,7 @@ corpus in `scratch/res/` (script-verified, 0 failures — `scripts/parse_voc.py`
 
 ## 1. Hardware & initialization
 
-README (EUC-KR, `scratch/README.utf8.txt`):
+README (EUC-KR, `analysis/notes/NIGHT_README.utf8.txt`):
 - 音향 (audio): **Sound Blaster / Sound Blaster 16 / SB-compatible cards**
 - Win95 FAQ: if no SFX, set card **DMA channel 1 → HIGH DMA 5** (confirms 16-bit
   DMA-channel-1 usage, page register 0x83)

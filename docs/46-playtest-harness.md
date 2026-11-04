@@ -78,7 +78,7 @@ two runs cannot hide an otherwise-correct frame.
 
 Two capture paths for the original were built:
 
-1. **Guest-side snapper TSR** — `scratch/snapsr/snap.asm` (built with `nasm -f bin` to `SNAP.COM`, copied
+1. **Guest-side snapper TSR** — `scripts/rig/snapper/snap.asm` (built with `nasm -f bin` to `SNAP.COM`, copied
    into the mounted C:). It hooks INT 8 (tick count) and INT 1C (does the work), and once per second
    writes the mode-0x13 framebuffer plus the 768-byte DAC to `C:\CAP\SNAPnnnnn.DMP`
    (`NGSH` header, magic + version + w/h + tick, then palette, then 200 rows top-down). It only dumps when
@@ -99,7 +99,7 @@ normal terminal, e.g.
 
 ```
 cp /tmp/snap.com NIGHT/SNAP.COM && mkdir -p NIGHT/CAP && rm -f NIGHT/CAP/*.DMP
-dosbox-staging --conf scratch/dosbox_snap.conf     # snap.com + night, ~60 s
+dosbox-staging --conf scripts/rig/conf/dosbox_snap.conf     # snap.com + night, ~60 s
 ```
 
 after which `scripts/snap_decode.py` (queued) turns `NIGHT/CAP/*.DMP` into PNGs next to the port's shots.
@@ -126,7 +126,7 @@ with `[sdl] output=tty` and an `[autoexec]` of
 (`imgmount` is deprecated in 0.83 -- use `mount d <cue> -t iso`.) Verified: `[autoexec]` probe files land
 on the host, `MSCDEX installed`, and the TSR's `C:\TICK.TXT` dump appears.
 
-Snapper v2 (`scratch/snapsr/snap.asm`, 1834 B) now tracks the video mode through an INT 10h hook (VESA
+Snapper v2 (`scripts/rig/snapper/snap.asm`, 1834 B) now tracks the video mode through an INT 10h hook (VESA
 `AX=4F02` records BX; BIOS `AX=0000..0013` records AL) and dumps the linear framebuffer as
 `ceil(w*h/65536)` 64 KB chunks with the read window moved by INT 10h `AX=4F05`, the same trick the game's
 own still loader uses. Three real bugs were fixed on the way:
@@ -178,7 +178,7 @@ dosbox-staging". Every host-side route was tested and measured, not assumed:
    contract's "under dosbox-staging". Left as a proposal, not done.
 
 So the capture has to happen inside the guest, and that route was narrowed to one open question by a
-purpose-built probe (`scratch/snapsr/snapprobe.asm` -> `SNAPPRB.COM`), which counts, once a second, how
+purpose-built probe (`scripts/rig/snapper/snapprobe.asm` -> `SNAPPRB.COM`), which counts, once a second, how
 many times its real-mode INT 8 / INT 1Ch / INT 10h / INT 21h hooks fire and which video mode it saw.
 
 Findings from that work, each one measured:
@@ -215,7 +215,7 @@ this document as their status record.
 
 Two side-by-side guests were built to separate "hook shape", "call shape" and "context":
 
-- `scratch/snapsr/snapwrkX.asm`: the probe's exact create -> write 16 -> close sequence, run twice -- once
+- `scripts/rig/snapper/snapwrkX.asm`: the probe's exact create -> write 16 -> close sequence, run twice -- once
   before any hook is installed and once **after all four hooks** (INT 8 / 1Ch / 10h / 21h, each counting
   and chaining). Both files landed with their 16 bytes (`SNAPPRB.BIN`, `SNAPPRC.BIN`, payload `0x5a`).
 - Adding the classic DOS-reentrancy guard to the probe's INT 1Ch handler -- `INDOS` (`0050:0080`) must be
@@ -224,7 +224,7 @@ Two side-by-side guests were built to separate "hook shape", "call shape" and "c
 
 Conclusion so far: hooks, the create/write/close shape and the install context are all demonstrably fine,
 so the probe program's empty log is a defect inside that program rather than a property of DOSBox or of
-DOS reentrancy. It is left open; the two variants are kept in `scratch/snapsr` so the difference can be
+DOS reentrancy. It is left open; the two variants are kept in `scripts/rig/snapper` so the difference can be
 bisected mechanically (they differ only in the resident handlers and in what surrounds the write). What
 the probe would answer -- whether a real-mode INT 21h hook sees a DOS4GW guest's DOS traffic at all --
 is still the question that decides whether the guest-side snapper can dump frames from the INT 21h hook,
@@ -246,7 +246,7 @@ must go back to the tick context, or has to bypass DOS entirely (serial/printer 
    `default_image_capture_formats`, and no CLI flag exists.
 4. **Port-based (LPT/serial) file devices.** The binary only knows LPT *DACs* (`lpt_dac`, Covox / Disney /
    Stereo-On-1) -- there is no file-backed parallel or serial device to `OUT` frames into.
-5. **In-guest TSR.** `scratch/snapsr/snap4.asm` (v4) fixes the probe defects found by reading the code -- the
+5. **In-guest TSR.** `scripts/rig/snapper/snap4.asm` (v4) fixes the probe defects found by reading the code -- the
    earlier probe handed the *function number* to DOS as the file handle (`mov ax,0x4202` then `mov bx,ax`) and
    my own cleanup pass had removed the create call, so `open` failed with no trace. With both fixed, a
    70-second run of the real game (mounted C: plus the CD image, MSCDEX installed) leaves

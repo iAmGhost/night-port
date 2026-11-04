@@ -75,7 +75,7 @@ done; done
 ```
 
 ASan build (`make -C port app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address"`), logs in
-`scratch/tab532/`:
+`analysis/legacy/tab532/`:
 
 | run | AddressSanitizer reports | `tab53200 walk:` |
 |---|---|---|

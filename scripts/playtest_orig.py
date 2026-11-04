@@ -95,7 +95,7 @@ def main():
 
     events = parse_route(a.route)
     buttons, shots = autotype_buttons(events)
-    conf = os.path.abspath("scratch/dosbox_playtest.conf")
+    conf = os.path.abspath("scripts/rig/conf/dosbox_playtest.conf")
     out = os.path.abspath(a.out)
     os.makedirs(out, exist_ok=True)
     for f in os.listdir(out):                       # start from an empty capture dir

@@ -30,7 +30,7 @@ Current position: **484/528 ported + tested, 3 skipped as non-game entries, 41 p
 
 New this pass: the boot chain (0x038a20 logo, 0x038ae0 opening movie, 0x03ae8e free-memory gate), the title screen 0x03a224, and **0x03f15f the VESA mode set** -- the game runs 640x480x8 (mode 0x101), which sets `DAT_531f4 = 0xa0000`, `DAT_63e64 = 640` pitch, `DAT_63e68 = 480`; **fn_03f3be/fn_03f410 are VBE Set Win A/B Position**, so 640x480 rendering needs A0000 bank switching -- an open item for the SDL video backend.
 
-Next step: port **0x017f13** (behaviour-0x00 AI handler) as the reusable skeleton; `0x018e88`/`0x019e48` are near-clones (same 12 action routines, all already ported). Recon tool: `scratch/fnskel.py`. Map: `docs/18-ai-dispatch-map.md`.
+Next step: port **0x017f13** (behaviour-0x00 AI handler) as the reusable skeleton; `0x018e88`/`0x019e48` are near-clones (same 12 action routines, all already ported). Recon tool: `scripts/analysis/fnskel.py`. Map: `docs/18-ai-dispatch-map.md`.
 (`python3 scripts/status_report.py`; suite 2170 checks, 0 failures, ASan clean).
 - Tiers closed: L0-L4, L7-L10, L15 (all stage lifecycle over shipped `NIGHT.RES`).
 - Last ports: `0x01348f` the HUD gauge draw + `0x03801b` the one-frame HUD composite (room background + entity sweep +
@@ -48,7 +48,7 @@ Next step: port **0x017f13** (behaviour-0x00 AI handler) as the reusable skeleto
 - [x] Resource-reader positioning **verified correct** (an earlier "off-by-N seek" suspicion was a test
       artifact): the reader is block-buffered, backward seeks un-consume inside the block, and stale
       bytes only appear if the backing image is rewritten mid-block. Semantics + test gotcha + repro:
-      `docs/13-io-reader-block-buffering.md`, `scratch/io_pos_repro.c`
+      `docs/13-io-reader-block-buffering.md`, `analysis/probes/io_pos_repro.c`
 - [ ] Port the remaining stubs the reader path still needs for a real CD: nothing outstanding in
       `fn_04247a` / `res_consume` / `fn_041d47`, but `fn_044807`/`fn_044848` must map onto the SDL file
       layer when the .IMG backend lands

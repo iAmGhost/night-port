@@ -1,0 +1,454 @@
+openjdk version "21.0.12.1" 2026-08-18
+OpenJDK Runtime Environment Homebrew (build 21.0.12.1)
+OpenJDK 64-Bit Server VM Homebrew (build 21.0.12.1, mixed mode)
+INFO  Using log config file: jar:file:/opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Framework/Generic/lib/Generic.jar!/generic.log4j.xml (LoggingInitialization)  
+INFO  Using log file: ~/Library/ghidra/ghidra_12.1.3_PUBLIC/application.log (LoggingInitialization)  
+INFO  Loading user preferences: ~/Library/ghidra/ghidra_12.1.3_PUBLIC/preferences (Preferences)  
+INFO  Loading previous preferences: ~/Library/ghidra/ghidra_12.1.2_PUBLIC/preferences (Preferences)  
+INFO  Searching for classes... (ClassSearcher)  
+INFO  Class search complete (532 ms) (ClassSearcher)  
+INFO  Initializing SSL Context (DefaultSSLContextInitializer)  
+INFO  Initializing Random Number Generator... (SecureRandomFactory)  
+INFO  Random Number Generator initialization complete: NativePRNGNonBlocking (SecureRandomFactory)  
+INFO  Trust manager disabled, cacerts have not been set (DefaultTrustManagerFactory)  
+INFO  Headless startup complete (1058 ms) (AnalyzeHeadless)  
+INFO  Class searcher loaded 60 extension points (20 false positives) (ClassSearcher)  
+INFO  HEADLESS Script Paths:
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Processors/8051/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/FileFormats/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Processors/JVM/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/SystemEmulation/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/GnuDemangler/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/MicrosoftCodeAnalyzer/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/BSim/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Processors/DATA/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/FunctionID/ghidra_scripts
+    ~/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Debug/Debugger-rmi-trace/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/Decompiler/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/PDB/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Processors/PIC/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Debug/Debugger/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/PyGhidra/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/SwiftDemangler/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/WildcardAssembler/ghidra_scripts
+    ~/Library/ghidra/ghidra_12.1.3_PUBLIC/Extensions/ghidra-lx-loader/ghidra_scripts
+    ~/Git/night-port/scripts/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/VersionTracking/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/BytePatterns/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Processors/Atmel/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/DecompilerDependent/ghidra_scripts
+    /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/Features/Base/ghidra_scripts (HeadlessAnalyzer)  
+INFO  HEADLESS: execution starts (HeadlessAnalyzer)  
+INFO  Opening existing project: /tmp/ghproj/ppk (HeadlessAnalyzer)  
+INFO  Opening project: /tmp/ghproj/ppk (HeadlessProject)  
+INFO  REPORT: Processing project file: /NIGHT.EXE (HeadlessAnalyzer)  
+INFO  ANALYZING all memory and code: /NIGHT.EXE (HeadlessAnalyzer)  
+WARN  Decompiling 000461cc: Unable to read bytes at ram:ec8b60fb (DecompileCallback)  
+INFO  Packed database cache: /var/tmp/daehankim-ghidra/packed-db-cache (PackedDatabaseCache)  
+INFO  Applied data type archive: generic_clib (ApplyDataArchiveAnalyzer)  
+INFO  -----------------------------------------------------
+    ASCII Strings                              0.149 secs
+    Apply Data Archives                        0.480 secs
+    Call Convention ID                         0.004 secs
+    Call-Fixup Installer                       0.004 secs
+    Create Address Tables                      0.030 secs
+    Create Function                            0.001 secs
+    Data Reference                             0.397 secs
+    Decompiler Switch Analysis                 3.238 secs
+    Demangler GNU                              0.045 secs
+    Disassemble Entry Points                   0.053 secs
+    Embedded Media                             0.012 secs
+    External Entry References                  0.000 secs
+    Function ID                                0.320 secs
+    Non-Returning Functions - Discovered       0.236 secs
+    Reference                                  0.544 secs
+    Scalar Operand References                  0.381 secs
+    Shared Return Calls                        0.114 secs
+    Stack                                      0.107 secs
+    Subroutine References                      0.108 secs
+    Subroutine References - One Time           0.001 secs
+    X86 Function Callee Purge                  0.004 secs
+    x86 Constant Reference Analyzer            0.872 secs
+-----------------------------------------------------
+     Total Time   7 secs
+-----------------------------------------------------
+ (AutoAnalysisManager)  
+INFO  REPORT: Analysis succeeded for file: /NIGHT.EXE (HeadlessAnalyzer)  
+INFO  REPORT: Execute script: DumpKeyXrefs.java  (HeadlessAnalyzer)  
+INFO  SCRIPT: ~/Git/night-port/scripts/ghidra_scripts/DumpKeyXrefs.java (HeadlessAnalyzer)  
+=== DAT_00062c75
+  ref from 000344ae type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c75]
+  ref from 00034502 type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c75]
+  ref from 0003fe12 type READ func (none)
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+ (GhidraScript)  
+=== DAT_00062c82
+  ref from 000344d1 type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c82]
+  ref from 0003447d type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c82]
+  ref from 0003fe12 type READ func (none)
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+ (GhidraScript)  
+=== DAT_00062c8e
+  ref from 000344dc type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c8e]
+  ref from 00034488 type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c8e]
+ (GhidraScript)  
+=== DAT_00062c90
+  ref from 00034525 type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c90]
+  ref from 0003445a type READ func fn_03442e @ 0003442e
+      insn: MOV AL,[0x00062c90]
+  ref from 0003fe12 type READ func (none)
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+ (GhidraScript)  
+=== DAT_00062cf5
+ (GhidraScript)  
+=== DAT_00063ea4
+  ref from 00035d7e type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00035da8 type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00035dd4 type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00035e1d type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00035e47 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00035e8e type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00039280 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00039425 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 000394a0 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003964f type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003a395 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003a3e6 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003a412 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003a451 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003863c type READ func fn_038445 @ 00038445
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00039cb9 type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00038d4c type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 00038ee5 type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003a78e type READ func fn_03a70e @ 0003a70e
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003a7d6 type READ func fn_03a70e @ 0003a70e
+      insn: CMP byte ptr [0x00063ea4],0x0
+  ref from 0003f764 type READ func fn_03f6bc @ 0003f6bc
+      insn: CMP byte ptr [0x00063ea4],0x0
+ (GhidraScript)  
+=== DAT_00063ea5
+  ref from 00035d89 type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00035db3 type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00035ddf type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00035e28 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00035e52 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00035e99 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00039296 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00039430 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 000394b4 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00039663 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 0003a3a0 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 0003a3f1 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 0003a41d type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 0003a465 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 000335e6 type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 000334c2 type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00038650 type READ func fn_038445 @ 00038445
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00039ccd type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00038d62 type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 00038ef0 type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ea5],0x0
+  ref from 0003fdf2 type READ func (none)
+      insn: MOV AL,byte ptr [EAX + 0x63e88]
+  ref from 0003fe06 type WRITE func (none)
+      insn: MOV byte ptr [EAX + 0x63e88],0x1
+ (GhidraScript)  
+=== DAT_00063e89
+  ref from 0003b188 type READ func fn_03af18 @ 0003af18
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003b191 type READ func fn_03af18 @ 0003af18
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00035e68 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00035e71 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003920a type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00039275 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003945a type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00039b25 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003a47b type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003a529 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003aa9b type READ func fn_03a829 @ 0003a829
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003aab8 type READ func fn_03a829 @ 0003a829
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00039ce6 type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00039d01 type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00038d41 type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 00038f1a type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003a799 type READ func fn_03a70e @ 0003a70e
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003a7a6 type READ func fn_03a70e @ 0003a70e
+      insn: CMP byte ptr [0x00063e89],0x0
+  ref from 0003f76f type READ func fn_03f6bc @ 0003f6bc
+      insn: CMP byte ptr [0x00063e89],0x0
+ (GhidraScript)  
+=== DAT_00063eb2
+  ref from 00039213 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 00039261 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 00039446 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 00039b2e type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 00039cef type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 00039d0a type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 00038d2d type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 00038f06 type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063eb2],0x0
+  ref from 0003fdf2 type READ func (none)
+      insn: MOV AL,byte ptr [EAX + 0x63e88]
+  ref from 0003fe06 type WRITE func (none)
+      insn: MOV byte ptr [EAX + 0x63e88],0x1
+ (GhidraScript)  
+=== DAT_00063ebe
+  ref from 0003921c type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ebe],0x0
+  ref from 0003926a type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ebe],0x0
+  ref from 0003944f type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ebe],0x0
+  ref from 00039b37 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ebe],0x0
+  ref from 00039cf8 type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063ebe],0x0
+  ref from 00039d13 type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063ebe],0x0
+  ref from 00038d36 type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ebe],0x0
+  ref from 00038f0f type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ebe],0x0
+ (GhidraScript)  
+=== DAT_00063eb4
+  ref from 0003349c type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063eb4],0x0
+  ref from 00032956 type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063eb4],0x0
+  ref from 000338a7 type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063eb4],0x0
+ (GhidraScript)  
+=== DAT_00063ec0
+  ref from 00035d94 type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00035dbe type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00035dea type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00035e33 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00035e5d type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00035ea4 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 000392a1 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003943b type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 000394bf type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003966e type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003a3ab type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003a3fc type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003a428 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003a470 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00033526 type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003865b type READ func fn_038445 @ 00038445
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00039cd8 type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00038d6d type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 00038efb type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ec0],0x0
+  ref from 0003fdf2 type READ func (none)
+      insn: MOV AL,byte ptr [EAX + 0x63e88]
+  ref from 0003fe06 type WRITE func (none)
+      insn: MOV byte ptr [EAX + 0x63e88],0x1
+ (GhidraScript)  
+=== DAT_00063ec1
+  ref from 00035d75 type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00035d9f type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00035dcb type READ func fn_035d5d @ 00035d5d
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00035e14 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00035e3e type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00035e85 type READ func fn_035dfc @ 00035dfc
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003928b type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003941c type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 000394a9 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00039658 type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003a38c type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003a3dd type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003a409 type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003a45a type READ func fn_03a224 @ 0003a224
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00033493 type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003294d type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003389e type READ func fn_03272f @ 0003272f
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00038645 type READ func fn_038445 @ 00038445
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00039cc2 type READ func fn_039c03 @ 00039c03
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00038d57 type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 00038edc type READ func fn_038cde @ 00038cde
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003a785 type READ func fn_03a70e @ 0003a70e
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003a7cd type READ func fn_03a70e @ 0003a70e
+      insn: CMP byte ptr [0x00063ec1],0x0
+  ref from 0003f75b type READ func fn_03f6bc @ 0003f6bc
+      insn: CMP byte ptr [0x00063ec1],0x0
+ (GhidraScript)  
+=== DAT_00063ec3
+  ref from 0003b3b1 type READ func fn_03af18 @ 0003af18
+      insn: CMP byte ptr [0x00063ec3],0x0
+  ref from 0003922a type READ func fn_038f3d @ 00038f3d
+      insn: CMP byte ptr [0x00063ec3],0x0
+ (GhidraScript)  
+=== DAT_00062c58
+  ref from 0003a153 type PARAM func fn_039c03 @ 00039c03
+      insn: MOV EAX,0x62c58
+  ref from 0003aa10 type PARAM func fn_03a829 @ 0003a829
+      insn: MOV EAX,0x62c58
+  ref from 00032488 type PARAM func fn_032464 @ 00032464
+      insn: MOV EAX,0x62c58
+  ref from 00034655 type DATA func fn_034635 @ 00034635
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+  ref from 000346dd type DATA func fn_034635 @ 00034635
+      insn: MOV byte ptr [EAX + 0x62c58],0x1
+  ref from 000346f6 type DATA func fn_034635 @ 00034635
+      insn: MOV byte ptr [EAX + 0x62c58],0x0
+  ref from 00034704 type DATA func fn_034635 @ 00034635
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+  ref from 00034726 type DATA func fn_034635 @ 00034635
+      insn: INC byte ptr [EAX + 0x62c58]
+  ref from 0003d4a6 type PARAM func fn_03d244 @ 0003d244
+      insn: MOV EAX,0x62c58
+  ref from 00034755 type DATA func fn_034735 @ 00034735
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+  ref from 0003478e type DATA func fn_034735 @ 00034735
+      insn: MOV byte ptr [EAX + 0x62c58],0x1
+  ref from 000347a7 type DATA func fn_034735 @ 00034735
+      insn: MOV byte ptr [EAX + 0x62c58],0x0
+  ref from 000347b5 type DATA func fn_034735 @ 00034735
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+  ref from 000347ca type DATA func fn_034735 @ 00034735
+      insn: INC byte ptr [EAX + 0x62c58]
+  ref from 00034405 type DATA func fn_0343d1 @ 000343d1
+      insn: MOV byte ptr [EAX + 0x62c58],0x1
+  ref from 0003441e type DATA func fn_0343d1 @ 000343d1
+      insn: MOV byte ptr [EAX + 0x62c58],0x0
+  ref from 00034827 type DATA func fn_0347e3 @ 000347e3
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+  ref from 0003fe12 type DATA func (none)
+      insn: MOV AL,byte ptr [EAX + 0x62c58]
+  ref from 0003fe33 type DATA func (none)
+      insn: MOV byte ptr [EAX + 0x62c58],0x1
+ (GhidraScript)  
+=== DAT_00062cd8
+  ref from 0003aa21 type PARAM func fn_03a829 @ 0003a829
+      insn: MOV EAX,0x62cd8
+  ref from 00032499 type PARAM func fn_032464 @ 00032464
+      insn: MOV EAX,0x62cd8
+  ref from 000346c9 type DATA func fn_034635 @ 00034635
+      insn: MOV AL,byte ptr [EAX + 0x62cd8]
+  ref from 000346e9 type DATA func fn_034635 @ 00034635
+      insn: DEC byte ptr [EAX + 0x62cd8]
+  ref from 0003d4b7 type PARAM func fn_03d244 @ 0003d244
+      insn: MOV EAX,0x62cd8
+  ref from 0003477a type DATA func fn_034735 @ 00034735
+      insn: MOV AL,byte ptr [EAX + 0x62cd8]
+  ref from 0003479a type DATA func fn_034735 @ 00034735
+      insn: DEC byte ptr [EAX + 0x62cd8]
+  ref from 000343f1 type DATA func fn_0343d1 @ 000343d1
+      insn: MOV AL,byte ptr [EAX + 0x62cd8]
+  ref from 00034411 type DATA func fn_0343d1 @ 000343d1
+      insn: DEC byte ptr [EAX + 0x62cd8]
+  ref from 0003fe26 type DATA func (none)
+      insn: INC byte ptr [EAX + 0x62cd8]
+ (GhidraScript)  
+INFO  ANALYZING changes made by post scripts: /NIGHT.EXE (HeadlessAnalyzer)  
+INFO  REPORT: Post-analysis succeeded for file: /NIGHT.EXE (HeadlessAnalyzer)  
+INFO  REPORT: Save succeeded for processed file: /NIGHT.EXE (HeadlessAnalyzer)  

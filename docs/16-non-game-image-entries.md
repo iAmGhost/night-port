@@ -5,7 +5,7 @@ game code at all. They are listed as functions by Ghidra because the loader hand
 to the disassembler, but the bytes are the **Watcom C/C++32 DOS-extender runtime startup**,
 partly a banner string decoded as instructions.
 
-Detection method (`scratch/data_entries.py`): for every `[ ]` row in
+Detection method (`scripts/analysis/data_entries.py`): for every `[ ]` row in
 `docs/12-functions/STATUS.md`, read the 16 bytes at `file offset = VA - 0x2600` and count
 printable characters. Exactly **2 of 59** pending rows are ascii-dominant, and both sit in the
 same 0x42044..0x42310 region. The third entry recorded below (`0x0420bc`) is not ascii-dominant -- it

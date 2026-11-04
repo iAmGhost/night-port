@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Turn the guest-side snapper's dumps (NIGHT/CAP/*.DMP, see scratch/snapsr/snap.asm) into PNGs.
+"""Turn the guest-side snapper's dumps (NIGHT/CAP/*.DMP, see scripts/rig/snapper/snap.asm) into PNGs.
 
 The TSR writes, per snapshot (24-byte header): "NGSH" magic, u32 version, u32 width, u32 height,
 u32 tick, u32 reserved, then a 768-byte DAC (256 x R,G,B read by INT 10h AX=1511h), then width*height

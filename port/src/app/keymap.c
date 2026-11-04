@@ -1,6 +1,6 @@
 /* docs/91 + docs/92: the host-side key event writer, reproducing the shipped IRQ 9 handler found at
  * 0x0003fd40 (installed on IRQ 9 by the block at 0x0003feb8). Linear disassembly in
- * scratch/kbd/kbd_handler_dis.txt; the handler per raw scan code read from port 0x60:
+ * analysis/disasm/kbd/kbd_handler_dis.txt; the handler per raw scan code read from port 0x60:
  *
  *   idx   = sc & 0x7f, ALIASED by the binary search at 0x0003fd9d-0x0003fdd9:
  *             Z 0x2c -> 0x1d   V 0x2f -> 0x1d        (punch: CTRL or Z or V)

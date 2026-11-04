@@ -10,10 +10,18 @@
 
 - ./NIGHT: Original game.
 - ./NIGHT/TG_NIGHT.CUE, ./NIGHT/TG_NIGHT.IMG: Original CD Image
-- ./scratch: Temporary scripts/resources
-- ./scripts: Store generated scripts here(for extracting graphic, audio, etc...)
+- ./scratch: regenerable caches only (extracted assets, decoded frames, captured runs); anything you can rebuild
+  with ./scripts. Analysis work and evidence live in ./scripts and ./analysis instead.
+- ./scripts: Store generated scripts here(for extracting graphic, audio, etc...); scripts/ref holds the python
+  differential reference models the fixture suite compares against, scripts/gen the C/vector generators,
+  scripts/analysis the per-question analysis tools, scripts/rig the differential rig.
+- ./analysis: the evidence docs cite -- analysis/disasm (disassembly and Ghidra dumps), analysis/notes (porting
+  specs and notes), analysis/probes (the small C repro programs), analysis/tables, analysis/refs (cited
+  screenshots), analysis/legacy (run logs a doc still names).
 - ./docs: Documents about analysis and porting
-- ./src: Keep newly created source port to here
+- ./src: the night_port python package the uv project installs (the scripts run under `uv run`)
+- ./port: the SDL port. Sources live in port/src and port/test (test sources + port/test/vectors); every build
+  output lands in port/build, which is git-ignored.
 
 # Tools
 

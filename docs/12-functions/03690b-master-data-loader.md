@@ -116,7 +116,7 @@ is Ghidra's reg-ABI artifact).
 A complete port (globals + `kVocNames[100]` + the three guard helpers + the linear body) was landed
 into `f.c`/`f.h` and compiled cleanly, but its unit test crashed and the change was reverted to keep
 the tree green (`1905 PASS`). The insertion script that regenerates the port verbatim is kept at
-`scratch/ins3690b.py` (scratch is git-ignored; re-run it to re-land the port).
+`scripts/analysis/ins3690b.py` (scratch is git-ignored; re-run it to re-land the port).
 
 Failure chain (ASan, stable across attempts):
 
@@ -142,12 +142,12 @@ independently:
 **Consequence for the plan:** `0x03690b` is no longer a standalone function port; it is gated on the
 CD/resource backend (mid-subsystems task). Order of work: (1) unify the `DAT_53730` aliases,
 (2) give `sys_file_open/read/lseek` + `fn_04488b` a real handle model (a memory or file-backed
-resource reader over `NIGHT/NIGHT.RES` / `TG_NIGHT.IMG`), (3) re-run `scratch/ins3690b.py`, add the
+resource reader over `NIGHT/NIGHT.RES` / `TG_NIGHT.IMG`), (3) re-run `scripts/analysis/ins3690b.py`, add the
 structural test (its body is in this file's history and worked up to the open), then mark the row.
 
 ## Attempt log 2 (same day): open chain fixed, new blockers found
 
-Re-landed the port (`scratch/ins3690b.py`, WIP diff kept in `scratch/wip_03690b.patch`) plus the
+Re-landed the port (`scripts/analysis/ins3690b.py`, WIP diff was kept in `analysis/legacy/wip_03690b.patch`, dropped in the 2026-11-04 scratch cleanup) plus the
 model fixes below, then reverted the tree to `7cd13c2` because the test hangs (see "hang").
 
 **Fixed and verified on its own (1906 PASS, ASan clean, before revert):** `DAT_00053730` existed as

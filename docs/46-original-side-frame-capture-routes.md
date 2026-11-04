@@ -6,7 +6,7 @@ all. DOSBox-Staging runs fine completely headless (`SDL_AUDIODRIVER=dummy`, `out
 a probe whose `ECHO probe-ok > probe.txt` landed on the host filesystem), and the guest can write files into the
 mounted directory. So a guest program can be the capturer.
 
-The trigger problem is what kills it. A `.COM` TSR (`scratch/snapsr/snapr5.asm`, nasm `-f bin`) that hooks the
+The trigger problem is what kills it. A `.COM` TSR (`scripts/rig/snapper/snapr5.asm`, nasm `-f bin`) that hooks the
 **real-mode INT 10h vector** is the only hook the game cannot route around: its protected-mode VESA calls go through
 DPMI's "call real-mode interrupt" service, which dispatches the real-mode vector, so every mode set (AH=4F/AL=02)
 and window slide (AH=4F/AL=05) passes through it. Records were designed as `[NGH1][ah][al][ecx][edx][seq][len]` +

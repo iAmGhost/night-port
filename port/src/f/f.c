@@ -1,6 +1,6 @@
 /* f.c — ported original functions (batch 1: L0 primitives).
  * Bodies are 1:1 translations of the decompilation in analysis/pseudo/,
- * cross-checked against the disassembly (scratch/batch1_asm*.txt).
+ * cross-checked against the disassembly (analysis/disasm/batch1_asm*.txt).
  * Semantics: docs/12-functions/primitives.md */
 #include <stdio.h>
 #include <stdlib.h>
@@ -1745,7 +1745,7 @@ void fn_013aad(uint32_t a0) {
  * All cx values stay < 0x8000 so cf is always 0. The 0x0463dc call is spurious data
  * in the 0x0461cc interpreter region -- its EAX return is popped/discarded, so it is
  * a no-op standin here (documented approximation of the spurious call).
- * Verified differential against scratch/fp_047f54_ref.py (2009 vectors).
+ * Verified differential against scripts/ref/fp_047f54_ref.py (2009 vectors).
  */
 void fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out)
 {
@@ -1796,7 +1796,7 @@ void fn_047f54(uint32_t lo_in, uint32_t hi_in, uint32_t *out)
  *   as fn_047f54's identical spurious call).
  *   Faithful instruction emulation; only the four live carries are tracked:
  *   SHL EBX,22; ADD EAX,0x800; ADC EDX,0; ADD BX,BX->RCR EDX,1.
- *   Differential vs scratch/fp_048053_ref.py (2,000,000 random vectors). */
+ *   Differential vs scripts/ref/fp_048053_ref.py (2,000,000 random vectors). */
 uint64_t fn_048053(uint32_t f0, uint32_t f1, uint16_t f2)
 {
     uint32_t eax = f0, edx = f1, ecx = f2, esi = 0xfffff800, ebx = f0;
@@ -1936,7 +1936,7 @@ void fn_03feb8(void)
  * in : eax=A_lo, edx=A_hi, ebx=B_lo, ecx=B_hi, esi=expA, edi=expB.
  * out: lo=EAX, hi=EDX, exp=ESI, ebx=EBX(=expA&0x8000), bx=BX(=(expA&0x8000)^(expB&0xffff)),
  *      edi=EDI (neg flag; NEG EDI if bit7(bx) set).
- * Verified differentially against scratch/fp_0485eb_ref.py (469 vectors). */
+ * Verified differentially against scripts/ref/fp_0485eb_ref.py (469 vectors). */
 void fn_0485eb(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
                uint32_t expA, uint32_t expB, fx_sub_t *out)
 {
@@ -2033,7 +2033,7 @@ uint32_t fn_048585(fx128 *a, fx128 *b)
  * via a Newton iteration, and writes back p[0]/p[1] (64-bit result) + p[2] (exponent).
  * Guard/overflow paths zero the value and OR 0xc0 into the status byte (offset 7 = top byte of p[1]).
  * P-code CARRY4/CONCAT44/CONCAT14 translated to 64-bit integer ops; u2 wraps as a 16-bit field.
- * Verified differentially against an independent reference (scratch/fp_048e60.py). */
+ * Verified differentially against an independent reference (scripts/ref/fp_048e60.py). */
 void fn_048e60(uint32_t *p)
 {
     uint16_t u2 = (uint16_t)p[2];      /* exponent field (low16 of p[2]) */
@@ -4471,7 +4471,7 @@ uint8_t *fn_032464(uint8_t *block, const char *name)
  * after the digit loop (the original reads it UNINITIALIZED on the first digit;
  * the port seeds it 0 via acc.num=0 for determinism). The fractional recompute
  * (0x04420a-0x044234) divides 0 by 10, so lo16 (acc2) is always 0 on that path.
- * See scratch/PORT_0440a9_SPEC.md for the address-by-address analysis.
+ * See analysis/notes/PORT_0440a9_SPEC.md for the address-by-address analysis.
  * orig: 0x0440a9 */
 
 /* The 0x53648 converter slot: a runtime-set function pointer the game points at
@@ -12123,7 +12123,7 @@ store:
  * 0 via the exponent). Its own test only covered hi==0 inputs plus a wrong
  * expected value (1 instead of 2 for (0,1)*(0,1) @ 0x3fff).
  * We now delegate to the instruction-level emulator fn_047d4e, differentially
- * verified against the original assembly (scratch/fp_047d4e_ref.py): (lo,hi) agree
+ * verified against the original assembly (scripts/ref/fp_047d4e_ref.py): (lo,hi) agree
  * on a 500-input sweep. */
 uint64_t fx_mul64(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi,
                   uint32_t esi)                                                /* 0x47d4e */
@@ -12457,7 +12457,7 @@ void fn_048f9e(fx128 *a, uint32_t count, const fx128 *arr)
  * In-place fx128 transform: void fn_048a48(fx128 *a, uint16_t esi).  The ONLY callers
  * are the 3 L4 thunks 0x048c3f/0x048c49/0x048c56 (esi=0/2/1), which set only ESI; EDX/
  * ECX/EBX are phantom Ghidra params.  5-step algorithm (trace-faithful to
- * scratch/dis_048a48_raw.txt; Python ref scratch/fp_048a48_ref.py):
+ * analysis/disasm/dis_048a48_raw.txt; Python ref scripts/ref/fp_048a48_ref.py):
  *   1. r=0485eb(a.a, b=0x2168c235:0xc90fdaa2, expA=a.exp, expB=0x3ffe); a={r}; r_edi=r.edi.
  *   2. signblock iff a.exp bit7: a=04791a(a,a,b,0x3ffe); base=(sign?r_edi-1:r_edi).
  *   3. F=(base&0xffff0000)|((esi&0xff)<<8)|(((base&0xff)+((esi&0xff)&2))&7); F0=F&0xff,
@@ -12618,7 +12618,7 @@ static uint32_t jb70_juggle(uint32_t esi, uint32_t src)
 }
 
 /* 0x0487b0 (L2, 464B, 158 insns): in-place fx128 transform. Faithful mirror of
- * scratch/fp_0487b0_ref.py (trace-faithful to scratch/dis_0487b0.txt). 16 callee
+ * scripts/ref/fp_0487b0_ref.py (trace-faithful to analysis/disasm/dis_0487b0.txt). 16 callee
  * calls: r94a x6, rb79 x2, rd4e x5, f4c x2, f0e x1. ESI is tracked literally (each
  * callee clobbers it; re-derived via jb70_juggle / [ESP] reads). flagword =
  * orig_exp - 0x3ffe (else) / -0x3fff (if, DEC [ESP]); the JZ short path (fw==0)
@@ -12734,8 +12734,8 @@ void fn_04876d(fx128 *a, fx128 *b)
 
 /* fn_048c8c  orig: 0x00048c8c (L2, 467B, 163 insns)
  * In-place single-arg fx128 op. Sole caller: FUN_000461cc (big parser/dispatcher).
- * Trace-faithful mirror (scratch/dis_048c8c_raw.txt); the Python reference
- * (scratch/fp_048c8c_ref.py) is the differential oracle.
+ * Trace-faithful mirror (analysis/disasm/dis_048c8c_raw.txt); the Python reference
+ * (scripts/ref/fp_048c8c_ref.py) is the differential oracle.
  *
  *   ESI := 0 (neg flag); a.exp &= 0x7fff
  *   if !(a == 0):
@@ -12998,7 +12998,7 @@ void fn_04836c(fx128 *a, const fx128 *b, fx128 *out)
  * 0x8000000000000000 (ESI=0x7fff); underflow -> 0.
  * Faithful asm-mirror (word-by-word 128-bit MAC preserved so the trailing SF/CF that
  * feed the JS at 0x047de4 and the round block match the disasm exactly).
- * See scratch/fp_047d4e_ref.py for the matching Python reference (196 differential vectors). */
+ * See scripts/ref/fp_047d4e_ref.py for the matching Python reference (196 differential vectors). */
 static void fn_047d4e_epi(uint32_t ECX, uint32_t EAX, uint32_t EDX, fx64_t *out)
 {
     uint32_t sum = ECX + ECX;
@@ -13122,8 +13122,8 @@ void fn_047d4e(uint32_t a_lo, uint32_t a_hi, uint32_t b_lo, uint32_t b_hi, uint3
  *   The two CALL 0x0463dc dispatches are net no-ops (0x0463dc copies a 27-dword
  *   state buffer through the no-op primitive 0x042a07; EAX is reset right
  *   after each) and are omitted -- same treatment as fn_048053/fn_047f54.
- *   Disasm-faithful instruction translation (generated by scratch/gen_047b79_c.py
- *   from the Ghidra disasm, mirroring scratch/fp_047b79_ref.py). Differential
+ *   Disasm-faithful instruction translation (generated by scripts/gen/gen_047b79_c.py
+ *   from the Ghidra disasm, mirroring scripts/ref/fp_047b79_ref.py). Differential
  *   vs the emulator: 20,000 random vectors, 0 mismatch. DIV #DE (overflow) can
  *   fire on malformed non-normalized inputs, but the game always feeds
  *   normalized fixed-point values so it is unreachable. */
@@ -16889,7 +16889,7 @@ void fn_03ae8e(void)
  *        ECX = player screen Y, and the two stack slots [EBP+0x10] / [EBP+0x14] receive the
  *        ADDRESSES OF THE HANDLER'S OWN STACK LOCALS (hence the fn_017218 ABI correction).
  *      Each routine writes only the slot(s) it actually reads -- verified slot by slot with
- *      scratch/stackargs.py: +0x10 only (fn_016959, fn_0174a2, fn_017530), +0x14 only
+ *      scripts/analysis/stackargs.py: +0x10 only (fn_016959, fn_0174a2, fn_017530), +0x14 only
  *      (fn_016a60, fn_017637), or both.
  *   6. Tail: mv_a (stack [EBP-0x20], the +0x10 slot) feeds fn_01545e, mv_b ([EBP-0x1c],
  *      the +0x14 slot) feeds fn_01586b, and finally entity[0x1b] (facing) tracks whether the
@@ -18326,7 +18326,7 @@ void fn_01aec8(uint8_t *e)
  * 0x01bea8 -- THE BEHAVIOUR-0x04 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
  * Fifth handler; generated from the fn_019e48 body, which it matches everywhere except in the
- * hiding-spot chooser (scratch/aicdiff.py isolates it: 6 real hunks, four of them the
+ * hiding-spot chooser (scripts/analysis/aicdiff.py isolates it: 6 real hunks, four of them the
  * declaration list). Verified against analysis/disasm/FUN_0001bea8.txt. Differences:
  *   1. The slot draw is a two-way split instead of a flat `prng % 10`: one draw is tested with
  *      `v % 100 < 0x32` -- roughly half the time a SECOND draw picks `slot = v % 8 + 2` (the
@@ -18681,7 +18681,7 @@ void fn_01bea8(uint8_t *e)
  * Sixth of the 18 handlers, and the first one that is NOT a pure sibling clone: it is shared by
  * three behaviour slots and therefore takes a second argument. Verified against
  * analysis/disasm/FUN_0001cf64.txt (4134 B, 1080 insns); the state machine from case 0x01 onward is
- * the family's (scratch/aicases.py confirms: every case except 0x00 differs only in how Ghidra
+ * the family's (scripts/analysis/aicases.py confirms: every case except 0x00 differs only in how Ghidra
  * rendered the 4-byte stores), so this body is fn_01bea8's with case 0x00 rewritten. Differences:
  *   1. ABI: the dispatcher puts a MODE in EDX -- behaviour 0x05 -> 2 (0x00031d4c), behaviour 0x09
  *      -> 0 (0x00031d85), behaviour 0x0a -> 1 (0x00031d94) -- and the handler saves it at
@@ -19044,9 +19044,9 @@ void fn_01cf64(uint8_t *e, int32_t mode)
 /* =====================================================================
  * 0x01df8b -- THE BEHAVIOUR-0x06 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Seventh of the 18. scratch/aicases.py shows it is the fn_01bea8 body with case 0x00 rewritten:
+ * Seventh of the 18. scripts/analysis/aicases.py shows it is the fn_01bea8 body with case 0x00 rewritten:
  * every other switch case matches a sibling byte-for-byte after name/cast canonicalization, so this
- * body was generated by scratch/gen_01df8b.py and the case-0 block re-derived from
+ * body was generated by scripts/gen/gen_01df8b.py and the case-0 block re-derived from
  * analysis/disasm/FUN_0001df8b.txt. The chooser is a phase latch on entity[0x5f]: while the latch is
  * 0 it draws slot = prng()%2 and hides the entity beside the player at the type's script-row byte 0
  * offset (the same source of offsets as 0x01cf64); when the latch is 1 it draws slot = prng()%4 + 6
@@ -19396,9 +19396,9 @@ void fn_01df8b(uint8_t *e)
 /* =====================================================================
  * 0x01f064 -- THE BEHAVIOUR-0x07 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Eighth of the 18; scratch/aicases.py reduces it to case 0x00 alone, so this body is fn_01bea8's
+ * Eighth of the 18; scripts/analysis/aicases.py reduces it to case 0x00 alone, so this body is fn_01bea8's
  * with the chooser re-derived from analysis/disasm/FUN_0001f064.txt (generator:
- * scratch/gen_01f064.py). The slot draw is fn_01bea8's split one (v%100 < 0x32 -> slots 2..9 via
+ * scripts/gen/gen_01f064.py). The slot draw is fn_01bea8's split one (v%100 < 0x32 -> slots 2..9 via
  * v%8+2 with the 2 -> +prng%2 / 3 -> 4+prng%2 sub-draws, else slots 0/1), but the spot is built by
  * FOUR arms: slots 0/1 hide beside the player at the type's script-row byte 0 offset (the 0x01cf64 /
  * 0x01df8b source of offsets) with no separate player-Y write first, slots 2..5 use the
@@ -19751,11 +19751,11 @@ void fn_01f064(uint8_t *e)
 /* =====================================================================
  * 0x020170 -- THE BEHAVIOUR-0x08 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Ninth of the 18. scratch/aicases.py lists ONLY case 0x00 as differing from fn_01bea8 (every other
+ * Ninth of the 18. scripts/analysis/aicases.py lists ONLY case 0x00 as differing from fn_01bea8 (every other
  * switch case matches), and the whole tail of case 0x00 is instruction-for-instruction identical:
  * the mnemonic streams from the room-band clamp on for 257 instructions match FUN_0001bea8 at
  * 0x1c4bb exactly. So this body is fn_01bea8's with the chooser re-derived from
- * analysis/disasm/FUN_00020170.txt (generator: scratch/gen_020170.py). Its draw is the simplest in
+ * analysis/disasm/FUN_00020170.txt (generator: scripts/gen/gen_020170.py). Its draw is the simplest in
  * the family -- prng()%4, with 2 -> +prng()%2 and 3 -> 4+prng()%2, so ONLY slots 0..5 are reachable
  * (no split draw, no absolute slots) -- and the spot is either the type's script-row byte 0 offset
  * beside the player (slots 0/1) or the player-OFFSET jitter rectangles (slots 2..5); there is no
@@ -20090,10 +20090,10 @@ void fn_020170(uint8_t *e)
 /* =====================================================================
  * 0x0221b8 -- THE BEHAVIOUR-0x15 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Tenth of the 18; scratch/aicases.py again shows only case 0x00 differing from fn_01bea8, and the
+ * Tenth of the 18; scripts/analysis/aicases.py again shows only case 0x00 differing from fn_01bea8, and the
  * 257-instruction mnemonic stream from the room-band clamp on (FUN_000221b8 @0x226f4 vs
  * FUN_0001bea8 @0x1c4bb) is identical, so the body is the template with the chooser re-derived from
- * analysis/disasm/FUN_000221b8.txt (generator: scratch/gen_0221b8.py). Its draw matches 0x020170
+ * analysis/disasm/FUN_000221b8.txt (generator: scripts/gen/gen_0221b8.py). Its draw matches 0x020170
  * (prng()%4 with the 2/3 sub-draws, slots 0..5, no 1-in-6 forced action 4), but the spot has a
  * SINGLE arm for every slot: X from the slot's jitter rectangle offset by the player, Y always the
  * player's own Y (0x0002263b) -- no script-row offset arm and no absolute arm at all. The
@@ -20418,10 +20418,10 @@ void fn_0221b8(uint8_t *e)
 /* =====================================================================
  * 0x02119c -- THE BEHAVIOUR-0x0b ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Eleventh of the 18. scratch/aicases.py flags TWO differing cases: 0x00 (the chooser) and 0x0b (the
+ * Eleventh of the 18. scripts/analysis/aicases.py flags TWO differing cases: 0x00 (the chooser) and 0x0b (the
  * scripted walk), everything else -- including the whole 257-instruction tail after the room-band
  * clamp, which matches FUN_0001bea8 @0x1c4bb mnemonic for mnemonic -- comes from the template
- * (generator: scratch/gen_0221b8-style scratch/gen_02119c.py). Case 0x00 is a phase latch on
+ * (generator: scripts/gen/gen_0221b8.py-style scripts/gen/gen_02119c.py). Case 0x00 is a phase latch on
  * entity[0x5f] WITHOUT a re-roll loop: latch 0 draws slot = prng()%2 and hides the entity inside that
  * slot's jitter rectangle offset by the player; latch 1 picks the slot from the player's screen half
  * (p_x <= 0xa0 -> slot 0xb, else slot 0xa) and draws it from the ABSOLUTE rectangle with a plain
@@ -21610,7 +21610,7 @@ ai_tail:
  * 0x02fe1e -- THE BEHAVIOUR-0x27 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
  * Seventeenth of the 18, and so far the closest clone in the whole family: its instruction stream
- * CONTAINS all 1509 instructions of 0x029709 in order (scratch/aidiff_insns.py: shared = 1509/1509),
+ * CONTAINS all 1509 instructions of 0x029709 in order (scripts/analysis/aidiff_insns.py: shared = 1509/1509),
  * with only TWO inserted regions and FIVE constant substitutions.  The port is therefore the
  * fn_029709 body plus those edits, which makes the semantics of this handler easy to state:
  *   insert 1, 0x000300ee-0x0003061f (348 insns): the sprite-state chain gains two arms, 0x2e and 0x31,
@@ -22140,7 +22140,7 @@ ai_tail:
  * 0x02319c -- THE BEHAVIOUR-0x1f ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
  * Sixteenth of the 18 and the only remaining one that takes the dispatcher's third argument (2).
- * Its instruction stream is 98.9% of 0x029709's in the same order (scratch/aidiff_insns.py): 9
+ * Its instruction stream is 98.9% of 0x029709's in the same order (scripts/analysis/aidiff_insns.py): 9
  * substitutions plus 9 inserts, all of them in ONE new feature -- the 0x2b "rope" arm of 0x029709 is
  * replaced by a 0x2c "swing" arm (0x00023474-0x00023866) that fits a line through the entity/player
  * anchors, gives the entity a fixed 7 px horizontal or 4 px vertical step signed by the direction
@@ -22646,7 +22646,7 @@ ai_tail:
  * 0x024bf9 -- THE BEHAVIOUR-0x20 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
  * Seventeenth of the 18.  Its 1721 instructions are 95.6% of 0x02319c's in the same order
- * (scratch/aidiff_insns.py: 15 constant substitutions, and the only structural insert is the chooser),
+ * (scripts/analysis/aidiff_insns.py: 15 constant substitutions, and the only structural insert is the chooser),
  * so this is the family template with three differences of substance:
  *   * the swing machine runs on sprite state 0x2e and latches on ENTITY FRAME 0 (0x02319c waits for
  *     frame 0x48 and stops at 0x71; here the window is frames 1..0x46), dividing the derived component
@@ -23132,7 +23132,7 @@ ai_tail:
  * 0x02adf5 -- THE BEHAVIOUR-0x24 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
  * Eighteenth... no: eighteenth of the 18 by port order, behaviour id 0x24 (dispatcher arg 0).  97.8%
- * of its 1757 instructions are 0x024bf9's in the same order (scratch/aidiff_insns.py: 14 constant
+ * of its 1757 instructions are 0x024bf9's in the same order (scripts/analysis/aidiff_insns.py: 14 constant
  * substitutions plus two inserts, both inside the swing arm), so everything except the swing is the
  * 0x024bf9 body: the six-slot chooser with the DS 0x51c9c rectangles, the walk with the six-pixel Y
  * tolerance and no anchor re-latch, no recon gate.
@@ -23636,7 +23636,7 @@ ai_tail:
  * 0x027bec -- THE BEHAVIOUR-0x22 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
  * Eighteenth by reading order.  92.8% of its 1802 instructions align with 0x02319c's in order
- * (scratch/aidiff_insns.py); the remainder matches 0x024bf9's chooser.  Three differences:
+ * (scripts/analysis/aidiff_insns.py); the remainder matches 0x024bf9's chooser.  Three differences:
  *   * the swing arm runs on sprite state 0x2b, latches on ENTITY FRAME 0 and stops at frame 0x10 -- a
  *     very short swing -- dividing by the 31.0f pool entries at DS 0x50034/0x50038/0x5003c/0x50040;
  *     like 0x024bf9 it has NO recon gate;

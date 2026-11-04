@@ -133,7 +133,7 @@ mkdir -p "$SAVE_DIR"
 ok "Saves/$(basename "$PLAT")/common/ exists for the core to write into"
 
 # Strip any AppleDouble sidecars left by older deploys.
-for d in "$SDCARD/Cores/iamghost.night" "$SDCARD/Assets/night/common" "$SDCARD/Assets/night/iamghost.night"; do
+for d in "$SDCARD/Cores/iamghost.night" "$SDCARD/Assets/night" "$SDCARD/Assets/night/common" "$SDCARD/Assets/night/iamghost.night" "$SDCARD/Saves/night"; do
     [ -d "$d" ] && find "$d" -name "._*" -maxdepth 1 -delete 2>/dev/null
 done
 ok "no ._ sidecars in the deployed tree"

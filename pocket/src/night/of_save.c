@@ -69,6 +69,7 @@ static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
 static int      g_tick_hz   = 0;   /* 0 = whatever PIT rate the game programs; see of_setting_tick_hz */
 static unsigned g_lcd_raw   = 0xDEADBEEFu;   /* 0xDEADBEEU until the bridge is read */
+static int      g_blit_skip = 0, g_sync_flip = 1;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
@@ -276,6 +277,12 @@ void of_settings_load(void) {
     g_pad_on    = cfg_int("pad_off",  cfg_int("pad",  0, "NIGHT_PAD_OFF"),  "NIGHT_PAD_OFF")  == 0;
     g_screen    = cfg_int("screen",      0, "NIGHT_SCREEN");   /* night.ini [night] SCREEN= */
     g_tick_hz   = cfg_int("tick_hz",     0, "NIGHT_TICK_HZ");  /* 0 = whatever rate the game programs */
+    /* Two knobs for the two hardware faults under investigation, each off/on from the card so a run changes
+     * one thing at a time: BLIT_SKIP=0 stops the host skipping the blit when its sampled bytes say the frame
+     * is unchanged (a stale-present theory for the ghosting), PRESENT_SYNC=0 stops waiting for the flip to be
+     * presented (a tearing theory).  Both default to the cautious setting. */
+    g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
+    g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
     /* of_interact_get() indexes by position in interact.json; the reserved SDK entries now occupy the first
      * six, so the indices come from the header mk_dist.py generates alongside the JSON.
@@ -286,7 +293,12 @@ void of_settings_load(void) {
     {
         int mv = (int)of_interact_get(OF_IDX_MUSIC);
         int tk = (int)of_interact_get(OF_IDX_TICK);
-        int lcd = (int)of_interact_get(OF_IDX_PLCD);
+        /* The Pocket LCD list lives in bits 16-17 of 0xF7000000, and four other interact variables share that
+         * same word (Analogizer, the two SNAC lists, Analogizer Video Out, Video H/V Offset).  of_interact_get
+         * hands back a 32-bit value and the header never promises it is masked to the variable's own field, so
+         * comparing the whole word against OF_PLCD_TERMINAL only ever matched if every other variable happened
+         * to sit at zero -- which is how "Terminal" could be selected in the menu and never reach the host. */
+        int lcd = (int)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
         g_lcd_raw = (unsigned)lcd;          /* the raw bridge word, reported every second */
         if (mv != DEFAULT_OF_IDX_MUSIC) g_music_vol = clamp_vol(mv);
         if (tk != DEFAULT_OF_IDX_TICK && tk >= 60 && tk <= 490) g_tick_hz = tk;
@@ -308,4 +320,6 @@ int of_setting_cdda(void)      { return g_cdda_on; }
 int of_setting_pad(void)       { return g_pad_on; }
 int of_setting_tick_hz(void)   { return g_tick_hz; }
 int of_setting_screen(void)    { return g_screen; }
-unsigned of_setting_lcd_raw(void) { return g_lcd_raw; }   /* exactly what of_interact_get(OF_IDX_PLCD) returned */
+int  of_setting_blit_skip(void) { return g_blit_skip; }
+int  of_setting_sync_flip(void) { return g_sync_flip; }
+int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }   /* the Pocket LCD field only, not the shared word */

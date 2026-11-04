@@ -30,9 +30,11 @@
 #include <dirent.h>
 #endif
 
-#define LOG_SLOT        8          /* SDK shared-config slot: the one an app is documented to write */
-#define LOG_NAME        "night.cfg"
-#define LOG_FALLBACKS   { 17, 16, 15 }       /* save slots: the nonvolatile type a core is known to write */
+#define LOG_SLOT        19         /* the last documented app save slot (APF file ids 10-19, README:462) */
+#define LOG_NAME        "save:9"   /* the SDK's own save alias: testdemo/test_saves.c:16 writes "save:9","wb" */
+#define LOG_NAME_2      "night_9.sav"       /* the same slot under the name the instance JSON binds */
+#define LOG_NAME_3      "night.cfg"         /* slot 8, README:462 says an app should not use it -- tried last */
+#define LOG_FALLBACKS   { 17, 16, 15 }       /* the eight game save slots stand in if none of those open */
 
 static FILE *g_log;
 static char g_path[64];            /* the name the log is actually open on, for the reopen below */
@@ -112,11 +114,14 @@ int of_log_open(void) {
      * describes the registered result as "a read-only APF data file" -- which is a plausible reason a name we
      * registered took no writes across five hardware runs while Quake's unregistered name wrote 20 bytes and a
      * 35 KB save. */
-    if ((g_log = log_open_write(LOG_NAME))) {
-        of_log_line("log: opened \"%s\" by kernel name discovery\n", LOG_NAME);
-        if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0) of_log_line("%s", scan);
-        else of_log_line("%s", scan);
-        return 0;
+    static const char *names[] = { LOG_NAME, LOG_NAME_2, LOG_NAME_3 };
+    for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
+        if ((g_log = log_open_write(names[i]))) {
+            of_log_line("log: opened \"%s\" (%s)\n", names[i], i == 0 ? "the SDK save alias" : "by name");
+            if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0) of_log_line("%s", scan);
+            else of_log_line("%s", scan);
+            return 0;
+        }
     }
 
     if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0 && (g_log = log_open_write(name))) {

@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.9"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.10"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 8              # saves live in ids 10..17
 SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
@@ -131,6 +131,14 @@ def main():
          "size_maximum": "0x40000", "extensions": ["sav"]}
         for i in range(SAVE_SLOTS)
     ]
+    data_slots.append(
+        {"id": 19, "name": "Log Save", "required": False, "parameters": "0x84", "nonvolatile": True,
+         # The trail lives in an app save slot, not in slot 8.  README:462 is explicit -- "Slot 8 is reserved
+         # for SDK/shared config and is not an app save slot", while the writable app save slots are "mapped to
+         # APF file IDs 10-19" -- and README:478 says the same saves are reachable through the aliases
+         # "save_0".."save_9" / "save:0".."save:9", which is exactly how the SDK's own test writes one
+         # (src/apps/testdemo/test_saves.c:16 fopen("save:9","wb")).  Six runs of a log on slot 8 wrote nothing.
+         "address": "0x20340000", "size_maximum": "0x40000", "extensions": ["sav"]})
     for sid in sorted(ts):
         data_slots.append({"id": sid, "name": ts[sid].split("/")[-1], "required": False,
                            "parameters": 0, "extensions": ["bin"], "deferload": True})
@@ -204,6 +212,7 @@ def main():
     # frame from its stuck default, overriding the user's "Terminal" choice 60 times a second (docs/336).
     for val, name in ((0x00000000, "GAME"), (0x00010000, "LCD_OFF"), (0x00020000, "TERMINAL")):
         hdr.append("#define %-22s 0x%08X" % ("OF_PLCD_" + name, val))
+    hdr.append('#define %-22s \"%s\"' % ("OF_CORE_VERSION", VERSION))
     hdr.append("#endif")
     (REPO / "pocket" / "src" / "night" / "of_interact_idx.h").write_text("\n".join(hdr) + "\n")
 
@@ -216,6 +225,7 @@ def main():
     inst_slots.append({"id": 8, "filename": f"{APP}.cfg"})
     for i in range(SAVE_SLOTS):
         inst_slots.append({"id": 10 + i, "filename": f"{APP}_{i}.sav"})
+    inst_slots.append({"id": 19, "filename": f"{APP}_9.sav"})   # the diagnostic trail, written by of_log.c
     for sid in sorted(ts):
         inst_slots.append({"id": sid, "filename": ts[sid]})
     if len(inst_slots) > 32:

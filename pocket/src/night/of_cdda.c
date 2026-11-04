@@ -179,6 +179,50 @@ static uint32_t ring_ahead(void) {
     return (g_done_frames >= g_consumed_frames) ? (uint32_t)(g_done_frames - g_consumed_frames) : 0u;
 }
 
+/* Room in front of the write cursor before it would overtake the voice that is reading the ring.
+ *
+ * The two voices loop over the whole ring (of_mixer_set_loop_h(0, CD_RING_FRAMES)), so the mixer reads forward
+ * from its own position forever.  Filling is only safe while the write cursor stays behind that position; if it
+ * catches up it rewrites samples the DMA is playing, and the audible result is a buzz/crackle rather than a
+ * gap.  A "2 s is enough" prefill plus a wall-clock estimate of what was consumed is not a proof of that
+ * ordering on hardware -- the estimate and the mixer can drift apart, and the drift grows exactly when the CPU
+ * is busy, which is when the buzz appears (intro, stage 1 start).  So the mixer's own position decides. */
+#define CD_GUARD_FRAMES 4410u                     /* 0.1 s of slack between fill and playback */
+
+#ifndef OF_PC
+static int32_t mixer_live_pos(void) {
+    int p0 = of_mixer_get_position_h(g_voice[0]);
+    int p1 = of_mixer_get_position_h(g_voice[1]);
+    if (p0 < 0 && p1 < 0) return -1;              /* no voice running */
+    if (p0 < 0) p0 = p1;
+    if (p1 < 0) p1 = p0;
+    return (int32_t)(p0 < p1 ? p0 : p1);          /* the more conservative of the two channels */
+}
+#endif
+
+static uint32_t room_before_voice(void) {
+#ifndef OF_PC
+    int32_t live = mixer_live_pos();
+    if (live < 0) return CD_RING_FRAMES;
+    uint32_t w = g_write % CD_RING_FRAMES;
+    uint32_t behind = (w + CD_RING_FRAMES - (uint32_t)live) % CD_RING_FRAMES;   /* cursor ahead of voice */
+    if (behind + CD_GUARD_FRAMES >= CD_RING_FRAMES) return 0u;
+    return CD_RING_FRAMES - behind - CD_GUARD_FRAMES;
+#else
+    return ring_ahead() + 4096u;                  /* the desktop rig has no mixer to read */
+#endif
+}
+
+int32_t of_cdda_drift(void) {                      /* wall-clock estimate minus the mixer's own position */
+#ifndef OF_PC
+    int32_t live = mixer_live_pos();
+    if (live < 0) return 0;
+    return (int32_t)(g_done_frames % CD_RING_FRAMES) - live;
+#else
+    return 0;
+#endif
+}
+
 static void ring_write(const int16_t *stereo, uint32_t frames) {
     uint32_t done = 0;
     while (done < frames) {
@@ -219,6 +263,8 @@ static void ring_write(const int16_t *stereo, uint32_t frames) {
 
 /* Take `sectors` off the disc and land them in the rings, de-interleaved into the two channels. */
 static uint32_t fill_sectors(uint32_t sectors) {
+    /* Bounded by what the voice still has to read, not just by what the disc has left. */
+    if (sectors && room_before_voice() < CD_FRAMES_SECTOR) return 0;
     static int16_t stereo[CD_FRAMES_SECTOR * 2];
     static uint8_t raw[2352];
     uint32_t frames = 0;
@@ -309,6 +355,7 @@ void of_cdda_pump(void) {
 }
 
 void     of_cdda_set_volume(int v) { g_vol = v; g_vol &= 0x1ff; }
+uint32_t of_cdda_ring_ahead(void) { return ring_ahead(); }
 uint32_t of_cdda_pos(void)     { return g_pos; }
 uint32_t of_cdda_sectors(void) { return g_sectors; }
 uint32_t of_cdda_tracks(void)  { return g_tracks; }

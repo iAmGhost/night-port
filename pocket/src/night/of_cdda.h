@@ -18,7 +18,9 @@ void of_cdda_stop(void);
 void of_cdda_pump(void);
 
 void     of_cdda_set_volume(int volume);         /* MUSIC group volume, 0..255 */
-uint32_t of_cdda_pos(void);                      /* sectors consumed */
+uint32_t of_cdda_pos(void);
+uint32_t of_cdda_ring_ahead(void);   /* ring frames written ahead of what has been consumed */
+int32_t  of_cdda_drift(void);          /* mixer position minus the clock estimate */                      /* sectors consumed */
 uint32_t of_cdda_sectors(void);                  /* sectors the track holds */
 uint32_t of_cdda_tracks(void);                   /* tracks started since boot */
 int      of_cdda_sounding(void);                 /* 1 when the mixer path is live */

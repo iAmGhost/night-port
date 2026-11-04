@@ -33,6 +33,7 @@
 #include "of_audio.h"
 #include "of_cache.h"
 #include "of_caps.h"
+#include "of_interact_idx.h"      /* OF_IDX_* and OF_CORE_VERSION, generated with interact.json */
 #include "of_file.h"
 #include <dirent.h>
 #include "of_input.h"
@@ -70,7 +71,12 @@ static const char *g_rig_dir;
 
 /* Every host print is also written to the card's log slot (docs/335 §4): the Pocket has no console, and a
  * run that hangs or dies leaves its whole trail in Assets/night/common/night.log. */
-#define NLOG(...)        do { printf(__VA_ARGS__); of_log_line(__VA_ARGS__); } while (0)
+/* Two channels, and the loud one is a fallback.  When the card log is open the trail belongs in the file and
+ * the console gets only the fixed panel below -- because printing six new lines a second into a 40x30 console
+ * is what produced the unreadable half-overwritten screen in the screenshots.  When the log is not openable the
+ * console takes everything, as before. */
+static int g_console_live = 1;
+#define NLOG(...)        do { of_log_line(__VA_ARGS__); if (g_console_live) printf(__VA_ARGS__); } while (0)
 #define NLOG_STEP(what)  do { printf("phase: %s\n", (what)); of_log_line("phase: %s\n", (what)); } while (0)
 
 static uint8_t  g_node_pool[0x53800];     /* the resource node pool (docs/15 boot recipe) */
@@ -342,10 +348,12 @@ static void present(void) {
 
     int skip = 0;
 #ifndef OF_PC
-    skip = 1;
-    for (size_t i = 0; i < g_smp_n; i++)
-        if (g_smp_val[i] != src[g_smp_off[i]]) { skip = 0; break; }
-    if (skip && g_skip_streak >= 8u) skip = 0;      /* bounded staleness, never an unbounded freeze */
+    skip = of_setting_blit_skip() ? 1 : 0;   /* BLIT_SKIP=0 on the card keeps every blit */
+    if (skip) {
+        for (size_t i = 0; i < g_smp_n; i++)
+            if (g_smp_val[i] != src[g_smp_off[i]]) { skip = 0; break; }
+        if (g_skip_streak >= 8u) skip = 0;          /* bounded staleness, never an unbounded freeze */
+    }
 #endif
 
 #ifdef OF_PC
@@ -395,6 +403,13 @@ static void present(void) {
     of_video_flush();                               /* the display path reads memory the CPU just wrote */
     t4 = sys_now_us();
     of_video_flip();
+#ifndef OF_PC
+    /* The API is triple-buffered (of_video.h:10), and of_video_flip() does not wait: "It does not wait for the
+     * vsync swap to complete, so rendering can overlap scanout" (of_video.h:171-172).  Overlapping scanout is
+     * exactly a torn/ghosted picture, so the default here waits for the frame to be presented before the next
+     * present() writes again; PRESENT_SYNC=0 on the card turns it off to see whether it was the cause. */
+    if (of_setting_sync_flip()) of_video_wait_flip();
+#endif
     t5 = sys_now_us();
     stage_max(&g_us_mode, t1 - t0);
     stage_max(&g_us_pal, t2 - t1);
@@ -413,6 +428,10 @@ static void present(void) {
  * The original only enables its sample player if the device answers: fn_040f4f wants the 0xaa
  * signature, fn_040fb3's probe (0xf2) must raise the device IRQ, fn_0411d9 must read an id.  This is
  * host-side device modelling, identical to src/app/main.c's board_boot(), with no SDL in it. */
+#ifndef OF_PC
+static void file_idle_hook(void) { of_mixer_pump(); }
+#endif
+
 static void board_cmd_hook(uint16_t port, uint8_t cmd) {
     if (port != 0x22c) return;
     if (cmd == 0xf2) sys_isr_fire(0x0f);
@@ -459,6 +478,12 @@ static void cdda_boot(void) {
 
 static void audio_boot(void) {
     of_mixer_init(32, OF_MIXER_OUTPUT_RATE);
+#ifndef OF_PC
+    /* Keep the mixer fed while a blocking data-slot read waits on its DMA (of_file.h:96-103).  The intro and
+     * stage 1 are the two places the game reads NIGHT.RES hardest, and both are where the buzz appears: the
+     * hook is the only thing that runs during that wait.  It must not itself read a file, so it only pumps. */
+    of_file_set_idle_hook(file_idle_hook);
+#endif
     for (int i = 0; i < SFX_BLOCKS; i++) {
         g_sfx_pool[i] = (int16_t *)of_mixer_alloc_samples((size_t)SFX_CHUNK * sizeof(int16_t));
         g_sfx_voice[i] = 0;
@@ -806,9 +831,14 @@ static void tick_pump(void) {
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
 #endif
-            NLOG("audio cdda=%u/%u/%u plays=%u xfer=%u voices=%u\n",
+            NLOG("audio cdda=%u/%u/%u plays=%u ring=%u drift=%d\n",
                  of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays,
-                 sys_audio_transfers(), 32u);
+                 of_cdda_ring_ahead(), (int)of_cdda_drift());
+#ifndef OF_PC
+            /* The log is the good channel; the console panel is the visible one.  When the log cannot be
+             * opened at all, put the lines on the console instead of nowhere. */
+            g_console_live = g_log_ok ? 0 : 1;
+#endif
         }
     }
     g_depth--;
@@ -823,6 +853,35 @@ static void tick_pump(void) {
  * (35 290 B) at the moment its core exited, with a data.json whose nonvolatile slot entries are byte-identical
  * to ours.  So the question is not "does the bridge write" but "what does our app see, and when does the
  * bridge commit".  This answers the first half. */
+
+#ifndef OF_PC
+/* The console readout as one fixed panel: home, clear, and rewrite the same rows in the same places every
+ * second (the terminal takes printf with ANSI escapes, README:485-495).  Nothing scrolls, so one screenshot
+ * holds the whole state instead of a torn half of several seconds. */
+static void diag_panel(unsigned hz) {
+    char head[40];
+    snprintf(head, sizeof head, "NIGHT %s  f=%u t=%u", OF_CORE_VERSION, g_frames, g_timer_calls);
+    printf("\x1b[H\x1b[2J");
+    printf("%-39s\n", head);
+    printf("ticks+%-4u pump %-5u reanch %-4u\n", g_timer_calls, g_pump_calls, g_pump_reanchor);
+    printf("hz=%u pres=%uus max=%uus\n", hz, g_present_us, g_present_us_max);
+    printf("st m=%u p=%u c=%u f=%u x=%u\n",
+           g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip);
+    printf("view=%d %dx%d pal=%d\n", g_view_320x200,
+           g_view_320x200 ? GAME_W : sys_video_w(), g_view_320x200 ? GAME_H : sys_video_h(), pal_lit());
+    printf("sig=%08lx chg=%u\n", (unsigned long)g_sig, g_sig_changes);
+    printf("blit fast=%u slow=%u skip=%u\n", g_ds_fast, g_ds_slow, g_present_skips);
+    printf("cdda=%u/%u/%u ring=%u dr=%d\n",
+           of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), of_cdda_ring_ahead(),
+           (int)of_cdda_drift());
+    printf("plays=%u xfer=%u arena=%u\n", g_of_sfx_plays, sys_audio_transfers(), heap_arena_used());
+    printf("clock=%llu pit=%u\n", (unsigned long long)g_clock_rate_us, sys_pit_hz(0));
+    printf("lcd=%08x scr=%d dm=%d\n", (unsigned)of_setting_lcd_raw(), of_setting_screen(), g_display_mode);
+    printf("log=%d bytes=%ld\n", g_log_ok, of_log_bytes());
+    fflush(stdout);
+}
+#endif
+
 static void file_probe(void) {
     static const char *names[] = { "night.cfg", "night_0.sav", "night_7.sav", "NIGHT.RES", "track02.bin" };
     for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {

@@ -68,7 +68,7 @@ continuation slot). Reasons, in order of weight:
 3. **The arithmetic that matters is already ported and verified** — the 80-bit engine behind it
    (`fn_04794a`, `fn_0478f0`, `fn_047d24`, `fn_047b4f`, `fn_0478e2`, `fn_047ab6`, `fn_0463c0`, `fn_04636e`,
    `fn_042310`, `fn_048c3f/048c49/048c56/048c8c`, `fn_048585`, `fn_04876d`, `fn_04836c`, `fn_048754`,
-   `fn_0481df`, `fn_048666`, `fn_048c8c`, `fn_048e60`, `fn_047e9f`) with the `scratch/fp_*_vectors.h`
+   `fn_0481df`, `fn_048666`, `fn_048c8c`, `fn_048e60`, `fn_047e9f`) with the `test/vectors/fp_*_vectors.h`
    differentials.
 
 If a future session wants them anyway, the shape is fully recorded here: the register-operand switch is a

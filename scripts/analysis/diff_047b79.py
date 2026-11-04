@@ -29,7 +29,7 @@ body.append('int main(){ int bad=0; for(unsigned i=0;i<%d;i++){ unsigned long *p
             'if(eax!=p[5]||edx!=p[6]||si!=p[7]){ if(bad<8) printf("MISMATCH i=%%u in=(%%lu,%%lu,%%lu,%%lu,%%lu) '
             'got=(%%u,%%u,%%u) want=(%%lu,%%lu,%%lu)\\n",i,p[0],p[1],p[2],p[3],eax,edx,si,p[5],p[6],p[7]); bad++; } } '
             'printf("checked %%d de-skipped=%%d mismatches=%%d\\n", %d, %d, bad); return bad?1:0; }' % (len(vecs), len(vecs), de))
-open('scratch/fp_047b79_diff.c', 'w').write('\n'.join(body))
+open('/tmp/fp_047b79_diff.c', 'w').write('\n'.join(body))
 r = subprocess.run(['cc', '-O1', '-o', 'scratch/fp_047b79_diff', 'scratch/fp_047b79_diff.c'],
                    capture_output=True, text=True)
 if r.returncode != 0:

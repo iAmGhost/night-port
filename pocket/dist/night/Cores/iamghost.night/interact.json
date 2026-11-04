@@ -42,6 +42,7 @@
                 "persist": true,
                 "address": "0xF7000108",
                 "defaultval": 0,
+                "mask": "0xFFFFFFFF",
                 "options": [
                     {
                         "value": "0x00000000",

@@ -162,7 +162,7 @@ def main():
         # (OF_DISPLAY_TERMINAL / OF_DISPLAY_FRAMEBUFFER / OF_DISPLAY_OVERLAY, of_video.h:43-45), and
         # "Game + log" is the one that makes a hardware run readable without a card reader (docs/336).
         {"name": "NIGHT Screen", "id": 71, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000108", "defaultval": 0, "options": [
+         "address": "0xF7000108", "defaultval": 0, "mask": "0xFFFFFFFF", "options": [
              {"value": "0x00000000", "name": "Game"},
              {"value": "0x00000001", "name": "Terminal"},
              {"value": "0x00000002", "name": "Game + log"},
@@ -214,6 +214,9 @@ def main():
         "SFX_VOL=255\n"
         "CDDA=0\n"
         "PAD=0\n"
+        # SCREEN=2 overlays the host's console text on the game picture: the diagnostic view for a hardware
+        # run when the core menu's list cannot be changed (docs/336).
+        "SCREEN=2\n"
     )
 
     readme = asset_dir / "common" / "README.md"

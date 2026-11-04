@@ -256,6 +256,7 @@ void of_settings_load(void) {
     /* The key names say what to turn *off*, so their unset default is 0. */
     g_cdda_on   = cfg_int("cdda",        0, "NIGHT_CDDA_OFF") == 0;
     g_pad_on    = cfg_int("pad",         0, "NIGHT_PAD_OFF")  == 0;
+    g_screen    = cfg_int("screen",      0, "NIGHT_SCREEN");   /* night.ini [night] SCREEN= */
 #ifndef OF_PC
     /* interact.json is the Pocket menu's own settings page for this core ("Music Volume", "Tick Pump
      * Hz"), and the OS hands the values to the app through of_interact_get(index) in definition order.
@@ -264,7 +265,10 @@ void of_settings_load(void) {
      * is wired, in which case night.ini's [night] values stand. */
     int mv = (int)of_interact_get(0);
     int tk = (int)of_interact_get(1);
-    g_screen = (int)of_interact_get(2);            /* interact.json "NIGHT Screen", index 2 */
+    {
+        int scr = (int)of_interact_get(2);        /* interact.json "NIGHT Screen", index 2 */
+        if (scr != 0) g_screen = scr;             /* the menu wins over the ini when it offers a value */
+    }
     if (mv != 0 || tk != 0) {
         g_music_vol = clamp_vol(mv);
         if (tk >= 60 && tk <= 490) g_tick_hz = tk;

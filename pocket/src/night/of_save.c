@@ -37,6 +37,9 @@
 #define SAVE_MAGIC   0x5653474eu   /* 'NGSV' */
 #define SAVE_VERSION 1u
 #define SAVE_STAGE_FIRST 10u       /* instance slot ids 10..17 = night_0.sav .. night_7.sav */
+/* The instance filename a save slot is bound to -- the name that has to reach of_file_slot_register() too. */
+static const char *save_fname(int slot, char *out, size_t n) { snprintf(out, n, "night_%d.sav", slot); return out; }
+#define SAVE_FILE(slot)  save_fname((slot), savebuf, sizeof savebuf)
 /* Only the scalar window of the player block is saved.  The block's head holds host pointers (sprite and
  * action-table addresses into the heap arena), and a save file must not carry a pointer from one process's
  * arena into another: the first version copied 64 raw bytes and the restore died in a SIGBUS the moment the
@@ -160,6 +163,12 @@ static void blob_capture(save_blob_t *b) {
 int of_save_write(int slot) {
     char path[512];
     if (slot_path(slot, path, sizeof path) != 0) return -1;
+#ifndef OF_PC
+    /* README:466: the app save slots are APF file ids 10-19, and "dirty save files are committed through the
+     * bridge when closed" -- so the name is registered onto its slot before the fopen, as documented. */
+    char savebuf[32];
+    of_file_slot_register(SAVE_STAGE_FIRST + (unsigned)slot, SAVE_FILE(slot));
+#endif
     save_blob_t b;
     blob_capture(&b);
     FILE *f = fopen(path, "wb");
@@ -177,6 +186,10 @@ int of_save_write(int slot) {
 int of_save_read(int slot) {
     char path[512];
     if (slot_path(slot, path, sizeof path) != 0) return -1;
+#ifndef OF_PC
+    char savebuf[32];
+    of_file_slot_register(SAVE_STAGE_FIRST + (unsigned)slot, SAVE_FILE(slot));
+#endif
     FILE *f = fopen(path, "rb");
     if (!f) { snprintf(g_err, sizeof g_err, "no save in slot %d (%s)", slot, path); return -1; }
     save_blob_t b;
@@ -268,10 +281,14 @@ void of_settings_load(void) {
     {
         int mv = (int)of_interact_get(OF_IDX_MUSIC);
         int tk = (int)of_interact_get(OF_IDX_TICK);
-        int scr = (int)of_interact_get(OF_IDX_SCREEN);
+        int lcd = (int)of_interact_get(OF_IDX_PLCD);
         if (mv != DEFAULT_OF_IDX_MUSIC) g_music_vol = clamp_vol(mv);
         if (tk != DEFAULT_OF_IDX_TICK && tk >= 60 && tk <= 490) g_tick_hz = tk;
-        if (scr != DEFAULT_OF_IDX_SCREEN) g_screen = scr;
+        /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
+         * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
+         * stays as the route for a card-only diagnostic run (SCREEN=2 asks for the log overlaid on the game). */
+        if (lcd == OF_PLCD_TERMINAL) g_screen = 1;
+        else if (lcd == OF_PLCD_GAME || lcd == OF_PLCD_LCD_OFF) g_screen = 0;
     }
 #endif
 

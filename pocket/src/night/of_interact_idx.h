@@ -6,6 +6,9 @@
 #define DEFAULT_OF_IDX_MUSIC 200
 #define OF_IDX_TICK  8
 #define DEFAULT_OF_IDX_TICK 490
-#define OF_IDX_SCREEN 9
-#define DEFAULT_OF_IDX_SCREEN 0
+#define OF_IDX_PLCD  6
+#define DEFAULT_OF_IDX_PLCD 0
+#define OF_PLCD_GAME           0x00000000
+#define OF_PLCD_LCD_OFF        0x00010000
+#define OF_PLCD_TERMINAL       0x00020000
 #endif

@@ -690,10 +690,11 @@ int main(int argc, char **argv) {
          of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
          of_setting_tick_hz(), of_setting_screen());
 #ifndef OF_PC
-    /* The screen switch the core can actually honour is of_video_set_display_mode() (of_video.h:43-45):
-     * OF_DISPLAY_TERMINAL shows only the 40x30 console the host's printf writes to, OF_DISPLAY_OVERLAY puts
-     * that text over the game picture, which is what makes a hung run readable on the device itself.  When
-     * the log slot is not writable the overlay becomes the default, so a run is never unreadable. */
+    /* Pocket LCD (interact.json id 70, bits 16-17 of 0xF7000000) is the screen switch, and the host mirrors
+     * it into of_video_set_display_mode() (of_video.h:43-45): OF_DISPLAY_TERMINAL shows the 40x30 console the
+     * printf diagnostics go to, OF_DISPLAY_FRAMEBUFFER the game.  The mode is re-derived from that setting on
+     * every present(), which is the point: a stuck-of-its-own default used to force OF_DISPLAY_FRAMEBUFFER
+     * while the menu said Terminal, i.e. the port overrode the user 60 times a second (docs/336). */
     {
         int scr = of_setting_screen();
         int mode = (scr == 1) ? OF_DISPLAY_TERMINAL : (scr == 2) ? OF_DISPLAY_OVERLAY : OF_DISPLAY_FRAMEBUFFER;

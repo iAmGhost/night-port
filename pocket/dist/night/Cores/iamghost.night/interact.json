@@ -241,30 +241,6 @@
                     "adjust_small": 1,
                     "adjust_large": 30
                 }
-            },
-            {
-                "name": "NIGHT Screen",
-                "id": 102,
-                "type": "list",
-                "enabled": true,
-                "persist": true,
-                "address": "0xF7000014",
-                "defaultval": 0,
-                "mask": "0xFFFFFFFF",
-                "options": [
-                    {
-                        "value": "0x00000000",
-                        "name": "Game"
-                    },
-                    {
-                        "value": "0x00000001",
-                        "name": "Terminal"
-                    },
-                    {
-                        "value": "0x00000002",
-                        "name": "Game + log"
-                    }
-                ]
             }
         ],
         "messages": []

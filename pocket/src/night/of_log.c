@@ -3,14 +3,17 @@
  * The Pocket has no console, and the "Pocket LCD -> Terminal" entry never appeared on hardware, so the host
  * writes its own trail into bound nonvolatile data slots and the card is read back afterwards:
  *
- *   slot 9   night.log   (Assets/night/common/night.log, 64 KiB maximum)
+ *   slot 8   night.cfg   (the SDK's shared-config slot: Assets/night/common/night.cfg)
  *
- * If that slot cannot be opened, a save slot is used instead (17, 16, 15 in that order): save slots are the
- * one nonvolatile slot type openfpgaOS-Quake is known to write from an app, so the trail survives even when
- * this core's log slot is not writable.  Whichever file is used is named in the log itself.
+ * Slot 8 is the slot the SDK documents as writable from an app ("Slot 8 is reserved for SDK/shared config",
+ * and the app save slots are "mapped to APF file IDs 10-19" -- README:466).  The first three hardware runs
+ * used id 9, which is in neither category: fopen answered with a FILE*, every line was "written", and the
+ * file on the card stayed at 0 bytes.  If slot 8 cannot be opened either, a save slot stands in (17, 16, 15).
+ * Whichever file is used is named in the log itself.
  *
- * Slots are opened the way openfpgaOS-Quake's sys_of.c opens them -- readdir("/") plus d_ino - 1 == slot id,
- * then fopen on the name readdir reported -- because a guessed path can wedge the slot bridge.  The scan is
+ * The SDK's documented order is register-then-fopen ("Apps register filenames at startup, then use standard C
+ * file I/O", of_file_slot_register(id, name) then fopen(name)) with readdir("/") plus d_ino - 1 == slot id kept
+ * as the fallback -- because a guessed path can wedge the slot bridge.  The scan is
  * also what proves the slot bridge at all: the entry list (name, inode, implied slot) goes into the log, so
  * a card read shows how the OS exposed the manifest to the app.  Every line is flushed as it is written, so
  * a core that is killed mid-run, faults, or never returns still left everything it knew on the card.
@@ -23,10 +26,12 @@
 
 #ifndef OF_PC
 #include "of.h"
+#include "of_file.h"
 #include <dirent.h>
 #endif
 
-#define LOG_SLOT        9
+#define LOG_SLOT        8          /* SDK shared-config slot: the one an app is documented to write */
+#define LOG_NAME        "night.cfg"
 #define LOG_FALLBACKS   { 17, 16, 15 }       /* save slots: the nonvolatile type a core is known to write */
 
 static FILE *g_log;
@@ -64,12 +69,13 @@ int of_log_open(void) {
     char name[64];
     scan[0] = 0;
 
-    /* Bare name first: openfpgaOS-Quake writes its config/save slots with fopen("quake.cfg","wb"), and the
-     * SDK maps a bare filename onto the bound slot.  The d_ino scan below is the fallback AND the witness --
+    /* Register first, then fopen on the registered name -- the order README:440-448 documents, and the same
+     * one openfpgaOS-Quake's sys_of.c uses for quake.cfg.  The d_ino scan is the fallback AND the witness:
      * whatever readdir did list gets written into the log. */
-    if ((g_log = fopen("night.log", "w"))) {
+    of_file_slot_register(LOG_SLOT, LOG_NAME);
+    if ((g_log = fopen(LOG_NAME, "w"))) {
         setvbuf(g_log, (char *)0, _IONBF, 0);
-        of_log_line("log: slot %d via bare name \"night.log\"\n", LOG_SLOT);
+        of_log_line("log: slot %d registered as \"%s\"\n", LOG_SLOT, LOG_NAME);
         if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0) of_log_line("%s", scan);
         else of_log_line("%s", scan);
         return 0;
@@ -85,6 +91,7 @@ int of_log_open(void) {
         scan[0] = 0;
         char bare[32];
         snprintf(bare, sizeof bare, "night_%d.sav", want[i] - 10);
+        of_file_slot_register(want[i], bare);
         if ((g_log = fopen(bare, "w"))) {
             setvbuf(g_log, (char *)0, _IONBF, 0);
             of_log_line("log: save slot %d used as the diagnostic trail via bare name \"%s\"\n", want[i], bare);

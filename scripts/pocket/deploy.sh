@@ -85,7 +85,7 @@ done
 # Nonvolatile slots must be VISIBLE before the host can open one: of_log.c and of_save.c find their slot
 # through readdir("/") + d_ino, and openfpgaOS-Quake's sys_of.c returns NULL when readdir does not list it.
 # A bound-but-absent file is therefore pre-created empty here, and the core writes it.
-for pre in night.log night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
+for pre in night.cfg night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
     [ -f "$COMMON/$pre" ] || : > "$COMMON/$pre"
     ok "pre-created $pre"
 done
@@ -95,7 +95,7 @@ done
 # no file on either side has nothing for the app's fopen to land in, so the same placeholders go there too.
 SAVE_DIR="$SDCARD/Saves/$(basename "$PLAT")/common"
 mkdir -p "$SAVE_DIR"
-for pre in night.log night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
+for pre in night.cfg night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
     [ -f "$SAVE_DIR/$pre" ] || : > "$SAVE_DIR/$pre"
 done
 ok "placeholders in Saves/$(basename "$PLAT")/common/"

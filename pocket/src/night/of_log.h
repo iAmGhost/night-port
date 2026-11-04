@@ -1,8 +1,8 @@
-/* of_log.h -- the on-card diagnostic log: data slot 9 (night.log), readable without a terminal. */
+/* of_log.h -- the on-card diagnostic log: data slot 8 (night.cfg), readable without a terminal. */
 #ifndef NIGHT_OF_LOG_H
 #define NIGHT_OF_LOG_H
 
-/* Open the log slot (id 9, "night.log").  0 on success, -1 when the slot is not there.  The desktop build
+/* Open the log slot (id 8, "night.cfg").  0 on success, -1 when the slot is not there.  The desktop build
  * writes scratch/pocket/night.log so a PC run leaves the same witness. */
 int  of_log_open(void);
 

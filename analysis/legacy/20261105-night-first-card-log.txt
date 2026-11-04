@@ -1,0 +1,173 @@
+log: opened "save:9" (the SDK save alias)
+root: "os.bin" ino=2 slot=1
+root: "night.ini" ino=3 slot=2
+root: "night.elf" ino=4 slot=3
+root: "NIGHT.RES" ino=5 slot=4
+root: "night.cfg" ino=9 slot=8
+root: "night_0.sav" ino=11 slot=10
+root: "night_1.sav" ino=12 slot=11
+root: "night_2.sav" ino=13 slot=12
+root: "night_3.sav" ino=14 slot=13
+root: "night_4.sav" ino=15 slot=14
+root: "night_5.sav" ino=16 slot=15
+root: "night_6.sav" ino=17 slot=16
+root: "night_7.sav" ino=18 slot=17
+root: "track02.bin" ino=19 slot=18
+root: 27 entries; slot 19 found
+phase: boot start
+night pocket: cpu=100000000 Hz sdram=65536 KB heap=36036 KB fb=320x240 stride=320 voices=32 variant=0
+phase: clock source installed
+clock: openfpgaOS of_time_us installed; probe: 440501 us over a 2M-iteration spin (advancing)
+settings: music_vol=255 sfx_vol=255 cdda=1 pad=1 tick_hz=490 screen=1
+screen: ini/menu=1 display_mode=0 (0=terminal 1=framebuffer 2=overlay)
+log ok=1 bytes=926
+probe find "night.cfg" -> 0 id=8
+probe find "night_0.sav" -> 0 id=10
+probe find "night_7.sav" -> 0 id=17
+probe find "NIGHT.RES" -> 0 id=4
+probe find "track02.bin" -> 0 id=18
+probe dir "os.bin" ino=2 slot=1
+probe dir "night.ini" ino=3 slot=2
+probe dir "night.elf" ino=4 slot=3
+probe dir "NIGHT.RES" ino=5 slot=4
+probe dir "night.cfg" ino=9 slot=8
+probe dir "night_0.sav" ino=11 slot=10
+probe dir "night_1.sav" ino=12 slot=11
+probe dir "night_2.sav" ino=13 slot=12
+probe dir "night_3.sav" ino=14 slot=13
+probe dir "night_4.sav" ino=15 slot=14
+probe dir "night_5.sav" ino=16 slot=15
+probe dir "night_6.sav" ino=17 slot=16
+probe dir listed 12 (cap 12)
+probe wrote 17 then closed
+probe readback 16 "NIGHT-PROBE-000"
+file: slot_find(night.cfg)=0 id=8
+================================================
+=== NIGHT (openfpgaOS) -- console overlay test ===
+================================================
+phase: board_boot
+phase: audio_boot
+phase: cdda_boot
+disc: 15 tracks, 269453 sectors
+phase: game main entered
+memstat frames=1 ticks=1(+1/s) pumps=1 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=0
+view=0 640x480 sig=ecd967f7 chg=1 pal=1
+video CHANGED: view=0 640x480 (was -1 -1x-1)
+perf pres=89026us max=89026us pump=1 ticks=1 skips=0
+stages last m=16 p=562 c=75798 f=71 x=12545 | max all=88992 copy=75798 flip=12545
+pump reanchor=1 frames=1 hz=490 log=1/2276 dm=0
+menu lcd=00020000 scr=1 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=13 ticks=13(+12/s) pumps=13 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1074527
+view=0 640x480 sig=ecd967f7 chg=1 pal=254
+perf pres=85397us max=89026us pump=13 ticks=13 skips=0
+stages last m=15 p=181 c=79664 f=70 x=5434 | max all=88992 copy=79664 flip=12545
+pump reanchor=13 frames=13 hz=490 log=1/2709 dm=0
+menu lcd=00020000 scr=1 blit fast=13 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=25 ticks=25(+12/s) pumps=25 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1039175
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=85969us max=89026us pump=25 ticks=25 skips=0
+stages last m=16 p=180 c=80251 f=69 x=5420 | max all=88992 copy=80251 flip=12545
+pump reanchor=25 frames=25 hz=490 log=1/3145 dm=0
+menu lcd=00020000 scr=1 blit fast=25 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=37 ticks=37(+12/s) pumps=37 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1043714
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=86159us max=89026us pump=37 ticks=37 skips=0
+stages last m=15 p=181 c=80303 f=69 x=5558 | max all=88992 copy=80349 flip=12545
+pump reanchor=37 frames=37 hz=490 log=1/3581 dm=0
+menu lcd=00020000 scr=1 blit fast=37 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=49 ticks=49(+12/s) pumps=49 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1047046
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=86413us max=89026us pump=49 ticks=49 skips=0
+stages last m=15 p=181 c=80322 f=69 x=5793 | max all=88992 copy=80386 flip=12545
+pump reanchor=49 frames=49 hz=490 log=1/4017 dm=0
+menu lcd=00020000 scr=1 blit fast=49 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=61 ticks=61(+12/s) pumps=61 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1047522
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=86947us max=89026us pump=61 ticks=61 skips=0
+stages last m=16 p=185 c=80343 f=69 x=6301 | max all=88992 copy=80386 flip=12545
+pump reanchor=61 frames=61 hz=490 log=1/4453 dm=0
+menu lcd=00020000 scr=1 blit fast=61 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=73 ticks=73(+12/s) pumps=73 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1050124
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87199us max=89357us pump=73 ticks=73 skips=0
+stages last m=16 p=186 c=80342 f=70 x=6552 | max all=89323 copy=80386 flip=12545
+pump reanchor=73 frames=73 hz=490 log=1/4889 dm=0
+menu lcd=00020000 scr=1 blit fast=73 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=85 ticks=85(+12/s) pumps=85 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1052283
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87327us max=89612us pump=85 ticks=85 skips=0
+stages last m=15 p=186 c=80342 f=69 x=6681 | max all=89578 copy=80386 flip=12545
+pump reanchor=85 frames=85 hz=490 log=1/5325 dm=0
+menu lcd=00020000 scr=1 blit fast=85 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=97 ticks=97(+12/s) pumps=97 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1053235
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87477us max=89696us pump=97 ticks=97 skips=0
+stages last m=16 p=186 c=80365 f=70 x=6807 | max all=89662 copy=80391 flip=12545
+pump reanchor=97 frames=97 hz=490 log=1/5761 dm=0
+menu lcd=00020000 scr=1 blit fast=97 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=109 ticks=109(+12/s) pumps=109 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1055075
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87604us max=89769us pump=109 ticks=109 skips=0
+stages last m=15 p=186 c=80338 f=70 x=6961 | max all=89735 copy=80391 flip=12545
+pump reanchor=109 frames=109 hz=490 log=1/6202 dm=0
+menu lcd=00020000 scr=1 blit fast=109 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=121 ticks=121(+12/s) pumps=121 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1055997
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87541us max=89951us pump=121 ticks=121 skips=0
+stages last m=16 p=185 c=80340 f=70 x=6896 | max all=89918 copy=80391 flip=12545
+pump reanchor=121 frames=121 hz=490 log=1/6646 dm=0
+menu lcd=00020000 scr=1 blit fast=121 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=133 ticks=133(+12/s) pumps=133 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1055425
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87581us max=89951us pump=133 ticks=133 skips=0
+stages last m=16 p=185 c=80344 f=70 x=6933 | max all=89918 copy=80391 flip=12545
+pump reanchor=133 frames=133 hz=490 log=1/7090 dm=0
+menu lcd=00020000 scr=1 blit fast=133 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=145 ticks=145(+12/s) pumps=145 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1056980
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87740us max=89991us pump=145 ticks=145 skips=0
+stages last m=16 p=186 c=80344 f=69 x=7092 | max all=89957 copy=80391 flip=12545
+pump reanchor=145 frames=145 hz=490 log=1/7534 dm=0
+menu lcd=00020000 scr=1 blit fast=145 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=157 ticks=157(+12/s) pumps=157 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1057773
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=87835us max=90087us pump=157 ticks=157 skips=0
+stages last m=15 p=186 c=80348 f=69 x=7183 | max all=90054 copy=80391 flip=12545
+pump reanchor=157 frames=157 hz=490 log=1/7978 dm=0
+menu lcd=00020000 scr=1 blit fast=157 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=169 ticks=169(+12/s) pumps=169 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1060471
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=88089us max=90246us pump=169 ticks=169 skips=0
+stages last m=15 p=186 c=80349 f=69 x=7436 | max all=90212 copy=80391 flip=12545
+pump reanchor=169 frames=169 hz=490 log=1/8422 dm=0
+menu lcd=00020000 scr=1 blit fast=169 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=181 ticks=181(+12/s) pumps=181 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1062947
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=88248us max=90499us pump=181 ticks=181 skips=0
+stages last m=16 p=185 c=80346 f=69 x=7598 | max all=90465 copy=80391 flip=12545
+pump reanchor=181 frames=181 hz=490 log=1/8866 dm=0
+menu lcd=00020000 scr=1 blit fast=181 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=193 ticks=193(+12/s) pumps=193 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1065231
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=88533us max=90626us pump=193 ticks=193 skips=0
+stages last m=16 p=186 c=80348 f=69 x=7881 | max all=90592 copy=80391 flip=12545
+pump reanchor=193 frames=193 hz=490 log=1/9310 dm=0
+menu lcd=00020000 scr=1 blit fast=193 slow=0 skip=0
+audio cdda=0/0/0 plays=0 ring=0 drift=0
+memstat frames=203 ticks=203(+10/s) pumps=203 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1117585

@@ -124,6 +124,7 @@ static uint64_t g_tick_next_us;
 static uint64_t g_present_next_us;
 static uint64_t g_diag_next_us;
 static unsigned g_timer_calls, g_pump_calls;
+static unsigned g_pump_reanchor;                     /* times the tick schedule had to be re-anchored after a stall */
 
 static void on_fatal(const char *msg) {
     printf("port fatal: %s\n", msg);
@@ -203,7 +204,14 @@ static void panel_shot(void) {
 
 #ifndef OF_PC
 static int g_display_mode = OF_DISPLAY_FRAMEBUFFER;
+static int g_display_applied = -1;      /* what the display path was actually last asked for */
 #endif
+
+/* Stage maxima for present().  The device reports pres=110331us for a call that costs 110-335us on the desktop
+ * shim, so the four things it does are timed separately: asking for the display mode, pushing the palette,
+ * copying/scaling the frame into the surface, and the flush/flip pair. */
+static uint32_t g_us_mode, g_us_pal, g_us_copy, g_us_flush, g_us_flip, g_us_flip_max;
+static void stage_max(uint32_t *mx, uint64_t d) { if (d > (uint64_t)*mx) *mx = (uint32_t)d; }
 
 /* Readout for the 40-column console.  A logo that the game never leaves and a game that moved on but is not
  * being shown look identical on the LCD -- so the host states, once a second, what geometry it is presenting,
@@ -230,17 +238,23 @@ static int pal_lit(void) {
 
 static void present(void) {
     if (g_off & OFF_PRESENT) return;
+    uint64_t t0 = sys_now_us(), t1, t2, t3, t4, t5;
 #ifndef OF_PC
-    /* Reasserted every frame on purpose: fn_03f15f (the game's own VESA mode set) runs throughout the boot
-     * sequence, and a display mode requested once at boot is not guaranteed to survive what the game does to
-     * the video path behind the host's back. */
-    of_video_set_display_mode(g_display_mode);
+    /* Only when it differs from what is already applied.  Re-asking the display path for its mode 59 times a
+     * second was the newest thing added to this function (to survive fn_03f15f, the game's own VESA mode set),
+     * and an ecall that re-programs the display is exactly the kind of thing that costs 110 ms. */
+    if (g_display_mode != g_display_applied) {
+        of_video_set_display_mode(g_display_mode);
+        g_display_applied = g_display_mode;
+    }
 #endif
+    t1 = sys_now_us();
     int vw = g_view_320x200 ? GAME_W : sys_video_w();
     int vh = g_view_320x200 ? GAME_H : sys_video_h();
     if (vw <= 0 || vh <= 0) return;
 
     palette_push();
+    t2 = sys_now_us();
     uint8_t *fb = of_video_surface();
     const uint8_t *src = g_video_ram;               /* indexed pixels, linear in the A0000 arena */
 
@@ -283,8 +297,21 @@ static void present(void) {
     if (getenv("NIGHT_PANEL_SHOT") && (g_frames % (unsigned)(getenv("NIGHT_PANEL_EVERY") ? atoi(getenv("NIGHT_PANEL_EVERY")) : 40)) == 20u)
         panel_shot();
 #endif
+    t3 = sys_now_us();
     of_video_flush();                               /* the display path reads memory the CPU just wrote */
+    t4 = sys_now_us();
     of_video_flip();
+    t5 = sys_now_us();
+#ifndef OF_PC
+    stage_max(&g_us_mode, t1 - t0);
+    stage_max(&g_us_pal, t2 - t1);
+    stage_max(&g_us_copy, t3 - t2);
+    stage_max(&g_us_flush, t4 - t3);
+    stage_max(&g_us_flip, t5 - t4);
+    stage_max(&g_us_flip_max, t5 - t0);
+#else
+    (void)t0; (void)t1; (void)t2; (void)t3; (void)t4; (void)t5;
+#endif
 }
 
 /* ---- sound board bring-up (docs/98) ----------------------------------------------------
@@ -605,6 +632,7 @@ static void tick_pump(void) {
     unsigned calls = 1;
     if (now - g_tick_next_us > period * 8ull) {       /* fell far behind: re-anchor, don't burst */
         g_tick_next_us = now;
+        g_pump_reanchor++;                            /* a stall inside game code shows up here */
     } else {
         while (now >= g_tick_next_us && calls < 64u) { g_tick_next_us += period; calls++; }
         calls--;
@@ -666,6 +694,9 @@ static void tick_pump(void) {
             }
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls);
+            NLOG("stages mode=%u pal=%u copy=%u flush=%u flip=%u all=%u\n",
+                 g_us_mode, g_us_pal, g_us_copy, g_us_flush, g_us_flip, g_us_flip_max);
+            NLOG("pump reanchor=%u frames=%u hz=%u\n", g_pump_reanchor, g_frames, hz);
             NLOG("audio cdda=%u/%u/%u plays=%u xfer=%u voices=%u\n",
                  of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays,
                  sys_audio_transfers(), 32u);
@@ -748,6 +779,7 @@ int main(int argc, char **argv) {
         int mode = (scr == 1) ? OF_DISPLAY_TERMINAL : (scr == 2) ? OF_DISPLAY_OVERLAY : OF_DISPLAY_FRAMEBUFFER;
         if (!g_log_ok && scr == 0) mode = OF_DISPLAY_OVERLAY;
         g_display_mode = mode;
+        g_display_applied = mode;
         of_video_set_display_mode(mode);
         NLOG("screen: ini/menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
         NLOG("================================================\n");

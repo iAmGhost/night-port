@@ -14596,21 +14596,34 @@ int32_t fn_03565a(int32_t input) {
  *                         cnt=colAcc+1
  *           g_dat_63e24 -= n; colAcc += 4
  *
- * BEHAVIORAL NOTE: the original has a VBLANK-sync busy-wait (0x03a6d9 `JG 0x03a6c0`) that spins
- * while n > g_dat_63e24, waiting for a timer/VBLANK interrupt to advance g_dat_63e24. Without
- * that hardware it never terminates; the port models it as a no-op (it has no effect on the
- * memory-copy sequence -- g_dat_63e24 only feeds the gate, and with n>0 the gate is satisfied).
  * mem_copy operand order (EAX=dst, EDX=src, EBX=cnt) is taken from raw disasm -- the decompiler's
- * EAX:EDX 64-bit merge swaps dst/src. */
+ * EAX:EDX 64-bit merge swaps dst/src.
+ *
+ * SUPERSEDED (docs/325): the earlier note said the per-pass VBLANK busy-wait at 0x03a6c0-0x03a6d9 was
+ * modelled as a no-op because "it has no effect on the memory-copy sequence".  That is exactly what the
+ * effect IS.  80 passes of a 200-row shear copy collapse into 0.1 ms (measured: /tmp/rig/f325r,
+ * `passes=80 gate_spins=0 row_copies=16000 elapsed_ms=0.1`), so every pass but the last is invisible and
+ * the playtester's "odd/even rows of the screen cross horizontally" animation is gone.  The wait is now
+ * the port's ordinary pumped busy-wait (`if (!sys_port_spin()) break`, the convention used by every other
+ * hardware wait in this file), so a build with a clock paces it and a test without one keeps the old
+ * collapse.  Each pass also polls one presentation of the arena it just wrote (sys_present_poll, docs/325):
+ * on DOS the CRT is scanning 0xA0000 while the game waits, so a pass is on screen the moment it is drawn. */
+unsigned g_reveal_passes, g_reveal_gate_spins, g_reveal_row_copies;   /* docs/325 census: passes drawn, paced spins, row copies */
 void fn_03a5f7(const uint8_t *base) {
     (void)canary_id((uintptr_t)base, 0x28);                    /* PUSH 0x28;CALL 0x418ee */
     uint8_t *b = (uint8_t *)base;                               /* [EBP-0x4] = base (source buffer, host ptr) */
     int32_t colAcc = 0;                                         /* [EBP-0x8] */
+    g_reveal_passes = g_reveal_gate_spins = g_reveal_row_copies = 0;
+    uint64_t rev_t0 = sys_now_us();
+    uint64_t rev_presents = sys_present_polls();
     g_dat_63e24 = 0;                                            /* 0x03a619 */
+    int32_t n = 0;
     for (;;) {
-        int32_t n = (int32_t)((uint32_t)0x1ea / g_dat_53104);   /* 0x03a623: IDIV [0x53104] (signed) */
+        n = (int32_t)((uint32_t)0x1ea / g_dat_53104);           /* 0x03a623: IDIV [0x53104] (signed) */
         if (n > (int32_t)g_dat_63e24) {                          /* 0x03a636/c: CMP/JLE */
+            g_reveal_passes++;
             for (int32_t row = 0; row < 0xc8; row++) {
+                g_reveal_row_copies++;
                 if ((row & 1) == 0) {
                     /* EVEN: 0x03a698  dst=0xa0000+(row+1)*0x140-colAcc-1, src=base+row*0x140 */
                     mem_copy(video_map(0xa0000u + (uint32_t)(row + 1) * 0x140u - (uint32_t)colAcc - 1u),
@@ -14624,11 +14637,18 @@ void fn_03a5f7(const uint8_t *base) {
                 }
             }
         }
-        /* busy-wait (0x03a6d9 JG 0x03a6c0) omitted -- VBLANK sync, see note above. */
+        sys_present_poll();                                      /* this pass is on the CRT (docs/325) */
+        while (n > (int32_t)g_dat_63e24) { if (!sys_port_spin()) break; g_reveal_gate_spins++; }  /* 0x03a6c0-0x03a6d9 */
         g_dat_63e24 = (uint32_t)((int32_t)g_dat_63e24 - n);      /* 0x03a6ee: SUB [0x63e24], n */
         colAcc += 4;                                             /* 0x03a6f4 */
         if (!(colAcc < 0x140)) break;                            /* 0x03a6f8/f: CMP/JL */
     }
+    if (getenv("NIGHT_SHOWDBG"))                                 /* docs/325: reveal census (passes / paced spins / wall time) */
+        fprintf(stderr, "reveal: passes=%u gate_spins=%u row_copies=%u colAcc=%u elapsed_ms=%.1f presents=%u "
+                        "n=%d DAT_53104=%u DAT_63e24=%u\n",
+                g_reveal_passes, g_reveal_gate_spins, g_reveal_row_copies, (unsigned)colAcc,
+                (double)(sys_now_us() - rev_t0) / 1000.0,
+                (unsigned)(sys_present_polls() - rev_presents), n, (unsigned)g_dat_53104, (unsigned)g_dat_63e24);
 }
 
 /* fn_038c23  orig: 0x038c23 (L11, 186 B) -- render a 0..99 integer as 2 digit glyphs.

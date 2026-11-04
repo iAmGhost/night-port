@@ -1975,6 +1975,7 @@ int main(int argc, char **argv) {
     sys_set_input_pump(input_pump);
     rig_ctl_init();
     sys_set_tick_pump(tick_pump);
+    sys_set_present_hook(present);   /* docs/325: a pass that writes 0xA0000 and waits for a tick asks for one presentation */
 
     g_start_time = SDL_GetPerformanceCounter();
     g_tick_next = g_start_time;

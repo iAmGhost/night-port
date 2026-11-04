@@ -196,6 +196,15 @@ sys_pump_fn sys_get_input_pump(void);
 void sys_set_tick_pump(sys_pump_fn fn);
 sys_pump_fn sys_get_tick_pump(void);
 
+/* Present hook: the modern stand-in for "the CRT is scanning 0xA0000".  A routine that writes the video
+ * arena directly and then waits for the next tick (fn_03a5f7's reveal, docs/325) has no notion of a frame,
+ * so on DOS every pass is on screen; a host that presents on its own schedule cannot show a pass that
+ * happens inside one of its own frames and asks for one presentation instead.  Tests leave it NULL. */
+typedef void (*sys_present_fn)(void);
+void sys_set_present_hook(sys_present_fn fn);
+void sys_present_poll(void);
+uint64_t sys_present_polls(void);   /* how many arena presentations a wait asked for */
+
 void sys_vesa_info(uint8_t *buf);
 void sys_vesa_mode_info(uint16_t mode, uint8_t *buf);
 uint16_t sys_vesa_set_mode(uint16_t mode);

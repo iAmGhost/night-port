@@ -100,6 +100,17 @@ static sys_pump_fn tick_pump;
 void sys_set_tick_pump(sys_pump_fn fn) { tick_pump = fn; }
 sys_pump_fn sys_get_tick_pump(void) { return tick_pump; }
 
+/* ---- present hook ---- */
+/* A routine that writes 0xA0000 directly and then waits for the next tick (fn_03a5f7's reveal, docs/325)
+ * has no notion of a frame: on DOS the CRT is scanning that arena, so every pass is on screen.  A host
+ * that presents on its own schedule cannot show a pass that happens inside one of its own frames, so such
+ * a pass asks for one presentation of what it just wrote.  Inert when no hook is installed (tests). */
+static sys_present_fn present_hook;
+static uint64_t present_polls;
+void sys_set_present_hook(sys_present_fn fn) { present_hook = fn; }
+void sys_present_poll(void) { if (present_hook != (sys_present_fn)0) { present_hook(); present_polls++; } }
+uint64_t sys_present_polls(void) { return present_polls; }
+
 /* ---- device port model: separate read (status) and write (command) sides ---- */
 #define DEV_PORT_BASE 0x200          /* the ISA device range the base scan probes: 0x200..0x2ff */
 static uint8_t     dev_status[PORT_MAX];

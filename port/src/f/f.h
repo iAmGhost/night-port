@@ -148,6 +148,7 @@ void fn_037306(void);                          /* 0x037306: cleanup -- if g_639b
 void fn_03575d(uint32_t divisor);              /* 0x03575d: PIT ch0 rate setup (divisor in EAX) */
 void fn_03f3be(uint32_t color);                /* 0x03f3be: VGA palette-set, index 0x63e5c (color in EAX) */
 void fn_03f462(uint32_t base, int32_t row2, uint32_t width, uint32_t count, const uint8_t *src); /* 0x03f462: row-wrap fill into A0000 */
+extern unsigned g_reveal_passes, g_reveal_gate_spins, g_reveal_row_copies;  /* docs/325: fn_03a5f7 census */
 void fn_03a5f7(const uint8_t *base); /* 0x03a5f7: progressive horizontal reveal of 200-row source into A0000 */
 void fn_038c23(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038c23: render 0..99 as 2 digit glyphs */
 void fn_038b30(uint32_t base, uint8_t *font, int32_t col0, int32_t start_row, int32_t number); /* 0x038b30: render int as 5-glyph right-justified field */

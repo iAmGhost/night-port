@@ -12178,6 +12178,11 @@ static void test_showscreen_gate(void) {
     g_dat_63354 = save;
 }
 
+/* docs/325: the shipped's per-pass VBLANK/tick wait (0x03a6c0-0x03a6d9) spins while n > DAT_63e24, and
+ * DAT_63e24 is aged by the timer handler (0x3eebe).  A tick pump is the port's stand-in for that interrupt,
+ * so a reveal with a clock installed must pace: 80 passes x n=7 ticks = 560 pumped spins. */
+static void reveal_tick_pump(void) { g_dat_63e24++; }
+
 static void test_fn_03a5f7(void) {
     printf("fn_03a5f7 (0x03a5f7): progressive horizontal reveal of 200-row source into A0000\n");
     uint8_t *scr = g_video_ram;         /* dst via video_map(0xa0000+off) */
@@ -12205,6 +12210,10 @@ static void test_fn_03a5f7(void) {
               scr[637] == 0x00 && scr[638] == 0x00 && scr[639] == 0x00;
     check(ok4, "  T1 gap bytes unwritten (row0 head [0,1,2], row1 tail [637..639])");
     check(g_dat_63e24 == (uint32_t)(int32_t)(-560), "  T1 g_dat_63e24 = 0-80*7 = -560 (0xFFFFFDF8)");
+    check(g_reveal_passes == 80 && g_reveal_row_copies == 16000,
+          "  T1 80 passes x 200 rows = 16000 row copies emitted");
+    check(g_reveal_gate_spins == 0,
+          "  T1 with no tick source the per-pass wait takes the documented no-op exit (0 spins)");
 
     /* T2: n=0 gate (g_dat_53104=0x1eb -> 490/491=0). Inner loop skipped; no writes;
      *     g_dat_63e24 stays 0. */
@@ -12214,6 +12223,18 @@ static void test_fn_03a5f7(void) {
     int ok5 = scr[3] == 0x5a && scr[320] == 0x5a && scr[319] == 0x5a;
     check(ok5, "  T2 n=0: no writes (scr untouched 0x5a)");
     check(g_dat_63e24 == 0, "  T2 n=0: g_dat_63e24 stays 0");
+
+    /* T3 (docs/325): with a tick source the same call paces, and lands the same final rows. */
+    g_dat_53104 = 0x46;
+    memset(scr, 0, 0x10000);
+    sys_set_tick_pump(reveal_tick_pump);
+    fn_03a5f7(b);
+    sys_set_tick_pump((sys_pump_fn)0);
+    check(g_reveal_gate_spins == 560,
+          "  T3 with a tick source the reveal paces: 80 passes x n=7 = 560 pumped VBLANK waits");
+    check(scr[3] == 0x00 && scr[319] == 0x3c && scr[320] == 0x43 && scr[643] == 0x80,
+          "  T3 the paced reveal lands the same final rows as T1");
+    g_dat_63e24 = 0;
 
     g_dat_53104 = dv0;
     free(b);

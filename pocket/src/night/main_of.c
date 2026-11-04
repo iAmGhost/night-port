@@ -882,6 +882,37 @@ static void diag_panel(unsigned hz) {
 }
 #endif
 
+
+#ifndef OF_PC
+/* What the memory system actually gives us, measured at boot instead of argued about.  The device log reports
+ * "copy=80391us" for one 640x480 -> 320x240 pass -- 307 200 source bytes read and 76 800 written in 80 ms,
+ * about 3.8 MB/s -- and that one stage is what pins the tick pump at 12 Hz.  Whether 80 ms is the floor or the
+ * loop is answerable by timing the parts against each other: a plain sequential read of the same bytes, a
+ * memcpy of them, a memset, and the downscale itself. */
+static void mem_bench(void) {
+    const size_t n = 640u * 480u;
+    static uint8_t *scratch;
+    if (!scratch) scratch = (uint8_t *)malloc(n);
+    volatile uint32_t sink = 0;
+    uint64_t t = sys_now_us();
+    for (size_t i = 0; i < n; i += 4u) sink += *(const uint32_t *)(const void *)(g_video_ram + i);
+    NLOG("bench read=%uus sink=%u\n", (uint32_t)(sys_now_us() - t), (unsigned)(sink & 1u));
+    t = sys_now_us();
+    for (size_t i = 0; i < n; i += 4u) sink += *(const uint32_t *)(const void *)(g_video_ram + i);
+    NLOG("bench read2=%uus (warm)\n", (uint32_t)(sys_now_us() - t));
+    if (scratch) {
+        t = sys_now_us(); memcpy(scratch, g_video_ram, n);
+        NLOG("bench copy=%uus\n", (uint32_t)(sys_now_us() - t));
+        t = sys_now_us(); memset(scratch, 0xA5, n);
+        NLOG("bench write=%uus\n", (uint32_t)(sys_now_us() - t));
+        free(scratch);
+    }
+    t = sys_now_us();
+    downscale_2x2_frame(g_video_ram, of_video_surface());
+    NLOG("bench downscale=%uus\n", (uint32_t)(sys_now_us() - t));
+}
+#endif
+
 static void file_probe(void) {
     static const char *names[] = { "nightlog.sav", "night_0.sav", "night_6.sav", "NIGHT.RES", "track02.bin" };
     for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
@@ -1002,6 +1033,7 @@ int main(int argc, char **argv) {
         NLOG("log ok=%d bytes=%ld\n", g_log_ok, of_log_bytes());
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
+        mem_bench();
         file_probe();
 #ifndef OF_PC
         {   /* What the file layer thinks of the name we open the log on. */

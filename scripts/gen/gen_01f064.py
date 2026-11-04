@@ -100,9 +100,9 @@ doc = '''
 /* =====================================================================
  * 0x01f064 -- THE BEHAVIOUR-0x07 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Eighth of the 18; scratch/aicases.py reduces it to case 0x00 alone, so this body is fn_01bea8's
+ * Eighth of the 18; scripts/analysis/aicases.py reduces it to case 0x00 alone, so this body is fn_01bea8's
  * with the chooser re-derived from analysis/disasm/FUN_0001f064.txt (generator:
- * scratch/gen_01f064.py). The slot draw is fn_01bea8's split one (v%100 < 0x32 -> slots 2..9 via
+ * scripts/gen/gen_01f064.py). The slot draw is fn_01bea8's split one (v%100 < 0x32 -> slots 2..9 via
  * v%8+2 with the 2 -> +prng%2 / 3 -> 4+prng%2 sub-draws, else slots 0/1), but the spot is built by
  * FOUR arms: slots 0/1 hide beside the player at the type's script-row byte 0 offset (the 0x01cf64 /
  * 0x01df8b source of offsets) with no separate player-Y write first, slots 2..5 use the

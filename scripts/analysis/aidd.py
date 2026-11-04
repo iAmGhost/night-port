@@ -1,6 +1,6 @@
 """aidd.py -- annotated AI-handler listing: fdis + call-target names + DS data values.
 
-Usage: python3 scratch/aidd.py <va-hex> <end-hex> [--nodata]
+Usage: python3 scripts/analysis/aidd.py <va-hex> <end-hex> [--nodata]
 """
 import sys, re, struct
 from capstone import Cs, CS_ARCH_X86, CS_MODE_32

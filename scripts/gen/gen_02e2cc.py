@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate fn_02e2cc (behaviour-0x26) from the verified fn_02c838 body.
 
-All deltas were located with scratch/aidiff_insns.py (95.6% of the 1815 instructions of 0x02e2cc align
-with 0x02c838 in order) and read in scratch/aidd.py listings; see scratch/NOTES_02e2cc.md.
+All deltas were located with scripts/analysis/aidiff_insns.py (95.6% of the 1815 instructions of 0x02e2cc align
+with 0x02c838 in order) and read in scripts/analysis/aidd.py listings; see analysis/notes/NOTES_02e2cc.md.
 """
 import re, sys
 

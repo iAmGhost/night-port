@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reference for fn_048a48 (0x00048a48, L3, 502B, 171 insns). In-place:
 fn_048a48(a, esi), a={lo,hi,exp(u16)}, esi in {0,1,2}. Trace-faithful to
-scratch/dis_048a48_raw.txt; composes the verified callee refs. See
+analysis/disasm/dis_048a48_raw.txt; composes the verified callee refs. See
 docs/12-functions/STATUS.md (c3258f5 + c3258f5-errata) for the algorithm.
 
 CORRECTIONS vs the earlier (c3258f5) spec:
@@ -22,7 +22,7 @@ def s16(x):
     x &= 0xffff
     return x - 0x10000 if (x & 0x8000) else x
 
-# coeff tables (scratch/048a48_tables_c.txt)
+# coeff tables (analysis/disasm/048a48_tables_c.txt)
 TBL_48982 = [
     (0x856a5359, 0xca963b81, 0x3fce),
     (0x9dc0f88f, 0xd73f9f39, 0xbfd6),

@@ -83,11 +83,11 @@ doc = '''
 /* =====================================================================
  * 0x020170 -- THE BEHAVIOUR-0x08 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Ninth of the 18. scratch/aicases.py lists ONLY case 0x00 as differing from fn_01bea8 (every other
+ * Ninth of the 18. scripts/analysis/aicases.py lists ONLY case 0x00 as differing from fn_01bea8 (every other
  * switch case matches), and the whole tail of case 0x00 is instruction-for-instruction identical:
  * the mnemonic streams from the room-band clamp on for 257 instructions match FUN_0001bea8 at
  * 0x1c4bb exactly. So this body is fn_01bea8's with the chooser re-derived from
- * analysis/disasm/FUN_00020170.txt (generator: scratch/gen_020170.py). Its draw is the simplest in
+ * analysis/disasm/FUN_00020170.txt (generator: scripts/gen/gen_020170.py). Its draw is the simplest in
  * the family -- prng()%4, with 2 -> +prng()%2 and 3 -> 4+prng()%2, so ONLY slots 0..5 are reachable
  * (no split draw, no absolute slots) -- and the spot is either the type's script-row byte 0 offset
  * beside the player (slots 0/1) or the player-OFFSET jitter rectangles (slots 2..5); there is no

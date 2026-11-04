@@ -101,10 +101,10 @@ doc = '''
 /* =====================================================================
  * 0x02119c -- THE BEHAVIOUR-0x0b ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Eleventh of the 18. scratch/aicases.py flags TWO differing cases: 0x00 (the chooser) and 0x0b (the
+ * Eleventh of the 18. scripts/analysis/aicases.py flags TWO differing cases: 0x00 (the chooser) and 0x0b (the
  * scripted walk), everything else -- including the whole 257-instruction tail after the room-band
  * clamp, which matches FUN_0001bea8 @0x1c4bb mnemonic for mnemonic -- comes from the template
- * (generator: scratch/gen_0221b8-style scratch/gen_02119c.py). Case 0x00 is a phase latch on
+ * (generator: scratch/gen_0221b8-style scripts/gen/gen_02119c.py). Case 0x00 is a phase latch on
  * entity[0x5f] WITHOUT a re-roll loop: latch 0 draws slot = prng()%2 and hides the entity inside that
  * slot's jitter rectangle offset by the player; latch 1 picks the slot from the player's screen half
  * (p_x <= 0xa0 -> slot 0xb, else slot 0xa) and draws it from the ABSOLUTE rectangle with a plain

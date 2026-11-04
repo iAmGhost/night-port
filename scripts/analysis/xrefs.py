@@ -1,4 +1,4 @@
-"""linear-sweep xrefs to a target: scratch/xrefs.py <target-va-hex>"""
+"""linear-sweep xrefs to a target: scripts/analysis/xrefs.py <target-va-hex>"""
 import sys
 from capstone import Cs, CS_ARCH_X86, CS_MODE_32
 D=0x2600; T=int(sys.argv[1],16)

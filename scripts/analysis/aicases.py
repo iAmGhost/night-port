@@ -5,7 +5,7 @@ Splits each canonical listing at its `switch(...) {` and then at each `case 0x..
 the bodies of matching cases. Prints only the cases that actually differ, so a 4 KB handler reduces
 to the handful of state-machine blocks that changed.
 
-Usage: python3 scratch/aicases.py <addrA> <addrB>
+Usage: python3 scripts/analysis/aicases.py <addrA> <addrB>
 """
 import re, sys, difflib, glob
 import os as _os, sys as _sys; _d=_os.path.dirname(_os.path.abspath(__file__)); _sys.path[:0]=[_d]+[_os.path.join(_d,"..",x) for x in ("ref","analysis","gen")]  # sibling analysis modules

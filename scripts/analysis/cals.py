@@ -1,4 +1,4 @@
-"""callee scan: scratch/cals.py <va-hex> <size-dec> -- call targets with ported-name or PENDING tag"""
+"""callee scan: scripts/analysis/cals.py <va-hex> <size-dec> -- call targets with ported-name or PENDING tag"""
 import sys, re, struct
 from capstone import Cs, CS_ARCH_X86, CS_MODE_32
 D=0x2600

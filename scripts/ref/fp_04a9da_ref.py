@@ -61,9 +61,9 @@ def main():
     out2 = out[:5] + [f'static const v04a9da_t v04a9da_v[{len(cases)}] = {{', body, '};',
                       f'static const unsigned v04a9da_n = {len(cases)};', '#endif']
     hdr = '\n'.join(out2)
-    with open('scratch/vectors_04a9da.h', 'w') as f:
+    with open('test/vectors/vectors_04a9da.h', 'w') as f:
         f.write(hdr + '\n')
-    print(f'wrote scratch/vectors_04a9da.h with {len(cases)} vectors')
+    print(f'wrote test/vectors/vectors_04a9da.h with {len(cases)} vectors')
 
 if __name__ == '__main__':
     main()

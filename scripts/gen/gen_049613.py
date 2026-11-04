@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import json, importlib.util
-spec = importlib.util.spec_from_file_location("ref", "~/Git/night-port/scratch/fp_049613_ref.py")
+spec = importlib.util.spec_from_file_location("ref", "~/Git/night-port/scripts/ref/fp_049613_ref.py")
 ref = importlib.util.module_from_spec(spec); spec.loader.exec_module(ref)
 
 # struct dec_datetime list: [sec,min,hour,day,month,year,dow,doy,mode]

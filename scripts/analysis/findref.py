@@ -1,4 +1,4 @@
-"""find every instruction referencing a DS displacement: scratch/findref.py <disp-hex>"""
+"""find every instruction referencing a DS displacement: scripts/analysis/findref.py <disp-hex>"""
 import sys
 from capstone import Cs, CS_ARCH_X86, CS_MODE_32
 D=0x2600; disp=sys.argv[1].lower()

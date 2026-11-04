@@ -6,7 +6,7 @@ disassembly differ in local names / stack slots / branch targets, so compare the
 operand* stream: every immediate and displacement becomes '#', every register pair keeps its name.
 SequenceMatcher over that stream then reports which regions are genuinely new.
 
-Usage: python3 scratch/aidiff_insns.py <va-A> <va-B> [--full]
+Usage: python3 scripts/analysis/aidiff_insns.py <va-A> <va-B> [--full]
 """
 import re, sys, difflib
 rawA = rawB = []

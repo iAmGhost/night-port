@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Scan STATUS.md for unported functions whose every FUN_ callee is already [x].
 
-Usage: python3 scratch/cleanwins.py [max_size]
+Usage: python3 scripts/analysis/cleanwins.py [max_size]
 Prints (size, addr, callee_count, pseudo_file) sorted by size, i.e. the bottom-up
 "clean win" frontier. Run it before choosing the next port target.
 

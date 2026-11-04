@@ -1,5 +1,5 @@
 """Near-clean wins: unported functions with exactly N missing callees (default 1).
-Usage: uv run python3 scratch/nearwins.py [max_missing]"""
+Usage: uv run python3 scripts/analysis/nearwins.py [max_missing]"""
 import re, glob, sys
 NMAX = int(sys.argv[1]) if len(sys.argv) > 1 else 1
 status = open('docs/12-functions/STATUS.md').read()

@@ -73,10 +73,10 @@ doc = '''
 /* =====================================================================
  * 0x0221b8 -- THE BEHAVIOUR-0x15 ENTITY AI HANDLER (docs/18-ai-dispatch-map.md)
  *
- * Tenth of the 18; scratch/aicases.py again shows only case 0x00 differing from fn_01bea8, and the
+ * Tenth of the 18; scripts/analysis/aicases.py again shows only case 0x00 differing from fn_01bea8, and the
  * 257-instruction mnemonic stream from the room-band clamp on (FUN_000221b8 @0x226f4 vs
  * FUN_0001bea8 @0x1c4bb) is identical, so the body is the template with the chooser re-derived from
- * analysis/disasm/FUN_000221b8.txt (generator: scratch/gen_0221b8.py). Its draw matches 0x020170
+ * analysis/disasm/FUN_000221b8.txt (generator: scripts/gen/gen_0221b8.py). Its draw matches 0x020170
  * (prng()%4 with the 2/3 sub-draws, slots 0..5, no 1-in-6 forced action 4), but the spot has a
  * SINGLE arm for every slot: X from the slot's jitter rectangle offset by the player, Y always the
  * player's own Y (0x0002263b) -- no script-row offset arm and no absolute arm at all. The

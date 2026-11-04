@@ -2,9 +2,9 @@
 """Call a Ghidra MCP bridge tool over stdio.
 
 Usage:
-  uv run python scratch/ghidra_call.py list                 # list tool names
-  uv run python scratch/ghidra_call.py call <tool> '<json>' # call tool
-  uv run python scratch/ghidra_call.py call <tool> k=v k2=v2
+  uv run python scripts/analysis/ghidra_call.py list                 # list tool names
+  uv run python scripts/analysis/ghidra_call.py call <tool> '<json>' # call tool
+  uv run python scripts/analysis/ghidra_call.py call <tool> k=v k2=v2
 """
 import json, os, subprocess, sys, threading, queue
 

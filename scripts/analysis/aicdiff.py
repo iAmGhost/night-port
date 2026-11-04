@@ -6,7 +6,7 @@ The handlers are near-clones whose ONLY differences are semantic; Ghidra's local
 noise. This tool canonicalizes every local/temp/label name to a per-function token keyed by first
 appearance order, so a pure rename produces identical text and only real differences survive.
 
-Usage: python3 scratch/aicdiff.py <pseudo-file-A> <pseudo-file-B>
+Usage: python3 scripts/analysis/aicdiff.py <pseudo-file-A> <pseudo-file-B>
 """
 import re
 import sys

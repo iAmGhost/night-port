@@ -2,7 +2,7 @@
 fp_0487b0_ref.py -- Python differential reference for fn_0487b0
 (0x0487b0, 464B, 158 insns, L2). In-place: fn_0487b0(a), a={lo,hi,exp(16b)}.
 
-Trace-faithful model of the exact disassembly (scratch/dis_0487b0.txt).
+Trace-faithful model of the exact disassembly (analysis/disasm/dis_0487b0.txt).
 16 callee calls: r94a x6, rb79 x2, rd4e x5, f4c x2, f0e x1. ESI tracked as full
 32-bit (callee juggling + [ESP+n] reads depend on it).
 

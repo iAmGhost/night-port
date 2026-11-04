@@ -12,7 +12,7 @@ STATUS 2026-07-11: RUNS (pass-2 carry bug fixed) but UNVALIDATED / NOT YET USED 
     vs a-op) + a ground-truth known value BEFORE trusting this ref. The C-vs-Python diff
     would pass even with a shared trace bug, so do NOT skip this check.
 
-Trace-faithful to scratch/dis_048c8c_raw.txt; composes the verified callee refs
+Trace-faithful to analysis/disasm/dis_048c8c_raw.txt; composes the verified callee refs
 (fp_0487b0_ref._rd4e/_r94a, fp_047b79_ref.emulate). See docs/12-functions/STATUS.md.
 
 7-step algorithm (register-level mirror of the x86):

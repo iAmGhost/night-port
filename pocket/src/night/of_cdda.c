@@ -1,0 +1,315 @@
+/* of_cdda.c -- CD-DA on the Pocket: one mono ring per channel, two looping MUSIC voices, refilled from
+ * the per-track data slots.  The pattern is openfpgaOS-Quake's src/quake/engine/cd_of.c, adopted for
+ * NIGHT's disc (docs/330 §5, docs/331 §5, §8).
+ *
+ * WHY A RING AND NOT A QUEUE OF CHUNKS
+ *   The mixer plays a pool buffer with a start and an end.  Playing back-to-back chunks means the host
+ *   must start the next voice in the exact instant the previous one ends, and this host runs on a pump
+ *   (spin units at ~490 Hz = 2 ms), so a chunk boundary is up to 2 ms late -- at 44.1 kHz that is ~88
+ *   samples missing between every chunk, which is a click once a second.  A voice that is LOOPED over a
+ *   ring never stops: the host only has to keep the written region ahead of the voice's own cursor.
+ *
+ * WHY TWO MONO VOICES
+ *   The mixer's voices are mono streams with a pan; a stereo CD-DA pair is two of them hard-panned
+ *   (255,0) and (0,255), tagged OF_MIXER_GROUP_MUSIC so one of_mixer_set_group_volume() call is the
+ *   music level (and a fade is one call, which is what the game's own music fades want).
+ *
+ * WHY THE DISC CLOCK IS KEPT EVEN ON THE DESKTOP
+ *   The game compares its tick counter against DAT_00053c48 (the track length in seconds) to decide
+ *   when a track is done; a host that consumes a track at the wrong rate changes the game's decisions.
+ *   So the 75 sectors/s arithmetic below runs identically with or without a mixer -- on the desktop the
+ *   samples leave through a WAV witness instead of through fabric.
+ */
+#include "of_cdda.h"
+#include "of_disc.h"
+
+#include "sys/sys.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#ifndef OF_PC
+#include "of.h"
+#include "of_cache.h"
+#include "of_mixer.h"
+#endif
+
+#define CD_SRC_RATE       44100
+#define CD_RING_SEC       2
+#define CD_RING_FRAMES    (CD_SRC_RATE * CD_RING_SEC)     /* 88200 frames = 2 s per channel */
+#define CD_FRAMES_SECTOR  588                             /* one 2352-byte CD frame in samples */
+#define CD_CHUNK_SECTORS  4                               /* per pump pass: 2352 samples = 53 ms */
+#define CD_MIXER_PRIORITY 0
+
+static uint32_t g_lba, g_sectors, g_pos;                 /* disc coordinates */
+static uint64_t g_budget, g_clock_us;                    /* 75 sectors/s from the host clock */
+static uint32_t g_tracks;
+
+static int16_t *g_ring[2];                               /* [0]=left, [1]=right, +1 guard frame */
+static uint32_t g_write;                                 /* write cursor in frames */
+static uint32_t g_done_frames;                           /* frames taken from the disc */
+static int      g_running;
+static int      g_vol = 255;
+
+#ifndef OF_PC
+static of_mixer_handle_t g_voice[2];
+#else
+static const char *g_dir;                                /* desktop witness directory */
+static FILE *g_wav;
+#endif
+
+static void voice_start(void);
+static void voice_stop(void);
+
+int of_cdda_boot(void) {
+#ifndef OF_PC
+    /* The rings must live where the mixer's DMA reads them: its SDRAM pool.  The extra frame past the
+     * loop end is the seam guard (the mixer may read the loop end one sample in). */
+    g_ring[0] = (int16_t *)of_mixer_alloc_samples((CD_RING_FRAMES + 1) * sizeof(int16_t));
+    g_ring[1] = (int16_t *)of_mixer_alloc_samples((CD_RING_FRAMES + 1) * sizeof(int16_t));
+#else
+    g_ring[0] = (int16_t *)malloc((CD_RING_FRAMES + 1) * sizeof(int16_t));
+    g_ring[1] = (int16_t *)malloc((CD_RING_FRAMES + 1) * sizeof(int16_t));
+#endif
+#ifndef OF_PC
+    g_voice[0] = g_voice[1] = OF_MIXER_HANDLE_INVALID;
+#endif
+    if (!g_ring[0] || !g_ring[1]) {
+        printf("cdda: ring allocation failed (%u KB needed)\n",
+               (unsigned)(2 * (CD_RING_FRAMES + 1) * sizeof(int16_t) / 1024));
+        return -1;
+    }
+    printf("cdda: two mono rings, %u frames (%.1f s) each = %u KB\n",
+           (unsigned)CD_RING_FRAMES, CD_RING_FRAMES / (double)CD_SRC_RATE,
+           (unsigned)(2 * (CD_RING_FRAMES + 1) * sizeof(int16_t) / 1024));
+    return 0;
+}
+
+#ifdef OF_PC
+void of_cdda_set_dir(const char *dir) { g_dir = dir; }
+
+/* The witness the audio comparison reads: 44.1 kHz stereo s16, exactly the bytes the mixer would have
+ * played.  (scripts/rig/diff_audio.py re-derives the rate from the timeline, but the header is honest.) */
+static void wav_open(void) {
+    if (!g_dir) { printf("cdda: no witness directory set\n"); return; }
+    char path[600];
+    snprintf(path, sizeof path, "%s/pcm_cd.wav", g_dir);
+    g_wav = fopen(path, "wb");
+    if (!g_wav) return;
+    unsigned char h[44];
+    uint32_t size = 0x7fffffff, fmt = 16, rate = CD_SRC_RATE, byterate = CD_SRC_RATE * 4, data = 0;
+    uint16_t pcm = 1, ch = 2, align = 4, bits = 16;
+    memcpy(h + 0, "RIFF", 4); memcpy(h + 4, &size, 4); memcpy(h + 8, "WAVEfmt ", 8);
+    memcpy(h + 16, &fmt, 4); memcpy(h + 20, &pcm, 2); memcpy(h + 22, &ch, 2);
+    memcpy(h + 24, &rate, 4); memcpy(h + 28, &byterate, 4);
+    memcpy(h + 32, &align, 2); memcpy(h + 34, &bits, 2);
+    memcpy(h + 36, "data", 4); memcpy(h + 40, &data, 4);
+    fwrite(h, 1, 44, g_wav);
+}
+static uint32_t g_wav_bytes;
+static void wav_write_patch(void) {
+    if (!g_wav) return;
+    /* The sizes are only known at the end, so they are written back into the 44-byte header -- the same
+     * fix-up src/app/rig_sink.c does for its own witness WAV.  The write cursor must be put back where
+     * it was, otherwise every patch makes the following append overwrite the span it just wrote. */
+    long tail = ftell(g_wav);
+    uint32_t riff = 36 + g_wav_bytes, data = g_wav_bytes;
+    fseek(g_wav, 4, SEEK_SET);  fwrite(&riff, 1, 4, g_wav);
+    fseek(g_wav, 40, SEEK_SET); fwrite(&data, 1, 4, g_wav);
+    fseek(g_wav, tail, SEEK_SET);
+    fflush(g_wav);
+}
+static void wav_close(void) {
+    printf("cdda: witness closed after %u bytes of PCM\n", g_wav_bytes);
+    wav_write_patch();
+    if (g_wav) { fclose(g_wav); g_wav = (FILE *)0; }
+}
+#endif
+
+static void voice_start(void) {
+#ifdef OF_PC
+    g_wav_bytes = 0;
+    wav_open();
+#else
+    g_voice[0] = of_mixer_alloc_for_group_h(OF_MIXER_GROUP_MUSIC, (const uint8_t *)g_ring[0],
+                                            CD_RING_FRAMES, CD_SRC_RATE, CD_MIXER_PRIORITY, 0);
+    g_voice[1] = of_mixer_alloc_for_group_h(OF_MIXER_GROUP_MUSIC, (const uint8_t *)g_ring[1],
+                                            CD_RING_FRAMES, CD_SRC_RATE, CD_MIXER_PRIORITY, 0);
+    if (g_voice[0] == OF_MIXER_HANDLE_INVALID || g_voice[1] == OF_MIXER_HANDLE_INVALID) {
+        printf("cdda: no two free MUSIC voices; the track is clocked but not sounded\n");
+        voice_stop();
+        return;
+    }
+    of_mixer_set_loop_h(g_voice[0], 0, (int)CD_RING_FRAMES);
+    of_mixer_set_loop_h(g_voice[1], 0, (int)CD_RING_FRAMES);
+    of_mixer_set_vol_lr_h(g_voice[0], 255, 0);
+    of_mixer_set_vol_lr_h(g_voice[1], 0, 255);
+    of_mixer_set_group_volume(OF_MIXER_GROUP_MUSIC, g_vol);
+#endif
+}
+
+static void voice_stop(void) {
+#ifdef OF_PC
+    wav_close();
+#else
+    for (int c = 0; c < 2; c++) {
+        if (g_voice[c] != OF_MIXER_HANDLE_INVALID) {
+            of_mixer_stop_h(g_voice[c]);
+            g_voice[c] = OF_MIXER_HANDLE_INVALID;
+        }
+    }
+#endif
+}
+
+/* How much of the ring the voice has already spent.  The voice loops forever, so its consumption is a
+ * function of the time since playback started -- the mixer's own position is used only as a cross-check
+ * on the device. */
+static uint64_t g_play_us;                /* wall time the voices started */
+static uint64_t g_consumed_frames;        /* frames the voice side has taken out of the ring */
+
+static void clock_consume(void) {
+    uint64_t now = sys_now_us();
+    uint64_t want = (now - g_play_us) * (uint64_t)CD_SRC_RATE / 1000000ull;
+    if (want > g_done_frames) want = g_done_frames;         /* never consume audio that is not there */
+    g_consumed_frames = want;
+}
+
+static uint32_t ring_ahead(void) {
+    return (g_done_frames >= g_consumed_frames) ? (uint32_t)(g_done_frames - g_consumed_frames) : 0u;
+}
+
+static void ring_write(const int16_t *stereo, uint32_t frames) {
+    uint32_t done = 0;
+    while (done < frames) {
+        uint32_t w = g_write % CD_RING_FRAMES;
+        uint32_t contig = CD_RING_FRAMES - w;
+        uint32_t batch = frames - done;
+        if (batch > contig) batch = contig;
+        for (uint32_t i = 0; i < batch; i++) {
+            g_ring[0][w + i] = stereo[(done + i) * 2 + 0];
+            g_ring[1][w + i] = stereo[(done + i) * 2 + 1];
+        }
+#ifndef OF_PC
+        of_cache_flush_range(&g_ring[0][w], batch * sizeof(int16_t));
+        of_cache_flush_range(&g_ring[1][w], batch * sizeof(int16_t));
+        if (w == 0) {                                   /* keep the seam guard in sync with frame 0 */
+            g_ring[0][CD_RING_FRAMES] = g_ring[0][0];
+            g_ring[1][CD_RING_FRAMES] = g_ring[1][0];
+            of_cache_flush_range(&g_ring[0][CD_RING_FRAMES], sizeof(int16_t));
+            of_cache_flush_range(&g_ring[1][CD_RING_FRAMES], sizeof(int16_t));
+        }
+#endif
+#ifdef OF_PC
+        if (g_wav) {
+            for (uint32_t i = 0; i < batch; i++) {
+                int16_t pair[2] = { g_ring[0][w + i], g_ring[1][w + i] };
+                fwrite(pair, 1, sizeof pair, g_wav);
+                g_wav_bytes += (uint32_t)sizeof pair;
+            }
+        }
+#endif
+        g_write += batch;
+        done += batch;
+    }
+#ifdef OF_PC
+    wav_write_patch();          /* keep the header valid after every span, not only at close */
+#endif
+}
+
+/* Take `sectors` off the disc and land them in the rings, de-interleaved into the two channels. */
+static uint32_t fill_sectors(uint32_t sectors) {
+    static int16_t stereo[CD_FRAMES_SECTOR * 2];
+    static uint8_t raw[2352];
+    uint32_t frames = 0;
+    for (uint32_t s = 0; s < sectors; s++) {
+        if (of_disc_read_audio(g_lba + g_pos, raw) != 0) return frames;
+        const int16_t *src = (const int16_t *)raw;
+        for (int i = 0; i < CD_FRAMES_SECTOR; i++) {
+            stereo[i * 2 + 0] = src[i * 2 + 0];
+            stereo[i * 2 + 1] = src[i * 2 + 1];
+        }
+        ring_write(stereo, CD_FRAMES_SECTOR);
+        g_pos++;
+        g_done_frames += CD_FRAMES_SECTOR;
+        frames += CD_FRAMES_SECTOR;
+    }
+    return frames;
+}
+
+void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
+    g_tracks++;
+    g_lba = lba; g_sectors = sectors; g_pos = 0; g_budget = 0;
+    g_clock_us = sys_now_us();
+    g_write = 0; g_done_frames = 0;
+
+#ifdef OF_PC
+    void rig_cdda_marker(long t_ms, long idx, uint32_t lba_, uint32_t sec_);
+    if (g_dir) rig_cdda_marker((long)(sys_now_us() / 1000ull), (long)index, lba, sectors);
+#endif
+
+    printf("cdda: index %u lba=%u sectors=%u (%.1f s) track#%u\n",
+           index, lba, sectors, sectors / 75.0, g_tracks);
+
+    if (!g_ring[0] || !g_ring[1]) return;
+
+#ifdef OF_PC
+    /* Desktop: open the witness before the first sample is taken so the WAV covers the track from its
+     * very first sector.  On the device the voices must not start over an empty ring, so there the
+     * pre-fill comes first (see below). */
+    voice_start();
+#endif
+
+    /* Pre-fill the whole ring before the voices start: a looping voice needs something to loop over, and
+     * prefilling is also what proves the slot is readable before any sound is expected. */
+    uint32_t prefill_sectors = CD_RING_FRAMES / CD_FRAMES_SECTOR;         /* 150 sectors = 2 s */
+    if (prefill_sectors > sectors) prefill_sectors = sectors;
+    if (fill_sectors(prefill_sectors) != prefill_sectors * CD_FRAMES_SECTOR)
+        printf("cdda: ring prefill short (%u of %u sectors)\n", g_pos, prefill_sectors);
+
+    g_write = 0;                     /* the voice starts at the first prefilled frame */
+    g_consumed_frames = 0;
+    g_play_us = sys_now_us();
+#ifndef OF_PC
+    voice_start();
+#endif
+    g_running = 1;
+}
+
+void of_cdda_stop(void) {
+    if (g_running) { voice_stop(); g_running = 0; }
+    g_sectors = 0; g_pos = 0; g_done_frames = 0;
+}
+
+void of_cdda_pump(void) {
+    if (!g_sectors) return;
+
+    /* The disc's own clock: 75 sectors a second, measured on the host clock.  sys_cd_da_plan caps how far
+     * ahead the host may run (src/sys/sys.c) -- the same cushion the SDL host uses. */
+    uint64_t now = sys_now_us();
+    uint64_t el = (now - g_clock_us) * 75ull / 1000000ull;
+    g_clock_us += el * 1000000ull / 75ull;
+    g_budget += el;
+
+    clock_consume();
+
+    /* Keep the ring between empty and full: never write more than the ring can hold ahead of the voice,
+     * and never read faster than the disc runs.  The 2 s prefill is the slack that absorbs an SD read. */
+    uint32_t room = (ring_ahead() < CD_RING_FRAMES) ? (CD_RING_FRAMES - ring_ahead()) : 0;
+    if (room < CD_FRAMES_SECTOR) return;
+
+    uint32_t allowed = (g_pos >= g_budget) ? 0
+                     : sys_cd_da_plan(g_pos, g_sectors, (uint32_t)(g_budget - g_pos), CD_CHUNK_SECTORS);
+    if (!allowed) return;
+    if (allowed * CD_FRAMES_SECTOR > room) allowed = room / CD_FRAMES_SECTOR;
+    if (!allowed) return;
+
+    if (fill_sectors(allowed) == 0) { of_cdda_stop(); return; }    /* slot exhausted or read failed */
+    if (g_pos >= g_sectors) of_cdda_stop();                          /* the game restarts the track itself */
+}
+
+void     of_cdda_set_volume(int v) { g_vol = v; g_vol &= 0x1ff; }
+uint32_t of_cdda_pos(void)     { return g_pos; }
+uint32_t of_cdda_sectors(void) { return g_sectors; }
+uint32_t of_cdda_tracks(void)  { return g_tracks; }
+int      of_cdda_sounding(void){ return g_running; }

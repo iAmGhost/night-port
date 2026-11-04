@@ -1,0 +1,27 @@
+# --- vendored openfpgaSDK (regenerate: bash ../scripts/pocket/sync_sdk.sh) ---
+src/sdk/
+runtime/
+scripts/
+tools/
+dist/sdk/
+Makefile
+SDK-README.md
+SDK-GETTING_STARTED.md
+LICENSES/
+REUSE.toml
+NOTICE
+
+# --- build outputs ---
+*.o
+!src/sdk/musl/lib/crt1.o
+!src/sdk/musl/lib/crti.o
+!src/sdk/musl/lib/crtn.o
+*.elf
+._*
+app_pc
+build/
+.obj/
+releases/
+src/tools/phdp/phdp
+src/tools/phdp/phdpd
+src/sdk/platforms/mister/.mkimage

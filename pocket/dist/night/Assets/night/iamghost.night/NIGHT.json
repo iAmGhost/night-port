@@ -1,0 +1,123 @@
+{
+    "instance": {
+        "magic": "APF_VER_1",
+        "variant_select": {
+            "id": 666,
+            "select": false
+        },
+        "data_slots": [
+            {
+                "id": 1,
+                "filename": "os.bin"
+            },
+            {
+                "id": 2,
+                "filename": "night.ini"
+            },
+            {
+                "id": 3,
+                "filename": "night.elf"
+            },
+            {
+                "id": 4,
+                "filename": "NIGHT.RES"
+            },
+            {
+                "id": 10,
+                "filename": "night_0.sav"
+            },
+            {
+                "id": 11,
+                "filename": "night_1.sav"
+            },
+            {
+                "id": 12,
+                "filename": "night_2.sav"
+            },
+            {
+                "id": 13,
+                "filename": "night_3.sav"
+            },
+            {
+                "id": 14,
+                "filename": "night_4.sav"
+            },
+            {
+                "id": 15,
+                "filename": "night_5.sav"
+            },
+            {
+                "id": 16,
+                "filename": "night_6.sav"
+            },
+            {
+                "id": 17,
+                "filename": "night_7.sav"
+            },
+            {
+                "id": 18,
+                "filename": "night_8.sav"
+            },
+            {
+                "id": 19,
+                "filename": "night_9.sav"
+            },
+            {
+                "id": 20,
+                "filename": "track02.bin"
+            },
+            {
+                "id": 21,
+                "filename": "track03.bin"
+            },
+            {
+                "id": 22,
+                "filename": "track04.bin"
+            },
+            {
+                "id": 23,
+                "filename": "track05.bin"
+            },
+            {
+                "id": 24,
+                "filename": "track06.bin"
+            },
+            {
+                "id": 25,
+                "filename": "track07.bin"
+            },
+            {
+                "id": 26,
+                "filename": "track08.bin"
+            },
+            {
+                "id": 27,
+                "filename": "track09.bin"
+            },
+            {
+                "id": 28,
+                "filename": "track10.bin"
+            },
+            {
+                "id": 29,
+                "filename": "track11.bin"
+            },
+            {
+                "id": 30,
+                "filename": "track12.bin"
+            },
+            {
+                "id": 31,
+                "filename": "track13.bin"
+            },
+            {
+                "id": 32,
+                "filename": "track14.bin"
+            },
+            {
+                "id": 33,
+                "filename": "track15.bin"
+            }
+        ]
+    }
+}

@@ -3285,7 +3285,12 @@ uint32_t *memsetw(uint32_t *dst, uint32_t value, uint32_t n) {
  */
 
 #define NIGHT_HEAP_ARENA (1u << 20)   /* default usable cap: 1 MiB */
+/* The physical DPMI-stand-in arena.  A host with a smaller address space overrides it with
+ * -DNIGHT_HEAP_ARENA_MAX=... (the Pocket build uses 16 MiB; docs/330 §4).  Behaviour is unchanged
+ * for every host that does not define it. */
+#ifndef NIGHT_HEAP_ARENA_MAX
 #define NIGHT_HEAP_ARENA_MAX (64u << 20)  /* physical arena: 64 MiB (usable via heap_arena_cap_set) */
+#endif
 static uint8_t s_heap_arena[NIGHT_HEAP_ARENA_MAX];
 static uint32_t s_arena_cap = NIGHT_HEAP_ARENA;
 void     heap_arena_cap_set(uint32_t cap) { s_arena_cap = (cap < 0x40) ? 0x40u : (cap > NIGHT_HEAP_ARENA_MAX ? NIGHT_HEAP_ARENA_MAX : cap); }

@@ -7,3 +7,9 @@
 # build outputs: src/ and test/ hold sources only, everything make builds goes to build/
 /build/
 *.dSYM/
+
+# pocket/: the openfpgaOS port lives in pocket/; its vendored openfpgaSDK copy
+# and every build output are regenerable (scripts/pocket/sync_sdk.sh, make -C pocket/src/night)
+pocket/.obj/
+pocket/build/
+pocket/releases/

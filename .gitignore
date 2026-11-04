@@ -3,8 +3,8 @@
 /.pi
 .DS_Store
 *.pyc
-/port/build
+
+# port build outputs: port/src and port/test hold sources only, everything make builds goes to port/build
+/port/build/
 /port/night
-/port/test/test_f1
-/port/test/selftest
-/port/test/*.dSYM/
+*.dSYM/

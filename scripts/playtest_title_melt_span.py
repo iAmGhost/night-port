@@ -28,7 +28,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from playtest_compare_slides import pcx_indices  # noqa: E402
 
-APP = os.path.join(ROOT, "port", "test", "night")
+APP = os.path.join(ROOT, "port", "build", "night")
 ROUTE = os.path.join(ROOT, "scripts", "playtest", "route_attract_wait.txt")
 
 

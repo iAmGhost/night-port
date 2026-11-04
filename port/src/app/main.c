@@ -1,7 +1,7 @@
 /* main.c -- the SDL host for the NIGHT port.
  *
- *   make -C port app && ./port/test/night                    (windowed)
- *   SDL_VIDEODRIVER=dummy ./port/test/night --frames 600 --dump /tmp/night   (headless proof)
+ *   make -C port app && ./port/build/night                    (windowed)
+ *   SDL_VIDEODRIVER=dummy ./port/build/night --frames 600 --dump /tmp/night   (headless proof)
  *
  * ARCHITECTURE: the port runs single-threaded -- fn_03af18 (the game main) owns the call stack, and
  * the two things the original got from hardware are delivered cooperatively at the points where the

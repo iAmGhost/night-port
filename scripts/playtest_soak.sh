@@ -20,7 +20,7 @@ ENVS="SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy"
 run_stage() {                    # $1 = stage, $2 = log file, $3 = asan env prefix
     local st="$1" log="$2" asan="$3" to="$4"
     env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy $asan \
-        timeout "$to" ./test/night --warp-stage "$st" --script "$SCRIPT" --no-audio \
+        timeout "$to" ./build/night --warp-stage "$st" --script "$SCRIPT" --no-audio \
         --frames "$FRAMES" --shot-limit 2 > "$log" 2>&1
     echo "stage $st rc=$?"
 }

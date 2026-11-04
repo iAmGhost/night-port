@@ -21,7 +21,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-APP = os.path.join(ROOT, "port", "test", "night")
+APP = os.path.join(ROOT, "port", "build", "night")
 RES = os.path.join(ROOT, "scratch", "res")
 ROUTE_SHOW = "../scripts/playtest/route_show_keyed.txt"
 ROUTE_PAUSE = "../scripts/playtest/route_pause_menu.txt"

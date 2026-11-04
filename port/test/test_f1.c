@@ -12,12 +12,12 @@
 #include <stdint.h>
 #include <math.h>
 #include <setjmp.h>
-#include "../../scratch/fp_047f54_vectors.h"
-#include "../../scratch/fp_04794a_ctest.h"
-#include "../../scratch/vectors_0485eb.h"
-#include "../../scratch/vectors_047d4e.h"
-#include "../../scratch/fp_048053_vectors.h"
-#include "../../scratch/fp_047b79_vectors.h"
+#include "vectors/fp_047f54_vectors.h"
+#include "vectors/fp_04794a_ctest.h"
+#include "vectors/vectors_0485eb.h"
+#include "vectors/vectors_047d4e.h"
+#include "vectors/fp_048053_vectors.h"
+#include "vectors/fp_047b79_vectors.h"
 
 static int failures = 0;
 static void check(int ok, const char *what) {

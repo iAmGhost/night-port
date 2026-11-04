@@ -22,7 +22,7 @@ make -C . app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address" >/dev/null 2>&1 || 
 for st in 1 2 3 4 5 6 7 8 9; do
     env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
         ASAN_OPTIONS=detect_leaks=0:halt_on_error=0:abort_on_error=0 \
-        timeout "$ASAN_TIMEOUT" ./test/night --warp-stage "$st" --script "$SCRIPT" --no-audio \
+        timeout "$ASAN_TIMEOUT" ./build/night --warp-stage "$st" --script "$SCRIPT" --no-audio \
         --frames "$FRAMES" --shot-limit 2 > "$OUT/asan_stage$st.log" 2>&1
     rc=$?
     n=$(grep -cE "ERROR: AddressSanitizer|runtime error: |\bSEGV\b" "$OUT/asan_stage$st.log")

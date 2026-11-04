@@ -100,18 +100,18 @@ def probe(drive, dur, out, env_extra, baseline=None):
     if baseline is not None:
         clean = f"{out}/clean"
         os.makedirs(clean, exist_ok=True)
-        rc, so, se = run(["./port/test/night", "--res-dir", "./NIGHT", "--script", drive,
+        rc, so, se = run(["./port/build/night", "--res-dir", "./NIGHT", "--script", drive,
                           "--rig-dump", clean, "--rig-hz", "10", "--frames", str(dur * 60)],
                          timeout=dur + 40, cwd=ROOT)
         if rc not in (0, 124) or not os.path.exists(f"{clean}/cells.bin"):
             return -1, {"stage": "port-clean", "rc": rc, "err": (se or so)[-300:]}
-        rc, so, se = run(["./port/test/night", "--res-dir", "./NIGHT", "--script", drive,
+        rc, so, se = run(["./port/build/night", "--res-dir", "./NIGHT", "--script", drive,
                           "--rig-dump", f"{out}/port", "--rig-hz", "10",
                           "--frames", str(dur * 60)], timeout=dur + 40, env=env, cwd=ROOT)
         if rc not in (0, 124) or not os.path.exists(f"{out}/port/cells.bin"):
             return -1, {"stage": "port-injected", "rc": rc, "err": (se or so)[-300:]}
         return compare_dumps(clean, f"{out}/port")
-    rc, so, se = run(["./port/test/night", "--res-dir", "./NIGHT", "--script", drive,
+    rc, so, se = run(["./port/build/night", "--res-dir", "./NIGHT", "--script", drive,
                       "--rig-dump", f"{out}/port", "--rig-hz", "10", "--frames", str(dur * 60)],
                      timeout=dur + 40, env=env)
     if rc not in (0, 124) or not os.path.exists(f"{out}/port/cells.bin"):

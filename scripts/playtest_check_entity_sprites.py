@@ -34,7 +34,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 from playtest_verify_spr import decode_rows  # the independent row-RLE decoder (docs/60)
 
-APP = os.path.join(ROOT, "port", "test", "night")
+APP = os.path.join(ROOT, "port", "build", "night")
 RES = os.path.join(ROOT, "scratch", "res")
 ROUTE = os.path.join(ROOT, "scripts", "playtest", "route_episode1_anchored.txt")
 

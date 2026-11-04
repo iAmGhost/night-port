@@ -11,7 +11,7 @@ docs/74's "NCC 0.197 / 4.53 %" came from comparing the original's show frame wit
 So this test pins the phase: it runs the port's stage-8 startup, takes the shot the app emits when the card is
 announced (the resource-edge shot named after the card), and compares THAT frame.
 
-  python3 scripts/playtest_ep8_show.py [--frames N] [--app port/test/night]
+  python3 scripts/playtest_ep8_show.py [--frames N] [--app port/build/night]
 """
 import argparse, os, subprocess, sys, tempfile, glob
 import numpy as np
@@ -22,7 +22,7 @@ CARD = "na80001.pcx"
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--app", default="port/test/night")
+    ap.add_argument("--app", default="port/build/night")
     ap.add_argument("--frames", default="4300")   # the show frame sits at ~frame 2800 of a --warp-episode 8 run
     ap.add_argument("--min-within", type=float, default=99.5)
     a = ap.parse_args()

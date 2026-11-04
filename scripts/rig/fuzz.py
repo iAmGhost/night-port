@@ -23,7 +23,7 @@ import time
 import zlib
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-BIN = os.path.join(REPO, "port", "test", "night-census")
+BIN = os.path.join(REPO, "port", "build", "night-census")
 BASE = os.path.join(REPO, "scripts", "rig", "drives", "ep1_kill3.txt")
 ALT_BASES = {}   # --base name -> drive file (docs/120 §8: the grammar, not the seed count, is the limit)
 OUT_DIR = "/tmp"

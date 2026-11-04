@@ -41,26 +41,26 @@ say "route: drive=$DRIVE duration=${DUR}s out=$OUT"
 
 # ---- port side -------------------------------------------------------------------------
 # The rig must never run a binary older than the sources it is meant to be testing: docs/133 §8 caught a
-# before/after comparison made against a stale ./port/test/night, which silently reported the *old* values
+# before/after comparison made against a stale ./port/build/night, which silently reported the *old* values
 # for cells whose initializers had just been fixed. Build first, then record the stamp in the run dir.
 say "port: build (app target)"
 if ! ( cd "$ROOT" && make -C port app ) > "$OUT/build.log" 2>&1; then
     say "port: BUILD FAILED (see $OUT/build.log)"; exit 1
 fi
-if [ -n "$(find port/src port/test/test_f1.c port/Makefile -newer port/test/night 2>/dev/null | head -1)" ]; then
+if [ -n "$(find port/src port/test/test_f1.c port/Makefile -newer port/build/night 2>/dev/null | head -1)" ]; then
     # make compares timestamps to one-second granularity, so an edit that lands in the same second as
     # the link leaves the target "up to date" while find -newer (sub-second) still reports the source
     # as newer -- the guard tripped spuriously on two runs (docs/266). Resolve it by rebuilding the app
     # target from scratch, then re-check; only give up if the binary is still older than a source.
     say "port: guard tripped, rebuilding app target with -B"
     ( cd "$ROOT" && make -C port app -B ) >> "$OUT/build.log" 2>&1 || { say "port: REBUILD FAILED"; exit 1; }
-    if [ -n "$(find port/src port/test/test_f1.c port/Makefile -newer port/test/night 2>/dev/null | head -1)" ]; then
-        say "port: WARNING a source is still newer than port/test/night after -B"; exit 1
+    if [ -n "$(find port/src port/test/test_f1.c port/Makefile -newer port/build/night 2>/dev/null | head -1)" ]; then
+        say "port: WARNING a source is still newer than port/build/night after -B"; exit 1
     fi
 fi
-printf 'binary=%s mtime=%s\n' "port/test/night" "$(stat -f '%Sm' port/test/night 2>/dev/null || stat -c '%y' port/test/night)" > "$OUT/build_stamp.txt"
+printf 'binary=%s mtime=%s\n' "port/build/night" "$(stat -f '%Sm' port/build/night 2>/dev/null || stat -c '%y' port/build/night)" > "$OUT/build_stamp.txt"
 say "port: night --rig-dump"
-( cd "$ROOT" && env $PORT_ENV timeout $((DUR + 40)) ./port/test/night --res-dir ./NIGHT \
+( cd "$ROOT" && env $PORT_ENV timeout $((DUR + 40)) ./port/build/night --res-dir ./NIGHT \
       --script "$DRIVE" --rig-dump "$OUT/port" --rig-hz 10 --frames $((DUR * 60)) > "$OUT/port.log" 2>&1 )
 say "port: done ($(wc -c < "$OUT/port/cells.bin" 2>/dev/null || echo 0) bytes of cell records)"
 

@@ -167,32 +167,6 @@
             },
             {
                 "id": 18,
-                "name": "Save 8",
-                "required": false,
-                "parameters": "0x84",
-                "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
-                "size_maximum": "0x40000",
-                "extensions": [
-                    "sav"
-                ]
-            },
-            {
-                "id": 19,
-                "name": "Save 9",
-                "required": false,
-                "parameters": "0x84",
-                "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
-                "size_maximum": "0x40000",
-                "extensions": [
-                    "sav"
-                ]
-            },
-            {
-                "id": 20,
                 "name": "track02.bin",
                 "required": false,
                 "parameters": 0,
@@ -202,7 +176,7 @@
                 "deferload": true
             },
             {
-                "id": 21,
+                "id": 19,
                 "name": "track03.bin",
                 "required": false,
                 "parameters": 0,
@@ -212,7 +186,7 @@
                 "deferload": true
             },
             {
-                "id": 22,
+                "id": 20,
                 "name": "track04.bin",
                 "required": false,
                 "parameters": 0,
@@ -222,7 +196,7 @@
                 "deferload": true
             },
             {
-                "id": 23,
+                "id": 21,
                 "name": "track05.bin",
                 "required": false,
                 "parameters": 0,
@@ -232,7 +206,7 @@
                 "deferload": true
             },
             {
-                "id": 24,
+                "id": 22,
                 "name": "track06.bin",
                 "required": false,
                 "parameters": 0,
@@ -242,7 +216,7 @@
                 "deferload": true
             },
             {
-                "id": 25,
+                "id": 23,
                 "name": "track07.bin",
                 "required": false,
                 "parameters": 0,
@@ -252,7 +226,7 @@
                 "deferload": true
             },
             {
-                "id": 26,
+                "id": 24,
                 "name": "track08.bin",
                 "required": false,
                 "parameters": 0,
@@ -262,7 +236,7 @@
                 "deferload": true
             },
             {
-                "id": 27,
+                "id": 25,
                 "name": "track09.bin",
                 "required": false,
                 "parameters": 0,
@@ -272,7 +246,7 @@
                 "deferload": true
             },
             {
-                "id": 28,
+                "id": 26,
                 "name": "track10.bin",
                 "required": false,
                 "parameters": 0,
@@ -282,7 +256,7 @@
                 "deferload": true
             },
             {
-                "id": 29,
+                "id": 27,
                 "name": "track11.bin",
                 "required": false,
                 "parameters": 0,
@@ -292,7 +266,7 @@
                 "deferload": true
             },
             {
-                "id": 30,
+                "id": 28,
                 "name": "track12.bin",
                 "required": false,
                 "parameters": 0,
@@ -302,7 +276,7 @@
                 "deferload": true
             },
             {
-                "id": 31,
+                "id": 29,
                 "name": "track13.bin",
                 "required": false,
                 "parameters": 0,
@@ -312,7 +286,7 @@
                 "deferload": true
             },
             {
-                "id": 32,
+                "id": 30,
                 "name": "track14.bin",
                 "required": false,
                 "parameters": 0,
@@ -322,7 +296,7 @@
                 "deferload": true
             },
             {
-                "id": 33,
+                "id": 31,
                 "name": "track15.bin",
                 "required": false,
                 "parameters": 0,

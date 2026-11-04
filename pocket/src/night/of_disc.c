@@ -2,7 +2,7 @@
  *
  * WHAT THIS REPLACES: src/cd/cd_iso.c parses NIGHT/TG_NIGHT.CUE and reads TG_NIGHT.IMG with
  * fseek/fread.  On the Pocket neither file exists in that shape: the audio tracks ship as one APF
- * data slot each (cd/trackNN.bin, slots 20..33, see scripts/pocket/mk_dist.py), and the CUE's layout
+ * data slot each (cd/trackNN.bin, slots 18..31, see scripts/pocket/mk_dist.py), and the CUE's layout
  * is compiled into disc_table.h by scripts/pocket/gen_disc.py.
  *
  * WHY THE GATE NEEDS IT AT ALL: fn_010c3e (the disc-present gate) compares the raw dwords at +1 of
@@ -31,9 +31,10 @@
 
 #define IMG_SECTOR 2352u
 
-/* Track -> slot, mirroring scripts/pocket/mk_dist.py: audio tracks in disc order from slot 20.
- * TG_NIGHT has audio tracks 02..15, so slot = track + 18 (02 -> 20 ... 15 -> 33). */
-#define DISC_SLOT_BASE 20
+/* Track -> slot, mirroring scripts/pocket/mk_dist.py: audio tracks in disc order from slot 18.
+ * TG_NIGHT has audio tracks 02..15, so slot = track + 16 (02 -> 18 ... 15 -> 31).  The plan keeps every id
+ * in 0..31 and the manifest under Analogue's ceiling of 32 data slots per core (docs/334 §7). */
+#define DISC_SLOT_BASE 18
 #define DISC_SLOT_TRACK0 2
 
 static int g_have_table;

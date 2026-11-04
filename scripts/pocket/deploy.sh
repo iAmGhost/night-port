@@ -76,7 +76,7 @@ for f in "$DATA"/cd/track*.bin; do
     [ ${#name} -le 23 ] || fail "\"$name\" is ${#name} characters; the Pocket allows 23"
     base="${name%.bin}"
     case "$base" in track[0-9][0-9]) : ;; *) fail "\"$name\" is not named trackNN.bin" ;; esac
-    slot=$(( 18 + 10#${base#track} ))          # track02 -> slot 20 ... track15 -> slot 33
+    slot=$(( 16 + 10#${base#track} ))          # track02 -> slot 18 ... track15 -> slot 31
     cp "$f" "$COMMON/$name" && ok "$name -> $(basename "$COMMON")/ (slot $slot)"
     count=$(( count + 1 ))
 done

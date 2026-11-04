@@ -4,7 +4,7 @@
 WHAT IT WRITES (scratch/pocket/, i.e. regenerable; the repo only carries this script)
 
   NIGHT.RES              the resource container, byte-for-byte (slot 4)
-  cd/trackNN.bin         one CD-DA track per file: raw 2352-byte frames, no header (slots 20..33)
+  cd/trackNN.bin         one CD-DA track per file: raw 2352-byte frames, no header (slots 18..31)
   manifest.tsv           what was written, from what byte range, with the slot id
 
 WHY PER-TRACK FILES: the SDL host reads the whole disc through one TG_NIGHT.IMG (src/cd/cd_iso.c,
@@ -41,7 +41,7 @@ OUT = REPO / "scratch" / "pocket"
 
 SECTOR = 2352
 PREGAP = 150          # the CUE's single PREGAP 00:00:02, in sectors
-SLOT_BASE = 20        # scripts/pocket/mk_dist.py: audio track 02 -> slot 20
+SLOT_BASE = 18        # scripts/pocket/mk_dist.py: audio track 02 -> slot 18 (ids stay <= 31)
 SLOT_TRACK0 = 2
 
 

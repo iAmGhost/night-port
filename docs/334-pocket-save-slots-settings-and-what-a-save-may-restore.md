@@ -203,6 +203,27 @@ if len(data_slots) > 32:
     sys.exit(f"data.json would declare {len(data_slots)} data slots; Analogue allows a maximum of 32 ...")
 ```
 
+Then the plan was tightened one step further, because "32 slots" and "slot id 32" are easy to read the wrong
+way -- and `id: 33` in a manifest looks like a bug even when it is legal (the id is a 16-bit label, not an
+index: cores on this very card use ids 101, 103 and 330).  Every id now sits inside 0..31 as well, so the
+manifest satisfies the strictest reading of the rule and the count has four slots of headroom:
+
+| ids | what |
+|---|---|
+| 0 | `NIGHT.json` (the Pocket's game-select file, `required`) |
+| 1-3 | `os.bin`, `night.ini`, `night.elf` |
+| 4 | `NIGHT.RES` |
+| 7 | `bank.ofsf` |
+| 10-17 | `night_0.sav` .. `night_7.sav` (8 saves; `OF_SAVE_SLOTS = 8`) |
+| 18-31 | `track02.bin` .. `track15.bin` (`of_disc.c`: `DISC_SLOT_BASE 18`, slot = track + 16) |
+
+= **28 core slots, 26 instance slots, max id 31**, and `mk_dist.py` enforces both halves:
+
+```python
+if len(data_slots) > 32: sys.exit("... maximum of 32 ...")
+if max(s["id"] for s in data_slots) > 31: sys.exit("a data slot id exceeds 31; ...")
+```
+
 Two other suspicions were checked and cleared, both against the working openfpgaOS-Quake install already on
 the same card:
 

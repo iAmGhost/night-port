@@ -105,7 +105,7 @@ as `src/cd/cd_iso.c` (LBA = MSF frames + accumulated PREGAP): 15 tracks, first 1
 `DISC_TOTAL_SECTORS 269453`, track 2 at 37262, track 3 at 40415 — i.e. the values the shipped disc
 really reports, and the difference 3153 = 0xc51 that `fn_010c3e` compares (docs/67).  `of_disc.c`
 installs that table as the `sys_cd` backend and reads audio sectors from `slot:N` stdio handles, one
-data slot per track (`of_disc_track_slot`: track 02..15 -> slot 20..33, the same mapping
+data slot per track (`of_disc_track_slot`: track 02..15 -> slot 18..31, the same mapping
 `scripts/pocket/mk_dist.py` writes into `data.json`).  Desktop builds read the identical per-track files
 from `NIGHT_CD_DIR`, so the same code path is testable before hardware.
 

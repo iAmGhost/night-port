@@ -35,7 +35,7 @@
 
 #define SAVE_MAGIC   0x5653474eu   /* 'NGSV' */
 #define SAVE_VERSION 1u
-#define SAVE_STAGE_FIRST 10u       /* instance slot ids 10..19 = night_0.sav .. night_9.sav */
+#define SAVE_STAGE_FIRST 10u       /* instance slot ids 10..17 = night_0.sav .. night_7.sav */
 /* Only the scalar window of the player block is saved.  The block's head holds host pointers (sprite and
  * action-table addresses into the heap arena), and a save file must not carry a pointer from one process's
  * arena into another: the first version copied 64 raw bytes and the restore died in a SIGBUS the moment the

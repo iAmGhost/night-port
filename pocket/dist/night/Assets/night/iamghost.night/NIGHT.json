@@ -56,66 +56,58 @@
             },
             {
                 "id": 18,
-                "filename": "night_8.sav"
-            },
-            {
-                "id": 19,
-                "filename": "night_9.sav"
-            },
-            {
-                "id": 20,
                 "filename": "track02.bin"
             },
             {
-                "id": 21,
+                "id": 19,
                 "filename": "track03.bin"
             },
             {
-                "id": 22,
+                "id": 20,
                 "filename": "track04.bin"
             },
             {
-                "id": 23,
+                "id": 21,
                 "filename": "track05.bin"
             },
             {
-                "id": 24,
+                "id": 22,
                 "filename": "track06.bin"
             },
             {
-                "id": 25,
+                "id": 23,
                 "filename": "track07.bin"
             },
             {
-                "id": 26,
+                "id": 24,
                 "filename": "track08.bin"
             },
             {
-                "id": 27,
+                "id": 25,
                 "filename": "track09.bin"
             },
             {
-                "id": 28,
+                "id": 26,
                 "filename": "track10.bin"
             },
             {
-                "id": 29,
+                "id": 27,
                 "filename": "track11.bin"
             },
             {
-                "id": 30,
+                "id": 28,
                 "filename": "track12.bin"
             },
             {
-                "id": 31,
+                "id": 29,
                 "filename": "track13.bin"
             },
             {
-                "id": 32,
+                "id": 30,
                 "filename": "track14.bin"
             },
             {
-                "id": 33,
+                "id": 31,
                 "filename": "track15.bin"
             }
         ]

@@ -18,8 +18,8 @@ Slot plan (see docs/330 §4-5):
   4 NIGHT.RES (the 51 MB resource container)
   7         bank.ofsf (SDK sound bank, only if MIDI is ever used)
   --        (no spare slots: the firmware allows a maximum of 32 data slots per core)
-  10-19     night_N.sav (nonvolatile saves, 256 KiB each)
-  20..      trackNN.bin, one slot per CDDA audio track of TG_NIGHT.IMG (flat in Assets/<platform>/common/)
+  10-17     night_N.sav (nonvolatile saves, 256 KiB each)
+  18..31    trackNN.bin, one slot per CDDA audio track of TG_NIGHT.IMG (flat in Assets/<platform>/common/)
 """
 import json
 import re
@@ -36,7 +36,8 @@ APP = "night"
 AUTHOR = "iamghost"
 VERSION = "0.1.0"
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
-SLOT_BASE = 20              # first audio-track slot
+SAVE_SLOTS = 8              # saves live in ids 10..17
+SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
 
 
 def cue_audio_tracks(path: Path):
@@ -110,7 +111,7 @@ def main():
     data_slots += [
         {"id": 10 + i, "name": f"Save {i}", "required": False, "parameters": "0x84", "nonvolatile": True,
          "address": "0x20100000", "address_stride": "0x40000", "size_maximum": "0x40000", "extensions": ["sav"]}
-        for i in range(10)
+        for i in range(SAVE_SLOTS)
     ]
     for sid in sorted(ts):
         data_slots.append({"id": sid, "name": ts[sid].split("/")[-1], "required": False,
@@ -119,6 +120,8 @@ def main():
     if len(data_slots) > 32:
         sys.exit(f"data.json would declare {len(data_slots)} data slots; Analogue allows a maximum of 32 "
                  f"(drop spare slots or pack the audio tracks into fewer files)")
+    if max(s["id"] for s in data_slots) > 31:
+        sys.exit("a data slot id exceeds 31; the plan is renumbered wrong (ids stay in 0..31 here)")
     jw(core_dir / "data.json", {"data": {"magic": "APF_VER_1", "data_slots": data_slots}})
 
     jw(core_dir / "video.json", {"video": {"magic": "APF_VER_1", "scaler_modes": [
@@ -163,7 +166,7 @@ def main():
         {"id": 3, "filename": f"{APP}.elf"},
         {"id": 4, "filename": "NIGHT.RES"},
     ]
-    for i in range(10):
+    for i in range(SAVE_SLOTS):
         inst_slots.append({"id": 10 + i, "filename": f"{APP}_{i}.sav"})
     for sid in sorted(ts):
         inst_slots.append({"id": sid, "filename": ts[sid]})
@@ -207,7 +210,7 @@ def main():
         "| `NIGHT.RES` | 4 | the shipped 51 MB resource container, copied verbatim |\n"
         + "".join(f"| `{fn}` | {sid} | CDDA track {int(fn[-6:-4])} of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |\n"
                   for sid, fn in sorted(ts.items()))
-        + f"| `{APP}_0..9.sav` | 10-19 | save slots, created by the game on the first save |\n"
+        + f"| `{APP}_0..{SAVE_SLOTS - 1}.sav` | 10-{9 + SAVE_SLOTS} | save slots, created by the game on the first save |\n"
         + "\nSettings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL` 0-255, "
           "`CDDA=1` mutes the CD music, `PAD=1` ignores the pad (edit the file on the card). On a desktop "
           "build the same knobs are `NIGHT_MUSIC_VOL`, `NIGHT_SFX_VOL`, `NIGHT_CDDA_OFF`, `NIGHT_PAD_OFF`.\n"

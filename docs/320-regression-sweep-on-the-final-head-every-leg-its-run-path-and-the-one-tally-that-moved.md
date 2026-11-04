@@ -61,3 +61,20 @@ drives are wall-clock anchored, a mode change costs a texture rebuild in `main.c
 phases the state oracle pairs therefore land slightly differently.  The row is recorded as a new residual
 rather than explained away: the count moved 26 -> 27 on the canonical route, and the screen/activity rows
 did not move at all.
+
+## 4. Every sweep leg re-run once more on the final HEAD (`cea5721`)
+
+Because item H changed `sys.c`/`f.c`, every regression leg was re-run after it rather than inherited
+from §1.
+
+| leg | run | number |
+|---|---|---|
+| nine-episode ASan/UBSan soak | `/tmp/rig/soak321` (`OUT=/tmp/rig/soak321 JOBS=4 CAP=420 FRAMES=4000`, rebuild on) | 9/9 stages `rc=0 ubsan=0 asan=0 segv=0`; zero `ERROR: AddressSanitizer` / `runtime error` lines in any stage log |
+| coverage-guided fuzz | `/tmp/rig/fuzz321` (`--episodes 1..9 --seeds 40 --workers 4 --cap 120`) | **crashes 0**; coverage 236/503 (the coverage census range across runs is 234-257/503; the crash census is the gate) |
+| item 6 left-edge row-crossing probe | `/tmp/rig/q322le` (`ep1_leftedge4.txt`, `NIGHT_BLITEDGE=1 NIGHT_BLITDBG=1`) | `spans_inspected=2335538 inside_one_row=2335538 crossings=0`; `blt_rows calls=5240 out_of_band=0`, arms `B0=5240 B1=0 B2=0 B3=0` |
+| item 4 card key-wait gate | `/tmp/rig/q322sl` (`--warp-episode 3`, `ep1_stage3_slides.txt`, `NIGHT_SLIDEDBG=1`) | 6 gates (`g_tab_52f2c[3] = 6`), every one `returned 0` after a press; **0 gates satisfied with no press** |
+| item 2b per-type award | `scripts/rig/exp_award.py --orig /tmp/rig/rb322/orig --port /tmp/rig/rb322/port` | shipped `type_idx=31` awards `{0, 5, 10}` = port `{0, 5, 10}`; a dying `kind=1 type_idx=31` record carries award 10 (shipped 32 records, port 44) |
+| item 1 audio legs | `/tmp/rig/rb321`, `/tmp/rig/rb322` (`report_audio_sfx.txt`, `report_audio_cd.txt`) | every phase `SAME` (the docs/304 instrument floor still applies: the shipped half carries no CD-DA) |
+| item 2a kill label | `make -C port test` | ALL PASS, which is where the index-10 label-blit fixture lives; the canonical route still yields no kill, so no live witness is available there (docs/197) |
+| item 3 upgrade menu | `/tmp/rig/g319c`, `/tmp/rig/g319d`, `/tmp/rig/g319h`, `/tmp/rig/g319i`, item G's green `/tmp/rig/g319i` | every committed purchase steps `sel` by 1 and HP by one table row (100 -> 200 -> 300) |
+| item 5 fault | `/tmp/rig/soak321` | 0 faults over 36,000 frames across nine episodes |

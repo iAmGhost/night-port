@@ -26,3 +26,4 @@ uint32_t of_cdda_tracks(void);                   /* tracks started since boot */
 int      of_cdda_sounding(void);                 /* 1 when the mixer path is live */
 
 #endif /* NIGHT_OF_CDDA_H */
+int32_t  of_cdda_head(void);      /* write cursor lead over the mixer voice, ring frames */

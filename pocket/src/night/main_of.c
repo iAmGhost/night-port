@@ -461,12 +461,16 @@ static void board_boot(void) {
  * the board had on DOS.  Sample memory must live in the mixer's SDRAM pool, and a pool block may not
  * be rewritten while its voice is still playing, hence the ping-pong. */
 #define SFX_CHUNK 1024
-#define SFX_BLOCKS 2
+#define SFX_BLOCKS 8      /* eight independent 2 KB SFX buffers: the game overlaps sounds, and two slots with a
+                           * drop rule means the second and later voice of a chord is simply thrown away.  The card
+                           * log shows the size of the loss: plays=5 on hardware against plays=193 on the desktop
+                           * shim over a comparable span. */
 static int16_t *g_sfx_pool[SFX_BLOCKS];
 static int      g_sfx_voice[SFX_BLOCKS];
 static int      g_sfx_block;
 static int16_t  g_sfx_scratch[SFX_CHUNK];
-static uint32_t g_of_sfx_plays;   /* (f.h already exports g_sfx_plays for the game's own element-event sounds) */
+static uint32_t g_of_sfx_plays;
+static uint32_t g_of_sfx_drops;    /* samples discarded because all eight SFX slots were still sounding */   /* (f.h already exports g_sfx_plays for the game's own element-event sounds) */
 
 static void cdda_boot(void) {
     if (of_cdda_boot() != 0) return;
@@ -499,13 +503,20 @@ static void audio_pump(void) {
     uint32_t got;
     while ((got = sys_audio_fill(g_sfx_scratch, SFX_CHUNK)) != 0) {
         if (!g_sfx_pool[0]) continue;              /* no pool: still drain, the board clock must advance */
-        int b = g_sfx_block;
-        g_sfx_block = (g_sfx_block + 1) % SFX_BLOCKS;
-        if (g_sfx_voice[b] && of_mixer_voice_active(g_sfx_voice[b]))
-            continue;                              /* drop rather than tear a playing sample in half */
+        int b = -1;
+        for (int i = 0; i < SFX_BLOCKS; i++) {     /* any free slot, not a fixed round-robin that gives up */
+            int c = (g_sfx_block + i) % SFX_BLOCKS;
+            if (!g_sfx_voice[c] || !of_mixer_voice_active(g_sfx_voice[c])) { b = c; break; }
+        }
+        if (b < 0) { g_of_sfx_drops++; continue; } /* all eight busy: drop rather than tear one in half */
+        g_sfx_block = (b + 1) % SFX_BLOCKS;
         memcpy(g_sfx_pool[b], g_sfx_scratch, (size_t)got * sizeof(int16_t));
         of_cache_flush_range(g_sfx_pool[b], (size_t)got * sizeof(int16_t));
         g_sfx_voice[b] = of_mixer_play((const uint8_t *)g_sfx_pool[b], got, rate, 100, 220);
+        if (g_of_sfx_plays <= 8)                       /* rate, length, and the handle the mixer handed back:
+                                                        * voice=-1 would mean the mixer refused the sample. */
+            NLOG("sfx#%u ch=%d rate=%u frames=%u voice=%d\n",
+                 g_of_sfx_plays, b, rate, got, g_sfx_voice[b]);
         g_of_sfx_plays++;
     }
 }
@@ -831,9 +842,9 @@ static void tick_pump(void) {
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
 #endif
-            NLOG("audio cdda=%u/%u/%u plays=%u ring=%u drift=%d\n",
-                 of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays,
-                 of_cdda_ring_ahead(), (int)of_cdda_drift());
+            NLOG("audio cdda=%u/%u/%u plays=%u drops=%u ring=%u head=%d\n",
+                 of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays, g_of_sfx_drops,
+                 of_cdda_ring_ahead(), (int)of_cdda_head());
 #ifndef OF_PC
             /* The log is the good channel; the console panel is the visible one.  When the log cannot be
              * opened at all, put the lines on the console instead of nowhere. */

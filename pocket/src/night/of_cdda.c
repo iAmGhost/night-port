@@ -36,10 +36,16 @@
 #endif
 
 #define CD_SRC_RATE       44100
-#define CD_RING_SEC       2
+#define CD_RING_SEC       4
 #define CD_RING_FRAMES    (CD_SRC_RATE * CD_RING_SEC)     /* 88200 frames = 2 s per channel */
 #define CD_FRAMES_SECTOR  588                             /* one 2352-byte CD frame in samples */
-#define CD_CHUNK_SECTORS  4                               /* per pump pass: 2352 samples = 53 ms */
+#define CD_CHUNK_SECTORS  12                              /* per pump pass: 7056 samples = 160 ms of big sequential reads */
+#define CD_LOOKAHEAD_SECTORS 120                          /* 1.6 s of audio read past the disc clock: the slack that
+                                                           * survives a blocking video present without underrunning the
+                                                           * voice.  Reading only as far as the clock has run leaves the
+                                                           * ring tens of milliseconds deep, and the log shows it: the
+                                                           * first card run reported ring=2352 frames (53 ms) of slack
+                                                           * while one present cost 88 ms -- that underrun is the buzz. */
 #define CD_MIXER_PRIORITY 0
 
 static uint32_t g_lba, g_sectors, g_pos;                 /* disc coordinates */
@@ -213,13 +219,16 @@ static uint32_t room_before_voice(void) {
 #endif
 }
 
-int32_t of_cdda_drift(void) {                      /* wall-clock estimate minus the mixer's own position */
+/* How far the write cursor leads the voice, in ring frames.  Healthy is between CD_GUARD_FRAMES and half the
+ * ring; anything near the ring means the voice is about to wrap into data that was never refreshed. */
+int32_t of_cdda_head(void) {
 #ifndef OF_PC
     int32_t live = mixer_live_pos();
-    if (live < 0) return 0;
-    return (int32_t)(g_done_frames % CD_RING_FRAMES) - live;
+    if (live < 0) return -1;
+    uint32_t w = g_write % CD_RING_FRAMES;
+    return (int32_t)((w + CD_RING_FRAMES - (uint32_t)live) % CD_RING_FRAMES);
 #else
-    return 0;
+    return (int32_t)ring_ahead();
 #endif
 }
 
@@ -342,10 +351,18 @@ void of_cdda_pump(void) {
     /* Keep the ring between empty and full: never write more than the ring can hold ahead of the voice,
      * and never read faster than the disc runs.  The 2 s prefill is the slack that absorbs an SD read. */
     uint32_t room = (ring_ahead() < CD_RING_FRAMES) ? (CD_RING_FRAMES - ring_ahead()) : 0;
+#ifndef OF_PC
+    /* Two notions of "consumed" were in play: the host's clock model, and the mixer voice's own position.  The
+     * pump used the clock to decide the ring was full, while the voice -- which plays at hardware speed whether
+     * the core is busy or not -- had already eaten more than the model credited.  Take the smaller room. */
+    uint32_t vroom = room_before_voice();
+    if (vroom < room) room = vroom;
+#endif
     if (room < CD_FRAMES_SECTOR) return;
 
-    uint32_t allowed = (g_pos >= g_budget) ? 0
-                     : sys_cd_da_plan(g_pos, g_sectors, (uint32_t)(g_budget - g_pos), CD_CHUNK_SECTORS);
+    uint64_t ceiling = g_budget + CD_LOOKAHEAD_SECTORS;
+    if ((uint64_t)g_pos >= ceiling) return;                  /* already prefetching far enough ahead */
+    uint32_t allowed = sys_cd_da_plan(g_pos, g_sectors, (uint32_t)(ceiling - g_pos), CD_CHUNK_SECTORS);
     if (!allowed) return;
     if (allowed * CD_FRAMES_SECTOR > room) allowed = room / CD_FRAMES_SECTOR;
     if (!allowed) return;
@@ -356,6 +373,7 @@ void of_cdda_pump(void) {
 
 void     of_cdda_set_volume(int v) { g_vol = v; g_vol &= 0x1ff; }
 uint32_t of_cdda_ring_ahead(void) { return ring_ahead(); }
+int32_t  of_cdda_head(void);
 uint32_t of_cdda_pos(void)     { return g_pos; }
 uint32_t of_cdda_sectors(void) { return g_sectors; }
 uint32_t of_cdda_tracks(void)  { return g_tracks; }

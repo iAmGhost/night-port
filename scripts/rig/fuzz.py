@@ -183,6 +183,15 @@ def main():
     stages = [int(x) for x in a.episodes.split(",")]
     lo, hi = (int(x) for x in a.window.split(","))
     os.makedirs(a.out, exist_ok=True)
+    # docs/330: a fuzz census reported a SIGSEGV against a night-census binary that was 35 days older than
+    # HEAD -- the same stale-binary defect class asan_soak.sh already guards (docs/265).  Build first.
+    if not os.environ.get("FUZZ_NO_BUILD"):
+        rb = subprocess.run(["make", "-C", os.path.join(REPO, "port"), "censusapp"],
+                            capture_output=True, text=True)
+        print(f"census build rc={rb.returncode}")
+        if rb.returncode:
+            print(rb.stdout[-800:], rb.stderr[-800:])
+            return 2
 
     # function count straight from the generated table
     n = 0

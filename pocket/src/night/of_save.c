@@ -164,10 +164,11 @@ int of_save_write(int slot) {
     char path[512];
     if (slot_path(slot, path, sizeof path) != 0) return -1;
 #ifndef OF_PC
-    /* README:466: the app save slots are APF file ids 10-19, and "dirty save files are committed through the
-     * bridge when closed" -- so the name is registered onto its slot before the fopen, as documented. */
+    /* No of_file_slot_register(): openfpgaOS-Quake writes Saves/quake/common/s0.sav with a plain
+     * fopen("s0.sav","wb") and no registration, and of_file.h describes a registered binding as "a read-only
+     * APF data file".  Our registered names wrote nothing across five hardware runs. */
     char savebuf[32];
-    of_file_slot_register(SAVE_STAGE_FIRST + (unsigned)slot, SAVE_FILE(slot));
+    (void)SAVE_FILE(slot);          /* the bare name is what the kernel's discovery maps to the slot */
 #endif
     save_blob_t b;
     blob_capture(&b);
@@ -188,7 +189,7 @@ int of_save_read(int slot) {
     if (slot_path(slot, path, sizeof path) != 0) return -1;
 #ifndef OF_PC
     char savebuf[32];
-    of_file_slot_register(SAVE_STAGE_FIRST + (unsigned)slot, SAVE_FILE(slot));
+    (void)SAVE_FILE(slot);
 #endif
     FILE *f = fopen(path, "rb");
     if (!f) { snprintf(g_err, sizeof g_err, "no save in slot %d (%s)", slot, path); return -1; }

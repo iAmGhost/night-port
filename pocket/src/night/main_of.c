@@ -787,8 +787,18 @@ static void tick_pump(void) {
             NLOG("stages last m=%u p=%u c=%u f=%u x=%u | max all=%u copy=%u flip=%u\n",
                  g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip,
                  g_us_flip_max, g_us_copy, g_us_flip);
+#ifndef OF_PC
+            NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
+                 g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);
+            /* Once a second, not once a frame: the mode is asserted at boot, but fn_03f15f (the game's own VESA
+             * mode set) runs through the boot sequence and the display path is not obliged to remember what the
+             * app asked for.  1 Hz keeps the assertion without the 59 Hz cost a per-frame one adds. */
+            of_video_set_display_mode(g_display_mode);
+            g_display_applied = g_display_mode;
+#else
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
+#endif
             NLOG("audio cdda=%u/%u/%u plays=%u xfer=%u voices=%u\n",
                  of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays,
                  sys_audio_transfers(), 32u);

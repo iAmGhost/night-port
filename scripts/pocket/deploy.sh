@@ -118,23 +118,14 @@ for f in "$DATA"/cd/track*.bin; do
 done
 [ "$count" -gt 0 ] || fail "no track*.bin under $DATA/cd (run scripts/pocket/repack.py)"
 
-# Nonvolatile slots must be VISIBLE before the host can open one: of_log.c and of_save.c find their slot
-# through readdir("/") + d_ino, and openfpgaOS-Quake's sys_of.c returns NULL when readdir does not list it.
-# A bound-but-absent file is therefore pre-created empty here, and the core writes it.
-for pre in night.cfg night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
-    [ -f "$COMMON/$pre" ] || : > "$COMMON/$pre"
-    ok "pre-created $pre"
-done
-
-# The firmware keeps nonvolatile slot data under Saves/<platform>/common/ (measured: Quake's cfg slot is at
-# Saves/quake/common/quake.cfg, and mounting this core created Saves/night/common/ on its own).  A slot with
-# no file on either side has nothing for the app's fopen to land in, so the same placeholders go there too.
+# Nothing is pre-created any more.  The placeholder theory was "a bound-but-absent file has nothing for fopen
+# to land in", but the card says otherwise: Quake's Saves/quake/common/ contains exactly two files -- quake.cfg
+# (20 B) and s0.sav (35 290 B) -- both created by the core itself at 01:47 today, and openfpgaOS-Quake pre-
+# creates nothing.  Worse, empty placeholders made macOS write AppleDouble sidecars (._night_0.sav, 4 KB each)
+# next to every one, which is noise on a card the firmware has to read.
 SAVE_DIR="$SDCARD/Saves/$(basename "$PLAT")/common"
 mkdir -p "$SAVE_DIR"
-for pre in night.cfg night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
-    [ -f "$SAVE_DIR/$pre" ] || : > "$SAVE_DIR/$pre"
-done
-ok "placeholders in Saves/$(basename "$PLAT")/common/"
+ok "Saves/$(basename "$PLAT")/common/ exists for the core to write into"
 
 # Saves and settings are created by the core on the card; a stale manifest copy is not wanted.
 sync 2>/dev/null || true

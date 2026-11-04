@@ -46,7 +46,7 @@ static unsigned g_lines, g_commits;
 static void log_commit(void) {
     if (!g_log || !g_path[0]) return;
     fclose(g_log);
-    g_log = fopen(g_path, "a");
+    g_log = fopen(g_path, "ab");
     if (g_log) setvbuf(g_log, (char *)0, _IONBF, 0);
     g_commits++;
 }
@@ -54,7 +54,7 @@ static void log_commit(void) {
 /* fopen plus the two things every open site needs: remember the name (for the reopen) and keep the line
  * buffer off, so a core that dies mid-run left what it knew. */
 static FILE *log_open_write(const char *name) {
-    FILE *f = fopen(name, "w");
+    FILE *f = fopen(name, "wb");            /* "wb", the mode openfpgaOS-Quake writes its cfg/saves with */
     if (!f) return 0;
     snprintf(g_path, sizeof g_path, "%s", name);
     setvbuf(f, (char *)0, _IONBF, 0);
@@ -104,12 +104,16 @@ int of_log_open(void) {
     char name[64];
     scan[0] = 0;
 
-    /* Register first, then fopen on the registered name -- the order README:440-448 documents, and the same
-     * one openfpgaOS-Quake's sys_of.c uses for quake.cfg.  The d_ino scan is the fallback AND the witness:
-     * whatever readdir did list gets written into the log. */
-    of_file_slot_register(LOG_SLOT, LOG_NAME);
+    /* No of_file_slot_register() any more, on purpose.  Quake -- the one core on this card whose writes are
+     * known to land, Saves/quake/common/quake.cfg and s0.sav -- never calls it: sys_of.c:234 simply does
+     * fopen("quake.cfg", "wb") and lets the kernel's boot-time name discovery stand, and of_file.h:16 says the
+     * same ("Register a filename->data-slot binding ... Apps can still call this when they want to provide or
+     * override a binding").  Registering a name ourselves claims that binding for the app, and the header
+     * describes the registered result as "a read-only APF data file" -- which is a plausible reason a name we
+     * registered took no writes across five hardware runs while Quake's unregistered name wrote 20 bytes and a
+     * 35 KB save. */
     if ((g_log = log_open_write(LOG_NAME))) {
-        of_log_line("log: slot %d registered as \"%s\"\n", LOG_SLOT, LOG_NAME);
+        of_log_line("log: opened \"%s\" by kernel name discovery\n", LOG_NAME);
         if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0) of_log_line("%s", scan);
         else of_log_line("%s", scan);
         return 0;
@@ -124,7 +128,6 @@ int of_log_open(void) {
         scan[0] = 0;
         char bare[32];
         snprintf(bare, sizeof bare, "night_%d.sav", want[i] - 10);
-        of_file_slot_register(want[i], bare);
         if ((g_log = log_open_write(bare))) {
             of_log_line("log: save slot %d used as the diagnostic trail via bare name \"%s\"\n", want[i], bare);
             slot_name(want[i], name, sizeof name, scan, sizeof scan);

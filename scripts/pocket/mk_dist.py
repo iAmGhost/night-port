@@ -16,9 +16,8 @@ Layout produced (the APF SD-card shape image.sh assembles):
 Slot plan (see docs/330 §4-5):
   1 os.bin | 2 night.ini | 3 night.elf
   4 NIGHT.RES (the 51 MB resource container)
-  5,6       spare data slots
   7         bank.ofsf (SDK sound bank, only if MIDI is ever used)
-  8         spare (settings live in night.ini [night], slot 2)
+  --        (no spare slots: the firmware allows a maximum of 32 data slots per core)
   10-19     night_N.sav (nonvolatile saves, 256 KiB each)
   20..      trackNN.bin, one slot per CDDA audio track of TG_NIGHT.IMG (flat in Assets/<platform>/common/)
 """
@@ -101,11 +100,12 @@ def main():
         {"id": 2, "name": "OS Config", "required": False, "parameters": 0, "extensions": ["ini"]},
         {"id": 3, "name": "Application", "required": False, "parameters": 0, "extensions": ["elf"], "deferload": True},
         {"id": 4, "name": "NIGHT.RES", "required": False, "parameters": 0, "extensions": ["res", "bin"], "deferload": True},
-        {"id": 5, "name": "Data 2", "required": False, "parameters": 0, "extensions": ["bin", "dat"], "deferload": True},
-        {"id": 6, "name": "Data 3", "required": False, "parameters": 0, "extensions": ["bin", "dat"], "deferload": True},
+        # No spare data slots here on purpose.  Analogue caps a core at 32 data slots -- "A maximum of 32
+        # data slots is allowed" (analogue.co developer docs, core-definition-files/data-json) -- and this
+        # core ships 14 audio-track slots plus 10 saves plus the OS quartet, so the spares (5, 6, 8) went:
+        # with them declared the plan was 33 and the Pocket refused the instance with
+        # "Instance Can't match slot ID" / "framework instance load error" before the core even started.
         {"id": 7, "name": "Sound Bank", "required": False, "parameters": 0, "extensions": ["ofsf"], "deferload": True},
-        {"id": 8, "name": "Shared Config", "required": False, "parameters": "0x84", "nonvolatile": True,
-         "address": "0x20380000", "size_maximum": "0x40000", "extensions": ["cfg", "bin"]},
     ]
     data_slots += [
         {"id": 10 + i, "name": f"Save {i}", "required": False, "parameters": "0x84", "nonvolatile": True,
@@ -115,6 +115,10 @@ def main():
     for sid in sorted(ts):
         data_slots.append({"id": sid, "name": ts[sid].split("/")[-1], "required": False,
                            "parameters": 0, "extensions": ["bin"], "deferload": True})
+    # The firmware limit, enforced here rather than discovered on hardware.
+    if len(data_slots) > 32:
+        sys.exit(f"data.json would declare {len(data_slots)} data slots; Analogue allows a maximum of 32 "
+                 f"(drop spare slots or pack the audio tracks into fewer files)")
     jw(core_dir / "data.json", {"data": {"magic": "APF_VER_1", "data_slots": data_slots}})
 
     jw(core_dir / "video.json", {"video": {"magic": "APF_VER_1", "scaler_modes": [
@@ -163,6 +167,8 @@ def main():
         inst_slots.append({"id": 10 + i, "filename": f"{APP}_{i}.sav"})
     for sid in sorted(ts):
         inst_slots.append({"id": sid, "filename": ts[sid]})
+    if len(inst_slots) > 32:
+        sys.exit(f"NIGHT.json would bind {len(inst_slots)} data slots; Analogue allows a maximum of 32")
     jw(asset_dir / CORE_ID / "NIGHT.json", {
         "instance": {"magic": "APF_VER_1", "variant_select": {"id": 666, "select": False},
                      "data_slots": inst_slots}

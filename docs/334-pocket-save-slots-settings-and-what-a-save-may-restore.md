@@ -177,3 +177,39 @@ to speed the game up.
 address `0xF7000000`, mask `0xFFFCFFFF`).  `Terminal` switches the screen to the OS's 40x30 CP437 console,
 which is where this core's `printf` diagnostics land on the device (settings, disc/track selection,
 memstat, save/load reports) -- the way to read a hardware run without a card reader (of_terminal.h).
+
+## 7. The first hardware attempt, and the 32-slot ceiling
+
+The first card run stopped before the core started:
+
+```
+Instance Can't match slot ID
+Error in framework instance load error
+```
+
+The cause was the slot plan, not the files.  Analogue's own data-json page states it flatly --
+*"A maximum of 32 data slots is allowed"* (each slot takes a unique **16-bit** id, so large ids are legal,
+the *count* is what is capped) -- and `mk_dist.py` was declaring **33**: the OS quartet (1-3), NIGHT.RES
+(4), three never-bound spares (`Data 2` = 5, `Data 3` = 6, `Shared Config` = 8), `Sound Bank` (7), ten saves
+(10-19) and fourteen tracks (20-33).  The instance binds 28 of them, so the core manifest was one slot over
+the limit and the firmware refused to match the instance against it.
+
+The spares are gone (settings live in `night.ini`, slot 2; a save needs no cfg slot), the plan is now 30 core
+slots / 28 instance slots, and `mk_dist.py` refuses to generate a plan over 32 rather than letting it be
+found on hardware again:
+
+```python
+if len(data_slots) > 32:
+    sys.exit(f"data.json would declare {len(data_slots)} data slots; Analogue allows a maximum of 32 ...")
+```
+
+Two other suspicions were checked and cleared, both against the working openfpgaOS-Quake install already on
+the same card:
+
+* **Missing `.sav` files are not the fault.**  Quake binds `s0..s9.sav` and ships none, and it boots; the
+  same is true here (`inst ids not in core: []`, saves are `required: false`).
+* **Subfolders and flat files under `common/` both resolve.**  Quake's track slots bind
+  `cd/Quake (USA) (Track 11).bin` and the card really has `Assets/quake/common/cd/…bin`; our
+  `track02.bin` sits flat in `Assets/night/common/`, which the OS also accepts.
+* Key-for-key, our seven core JSONs now match Quake's JSON shape exactly (`core/data/video/audio/input/
+  interact/variants`: no missing keys, no extras).

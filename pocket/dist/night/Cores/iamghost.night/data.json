@@ -52,28 +52,6 @@
                 "deferload": true
             },
             {
-                "id": 5,
-                "name": "Data 2",
-                "required": false,
-                "parameters": 0,
-                "extensions": [
-                    "bin",
-                    "dat"
-                ],
-                "deferload": true
-            },
-            {
-                "id": 6,
-                "name": "Data 3",
-                "required": false,
-                "parameters": 0,
-                "extensions": [
-                    "bin",
-                    "dat"
-                ],
-                "deferload": true
-            },
-            {
                 "id": 7,
                 "name": "Sound Bank",
                 "required": false,
@@ -82,19 +60,6 @@
                     "ofsf"
                 ],
                 "deferload": true
-            },
-            {
-                "id": 8,
-                "name": "Shared Config",
-                "required": false,
-                "parameters": "0x84",
-                "nonvolatile": true,
-                "address": "0x20380000",
-                "size_maximum": "0x40000",
-                "extensions": [
-                    "cfg",
-                    "bin"
-                ]
             },
             {
                 "id": 10,

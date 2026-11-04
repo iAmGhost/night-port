@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.7"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.8"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 8              # saves live in ids 10..17
 SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
@@ -244,11 +244,14 @@ def main():
         "RES=NIGHT.RES\n"
         "MUSIC_VOL=200\n"
         "SFX_VOL=255\n"
-        "CDDA=0\n"
-        "PAD=0\n"
-        # SCREEN=2 overlays the host's console text on the game picture: the diagnostic view for a hardware
-        # run when the core menu's list cannot be changed (docs/336).
-        "SCREEN=2\n"
+        "CDDA_OFF=0\n"      # explicit off-flags: 0 = music and pad are live
+        "PAD_OFF=0\n"
+        # SCREEN=0 asks for the game alone.  SCREEN=2 (the host's console over the game picture) is the
+        # diagnostic view and is now something the card owner chooses, not something the dist ships with:
+        # on hardware it drew the readout over the game and looked like a broken screen (docs/336, 0.1.7
+        # reported dm=2 on the device because this line said SCREEN=2).
+        "SCREEN=0\n"
+        "TICK_HZ=490\n"
     )
 
     readme = asset_dir / "common" / "README.md"

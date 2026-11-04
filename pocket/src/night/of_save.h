@@ -28,5 +28,6 @@ int  of_setting_cdda(void);
 int  of_setting_pad(void);
 int  of_setting_tick_hz(void);        /* 0 = the PIT rate the game programs */
 int  of_setting_screen(void);         /* 0 game, 1 terminal, 2 game + log overlay */
+unsigned of_setting_lcd_raw(void);    /* raw value of the Pocket LCD interact variable, 0xDEADBEEU before a read */
 
 #endif /* NIGHT_OF_SAVE_H */

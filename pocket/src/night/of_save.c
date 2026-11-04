@@ -68,6 +68,7 @@ static int      g_slot = 1;
 static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
 static int      g_tick_hz   = 0;   /* 0 = whatever PIT rate the game programs; see of_setting_tick_hz */
+static unsigned g_lcd_raw   = 0xDEADBEEFu;   /* 0xDEADBEEU until the bridge is read */
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
@@ -268,10 +269,13 @@ static int clamp_vol(int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
 void of_settings_load(void) {
     g_music_vol = clamp_vol(cfg_int("music_vol", 255, "NIGHT_MUSIC_VOL"));
     g_sfx_vol   = clamp_vol(cfg_int("sfx_vol",   255, "NIGHT_SFX_VOL"));
-    /* The key names say what to turn *off*, so their unset default is 0. */
-    g_cdda_on   = cfg_int("cdda",        0, "NIGHT_CDDA_OFF") == 0;
-    g_pad_on    = cfg_int("pad",         0, "NIGHT_PAD_OFF")  == 0;
+    /* Both spellings are accepted, and the explicit one is what the card gets now.  A key called CDDA whose
+     * value 0 means "not off" reads like a mute switch and then surprises whoever edits the ini on the card:
+     * CDDA_OFF=0 / PAD_OFF=0 say what they mean, and the old short keys still work for old cards. */
+    g_cdda_on   = cfg_int("cdda_off", cfg_int("cdda", 0, "NIGHT_CDDA_OFF"), "NIGHT_CDDA_OFF") == 0;
+    g_pad_on    = cfg_int("pad_off",  cfg_int("pad",  0, "NIGHT_PAD_OFF"),  "NIGHT_PAD_OFF")  == 0;
     g_screen    = cfg_int("screen",      0, "NIGHT_SCREEN");   /* night.ini [night] SCREEN= */
+    g_tick_hz   = cfg_int("tick_hz",     0, "NIGHT_TICK_HZ");  /* 0 = whatever rate the game programs */
 #ifndef OF_PC
     /* of_interact_get() indexes by position in interact.json; the reserved SDK entries now occupy the first
      * six, so the indices come from the header mk_dist.py generates alongside the JSON.
@@ -283,6 +287,7 @@ void of_settings_load(void) {
         int mv = (int)of_interact_get(OF_IDX_MUSIC);
         int tk = (int)of_interact_get(OF_IDX_TICK);
         int lcd = (int)of_interact_get(OF_IDX_PLCD);
+        g_lcd_raw = (unsigned)lcd;          /* the raw bridge word, reported every second */
         if (mv != DEFAULT_OF_IDX_MUSIC) g_music_vol = clamp_vol(mv);
         if (tk != DEFAULT_OF_IDX_TICK && tk >= 60 && tk <= 490) g_tick_hz = tk;
         /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
@@ -303,3 +308,4 @@ int of_setting_cdda(void)      { return g_cdda_on; }
 int of_setting_pad(void)       { return g_pad_on; }
 int of_setting_tick_hz(void)   { return g_tick_hz; }
 int of_setting_screen(void)    { return g_screen; }
+unsigned of_setting_lcd_raw(void) { return g_lcd_raw; }   /* exactly what of_interact_get(OF_IDX_PLCD) returned */

@@ -201,13 +201,17 @@ static inline uint8_t maj4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
     return best;
 }
 
+static unsigned g_ds_fast, g_ds_slow;        /* which 640x480 path ran: the word loop or the general one */
+
 static void downscale_2x2_frame(const uint8_t *src, uint8_t *fb) {
     if (((uintptr_t)src & 3u) || ((uintptr_t)fb & 3u)) {      /* misaligned: keep the general path */
+        g_ds_slow++;
         for (int y = 0; y < PANEL_H; y++)
             for (int x = 0; x < PANEL_W; x++)
                 fb[y * PANEL_W + x] = downscale_2x2(src, x, y);
         return;
     }
+    g_ds_fast++;
     const uint32_t *s32 = (const uint32_t *)(const void *)src;
     uint32_t *d32 = (uint32_t *)(void *)fb;
     const int srow = 2 * PANEL_W / 4, drow = PANEL_W / 4;      /* words per source / panel row */
@@ -790,6 +794,8 @@ static void tick_pump(void) {
 #ifndef OF_PC
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);
+            NLOG("menu lcd=%08x scr=%d blit fast=%u slow=%u skip=%u\n",
+                 of_setting_lcd_raw(), of_setting_screen(), g_ds_fast, g_ds_slow, g_present_skips);
             /* Once a second, not once a frame: the mode is asserted at boot, but fn_03f15f (the game's own VESA
              * mode set) runs through the boot sequence and the display path is not obliged to remember what the
              * app asked for.  1 Hz keeps the assertion without the 59 Hz cost a per-frame one adds. */

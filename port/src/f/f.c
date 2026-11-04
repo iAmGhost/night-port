@@ -5419,28 +5419,171 @@ const char *const *f_type_act_names(void) { return kTypeActNames; }
 
 uint8_t *g_dat_6334c = NULL;   /* DAT_0006334c: room-chain head (the first stage node) */
 
-/* Host-side debug warps (docs/52, split recorded in docs/308).
- *   --warp-episode N  forces DAT_00063370 -- Ghidra's g_dwEpisodeCounter, 1..9.  It is the number every
- *                     per-stage name in this loader is built from (`stage%d.wal`, `st%ds.spr`,
- *                     `stage%d.stg`, `night%d.chr`) and what the spawn tables are indexed by, so
- *                     overriding it enters any episode for a playability sweep.  The shipped calls this
- *                     counter "stage"; docs/301 recorded that the old single flag took ONLY this number, so
- *                     "episode 1, stage 2" was not expressible and `--warp-stage 2` landed on episode 2.
- *   --warp-stage M    selects the M-th stage of THAT episode (1-based), which is what a player means by
- *                     "episode 1, stage 2".  It is applied after the room chain exists, by walking the
- *                     shipped's own next-room link (node+0x34c, set at 0x3caa2, docs/90) and installing that
- *                     node as the current room exactly as fn_03cc6b does when the game clears a room
- *                     (g_dat_63354 = c at 0x3ccb5 / 0x3cd6f, mirrored to g_dat_63358 at 0x3cccf / 0x3cd89),
- *                     then re-arming camera and bounds with fn_03cad3 as this loader does for the head at
- *                     0x37bfe.  No room is skipped in the data: the chain is read whole, only the current
- *                     room is chosen.  Never set by the game itself; 0 = off. */
-int g_warp_episode = 0;
-int g_warp_stage = 0;
+/* Host-side debug warps (docs/52, split recorded in docs/308, DAT_63370 reading corrected in docs/322).
+ *   --warp-stage S    forces DAT_00063370: the shipped's STAGE counter, 1..9 -- not an episode counter.
+ *                     Evidence, all from the shipped bytes:
+ *                       0x0003b52b  `g_dat_63370 += 1` is the "next stage" step of fn_03af18's tail;
+ *                       0x0003b1d4  `DAT_00063370 == 9` is tested as "the game is through";
+ *                       0x0003b578 / 0x0003b3f1  reset it to 1 (game over / ending);
+ *                       0x000365eb  sets it to 1 when a game starts;
+ *                       the CD carries exactly nine maps -- stage1..stage9.wal, stage1..stage9.stg,
+ *                       st1s.spr..st9s.spr -- which are the names fn_037b03 formats from this very cell;
+ *                       and the slide-show count g_tab_52f2c[DAT_63370] = {0x16,3,2,6,0,0,3,0,1,3} matches
+ *                       the CD's <stage>s<card>.pcx files card for card (stage 1 -> 1s1..1s3, stage 2 ->
+ *                       2s1..2s2, stage 3 -> 3s1..3s6, stage 6 -> 6s1..6s3, stage 8 -> 8s1, stage 9 ->
+ *                       9s1..9s3) while stages 4, 5 and 7 have neither slides nor a table row.
+ *                     Ghidra named the cell g_dwEpisodeCounter; that name is a guess, superseded here.  A
+ *                     playtest report about "episode 1, stage 3" therefore means STAGE 3 (stage3.wal,
+ *                     stage3.stg, st3s.spr, the 3s1..3s6 dialogue) and is warped with `--warp-stage 3`.
+ *   --warp-episode N  DEPRECATED alias for `--warp-stage N`, kept so the docs/52-era scripts and docs runs
+ *                     keep working unchanged.  --warp-stage wins if both are given.
+ *   --warp-room R     within the stage just loaded, make the R-th room-chain node the current room.
+ *                     A stage's .wal carries a whole chain of rooms (the room count is read at 0x37bda into
+ *                     DAT_000639d8 and the chain built by fn_03c853 at 0x37bf4), and the shipped switches
+ *                     nodes two ways: fn_03cc6b scrolls the camera into the next node's window and swaps the
+ *                     pointer (0x3cca4-cff, 0x3cd60-89), and the request-2 arm fn_03d244 walks node+0x34c
+ *                     (0x3d29b), runs the level-up screen (fn_038f3d at 0x3d2ac), re-arms camera and bounds
+ *                     (fn_03cad3 at 0x3d2b6), seats the player (0x3d2c1-0x3d38a) and picks the room's CD
+ *                     track (0x3d3bb-d7).  This warp performs fn_03d244's install MINUS its level-up screen,
+ *                     applied after fn_0374ad / fn_0376c8 have seated the player on the chain head (both
+ *                     overwrite DAT_00063354 with the head at 0x3761f / the 0x37795 latch, so the install has
+ *                     to come after them).  A --warp-room basis therefore carries NO upgrade-menu state and
+ *                     never substitutes for a real room clear.  Never set by the game itself; 0 = off. */
+int g_warp_stage = 0;      /* DAT_00063370 to force: the stage counter, 1..9 */
+int g_warp_episode = 0;    /* deprecated alias for g_warp_stage (docs/52 name) */
+int g_warp_room = 0;       /* 1-based chain NODE ordinal to install (CLI --warp-node; --warp-room is the alias) */
+int g_warp_column = -1;    /* 0-based room COLUMN to install (CLI --warp-column).  The shipped's own room
+                            * identity is node[+0x40]: g_tab_52c3c (seat Y), g_tab_52be0 ("rooms entered by
+                            * walking in") and g_tab_52da4 (the room's CD track) are all indexed by
+                            * column + (stage-1)*10, i.e. up to 10 rooms per stage.  Chain ORDER is a different
+                            * axis -- stage 1's node #3 carries column 2 -- so a playtest report about a "room"
+                            * maps to a column, not to a chain ordinal (docs/322). */
+
+int f_rig_warp_stage(void) { return (g_warp_stage > 0) ? g_warp_stage : g_warp_episode; }
+
+/* The --warp-room install: fn_03d244's room-entry stores (0x0003d2b6-0x0003d3d7) without its level-up
+ * screen, and the node selection fn_03cc6b makes at 0x3ccb5 / 0x3cd6f.  Called from fn_037b03 (chain just
+ * built), fn_0374ad (stage reset tail) and fn_0376c8 (hero spawn tail), because both of the last two
+ * re-seat DAT_00063354 on the chain head after fn_037b03 has run. */
+static void f_rig_warp_room(const char *where);
+
+static uint8_t *s_warp_node;                      /* the node a --warp-room basis installed, NULL = none */
+static uint32_t s_warp_gen, s_warp_gen_applied;   /* one install per stage load */
+
+/* One-shot re-apply (docs/322): fn_037b03 builds the chain BEFORE the player record exists, so its install
+ * can seat nobody (the witness prints player=(0,0)).  The room-loop entry fn_03a829 is the first shipped
+ * point that has both a chain and a player, so the seating is applied there -- once per stage load, and never
+ * again, so the shipped's own camera-driven room switch (0x3ccb5 / 0x3cd6f) still runs afterwards. */
+static void f_rig_warp_room_once(void)
+{
+    if ((g_warp_room < 2 && g_warp_column < 0) || g_dat_6334c == NULL || g_player_ent == NULL) return;
+    if (s_warp_node == NULL || s_warp_gen_applied == s_warp_gen) return;
+    f_rig_warp_room("fn_03a829");
+}
+
+/* The chain census (docs/322): read a stage's .wal chain whole, so a playtest report about a "room" maps to
+ * a node by data instead of by counting.  The fields are exactly the ones fn_03cad3 (0x0003cad3) consumes:
+ * node[0] / node[8] -> DAT_639dc (camX, taken as node[8]-0x140 when node[0x11] is set), node[4] -> DAT_639e0
+ * (camY), node[0x10] -> DAT_639e4 (the side/band flag fn_03cc6b branches on at 0x3cc8f / 0x3cd4d), node[+0x40]
+ * = the room column, and node[+0x34c] is the next-node link (stored at 0x3caa2). */
+static void f_rig_chain_census(const char *why)
+{
+    if (!getenv("NIGHT_CHAINDBG") && f_rig_warp_stage() <= 0) return;
+    if (g_dat_6334c == NULL) { printf("[chain] %s: no chain\n", why); fflush(stdout); return; }
+    printf("[chain] %s: stage=%u DAT_639d8=%u rooms, chain order below (node# | col | camera window | flags)\n",
+           why, (unsigned)g_dat_63370, (unsigned)g_dat_639d8);
+    uint8_t *n = g_dat_6334c;
+    int32_t ord = 1;
+    while (n != NULL && ord <= 64) {
+        const uint32_t a = ((const struct ua32 *)(n))->v;
+        const uint32_t b = ((const struct ua32 *)(n + 4))->v;
+        const uint32_t c = ((const struct ua32 *)(n + 8))->v;
+        const uint32_t col = ((const struct ua32 *)(n + 0x40))->v;
+        uint8_t *nx = rec_ptr_get(n, 0x34c);
+        printf("[chain]   node#%-2d col=%-2u camX=%-6d camY=%-5d band=%u side=%u next=%s\n", ord, col,
+               (n[0x11] == 0) ? (int)a : (int)c - 0x140, (int)b, (unsigned)n[0x10], (unsigned)n[0x11],
+               (nx != NULL) ? "next node" : "NULL (terminator: fn_03d244 takes g_dat_63350 at 0x3d2a2)");
+        if (nx == NULL) break;
+        n = nx; ord++;
+    }
+    fflush(stdout);
+}
+
+static int s_warp_ord;                              /* chain ordinal of the node the warp selected */
+
+static void f_rig_warp_room(const char *where)
+{
+    if ((g_warp_room < 2 && g_warp_column < 0) || g_dat_6334c == NULL) return;
+    uint8_t *n = g_dat_6334c;
+    int32_t ord = 1;
+    if (g_warp_column >= 0) {          /* select by the shipped's own room axis: node[+0x40] column */
+        while (n != NULL && ((const struct ua32 *)(n + 0x40))->v != (uint32_t)g_warp_column) {
+            uint8_t *nx = rec_ptr_get(n, 0x34c);
+            if (nx == NULL) break;
+            n = nx; ord++;
+        }
+        if (n == NULL || ((const struct ua32 *)(n + 0x40))->v != (uint32_t)g_warp_column) {
+            printf("[warp] --warp-column %d is not on stage %u's chain (%u nodes walked) at %s\n",
+                   g_warp_column, (unsigned)g_dat_63370, ord, where);
+            fflush(stdout);
+            return;
+        }
+    } else {                          /* select by chain order: --warp-node N (--warp-room alias) */
+        for (int32_t i = 1; i < g_warp_room; i++) {
+            uint8_t *nx = rec_ptr_get(n, 0x34c);                    /* the shipped's next-room link (0x3caa2) */
+            if (nx == NULL) break;
+            n = nx; ord++;
+        }
+        if (ord != g_warp_room) {
+            printf("[warp] --warp-node %d unreachable at %s: stage %u's chain ends after %d nodes\n",
+                   g_warp_room, where, (unsigned)g_dat_63370, ord);
+            fflush(stdout);
+            return;
+        }
+    }
+    s_warp_ord = ord;
+    g_dat_63354 = n;                                                        /* 0x3ccb5 / 0x3cd6f / 0x3d29b */
+    s_warp_node = n;                              /* the node is installed; seating waits for a player */
+    if (g_dat_63370 != 1) g_dat_63358 = n;                    /* the shipped mirrors it only past stage 1:
+                                                                 * 0x3ccc1 gates 0x3cccf, 0x3cd7b gates 0x3cd89 */
+    fn_03cad3(n);                                                           /* 0x3d2b6: camera X/Y + band */
+    g_dat_63398 = n[0x11];                                     /* the shipped states a node's orientation byte
+                                                                  * when it makes that node current: fn_0374ad
+                                                                  * 0x37633-3b `DAT_63398 = [DAT_63354+0x11]`.
+                                                                  * Without it the warp seats the player on the
+                                                                  * wrong side (stage 1 node#3 says side=1, and the
+                                                                  * stale head value 0 put the player 30 px left of
+                                                                  * the room's own window). */
+    uint8_t *P = g_player_ent;
+    if (P != NULL) {                                                        /* 0x3d2c1-0x3d38a */
+        const uint32_t col = ((struct ua32 *)((n + 0x40)))->v;
+        const int32_t rowb = (int32_t)(g_dat_63370 - 1) * 10;
+        ((struct sa32 *)((P + 0x01)))->v = (int32_t)g_dat_639dc + (g_dat_63398 == 0 ? -0x1e : 0x15e);
+        if (col < 100u && g_tab_52be0[col + rowb] == 1)                     /* 0x3d2f0-30e, 0x3d31c-32c */
+            ((struct sa32 *)((P + 0x01)))->v += (g_dat_63398 == 0 ? 0x78 : -0x78);
+        ((struct sa32 *)((P + 0x09)))->v = (int32_t)g_dat_639e0             /* 0x3d330-58 */
+                                 + (int32_t)g_tab_52c3c[col + rowb];
+        ((struct ua32 *)((P + 0x05)))->v = 0;                               /* 0x3d360 */
+        ((struct ua32 *)((P + 0x17)))->v = 1;                               /* 0x3d36c: the walking state */
+        ((struct ua32 *)((P + 0x11)))->v = 0;                               /* 0x3d378 */
+        ((struct sa32 *)((P + 0x1b)))->v = (int32_t)g_dat_63398;            /* 0x3d384-8a */
+        s_warp_gen_applied = s_warp_gen;          /* the player is seated: this stage load is done */
+        if (col < 100u) fn_10b1d(g_tab_52da4[col + rowb]);                  /* 0x3d3bb-d7: the room's track */
+    }
+    printf("[warp] room install at %s: stage=%u node#%d col=%u camX=%d camY=%d band=%u DAT_63398=%u "
+           "player=(%d,%d) state=%u\n", where, (unsigned)g_dat_63370, ord,
+           (unsigned)((struct ua32 *)((n + 0x40)))->v, (int)g_dat_639dc, (int)g_dat_639e0,
+           (unsigned)g_dat_639e4, (unsigned)g_dat_63398,
+           P ? (int)((const struct sa32 *)((P + 0x01)))->v : 0,
+           P ? (int)((const struct sa32 *)((P + 0x09)))->v : 0,
+           P ? (unsigned)((const struct ua32 *)((P + 0x17)))->v : 0u);
+    fflush(stdout);
+}
 
 void fn_037b03(int32_t resume_flag)
 {
     (void)canary_id((uintptr_t)resume_flag, 0xa4);                  /* 0x37b03-08 */
-    if (g_warp_episode > 0) g_dat_63370 = (uint32_t)g_warp_episode;
+    if (f_rig_warp_stage() > 0) g_dat_63370 = (uint32_t)f_rig_warp_stage();
     g_dat_62a8c = 0;                                                /* 0x37b1e */
     g_dat_62a90 = 0;                                                /* 0x37b28 */
     fn_041e20(g_dat_5d08c, 0, 0x14);                                /* 0x37b3e */
@@ -5456,32 +5599,14 @@ void fn_037b03(int32_t resume_flag)
     fn_0367c9((const char *)name);                                  /* 0x37bb6 */
     g_dat_6335c = 0;                                                /* 0x37bbb */
     fn_04192e((uint8_t *)&g_dat_639d8, 1, 4, (uint8_t *)g_639b8);   /* 0x37bda: room count */
+    s_warp_gen++; s_warp_node = NULL;      /* a fresh chain: a --warp-node/--warp-column basis must be re-applied to it */
     g_dat_639e8 = 0;                                                /* 0x37bdf */
     fn_03c853(g_dat_6334c, (uint8_t *)g_639b8);                     /* 0x37bf4 */
     fn_03cad3(g_dat_6334c);                                         /* 0x37bfe */
-    if (g_warp_stage > 1 && g_dat_6334c != NULL) {                  /* host warp: enter stage M of this episode */
-        uint8_t *n = g_dat_6334c;
-        int32_t hops = 0;
-        for (int32_t i = 1; i < g_warp_stage; i++) {
-            uint8_t *nx = rec_ptr_get(n, 0x34c);                    /* the shipped's next-room link (0x3caa2) */
-            if (nx == NULL) break;
-            n = nx; hops++;
-        }
-        if (hops + 1 == g_warp_stage) {
-            g_dat_63354 = n;                                        /* 0x3ccb5 / 0x3cd6f as fn_03cc6b does */
-            g_dat_63358 = n;                                        /* 0x3cccf / 0x3cd89 mirror */
-            fn_03cad3(n);                                           /* camera + band of the chosen room */
-            printf("[warp] episode=%u stage=%d node#%u hops=%d rooms=%u camX=%d camY=%d band=%u\n",
-                   (unsigned)g_dat_63370, g_warp_stage,
-                   (unsigned)((struct ua32 *)((n + 0x40)))->v, hops, (unsigned)g_dat_639d8,
-                   (int)g_dat_639dc, (int)g_dat_639e0, (unsigned)g_dat_639e4);
-            fflush(stdout);
-        } else {
-            printf("[warp] stage=%d unreachable: episode %u has %u stage nodes\n",
-                   g_warp_stage, (unsigned)g_dat_63370, (unsigned)g_dat_639d8);
-            fflush(stdout);
-        }
-    }
+    f_rig_chain_census("fn_037b03");      /* the chain read whole -- AFTER fn_03c853 has linked it: the census
+                                           * run before the link pass printed one node with raw .wal bytes in
+                                           * its window fields, which is a broken instrument, not a finding */
+    f_rig_warp_room("fn_037b03");      /* host warp: enter room R of the stage just loaded (docs/322) */
     cur = (uint8_t *)&g_dat_63370;
     fn_0428f8(name, (const uint8_t *)"st%ds.spr", &cur);             /* 0x37c03-13 */
     uint32_t s_off = heap_malloc(0x3c);                             /* 0x37c20 */
@@ -5778,6 +5903,8 @@ void fn_0374ad(void)
                   g_tab_52c3c[(g_dat_63370 - 1) * 0xa + ((struct ua32 *)((g_dat_63354 + 0x40)))->v]);
     ((struct ua32 *)((g_player_ent + 0x17)))->v = 1;                                   /* 0x376ac */
     ((struct ua32 *)((g_player_ent + 0x11)))->v = 0;                                   /* 0x376b8 */
+    f_rig_warp_room("fn_0374ad");   /* host warp: this function re-seats DAT_63354 on the chain head at
+                                     * 0x3761f, so a --warp-room basis has to be installed after it (docs/322) */
 }
 
 /* fn_0376c8  orig: 0x000376c8 (L15, 601 B) -- THE PLAYER (hero) SPAWN.
@@ -5902,6 +6029,8 @@ void fn_0376c8(void)
         + g_tab_52c3c[((struct ua32 *)((g_dat_63354 + 0x40)))->v + (g_dat_63370 - 1) * 0xa]);  /* 0x378d3-9f */
     ((struct ua32 *)((g_player_ent + 0x17)))->v = 1;                                   /* 0x378e1 */
     ((struct ua32 *)((g_player_ent + 0x11)))->v = 0;                                   /* 0x378ed */
+    f_rig_warp_room("fn_0376c8");   /* host warp: the hero spawn latches DAT_63354 from DAT_63358/the head
+                                     * here too, so the room install is applied after it (docs/322) */
 }
 
 
@@ -24034,6 +24163,7 @@ static uint8_t *room_link_or_zero(uint8_t *room)
 int32_t fn_03a829(void)
 {
     (void)canary_id(0, 0x3c);                                          /* 0x0003a82e probe (push 0x3c) */
+    f_rig_warp_room_once();        /* host warp: seat the chosen room before this room's data is read (docs/322) */
     uint8_t *pl = g_player_ent;
     uint8_t *room = g_dat_63354;
     int32_t showed = 0;                                                /* local_20: the slide-show is done */

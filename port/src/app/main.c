@@ -548,6 +548,45 @@ static void autokey(void) {
     }
 }
 
+/* Warp-basis self-entry (docs/322).  A `--warp-stage`/`--warp-room` run IS a stage basis, so it has to be
+ * inside the stage: the old behaviour was to force DAT_00063370 in fn_037b03 and then sit on the title
+ * screen, because fn_037b03 only ever runs once a game has started.  The shipped's own start path is a
+ * chain of key waits -- logo hold, opening .fli, title wipe + drain, then the menu, where selection 0 lets
+ * fn_03af18 leave the menu loop for the stage -- and each phase consumes one press, so a short confirm
+ * pulse lands on whichever phase is reading the latch (DAT_00063ea4 / the Enter slot 0x1c of the key-state
+ * array fn_034635 maintains).  The pulse STOPS the moment the player action resolver (fn_03272f) starts
+ * running, so a warp run never injects a key into gameplay and never parks on the attract chain.  It is
+ * applied only when no `--script` pins a timeline (docs/55: there the script owns the keys) and only for a
+ * warp basis, never on the canonical route. */
+static int      g_warp_entry_done, g_warp_entry_posts;
+static int      g_script_given;      /* set when --script pins a key timeline: then the script owns keys */
+static void warp_entry_key(void)
+{
+    if (g_warp_entry_done || f_rig_warp_stage() <= 0 || g_script_given) return;
+    if (f_act_resolver_calls() > 0) {                       /* fn_03272f owns frames: the stage is live */
+        g_warp_entry_done = 1;
+        g_dat_63ea4 = 0; g_dat_62c58[0x1c] = 0;
+        SDL_Log("warp entry: stage loop reached after %d confirm pulses (fn_03272f calls %lu, t=%.1fs)",
+                g_warp_entry_posts, f_act_resolver_calls(),
+                (double)(SDL_GetPerformanceCounter() - g_start_time) / (double)g_perf_freq);
+        return;
+    }
+    Uint64 now = SDL_GetPerformanceCounter();
+    double t = (double)(now - g_start_time) / (double)g_perf_freq;
+    if (t > 90.0) {                                          /* a broken entry is a rig defect, not a finding */
+        g_warp_entry_done = 1;
+        g_dat_63ea4 = 0; g_dat_62c58[0x1c] = 0;
+        SDL_Log("warp entry FAILED: no stage loop after %d confirm pulses / %.1fs (stage=%u, "
+                "DAT_63354=%p, resolver calls=0)", g_warp_entry_posts, t,
+                (unsigned)f_rig_warp_stage(), (void *)g_dat_63354);
+        return;
+    }
+    int on = (t > 0.5) && (fmod(t, 0.5) < 0.25);             /* press 250 ms, release 250 ms */
+    if (on && g_dat_63ea4 == 0) g_warp_entry_posts++;
+    g_dat_63ea4 = (uint8_t)(on ? 1 : 0);
+    g_dat_62c58[0x1c] = (uint8_t)(on ? 1 : 0);
+}
+
 /* ---- the playtest harness: scripted keys + named-event screenshots (docs/46) -----------
  * A script file pins the timeline a human would use (attract -> menu -> episode slide -> stage ->
  * menu screens), and every screenshot is named after the game-visible event that produced it, so the
@@ -1458,6 +1497,7 @@ static void key_apply(uint8_t sc, int make) { night_key_apply(sc, make); }
 
 static void input_pump(void) {
     autokey();                                                 /* the scripted headless key press */
+    warp_entry_key();                                          /* warp basis: enter the game, then stop (docs/322) */
     pt_drive();                                                /* the playtest script's key timeline */
     if (g_rig_dir) rig_poll(pt_now_ms(), (unsigned long long)g_frames,
                            (unsigned long long)(g_astream ? g_audio_submitted : g_audio_drained));
@@ -1800,15 +1840,20 @@ int main(int argc, char **argv) {
         }
         else if (!strcmp(argv[i], "--dump") && i + 1 < argc) g_dump_dir = argv[++i];
         else if (!strcmp(argv[i], "--autokey")) g_autokey = 1;
-        else if (!strcmp(argv[i], "--script") && i + 1 < argc) pt_load(argv[++i]);
+        else if (!strcmp(argv[i], "--script") && i + 1 < argc) { g_script_given = 1; pt_load(argv[++i]); }
         else if (!strcmp(argv[i], "--no-audio")) g_no_audio = 1;
         else if (!strcmp(argv[i], "--shots") && i + 1 < argc) g_shots_dir = argv[++i];
         else if (!strcmp(argv[i], "--shot-limit") && i + 1 < argc) g_shot_limit = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--shot-delay") && i + 1 < argc) g_shot_delay_ms = (Uint64)atoi(argv[++i]);
         else if (!strcmp(argv[i], "--skip-intro")) g_skip_intro = 1;   /* host debug: skip the logo hold + opening.fli (docs/309) */
         else if (!strcmp(argv[i], "--skip-intro")) g_skip_intro = 1;   /* host debug: skip the logo hold + opening.fli movie (docs/309) */
-        else if (!strcmp(argv[i], "--warp-episode") && i + 1 < argc) g_warp_episode = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--warp-stage") && i + 1 < argc) g_warp_stage = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--warp-episode") && i + 1 < argc)
+            g_warp_episode = atoi(argv[++i]);   /* deprecated alias for --warp-stage (docs/322) */
+        else if (!strcmp(argv[i], "--warp-node") && i + 1 < argc) g_warp_room = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--warp-room") && i + 1 < argc)
+            g_warp_room = atoi(argv[++i]);      /* alias for --warp-node: chain ordinal, NOT a room column */
+        else if (!strcmp(argv[i], "--warp-column") && i + 1 < argc) g_warp_column = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--rig-dump") && i + 1 < argc) g_rig_dir = argv[++i];
         else if (!strcmp(argv[i], "--rig-hz") && i + 1 < argc) g_rig_hz = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--no-scene-shots")) g_shot_scene = 0;
@@ -1820,6 +1865,21 @@ int main(int argc, char **argv) {
         }
     }
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "--resnames")) g_resnames = 1;
+    if (f_rig_warp_stage() > 0) {          /* state the basis a run is standing on, before anything reads it
+                                            * (docs/322: DAT_63370 is the stage counter 1..9, not an episode) */
+        int s = f_rig_warp_stage();
+        SDL_Log("warp basis: DAT_63370 = %d -> stage%d.wal / stage%d.stg / st%ds.spr%s%s%s", s, s, s, s,
+                (g_warp_column >= 0) ? " room basis: --warp-column (node[+0x40], the axis g_tab_52c3c/52be0/"
+                                       "52da4 are indexed by)" : "",
+                (g_warp_room >= 2) ? " node basis: --warp-node (chain ordinal; a stage's chain order is not "
+                                     "its room order)" : "",
+                (g_warp_episode && !g_warp_stage) ? " (--warp-episode is an alias for --warp-stage)" : "");
+        if (!g_skip_intro) {      /* a warp run is measured against itself, so the attract chain is cut (docs/309
+                                   * records that skip-intro is a basis switch: warp runs are a basis of their own) */
+            g_skip_intro = 1;
+            SDL_Log("warp basis implies --skip-intro: logo card and opening.fli skipped, confirm pulses start sooner");
+        }
+    }
     if (getenv("NIGHT_FLIDBG")) g_fli_trace = (uint32_t)atoi(getenv("NIGHT_FLIDBG"));   /* CG op trace */
     if (getenv("NIGHT_FLIDUMP")) { snprintf(g_fli_dump, sizeof g_fli_dump, "%s", getenv("NIGHT_FLIDUMP")); }
     if (getenv("NIGHT_RES_DIR") && *getenv("NIGHT_RES_DIR")) res_dir = getenv("NIGHT_RES_DIR");

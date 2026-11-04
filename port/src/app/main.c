@@ -101,6 +101,7 @@ static int ensure_mode(int w, int h) {
     g_pixels = malloc((size_t)w * (size_t)h * 4u);
     g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, w, h);
     if (!g_tex || !g_pixels) return -1;
+    SDL_SetTextureScaleMode(g_tex, SDL_SCALEMODE_NEAREST);
     SDL_Log("display mode %dx%d", w, h);
     g_vid_w = w; g_vid_h = h;
     return 0;

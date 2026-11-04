@@ -12,6 +12,16 @@ the phase.  Every number below names the run that produced it.
 
 ## 0a. Basis correction (2026-11-03, after the playtester's correction)
 
+> **SUPERSEDED by docs/322 (2026-11-04).**  This section's own correction is half wrong.  `DAT_00063370` is the
+> **stage (map) counter, 1..9** -- not an episode counter and not a per-episode stage index -- so "episode 1,
+> stage 2" is not expressible as `--warp-episode 1 --warp-stage 2`, and that flag pair no longer exists: the two
+> axes are `--warp-stage S` (map) and `--warp-node N` / `--warp-column C` (chain ordinal vs the shipped's room
+> column `node[+0x40]`).  Every `--warp-episode` run named in this document is a **map-warp** run, and every
+> claim in it that says "episode 1's stage 2" is a claim about a map, not about a playthrough.  Two facts this
+> section leans on are still true and are what the corrected basis now rests on: the last node's `+0x34c` is NULL
+> and `fn_03d244` falls back to `g_dat_63350` at 0x3d2a2; and a stage advances only when the guardian record
+> `DAT_00053c80` dies -- which is why a warp install can never produce a stage-clear claim (docs/322 §4).
+
 The playtester's reports are about **episode 1, stage 2 / stage 3**.  Everything in this document labelled
 "stage-2 basis" was produced with `--warp-episode 2`, which is **not** episode 1's stage 2:
 

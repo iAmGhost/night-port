@@ -1,5 +1,17 @@
 # 317. Item E measured on a legitimate stage-3 opening: one press advances one card; the CG dialogue path is a different routine, and the rig cannot arm it
 
+> **RETRACTED as a basis for item E (2026-11-04, docs/322 / docs/323).**  This document measures the
+> **title-path slide show** (`fn_00035dfc`'s card gates, `g_tab_52f2c[stage]` card counts, `<stage>s<card>.pcx`),
+> not what the playtester reported.  Item E is an **overlay drawn over the live stage in the last room of a map**
+> (`fn_03a70e`'s `na<stage>####.pcx` composite at 0x3a764-0x3a777, whose `fn_03a594` copy leaves the previous
+> screen standing wherever the new picture is 0xff), armed only when the guardian record is inside the camera
+> window (0x3aa4c-0x3aa8f).  Two basis errors compound here: (1) `--warp-episode 3` was read as "episode 1
+> stage 3" when `DAT_00063370` is the **stage/map** counter, so this run measured **map 3**; and (2) a "room" is
+> a chain node selected by **column** (`node[+0x40]`), not a chain ordinal, so no measurement in this document
+> sits in the reported room.  The card-gate numbers (6 gates, each ended by a press) remain true of the slide
+> show and are quoted nowhere as evidence about item E.  Item E was re-attacked and fixed on the corrected basis
+> in docs/323 (localisation, red) and docs/324 (fix, green).  Its "no defect found" verdict is void.
+
 Goal task-9 (round-4 item E: "stage 3's first-time boss dialogue — one Enter press skips the whole dialogue
 instead of advancing it line by line").  Continues docs/313 / docs/314 / docs/315 / docs/316.
 

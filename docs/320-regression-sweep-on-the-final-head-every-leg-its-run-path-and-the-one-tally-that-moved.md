@@ -79,6 +79,15 @@ from §1.
 | item 3 upgrade menu | `/tmp/rig/g319c`, `/tmp/rig/g319d`, `/tmp/rig/g319h`, `/tmp/rig/g319i`, item G's green `/tmp/rig/g319i` | every committed purchase steps `sel` by 1 and HP by one table row (100 -> 200 -> 300) |
 | item 5 fault | `/tmp/rig/soak321` | 0 faults over 36,000 frames across nine episodes |
 
+> **RETRACTION of the "item 4 card key-wait gate" leg (2026-11-04, docs/322 / docs/323).**  That leg
+> (`/tmp/rig/q322sl`, `--warp-episode 3`, `ep1_stage3_slides.txt`, 6 gates, every one ended by a press) does not
+> gate the reported dialogue defect.  `--warp-episode 3` sets the **stage/map** counter, so the run sat on map 3,
+> and the gates it counted are the **title-path slide show's** card gates, while the report is about an overlay in
+> the last room of a map (`fn_03a70e`, armed at 0x3aa4c-0x3aa8f, press gate 0x3a785-0x3a7a4, release wait
+> 0x3a7cd-0x3a7df).  The leg survives only as a statement about the slide show.  The gates for that item are now
+> `/tmp/rig/e325r` (red, 4 no-press gates) and `/tmp/rig/g325a` (green, 0), both on
+> `--warp-stage 1 --warp-column 3`.
+
 Against the cached reference itself, the final HEAD matches: the divergent-cell list in
 `/tmp/rig/rb322/DIVERGENCE.md` has 81 entries and the set diff against `/tmp/rig/rb15/DIVERGENCE.md` is
 empty (`/tmp/rig/rb15.res.txt` vs `/tmp/rig/rb322.res.txt`), with the same 27 same-width gameplay

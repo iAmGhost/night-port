@@ -212,3 +212,13 @@ Two things the table deliberately does not smooth over: item E has no red, becau
 found; and item F's red is a *gate* census, not a missing routine -- the effect's arithmetic is present
 and faithful, and what is missing upstream is the latch `DAT_00053c80` never becoming non-null (the same
 gate that keeps item B's boss from being constructed, docs/312).
+
+> **RETRACTION of the item-E and item-F rows of this table (2026-11-04, docs/322 / docs/323 / docs/325).**
+> Item E's row names `fn_00035dfc` and the press gate 0x3a785-0x3a7a4 -- the offsets are wrong as well as the
+> claim: 0x3a785-0x3a7a4 belongs to `fn_03a70e`, not `fn_00035dfc`, and item E is `fn_03a70e`'s overlay in the
+> last room of a map, not a card gate.  "Item E has no red, because none exists to be found" is **withdrawn**:
+> a red exists (`/tmp/rig/e325r`: 5 pictures consumed, 4 gates satisfied with no press, docs/323) and the defect
+> was the show's release wait pumping only while Space was held (fixed, docs/324).
+> Item F's row is superseded in the other direction: the arithmetic is indeed faithful, but the missing part was
+> not only the latch -- `fn_03a5f7`'s per-pass VBLANK wait (0x3a6c0-0x3a6d9) had been modelled as a no-op, so 80
+> shear passes ran in 0.1 ms (docs/325, red `/tmp/rig/f325r` vs green `/tmp/rig/f325g2`).

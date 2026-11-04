@@ -28,13 +28,17 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 CUE = REPO / "NIGHT" / "TG_NIGHT.CUE"
+# The SDK's own core templates.  interact.json's first variables are reserved by the SDK -- README:543,
+# "The first 4 are reserved by the SDK (Analogizer, SNAC, video offsets).  App-specific options start at
+# index 4" -- so they are copied verbatim rather than skipped.
+SDK_TPL = REPO / "pocket" / "src" / "sdk" / "platforms" / "pocket" / "templates"
 OUT = REPO / "pocket" / "dist" / "night"
 
 CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.1"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.2"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 8              # saves live in ids 10..17
 SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
@@ -115,7 +119,11 @@ def main():
     ]
     data_slots += [
         {"id": 10 + i, "name": f"Save {i}", "required": False, "parameters": "0x84", "nonvolatile": True,
-         "address": "0x20100000", "address_stride": "0x40000", "size_maximum": "0x40000", "extensions": ["sav"]}
+         # The SDK template and openfpgaOS-Quake give every save slot its own address.  address_stride is not
+         # something the Pocket's JSON parser is documented to expand, and eight slots sharing one address is
+         # a plain explanation for no slot ever accepting a write.
+         "address": "0x%08X" % (0x20100000 + 0x40000 * i),
+         "size_maximum": "0x40000", "extensions": ["sav"]}
         for i in range(SAVE_SLOTS)
     ]
     for sid in sorted(ts):
@@ -146,34 +154,52 @@ def main():
             {"id": 20, "name": "Start", "key": "pad_btn_start"},
             {"id": 21, "name": "Select", "key": "pad_btn_select"},
         ]}]}})
-    jw(core_dir / "interact.json", {"interact": {"magic": "APF_VER_1", "variables": [
+    # interact.json assembled the way openfpgaOS-Quake's working core has it: the SDK's six reserved
+    # variables in template order, then the firmware's Pocket LCD switch, then this core's own options.
+    # Ours used to be the whole file -- four variables, with the sliders parked on 0xF7000004/0xF7000008,
+    # which are the SDK's reserved Video H/V Offset words.  On hardware every entry was listed in Core
+    # Options and refused to change, while Settings/iamghost.night/Interact/_core/interact_persist.json kept
+    # values the menu never moved (docs/336).
+    reserved = json.loads((SDK_TPL / "interact.json").read_text())["interact"]["variables"]
+    pocket_lcd = {"name": "Pocket LCD", "id": 70, "type": "list", "enabled": True, "persist": True,
+                  "address": "0xF7000000", "defaultval": 0, "mask": "0xFFFCFFFF", "options": [
+                      {"value": "0x00000000", "name": "On"},
+                      {"value": "0x00010000", "name": "Off"},
+                      {"value": "0x00020000", "name": "Terminal"}]}
+    app_vars = [
         {"name": "Music Volume", "id": 100, "type": "slider_u32", "enabled": True, "persist": True,
-         "address": "0xF7000004", "defaultval": 200,
+         "address": "0xF700000C", "defaultval": 200,
          "graphical": {"signed": False, "min": 0, "max": 255, "adjust_small": 1, "adjust_large": 16}},
         {"name": "Tick Pump Hz", "id": 101, "type": "slider_u32", "enabled": True, "persist": True,
-         "address": "0xF7000008", "defaultval": 490,
+         "address": "0xF7000010", "defaultval": 490,
          "graphical": {"signed": False, "min": 60, "max": 490, "adjust_small": 1, "adjust_large": 30}},
-        # Same variable openfpgaOS-Quake ships: it is the OS's own "show the terminal instead of the game"
-        # switch, and the core's printf diagnostics (memstat, disc/track selection, load/save reports) go to
-        # that 40x30 CP437 terminal (of_terminal.h).  Index 2 -- appended, so indexes 0/1 above keep their
-        # positions for of_interact_get().
-        # The core-side screen switch.  The SDK-standard "Pocket LCD" entry below it is stored by the
-        # firmware, but what an openfpgaOS app can actually act on is of_video_set_display_mode()
-        # (OF_DISPLAY_TERMINAL / OF_DISPLAY_FRAMEBUFFER / OF_DISPLAY_OVERLAY, of_video.h:43-45), and
-        # "Game + log" is the one that makes a hardware run readable without a card reader (docs/336).
-        {"name": "NIGHT Screen", "id": 71, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF700000C", "defaultval": 0, "mask": "0xFFFFFFFF", "options": [
+        # What an openfpgaOS app can act on is of_video_set_display_mode() (of_video.h:43-45):
+        # OF_DISPLAY_TERMINAL / OF_DISPLAY_FRAMEBUFFER / OF_DISPLAY_OVERLAY.  "Game + log" is the diagnostic
+        # view that makes a hardware run readable without a card reader.
+        {"name": "NIGHT Screen", "id": 102, "type": "list", "enabled": True, "persist": True,
+         "address": "0xF7000014", "defaultval": 0, "mask": "0xFFFFFFFF", "options": [
              {"value": "0x00000000", "name": "Game"},
              {"value": "0x00000001", "name": "Terminal"},
-             {"value": "0x00000002", "name": "Game + log"},
-         ]},
-        {"name": "Pocket LCD", "id": 70, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000000", "defaultval": 0, "mask": "0xFFFCFFFF", "options": [
-             {"value": "0x00000000", "name": "On"},
-             {"value": "0x00010000", "name": "Off"},
-             {"value": "0x00020000", "name": "Terminal"},
-         ]},
-    ], "messages": []}})
+             {"value": "0x00000002", "name": "Game + log"}]},
+    ]
+    variables = reserved + [pocket_lcd] + app_vars
+    jw(core_dir / "interact.json",
+       {"interact": {"magic": "APF_VER_1", "variables": variables, "messages": []}})
+
+    # of_interact_get() addresses variables by POSITION, so the indices this layout produced are generated
+    # into a header the host compiles against; the order above is the only place they are decided.
+    idx = {v["name"]: i for i, v in enumerate(variables)}
+    defaults = {v["name"]: v["defaultval"] for v in app_vars}
+    hdr = ["/* generated by scripts/pocket/mk_dist.py: indices into interact.json, which of_interact_get()",
+           " * addresses by position and not by id (SDK README:543). */",
+           "#ifndef OF_INTERACT_IDX_H", "#define OF_INTERACT_IDX_H"]
+    pairs = (("Music Volume", "OF_IDX_MUSIC"), ("Tick Pump Hz", "OF_IDX_TICK"),
+             ("NIGHT Screen", "OF_IDX_SCREEN"))
+    for name, const in pairs:
+        hdr.append("#define %-12s %d" % (const, idx[name]))
+        hdr.append("#define %-12s %s" % ("DEFAULT_" + const, defaults[name]))
+    hdr.append("#endif")
+    (REPO / "pocket" / "src" / "night" / "of_interact_idx.h").write_text("\n".join(hdr) + "\n")
 
     inst_slots = [
         {"id": 1, "filename": "os.bin"},

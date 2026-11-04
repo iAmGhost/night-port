@@ -80,7 +80,6 @@
                 "parameters": "0x84",
                 "nonvolatile": true,
                 "address": "0x20100000",
-                "address_stride": "0x40000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"
@@ -92,8 +91,7 @@
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
+                "address": "0x20140000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"
@@ -105,8 +103,7 @@
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
+                "address": "0x20180000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"
@@ -118,8 +115,7 @@
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
+                "address": "0x201C0000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"
@@ -131,8 +127,7 @@
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
+                "address": "0x20200000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"
@@ -144,8 +139,7 @@
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
+                "address": "0x20240000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"
@@ -157,8 +151,7 @@
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
+                "address": "0x20280000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"
@@ -170,8 +163,7 @@
                 "required": false,
                 "parameters": "0x84",
                 "nonvolatile": true,
-                "address": "0x20100000",
-                "address_stride": "0x40000",
+                "address": "0x202C0000",
                 "size_maximum": "0x40000",
                 "extensions": [
                     "sav"

@@ -30,6 +30,7 @@
 #ifndef OF_PC
 #include "of.h"
 #include "of_config.h"
+#include "of_interact_idx.h"        /* generated: which position in interact.json each knob sits at */
 #include <dirent.h>
 #endif
 
@@ -258,25 +259,22 @@ void of_settings_load(void) {
     g_pad_on    = cfg_int("pad",         0, "NIGHT_PAD_OFF")  == 0;
     g_screen    = cfg_int("screen",      0, "NIGHT_SCREEN");   /* night.ini [night] SCREEN= */
 #ifndef OF_PC
-    /* interact.json is the Pocket menu's own settings page for this core ("Music Volume", "Tick Pump
-     * Hz"), and the OS hands the values to the app through of_interact_get(index) in definition order.
-     * The menu wins over the ini on the device -- it is the knob the user can actually reach without a
-     * card reader -- unless every index reads 0, which is what the ecall answers when no interact bridge
-     * is wired, in which case night.ini's [night] values stand. */
-    int mv = (int)of_interact_get(0);
-    int tk = (int)of_interact_get(1);
+    /* of_interact_get() indexes by position in interact.json; the reserved SDK entries now occupy the first
+     * six, so the indices come from the header mk_dist.py generates alongside the JSON.
+     *
+     * A menu value is only applied when it differs from its defaultval.  That distinguishes "the user moved
+     * this slider" from "the bridge carries nothing" -- with no value wired through, of_interact_get() reads
+     * 0, and 0 is a legal volume (mute) that would otherwise silently replace night.ini's MUSIC_VOL. */
     {
-        int scr = (int)of_interact_get(2);        /* interact.json "NIGHT Screen", index 2 */
-        if (scr != 0) g_screen = scr;             /* the menu wins over the ini when it offers a value */
-    }
-    if (mv != 0 || tk != 0) {
-        g_music_vol = clamp_vol(mv);
-        if (tk >= 60 && tk <= 490) g_tick_hz = tk;
-        printf("settings: interact music_vol=%d tick_hz=%d\n", mv, tk);
-    } else {
-        printf("settings: interact silent, using night.ini\n");
+        int mv = (int)of_interact_get(OF_IDX_MUSIC);
+        int tk = (int)of_interact_get(OF_IDX_TICK);
+        int scr = (int)of_interact_get(OF_IDX_SCREEN);
+        if (mv != DEFAULT_OF_IDX_MUSIC) g_music_vol = clamp_vol(mv);
+        if (tk != DEFAULT_OF_IDX_TICK && tk >= 60 && tk <= 490) g_tick_hz = tk;
+        if (scr != DEFAULT_OF_IDX_SCREEN) g_screen = scr;
     }
 #endif
+
     printf("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
            g_music_vol, g_sfx_vol, g_cdda_on, g_pad_on, g_tick_hz, g_screen);
 }

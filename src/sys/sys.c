@@ -413,8 +413,12 @@ void sys_breakpoint(uint32_t eax, uint16_t edx) { (void)eax; (void)edx; }
 uint32_t sys_clock_tps = 18;   /* DOS 18.2 Hz tick rate (default) */
 uint32_t sys_clock_ticks_per_sec(void) { return sys_clock_tps; }
 
+static sys_clock_fn sys_clock_src;
+void sys_set_clock_source(sys_clock_fn fn) { sys_clock_src = fn; }
+
 uint64_t sys_now_us(void)
 {
+    if (sys_clock_src) return sys_clock_src();
 #ifdef CLOCK_MONOTONIC
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0)

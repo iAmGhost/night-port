@@ -81,6 +81,13 @@ uint32_t sys_clock_ticks_per_sec(void);
  * spinning on hardware (the 0x3DA retrace bit), which only a host with a clock can reproduce; the
  * waits use this so they cost what they cost on real hardware instead of nothing. */
 uint64_t sys_now_us(void);
+
+/* Installable clock source.  Every wait in the port is a deadline on sys_now_us (delay_units,
+ * fn_00035ec2's retrace wait), so a host whose libc has no usable monotonic clock -- openfpgaOS's
+ * clock() is a stub, and its libc spells the free-running clock clock_us()/of_time_us() rather than
+ * CLOCK_MONOTONIC -- has to hand the port one (docs/335).  Nothing installed keeps the old path. */
+typedef uint64_t (*sys_clock_fn)(void);
+void sys_set_clock_source(sys_clock_fn fn);
 extern uint32_t sys_clock_read_count;
 void sys_clock_read(void);
 

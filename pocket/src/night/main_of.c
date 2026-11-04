@@ -96,6 +96,24 @@ static void off_init(void) {
            (g_off & OFF_PRESENT) ? 1u : 0u, (g_off & OFF_MIXER) ? 1u : 0u,
            (g_off & OFF_CDDA) ? 1u : 0u, (g_off & OFF_PAD) ? 1u : 0u);
 }
+/* The Pocket's clock (docs/335).  of_time_us() is the OS's free-running microsecond counter and is
+ * 32-bit -- it wraps every 4295 s -- so it is carried into the port's 64-bit clock with a wrap counter.
+ * sys.c's own fallback is clock_gettime(CLOCK_MONOTONIC), which openfpgaOS's <time.h> does not declare,
+ * and its last resort clock() is a libc stub there: a port whose every wait is a deadline on sys_now_us
+ * hangs or paces absurdly if that clock does not advance in microseconds. */
+static uint64_t  g_clock_base;
+static uint32_t  g_clock_last;
+static uint64_t  g_clock_diag_last;
+static uint64_t  g_clock_rate_us;      /* clock microseconds measured per wall second, for the log */
+#ifndef OF_PC
+static uint64_t of_clock_us(void) {
+    uint32_t v = of_time_us();
+    if (v < g_clock_last) g_clock_base += 0x100000000ull;
+    g_clock_last = v;
+    return g_clock_base + v;
+}
+#endif
+
 static uint64_t g_tick_next_us;
 static uint64_t g_present_next_us;
 static uint64_t g_diag_next_us;
@@ -580,11 +598,14 @@ static void tick_pump(void) {
     if (now >= g_diag_next_us) {
         g_diag_next_us = now + 1000000ull;
         static uint32_t s_last_ticks;
-        printf("memstat frames=%u ticks=%u(+%u/s) pumps=%u arena=%u/%u pit=%u Hz xfer=%u plays=%u cdda=%u/%u/%u\n",
+        uint64_t clock_now = sys_now_us();
+        g_clock_rate_us = g_clock_diag_last ? clock_now - g_clock_diag_last : 0;
+        g_clock_diag_last = clock_now;
+        printf("memstat frames=%u ticks=%u(+%u/s) pumps=%u arena=%u/%u pit=%u Hz xfer=%u plays=%u cdda=%u/%u/%u clock=%llu\n",
                g_frames, g_timer_calls, g_timer_calls - s_last_ticks, g_pump_calls,
                heap_arena_used(), heap_arena_cap(), sys_pit_hz(0),
                sys_audio_transfers(), g_of_sfx_plays,
-               of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks());
+               of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), (unsigned long long)g_clock_rate_us);
         s_last_ticks = g_timer_calls;
     }
     g_depth--;
@@ -617,6 +638,9 @@ int main(int argc, char **argv) {
         int f = atoi(getenv("NIGHT_RIG_FPS"));
         if (f > 0) g_fixed_fps = f;
     }
+#ifndef OF_PC
+    sys_set_clock_source(of_clock_us);            /* every wait in the port is a deadline on this */
+#endif
     of_video_init();
     of_video_set_color_mode(OF_VIDEO_MODE_8BIT);
     of_audio_init();
@@ -625,6 +649,16 @@ int main(int argc, char **argv) {
     printf("night pocket: cpu=%u Hz sdram=%u KB heap=%u KB fb=%ux%u stride=%u voices=%u variant=%u\n",
            caps->cpu_freq_hz, caps->sdram_size / 1024, caps->heap_size / 1024,
            caps->fb_width, caps->fb_height, caps->fb_stride, caps->mixer_voices, caps->core_variant);
+#ifndef OF_PC
+    printf("clock: openfpgaOS of_time_us installed; probe: ");
+    {
+        uint64_t a = sys_now_us();
+        for (volatile int i = 0; i < 2000000; i++) ;
+        uint64_t b = sys_now_us();
+        printf("%llu us over a 2M-iteration spin (%s)\n", (unsigned long long)(b - a),
+               (b > a) ? "advancing" : "NOT ADVANCING");
+    }
+#endif
 
 #ifdef OF_PC
     if (g_rig_dir) rig_screen_init(g_rig_dir, 8);

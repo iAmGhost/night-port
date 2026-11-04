@@ -127,7 +127,7 @@ uint32_t fn_03690b(void)
 
 ''' .replace('@VOC@', voc_src)
 
-p = 'port/src/f/f.c'
+p = 'src/f/f.c'
 s = open(p).read()
 anchor = '/* 0x036626: case-insensitive lookup of s in the 0x5d884 table (bound g_dat_633a0),'
 assert s.count(anchor) == 1
@@ -157,9 +157,9 @@ extern uint8_t  *g_dat_53d0c[100]; /* DAT_00053d0c: 100 sound-slot buffers ("1.v
 extern uint32_t  g_dat_53c94[30];  /* DAT_00053c94: 6x5 experience table from exptab.dat */
 uint32_t fn_03690b(void);          /* 0x03690b: master data loader (NIGHT.RES -> all runtime tables) */
 '''
-t = open('port/src/f/f.h').read()
+t = open('src/f/f.h').read()
 mark = 'extern uint32_t *g_dat_639c0;  /* 0x639c0: struct host-ptr (destructed by fn_03d999) */'
 assert t.count(mark) == 1
 t = t.replace(mark, h + mark, 1)
-open('port/src/f/f.h', 'w').write(t)
+open('src/f/f.h', 'w').write(t)
 print('inserted')

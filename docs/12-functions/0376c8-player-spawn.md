@@ -1,6 +1,6 @@
 # 0x0376c8 — THE PLAYER (HERO) SPAWN (L15, 601 B)
 
-Ported as `fn_0376c8(void)` in `port/src/f/f.c`. Together with `0x0374ad` (stage reset/reload) and
+Ported as `fn_0376c8(void)` in `src/f/f.c`. Together with `0x0374ad` (stage reset/reload) and
 `0x037b03` (stage loader) this completes the stage-entry sequence:
 
 | function | role |

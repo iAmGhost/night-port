@@ -95,7 +95,7 @@ open; drive file /tmp/dbgauto/hold_port.txt: fight inputs to t=210 s, then 40 id
 t=800 s):
 
 ```
-ASAN_OPTIONS=detect_leaks=0 SDL_VIDEODRIVER=dummy NIGHT_HITTRACE=1 ./test/night \
+ASAN_OPTIONS=detect_leaks=0 SDL_VIDEODRIVER=dummy NIGHT_HITTRACE=1 ./build/night \
   --script /tmp/dbgauto/hold_port.txt --shots /tmp/dbgauto/port_hold3 --no-audio --frames 15000
 -> done_rc=0 ; grep -c "ERROR: AddressSanitizer" = 0 ; 24 x "HIT " ; 242 value-display sweep
    visits incl. removals (VD ages reach >0x28, list stays consistent); stage=1 room=1 alive at
@@ -117,9 +117,9 @@ modelling gaps to close when their owners (music/sfx census) get traced.
 ## 6. Reproduce
 
 ```sh
-cd port && make -j8 test/test_f1 && ./test/test_f1      # ALL PASS (adds test_fn_0003b67e_lastnode)
-make -j8 test/night CFLAGS="-std=c11 -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Wno-unused-parameter" LDFLAGS="-fsanitize=address,undefined"
-ASAN_OPTIONS=detect_leaks=0 SDL_VIDEODRIVER=dummy NIGHT_HITTRACE=1 ./test/night \
+make -j8 build/test_f1 && ./build/test_f1      # ALL PASS (adds test_fn_0003b67e_lastnode)
+make -j8 build/night CFLAGS="-std=c11 -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -Wall -Wextra -Wno-unused-parameter" LDFLAGS="-fsanitize=address,undefined"
+ASAN_OPTIONS=detect_leaks=0 SDL_VIDEODRIVER=dummy NIGHT_HITTRACE=1 ./build/night \
   --script /tmp/dbgauto/hold_port.txt --shots /tmp/dbgauto/port_hold3 --no-audio --frames 15000
 grep -cE "ERROR: AddressSanitizer" /tmp/dbgauto/port_hold3.log   # -> 0
 ```

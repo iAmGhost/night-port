@@ -82,7 +82,7 @@ comment carries the measured anchors). test_f1 `test_cd_iso_real` gained two che
 - `cd_iso_read_audio(149)` → -1 (lead-in refused).
 
 ```sh
-cd port && make -j8 test/test_f1 && ./test/test_f1     # ALL PASS (3063 checks)
+make -j8 build/test_f1 && ./build/test_f1     # ALL PASS (3063 checks)
 ```
 
 Re-measure on the original (container up, token in /tmp/dbgauto/.token):

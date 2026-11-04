@@ -279,7 +279,7 @@ byte & 0xfc, clamped to `>= 0xc`. This is NOT a 32-bit round-up:
 
 ## Verification
 
-`port/test/test_f1.c` (batch 8): `test_heap_arena`, `test_heap_insert_init`,
+`test/test_f1.c` (batch 8): `test_heap_arena`, `test_heap_insert_init`,
 `test_heap_unlink`, `test_heap_alloc_free` (hand-traced reference model with
 the original's low-byte alignment), `test_heap_top_check`, and `test_heap_stress`
 (2000 random alloc/free ops with an invariant checker after every op). The

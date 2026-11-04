@@ -168,7 +168,7 @@ int selftest(const char *res_path, const char *shot_dir) {
     char cdda_dir[512];
     snprintf(cdda_dir, sizeof cdda_dir, "%s", shot_dir);
     char *sl = strrchr(cdda_dir, '/');
-    if (sl) { *sl = 0; strcat(cdda_dir, "/cdda"); } else strcpy(cdda_dir, "../scratch/cdda");
+    if (sl) { *sl = 0; strcat(cdda_dir, "/cdda"); } else strcpy(cdda_dir, "scratch/cdda");
     Fli fl;
     check(e && fli_open(res_blob(&r, e), e->size, &fl) == 1, "open (marker 0xAF11)");
     check(fl.w == 320 && fl.h == 200 && fl.frame_count == 1168, "320x200, 1168 frames");
@@ -256,9 +256,9 @@ int selftest(const char *res_path, const char *shot_dir) {
 }
 
 #ifdef RES_SELFTEST_MAIN
-/* Standalone driver: `make selftest [RES=../NIGHT/NIGHT.RES SHOTS=/tmp/night-shots]`. */
+/* Standalone driver: `make selftest [RES=NIGHT/NIGHT.RES SHOTS=scratch/shots]`. */
 int main(int argc, char **argv) {
-    const char *res   = (argc > 1) ? argv[1] : (getenv("RES")   ? getenv("RES")   : "../NIGHT/NIGHT.RES");
+    const char *res   = (argc > 1) ? argv[1] : (getenv("RES")   ? getenv("RES")   : "NIGHT/NIGHT.RES");
     const char *shots = (argc > 2) ? argv[2] : (getenv("SHOTS") ? getenv("SHOTS") : "/tmp/night-shots");
     return selftest(res, shots);
 }

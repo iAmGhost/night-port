@@ -13,7 +13,7 @@ ROOM off=0018d6ec b00=0 d00=0 b08@1=64 d08=1600 d11=35584 d32=0 d36=0 d40=0
 
 Two facts:
 
-1. `port/src/f/f.h:1146` already describes this pointer as **"pointer to clamp-bounds struct: lo=P+0x12,
+1. `src/f/f.h:1146` already describes this pointer as **"pointer to clamp-bounds struct: lo=P+0x12,
    hi=P+0x16 (double-deref)"**, and the live block does look like bounds: `dword[+0x00] = 0`,
    `dword[+0x08] = 1600` -- a `[0, 1600]` span, i.e. a room width, not a script record. So docs/142 §4's
    `x_lo`/`x_hi` were bounds fields, and `+0x32`/`+0x36` in that block are **not** the `room[+0x32]`/

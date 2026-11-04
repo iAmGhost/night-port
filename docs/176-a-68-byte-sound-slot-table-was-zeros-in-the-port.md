@@ -7,7 +7,7 @@ attacker population.  While checking whether that walker reads faithful data, tw
 
 ## 1. The oracle blind spot: a DS region declared inside a struct block
 
-`port/src/f/f.h:868` models the region as one contiguous block, because the shipped DS lays it out that way
+`src/f/f.h:868` models the region as one contiguous block, because the shipped DS lays it out that way
 (docs/83):
 
 ```c
@@ -20,7 +20,7 @@ struct ds_53200_block {
 `scripts/audit/gen_headers.py` builds `rig_table.h` from **top-level port globals whose comment claims a DS-group
 address**.  A member inside a struct definition is not such a global, so:
 
-- `port/src/f/rig_table.h` (283 cells) contains **no cell at DS 0x53200 and none at 0x532f4** (`grep -c 53200`
+- `src/f/rig_table.h` (283 cells) contains **no cell at DS 0x53200 and none at 0x532f4** (`grep -c 53200`
   → 0).  The state oracle has never compared this region.
 - The static byte check `c3b_full_span_initializers` (docs/122) walks the same declaration set, so it never
   byte-compared this region either.
@@ -73,7 +73,7 @@ count or level correction.  The trigger-frequency gap docs/166 §10 measured -- 
 
 ## 4. The fixtures had encoded the disproved hypothesis
 
-Two assertions in `port/test/test_f1.c` failed the moment the table became real:
+Two assertions in `test/test_f1.c` failed the moment the table became real:
 
 ```
 [FAIL] the past-the-table dword IS DAT_532f4[0] (0: the byte table has no shipped producer)
@@ -84,7 +84,7 @@ The first is the hypothesis itself stated as an expectation.  The second is subt
 `memcpy`'d dword against a single byte and only passed **because both were zero** -- a coincidence the all-zero
 table allowed.  Both are rewritten to assert the shipped bytes (`00 01 00 21` at `+0..3`, dword `0x21000100`,
 seeding to `11 22` giving `0x21002211`), plus a ladder check on `+23 = 0x1f`, `+24 = 0x09`, `+59 = 0x1f`,
-`+60 = 0x1d`, `+63 = 0x00`, `+64 = 0x10`.  `make -C port test` → **ALL PASS**.
+`+60 = 0x1d`, `+63 = 0x00`, `+64 = 0x10`.  `make test` → **ALL PASS**.
 
 Standing rule: a fixture that asserts *"this cell is zero because nothing writes it"* is a hypothesis in
 disguise.  Where the shipped image can answer, assert the image's bytes.

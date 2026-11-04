@@ -16268,7 +16268,7 @@ uint8_t  *g_dat_53dd8 = 0;          /* DAT_00053dd8: the show's device command c
  *   and turn the keyboard pump back on (DAT_52ff8 = 1).
  * Busy-waits: the key-wait loops are faithful spins -- the original turns the keyboard pump OFF for the
  * whole show (0x3a73d), and this port has no interrupt that changes the key bytes: the only writer of
- * DAT_63e88[..] is the keyboard-handler model (port/src/app/keymap.c), so a spin has to pump or nothing
+ * DAT_63e88[..] is the keyboard-handler model (src/app/keymap.c), so a spin has to pump or nothing
  * can ever end it.  The release wait is factored into f_show_release_wait() for that reason (docs/324).
  * Busy-waits pumped: both key waits call the port's pump on every iteration. */
 

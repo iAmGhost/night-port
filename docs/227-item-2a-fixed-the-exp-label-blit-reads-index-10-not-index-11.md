@@ -38,7 +38,7 @@ the shipped's `+0x28` names.  The sibling routine `fn_03ace9` correctly uses `+0
 
 ## 2. The change
 
-`port/src/f/f.c` tail call, three displacements `+0x2c` -> `+0x28`, with the shipped sites cited:
+`src/f/f.c` tail call, three displacements `+0x2c` -> `+0x28`, with the shipped sites cited:
 
 ```c
 (int32_t)((struct ua32 *)((hb + f[1] + 0x28)))->v,   /* 0x3b801 (A) / 0x3b8da (B): col  */
@@ -48,7 +48,7 @@ rle_base + ((struct ua32 *)((hb + f[13] + 0x28)))->v /* 0x3b7f5 / 0x3b8ce:      
 
 ## 3. The test that had been asserting the defect
 
-`port/test/test_f1.c` had a `fn_03b718` test whose fixture parked the label values at `+0x2c` while its own
+`test/test_f1.c` had a `fn_03b718` test whose fixture parked the label values at `+0x2c` while its own
 comment said "(orig +0x28)", and it reserved `0x34` bytes for arrays the shipped sizes at `0x2c`:
 
 ```c
@@ -98,7 +98,7 @@ comparisons need a same-state basis, and the two dumps do not share one.
 
 ## 6. Sanitizer and suite state
 
-* `make -C port test`: **== ALL PASS ==**, 3 067 checks, rc=0 (the two previously-failing checks appeared only
+* `make test`: **== ALL PASS ==**, 3 067 checks, rc=0 (the two previously-failing checks appeared only
   after the source fix and were the tests quoted in §3).
 * Fixed `night-asan` on the same drive (`/tmp/rig/e2a_asan_after`, 12 000 frames, 10 Hz): footprint 42 px in a
   9x6 band, 6 samples; digit blits 60 (`col=4 rows=7`); **zero** `ERROR: AddressSanitizer`; the single sanitizer

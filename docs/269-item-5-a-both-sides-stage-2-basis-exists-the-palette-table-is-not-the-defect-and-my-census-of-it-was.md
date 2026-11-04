@@ -38,8 +38,8 @@ stage gate ✓, `fn_03f15f` ✓) remain closed ✓
 ## 3. Self-correction: my DAT_636b8 census above is void — the rig dumps that cell at 256 bytes, not 768
 
 My first both-sides census reported "port 244-255 nonzero bytes vs shipped 721-763" ✓ **withdrawn** ✓:
-`port/src/f/rig_table.h:189` declares the cell as `{0x636b8, 0, 256, 0, &g_dat_636b8, "g_dat_636b8"}` ✓ while
-`port/src/f/f.h:974` declares the object `extern uint8_t g_dat_636b8[0x300]` ✓ (768 B ✓) ✓ — the port-side dump carries
+`src/f/rig_table.h:189` declares the cell as `{0x636b8, 0, 256, 0, &g_dat_636b8, "g_dat_636b8"}` ✓ while
+`src/f/f.h:974` declares the object `extern uint8_t g_dat_636b8[0x300]` ✓ (768 B ✓) ✓ — the port-side dump carries
 only a third of the object ✓, so the comparison measured 256 port bytes against 768 shipped bytes ✓ A **rig defect**
 (dump width ≠ declared width ✓) that both invalidated my conclusion and means the state oracle compares 256 of 768
 bytes on that row ✓

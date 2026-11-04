@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capture the ORIGINAL game's playtest frames under DOSBox Staging, for port comparison.
 
-The port's harness (port/src/app/main.c, docs/46) takes screenshots named after game events from a
+The port's harness (src/app/main.c, docs/46) takes screenshots named after game events from a
 route script. This tool plays the same route against the original:
 
   * input    -> DOSBox Staging's AUTOTYPE (scripted keyboard entry into the running DOS program).

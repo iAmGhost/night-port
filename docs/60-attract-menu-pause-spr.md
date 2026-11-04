@@ -51,7 +51,7 @@ at all.
 ## Open finding: the SOUND / MUSIC toggles do not change the enable bytes
 
 The host pump line now carries the two enable bytes and the CD stop counter (`... snden=<DAT_00053338>
-... cdstops=<sys_cd_audio_stop_calls()> sfx=<DAT_00051a10>`, added in `port/src/app/main.c`). Across the
+... cdstops=<sys_cd_audio_stop_calls()> sfx=<DAT_00051a10>`, added in `src/app/main.c`). Across the
 whole toggle run they stay fixed:
 
 ```

@@ -5,7 +5,7 @@ Gate: `gate3-exp-text`, measured on the **unfixed** build (frozen baseline docs/
 
 ## 1. What fn_03b718 actually does: digits, then a label
 
-`fn_03b718` (guest 0x0003b718-0x0003b94e, port `port/src/f/f.c:14516`) has four `call 0x3bb42` sites: a
+`fn_03b718` (guest 0x0003b718-0x0003b94e, port `src/f/f.c:14516`) has four `call 0x3bb42` sites: a
 per-digit loop and a **tail call**, in each of the two font branches.  The tail call (font A at
 0x0003b7e2-0x0003b836, font B at 0x0003b8bb-0x0003b90f) is not a digit:
 
@@ -50,7 +50,7 @@ That is the "EXP" text of item 2a: the shipped draws the label at `dest - 15`, `
 
 ## 2. The port's reads are one index late
 
-`port/src/f/f.c:14560-14565` (the tail call) reads `f[1] + 0x2c`, `f[2] + 0x2c`, `f[13] + 0x2c` -- index
+`src/f/f.c:14560-14565` (the tail call) reads `f[1] + 0x2c`, `f[2] + 0x2c`, `f[13] + 0x2c` -- index
 **11**, not 10.  For `system.spr` the arrays are `11 * 4 = 0x2c` bytes long, so index 11 is one dword past
 the end of the allocation.  The witness (added under `NIGHT_GLYPHDBG=1`, `valuedisp_tail`, run
 `/tmp/rig/gt3`, drive `scripts/rig/drives/ep1_kill3.txt`, unpinned clock so the popup posts, 300 s,

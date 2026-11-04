@@ -335,7 +335,7 @@ Builds a 0x144-byte entity: kind 1, type 0, HP/armor pools
 
 ## 14. Port gap analysis (initial — refined in task-6)
 
-Port: `port/src/stage.c` (1011 ln), `game.c` (422 ln). Current port model
+Port: `src/stage.c` (1011 ln), `game.c` (422 ln). Current port model
 (docs/05, 06, 07): single-stage walk, tag-1 position-based placement with
 proximity wake, `level_end_x` walk-past clear, fixed tick.
 

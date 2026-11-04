@@ -63,7 +63,7 @@ detection)" -- it IS the hit path.
 
 ## 3. Measured run (port, scripted; scripts/playtest/route_fight8.txt)
 
-`NIGHT_HITTRACE=1 SDL_VIDEODRIVER=dummy ./test/night --script ../scripts/playtest/route_fight8.txt
+`NIGHT_HITTRACE=1 SDL_VIDEODRIVER=dummy ./build/night --script ../scripts/playtest/route_fight8.txt
 --shots /tmp/dbgauto/port_fight18 --no-audio --frames 21000`
 
 19 hits both directions in one ~60 s fight:
@@ -85,10 +85,10 @@ dy in {3..7, -1}, dx <= 36 (box +3..+36 measured).
 ## 4. Reproduce
 
 ```sh
-cd port && make -j8 test/night
-NIGHT_HITTRACE=1 NIGHT_HUDDBG=1 SDL_VIDEODRIVER=dummy ./test/night \
+make -j8 build/night
+NIGHT_HITTRACE=1 NIGHT_HUDDBG=1 SDL_VIDEODRIVER=dummy ./build/night \
   --script ../scripts/playtest/route_fight8.txt --shots /tmp/dbgauto/port_fight18 --no-audio --frames 21000
-./test/test_f1            # 3061 checks, includes fn_013c4d/fn_01441e pinning
+./build/test_f1            # 3061 checks, includes fn_013c4d/fn_01441e pinning
 ```
 
 Ghidra dumps for this doc: scripts/ghidra_scripts/DumpHpDis.java (HP model 0x1488a-0x149c0 +

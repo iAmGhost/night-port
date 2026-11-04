@@ -40,7 +40,7 @@ about the injector ✓ (this is the same family as docs/280's key-state-census w
 
 ## 2. The walking-body guard fix now has a real pair
 
-`LAB_0003284e` entry guard fixed to the shipped's three-key chain (docs/291 §3 ✓ `port/src/f/f.c` ✓). Same
+`LAB_0003284e` entry guard fixed to the shipped's three-key chain (docs/291 §3 ✓ `src/f/f.c` ✓). Same
 drive (`ep1_downonly.txt` ✓), player Y:
 
 | build | Y histogram, whole run | Y-change events |
@@ -51,14 +51,14 @@ drive (`ep1_downonly.txt` ✓), player Y:
 
 So a Down press alone no longer drags the player to the room's lower clamp (`195` = `fn_01586b`'s `mx` ✓),
 which is what the shipped does with no horizontal key held (`0x32875 … je 0x3294d` exits the body ✓) ✓
-`make -C port test` **ALL PASS** ✓
+`make test` **ALL PASS** ✓
 
 The le4b shipped row (`172: 23, 195: 117`) is **withdrawn as a shipped behaviour**: it was produced under the
 latched-Left injection artifact ✓ and is not comparable ✓
 
 ## 3. Sweep after the fix (all green, docs/289 §2 basis)
 
-* `make -C port test` → **ALL PASS** ✓ (post-fix ✓)
+* `make test` → **ALL PASS** ✓ (post-fix ✓)
 * nine-episode ASan/UBSan soak `/tmp/rig/soak291` → stages 1-9 `rc=0 ubsan=0 asan=0 segv=0` ✓ no sanitizer text in any log ✓
 * fuzz (`--episodes 1..9 --seeds 12 --workers 3 --cap 120`) → **252/503 functions, never-entered 251, 0 crashes** ✓ (≥ 247 baseline ✓)
 * canonical state route (`ep1_kill3`, 150 s, `RIG_HZ=10`, pinned clock) `/tmp/rig/rb11` → cells 346, phases 274,
@@ -80,7 +80,7 @@ the left bound is *identical* on both sides (`X=-30 ✓ Y=172 ✓ +0x1b=0 ✓ st
 `/tmp/rig/le3`: shipped 35 samples, port 277 samples, all `Y=172, f1b=0` ✓).
 
 **Item 6 therefore has no located port defect and is not claimed as fixed.** The one instrument that could
-still settle it is a **draw-footprint census**: `blit_probe_note` (`port/src/f/f.c:3212 ✓`, armed under
+still settle it is a **draw-footprint census**: `blit_probe_note` (`src/f/f.c:3212 ✓`, armed under
 `NIGHT_GLYPHDBG=1 ✓`) accumulates the blit bbox `(x0..x1, y0..y1)` on the 320-wide canvas from the composite
 routine `fn_03bb42` (`f.c:7733 ✓`) — dumping that bbox during a left-edge attack and comparing it with the
 destination the shipped's faithful arithmetic computes from the same record values (identical on both sides ✓)

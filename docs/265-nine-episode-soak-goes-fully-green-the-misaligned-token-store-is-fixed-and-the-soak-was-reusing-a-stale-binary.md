@@ -23,17 +23,17 @@ uint32_t buf_off = heap_malloc(arr + 4u + nbytes + 7u);
 char **toks = (char **)(((uintptr_t)(tail + 4) + 7u) & ~(uintptr_t)7u);
 ```
 
-The unit test that asserted `tok = tail + 4` exactly (`port/test/test_f1.c:4223` ✓ "out[count] terminator written" ✓)
+The unit test that asserted `tok = tail + 4` exactly (`test/test_f1.c:4223` ✓ "out[count] terminator written" ✓)
 now derives the same aligned start ✓ — the fixture encoded the port's own layout, not the shipped's ✓, and the other
 assertions (in-place tokenization ✓ the appended dword ✓ the two token pointers ✓ the DAT_64090/94 mirrors ✓) are
-unchanged ✓ `make -C port test`: **ALL PASS** ✓
+unchanged ✓ `make test`: **ALL PASS** ✓
 
 ## 2. Rig defect: the soak did not build the binary it soaked
 
-`scripts/rig/asan_soak.sh` used `BIN=${BIN:-./port/test/night-asan}` with no build step ✓, and after today's edits the
+`scripts/rig/asan_soak.sh` used `BIN=${BIN:-./build/night-asan}` with no build step ✓, and after today's edits the
 reported line `f.c:7374` **was a blank line** in the current source ✓ (`awk 'NR==7374'` ✓) — proof the ASan binary was
 stale ✓ So docs/262's "9/9 rc=0 with 1 UBSan report per episode" measured an *older build* ✓ superseded ✓ The script
-now runs `make -C port asanapp` before soaking (disable with `SOAK_BUILD=0` ✓) and fails loudly on a build error ✓ —
+now runs `make asanapp` before soaking (disable with `SOAK_BUILD=0` ✓) and fails loudly on a build error ✓ —
 the same class of defect as docs/181 §5 ("the `test` target must rebuild the app binary") and docs/181 §5's witness-string
 rule ✓
 
@@ -45,12 +45,12 @@ stage 1..9: rc=0  ubsan=0  asan=0  segv=0  frames presented: 4000
 ```
 
 **The goal's soak condition (9/9 rc=0 with 0 UBSan/ASan/SEGV reports) is met for the first time in this project** ✓
-(`make -C port test` ALL PASS in the same working tree ✓)
+(`make test` ALL PASS in the same working tree ✓)
 
 ## 4. Caveat to apply to docs/264 §5-§7 numbers
 
 The `NIGHT_ACTTRACE` censuses quoted there (targets offered/matched ✓ "level too high" ✓ "len != k" ✓ the
-`DAT_63f28`/ring/cursor probes added in `f.c` + `main.c` ✓) came from **ad-hoc `./port/test/night` runs without
+`DAT_63f28`/ring/cursor probes added in `f.c` + `main.c` ✓) came from **ad-hoc `./build/night` runs without
 `--rig-dump`** ✓ Run-to-run variation on such runs is already established (docs/191 §1, docs/239 §4 ✓): the ring's
 consumed flags read `0,1,1,1,0,1,0,1,1,1` in one such run and `0,0,…,0` in the next ✓, rejection counts moved
 (552 → 394 → 386 "level too high" ✓, 4132 → 3244 → 3166 "len != k" ✓) ✓ Those numbers are directional evidence for

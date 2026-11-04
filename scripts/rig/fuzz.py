@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Coverage-guided input fuzzing for the port (docs/120).
 
-Coverage signal: the port built by `make -C port censusapp` (-finstrument-functions) writes `census.bin`,
+Coverage signal: the port built by `make censusapp` (-finstrument-functions) writes `census.bin`,
 one byte per function in src/gen/fn_table.c, whose names ARE the shipped guest addresses -- so "never
 entered" is a statement about the shipped code, not about the port's own structure.
 
@@ -186,7 +186,7 @@ def main():
     # docs/330: a fuzz census reported a SIGSEGV against a night-census binary that was 35 days older than
     # HEAD -- the same stale-binary defect class asan_soak.sh already guards (docs/265).  Build first.
     if not os.environ.get("FUZZ_NO_BUILD"):
-        rb = subprocess.run(["make", "-C", os.path.join(REPO, "port"), "censusapp"],
+        rb = subprocess.run(["make", "-C", REPO, "censusapp"],
                             capture_output=True, text=True)
         print(f"census build rc={rb.returncode}")
         if rb.returncode:

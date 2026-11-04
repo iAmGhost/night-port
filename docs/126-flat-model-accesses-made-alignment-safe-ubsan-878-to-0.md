@@ -20,7 +20,7 @@ the flat model depends on, which is why `*(uint8_t **)` sites become an 8-byte v
 
 ## 2. The transform
 
-`scripts/port/unaligned_casts.py` (committed) rewrites `port/src/f/f.c` (5825 sites) plus `main.c` (7),
+`scripts/port/unaligned_casts.py` (committed) rewrites `src/f/f.c` (5825 sites) plus `main.c` (7),
 `rig_sink.c` (2), `cd_iso.c` (1); `f.h`, `sys.c`, `fx_04794a.c` had none. Six view types: `ua16/sa16`,
 `ua32/sa32`, `ua_uint8tp` (pointer store), `uafl` (float). Four things the transform has to get right, each
 found by breaking it first:
@@ -39,8 +39,8 @@ Result on the same route, same drive, same flags:
 
 ```
 runtime errors 878 -> 0        AddressSanitizer errors 0        rc=0
-make -C port test  == ALL PASS ==
-make -C port selftest  ALL PASS (0 failures)
+make test  == ALL PASS ==
+make selftest  ALL PASS (0 failures)
 ```
 
 ## 3. One genuine out-of-bounds read found on the way (docs/112/113 family)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pair port playtest screenshots with the original's captures and score them.
 
-Port shots (port/src/app/main.c harness) are `NNNN_<event>.bmp` + manifest.tsv; the original's are
+Port shots (src/app/main.c harness) are `NNNN_<event>.bmp` + manifest.tsv; the original's are
 `NNNN_<event>.png` produced by scripts/playtest_orig.py. Pairing is by the NNNN_<event> stem, so the
 two runs line up by game event, not by wall clock.
 

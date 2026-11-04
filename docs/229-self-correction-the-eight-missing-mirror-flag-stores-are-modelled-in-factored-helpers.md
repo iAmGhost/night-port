@@ -43,7 +43,7 @@ Shipped (`fn_03272f`, 0x0003272f, 7 014 B -> body 0x3272f-0x342a5, so 0x3284e is
 0x32923  mov  dword [eax + 0x1b], 0                  ; <-- and this
 ```
 
-Port (`port/src/f/f.c`), `lab_0003284e` = the shipped's own `LAB_0003284e` sub-block, at `f.c:27136-27152`:
+Port (`src/f/f.c`), `lab_0003284e` = the shipped's own `LAB_0003284e` sub-block, at `f.c:27136-27152`:
 
 ```c
 if (g_dat_63ed3 == 0) {                                   /* 0x000328cc-0x000328f4 */

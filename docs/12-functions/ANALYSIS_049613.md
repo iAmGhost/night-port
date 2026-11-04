@@ -94,11 +94,11 @@ All checklist items below are done:
    `fn_049506` builds its temp struct with `mode=0`, so `fn_04574a(temp)` takes the
    `TEST EBX,EBX;JGE` path and SKIPS the `fn_049613` call (no recursion). `fxnum` corrected
    to `(hour,min,sec)`; `fx_less` confirmed unsigned.
-2. C mirror `int32_t fn_049613(struct dec_datetime *d)` in `port/src/f/f.c` (no-op stub
+2. C mirror `int32_t fn_049613(struct dec_datetime *d)` in `src/f/f.c` (no-op stub
    replaced); declared in `f.h`. Globals: `g_dat_537ca` (`uint8_t *` flag-byte ptr),
    `g_dat_53734`/`g_dat_53758` retyped `uint32_t` -> `struct dec_datetime` (G1/G2); the 4
    `fn_049b84` call sites in fn_049a35/fn_049c76 cast to `(uint32_t*)&`.
-3. Differential test `test_fn_049613` (port/test/test_f1.c): 19 vectors vs the Python ref,
+3. Differential test `test_fn_049613` (test/test_f1.c): 19 vectors vs the Python ref,
    each asserting `ret == exp` AND `d->mode == ret`. FIRST-TRY PASS, no debug loop.
 4. `test_fn_04574a_date_cluster` + `test_fn_04297a` still green (flag=0 -> fn_049613 returns
    0 + d->mode=0, matching the old stub's behavior). FULL SUITE **1464 PASS 0 FAIL**.

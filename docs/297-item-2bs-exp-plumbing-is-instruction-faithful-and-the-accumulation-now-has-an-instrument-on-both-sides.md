@@ -81,7 +81,7 @@ docs/186 ✓, superseded by docs/188 ✓)
 
 `player_recs.jsonl` (the sidecar docs/288 added for item 6) now also carries the EXP family:
 `exp2b` (+0x2b ✓ displayed), `acc52` (+0x52 ✓ accumulator), `srcbb` (+0xbb ✓ damage total), `rai56` (+0x56 ✓) —
-`port/src/app/rig_sink.c` sidecar block ✓ The shipped side needs no new plumbing: its `g_player_ent@0x53c7c` cell is
+`src/app/rig_sink.c` sidecar block ✓ The shipped side needs no new plumbing: its `g_player_ent@0x53c7c` cell is
 already a 352-byte followed record block in `state_*.heap.bin` ✓ read with `load_orig`'s documented running-offset
 enumeration ✓ (`heap_off` is not a key of the cell dict ✓ — using it produced pointer-shaped garbage ✗ a repeat of
 docs/289 Rule 4 ✓)

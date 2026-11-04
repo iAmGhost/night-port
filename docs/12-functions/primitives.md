@@ -1,6 +1,6 @@
 # L0 primitives (batches 1–6) — semantics
 
-Ported: `port/src/f/f.c` · Verified: `port/test/test_f1.c` (differential, all PASS)
+Ported: `src/f/f.c` · Verified: `test/test_f1.c` (differential, all PASS)
 
 Argument letters follow original PUSH order: a=[EBP+8], b=[EBP+C], …
 "Word fill" = STOSW: each 16-bit word gets the byte replicated (`f | f<<8`),

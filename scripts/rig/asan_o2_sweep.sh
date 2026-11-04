@@ -1,7 +1,7 @@
 #!/bin/sh
 # docs/146 verification: run the stored fuzz corpus under the -O2 sanitizer build.
 # Every run is hard-capped; nothing here can loop.
-BIN=./port/build/night-asan-o2
+BIN=./build/night-asan-o2
 OUT=/tmp/rig/asan_o2_sweep
 mkdir -p "$OUT"
 i=0

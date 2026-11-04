@@ -1,4 +1,4 @@
-# `make -C port selftest` is buildable again; what it does and does not verify yet
+# `make selftest` is buildable again; what it does and does not verify yet
 
 Found while working toward the "assets byte-exact" requirement. The target had rotted:
 
@@ -16,7 +16,7 @@ PNG write (`pcx_logo.png`, the five sprite sheets `pause`/`number1`/`ena-1`/`bos
 names were right (they are `pause.spr`, `number1.spr`, `ena-1.spr`, `boss1.spr`, `gun.spr` in the index; the
 check label is just the name without its extension).
 
-After adding `SDL_CreateDirectory(shot_dir)` to the test: **`make -C port selftest` prints
+After adding `SDL_CreateDirectory(shot_dir)` to the test: **`make selftest` prints
 `ALL PASS (0 failures)`** -- the res-container / PCX / SPR / sheet-render / FLI / VOC / WAV checks are
 byte-exact against the shipped `NIGHT.RES` and the CD tracks (the two `[skip]` lines are the optional
 `/tmp/cdda/trackNN.wav` comparisons, which need `scripts/cdda2wav.py` output first).

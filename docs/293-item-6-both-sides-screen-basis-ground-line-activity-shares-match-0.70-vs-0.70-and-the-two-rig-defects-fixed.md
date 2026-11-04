@@ -81,7 +81,7 @@ backed by a same-drive, event-anchored, both-sides screen measurement rather tha
 
 ## 5. Regression sweep after the two rig changes (fb551a4)
 
-* `make -C port test` → **ALL PASS** ✓ (the `test` target rebuilds `port/test/night` ✓ docs/181 §5 ✓)
+* `make test` → **ALL PASS** ✓ (the `test` target rebuilds `build/night` ✓ docs/181 §5 ✓)
 * nine-episode ASan/UBSan soak `/tmp/rig/soak293` → stages 1-9 `rc=0 ubsan=0 asan=0 segv=0` ✓ 4000 frames each ✓,
   and `grep -l "ERROR: AddressSanitizer|runtime error|Segmentation"` over its logs returns no file ✓
 * coverage-guided fuzz (`--episodes 1..9 --seeds 12 --workers 3 --cap 120`) → **257/503 functions covered,

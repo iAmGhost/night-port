@@ -1,6 +1,6 @@
 # 0x011827 — the mirrored companion spawn (L11, 293 B) — PORTED
 
-Port name `fn_011827`. Test: `test_fn_011827` in `port/test/test_f1.c` (12 checks).
+Port name `fn_011827`. Test: `test_fn_011827` in `test/test_f1.c` (12 checks).
 
 ## What it does
 

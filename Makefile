@@ -2,10 +2,9 @@
 #   make test    — build and run the f-layer verification tests (no SDL needed)
 #   make selftest — build the res-pipeline selftest (needs SDL3)
 #
-# LAYOUT: src/ and test/ hold sources only (test/ = the fixture suite and its vector data).
-#         every build output -- test_f1, night, night-asan, night-asan-o2, night-census, selftest and
-#         their .dSYM bundles -- lands in build/, which is git-ignored, so no built binary can ever be
-#         committed or be confused with a test source.
+# LAYOUT (run make from the repo root): src/ and test/ hold sources only (test/ = the fixture suite
+#         and its vector data); every build output -- test_f1, night, night-asan, night-asan-o2,
+#         night-census, selftest and their .dSYM bundles -- lands in build/, which is git-ignored.
 CC      ?= cc
 CFLAGS  ?= -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter
 SRC_F   = src/f/f.c src/f/fx_04794a.c
@@ -27,7 +26,7 @@ $(B)/test_f1: $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SRC_KEY) src/f/f.h 
 	$(CC) $(CFLAGS) -Isrc -o $@ $(T)/test_f1.c $(SRC_F) $(SRC_SYS) $(SRC_CD) $(SRC_KEY)
 
 # docs/181 §5: `test` used to build ONLY the fixture binary.  An app edit (f.c, main.c) therefore left
-# the app binary stale -- measured as 4 hours older than src/f/f.c -- and `make -C port test` still printed
+# the app binary stale -- measured as 4 hours older than src/f/f.c -- and `make test` still printed
 # ALL PASS while every rig dump kept replaying the previous binary.  The app binary is now a prerequisite, so
 # a green suite cannot be produced from a stale app.
 test: $(B)/test_f1 $(B)/night
@@ -35,7 +34,7 @@ test: $(B)/test_f1 $(B)/night
 
 # res pipeline (verified decoders) — needs SDL3 for png_out
 selftest: $(B)/selftest
-	SHOTS=../scratch/shots ./$(B)/selftest   # byte-exact refs (python FLI frame, CDDA wav) live in scratch
+	SHOTS=scratch/shots ./$(B)/selftest   # byte-exact refs (python FLI frame, CDDA wav) live in scratch
 $(B)/selftest: src/res/selftest.c src/res/res_container.c src/res/res_pcx.c \
                 src/res/res_spr.c src/res/fli.c src/res/voc.c src/res/wav.c \
                 src/res/png_out.c src/res/res.h

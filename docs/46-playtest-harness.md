@@ -5,7 +5,7 @@ produced it, and pairs those with frames captured from the original under DOSBox
 
 ## Port side: `--script` + `--shots`
 
-`port/src/app/main.c`:
+`src/app/main.c`:
 
 * `--script FILE` — a timeline of keys and explicit shots. Both keys and real SDL input land in the same
   `key_apply()` (SDL scan code → the DOS scan code the game's key state consults → the game's own key

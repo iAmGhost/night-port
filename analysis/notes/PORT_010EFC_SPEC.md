@@ -49,8 +49,8 @@ uint32_t p5, uint8_t p6);` (return = EAX, the block/derived pointer — confirm 
    mirrors the guard regions in order, keeping the overlapping/byte-offset stores verbatim.
 2. Declare the two globals in `f.h` (`g_dat_63370` already exists per earlier work — check;
    `g_dat_3c80` is new).
-3. Keep the suite green after **each** slice (`cc -std=c11 -O1 -g -o /tmp/pl port/test/test_f1.c
-   port/src/f/f.c port/src/f/fx_04794a.c port/src/sys/sys.c -lm`, run with a timeout).
+3. Keep the suite green after **each** slice (`cc -std=c11 -O1 -g -o /tmp/pl test/test_f1.c
+   src/f/f.c src/f/fx_04794a.c src/sys/sys.c -lm`, run with a timeout).
 4. Test through the real caller shape (`0x0376c8` style): allocate a 0x147-byte block, call with
    p2 = 0xffffffe2, p5 equal / unequal to `g_dat_63370`, and assert the header fields plus the
    `DAT_0003c80` side effect.

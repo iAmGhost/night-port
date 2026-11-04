@@ -2,7 +2,7 @@
 
 ## 1. Canonical run, full drive, room actually entered
 
-`NIGHT_ACTTRACE=1 ./port/test/night --script scripts/rig/drives/ep1_kill3.txt --frames 9000` ✓ (the canonical
+`NIGHT_ACTTRACE=1 ./build/night --script scripts/rig/drives/ep1_kill3.txt --frames 9000` ✓ (the canonical
 `ep1_kill3` 512-event drive ✓, i.e. the same drive as `/tmp/rig/rb8` ✓):
 
 ```

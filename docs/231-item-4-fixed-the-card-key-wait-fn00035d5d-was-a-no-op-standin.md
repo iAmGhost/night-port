@@ -54,7 +54,7 @@ same gate and now waits for a key like the shipped does.
 
 ## 2. The change
 
-`port/src/f/f.c`: the stub replaced by the three phases, one `while` per shipped phase, each over the same four
+`src/f/f.c`: the stub replaced by the three phases, one `while` per shipped phase, each over the same four
 latches through `sys_key_spin()`:
 
 ```c
@@ -85,7 +85,7 @@ one of the four game keys ✓ the port now matches.
 * `test_fn_010c3e`'s second scenario (disc wrong twice, then right) shows `cdinsert.pcx` twice, so its timeline now
   supplies two press-and-release pairs.  Before this change those two tests **hung** (the suite timed out at 500 s,
   2 289 checks in) which is itself the witness that the gate really waits now.
-* `make -C port test`: **== ALL PASS ==**, rc=0, **3 069** checks, 0 failures (the suite was 3 067 before; the two
+* `make test`: **== ALL PASS ==**, rc=0, **3 069** checks, 0 failures (the suite was 3 067 before; the two
   added checks are the `fn_035d5d` phase checks).
 
 ## 4. Red before / green after, same drive, same rig
@@ -95,7 +95,7 @@ harness warp `NIGHT_SHOWSCREEN=levelup NIGHT_SHOWSCREEN_AT=5600` entering `fn_03
 a 78 s key-free gap to a final key at 176 s (which also keeps the 2.5 s playtest-idle quit of docs/228 §3b from
 cutting the screen short).  `NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60 NIGHT_MENUBG=1`,
 `stdbuf -o0 -e0`, 12 000 frames, `--rig-hz 5`, dumps `/tmp/rig/kw3_before` (pre-fix binary
-`/tmp/prefix/port/test/night` at `4ea273d`) and `/tmp/rig/kw3_after` (fixed build).
+`/tmp/prefix/test/night` at `4ea273d`) and `/tmp/rig/kw3_after` (fixed build).
 
 New oracle `scripts/rig/card_hold.py`: MD5 over each frame's 40x30 luminance signature from `frames.bin`, windows
 taken from the drive's own key-down lines, so a window is key-free *because the drive says so*.

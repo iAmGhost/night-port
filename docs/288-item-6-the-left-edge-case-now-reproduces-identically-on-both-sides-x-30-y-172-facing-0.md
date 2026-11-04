@@ -25,7 +25,7 @@ about item 6 ✓ Rule recorded: a two-sided claim needs a drive that puts **both
 pulse typematic keeps making ✓ docs/282 ✓), then 48 s of attacks in place (`lctrl` every 1.2 s, `space` every
 4.8 s, `left` re-pressed every 9 s to stay against the bound ✓) ✓
 
-`port/src/app/rig_sink.c` gained a **player-geometry sidecar** `player_recs.jsonl` (its own file, so no existing
+`src/app/rig_sink.c` gained a **player-geometry sidecar** `player_recs.jsonl` (its own file, so no existing
 reader of `records.jsonl` sees a layout change ✓): per tick, the player record's world `x` (+0x01), `y` (+0x09),
 `st` (+0x17), **`f1b` (+0x1b — the facing/mirror byte that selects the draw arm, shipped `0x13db7 cmp
 [eax+0x1b],0` / `0x13dbb jne 0x13ee6` ✓ docs/255)** and `hp` (+0x29) ✓ It was necessary because

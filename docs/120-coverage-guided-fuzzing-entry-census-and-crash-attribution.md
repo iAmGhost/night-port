@@ -1,7 +1,7 @@
 # 120 — Coverage-guided fuzzing: a per-function entry census keyed to shipped addresses, the first nine-stage sweep, and crash attribution by counterfactual
 
-Date: 2026-10-29. Rig pieces added here: `make -C port censusapp`, `scripts/audit/gen_fn_table.py`,
-`port/src/app/rig_census.c`, `scripts/rig/fuzz.py`, `make -C port asanapp`.
+Date: 2026-10-29. Rig pieces added here: `make censusapp`, `scripts/audit/gen_fn_table.py`,
+`src/app/rig_census.c`, `scripts/rig/fuzz.py`, `make asanapp`.
 
 ## 1. The coverage signal is keyed to the shipped binary, not to the port's structure
 
@@ -9,15 +9,15 @@ The port's function names **are** guest addresses, so a per-function entry censu
 census over shipped functions:
 
 - `scripts/audit/gen_fn_table.py` reuses the static audit's own parser (`port_src.functions()`) and emits
-  `port/src/gen/fn_table.c`: **503 entries** (384 guest-named `fn_*` plus 119 host helpers such as
+  `src/gen/fn_table.c`: **503 entries** (384 guest-named `fn_*` plus 119 host helpers such as
   `spr_block`, `flat_ofs`), with `g_fn_addr[]` / `g_fn_name[]` kept index-aligned (addresses are link-time, so
   the sort is a permutation built once at startup — never sort the two arrays separately).
-- `port/src/app/rig_census.c` implements `__cyg_profile_func_enter` for the `-finstrument-functions` build:
+- `src/app/rig_census.c` implements `__cyg_profile_func_enter` for the `-finstrument-functions` build:
   binary search over the sorted permutation, one byte per function, and two outputs — `census.txt`
   (`seen|never <name>`) and `census.bin` (a 503-byte vector the fuzz driver unions).
 - A `SIGTERM` handler writes the census and exits 124. This mattered immediately: the driver kills runs at the
   wall-clock cap, and before this the killed runs contributed **zero** coverage.
-- Built by `make -C port censusapp` (`-finstrument-functions`); the hook is a no-op in the normal build, so
+- Built by `make censusapp` (`-finstrument-functions`); the hook is a no-op in the normal build, so
   `rig_census.c` + `fn_table.c` now sit in `SRC_RIG` and every target links.
 
 ## 2. The driver

@@ -1,6 +1,6 @@
 /* Per-function entry census (docs/120) -- the coverage signal for input fuzzing.
  *
- * Built with `-finstrument-functions` (make -C port censusapp): the compiler calls
+ * Built with `-finstrument-functions` (make censusapp): the compiler calls
  * __cyg_profile_func_enter for every entry into a function of this program, and the hook maps the address to
  * the generated table in src/gen/fn_table.c, whose names ARE the shipped guest addresses. The coverage
  * vector is therefore directly comparable to the Ghidra function set, which is what a fuzzer needs: "which

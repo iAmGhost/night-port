@@ -40,7 +40,7 @@ this time as a truncation rather than a wrong value).
 
 ## Fix
 
-`port/src/f/f.c`: full 0x100-entry `g_tab_51b60` transcribed verbatim from the image bytes, and the
+`src/f/f.c`: full 0x100-entry `g_tab_51b60` transcribed verbatim from the image bytes, and the
 statement rewritten to the shipped form (flat condition, else-arm applies to every victim, `+0x18..+0x1a`
 cleared in the `0x14` case, index masked to a byte).
 

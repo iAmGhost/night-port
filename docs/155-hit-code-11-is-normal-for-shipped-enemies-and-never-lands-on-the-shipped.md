@@ -48,7 +48,7 @@ That is the concrete next measurement for this item, and it is a rig capability 
 OUT=/tmp/rig/g15 RIG_HZ=10 RIG_ENTS=12 sh scripts/rig/route.sh scripts/rig/drives/ep1_kill3.txt 300
 # player-vs-enemy reaction census over /tmp/rig/g15/{orig,port}, using the +0x17 state dword
 # and the +0x29 hp field to identify the player record (docs/125 layout)
-NIGHT_HITTRACE=1 ./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
+NIGHT_HITTRACE=1 ./build/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
     --warp-stage 1 --frames 6000 2>&1 | grep "HIT atk" | head
 ```
 

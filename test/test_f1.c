@@ -3882,7 +3882,7 @@ static void test_fn_047f54(void) {
 
 /* fn_04794a (0x0004794a): complex fixed-point normalize, 149-ins register-ABI
  * routine (EAX:EDX in, EBX,ECX,ESI exponent; returns (EDX<<32)|EAX). The C port
- * is a disasm-faithful translation (port/src/f/fx_04794a.c) verified by
+ * is a disasm-faithful translation (src/f/fx_04794a.c) verified by
 differential testing against the ground-truth mini x86 emulator
  * (scripts/ref/fp_04794a_ref.py). Vectors below are the emulator's outputs. */
 static void test_fn_04794a(void) {
@@ -15889,7 +15889,7 @@ static void test_fn_03cb38_pair(void) {
 static void test_stage_chain_shipped_counts(void) {
     printf("shipped stage chains: stage{1..9}.wal room counts and the 0x0003ca5e terminator\n");
     const char *dir = getenv("NIGHT_RES_DIR");
-    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    if (dir == 0 || dir[0] == '\0') dir = "NIGHT";
     char path[600];
     snprintf(path, sizeof path, "%s/NIGHT.RES", dir);
     FILE *probe = fopen(path, "rb");
@@ -15981,7 +15981,7 @@ static void test_stage_chain_shipped_counts(void) {
 static void test_real_res_container(void) {
     printf("real NIGHT.RES: the port's resource io over the shipped container\n");
     const char *dir = getenv("NIGHT_RES_DIR");
-    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    if (dir == 0 || dir[0] == '\0') dir = "NIGHT";
     char path[600];
     snprintf(path, sizeof path, "%s/NIGHT.RES", dir);
     FILE *probe = fopen(path, "rb");
@@ -16065,7 +16065,7 @@ static void test_real_res_container(void) {
 static void test_real_master_load(void) {
     printf("real NIGHT.RES: fn_03690b (master data load) over the shipped container\n");
     const char *dir = getenv("NIGHT_RES_DIR");
-    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    if (dir == 0 || dir[0] == '\0') dir = "NIGHT";
     char path[600];
     snprintf(path, sizeof path, "%s/NIGHT.RES", dir);
     FILE *probe = fopen(path, "rb");
@@ -17912,7 +17912,7 @@ static uint32_t entry_term_cb(uint32_t a) {
 static void test_cd_iso_real(void) {
     printf("cd_iso: the shipped TG_NIGHT disc drives fn_010927 / fn_107b9 / the gate fn_010c3e\n");
     const char *dir = getenv("NIGHT_RES_DIR");
-    if (dir == 0 || dir[0] == '\0') dir = "../NIGHT";
+    if (dir == 0 || dir[0] == '\0') dir = "NIGHT";
     char cue[700];
     snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", dir);
     if (cd_iso_open(cue) != 0) { printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", cue); return; }

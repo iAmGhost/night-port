@@ -9,7 +9,7 @@ own frames.
 
 ## The check: `scripts/playtest_check_entity_sprites.py`
 
-It runs the port itself (`port/test/night --script scripts/playtest/route_episode1_anchored.txt`, SDL dummy video and
+It runs the port itself (`build/night --script scripts/playtest/route_episode1_anchored.txt`, SDL dummy video and
 audio, `NIGHT_ENTDBG=1 NIGHT_ENTSPR=1`) and asserts, from what the game prints:
 
 | Claim | Result |
@@ -77,5 +77,5 @@ three coverage bugs that made enemy art *unobservable* rather than wrong:
     python3 scripts/playtest_check_entity_sprites.py          # runs the port itself, prints the assertions
     uv run --with numpy --with pillow python3 scripts/playtest_spr_figure.py   # the figure above
 
-`make -C port test` ALL PASS, `make -C port selftest` ALL PASS with these changes (the diagnostics are env-gated, so
+`make test` ALL PASS, `make selftest` ALL PASS with these changes (the diagnostics are env-gated, so
 the suite is untouched by them).

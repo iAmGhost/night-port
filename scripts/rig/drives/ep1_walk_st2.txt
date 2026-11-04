@@ -19,7 +19,7 @@
 # in the prologue: the drive repeats it and then waits for an actual advance instead of assuming one.  Right is
 # held while the requests run, as in play.
 #
-# Note on `wait state` lines: their deadline is the line's own time (port/src/app/main.c PT_WAIT_STATE), so the
+# Note on `wait state` lines: their deadline is the line's own time (src/app/main.c PT_WAIT_STATE), so the
 # deadlines below are deliberately far apart and every later event rebase shifts left when the wait hits.
 #
 # Measurement window for item D: after the menu closes, Right is released (so the exit rect cannot fire again

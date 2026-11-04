@@ -29,7 +29,7 @@ against these gates on the current build **or** on the frozen pre-fix baseline (
 ## 2. Teardown: no track change happens without a stop
 
 The same run's witness summary: **6 plays, 7 stops, 0 track changes with no stop/teardown between them.**  The
-stop marker comes from `cdda_stop` (`port/src/app/main.c:306-310`) and the pre-play stop from `cdda_play`
+stop marker comes from `cdda_stop` (`src/app/main.c:306-310`) and the pre-play stop from `cdda_play`
 (`main.c:283-287`), which is the fix docs/105 §1 recorded: the port once reused one `SDL_AudioStream` and flushed
 nothing on replacement, so the previous track's 30-sector / 0.4 s lead played on top of the new track and the
 witness showed no stop at any change.  That defect is closed and its witness is the line above, so docs/183 §2's

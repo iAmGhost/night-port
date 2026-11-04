@@ -66,9 +66,9 @@ Credit count during the screen (guest reads at +0/+5/+10/+15/+20 s): `DAT_000531
 
 ## Port-side capture recipe (the frame has to be taken in the right phase)
 
-    cd port && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
       NIGHT_SHOWSCREEN=gameover NIGHT_SHOWSCREEN_AT=6000 \
-      ./test/night --warp-stage 2 --script ../scripts/playtest/route_walk_fight.txt \
+      ./build/night --warp-stage 2 --script ../scripts/playtest/route_walk_fight.txt \
       --shots /tmp/port_go6 --no-audio --frames 7500 --shot-limit 400
 
 The warp then fires inside a live room (`showscreen warp: gameover at frame 6022`) and `warp_shots_poll` samples the

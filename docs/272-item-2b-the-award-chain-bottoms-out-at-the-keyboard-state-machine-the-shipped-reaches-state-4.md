@@ -32,7 +32,7 @@ docs/271 §3 is downstream of this single cell ✓
 Ring code *sets* match on both sides (`{0x1d, 0x48, 0x66, 0x64, 0x50, 0}` ✓), and neither side ever shows
 `fn_03442e`'s combo codes `0x67/0x68/0x69` ✓ — so the divergence is **posting volume**, not code vocabulary ✓
 
-## 3. Landed harness change: DOS typematic repeat for the scripted drive (`port/src/app/main.c`)
+## 3. Landed harness change: DOS typematic repeat for the scripted drive (`src/app/main.c`)
 
 The scripted drive path applied exactly one MAKE per drive event (`pt_drive` → `key_apply` ✓), while DOS delivers a
 *stream* of makes for a held key (BIOS typematic repeat + the queued makes in the INT 16 buffer) and dosbox reproduces

@@ -10,7 +10,7 @@ into a worktree ✓ rebuilt with its own sanitizer target ✓ and run on the new
 command against HEAD ✓
 
 ```
-frozen 574c636, ./port/test/night-asan, ep1_roomclear3.txt, --rig-hz 10, --frames 18000,
+frozen 574c636, ./build/night-asan, ep1_roomclear3.txt, --rig-hz 10, --frames 18000,
          NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60      -> rc=0
   src/f/f.c:7332:9: runtime error: store to misaligned address 0x0001007e1419 for type 'char *',
                     which requires 8 byte alignment

@@ -71,7 +71,7 @@ in 81 samples.
 
 The shipped mechanism is the slideshow key-wait of docs/97: `fn_038f3d` presents one picture and waits for one
 key.  The port's card path returns from the card display call instead of holding it: `fn_035f1b("help8.pcx", 1)`
-at `port/src/f/f.c:25750` returns, and the key-release drains (`up_ctr` / `down_ctr`, the 0x13 -> 0x14 guards at
+at `src/f/f.c:25750` returns, and the key-release drains (`up_ctr` / `down_ctr`, the 0x13 -> 0x14 guards at
 `f.c:25783-25797`, guest 0x000396a0-0x00039767) then feed the next card without a new press.  That is the fix
 target for item 4 and it is a *wait condition*, not cursor logic: the port's cursor does not self-advance (page 0
 for all 1726 menu frames of `l6`, 0 page changes with no keys, docs/209), it is the *picture* that does not hold.

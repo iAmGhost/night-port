@@ -92,19 +92,19 @@ zero" cluster collapsed from four rows to one: `DS 0x62d5c`, whose cause is sepa
 missing `fn_03272f` stores of docs/179 §1.  `0x64094` moved to the base-relative class, where it is comparable,
 instead of the always-zero class, where it was not.
 
-## 5. The rig defect this uncovered: `make -C port test` never built the app
+## 5. The rig defect this uncovered: `make test` never built the app
 
-While checking why the fix appeared to do nothing, `port/test/night` turned out to be **four hours older than
-`port/src/f/f.c`** while `make -C port test` printed `== ALL PASS ==`:
+While checking why the fix appeared to do nothing, `build/night` turned out to be **four hours older than
+`src/f/f.c`** while `make test` printed `== ALL PASS ==`:
 
 ```
 20: test: $(T)/test_f1          # builds and runs the fixtures only
 37: app: $(T)/night             # the rig binary lives on a different target
 ```
 
-`route.sh` has a stale-binary guard (added after docs/133 §7-9), but any direct `./port/test/night` run bypasses it,
+`route.sh` has a stale-binary guard (added after docs/133 §7-9), but any direct `./build/night` run bypasses it,
 and a green suite is not evidence that the measured binary contains the edit.  `test` now depends on `$(T)/night` as
-well, so a stale app binary cannot produce a passing suite.  Confirmed with `strings -a port/test/night | grep -c
+well, so a stale app binary cannot produce a passing suite.  Confirmed with `strings -a build/night | grep -c
 evtrace` going 0 -> 4 before the measurement in §4 was believed.
 
 ## 6. What is still open in this family

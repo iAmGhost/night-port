@@ -121,9 +121,9 @@ thing to trace.
 ## 4. Reproduce
 
 ```sh
-make -C port app
+make app
 for s in 1 2 3 4 5 6 7 8 9; do
-  NIGHT_ACTCENSUS=1 ./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/heap_all.txt \
+  NIGHT_ACTCENSUS=1 ./build/night --res-dir ./NIGHT --script scripts/rig/drives/heap_all.txt \
       --warp-stage $s --frames 2600 2>&1 | grep ACTCENSUS
 done
 uv run --with capstone scripts/audit/disasm.py --entry 0x128f8 --end 0x12930

@@ -38,7 +38,7 @@ same neighbourhood as the slide-show key-wait analysis (docs/97) and the "no sli
   `DIFF 0x52f08 … @0x52f08 0x02 vs 0x00`, both **274/274 phases**;
   in `/tmp/rig/g2` (after) neither row is `DIFF` any more, and the whole table is
   **`cells with activity profiles: 269  tally={'SAME': 269}`**.
-- `make -C port test` → **ALL PASS**; `make -C port selftest` → **ALL PASS (0 failures)**.
+- `make test` → **ALL PASS**; `make selftest` → **ALL PASS (0 failures)**.
 
 ## 4. Filed, not yet fixed
 
@@ -75,5 +75,5 @@ c3b rows 12 | real mismatches 0 | code-region (informational) 2 | BSS / outside 
 ```
 
 So the honest state of the check is: it found the three real zeroed tables of §2 (now fixed), and its
-remaining rows are the two informational classes. `port/src/f/f.c` was reverted for the `g_scale_48a36`
-experiment; `make -C port test` is green again.
+remaining rows are the two informational classes. `src/f/f.c` was reverted for the `g_scale_48a36`
+experiment; `make test` is green again.

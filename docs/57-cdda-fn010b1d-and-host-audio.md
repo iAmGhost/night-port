@@ -68,7 +68,7 @@ unchanged: 2352 bytes = 588 stereo frames = exactly 1/75 s, which is where the `
    never past the track end. A finished track is *not* looped by the host; the game restarts it through
    its own watchdog, which keeps the restart in the game clock.
 4. `cd_iso_read_audio(lba, out2352)` — the whole raw sector, not the 2048-byte user slice.
-5. Host (`port/src/app/main.c`): a second `SDL_AudioStream` (S16 stereo 44100 → device format) bound to
+5. Host (`src/app/main.c`): a second `SDL_AudioStream` (S16 stereo 44100 → device format) bound to
    the same device as the board stream, so SDL mixes effects and music. With no device at all the track
    is still consumed on the disc's own 75-sectors-per-second clock, so counters and the game's watchdog
    behave the same headlessly.

@@ -1,7 +1,7 @@
 # 123 — First ASan/UBSan sweep over the stored fuzz corpus: no memory errors, but the flat-model heap does unaligned dword accesses everywhere
 
 Date: 2026-10-29. Drives: the 12 earliest fuzz seeds from `/tmp/rig/fz9` (stages 1-9), built binary
-`port/test/night-asan` (`-fsanitize=address,undefined`, `make -C port asanapp`), `--frames 2500`,
+`build/night-asan` (`-fsanitize=address,undefined`, `make asanapp`), `--frames 2500`,
 150 s cap each, 4 parallel.
 
 ## 1. Result
@@ -74,4 +74,4 @@ which the guest's packed record layouts routinely violate (the faulting addresse
 Consequence for the closeout contract ("nine-episode ASan soak, 0 reports"): reaching 0 requires routing the
 flat-model accesses through unaligned-safe accessors across the whole f-layer — a mechanical but large
 refactor (or a per-record `packed` view type), not a spot fix. That should be scheduled as its own work item
-rather than claimed here. `make -C port test` is ALL PASS with the `mem_copy` change.
+rather than claimed here. `make test` is ALL PASS with the `mem_copy` change.

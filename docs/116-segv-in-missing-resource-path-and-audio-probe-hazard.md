@@ -6,7 +6,7 @@ repo root instead of through `route.sh`, and it died.
 ## 1. Red: SIGSEGV whenever the resource directory is not found
 
 ```
-$ ./port/test/night --frames 60                      # from the repo root, no --res-dir
+$ ./build/night --frames 60                      # from the repo root, no --res-dir
 Segmentation fault: 11        rc=139
 fault: KERN_INVALID_ADDRESS at 0x000000004847494e     # 4e 49 47 48 = "NING"
   strn_len  <- fn_0451bc <- fn_044c23 <- fn_0446c3 <- fn_042394 <- fn_036537 <- fn_03690b <- fn_03af18 <- main
@@ -32,13 +32,13 @@ block and passes that offset in a one-slot varargs block, which is what the gues
 ## 2. Green
 
 ```
-$ SDL_AUDIODRIVER=dummy ./port/test/night --frames 60          # still no --res-dir
+$ SDL_AUDIODRIVER=dummy ./build/night --frames 60          # still no --res-dir
 terminate requested (DAT_5336c/70/74 callback, arg 0)
 rc=0
 ```
 
 `rc: 139 -> 0`, no DiagnosticReport, and the terminate chain (`g_dat_5336c` -> `on_terminate`) is reached as
-in the shipped path. Normal startup is unaffected (`make -C port test` still runs its suite).
+in the shipped path. Normal startup is unaffected (`make test` still runs its suite).
 
 ## 3. Host hazard that will silently eat rig time
 

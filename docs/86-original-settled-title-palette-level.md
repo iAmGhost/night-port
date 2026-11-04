@@ -100,6 +100,6 @@ shipped palette and differ only by truncation noise.
 ```sh
 uv run --with numpy --with pillow python3 scripts/playtest_title_palette_level.py \
   --orig /tmp/dbgauto/orig_title1 --pick title_long --port /tmp/port_title
-# port shots: cd port && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test/night --no-audio \
+# port shots: SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/night --no-audio \
 #   --frames 1200 --shots /tmp/port_title --shot-limit 900
 ```

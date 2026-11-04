@@ -69,10 +69,10 @@ invent consistency either ✓).
 
 ## 5. Fix and fixture
 
-`port/src/f/f.c`, `fn_03bb42`, overflow site: `cpy_back(video_map(db - col_acc), data, cnt)` (was
+`src/f/f.c`, `fn_03bb42`, overflow site: `cpy_back(video_map(db - col_acc), data, cnt)` (was
 `db - col + 1`).
 
-New fixture in `port/test/test_f1.c` for the configuration the suite never had — `dest_off < 0` **and** a run
+New fixture in `test/test_f1.c` for the configuration the suite never had — `dest_off < 0` **and** a run
 that overflows the clipped width (`dest_off=-5`, `col0=44` → width 39, cursor at column 38, `start_row=1`,
 one row with runs `{30, 20}` → `ovf=11`, `cnt=9`):
 

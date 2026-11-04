@@ -13,7 +13,7 @@ dispatch_b -> terminate` exists in the port and is driven by a test.
 | `0x0420bc` | the startup body itself (536 B). |
 
 So there is one real body; `fn_042044` and `fn_042046` are thin aliases into it (`startup_body()` in
-`port/src/f/f.c`).
+`src/f/f.c`).
 
 ## The body, step by step (addresses from the capstone listing)
 
@@ -43,7 +43,7 @@ So there is one real body; `fn_042044` and `fn_042046` are thin aliases into it 
 
 ## How the flat port models the host side
 
-`port/src/sys/sys.c` gained the probes as explicit, testable state instead of real interrupts:
+`src/sys/sys.c` gained the probes as explicit, testable state instead of real interrupts:
 `sys_dos_version_set()` (major/minor/CX marker, defaulting to DOS 3.31 with the `CB` marker),
 `sys_dos4gw_info()` (the info block: `+0x10` PSP base, `+0x1c` DTA, `+0x2c` DS paragraph),
 `sys_dpmi_host_probe_set()`, `sys_dpmi_disable_ints_set()`, `sys_psp_tail_set()` (length byte + 127 chars),

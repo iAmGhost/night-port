@@ -1,7 +1,7 @@
 # 0x01545e — the Y-axis move with wall bands and trigger areas (L11, 1037 B)
 
-Ported as `fn_01545e(uint8_t *e, int32_t d)` in `port/src/f/f.c`; test `test_fn_01545e`
-(16 checks) in `port/test/test_f1.c`.
+Ported as `fn_01545e(uint8_t *e, int32_t d)` in `src/f/f.c`; test `test_fn_01545e`
+(16 checks) in `test/test_f1.c`.
 
 This is the **keystone of the movement/entity layer**: it is a direct callee of **21 still-unported
 functions** (the per-type AI handlers and the entity frame update chain), and it is the **Y mirror of

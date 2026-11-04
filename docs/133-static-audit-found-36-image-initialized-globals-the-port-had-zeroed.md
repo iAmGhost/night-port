@@ -104,7 +104,7 @@ The shipped layout makes those writes legal: `0x53788 + 0x1f = 0x537a7`, and the
 shipped adjacency exactly, plus `f.h` updated and new `test_f1` cases asserting that a 26-char prefix
 (`"NIGHT-TIMEZONE-CONFIG-XX:12:34:56"` → `buf1="NIGHT"`, `buf2="TIMEZONE"`) and a 30/31-char prefix
 (the 0x49aae clamp fills 30 chars + NUL exactly) behave. Same driver, fixed tree: no ASan report.
-`make -C port test` and `make -C port selftest`: ALL PASS.
+`make test` and `make selftest`: ALL PASS.
 
 The guest side, disassembled from the EXE (`fn_049c76`, docs/133 §5), confirms the branch semantics the port
 models — `mov ah, byte ptr [eax]; test ah, ah; jne …; mov byte ptr [0x37a7], ah` (the byte store only in the
@@ -140,11 +140,11 @@ and the run prints `divergent cells: N of which same-width value divergences: M`
 The first re-measurement after the transcriptions (`/tmp/rig/g8`, 120 s route) still showed zeros at every
 transcribed cell, and the DIFF cell set looked unchanged (37 cells, same list as docs/132's g6: 0x53100
 dropped, 0x53c48 added because the route was shorter). It was not a failed fix: `route.sh` invokes
-`./port/test/night` **without building it**, and that binary was 7 h older than the sources it was being
+`./build/night` **without building it**, and that binary was 7 h older than the sources it was being
 used to test. Silent staleness invalidates every before/after claim the rig makes.
 
 Fixed in `scripts/rig/route.sh`: build the app target first, fail the route if the build fails, fail it again
-if any port source is still newer than `port/test/night`, and write `build_stamp.txt` (binary mtime) into the
+if any port source is still newer than `build/night`, and write `build_stamp.txt` (binary mtime) into the
 run directory so a route records which build it measured.
 
 Port-only re-measurement with the freshly built app (`--rig-dump /tmp/rig/q3`, ep1_kill3, 440 samples):
@@ -162,7 +162,7 @@ DS 0x53368  20 00 00 00   -> 0x20     (shipped 0x20)
 The two TZ *buffers* needed a brace initializer rather than a scalar one (the transcription pass handled
 scalars only); after `{0x45,0x53,0x54}` / `{0x45,0x44,0x54}` the port's dump reads
 `DS 0x53788 -> "EST"`, `DS 0x537a7 -> "EDT"`, byte-identical to the shipped region. c3b real byte
-mismatches: **0**. `make -C port test` ALL PASS.
+mismatches: **0**. `make test` ALL PASS.
 
 Consequence for the older runs: any route that measured a port binary older than its sources is suspect on
 *initial-value* questions. The oracles that compare value *transitions* (activity profiles, entity records,
@@ -195,7 +195,7 @@ span first (Ghidra symbol width or the access stride), then transcribe. `g_dat_5
 case: the shipped image bytes there are non-zero, but `fn_035b0c` writes every slot at runtime, so the
 initial value is unreachable state rather than a transcription error.
 
-State after the revert: `make -C port test` ALL PASS, c3b real byte mismatches 0, c3 rows 10 (5 of them the
+State after the revert: `make test` ALL PASS, c3b real byte mismatches 0, c3 rows 10 (5 of them the
 above family, 5 of them `image-zero-port-nonzero` representation rows: `SCREEN_BASE` mirrors at 0x633b0 /
 0x633b4, `g_video_ram` at 0x51a0c, `g_dat_63e64 = 0x140`, `kXlat_5302c`).
 

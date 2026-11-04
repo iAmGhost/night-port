@@ -1,7 +1,7 @@
 # 190 — Item 2b from the port's own award witness: the EXP award never fires on the canonical route
 
 The port already carries the award witness docs/126 introduced (`g_exp_awards`, `g_exp_added`, plus the display-fold
-counters), printed at the end of a bounded run.  Run: `port/test/night --script drives/ep1_kill3.txt --frames 9000`
+counters), printed at the end of a bounded run.  Run: `build/night --script drives/ep1_kill3.txt --frames 9000`
 (the 150 s canonical route, `NIGHT_SEED=13579`, `NIGHT_ACTTRACE=1`, same binary and cadence as `g33`):
 
 ```

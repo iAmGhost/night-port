@@ -14,7 +14,7 @@ shots show what was up before the load.
 
 Two harness additions fix the sampling:
 
-- `card_shots_poll()` (`port/src/app/main.c`): a 200 ms series of shots named `card_NN` while the view is
+- `card_shots_poll()` (`src/app/main.c`): a 200 ms series of shots named `card_NN` while the view is
   640x480. It is called both at the frame boundary and from the spin point, because the slide show runs
   inside one host step (the driver `0x0003b0ba-0x0003b116` never returns to the frame pump).
 - `NIGHT_VIDRAW=1`: next to every BMP, dump the **screen arena bytes** behind it (`g_video_ram`, plus a
@@ -39,7 +39,7 @@ Tooling traps found while doing this, recorded because they produce confident no
 
 ## Measured result
 
-`./test/night --script scripts/playtest/route_show_keyed.txt --warp-stage N --shots DIR --no-audio --frames 9000`
+`./build/night --script scripts/playtest/route_show_keyed.txt --warp-stage N --shots DIR --no-audio --frames 9000`
 with `NIGHT_VIDRAW=1`, then `python3 scripts/playtest_compare_slides.py DIR N`:
 
 | episode | intro slides shown | each card vs independent decode | ending cards shipped | ending cards reached |

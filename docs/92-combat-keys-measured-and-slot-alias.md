@@ -98,9 +98,9 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@21 /opt/homebrew/Cellar/ghidra/12.1.3/libexe
   /tmp/ghproj ppk -process NIGHT.EXE -scriptPath scripts/ghidra_scripts -postScript DumpKeyXrefs.java
 # (also DumpRangeDis2.java for the handler, DumpKbdFamily.java for the pump family)
 # port side:
-cd port && ./test/test_f1 | grep -A120 "key map:"
+./build/test_f1 | grep -A120 "key map:"
 # scripted live-room run (witnesses ring stamps + player-state transitions):
-SDL_VIDEODRIVER=dummy NIGHT_KEYTRACE=1 ./test/night \
+SDL_VIDEODRIVER=dummy NIGHT_KEYTRACE=1 ./build/night \
   --script ../scripts/playtest/route_combat_keys.txt --shots DIR --no-audio --frames 12500
 ```
 

@@ -77,4 +77,4 @@ Two refinements of earlier claims: the shipped rewrites *already-filled* slots 9
 
 in-room `≥8-filled` → 85 % ✓ · `L=3` window → ≥13 % ✓ · `DAT_00062d58` census gaining `0x34/0x35/0x36` ✓ · a settled
 `kind==1` enemy with `+0x32 = 10` ✓ · `player[+0x52]` rising ✓ (`scripts/rig/exp_award.py`, repeated ≥2× per side ✓) ·
-`make -C port test` ALL PASS ✓ · nine-episode soak 9/9 with 0 UBSan/ASan/SEGV ✓
+`make test` ALL PASS ✓ · nine-episode soak 9/9 with 0 UBSan/ASan/SEGV ✓

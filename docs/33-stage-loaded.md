@@ -5,7 +5,7 @@ into a live stage**: the room play loop runs with entities on the list, and it d
 memory errors.
 
 ```
-$ SDL_VIDEODRIVER=dummy ./port/test/night --frames 6000 --autokey --dump /tmp/night
+$ SDL_VIDEODRIVER=dummy ./build/night --frames 6000 --autokey --dump /tmp/night
 disc: 15 tracks, 269453 sectors, lead-out MSF-derived
 display mode 640x480
 frame 240:  640x480 colours=61  dac lit=255 ... stage=1 W=655360 pitch=640  room=0x0        entities=0
@@ -57,7 +57,7 @@ palette), so the geometry is read off the loaders rather than off file headers.
 
 ## Suite state
 
-`make -C port test`: **2746 PASS, 0 FAIL**; the ASan suite is clean; `night` under ASan runs 8000+ frames
+`make test`: **2746 PASS, 0 FAIL**; the ASan suite is clean; `night` under ASan runs 8000+ frames
 across the stage boundary with no report. `test_fn_03df96` was reworked to build its font fixture in the
 heap (offsets), which is what the fixed struct now expects.
 

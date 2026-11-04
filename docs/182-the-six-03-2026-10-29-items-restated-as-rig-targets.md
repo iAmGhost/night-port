@@ -8,8 +8,8 @@ measurement was taken on both sides.
 
 ```
 git rev (port sources)        574c636   2026-10-30 17:18:08 +0900
-port/test/night               sha256 70e8b8cf8cdb11cadbebb1d8...  mtime Oct 30 17:07
-built by                      `make -C port test` (which now also builds the app binary, docs/181 §5)
+build/night               sha256 70e8b8cf8cdb11cadbebb1d8...  mtime Oct 30 17:07
+built by                      `make test` (which now also builds the app binary, docs/181 §5)
 port env default              SDL_AUDIODRIVER=dummy NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60
 ```
 
@@ -51,5 +51,5 @@ port 1500 samples at RIG_HZ=10   |   shipped 413 states over t=[47234..284054] m
   remember the event table at `DS 0x537dc` (docs/179-181).
 - A fixture that asserts "this cell is zero because nothing writes it" is a hypothesis (docs/176 §4).
 - Transcribe shipped bytes only where shipped and port spans agree (docs/133 §9).
-- Confirm a new witness string exists in the binary (`strings -a port/test/night | grep -c <label>`) before believing
-  a silent measurement (docs/169), and remember `make -C port test` now rebuilds the app binary (docs/181 §5).
+- Confirm a new witness string exists in the binary (`strings -a build/night | grep -c <label>`) before believing
+  a silent measurement (docs/169), and remember `make test` now rebuilds the app binary (docs/181 §5).

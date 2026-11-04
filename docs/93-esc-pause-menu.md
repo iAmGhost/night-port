@@ -59,9 +59,9 @@ uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
 uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
   --out /tmp/dbgauto/orig_pause3 --drive scripts/playtest/probe_orig_pause3.txt --hz 1  # arrow bytes set
 # port:
-cd port && SDL_VIDEODRIVER=dummy ./test/night --script ../scripts/playtest/route_pause_full.txt \
+SDL_VIDEODRIVER=dummy ./build/night --script ../scripts/playtest/route_pause_full.txt \
   --shots /tmp/dbgauto/port_pause2 --no-audio --frames 13500
-SDL_VIDEODRIVER=dummy ./test/night --script ../scripts/playtest/route_pause_space.txt \
+SDL_VIDEODRIVER=dummy ./build/night --script ../scripts/playtest/route_pause_space.txt \
   --shots /tmp/dbgauto/port_pause3 --no-audio --frames 13000
 ```
 

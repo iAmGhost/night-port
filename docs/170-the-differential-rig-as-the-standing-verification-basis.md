@@ -24,7 +24,7 @@ Written at closeout so a later session can reproduce every claim in this goal wi
 - `scripts/rig/replay_original.py` — frame-indexed input replay + DS/frame/heap sampling (`state_NNNN.{ds,frame,heap}.bin`, `timeline.json`), optional `--io 0x02,0x03,0x83,0x0a` for DMA programming events.
 - `scripts/rig/capture_original.py` — the screen/audio capture session (ZMBV frames, `audio.wav`).
 - `scripts/rig/route.sh [drive] [seconds]` — one command, both sides, one `DIVERGENCE.md`: builds the port first (`build_stamp.txt`), runs the original twice in fresh containers, runs the port with `NIGHT_SEED` pinned and `NIGHT_RIG_STEP_CALLS=665` (docs/168 §2b), then every oracle.
-- Port-side sink: `port/src/app/rig_sink.c` — `cells.bin` (16-byte file header, 40-byte packed record header, cell payload, entity slots), `records.jsonl` (provenance sidecar), `markers.jsonl`, `pcm.wav`, `cdda.raw`/`cdda.jsonl`, `frames.bin`.
+- Port-side sink: `src/app/rig_sink.c` — `cells.bin` (16-byte file header, 40-byte packed record header, cell payload, entity slots), `records.jsonl` (provenance sidecar), `markers.jsonl`, `pcm.wav`, `cdda.raw`/`cdda.jsonl`, `frames.bin`.
 
 **Oracles** (`scripts/rig/`)
 
@@ -42,17 +42,17 @@ and record streams), `cam_policy.py` / `cam_jump.py` / `room_record.py` (camera 
 (`arena_live_add/del/has`, `arena_flag_check`).
 
 **Fuzzing**: `scripts/rig/fuzz.py` (coverage-guided corpus, `--warp-stage N`, `--families N`, `--macros`, injection
-verbs `poke/ent/play/actdump`), `make -C port censusapp` + `scripts/audit/gen_fn_table.py` (503 shipped-named
+verbs `poke/ent/play/actdump`), `make censusapp` + `scripts/audit/gen_fn_table.py` (503 shipped-named
 functions as the coverage signal).
 
-**Sanitizers**: `scripts/rig/asan_soak.sh` (nine episodes, ASan+UBSan), `port/Makefile` `asanapp-o2`.
+**Sanitizers**: `scripts/rig/asan_soak.sh` (nine episodes, ASan+UBSan), `Makefile` `asanapp-o2`.
 
-**Fixtures**: `make -C port test` (per-function fixtures keyed to guest addresses), `make -C port selftest`.
+**Fixtures**: `make test` (per-function fixtures keyed to guest addresses), `make selftest`.
 
 ## 2. The standard sweep
 
 ```sh
-make -C port app && make -C port test && make -C port selftest
+make app && make test && make selftest
 OUT=/tmp/rig/gNN bash scripts/rig/route.sh ep1_kill3 300
 python3 scripts/rig/diff_state.py /tmp/rig/gNN          # value oracle
 python3 scripts/rig/diff_screen.py /tmp/rig/gNN         # framebuffer + pacing
@@ -85,7 +85,7 @@ python3 scripts/audit/static_audit.py && python3 scripts/audit/triage.py
    acknowledge byte the game waits on.
 7. **A sidecar the oracle cannot read is worse than none**: `records.jsonl` needed an explicit overflow guard
    (docs/167 §18) and `cells_reader.py` raises on a ragged payload (docs/168 §4).
-8. **`make -C port test` before any commit touching `port/src/`** — witness-only edits included (docs/169).
+8. **`make test` before any commit touching `src/`** — witness-only edits included (docs/169).
 
 ## 4. What the rig demonstrably cannot see yet
 
@@ -117,7 +117,7 @@ python3 scripts/audit/static_audit.py && python3 scripts/audit/triage.py
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Port unit + fixture suite | `make -C port test` | **ALL PASS** (including the rewritten `DAT_532f4` fixtures, docs/176 §4) |
+| Port unit + fixture suite | `make test` | **ALL PASS** (including the rewritten `DAT_532f4` fixtures, docs/176 §4) |
 | Nine-episode sanitizer soak | `scripts/rig/asan_soak.sh` | 9/9 `rc=0`, `ubsan=0`, `asan=0`, `segv=0`; 987-4000 frames presented per stage (`/tmp/rig/soak`) |
 | Canonical state route | `OUT=/tmp/rig/g27 RIG_HZ=10 scripts/rig/route.sh ep1_kill3 150` | 346 cells; SAME 69, DIFF 35, DIFF-SIZE 14, PTR 52, REPR 19, SIZE? 34; **35 residual same-width gameplay divergences**; activity-profile oracle 271/271 SAME |
 | Coverage-guided fuzz | `scripts/rig/fuzz.py --episodes 1..9 --seeds 9 --workers 4 --cap 110 --frames 5200 --inject` | `247/503` functions entered, **0 crashes** (`/tmp/rig/fz14`); the same plateau as the earlier 262-267/503 sweeps at higher seed counts |

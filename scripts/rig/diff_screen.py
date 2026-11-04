@@ -2,7 +2,7 @@
 """Screen oracle: score the port's picture against the original's over a whole route.
 
 Reads the two `frames.bin` streams (same record layout on both sides: scripts/rig/capture_original.py
-and port/src/app/rig_sink.c) and aligns them monotonically rather than by frame number: the two sides
+and src/app/rig_sink.c) and aligns them monotonically rather than by frame number: the two sides
 do not share a clock, so alignment is a path through the similarity matrix with a per-step lag, exactly
 the event-anchored rule of docs/56. Every frame gets a score (mean absolute difference of the 40x30
 luminance grid, normalised to 0..1 where 0 = identical), and contiguous low-scoring runs are reported

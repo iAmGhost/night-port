@@ -2,7 +2,7 @@
 
 ## 1. The change
 
-`port/src/app/main.c` (`pt_drive`, docs/281): the scripted drive's synthesised typematic repeat now emits a
+`src/app/main.c` (`pt_drive`, docs/281): the scripted drive's synthesised typematic repeat now emits a
 **break+make pair** per repeat (`NIGHT_KEY_REPEAT_MODE=pulse|make`, default `pulse` ✓) — the shape IBM BIOS typematic
 actually queues ✓ — instead of a bare make ✓ Motivation (docs/281): `night_key_apply` credits `g_dat_62cd8` only for a
 make that arrives while the slot state is non-zero and the held byte is clear (shipped `0x3fdf2-0x3fe26` ✓), and a bare
@@ -54,5 +54,5 @@ computed and stored (not `+0x32` on the dying record ✓, and docs/189's "no per
    turns per frame ✓, so the ring cursor spends most samples parked) ✓
 3. `route.sh`'s screen-capture leg failing with HTTP 409 ✗ must be fixed before rb9-style runs can support screen-basis
    claims (the state and audio legs ran fine ✓, the audio step's `report_audio.txt` is still missing ✗ standing issue) ✓
-Suite status: `make -C port test` **ALL PASS** at `60ba822` (the commit carrying the `pulse` emitter ✓); soak and fuzz
+Suite status: `make test` **ALL PASS** at `60ba822` (the commit carrying the `pulse` emitter ✓); soak and fuzz
 re-runs are queued as part of `gate3-regression` ✓

@@ -9,12 +9,12 @@
 # the room is live, so this is ~14 s of room play). The ASan build runs at roughly 0.2x real time, so allow
 # ~5 min per stage there.
 set -u
-cd "$(dirname "$0")/../port" || exit 1
+cd "$(dirname "$0")/.." || exit 1
 PHASE="${1:-both}"
 FRAMES="${FRAMES:-4600}"
 OUT="${OUT:-/tmp/night_soak}"
 mkdir -p "$OUT"
-SCRIPT=../scripts/playtest/route_walk_fight.txt
+SCRIPT=scripts/playtest/route_walk_fight.txt
 ENVS="SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy"
 
 run_stage() {                    # $1 = stage, $2 = log file, $3 = asan env prefix
@@ -38,7 +38,7 @@ report() {                       # $1 = stage, $2 = log
 
 if [ "$PHASE" = plain ] || [ "$PHASE" = both ]; then
     touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
-    make -C . app >/dev/null 2>&1
+    make app >/dev/null 2>&1
     : > "$OUT/plain.tsv"
     for st in 1 2 3 4 5 6 7 8 9; do
         run_stage "$st" "$OUT/plain_stage$st.log" "" 200
@@ -48,12 +48,12 @@ fi
 
 if [ "$PHASE" = asan ] || [ "$PHASE" = both ]; then
     touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
-    make -C . app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address" >/dev/null 2>&1
+    make app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address" >/dev/null 2>&1
     : > "$OUT/asan.tsv"
     for st in 1 2 3 4 5 6 7 8 9; do
         run_stage "$st" "$OUT/asan_stage$st.log" "ASAN_OPTIONS=detect_leaks=0:halt_on_error=0" 360
         report "$st" "$OUT/asan_stage$st.log" | tee -a "$OUT/asan.tsv"
     done
     touch src/app/keymap.c src/app/main.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c
-    make -C . app >/dev/null 2>&1      # leave the normal build in place
+    make app >/dev/null 2>&1      # leave the normal build in place
 fi

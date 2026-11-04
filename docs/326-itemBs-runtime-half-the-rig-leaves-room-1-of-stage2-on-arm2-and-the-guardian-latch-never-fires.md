@@ -8,7 +8,7 @@ a warp install.  Basis: `--warp-stage 2` (map 2, `DAT_00063370 = 2`) with
 
 ## 1. The rig leaves room 1 of stage 2, on arm 2, and nothing advances the stage
 
-The request witness at `fn_03a829`'s loop bottom (`port/src/f/f.c:24323`) fired twice in the run:
+The request witness at `fn_03a829`'s loop bottom (`src/f/f.c:24323`) fired twice in the run:
 
 ```
 [request] seen #1 req=2 advances=0 room=+0x18d6ec stage=2

@@ -52,7 +52,7 @@ block kind 1 → the 16-bit command.
 `sys_dos_seg_free_ptr()` was added so tests that allocate the 64 KB device buffer release it again — the
 real-memory pool was otherwise exhausted and the following device bring-up test started failing.
 
-Suite: **2778 -> 2787 PASS / 0 FAIL**, ASan clean, `make -C port selftest` ALL PASS.
+Suite: **2778 -> 2787 PASS / 0 FAIL**, ASan clean, `make selftest` ALL PASS.
 
 ## Two other fixes in this change
 

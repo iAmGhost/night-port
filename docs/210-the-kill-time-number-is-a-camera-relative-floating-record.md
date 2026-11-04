@@ -28,7 +28,7 @@ So the number is drawn at the **entity's own coordinates minus the camera** (`DA
 
 `call_sites.py --target 0x3b718` -> **one caller: `fn_03b953` at 0x0003b99a**, whose body is
 `for (i = 0; i < DAT_000639c8; i++) fn_03b718(DAT_000639d4, base);` -- a count cell (`DS 0x639c8`) and a record
-list (`DS 0x639d4`).  The port models the whole chain (`port/src/f/f.c:14516` the renderer, `f.c:14587` the loop).
+list (`DS 0x639d4`).  The port models the whole chain (`src/f/f.c:14516` the renderer, `f.c:14587` the loop).
 Note `DS 0x63360`, the frame counter used by the aging test, is the same cell docs/205's screen attribution showed
 changing at every shipped mode switch (`0x63360 0000069f -> 000006b1` etc.).
 

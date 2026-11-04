@@ -45,7 +45,7 @@ section on the HP words), not a defect.
 
 Instrumented the matcher `LAB_000339c5` inside `fn_03272f` (the code that turns a key sequence into a
 technique state) -- per-entry reason census plus a histogram of the `target` state ids of fully matched
-entries (`port/src/f/f.c`, printed at shutdown from `main.c`). One run, ep1_kill3, 14000 frames:
+entries (`src/f/f.c`, printed at shutdown from `main.c`). One run, ep1_kill3, 14000 frames:
 
 ```
 matcher visits 10239 | code0 mismatch 80012 | slot consumed 15274 | codeK mismatch 6731

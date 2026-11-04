@@ -5,8 +5,8 @@ host warp should be guarded on the game having actually started (filed, not fixe
 
 ## The crash, reproduced under ASan
 
-    cc -fsanitize=address ... -o test/night src/app/main.c src/f/f.c ...
-    NIGHT_SHOWSCREEN=gameover NIGHT_SHOWSCREEN_AT=1500 ./test/night --script route_attract_wait.txt ...
+    cc -fsanitize=address ... -o build/night src/app/main.c src/f/f.c ...
+    NIGHT_SHOWSCREEN=gameover NIGHT_SHOWSCREEN_AT=1500 ./build/night --script route_attract_wait.txt ...
 
 Before the fix (both routes, ASan build):
 
@@ -25,7 +25,7 @@ it during the title/attract phase, before any room is loaded, dereferences addre
 
 ## The guard
 
-`fn_showscreen_gate(what)` in `port/src/f/f.c` states the shipped precondition; `port/src/app/main.c` now **defers**
+`fn_showscreen_gate(what)` in `src/f/f.c` states the shipped precondition; `src/app/main.c` now **defers**
 the warp instead of firing it (and logs the reason once), so the warp still happens as soon as the state exists:
 
 ```
@@ -37,7 +37,7 @@ case B  --warp-stage 1 (a room is loaded by the host warp), AT=1500:
         showscreen warp: gameover at frame 2572                      -> exit 0, fires once legal
 ```
 
-The `SEGV` count in the ASan log is now 0. Regression test `test_showscreen_gate` (port/test/test_f1.c): refused while
+The `SEGV` count in the ASan log is now 0. Regression test `test_showscreen_gate` (test/test_f1.c): refused while
 `g_dat_63354 == 0`, the refusal names the missing shipped state, allowed once a room record exists, the ending slide
 show is not gated (it has no room precondition), an unknown screen is left to the caller. Suite and selftest ALL PASS.
 
@@ -71,8 +71,8 @@ change ASan reported it in any long title/attract run, and it was *not* the warp
 
 ## Reproduce
 
-    make -C port test                     # includes test_showscreen_gate
-    make -C port app
-    cd port && NIGHT_SHOWSCREEN=gameover NIGHT_SHOWSCREEN_AT=1500 \
-      ./test/night --script ../scripts/playtest/route_attract_wait.txt --no-audio --frames 3706
+    make test                     # includes test_showscreen_gate
+    make app
+    NIGHT_SHOWSCREEN=gameover NIGHT_SHOWSCREEN_AT=1500 \
+      ./build/night --script ../scripts/playtest/route_attract_wait.txt --no-audio --frames 3706
     # and with --warp-stage 1 to see the warp fire at the first legal frame

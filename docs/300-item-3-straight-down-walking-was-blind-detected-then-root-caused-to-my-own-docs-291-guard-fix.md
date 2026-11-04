@@ -22,7 +22,7 @@ diagonal walks (state 2) and changes Y.  That is the reported symptom, measured 
 
 ## 2. Which byte is which key
 
-`port/src/app/keymap.c:47-48` (the port's own BIOS-scancode map, `main.c:546` agrees):
+`src/app/keymap.c:47-48` (the port's own BIOS-scancode map, `main.c:546` agrees):
 
 | scancode | key | cell |
 |---|---|---|
@@ -76,7 +76,7 @@ the defect it created, not a fix.  docs/291 §2 and docs/292's guard-fix pair ar
 
 ## 5. Fix and green measurement
 
-`port/src/f/f.c`, `lab_0003284e`: the guard now reproduces the shipped's four-arrow chain in order, and
+`src/f/f.c`, `lab_0003284e`: the guard now reproduces the shipped's four-arrow chain in order, and
 the four key-cell declarations are relabelled to the arrows they hold:
 
 ```c

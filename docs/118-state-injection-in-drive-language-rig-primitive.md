@@ -6,7 +6,7 @@ port side.
 
 ## 1. What was added
 
-`port/src/app/main.c` (script parser + driver) and `port/src/app/rig_sink.c`:
+`src/app/main.c` (script parser + driver) and `src/app/rig_sink.c`:
 
 | drive line | effect |
 |---|---|
@@ -50,7 +50,7 @@ The experiment constrains the mechanism and docs/117's sentence should be read a
 A census verb was prototyped (`ent <slot> 0xffffffff 0`: walk states 0..0xff, resolve the record the way
 `fn_01441e` does, and report the declared type ranges). It ran and printed ranges like `types 0..226` /
 `0..252` -- implausible -- and then **crashed the port (SIGSEGV)**. The block has been removed from the tree
-(`make -C port app` clean, `ep1_poke.txt` run rc=0 afterwards). Recording it because the census is still the
+(`make app` clean, `ep1_poke.txt` run rc=0 afterwards). Recording it because the census is still the
 right question: the answer needs the record layout decoded properly first (the `+0x00` slot count and the
 `+0x38` type byte are per-record-array, and the level-2 chain pointer at `*(hb + *(e+0x123) + 0x04)` is not
 validated by the guest either -- the shipped code trusts the disc).

@@ -61,7 +61,7 @@ tests only the three keys that have a make flag *and* a movement arm here:
 body ✓ The port's guard read `if (g_dat_63ed8 != 0 || g_dat_63ed0 != 0 || g_dat_63ed3 != 0 || g_dat_63ed5 != 0)`
 ✗✗ so a Down press alone entered the body, ran `fn_01586b(pl, +step)` and forced `state = 2` ✓ Fixed to
 `if (g_dat_63ed0 != 0 || g_dat_63ed3 != 0 || g_dat_63ed5 != 0)` with the chain quoted in the comment
-(`port/src/f/f.c` `lab_0003284e` ✓) ✓ `make -C port test` → **ALL PASS** ✓ (no fixture asserted the old guard ✓)
+(`src/f/f.c` `lab_0003284e` ✓) ✓ `make test` → **ALL PASS** ✓ (no fixture asserted the old guard ✓)
 
 **Its own before/after measurement is not a clean pair, and I am not claiming one.** New drive
 `scripts/rig/drives/ep1_downonly.txt` (kill3 bring-up + walk to the left bound, then 118-161 s of **Down-only**

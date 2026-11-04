@@ -87,11 +87,11 @@ Still open, honestly measured:
 ## 5. Reproduce
 
 ```sh
-make -C port app
-./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt --warp-stage 1 \
+make app
+./build/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt --warp-stage 1 \
     --rig-dump /tmp/rig/c1 --rig-hz 4 --frames 6000
 python3 scripts/rig/frame_counter.py --orig /tmp/rig/g10/orig --port /tmp/rig/c1
-NIGHT_DEATHTRACE=1 ./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
+NIGHT_DEATHTRACE=1 ./build/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
     --warp-stage 1 --frames 6000 2>&1 | grep -i "PLAYER"
 ```
 

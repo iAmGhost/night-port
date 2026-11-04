@@ -1,7 +1,7 @@
 # docs/163 — the arming site is the player-creation function, and it also explains the −30 spawn
 
 docs/162 §13 queued "why does the port re-arm `+0x56` a second time".  The write is at guest `0x377a1`, and the
-function that owns it is **`fn_0376c8`** — the player-entity creation function (`port/src/f/f.c:5494`).  Read in
+function that owns it is **`fn_0376c8`** — the player-entity creation function (`src/f/f.c:5494`).  Read in
 full it answers two queued questions at once.
 
 ## 1. What fn_0376c8 actually does

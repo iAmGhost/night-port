@@ -1,6 +1,6 @@
 # 0x010efc — the entity (actor) constructor
 
-Ported as `fn_010efc` in `port/src/f/f.c`; verified by `test_fn_010efc` (16 checks).
+Ported as `fn_010efc` in `src/f/f.c`; verified by `test_fn_010efc` (16 checks).
 Size 1025 B, L10, 248 instructions, **no loops**, only three calls.
 
 ## Why it matters

@@ -64,8 +64,8 @@ room_final2   t=94.6 res=stage1.pcx + cdda track index 2 (room track) -- the sta
 Reproduce:
 
 ```sh
-cd port && make -j8 test/night && \
-SDL_VIDEODRIVER=dummy NIGHT_SLIDEDBG=1 ./test/night \
+make -j8 build/night && \
+SDL_VIDEODRIVER=dummy NIGHT_SLIDEDBG=1 ./build/night \
   --script ../scripts/playtest/route_slide_keyed.txt --shots /tmp/dbgauto/port_sk14 \
   --no-audio --frames 13500
 docker cp scripts/playtest/probe_orig_slide_pacing.py dbga:/work/ && docker exec dbga \

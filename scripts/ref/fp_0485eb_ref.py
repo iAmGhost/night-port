@@ -172,9 +172,9 @@ def main():
                    f'0x{lo:08x}u,0x{hi:08x}u,0x{exp:08x}u,0x{ebx:08x}u,0x{u32(edi32):08x}u,0x{bx:04x}u}},')
     out.append('};')
     out.append('#endif')
-    with open('port/test/vectors/vectors_0485eb.h', 'w') as f:
+    with open('test/vectors/vectors_0485eb.h', 'w') as f:
         f.write('\n'.join(out) + '\n')
-    print(f'wrote port/test/vectors/vectors_0485eb.h with {len(vecs)} vectors')
+    print(f'wrote test/vectors/vectors_0485eb.h with {len(vecs)} vectors')
 
 
 if __name__ == '__main__':

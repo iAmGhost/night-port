@@ -4,7 +4,7 @@ a 0x2a Y-only dive (20.0 divisor, window 0x33..0x46) and a 0x2c line-interpolati
 dominant axis is stepped over 50.0 frames (DS 0x50064/0x5006c/0x50074) and whose other component
 comes from the stored line (slope [0xdb], intercept [0xe3]).  Plus: ambush distance 0x46 -> 0x3c
 and the walk marker 0x2b -> 0x2c.  See docs/18-ai-dispatch-map.md."""
-src = open('port/src/f/f.c').read()
+src = open('src/f/f.c').read()
 fs = src.index("void fn_027bec(uint8_t *e)\n{")
 fe = src.index("\n}\n", fs) + 3
 t = src[fs:fe]

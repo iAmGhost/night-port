@@ -9,11 +9,11 @@ sanitizer reports**.
 
 ## 1. The census build had not built since the Makefile was touched
 
-`make -C port censusapp` failed to link: `duplicate symbol '___cyg_profile_func_enter'`, then
+`make censusapp` failed to link: `duplicate symbol '___cyg_profile_func_enter'`, then
 `_g_fn_name` / `_g_fn_addr` / `_g_fn_count`. The recipe listed `src/app/rig_census.c` and
 `src/gen/fn_table.c` explicitly *and* through `$(SRC_RIG)`, so each was compiled twice. Every fuzz number
 quoted after that point came from the binary built before the breakage. Fixed by listing them once
-(`port/Makefile`), and the same rule applied to the new `asanapp-o2` target below.
+(`Makefile`), and the same rule applied to the new `asanapp-o2` target below.
 
 ## 2. `poke` wrote raw integers into pointer cells — the whole docs/120 §6 "injection-induced SIGSEGV" family
 
@@ -67,7 +67,7 @@ not**: `fn_016fec`, `fn_032158`, `fn_0322f5`, `fn_03211f`, `fn_03209c`, and `fn_
 
 The reason this took so long to see: `asanapp` builds at `-O1`, and the app builds at `-O2`. The same drive
 that faults in the `-O2` app *survives* under the `-O1` sanitizer build. The optimisation level, not the
-sanitizer, decides whether the fault appears — so `port/Makefile` grew `asanapp-o2`, sanitizers at the app's
+sanitizer, decides whether the fault appears — so `Makefile` grew `asanapp-o2`, sanitizers at the app's
 flags, and it is the build that reports these with a stack:
 
 ```
@@ -120,8 +120,8 @@ impossible state" — a distinction docs/120 §6 previously had to make by re-ru
 | `fz16/r2s4_st5` under `night` (plain) | `rc=139` SEGV | — |
 | `fz16/r2s4_st5` under `night-asan` (-O1) | ASan SEGV in `fn_016fec` | `rc=0` |
 | `fz16/r2s4_st5` under `night-asan-o2` (-O2) | UBSan null deref `fn_0322f5` | **`rc=0`, 0 reports** |
-| `make -C port test` | ALL PASS | ALL PASS |
-| `make -C port censusapp` | link error | builds |
+| `make test` | ALL PASS | ALL PASS |
+| `make censusapp` | link error | builds |
 
 Open, honestly:
 * `record reads refused (outside arena)=504` on this drive — which cells, and why their pointers are outside

@@ -136,7 +136,7 @@ Bracketed on the same drive, witnesses on, plain binary:
 | 6400 | 0 | 117 s | 6356 |
 | 16000 | 139 | — | — |
 
-`make -C port asanapp` + the same drive at 500 frames: `rc=0`, no AddressSanitizer/UBSan report ✓ so the fault is
+`make asanapp` + the same drive at 500 frames: `rc=0`, no AddressSanitizer/UBSan report ✓ so the fault is
 between 6400 and 16000 frames ✓ (i.e. in the stage-2/stage-3 region this drive reaches ✓ the same region the
 playtester's round-1 crash report named ✓).  Next bracket: 9600 / 12800 frames, then ASan at the bracketed count.
 

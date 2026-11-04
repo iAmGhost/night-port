@@ -102,8 +102,8 @@ points of the room -- the docs/79 run-shape explanation, not a rendering differe
   hook does that yet, which is the gap):
 
   ```sh
-  cd port && NIGHT_WARP_ENTITY=ena-1 NIGHT_WARP_ENTITY_AT=600 NIGHT_GLYPHDBG=1 \
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test/night --warp-stage 1 \
+  NIGHT_WARP_ENTITY=ena-1 NIGHT_WARP_ENTITY_AT=600 NIGHT_GLYPHDBG=1 \
+    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/night --warp-stage 1 \
     --script ../scripts/playtest/route_walk_fight.txt --no-audio --frames 7000 --shot-limit 2 \
     2>&1 | grep -E "warp-entity:|tag=valuedisp"
   ```
@@ -126,7 +126,7 @@ uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
   --out /tmp/dbgauto/orig_attract1 --drive scripts/playtest/drive_orig_attract_wait.txt --hz 3
 
 # port side: menu frames, and the attract tail
-cd port && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test/night --no-audio \
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/night --no-audio \
   --script ../scripts/playtest/route_pause_menu.txt --shots /tmp/port_pause --shot-limit 900 --frames 22000
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test/night --no-audio --frames 9000 --shots /tmp/port_attract
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/night --no-audio --frames 9000 --shots /tmp/port_attract
 ```

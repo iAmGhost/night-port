@@ -5,7 +5,7 @@ not inference.
 
 ## 1. Instruments added
 
-- `NIGHT_ARENADBG=1` arena lifetime witness (`port/src/f/f.c`, before `fn_00041bdc`): an open-addressed set of
+- `NIGHT_ARENADBG=1` arena lifetime witness (`src/f/f.c`, before `fn_00041bdc`): an open-addressed set of
   the entity blocks the constructor actually initialised (added in `fn_010efc`, removed in `heap_free_guard`),
   plus `arena_alloc_check`, which reports when an allocation hands back a block a live entity still owns.
   This is the arena-level sanitizer docs/128 asked for; AddressSanitizer cannot see a lifetime error inside the
@@ -81,7 +81,7 @@ a boundary case of one seed.
 The open question is a single byte, and both sides can produce it:
 
 - Port side: the drive-language verb `actdump <type> [bytes]` (implemented as `rig_dump_act()` in
-  `port/src/app/rig_sink.c`) captures the *loaded* action container for an entity type. For type 36 the chain
+  `src/app/rig_sink.c`) captures the *loaded* action container for an entity type. For type 36 the chain
   the game walks is `lvl2 = *(hb + *(e+0x123) + 4)`, `rec_e = *(hb + lvl2 + 4*state)`, and the reaction code is
   `byte[rec_e + slot + 0x38]` -- with `state = 0x1d` and `slot = 0` for the hit measured in §4. The port
   already reports the value it uses through `NIGHT_HITTRACE` (`atype=11`).

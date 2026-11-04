@@ -1,7 +1,7 @@
-# The SDL host: the port boots, loads the real data and paints (port/src/app/main.c)
+# The SDL host: the port boots, loads the real data and paints (src/app/main.c)
 
-Added 2026-07-13. `make -C port app` builds `port/test/night` against SDL3; `SDL_VIDEODRIVER=dummy
-./port/test/night --frames 1200 --dump /tmp/night` runs headless and writes frames. State reached:
+Added 2026-07-13. `make app` builds `build/night` against SDL3; `SDL_VIDEODRIVER=dummy
+./build/night --frames 1200 --dump /tmp/night` runs headless and writes frames. State reached:
 `DAT_633a0 = 444` (the real `NIGHT.RES` index, 444 entries), `DAT_63370 = 1` (the master init ran), the
 disc gate satisfied by the real TOC (docs/31), the timer programmed at **490 Hz**, and **212 distinct
 palette indices on screen** at frame 600 -- the slide-show/title art is being decoded and displayed.

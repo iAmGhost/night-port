@@ -18,7 +18,7 @@ Continues `fix-exp-values` after docs/237.  Everything here is one route, both s
 0x13daf  jmp 0x1434f                                               ; the "no hit" exit
 ```
 
-The port (`port/src/f/f.c:24861-24876`) computes `dl = *(uint8_t *)(rec + rec_off + 0x56)`, `ay = a[+9]`,
+The port (`src/f/f.c:24861-24876`) computes `dl = *(uint8_t *)(rec + rec_off + 0x56)`, `ay = a[+9]`,
 `by9 = b[+9]` and rejects on `ay + dl < by9` or `ay - dl > by9` ✓✓ identical, including the fact that the summed
 `b[9]+b[5]` value is kept for *later* use (`[ebp-0x20]`) and is **not** the gate operand ✓ So docs/195 §1a's
 "the defect is placement, not threshold" now has the mechanism behind it: the comparison is right, the numbers it

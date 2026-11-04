@@ -5,7 +5,7 @@ corrections landed on the way there, and both changed what the rig is allowed to
 
 ## 1. The two corrections, and what they invalidated
 
-1. **"EP1-STG2, not EP2."**  `--warp-episode N` overwrites `DAT_00063370` (`port/src/f/f.c:5362`), which is the
+1. **"EP1-STG2, not EP2."**  `--warp-episode N` overwrites `DAT_00063370` (`src/f/f.c:5362`), which is the
    counter the loader builds every per-stage resource name from (`stage%d.wal` at 0x37b61-71, `stage%d.stg` at
    0x37c58-68, `st%ds.spr`, `night%d.chr`) and what the spawn tables are indexed by.  Setting it to 2 loads a
    *different map*.  Every docs/312 row labelled "stage-2 basis" (`/tmp/rig/st2w`, `st2sp`, `st2rb`, `st2b1`,
@@ -21,7 +21,7 @@ corrections landed on the way there, and both changed what the rig is allowed to
 "Episode 1, stage 2" is expressible (`--warp-episode 1 --warp-stage 2`) but is a rigged basis; the honest basis is
 the shipped's own advance path, which is what the new automation walks.
 
-## 2. What the automation now is (`port/src/app/main.c`, `port/src/f/f.c`)
+## 2. What the automation now is (`src/app/main.c`, `src/f/f.c`)
 
 Host-side counters, explicitly *not* shipped DS claims:
 
@@ -171,7 +171,7 @@ Two fixtures asserted the inverted rule (`test_f1.c:15775`, `15779`: "DAT_639e0+
 ran" and "below the vertical threshold -> nothing moves") ✓ they were written from the port's test rather than
 from the shipped's jump structure — docs/263 §4's failure class, again ✓ rewritten to the shipped's polarity
 (`player[+9] = 0x200` -> the call runs and `DAT_639e0` becomes 1 ✓ `player[+9] = 50` -> the shipped jumps over
-the call ✓ `make -C port test` → **ALL PASS** ✓).
+the call ✓ `make test` → **ALL PASS** ✓).
 
 Measured red, before the fix (`/tmp/rig/w313g`, stage-walk drive, no warp flags): `camY` set `{0, 1}` over 16000
 frames, player record Y constant at 172 ✓ two `fn_03cc6b` visits, one of them with the gate true

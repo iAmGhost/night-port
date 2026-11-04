@@ -13,7 +13,7 @@ that victim is present.  Identity is `(record offset, kind, span)`; a change of 
 starts a new identity, so a re-used slot (docs/247, docs/251) is not mistaken for the same enemy.
 
 `+0x29` (hp) is unusable for this: it never changes on the canonical route -- 0 decreases in 1500 samples of
-`/tmp/rig/rb15` -- so `port/src/app/rig_sink.c` now also dumps `+0x23` (the term the port's own `DMG` witness
+`/tmp/rig/rb15` -- so `src/app/rig_sink.c` now also dumps `+0x23` (the term the port's own `DMG` witness
 at `f.c:25457` calls `debt`) and `+0x56` (the damage pool).  The dump reads them as 32-bit; the script
 normalises `+0x23` back to the word width the shipped uses (`f.c:25457` reads it as `ua16`).
 
@@ -125,18 +125,18 @@ ever touches the player).
 
 ## 5. The fix, and the measurement that gates it
 
-`port/src/f/f.c` now reads `if ((int32_t)w1 <= fr && (int32_t)w2 > fr) { slot = i; break; }` -- the shipped's
+`src/f/f.c` now reads `if ((int32_t)w1 <= fr && (int32_t)w2 > fr) { slot = i; break; }` -- the shipped's
 window test -- with a comment naming the mis-read target.  That is a one-line revert of docs/263 plus its
 comment.
 
-**Fixture.** `port/test/test_f1.c` case (2b): frame 3, row 0 = `(20,30)` (window not started), row 1 = `(0,10)`
+**Fixture.** `test/test_f1.c` case (2b): frame 3, row 0 = `(20,30)` (window not started), row 1 = `(0,10)`
 (live), rows 2-5 = `(1,2)` (closed), damages 7 and 11 at `dword[ae+0x20]` / `dword[ae+0x24]`.  The shipped
 skips row 0 and lands row 1: `O[+0x29] 50 -> 39` and `O[0x4f] == 1`.
 
 | source line | result |
 |---|---|
 | `w1 > fr \|\| w2 > fr` (docs/263, HEAD before this fix) | `[FAIL] 01441e a row whose window has not started yet is skipped: frame 3 takes row 1, not row 0` -- the only failure in the suite |
-| `w1 <= fr && w2 > fr` (this fix) | that check passes, `make -C port test` = `== ALL PASS ==` |
+| `w1 <= fr && w2 > fr` (this fix) | that check passes, `make test` = `== ALL PASS ==` |
 
 The fixture was written first and run against the unfixed line, so the red is not inferred from the green.
 docs/263's rewritten case (2) -- all six rows `(1,2)` at frame 3 -- is left in place because it is genuinely

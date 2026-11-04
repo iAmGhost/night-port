@@ -75,7 +75,7 @@ the stage-1 art and gameplay all appear, `rc = 0`.
 
 ## 5. Witness and fixture
 
-`f.c` exports four counters, and `test_f1.c` has `test_skip_intro_shortcut` (part of `make -C port test`,
+`f.c` exports four counters, and `test_f1.c` has `test_skip_intro_shortcut` (part of `make test`,
 `ALL PASS`):
 
 - flag off by default — the shipped's attract chain is what runs;

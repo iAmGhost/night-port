@@ -1,6 +1,6 @@
 # 0x037b03 — THE STAGE LOADER (L13, 1304 B)
 
-Ported as `fn_037b03(int32_t resume_flag)` in `port/src/f/f.c`.
+Ported as `fn_037b03(int32_t resume_flag)` in `src/f/f.c`.
 This is the function that turns one stage number (`DAT_00063370`, only ever 1..N) into the whole
 per-stage data set: the room chain, the stage sprite struct, the stage record file and the entity
 type table. It is the producer behind the L15 pair `0x0374ad` / `0x0376c8` (playability task #1)

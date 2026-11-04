@@ -55,7 +55,7 @@ Inside the show:
 | 0x3a7e7-f0 | `fn_03a5f7(DAT_633b0)` | the progressive odd/even-row reveal wipe (item F's effect) |
 | 0x3a7f2-… | restore `DAT_63e24/63e28`, `DAT_52ff8 = 1` | pump back on |
 
-The only writers of those latch bytes in the whole port are the keyboard-IRQ model (`port/src/app/keymap.c`,
+The only writers of those latch bytes in the whole port are the keyboard-IRQ model (`src/app/keymap.c`,
 make at **0x0003fe06**, break at **0x0003fe69-6e**) — the shipped has no clearing store in either wait loop,
 so a picture is consumed without a press whenever a latch is still non-zero when the wait is entered.
 

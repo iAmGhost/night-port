@@ -1,6 +1,6 @@
 # 222 — Item 5, route attempts on the ASan build: the room-clear branch runs but the room chain never hands over a next room, so stage 2 is unreachable naturally
 
-Gate: `gate3-stage2-crash`, unfixed build, `port/test/night-asan` (built by `make -C port test/night-asan`).
+Gate: `gate3-stage2-crash`, unfixed build, `build/night-asan` (built by `make build/night-asan`).
 Canonical pinned env: `NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`, 13200 frames, 2200 cell
 samples at 10 Hz.
 
@@ -35,7 +35,7 @@ script: poke ds 0x6336c = 4 (ok) at t=88150ms            (x74)
   address 0x00010305abb9 for type 'char *', which requires 8 byte alignment` (it appears at the same site on
   routes that never touch the room-clear path, so it is not a stage-2 artifact).
 * the port's own escape line at the end: `game main unwound (quit / fatal)` — the host `longjmp(g_game_escape)`,
-  not a fault (docs/208 already recorded that the historical `bus error ./test/night` is not reproducible by
+  not a fault (docs/208 already recorded that the historical `bus error ./build/night` is not reproducible by
   writing the stage cell).
 
 Cell census over the 2200 samples:

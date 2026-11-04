@@ -2,7 +2,7 @@
 
 ## 1. Reproduction on HEAD (no rig-warp, no stage poke), `/tmp/rig/s2a`
 
-`./port/test/night --script scripts/rig/drives/ep1_roomclear2.txt --rig-dump /tmp/rig/s2a --rig-hz 10 --frames 18000`
+`./build/night --script scripts/rig/drives/ep1_roomclear2.txt --rig-dump /tmp/rig/s2a --rig-hz 10 --frames 18000`
 with the pinned clock (`NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`) ✓ `rc=0` ✓
 
 ```

@@ -1,7 +1,7 @@
 /* main.c -- the SDL host for the NIGHT port.
  *
- *   make -C port app && ./port/build/night                    (windowed)
- *   SDL_VIDEODRIVER=dummy ./port/build/night --frames 600 --dump /tmp/night   (headless proof)
+ *   make app && ./build/night                    (windowed)
+ *   SDL_VIDEODRIVER=dummy ./build/night --frames 600 --dump /tmp/night   (headless proof)
  *
  * ARCHITECTURE: the port runs single-threaded -- fn_03af18 (the game main) owns the call stack, and
  * the two things the original got from hardware are delivered cooperatively at the points where the
@@ -1823,7 +1823,7 @@ int main(int argc, char **argv) {
         snprintf(cp, sizeof cp, "%s/census.txt", rd ? rd : "/tmp");
         rig_census_set_path(cp);
     }
-    const char *res_dir = "../NIGHT";
+    const char *res_dir = "NIGHT";
     int frames_limit = 0;
     /* NIGHT_DELAY_US re-times the modelled cost of one guest DOS clock read (see delay_units in f.c); 0
      * restores the timing-free behaviour. Default 500 us, measured against the original. */

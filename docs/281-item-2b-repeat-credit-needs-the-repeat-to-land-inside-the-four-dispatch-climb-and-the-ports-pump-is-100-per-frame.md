@@ -1,6 +1,6 @@
 # 281 — Item 2b: the repeat credit can only be earned *inside* the four-dispatch climb, and the port's keyboard pump runs ~100 × per frame — so realistic DOS typematic intervals can never earn it
 
-`night_key_apply` (`port/src/app/keymap.c:52-70`) credits `g_dat_62cd8` **only** on a make that arrives while the slot
+`night_key_apply` (`src/app/keymap.c:52-70`) credits `g_dat_62cd8` **only** on a make that arrives while the slot
 state is still non-zero *and* the held byte is clear (shipped `0x3fdf2-0x3fe26`, the `re-make` arm ✓; the first-make arm
 `0x3fe33` just arms to 1 ✓) ✓ Combining that with the climb (`fn_034735`: `state < 4 → state++`, so **4 pump entries**
 `1→2→3→4`, then the post disarms to 0 when the credit is 0 ✓) gives the rule:

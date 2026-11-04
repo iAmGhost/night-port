@@ -35,11 +35,11 @@ while the title/menu screen is up, while a card waits for a key, and while a sli
 
 ## 2. What the port does instead
 
-The handler is ported (`fn_03ee88`, `port/src/f/f.c:2535-2548`, every increment cited to its guest address ✓
+The handler is ported (`fn_03ee88`, `src/f/f.c:2535-2548`, every increment cited to its guest address ✓
 faithful) -- but nothing calls it asynchronously.  Its only call sites are in the rig's frame pump:
 
 ```c
-/* port/src/app/main.c */
+/* src/app/main.c */
 1408:   ... fn_03ee88(); g_timer_calls++;        /* pump bookkeeping */
 1412:   while (calls--) { fn_03ee88(); g_timer_calls++; }   /* `calls` = NIGHT_RIG_STEP_CALLS (665) */
 ```

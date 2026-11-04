@@ -8,7 +8,7 @@ records what has been measured so far, so the next session does not repeat the w
 ## Ground truth available offline
 
 `analysis/refs/` holds real captures (`obs_4_stage.png` is the title/attract screen: dark red
-sunset sky, black city silhouette, white menu text). `port/src/res/res_pcx.c` records the verified rule for
+sunset sky, black city silhouette, white menu text). `src/res/res_pcx.c` records the verified rule for
 slides: the display palette is the **raw last 768 bytes of the PCX, RGB order, no shift** — cross-checked
 against `analysis/refs/neu_menu2.png`.
 

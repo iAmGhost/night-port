@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "../port/src/f/f.h"
-#include "../port/src/sys/sys.h"
+#include "../../src/f/f.h"
+#include "../../src/sys/sys.h"
 int main(void){
   setvbuf(stdout, 0, _IONBF, 0);
   static uint8_t pool[0x53800]; memset(pool,0,sizeof pool);

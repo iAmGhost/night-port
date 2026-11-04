@@ -54,7 +54,7 @@ The port models the same table as `g_dat_53e9c[0x88 * 0x104]` with `g_dat_53ea8 
 
 ## 3. Why it never arrives, from in-process witnesses on the current build
 
-`make -C port app`, `NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`, drive `ep1_kill3.txt`, 19 200
+`make app`, `NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`, drive `ep1_kill3.txt`, 19 200
 frames (~320 s), plus two new witnesses (`NIGHT_TYPETABLE`, `NIGHT_SET30`):
 
 ```

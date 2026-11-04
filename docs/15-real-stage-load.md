@@ -27,7 +27,7 @@ any allocation that could not be served from existing slack returned 0 — silen
 don't check. It stayed invisible under the synthetic fixtures (small allocations, big pre-seeded regions)
 and under the 1 MiB arena cap.
 
-Fix (`port/src/f/f.c`): size the data area with the same rounding `heap_alloc` uses:
+Fix (`src/f/f.c`): size the data area with the same rounding `heap_alloc` uses:
 
 ```c
 uint32_t t = size + 7;
@@ -148,7 +148,7 @@ Debug probes kept for reference: `analysis/probes/real_chain_probe.c` (region ch
 
 ## Suite
 
-`make -C port test`: **2147 PASS, 0 FAIL** (was 2110 before this work), ASan clean. `TOTALS` unchanged
+`make test`: **2147 PASS, 0 FAIL** (was 2110 before this work), ASan clean. `TOTALS` unchanged
 (466/528 — this is integration, not new functions). The real-data tests raise the heap cap to 48 MiB
 (physical arena 64 MiB) and the region floor to 64 KiB; the defaults stay 1 MiB / per-request sizing so
 every older test is unaffected.

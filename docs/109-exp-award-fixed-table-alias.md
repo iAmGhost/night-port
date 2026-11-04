@@ -25,9 +25,9 @@ enemy with `idx = 31`): row base `0x53e9c + 31*0x88 = 0x54f14`, dwords `[0x23, 0
 
 ## Fix
 
-`port/src/f/f.c`: delete the array, add `uint8_t *const g_dat_53ea8 = g_dat_53e9c + 0x0c;` next to the
+`src/f/f.c`: delete the array, add `uint8_t *const g_dat_53ea8 = g_dat_53e9c + 0x0c;` next to the
 table (same pattern as the existing `g_dat_53eb8` alias), and drop the extra `+ 0x0c` at the `fn_01441e`
-site. `port/src/f/f.h` declares it as a pointer. Rig cell table regenerated.
+site. `src/f/f.h` declares it as a pointer. Rig cell table regenerated.
 
 ## Green after (`/tmp/rig/ents-port2`, same drive ep1_kill3, same rig, no manual steps)
 

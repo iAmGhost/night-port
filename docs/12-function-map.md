@@ -58,7 +58,7 @@ For **each** original function (in `rank.tsv` order, L0 → L19):
    entry in `docs/12-functions/<subsystem>.md`:
    *signature, semantics (what it computes/does, invariants), constants,
    edge cases, globals touched, assets touched, verification method.*
-2. **Port 1:1** — `port/src/f/<name>.c`, function name = Ghidra name,
+2. **Port 1:1** — `src/f/<name>.c`, function name = Ghidra name,
    annotated `/* orig: 0xNNNNNNN */`. Mirror control flow and constants
    exactly; no redesign, no "improvements". Where decompiler output is
    ambiguous (cse artifacts, float10, register spills), consult disassembly.

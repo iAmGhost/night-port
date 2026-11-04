@@ -2,15 +2,15 @@
 
 ## 1. Rig defect: the guard was not satisfiable
 
-`route.sh` refuses to run when any source is newer than `port/test/night` ✓ (the docs/133 §8 rule ✓). Two canonical
+`route.sh` refuses to run when any source is newer than `build/night` ✓ (the docs/133 §8 rule ✓). Two canonical
 runs failed at exactly that line (`/tmp/rig/ch3`, `/tmp/rig/rb6` — each produced only `build.log` ✓) while
-`make -C port app` answered "Nothing to be done" ✓ and a manual `./port/test/night` run worked fine ✓ The reason is a
+`make app` answered "Nothing to be done" ✓ and a manual `./build/night` run worked fine ✓ The reason is a
 granularity mismatch: `make` compares timestamps to whole seconds ✓, so an edit landing in the same second as the link
 leaves the target considered up to date ✓, while `find -newer` compares sub-second mtimes ✓ and still reports the
-source as newer ✓ (`port/src/f/f.c` 12:22 vs `port/test/night` 12:22 ✓ f.c newer by milliseconds ✓) ✓ The guard could
+source as newer ✓ (`src/f/f.c` 12:22 vs `build/night` 12:22 ✓ f.c newer by milliseconds ✓) ✓ The guard could
 therefore never be satisfied for edits made in the same second as the previous build ✓
 
-Fix: when the guard trips, rebuild the app target from scratch (`make -C port app -B` ✓ logged to `build.log` ✓), then
+Fix: when the guard trips, rebuild the app target from scratch (`make app -B` ✓ logged to `build.log` ✓), then
 re-check; only exit 1 if a source is *still* newer after the forced rebuild ✓ The guard's strictness is preserved ✓
 (the run still cannot use a binary older than a source ✓) ✓ `/tmp/rig/rb7` then ran end to end ✓ (`rc=0` ✓) ✓
 

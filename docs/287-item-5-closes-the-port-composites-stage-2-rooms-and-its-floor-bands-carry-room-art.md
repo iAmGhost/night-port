@@ -54,7 +54,7 @@ ink presence ✓
 
 ## 3. Fault half, re-confirmed on a route that really composites stage 2 (`/tmp/rig/s2f`)
 
-`port/test/night-asan` (rebuilt with `make -C port asanapp` ✓) on `ep1_roomclear3.txt`, pinned clock, `--rig-hz 4`:
+`build/night-asan` (rebuilt with `make asanapp` ✓) on `ep1_roomclear3.txt`, pinned clock, `--rig-hz 4`:
 
 ```
 rc=0 ✓   grep -c "ERROR: AddressSanitizer|runtime error|Segmentation fault|SEGV" = 0 ✓
@@ -85,7 +85,7 @@ contract's fault clause is satisfied on both route families ✓
 
 * Fault: **not present** — `rc=0`, 0 ASan/UBSan/SEGV reports on the warp route (docs/223, docs/268) and on the
   natural room-clear route that composites 13249 stage-2 room frames under ASan (this run) ✓ The historical
-  `bus error ./test/night` at stage-2 entry has not reproduced since docs/208 ✓
+  `bus error ./build/night` at stage-2 entry has not reproduced since docs/208 ✓
 * Screen: **not present as reported** — the port loads `stage2.pcx/stage2.wal/stage2.stg/night2.chr` and composites
   stage-2 rooms whose floor bands contain art in 100 % of sampled pixels ✓
 * Root cause of the *symptom the rig saw*: two key gates (`fn_038f3d`'s Shift/Esc exit ✓, `fn_00035dfc`'s four

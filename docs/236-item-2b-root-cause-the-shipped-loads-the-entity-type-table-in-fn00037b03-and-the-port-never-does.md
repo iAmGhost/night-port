@@ -85,7 +85,7 @@ Consequence chain, all measured earlier and now explained by one cause:
    the port's dying records ✓
 4. `set30_trace` (`f.c:25433`) and `NIGHT_SET30` stay as the settle-flag witness so the `+0x30` chain is visible
    while the table fills ✓
-5. Suite `make -C port test` ALL PASS, then the nine-episode ASan/UBSan soak, then the state-oracle residual tally
+5. Suite `make test` ALL PASS, then the nine-episode ASan/UBSan soak, then the state-oracle residual tally
    re-run (docs/176 §7 cadence rule: quote residual counts only on the canonical 150 s route at `RIG_HZ=10`).
 
 One caveat to carry into the fix: `fn_01441e`'s flat-`5` store at 0x15054 has **no citation anywhere in `f.c`**

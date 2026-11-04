@@ -1,6 +1,6 @@
 # 218 — Two self-corrections and the kill number seen on the shipped side: it is presented, at the coordinates the shipped arithmetic predicts
 
-Everything here is measured on the frozen unfixed build (`port/test/night` of docs/182) and on the shipped
+Everything here is measured on the frozen unfixed build (`build/night` of docs/182) and on the shipped
 state dump `/tmp/rig/ents-orig/orig` (drive `ep1_kill3`, 974 states, 4 Hz).
 
 ## 1. Correction A: the shipped frame payload is 2560 bytes per row, not 320x4
@@ -38,7 +38,7 @@ and the callee body says which slot is which:
 ```
 
 So the shipped copies **composite buffer -> 0xa0000**: a full 320x200 presentation of the room composite, exactly
-what `port/src/f/f.c:15388` does (`cpy_dw(video_map(base), 0x3e80, g_video_ram)`).  There is no direction
+what `src/f/f.c:15388` does (`cpy_dw(video_map(base), 0x3e80, g_video_ram)`).  There is no direction
 divergence, and docs/216's claim (and its consequences for item 5's black floor and docs/215 §4's presentation
 question) is withdrawn.  What survives from docs/216 is the census, which now *agrees* with the shipped: the port
 presents the composite into the video plane 5 839 times in a 140 s run, and this site -- not `fn_03ace9` -- is the
@@ -75,7 +75,7 @@ mistake that produced docs/201's "garbled glyph" maps and docs/215 §2's voided 
 The admissible comparison is the glyph raster itself, before any screen: read the shipped's font A control block
 (`DAT_000639c0`, 0x3c-byte struct, +0x34 = digit-offset object, +0x38 = RLE base) and its digit row-RLE out of the
 CD image, decode it with `fn_03bb42`'s semantics (N rows, then per run: advance, run-length, data), and compare
-the rasters against what the port decodes from `spr_block("system.spr")` (`port/src/f/f.c:2819`, `f.c:14532-14547`)
+the rasters against what the port decodes from `spr_block("system.spr")` (`src/f/f.c:2819`, `f.c:14532-14547`)
 under `NIGHT_GLYPHDBG=1`.  That comparison is stage-independent and needs no capture basis, and it is the next
 measurement for gate3-exp-text; until it is done the item-2a verdict is DETECTED-AND-LOCALIZED for the field and
 RIG-GAP for the garble itself.

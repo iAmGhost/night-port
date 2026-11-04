@@ -144,7 +144,7 @@ checkable on the census already collected -- a mismatch rate near zero supports 
 ## 7. Reading 1 fails its test, and the failure points at a specific port path
 
 First the semantics were verified rather than assumed.  The port's own transcription of the shipped programming
-burst (`port/src/f/f.c:8472-8480`, carrying the guest addresses) writes:
+burst (`src/f/f.c:8472-8480`, carrying the guest addresses) writes:
 
 ```c
 outb(0x0a, 5);                        /* 0x40c1a: mask ch        */
@@ -193,7 +193,7 @@ sample assets.
 
 ## 8. The `kind` census: the port's command stream is 81 kind-1 commands and no kind-2 at all
 
-A witness at `fn_040839`'s dispatch (`NIGHT_AUDIODUMP`, `port/src/f/f.c:8512`) prints every command the device
+A witness at `fn_040839`'s dispatch (`NIGHT_AUDIODUMP`, `src/f/f.c:8512`) prints every command the device
 command stream actually carries.  On `ep1_kill3`, 6000 frames:
 
 ```
@@ -233,7 +233,7 @@ kind-2 command in sight, which points at the *continuation* machinery rather tha
 
 The first version of this witness printed nothing, and the reason was mine, not the game's: the `fprintf` was
 written on the line *after* a block comment started, so it sat inside the comment.  The tell was
-`strings port/test/night | grep -c cmdstream` returning 0 while `grep -c cmdstream port/src/f/f.c` returned 1 --
+`strings build/night | grep -c cmdstream` returning 0 while `grep -c cmdstream src/f/f.c` returned 1 --
 a witness that is not in the binary.  Added as a standing check: **confirm a new witness exists in the built
 binary before believing its silence.**
 
@@ -293,12 +293,12 @@ they are simply not being taken.
 Two honest gaps, both filed rather than papered over:
 
 * **The site is not yet named.**  The returns are host addresses in a PIE binary and `nm` gives file addresses;
-  mapping needs the load slide (`atos -o port/test/night -l <slide>`, or printing the name from the generated
+  mapping needs the load slide (`atos -o build/night -l <slide>`, or printing the name from the generated
   `src/gen/fn_table.c`, which already stores function pointers *and* their names side by side).  The count is
   trustworthy; the attribution is not yet.
 * **The witness trap repeated itself.**  The first version of this witness printed nothing because its `fprintf`
   again sat inside a trailing multi-line comment opened on the `if` line -- the exact defect recorded in §9.  The
-  binary check (`strings port/test/night | grep -c playsite` returning 0, then 1 after rewriting the comment
+  binary check (`strings build/night | grep -c playsite` returning 0, then 1 after rewriting the comment
   above the statement) is what caught it, which is why the rule exists.
 
 ## 12. Naming the site failed, and why -- recorded as a rig gap
@@ -317,7 +317,7 @@ Two attempts, both rejected:
   returns cannot pin a slide.
 
 Standing fix for the rig, named rather than guessed: **resolve the name in the process**, not offline.
-`port/src/gen/fn_table.c` already stores the function pointers and their names side by side, so the witness can
+`src/gen/fn_table.c` already stores the function pointers and their names side by side, so the witness can
 binary-search that table against `__builtin_return_address(0)` and print the symbol directly -- no slide, no `nm`,
 no PIE arithmetic.  Until that is done the census statement stays exactly as strong as the data supports:
 **61 of 63 sample requests on this drive come from one call site**, and that site is unnamed.

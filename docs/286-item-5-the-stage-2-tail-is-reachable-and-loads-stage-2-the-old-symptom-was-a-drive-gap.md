@@ -29,7 +29,7 @@ Shipped `fn_038f3d` loop head (`0x3920a-0x39225`):
 ```
 
 == port `f.c:26028` `while (g_dat_63e89 == 0 && g_dat_63eb2 == 0 && g_dat_63ebe == 0)` ✓ **faithful** ✓, and the
-key-byte identity is `port/src/app/keymap.c:18-20,43-46` (`0x63e89`=+0x01 Esc, `0x63eb2`=+0x2a LShift,
+key-byte identity is `src/app/keymap.c:18-20,43-46` (`0x63e89`=+0x01 Esc, `0x63eb2`=+0x2a LShift,
 `0x63ebe`=+0x36 RShift ✓).  `scripts/rig/drives/ep1_roomclear2.txt` sends only `poke 0x6336c 3` + `key enter`
 pairs to its last event at t=215350 ms ✗ Enter is `0x63ea4` — it drives the menu's purchase rows, it cannot exit
 the screen ✓ **The port's wait is correct behaviour; the drive could not leave the screen** ✓

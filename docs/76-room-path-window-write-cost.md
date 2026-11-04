@@ -8,7 +8,7 @@ renderer's page flip and the sprite blitter write into the same window and are n
 The filed item was half right, and the half that was wrong matters: the room renderer writes to the A0000 window
 **exactly once per frame**, and the sprite blitter never touches it.
 
-Resolving the two arenas the port uses (`video_map()` in `port/src/f/f.c`) settles it:
+Resolving the two arenas the port uses (`video_map()` in `src/f/f.c`) settles it:
 
 | write in a room frame | destination | through the window? |
 |---|---|---|
@@ -41,7 +41,7 @@ NIGHT_VGAWS=300   room calls=69.8/s  drawn=50.8/s  skipped=18.9/s    <-- the pum
 The cadence is set by the pump's own gate, and the numbers line up exactly:
 
 * `fn_03ef29` reprograms PIT ch0 to divisor `0x982` = 2434 -> **490 Hz** (`1193182/2434 = 490`), which is the tick
-  rate the host pump already drives (`port/src/app/main.c`, and `DAT_53c48`'s threshold is compared against 490).
+  rate the host pump already drives (`src/app/main.c`, and `DAT_53c48`'s threshold is compared against 490).
 * `DAT_00053104 = 0x46 = 70`, so the gate value is `n = 0x1ea / 70 = 490/70 = 7` ticks per frame -> the pump waits
   until 7 ticks pass -> **490/7 = 70.0 frames/s**, i.e. a 14.29 ms frame budget.
 * 70 Hz is also the VGA mode-13h vertical refresh rate, which is what the game's retrace waits (port `0x3DA`,
@@ -82,8 +82,8 @@ room-path pacing question).
 ## Reproduce
 
     # room cadence sweep
-    cd port && for ws in 0 63 97 150 223 300; do NIGHT_FRAMERATE=1 NIGHT_VGAWS=$ws \
-      ./test/night --warp-stage 1 --script ../scripts/playtest/route_show_keyed.txt \
+    for ws in 0 63 97 150 223 300; do NIGHT_FRAMERATE=1 NIGHT_VGAWS=$ws \
+      ./build/night --warp-stage 1 --script ../scripts/playtest/route_show_keyed.txt \
       --shots /tmp/fr --no-audio --frames 600 --shot-limit 4 2>&1 | grep framerate | tail -1; done
     # title/logo regression A/B
     python3 scripts/playtest_title_melt_span.py

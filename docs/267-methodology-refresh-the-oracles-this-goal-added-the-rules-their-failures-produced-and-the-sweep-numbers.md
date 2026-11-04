@@ -25,7 +25,7 @@
    numbers must come from `route.sh`, repeated ✓ (docs/191 §1, docs/239 §4, docs/265 §4) ✓
 3. **Build freshness is part of a measurement.** A soak that reports a line number that is blank in the source is
    measuring yesterday's binary ✓; `route.sh`'s `find -newer` guard and `make`'s whole-second comparison disagree, so the
-   guard now forces `make -C port app -B` and re-checks ✓ (docs/265 §2, docs/266 §1) ✓
+   guard now forces `make app -B` and re-checks ✓ (docs/265 §2, docs/266 §1) ✓
 4. **Byte-pattern scans cannot classify an instruction.** A `disp32` hit looked like a fourth writer of
    `DAT_00063f28` ✓ and was `memset(...,0,0x28)` via `call 0x41e20` ✓; grep for `0x3b5c0` missed `fn_0003b5c0` ✓; grep for
    a displacement missed every `PL16()/PL32()` accessor store ✓ (docs/264 §2, docs/252 §2, docs/254 §3) ✓
@@ -56,7 +56,7 @@
 ## 4. Sweep numbers as of HEAD `0224c27`
 
 ```
-make -C port test                      ALL PASS   (app binary rebuilt by the target ✓)
+make test                      ALL PASS   (app binary rebuilt by the target ✓)
 nine-episode ASan/UBSan soak           stage 1..9 rc=0  ubsan=0  asan=0  segv=0  4000 frames each  (/tmp/rig/soak266)
 fuzz census (9 episodes, 8 seeds, 4 workers, cap 60, round 0)   coverage 248/503  crashes 0   corpus 5
    (two rounds ended rc=124 = wall timeout, 0 new functions, not faults)

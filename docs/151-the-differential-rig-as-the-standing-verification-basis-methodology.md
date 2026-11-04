@@ -30,7 +30,7 @@ the rig itself.
 | entity census | `scripts/rig/ent_list.py`, `frame_counter.py`, `player_record.py` | state census, position continuity, counter magnitude, count-vs-chain agreement | behaviours no stored drive reaches (docs/118's fallen family) |
 | screen oracle | `scripts/rig/diff_screen.py`, `diff_activity.py` | picture-change pacing, per-window divergence, DS attribution of a divergent window | visual "looks wrong" judgements |
 | audio oracle | `scripts/rig/diff_audio.py`, `port_mix.py`, `music_melody.py`, `cd_schedule.py` | play/stop schedule equivalence, teardown invariant, audibility by melodic fingerprint | anything if the capture rate is wrong (docs/130 voided a whole comparison) |
-| sanitizers | `make -C port asanapp asanapp-o2`, `scripts/rig/asan_soak.sh`→`asan_soak.sh` | memory errors and UB at the *app's* optimisation level | anything about flat-heap wild pointers the arena cannot see (docs/128) |
+| sanitizers | `make asanapp asanapp-o2`, `scripts/rig/asan_soak.sh`→`asan_soak.sh` | memory errors and UB at the *app's* optimisation level | anything about flat-heap wild pointers the arena cannot see (docs/128) |
 | fuzz census | `scripts/rig/episode_curve.sh` | which shipped functions the corpus reaches, per episode, per round | that an unreached function is correct |
 
 ## 3. Rules this goal had to learn the hard way
@@ -65,8 +65,8 @@ the rig itself.
 ## 4. Standing sweep (what to run, in order)
 
 ```sh
-make -C port test && make -C port selftest            # fixtures: the shipped behaviour pinned in code
-make -C port app asanapp asanapp-o2 censusapp
+make test && make selftest            # fixtures: the shipped behaviour pinned in code
+make app asanapp asanapp-o2 censusapp
 sh scripts/rig/asan_soak.sh                            # nine episodes, sanitizers, rc=0 expected
 sh scripts/rig/asan_o2_sweep.sh                        # stored fuzz corpus, -O2 sanitizers
 sh scripts/rig/episode_curve.sh                        # per-episode coverage curve + union

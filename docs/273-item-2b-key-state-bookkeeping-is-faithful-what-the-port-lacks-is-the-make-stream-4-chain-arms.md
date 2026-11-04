@@ -1,6 +1,6 @@
 # 273 — Item 2b: the key-state array bookkeeping is faithful; what the port lacks is *make supply* — the chain-key slots are armed 4 times per run, the shipped's dozens per second
 
-Instrument added under `NIGHT_ACTTRACE=1` (`port/src/f/f.c`, counters `g_kd_*` in front of `fn_034735` ✓): it counts
+Instrument added under `NIGHT_ACTTRACE=1` (`src/f/f.c`, counters `g_kd_*` in front of `fn_034735` ✓): it counts
 `fn_0347e3` entries, entries that saw at least one armed slot, switch hits on the chain-key cases, entries of
 `fn_034735` / `fn_034635` / `fn_034353`, and prints `g_dat_52ff8` plus slots `0x1c/0x1d/0x38` ✓ (two comment lines were
 mangled by the first insertion — `…state mach` / `…ine (62c58/62cd8) */` ✓ — repaired in the same change ✓)

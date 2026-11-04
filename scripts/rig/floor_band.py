@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """floor_band.py -- per-row ink profile of a saved witness frame, for the "floor renders black" claim.
 
-Witness bins (port/src/app/rig_sink.c rig_screen_frame) are the exact pixels the host presents,
+Witness bins (src/app/rig_sink.c rig_screen_frame) are the exact pixels the host presents,
 w*h*4 bytes, channel order as captured (ri/gi/bi chosen by the caller).  This script does not compare
 two dumps pixel-by-pixel (docs/202, docs/205 forbid that across dumps); it asks one question per frame:
 for each row of the presented canvas, how many pixels differ from that frame's modal colour, and how

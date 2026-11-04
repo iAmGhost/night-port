@@ -6,7 +6,7 @@ displacement never comes from a step at all.
 
 ## 1. The mover census (`NIGHT_WALKTRACE`, `fn_01545e` entry)
 
-`port/src/f/f.c` now counts every entry to `fn_01545e` (guest 0x0001545e, the mover that adds `d` to the
+`src/f/f.c` now counts every entry to `fn_01545e` (guest 0x0001545e, the mover that adds `d` to the
 camera-x axis field `+0x01`), plus calls into the two chain-driven player movers `fn_034295` / `fn_0342ff`,
 and prints a shutdown summary:
 
@@ -86,8 +86,8 @@ port spends fewer frames in `0x02`, the defect is upstream in the chain that sel
 ## 5. Reproduce
 
 ```sh
-make -C port app
-NIGHT_WALKTRACE=1 ./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
+make app
+NIGHT_WALKTRACE=1 ./build/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
     --warp-stage 1 --frames 6000 2>&1 | grep '^WALK'
 python3 scripts/rig/walk_rate.py --orig /tmp/rig/g12/orig --port /tmp/rig/g12/port   # docs/149
 uv run --with capstone scripts/audit/call_sites.py --target 0x1545e --before 6       # 26 callers, feeds of d

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse the port's own globals and call graph (port/src/f) for the static audit.
+"""Parse the port's own globals and call graph (src/f) for the static audit.
 
 Every port global keeps the shipped address in its name (g_dat_53c7c, g_tab_52c3c)
 or in its declaration comment (DAT_00053338), which is what makes a mechanical

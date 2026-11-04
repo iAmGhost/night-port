@@ -25,7 +25,7 @@ The defect was at the only call site, the tail of `fn_03d4e4`:
 ```
 
 The port read the shipped's skip branch as its call branch (`if (camY + 0xc2 > player[+9]) fn_03cc6b(...)`).
-Fixed at `port/src/f/f.c:14768` by negating the test, with both comments quoting 0x3d5f1 ✓ Consequence of the
+Fixed at `src/f/f.c:14768` by negating the test, with both comments quoting 0x3d5f1 ✓ Consequence of the
 correct rule: the follow runs only once the player's Y has reached `camY + 194` — an edge-triggered camera,
 which is what "follows the player down" means in this engine.
 
@@ -33,7 +33,7 @@ which is what "follows the player down" means in this engine.
 ran", "below the vertical threshold -> nothing moves").  They were written from the port's test, not from the
 shipped's jumps — docs/263 §4's failure class a third time ✓ Rewritten to the shipped's polarity
 (`player[+9] = 0x200` → the call runs and `DAT_639e0` becomes 1 ✓ `player[+9] = 50` → the shipped jumps over the
-call ✓): `make -C port test` → **ALL PASS** ✓
+call ✓): `make test` → **ALL PASS** ✓
 
 Measured red before the fix (`/tmp/rig/w313g`): `DAT_639e0` = {0, 1} across 16000 frames, `fn_03cc6b` reached
 twice in 16000 frames, and the one visit whose gate was true did perform the shipped's `inc`

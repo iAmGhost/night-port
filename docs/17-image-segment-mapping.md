@@ -23,7 +23,7 @@ bytes) is byte-identical to Ghidra's bytes there, so the delta is the segment ma
 * `scripts/extract_ds.py <va-hex> <len> [name]` — emits a C `uint8_t name[] = { ... }` initializer for a
   data-segment range through the `VA - 0x7600` mapping.
 
-Already extracted this way (in `port/src/f/f.c`):
+Already extracted this way (in `src/f/f.c`):
 
 * `g_blk_51c24[0x1dc]` — DS `0x51c24 .. 0x51e00`, one contiguous initialized block that carries
   * `+0x00` `uint32[type]` -> sound-slot index (`0x0113e7`),

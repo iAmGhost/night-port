@@ -61,7 +61,7 @@ Three concrete divergences, all rig-detected, none of them visible to the schedu
 
 ## 3. What is now localized, and the next measurement
 
-The port issues all CD plays through `cdda_play()` in `port/src/app/main.c`, fed by the DS selection cells
+The port issues all CD plays through `cdda_play()` in `src/app/main.c`, fed by the DS selection cells
 (`0x53c44` track index, `0x53c40` lba, `0x53c48` sectors, docs/106). Since the shipped side *requests* track 11
 and produces no track-11 audio, the shipped game must be aborting/replacing that request before the drive
 stream reaches the mixer — or the port is emitting audio for a request the shipped drive silently dropped.

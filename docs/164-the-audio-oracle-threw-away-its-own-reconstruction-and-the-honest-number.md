@@ -45,7 +45,7 @@ Two separate statements, and they must not be merged:
 
 Read while checking the coverage claim, so the next measurement starts from facts rather than hypothesis:
 
-* the DMA source the model reads is `sys_audio_set_source(g_dat_63fb4)` (`port/src/app/main.c:399`), and
+* the DMA source the model reads is `sys_audio_set_source(g_dat_63fb4)` (`src/app/main.c:399`), and
   `g_dat_63fb4` **is live in the port**: allocated `fn_00040788(&g_dat_63fb0, 0xffff)` at `f.c:8305` (a 0x10000
   buffer) and filled by `mem_copy(g_dat_63fb4, g_dat_63fa8, g_dat_63f98)` at `f.c:8417` and `f.c:8457`.  So this
   is not docs/112/113's "unfilled array for a live DS address" family.
@@ -76,8 +76,8 @@ Read while checking the coverage claim, so the next measurement starts from fact
 
 | gate | result |
 |---|---|
-| `make -C port test` | `== ALL PASS ==` |
-| `make -C port selftest` | `ALL PASS (0 failures)` |
+| `make test` | `== ALL PASS ==` |
+| `make selftest` | `ALL PASS (0 failures)` |
 | nine-episode ASan/UBSan soak (`/tmp/rig/soak_final`) | 9/9 stages `rc=0 ubsan=0 asan=0 segv=0`, all reach 4000 frames |
 | state oracle, activity-profile half | 269/269 SAME |
 | state oracle, value half | 57 divergent cells, **38 same-width value divergences**, 42 classified NON-GAMEPLAY, 13 REC-NULL |

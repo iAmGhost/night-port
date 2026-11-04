@@ -13,7 +13,7 @@ Then the regression table for the older six items, the sweep numbers, and an hon
 
 **Reported:** "music now changes, but with a bit of delay."
 
-**Instrument built for it:** `NIGHT_CDDADBG=1` in `port/src/app/main.c` writes `port/cdda_pipe.jsonl`
+**Instrument built for it:** `NIGHT_CDDADBG=1` in `src/app/main.c` writes `port/cdda_pipe.jsonl`
 (play / stop / flush / first_feed markers plus a 40 ms pipe sample carrying
 `SDL_GetAudioStreamAvailable`, pushed/pulled sectors, stream position and the budget), and
 `scripts/rig/cdda_delay.py` turns that into queued-ahead bytes → seconds of audio sitting in front of the
@@ -84,7 +84,7 @@ w1 <= frame && w2 > frame          (accept row i)
 
 not "either threshold". Disassembly: `scripts/audit/disasm.py --entry 0x14640 --end 0x14710`.
 
-**Fix** (`df831be`): `port/src/f/f.c` restores the window test. Fixture in `port/test/test_f1.c` case (2b)
+**Fix** (`df831be`): `src/f/f.c` restores the window test. Fixture in `test/test_f1.c` case (2b)
 — frame 3 with row 0 = (20, 30) in the future and row 1 = (0, 10) live must select **row 1**: red on the
 unfixed line (it was the only FAIL), green after (`== ALL PASS ==`).
 
@@ -196,7 +196,7 @@ Each row names the gate, the run path, and the number as measured this session.
 
 ## 7. Sweeps on HEAD
 
-* `make -C port test` → `== ALL PASS ==` (the target rebuilds `port/test/night`, `docs/181` §5).
+* `make test` → `== ALL PASS ==` (the target rebuilds `build/night`, `docs/181` §5).
 * Nine-episode ASan/UBSan soak `/tmp/rig/soak309` (`scripts/rig/asan_soak.sh`, which rebuilds the asan
   binary first, `docs/265` §2): stages 1–9, each `rc=0 ubsan=0 asan=0 segv=0`, 4 000 frames presented.
   This is also the run that proves the renamed `--warp-episode` flag works in the soak harness.
@@ -218,7 +218,7 @@ Each row names the gate, the run path, and the number as measured this session.
     and **no `ERROR: AddressSanitizer`, no UBSan `runtime error`, no `Segmentation fault` line in any of the
     48 `run.log` files** ✓ 0 crashes ✓; coverage **233/503**, never entered 270.
   * The cap kills are a measurement-basis artifact, not a hang: the census binary is
-    `port/test/night-census`, which runs at ~52 fps, and `--cap` is 120 s — `r0s12_st4` was killed at
+    `build/night-census`, which runs at ~52 fps, and `--cap` is 120 s — `r0s12_st4` was killed at
     t = 119.4 s with `frames=6191` advancing normally while its drive runs to t = 132.3 s.
   * Coverage is a **range, not a gate**: 254/503 (`fuzz305`, 24 seeds), 237/503 (`fuzz309`, 24 seeds),
     233/503 (`fuzz310`, 48 seeds). More seeds did not produce more coverage; the greedy corpus path varies

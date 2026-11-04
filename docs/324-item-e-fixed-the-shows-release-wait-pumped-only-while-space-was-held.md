@@ -16,7 +16,7 @@ do { while (g_dat_63ec1 != 0) { sys_port_spin(); } } while (g_dat_63ea4 != 0);
 pumps **only inside the inner `while`**.  The shipped's two tests (0x3a7cd tests `DAT_63ec1`, 0x3a7d6 tests
 `DAT_63ea4`, 0x3a7dd exits when both are clear, 0x3a7df loops) contain no store — the shipped's latch bytes
 are cleared asynchronously by the keyboard handler while the CPU spins.  In this port the only writer of those
-bytes is the keyboard-handler model (`port/src/app/keymap.c`: make at 0x0003fe06, break at 0x0003fe69-6e),
+bytes is the keyboard-handler model (`src/app/keymap.c`: make at 0x0003fe06, break at 0x0003fe69-6e),
 and it runs only when a pump runs.  So with **Space clear and Enter still held** — exactly what a press
 leaves behind — the port's wait loops with *no pump at all*: nothing can ever clear `DAT_63ea4`.
 
@@ -34,7 +34,7 @@ Two consequences, both measured:
 
 ## 2. The fix (predicate unchanged, pump per iteration)
 
-Factored out as `f_show_release_wait()` (`port/src/f/f.c`, declared in `f.h`), in the same shape the port
+Factored out as `f_show_release_wait()` (`src/f/f.c`, declared in `f.h`), in the same shape the port
 already uses for the title/menu drains (`fn_03a224`'s drain at 0x3a409-431, `fn_038cde`'s at 0x38edc-f21):
 
 ```c
@@ -87,7 +87,7 @@ with **no press = 0**, every release wait ending at `post-latch enter=0 space=0`
 
 ## 5. Fixture
 
-Three checks added to `test_fn_03a70e` (`port/test/test_f1.c`), driving the drain with the scripted key
+Three checks added to `test_fn_03a70e` (`test/test_f1.c`), driving the drain with the scripted key
 timeline (`sys_key_script_add`) so the release lands on a known spin:
 
 ```
@@ -96,7 +96,7 @@ timeline (`sys_key_script_add`) so the release lands on a known spin:
 [PASS] with both latches clear the wait does not spin at all                            (spins == 0)
 ```
 
-`make -C port test` -> `== ALL PASS ==`, 0 FAIL.
+`make test` -> `== ALL PASS ==`, 0 FAIL.
 
 ## 6. What this does and does not close
 

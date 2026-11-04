@@ -13,7 +13,7 @@ struct { int64_t t_ms; uint64_t frame; int32_t w, height, changed, pad; }   /* 3
 
 Field widths are chosen so every member is naturally aligned — the first version put `uint8_t
 changed` after `int32_t`s, the compiler padded the struct to 32 while the Python reader packed 27, and
-every frame after the first was garbage. Producers: `port/src/app/rig_sink.c` (`rig_screen_frame`,
+every frame after the first was garbage. Producers: `src/app/rig_sink.c` (`rig_screen_frame`,
 called from `present()` with the **explicit** byte offsets `(3,2,1)` because the port's RGBA8888 word
 is little-endian, so its memory bytes are A,B,G,R) and `scripts/rig/capture_original.py`
 (`/video/frame?format=raw`: a 15-byte header — w, h, pitch, bpp — then BGRX32 or index pixels with a
@@ -124,6 +124,6 @@ python3 scripts/rig/diff_screen.py --orig $OUT/orig_screen/frames.bin --port $OU
         --orig-run $OUT/orig --md $OUT/report_screen.md
 python3 scripts/rig/diff_audio.py  --orig $OUT/orig/audio.wav --port $OUT/port/pcm.wav \
         --port-cells $OUT/port/cells.bin --drive scripts/rig/drives/title_basic.txt
-NIGHT_RIG_CONTROL=no_timer timeout 90 ./port/test/night --res-dir ./NIGHT \
+NIGHT_RIG_CONTROL=no_timer timeout 90 ./build/night --res-dir ./NIGHT \
         --script scripts/rig/drives/title_basic.txt --rig-dump /tmp/rig/ctl-no_timer --rig-hz 10 --frames 1600
 ```

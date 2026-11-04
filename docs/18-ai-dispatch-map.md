@@ -274,7 +274,7 @@ Older progress: (5 of 18 -- 0x01bea8/behaviour 0x04 added: a split slot draw `v%
 Older progress: (4 of 18): **0x017f13** (behaviour 0x00), **0x018e88** (behaviour 0x01),
 **0x019e48** (behaviour 0x02), **0x01aec8** (behaviour 0x03 -- the chooser alternates on entity[0x5f]
 instead of drawing a slot, and its screen clamp runs before the too-close test: sibling ordering
-must always be re-derived from disasm). The family's shared skeleton is now in `port/src/f/f.c` three times;
+must always be re-derived from disasm). The family's shared skeleton is now in `src/f/f.c` three times;
 the fastest route to the rest is the pseudo-level diff against the previous handler (see
 `scratch/`-free recipe below), not the instruction diff.
 

@@ -95,7 +95,7 @@ fresh 150 s route (`/tmp/rig/g22`).  Value-oracle tally on the same drive, calib
 | REC-NULL | 11 | **7** |
 | activity profile | 269/269 SAME | 269/269 SAME |
 
-`make -C port test` ALL PASS.  `DS 0x533a0` now carries a host stack address (the reservation the thunk records);
+`make test` ALL PASS.  `DS 0x533a0` now carries a host stack address (the reservation the thunk records);
 the oracle already classifies it `NON-GAMEPLAY:dos_extender`, so it adds no noise, but it is a host value and is
 not comparable -- recorded rather than hidden.
 

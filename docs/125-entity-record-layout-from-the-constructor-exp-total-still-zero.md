@@ -100,7 +100,7 @@ not move", and it is a *write-site* question in the flat model, not a DS-symbol 
 ## 6. Retraction: §3's EXP divergence was NOT reproducible — the port shows the same 0 → 0xa → 0x14 ladder
 
 Re-running the port alone on the same drive with the record dump enabled at 4 Hz
-(`./port/test/night --script scripts/rig/drives/ep1_kill3.txt --rig-dump /tmp/rig/xp4 --rig-hz 4`, 876 samples,
+(`./build/night --script scripts/rig/drives/ep1_kill3.txt --rig-dump /tmp/rig/xp4 --rig-hz 4`, 876 samples,
 676 live player-record samples) and reading the fields at the constructor-derived offsets:
 
 ```

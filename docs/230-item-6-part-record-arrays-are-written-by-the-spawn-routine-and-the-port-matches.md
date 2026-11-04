@@ -19,7 +19,7 @@ geometry arrays at spawn.  Audited, closed.
 ## 2. What the port stores there
 
 ```c
-/* port/src/f/f.c, fn_010efc */
+/* src/f/f.c, fn_010efc */
 1328:  ((struct ua32 *)((block + 0x12b)))->v = ((struct ua32 *)((spr + 0x04)))->v;   /* 0x110d8-e4 */
 1331:  ((struct ua32 *)((block + 0x137)))->v = ((struct ua32 *)((spr + 0x0c)))->v;   /* 0x11129-35 */
 ```

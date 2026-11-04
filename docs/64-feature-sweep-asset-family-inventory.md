@@ -11,7 +11,7 @@ the script's `wait res` anchor, docs/56) emit `resseq <name> n=<index>` lines. N
 
 ```
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_BOARD=1 NIGHT_RESLOG=1 \
-  ./test/night --script scripts/playtest/route_show_keyed.txt --warp-stage N --no-audio --frames 9000
+  ./build/night --script scripts/playtest/route_show_keyed.txt --warp-stage N --no-audio --frames 9000
 ```
 
 Across the nine runs: **293 distinct resource lookups**, of which 122 are `.spr`/`.act` blocks.

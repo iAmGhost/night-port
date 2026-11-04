@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
-#include "../port/src/f/f.h"
-#include "../port/src/sys/sys.h"
+#include "../../src/f/f.h"
+#include "../../src/sys/sys.h"
 int main(void){
   static uint8_t pool[0x4000]; memset(pool,0,sizeof pool);
   g_ndpool=pool; g_node_list_active=0; g_node_list_done=0; g_dat_633b0=SCREEN_BASE;

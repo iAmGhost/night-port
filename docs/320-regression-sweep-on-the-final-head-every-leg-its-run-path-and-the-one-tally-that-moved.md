@@ -9,7 +9,7 @@ Goal task-6.  HEAD at the time of the sweep: `8fd5c2a` (docs/312 §5 filled); th
 
 | leg | run path | number |
 |---|---|---|
-| unit suite | `make -C port test` | **ALL PASS** ✓ (the target rebuilds `port/test/night`, docs/181 §5) |
+| unit suite | `make test` | **ALL PASS** ✓ (the target rebuilds `build/night`, docs/181 §5) |
 | nine-episode ASan/UBSan soak | `/tmp/rig/soak320` (`OUT=/tmp/rig/soak320 JOBS=4 CAP=420 FRAMES=4000 scripts/rig/asan_soak.sh`, rebuild on ✓ docs/265 §2) | 9/9 stages `rc=0 ubsan=0 asan=0 segv=0`, `frames presented: 4000` in every stage log |
 | coverage-guided fuzz | `/tmp/rig/fuzz320` (`--episodes 1..9 --seeds 40 --workers 4 --cap 120`) | **crashes 0**; coverage `234/503` functions entered, 269 never entered — coverage quoted as a range across censuses (254/237/233/234), the crash census is the gate (docs/308) |
 | blit row-crossing + arm census | `/tmp/rig/t11le` (`ep1_leftedge4.txt`, `NIGHT_BLITEDGE=1 NIGHT_BLITDBG=1`) | `blt_rows calls=5159 out_of_band=0`; `spans_inspected=2265525 inside_one_row=2265525 crossings=0` |
@@ -49,13 +49,13 @@ on the new HEAD before anything was quoted from them.
 
 | leg | run | number |
 |---|---|---|
-| unit suite | `make -C port test` | ALL PASS (also re-run after the fix, in the `/tmp/rig/h321e` build) |
+| unit suite | `make test` | ALL PASS (also re-run after the fix, in the `/tmp/rig/h321e` build) |
 | canonical route, shipped half reused | `/tmp/rig/rb321` and `/tmp/rig/rb322` (two runs, `REUSE_ORIG=/tmp/rig/rb15 … route.sh scripts/rig/drives/ep1_kill3.txt 150`) | state `cells=346 phases=274 tally {'SIZE?': 34, 'PTR': 52, SAME 70, 'REPR': 19, 'DIFF-SIZE': 14, 'DIFF': 27}`, **27 same-width residuals**; activity 271 cells / 275 phases `{'SAME': 271}`; screen 1422 aligned pairs, **score 0.7088**, 8 divergent runs -- identical to `rb320`'s screen and activity rows |
 | residual-set diff | `/tmp/rig/rb320.res.txt` vs `/tmp/rig/rb321.res.txt` vs `/tmp/rig/rb322.res.txt` | exactly one cell new: **`0x63ed8 g_dat_63ed8`**, present in both post-fix runs and absent pre-fix |
 
 `g_dat_63ed8` is the key-state byte `fn_038f3d` tests at 0x39732 (`cmp byte [0x13ed8], 0`), i.e. one of
 the latch bytes of the docs/292 family.  `sys_vga_set_mode()` writes only `sys.c`'s geometry variables,
-and `grep -n "sys_video_w\|sys_video_h" port/src/f/f.c` returns nothing -- the modelled game code never
+and `grep -n "sys_video_w\|sys_video_h" src/f/f.c` returns nothing -- the modelled game code never
 reads them -- so no modelled store changed.  The plausible mechanism is the one docs/310 warns about:
 drives are wall-clock anchored, a mode change costs a texture rebuild in `main.c:ensure_mode`, and the
 phases the state oracle pairs therefore land slightly differently.  The row is recorded as a new residual
@@ -75,7 +75,7 @@ from §1.
 | item 4 card key-wait gate | `/tmp/rig/q322sl` (`--warp-episode 3`, `ep1_stage3_slides.txt`, `NIGHT_SLIDEDBG=1`) | 6 gates (`g_tab_52f2c[3] = 6`), every one `returned 0` after a press; **0 gates satisfied with no press** |
 | item 2b per-type award | `scripts/rig/exp_award.py --orig /tmp/rig/rb322/orig --port /tmp/rig/rb322/port` | shipped `type_idx=31` awards `{0, 5, 10}` = port `{0, 5, 10}`; a dying `kind=1 type_idx=31` record carries award 10 (shipped 32 records, port 44) |
 | item 1 audio legs | `/tmp/rig/rb321`, `/tmp/rig/rb322` (`report_audio_sfx.txt`, `report_audio_cd.txt`) | every phase `SAME` (the docs/304 instrument floor still applies: the shipped half carries no CD-DA) |
-| item 2a kill label | `make -C port test` | ALL PASS, which is where the index-10 label-blit fixture lives; the canonical route still yields no kill, so no live witness is available there (docs/197) |
+| item 2a kill label | `make test` | ALL PASS, which is where the index-10 label-blit fixture lives; the canonical route still yields no kill, so no live witness is available there (docs/197) |
 | item 3 upgrade menu | `/tmp/rig/g319c`, `/tmp/rig/g319d`, `/tmp/rig/g319h`, `/tmp/rig/g319i`, item G's green `/tmp/rig/g319i` | every committed purchase steps `sel` by 1 and HP by one table row (100 -> 200 -> 300) |
 | item 5 fault | `/tmp/rig/soak321` | 0 faults over 36,000 frames across nine episodes |
 

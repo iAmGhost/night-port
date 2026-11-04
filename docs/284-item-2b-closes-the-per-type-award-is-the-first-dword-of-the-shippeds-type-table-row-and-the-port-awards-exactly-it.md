@@ -51,7 +51,7 @@ own dumped memory ✓ Docs/188 ("the 53/54 in `+0x32` are state ids, not EXP") s
 | per-type award table transcribed only where spans agree | **closed**: `g_dat_53ea8 = g_dat_53e9c + 0xc`, 0x104 rows × 0x88 ✓, read at the shipped's `0x15067` with `EAX = idx*0x88` (no extra +0xc ✓) and verified against shipped memory (31 → 10 ✓, 36 → 15 ✓, 1 → 250 ✓, 11 → 85 ✓) |
 | red-before / green-after record-field oracle pair | **closed**: before (`rb8`) no `kind==1` dying record carried an award ✓; after (`rb9`) `kind=1 type_idx=31 +0x32=10` in 44 samples ✓✓ with the chain-target census moving `{0,51}` → `{0,53,51,54,52}` ✓ |
 | docs/65 row | **closed** ✓ (docs/282, docs/283, docs/284 rows ✓) |
-| suite green | **closed**: `make -C port test` ALL PASS ✓; nine-episode ASan/UBSan soak 9/9 with ubsan=0/asan=0/segv=0 ✓ |
+| suite green | **closed**: `make test` ALL PASS ✓; nine-episode ASan/UBSan soak 9/9 with ubsan=0/asan=0/segv=0 ✓ |
 
 Still open, recorded rather than glossed: the **player-side accumulation** has no valid instrument yet — `fn_015295`'s
 `add dword [edx + 5], eax` (`0x152b8`) writes an unaligned `record+5` accumulator whose census holds small negatives

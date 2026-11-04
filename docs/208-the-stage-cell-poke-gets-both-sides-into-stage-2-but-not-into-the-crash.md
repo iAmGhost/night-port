@@ -18,7 +18,7 @@ no bus error / SIGSEGV / AddressSanitizer line, and no `res stage2.*` lookup any
 ```
 
 So on the current build the port *runs* in stage 2 for >13 000 frames without faulting when the stage cell is
-written, and it never asks for a stage-2 resource.  The historical `bus error ./test/night` at stage-2 entry is
+written, and it never asks for a stage-2 resource.  The historical `bus error ./build/night` at stage-2 entry is
 therefore not reachable through the stage-cell poke: what the poke skips is the shipped's own stage-clear path
 (`fn_03af18`'s room-clear branch: `g_dat_63370 += 1`, the `%de%d.pcx`/`stage%d.pcx` slides from `g_tab_52f90[stage]`,
 then `fn_038f3d(1)` at 0x0003b54c) -- which is the code that actually loads the next stage's resources, and the same

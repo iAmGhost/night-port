@@ -2,7 +2,7 @@
 
 Two measurements that narrow item 2a by eliminating candidates.  Shipped side: `/tmp/rig/ents-orig/orig`
 (drive `ep1_kill3`), the 352-byte block captured for the DS pointer cells `g_dat_639c0` / `g_dat_639c4` at
-state 363.  Port side: `/tmp/rig/gd1` (`port/test/night --script ep1_kill3`, `NIGHT_GLYPHDBG=1`, unpinned clock so
+state 363.  Port side: `/tmp/rig/gd1` (`build/night --script ep1_kill3`, `NIGHT_GLYPHDBG=1`, unpinned clock so
 the kill popup actually posts: 80 `expnum` + 80 `stagespr` + 60 `valuedisp` witness lines).
 
 ## 1. The shipped font A / font B descriptors
@@ -33,7 +33,7 @@ the kill popup actually posts: 80 `expnum` + 80 `stagespr` + 60 `valuedisp` witn
 `fn_03b718`'s per-digit blit passes `push 7 ; mov ecx, 4` for font A and `rows 0xc, col 10` for font B
 (guest 0x0003b7aa-0x0003b7ac and branch B at 0x0003b840-0x0003b914).  Those are exactly the numbers the shipped's
 own tables hold: 4 columns / 7 rows for the ten font-A digits, 10 columns / 12 rows for the ten font-B digits.
-The port hard-codes the same pair (`port/src/f/f.c:14532-14547`, docs/210 §1), so the metrics are not the
+The port hard-codes the same pair (`src/f/f.c:14532-14547`, docs/210 §1), so the metrics are not the
 divergence, and neither is the digit index arithmetic (docs/215 §3) nor the per-digit advance `i*5`
 (guest 0x0003b7c9 `lea edx, [edx+edx*4]`).
 

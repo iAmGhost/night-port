@@ -333,7 +333,7 @@ Row: `[u8 nseg][seg × nseg]`. Segment: `[b0][b1][data]`:
   (`FUN_0003bb42`), confirming a shared in-house blit encoder.
 - Rendering: 320×200 indexed → 2× nearest upscale → 640×400 area of the
   640×480 screen (bottom 80 rows stay black).
-- Port: `port/src/fli.c` decodes the whole stream; self-test asserts exact
+- Port: `src/fli.c` decodes the whole stream; self-test asserts exact
   EOF consumption and a per-pixel diff against `scratch/shots/ref_f39.idx`.
 
 ## 12. §10 closure (resolved via `docs/05-logic.md`)

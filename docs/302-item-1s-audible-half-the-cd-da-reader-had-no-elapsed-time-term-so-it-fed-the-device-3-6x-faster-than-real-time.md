@@ -37,7 +37,7 @@ LBA 37562 (contiguous ✓), and the mid-dump block at LBA 44253, inside the rang
 
 ## 3. Mechanism
 
-`sys_cd_da_plan` (`port/src/sys/sys.c:700`) is a pure clamp — no time term:
+`sys_cd_da_plan` (`src/sys/sys.c:700`) is a pure clamp — no time term:
 
 ```c
 uint32_t sys_cd_da_plan(uint32_t pos, uint32_t sectors, uint32_t want, uint32_t cap)
@@ -64,7 +64,7 @@ an allowance granted *per call* is not a lead: `el` is tiny between two calls 1/
 
 ## 5. The fix
 
-`port/src/app/main.c`: a **budget** that accumulates with wall time and is reset when a track starts
+`src/app/main.c`: a **budget** that accumulates with wall time and is reset when a track starts
 (`g_cdda_budget = 0` in `cdda_play`), with one 30-sector / 0.4 s cushion granted at the PLAY rather than per
 call:
 
@@ -99,7 +99,7 @@ line 3.9× later", docs/269's 0.55), but pacing claims must be re-measured on th
 
 State-oracle tally on the same drive (same cell set, same basis, three runs) shows no regression and a
 slight improvement: `SAME` 76 → 79, `DIFF` 21 → 18, `REC-SAME` 11 → 18, `REC-NULL` 15 → 10, and 271
-activity-profile cells `SAME` in all three ✓ `make -C port test`: `== ALL PASS ==` (the `cd_iso` fixtures,
+activity-profile cells `SAME` in all three ✓ `make test`: `== ALL PASS ==` (the `cd_iso` fixtures,
 including `cd_iso_read_audio(37262) → IMG sector 37112`, still pass ✓).
 
 ## 7. What is proven and what is not

@@ -58,7 +58,7 @@ reveal: passes=51 gate_spins=215695 row_copies=10200 colAcc=320 elapsed_ms=957.4
 | wall time of the reveal | **0.1 ms** | **957.4 ms** |
 | arena presentations asked for | 0 (hook did not exist) | **80** (one per pass) |
 
-The fix (`port/src/f/f.c`):
+The fix (`src/f/f.c`):
 
 ```c
 sys_present_poll();                                                            /* this pass is on the CRT */
@@ -80,7 +80,7 @@ time, so 29 passes are skipped.  That is the pacing-granularity residual the rig
 
 The dump samples between harness frames, so a pass drawn *inside* a wait is invisible to it — a census of the
 dump can prove pacing but never "the rows visibly crossed".  That is why the fix also installs a present hook
-(`sys_set_present_hook` / `sys_present_poll`, `port/src/sys/sys.c|sys.h`, installed in `app/main.c`): on DOS the
+(`sys_set_present_hook` / `sys_present_poll`, `src/sys/sys.c|sys.h`, installed in `app/main.c`): on DOS the
 CRT is scanning 0xA0000 while the game spins, so a pass is on screen the moment it is drawn, and the reveal
 now asks for one presentation per pass (measured: `presents=80`).  The human half was closed by the
 playtester: the effect appears now.
@@ -126,7 +126,7 @@ stage-start effect.  Nothing else in the image writes the 0xA0000 arena with tha
 
 ## 7. Fixture
 
-`test_fn_03a5f7` in `port/test/test_f1.c`:
+`test_fn_03a5f7` in `test/test_f1.c`:
 
 ```
 [PASS]   T1 80 passes x 200 rows = 16000 row copies emitted
@@ -137,4 +137,4 @@ stage-start effect.  Nothing else in the image writes the 0xA0000 arena with tha
 
 T3 installs a tick pump (`g_dat_63e24++`, the handler's own store at 0x3eebe) and asserts the exact wait count
 — 560 = 80 passes x n(7) — and that the final landed rows still match T1's byte-exact expectations.
-`make -C port test` -> `== ALL PASS ==`, 0 FAIL.
+`make test` -> `== ALL PASS ==`, 0 FAIL.

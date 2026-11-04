@@ -54,7 +54,7 @@ stage-8 startup draws the same composite.
 
 ## Regression test
 
-`scripts/playtest_ep8_show.py` -- runs `port/test/night --warp-stage 8` with the walk/fight spine, scans every 320x200
+`scripts/playtest_ep8_show.py` -- runs `build/night --warp-stage 8` with the walk/fight spine, scans every 320x200
 shot of the startup, and requires one of them to be >= 99.5 % within +-3 of
 `docs/manual-playtest/07-shots/episode8_show_original.png`:
 

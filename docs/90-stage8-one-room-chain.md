@@ -13,7 +13,7 @@ and stopped presenting frames around frame 5654, which had been read as the epis
 **Not a port defect, and not an unwind.** Two separate things were conflated:
 
 1. `frames presented: 5657` is where the *scripted run* ends, not where the game stops. The host ends the
-   process 2.5 s after the route script's last event (`port/src/app/main.c:958`), and the same script ends a
+   process 2.5 s after the route script's last event (`src/app/main.c:958`), and the same script ends a
    stage-1 run at `frames presented: 5459`. The frame number tracks the script, not stage 8.
 2. The witness fires because **stage 8 is a one-room stage in the shipped data**, so its only room node
    carries the cleared `next` link that the shipped chain builder itself writes at 0x0003ca5e. Stage 5 is the
@@ -87,7 +87,7 @@ original's observable state exactly.**
 
 ## Regression test (durable, shipped-data based)
 
-`test_stage_chain_shipped_counts` in `port/test/test_f1.c` (NIGHT_RES_DIR-gated, skips cleanly like the other
+`test_stage_chain_shipped_counts` in `test/test_f1.c` (NIGHT_RES_DIR-gated, skips cleanly like the other
 shipped-container tests) -- 9 checks, ALL PASS:
 
 ```
@@ -108,8 +108,8 @@ The chain build and the `fn_03cc6b` read of the cleared link now run inside the 
 deterministic and capped:
 
 ```
-make -C port test CFLAGS="-std=c11 -O1 -g -w -fsanitize=address"
-cd port && NIGHT_RES_DIR=../NIGHT ASAN_OPTIONS=detect_leaks=0:halt_on_error=0 timeout 900 ./test/test_f1
+make test CFLAGS="-std=c11 -O1 -g -w -fsanitize=address"
+NIGHT_RES_DIR=../NIGHT ASAN_OPTIONS=detect_leaks=0:halt_on_error=0 timeout 900 ./build/test_f1
 ```
 
 Result: `rc=0`, `== ALL PASS ==`, **0** `ERROR: AddressSanitizer` / SEGV lines, with the stage-8 node build and
@@ -117,7 +117,7 @@ the `fn_03cc6b` call on its cleared link exercised on shipped data.
 
 App-level ASan runs are a separate, filed observation: two capped runs of a stage-8 route (the docs/52 route cut
 at t=152000, and a dense variant with a space press every 1.5 s) both reached the episode-8 picture show and then
-sat in `fn_03a70e`'s **key-release** wait (`port/src/f/f.c:14681`, seen with `lldb -p <pid> -o "bt all"`), with 0
+sat in `fn_03a70e`'s **key-release** wait (`src/f/f.c:14681`, seen with `lldb -p <pid> -o "bt all"`), with 0
 ASan diagnostics. The same routes in the plain build reach the room and log the 3137 witness hits, so this is the
 route-pacing/slow-build interaction (the docs/52 show stall, in a new guise), not the room chain. Next diagnostic
 step if the app-level ASan soak on stage 8 is ever needed: pace the route from the show's own picture count
@@ -127,17 +127,17 @@ step if the app-level ASan soak on stage 8 is ever needed: pace the route from t
 
 ```sh
 # port witnesses, plain build (~190 s)
-cd port && for st in 8 1; do SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_ROOMDBG=1 \
-  timeout 250 ./test/night --warp-stage $st --script ../scripts/playtest/route_show_keyed.txt \
+for st in 8 1; do SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_ROOMDBG=1 \
+  timeout 250 ./build/night --warp-stage $st --script ../scripts/playtest/route_show_keyed.txt \
   --no-audio --frames 6500 --shot-limit 2 2>&1 | grep room-chain; done
 
 # shipped counts, no game needed
 uv run python3 scripts/extract_res.py info stage8.wal     # and the first dword, or run the suite test:
-cd port && NIGHT_RES_DIR=../NIGHT ./test/test_f1 | grep -A12 "shipped stage chains"
+NIGHT_RES_DIR=../NIGHT ./build/test_f1 | grep -A12 "shipped stage chains"
 
 # ASan, capped and deterministic (the chain path runs inside the suite)
-cd port && make -C port test CFLAGS="-std=c11 -O1 -g -w -fsanitize=address" && \
-  NIGHT_RES_DIR=../NIGHT ASAN_OPTIONS=detect_leaks=0:halt_on_error=0 timeout 900 ./test/test_f1 | tail -2
+make test CFLAGS="-std=c11 -O1 -g -w -fsanitize=address" && \
+  NIGHT_RES_DIR=../NIGHT ASAN_OPTIONS=detect_leaks=0:halt_on_error=0 timeout 900 ./build/test_f1 | tail -2
 
 # original side
 export DOSBOX_API_TOKEN=...

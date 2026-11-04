@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Python reference for fn_049613 (0x049613, 236 insn) + its transitive callees.
-# Mirrors the C port in port/src/f/f.c line-for-line. Used to generate the
+# Mirrors the C port in src/f/f.c line-for-line. Used to generate the
 # differential vectors in test_f1.c::test_fn_049613.
 #
 # Globals (module-level, set by the harness) mirror the C externs:

@@ -20,7 +20,7 @@
 Both `n` and `shown` are read from the **row-indexed** array `[i*4 + ebp-0x11c]`.  Only the "+1 while the
 cursor is on this row" test uses `page`.
 
-## 2. What the port does (unfixed build, `port/src/f/f.c:25818`)
+## 2. What the port does (unfixed build, `src/f/f.c:25818`)
 
 ```c
 for (int32_t i = 0; i < 6; i = i + 1) {                       /* 0x00039848-0x000399a2 */

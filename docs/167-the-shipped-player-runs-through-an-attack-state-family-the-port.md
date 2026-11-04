@@ -132,7 +132,7 @@ run count, never from a single run.
 ## 8. Two rig defects filed while doing it
 
 * **The witness-trap from docs/166 §9 happened a third time.**  `cntchk` printed nothing for a whole measurement
-  cycle and I nearly reported "`fn_03272f` never reaches the 500 check" -- `strings port/test/night | grep -c
+  cycle and I nearly reported "`fn_03272f` never reaches the 500 check" -- `strings build/night | grep -c
   cntchk` = 0 proved the block was empty because three trailing comment lines opened a comment on the `if`
   line and closed it on the `fprintf` line.  After rewriting the comments above the statement, `strings` = 1 and
   the check was logged 844 times in that same run.
@@ -190,7 +190,7 @@ state 0x01 streaks: 14, longest 2 samples      (shipped: 195, longest 55 samples
 ```
 
 `0x80808080` is the poison fill and `0x3e800 / 0x900 / 0x2400` are byte-shifted readings of other fields, so this
-is the dump, not the game.  `port/src/app/rig_sink.c:291-318` dumps a pointer cell heap-relative and fills its
+is the dump, not the game.  `src/app/rig_sink.c:291-318` dumps a pointer cell heap-relative and fills its
 record block with `memcpy(p + g_recoff[i], obj, rec_span(obj))`, i.e. whatever `obj` currently is, while the
 entity records the oracle can trust are the `ent##` blocks produced by walking the list head `g_dat_53c70`
 (`rig_sink.c:319-327`) -- a cell named `g_player_ent` is not the same thing as a walked entity record.  This is

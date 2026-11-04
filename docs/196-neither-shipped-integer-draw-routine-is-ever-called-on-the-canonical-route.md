@@ -3,7 +3,7 @@
 docs/195 §1b pinned the only three shipped call sites that draw an integer.  Counters were put inside both draw
 routines (`g_numdraw_38c23`, `g_numdraw_383a4`, `f.c` next to their definitions; printed by the act-census block) and
 the canonical route was run (`SDL_AUDIODRIVER=dummy NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60
-NIGHT_ACTTRACE=1`, drive `ep1_kill3.txt`, 9 000 frames = 150 s, binary rebuilt through `make -C port test`, suite ALL
+NIGHT_ACTTRACE=1`, drive `ep1_kill3.txt`, 9 000 frames = 150 s, binary rebuilt through `make test`, suite ALL
 PASS):
 
 ```

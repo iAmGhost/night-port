@@ -23,10 +23,10 @@ its clock (docs/190 §1, docs/191 §1 family); "the canonical route makes no kil
 port run.
 
 ```sh
-make -C port app -B
+make app -B
 d=/tmp/rig/k327; rm -rf $d; mkdir -p $d
 env SDL_AUDIODRIVER=dummy NIGHT_SEED=13579 NIGHT_GLYPHDBG=1 NIGHT_POPUPDBG=1 \
-  stdbuf -o0 -e0 timeout -k 5 300 ./port/test/night --res-dir ./NIGHT \
+  stdbuf -o0 -e0 timeout -k 5 300 ./build/night --res-dir ./NIGHT \
   --script scripts/rig/drives/ep1_kill3.txt --frames 12000 --rig-hz 8 --rig-dump $d \
   > $d/out.log 2>$d/err.log
 ```
@@ -45,7 +45,7 @@ increments `DAT_000639bc` (shipped 0x00012a24-0x00012a33).
 ## 3. The EXP label census, live, on those same two popups
 
 `fn_03b718`'s tail prints the array index it uses and the neighbour it must not use
-(`port/src/f/f.c:15301-15310`, `NIGHT_GLYPHDBG=1`):
+(`src/f/f.c:15301-15310`, `NIGHT_GLYPHDBG=1`):
 
 ```
 valuedisp_tail font=A count=11 arraysize=0x2c used[+0x28]=idx10 col=13 rows=6 glyph=0x1a7 | neighbour[+0x2c]=idx11 col=49 rows=49 glyph=0
@@ -88,7 +88,7 @@ is the label and index 11 is nothing.
 
 ## 5. Fixture, as the secondary claim
 
-`test_fn_03b718` (`port/test/test_f1.c:12465`) keeps the structural checks that a live run cannot pin:
+`test_fn_03b718` (`test/test_f1.c:12465`) keeps the structural checks that a live run cannot pin:
 
 - `A: terminator glyph from the control block at dest-0xf, 2 rows (rows/col from +0x28 = record 10, docs/227)`
 - `B: terminator at dest-0x18 with start_row-0xd (rows 2, col from +0x28 = record 10, docs/227)`

@@ -72,4 +72,4 @@ already sufficient to verify that fix without touching DOSBox.
 * `heap_chain_check` (from the previous session) still attached at `fn_03a829`; it reported no corruption in
   a 2124-frame run.
 
-Suite unchanged and green: **2787 PASS / 0 FAIL**, ASan clean, `make -C port selftest` ALL PASS.
+Suite unchanged and green: **2787 PASS / 0 FAIL**, ASan clean, `make selftest` ALL PASS.

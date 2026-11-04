@@ -2,7 +2,7 @@
 
 Gate contract: the rig must, with **no human playtest input**, detect and localize the six items of
 `docs/manual-playtest/03-2026-10-29.md` on the unfixed build, and say which items needed a new oracle.
-Frozen build under test: `574c636` (docs/182; the binaries `port/test/night`, `port/test/night-asan` are
+Frozen build under test: `574c636` (docs/182; the binaries `build/night`, `build/night-asan` are
 git-tracked, so the baseline commit's own binaries were re-run in `/tmp/base574`).  Canonical port env:
 `NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`; canonical route runner `scripts/rig/route.sh`.
 Docs/94, 96, 98, 99 §2 were treated as hypotheses; each is marked confirmed or superseded below.
@@ -122,7 +122,7 @@ is the one claim the rig cannot reproduce; it is recorded as a negative with its
 * Crash half: warp sweep of stages 2-9 on `night-asan` (`/tmp/rig/sweep`, `/tmp/rig/sweep2`, 3 000 and 6 600
   frames) all rc=0 with zero AddressSanitizer/SIGSEGV; docs/208's stage-cell poke (13 435 frames at stage=2)
   rc=0; docs/222's quota-poke route rc=0; baseline warp and baseline room clear rc=0.  docs/52's stage-5
-  SIGSEGV no longer reproduces.  The historical `bus error ./test/night` line is the harness's own frame-budget
+  SIGSEGV no longer reproduces.  The historical `bus error ./build/night` line is the harness's own frame-budget
   `longjmp` ("frame budget: … unwinding the game main") (docs/223 §2).
 * The only sanitizer output in any of these runs is UBSan `f.c:7360` (`toks[cnt1-1] = NULL` in `fn_04589e`, the
   widened token array at `tail = buf + nbytes`, unaligned when `nbytes` is), and it fires on routes that never

@@ -5,7 +5,7 @@ Coverage-guided fuzzing needs a coverage signal keyed to the shipped binary. The
 guest addresses, so the census is keyed to those names: this script lists every externally linkable
 definition in the port's f-layer translation units and emits
 
-  port/src/gen/fn_table.c   -- void *g_fn_addr[N] + const char *g_fn_name[N], sorted by address
+  src/gen/fn_table.c   -- void *g_fn_addr[N] + const char *g_fn_name[N], sorted by address
 
 `-finstrument-functions` then turns every call into an index lookup (bsearch over g_fn_addr), which is what
 scripts/rig/fuzz.py uses as its coverage vector.
@@ -47,14 +47,14 @@ def main():
     # Addresses are link-time, so the table stays in name order here and rig_census.c sorts a permutation
     # of indices by address once at startup (never sort the two arrays independently).
     import os
-    os.makedirs("port/src/gen", exist_ok=True)
-    open("port/src/gen/fn_table.c", "w").write("\n".join(lines) + "\n")
-    open("port/src/gen/fn_table.h", "w").write(
+    os.makedirs("src/gen", exist_ok=True)
+    open("src/gen/fn_table.c", "w").write("\n".join(lines) + "\n")
+    open("src/gen/fn_table.h", "w").write(
         "#pragma once\n#include <stddef.h>\n"
         "extern void *const g_fn_addr[];\n"
         "extern const char *const g_fn_name[];\n"
         "extern const unsigned g_fn_count;\n")
-    print(f"port/src/gen/fn_table.c: {len(names)} functions")
+    print(f"src/gen/fn_table.c: {len(names)} functions")
 
 if __name__ == "__main__":
     main()

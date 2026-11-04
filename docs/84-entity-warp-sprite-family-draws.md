@@ -7,7 +7,7 @@ composite stream is matched to a shipped `.spr` by content.
 
 ## 1. The host warp (`NIGHT_WARP_ENTITY`)
 
-Three functions in `port/src/f/f.c` (declared in `f.h`):
+Three functions in `src/f/f.c` (declared in `f.h`):
 
 ```c
 uint32_t     f_warp_entity_type(const char *name);   /* shipped per-type .spr/.act name -> type index, 0xffffffff if none */
@@ -20,7 +20,7 @@ not a host-side guess. `dust` -> type `0xfa` and `mark` -> type `0xc9` are the t
 per-type slots alias the DS globals (`DAT_000639ec[0xc9] == DAT_00063d10`,
 `DAT_00053818[0xfa] == DAT_00053c00`).
 
-The host hook is in `port/src/app/main.c` (the diagnostic block):
+The host hook is in `src/app/main.c` (the diagnostic block):
 
 ```
 NIGHT_WARP_ENTITY=boss1,enc-1,dust   NIGHT_WARP_ENTITY_AT=600
@@ -112,13 +112,13 @@ ep8: stagespr state=1 stage=8 records=0 font=0x10036ff38 rle=0x18db28 chars=0x18
 
 `state=1` means the `.spr` font block *is* present (the RLE and character tables resolve), but
 `g_dat_62a90` — the stage sprite-record count — is **0**. Those records are built by the stage loader
-`fn_037b03` from **room-record opcode 5** entries (`port/src/f/f.c` 0x00037dec-0x00037e54: opcode 5
+`fn_037b03` from **room-record opcode 5** entries (`src/f/f.c` 0x00037dec-0x00037e54: opcode 5
 copies glyph/x/y/mode into `g_tab_5d0b4[count++]`). Episode 8's room record contains no opcode-5 entry,
 so there is nothing to blit: shipped data, not a port rendering gap. Repro:
 
 ```sh
-cd port && for s in 1 8; do NIGHT_GLYPHDBG=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-  timeout 400 ./test/night --warp-stage $s --script ../scripts/playtest/route_walk_fight.txt \
+for s in 1 8; do NIGHT_GLYPHDBG=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  timeout 400 ./build/night --warp-stage $s --script ../scripts/playtest/route_walk_fight.txt \
   --no-audio --shot-limit 0 2>&1 | grep "stagespr state"; done
 ```
 
@@ -127,7 +127,7 @@ the opcode-5 absence is a second, independent stage-8 data observation for that 
 
 ## 7. Suite test
 
-`test_warp_entity_shared_types` in `port/test/test_f1.c` (10 checks; suite total 2801 -> 2811):
+`test_warp_entity_shared_types` in `test/test_f1.c` (10 checks; suite total 2801 -> 2811):
 
 * the DS alias identity (`DAT_639ec[0xc9] == DAT_63d10`, `DAT_53818[0xfa] == DAT_53c00`);
 * the name -> type map (`enc-1`=41, `enc-2`=42, `ena-1`=31, `boss1`=1, `eni-1`=76, `enj-4`=84,
@@ -140,9 +140,9 @@ the opcode-5 absence is a second, independent stage-8 data observation for that 
 ## Repro
 
 ```sh
-make -C port app
+make app
 CENSUS_FRAMES=9000 python3 -u scripts/playtest_asset_census.py        # full sweep (phase 1 + phase 2)
 python3 -u scripts/playtest_asset_census.py ent > analysis/legacy/census_ent.log   # phase 2 only (~10 min/episode)
-./port/test/test_f1 | sed -n '/host entity warp/,/^$/p'               # the 10 new checks
-make -C port test && make -C port selftest                            # ALL PASS / ALL PASS
+./build/test_f1 | sed -n '/host entity warp/,/^$/p'               # the 10 new checks
+make test && make selftest                            # ALL PASS / ALL PASS
 ```

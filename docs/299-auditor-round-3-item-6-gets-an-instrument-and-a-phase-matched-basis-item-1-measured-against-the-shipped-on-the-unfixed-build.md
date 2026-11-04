@@ -13,7 +13,7 @@ appears on routes that never reach stage 2 (`/tmp/rig/rc1.log` ✓ `ep1_roomclea
 fixed it as a soak finding ✓ not from stage-2 localization ✓
 
 **Corrected item-5 verdict.** What the frozen-build probe actually establishes:
-* the reported `bus error ./test/night` at stage-2 entry is **not reproducible on the unfixed build** ✓ — `574c636`
+* the reported `bus error ./build/night` at stage-2 entry is **not reproducible on the unfixed build** ✓ — `574c636`
   entered stage 2 on `ep1_roomclear3.txt` ✓ and ran to 18000 presented frames with `rc=0` ✓ and no stage-2 fault ✓;
 * the black-floor half was already refuted on HEAD (docs/287 ✓ floor bands carry room art ✓ pure black 0.00 % of
   7.36 M px ✓) and docs/269 shows the palette table is not the defect ✓;

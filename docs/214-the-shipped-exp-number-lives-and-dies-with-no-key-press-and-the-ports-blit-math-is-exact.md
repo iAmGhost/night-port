@@ -25,7 +25,7 @@ means any "the EXP text advanced without a keypress" reading of item 4 cannot be
 
 ## 2. Port: the sprite geometry the mirror arms consume, witnessed 11 976 times
 
-New witness `NIGHT_ENTGEOM=1` (+ `NIGHT_ENTGEOMBUDGET`, `port/src/f/f.c` inside `esprr_dump`) prints the four sprite
+New witness `NIGHT_ENTGEOM=1` (+ `NIGHT_ENTGEOMBUDGET`, `src/f/f.c` inside `esprr_dump`) prints the four sprite
 arrays and the arm actually taken:
 
 ```

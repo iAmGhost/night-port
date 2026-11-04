@@ -50,7 +50,7 @@ after:  element-event sounds: played=74  outside-pool=0
 shipped reference (sampled at 6.5 Hz, so a floor): DAT_00063364 fires 4 times, ids {1, 19} -> pool[0], pool[18]
 ```
 
-`make -C port test` ALL PASS, `make selftest` ALL PASS.
+`make test` ALL PASS, `make selftest` ALL PASS.
 
 ## Still to verify for this item
 

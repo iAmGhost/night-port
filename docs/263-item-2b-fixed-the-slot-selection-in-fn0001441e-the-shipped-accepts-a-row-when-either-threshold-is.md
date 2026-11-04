@@ -38,7 +38,7 @@ comment ✓ (`f.c:25201-25215` ✓) ✓
 | landed hits on enemies (`HIT` witness) | 30 (atype 1×7, 2×13, 0x0b×10) | **79** (atype 1×37, 2×40, 0x0b×2) |
 | lowest enemy `+0x23` (pending-damage term) seen | 23 | **15** |
 | player state census (`+0x17`) | {0:240, 1:330, 2:117, 0x0b:38, 0x0c:37, **0x33:41**} | {0:262, 1:415, 2:168, **0x33:65**, 0x0b:10, 0x0c:15, 0x15:18, 5:2} |
-| `make -C port test` | ALL PASS | **ALL PASS** ✓ |
+| `make test` | ALL PASS | **ALL PASS** ✓ |
 
 The direction is the shipped's: more hits land, the enemy's pending-damage term descends further toward 0 ✓ (the
 shipped reaches 0 on this route ✓ docs/199 ✓) ✓
@@ -48,7 +48,7 @@ shipped reaches 0 on this route ✓ docs/199 ✓) ✓
 Two unit tests failed and both encoded the invented rule ✓ The fixture asserted that windows `(20,30)` at frame 3
 "miss the frame" and the pass returns ✓ — under the shipped's rule `20 > 3` **accepts** row 0 ✓ The fixture now sets
 all six rows to `(1,2)` at frame 3 ✓ the genuinely "nothing unfinished" case ✓ and restores `(0,10)`/`(20,30)` for the
-hit case ✓ (`port/test/test_f1.c` ✓ the label is now "an attack animation with no unfinished slot window returns" ✓)
+hit case ✓ (`test/test_f1.c` ✓ the label is now "an attack animation with no unfinished slot window returns" ✓)
 ✓ Suite: **ALL PASS** ✓
 
 ## 5. New facts about the reaction-state band (they change what "missing 0x34/0x35" means)

@@ -6,7 +6,7 @@ rate gate could not see.
 
 ## 1. The instrument
 
-`port/src/app/main.c` now writes `cdda_pipe.jsonl` when `NIGHT_CDDADBG=1` is set with `--rig-dump`:
+`src/app/main.c` now writes `cdda_pipe.jsonl` when `NIGHT_CDDADBG=1` is set with `--rig-dump`:
 
 | line | what it names |
 |---|---|
@@ -60,7 +60,7 @@ inspects commands rather than the media they produce leaves the audible half of 
 
 ## 3. The fix
 
-`port/src/app/main.c`:
+`src/app/main.c`:
 
 - `CDDA_CUSHION_SECTORS 30` is now both the allowance granted at PLAY and the **queue ceiling**: the pump reads
   `SDL_GetAudioStreamAvailable()` and shrinks (or zeroes) `want` so the stream never holds more than 30 sectors'
@@ -108,7 +108,7 @@ residual.
 - **Disc-byte identity**: `scripts/rig/disc_search.py --wav <port cdda.wav> --at 3 --len 6` returns NCC **+1.000
   at disc sector 37337 (absolute LBA ~37487)** for the pre-fix and the post-fix stream alike; the requested track
   1 begins at LBA 37262, so 225 sectors (3.0 s) into the track is exactly where the excerpt matches the image.
-- `make -C port test` = `== ALL PASS ==` with the fix in place.
+- `make test` = `== ALL PASS ==` with the fix in place.
 
 ## 6. Basis limits recorded
 

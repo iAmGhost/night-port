@@ -41,7 +41,7 @@ matches the shipped's `[... + 0x30]` dword offset (12 dwords) at 0x00039966 / 0x
 
 ## 2. The change
 
-`port/src/f/f.c`, one line in the row loop:
+`src/f/f.c`, one line in the row loop:
 
 ```c
 - int32_t n = sel[page], shown = sel[page];
@@ -78,7 +78,7 @@ exists -- proven present by the drive's own `play 0x27 1` / `play 0x28 2` pokes 
 Drive `scripts/rig/drives/ep1_lumenu2.txt`; `NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60
 NIGHT_SHOWSCREEN=levelup NIGHT_SHOWSCREEN_AT=5600 NIGHT_LUMENU=1 NIGHT_MENUBG=1 NIGHT_GLYPHDBG=1`,
 `stdbuf -o0 -e0`, 12 000 frames, `--rig-hz 5`, dumps `/tmp/rig/lu5_before`, `/tmp/rig/lu5_after`.
-"before" = `/tmp/prefix/port/test/night` (worktree at `4ea273d`, the committed unfixed source).
+"before" = `/tmp/prefix/test/night` (worktree at `4ea273d`, the committed unfixed source).
 
 **State half** -- every witnessed row visit is classified; a row is "lit without its own purchase" when
 `sel[i] = 0` and `n != 0` while `i != page` (a row the player never bought that still gets a bar); the
@@ -111,7 +111,7 @@ shape) is a consequence of the same defect and depends on where the cursor happe
 
 ## 5. Suite, sanitizer, and docs/65 rows
 
-* `make -C port test` with the fix: **== ALL PASS ==** (3 067 checks), rc=0.
+* `make test` with the fix: **== ALL PASS ==** (3 067 checks), rc=0.
 * `night-asan` on the same drive (`/tmp/rig/lu6_asan.log`, 8 000 frames, `--rig-hz 2`): **13 482** witnessed row
   visits over **2 247** menu frames, **0** lit rows without their own purchase (424 legitimate cursor previews),
   **zero** `ERROR: AddressSanitizer`, and exactly **one** sanitizer report -- the standing UBSan misaligned store

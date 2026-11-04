@@ -74,7 +74,7 @@ Two independent original-side measurements fix the cost at ~0.5 ms per read:
 
 The port now paces each read by `g_delay_unit_us` (default 500 us, override `NIGHT_DELAY_US`, 0 disables). The
 wait runs `sys_port_spin()` so the cooperative tick/input pumps keep running, and with no pump installed -- every
-unit test -- it stays a no-op, which is why `make -C port test` (2873 checks) and `make -C port selftest` still
+unit test -- it stays a no-op, which is why `make test` (2873 checks) and `make selftest` still
 pass unchanged.
 
 The cost proved insensitive to the emulated CPU speed: the logo fade curve measured at `cycles = max` and at

@@ -10,7 +10,7 @@ The 2026-11-03 session (`docs/manual-playtest/05-2026-11-03.md`, round 1) ended 
 
 ```
 ERROR: AddressSanitizer: ... on address ... WRITE of size ...
-  #1 blt_rows           port/src/f/f.c:115
+  #1 blt_rows           src/f/f.c:115
   #2 fn_03ce0b
   #3 fn_038098
   #4 fn_03a829

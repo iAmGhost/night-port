@@ -1,7 +1,7 @@
 # 121 — A rig defect that hid ~80 declarations, what it exposed at DS 0x51b60, and the blind-gate re-run against a pre-fix build
 
 Date: 2026-10-29. Rig files touched: `scripts/audit/port_src.py`, regenerated `scripts/audit/gen/*`,
-`port/src/f/rig_cells.h` / `rig_table.h`.
+`src/f/rig_cells.h` / `rig_table.h`.
 
 ## 1. Rig defect: the port-source parser could not see anything after a function body
 

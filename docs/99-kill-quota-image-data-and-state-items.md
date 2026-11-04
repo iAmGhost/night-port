@@ -46,7 +46,7 @@ the stage). test_f1 ALL PASS (3075 checks incl. docs/98 aliases).
 Reproduce:
 
 ```sh
-cd port && make -j8 test/night && SDL_VIDEODRIVER=dummy NIGHT_HITTRACE=1 ./test/night \
+make -j8 build/night && SDL_VIDEODRIVER=dummy NIGHT_HITTRACE=1 ./build/night \
   --script ../scripts/playtest/route_fight8.txt --no-audio --frames 6000 | grep -E "HIT|stage="
 python3 - <<'EOF'   # file side
 import struct
@@ -68,7 +68,7 @@ separate state-machine bug found.
 
 ## 3. "Entering stage 2 crashes game (bus error)" — not reproducible on the current build
 
-`./test/night --script route_slide_keyed.txt --warp-stage 2 --frames 12000`: rc=0,
+`./build/night --script route_slide_keyed.txt --warp-stage 2 --frames 12000`: rc=0,
 `memstat stage=2 room=1` live from frame ~2630 to run end (5316 frames presented,
 arena/RSS flat, no signal). The SIGBUS family (unaligned widened-pointer reads on arm64) was
 root-caused and eliminated by docs/94/95 (heap-offset vs host-pointer representations). Item

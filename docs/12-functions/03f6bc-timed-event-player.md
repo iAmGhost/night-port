@@ -1,6 +1,6 @@
 # 0x03f6bc — the timed event player (L12, 337 B) — PORTED
 
-Port name `fn_03f6bc`. Test: `test_fn_03f6bc` (+ helper `f6bc_run`) in `port/test/test_f1.c` (8 checks).
+Port name `fn_03f6bc`. Test: `test_fn_03f6bc` (+ helper `f6bc_run`) in `test/test_f1.c` (8 checks).
 
 ## What it does
 

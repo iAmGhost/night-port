@@ -4,13 +4,13 @@
  * dumps the per-region bookkeeping (alloc/free counts) after every per-type slot, so the first
  * double free / counter underflow is named instead of surfacing later as a wild write.
  *
- *   cc -std=c11 -g -o /tmp/rtp scratch/real_teardown_probe.c port/src/f/f.c port/src/f/fx_04794a.c port/src/sys/sys.c -lm
+ *   cc -std=c11 -g -o /tmp/rtp scratch/real_teardown_probe.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c -lm
  */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "../port/src/f/f.h"
-#include "../port/src/sys/sys.h"
+#include "../../src/f/f.h"
+#include "../../src/sys/sys.h"
 
 #define ARENA_MAX (64u << 20)
 static uint8_t *freed_bits;             /* one bit per heap offset: "already freed here" */

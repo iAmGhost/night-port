@@ -27,8 +27,8 @@ every phase, so the shipped awards came through `victim[+0x32]`, whose value set
 
 ## 2. The current build, same drive, 320 s
 
-`./port/test/night --script ep1_kill3.txt --frames 19200` with the pinned environment
-(`NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`, binary rebuilt through `make -C port app`):
+`./build/night --script ep1_kill3.txt --frames 19200` with the pinned environment
+(`NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`, binary rebuilt through `make app`):
 
 ```
 exp award path: adds=0 added=0 commits=0 committed=0

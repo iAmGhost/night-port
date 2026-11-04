@@ -101,9 +101,9 @@ gates; `test_fn_03690b` now asserts the slot aliases. `== ALL PASS ==`.
 Reproduce:
 
 ```sh
-cd port && make -j8 test/night test/test_f1 && ./test/test_f1
-SDL_VIDEODRIVER=dummy NIGHT_DBG=1 ./test/night --script ../scripts/playtest/route_fight8.txt --no-audio --frames 120 | grep 040d09
-SDL_VIDEODRIVER=dummy NIGHT_SFXDBG=1 NIGHT_HITTRACE=1 ./test/night --script ../scripts/playtest/route_fight8.txt --no-audio --frames 6000
+make -j8 build/night build/test_f1 && ./build/test_f1
+SDL_VIDEODRIVER=dummy NIGHT_DBG=1 ./build/night --script ../scripts/playtest/route_fight8.txt --no-audio --frames 120 | grep 040d09
+SDL_VIDEODRIVER=dummy NIGHT_SFXDBG=1 NIGHT_HITTRACE=1 ./build/night --script ../scripts/playtest/route_fight8.txt --no-audio --frames 6000
 # original side:
 docker exec dbga bash -c "cd /work && DBA_TOKEN_FILE=/work/.token NIGHT_EXE=/work/game/NIGHT.EXE python3 read_orig_cd.py"
 # (the 53e24/53dd4 live reads and voc fingerprints are the inline python in this doc's probes;

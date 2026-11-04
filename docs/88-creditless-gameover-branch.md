@@ -99,7 +99,7 @@ uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
   --out /tmp/dbgauto/orig_nocredit --drive scripts/playtest/drive_orig_nocredit.txt --hz 6
 
 # port side
-cd port && NIGHT_CREDITS=0 NIGHT_QUIT_AT=3000 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-  ./test/night --warp-stage 1 --script ../scripts/playtest/route_walk_fight.txt \
+NIGHT_CREDITS=0 NIGHT_QUIT_AT=3000 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+  ./build/night --warp-stage 1 --script ../scripts/playtest/route_walk_fight.txt \
   --shots /tmp/port_nocredit --no-audio --frames 6000 --shot-limit 300
 ```

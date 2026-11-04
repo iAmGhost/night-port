@@ -74,7 +74,7 @@ record bytes.
 
 ## 4. Where the port's chain targets go: computed, written, then invisible
 
-`NIGHT_STTRACE=1` on the port (`port/test/night --script drives/ep1_kill3.txt --frames 9000`, i.e. the same 150 s
+`NIGHT_STTRACE=1` on the port (`build/night --script drives/ep1_kill3.txt --frames 9000`, i.e. the same 150 s
 route as `g33`) prints the chain-match witness at the five sites `f.c:27370, 27379, 27391, 27400, 27413`, each of
 which is `g_dat_62d58 = target; g_dat_62d5c = lvls[k-1]; chain_target_log(...)`:
 

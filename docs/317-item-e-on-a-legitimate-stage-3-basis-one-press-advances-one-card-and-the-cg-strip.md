@@ -112,7 +112,7 @@ has not yet produced.
   six-card opening (cards change wholesale on one press) or the CG strip (a picture strip with a text line per
   picture), and whether Enter was tapped or held.  A held Enter legitimately advances several cards, because the
   shipped's own key map credits a re-make while the key-state slot is still armed (`fn_0347e3` family,
-  0x3fdf2-0x3fe33, modelled at `port/src/app/keymap.c:66-79` with `g_dat_62cd8` as the repeat credit) — docs/281.
+  0x3fdf2-0x3fe33, modelled at `src/app/keymap.c:66-79` with `g_dat_62cd8` as the repeat credit) — docs/281.
 * If the CG strip is the thing: the reachable defect is upstream of it — the stage-3 type-3 record is declared
   but never admitted, which is the same gate that produced round-2 item B (a stage whose boss never exists).
 

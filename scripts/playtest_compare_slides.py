@@ -6,7 +6,7 @@ This is the check the slideshows task contract asks for: "a headless run shows t
 the original game running -- the card is the ground truth the original would have blitted -- so unlike most
 of the playtest comparisons it is not blocked on the DOSBox capture path (docs/46).
 
-The decoder mirrors the game's own still-image loader (port/src/f/f.c fn_036190, Ghidra 0x0003621b-0x00036285):
+The decoder mirrors the game's own still-image loader (src/f/f.c fn_036190, Ghidra 0x0003621b-0x00036285):
 data starts after the 128-byte header, and the stream is the 6-bit-count PCX RLE -- a byte with bits 6-7 set
 is a FILL of (byte & 0x3f) copies of the following byte, anything else is a literal -- read until 0xfa00
 (64000 = 320x200) destination bytes exist.  The destination bytes are palette *indices*, and the port's
@@ -92,7 +92,7 @@ def l1(a, b):
 def fit_l1(shot, card):
     """Structural match: fit a per-channel affine map (gain, offset) from the screenshot to the card and
     report the residual.  A slide is sampled while the game's fade-in is still ramping the DAC (the loader
-    hands the palette to fn_040660 with 0x19 steps, port/src/f/f.c 0x0003b0ec), so absolute colour cannot
+    hands the palette to fn_040660 with 0x19 steps, src/f/f.c 0x0003b0ec), so absolute colour cannot
     match the card's trailer palette at every sample -- but the *image* must, and the fitted gain is itself
     a measurement of the fade.  Returns (residual L1 per channel, mean gain)."""
     n = min(len(shot), len(card))
@@ -157,7 +157,7 @@ def main():
                 rows.append((name, tag, None))
                 continue
             # Preferred, and the honest one: the host can dump the *screen arena bytes* behind a shot
-            # (NIGHT_VIDRAW=1, port/src/app/main.c shot_named).  Those bytes are the game's own screen model,
+            # (NIGHT_VIDRAW=1, src/app/main.c shot_named).  Those bytes are the game's own screen model,
             # so comparing them with an independent decode of the shipped card proves the card is on screen
             # without any dependence on how the palette happened to be ramping at the sample instant, or on
             # how a BMP encoder lays out rows and channels.

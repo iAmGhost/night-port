@@ -26,12 +26,12 @@ Shipped loader, read out of the bytes (capstone, `fn_037b03` body 0x37b03-0x3801
 0x38003  jmp 0x37e94
 ```
 
-Port model, `port/src/f/f.c:5296-5307`: the same ten accesses in the same order (`fn_04192e(e+0x00/+0x08/+0x0c/
+Port model, `src/f/f.c:5296-5307`: the same ten accesses in the same order (`fn_04192e(e+0x00/+0x08/+0x0c/
 +0x14/+0x18, 1, 2, io)`, `fn_04192e(e+0x1c, 10, 10, io)`, `fn_04192e(e+0x80/+0x84, 1, 2, io)`, and the two
 `fn_041c8f` dword reads for `+0x04` and `+0x10`), with `for (i < 0x65)` matching 0x37e9a ✓
 
 New witness `NIGHT_CHRDBG=1` (added at `f.c:5309+`, prints the io node state and three table rows after the loop),
-`./port/test/night --script scripts/rig/drives/ep1_kill3.txt`, pinned clock:
+`./build/night --script scripts/rig/drives/ep1_kill3.txt`, pinned clock:
 
 ```
 chrload: io=0x102878b40 flags=49 cursor=20140 remain=572 buf=16616 handle=1 size=4096

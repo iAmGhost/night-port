@@ -45,7 +45,7 @@ Red -> green on the same drive (`ep1_atypes`, `--warp-stage 1`, 9000 frames, `ni
 | ASan errors | 1 (WRITE BUS at rig_sink.c:167) | **0** |
 | refusals | — (it wrote) | **3 refused, each printed** |
 
-`make -C port test` ALL PASS after the change. The same overflow existed in `rig_player_poke` and is fixed the
+`make test` ALL PASS after the change. The same overflow existed in `rig_player_poke` and is fixed the
 same way.
 
 ## 2. The fallen-state samples I had were injections
@@ -111,8 +111,8 @@ an entity into 0x65/0x99 — and a shipped-side replay of the same drive. Both h
 ## 5. Reproduce
 
 ```sh
-make -C port asanapp-o2
-env ASAN_OPTIONS=detect_leaks=0 ./port/test/night-asan-o2 --res-dir ./NIGHT \
+make asanapp-o2
+env ASAN_OPTIONS=detect_leaks=0 ./build/night-asan-o2 --res-dir ./NIGHT \
     --script scripts/rig/drives/ep1_atypes.txt --warp-stage 1 --frames 9000 2>&1 | grep -E "refused|AddressSanitizer"
 OUT=/tmp/rig/g14 RIG_HZ=4 RIG_ENTS=12 sh scripts/rig/route.sh scripts/rig/drives/ep1_fallen_b.txt 140
 ```

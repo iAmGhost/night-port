@@ -3,7 +3,7 @@
 Goal task: `rig-static` → `audit-symbols`, `audit-checks`.
 
 Everything here runs offline against two inputs only: the Ghidra database for the shipped
-`NIGHT.EXE`, and the port's own source (`port/src/f/f.h`, `f.c`). Nothing in it is told where a bug
+`NIGHT.EXE`, and the port's own source (`src/f/f.h`, `f.c`). Nothing in it is told where a bug
 is; the known families are used only afterwards as a regression check (§4).
 
 ## 1. Export: what was pulled out of Ghidra

@@ -4,7 +4,6 @@
 .DS_Store
 *.pyc
 
-# port build outputs: port/src and port/test hold sources only, everything make builds goes to port/build
-/port/build/
-/port/night
+# build outputs: src/ and test/ hold sources only, everything make builds goes to build/
+/build/
 *.dSYM/

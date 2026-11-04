@@ -1,6 +1,6 @@
 # The real CD backend: TG_NIGHT.CUE/IMG answers NIGHT's MSCDEX reads (and the disc gate passes)
 
-Added 2026-07-13 — `port/src/cd/cd_iso.c` + `cd_iso.h`, 8 new checks (`test_cd_iso_real`), suite
+Added 2026-07-13 — `src/cd/cd_iso.c` + `cd_iso.h`, 8 new checks (`test_cd_iso_real`), suite
 **2738 → 2746 PASS, 0 FAIL**.
 
 ## The open question from docs/28 is resolved: `fn_010927` reads the **TOC**, not the root directory

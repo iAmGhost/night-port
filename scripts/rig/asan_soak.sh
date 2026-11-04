@@ -7,13 +7,13 @@ OUT=${OUT:-/tmp/rig/soak}
 JOBS=${JOBS:-4}
 CAP=${CAP:-300}
 FRAMES=${FRAMES:-4000}
-BIN=${BIN:-./port/build/night-asan}
+BIN=${BIN:-./build/night-asan}
 BASE=${BASE:-scripts/rig/drives/title_basic.txt}
 # The soak must build the binary it soaks: docs/265 caught a soak that reported a UBSan line number
-# that no longer existed in the source, because a stale port/build/night-asan was reused.
+# that no longer existed in the source, because a stale build/night-asan was reused.
 mkdir -p "$OUT"
 if [ "${SOAK_BUILD:-1}" = 1 ]; then
-  ( cd "$ROOT" && make -C port asanapp ) > "$OUT/build.log" 2>&1 || { echo "soak: build failed"; tail -20 "$OUT/build.log"; exit 1; }
+  ( cd "$ROOT" && make asanapp ) > "$OUT/build.log" 2>&1 || { echo "soak: build failed"; tail -20 "$OUT/build.log"; exit 1; }
 fi
 cd "$ROOT" || exit 1
 for s in 1 2 3 4 5 6 7 8 9; do

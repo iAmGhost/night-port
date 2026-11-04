@@ -109,8 +109,8 @@ uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
   --out /tmp/dbgauto/orig_lu5 --drive scripts/playtest/drive_orig_levelup.txt --hz 8
 
 # port side
-cd port && NIGHT_SHOWSCREEN=levelup NIGHT_SHOWSCREEN_AT=6000 NIGHT_GLYPHDBG=1 \
-  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test/night --warp-stage 1 \
+NIGHT_SHOWSCREEN=levelup NIGHT_SHOWSCREEN_AT=6000 NIGHT_GLYPHDBG=1 \
+  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/night --warp-stage 1 \
   --script ../scripts/playtest/route_walk_fight.txt --shots /tmp/port_lu2 --no-audio \
   --frames 12000 --shot-limit 900
 

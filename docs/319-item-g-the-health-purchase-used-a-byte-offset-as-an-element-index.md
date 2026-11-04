@@ -67,7 +67,7 @@ buydbg census: attempts=2 committed=2 rejected_max=0 rejected_poor=0 refund=0
 ```
 
 One purchase = one level (`sel 0->1->2` ✓) and the HP term moves by exactly the table row (+100 each time ✓),
-which at the shipped's 50-unit bar quantum is **+2 bars** ✓ — the playtester's expectation.  `make -C port test`
+which at the shipped's 50-unit bar quantum is **+2 bars** ✓ — the playtester's expectation.  `make test`
 is ALL PASS with the new fixture.
 
 ## 4. The tables, dumped from the shipped
@@ -96,7 +96,7 @@ f.c's commit block store for store.
 
 ## 5. Fixture (contract: "dumped from the shipped and printed in a fixture")
 
-`port/test/test_f1.c` scenario C inside `test_fn_038f3d`:
+`test/test_f1.c` scenario C inside `test_fn_038f3d`:
 
 ```
 [PASS] 038f3d's HP table DAT_00052738 rows 0..4 = 100,200,300,400,500 (shipped DS window read)

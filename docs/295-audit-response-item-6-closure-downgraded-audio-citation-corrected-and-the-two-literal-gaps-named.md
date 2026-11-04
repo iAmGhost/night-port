@@ -66,7 +66,7 @@ frames ✓ different phase content ✓) ✓ **It is therefore not item-6-decisiv
 
 **Item 6 status: provisional — no located wrong-side defect, closure not claimed.** The decisive instrument, still
 to be built, is a **limb-record footprint test**: dump the port's actual destination rect for each limb/parts
-composite (`blit_probe_note` ✓ `port/src/app/rig_sink.c`-independent, `port/src/f/f.c:3212` ✓ accumulating
+composite (`blit_probe_note` ✓ `src/app/rig_sink.c`-independent, `src/f/f.c:3212` ✓ accumulating
 `(x0..x1, y0..y1)` from the composite routine `fn_03bb42` ✓ `f.c:7733` ✓) and compare it against the rect the
 shipped's own arithmetic computes from the shipped's own record values (`0x13dc1-0x13ddb` / `0x13ee6-0x13f00` ✓
 with the record bytes read from the shipped's heap dump ✓), fed the *same* record values ✓ A match closes item 6 as

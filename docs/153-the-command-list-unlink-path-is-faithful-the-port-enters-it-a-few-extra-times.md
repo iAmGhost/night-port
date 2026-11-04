@@ -62,8 +62,8 @@ population measured per sample (0.97 shipped vs 2.33 port, docs/152 §4b).
 ## 4. Reproduce
 
 ```sh
-make -C port app
-NIGHT_WALKTRACE=1 ./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
+make app
+NIGHT_WALKTRACE=1 ./build/night --res-dir ./NIGHT --script scripts/rig/drives/ep1_kill3.txt \
     --warp-stage 1 --frames 4000 2>&1 | grep -E "^UNLINK|^WALK unlink"
 uv run --with capstone scripts/audit/call_sites.py --target 0x3e14c --before 8
 uv run --with capstone scripts/audit/disasm.py --entry 0x3e14c --end 0x3e20f

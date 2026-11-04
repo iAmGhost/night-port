@@ -57,7 +57,7 @@ DS - 0x7600 ✓ `scripts/audit/disasm.py` header ✓), 256 dwords at DS 0x51b60:
   `0x33`-band state only for reaction code `0x2e` ✓
 * **my port-side parse was invalid** ✓ (a brace-in-comment stopped the extraction at 25 tokens ✓ so the "25 differing
   entries" line it printed is void ✓ and no comparison verdict exists yet ✓) -- re-parse the `f.c:25058` initializer
-  properly (or read the compiled `g_tab_51b60` symbol out of `port/test/night` ✓) before claiming a table defect ✓
+  properly (or read the compiled `g_tab_51b60` symbol out of `build/night` ✓) before claiming a table defect ✓
 
 The concrete follow-up therefore has two halves: (i) re-read the port's 256 entries correctly and diff ✓; (ii) check
 whether the port's `atype` ever equals `0x2e` ✓ (the CHAIN/RECDUMP witnesses already print the action record's

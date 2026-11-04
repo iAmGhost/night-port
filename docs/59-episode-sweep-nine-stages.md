@@ -4,8 +4,8 @@ Reproduce with (`--warp-stage` is the host debug warp documented in docs/52 — 
 every per-stage name is built from, because scripted play cannot clear nine episodes end to end):
 
 ```
-cd port && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_BOARD=1 \
-  ./test/night --script ../scripts/playtest/route_show_keyed.txt --warp-stage N \
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_BOARD=1 \
+  ./build/night --script ../scripts/playtest/route_show_keyed.txt --warp-stage N \
   --shots /tmp/swN --no-audio --frames 9000
 ```
 

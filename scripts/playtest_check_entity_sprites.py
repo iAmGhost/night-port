@@ -53,7 +53,7 @@ def run_port() -> tuple[str, str]:
                NIGHT_ENTDBG="1", NIGHT_ENTSPR="1", NIGHT_DENSE="0")
     r = subprocess.run([APP, "--script", ROUTE, "--shots", out, "--no-audio", "--frames", "9000",
                         "--shot-limit", "400"], env=env, capture_output=True, timeout=900,
-                        cwd=os.path.join(ROOT, "port"))   # the app's default --disc path is ../NIGHT/... from here
+                        cwd=ROOT)                        # the app's default --res-dir is ./NIGHT from the repo root
     log = os.path.join(out, "run.log")
     open(log, "wb").write(r.stderr)          # the diagnostics go to stderr
     return log, out

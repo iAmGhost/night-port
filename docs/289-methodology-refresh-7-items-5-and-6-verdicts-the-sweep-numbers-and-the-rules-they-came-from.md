@@ -14,7 +14,7 @@
 
 ## 2. Sweep numbers on the current source (`f6943e2`)
 
-* `make -C port test` → **ALL PASS** (the `test` target rebuilds `port/test/night` ✓ docs/181 §5 ✓)
+* `make test` → **ALL PASS** (the `test` target rebuilds `build/night` ✓ docs/181 §5 ✓)
 * nine-episode ASan/UBSan soak `/tmp/rig/soak288` → stage 1..9 `rc=0 ubsan=0 asan=0 segv=0`, 4000 frames each; `grep -l "ERROR: AddressSanitizer|runtime error|Segmentation"` over its logs returns **no file** ✓
 * coverage-guided fuzz (`scripts/rig/fuzz.py --episodes 1..9 --seeds 12 --workers 3 --cap 120`) → **coverage 260/503 functions, never-entered 243, crashes 0** ✓ (above the 248/503 baseline ✓)
 * canonical state route (`ep1_kill3.txt`, 150 s, `RIG_HZ=10`, pinned clock) `/tmp/rig/rb10` → cells 346, phases 274, tally `SAME 70, DIFF 27, SIZE? 34, PTR 52, REPR 19, DIFF-SIZE 14`, activity profiles 271 **all SAME**, divergent runs 8 ✓ vs rb9 (`SAME 69, DIFF 28, SIZE? 32, PTR 52, REPR 19, DIFF-SIZE 16`) → one row moved DIFF→SAME, no new unexplained class ✓
@@ -22,7 +22,7 @@
 
 ## 3. New instruments this stretch
 
-1. **`player_recs.jsonl`** (`port/src/app/rig_sink.c`, docs/288 §2): the player record's `x(+0x01)`, `y(+0x09)`,
+1. **`player_recs.jsonl`** (`src/app/rig_sink.c`, docs/288 §2): the player record's `x(+0x01)`, `y(+0x09)`,
    `st(+0x17)`, `f1b(+0x1b)` and `hp(+0x29)` per tick ✓ — `records.jsonl` has no position fields and the
    `ent##` cells read as zeros on the left-edge route ✓ Its shipped-side counterpart already existed
    (`diff_state.load_orig` record blocks ✓), which is what made the §3 both-sides table possible ✓

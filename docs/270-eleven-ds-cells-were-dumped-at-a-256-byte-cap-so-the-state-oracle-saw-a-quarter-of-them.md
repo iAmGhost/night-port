@@ -32,7 +32,7 @@ faithfulness conclusions (docs/259 ✓, docs/237 ✓) stand ✓, but any **dump-
 Fix: the cap is raised to 1024 (the largest declared DS object ✓) with the reason and this list in the comment ✓, the
 table regenerated ✓ — widths are now 1024/1024/1024/1024/800/1024/768/768/720/476/260 for those rows ✓ (`g_tab_52b84`
 stays 90 bytes: its chosen declaration is smaller than the 360 my audit script read out of a different declaration ✓ —
-recorded as an open item rather than forced ✓) ✓ `make -C port test`: **ALL PASS** ✓
+recorded as an open item rather than forced ✓) ✓ `make test`: **ALL PASS** ✓
 
 **Required follow-up before the no-regression claim is re-asserted:** the wider cells change the state-oracle row
 contents ✓, so the canonical tallies must be re-run on the corrected widths (`route.sh scripts/rig/drives/ep1_kill3.txt

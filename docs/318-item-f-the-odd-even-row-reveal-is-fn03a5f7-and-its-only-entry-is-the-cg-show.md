@@ -31,9 +31,9 @@ that is exactly "odd/even rows offset horizontally across the screen", and it is
 
 ## 2. The port has it, and a fixture pins its arithmetic
 
-`port/src/f/f.c:14462` models it (`fn_03a5f7(const uint8_t *base)` — the parity split, `colAcc += 4`, the
+`src/f/f.c:14462` models it (`fn_03a5f7(const uint8_t *base)` — the parity split, `colAcc += 4`, the
 `0xa0000 + row*0x140` destinations and the `colAcc + 1` counts), called from the port's `fn_03a70e` at
-`f.c:16171` (0x3a7e7-f0 ✓).  `port/test/test_f1.c:12153 test_fn_03a5f7` pins the offsets row by row:
+`f.c:16171` (0x3a7e7-f0 ✓).  `test/test_f1.c:12153 test_fn_03a5f7` pins the offsets row by row:
 
 ```
 T1 (g_dat_53104=0x46 -> n=7, 80 passes, last colAcc=316):
@@ -46,7 +46,7 @@ T2 (n=0 gate): no writes at all, DAT_63e24 stays 0
 ```
 
 So the "green" half of the contract — offsets matching the shipped's arithmetic for the same records — is held by
-a fixture against the shipped's own instruction offsets, and `make -C port test` is ALL PASS with it in the run.
+a fixture against the shipped's own instruction offsets, and `make test` is ALL PASS with it in the run.
 
 ## 3. The "missing offset arms on a stage-3 basis" census was a basis artifact
 

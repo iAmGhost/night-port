@@ -1,6 +1,6 @@
 # 223 — Item 5: the rig now reaches stage 2 three different ways, and no fault appears on any of them (plus a correction to docs/222 §3's chain-link inference)
 
-Gate: `gate3-stage2-crash`, unfixed build, `port/test/night-asan`, canonical pinned env
+Gate: `gate3-stage2-crash`, unfixed build, `build/night-asan`, canonical pinned env
 (`NIGHT_SEED=13579 NIGHT_RIG_STEP_CALLS=665 NIGHT_RIG_FPS=60`).
 
 ## 1. Route C — the value that actually means "room clear"
@@ -39,7 +39,7 @@ docs/208 (writing `DS 0x63370 = 2` and `DS 0x6336c = 2` gives 13435 frames at st
 statement is now a three-route negative: **the port does not crash on entering stage 2 by warp, by room-clear
 request, or by stage-cell poke.**
 
-The historical "bus error ./test/night" line is also not a fault witness: in `/tmp/rig/rc1` the last lines are
+The historical "bus error ./build/night" line is also not a fault witness: in `/tmp/rig/rc1` the last lines are
 
 ```
 frame budget: 13200 presented, unwinding the game main

@@ -71,7 +71,7 @@ only ever models VBE mode 0x101); it does not affect the ported data, which is n
 
 ## State
 
-Suite: **2787 -> 2792 PASS / 0 FAIL**, ASan clean. `make -C port selftest` ALL PASS.
+Suite: **2787 -> 2792 PASS / 0 FAIL**, ASan clean. `make selftest` ALL PASS.
 Diagnostics kept for future sessions: `dbg_pal_load`, `fn_040660` fade-target dumps (`/tmp/palfade###.bin`),
 `board_out` `dladdr` trace, `fn_038098` pacing + geometry log, `fn_03ce0b` argument log, blit accounting
 (`NIGHT_BLITSTATS`), heap dump (`NIGHT_HEAPDUMP`), and the `vidscr/frame_scr` dumps.

@@ -48,7 +48,7 @@ What *is* reachable and comparable, and what it shows:
 geometry are equal to the shipped's ✓, and the reported situation is not reachable in either build ✓ The only defect
 found in this neighbourhood was **vertical** — `LAB_0003284e`'s entry guard wrongly admitted `DAT_00063ed8` (Down)
 where the shipped admits only `63ed0/63ed3/63ed5` (`0x3285f-0x3287c` je-chain ✓, exit `0x3294d` ✓) ✓ — fixed at
-`port/src/f/f.c:27386-27391` ✓ with a red/green pair (`/tmp/rig/le3pre` player Y = {172:580, 195:91} ✓ →
+`src/f/f.c:27386-27391` ✓ with a red/green pair (`/tmp/rig/le3pre` player Y = {172:580, 195:91} ✓ →
 `/tmp/rig/le4b` Y = {172:912} ✓, zero Y-change events ✓, docs/292 §3 ✓)
 
 ## 2. Item 1: measured on the unfixed build itself
@@ -69,7 +69,7 @@ CD-DA dump present       fz1 cdda.raw 229,891,536 B ✓   fz2 cdda.raw 225,300,4
 ```
 
 Source check that licenses the transfer: `git diff 574c636 HEAD` over the three files that implement audio
-(`port/src/app/main.c` ✓ `port/src/app/rig_sink.c` ✓ `port/src/f/f.c` ✓) contains **no change to CD track selection** ✓
+(`src/app/main.c` ✓ `src/app/rig_sink.c` ✓ `src/f/f.c` ✓) contains **no change to CD track selection** ✓
 — main.c's 112 changed lines are rig instrumentation (`NIGHT_RIG_SCREEN_EVERY` ✓, key-repeat markers ✓), the docs/280
 key-credit bookkeeping ✓, and the reverted item-1 experiment recorded in a comment ✓; in `f.c` the only
 non-witness change on that path is the `fn_03f15f` latch (`if (fn_03f15f() == 1)` → `int32_t vesa_ok = fn_03f15f();` ✓,
@@ -106,9 +106,9 @@ anything landed since ✓ The item is recorded as **no defect**, not as a blind 
 | 5 | stage-2 crash + black floor | **yes** ✓ (crash half: UBSan fault present on `574c636`, absent on HEAD, same drive/clock ✓) | fixed ✓ (misaligned store ✓ docs/265 ✓) + floor carries room art ✓ | `/tmp/rig/fz1.log` vs `/tmp/rig/fz2.log` ✓ docs/296 ✓ docs/287 ✓ |
 | 6 | limb drawn on the wrong side at the left edge | **no** ✗ (both candidate mechanisms refuted ✓) | no defect ✓; the configuration is unreachable on both builds ✓; the located-and-fixed nearby defect is vertical ✓ | this doc §1 ✓ + docs/291 §3 ✓ docs/292 §3 ✓ docs/293 §1 ✓ |
 
-Regression state re-measured after the sidecar change (this stretch's only code change ✓ `port/src/app/rig_sink.c` ✓):
-* `make -C port test` -> `== ALL PASS ==` ✓ rc=0 ✓ and the new witness string is present in the rebuilt binary
-  (`strings -a port/test/night | grep -c exp2b` -> 1 ✓ docs/181 §5 hygiene ✓)
+Regression state re-measured after the sidecar change (this stretch's only code change ✓ `src/app/rig_sink.c` ✓):
+* `make test` -> `== ALL PASS ==` ✓ rc=0 ✓ and the new witness string is present in the rebuilt binary
+  (`strings -a build/night | grep -c exp2b` -> 1 ✓ docs/181 §5 hygiene ✓)
 * `OUT=/tmp/rig/soak298 scripts/rig/asan_soak.sh` -> 9/9 stage logs ✓ all 9 reached 4000 frames presented ✓
   `grep -l 'AddressSanitizer|runtime error|SEGV' /tmp/rig/soak298/stage*.log` -> no files ✓ and the script's own
   per-stage tally printed `rc=0 ubsan=0 asan=0 segv=0` ✓

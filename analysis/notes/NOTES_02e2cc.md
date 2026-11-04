@@ -56,14 +56,14 @@ with 0x02c838 in order; `uv run --with capstone python3 scratch/aidiff_insns.py 
 
 ## C. Recipe for the next session
 
-1. `sed -n` the fn_02c838 body out of `port/src/f/f.c` (starts at `void fn_02c838(uint8_t *e)`, ends at the
+1. `sed -n` the fn_02c838 body out of `src/f/f.c` (starts at `void fn_02c838(uint8_t *e)`, ends at the
    next `\n}\n`), follow `scratch/gen_02c838.py` as the template, and write `scratch/gen_02e2cc.py`.
 2. Apply section A substitutions, then the two chooser changes (draw + clamp/test order) and the two new
    blocks (B3, B4) after reading their seams (addresses above).
 3. Test: model on `scratch/test_02c838.c` (drop/swing/ambush/walk checks; remember `g_dat_62a8c = 0` for
    exact moves, re-arm `entity[0xc7]` each chooser frame, and that the ambush gate's state 0x0e rung runs
    in the same call so only `entity[0xaf] == 0x0a` + the consumed gate are assertable).
-4. `make -C port test` twice + ASan build (`cc -std=c11 -O1 -g -fsanitize=address -o /tmp/asan26
+4. `make test` twice + ASan build (`cc -std=c11 -O1 -g -fsanitize=address -o /tmp/asan26
    test/test_f1.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c -lm`).
 5. After 0x02e2cc: only **0x03272f** (behaviour-0x1c? outlier, 11.4% shared) remains before the dispatcher
    **0x031a8e + 0x0322f5** can link.

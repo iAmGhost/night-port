@@ -1,6 +1,6 @@
 # 207 — Item 3, screen half: the bar cells the port actually blits on rows the shipped leaves dark
 
-docs/206 localized item 3 to `port/src/f/f.c:25818` (`n = sel[page]` where shipped uses `sel[i]`,
+docs/206 localized item 3 to `src/f/f.c:25818` (`n = sel[page]` where shipped uses `sel[i]`,
 `0x00039848-0x000398a9`).  This pass records the *picture* consequence, read out of the port's own blits.
 
 ## 1. The blit witness on the unfixed build

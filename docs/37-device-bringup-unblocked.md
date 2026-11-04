@@ -9,7 +9,7 @@ the precondition for any sound path in the port.
 `fn_041340(cmd)` writes to `base+0xc` and `fn_041390()` polls `inb(base+0xc)` for bit 7 **clear**; on a real
 card that port is write-only for the command and read-only for the status. A plain port array cannot model
 that — the written command byte (e.g. `0xf2`) has bit 7 set, so the poll never cleared and the chain died at
-the presence probe. `port/src/sys/sys.c` now models device ports separately:
+the presence probe. `src/sys/sys.c` now models device ports separately:
 
 * `sys_dev_status_set(port, v)` — what `inb(port)` answers;
 * `sys_dev_read_seq(port, bytes, n)` — successive reads return successive bytes (the id register answers a
@@ -49,7 +49,7 @@ caller rejects), presence `2` reached through the fired interrupt, the command s
 written to `base+0xc`, the id read as two data bytes, ISR `0x415c9` installed in the vector table,
 `DAT_00063f90 = 1`, the 64 KB transfer buffer allocated, and `DAT_00063fac` carrying the ISA DMA address.
 
-Suite: **2775 PASS / 0 FAIL**, ASan clean, `make -C port selftest` ALL PASS, and the SDL host still boots the
+Suite: **2775 PASS / 0 FAIL**, ASan clean, `make selftest` ALL PASS, and the SDL host still boots the
 real data, passes the disc gate and renders a stage (`--autokey`, 640x480, 256 colours, 3 entities).
 
 ## Still open on the visuals

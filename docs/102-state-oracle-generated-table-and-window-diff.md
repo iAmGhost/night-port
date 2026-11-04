@@ -12,7 +12,7 @@ read as raw memory, so the port cannot invent one by naming it.
 - `gen/rig_cells.json` — 243 DS cells: every port global whose comment claims a DS-group address, with
   `guest_size` (from the shipped symbol / access width) **and** `host_size` (from the port's own
   declaration), plus `ptr`.
-- `port/src/f/rig_table.h` — the same list as C, **included at the end of `f.c`** because many of those
+- `src/f/rig_table.h` — the same list as C, **included at the end of `f.c`** because many of those
   globals are file-scope `static` there (`g_tab_53108`, `g_rom_51acc`, …): the accessors
   `rig_cell_count()` / `rig_cell_at()` in `src/f/rig_cells.h` are the only way to name them from
   another translation unit without changing their linkage.
@@ -21,7 +21,7 @@ read as raw memory, so the port cannot invent one by naming it.
   DS physical base, so they are listed instead of silently dumped. That gap is a real hole in the
   oracle and is reported as such.
 
-Producers: `port/src/app/rig_sink.c` (`night --rig-dump DIR --rig-hz N`) writes one record per tick —
+Producers: `src/app/rig_sink.c` (`night --rig-dump DIR --rig-hz N`) writes one record per tick —
 `t_ms, frame, audio_bytes, screen_hash, tick` in a **padding-free** layout (field order chosen so, with
 a comment; the first attempt used `uint32_t` first and the reader silently read the next record's tick
 as cell values, which is why every cell looked like a 0,1,2,3 counter), then the 243 cell values
@@ -89,9 +89,9 @@ the port script, with the residual printed by both tools.
 ## 5. Reproduce
 
 ```sh
-python3 scripts/audit/gen_headers.py                 # -> gen/rig_cells.json + port/src/f/rig_table.h
-(cd port && make app)                                # rig_sink linked into test/night
-./port/test/night --res-dir ./NIGHT --script scripts/rig/drives/title_basic.txt \
+python3 scripts/audit/gen_headers.py                 # -> gen/rig_cells.json + src/f/rig_table.h
+(make app)                                # rig_sink linked into build/night
+./build/night --res-dir ./NIGHT --script scripts/rig/drives/title_basic.txt \
      --rig-dump /tmp/rig/port3 --rig-hz 10 --no-audio --frames 2000
 RUN_GAME=1 bash scripts/rig/bringup.sh && sleep 12 && python3 scripts/rig/calibrate_ds.py
 python3 scripts/rig/replay_original.py --drive scripts/rig/drives/title_basic.txt \

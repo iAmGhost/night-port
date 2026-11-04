@@ -29,7 +29,7 @@ ERROR: AddressSanitizer: global-buffer-overflow ... READ of size 4
    and 44 bytes before 'g_dat_53338'
 ```
 
-## The change (`port/src/f/f.h`, `port/src/f/f.c`)
+## The change (`src/f/f.h`, `src/f/f.c`)
 
 One global, laid out like the data segment:
 
@@ -70,11 +70,11 @@ Host witness (`NIGHT_TAB532=1`, printed at exit): `max_cursor`, `clamped`, `limi
 cd port
 for s in route_attract_wait.txt route_walk_fight.txt; do for w in "" "--warp-stage 1"; do
   NIGHT_TAB532=1 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-    ./test/night $w --script ../scripts/playtest/$s --no-audio --frames 6000 --shot-limit 0
+    ./build/night $w --script ../scripts/playtest/$s --no-audio --frames 6000 --shot-limit 0
 done; done
 ```
 
-ASan build (`make -C port app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address"`), logs in
+ASan build (`make app CFLAGS="-std=c11 -O1 -g -w -fsanitize=address"`), logs in
 `analysis/legacy/tab532/`:
 
 | run | AddressSanitizer reports | `tab53200 walk:` |
@@ -97,7 +97,7 @@ Two things follow, both measured rather than assumed:
 
 ## Tests
 
-`make -C port test` (4 new checks, all PASS):
+`make test` (4 new checks, all PASS):
 
 ```
 [PASS]   0x53200 block: tick table ends at DAT_532f4, block ends at DAT_53338 exactly
@@ -110,7 +110,7 @@ The third check is the one that distinguishes the fix from a layout accident: se
 `tab_532f4[0..1] = 0x11,0x22` (through the byte member, then restoring) changes the dword read at
 `+61*4` to `0x00002211`. With two separate globals that would have been padding.
 
-`make -C port selftest` -> `ALL PASS (0 failures)`.
+`make selftest` -> `ALL PASS (0 failures)`.
 
 ## Left open, with the reason
 

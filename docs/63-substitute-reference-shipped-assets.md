@@ -64,7 +64,7 @@ verified when it is not.
 
 So the company logo is not merely "visible": the bytes the port puts in the screen arena are byte-identical to
 the shipped card, and the `card_NN` series shows it held across the window-slide presentation (docs/51). The
-decode path itself is separately pinned by `make -C port selftest` (`[pcx] logo.pcx`, docs/44).
+decode path itself is separately pinned by `make selftest` (`[pcx] logo.pcx`, docs/44).
 
 ## Nested screens on the same basis: help, level-up, game-over
 

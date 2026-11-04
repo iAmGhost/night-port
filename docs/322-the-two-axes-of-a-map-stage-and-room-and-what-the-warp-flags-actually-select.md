@@ -63,7 +63,7 @@ Per the playtester's hint, the dialogue-skip report is about **the last section 
 that holds the boss (extra HP bar at middle-bottom)** → for stage 1 that is **column 3 = node #4**, the
 chain terminator.
 
-## 3. What the warp flags do now (`port/src/f/f.c`, `port/src/f/f.h`, `port/src/app/main.c`)
+## 3. What the warp flags do now (`src/f/f.c`, `src/f/f.h`, `src/app/main.c`)
 
 * `--warp-stage S` forces `DAT_63370 = S` in `fn_037b03`, i.e. selects map S (1..9).
   `--warp-episode N` is kept only as a deprecated alias so docs/52-era scripts still run.

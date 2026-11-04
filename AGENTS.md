@@ -19,9 +19,11 @@
   specs and notes), analysis/probes (the small C repro programs), analysis/tables, analysis/refs (cited
   screenshots), analysis/legacy (run logs a doc still names).
 - ./docs: Documents about analysis and porting
-- ./src: the night_port python package the uv project installs (the scripts run under `uv run`)
-- ./port: the SDL port. Sources live in port/src and port/test (test sources + port/test/vectors); every build
-  output lands in port/build, which is git-ignored.
+- ./src: the port's C sources (src/f the function-to-function layer, src/app the SDL host, src/res, src/cd,
+  src/sys, src/gen)
+- ./test: the fixture suite's sources (test/test_f1.c, test/vectors the differential vector headers)
+- ./build: every build output (test_f1, night, night-asan, night-asan-o2, night-census, selftest), git-ignored.
+  `make test`, `make app`, `make asanapp`, `make selftest` run from the repo root.
 
 # Tools
 

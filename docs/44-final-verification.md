@@ -2,13 +2,13 @@
 
 ## Build + tests
 
-* `make -C port test` → **2792 checks, 2792 PASS, 0 FAIL** at the time of this sweep; re-run later in the
+* `make test` → **2792 checks, 2792 PASS, 0 FAIL** at the time of this sweep; re-run later in the
   playtest work and currently **2873 checks, ALL PASS** (the extra checks come from docs/55/57/62 and the
   game-over `.spr` table invariants of docs/61). The same tree under ASan
   (`cc -fsanitize=address -std=c11 -O1 -g -Isrc test/test_f1.c src/f/f.c src/f/fx_04794a.c src/sys/sys.c src/cd/cd_iso.c`,
   i.e. exactly `$(SRC_F) $(SRC_SYS) $(SRC_CD)` from the Makefile -- note the test link needs no SDL3) reports
   `== ALL PASS ==` with **no ASan report** (re-confirmed after the fn_038445 composite fix).
-* `make -C port selftest` → **ALL PASS (0 failures)** (re-confirmed).
+* `make selftest` → **ALL PASS (0 failures)** (re-confirmed).
 
 ## Byte-exact asset checks (previously silently skipped)
 
@@ -62,7 +62,7 @@ Reconciling the 528 tracked rows against Ghidra's 522 functions:
 
 ## Playable state
 
-Headless run (`SDL_VIDEODRIVER=dummy ./test/night --frames 2100 --autokey`): the attract chain (logo →
+Headless run (`SDL_VIDEODRIVER=dummy ./build/night --frames 2100 --autokey`): the attract chain (logo →
 opening FLI → title wipe → menu) plays through, `display mode` switches 640x480 (slides) → 320x200
 (room), the stage background reproduces `stage1.wal` at 0.973 correlation (docs/41), and the run now ends
 only because the harness kills it (`frames=2124`) instead of crashing near frame 600. With

@@ -6,14 +6,14 @@ does not).  No port behaviour is changed by this document except a new host witn
 
 ## 1. New witness: `NIGHT_TITLEDBG=1`, phase timings inside `fn_03a224`
 
-Added to `fn_03a224` (`port/src/f/f.c:15786-15800`, phases cited to the shipped addresses the code models:
+Added to `fn_03a224` (`src/f/f.c:15786-15800`, phases cited to the shipped addresses the code models:
 0x3a2c5-d2 the three `title*.pcx` loads, 0x3a2d7-384 the wipe, 0x3a3bb-407 the `0x400` `delay_units(1)` rounds,
 0x3a409-431 the release drain, 0x3a433-42 `DAT_63f08 = 0` + `fn_10b1d(9)`, 0x3a451-522 the menu loop):
 
 | run | build | drive | wipe | delay rounds | drain | `fn_10b1d(9)` reached at | game tick there |
 |---|---|---|---|---|---|---|---|
-| `/tmp/rig/m1_trace.log` | `port/test/night` | `ep1_title_music` | **10 759 ms** | 0 ms (a drive key breaks the loop) | 24 ms | **10 783 ms** after title entry | 14 425 |
-| `/tmp/rig/m1_asan.log` | `port/test/night-asan` | `ep1_title_music` | **10 792 ms** | 0 ms | 8 ms | **10 800 ms** | 14 651 |
+| `/tmp/rig/m1_trace.log` | `build/night` | `ep1_title_music` | **10 759 ms** | 0 ms (a drive key breaks the loop) | 24 ms | **10 783 ms** after title entry | 14 425 |
+| `/tmp/rig/m1_asan.log` | `build/night-asan` | `ep1_title_music` | **10 792 ms** | 0 ms | 8 ms | **10 800 ms** | 14 651 |
 
 Two builds agree to 33 ms.  The menu loop then runs 21 353 ms (until the drive's key), and the next selection
 (index 11, the stage-start slides) lands 44 s into the run ✓ So the title screen's own CD request
@@ -27,7 +27,7 @@ line the `fn_10b1d` seam prints (`sys_cd_audio_play`):
 
 | build | index 1 `37262` (42.0 s) | index 9 `185120` = `0x2d320` (369.3 s) | index 11 `223146` = `0x367aa` (238.1 s) | index 2 `40415` = **`0x9ddf`** (261.9 s) | further |
 |---|---|---|---|---|---|
-| current `port/test/night` (`/tmp/rig/m1_kill3.log`) | 10 s | 42 s | 72 s | **99 s** | — |
+| current `build/night` (`/tmp/rig/m1_kill3.log`) | 10 s | 42 s | 72 s | **99 s** | — |
 | frozen baseline `4ea273d` binary (`/tmp/rig/m1_base.log`) | 12 s | 45 s | 48 s | **77 s** | 12 `241002` @155 s, 2 again @157 s |
 | shipped (docs/183 §3, `/tmp/rig/g36/orig`) | not seen in the sampled window | 185 120 | 223 146 | **40 415** (fingerprint +0.837, the only track its mix contains) | selected inside its first 31 s |
 
@@ -63,7 +63,7 @@ cells) and docs/191 §1 (run-to-run variance): the measuring rig contributed the
 
 ## 4. The fix that was written and reverted
 
-Implemented during this pass, in `tick_pump`'s fixed-step branch (`port/src/app/main.c:1395`), plus a
+Implemented during this pass, in `tick_pump`'s fixed-step branch (`src/app/main.c:1395`), plus a
 `g_clock_read_calls` counter in `delay_units`: age `fn_03ee88` from a `max()` of two measures of elapsed guest
 time — presented frames at `NIGHT_RIG_FPS`, and the cooperative waits (`g_vga_retrace_waits × g_vga_retrace_us` +
 DOS-clock reads × `g_delay_unit_us`) — with a bounded catch-up burst.  Motivated by docs/232's claim that a screen

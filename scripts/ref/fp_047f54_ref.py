@@ -109,6 +109,6 @@ if __name__ == "__main__":
     out.append(f"#define FP_047F54_VECTORS_N ({len(cases)})")
     out.append("")
     out.append("#endif /* FP_047F54_VECTORS_H */")
-    with open("port/test/vectors/fp_047f54_vectors.h", "w") as f:
+    with open("test/vectors/fp_047f54_vectors.h", "w") as f:
         f.write("\n".join(out) + "\n")
     print(f"// wrote {len(cases)} vectors", flush=True)

@@ -9,7 +9,7 @@ closeout contract asks for is now possible, so it was run: `scripts/rig/asan_soa
 OUT=/tmp/rig/soak1 JOBS=4 CAP=320 FRAMES=4000 scripts/rig/asan_soak.sh
 # per stage s = 1..9:
 ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=0 SDL_AUDIODRIVER=dummy \
-  timeout 320 ./port/test/night-asan --res-dir ./NIGHT --script scripts/rig/drives/title_basic.txt \
+  timeout 320 ./build/night-asan --res-dir ./NIGHT --script scripts/rig/drives/title_basic.txt \
       --warp-stage s --frames 4000
 ```
 

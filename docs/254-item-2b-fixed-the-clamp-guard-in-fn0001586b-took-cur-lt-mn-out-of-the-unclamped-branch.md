@@ -21,7 +21,7 @@ drifted *below* `mn` falls into the clamping branch and is pushed back up to `mn
 to its lower bound ✓
 
 The port's guard was `if (cur < mn || cur > mx)` ✓ which puts the `cur < mn` case into the *unclamped* branch and
-lets the record keep drifting below its bound ✓ Fixed to `if (cur > mx)` ✓ (`port/src/f/f.c`, fn_01586b tail ✓)
+lets the record keep drifting below its bound ✓ Fixed to `if (cur > mx)` ✓ (`src/f/f.c`, fn_01586b tail ✓)
 
 That single extra conjunct is the mechanism docs/242 §3-4 measured and could not explain: "the shipped parks the
 player on the room's lower bound and the port leaves it at 172" ✓
@@ -46,7 +46,7 @@ applications ✓ enemy debt descends **35 → 13** ✓ 11 hits on one enemy ✓ 
 22 enemy hits but bottomed at debt 21 ✓ — the run-to-run variance docs/239 §4 recorded is still present ✓ so these
 depth numbers are directional, not a pacing claim ✓
 
-`make -C port test` → **ALL PASS** ✓ after the change ✓
+`make test` → **ALL PASS** ✓ after the change ✓
 
 Still not met for item 2b: no `+0x30 == 1` on a kind-1 record and no award in the port dumps (`exp_award.py`:
 port `+0x32` values per type = `[0]` for types 0, 31, 36, 201, 250 ✓ shipped `type_idx=31 → +0x32 = 10` ✓), because
@@ -54,7 +54,7 @@ an enemy still needs 18 landed hits (debt 35, 2 per hit ✓ docs/245 §2 ✓) an
 
 ## 3. Retraction: "fn_03272f's two player settle conversions are modelled nowhere" (docs/239 §4 item 3)
 
-They are modelled, twice, inside `fn_03272f` ✓ `port/src/f/f.c` (the state-0x1d and state-0x16 arms):
+They are modelled, twice, inside `fn_03272f` ✓ `src/f/f.c` (the state-0x1d and state-0x16 arms):
 
 ```c
 if (PL16(0x23) == 0 && PL8(0x30) == 1) PL8(0x30) = 2;

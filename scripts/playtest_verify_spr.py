@@ -3,7 +3,7 @@
 
 The port (NIGHT_MENUBG=1) prints, for every pause-menu sprite cell it composites, the cell's raw row-RLE
 stream and the bytes the blit actually wrote on the back screen.  This script decodes that stream with its OWN
-implementation of the format the shipped blitter uses (fn_03bb42 mode 0, port/src/f/f.c:7104, mirroring
+implementation of the format the shipped blitter uses (fn_03bb42 mode 0, src/f/f.c:7104, mirroring
 0x0003bb42):
 
     per row:   N                       -- number of runs

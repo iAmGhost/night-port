@@ -6,7 +6,7 @@ with 0x02c838 in order) and read in scratch/aidd.py listings; see scratch/NOTES_
 """
 import re, sys
 
-SRC = "port/src/f/f.c"
+SRC = "src/f/f.c"
 body = open(SRC).read()
 i = body.index("void fn_02c838(uint8_t *e)")
 j = body.index("\n}\n", i) + 3

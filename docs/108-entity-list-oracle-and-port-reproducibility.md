@@ -10,7 +10,7 @@ The rig's cell table only reached `DAT_00053c70` (list head) and `DAT_00053c74` 
 that actually gets hit, dies, or awards EXP was invisible** (they sit mid-list). Both dumpers now follow
 the `+0x13f` "next" links exactly like `fn_0320f5`'s sweep does:
 
-* port: `port/src/app/rig_sink.c` appends `RIG_ENTS = 12` blocks of `RIG_REC = 0x160` per sample after the
+* port: `src/app/rig_sink.c` appends `RIG_ENTS = 12` blocks of `RIG_REC = 0x160` per sample after the
   cell blob; `meta.json` carries them as `ent00..ent11` with `ptr: 2`, and `record_bytes` grows
   25860 -> 30084.
 * shipped: `scripts/rig/replay_original.py --ents N` walks from the DS cell `0x53c70` through the memory

@@ -93,7 +93,7 @@ Every one of those three is a false positive, and the two functions the check wa
   definition plus comments that mention `name(`, so the "occurrences == 1 means uncalled" rule discarded them.
 
 Both failures come from the same shortcut: counting name mentions in source text.  The port already carries the
-authoritative mapping -- `port/src/gen/fn_table.c` stores shipped function names next to their host pointers, and
+authoritative mapping -- `src/gen/fn_table.c` stores shipped function names next to their host pointers, and
 docs/166 §12 used it with `dladdr()` to name a call site in-process.  A reachability census has to ask *the table*
 which host function each shipped name is, then look at that function's identity, not its spelling.  Until it is
 rewritten that way, `uncalled_port_fns.json` is a rig artifact and not a finding; the two real facts this turn

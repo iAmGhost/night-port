@@ -43,7 +43,7 @@ because the shipped's arm reads a flag the hit chain writes, not a health compar
 
 ## 3. The arm that does work: `NIGHT_RIG_GUARDIAN_KILL=1`, latch-triggered
 
-`port/src/app/rig_sink.c:478-498` stamps `+0x30 = 1` on the record currently latched in `DAT_00053c80`, the
+`src/app/rig_sink.c:478-498` stamps `+0x30 = 1` on the record currently latched in `DAT_00053c80`, the
 first times a latch exists — it is triggered by the latch, not by a clock, because `DAT_53c80` is cleared at room
 init (0x00037b43) and re-latched only when a record whose type index equals `DAT_00063370` is constructed
 (0x00010f1d-0x00010f2b).  The rig never writes `DAT_0006336c`.
@@ -58,7 +58,7 @@ Drive `scripts/rig/drives/ep1_st1_room3_guardiankill_state.txt` (48 lines) is st
 d=/tmp/rig/h330; rm -rf $d; mkdir -p $d
 env SDL_AUDIODRIVER=dummy NIGHT_SEED=13579 NIGHT_RIG_GUARDIAN_KILL=1 NIGHT_ROOMDBG=1 \
     NIGHT_DEATHTRACE=1 NIGHT_RIG_SCREEN_EVERY=8 stdbuf -o0 -e0 \
-  timeout -k 5 330 ./port/test/night --res-dir ./NIGHT \
+  timeout -k 5 330 ./build/night --res-dir ./NIGHT \
     --warp-stage 1 --warp-column 3 \
     --script scripts/rig/drives/ep1_st1_room3_guardiankill_state.txt \
     --frames 14000 --rig-hz 4 --rig-dump $d > $d/out.log 2>$d/err.log

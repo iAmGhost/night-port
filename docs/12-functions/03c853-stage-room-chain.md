@@ -1,6 +1,6 @@
 # 0x03c853 — the recursive stage / room node loader
 
-Ported as `fn_03c853` in `port/src/f/f.c`; verified by `test_fn_03c853` (12 checks, two-room chain).
+Ported as `fn_03c853` in `src/f/f.c`; verified by `test_fn_03c853` (12 checks, two-room chain).
 Size 639 B, L12. It was the last dependency blocking the L15 stage loaders `0x0374ad` / `0x0376c8`
 (both call `0x037b03`, whose only unported callee was this one).
 

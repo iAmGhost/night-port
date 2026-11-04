@@ -1,7 +1,7 @@
 # 224 — Item 5: the port reaches stage 2 on a natural room clear, then never composites a room again — and no fault exists on any stage-entry route, HEAD or the frozen baseline
 
-Gate: `gate3-stage2-crash`, unfixed build (`port/test/night-asan`, HEAD `18b36f1`) and the frozen baseline
-build from `574c636` (checked out to `/tmp/base574`; `port/test/night`, `port/test/night-asan` are tracked in
+Gate: `gate3-stage2-crash`, unfixed build (`build/night-asan`, HEAD `18b36f1`) and the frozen baseline
+build from `574c636` (checked out to `/tmp/base574`; `build/night`, `build/night-asan` are tracked in
 git, so the baseline commit's own binaries are what ran).
 
 ## 1. Warp sweep, all eight remaining episodes, ASan + UBSan, HEAD
@@ -80,7 +80,7 @@ canonical route.
 
 ## 4. The frozen baseline reproduces the stuck screen
 
-Same drive on `/tmp/base574/port/test/night` (`/tmp/rig/base_rc2`):
+Same drive on `/tmp/base574/test/night` (`/tmp/rig/base_rc2`):
 
 ```
 (640,480)  381 entries   t =   0.0 -   3.7 s   changed 102
@@ -107,7 +107,7 @@ that order the loader never asks for the stage-2 files and the presentation neve
 Five route/build combinations, all rc=0 with no AddressSanitizer report, no SIGSEGV, no bus error:
 HEAD warp (8 stages), HEAD stage-cell poke (docs/208, 13435 frames at stage=2), HEAD quota-request poke
 (docs/222), HEAD room clear (§3), baseline warp and baseline room clear (§2).  The historical
-`bus error ./test/night` line is the harness's `longjmp(g_game_escape)` unwind (`frame budget: ... unwinding the
+`bus error ./build/night` line is the harness's `longjmp(g_game_escape)` unwind (`frame budget: ... unwinding the
 game main`, docs/223 §2).  Item 5's crash claim has no reproducible counterpart in the current or frozen build;
 the playtest report predates both.
 

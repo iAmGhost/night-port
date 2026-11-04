@@ -25,7 +25,7 @@ difference is a route/duration difference, not yet a defect, so it is recorded a
 
 ## 3. Both mirror arms and the selector are faithful (this is what item 6 is NOT)
 
-`fn_012efa`'s selector and arms, shipped bytes against the port model (`port/src/f/f.c:14852-14872`):
+`fn_012efa`'s selector and arms, shipped bytes against the port model (`src/f/f.c:14852-14872`):
 
 ```
 0x12fca  cmp dword ptr [eax + 0x1b], 0 ; jne 0x13163      ; selector is a DWORD compare, not a byte
@@ -63,7 +63,7 @@ selector verified faithful the mismatch has to come from the data the arms consu
 
 ## 4. One real (narrow) divergence found in the blitter while checking this
 
-`fn_03bb42`'s clipping is **mutually exclusive** in the shipped code (`port/src/f/f.c:7665-7673` vs guest
+`fn_03bb42`'s clipping is **mutually exclusive** in the shipped code (`src/f/f.c:7665-7673` vs guest
 0x0003bc43-0x0003bc63):
 
 ```

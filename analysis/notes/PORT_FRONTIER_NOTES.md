@@ -1,7 +1,7 @@
 # PORT FRONTIER NOTES (post-compaction handoff)
 
 State: **413/528 done** (78.2%), suite **1664 PASS, 0 FAIL** (non-ASan + ASan green). 115 pending.
-Goal: mvamgfqk-xs4w9s. Build: `make -C port test`. Count: `python3 scripts/status_report.py`.
+Goal: mvamgfqk-xs4w9s. Build: `make test`. Count: `python3 scripts/status_report.py`.
 
 ## This turn's ports (all committed)
 - **0x03e0a0 (L10)** — build+append doubly-linked list node. Offset model (matches siblings

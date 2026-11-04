@@ -64,7 +64,7 @@ never bounded, which is why a static reading missed it and the host guessed wron
 
 ## The port change
 
-`key_apply` moved out of `main.c` into **`port/src/app/keymap.c` / `keymap.h`**, compiled into both the SDL host
+`key_apply` moved out of `main.c` into **`src/app/keymap.c` / `keymap.h`**, compiled into both the SDL host
 and the test binary, so the map is asserted rather than assumed:
 
 - the four held-arrow assignments corrected to the measured table;
@@ -79,7 +79,7 @@ test target for the shared header).
 
 ## The suite check
 
-`test_key_map_measured` in `port/test/test_f1.c` -- for each of the eight keys: the measured DS byte goes to 1,
+`test_key_map_measured` in `test/test_f1.c` -- for each of the eight keys: the measured DS byte goes to 1,
 the scan-code slot at the scancode index is armed, exactly one key byte moves, and everything clears on break;
 then F1's exclusivity; then the pump dispatch:
 
@@ -105,7 +105,7 @@ uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
 uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
   --out /tmp/dbgauto/orig_keyprobe2 --drive scripts/playtest/probe_orig_keybytes.txt --hz 1   # the hold-and-dump census
 # port side
-cd port && ./test/test_f1 | grep -A24 "key map:"
+./build/test_f1 | grep -A24 "key map:"
 ```
 
 ## Consequence to keep an eye on
@@ -259,7 +259,7 @@ export DOSBOX_API_TOKEN=...
 uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
   --out /tmp/dbgauto/orig_keyprobe2 --drive scripts/playtest/probe_orig_keybytes.txt --hz 1
 # the map is now asserted in the suite, so the port side needs no capture:
-cd port && ./test/test_f1 | grep -A28 "key map:"; ./test/test_f1 | grep -A6 "DAT_00053eb8 is the entity-type"
+./build/test_f1 | grep -A28 "key map:"; ./build/test_f1 | grep -A6 "DAT_00053eb8 is the entity-type"
 # the soak (plain then ASan) and its table:
 bash scripts/playtest_soak.sh plain && bash scripts/playtest_soak_asan.sh
 uv run --with numpy python3 scripts/playtest_soak_report.py /tmp/night_soak
@@ -273,7 +273,7 @@ comparison was re-measured from scratch rather than trusted:
 ```sh
 uv run --with numpy --with pillow python3 scripts/playtest_orig_drive.py \
   --out /tmp/dbgauto/orig_ep1_91 --drive scripts/playtest/drive_orig_episode1.txt --hz 8      # 517 frames, 61 gameplay
-(cd port && SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./test/night --warp-stage 1 \
+(SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./build/night --warp-stage 1 \
    --script ../scripts/playtest/route_pause_menu.txt --shots /tmp/port_ep1_91 --no-audio \
    --frames 12000 --shot-limit 400)                                                          # 187 shots, tbl53eb8=4307/0
 uv run --with numpy --with pillow python3 scripts/playtest_compare_orig_port.py \

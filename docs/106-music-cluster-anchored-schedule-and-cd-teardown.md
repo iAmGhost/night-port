@@ -9,7 +9,7 @@
 > two-sided audio oracle (per-window spectral/onset comparison of the container's captured WAV against the
 > port's PCM, not just play/stop bookkeeping).
 
-Date: 2026-10-28. Build before the fix: `port/test/night` at e3f872a. After: same tree plus the
+Date: 2026-10-28. Build before the fix: `build/night` at e3f872a. After: same tree plus the
 `cdda_play` teardown. Routes: `/tmp/rig/route-e1` (ep1_combat, 230 s; shipped side shared, port side
 re-dumped as `port2` = before, `port3` = after), probe route `/tmp/rig/cd-orig2` + `/tmp/rig/cd-port2`.
 
@@ -63,7 +63,7 @@ MSCDEX semantics: the play request behind `fn_010570` (request 0x1510, called fr
 *replaces* the playing track -- a drive cannot play two at once. The port reused one SDL stream and
 never flushed on replacement, so the previous track's queued sectors (the planner keeps a 30-sector /
 0.4 s lead) keep playing on top of the new track, and the only stops it ever emitted came from
-`fn_000405a7`. Fix in `port/src/app/main.c` `cdda_play`: if a track is already playing, emit the stop
+`fn_000405a7`. Fix in `src/app/main.c` `cdda_play`: if a track is already playing, emit the stop
 witness mark, `SDL_FlushAudioStream`, and clear the position before arming the new track.
 
 Red before / green after (same shipped side, `cd_schedule.py` witness check):

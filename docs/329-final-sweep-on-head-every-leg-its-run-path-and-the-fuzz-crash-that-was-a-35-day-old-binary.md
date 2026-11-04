@@ -5,7 +5,7 @@ command and the directory that holds its artifacts.
 
 ## 1. Unit suite
 
-`make -C port test` -> `== ALL PASS ==` (rc=0), and the target rebuilds `port/test/night` (mtime Nov 4 16:29,
+`make test` -> `== ALL PASS ==` (rc=0), and the target rebuilds `build/night` (mtime Nov 4 16:29,
 after the last source change) — the docs/181 §5 rule still holds.  Last witnesses printed: the `cd_iso` disc
 block (15 tracks, the 0xc51 gate, `cd_iso_read_audio(37262)` -> IMG sector 37112) and the `--skip-intro` block
 (neither `fn_038a20` nor `fn_038ae0` runs, both VESA mode sets stay, the CD still asks for track 1).
@@ -51,7 +51,7 @@ stage 2 rc=0 ... 1050   stage 3 ... 1056   stage 4 ... 1045   stage 5 ... 1115
 stage 7 rc=0 ... 1114   stage 8 ... 4000   stage 9 ... 1113
 ```
 
-9/9 rc=0, zero sanitizer reports ✓ The script builds `make -C port asanapp` first (docs/265's stale-soak fix);
+9/9 rc=0, zero sanitizer reports ✓ The script builds `make asanapp` first (docs/265's stale-soak fix);
 the binary was rebuilt again during §5's investigation (`night-asan`, Nov 4 17:52).
 
 ## 4. Blit census
@@ -78,14 +78,14 @@ basis recorded in docs/312 and are not re-gated here.
 
 The two SIGSEGVs were real signals, so they were chased rather than explained away:
 
-1. `port/test/night-census` had a directory date of **Oct 30 00:54** — 35 days older than HEAD, older than the
+1. `build/night-census` had a directory date of **Oct 30 00:54** — 35 days older than HEAD, older than the
    `fn_03ce0b` arm fixes (docs/311), item 6's mirrored-blit fix (docs/303), the NULL chain-link guards and the
    item E/F fixes.  `scripts/rig/fuzz.py` never built it.
 2. The saved crashing drive `/tmp/rig/fuzz/r0s2_st4/drive.txt` (123 lines, `[input-only]`: keys only, no state
    pokes) was replayed against the ASan app build: `rc=0`, no `ERROR: AddressSanitizer` line, no SEGV report.
-3. `make -C port censusapp -B` (Nov 4 17:54) and the identical seed set re-run: **0 crashes**, coverage 252/503.
+3. `make censusapp -B` (Nov 4 17:54) and the identical seed set re-run: **0 crashes**, coverage 252/503.
 
-`scripts/rig/fuzz.py` now runs `make -C port censusapp` before a census (`FUZZ_NO_BUILD=1` opts out) — the fuzz
+`scripts/rig/fuzz.py` now runs `make censusapp` before a census (`FUZZ_NO_BUILD=1` opts out) — the fuzz
 route had the same defect `asan_soak.sh` already guards against (docs/265 §2).  Coverage is stated as a range,
 **222-252 of 503** shipped-named functions across four censuses on HEAD; the gate is the crash census, which is 0
 on a fresh binary.

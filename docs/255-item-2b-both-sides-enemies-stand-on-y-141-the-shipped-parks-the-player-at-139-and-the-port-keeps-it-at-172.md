@@ -34,7 +34,7 @@ The `GATE4` witness agrees line-for-line: `GATE4 kind 0/1 ty 0/31 y 178 vs 193 d
 0x13ee6-0x13efb  arrB[+0x14][v30]; 0x13f00  add eax, [edx]     -> v50 = bx + arr[+0x14][v30]   (port: same ✓)
 ```
 
-`port/src/f/f.c` (`fn_013c4d`, the `if (int32[a+0x1b] == 0)` split ✓ `SUBT(sprB, 0x18)/SUBT(sprB, 0x14)`) matches
+`src/f/f.c` (`fn_013c4d`, the `if (int32[a+0x1b] == 0)` split ✓ `SUBT(sprB, 0x18)/SUBT(sprB, 0x14)`) matches
 the shipped arm-for-arm ✓ So the misses are **not** a facing/mirror transcription error ✓ which further weakens
 docs/225's mirror-flag line for item 6 ✓ (docs/229 already retracted its "eight missing stores" ✓) ✓
 

@@ -27,7 +27,7 @@ frames 9003(t=246651) -> 9013(t=246858): 48 changed px
 Two glyph columns at x 12..13 and x 17..20 -- exactly the witnessed `tag=valuedisp dest=11` and `dest=16` with
 `col=4`, and the cluster rises 3 rows per ~200 ms, which is `fn_03b718`'s aging (`DAT_00063360 % 3` -> `+0x05++`,
 `start_row = dy - 0xf` shrinking).  So the field item 2a is about is at **x 11..19, y 82..100 of the 320x200 canvas**,
-drawn by `fn_03b718` (`port/src/f/f.c:14516`), posted by `fn_015295`'s kill branch (0x000153fe-0x00015432), walked by
+drawn by `fn_03b718` (`src/f/f.c:14516`), posted by `fn_015295`'s kill branch (0x000153fe-0x00015432), walked by
 `fn_03b953` (0x0003b953/0x0003b99a).  The left glyph is a 2-px column and the right glyph is a 4-px column that is
 solid in most rows with a `#.#`/`###` hole in three rows -- a "0" with its middle mostly filled in.
 
@@ -50,7 +50,7 @@ capture: the shipped simply has nothing moving at the coordinates its own record
 
 ## 3. The glyph-index arithmetic is faithful (one more hypothesis closed)
 
-Shipped bytes for the digit blit, 0x0003b795-0x0003b7db, against `port/src/f/f.c:14532-14547`:
+Shipped bytes for the digit blit, 0x0003b795-0x0003b7db, against `src/f/f.c:14532-14547`:
 
 ```
 0x3b795  mov eax, [eax + 0x34]            ; the control block's glyph-offset object

@@ -40,9 +40,9 @@ write issues 0x1e0 calls. It passed the test and was still wrong: with the game'
 `fn_03f462` -- the one that calls `fn_03f3be` -- almost never fires, so the real number of issued VBIOS calls per
 pass is ~1, not 481. The test had pinned an artificial configuration (W = pitch = 0x280). Reverted.
 
-Second trap, worth recording: `make -C port test` builds `test/test_f1` but **not** `test/night`, so the first two
-"measurements" of the fix ran the old binary and showed no change at all. `make -C port app test` (or touching the
-sources) is required before measuring through `test/night`.
+Second trap, worth recording: `make test` builds `build/test_f1` but **not** `build/night`, so the first two
+"measurements" of the fix ran the old binary and showed no change at all. `make app test` (or touching the
+sources) is required before measuring through `build/night`.
 
 ## The fix
 
@@ -83,12 +83,12 @@ the original to within a few milliseconds.
 
 ## Tests
 
-`test_title_wipe_window_cost` in `port/test/test_f1.c` pins: one full-height `fn_03f462` write charges exactly
+`test_title_wipe_window_cost` in `test/test_f1.c` pins: one full-height `fn_03f462` write charges exactly
 0x280*0x1e0 = 307200 window bytes under the game's real geometry; at the physical 97.5 ns/byte the 240 passes come to
 the original's measured 7.19 s; the host default charges 4.65 s of it (the pump supplies the rest); the measured
 port/original span ratio 1.010 stays inside +-3 %; and the suite keeps the model timing-free.
 
-Suite after the change: `make -C port test` ALL PASS, `make -C port selftest` ALL PASS.
+Suite after the change: `make test` ALL PASS, `make selftest` ALL PASS.
 
 ## Not claimed
 

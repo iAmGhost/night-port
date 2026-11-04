@@ -1,6 +1,6 @@
 # 278 — Item 2b: per-entry chain rejection census — entries 6-9 want `0x1d` at their first window slot and the ring holds `0x48`/`0x00`
 
-`chain_why()` added next to `ACTWHY` (`port/src/f/f.c`, armed by `NIGHT_ACTTRACE=1`, capped at 60 lines ✓ trace-only,
+`chain_why()` added next to `ACTWHY` (`src/f/f.c`, armed by `NIGHT_ACTTRACE=1`, capped at 60 lines ✓ trace-only,
 no behavioural change ✓). Canonical drive `ep1_kill3.txt` 150 s ✓, distinct (entry, stage, want, got) triples:
 
 | entry | len | stage | want (entry's code) | got (ring slot) |

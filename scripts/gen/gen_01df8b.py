@@ -1,4 +1,4 @@
-src = open('port/src/f/f.c').read()
+src = open('src/f/f.c').read()
 start = src.index('void fn_01bea8(uint8_t *e)\n{')
 end = src.find("\n/* =====================================================================", start)
 if end < 0: end = len(src)

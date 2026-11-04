@@ -1,6 +1,6 @@
 # The ending slide show, reached and verified -- and two host presentation defects it exposed
 
-Date: 2026-10-24. Code: `port/src/f/f.c` (`fn_03af18_ending_slideshow`, `fn_03628e`), `port/src/app/main.c`
+Date: 2026-10-24. Code: `src/f/f.c` (`fn_03af18_ending_slideshow`, `fn_03628e`), `src/app/main.c`
 (`NIGHT_SHOWSCREEN=ending`, pump presentation). Evidence: `NIGHT_RESLOG` + `NIGHT_VIDRAW` capture, compared with
 `scripts/playtest_compare_slides.py::pcx_indices` (docs/63 basis).
 
@@ -62,5 +62,5 @@ so anything that touches presentation throttling is a timing change.
 
 ## 5. Verification
 
-`make -C port test` -- 2873 checks, ALL PASS. ASan build of the suite: ALL PASS, no sanitizer reports. Nine
+`make test` -- 2873 checks, ALL PASS. ASan build of the suite: ALL PASS, no sanitizer reports. Nine
 episode sweeps and the level-up/pause/game-over warps unchanged.

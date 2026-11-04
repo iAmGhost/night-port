@@ -34,7 +34,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.0"
+VERSION = "0.1.1"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 8              # saves live in ids 10..17
 SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
@@ -107,6 +107,11 @@ def main():
         # with them declared the plan was 33 and the Pocket refused the instance with
         # "Instance Can't match slot ID" / "framework instance load error" before the core even started.
         {"id": 7, "name": "Sound Bank", "required": False, "parameters": 0, "extensions": ["ofsf"], "deferload": True},
+        # The host's own diagnostic trail (docs/335 §4): the Pocket has no console and the core-side terminal
+        # mode was not reachable on hardware, so every phase line is also written here and the card is read
+        # back afterwards.
+        {"id": 9, "name": "Debug Log", "required": False, "parameters": "0x84", "nonvolatile": True,
+         "address": "0x20300000", "size_maximum": "0x10000", "extensions": ["log"]},
     ]
     data_slots += [
         {"id": 10 + i, "name": f"Save {i}", "required": False, "parameters": "0x84", "nonvolatile": True,
@@ -166,6 +171,7 @@ def main():
         {"id": 3, "filename": f"{APP}.elf"},
         {"id": 4, "filename": "NIGHT.RES"},
     ]
+    inst_slots.append({"id": 9, "filename": f"{APP}.log"})
     for i in range(SAVE_SLOTS):
         inst_slots.append({"id": 10 + i, "filename": f"{APP}_{i}.sav"})
     for sid in sorted(ts):
@@ -211,6 +217,7 @@ def main():
         + "".join(f"| `{fn}` | {sid} | CDDA track {int(fn[-6:-4])} of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |\n"
                   for sid, fn in sorted(ts.items()))
         + f"| `{APP}_0..{SAVE_SLOTS - 1}.sav` | 10-{9 + SAVE_SLOTS} | save slots, created by the game on the first save |\n"
+        + f"| `{APP}.log` | 9 | the host's diagnostic trail (phases, clock probe, memstat) -- read it after a run |\n"
         + "\nSettings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL` 0-255, "
           "`CDDA=1` mutes the CD music, `PAD=1` ignores the pad (edit the file on the card). On a desktop "
           "build the same knobs are `NIGHT_MUSIC_VOL`, `NIGHT_SFX_VOL`, `NIGHT_CDDA_OFF`, `NIGHT_PAD_OFF`.\n"

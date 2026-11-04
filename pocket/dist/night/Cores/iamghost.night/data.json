@@ -62,6 +62,18 @@
                 "deferload": true
             },
             {
+                "id": 9,
+                "name": "Debug Log",
+                "required": false,
+                "parameters": "0x84",
+                "nonvolatile": true,
+                "address": "0x20300000",
+                "size_maximum": "0x10000",
+                "extensions": [
+                    "log"
+                ]
+            },
+            {
                 "id": 10,
                 "name": "Save 0",
                 "required": false,

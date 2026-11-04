@@ -23,6 +23,10 @@
                 "filename": "NIGHT.RES"
             },
             {
+                "id": 9,
+                "filename": "night.log"
+            },
+            {
                 "id": 10,
                 "filename": "night_0.sav"
             },

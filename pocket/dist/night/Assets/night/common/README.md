@@ -24,6 +24,7 @@ make -C pocket/src/night data     # -> scratch/pocket/, then `make deploy`
 | `track14.bin` | 30 | CDDA track 14 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
 | `track15.bin` | 31 | CDDA track 15 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
 | `night_0..7.sav` | 10-17 | save slots, created by the game on the first save |
+| `night.log` | 9 | the host's diagnostic trail (phases, clock probe, memstat) -- read it after a run |
 
 Settings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL` 0-255, `CDDA=1` mutes the CD music, `PAD=1` ignores the pad (edit the file on the card). On a desktop build the same knobs are `NIGHT_MUSIC_VOL`, `NIGHT_SFX_VOL`, `NIGHT_CDDA_OFF`, `NIGHT_PAD_OFF`.
 

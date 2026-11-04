@@ -82,6 +82,14 @@ for f in "$DATA"/cd/track*.bin; do
 done
 [ "$count" -gt 0 ] || fail "no track*.bin under $DATA/cd (run scripts/pocket/repack.py)"
 
+# Nonvolatile slots must be VISIBLE before the host can open one: of_log.c and of_save.c find their slot
+# through readdir("/") + d_ino, and openfpgaOS-Quake's sys_of.c returns NULL when readdir does not list it.
+# A bound-but-absent file is therefore pre-created empty here, and the core writes it.
+for pre in night.log night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
+    [ -f "$COMMON/$pre" ] || : > "$COMMON/$pre"
+    ok "pre-created $pre"
+done
+
 # Saves and settings are created by the core on the card; a stale manifest copy is not wanted.
 sync 2>/dev/null || true
 echo -e "${GREEN}Deployed:${RESET} core tree + NIGHT.RES + $count track slots to $SDCARD"

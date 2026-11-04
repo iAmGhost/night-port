@@ -27,6 +27,7 @@
 #include "of_cdda.h"
 #include "of_disc.h"
 #include "of_save.h"
+#include "of_log.h"
 
 #include "of.h"
 #include "of_audio.h"
@@ -65,6 +66,11 @@ static const char *g_rig_dir;
 
 #define PRESENT_HZ   60u
 #define PRESENT_PERIOD_US (1000000u / PRESENT_HZ)
+
+/* Every host print is also written to the card's log slot (docs/335 §4): the Pocket has no console, and a
+ * run that hangs or dies leaves its whole trail in Assets/night/common/night.log. */
+#define NLOG(...)        do { printf(__VA_ARGS__); of_log_line(__VA_ARGS__); } while (0)
+#define NLOG_STEP(what)  do { printf("phase: %s\n", (what)); of_log_line("phase: %s\n", (what)); } while (0)
 
 static uint8_t  g_node_pool[0x53800];     /* the resource node pool (docs/15 boot recipe) */
 static uint8_t  g_pal_rgb[768];
@@ -601,7 +607,7 @@ static void tick_pump(void) {
         uint64_t clock_now = sys_now_us();
         g_clock_rate_us = g_clock_diag_last ? clock_now - g_clock_diag_last : 0;
         g_clock_diag_last = clock_now;
-        printf("memstat frames=%u ticks=%u(+%u/s) pumps=%u arena=%u/%u pit=%u Hz xfer=%u plays=%u cdda=%u/%u/%u clock=%llu\n",
+        NLOG("memstat frames=%u ticks=%u(+%u/s) pumps=%u arena=%u/%u pit=%u Hz xfer=%u plays=%u cdda=%u/%u/%u clock=%llu\n",
                g_frames, g_timer_calls, g_timer_calls - s_last_ticks, g_pump_calls,
                heap_arena_used(), heap_arena_cap(), sys_pit_hz(0),
                sys_audio_transfers(), g_of_sfx_plays,
@@ -630,6 +636,8 @@ int main(int argc, char **argv) {
 #endif
     }
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
+    if (of_log_open() != 0) printf("log: slot 9 (night.log) not openable; diagnostics stay on stdout\n");
+    NLOG_STEP("boot start");
     if (getenv("NIGHT_RIG_STEP_CALLS")) {
         int hz = atoi(getenv("NIGHT_RIG_STEP_CALLS"));
         if (hz > 0) g_fixed_step_calls = hz;
@@ -646,17 +654,18 @@ int main(int argc, char **argv) {
     of_audio_init();
 
     const struct of_capabilities *caps = of_get_caps();
-    printf("night pocket: cpu=%u Hz sdram=%u KB heap=%u KB fb=%ux%u stride=%u voices=%u variant=%u\n",
+    NLOG("night pocket: cpu=%u Hz sdram=%u KB heap=%u KB fb=%ux%u stride=%u voices=%u variant=%u\n",
            caps->cpu_freq_hz, caps->sdram_size / 1024, caps->heap_size / 1024,
            caps->fb_width, caps->fb_height, caps->fb_stride, caps->mixer_voices, caps->core_variant);
 #ifndef OF_PC
-    printf("clock: openfpgaOS of_time_us installed; probe: ");
+    NLOG_STEP("clock source installed");
+    NLOG("clock: openfpgaOS of_time_us installed; probe: ");
     {
         uint64_t a = sys_now_us();
         for (volatile int i = 0; i < 2000000; i++) ;
         uint64_t b = sys_now_us();
-        printf("%llu us over a 2M-iteration spin (%s)\n", (unsigned long long)(b - a),
-               (b > a) ? "advancing" : "NOT ADVANCING");
+        NLOG("%llu us over a 2M-iteration spin (%s)\n", (unsigned long long)(b - a),
+             (b > a) ? "advancing" : "NOT ADVANCING");
     }
 #endif
 
@@ -665,6 +674,9 @@ int main(int argc, char **argv) {
 #endif
 
     of_settings_load();                        /* os.ini [night] on the device, env on the desktop */
+    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d\n",
+         of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
+         of_setting_tick_hz());
     if (!of_setting_cdda()) g_off |= OFF_CDDA;
     if (!of_setting_pad())  g_off |= OFF_PAD;
     if (g_load_slot >= 0) {                    /* a restore arms the warp basis from the blob */
@@ -672,8 +684,11 @@ int main(int argc, char **argv) {
     }
     if (g_warp_stage_cli > 0) g_warp_stage = g_warp_stage_cli;
     pad_script_load();
+    NLOG_STEP("board_boot");
     board_boot();
+    NLOG_STEP("audio_boot");
     audio_boot();
+    NLOG_STEP("cdda_boot");
     cdda_boot();
     sys_set_res_hook(0);
 
@@ -719,7 +734,7 @@ int main(int argc, char **argv) {
 
     int tracks = of_disc_open();
     sys_cd_set_audio_backend(cdda_play, cdda_stop);
-    printf("disc: %d tracks, %u sectors\n", tracks, of_disc_total_sectors());
+    NLOG("disc: %d tracks, %u sectors\n", tracks, of_disc_total_sectors());
 
     sys_set_input_pump(input_pump);
     sys_set_tick_pump(tick_pump);
@@ -732,12 +747,13 @@ int main(int argc, char **argv) {
     g_boot_us = sys_now_us();                       /* the warp-entry pulse timeline (task-7) */
     if (setjmp(g_game_escape) == 0) {
         g_escape_armed = 1;
+        NLOG_STEP("game main entered");
         dispatch_a(0xff);                          /* 0x422c7: the registered event-table entries */
         fn_0445c9_startup();                       /* 0x0445d8-0445fe: the entry thunk's pre-main half */
         fn_03af18();                               /* THE GAME MAIN */
-        printf("the game main returned\n");
+        NLOG("the game main returned\n");
     } else {
-        printf("game main unwound (quit / fatal)\n");
+        NLOG("game main unwound (quit / fatal)\n");
     }
     g_escape_armed = 0;
     g_quit = 1;

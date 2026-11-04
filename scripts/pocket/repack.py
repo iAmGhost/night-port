@@ -10,7 +10,7 @@ WHAT IT WRITES (scratch/pocket/, i.e. regenerable; the repo only carries this sc
 WHY PER-TRACK FILES: the SDL host reads the whole disc through one TG_NIGHT.IMG (src/cd/cd_iso.c,
 fseek+fread).  On the Pocket a data slot is a file, and the game asks for a *track* (fn_010b1d resolves
 a TOC index to an LBA and a sector count), so the disc is cut along its own track boundaries: slot
-N+18 == audio track N, exactly the mapping scripts/pocket/mk_dist.py writes into data.json and
+N+16 == audio track N, exactly the mapping scripts/pocket/mk_dist.py writes into data.json and
 pocket/src/night/of_disc.c uses at run time.
 
 WHY THE BYTE RANGES ARE lba-150: TG_NIGHT.IMG carries no PREGAP, while the LBAs in the CUE (and the

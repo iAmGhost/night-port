@@ -90,6 +90,16 @@ for pre in night.log night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav
     ok "pre-created $pre"
 done
 
+# The firmware keeps nonvolatile slot data under Saves/<platform>/common/ (measured: Quake's cfg slot is at
+# Saves/quake/common/quake.cfg, and mounting this core created Saves/night/common/ on its own).  A slot with
+# no file on either side has nothing for the app's fopen to land in, so the same placeholders go there too.
+SAVE_DIR="$SDCARD/Saves/$(basename "$PLAT")/common"
+mkdir -p "$SAVE_DIR"
+for pre in night.log night_0.sav night_1.sav night_2.sav night_3.sav night_4.sav night_5.sav night_6.sav night_7.sav; do
+    [ -f "$SAVE_DIR/$pre" ] || : > "$SAVE_DIR/$pre"
+done
+ok "placeholders in Saves/$(basename "$PLAT")/common/"
+
 # Saves and settings are created by the core on the card; a stale manifest copy is not wanted.
 sync 2>/dev/null || true
 echo -e "${GREEN}Deployed:${RESET} core tree + NIGHT.RES + $count track slots to $SDCARD"

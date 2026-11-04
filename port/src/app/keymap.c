@@ -26,6 +26,8 @@
 #include "keymap.h"
 
 #include "../f/f.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 /* the handler's alias table, 0x0003fd9d-0x0003fdd9 */
 static uint8_t night_key_alias(uint8_t idx) {
@@ -53,6 +55,10 @@ static uint8_t *night_held_byte(uint8_t idx) {
 void night_key_apply(uint8_t sc, int make) {
     uint8_t idx = night_key_alias(sc & 0x7f);
     uint8_t *held = night_held_byte(idx);
+
+    if (getenv("NIGHT_LATCHDBG"))     /* writer census: every change to a DAT_63e88 latch byte (docs/323 §4) */
+        fprintf(stderr, "latchwrite sc=%02x make=%d idx=%02x before=%u\n",
+                sc, make, idx, (unsigned)*held);
 
     if (sc & 0x80) { make = 0; }                        /* explicit break code wins */
     if (!make) {

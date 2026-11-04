@@ -2924,6 +2924,34 @@ static void test_fn_03a70e(void) {
     check(memcmp(name, "na10001.pcx", 12) == 0,
           "the picture name is na<stage>%04d.pcx, i.e. the first show picture is na10001.pcx");
 
+    /* docs/324: the release wait (0x3a7cd-df) has to pump on EVERY iteration.  Space clear with Enter still
+     * held is exactly what a playtest press leaves behind, and it is the state the port's old shape
+     * `do { while (DAT_63ec1) spin; } while (DAT_63ea4);` could not leave: the pump sat inside the inner
+     * while, so nothing was ever able to clear DAT_63ea4. */
+    {
+        uint8_t c1 = g_dat_63ec1, a4 = g_dat_63ea4;
+
+        sys_key_script_clear();
+        g_dat_63ec1 = 0; g_dat_63ea4 = 1;
+        sys_key_script_add(2, &g_dat_63ea4, 0);            /* the release lands on the second spin */
+        unsigned spins = f_show_release_wait();
+        check(spins == 2 && g_dat_63ea4 == 0,
+              "an Enter-only hold is drained: the wait pumps while only DAT_63ea4 is held");
+
+        sys_key_script_clear();
+        g_dat_63ec1 = 1; g_dat_63ea4 = 0;
+        sys_key_script_add(1, &g_dat_63ec1, 0);
+        spins = f_show_release_wait();
+        check(spins == 1 && g_dat_63ec1 == 0, "a held DAT_63ec1 is drained the same way");
+
+        sys_key_script_clear();
+        g_dat_63ec1 = 0; g_dat_63ea4 = 0;
+        check(f_show_release_wait() == 0, "with both latches clear the wait does not spin at all");
+
+        g_dat_63ec1 = c1; g_dat_63ea4 = a4;
+        sys_key_script_clear();
+    }
+
     g_dat_63e24 = s24; g_dat_63e28 = s28; g_dat_63370 = s370; g_dat_633b0 = sb0;
     g_dat_63e89 = s89; g_dat_63ec1 = sec1; g_dat_63ea4 = sea4; g_dat_63ea5 = sea5;
     g_dat_63ec0 = sec0; g_dat_52ff8 = spump; g_dat_52f08[1] = cnt0; g_dat_53104 = div_save;

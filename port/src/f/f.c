@@ -16246,9 +16246,29 @@ uint8_t  *g_dat_53dd8 = 0;          /* DAT_00053dd8: the show's device command c
  *   while index < count;
  *   fn_03a5f7(DAT_633b0) (the progressive reveal wipe of the last picture), restore the two tick counters,
  *   and turn the keyboard pump back on (DAT_52ff8 = 1).
- * Busy-waits: the key-wait loops are faithful spins -- the port has no interrupt to change the key bytes
- * (and the original turns the keyboard pump OFF for the whole show), so a test can only walk the abort
- * path; documented rather than stubbed. */
+ * Busy-waits: the key-wait loops are faithful spins -- the original turns the keyboard pump OFF for the
+ * whole show (0x3a73d), and this port has no interrupt that changes the key bytes: the only writer of
+ * DAT_63e88[..] is the keyboard-handler model (port/src/app/keymap.c), so a spin has to pump or nothing
+ * can ever end it.  The release wait is factored into f_show_release_wait() for that reason (docs/324).
+ * Busy-waits pumped: both key waits call the port's pump on every iteration. */
+
+/* 0x03a7cd-0x3a7df: fn_03a70e's key release wait.  The shipped tests DAT_63ec1 (space) first, then
+ * DAT_63ea4 (enter), and loops while either is held -- it stores nothing, so the latch can only fall via
+ * the keyboard handler.  The port's earlier shape
+ *      do { while (DAT_63ec1) spin; } while (DAT_63ea4);
+pumped only while DAT_63ec1 was held: with Space clear and Enter still held it looped with no pump at all,
+which in this port is a wait nothing can end (/tmp/rig/e325s: fn_03a70e never left picture 1's release
+wait, after a press gate that had already spun 178567 times).  Same predicate, pump on every iteration. */
+unsigned f_show_release_wait(void)
+{
+    unsigned spins = 0;
+    while (g_dat_63ec1 != 0 || g_dat_63ea4 != 0) {                /* 0x3a7cd / 0x3a7d6 */
+        sys_key_spin();
+        spins++;
+    }
+    return spins;
+}
+
 void fn_03a70e(void)
 {
     (void)canary_id(0, 0x3c);                                      /* 0x3a70e-13 probe */
@@ -16289,10 +16309,11 @@ void fn_03a70e(void)
                 fprintf(stderr, "show: pic %d press gate satisfied with NO press (latch already held)\n", idx + 1);
             }
         }
+        unsigned gate_spins = 0;
         for (;;) {                                                 /* 0x3a789-9f key wait */
             if (g_dat_63ec1 != 0 || g_dat_63ea4 != 0) {
-                if (showdbg) fprintf(stderr, "show: pic %d press taken by %s\n", idx + 1,
-                                     g_dat_63ec1 ? "space(63ec1)" : "enter(63ea4)");
+                if (showdbg) fprintf(stderr, "show: pic %d press taken by %s (gate spins %u)\n", idx + 1,
+                                     g_dat_63ec1 ? "space(63ec1)" : "enter(63ea4)", gate_spins);
                 break;
             }
             if (g_dat_63e89 != 0) {                                /* loop tail: while (DAT_63e89 == 0) */
@@ -16304,10 +16325,14 @@ void fn_03a70e(void)
                                 * pump here the wait can never end -- the picture show deadlocked at
                                 * its first picture (stage 8, docs/52). The release wait below already
                                 * pumps. */
+            gate_spins++;
         }
         if (g_dat_63e89 != 0) break;                               /* 0x3a7a1-a9 abort the whole show */
         if (idx != count) fn_04185e(g_dat_53dd8);                  /* 0x3a7ad-bf */
-        do { while (g_dat_63ec1 != 0) { sys_port_spin(); } } while (g_dat_63ea4 != 0);  /* 0x3a7c4-cf key release wait */
+        unsigned rel_spins = f_show_release_wait();               /* 0x3a7c4-cf key release wait */
+        if (showdbg)
+            fprintf(stderr, "show: pic %d release wait spun %u, post-latch enter=%u space=%u\n",
+                    idx + 1, rel_spins, g_dat_63ea4, g_dat_63ec1);
         idx++;                                                     /* 0x3a7d0-*/
     } while (idx < count);                                         /* 0x3a7d8-e5 */
 

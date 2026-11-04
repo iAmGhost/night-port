@@ -903,6 +903,8 @@ static void pt_drive(void) {
                  * repeat has to look like a press again for the repeat credit to be earned at all. */
                 if (rep_pulse) key_apply(g_pt_held[i].sc | 0x80, 0);
                 key_apply(g_pt_held[i].sc, 1);
+                if (getenv("NIGHT_SHOWDBG"))
+                    fprintf(stderr, "press: sc=%02x typematic-repeat t=%ldms\n", g_pt_held[i].sc, t);
             }
         }
     }
@@ -1105,6 +1107,8 @@ static void pt_drive(void) {
         if (g_pt_i >= g_pt_n) g_pt_done_ms = t;      /* script exhausted: let the host wrap up cleanly */
         if (e->kind == PT_SHOT) { shot_named(e->name); continue; }
         SDL_Log("script: key %#02x %s (t=%ldms)", e->sc, e->make ? "down" : "up", e->t_ms);
+        if (getenv("NIGHT_SHOWDBG"))                       /* press census on the same stream as the show witness */
+            fprintf(stderr, "press: sc=%02x %s t=%ldms\n", e->sc, e->make ? "down" : "up", e->t_ms);
         if (g_rig_dir) rig_marker(e->t_ms, "key %#02x %s", e->sc, e->make ? "down" : "up");
         if (g_rig_ctl & 2)
             SDL_Log("rig control: key %#02x %s withheld", e->sc, e->make ? "down" : "up");

@@ -34,6 +34,7 @@
 #include "of_cache.h"
 #include "of_caps.h"
 #include "of_file.h"
+#include <dirent.h>
 #include "of_input.h"
 #include "of_mixer.h"
 #include "of_video.h"
@@ -815,6 +816,50 @@ static void tick_pump(void) {
 }
 
 
+#ifndef OF_PC
+/* One-shot witness for the file bridge, printed where it can actually be read -- the console -- rather than
+ * only into the file that is the subject of the investigation.  Six hardware runs wrote a log that never
+ * reached the card, and a control run of openfpgaOS-Quake on the same card wrote quake.cfg (20 B) and s0.sav
+ * (35 290 B) at the moment its core exited, with a data.json whose nonvolatile slot entries are byte-identical
+ * to ours.  So the question is not "does the bridge write" but "what does our app see, and when does the
+ * bridge commit".  This answers the first half. */
+static void file_probe(void) {
+    static const char *names[] = { "night.cfg", "night_0.sav", "night_7.sav", "NIGHT.RES", "track02.bin" };
+    for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
+        uint32_t sid = 0;
+        int r = of_file_slot_find(names[i], &sid);
+        NLOG("probe find \"%s\" -> %d id=%u\n", names[i], r, sid);
+    }
+    DIR *d = opendir("/");
+    if (!d) { NLOG("probe opendir(/) FAILED\n"); }
+    else {
+        struct dirent *e;
+        int n = 0;
+        while ((e = readdir(d)) != NULL && n < 12) {
+            NLOG("probe dir \"%s\" ino=%ld slot=%d\n", e->d_name, (long)e->d_ino, (int)e->d_ino - 1);
+            n++;
+        }
+        closedir(d);
+        NLOG("probe dir listed %d (cap 12)\n", n);
+    }
+    FILE *f = fopen("night_0.sav", "wb");
+    if (!f) { NLOG("probe fopen night_0.sav wb FAILED\n"); }
+    else {
+        static const char mark[] = "NIGHT-PROBE-0001";                 /* 17 bytes, NUL included */
+        size_t w = fwrite(mark, 1, sizeof mark, f);
+        fclose(f);                                                     /* the close a bridge commits on */
+        NLOG("probe wrote %u then closed\n", (unsigned)w);
+        f = fopen("night_0.sav", "rb");
+        if (!f) { NLOG("probe reopen FAILED\n"); }
+        else {
+            char buf[32]; size_t g = fread(buf, 1, 16, f); fclose(f);
+            buf[g < 16 ? g : 15] = 0;
+            NLOG("probe readback %u \"%s\"\n", (unsigned)g, buf);
+        }
+    }
+}
+#endif
+
 int main(int argc, char **argv) {
     /* A core that is killed (or that dies in a spin) must not lose its log: unbuffered stdout is how
      * this host is read on a desktop run and in the emulator log. */
@@ -867,6 +912,8 @@ int main(int argc, char **argv) {
     }
 #endif
 
+
+
 #ifdef OF_PC
     if (g_rig_dir) rig_screen_init(g_rig_dir, 8);
 #endif
@@ -894,6 +941,7 @@ int main(int argc, char **argv) {
         of_video_set_display_mode(mode);
         NLOG("screen: ini/menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
         NLOG("log ok=%d bytes=%ld\n", g_log_ok, of_log_bytes());
+        file_probe();
 #ifndef OF_PC
         {   /* What the file layer thinks of the name we open the log on. */
             uint32_t sid = 0;

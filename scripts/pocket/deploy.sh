@@ -77,6 +77,11 @@ source "$SDETECT"
 # ── 1. the core tree ────────────────────────────────────────────────────────────────────
 echo "Deploying $OUT to $SDCARD"
 mkdir -p "$SDCARD/Cores" "$SDCARD/Assets" "$SDCARD/Platforms"
+# COPYFILE_DISABLE: macOS cp otherwise writes AppleDouble sidecars (._night.elf, ._NIGHT.json, ._data.json)
+# next to every copied file.  They carry the extensions the firmware scans for -- a ._NIGHT.json in an instance
+# folder is exactly the kind of stray entry that makes a data-slot scan interesting to explain.
+export COPYFILE_DISABLE=1
+
 cp -r "$OUT"/Cores/*     "$SDCARD/Cores/"     && ok "Cores"
 cp -r "$OUT"/Assets/*    "$SDCARD/Assets/"    && ok "Assets"
 cp -r "$OUT"/Platforms/* "$SDCARD/Platforms/" && ok "Platforms"
@@ -126,6 +131,12 @@ done
 SAVE_DIR="$SDCARD/Saves/$(basename "$PLAT")/common"
 mkdir -p "$SAVE_DIR"
 ok "Saves/$(basename "$PLAT")/common/ exists for the core to write into"
+
+# Strip any AppleDouble sidecars left by older deploys.
+for d in "$SDCARD/Cores/iamghost.night" "$SDCARD/Assets/night/common" "$SDCARD/Assets/night/iamghost.night"; do
+    [ -d "$d" ] && find "$d" -name "._*" -maxdepth 1 -delete 2>/dev/null
+done
+ok "no ._ sidecars in the deployed tree"
 
 # Saves and settings are created by the core on the card; a stale manifest copy is not wanted.
 sync 2>/dev/null || true

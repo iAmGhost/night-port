@@ -201,8 +201,18 @@ static void panel_shot(void) {
 }
 #endif
 
+#ifndef OF_PC
+static int g_display_mode = OF_DISPLAY_FRAMEBUFFER;
+#endif
+
 static void present(void) {
     if (g_off & OFF_PRESENT) return;
+#ifndef OF_PC
+    /* Reasserted every frame on purpose: fn_03f15f (the game's own VESA mode set) runs throughout the boot
+     * sequence, and a display mode requested once at boot is not guaranteed to survive what the game does to
+     * the video path behind the host's back. */
+    of_video_set_display_mode(g_display_mode);
+#endif
     int vw = g_view_320x200 ? GAME_W : sys_video_w();
     int vh = g_view_320x200 ? GAME_H : sys_video_h();
     if (vw <= 0 || vh <= 0) return;
@@ -688,8 +698,12 @@ int main(int argc, char **argv) {
         int scr = of_setting_screen();
         int mode = (scr == 1) ? OF_DISPLAY_TERMINAL : (scr == 2) ? OF_DISPLAY_OVERLAY : OF_DISPLAY_FRAMEBUFFER;
         if (!g_log_ok && scr == 0) mode = OF_DISPLAY_OVERLAY;
+        g_display_mode = mode;
         of_video_set_display_mode(mode);
-        NLOG("screen: menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
+        NLOG("screen: ini/menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
+        NLOG("================================================\n");
+        NLOG("=== NIGHT (openfpgaOS) -- console overlay test ===\n");
+        NLOG("================================================\n");
     }
 #endif
     if (!of_setting_cdda()) g_off |= OFF_CDDA;

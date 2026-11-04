@@ -148,10 +148,10 @@ def main():
         ]}]}})
     jw(core_dir / "interact.json", {"interact": {"magic": "APF_VER_1", "variables": [
         {"name": "Music Volume", "id": 100, "type": "slider_u32", "enabled": True, "persist": True,
-         "address": "0xF7000100", "defaultval": 200,
+         "address": "0xF7000004", "defaultval": 200,
          "graphical": {"signed": False, "min": 0, "max": 255, "adjust_small": 1, "adjust_large": 16}},
         {"name": "Tick Pump Hz", "id": 101, "type": "slider_u32", "enabled": True, "persist": True,
-         "address": "0xF7000104", "defaultval": 490,
+         "address": "0xF7000008", "defaultval": 490,
          "graphical": {"signed": False, "min": 60, "max": 490, "adjust_small": 1, "adjust_large": 30}},
         # Same variable openfpgaOS-Quake ships: it is the OS's own "show the terminal instead of the game"
         # switch, and the core's printf diagnostics (memstat, disc/track selection, load/save reports) go to
@@ -162,7 +162,7 @@ def main():
         # (OF_DISPLAY_TERMINAL / OF_DISPLAY_FRAMEBUFFER / OF_DISPLAY_OVERLAY, of_video.h:43-45), and
         # "Game + log" is the one that makes a hardware run readable without a card reader (docs/336).
         {"name": "NIGHT Screen", "id": 71, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000108", "defaultval": 0, "mask": "0xFFFFFFFF", "options": [
+         "address": "0xF700000C", "defaultval": 0, "mask": "0xFFFFFFFF", "options": [
              {"value": "0x00000000", "name": "Game"},
              {"value": "0x00000001", "name": "Terminal"},
              {"value": "0x00000002", "name": "Game + log"},

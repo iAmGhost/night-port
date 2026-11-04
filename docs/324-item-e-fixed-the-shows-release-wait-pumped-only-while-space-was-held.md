@@ -105,3 +105,18 @@ port's key waits**, not as a gate-logic difference: the gate and the wait predic
 to 0x3a785-0x3a7df, and after the fix a picture can only be consumed by a press that its own gate waited for.
 The reveal wipe that the same show runs at the end (`fn_03a5f7` at 0x3a7e7-f0) is item F, and is attacked next
 on this basis.
+
+## 7. Playtester re-test status, recorded 2026-11-04
+
+Item E's closure is **rig-gated**, not playtest-gated: red `/tmp/rig/e325r` (5 pictures consumed, 4 gates
+satisfied with no press, docs/323), green `/tmp/rig/g325a` (0 such gates, each wait 137k-622k spins), re-checked
+on the final HEAD at `/tmp/rig/e330g` (`show: entry stage=1 count=5`, five `release wait spun` lines,
+`press taken by enter(63ea4) (gate spins 400565)`, zero gates satisfied without a press).
+
+A human re-test of this exact moment is **still outstanding and is not claimed here**.  The 2026-11-04
+playtester confirmation on file (docs/325 §5: "stage 2->3 graphical glitch no longer present", "stage 1-3 boss
+screen effect appears now") covers the reveal, i.e. item F, not the dialogue advance.  The run being asked for,
+so the gate has a witness outside the rig: get into map 1's last room (column 3 -- `--warp-stage 1
+--warp-column 3` installs the same room the rig measured), let the overlay dialogue start, and press Enter once
+at a time.  Expected after the fix: one picture per press, and no picture consumed by a latch carried from the
+previous one.

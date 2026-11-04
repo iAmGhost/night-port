@@ -26,6 +26,41 @@ GREEN='\033[92m'; RED='\033[91m'; RESET='\033[0m'
 ok()   { echo -e "  ${GREEN}+${RESET} $1"; }
 fail() { echo -e "  ${RED}x${RESET} $1" >&2; exit 1; }
 
+size_of() { stat -f%z "$1" 2>/dev/null || stat -c%s "$1"; }
+md5_of()  { md5 -q "$1" 2>/dev/null || md5sum "$1" | cut -d' ' -f1; }
+
+# The slot files are ~600 MB of disc audio that never changes between builds, and copying them every time a
+# core JSON or the ELF changes is the slow part of a hardware iteration loop (tens of seconds of USB writes).
+# scratch/pocket/deploy_manifest.tsv remembers what the last deploy put on the card: a file whose own md5
+# matches the record, and whose twin on the card still has the same size, is skipped.  A card-side deletion
+# shows up as a size mismatch and gets recopied.
+MANIFEST="$DATA/deploy_manifest.tsv"
+[ -f "$MANIFEST" ] || printf '# file\tmd5\tsize\n' > "$MANIFEST"
+copy_slot() {                     # copy_slot <src> <dst> <label>
+    local src="$1" dst="$2" label="$3" name sz src_md5 rec
+    name="$(basename "$dst")"
+    sz=$(size_of "$src")
+    src_md5=$(md5_of "$src")
+    rec=$(awk -F'\t' -v n="$name" '$1==n {print $2" "$3; exit}' "$MANIFEST")
+    if [ -f "$dst" ] && [ "$(size_of "$dst")" = "$sz" ] && [ "$rec" = "$src_md5 $sz" ]; then
+        ok "$label unchanged -- skipped"
+        return 0
+    fi
+    # No record yet (first run of this version, or a wiped manifest) but the card already holds a file of the
+    # same size: verify it once by md5 and adopt it into the manifest.  That read pass happens once ever, and
+    # it is what keeps the first re-deploy after a core change from pushing 600 MB that never changed.
+    if [ -z "$rec" ] && [ -f "$dst" ] && [ "$(size_of "$dst")" = "$sz" ] && [ "$(md5_of "$dst")" = "$src_md5" ]; then
+        grep -v "^$name\\t" "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+        printf '%s\t%s\t%s\n' "$name" "$src_md5" "$sz" >> "$MANIFEST"
+        ok "$label already on the card (md5 verified) -- not recopied"
+        return 0
+    fi
+    cp "$src" "$dst" || fail "copy $src -> $dst failed"
+    grep -v "^$name\\t" "$MANIFEST" > "$MANIFEST.tmp" && mv "$MANIFEST.tmp" "$MANIFEST"
+    printf '%s\t%s\t%s\n' "$name" "$src_md5" "$sz" >> "$MANIFEST"
+    ok "$label copied"
+}
+
 [ -d "$OUT/Cores" ] || fail "no core tree at $OUT (run 'make' in pocket/src/night first)"
 [ -d "$DATA" ]      || fail "no data dir at $DATA (run 'make data', i.e. scripts/pocket/repack.py)"
 
@@ -60,16 +95,17 @@ mkdir -p "$COMMON"
 # ── 2. the data-slot files ──────────────────────────────────────────────────────────────
 need=0
 [ -f "$DATA/NIGHT.RES" ] || fail "missing $DATA/NIGHT.RES -- the game terminates without it (fn_03690b -> fn_036537)"
-need=$(( $(stat -f%z "$DATA/NIGHT.RES" 2>/dev/null || stat -c%s "$DATA/NIGHT.RES") ))
+need=$(( $(size_of "$DATA/NIGHT.RES") ))
 for f in "$DATA"/cd/track*.bin; do
     [ -f "$f" ] || continue
-    b=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f"); need=$(( need + b ))
+    need=$(( need + $(size_of "$f") ))
 done
 free=$(df -k "$SDCARD" | awk 'NR==2 {print $4}')
 [ "$free" -gt $(( need / 1024 + 4096 )) ] || fail "card has ${free} KB free, the slot files need $(( need / 1024 )) KB"
 
-cp "$DATA/NIGHT.RES" "$COMMON/NIGHT.RES" && ok "NIGHT.RES -> $(basename "$COMMON")/ (slot 4)"
+copy_slot "$DATA/NIGHT.RES" "$COMMON/NIGHT.RES" "NIGHT.RES -> $(basename "$COMMON")/ (slot 4)"
 count=0
+skipped=0
 for f in "$DATA"/cd/track*.bin; do
     [ -f "$f" ] || continue
     name=$(basename "$f")
@@ -77,7 +113,7 @@ for f in "$DATA"/cd/track*.bin; do
     base="${name%.bin}"
     case "$base" in track[0-9][0-9]) : ;; *) fail "\"$name\" is not named trackNN.bin" ;; esac
     slot=$(( 16 + 10#${base#track} ))          # track02 -> slot 18 ... track15 -> slot 31
-    cp "$f" "$COMMON/$name" && ok "$name -> $(basename "$COMMON")/ (slot $slot)"
+    copy_slot "$f" "$COMMON/$name" "$name -> $(basename "$COMMON")/ (slot $slot)"
     count=$(( count + 1 ))
 done
 [ "$count" -gt 0 ] || fail "no track*.bin under $DATA/cd (run scripts/pocket/repack.py)"
@@ -102,5 +138,5 @@ ok "placeholders in Saves/$(basename "$PLAT")/common/"
 
 # Saves and settings are created by the core on the card; a stale manifest copy is not wanted.
 sync 2>/dev/null || true
-echo -e "${GREEN}Deployed:${RESET} core tree + NIGHT.RES + $count track slots to $SDCARD"
+echo -e "${GREEN}Deployed:${RESET} core tree + $count slot files ($(wc -l < "$MANIFEST") tracked) to $SDCARD"
 echo "Eject the card and boot the Pocket."

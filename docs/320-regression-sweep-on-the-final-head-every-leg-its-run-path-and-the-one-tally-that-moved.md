@@ -78,3 +78,10 @@ from §1.
 | item 2a kill label | `make -C port test` | ALL PASS, which is where the index-10 label-blit fixture lives; the canonical route still yields no kill, so no live witness is available there (docs/197) |
 | item 3 upgrade menu | `/tmp/rig/g319c`, `/tmp/rig/g319d`, `/tmp/rig/g319h`, `/tmp/rig/g319i`, item G's green `/tmp/rig/g319i` | every committed purchase steps `sel` by 1 and HP by one table row (100 -> 200 -> 300) |
 | item 5 fault | `/tmp/rig/soak321` | 0 faults over 36,000 frames across nine episodes |
+
+Against the cached reference itself, the final HEAD matches: the divergent-cell list in
+`/tmp/rig/rb322/DIVERGENCE.md` has 81 entries and the set diff against `/tmp/rig/rb15/DIVERGENCE.md` is
+empty (`/tmp/rig/rb15.res.txt` vs `/tmp/rig/rb322.res.txt`), with the same 27 same-width gameplay
+residuals `rb15` reported.  The dip to 26 in `rb320` (§2) was therefore not a new state of the port --
+it was one cell moving one way under the `f6afb71` build and back under `2336118`, and the row that was
+new in §3 (`g_dat_63ed8`) is a cell `rb15` already listed.

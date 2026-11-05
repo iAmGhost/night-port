@@ -107,7 +107,28 @@ cp /Volumes/Pocket/Saves/night/common/nightlog.sav /tmp/n.sav
 grep -E '^(version|clock|memstat|perf|stages|budget|audio|view|video CHANGED)' /tmp/n.sav | tail -40
 ```
 
-## 6. Document map
+## 6. Picture accuracy, measured per phase against the original's own frames (docs/379-382)
+
+The original side is 434 frames captured headless through dosbox-automation and labelled by the event in flight
+(docs/379).  The Pocket side is its own rig dump: `NIGHT_VIDRAW=1 NIGHT_VIDRAW_MAX=400` writes 400 arena witnesses
+(index bytes plus the game's own 768-byte palette), which `scripts/pocket/arena_raws_to_bmp.py` decodes to BMPs for
+`scripts/playtest_compare_orig_port.py` -- the label/best-match basis `docs/91` used for the SDL host.
+
+| original phase | frames | Pocket route that covers it | matched at NCC >= 0.90 |
+|---|---|---|---|
+| live stage play | 55 | `--warp-stage 1` | **55 / 55**, best pair 0.9998 with strict pixel agreement 1.000 |
+| intermission slides | 133 | either route | 130 / 133 |
+| title melt | 42 | either route | 41 / 42 |
+| intro `.fli` | 54 | scripted attract route | 46 / 54 |
+| pause / menu windows | 82 (+41 second window) | scripted route | 41 / 82 |
+| DOS text-mode boot (mode 3) | 24 | none: the port has no text-mode presentation | 8 / 24 |
+
+What this section deliberately is not: one route score.  A single end-to-end number produced 0.559 and read like a
+verdict while each route was simply outside several phases (docs/380 4, docs/382 1).  Its zeros have named causes -- a
+run that never animates cannot match gameplay frames, and a warp run skips the intro -- and the two routes together
+cover every phase the port claims to render.
+
+## 7. Document map
 
 `docs/330` budgets and the target mapping · `331` host layer, first port-vs-port comparison · `332` the CDDA engine
 · `333` pad mapping and why wall-clock pad scripts are unstable · `334` save slots and settings · `335` the clock
@@ -117,4 +138,4 @@ transfer census · `341-347` the settings/menu thread, including two cores that 
 `348-349` a core that boots, and the address that must never be read · `350-362` the peripheral-mirror settings
 channel, packing proven on hardware, and what ships by default · `363` the nine-episode sweep · `364` the frame
 budget and the 150 000-visit-a-frame pump · `365` the two-host diff · `366` the install route verified against the
-card.  `pocket/INSTALL.md` is the human-facing install README.
+card.  `pocket/INSTALL.md` is the human-facing install README, and `379-382` cover the original-side capture, `--script` anchoring on the Pocket path, and the per-phase picture accuracy of section 6.

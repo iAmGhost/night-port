@@ -148,6 +148,13 @@ static void voice_start(void) {
         voice_stop();
         return;
     }
+    /* Say the rate again, out loud.  openfpgaOS-Doom's shim (src/doom/shim/i_sdlsound.c:295) records that the
+     * hardware mixer "may ignore the sample_rate arg in of_mixer_play and default to output rate (48 kHz),
+     * which plays an 11025 Hz DMX sample ~4.4x too fast".  For CD-DA that is 48 000 / 44 100 = 1.088: music
+     * 8.8 % sharp, and -- worse for us -- a voice eating the ring 8.8 % faster than the 44 100 frames/s the
+     * refill model credits, which underruns it from the inside and is a second source of buzz. */
+    of_mixer_set_rate_h(g_voice[0], CD_SRC_RATE);
+    of_mixer_set_rate_h(g_voice[1], CD_SRC_RATE);
     of_mixer_set_loop_h(g_voice[0], 0, (int)CD_RING_FRAMES);
     of_mixer_set_loop_h(g_voice[1], 0, (int)CD_RING_FRAMES);
     of_mixer_set_vol_lr_h(g_voice[0], 255, 0);

@@ -518,6 +518,7 @@ static void cdda_boot(void) {
 
 static void audio_boot(void) {
     of_mixer_init(32, OF_MIXER_OUTPUT_RATE);
+    NLOG("mixer: %d voices, output rate %d Hz (samples keep their own rate, set per voice)\n", 32, OF_MIXER_OUTPUT_RATE);
 #ifndef OF_PC
     /* Keep the mixer fed while a blocking data-slot read waits on its DMA (of_file.h:96-103).  The intro and
      * stage 1 are the two places the game reads NIGHT.RES hardest, and both are where the buzz appears: the
@@ -573,6 +574,12 @@ static void audio_pump(void) {
         memcpy(g_sfx_pool[b], g_sfx_scratch, (size_t)got * sizeof(int16_t));
         of_cache_flush_range(g_sfx_pool[b], (size_t)got * sizeof(int16_t));
         g_sfx_voice[b] = of_mixer_play((const uint8_t *)g_sfx_pool[b], got, rate, 100, 220);
+        /* The sample rate is set explicitly because the hardware mixer is documented (by openfpgaOS-Doom's
+         * i_sdlsound.c:295-300) to possibly ignore the rate argument in the play call and use the output rate
+         * instead -- 48 000 Hz.  NIGHT's samples are 10 000-11 111 Hz, so that plays every sound 4.3x too
+         * fast: chirpy, and over in a fifth of the time, which is exactly "the SFX cut off before they
+         * finish".  Same caution as the CDDA voices (of_cdda.c voice_start). */
+        if (g_sfx_voice[b] >= 0) of_mixer_set_rate(g_sfx_voice[b], (int)rate);
         g_sfx_free_us[b] = now + (uint64_t)got * 1000000ull / rate + 20000ull;   /* +20 ms of margin */
         if (g_of_sfx_plays <= 8)                       /* rate, length, and the handle the mixer handed back:
                                                         * voice=-1 would mean the mixer refused the sample. */

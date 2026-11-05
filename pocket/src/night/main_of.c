@@ -891,7 +891,7 @@ static void periph_scan(int full) {
             NLOG("periph %04x:%s\n", 4u * i, acc);
         }
         if (g_periph_prev[i] != v) {
-            /* Stamped with wall time on purpose (docs/350 §4): correlating a menu change with a register needs the
+            /* Stamped with wall time on purpose (docs/350): correlating a menu change with a register needs the
              * move pinned in time, so "I moved Video H Offset at about 40 s" becomes a readable log line. */
             uint64_t t = sys_now_us();
             NLOG("periph move @0x%08x t=%u.%us: %08x -> %08x\n", OF_PERIPH_BASE + 4u * i,
@@ -927,5 +927,804 @@ static void settings_beat(uint64_t now) {
 }
 
 /* ---- pad -> the shipped keyboard state (docs/91, docs/92) -------------------------------
+ * The game reads its key state from the DAT_00063e88[] held-bytes that night_key_apply() writes, and
+ * that writer already aliases Z/V -> the CTRL slot, X/B -> the ALT slot, F/G/C -> the SHIFT slot, so
+ * the three attacks need no modifier at all: they land on the three slots the original used.
+ * Verified against the live game in task-6. */
+/* of_btn() takes a BUTTON MASK (of_input_types.h: OF_BTN_A = 1 << 4), not an index. */
+typedef struct { uint32_t btn; uint8_t make; } pad_key_t;
+static const pad_key_t g_pad_keys[] = {
+    { OF_BTN_UP,     0x48 },   /* arrows, the slots fn_0347e3 reads */
+    { OF_BTN_DOWN,   0x50 },
+    { OF_BTN_LEFT,   0x4b },
+    { OF_BTN_RIGHT,  0x4d },
+    { OF_BTN_A,      0x1d },   /* CTRL slot  = punch */
+    { OF_BTN_B,      0x38 },   /* ALT  slot  = kick  */
+    { OF_BTN_X,      0x2a },   /* SHIFT slot = jump  */
+    { OF_BTN_Y,      0x39 },   /* Space */
+    { OF_BTN_START,  0x1c },   /* Enter  (confirm) */
+    { OF_BTN_SELECT, 0x01 },   /* Esc    (pause menu, docs/93) */
+    { OF_BTN_L1,     0x3b },   /* F1 */
+};
+static uint8_t g_pad_down[sizeof g_pad_keys / sizeof g_pad_keys[0]];
+static uint64_t g_pad_next_us;
+static uint64_t g_pad_polls;
+static uint64_t g_boot_us;                     /* the warp-entry pulse timeline starts here */
 
-[Showing lines 1-926 of 933 (50.0KB limit). Use offset=927 to continue.]
+/* ---- scripted pad (task-6) -----------------------------------------------------------
+ * NIGHT_PAD_SCRIPT drives the pad from the command line so the mapping can be tested without a pad:
+ * comma-separated <poll>:<poll>:<name> spans, a poll being one 8 ms pad_pump() tick, names being the pad
+ * buttons (up/down/left/right/a/b/x/y/start/select/l1) or a DOS scan code (0x1d).  The same spans can be
+ * applied two ways -- through the pad buttons (default) or straight into night_key_apply() with
+ * NIGHT_PAD_DIRECT=1 -- which is how the mapping is proven: the two runs must leave the game in the same
+ * state, because the pad path may only differ from the key path in *which slot it arms*. */
+typedef struct { uint64_t from, to; uint32_t btn; uint8_t sc; } pad_span_t;
+static pad_span_t g_pad_script[64];
+static int g_pad_script_n, g_pad_direct;
+
+static uint32_t pad_btn_for_sc(uint8_t sc) {
+    for (unsigned i = 0; i < sizeof g_pad_keys / sizeof g_pad_keys[0]; i++)
+        if (g_pad_keys[i].make == sc) return g_pad_keys[i].btn;
+    return 0;                                   /* no pad button reaches this slot */
+}
+
+static int g_warp_stage_cli = 0;      /* --warp-stage N: the host warp basis (docs/52) */
+static int g_load_slot = -1, g_save_slot = -1, g_save_at = -1;
+
+static void pad_script_load(void) {
+    const char *e = getenv("NIGHT_PAD_SCRIPT");
+    g_pad_direct = getenv("NIGHT_PAD_DIRECT") ? 1 : 0;
+    if (!e) return;
+    char buf[1024];
+    snprintf(buf, sizeof buf, "%s", e);
+    /* strtok is one global cursor, so nesting a ',' pass with a ':' pass corrupts it: split by hand. */
+    for (char *tok = buf; tok && *tok && g_pad_script_n < 64; ) {
+        char *comma = strchr(tok, ',');
+        if (comma) *comma = 0;
+        char *c1 = strchr(tok, ':');
+        char *c2 = c1 ? strchr(c1 + 1, ':') : NULL;
+        char *a = tok, *b = c1 ? c1 + 1 : NULL, *n = c2 ? c2 + 1 : NULL;
+        if (c1) *c1 = 0;
+        if (c2) *c2 = 0;
+        if (!a || !b || !n) { printf("pad script: bad span '%s'\n", tok); break; }
+        uint32_t btn; uint8_t sc;
+        if (!strcmp(n, "up"))     { btn = OF_BTN_UP;     sc = 0x48; }
+        else if (!strcmp(n, "down"))   { btn = OF_BTN_DOWN;   sc = 0x50; }
+        else if (!strcmp(n, "left"))   { btn = OF_BTN_LEFT;   sc = 0x4b; }
+        else if (!strcmp(n, "right"))  { btn = OF_BTN_RIGHT;  sc = 0x4d; }
+        else if (!strcmp(n, "a"))      { btn = OF_BTN_A;      sc = 0x1d; }
+        else if (!strcmp(n, "b"))      { btn = OF_BTN_B;      sc = 0x38; }
+        else if (!strcmp(n, "x"))      { btn = OF_BTN_X;      sc = 0x2a; }
+        else if (!strcmp(n, "y"))      { btn = OF_BTN_Y;      sc = 0x39; }
+        else if (!strcmp(n, "start"))  { btn = OF_BTN_START;  sc = 0x1c; }
+        else if (!strcmp(n, "select")) { btn = OF_BTN_SELECT; sc = 0x01; }
+        else if (!strcmp(n, "l1"))     { btn = OF_BTN_L1;     sc = 0x3b; }
+        else { sc = (uint8_t)strtoul(n, NULL, 0); btn = pad_btn_for_sc(sc); }
+        g_pad_script[g_pad_script_n].from = strtoull(a, NULL, 0);
+        g_pad_script[g_pad_script_n].to   = strtoull(b, NULL, 0);
+        g_pad_script[g_pad_script_n].btn  = btn;
+        g_pad_script[g_pad_script_n].sc   = sc;
+        g_pad_script_n++;
+        tok = comma ? comma + 1 : NULL;
+    }
+    printf("pad script: %d spans, direct=%d\n", g_pad_script_n, g_pad_direct);
+}
+
+/* 1 while the script holds this pad button at the current poll. */
+static int pad_script_held(uint32_t btn) {
+    for (int i = 0; i < g_pad_script_n; i++)
+        if (g_pad_script[i].btn == btn && g_pad_polls >= g_pad_script[i].from &&
+            g_pad_polls < g_pad_script[i].to)
+            return 1;
+    return 0;
+}
+
+/* ---- warp basis + save slots (task-7, docs/322) ---------------------------------------
+ * A --warp-stage run (and a save restore, which sets g_warp_stage from the blob) has to get *inside* the
+ * stage: fn_037b03 only ever runs once a game has started, and the shipped start path is a chain of key
+ * waits -- logo hold, opening .fli, title wipe, menu -- where each phase consumes one press.  So a short
+ * Enter pulse is posted until the player action resolver (fn_03272f) starts owning frames, which is the
+ * signal the SDL host uses for the same job (src/app/main.c's warp_entry_key).  The pulse stops there so a
+ * restore never injects a key into gameplay. */
+static int g_warp_entry_done, g_warp_entry_posts;
+
+static void warp_entry_pump(void) {
+    if (g_warp_entry_done || f_rig_warp_stage() <= 0) return;
+    if (f_act_resolver_calls() > 0) {                       /* the stage loop is live */
+        g_warp_entry_done = 1;
+        g_dat_63ea4 = 0; g_dat_62c58[0x1c] = 0;
+        printf("warp entry: stage loop reached after %d confirm pulses (fn_03272f calls %lu)\n",
+               g_warp_entry_posts, (unsigned long)f_act_resolver_calls());
+        return;
+    }
+    uint64_t t_us = sys_now_us() - g_boot_us;
+    if (t_us > 90000000ull) {
+        g_warp_entry_done = 1;
+        g_dat_63ea4 = 0; g_dat_62c58[0x1c] = 0;
+        printf("warp entry FAILED: no stage loop after %d pulses (stage=%u)\n",
+               g_warp_entry_posts, (unsigned)f_rig_warp_stage());
+        return;
+    }
+    int on = (t_us > 500000ull) && ((t_us % 500000ull) < 250000ull);   /* 250 ms press, 250 ms release */
+    if (on && g_dat_63ea4 == 0) g_warp_entry_posts++;
+    g_dat_63ea4 = (uint8_t)(on ? 1 : 0);
+    g_dat_62c58[0x1c] = (uint8_t)(on ? 1 : 0);
+}
+
+static void save_pump(void) {
+    if (g_load_slot >= 0 && f_act_resolver_calls() > 0) {
+        if (of_save_apply()) g_load_slot = -1;
+    }
+    if (g_save_slot >= 0 && g_save_at >= 0 && (int)g_frames == g_save_at) {
+        if (of_save_write(g_save_slot) != 0 && of_save_last_error()) printf("save: %s\n", of_save_last_error());
+        g_save_slot = -1;
+    }
+}
+
+/* L1 held + Select saves the current slot, L1 + Start loads it, L1 + A cycles to the next slot, L1 + B cycles
+ * the panel fit (letterbox -> stretch -> scaler).
+ * L1 is F1 to the game and Select/Start are Esc/Enter, so the combo also reaches the shipped key state --
+ * that is unavoidable on 11 buttons and is why the game sees a pause-menu key press on a save. */
+static void pad_combo(void) {
+    if (!pad_script_held(OF_BTN_L1) && !of_btn(OF_BTN_L1)) return;
+    static uint8_t seen_select, seen_start, seen_a, seen_b;
+    int s = pad_script_held(OF_BTN_SELECT) || of_btn(OF_BTN_SELECT);
+    int st = pad_script_held(OF_BTN_START) || of_btn(OF_BTN_START);
+    int a = pad_script_held(OF_BTN_A) || of_btn(OF_BTN_A);
+    int b = pad_script_held(OF_BTN_B) || of_btn(OF_BTN_B);
+    if (s && !seen_select) { seen_select = 1; if (of_save_write(of_save_slot()) != 0 && of_save_last_error()) printf("save: %s\n", of_save_last_error()); }
+    if (!s) seen_select = 0;
+    if (st && !seen_start) { seen_start = 1; if (of_save_read(of_save_slot()) == 0) g_load_slot = of_save_slot(); else if (of_save_last_error()) printf("load: %s\n", of_save_last_error()); }
+    if (!st) seen_start = 0;
+    if (a && !seen_a) { seen_a = 1; of_save_slot_next(); }
+    if (!a) seen_a = 0;
+    if (b && !seen_b) {
+        seen_b = 1;
+        NLOG("fit: pad cycle -> %d (0 letterbox, 1 stretch, 2 scaler)\n", of_setting_fit_cycle());
+        fit_apply("pad");
+    }
+    if (!b) seen_b = 0;
+}
+
+static void pad_pump(void) {
+    if (g_off & OFF_PAD) return;
+    uint64_t now = sys_now_us();
+    if (now < g_pad_next_us) return;              /* one poll per ~8 ms, not one per spin unit */
+    g_pad_next_us = now + 8000;
+    of_input_poll();
+    g_pad_polls++;
+
+    if (g_pad_direct) {                            /* the key path, same poll grid */
+        for (int i = 0; i < g_pad_script_n; i++) {
+            int held = (g_pad_polls >= g_pad_script[i].from && g_pad_polls < g_pad_script[i].to) ? 1 : 0;
+            static uint8_t prev[64];
+            if (held == prev[i]) continue;
+            prev[i] = (uint8_t)held;
+            night_key_apply(g_pad_script[i].sc, held);
+        }
+    }
+
+    for (unsigned i = 0; i < sizeof g_pad_keys / sizeof g_pad_keys[0]; i++) {
+        int held = of_btn(g_pad_keys[i].btn) ? 1 : 0;
+        if (!g_pad_direct && pad_script_held(g_pad_keys[i].btn)) held = 1;
+        if (held == g_pad_down[i]) continue;
+        g_pad_down[i] = (uint8_t)held;
+        night_key_apply(g_pad_keys[i].make, held);
+    }
+    pad_combo();
+}
+
+static void input_pump(void) {
+    pad_pump();
+    fn_0347e3();                                   /* the game's own keyboard pump */
+}
+
+/* ---- tick pump: real time -> the timer handler the game installed ----------------------
+ * main.c's rule, kept exactly (src/app/main.c:1747-1760): the rate is the PIT channel-0 divisor the
+ * game programmed (0x982 -> 490 Hz), a host that fell more than 8 periods behind re-anchors instead of
+ * bursting, and at most 64 handler calls per spin.  Presentation rides the same pump at 60 Hz. */
+/* The pump is re-entered from the game's own spin loops (fn_00035ec2 and friends call
+ * sys_port_spin, which calls this function), so its stack depth is a game property, not a host one.
+ * Watching the depth is what separates "the host over-flew the stack" from "the game wrote out of
+ * bounds" -- the cdda path is the one that pushes libc (fopen/fread) on top of that depth. */
+static int g_depth, g_depth_max;
+static void tick_pump(void) {
+    uint64_t now = sys_now_us();
+    g_depth++;
+    if (g_depth > g_depth_max) {
+        g_depth_max = g_depth;
+        if ((g_depth % 64) == 0) printf("pump depth=%u\n", (unsigned)g_depth);
+    }
+
+    audio_pump();
+    cdda_pump();
+    warp_entry_pump();
+    save_pump();
+#ifndef OF_PC
+    of_mixer_pump();
+#endif
+
+    /* main.c's pump order, kept: the board drain and the CD track always run, the tick handler only
+     * when a tick is actually due.  Skipping this line makes the pump call itself the clock -- 10.7
+     * million handler invocations per second instead of 490 (measured, and visible as the mode
+     * timeline flapping). */
+    if (now < g_tick_next_us) { g_depth--; return; }
+
+    settings_beat(now);
+    music_mode_mirror();
+
+    uint32_t hz = sys_pit_hz(0);                      /* fn_03ef29 programs PIT ch0 (0x982 -> 490 Hz) */
+    if (hz == 0 && g_dat_63318) hz = 1193182u / g_dat_63318;
+    if (hz == 0) hz = sys_clock_ticks_per_sec();
+    if (hz == 0) hz = 18;
+    /* The menu's "Tick Pump Hz" slider (interact.json index 1) may only slow the clock below the rate the
+     * game programmed -- a deliberate slow-motion/tuning knob for the 100 MHz core, never a speed-up. */
+    {
+        int cap = of_setting_tick_hz();
+        if (cap > 0 && cap < (int)hz) hz = (uint32_t)cap;
+    }
+    uint64_t period = 1000000ull / hz;
+
+    /* Re-anchoring on a lag of eight periods (16 ms) is what put the logo back into slow motion: a present
+     * that costs 81 ms re-anchored every single frame, so the game received one tick per frame -- 13 ticks a
+     * second instead of 490 -- and a fade measured in ticks never reached its end (reanchor=130 with
+     * frames=130).  The lag here is OUR blit, not the game blocking, and the right answer is to hand over the
+     * ticks that actually elapsed: 40 in a 81 ms frame, which is what a 12 fps renderer still owes the clock.
+     * Only a lag beyond half a second is treated as a real stall (a blocking read, a clock discontinuity) and
+     * re-anchored instead, and the burst cap goes to 128 so a 250 ms stall is absorbed. */
+    unsigned calls = 1;
+    if (now - g_tick_next_us > 500000ull) {           /* a genuine stall: re-anchor, don't burst */
+        g_tick_next_us = now;
+        g_pump_reanchor++;                            /* a stall inside game code shows up here */
+    } else {
+        while (now >= g_tick_next_us && calls < 128u) { g_tick_next_us += period; calls++; }
+        calls--;
+    }
+
+#ifdef OF_PC
+    if (g_fixed_step_calls) {
+        /* Same rule as src/app/main.c: the handler count is a function of the PRESENTED frame count. */
+        static unsigned s_step_frames;
+        calls = 0;
+        if (g_frames != s_step_frames) {
+            s_step_frames = g_frames;
+            unsigned want = (unsigned)((unsigned long long)g_frames *
+                                       (unsigned long long)g_fixed_step_calls / (unsigned long long)g_fixed_fps);
+            while (g_timer_calls < want && g_timer_calls < s_step_frames * 64ul + 64ul) {
+                fn_03ee88(); g_timer_calls++;
+            }
+        }
+    } else
+#endif
+    while (calls--) { fn_03ee88(); g_timer_calls++; }
+    g_pump_calls++;
+
+    if (now >= g_present_next_us) {
+        uint64_t t0 = sys_now_us();
+        present();
+        uint32_t d = (uint32_t)(sys_now_us() - t0);
+        if (d > g_present_us_max) g_present_us_max = d;
+        g_present_us = d;
+        g_frames++;
+        g_present_next_us = now + PRESENT_PERIOD_US;
+        if (g_frames_limit && g_frames >= (uint32_t)g_frames_limit) g_quit = 1;
+    }
+    if (now >= g_diag_next_us) {
+        g_diag_next_us = now + 1000000ull;
+        static uint32_t s_last_ticks;
+        uint64_t clock_now = sys_now_us();
+        g_clock_rate_us = g_clock_diag_last ? clock_now - g_clock_diag_last : 0;
+        g_clock_diag_last = clock_now;
+        NLOG("memstat frames=%u ticks=%u(+%u/s) pumps=%u arena=%u/%u pit=%u Hz xfer=%u plays=%u cdda=%u/%u/%u clock=%llu\n",
+               g_frames, g_timer_calls, g_timer_calls - s_last_ticks, g_pump_calls,
+               heap_arena_used(), heap_arena_cap(), sys_pit_hz(0),
+               sys_audio_transfers(), g_of_sfx_plays,
+               of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), (unsigned long long)g_clock_rate_us);
+        s_last_ticks = g_timer_calls;
+
+        /* The presentation half, in four short lines the LCD can actually render. */
+        {
+            int vw = g_view_320x200 ? GAME_W : sys_video_w();
+            int vh = g_view_320x200 ? GAME_H : sys_video_h();
+            g_sig = (vw > 0 && vh > 0) ? fb_signature(vw, vh) : 0u;
+            if (g_sig != g_sig_prev) { g_sig_changes++; g_sig_prev = g_sig; }
+            NLOG("view=%d %dx%d sig=%08lx chg=%u pal=%d\n",
+                 g_view_320x200, vw, vh, (unsigned long)g_sig, g_sig_changes, pal_lit());
+            if (vw != g_vw_prev || vh != g_vh_prev || g_view_320x200 != g_view_prev) {
+                NLOG("video CHANGED: view=%d %dx%d (was %d %dx%d)\n",
+                     g_view_320x200, vw, vh, g_view_prev, g_vw_prev, g_vh_prev);
+                g_view_prev = g_view_320x200; g_vw_prev = vw; g_vh_prev = vh;
+            }
+#ifndef OF_PC
+            if (g_view_320x200) geo_witness("view");      /* only while the 320x200 picture is up: that is where
+                                                              * 0.1.29 lost the mode, and this line is the witness */
+            {   /* A second sample of the same interact table, three seconds into the run.  A real menu value is
+                 * stable and moves when the knob moves; an unpopulated table is garbage that does not care.  The
+                 * 0.1.28 run read 0x55555555 everywhere and the 0.1.29 run read a different garbage per index --
+                 * neither behaviour distinguishes those two, but a value that HOLDS and then CHANGES does. */
+                static unsigned probe_tick;
+                static int interact2_done;
+                if (of_setting_diag() & OF_DIAG_PERIPH) {
+                    periph_named();                 /* four registers, by name: cheap, proven safe, and the only
+                                                     * menu state this OS has ever been seen to publish */
+                    if (g_periph_watch) {
+                        long lb = of_log_bytes();
+                        if (lb > PERIPH_LOG_LIMIT) {
+                            g_periph_watch = 0;
+                            NLOG("periph: the 96-word watch stopped at %ld log bytes (the save slot is 256 KB and"
+                                 " the game's own lines outrank a scan).  The named registers keep running\n", lb);
+                        } else {
+                            periph_scan(probe_tick && (probe_tick % 10u) == 0u ? 1 : 0);
+                        }
+                    }
+                }
+                probe_tick++;
+                if (probe_tick == 3u && !interact2_done && (of_setting_diag() & OF_DIAG_INTERACT)) {
+                    interact2_done = 1;
+                    for (int i = 0; i < OF_INTERACT_COUNT; i++) {
+                        unsigned v = 0;
+                        long e = of_interact_probe(i, &v);
+                        NLOG("interact2[%d]: err=%ld val=%08x\n", i, e, v);
+                    }
+                }
+            }
+#endif
+            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u\n",
+                 g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips);
+            NLOG("stages last m=%u p=%u c=%u f=%u x=%u | max all=%u copy=%u flip=%u\n",
+                 g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip,
+                 g_us_flip_max, g_us_copy, g_us_flip);
+#ifndef OF_PC
+            NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
+                 g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);
+            NLOG("menu scr=%d blit fast=%u slow=%u skip=%u\n",
+                 of_setting_screen(), g_ds_fast, g_ds_slow, g_present_skips);
+            /* Once a second, not once a frame: the mode is asserted at boot, but fn_03f15f (the game's own VESA
+             * mode set) runs through the boot sequence and the display path is not obliged to remember what the
+             * app asked for.  1 Hz keeps the assertion without the 59 Hz cost a per-frame one adds. */
+            /* SCREEN=-1 means "follow the core's own Pocket LCD", and that is only a promise if the value can be
+             * read.  It can: register 0x40000080 carries the menu choice (0.1.38), and this is the only place the
+             * port acts on it.  With the periph probe off (DIAG=0, the shipping value) -1 behaves as 0, which is
+             * exactly what it has always done. */
+            if (of_setting_screen() < 0 && g_periph_lcd)
+                g_display_mode = (periph_lcd_field() == 2u) ? OF_DISPLAY_TERMINAL : OF_DISPLAY_FRAMEBUFFER;
+            of_video_set_display_mode(g_display_mode);
+            g_display_applied = g_display_mode;
+#else
+            NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
+                 g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
+#endif
+            NLOG("audio cdda=%u/%u/%u plays=%u stops=%u sfx=%u/%u/%u ring=%u head=%d music_mode=%u\n",
+                 of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), sys_cd_audio_play_calls(),
+                 sys_cd_audio_stop_calls(), g_of_sfx_plays, g_of_sfx_drops, g_of_sfx_steals,
+                 of_cdda_ring_ahead(), (int)of_cdda_head(), (unsigned)g_dat_51a10);
+            if (sys_audio_dsp_unknown_total()) {
+                /* Name them.  A total only says something was ignored; which byte it was says whether the
+                 * missing sound is an arm the port never acts on. */
+                char acc[96]; int n = 0;
+                acc[0] = 0;
+                int shown = 0;
+                for (int c = 0; c < 256 && shown < 6; c++) {
+                    uint32_t k = sys_audio_dsp_unknown((uint8_t)c);
+                    if (!k) continue;
+                    n += snprintf(acc + n, sizeof acc - (size_t)n, " 0x%02x=%u", c, k);
+                    shown++;
+                }
+                NLOG("audio: dsp commands with no case in the port = %u:%s\n",
+                     sys_audio_dsp_unknown_total(), acc);
+            }
+#ifndef OF_PC
+            /* The log is the good channel; the console panel is the visible one.  When the log cannot be
+             * opened at all, put the lines on the console instead of nowhere. */
+            g_console_live = g_log_ok ? 0 : 1;
+#endif
+        }
+    }
+    g_depth--;
+    if (g_quit) longjmp(g_game_escape, 1);
+}
+
+
+#ifndef OF_PC
+/* One-shot witness for the file bridge, printed where it can actually be read -- the console -- rather than
+ * only into the file that is the subject of the investigation.  Six hardware runs wrote a log that never
+ * reached the card, and a control run of openfpgaOS-Quake on the same card wrote quake.cfg (20 B) and s0.sav
+ * (35 290 B) at the moment its core exited, with a data.json whose nonvolatile slot entries are byte-identical
+ * to ours.  So the question is not "does the bridge write" but "what does our app see, and when does the
+ * bridge commit".  This answers the first half. */
+
+#ifndef OF_PC
+/* The console readout as one fixed panel: home, clear, and rewrite the same rows in the same places every
+ * second (the terminal takes printf with ANSI escapes, README:485-495).  Nothing scrolls, so one screenshot
+ * holds the whole state instead of a torn half of several seconds. */
+static void diag_panel(unsigned hz) {
+    char head[40];
+    snprintf(head, sizeof head, "NIGHT %s  f=%u t=%u", OF_CORE_VERSION, g_frames, g_timer_calls);
+    printf("\x1b[H\x1b[2J");
+    printf("%-39s\n", head);
+    printf("ticks+%-4u pump %-5u reanch %-4u\n", g_timer_calls, g_pump_calls, g_pump_reanchor);
+    printf("hz=%u pres=%uus max=%uus\n", hz, g_present_us, g_present_us_max);
+    printf("st m=%u p=%u c=%u f=%u x=%u\n",
+           g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip);
+    printf("view=%d %dx%d pal=%d\n", g_view_320x200,
+           g_view_320x200 ? GAME_W : sys_video_w(), g_view_320x200 ? GAME_H : sys_video_h(), pal_lit());
+    printf("sig=%08lx chg=%u\n", (unsigned long)g_sig, g_sig_changes);
+    printf("blit fast=%u slow=%u skip=%u\n", g_ds_fast, g_ds_slow, g_present_skips);
+    printf("cdda=%u/%u/%u ring=%u dr=%d\n",
+           of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), of_cdda_ring_ahead(),
+           (int)of_cdda_drift());
+    printf("plays=%u xfer=%u arena=%u\n", g_of_sfx_plays, sys_audio_transfers(), heap_arena_used());
+    printf("clock=%llu pit=%u\n", (unsigned long long)g_clock_rate_us, sys_pit_hz(0));
+    printf("lcd=%08x scr=%d dm=%d\n", (unsigned)of_setting_lcd_raw(), of_setting_screen(), g_display_mode);
+    printf("log=%d bytes=%ld\n", g_log_ok, of_log_bytes());
+    fflush(stdout);
+}
+#endif
+
+
+#ifndef OF_PC
+/* What the memory system actually gives us, measured at boot instead of argued about.  The device log reports
+ * "copy=80391us" for one 640x480 -> 320x240 pass -- 307 200 source bytes read and 76 800 written in 80 ms,
+ * about 3.8 MB/s -- and that one stage is what pins the tick pump at 12 Hz.  Whether 80 ms is the floor or the
+ * loop is answerable by timing the parts against each other: a plain sequential read of the same bytes, a
+ * memcpy of them, a memset, and the downscale itself. */
+static void mem_bench(void) {
+    const size_t n = 640u * 480u;
+    static uint8_t *scratch;
+    if (!scratch) scratch = (uint8_t *)malloc(n);
+    volatile uint32_t sink = 0;
+    uint64_t t = sys_now_us();
+    for (size_t i = 0; i < n; i += 4u) sink += *(const uint32_t *)(const void *)(g_video_ram + i);
+    NLOG("bench read=%uus sink=%u\n", (uint32_t)(sys_now_us() - t), (unsigned)(sink & 1u));
+    t = sys_now_us();
+    for (size_t i = 0; i < n; i += 4u) sink += *(const uint32_t *)(const void *)(g_video_ram + i);
+    NLOG("bench read2=%uus (warm)\n", (uint32_t)(sys_now_us() - t));
+    if (scratch) {
+        t = sys_now_us(); memcpy(scratch, g_video_ram, n);
+        NLOG("bench copy=%uus\n", (uint32_t)(sys_now_us() - t));
+        t = sys_now_us(); memset(scratch, 0xA5, n);
+        NLOG("bench write=%uus\n", (uint32_t)(sys_now_us() - t));
+        free(scratch);
+    }
+    t = sys_now_us();
+    downscale_2x2_frame(g_video_ram, of_video_surface());
+    NLOG("bench downscale=%uus\n", (uint32_t)(sys_now_us() - t));
+}
+#endif
+
+static void file_probe(void) {
+    static const char *names[] = { "nightlog.sav", "night_0.sav", "night_6.sav", "NIGHT.RES", "track02.bin" };
+    for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
+        uint32_t sid = 0;
+        int r = of_file_slot_find(names[i], &sid);
+        NLOG("probe find \"%s\" -> %d id=%u\n", names[i], r, sid);
+    }
+    DIR *d = opendir("/");
+    if (!d) { NLOG("probe opendir(/) FAILED\n"); }
+    else {
+        struct dirent *e;
+        int n = 0;
+        while ((e = readdir(d)) != NULL && n < 12) {
+            NLOG("probe dir \"%s\" ino=%ld slot=%d\n", e->d_name, (long)e->d_ino, (int)e->d_ino - 1);
+            n++;
+        }
+        closedir(d);
+        NLOG("probe dir listed %d (cap 12)\n", n);
+    }
+    FILE *f = fopen("night_6.sav", "wb");        /* a game save slot, so the probe cannot touch the log */
+    if (!f) { NLOG("probe fopen night_6.sav wb FAILED\n"); }
+    else {
+        static const char mark[] = "NIGHT-PROBE-0001";                 /* 17 bytes, NUL included */
+        size_t w = fwrite(mark, 1, sizeof mark, f);
+        fclose(f);                                                     /* the close a bridge commits on */
+        NLOG("probe wrote %u then closed\n", (unsigned)w);
+        f = fopen("night_6.sav", "rb");
+        if (!f) { NLOG("probe reopen FAILED\n"); }
+        else {
+            char buf[32]; size_t g = fread(buf, 1, 16, f); fclose(f);
+            buf[g < 16 ? g : 15] = 0;
+            NLOG("probe readback %u \"%s\"\n", (unsigned)g, buf);
+        }
+    }
+}
+#endif
+
+int main(int argc, char **argv) {
+    /* A core that is killed (or that dies in a spin) must not lose its log: unbuffered stdout is how
+     * this host is read on a desktop run and in the emulator log. */
+    setvbuf(stdout, (char *)0, _IONBF, 0);
+    off_init();
+
+    for (int i = 1; i + 1 < argc; i++) {
+        if (!strcmp(argv[i], "--frames") && i + 1 < argc) g_frames_limit = atol(argv[++i]);
+#ifdef OF_PC
+        else if (!strcmp(argv[i], "--rig-dump") && i + 1 < argc) g_rig_dir = argv[++i];
+        else if (!strcmp(argv[i], "--warp-stage") && i + 1 < argc) g_warp_stage_cli = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--save") && i + 1 < argc) g_save_slot = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--save-at") && i + 1 < argc) g_save_at = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--load") && i + 1 < argc) g_load_slot = atoi(argv[++i]);
+#endif
+    }
+    if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
+    g_log_ok = (of_log_open() == 0) ? 1 : 0;
+    /* The first line a running app writes, on purpose.  0.1.27 broke the core and the card kept the PREVIOUS
+     * run's log, which is only interpretable because the old log's settings line said music_vol=192 -- if this
+     * line is missing from a card log, the app never reached the point of writing anything, and the fault is in
+     * what the firmware did before it ran (a core definition file, a slot, a bitstream), not in app code. */
+    NLOG("core %s: boot marker\n", OF_CORE_VERSION);
+    if (!g_log_ok) printf("log: the diagnostic slot is not openable; the terminal is the only trail\n");
+    else atexit(of_log_close);          /* a fclose is what commits a nonvolatile slot (README:466) */
+    NLOG_STEP("boot start");
+    if (getenv("NIGHT_RIG_STEP_CALLS")) {
+        int hz = atoi(getenv("NIGHT_RIG_STEP_CALLS"));
+        if (hz > 0) g_fixed_step_calls = hz;
+    }
+    if (getenv("NIGHT_RIG_FPS")) {
+        int f = atoi(getenv("NIGHT_RIG_FPS"));
+        if (f > 0) g_fixed_fps = f;
+    }
+#ifndef OF_PC
+    sys_set_clock_source(of_clock_us);            /* every wait in the port is a deadline on this */
+#endif
+    of_video_init();
+    of_video_set_color_mode(OF_VIDEO_MODE_8BIT);
+#ifndef OF_PC
+    /* Claim the game display at the top of boot.  0.1.35 stalled mid-boot and what the player saw was
+     * openfpgaOS's terminal, "regardless of the Pocket LCD setting" -- the display mode the host asks for is only
+     * asserted from the pump, and a run that never reaches the pump never asks for anything. */
+    NLOG_STEP("display claimed");
+    of_video_set_display_mode(OF_DISPLAY_FRAMEBUFFER);
+#endif
+    of_audio_init();
+
+    const struct of_capabilities *caps = of_get_caps();
+    NLOG("night pocket: cpu=%u Hz sdram=%u KB heap=%u KB fb=%ux%u stride=%u voices=%u variant=%u\n",
+           caps->cpu_freq_hz, caps->sdram_size / 1024, caps->heap_size / 1024,
+           caps->fb_width, caps->fb_height, caps->fb_stride, caps->mixer_voices, caps->core_variant);
+    NLOG("caps: version=%u hw=%08x os=%08x (sdk OF_CAPS_VERSION=%d)\n",
+         caps->version, caps->hw_features, (caps->version >= 4) ? caps->os_features : 0u, OF_CAPS_VERSION);
+    of_settings_load();                        /* os.ini [night] on the device, env on the desktop */
+    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
+         of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
+         of_setting_tick_hz(), of_setting_screen());
+    NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
+         of_setting_fit());
+    NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"
+         "\n       every probe below is gated on this; night.ini DIAG= is the switch, 0 is the shipping value\n",
+         of_setting_diag());
+#ifndef OF_PC
+    /* The control in the interact experiment.  The RESERVED menu values have a documented route that is not
+     * interact -- of_analogizer.h hands the app what the firmware wrote for Analogizer / SNAC / video offsets --
+     * so if this reads coherently while of_interact_get() reads garbage, the gap is the interact ecall and not
+     * the menu plumbing. */
+    {   /* of_analogizer_state() reads the SAME menu values the interact.json reserved entries point at -- video
+         * mode, SNAC type, H/V offsets -- through a different ecall (OF_EID_ANALOGIZER).  If it answers coherently
+         * while of_interact_get() answers garbage, the gap is the interact ecall specifically. */
+        if (of_setting_diag() & OF_DIAG_PERIPH) {
+            NLOG_STEP("probe periph begin");      /* bracketed on purpose: the probe that faults is the one whose
+                                                     * "begin" is the last line the run ever wrote */
+            NLOG("periph: reading %u words at 0x%08x (the interactdemo approach)\n",
+                 OF_PERIPH_WORDS, OF_PERIPH_BASE);
+            periph_scan(1);
+            NLOG("periph: baseline set.  Every later 'periph move' line is a live change -- move Pocket LCD in"
+                 " Core Options and the word that answers is the menu channel this core has been looking for\n");
+            NLOG_STEP("probe periph done");
+        }
+        if (of_setting_diag() & OF_DIAG_ANALOGIZER) {
+            NLOG_STEP("probe analogizer begin");
+            of_analogizer_state_t az;
+            int arc = of_analogizer_state(&az);
+            NLOG("analogizer: enabled=%d state rc=%d en=%u video=%u snac=%u/%u off=%d,%d\n",
+                 of_analogizer_enabled(), arc, az.enabled, az.video_mode, az.snac_type, az.snac_assignment,
+                 (int)az.h_offset, (int)az.v_offset);
+            NLOG_STEP("probe analogizer done");
+        }
+    }
+#endif
+#ifndef OF_PC
+    NLOG_STEP("clock source installed");
+    NLOG("clock: openfpgaOS of_time_us installed; probe: ");
+    {
+        uint64_t a = sys_now_us();
+        for (volatile int i = 0; i < 2000000; i++) ;
+        uint64_t b = sys_now_us();
+        NLOG("%llu us over a 2M-iteration spin (%s)\n", (unsigned long long)(b - a),
+             (b > a) ? "advancing" : "NOT ADVANCING");
+    }
+#endif
+
+
+
+#ifdef OF_PC
+    if (g_rig_dir) rig_screen_init(g_rig_dir, 8);
+#endif
+
+#ifndef OF_PC
+    /* Which index actually carries what.  of_interact_get() addresses variables by position, and the last two
+     * times this was guessed wrong (docs/336), so the whole front of the table is printed rather than only the
+     * entries the host hopes it needs. */
+    if (of_setting_diag() & OF_DIAG_INTERACT) {
+        NLOG_STEP("probe interact census begin");
+        char acc[160]; int n = 0;
+        for (int i = 0; i < OF_INTERACT_COUNT; i++)
+            n += snprintf(acc + n, sizeof acc - (size_t)n, " %d=%08x", i, (unsigned)of_interact_get(i));
+        NLOG("interact:%s\n", acc);
+        /* 0.1.28's card log read 0x55555555 at all eight indices.  of_interact_get() discards the ecall's error,
+         * so that number could mean "the OS answered this" or "the OS refused and this is junk" -- which is the
+         * whole difference between a menu that is not wired and a menu the OS does not implement at all.  Both
+         * halves get printed from here on. */
+        for (int i = 0; i < OF_INTERACT_COUNT; i++) {
+            unsigned v = 0;
+            long e = of_interact_probe(i, &v);
+            NLOG("interact[%d]: err=%ld val=%08x\n", i, e, v);
+        }
+        /* The SDK's own smoke test asserts of_interact_get(999) == 0 (src/apps/testdemo/test_interact.c), which
+         * only means something if the handler validates its index.  Probe the boundary: if 999 and 63 read 0
+         * while 0..n-1 read the same fixed garbage in every run, then the ecall IS dispatched and its table is
+         * simply never filled -- a different statement from "the ecall does not exist", and the accurate one. */
+        /* No out-of-range probes.  They were a reasonable idea -- the SDK's own test asserts
+         * of_interact_get(999) == 0, which only means something if the handler validates the index -- but the
+         * only way to find out on hardware is to ask the OS to index a table it may not size-check, and a
+         * diagnostic that can fault the kernel is not a diagnostic.  0.1.34/0.1.35 read indices up to
+         * OF_INTERACT_MAX_VARS-1 and 999; 0.1.32 read only the declared range and ran to completion.  The
+         * boundary question is asked from the PC shim, where an OOB read hurts nobody. */
+        NLOG_STEP("probe interact census done");
+    }
+#endif
+#ifndef OF_PC
+    /* Pocket LCD (interact.json id 70, bits 16-17 of 0xF7000000) is the screen switch, and the host mirrors
+     * it into of_video_set_display_mode() (of_video.h:43-45): OF_DISPLAY_TERMINAL shows the 40x30 console the
+     * printf diagnostics go to, OF_DISPLAY_FRAMEBUFFER the game.  The mode is re-derived from that setting on
+     * every present(), which is the point: a stuck-of-its-own default used to force OF_DISPLAY_FRAMEBUFFER
+     * while the menu said Terminal, i.e. the port overrode the user 60 times a second (docs/336). */
+    {
+        int scr = of_setting_screen();
+        int mode = (scr == 1) ? OF_DISPLAY_TERMINAL : (scr == 2) ? OF_DISPLAY_OVERLAY : OF_DISPLAY_FRAMEBUFFER;
+        /* Not overridden any more.  This used to read "if the log slot is not openable, force OVERLAY", and on
+         * the device the log slot is not openable -- so every run that was not asked for Terminal came up as
+         * OF_DISPLAY_OVERLAY (of_video.h:44-46: "white terminal text over framebuffer"), which is exactly what
+         * the screenshots show: text over the game while the menu says On.  The game screen is what the menu
+         * asked for; a log failure is reported, it is not compensated for by changing the user's display. */
+        g_display_mode = mode;
+        g_display_applied = mode;
+        of_video_set_display_mode(mode);
+        NLOG("screen: ini/menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
+        NLOG("log ok=%d bytes=%ld\n", g_log_ok, of_log_bytes());
+        {
+            of_video_caps_t cap; of_video_get_caps(&cap);
+            NLOG("caps max=%ux%u stride=%u phys=%ux%u def=%ux%u bytes=%u modes=%d\n",
+                 cap.max_width, cap.max_height, cap.max_stride, cap.physical_width, cap.physical_height,
+                 cap.default_width, cap.default_height, cap.max_frame_bytes, of_video_get_mode_count());
+            of_video_get_mode(&g_fb_base);
+            int nmode = of_video_get_mode_count();
+            for (int i = 0; i < nmode; i++) {
+                of_video_mode_t m;
+                if (of_video_get_mode_info(i, &m) != 0) continue;
+                NLOG("mode %d: %ux%u stride=%u color=%u\n", i, m.width, m.height, m.stride, m.color_mode);
+                if (m.width == 2 * PANEL_W && m.height == 2 * PANEL_H && m.color_mode == OF_VIDEO_MODE_8BIT) {
+                    g_fb_native = m; g_fb_native.stride = 0; g_fb_native_ok = 1;
+                }
+                if (m.width == GAME_W && m.height == GAME_H && m.color_mode == OF_VIDEO_MODE_8BIT) {
+                    g_fb_native_200 = m; g_fb_200_ok = 1;
+                }
+            }
+            if (!g_fb_native_ok && cap.max_width >= 2 * PANEL_W && cap.max_height >= 2 * PANEL_H &&
+                cap.max_frame_bytes >= (uint32_t)(2 * PANEL_W) * (2 * PANEL_H)) {
+                /* Not on the list, but inside everything the core advertises it can hold.  Worth one bounded
+                 * attempt: present() checks the return value and falls back to the software downscale on any
+                 * refusal, so a wrong guess costs one log line and one slow frame, nothing else. */
+                g_fb_native = (of_video_mode_t){ 2 * PANEL_W, 2 * PANEL_H, 0, OF_VIDEO_MODE_8BIT, 0 };
+                g_fb_native_ok = 1;
+                NLOG("fb native 640x480 not listed -- attempting it inside caps\n");
+            }
+            NLOG("fb native 640x480 8-bit %s (base %ux%u stride=%u)\n",
+                 g_fb_native_ok ? "offered/attempted" : "NOT possible", g_fb_base.width, g_fb_base.height, g_fb_base.stride);
+            fit_apply("boot");
+            geo_witness("boot");
+            if (!surface_is_base())
+                NLOG("surface: the core did not land on the 320x240 base mode the host assumes\n");
+        }
+        NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
+             (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
+        mem_bench();
+        file_probe();
+#ifndef OF_PC
+        {   /* What the file layer thinks of the name we open the log on. */
+            uint32_t sid = 0;
+            int fr = of_file_slot_find("night.cfg", &sid);
+            NLOG("file: slot_find(night.cfg)=%d id=%u\n", fr, sid);
+        }
+#endif
+        NLOG("================================================\n");
+        NLOG("=== NIGHT (openfpgaOS) -- console overlay test ===\n");
+        NLOG("================================================\n");
+    }
+#endif
+    if (!of_setting_cdda()) g_off |= OFF_CDDA;
+    if (!of_setting_pad())  g_off |= OFF_PAD;
+    if (g_load_slot >= 0) {                    /* a restore arms the warp basis from the blob */
+        if (of_save_read(g_load_slot) != 0 && of_save_last_error()) printf("load: %s\n", of_save_last_error());
+    }
+    if (g_warp_stage_cli > 0) g_warp_stage = g_warp_stage_cli;
+    pad_script_load();
+    NLOG_STEP("board_boot");
+    board_boot();
+    NLOG_STEP("audio_boot");
+    audio_boot();
+    NLOG_STEP("cdda_boot");
+    cdda_boot();
+    sys_set_res_hook(0);
+
+    /* ---- the boot recipe the real-data test uses (docs/15), host for host with src/app/main.c ---- */
+    sys_set_fatal_handler(on_fatal);
+    g_dat_5336c = g_dat_53370 = g_dat_53374 = on_terminate;
+    g_dpmi_free_dos_paragraphs = 0x100000;         /* the startup free-memory gate (fn_03ae8e) */
+    g_dat_52ff8 = 1;                               /* keyboard pump enabled (fn_0347e3) */
+    memset(g_node_pool, 0, sizeof g_node_pool);
+    g_ndpool = g_node_pool; g_node_list_active = 0; g_node_list_done = 0;
+    heap_arena_init();
+    heap_arena_cap_set(NIGHT_HEAP_ARENA_MAX);      /* shrunk for the Pocket build by -D (docs/330 §4) */
+    heap_region_floor_set(0x10000);
+    (void)heap_malloc(0x4000);
+    for (int t = 0; t < 0x104; t++) { g_dat_639ec[t] = 0; g_dat_53818[t] = 0; }
+
+    /* Resource opens (fn_04270d / fn_036853) resolve to "<dir>/<name>".  On the device the kernel
+     * resolves names to data slots through the virtual root, so "/" + "NIGHT.RES" is slot 4; on the
+     * desktop build it is the repo's NIGHT/ directory. */
+#ifndef OF_PC
+    sys_file_real_dir("/");
+#else
+    /* Desktop: find the data directory rather than assume the cwd.  The same mistake is what the
+     * game itself reports ("NIGHT.RES File Not Found!!!" -> fn_036537 -> terminate), so the host
+     * checks each candidate with the file the loader actually needs. */
+    {
+        static const char *cand[] = { "NIGHT", "../NIGHT", "../../NIGHT", "../../../NIGHT",
+                                      "../../../../NIGHT" };
+        const char *dir = getenv("NIGHT_RES_DIR");
+        if (!dir || !*dir) {
+            dir = cand[0];
+            for (unsigned i = 0; i < sizeof cand / sizeof cand[0]; i++) {
+                char probe[512];
+                snprintf(probe, sizeof probe, "%s/NIGHT.RES", cand[i]);
+                FILE *f = fopen(probe, "rb");
+                if (f) { fclose(f); dir = cand[i]; break; }
+            }
+        }
+        printf("res dir: %s\n", dir);
+        sys_file_real_dir(dir);
+    }
+#endif
+
+    int tracks = of_disc_open();
+    sys_cd_set_audio_backend(cdda_play, cdda_stop);
+    NLOG("disc: %d tracks, %u sectors\n", tracks, of_disc_total_sectors());
+
+    sys_set_input_pump(input_pump);
+    sys_set_tick_pump(tick_pump);
+    sys_set_present_hook(present);                 /* docs/325: a pass that writes 0xA0000 and waits asks for one present */
+
+    g_tick_next_us = sys_now_us();
+    g_present_next_us = g_tick_next_us;
+    g_diag_next_us = g_tick_next_us + 1000000ull;
+    g_setting_next_us = g_tick_next_us;
+    g_music_mode = g_dat_51a10 ? 1u : 0u;             /* the shipped value is 1 (docs/133) */
+
+    g_boot_us = sys_now_us();                       /* the warp-entry pulse timeline (task-7) */
+    if (setjmp(g_game_escape) == 0) {
+        g_escape_armed = 1;
+        NLOG_STEP("game main entered");
+        dispatch_a(0xff);                          /* 0x422c7: the registered event-table entries */
+        fn_0445c9_startup();                       /* 0x0445d8-0445fe: the entry thunk's pre-main half */
+        fn_03af18();                               /* THE GAME MAIN */
+        NLOG("the game main returned\n");
+    } else {
+        NLOG("game main unwound (quit / fatal)\n");
+    }
+    g_escape_armed = 0;
+    g_quit = 1;
+    of_cdda_stop();                 /* closes the witness WAV (and its header fix-up) on the way out */
+    present();
+    printf("frames presented: %u  ticks: %u  cdda tracks: %u  sfx voices: %u\n",
+           g_frames, g_timer_calls, of_cdda_tracks(), g_of_sfx_plays);
+    return 0;
+}

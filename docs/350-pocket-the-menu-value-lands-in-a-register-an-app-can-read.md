@@ -76,3 +76,22 @@ And a *usable* NIGHT setting (volume, fit) would still need the OS to mirror a v
 `interact.json` app elements are fatal on the control word and inert elsewhere.  So the settings surface stays
 `night.ini` plus the L1+B pad combo (the user confirmed L1+B cycling fit works on hardware), and `SCREEN=-1` is now
 the one menu-following setting that genuinely works.
+
+## 5. How this nearly got lost, because the next reader should not repeat it
+
+Two process failures during 0.1.39, both caught by accident rather than by design.
+
+**A truncated read written back over a source file.**  `main_of.c` is 1670 lines / >50 KB, and a file-reading tool
+that silently truncates at 50 KB was used to read it, edit the string in memory, and write the whole file back.  The
+file came home at 930 lines: the whole back half of the host — the game main loop, the video path, the pad pump —
+gone.  The compiler found it (`main_of.c:929: error: unterminated comment`) only because the cut happened to land
+inside a comment.  Rule: **a large file is edited in place (a targeted patch tool, or `pathlib` in a script that
+reads the file itself), never read-modify-written through a reader that can truncate.**  Recovery was
+`git checkout HEAD~1 -- main_of.c` plus re-applying the patch script; `git diff --stat` against 0.1.38 then showed
+70 insertions and 5 deletions, which is what proved nothing else had been lost.
+
+**A build failure that the shell hid.**  `make 2>&1 | grep -E "error|Ready"` returns **grep's** exit status, so a
+failed build looked like a successful step and the `&&` chain went on to run the fixture suite (against the previous
+ELF) and to deploy the previous ELF onto a card whose `core.json` said 0.1.39.  Caught by checking
+`strings night.elf | grep '^0\.1\.'` against `core.json` — which is now a standing deploy check, since the ELF's own
+version string is the only artifact that cannot lie about what the core will print.

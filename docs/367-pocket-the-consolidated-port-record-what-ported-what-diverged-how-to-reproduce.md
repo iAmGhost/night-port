@@ -114,15 +114,25 @@ The original side is 434 frames captured headless through dosbox-automation and 
 (index bytes plus the game's own 768-byte palette), which `scripts/pocket/arena_raws_to_bmp.py` decodes to BMPs for
 `scripts/playtest_compare_orig_port.py` -- the label/best-match basis `docs/91` used for the SDL host.
 
-| original phase | frames | Pocket route that covers it | matched at NCC >= 0.90 |
-|---|---|---|---|
-| live stage play | 55 | `--warp-stage 1` | **55 / 55**, best pair 0.9998 with strict pixel agreement 1.000 |
-| intermission slides | 133 | either route | 130 / 133 |
-| title melt | 42 | either route | 41 / 42 |
-| intro `.fli` | 54 | scripted attract route | 46 / 54 |
-| pause / menu windows, whole frame | 82 | warp route with `route_esc_menu.txt` | 40 / 41 best; the other window is 1 / 41 because the stage behind the menu is at a different progression point |
-| **pause / menu windows, the menu box itself** | 82 | any route that opens the menu | **41 / 41 per window at NCC 1.0000** (docs/383) |
-| DOS text-mode boot (mode 3) | 24 | none: the port has no text-mode presentation | 8 / 24 |
+`scripts/playtest/route_mirror_episode1.txt` is one anchored route that walks the episode -- intro, title, the slide
+show, the stage, and the ESC menu -- with the game's own lookups recorded in the rig's `res.jsonl` sidecar
+(`logo.pcx` 1, `opening.fli` 138, `title1.pcx` 2345, `1s1-1s3.pcx` 2441/2602/2820, `stage1.pcx` 3039, 0 anchor timeouts).
+Scored against 434 original frames, one Pocket run, 400 arena witnesses:
+
+| original phase | frames | matched at NCC >= 0.90 |
+|---|---|---|
+| live stage play | 55 | **55 / 55**, best pair 0.9998 with strict pixel agreement 1.000 |
+| intermission slides | 133 | 130 / 133 |
+| title melt | 42 | 41 / 42 |
+| pause / menu windows, whole frame | 82 | 41 / 41 and 35 / 41 |
+| **pause / menu windows, the menu box itself** | 82 | **41 / 41 in both windows at mean and minimum NCC 1.0000** |
+| intro `.fli` | 54 | 43 / 54 |
+| DOS text-mode boot (mode 3) | 24 | 8 / 24 -- the port has no text-mode presentation, and never claimed one |
+| single-frame windows (`title_card`, `stage_play`) | 2 | 1 / 2, windows one frame long |
+
+**354 of 434 (81.6 %)**.  The sequence-alignment basis agrees, once its own defects were fixed (docs/384, docs/387):
+the same capture scored 0.9370 for `--warp-stage 1` and 0.8780 for this route against a floor of 0.5590 that the tool
+now prints when asked.
 
 What this section deliberately is not: one route score.  A single end-to-end number produced 0.559 and read like a
 verdict while each route was simply outside several phases (docs/380 4, docs/382 1).  Its zeros have named causes -- a
@@ -130,7 +140,7 @@ a warp run skips the intro, and a route that never enters a stage cannot match i
 cannot be scored for menu fidelity at all (docs/383) -- and the routes together cover every phase the port claims
 to render.
 
-One command reproduces the table above: `scripts/pocket/accuracy_sweep.sh` (three routes, witnesses decoded to BMPs,
+One command reproduces a version of the table above: `scripts/pocket/accuracy_sweep.sh` (three routes,
 per-window whole-frame score plus the menu-box score).  Which window a *given* run witnesses varies with the shim's
 wall-clock pad timeline (docs/333 5); the exact-match claim is the one that survives that.
 

@@ -215,6 +215,25 @@ static uint32_t g_fill_calls, g_fill_frames, g_fill_us_max, g_audio_low, g_room_
 static uint32_t g_ahead_min = 0xffffffffu;
 static uint32_t g_pump_visits;
 static uint32_t g_dry;                          /* clock_consume had to clamp: the voice ate more than was written */
+
+#ifdef OF_PC
+/* Rig parity (task-11, docs/365): src/app/main.c writes a `stop` marker on every selection change and feeds
+ * rig_cdda_sample() the raw 2352-byte sector it pulled off the disc, which is what fills cdda.raw and the
+ * running `bytes` series in cdda.jsonl.  The Pocket host wrote neither, so the two hosts' cdda.jsonl files were
+ * not comparable and the desktop rig could not diff the two hosts' delivered audio at all.  Declared the way
+ * main.c declares them (rig_sink.c has no header). */
+void rig_cdda_marker(long t_ms, long index, uint32_t lba, uint32_t sectors);
+void rig_cdda_sample(long t_ms, const void *bytes, unsigned n);
+static void rig_stop(void) {
+    if (g_dir) rig_cdda_marker((long)(sys_now_us() / 1000ull), -1, g_lba, g_sectors);
+}
+static void rig_sample(const uint8_t *raw) {
+    if (g_dir) rig_cdda_sample((long)(sys_now_us() / 1000ull), raw, 2352);
+}
+#else
+#define rig_stop()          ((void)0)
+#define rig_sample(raw)     ((void)0)
+#endif
 static uint64_t g_fill_us;
 
 static void clock_consume(void) {
@@ -371,6 +390,7 @@ static uint32_t fill_sectors_raw(uint32_t sectors) {
     uint32_t frames = 0;
     for (uint32_t s = 0; s < sectors; s++) {
         if (of_disc_read_audio(g_lba + g_pos, raw) != 0) { g_read_failed = 1; return frames; }
+        rig_sample(raw);                      /* the same sector bytes the SDL host hands the rig */
         const int16_t *src = (const int16_t *)raw;
         for (int i = 0; i < CD_FRAMES_SECTOR; i++) {
             stereo[i * 2 + 0] = src[i * 2 + 0];
@@ -404,7 +424,7 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
      * reading.  Two copies of the same audio at once, one of them stopped later by pool pressure -- which is
      * exactly "the music plays double simultaneously and one stops later" -- and when the pool has no voice
      * left for the new pair, the new track is clocked but silent, which is part of "music missing". */
-    if (g_running) { voice_stop(); g_running = 0; }
+    if (g_running) { rig_stop(); voice_stop(); g_running = 0; }
     g_tracks++;
     g_lba = lba; g_sectors = sectors; g_pos = 0; g_budget = 0;
     g_clock_us = sys_now_us();
@@ -472,7 +492,7 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
 }
 
 void of_cdda_stop(void) {
-    if (g_running) { voice_stop(); g_running = 0; }
+    if (g_running) { rig_stop(); voice_stop(); g_running = 0; }
     g_sectors = 0; g_pos = 0; g_done_frames = 0;
 }
 

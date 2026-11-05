@@ -54,7 +54,13 @@ void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, i
 void rig_init(const char *dir, int hz);
 void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes);
 void rig_close(void);
+void rig_marker(long t_ms, const char *fmt, ...);   /* rig_sink.c, no header (src/app/main.c:624 the same way) */
 static const char *g_rig_dir;
+#ifdef OF_PC
+static void rig_res_marker(const char *name) {
+    if (g_rig_dir) rig_marker((long)(sys_now_us() / 1000ull), "res %s", name ? name : "?");
+}
+#endif
 static int g_rig_hz = 10;                      /* src/app/main.c's own default, so both hosts stamp the same grid */
 static int g_rig_witness = 8;
 #endif
@@ -2084,7 +2090,15 @@ int main(int argc, char **argv) {
     audio_boot();
     NLOG_STEP("cdda_boot");
     cdda_boot();
+#ifdef OF_PC
+    /* src/app/main.c installs sys_set_res_hook(reslog_add) and every RES lookup lands in markers.jsonl as
+     * `res <name>` (docs/56's event anchor).  The Pocket host had the seam switched off, so its dumps carried an
+     * empty markers.jsonl and the cross-host diff could not see a single resource load.  Installed only when a rig
+     * dump is asked for: on the device this hook would run on the hot path of every resource lookup. */
+    sys_set_res_hook(g_rig_dir ? rig_res_marker : 0);
+#else
     sys_set_res_hook(0);
+#endif
 
     /* ---- the boot recipe the real-data test uses (docs/15), host for host with src/app/main.c ---- */
     sys_set_fatal_handler(on_fatal);

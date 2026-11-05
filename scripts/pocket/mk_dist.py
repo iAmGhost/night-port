@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.37"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.38"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -335,9 +335,10 @@ def main():
         "FB_MODE=1\n"       # 1 = native 640x480 source framebuffer when the core offers that scaler mode, 0 = software 2x2
         "PRESENT_SYNC=0\n"    # wait for each flip to be presented before writing the surface again
         "TICK_HZ=490\n"
-        # Experimental bus reads, all off.  0.1.35 shipped them unconditionally and the run died mid-boot
-        # (docs/347).  One line to opt in, no rebuild; a player's build does no MMIO scan, no
-        # interact census and no control-word read at all.
+        # Experimental reads, all off.  0.1.35 shipped them unconditionally and the run died mid-boot (docs/347).
+        # One line to opt in, no rebuild; a player's build performs no MMIO scan, no analogizer probe and no
+        # interact census.  Bit 3 (8) used to mean "read 0xF7000000" and is retired: with DIAG=15, 0.1.37's log ends
+        # at "probe: control-word read begin" -- the read never returned and the core froze (docs/349).
         "DIAG=0\n"
     )
 

@@ -1223,9 +1223,8 @@ static void tick_pump(void) {
 #ifndef OF_PC
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);
-            NLOG("menu word=%08x lcd=%08x scr=%d blit fast=%u slow=%u skip=%u\n",
-                 (unsigned)of_setting_bridge_word(),
-                 of_setting_lcd_raw(), of_setting_screen(), g_ds_fast, g_ds_slow, g_present_skips);
+            NLOG("menu scr=%d blit fast=%u slow=%u skip=%u\n",
+                 of_setting_screen(), g_ds_fast, g_ds_slow, g_present_skips);
             /* Once a second, not once a frame: the mode is asserted at boot, but fn_03f15f (the game's own VESA
              * mode set) runs through the boot sequence and the display path is not obliged to remember what the
              * app asked for.  1 Hz keeps the assertion without the 59 Hz cost a per-frame one adds. */

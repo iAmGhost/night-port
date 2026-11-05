@@ -114,21 +114,18 @@ static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if 
 #define PLCD_SHIFT  16
 #define PLCD_MASK   0x3u
 
-/* The control word the firmware rewrites every frame, read straight off the bus -- the technique the SDK's own
- * interactdemo uses for platform state (RAW32 at 0x400000xx, src/apps/interactdemo/main.c:396-436) and the only
- * channel that demonstrably carries a menu value on this OS: Pocket LCD moves the panel through this word, while
- * of_interact_get() answers the same menu with a fixed table of junk (docs/344).
- * The read is logged once before anything depends on it, so if a boot dies on this line the line says so. */
-#ifndef OF_PC
-#define OF_BRIDGE_CTRL 0xF7000000u
-#endif
-static unsigned bridge_control_word(void) {
-#ifdef OF_PC
-    return 0u;                        /* the desktop shim has no bridge; every field then reads "not chosen" */
-#else
-    return *(volatile unsigned *)OF_BRIDGE_CTRL;
-#endif
-}
+/* An openfpgaOS app may not read the APF status page.  Measured on hardware, not inferred: 0.1.37 bracketed every
+ * probe, ran with DIAG=15, and the card log ends at
+ *      probe: control-word read begin
+ * with no "done" and no game -- the read of 0xF7000000 never returned, and the player watched a frozen core.  The
+ * page is written BY the core for the host to read; reading it from the SoC side is not a supported operation on
+ * this bitstream, and it is not a value we can buy at any cost.  So:
+ *   - nothing in this port reads 0xF7000000, ever, and there is no flag that turns it back on;
+ *   - Pocket LCD stays what it always was: a switch the CORE answers, which works perfectly well without the app
+ *     knowing it moved (the player just confirmed exactly that on 0.1.36);
+ *   - the periph page at 0x400000xx remains the one channel proven readable -- 0.1.35's scan completed and
+ *     0x40000098 matched caps->hw_features exactly -- and it is where the Pocket LCD measurement still has to be
+ *     made.  That is what DIAG's periph bit is for. */
 
 
 /* Turn what the bridge carries into a volume, or 0 for "the menu is not carrying this knob".  Two shapes are
@@ -440,39 +437,15 @@ void of_settings_load(void) {
      * "the user asked for silence" would otherwise be the same number, and the first silently replaced
      * night.ini's MUSIC_VOL (docs/341, and the card's own interact_persist.json showing Music Volume 0). */
     {
-        unsigned w = 0;
+        unsigned w = 0;                       /* there is no bridge word to read; see bridge_control_word's epitaph */
         int mv = 0, fit = -1;
-        if (g_diag & OF_DIAG_BRIDGE) {          /* the raw read of the control word is one of the probes that
-                                                 * 0.1.35 shipped unconditionally, so it is gated like them */
-            /* Bracketed.  A raw read of 0xF7000000 is the most suspect of the four probes 0.1.35 shipped -- it is
-             * the only one that touches the page the firmware is rewriting every frame -- and 0.1.35 died within
-             * a few lines of where this call sits.  "begin" without "done" is the whole answer. */
-            SLOG("probe: control-word read begin\n");
-            w = bridge_control_word();
-            g_bridge_word = w;
-            SLOG("bridge: control word 0x%08x = %08x | fields music=%d fit=%d lcd=%d free 5,8-9,14,20-23,29-31\n",
-                 OF_BRIDGE_CTRL, w, (int)((w >> MUSIC_SHIFT) & MUSIC_MASK), (int)((w >> FIT_SHIFT) & FIT_MASK),
-                 (int)((w >> PLCD_SHIFT) & PLCD_MASK));
-            SLOG("probe: control-word read done\n");
-        } else {
-            SLOG("bridge: control word read disabled (DIAG bit 3 clear); DIAG=8 re-enables it\n");
-        }
-#if HAVE_MUSIC
-        mv = music_vol_from_bridge(w);
-        g_music_bridge = (int)w;
-#endif
-#if HAVE_FIT
-        fit = fit_from_bridge(w);
-        g_fit_bridge = (int)w;
-#endif
-        int lcd = (int)(w & 0x00030000u);
-        g_lcd_raw = (unsigned)lcd;
-        /* Cross-check the same menu through the ecall.  It is kept because it is the documented API and because
-         * the pair of readings is the experiment: bus word vs interact index, same frame, same menu. */
+        SLOG("bridge: no control-word read (fatal on this core, docs/349).  What the documented ecall says about\n"
+             "       the one menu entry the core really answers:\n");
         unsigned iv = 0;
         long e = of_interact_probe(OF_IDX_PLCD, &iv);
-        SLOG("bridge: lcd index %d err=%ld val=%08x field=%08x | interact says %08x\n",
-             OF_IDX_PLCD, e, iv, (unsigned)lcd, iv);
+        SLOG("bridge: lcd index %d err=%ld val=%08x\n", OF_IDX_PLCD, e, iv);
+        int lcd = 0;
+        g_lcd_raw = (unsigned)lcd;
         if (mv) g_music_vol = clamp_vol(mv);
         if (fit >= 0) g_fit = fit;
         /* SCREEN=-1 follows the Pocket LCD field, which is now read off the word the firmware writes. */
@@ -486,12 +459,16 @@ void of_settings_load(void) {
 }
 
 int of_settings_poll(void) {
-#ifdef OF_PC
-    return 0;                       /* the desktop build has no bridge to read */
-#else
+    /* Nothing to poll.  Every setting this host applies comes from night.ini, read once at load; the only live
+     * settings source the port ever had was the control word, and reading it hangs the core (docs/349).  The
+     * interact ecall is not a substitute -- three builds of card logs showed it returning a fixed table of junk
+     * for every index, including the index whose menu entry demonstrably moves the panel. */
+    return 0;
+}
+#if 0
+int of_settings_poll_disabled(void) {
     int changed = 0;
-    if (!(g_diag & OF_DIAG_BRIDGE)) return 0;   /* no bus read, no settings from the bridge */
-    unsigned w = bridge_control_word();
+    unsigned w = 0;
     int mv = 0, fit = -1;
 #if HAVE_MUSIC
     mv = music_vol_from_bridge(w);
@@ -529,8 +506,8 @@ int of_settings_poll(void) {
         if (g_screen < 0) g_screen = (lcd == OF_PLCD_TERMINAL) ? 1 : 0;
     }
     return changed;
-#endif
 }
+#endif
 
 int of_setting_music_vol(void) { return g_music_vol; }
 int of_setting_sfx_vol(void)   { return g_sfx_vol; }

@@ -69,3 +69,30 @@ order:
 2. one `FB_MODE=0` boot against one `FB_MODE=1` boot, comparing the `stages`/`perf` lines, to close the 640×480
    present-cost question on real hardware (docs/343);
 3. one `SCREEN=1` boot, which is task-12a's contract line -- Terminal text visible on the Pocket LCD during a run.
+
+## Bump-and-deploy is verified on the binary, not on core.json (0.1.68)
+
+Version lives in exactly one place in the code -- `OF_CORE_VERSION` in the generated `pocket/src/night/of_interact_idx.h`,
+written by `mk_dist.py` from its `VERSION` -- and `$(OBJ_DIR)/app.elf: | dist` orders the regeneration before the link.
+On the 0.1.68 bump that ordering did not hold in practice for the first `make deploy`: the card came back with
+`core.json` saying `0.1.68` while the ELF still carried the `0.1.67` string:
+
+```
+$ strings /Volumes/Pocket/Assets/night/common/night.elf | grep -E '^0\.1\.'
+0.1.67
+$ grep -o '"version": *"[^"]*"' /Volumes/Pocket/Cores/iamghost.night/core.json
+"version": "0.1.68"
+```
+
+`make dist` and then `make deploy` produced a consistent pair (ELF string `0.1.68`, card and build ELF md5
+`8b7d01d3d4039e48c5a82ae362bea56b` identical).  The rule is therefore the check that caught it, and it belongs in the
+install route rather than in a Makefile promise:
+
+```sh
+make -C pocket/src/night dist && make -C pocket/src/night deploy
+strings /Volumes/Pocket/Assets/night/common/night.elf | grep -E '^0\.1\.'    # must equal core.json's version
+md5 -q /Volumes/Pocket/Assets/night/common/night.elf pocket/build/pocket/night/Assets/night/common/night.elf
+```
+
+`deploy.sh` skips slot files whose bytes already match (all 14 tracks reported "unchanged -- skipped"), so a
+version-only redeploy costs seconds, not the 600 MB.

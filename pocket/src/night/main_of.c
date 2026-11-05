@@ -87,6 +87,41 @@ static int fit_wants_stretch(void) { return of_setting_fit() != 0; }
  * console takes everything, as before. */
 static int g_console_live = 1;
 #define NLOG(...)        do { of_log_line(__VA_ARGS__); if (g_console_live) printf(__VA_ARGS__); } while (0)
+
+/* What the OS says it is scanning out, cached rather than asked for on every frame: only this host changes the
+ * mode, so refreshing after each request is enough -- and 0.1.29 proved the cache has to be honest.  With the
+ * applied mode still 640x480 and the host writing 320-wide rows 640 bytes apart, source row 2k lands on the left
+ * of display row k and source row 2k+1 on its right: the picture is squeezed 2:1 into the top half and stale
+ * slide bytes fill the rest.  Measured on the player's screenshot (docs/343 §5): 20 all-black bar rows, and row
+ * 40's left half within 7 of row 41's right half. */
+static uint32_t g_applied_w = PANEL_W, g_applied_h = PANEL_H, g_applied_stride = PANEL_W;
+static void applied_refresh(void) {
+#ifndef OF_PC
+    of_video_mode_t cur;
+    of_video_get_mode(&cur);
+    if (cur.width && cur.height) {
+        g_applied_w = cur.width; g_applied_h = cur.height;
+        g_applied_stride = cur.stride ? cur.stride : cur.width;
+    }
+#endif
+}
+static int surface_is_base(void) {
+    return g_applied_stride == PANEL_W && g_applied_w == PANEL_W && g_applied_h == PANEL_H;
+}
+static int surface_is_200(void) {
+    return g_applied_stride == GAME_W && g_applied_w == GAME_W && g_applied_h == GAME_H;
+}
+/* A geometry complaint once a second, never 2 280 times: a card log that repeats one line buries the run. */
+static void surface_complain(const char *what, uint32_t want_rows) {
+    static uint64_t last;
+    uint64_t now = sys_now_us();
+    if (last && now - last < 1000000ull) return;
+    last = now;
+    NLOG("surface: %s needs %u rows of %u-wide stride, the core has %ux%u stride=%u -- drawing into what"
+         " the core gave us instead of assuming\n", what, want_rows, PANEL_W,
+         g_applied_w, g_applied_h, g_applied_stride);
+}
+
 #define NLOG_STEP(what)  do { printf("phase: %s\n", (what)); of_log_line("phase: %s\n", (what)); } while (0)
 
 static uint8_t  g_node_pool[0x53800];     /* the resource node pool (docs/15 boot recipe) */
@@ -398,6 +433,7 @@ static void present(void) {
             uint64_t mt = sys_now_us();
             int rc = of_video_set_mode(&g_fb_native);
             NLOG("fb mode -> native 640x480 rc=%d in %uus\n", rc, (uint32_t)(sys_now_us() - mt));
+            applied_refresh();                       /* whatever the core did, the host now knows it */
             if (rc != 0) g_fb_native_ok = 0; else g_fb_native_applied = 1;
         }
         native = g_fb_native_applied;
@@ -417,6 +453,7 @@ static void present(void) {
             int rc = of_video_set_mode(&g_fb_game);
             NLOG("fb mode -> game %ux%u rc=%d in %uus\n", g_fb_game.width, g_fb_game.height,
                  rc, (uint32_t)(sys_now_us() - mt));
+            applied_refresh();
             if (rc == 0) g_fb_native_applied = 0;
         }
     }
@@ -429,33 +466,46 @@ static void present(void) {
         for (int y = 0; y < vh; y++)
             memcpy(fb + (size_t)y * stride, src + (size_t)y * vw, (size_t)vw);
     } else if (vw == GAME_W && vh == GAME_H) {
-        if (g_fb_game_is_200) {
-            /* The surface IS 320x200: the core's scaler stretches it onto the 320x240 panel, so the copy is a
-             * plain 1:1 row copy and the CPU pays nothing for the fit. */
-            of_video_mode_t cur; of_video_get_mode(&cur);
-            uint32_t stride = cur.stride ? cur.stride : (uint32_t)GAME_W;
-            for (int y = 0; y < GAME_H; y++)
-                memcpy(fb + (size_t)y * stride, src + (size_t)y * GAME_W, (size_t)GAME_W);
-        } else if (fit_wants_stretch()) {
-            /* 200 rows onto 240 without bars: 40 of the rows are shown twice, one every fifth, which is the
-             * evenest distribution a row-doubling stretch can have (200 + 40 = 240 exactly).  320x200 was seen
-             * on a 4:3 CRT, i.e. vertically stretched by 1.2 already, so filling the panel is the closer
-             * picture to the original than the 20+20 black rows this port used to add. */
-            uint8_t *dst = fb;
-            for (int y = 0; y < GAME_H; y++) {
-                const uint8_t *srow = src + (size_t)y * GAME_W;
-                memcpy(dst, srow, (size_t)GAME_W); dst += PANEL_W;
-                if ((y % 5) == 4) { memcpy(dst, srow, (size_t)GAME_W); dst += PANEL_W; }
-            }
-        } else {
-            memset(fb, 0, (size_t)BAR_ROWS * PANEL_W);
-            uint8_t *dst = fb + (size_t)BAR_ROWS * PANEL_W;
-            memcpy(dst, src, (size_t)GAME_W * GAME_H);
-            memset(fb + (size_t)(BAR_ROWS + GAME_H) * PANEL_W, 0,
-                   (size_t)(PANEL_H - BAR_ROWS - GAME_H) * PANEL_W);
+        /* One loop over the rows the surface actually has, each addressed by the stride the OS actually
+         * reported, with the fit deciding which source row a panel row shows.  On the surface it expects this is
+         * byte-for-byte the three hand-written copies it replaces (the panel witnesses prove it); on any other
+         * surface it still cannot smear, because it never writes a 320-byte row at a 640-byte offset. */
+        const uint32_t stride = g_applied_stride;
+        const uint32_t cols = (g_applied_w && g_applied_w < GAME_W) ? g_applied_w : GAME_W;
+        const uint32_t want_rows = g_fb_game_is_200 ? GAME_H : PANEL_H;
+        if (g_fb_game_is_200) { if (!surface_is_200()) surface_complain("the 320x200 scaler fit", want_rows); }
+        else if (!surface_is_base()) surface_complain("the 320x240 panel fit", want_rows);
+        const uint32_t rows = (g_applied_h && g_applied_h < want_rows) ? g_applied_h : want_rows;
+        for (uint32_t y = 0; y < rows; y++) {
+            uint8_t *d = fb + (size_t)y * stride;
+            int sy;
+            if (g_fb_game_is_200) sy = (int)y;                       /* 1:1 into a 320x200 surface */
+            else if (fit_wants_stretch()) {
+                /* 200 rows onto 240 with no bars: 40 rows shown twice, one every fifth -- the evenest row
+                 * doubling there is (200 + 40 = 240 exactly), and 320x200 on a 4:3 CRT was itself shown
+                 * stretched 1.2, so filling the panel is the closer picture to the original.  Five source rows
+                 * fill six panel rows: the fifth is the duplicated one. */
+                uint32_t grp = y / 6, r = y % 6;
+                sy = (int)(5 * grp + (r < 5 ? r : 4));
+            } else
+                sy = ((int)y >= BAR_ROWS && (int)y < BAR_ROWS + GAME_H) ? (int)y - BAR_ROWS : -1;
+            if (sy >= 0) {
+                memcpy(d, src + (size_t)sy * GAME_W, cols);
+                if (stride > cols) memset(d + cols, 0, stride - cols);
+            } else memset(d, 0, stride);
         }
     } else if (vw == 2 * PANEL_W && vh == 2 * PANEL_H) {
-        downscale_2x2_frame(src, fb);
+        if (surface_is_base()) {
+            downscale_2x2_frame(src, fb);      /* the word-at-a-time loop is written for the base surface */
+        } else {
+            surface_complain("the 640x480 downscale", PANEL_H);
+            const uint32_t stride = g_applied_stride;
+            for (uint32_t y = 0; y < g_applied_h; y++) {
+                uint8_t *d = fb + (size_t)y * stride;
+                for (uint32_t x = 0; x < stride; x++)
+                    d[x] = (x < PANEL_W) ? downscale_2x2(src, (int)x, (int)y) : 0;
+            }
+        }
     } else {
         /* An unexpected mode: copy the overlapping region 1:1 rather than guess a scale. */
         int w = vw < PANEL_W ? vw : PANEL_W;
@@ -746,6 +796,7 @@ static void fit_apply(const char *why) {
         int rc = of_video_set_mode(m);
         NLOG("fit=%d (%s): framebuffer %ux%u rc=%d in %uus\n",
              fit, why, m->width, m->height, rc, (uint32_t)(sys_now_us() - mt));
+        applied_refresh();
         if (want200 && rc != 0) {
             NLOG("fit=2 refused -- falling back to the host stretch\n");
             want200 = 0;
@@ -771,10 +822,9 @@ static void fit_apply(const char *why) {
  * size does not match the scaler slot is therefore not a slightly wrong picture, it is a shearing one -- which
  * is the shape of the glitch 0.1.29 produced.  This reads only the SDK API, never a raw register. */
 static void geo_witness(const char *why) {
-    of_video_mode_t cur;
-    of_video_get_mode(&cur);
+    applied_refresh();
     NLOG("geo %s: applied %ux%u stride=%u | asked %ux%u | panel %dx%d\n",
-         why, cur.width, cur.height, cur.stride, g_fb_game.width, g_fb_game.height, PANEL_W, PANEL_H);
+         why, g_applied_w, g_applied_h, g_applied_stride, g_fb_game.width, g_fb_game.height, PANEL_W, PANEL_H);
 }
 #endif
 
@@ -1407,6 +1457,8 @@ int main(int argc, char **argv) {
                  g_fb_native_ok ? "offered/attempted" : "NOT possible", g_fb_base.width, g_fb_base.height, g_fb_base.stride);
             fit_apply("boot");
             geo_witness("boot");
+            if (!surface_is_base())
+                NLOG("surface: the core did not land on the 320x240 base mode the host assumes\n");
         }
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));

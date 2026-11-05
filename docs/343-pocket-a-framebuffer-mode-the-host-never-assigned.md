@@ -139,7 +139,52 @@ What a player can actually change today, all of it independent of the bridge:
 `SCREEN` is pinned to 0 rather than following the Pocket LCD read for the same reason: a garbage word with bits
 16-17 set could have moved the app to the console on its own.
 
-## 5. Reproduce
+## 5. The screenshot, measured (`Memories/Screenshots/20261105_200401.png`)
+
+The capture is **640×480**, which is itself the first fact: the core was still in the native 640×480 framebuffer
+mode at the moment the picture was taken.  Decoding the PNG row by row (left half vs right half of the same row,
+mean absolute difference over 140 sampled pixels):
+
+| row band | mean abs diff, left vs right half |
+|----------|--------------------------------|
+| 0-119    | **26**  |
+| 120-239  | 82 |
+| 240-359  | 80 |
+| 360-479  | 87 |
+
+with `row 40 left` against `row 41 right` differing by only **7**, and **20 all-black rows** in the capture — the
+letterbox bars, present in the surface and compressed by the mismatch.
+
+That is the arithmetic of writing 320-byte rows into a 640-wide surface at a 320-byte stride: display row *k*
+receives source row *2k* on its left half and source row *2k+1* on its right, so
+
+* the 240-row panel picture (bars included) collapses into the **top 120 display rows**, two source rows wide —
+  which is why the two "copies" at the top of the screenshot are not copies but consecutive rows, and why they
+  differ by 26 rather than 0;
+* the remaining 360 display rows are **stale bytes from the previous 640×480 slide**, read out under the game's
+  palette, which is the multicoloured mess in the bottom half.
+
+So the glitch had a shape, and the shape was the stride.
+
+0.1.31 makes the class of bug unreachable rather than merely unlikely.  The host now caches what the OS says it
+applied (`applied_refresh()` after every mode request, plus `geo` logging it), and the blit is one loop over the
+rows the surface *has*, each written at the stride the surface *has*, with the fit choosing which source row a
+panel row shows:
+
+```c
+uint8_t *d = fb + (size_t)y * stride;                 /* the stride the OS reported, not PANEL_W assumed */
+if (g_fb_game_is_200) sy = y;                                     /* 1:1 into a 320x200 surface */
+else if (fit_wants_stretch()) { grp = y / 6; r = y % 6;          /* five source rows fill six panel rows, */
+                                sy = 5 * grp + (r < 5 ? r : 4); } /* the fifth one duplicated             */
+else sy = (y >= BAR_ROWS && y < BAR_ROWS + GAME_H) ? y - BAR_ROWS : -1;
+```
+
+Byte-for-byte identical to the three hand-written copies it replaces when the surface is the 320×240 base it
+expects — all twelve panel witnesses, fit0 and fit1, hash-match the pre-refactor run — and no longer capable of
+putting a 320-byte row at a 640-byte offset.  The 640×480 → 320×240 downscale keeps its fast word loop only when
+the surface really is the base one, and says so once a second when it is not.
+
+## 6. Reproduce
 
 ```sh
 cd pocket/src/night && make test && make            # app_pc + the RISC-V ELF
@@ -154,7 +199,7 @@ make test                                            # fixture suite: ALL PASS
 #   and no "fb mode -> game 0x0" at all
 ```
 
-## 6. Open
+## 7. Open
 
 * Whether the picture is right on hardware after this fix — the `geo` line plus one screenshot.  If `applied` and
   `asked` agree and the picture is still wrong, the suspect moves to the scaler slot rather than the host's mode
@@ -164,6 +209,7 @@ make test                                            # fixture suite: ALL PASS
   `OF_DISPLAY_FRAMEBUFFER` is a state the port should describe honestly.
 * The interact read is the blocker for every menu setting.  If openfpgaOS answers it in a later OS image, the
   knobs come back with one flag; if it never does, the honest product statement is "settings live in night.ini".
+* 0.1.31 is now deployed, so the hardware question is whether `geo view` reads `applied 320x240 stride=320 | asked 320x240` with no `fb mode -> game 0x0` anywhere, sound restored, and L1+B moving the fit.
 * My own process note, since this is the second core-breaking edit in three versions: both breakages came from
   changing *when* something was assigned rather than *what* — 0.1.27 moved a value into a register, 0.1.29 moved
   an assignment behind a condition.  A build that only compiles and only runs on the desktop shim has no way to

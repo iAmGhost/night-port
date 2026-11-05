@@ -88,3 +88,33 @@ composites the card over content that is there for its own reasons.
   .fli-driven title rather than a static PCX.  Needs the same longer-window treatment.
 - The shows are verified as *rendered pictures*, not as *reachable content on the Pocket route*: the warp route still
   walks past them (docs/363 §4), so a Pocket player sees them only by playing normally.
+
+## 6. The two open items, closed by the same measurement
+
+A defect in `show_cards.py` was hiding them: shot files are named after whatever *labelled* the shot -- the resource
+name at a load edge, the script's own label (`pre_show`, `show_scan`, `playing`) for a keyed shot -- and the script
+only ever tried `{seq}_{resource}.raw`.  With a sequence-number glob as fallback, the coverage jumps:
+
+```
+  title1.pcx   plain  306787/307200 ( 99.87%)  non-255  306753/307166 ( 99.87%)  frame  326  51_card_30.raw   mostly
+  gameove3.pcx plain   60840/64000  ( 95.06%)  non-255   60837/63997  ( 95.06%)  frame 4731  289_playing.raw  mostly
+```
+
+**`title1.pcx`: 413 differing pixels of 307 200, and every one of them is in row 0** -- one scanline, 134 runs of mean
+length 3.1, at frame 326.  The title card is byte-exact everywhere else.  The earlier 0 % was the frame-0 shot, taken
+before the card was ever written.
+
+**`gameove3.pcx`: 3 160 differing pixels of 64 000 spread over rows 29..180** (62 rows), in 500 runs of mean length
+6.3 px -- the shape of text drawn *over* the card, not of a card mis-decoded.  The value mapping is one-directional
+(`43 -> 59` 334 times, `43 -> 115..121` in the hundreds): the card's background index 43 is replaced by a small band
+of other indices where the overlay sits, while the card's own counts survive elsewhere (card writes 43 44 283 times,
+port 41 444).  Row maps make it visible:
+
+```
+row 34: .........########..#######....#######.######.##########..##########.##########....
+row 40: .........######....#########..################.######...####...######.############
+```
+
+So the ending card is rendered exactly under its overlay.  Both open items from §5 are resolved as *content the game
+draws on top*, not as port defects -- and both were only resolvable once the sampler could see the shots that a keyed
+script had labelled itself.

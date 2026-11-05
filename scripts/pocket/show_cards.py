@@ -36,7 +36,13 @@ def main(shots_dir: str) -> int:
             continue
         # The manifest prints seq as a number ("205") while the shot files are zero-padded ("0205_na80001.pcx.raw"),
         # so the name is rebuilt from the padded form -- the first version of this script found no files at all.
+        # Shot files are named after the label that triggered them -- the resource name at a load edge, the script's
+        # own label (pre_show, show_scan) for a keyed shot -- so the exact name is tried first and a sequence-number
+        # glob is the fallback.  Without the fallback a script-labelled shot is invisible to the comparison.
         raw = pathlib.Path(shots_dir) / f"{int(seq):04d}_{res}.raw"
+        if not raw.exists():
+            hits = sorted(pathlib.Path(shots_dir).glob(f"{int(seq):04d}_*.raw"))
+            raw = hits[0] if hits else raw
         card = os.path.join(RES, res)
         if not raw.exists() or not os.path.exists(card):
             continue

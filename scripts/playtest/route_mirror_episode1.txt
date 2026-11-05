@@ -1,22 +1,28 @@
-# The original's phase sequence, in the shim's anchored dialect (docs/385 4).
-# The slots are nominal ceilings: an anchor parks the timeline until the game performs that lookup, so the real times
-# are whatever the game takes and every later key shifts with it.  The lookup names were read out of the rig's new
-# res.jsonl sidecar (logo.pcx, opening.fli, title1.pcx, 1s1-1s3.pcx, stage1.pcx).
-4000  wait res opening.fli
-45000 wait res title1.pcx
-46000 key enter down
-46300 key enter up
-60000 wait res 1s3.pcx
-62000 key enter down
-62300 key enter up
-66000 key enter down
-66300 key enter up
-70000 wait res stage1.pcx
-78000 key esc down
-78300 key esc up
-82000 key left down
-82300 key left up
-85000 key down down
-85300 key down up
-88000 key esc down
-88300 key esc up
+# The original's phase sequence, in the shim's anchored dialect (docs/385 4, docs/386 3).
+# Slots are nominal ceilings: an anchor parks the program until the game performs that lookup, and every later key
+# shifts with it (docs/380 1).  Names come from the rig's res.jsonl sidecar.  Polls, not frames: one poll is 8 ms and
+# this host presents ~54.5 frames/s, so a slot of N ms is poll N/8 while a frame F is poll ~2.1F (docs/386 2).
+#
+# The drive file's warning is about pressing Enter on the *title card* (that skips the whole show).  Once the show has
+# started, each card holds until a key arrives, so the show is walked with one press per card -- the three presses plus
+# soft mode waits in drive_orig_episode1.txt are doing exactly that.  The first attempt here anchored on 1s3.pcx and
+# pressed nothing meanwhile, and the show stalled at 1s1 (docs/387).
+4000   wait res opening.fli
+12000  wait res title1.pcx
+13000  key enter down
+13300  key enter up
+16000  key enter down            # each slide holds until a key arrives, so the show is walked, not awaited
+16300  key enter up
+20000  key enter down
+20300  key enter up
+24000  key enter down            # and one more to leave the last card
+24300  key enter up
+26000  wait res stage1.pcx
+32000  key esc down              # the game's own menu, over live stage
+32300  key esc up
+35000  key left down
+35300  key left up
+37000  key down down
+37300  key down up
+39000  key esc down
+39300  key esc up

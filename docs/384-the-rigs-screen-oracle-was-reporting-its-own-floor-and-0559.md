@@ -63,3 +63,11 @@ docs/380 §4, docs/381 §4 and docs/382 §1 each lean on 0.5590 in some way; eac
 here.  The conclusions those sections drew about *content* stand on the label/best-match basis (docs/381, docs/382,
 docs/383), which was measured against pictures rather than a lag-windowed alignment — stage play 55/55 at NCC 0.9998,
 slides 130/133, the pause menu 41/41 at 1.0000 — and that basis is unaffected by this defect.
+
+> **Superseded in part (docs/387).**  The `--win 4000` numbers in section 3 above were measured through a second defect:
+> `align()` limited each monotone step to 3 port frames per original frame, while these streams need ~32, so honest
+> paths were illegal.  With the step limit corrected (`max(3, nb // na + 1)`) the same runs score 0.7753 / 0.7869 /
+> 0.9370 (warp), 0.8780 (mirror route) and 0.6428 / 0.6511 / 0.7828 (attract route) against the same 0.5590 floor -- so
+> "0.0 % of the way from floor to identical" for the attract route was the bug talking, not the run.  The controls in
+> section 1 (self 1.0000, zeroed grids 0.559023) stand, and they are what found this.
+

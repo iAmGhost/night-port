@@ -44,6 +44,10 @@ def dist(a, b):
 
 
 def align(A, B, win=90):
+    # The transition limit is a step in *port frames per original frame*, and it has to accommodate the slope between
+    # the two streams: 14 001 port frames against 434 original frames needs ~32 per step, so a limit of 3 makes every
+    # honest path illegal and the DP settles for a slope it can afford -- which is the other half of why a route score
+    # fell back to its floor (docs/386 3, docs/387).
     # win is a frame window, not a time window: at 54.5 presentations/s the default 90 spans about 1.6 s of the port
     # side.  Two runs that reach the same phase tens of seconds apart therefore have no pair inside the window, and
     # the mean score collapses to a content-independent floor (see --floor, docs/384).
@@ -54,6 +58,7 @@ def align(A, B, win=90):
     if not na or not nb:
         return [], 1.0
     na2 = min(na, 3000)
+    step = max(3, nb // max(1, na) + 1)          # the slope the monotone path is allowed to follow
     INF = float("inf")
     dp = [[INF] * nb for _ in range(na2)]
     for i in range(na2):
@@ -64,7 +69,7 @@ def align(A, B, win=90):
             if i == 0:
                 dp[i][j] = s
             else:
-                prev = min(dp[i - 1][max(0, j - 3):j + 1])
+                prev = min(dp[i - 1][max(0, j - step):j + 1])
                 if prev < INF:
                     dp[i][j] = prev + s
     j = min(range(nb), key=lambda x: dp[na2 - 1][x])
@@ -72,7 +77,7 @@ def align(A, B, win=90):
     for i in range(na2 - 1, -1, -1):
         pairs.append((i, j))
         if i:
-            j = min(range(max(0, j - 3), min(nb, j + 1)), key=lambda x: dp[i - 1][x])
+            j = min(range(max(0, j - step), min(nb, j + 1)), key=lambda x: dp[i - 1][x])
     pairs.reverse()
     pairs = [(i, jb, 1.0 - dist(A[i]["sig"], B[jb]["sig"])) for i, jb in pairs]
     return pairs, sum(p[2] for p in pairs) / len(pairs)

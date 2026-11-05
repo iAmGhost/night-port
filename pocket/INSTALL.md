@@ -1,0 +1,86 @@
+# Installing the NIGHT Pocket core
+
+`iamghost.night` is an openfpgaOS core for the Analogue Pocket.  It runs the same `src/f` game layer as the SDL port
+(`build/night`), on the Pocket, from the original game's own data repacked into APF data slots.
+
+The game data is yours: nothing in this repo ships NIGHT.RES or the disc audio.  Everything below regenerates it
+from `NIGHT/TG_NIGHT.CUE` + `NIGHT/TG_NIGHT.IMG` and the `NIGHT.RES` you already have in `./NIGHT`.
+
+## 1. One command, on a mounted SD card
+
+```sh
+make -C pocket/src/night all      # the RISC-V core (app.elf) + the core tree + the generated headers
+make -C pocket/src/night data     # scratch/pocket/: NIGHT.RES + one .bin per CDDA track (~600 MB, regenerable)
+make -C pocket/src/night deploy   # core tree + slot files -> /Volumes/Pocket
+```
+
+`deploy` is the install step.  It writes
+
+```
+/Volumes/Pocket/Cores/iamghost.night/   core.json  variants.json  video.json  audio.json  input.json
+                                         interact.json  data.json  loader.bin  os25.rbf_r
+/Volumes/Pocket/Assets/night/common/    night.elf  os.bin  bank.ofsf  night.ini  README.md
+                                         NIGHT.RES  track02.bin .. track15.bin
+/Volumes/Pocket/Saves/night/common/     (created by the game: night_0..6.sav, night.cfg, nightlog.sav)
+```
+
+`make copy` is the SDK's own copy step and carries the **core tree only** -- no slot files.  Run `deploy`, and run it
+last: `copy.sh` writes macOS AppleDouble sidecars (`._night.elf`) that `deploy` strips again.
+
+Slot bindings are generated, not typed: `scripts/pocket/repack.py` + `scripts/pocket/mk_dist.py` write `data.json`,
+`Assets/night/iamghost.night/NIGHT.json` and `src/cd/disc_table.h` from the CUE, and
+`scripts/pocket/check_slots.py` proves the three agree and that no audio file sits in the firmware's save range
+(slots 10-19).  `data.json` declares 28 slots with ids 0..31, inside Analogue's 32-slot ceiling; every filename is
+under the Pocket's 23-character limit.  The table of filenames and slots lives in the deployed
+`Assets/night/common/README.md` and is the thing to check a card against.
+
+## 2. Settings
+
+On the device, **Core Options** carries three settings -- Music Volume, SFX Volume, Screen Fit.  They are three
+fields of one bridge word (`0xF700000C`, mirrored into the peripheral register `0x4000006c` that the core can read)
+and they survive an eject and a reboot.  `L1+B` cycles the panel fit live.  Why the menu reaches the game through
+that route, and why not through `of_interact_get()`, is docs/350 - docs/362.
+
+The rest are developer keys in `Assets/night/common/night.ini` under `[night]` -- the deployed README lists every one
+with its default.  The ones that matter for a report:
+
+| key | ships as | set it to |
+|---|---|---|
+| `LOG` | `0` (no log file) | `1` to write `Saves/night/common/nightlog.sav`, the diagnostic trail the port was measured with |
+| `DIAG` | `0` (a player's build performs no experimental bus probes) | `1` peripheral scan, `2` analogizer probe, `4` interact census |
+| `FB_MODE` | `1` (native 640x480 source framebuffer) | `0` to make the host downscale 2x2 to the panel instead -- measured 21 344 us vs 3 608 us mean present cost on the desktop shim, still unmeasured on hardware |
+| `FIT` | `1` (stretch) | `0` letterbox, `2` the core scaler's 320x200 mode |
+| `SCREEN` | `0` (game) | `1` terminal text, `2` console over the game, `-1` follow the menu's *Pocket LCD* option |
+| `TICK_HZ` | `490` | a cap on the game's fixed step rate, for slow-motion experiments |
+| `SFX_GAIN` / `CDDA_GAIN` | `200` / `150` | 100-212 %, through a knee that cannot clip and cannot attenuate (docs/361) |
+
+In-game, with L1 held: `L1+Select` saves the current slot, `L1+Start` loads it, `L1+A` cycles slots 0-9.
+
+## 3. Reporting a hardware run
+
+Eject, boot, play, eject, mount, then
+
+```sh
+cp /Volumes/Pocket/Saves/night/common/nightlog.sav /tmp/nightlog.sav
+grep -E '^(version|clock|memstat|perf|stages|budget|audio|view|video CHANGED)' /tmp/nightlog.sav | tail -40
+strings /Volumes/Pocket/Assets/night/common/night.elf | grep -E '^0\.1\.'   # the version actually on the card
+md5 -q /Volumes/Pocket/Assets/night/common/night.elf
+```
+
+The `budget` line is what carries the device's own SD-read timings (`disc reads=… mean=…us max=…us seeks=…
+fails=…`) and the mixer's underrun counters; the desktop shim cannot produce the SD half of it (docs/364 §5).  A
+screenshot from `Memories/Screenshots/` helps when the complaint is about the picture.
+
+## 4. Desktop verification (no hardware needed)
+
+```sh
+make test                                    # the fixture suite against src/f (repo root)
+cd pocket/src/night && make test             # app_pc: the same src/f under the SDK's SDL2 shim
+NIGHT_CD_DIR=scratch/pocket/cd ./app_pc --warp-stage 1 --frames 2000 --rig-dump /tmp/b --rig-witness 0 | grep '^budget'
+FRAMES=4500 scripts/pocket/sweep_episodes.sh && python3 scripts/pocket/sweep_report.py /tmp/pocket_sweep
+python3 scripts/pocket/diff_hosts.py /tmp/xpoc/s1 /tmp/xsdl/s1          # Pocket shim vs SDL host, same route
+```
+
+Analysis and evidence: `docs/330` (budgets and the mapping) through `docs/365` (the two-host diff), `scripts/pocket/`
+(repack, mk_dist, deploy, check_slots, check_interact, sim_menu, sweep_*, diff_hosts), `scripts/analysis/gain_scan.py`
+(the audio measurements behind the gain curve).

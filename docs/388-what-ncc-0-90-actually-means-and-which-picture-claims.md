@@ -55,3 +55,31 @@ supportable.
 - **Weak, and to be labelled as such:** any window count at NCC ≥ 0.90 on thumbnails -- it means "the same scene appears
   on both sides", and 354/434 in docs/367 §6 should be read exactly that way.
 - **Blind:** a flat region on either side.  Reported as a blind spot now, never as a match.
+
+## 4. The whole-window version, and the claim it removes
+
+`scripts/pocket/raw_agreement.py` pairs on the comparator's basis and then reports raw agreement, averaged over each
+window (route_mirror_episode1, 400 witnesses):
+
+| window | frames | thumb NCC | raw MAE | exact % | within 3 LSB % | geometry |
+|---|---|---|---|---|---|---|
+| **pause menu (esc_win_)** | 41 | 0.9555 | **2.95** | 50.7 | **95.6** | same |
+| **pause menu (esc_win2_)** | 41 | 0.9125 | **5.13** | 59.4 | **92.0** | same |
+| **gameplay** | 55 | 0.9494 | **6.20** | 57.1 | **88.1** | same |
+| intro `.fli` | 54 | 0.9812 | 13.33 | 44.1 | 52.0 | 8 differ |
+| intermission slides | 133 | 0.9961 | 13.85 | 15.3 | 16.8 | 2 differ |
+| **title melt** | 42 | 0.9740 | **64.42** | 0.0 | **0.0** | same |
+| DOS text-mode boot | 24 | 0.4757 | 23.45 | 2.8 | 3.0 | 16 differ |
+
+The three windows with a raw match are the ones docs/367 §6 should lean on.  Two removals follow directly:
+
+- **title melt is not a picture match.**  41/42 frames pass the thumbnail test while the raw error averages 64.4 of 255
+  with **no** pixel within 3 LSB.  The original's title sequence (a dissolve over the logo card) and the port's
+  `title1.pcx` presentation share a scene, not pixels -- so docs/382's "title melt 41/42" is a scene count and should
+  not be read as fidelity.  The card itself is separately proven byte-exact in index space (docs/373 §6).
+- **slides stay a scene count** (MAE 13.85, 16.8 % within 3 LSB, two frames in a different geometry), consistent with
+  §1, with the shipped-PCX byte identity as the real evidence.
+
+The sweep prints this table for all three routes now, so the distinction is part of the default output rather than
+something a claim has to be checked against afterwards.
+

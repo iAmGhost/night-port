@@ -58,6 +58,12 @@ for w in boot title_melt title_card slides fli esc_win_ esc_win2_ gameplay stage
   echo "${best:-no frames in this window}"
 done
 
+echo; echo "== raw-pixel agreement per window (docs/388): what the thumbnail counts are made of =="
+for r in warp esc scripted; do
+  echo "-- route $r"
+  pyrun "$ROOT/scripts/pocket/raw_agreement.py" --port "$OUT/$r/bmp" --orig "$ORIG" 2>/dev/null | sed 's/^/   /'
+done
+
 echo; echo "== the pause menu, measured over its own box (docs/383) =="
 for w in esc_win_ esc_win2_; do
   printf '%-12s ' "$w"

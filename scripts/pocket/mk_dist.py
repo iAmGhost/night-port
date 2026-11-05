@@ -292,6 +292,22 @@ def main():
              {"value": "0x51", "name": "Letterbox"},
              {"value": "0x52", "name": "Stretch"},
              {"value": "0x53", "name": "Scaler 320"}]},
+        # A third entry at the NEXT word of the bridge page, with a third disjoint band.  It is a setting the port
+        # wants (the game's sound effects have no menu control at all today), and it is the cheap answer to the one
+        # structural question left: 0xF700000C landed at 0x4000006c and 0xF7000010 at 0x40000068 -- reversed and
+        # adjacent.  If 0xF7000014 lands at 0x40000064 then the page carries the variables in a descending slot
+        # table; if it lands at 0x40000070 then ascending; if it lands somewhere else entirely then the OS allocates
+        # slots and the port must always hunt, which is what the fallback is for.
+        {"name": "SFX Volume", "id": 132, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+         "address": "0xF7000014", "mask": "0xFFFFFF00", "defaultval": "0x64", "options": [
+             {"value": "0x61", "name": "Off"},
+             {"value": "0x62", "name": "1/8"},
+             {"value": "0x63", "name": "1/4"},
+             {"value": "0x64", "name": "1/2"},
+             {"value": "0x65", "name": "5/8"},
+             {"value": "0x66", "name": "3/4"},
+             {"value": "0x67", "name": "7/8"},
+             {"value": "0x68", "name": "Full"}]},
     ]
     variables = base + app_vars + probe_vars
     jw(core_dir / "interact.json",
@@ -308,6 +324,7 @@ def main():
     if APP_INTERACT_PROBE:
         pairs.append(("Music Volume", "OF_IDX_MUSIC"))
         pairs.append(("Screen Fit", "OF_IDX_FIT"))
+        pairs.append(("SFX Volume", "OF_IDX_SFX"))
     if APP_INTERACT_KNOBS:
         pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
     pairs = tuple(pairs)

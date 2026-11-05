@@ -958,52 +958,59 @@ static void periph_scan(int full);
 #define FIT_MASK    0xFFu
 #define MUSIC_BASE  0x41u                        /* 0x41..0x48 -> eight volume levels */
 #define FIT_BASE    0x51u                        /* 0x51..0x53 -> letterbox / stretch / scaler */
+#define SFX_BASE    0x61u                        /* 0x61..0x68 -> eight sound-effect levels */
+#define SFX_SHIFT   0                            /* same field shape as the other two: bits 0-7 of its word */
+#define SFX_MASK    0xFFu
 
-#define NMENU 2
+enum { MENU_MUSIC, MENU_FIT, MENU_SFX, MENU_N };
 struct menu_var {
     const char *what;
     int idx;                     /* the generated interact index, kept only for the cross-check log */
+    int kind;                    /* which setting this value drives */
     unsigned lo, hi, dflt;       /* the option values this entry can write, and the default it declares */
     uint32_t known;              /* the peripheral word hardware was seen to carry it, 0 = unknown */
     uint32_t slot;               /* the word currently trusted, 0 = nothing claimed yet */
     unsigned last;               /* last value read from that slot; 0 = the menu has not spoken */
 };
-static struct menu_var g_menu[NMENU] = {
-    {"Music Volume", OF_IDX_MUSIC, 0x41u, 0x48u, 0x44u, OF_MENU_SLOT_MUSIC, 0u, 0u},
-    {"Screen Fit",   OF_IDX_FIT,   0x51u, 0x53u, 0x51u, OF_MENU_SLOT_FIT,   0u, 0u},
+static struct menu_var g_menu[MENU_N] = {
+    {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, 0x41u, 0x48u, 0x44u, OF_MENU_SLOT_MUSIC, 0u, 0u},
+    {"Screen Fit",   OF_IDX_FIT,   MENU_FIT,   0x51u, 0x53u, 0x51u, OF_MENU_SLOT_FIT,   0u, 0u},
+    /* No known slot, which is the point of adding it: 0xF7000014 has never been seen on hardware.  Where its value
+     * lands answers the one structural question left -- 0xF700000C arrived at 0x4000006c and 0xF7000010 at
+     * 0x40000068, reversed and adjacent, and a third word can only be explained by the rule the OS actually uses.
+     * Until a slot is claimed for it, the night.ini SFX_VOL value stands. */
+    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   0x61u, 0x68u, 0x64u, 0u,                 0u, 0u},
 };
 
 /* Per-register trust, measured against every entry: a word is clean for an entry if EVERY sample it has ever shown
  * is either 0 or one of that entry's option values, and it has been seen holding a real option value more than once.
  * A counter climbing through the range fails the first test; a word that answers the menu passes both. */
-static uint8_t g_menu_clean[NMENU][OF_PERIPH_WORDS];
-static uint16_t g_menu_seen[NMENU][OF_PERIPH_WORDS];
+static uint8_t g_menu_clean[MENU_N][OF_PERIPH_WORDS];
+static uint16_t g_menu_seen[MENU_N][OF_PERIPH_WORDS];
 static uint8_t g_menu_init;
 #define MENU_SEEN_MIN 5u                          /* 5 samples of settings_beat = half a second holding a value */
 
 static int menu_opt(const struct menu_var *m, unsigned v) { return v == 0u || (v >= m->lo && v <= m->hi); }
 static int menu_is_option(const struct menu_var *m, unsigned v) { return v >= m->lo && v <= m->hi; }
-static int menu_is_music(const struct menu_var *m) { return m->lo == MUSIC_BASE; }
 
 static const char *menu_option_name(const struct menu_var *m, unsigned v) {
     static const char *vol[] = {"Off", "1/8", "1/4", "1/2", "5/8", "3/4", "7/8", "Full"};
     static const char *fit[] = {"letterbox", "stretch", "scaler 320x200"};
-    if (menu_is_music(m)) return (v >= MUSIC_BASE && v <= MUSIC_BASE + 7u) ? vol[v - MUSIC_BASE] : "?";
+    if (m->kind == MENU_MUSIC || m->kind == MENU_SFX)
+        return (v >= m->lo && v <= m->lo + 7u) ? vol[v - m->lo] : "?";
     return (v >= FIT_BASE && v <= FIT_BASE + 2u) ? fit[v - FIT_BASE] : "?";
 }
 
 static int menu_apply(struct menu_var *m, unsigned v) {
-    if (menu_is_music(m)) {
-        int level = (int)(v - MUSIC_BASE);                    /* 0..7 -> 0..255 */
-        return of_setting_apply_music_vol(level * 255 / 7);
-    }
+    if (m->kind == MENU_MUSIC) return of_setting_apply_music_vol((int)(v - m->lo) * 255 / 7);   /* 0..7 -> 0..255 */
+    if (m->kind == MENU_SFX)   return of_setting_apply_sfx_vol((int)(v - m->lo) * 255 / 7);
     return of_setting_apply_fit((int)(v - FIT_BASE));
 }
 
 static unsigned g_menu_beat;
 static void menu_sample(void) {
     if (!g_menu_init) {
-        for (int k = 0; k < NMENU; k++)
+        for (int k = 0; k < MENU_N; k++)
             for (int i = 0; i < OF_PERIPH_WORDS; i++) g_menu_clean[k][i] = 1;
         g_menu_init = 1;
     }
@@ -1011,11 +1018,11 @@ static void menu_sample(void) {
      * costs 21 ms of the 33 ms frame (docs/352), so the sweep runs at 2 Hz while a slot is still unclaimed and stops
      * entirely once every slot is claimed -- after that a beat is one read per setting. */
     int all_claimed = 1;
-    for (int k = 0; k < NMENU; k++) if (!g_menu[k].slot) all_claimed = 0;
+    for (int k = 0; k < MENU_N; k++) if (!g_menu[k].slot) all_claimed = 0;
     if (all_claimed || (g_menu_beat++ % 5u)) return;
     for (int i = 0; i < OF_PERIPH_WORDS; i++) {
         uint32_t v = periph_word(OF_PERIPH_BASE + 4u * i);
-        for (int k = 0; k < NMENU; k++) {
+        for (int k = 0; k < MENU_N; k++) {
             if (!menu_opt(&g_menu[k], v)) { g_menu_clean[k][i] = 0; continue; }
             if (menu_is_option(&g_menu[k], v) && g_menu_seen[k][i] < 60000u) g_menu_seen[k][i]++;
         }
@@ -1033,7 +1040,7 @@ static void menu_claim(struct menu_var *m, uint32_t a, unsigned v, const char *h
 static int menu_slots_scan(void) {
     int ch = 0;
     menu_sample();
-    for (int k = 0; k < NMENU; k++) {
+    for (int k = 0; k < MENU_N; k++) {
         struct menu_var *m = &g_menu[k];
 
         if (m->slot && !menu_opt(m, periph_word(m->slot))) {      /* a register that shows what the menu cannot
@@ -1050,7 +1057,7 @@ static int menu_slots_scan(void) {
                 uint32_t a = OF_PERIPH_BASE + 4u * i, v = periph_word(a);
                 if (!g_menu_clean[k][i] || g_menu_seen[k][i] < MENU_SEEN_MIN || !menu_is_option(m, v)) continue;
                 int taken = 0;
-                for (int j = 0; j < NMENU; j++) if (j != k && g_menu[j].slot == a) taken = 1;
+                for (int j = 0; j < MENU_N; j++) if (j != k && g_menu[j].slot == a) taken = 1;
                 if (taken) continue;
                 menu_claim(m, a, v, "found by range cleanliness");
                 break;
@@ -1069,10 +1076,9 @@ static int menu_slots_scan(void) {
         }
         if (v != m->last) {
             m->last = v;
-            int music = menu_is_music(m);
             ch |= menu_apply(m, v);
             NLOG("menu: %s = %s (%02x) applied: %s\n", m->what, menu_option_name(m, v), v,
-                 music ? "music volume" : "panel fit");
+                 m->kind == MENU_MUSIC ? "music volume" : m->kind == MENU_SFX ? "sound-effect volume" : "panel fit");
         }
     }
     return ch;
@@ -1087,7 +1093,7 @@ static void periph_scan(int full) {
                                                  * uses instead of on a min/max range. */
         int n = 0;
         for (int i = 0; i < OF_PERIPH_WORDS; i++)
-            for (int k = 0; k < NMENU; k++)
+            for (int k = 0; k < MENU_N; k++)
                 if (g_menu_clean[k][i] && g_menu_seen[k][i] >= MENU_SEEN_MIN) {
                     n++;
                     NLOG("cand @0x%08x: clean for %s, %u samples holding an option value\n",
@@ -1152,6 +1158,10 @@ static void settings_beat(uint64_t now) {
     }
     if (ch & OF_SET_LCD)
         NLOG("settings: pocket lcd raw=%08x scr=%d\n", of_setting_lcd_raw(), of_setting_screen());
+    if (ch & OF_SET_SFX) {
+        of_mixer_set_group_volume(OF_MIXER_GROUP_SFX, of_setting_sfx_vol() & 0xff);
+        NLOG("settings: sfx_vol=%d applied from the menu\n", of_setting_sfx_vol());
+    }
     if (ch & OF_SET_FIT) {
         NLOG("settings: fit -> %d (from the peripheral slot, not the bridge)\n", of_setting_fit());
         fit_apply("menu");

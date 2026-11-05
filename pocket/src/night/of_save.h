@@ -25,6 +25,7 @@ void of_settings_load(void);
 /* Re-read the interact menu and apply whatever moved.  Returns a bitmask of what changed; the menu is live
  * during a run, so a knob has to be readable mid-game, not only at boot (docs/341). */
 #define OF_SET_VOL  1
+#define OF_SET_SFX  16
 #define OF_SET_VOL_SEEN 8     /* the raw word moved, even if it decodes to nothing usable */
 #define OF_SET_LCD  2
 #define OF_SET_FIT  4         /* the Screen Fit knob moved (letterbox <-> stretch <-> scaler) */
@@ -38,6 +39,7 @@ int  of_settings_poll(void);
 int  of_setting_music_vol(void);
 int  of_setting_apply_music_vol(int v);   /* returns OF_SET_VOL when it changed something */
 int  of_setting_apply_fit(int f);
+int  of_setting_apply_sfx_vol(int v);
 int  of_setting_sfx_vol(void);
 int  of_setting_cdda(void);
 int  of_setting_pad(void);

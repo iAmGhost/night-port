@@ -263,6 +263,51 @@
                         "name": "Scaler 320"
                     }
                 ]
+            },
+            {
+                "name": "SFX Volume",
+                "id": 132,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "writeonly": true,
+                "address": "0xF7000014",
+                "mask": "0xFFFFFF00",
+                "defaultval": "0x64",
+                "options": [
+                    {
+                        "value": "0x61",
+                        "name": "Off"
+                    },
+                    {
+                        "value": "0x62",
+                        "name": "1/8"
+                    },
+                    {
+                        "value": "0x63",
+                        "name": "1/4"
+                    },
+                    {
+                        "value": "0x64",
+                        "name": "1/2"
+                    },
+                    {
+                        "value": "0x65",
+                        "name": "5/8"
+                    },
+                    {
+                        "value": "0x66",
+                        "name": "3/4"
+                    },
+                    {
+                        "value": "0x67",
+                        "name": "7/8"
+                    },
+                    {
+                        "value": "0x68",
+                        "name": "Full"
+                    }
+                ]
             }
         ],
         "messages": []

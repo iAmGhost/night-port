@@ -524,6 +524,12 @@ int of_setting_apply_music_vol(int v) {   /* a value that arrived from a periphe
     g_music_vol = v;
     return OF_SET_VOL;
 }
+int of_setting_apply_sfx_vol(int v) {     /* the sound-effect group, which the game itself never attenuates */
+    v = clamp_vol(v);
+    if (v == g_sfx_vol) return 0;
+    g_sfx_vol = v;
+    return OF_SET_SFX;
+}
 int of_setting_apply_fit(int f) {         /* 0 letterbox, 1 stretch, 2 scaler -- the same three the pad cycles */
     if (f < 0 || f > 2 || f == g_fit) return 0;
     g_fit = f;

@@ -74,12 +74,22 @@ frame against the 676 distinct pictures the port presented between the `opening.
 | distinct pictures the port presented in its `.fli` segment | 676 (from 2207 frames) |
 | grid NCC of the best port counterpart | **mean 0.9981, min 0.9835** |
 | matched at grid NCC >= 0.90 | **24 / 25** |
-| grid mean absolute difference | **0.64 mean, 3.21 max** on a 0-255 luminance scale |
+| grid mean absolute difference, per pair | **mean 6.23, best pair 0.00, worst pair 39.55** on a 0-255 luminance scale (worst single cell in any pair: 116) |
 
-So every distinct frame of the original's intro movie except one has a port counterpart that is the same picture to
-within about half a luminance step, and the port shows 27x more distinct frames than the capture sampled -- the capture
-sampled 54 frames across 7.9 s of a 900-frame movie, so the extra distinct frames are the movie's own animation that
-the original side simply never recorded, not extra content.
+So 24 of the 25 distinct frames of the original's intro movie have a port counterpart that is structurally the same
+picture (grid NCC 0.9835-1.0000), one pair -- the black frame -- cell-for-cell identical, and the port shows 27x more
+distinct frames than the capture sampled: the capture took 54 samples across 7.9 s of a 900-frame movie, so the extra
+distinct frames are the movie's own animation the original side never recorded, not extra content.
+
+The agreement is not pixel-exact, and it should not be quoted as if it were: the mean absolute difference over the
+1200-cell grid averages 6.23 of 255 and reaches 39.55 on the worst pair, with one cell off by 116.  That is what you
+expect when comparing a *sampled* 40x30 grid of an animated movie -- the two sides sample the same picture at moments a
+few frames apart in a 900-frame sequence, and the movie is a dissolve, so neighbouring frames differ.  The claim this
+supports is "the same movie, frame for frame within a few percent", not "identical frames".
+
+Correction note: this section was committed once with "0.64 mean, 3.21 max" before the measurement script had been
+fixed (`x[1]` was indexing the grid where the frame number was meant).  Those numbers were never produced by a run; the
+table above is the measured output.
 
 The one unmatched frame is the pure-black one (mean luminance 0.0): its grid has zero variance, so NCC is undefined
 there and it is counted as blind rather than matched -- the same rule docs/388 2 established.

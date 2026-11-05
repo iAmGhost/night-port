@@ -25,6 +25,7 @@ void of_settings_load(void);
 /* Re-read the interact menu and apply whatever moved.  Returns a bitmask of what changed; the menu is live
  * during a run, so a knob has to be readable mid-game, not only at boot (docs/341). */
 #define OF_SET_VOL  1
+#define OF_SET_VOL_SEEN 8     /* the raw word moved, even if it decodes to nothing usable */
 #define OF_SET_LCD  2
 int  of_settings_poll(void);
 int  of_setting_music_vol(void);
@@ -32,6 +33,8 @@ int  of_setting_sfx_vol(void);
 int  of_setting_cdda(void);
 int  of_setting_pad(void);
 int  of_setting_tick_hz(void);        /* 0 = the PIT rate the game programs */
+int  of_setting_music_bridge(void);   /* the raw interact word behind Music Volume */
+int  of_setting_fit(void);          /* 0 letterbox, 1 stretch 320x200 -> 320x240, 2 ask the scaler for 320x200 */
 int  of_setting_screen(void);         /* 0 game, 1 terminal, 2 game + log overlay */
 int  of_setting_lcd_raw(void);        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */

@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.26"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.27"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -194,13 +194,24 @@ def main():
         # its min and shows as 60).  0 is a legal volume -- mute -- so "the bridge carries nothing" and "the
         # user asked for silence" were the same number, and the host could not tell them apart.  Named options
         # with no 0 in them end that: of_save.c accepts only values it can name.
+        # 0.1.26 put this at 0xF700000C and it reached the host as nothing.  The Pocket's own doc for
+        # interact.json says the firmware "each frame ... read back from the core at a specified 32-bit BRIDGE
+        # address, updated with new user-adjusted values, and finally written back" -- a read-modify-write at an
+        # address the core has to answer.  openfpgaOS declares only 0xF7000000 (six bit-packed lists), 0xF7000004
+        # and 0xF7000008 (the two video offsets): 0xF700000C is a word its bitstream never decodes, so the write
+        # landed nowhere and of_interact_get kept reading 0.  Pocket LCD works because bits 16-17 of 0xF7000000
+        # are real openfpgaOS state.  So the knob moves into that word, in bits 10-13, which the SDK core's own
+        # masks leave free: Analogizer bit 15, SNAC Adapter 0-4, SNAC Assignment 6-7, Video Out 8-9, 15kHz
+        # Timing 18-19, Pocket LCD 16-17.  Bits 10-13 are NOT free -- "Analogizer Video Out" has its field there
+        # (its mask 0xFFFFC3FF is zero exactly at 10-13) -- so this knob sits at bits 20-23, which nothing in the
+        # SDK core writes.  The mask 0xFF0FFFFF is the sentence "only bits 20-23 are mine".
         {"name": "Music Volume", "id": 100, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF700000C", "defaultval": 192, "options": [
-             {"value": "0x00000001", "name": "Off"},
-             {"value": "0x00000040", "name": "Low"},
-             {"value": "0x00000080", "name": "Medium"},
-             {"value": "0x000000C0", "name": "High"},
-             {"value": "0x000000FF", "name": "Full"}]},
+         "address": "0xF7000000", "mask": "0xFF0FFFFF", "defaultval": 0x0000300000 & 0xFFFFFFFF, "options": [
+             {"value": "0x00100000", "name": "Off"},
+             {"value": "0x00200000", "name": "Low"},
+             {"value": "0x00300000", "name": "Medium"},
+             {"value": "0x00400000", "name": "High"},
+             {"value": "0x00500000", "name": "Full"}]},
         # No tick-rate knob in the menu, on purpose.  It was a measurement aid (docs/335: the port's waits are
         # clock deadlines, so halving the tick rate changes how many ticks a fade or timer gets -- that is not
         # "slow motion", it is a different game), and on the card it was one more number a player had to
@@ -270,7 +281,7 @@ def main():
         "ARGS=\n\n"
         "[night]\n"
         "RES=NIGHT.RES\n"
-        "MUSIC_VOL=192\n"     # matches the menu's High, so the two agree until the menu is moved
+        "MUSIC_VOL=128\n"     # the menu's Medium default, so the two agree until the menu is moved
         "SFX_VOL=255\n"
         "CDDA_OFF=0\n"      # explicit off-flags: 0 = music and pad are live
         "PAD_OFF=0\n"

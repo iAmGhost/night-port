@@ -65,6 +65,13 @@ static const char *g_rig_dir;
 #define PANEL_W  OF_SCREEN_W          /* 320 */
 #define PANEL_H  OF_SCREEN_H          /* 240 */
 #define BAR_ROWS ((PANEL_H - GAME_H) / 2)
+/* The framebuffer mode the game picture is drawn into when it is not a 640x480 slide.  320x240 with the host
+ * doing the vertical stretch (the default), or 320x200 with the core's scaler doing it (night.ini FIT=2). */
+static of_video_mode_t g_fb_game;
+static of_video_mode_t g_fb_native_200;
+static int g_fb_200_ok;
+static int g_fb_game_is_200;
+static int g_fit_stretch = 1;
 
 #define PRESENT_HZ   60u
 #define PRESENT_PERIOD_US (1000000u / PRESENT_HZ)
@@ -394,8 +401,8 @@ static void present(void) {
         if (native) fb = of_video_surface();            /* the bigger surface belongs to the new mode */
     } else if (g_fb_native_applied) {
         uint64_t mt = sys_now_us();
-        int rc = of_video_set_mode(&g_fb_base);
-        NLOG("fb mode -> base %ux%u rc=%d in %uus\n", g_fb_base.width, g_fb_base.height,
+        int rc = of_video_set_mode(&g_fb_game);
+        NLOG("fb mode -> game %ux%u rc=%d in %uus\n", g_fb_game.width, g_fb_game.height,
              rc, (uint32_t)(sys_now_us() - mt));
         if (rc == 0) g_fb_native_applied = 0;
     }
@@ -408,11 +415,31 @@ static void present(void) {
         for (int y = 0; y < vh; y++)
             memcpy(fb + (size_t)y * stride, src + (size_t)y * vw, (size_t)vw);
     } else if (vw == GAME_W && vh == GAME_H) {
-        memset(fb, 0, (size_t)BAR_ROWS * PANEL_W);
-        uint8_t *dst = fb + (size_t)BAR_ROWS * PANEL_W;
-        memcpy(dst, src, (size_t)GAME_W * GAME_H);
-        memset(fb + (size_t)(BAR_ROWS + GAME_H) * PANEL_W, 0,
-               (size_t)(PANEL_H - BAR_ROWS - GAME_H) * PANEL_W);
+        if (g_fb_game_is_200) {
+            /* The surface IS 320x200: the core's scaler stretches it onto the 320x240 panel, so the copy is a
+             * plain 1:1 row copy and the CPU pays nothing for the fit. */
+            of_video_mode_t cur; of_video_get_mode(&cur);
+            uint32_t stride = cur.stride ? cur.stride : (uint32_t)GAME_W;
+            for (int y = 0; y < GAME_H; y++)
+                memcpy(fb + (size_t)y * stride, src + (size_t)y * GAME_W, (size_t)GAME_W);
+        } else if (g_fit_stretch) {
+            /* 200 rows onto 240 without bars: 40 of the rows are shown twice, one every fifth, which is the
+             * evenest distribution a row-doubling stretch can have (200 + 40 = 240 exactly).  320x200 was seen
+             * on a 4:3 CRT, i.e. vertically stretched by 1.2 already, so filling the panel is the closer
+             * picture to the original than the 20+20 black rows this port used to add. */
+            uint8_t *dst = fb;
+            for (int y = 0; y < GAME_H; y++) {
+                const uint8_t *srow = src + (size_t)y * GAME_W;
+                memcpy(dst, srow, (size_t)GAME_W); dst += PANEL_W;
+                if ((y % 5) == 4) { memcpy(dst, srow, (size_t)GAME_W); dst += PANEL_W; }
+            }
+        } else {
+            memset(fb, 0, (size_t)BAR_ROWS * PANEL_W);
+            uint8_t *dst = fb + (size_t)BAR_ROWS * PANEL_W;
+            memcpy(dst, src, (size_t)GAME_W * GAME_H);
+            memset(fb + (size_t)(BAR_ROWS + GAME_H) * PANEL_W, 0,
+                   (size_t)(PANEL_H - BAR_ROWS - GAME_H) * PANEL_W);
+        }
     } else if (vw == 2 * PANEL_W && vh == 2 * PANEL_H) {
         downscale_2x2_frame(src, fb);
     } else {
@@ -688,6 +715,9 @@ static void settings_beat(uint64_t now) {
     if (now < g_setting_next_us) return;
     g_setting_next_us = now + 100000ull;
     int ch = of_settings_poll();
+    if (ch & OF_SET_VOL_SEEN)
+        NLOG("settings: music raw=%08x vol=%d\n",
+             (unsigned)of_setting_music_bridge(), of_setting_music_vol());
     if (ch & OF_SET_VOL) {
         of_cdda_set_volume(of_setting_music_vol());
         of_mixer_set_group_volume(OF_MIXER_GROUP_SFX, of_setting_sfx_vol() & 0xff);
@@ -1215,6 +1245,19 @@ int main(int argc, char **argv) {
          of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
          of_setting_tick_hz(), of_setting_screen());
 #ifndef OF_PC
+    /* Which index actually carries what.  of_interact_get() addresses variables by position, and the last two
+     * times this was guessed wrong (docs/336), so the whole front of the table is printed rather than only the
+     * entries the host hopes it needs. */
+    {
+        char acc[160]; int n = 0;
+        for (int i = 0; i < 10; i++)
+            n += snprintf(acc + n, sizeof acc - (size_t)n, " %d=%08x", i, (unsigned)of_interact_get(i));
+        NLOG("interact:%s\n", acc);
+        NLOG("music knob: raw=%08x -> vol=%d (field in bits 20-23 of 0xF7000000)\n",
+            (unsigned)of_interact_get(OF_IDX_MUSIC), of_setting_music_vol());
+    }
+#endif
+#ifndef OF_PC
     /* Pocket LCD (interact.json id 70, bits 16-17 of 0xF7000000) is the screen switch, and the host mirrors
      * it into of_video_set_display_mode() (of_video.h:43-45): OF_DISPLAY_TERMINAL shows the 40x30 console the
      * printf diagnostics go to, OF_DISPLAY_FRAMEBUFFER the game.  The mode is re-derived from that setting on
@@ -1247,6 +1290,9 @@ int main(int argc, char **argv) {
                 if (m.width == 2 * PANEL_W && m.height == 2 * PANEL_H && m.color_mode == OF_VIDEO_MODE_8BIT) {
                     g_fb_native = m; g_fb_native.stride = 0; g_fb_native_ok = 1;
                 }
+                if (m.width == GAME_W && m.height == GAME_H && m.color_mode == OF_VIDEO_MODE_8BIT) {
+                    g_fb_native_200 = m; g_fb_200_ok = 1;
+                }
             }
             if (!g_fb_native_ok && cap.max_width >= 2 * PANEL_W && cap.max_height >= 2 * PANEL_H &&
                 cap.max_frame_bytes >= (uint32_t)(2 * PANEL_W) * (2 * PANEL_H)) {
@@ -1259,6 +1305,22 @@ int main(int argc, char **argv) {
             }
             NLOG("fb native 640x480 8-bit %s (base %ux%u stride=%u)\n",
                  g_fb_native_ok ? "offered/attempted" : "NOT possible", g_fb_base.width, g_fb_base.height, g_fb_base.stride);
+            g_fit_stretch = of_setting_fit() != 0;
+            g_fb_game = g_fb_base;
+            if (of_setting_fit() == 2 && g_fb_200_ok) {
+                uint64_t mt = sys_now_us();
+                int rc = of_video_set_mode(&g_fb_native_200);
+                NLOG("fit=2: 320x200 framebuffer requested rc=%d in %uus\n",
+                     rc, (uint32_t)(sys_now_us() - mt));
+                if (rc == 0) { g_fb_game = g_fb_native_200; g_fb_game_is_200 = 1; }
+                else NLOG("fit=2 refused -- falling back to the host stretch\n");
+            }
+            NLOG("fit=%d (%s) for the 320x200 game picture on a %dx%d panel\n",
+                 of_setting_fit(),
+                 g_fb_game_is_200 ? "core scaler stretches 320x200 -> panel"
+                                   : (g_fit_stretch ? "host row stretch 200 -> 240 rows, no bars"
+                                                    : "1:1 with 20+20 black bars"),
+                 PANEL_W, PANEL_H);
         }
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));

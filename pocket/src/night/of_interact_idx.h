@@ -3,11 +3,11 @@
 #ifndef OF_INTERACT_IDX_H
 #define OF_INTERACT_IDX_H
 #define OF_IDX_MUSIC 7
-#define DEFAULT_OF_IDX_MUSIC 192
+#define DEFAULT_OF_IDX_MUSIC 3145728
 #define OF_IDX_PLCD  6
 #define DEFAULT_OF_IDX_PLCD 0
 #define OF_PLCD_GAME           0x00000000
 #define OF_PLCD_LCD_OFF        0x00010000
 #define OF_PLCD_TERMINAL       0x00020000
-#define OF_CORE_VERSION        "0.1.26"
+#define OF_CORE_VERSION        "0.1.27"
 #endif

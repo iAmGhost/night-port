@@ -69,13 +69,37 @@ static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
 static int      g_tick_hz   = 0;   /* 0 = whatever PIT rate the game programs; see of_setting_tick_hz */
 static unsigned g_lcd_raw   = 0xDEADBEEFu;   /* 0xDEADBEEU until the bridge is read */
+static int      g_music_bridge = -1;         /* the raw interact word behind Music Volume */
 /* The values interact.json actually offers (mk_dist.py writes the same lists).  A menu variable is a word in
  * the interact bridge, and at boot the bridge can carry 0 for a variable nobody has touched -- 0 is a legal
  * volume (mute) and a legal "no cap", so the host only accepts a value it can name.  That is why the two
  * knobs are lists with named options and no 0 in them: an unwired 0 must not silently mute the music. */
-static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, Medium, High, Full */
 static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if (t[i] == v) return 1; return 0; }
-static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1;
+
+static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, Medium, High, Full */
+#define MUSIC_SHIFT 20                       /* Music Volume lives in bits 20-23 of 0xF7000000 (mk_dist.py) */
+#define MUSIC_MASK  0xFu
+
+/* Turn what the bridge carries into a volume, or 0 for "the menu is not carrying this knob".  Two shapes are
+ * accepted on purpose: the field value the list writes (0x100000 .. 0x500000 = bits 20-23 holding 1..5), and a
+ * bare volume (1, 64, 128, 192, 255) in case the OS publishes the number rather than the field.  0 is never a
+ * volume here: 0 means "nothing was written", because a field anchored at 1 cannot spell 0 for a real choice, and
+ * the card's own interact_persist.json showed an untouched variable reading 0. */
+static int music_vol_from_bridge(unsigned raw) {
+    int sel = (int)((raw >> MUSIC_SHIFT) & MUSIC_MASK);
+    switch (sel) {
+    case 1: return   1;                       /* Off   -- only reachable as a field value, never as a bare 0 */
+    case 2: return  64;
+    case 3: return 128;
+    case 4: return 192;
+    case 5: return 255;
+    default: break;
+    }
+    if (raw == 1u) return 1;                  /* a bare 1 is the same request as the field's Off */
+    if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), (int)raw)) return (int)raw;
+    return 0;
+}
+static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
@@ -295,6 +319,13 @@ void of_settings_load(void) {
      * forward and back.  Now that a 320x200 present costs 1.8 ms median there is nothing left for the skip
      * to buy in the places it was doing the damage; BLIT_SKIP=1 re-arms it for performance experiments. */
     g_fb_mode = cfg_int("fb_mode",       1, "NIGHT_FB_MODE");   /* 1 = ask the OS for a 640x480 source FB */
+    /* How the 320x200 game picture meets the 320x240 panel.  1 (the default) fills the panel: 40 of the 200
+     * rows are shown twice, one every fifth row, which is the evenest row-doubling stretch there is -- and
+     * 320x200 on a 4:3 CRT *was* a 1.2x vertical stretch, so this reproduces the proportions the original was
+     * seen in rather than the 20+20 black rows the port used to add.  0 puts the bars back.  2 is the
+     * experiment: ask the core's own scaler for its declared 320x200 framebuffer mode and let the FPGA do the
+     * stretch for free -- worth measuring, with docs/338 in mind (a mode the scaler cannot map shows black). */
+    g_fit = cfg_int("fit", 1, "NIGHT_FIT");
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
@@ -306,7 +337,9 @@ void of_settings_load(void) {
      * "the user asked for silence" would otherwise be the same number, and the first silently replaced
      * night.ini's MUSIC_VOL (docs/341, and the card's own interact_persist.json showing Music Volume 0). */
     {
-        int mv = (int)of_interact_get(OF_IDX_MUSIC);
+        unsigned mvw = of_interact_get(OF_IDX_MUSIC);
+        int mv = music_vol_from_bridge(mvw);
+        g_music_bridge = (int)mvw;            /* the raw word, reported so a card log can read the knob back */
         /* The Pocket LCD list lives in bits 16-17 of 0xF7000000, and four other interact variables share that
          * same word (Analogizer, the two SNAC lists, Analogizer Video Out, Video H/V Offset).  of_interact_get
          * hands back a 32-bit value and the header never promises it is masked to the variable's own field, so
@@ -314,7 +347,7 @@ void of_settings_load(void) {
          * to sit at zero -- which is how "Terminal" could be selected in the menu and never reach the host. */
         int lcd = (int)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
         g_lcd_raw = (unsigned)lcd;          /* the raw bridge word, reported every second */
-        if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), mv)) g_music_vol = clamp_vol(mv);
+        if (mv) g_music_vol = clamp_vol(mv);
 
         /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
          * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
@@ -332,10 +365,12 @@ int of_settings_poll(void) {
     return 0;                       /* the desktop build has no interact bridge */
 #else
     int changed = 0;
-    int mv = (int)of_interact_get(OF_IDX_MUSIC);
+    unsigned mvw = of_interact_get(OF_IDX_MUSIC);
+    int mv = music_vol_from_bridge(mvw);
+    if ((int)mvw != g_music_bridge) { g_music_bridge = (int)mvw; changed |= OF_SET_VOL_SEEN; }
     unsigned lcd = (unsigned)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
 
-    if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), mv) && mv != g_music_vol) {
+    if (mv && mv != g_music_vol) {
         g_music_vol = clamp_vol(mv);
         changed |= OF_SET_VOL;
     }
@@ -355,6 +390,8 @@ int of_setting_sfx_vol(void)   { return g_sfx_vol; }
 int of_setting_cdda(void)      { return g_cdda_on; }
 int of_setting_pad(void)       { return g_pad_on; }
 int of_setting_tick_hz(void)   { return g_tick_hz; }
+int of_setting_music_bridge(void) { return g_music_bridge; }   /* raw word, for the log */
+int of_setting_fit(void)       { return g_fit; }      /* 0 letterbox, 1 stretch, 2 scaler 320x200 */
 int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }

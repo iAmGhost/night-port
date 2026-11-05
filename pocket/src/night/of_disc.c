@@ -75,10 +75,7 @@ int of_disc_track_of_lba(uint32_t disc_lba) {
 int of_disc_track_slot(uint32_t track) {
     const disc_track_t *t = find_track(track);
     if (!t || !t->audio) return -1;
-    if (track == 2u) return 5;                      /* Data 2: the intro theme                */
-    if (track == 3u) return 6;                      /* Data 3: the stage theme                */
-    if (track >= 4u && track <= 15u) return 19 + (int)track;   /* track04 -> 20 ... track15 -> 31 */
-    return DISC_SLOT_NONE;                          /* 18/19 are Save 8/Save 9: never data  */
+    return t->slot;          /* from the generated table; -1 for the data track and for 18/19 */
 }
 
 uint32_t of_disc_total_sectors(void) {

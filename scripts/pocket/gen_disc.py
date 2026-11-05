@@ -15,6 +15,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from slot_ids import AUDIO_IDS, id_for_track, slots_for_tracks   # the single source for the id map
+
 REPO = Path(__file__).resolve().parents[2]
 CUE = REPO / "NIGHT" / "TG_NIGHT.CUE"
 IMG = REPO / "NIGHT" / "TG_NIGHT.IMG"
@@ -95,12 +98,20 @@ def main():
         lines.append("/* TG_NIGHT.IMG not present at generation time: total sectors unknown */")
     lines += [
         "",
-        "typedef struct disc_track { unsigned track; unsigned lba; char audio; } disc_track_t;",
+        "/* slot is the APF file id that carries this track's audio, from scripts/pocket/slot_ids.py -- the same",
+        " * map mk_dist.py writes into data.json and NIGHT.json.  It lives in the table so the host cannot have",
+        " * its own arithmetic to get wrong (0.1.22 did, and played the wrong theme at the title). */",
+        "typedef struct disc_track { unsigned track; unsigned lba; char audio; int slot; } disc_track_t;",
+        "#define DISC_SLOT_NONE (-1)",
         "",
         "static const disc_track_t g_disc_tracks[DISC_TRACK_COUNT] = {",
     ]
+    audio = [t for t, _ in tracks if t != tracks[0][0]]
+    ts = slots_for_tracks(audio)
     for tr, lba in tracks:
-        lines.append(f"    {{ {tr}, {lba}u, {(1 if tr != tracks[0][0] else 0)} }},")
+        slot = id_for_track(audio, tr)
+        slot = -1 if slot is None else slot
+        lines.append(f"    {{ {tr}, {lba}u, {(1 if tr != tracks[0][0] else 0)}, {slot} }},")
     lines += ["};", "", "#endif /* NIGHT_DISC_TABLE_H */", ""]
     OUT.write_text("\n".join(lines))
 

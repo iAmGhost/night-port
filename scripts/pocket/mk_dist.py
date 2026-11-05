@@ -38,13 +38,11 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.22"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.23"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
-# Slot ids the reservation table (README:644) leaves for app data.  10-19 is the save range -- "Save 0-9,
-# nonvolatile CRAM0 save slots (256 KB each)" -- so an audio file bound to 18 or 19 is served through the save
-# window and reads stop at 262 144 bytes.  track02/track03 (the intro and stage themes) were exactly that case.
-AUDIO_IDS = [5, 6] + list(range(20, 32))   # Data 2, Data 3, then everything above the reserved range
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from slot_ids import AUDIO_IDS, SAVE_BASE, LOG_ID, RES_ID, BANK_ID, slots_for_tracks   # docs/339
 
 
 def cue_audio_tracks(path: Path):

@@ -16,24 +16,28 @@
 #define DISC_LEADOUT_S 54u
 #define DISC_LEADOUT_F 53u
 
-typedef struct disc_track { unsigned track; unsigned lba; char audio; } disc_track_t;
+/* slot is the APF file id that carries this track's audio, from scripts/pocket/slot_ids.py -- the same
+ * map mk_dist.py writes into data.json and NIGHT.json.  It lives in the table so the host cannot have
+ * its own arithmetic to get wrong (0.1.22 did, and played the wrong theme at the title). */
+typedef struct disc_track { unsigned track; unsigned lba; char audio; int slot; } disc_track_t;
+#define DISC_SLOT_NONE (-1)
 
 static const disc_track_t g_disc_tracks[DISC_TRACK_COUNT] = {
-    { 1, 0u, 0 },
-    { 2, 37262u, 1 },
-    { 3, 40415u, 1 },
-    { 4, 60054u, 1 },
-    { 5, 77181u, 1 },
-    { 6, 96538u, 1 },
-    { 7, 114828u, 1 },
-    { 8, 136308u, 1 },
-    { 9, 161147u, 1 },
-    { 10, 185120u, 1 },
-    { 11, 212817u, 1 },
-    { 12, 223146u, 1 },
-    { 13, 241002u, 1 },
-    { 14, 258870u, 1 },
-    { 15, 268621u, 1 },
+    { 1, 0u, 0, -1 },
+    { 2, 37262u, 1, 5 },
+    { 3, 40415u, 1, 6 },
+    { 4, 60054u, 1, 20 },
+    { 5, 77181u, 1, 21 },
+    { 6, 96538u, 1, 22 },
+    { 7, 114828u, 1, 23 },
+    { 8, 136308u, 1, 24 },
+    { 9, 161147u, 1, 25 },
+    { 10, 185120u, 1, 26 },
+    { 11, 212817u, 1, 27 },
+    { 12, 223146u, 1, 28 },
+    { 13, 241002u, 1, 29 },
+    { 14, 258870u, 1, 30 },
+    { 15, 268621u, 1, 31 },
 };
 
 #endif /* NIGHT_DISC_TABLE_H */

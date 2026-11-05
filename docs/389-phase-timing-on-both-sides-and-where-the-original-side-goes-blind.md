@@ -60,3 +60,26 @@ A pacing claim that survives measurement: **the port reaches the title sequence 
 offset explained by the text-mode boot it does not present, and its `.fli`/hold pacing is the shared `src/f`
 behaviour the SDL host also shows.**  And a limit stated where it matters: the original capture goes unobserved for
 32.8 s in the middle of the intro, so any claim about what the original did in that hole is out of reach of this rig.
+
+## 5. The `.fli` content itself, measured in the rig's own grid
+
+The picture comparison in docs/388 hesitated on the `.fli` window because the two sides disagree on *geometry* (8
+frames at different shapes).  Both captures already share the rig's **40x30 luminance grid** (`frames.bin`, 1200 cells
+per frame), which is geometry-free, so the intro's content can be tested directly: pair each distinct original `.fli`
+frame against the 676 distinct pictures the port presented between the `opening.fli` and `title1.pcx` lookups.
+
+| measure | value |
+|---|---|
+| distinct original `.fli` pictures | 25 (from 54 captured frames) |
+| distinct pictures the port presented in its `.fli` segment | 676 (from 2207 frames) |
+| grid NCC of the best port counterpart | **mean 0.9981, min 0.9835** |
+| matched at grid NCC >= 0.90 | **24 / 25** |
+| grid mean absolute difference | **0.64 mean, 3.21 max** on a 0-255 luminance scale |
+
+So every distinct frame of the original's intro movie except one has a port counterpart that is the same picture to
+within about half a luminance step, and the port shows 27x more distinct frames than the capture sampled -- the capture
+sampled 54 frames across 7.9 s of a 900-frame movie, so the extra distinct frames are the movie's own animation that
+the original side simply never recorded, not extra content.
+
+The one unmatched frame is the pure-black one (mean luminance 0.0): its grid has zero variance, so NCC is undefined
+there and it is counted as blind rather than matched -- the same rule docs/388 2 established.

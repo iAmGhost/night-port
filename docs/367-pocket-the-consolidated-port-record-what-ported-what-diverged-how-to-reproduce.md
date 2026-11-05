@@ -156,3 +156,10 @@ channel, packing proven on hardware, and what ships by default · `363` the nine
 budget and the 150 000-visit-a-frame pump · `365` the two-host diff · `366` the install route verified against the
 card.  `pocket/INSTALL.md` is the human-facing install README, and `379-382` cover the original-side capture, `--script` anchoring on the Pocket path, the per-phase picture accuracy of section 6, and the menu-region
 measurement that shows the pause menu drawn identically.
+
+> **How to read the 354/434 (docs/388).**  The comparator pairs **160x120 luminance thumbnails**, so a count at NCC >= 0.90
+> means "the same scene appears on both sides", not "these frames agree".  On raw pixels the strong cases are: gameplay
+> frames that share a moment (MAE 0.17-0.21 of 255, 100 % within 3 LSB), the pause-menu box (MAE 0.45, 99.6 % within
+> 3 LSB, 40/41 >= 0.90 in `esc_win_` and 1/41 in `esc_win2_`), and the intermission cards and CG shows, which are
+> byte-identical to the shipped PCX in index space (docs/363, docs/373).  The slides window is a geometry difference
+> (the capture holds 640x200 frames there, the port witnesses 640x480), so its 130/133 is a scene count only.

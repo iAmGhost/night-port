@@ -81,3 +81,10 @@ witnesses each with `NIGHT_VIDRAW_MAX`, decodes the witnesses to BMPs, and print
 alongside the menu-box score.  It needs an original-side capture directory (`ORIG=/tmp/orig71` by default, built as
 docs/379 describes) and reports each run's view-sample statistics as measurements only — docs/382 §1 explains why the
 `chg` figure is weaker evidence than it first looks.
+
+> **Restated (docs/388).**  "41/41 at mean and minimum NCC 1.0000" was partly a bug in `menu_region_compare.py`: its NCC
+> returned 1.0 for a **flat** region (zero variance, zero denominator).  With that fallback replaced by NaN and raw
+> agreement printed, the same run gives the menu box **mean NCC 0.9965 (min 0.8567), 40/41 >= 0.90, MAE 0.45 of 255,
+> 99.6 % of pixels within 3 LSB, 7.3 % exactly equal** in `esc_win_`, and **1/41** (MAE 10.06) in `esc_win2_`.  The
+> finding stands -- the port draws the pause menu essentially identically -- but "pixel-identical, 82/82 frames" was too
+> strong, and the menu's *presence* is independently proven by the purple-fill count (219 of 400 witnesses).

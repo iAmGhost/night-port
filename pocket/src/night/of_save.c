@@ -444,13 +444,18 @@ void of_settings_load(void) {
         int mv = 0, fit = -1;
         if (g_diag & OF_DIAG_BRIDGE) {          /* the raw read of the control word is one of the probes that
                                                  * 0.1.35 shipped unconditionally, so it is gated like them */
+            /* Bracketed.  A raw read of 0xF7000000 is the most suspect of the four probes 0.1.35 shipped -- it is
+             * the only one that touches the page the firmware is rewriting every frame -- and 0.1.35 died within
+             * a few lines of where this call sits.  "begin" without "done" is the whole answer. */
+            SLOG("probe: control-word read begin\n");
             w = bridge_control_word();
+            g_bridge_word = w;
             SLOG("bridge: control word 0x%08x = %08x | fields music=%d fit=%d lcd=%d free 5,8-9,14,20-23,29-31\n",
                  OF_BRIDGE_CTRL, w, (int)((w >> MUSIC_SHIFT) & MUSIC_MASK), (int)((w >> FIT_SHIFT) & FIT_MASK),
                  (int)((w >> PLCD_SHIFT) & PLCD_MASK));
-            g_bridge_word = w;
+            SLOG("probe: control-word read done\n");
         } else {
-            SLOG("bridge: control word read disabled (DIAG=0); night.ini DIAG=8 re-enables it\n");
+            SLOG("bridge: control word read disabled (DIAG bit 3 clear); DIAG=8 re-enables it\n");
         }
 #if HAVE_MUSIC
         mv = music_vol_from_bridge(w);

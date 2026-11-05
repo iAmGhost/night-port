@@ -1442,17 +1442,23 @@ int main(int argc, char **argv) {
          * mode, SNAC type, H/V offsets -- through a different ecall (OF_EID_ANALOGIZER).  If it answers coherently
          * while of_interact_get() answers garbage, the gap is the interact ecall specifically. */
         if (of_setting_diag() & OF_DIAG_PERIPH) {
-            /* Logged before the scan on purpose: if a run's log stops on this line, the scan is the answer. */
-            NLOG("periph: reading %u words at 0x%08x (the interactdemo approach); if the log stops on this line,"
-                 " the read itself is the answer\n", OF_PERIPH_WORDS, OF_PERIPH_BASE);
+            NLOG_STEP("probe periph begin");      /* bracketed on purpose: the probe that faults is the one whose
+                                                     * "begin" is the last line the run ever wrote */
+            NLOG("periph: reading %u words at 0x%08x (the interactdemo approach)\n",
+                 OF_PERIPH_WORDS, OF_PERIPH_BASE);
             periph_scan(1);
+            NLOG("periph: baseline set.  Every later 'periph move' line is a live change -- move Pocket LCD in"
+                 " Core Options and the word that answers is the menu channel this core has been looking for\n");
+            NLOG_STEP("probe periph done");
         }
         if (of_setting_diag() & OF_DIAG_ANALOGIZER) {
+            NLOG_STEP("probe analogizer begin");
             of_analogizer_state_t az;
             int arc = of_analogizer_state(&az);
             NLOG("analogizer: enabled=%d state rc=%d en=%u video=%u snac=%u/%u off=%d,%d\n",
                  of_analogizer_enabled(), arc, az.enabled, az.video_mode, az.snac_type, az.snac_assignment,
                  (int)az.h_offset, (int)az.v_offset);
+            NLOG_STEP("probe analogizer done");
         }
     }
 #endif
@@ -1479,6 +1485,7 @@ int main(int argc, char **argv) {
      * times this was guessed wrong (docs/336), so the whole front of the table is printed rather than only the
      * entries the host hopes it needs. */
     if (of_setting_diag() & OF_DIAG_INTERACT) {
+        NLOG_STEP("probe interact census begin");
         char acc[160]; int n = 0;
         for (int i = 0; i < OF_INTERACT_COUNT; i++)
             n += snprintf(acc + n, sizeof acc - (size_t)n, " %d=%08x", i, (unsigned)of_interact_get(i));
@@ -1502,6 +1509,7 @@ int main(int argc, char **argv) {
          * diagnostic that can fault the kernel is not a diagnostic.  0.1.34/0.1.35 read indices up to
          * OF_INTERACT_MAX_VARS-1 and 999; 0.1.32 read only the declared range and ran to completion.  The
          * boundary question is asked from the PC shim, where an OOB read hurts nobody. */
+        NLOG_STEP("probe interact census done");
     }
 #endif
 #ifndef OF_PC

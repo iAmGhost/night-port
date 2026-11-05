@@ -10,10 +10,16 @@ original's own event windows proves it, and the number for live stage play is be
 | `--script route_pause_menu.txt` (docs/381) | boot, attract, `.fli` cutscenes, title, slides — and it **ends on a static 640×480 still** |
 | `--warp-stage 1` (docs/363's state-anchored route) | straight into stage 1 and plays it |
 
-The tell in the first run was its own view sampling: **219 samples, all `static`** (150 at 640×480, 69 at 320×200,
-none animated), and its last line confirms it -- `view=0 640x480 sig=2890181e chg=73`.  A run that never animates
-cannot be matched against 55 frames of gameplay, which is exactly the 0/55 docs/381 recorded.  The `sfx=107` transfers
-in that run were attract-loop sounds, not a stage being played.
+The tell in the first run is that its `--warp-stage` counterpart scores 55/55 on that window while it scores 0/55:
+the scripted route **never enters a stage**.  Its `sfx=107` transfers are attract-loop sounds, and its 320×200 samples
+are movies and menus rather than stage backgrounds.
+
+An earlier version of this section argued the same conclusion from the run's view samples being "all `static`"
+(`chg` below a threshold, max 73) -- that instrument is weaker than I assumed, and `scripts/pocket/accuracy_sweep.sh`
+now reports it without leaning on it: the warp run, whose stage frames match the original's gameplay frames at 0.9998,
+also has no view sample above 1000 changed pixels (its max is 46).  `chg` counts changed pixels between *the host's own
+view samples*, and a stage where the player stands still barely changes at all -- which is also true of the original's
+captured gameplay frames, and is why they match so well.
 
 ## 2. Per-window score, same original capture (434 frames), Pocket side = `--warp-stage 1`, 400 witnesses
 

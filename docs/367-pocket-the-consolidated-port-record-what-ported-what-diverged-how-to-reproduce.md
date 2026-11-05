@@ -121,14 +121,18 @@ The original side is 434 frames captured headless through dosbox-automation and 
 | title melt | 42 | either route | 41 / 42 |
 | intro `.fli` | 54 | scripted attract route | 46 / 54 |
 | pause / menu windows, whole frame | 82 | warp route with `route_esc_menu.txt` | 40 / 41 best; the other window is 1 / 41 because the stage behind the menu is at a different progression point |
-| **pause / menu windows, the menu box itself** | 82 | same | **82 / 82 at NCC 1.0000** (docs/383) |
+| **pause / menu windows, the menu box itself** | 82 | any route that opens the menu | **41 / 41 per window at NCC 1.0000** (docs/383) |
 | DOS text-mode boot (mode 3) | 24 | none: the port has no text-mode presentation | 8 / 24 |
 
 What this section deliberately is not: one route score.  A single end-to-end number produced 0.559 and read like a
 verdict while each route was simply outside several phases (docs/380 4, docs/382 1).  Its zeros have named causes -- a
-run that never animates cannot match gameplay frames, a warp run skips the intro, and a route that never presses ESC
+a warp run skips the intro, and a route that never enters a stage cannot match its gameplay frames, and a route that never presses ESC
 cannot be scored for menu fidelity at all (docs/383) -- and the routes together cover every phase the port claims
 to render.
+
+One command reproduces the table above: `scripts/pocket/accuracy_sweep.sh` (three routes, witnesses decoded to BMPs,
+per-window whole-frame score plus the menu-box score).  Which window a *given* run witnesses varies with the shim's
+wall-clock pad timeline (docs/333 5); the exact-match claim is the one that survives that.
 
 ## 7. Document map
 

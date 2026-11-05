@@ -120,13 +120,15 @@ The original side is 434 frames captured headless through dosbox-automation and 
 | intermission slides | 133 | either route | 130 / 133 |
 | title melt | 42 | either route | 41 / 42 |
 | intro `.fli` | 54 | scripted attract route | 46 / 54 |
-| pause / menu windows | 82 (+41 second window) | scripted route | 41 / 82 |
+| pause / menu windows, whole frame | 82 | warp route with `route_esc_menu.txt` | 40 / 41 best; the other window is 1 / 41 because the stage behind the menu is at a different progression point |
+| **pause / menu windows, the menu box itself** | 82 | same | **82 / 82 at NCC 1.0000** (docs/383) |
 | DOS text-mode boot (mode 3) | 24 | none: the port has no text-mode presentation | 8 / 24 |
 
 What this section deliberately is not: one route score.  A single end-to-end number produced 0.559 and read like a
 verdict while each route was simply outside several phases (docs/380 4, docs/382 1).  Its zeros have named causes -- a
-run that never animates cannot match gameplay frames, and a warp run skips the intro -- and the two routes together
-cover every phase the port claims to render.
+run that never animates cannot match gameplay frames, a warp run skips the intro, and a route that never presses ESC
+cannot be scored for menu fidelity at all (docs/383) -- and the routes together cover every phase the port claims
+to render.
 
 ## 7. Document map
 
@@ -138,4 +140,5 @@ transfer census · `341-347` the settings/menu thread, including two cores that 
 `348-349` a core that boots, and the address that must never be read · `350-362` the peripheral-mirror settings
 channel, packing proven on hardware, and what ships by default · `363` the nine-episode sweep · `364` the frame
 budget and the 150 000-visit-a-frame pump · `365` the two-host diff · `366` the install route verified against the
-card.  `pocket/INSTALL.md` is the human-facing install README, and `379-382` cover the original-side capture, `--script` anchoring on the Pocket path, and the per-phase picture accuracy of section 6.
+card.  `pocket/INSTALL.md` is the human-facing install README, and `379-382` cover the original-side capture, `--script` anchoring on the Pocket path, the per-phase picture accuracy of section 6, and the menu-region
+measurement that shows the pause menu drawn identically.

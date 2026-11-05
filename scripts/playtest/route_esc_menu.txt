@@ -1,0 +1,11 @@
+# ESC menu route for the Pocket shim (docs/383).  The stage is entered by the warp entry pump, so these times are
+# chosen to land well inside stage play; keys are DOS make codes on the shim's direct key path (docs/377 5), and the
+# spans are 200 ms minimum so a press has both a make and a break on the 8 ms pad grid.
+45000 key esc down
+45250 key esc up
+47000 key down down
+47250 key down up
+49000 key enter down
+49250 key enter up
+52000 key esc down
+52250 key esc up

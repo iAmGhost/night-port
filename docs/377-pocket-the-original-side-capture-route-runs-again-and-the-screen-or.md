@@ -105,3 +105,36 @@ attract loop after five plays: the keys reach the game on the Pocket code path, 
 What is still open for a content-based original comparison is the other half: `drive_orig_episode1.txt` speaks
 `playtest_orig_drive.py`'s anchored vocabulary, so that driver needs the transport swap §2 demonstrates before the
 original side can be captured mid-route.
+
+## 6. Gap 1 closed mechanically, and the flakiness it exposed
+
+`scripts/playtest_orig_drive_container.py` applies the same transport swap to the **anchored** driver: import
+`playtest_orig_drive`, replace only `api()`, and let every call go out as `docker exec <name> curl` -- including the
+409 retry the driver needs (back-to-back `input/sequence` posts collide, which the driver's own comment records) and
+the raw-frame reply, which lands in the mounted `/work/_drv.bin` and is read back.  It ran:
+
+```
+$ uv run --with numpy --with pillow scripts/playtest_orig_drive_container.py \
+      --out /tmp/orig67 --drive scripts/playtest/drive_orig_episode1.txt --hz 8
+refs: ...                      <- the shipped reference set loaded
+frame 720x400 sim=0.0178 best=1s3  mode=3   (repeated)
+wait_mode 200: TIMEOUT (120.0s)
+done: 31 saved frames in /tmp/orig67
+```
+
+So the driver, its anchors, its reference matching and its PNG writer all work through the container -- and the
+capture is useless, because this launch never left text mode: every frame is 720x400 mode 3 and the drive's
+`wait_mode 200` (the game's own 320x200 phase) timed out after 120 s.
+
+That is the second time this session the emulator answered with mode 3 while the game's status was ambiguous, against
+the same conf that produced the 101h/13h sequence twice earlier (docs/377 §1).  The launch is the flaky part, not the
+transport: dosbox-automation in this container sometimes leaves `NIGHT` at the DOS prompt.  What the original-side
+content comparison needs before it can be believed is a *reliable* launch -- an anchor on "the game is running" (the
+`/api/v1/program/state` answer, or a DS witness) before the drive timeline starts spending its key presses -- and that
+belongs to the driver, not to this wrapper.
+
+Until then the honest state of the original-side basis is: the tool chain is complete and proven end to end
+(capture, oracle, driver, wrapper), one no-key capture produced 245 usable frames of the pre-game phase, and no
+content-based Pocket-vs-original score exists yet.  The content claims this port rests on remain docs/91 (shared
+`src/f` against live original frames), docs/365 (Pocket-vs-SDL-host picture overlap) and docs/373 (shipped-card
+exactness on the Pocket path).

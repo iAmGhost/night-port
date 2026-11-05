@@ -25,5 +25,24 @@ uint32_t of_cdda_sectors(void);                  /* sectors the track holds */
 uint32_t of_cdda_tracks(void);                   /* tracks started since boot */
 int      of_cdda_sounding(void);                 /* 1 when the mixer path is live */
 
+/* A gain stage with a knee, shared by the music and the sound effects (docs/361).
+
+ * Below the knee a sample is multiplied outright; above it only the excess is carried, at one quarter of its size.
+ * Continuous, monotone, never past full scale, and never BELOW the sample it was given -- the last one is what makes
+ * a gain knob mean "louder" instead of "squashed".  With KNEE 20480 / SLOPE 4 the curve cannot reach full scale before 212%,
+ * which is why 200% is legal on the Pocket and a plain `x * 2` is not.  The measurements behind those numbers
+ * (scripts/analysis/gain_scan.py): 6 of the 14 shipped CD-DA tracks already peak at 32767-32768 (0 dBFS), so the
+ * music has no headroom to climb into, and the loudest sample the game's own driver ever put on the board is 30720
+ * (93.8% of full scale).
+ *
+ * It is a compressor, not a volume knob: quiet passages come up, loud passages get squeezed instead of cracking.
+ * The PC build leaves gains at 100% by default so the differential rig keeps comparing byte-exact streams
+ * (docs/332, docs/164). */
+#define OF_GAIN_KNEE  20480
+#define OF_GAIN_SLOPE 4
+
+int16_t of_gain16(int16_t x, int gain_pct);
+void    of_cdda_set_gain(int pct);        /* 100 = unity, the disc exactly as recorded */
+
 #endif /* NIGHT_OF_CDDA_H */
 int32_t  of_cdda_head(void);      /* write cursor lead over the mixer voice, ring frames */

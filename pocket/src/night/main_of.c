@@ -609,7 +609,12 @@ static uint64_t g_sfx_free_us[SFX_BLOCKS];   /* when a slot's sample has run out
 static uint32_t g_of_sfx_plays;
 static uint32_t g_of_sfx_drops;
 static uint32_t g_of_sfx_steals;   /* sounds we tore in half so a later one could start at all */
-static int      g_sfx_volume = 200;   /* per-voice headroom, the value openfpgaOS-Doom uses; the menu's SFX
+/* Headroom, or the lack of it.  200 was openfpgaOS-Doom's number and Doom has a reason for it: 32 simultaneous DMX
+ * voices sum inside the mixer, and attenuating each by 200/255 keeps that sum off the ceiling.  NIGHT's sounds sit in
+ * 8 blocks and are typically one or two at a time, and the price of that headroom is every sound 2.1 dB quieter than
+ * the samples it was recorded at.  255 means "the samples ARE the level"; the menu's SFX Volume is what turns it down,
+ * not this constant. */
+static int      g_sfx_volume = 255;   /* per-voice: unity, so the menu's SFX
                                        * Volume is the group volume, so the two knobs do not fight */    /* samples discarded because all eight SFX slots were still sounding */   /* (f.h already exports g_sfx_plays for the game's own element-event sounds) */
 
 static void cdda_boot(void) {
@@ -622,6 +627,11 @@ static void cdda_boot(void) {
 
 static void audio_boot(void) {
     of_mixer_init(32, OF_MIXER_OUTPUT_RATE);
+    /* The mixer's own output stage.  Nothing in this port ever set it, so every volume below was multiplied by an OS
+     * default nobody had measured -- openfpgaOS-Doom sets 255 explicitly (i_sdlsound.c:155), which is the tell that a
+     * core may not assume the default.  night.ini MASTER_VOL= keeps it open for a measurement. */
+    of_mixer_set_master_volume(of_setting_master_vol());
+    of_cdda_set_gain(of_setting_cdda_gain());     /* sample gain before the mixer, docs/361 */
     NLOG("mixer: %d voices, output rate %d Hz (samples keep their own rate, set per voice)\n", 32, OF_MIXER_OUTPUT_RATE);
 #ifndef OF_PC
     /* Keep the mixer fed while a blocking data-slot read waits on its DMA (of_file.h:96-103).  The intro and
@@ -695,7 +705,16 @@ static void audio_pump(void) {
             g_of_sfx_steals++;
         }
         g_sfx_block = (b + 1) % SFX_BLOCKS;
-        memcpy(g_sfx_pool[b], g_sfx_scratch, (size_t)got * sizeof(int16_t));
+        if (of_setting_sfx_gain() == 100) {
+            memcpy(g_sfx_pool[b], g_sfx_scratch, (size_t)got * sizeof(int16_t));
+        } else {
+            /* The game's own samples are the quiet part of this port: the loudest one the shipped driver ever put on
+             * the board reached 30720, and the bulk of the material is far below that.  Gain belongs here, on the way
+             * into the mixer's pool, because the mixer's own volume knobs top out at "no attenuation" -- 255 means
+             * "the samples are the level", and the samples are what is too quiet (docs/361). */
+            for (uint32_t i = 0; i < got; i++)
+                g_sfx_pool[b][i] = of_gain16(g_sfx_scratch[i], of_setting_sfx_gain());
+        }
         of_cache_flush_range(g_sfx_pool[b], (size_t)got * sizeof(int16_t));
         /* Tagged as an SFX voice rather than untagged: the mixer's steal path "prefers a same-group victim
          * before crossing groups, so a busy MUSIC track can't silence an in-flight SFX (and vice versa)"
@@ -954,40 +973,30 @@ static void periph_scan(int full);
  * 0xF7000010 into 0x40000068, and 0xF7000014 into nothing at all.  0.1.45 settled which rule the OS follows by
  * declaring the entries out of address order -- Screen Fit, declared LAST at 0xF7000010, was mirrored; SFX Volume,
  * declared SECOND at 0xF7000014, was not.  The mirror follows the ADDRESS.  Two words, no more. */
-#define OF_MENU_SLOT_MUSIC 0x4000006cu           /* carries whatever is mounted at 0xF700000C */
-#define OF_MENU_SLOT_SFX   0x40000068u           /* carries whatever is mounted at 0xF7000010 */
-#define OF_MENU_SLOT_FIT   0u                     /* no entry declared: L1+B and night.ini FIT only */
-#ifdef OF_IDX_FIT
-#define IDX_FIT     OF_IDX_FIT
-#define FIT_LIVE    1                            /* an interact.json entry exists for it */
-#else
-#define IDX_FIT     (-1)
-#define FIT_LIVE    0                            /* no word is wired to it: L1+B and night.ini FIT only */
-#endif
-/* One setting per bridge ADDRESS.  Packing several entries into disjoint bit fields of one address was tried in 0.1.47
- * and the hardware said no (docs/358): the OS writes the WHOLE word, so writing one entry erases the others --
+/* The menu's whole geometry arrives from interact.json through the generated header: the field an entry writes
+ * (shift and mask derived from the mask it declared), the option values inside that field, and the peripheral word
+ * hardware was measured carrying that bridge address -- 0 when no word has ever been seen to carry it.  main_of.c
+ * deliberately keeps none of these numbers itself.  Both the 0.1.44 fault (a register that looked like a mirror) and
+ * the 0.1.47 fault (inverted masks) were "the C and the JSON disagree", and generating the C from the JSON retires
+ * that class of bug.
  *
- *   t=38.4s word=00000008  music=8 sfx=0 fit=0     picked Music = Full
- *   t=54.2s word=00000200  music=0 sfx=0 fit=2     picked Screen Fit, Music's field gone
- *   t=81.3s word=00000070  music=0 sfx=7 fit=0     picked SFX Volume, gone again
+ * What main_of.c does keep is the measurement a JSON cannot express: only 0xF700000C and 0xF7000010 are mirrored into
+ * readable words at all (docs/356), and an entry whose mirror is known is read there and nowhere else (docs/358 §3).
  *
- * A mask says which bits the CORE may write to its own registers; it does not make the firmware read-modify-write an
- * interact value, and `writeonly` -- the flag that makes an undecoded address usable at all -- is precisely what
- * forbids the firmware from reading the word it is about to write.  So docs/356's map is the whole settings surface:
- * 0xF700000C -> 0x4000006c and 0xF7000010 -> 0x40000068, one entry each.
- *
- * The field machinery stays, because it is what makes a claim testable: every test (option range, cleanliness, "was it
- * ever silent", "slot lost") runs on the entry's field of the word, and a field is the whole word while masks are
- * 0xFFFFFF00.  lo/hi are the option VALUES themselves. */
-#define MUSIC_SHIFT 0                            /* interact.json: mask 0xFFFFFF00 writes bits 0-7 of its word */
-#define MUSIC_MASK  0xFFu
-#define SFX_SHIFT   0
-#define SFX_MASK    0xFFu
-#define FIT_SHIFT   0
-#define FIT_MASK    0xFFu
-#define MUSIC_BASE  0x41u                        /* 0x41..0x48 -> eight music levels */
-#define SFX_BASE    0x61u                        /* 0x61..0x68 -> eight sound-effect levels */
-#define FIT_BASE    0x51u                        /* 0x51..0x53 -> letterbox / stretch / scaler */
+ * 0.1.50's open question is whether one word can hold three settings.  openfpgaOS's own interact.json packs SIX
+ * entries into 0xF7000000 with disjoint masks -- Enable Analogizer bit 15, SNAC Adapter bits 0-4, SNAC Controller
+ * Assignment bits 6-9, Analogizer Video Out bits 10-13, 15kHz Timing bits 18-19, Pocket LCD bits 16-17 -- so packing
+ * several elements into one address is the documented shape of a Core Options word, not an invention of ours.  What
+ * 0.1.47 measured was the OS writing the whole word, and docs/345's spec says why that is the expected result for a
+ * `writeonly` element: the read-modify-write cycle "requires the core to have both read and write support at each
+ * desired address, unless the element is flagged as writeonly", and an element with no read-back has nothing to
+ * compose into.  0.1.50 drops writeonly and packs music (bits 0-3), sfx (bits 4-7) and fit (bits 8-9) into
+ * 0xF700000C.  If the mirrored word holds music|sfx|fit at once, the read-back works on an undecoded address,
+ * packing is alive and 0xF7000010 frees up for a fourth setting.  If it holds one value at a time, the interact read
+ * is as dead as of_interact_get() looks (docs/342) and mk_dist's LAYOUT goes back to "proven". */
+/* No fallback constants with the same names as the generated ones: 0.1.50's first attempt defined OF_FIELD_FIT_SHIFT
+ * twice (the inert default and the real one) and the checker read whichever came first in the file -- an argument with
+ * itself.  An undeclared entry simply has no row, and a row that is absent is inert by construction. */
 enum { MENU_MUSIC, MENU_FIT, MENU_SFX, MENU_N };
 struct menu_var {
     const char *what;
@@ -1000,15 +1009,19 @@ struct menu_var {
     unsigned last;               /* last FIELD value read from that slot; 0 = the menu has not spoken */
 };
 static struct menu_var g_menu[MENU_N] = {
-    {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, MUSIC_SHIFT, MUSIC_MASK, MUSIC_BASE, 0x48u, 0x44u,
-     OF_MENU_SLOT_MUSIC, 0u, 0u},
-    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   SFX_SHIFT,   SFX_MASK,   SFX_BASE,   0x68u, 0x64u,
-     OF_MENU_SLOT_SFX,   0u, 0u},
-    /* Screen Fit lives outside Core Options now that only two addresses are wired (docs/356): L1+B cycles
-     * letterbox / stretch / scaler during play and night.ini's FIT covers the rest.  If interact.json declares it
-     * again the generated OF_IDX_FIT reappears, FIT_LIVE becomes 1, and this row becomes live. */
-    {"Screen Fit",   IDX_FIT,      MENU_FIT,   FIT_SHIFT,   FIT_MASK,   FIT_BASE,   0x53u, 0x51u,
-     OF_MENU_SLOT_FIT,   0u, 0u},
+    {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, OF_FIELD_MUSIC_SHIFT, OF_FIELD_MUSIC_MASK,
+     OF_FIELD_MUSIC_LO, OF_FIELD_MUSIC_HI, OF_FIELD_MUSIC_DFLT, OF_MENU_SLOT_MUSIC, 0u, 0u},
+    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   OF_FIELD_SFX_SHIFT,   OF_FIELD_SFX_MASK,
+     OF_FIELD_SFX_LO,   OF_FIELD_SFX_HI,   OF_FIELD_SFX_DFLT,   OF_MENU_SLOT_SFX,   0u, 0u},
+    /* Screen Fit is live exactly when interact.json declares it (LAYOUT in mk_dist picks which layout that is).
+     * Inert otherwise: idx < 0 skips the scan, so a row with no entry can never hunt for a word and mistake a
+     * counter for a menu that does not exist.  Its pad route -- L1+B cycles letterbox / stretch / scaler -- works in
+     * both layouts, and a live menu field does not override it: an apply only fires when the FIELD value changes, so
+     * the combo is free until the player moves the menu entry. */
+#ifdef OF_IDX_FIT                                /* mk_dist's LAYOUT decides whether Screen Fit is declared at all */
+    {"Screen Fit",   OF_IDX_FIT,   MENU_FIT,   OF_FIELD_FIT_SHIFT,   OF_FIELD_FIT_MASK,
+     OF_FIELD_FIT_LO,   OF_FIELD_FIT_HI,   OF_FIELD_FIT_DFLT,   OF_MENU_SLOT_FIT,   0u, 0u},
+#endif
 };
 
 /* Per-register trust, measured against every entry: a word is clean for an entry if EVERY sample it has ever shown
@@ -1093,7 +1106,8 @@ static int menu_slots_scan(void) {
     menu_sample();
     for (int k = 0; k < MENU_N; k++) {
         struct menu_var *m = &g_menu[k];
-        if (!FIT_LIVE && m->kind == MENU_FIT) continue;      /* no entry declared: nothing to read */
+        if (!m->what) continue;                   /* a row the layout does not declare: nothing to read, and a
+                                                   * zero-initialised hole must never be treated as an entry */
 
         if (m->slot && !menu_opt(m, periph_word(m->slot))) {      /* a word whose FIELD shows what the menu cannot
                                                                     * write was never the slot */
@@ -1233,7 +1247,11 @@ static void settings_beat(uint64_t now) {
     if (ch & OF_SET_VOL) {
         of_cdda_set_volume(of_setting_music_vol());
         of_mixer_set_group_volume(OF_MIXER_GROUP_SFX, of_setting_sfx_vol() & 0xff);
-        NLOG("settings: music_vol=%d applied from the menu\n", of_setting_music_vol());
+        /* Every stage in one line, because "it is quiet" has four possible causes and the log should name them. */
+        NLOG("settings: music_vol=%d applied from the menu | mixer master=%d music_voice=%d sfx_group=%d sfx_voice=%d"
+             " | gain sfx=%d%% cdda=%d%%\n",
+             of_setting_music_vol(), of_setting_master_vol(), of_setting_music_vol(),
+             of_setting_sfx_vol(), g_sfx_volume, of_setting_sfx_gain(), of_setting_cdda_gain());
     }
     if (ch & OF_SET_LCD)
         NLOG("settings: pocket lcd raw=%08x scr=%d\n", of_setting_lcd_raw(), of_setting_screen());

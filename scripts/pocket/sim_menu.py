@@ -71,9 +71,15 @@ def audit_entry(name, address, mask, options):
 
 # ---------------------------------------------------------------- 2. firmware model
 class Firmware:
-    def __init__(self, map_ok=True):
+    """compose=False is the measured behaviour (docs/358): the option value replaces the whole word.
+    compose=True is the behaviour Analogue's read-modify-write wording would give a core that answers the read:
+    only the element's own field changes, so several elements can share one word (which is how openfpgaOS's own
+    interact.json packs six entries into 0xF7000000).  0.1.50 exists to find out which one the OS does when the
+    element is NOT writeonly.""",
+    def __init__(self, map_ok=True, compose=False):
         self.word = {}                                    # peripheral word -> value
         self.map_ok = map_ok
+        self.compose = compose
 
     def mount(self, entries):
         self.entries = entries
@@ -88,7 +94,12 @@ class Firmware:
         if m is None:
             return None                                   # 0xF7000014 and friends: nothing arrives anywhere
         prev = self.word.get(m, 0)
-        self.word[m] = value                              # not value | (prev & ~field): the whole word
+        if self.compose:                                  # read-modify-write: keep the bits this element may not touch
+            m_raw = e["mask"] if isinstance(e["mask"], int) else int(e["mask"], 16)
+            mask = (m_raw ^ 0xFFFFFFFF) & 0xFFFFFFFF      # the bits this element owns
+            self.word[m] = (prev & ~mask) | value
+        else:
+            self.word[m] = value                          # the 0.1.47 measurement: the whole word
         return m, prev, value
 
 
@@ -230,9 +241,9 @@ PICKS_SHIPPED = [("Music Volume", 0x43), ("SFX Volume", 0x64), ("Music Volume", 
                  ("SFX Volume", 0x61), ("Music Volume", 0x44), ("SFX Volume", 0x68)]
 
 
-def run_scenario(title, mk, picks):
+def run_scenario(title, mk, picks, compose=False):
     print(f"\n=== {title}")
-    fw = Firmware()
+    fw = Firmware(compose=compose)
     entries = mk()
     fw.mount(entries)
     port = Port(entries, hunt=False)
@@ -247,8 +258,8 @@ def run_scenario(title, mk, picks):
         # word -- not a shared value.  Packing would have made them share one word, which is the point of scenario 2.
         fields = " ".join(f"{e['name'].split()[0].lower()}@{e['mirror']:03x}={port.field(e, fw.word.get(e['mirror'], 0)):x}"
                           for e in entries if e.get("mirror"))
-        print(f"  pick {name}={value:#x} -> word {m:08x}: {prev:08x} -> {v:08x}   [{fields}]")
-        for line in port.beat(m, v, 0):
+        print(f"  pick {name}={value:#x} -> word {m:08x}: {prev:08x} -> {fw.word.get(m, 0):08x}   [{fields}]")
+        for line in port.beat(m, fw.word.get(m, 0), 0):
             print("   ", line)
 
 
@@ -351,6 +362,8 @@ def main():
     run_scenario("2. packing three entries into one address (0.1.47), firmware writes the whole word",
                  scenario_packed, PICKS_PACKED)
     run_scenario("3. one entry per wired address (0.1.48)", scenario_shipped, PICKS_SHIPPED)
+    run_scenario("4. packing WITH read-modify-write (what 0.1.50 hopes for): one word, three settings",
+                 scenario_packed, PICKS_PACKED, compose=True)
     logs = [a for a in sys.argv[1:] if not a.startswith("--")]
     packed = "--packed" in sys.argv
     for path in logs or ["scratch/pocket/log_0147.sav"]:

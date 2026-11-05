@@ -72,6 +72,8 @@ static int      g_pending_valid;
 static int      g_slot = 1;
 static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
+static int      g_master_vol = 255;              /* the mixer output stage, never set by this port until 0.1.51 */
+static int      g_sfx_gain = 200, g_cdda_gain = 150;   /* percent, through of_gain16()'s knee (docs/361) */
 static int      g_tick_hz   = 0;   /* 0 = whatever PIT rate the game programs; see of_setting_tick_hz */
 static unsigned g_lcd_raw   = 0xDEADBEEFu;   /* 0xDEADBEEU until the bridge is read */
 static int      g_music_bridge = -1;         /* the raw interact word behind Music Volume */
@@ -392,11 +394,28 @@ static int cfg_int(const char *key, int dflt, const char *envkey) {
 #endif
 }
 
+static int clamp_gain(int v) {                  /* 100 = unity; of_gain16's curve is clamping-free to 212 */
+    if (v < 100) return 100;
+    if (v > 212) return 212;
+    return v;
+}
+
 static int clamp_vol(int v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
 
 void of_settings_load(void) {
     g_music_vol = clamp_vol(cfg_int("music_vol", 255, "NIGHT_MUSIC_VOL"));
     g_sfx_vol   = clamp_vol(cfg_int("sfx_vol",   255, "NIGHT_SFX_VOL"));
+    g_master_vol = clamp_vol(cfg_int("master_vol", 255, "NIGHT_MASTER_VOL"));
+    /* Sample gain, mixer volumes aside.  The PC build defaults to unity: the differential rig compares the port's
+     * audio against the shipped disc byte for byte (docs/332) and against the captured board stream (docs/164), and a
+     * gain stage in that path would make every one of those diffs a lie about the port's faithfulness. */
+#ifdef OF_PC
+    g_sfx_gain  = clamp_gain(cfg_int("sfx_gain", 100, "NIGHT_SFX_GAIN"));
+    g_cdda_gain = clamp_gain(cfg_int("cdda_gain", 100, "NIGHT_CDDA_GAIN"));
+#else
+    g_sfx_gain  = clamp_gain(cfg_int("sfx_gain", 200, "NIGHT_SFX_GAIN"));
+    g_cdda_gain = clamp_gain(cfg_int("cdda_gain", 150, "NIGHT_CDDA_GAIN"));
+#endif
     /* Both spellings are accepted, and the explicit one is what the card gets now.  A key called CDDA whose
      * value 0 means "not off" reads like a mute switch and then surprises whoever edits the ini on the card:
      * CDDA_OFF=0 / PAD_OFF=0 say what they mean, and the old short keys still work for old cards. */
@@ -537,6 +556,9 @@ int of_setting_apply_fit(int f) {         /* 0 letterbox, 1 stretch, 2 scaler --
 }
 int of_setting_music_vol(void) { return g_music_vol; }
 int of_setting_sfx_vol(void)   { return g_sfx_vol; }
+int of_setting_master_vol(void)  { return g_master_vol; }
+int of_setting_sfx_gain(void)  { return g_sfx_gain; }
+int of_setting_cdda_gain(void) { return g_cdda_gain; }
 int of_setting_cdda(void)      { return g_cdda_on; }
 int of_setting_pad(void)       { return g_pad_on; }
 int of_setting_tick_hz(void)   { return g_tick_hz; }

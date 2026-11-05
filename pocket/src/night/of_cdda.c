@@ -58,6 +58,7 @@ static uint32_t g_write;                                 /* write cursor in fram
 static uint32_t g_done_frames;                           /* frames taken from the disc */
 static int      g_running;
 static int      g_vol = 255;
+static int      g_gain_pct = 100;                /* of_cdda_set_gain(); 100 = unity */
 
 #ifndef OF_PC
 static of_mixer_handle_t g_voice[2];
@@ -160,7 +161,11 @@ static void voice_start(void) {
     of_mixer_set_loop_h(g_voice[1], 0, (int)CD_RING_FRAMES);
     of_mixer_set_vol_lr_h(g_voice[0], g_vol, 0);     /* the level the settings already settled on */
     of_mixer_set_vol_lr_h(g_voice[1], 0, g_vol);
-    of_mixer_set_group_volume(OF_MIXER_GROUP_MUSIC, g_vol);
+    /* The group stays at unity.  Setting it to the same number the voice volumes were set to applied the knob TWICE:
+     * the mixer multiplies group by voice, so the old MUSIC_VOL=128 default was 0.50 * 0.50 = 0.25 of the recorded
+     * level -- 12 dB of attenuation nobody asked for.  The voice carries the menu knob (group volume alone did not
+     * move the music on the device, see of_cdda_set_volume); the group is neutral. */
+    of_mixer_set_group_volume(OF_MIXER_GROUP_MUSIC, 255);
 #endif
 }
 
@@ -243,6 +248,25 @@ int32_t of_cdda_head(void) {
 #endif
 }
 
+int16_t of_gain16(int16_t x, int gain_pct) {
+    if (gain_pct == 100) return x;
+    int      sgn = (x < 0) ? -1 : 1;
+    int32_t  a = (x < 0) ? -(int32_t)x : (int32_t)x;        /* magnitude: -32768 stays a number, not UB */
+    int32_t  v = a * gain_pct / 100;
+    if (v > OF_GAIN_KNEE) {
+        /* Compress the excess, but never below what the disc recorded.  The first version of this curve pulled a
+         * full-scale sample DOWN (32767 -> 27647 at 150%), i.e. a "louder" knob quietly made the loudest hits
+         * softer -- a compressor with the makeup gain in the wrong place.  max() against the input is what makes the
+         * setting mean "at least as loud as the recording, never past the ceiling" (docs/361 §3). */
+        int32_t c = OF_GAIN_KNEE + (v - OF_GAIN_KNEE) / OF_GAIN_SLOPE;
+        v = (c < a) ? a : c;
+    }
+    if (v > 32767) v = 32767;                               /* unreachable below 212%, kept honest rather than trusted */
+    return (int16_t)(sgn * v);
+}
+
+void of_cdda_set_gain(int pct) { g_gain_pct = pct; }
+
 static void ring_write(const int16_t *stereo, uint32_t frames) {
     uint32_t done = 0;
     while (done < frames) {
@@ -251,8 +275,13 @@ static void ring_write(const int16_t *stereo, uint32_t frames) {
         uint32_t batch = frames - done;
         if (batch > contig) batch = contig;
         for (uint32_t i = 0; i < batch; i++) {
-            g_ring[0][w + i] = stereo[(done + i) * 2 + 0];
-            g_ring[1][w + i] = stereo[(done + i) * 2 + 1];
+            if (g_gain_pct == 100) {                  /* the common case stays a copy: 88 200 samples a second */
+                g_ring[0][w + i] = stereo[(done + i) * 2 + 0];
+                g_ring[1][w + i] = stereo[(done + i) * 2 + 1];
+            } else {
+                g_ring[0][w + i] = of_gain16(stereo[(done + i) * 2 + 0], g_gain_pct);
+                g_ring[1][w + i] = of_gain16(stereo[(done + i) * 2 + 1], g_gain_pct);
+            }
         }
 #ifndef OF_PC
         of_cache_flush_range(&g_ring[0][w], batch * sizeof(int16_t));
@@ -472,7 +501,7 @@ void     of_cdda_set_volume(int v) {
     /* A menu knob has to be audible the moment it moves.  Group volume alone was not enough on the device --
      * the music kept its level when the slider moved -- so the level also goes onto each voice, which is the
      * API openfpgaOS-Doom drives (i_sdlsound.c:197 of_mixer_set_vol_lr_h). */
-    of_mixer_set_group_volume(OF_MIXER_GROUP_MUSIC, g_vol);
+    of_mixer_set_group_volume(OF_MIXER_GROUP_MUSIC, 255);   /* neutral: the voice carries the knob, once */
     if (g_voice[0] != OF_MIXER_HANDLE_INVALID) of_mixer_set_vol_lr_h(g_voice[0], g_vol, 0);
     if (g_voice[1] != OF_MIXER_HANDLE_INVALID) of_mixer_set_vol_lr_h(g_voice[1], 0, g_vol);
 #endif

@@ -27,6 +27,6 @@ make -C pocket/src/night data     # -> scratch/pocket/, then `make deploy`
 | `nightlog.sav` | 17 | the host's diagnostic trail, opened through the SDK alias `save:7` |
 | `night.cfg` | 8 | the host's diagnostic trail (phases, clock probe, memstat) -- read it after a run |
 
-Settings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL` 0-255, `CDDA=1` mutes the CD music, `PAD=1` ignores the pad (edit the file on the card). On a desktop build the same knobs are `NIGHT_MUSIC_VOL`, `NIGHT_SFX_VOL`, `NIGHT_CDDA_OFF`, `NIGHT_PAD_OFF`.
+Settings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL`/`MASTER_VOL` 0-255, `SFX_GAIN`/`CDDA_GAIN` 100-212 percent, `CDDA=1` mutes the CD music, `PAD=1` ignores the pad (edit the file on the card). On a desktop build the same knobs are `NIGHT_MUSIC_VOL`, `NIGHT_SFX_VOL`, `NIGHT_CDDA_OFF`, `NIGHT_PAD_OFF`.
 
 In-game save keys (hold L1): `L1+Select` saves the current slot, `L1+Start` loads it, `L1+A` cycles slots 0-9. On a desktop build the same is `--save N --save-at FRAME` / `--load N`.

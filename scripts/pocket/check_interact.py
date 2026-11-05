@@ -40,7 +40,11 @@ def main():
     hdr = HDR.read_text()
     # The field decoders used to live in of_save.c; since 0.1.38 the host (main_of.c) owns them.  Rule 6 asks
     # "does the host extract the same field the JSON writes", so search whichever file carries the #define.
-    src = SAVE.read_text() + "\n" + (MAIN.read_text() if MAIN.exists() else "")
+    # The menu's field geometry is no longer hand-written in main_of.c: mk_dist generates OF_FIELD_* into
+    # of_interact_idx.h straight from interact.json, so the cross-check reads the generated header as well.
+    gen = Path("pocket/src/night/of_interact_idx.h")
+    src = SAVE.read_text() + "\n" + (MAIN.read_text() if MAIN.exists() else "") \
+          + "\n" + (gen.read_text() if gen.exists() else "")
 
     def mask_bits(v):
         """The bits a mask ALLOWS the element to write: the complement of its mask.  An element with no mask
@@ -169,9 +173,9 @@ def main():
     #    0.1.27 offered 0x00..0x80 for a field at bits 20-23: values outside the field they write, and the core
     #    refused to boot.  0 stays reserved for "nobody chose", because an untouched variable reads 0 on the wire
     #    and 0 is a legal volume (docs/341).
-    consts = {"Music Volume": ("OF_IDX_MUSIC", "MUSIC_SHIFT", "MUSIC_MASK"),
-              "Screen Fit":   ("OF_IDX_FIT",   "FIT_SHIFT",   "FIT_MASK"),
-              "SFX Volume":   ("OF_IDX_SFX",   "SFX_SHIFT",   "SFX_MASK")}
+    consts = {"Music Volume": ("OF_IDX_MUSIC", "OF_FIELD_MUSIC_SHIFT", "OF_FIELD_MUSIC_MASK"),
+              "Screen Fit":   ("OF_IDX_FIT",   "OF_FIELD_FIT_SHIFT",   "OF_FIELD_FIT_MASK"),
+              "SFX Volume":   ("OF_IDX_SFX",   "OF_FIELD_SFX_SHIFT",   "OF_FIELD_SFX_MASK")}
     for v in app:
         vals = [int(o["value"], 16) if isinstance(o["value"], str) else o["value"] for o in v["options"]]
         field = mask_bits(v)

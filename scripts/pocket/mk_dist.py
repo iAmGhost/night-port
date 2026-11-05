@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.49"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.52"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -274,49 +274,67 @@ def main():
     # to a high, deliberately odd band (0x41..0x48 and 0x51..0x53) for two reasons: no natural register chatter in
     # any captured log ever sat in those ranges, and each entry's DEFAULT value is then a sentinel the host can find
     # the slot with -- "a word that was 0 and is now 0x44" is this core's Music Volume, whatever slot the OS chose.
-    # THE MENU CHANNEL MAP, measured on hardware across three runs (docs/352, 354, 355, 356).  An app entry mounted at
-    # one of these two bridge words is mirrored into a peripheral word the app may read; nothing else is:
+    # THE MENU CHANNEL MAP, measured on hardware in five runs (docs/352, 354, 355, 356, 358).  A value declared at one
+    # of these bridge addresses is mirrored into this readable peripheral word -- and nothing else is mirrored at all:
     #
-    #   0xF700000C  ->  0x4000006c      in 0.1.42 (1..4), 0.1.43 (0x41..0x48) and 0.1.45 (0x41..0x48)
-    #   0xF7000010  ->  0x40000068      in 0.1.42 (5..8), 0.1.43 (0x51..0x53) and 0.1.45 (0x51..0x53)
-    #   0xF7000014  ->  nothing at all  (0.1.44 and 0.1.45: the value never appeared in any of the 96 words)
+    #   0xF700000C  ->  0x4000006c     0.1.42 (1..4), 0.1.43 (0x41..0x48), 0.1.45 (0x41..0x48), 0.1.48/49 (0x41..0x48)
+    #   0xF7000010  ->  0x40000068     0.1.42 (5..8),  0.1.43 (0x51..0x53), 0.1.45 (0x51..0x53), 0.1.48/49 (0x61..0x68)
+    #   0xF7000014  ->  nothing        0.1.44 and 0.1.45: never appeared in any of the 96 words
     #
-    # 0.1.45 decided which of the two candidate rules the OS follows, because it declared the entries in a DIFFERENT
-    # order than their addresses: Music Volume (0xF700000C) first, SFX Volume (0xF7000014) second, Screen Fit
-    # (0xF7000010) third.  Screen Fit -- declared LAST -- was mirrored at 0x40000068, and SFX -- declared SECOND -- was
-    # mirrored nowhere.  So the mirror follows the ADDRESS, not declaration order, and exactly two addresses are wired.
-    # It is not "the first two app variables", and it is not a slot table: it is two words.
+    # 0.1.45 proved it is the ADDRESS and not the declaration order (Screen Fit, declared LAST at 0xF7000010, was
+    # mirrored; SFX Volume, declared SECOND at 0xF7000014, was not).  An entry mounted on an address that is not in
+    # this map gets slot 0: the host then hunts, says "no peripheral slot", or does nothing -- it never guesses.
+    MEASURED_MIRROR = {0xF700000C: 0x4000006C, 0xF7000010: 0x40000068}
+
+    # TWO LAYOUTS, one flag apart, because the question of whether one word can hold several settings is still open.
     #
-    # Consequence: the port can put TWO settings in Core Options and has to choose which two.  Music Volume takes
-    # 0xF700000C and SFX Volume takes 0xF7000010 -- sound effects have no other route at all, while Screen Fit already
-    # has one the player can reach during play (L1+B cycles letterbox / stretch / scaler, docs/334 §5) and developers
-    # have night.ini's FIT.  Swapping Screen Fit back into the menu is one line below, and it costs SFX.
-    # ONE SETTING PER ADDRESS -- packing was tried and is dead (docs/357's experiment, docs/358 has the measurement).
-    # 0.1.47 mounted three entries in disjoint fields of 0xF700000C (music bits 0-3, sfx bits 4-7, fit bits 8-9) and the
-    # mirrored word proved the OS writes the WHOLE word, not the masked field:
+    #   "proven"  -- 0.1.48/0.1.49, verified on hardware.  One entry per wired address, whole-word option values.
+    #   "packed"  -- 0.1.47's idea, revived.  openfpgaOS's OWN interact.json packs six entries into 0xF7000000 with
+    #                disjoint masks (Enable Analogizer bit 15, SNAC Adapter bits 0-4, SNAC Controller Assignment
+    #                bits 6-9, Analogizer Video Out bits 10-13, 15kHz Timing bits 18-19, Pocket LCD bits 16-17), so
+    #                packing is the documented shape of a Core Options word.  What 0.1.47 measured is that the OS did
+    #                NOT compose our fields -- it wrote the whole word -- and the reason docs/345's spec gives for why
+    #                is the read-modify-write cycle: "each frame, all of the UI elements are read back from the core
+    #                at a specified 32-bit bridge address, updated with new user-adjusted values, and finally written
+    #                back", which "requires the core to have both read and write support at each desired address,
+    #                unless the element is flagged as writeonly".  A writeonly element has no read-back, so there is
+    #                nothing to compose INTO.  0.1.47 used writeonly -- so its whole-word result is what the spec
+    #                predicts, not what packing predicts.
     #
-    #   t=38.4s word=00000008  music=8 sfx=0 fit=0      player picked Music = Full
-    #   t=54.2s word=00000200  music=0 sfx=0 fit=2      picking Screen Fit erased Music's field
-    #   t=81.3s word=00000070  music=0 sfx=7 fit=0      picking SFX Volume erased it again
-    #
-    # Masks choose which bits the CORE may write to its own registers; they do not make the firmware read-modify-write
-    # an interact value, and `writeonly` is exactly what forbids the firmware reading the word it is about to write.
-    # So the scarce unit is the ADDRESS after all: docs/356's two-word map (0xF700000C -> 0x4000006c, 0xF7000010 ->
-    # 0x40000068) is the whole settings surface, and each of the two carries one entry.
-    #
-    # Screen Fit is therefore not in Core Options: sound effects have no other route at all, while panel fit has one the
-    # player reaches during play (L1+B cycles letterbox / stretch / scaler, docs/334) plus night.ini's FIT.  To trade
-    # them, move Screen Fit onto 0xF7000010 with option values in its own band and drop SFX Volume.
-    APP_MENU_SETTINGS = [
-        ("Music Volume", 130, "0xF700000C", "0xFFFFFF00", "0x44",
-         [("0x41", "Off"), ("0x42", "1/8"), ("0x43", "1/4"), ("0x44", "1/2"),
-          ("0x45", "5/8"), ("0x46", "3/4"), ("0x47", "7/8"), ("0x48", "Full")]),
-        ("SFX Volume", 131, "0xF7000010", "0xFFFFFF00", "0x64",
-         [("0x61", "Off"), ("0x62", "1/8"), ("0x63", "1/4"), ("0x64", "1/2"),
-          ("0x65", "5/8"), ("0x66", "3/4"), ("0x67", "7/8"), ("0x68", "Full")]),
-    ]
+    #                This layout drops writeonly, which is also what the user asked for (values must persist).  With
+    #                a read-back the OS can merge fields, and three settings fit in one word.  The prediction is test-
+    #                shaped: the mirrored word either holds music|sfx|fit at once (read-modify-write on an undecoded
+    #                address works, packing is alive and 0xF7000010 frees up) or it holds one value at a time (the
+    #                core's interact read is as dead as of_interact_get() looks, docs/342, and "proven" is the answer).
+    LAYOUT = "packed"
+
+    if LAYOUT == "proven":
+        APP_MENU_SETTINGS = [
+            ("Music Volume", 130, "0xF700000C", "0xFFFFFF00", "0x44",
+             [("0x41", "Off"), ("0x42", "1/8"), ("0x43", "1/4"), ("0x44", "1/2"),
+              ("0x45", "5/8"), ("0x46", "3/4"), ("0x47", "7/8"), ("0x48", "Full")]),
+            ("SFX Volume", 131, "0xF7000010", "0xFFFFFF00", "0x64",
+             [("0x61", "Off"), ("0x62", "1/8"), ("0x63", "1/4"), ("0x64", "1/2"),
+              ("0x65", "5/8"), ("0x66", "3/4"), ("0x67", "7/8"), ("0x68", "Full")]),
+        ]
+    else:
+        APP_MENU_SETTINGS = [
+            ("Music Volume", 130, "0xF700000C", "0xFFFFFFF0", "0x04",
+             [("0x01", "Off"), ("0x02", "1/8"), ("0x03", "1/4"), ("0x04", "1/2"),
+              ("0x05", "5/8"), ("0x06", "3/4"), ("0x07", "7/8"), ("0x08", "Full")]),
+            ("SFX Volume", 131, "0xF700000C", "0xFFFFFF0F", "0x40",
+             [("0x10", "Off"), ("0x20", "1/8"), ("0x30", "1/4"), ("0x40", "1/2"),
+              ("0x50", "5/8"), ("0x60", "3/4"), ("0x70", "7/8"), ("0x80", "Full")]),
+            ("Screen Fit", 132, "0xF700000C", "0xFFFFFCFF", "0x100",
+             [("0x100", "letterbox"), ("0x200", "stretch"), ("0x300", "scaler 320x200")]),
+        ]
+    # No "writeonly" flag: persist:true is what stores the choice, and it already worked with writeonly set (the
+    # firmware wrote Settings/iamghost.night/Interact/_core/interact_persist.json for 0.1.42's writeonly entries, and
+    # in 0.1.49 the mirrored words were still carrying the last picks -- 0x48 and 0x65 -- at the first sample of the
+    # next boot, before anything was touched).  Dropping writeonly is not what makes a value persist; it asks the OS
+    # for the read half of the read-modify-write cycle, which is the half the os25 bitstream has never answered.
     probe_vars = [
-        {"name": n, "id": i, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+        {"name": n, "id": i, "type": "list", "enabled": True, "persist": True,
          "address": a, "mask": m, "defaultval": d,
          "options": [{"value": v, "name": w} for v, w in opts]}
         for (n, i, a, m, d, opts) in APP_MENU_SETTINGS
@@ -332,16 +350,34 @@ def main():
     hdr = ["/* generated by scripts/pocket/mk_dist.py: indices into interact.json, which of_interact_get()",
            " * addresses by position and not by id (SDK README:543). */",
            "#ifndef OF_INTERACT_IDX_H", "#define OF_INTERACT_IDX_H"]
-    pairs = [("Pocket LCD", "OF_IDX_PLCD")]
-    if APP_INTERACT_PROBE:
-        pairs.append(("Music Volume", "OF_IDX_MUSIC"))
-        pairs.append(("SFX Volume", "OF_IDX_SFX"))
-    if APP_INTERACT_KNOBS:
-        pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
+    pairs = [("Pocket LCD", "OF_IDX_PLCD", None)]
+    const_of = {"Music Volume": "MUSIC", "SFX Volume": "SFX", "Screen Fit": "FIT"}
+    for (n, iid, a, m, d, opts) in APP_MENU_SETTINGS:
+        pairs.append((n, "OF_IDX_" + const_of[n], (n, a, m, d, opts)))
     pairs = tuple(pairs)
-    for name, const in pairs:
+    for name, const, spec in pairs:
         hdr.append("#define %-12s %d" % (const, idx[name]))
         hdr.append("#define %-12s %s" % ("DEFAULT_" + const, defaults[name]))
+        if spec is None:
+            continue
+        n2, addr, mask, dflt, opts = spec
+        mask_i = int(mask, 16)
+        writable = (~mask_i) & 0xFFFFFFFF
+        low = (writable & -writable).bit_length() - 1
+        width = writable.bit_length() - low
+        fmask = writable >> low
+        vals = sorted(int(v, 16) for v, _ in opts)
+        c = const_of[n2]
+        # The host reads a FIELD out of the mirror word: shift/mask straight out of the mask it declared, option values
+        # shifted down into that field, and the measured peripheral word that carries them (0 if no word has ever been
+        # seen to carry this address).  Declaring a layout must not require editing main_of.c as well -- the split
+        # between "what the JSON says" and "what hardware was measured to do with it" is the whole lesson of 0.1.44.
+        hdr.append("#define %-22s %du" % ("OF_FIELD_%s_SHIFT" % c, low))
+        hdr.append("#define %-22s 0x%Xu" % ("OF_FIELD_%s_MASK" % c, fmask))
+        hdr.append("#define %-22s %du" % ("OF_FIELD_%s_LO" % c, vals[0] >> low))
+        hdr.append("#define %-22s %du" % ("OF_FIELD_%s_HI" % c, vals[-1] >> low))
+        hdr.append("#define %-22s %du" % ("OF_FIELD_%s_DFLT" % c, int(dflt, 16) >> low))
+        hdr.append("#define %-22s 0x%08Xu" % ("OF_MENU_SLOT_%s" % c, MEASURED_MIRROR.get(int(addr, 16), 0)))
     # ...and how many there are.  of_interact_get() past the declared count is an index the OS has no entry for;
     # a diagnostic that reads the whole table must stop at the end of it.
     hdr.append("#define %-12s %d" % ("OF_INTERACT_COUNT", len(variables)))
@@ -390,8 +426,18 @@ def main():
         "ARGS=\n\n"
         "[night]\n"
         "RES=NIGHT.RES\n"
-        "MUSIC_VOL=128\n"     # the menu's Medium default, so the two agree until the menu is moved
+        "MUSIC_VOL=255\n"     # unity: the samples are the level, and the menu knob is what turns it down.  128 was
+                         # the old default, and because the group volume used to repeat the voice volume it
+                         # meant 0.50 * 0.50 = 0.25 of the recording (docs/361).
         "SFX_VOL=255\n"
+        "MASTER_VOL=255\n"  # the mixer output stage; openfpgaOS-Doom sets the same 255
+        "SFX_GAIN=200\n"      # sample gain through of_gain16's knee: the game's own samples are quiet,
+                         # the loudest one ever measured on the board is 93.8% of full scale, and the knee
+                         # cannot reach full scale before 212%, so this one cannot clip (docs/361).
+        "CDDA_GAIN=150\n"     # music gain.  6 of the 14 shipped tracks already peak at 0 dBFS, so above
+                         # unity this is a compressor -- quiet passages come up, loud ones get squeezed
+                         # rather than crack.  100 puts the disc back at exactly its own level.
+
         "CDDA_OFF=0\n"      # explicit off-flags: 0 = music and pad are live
         "PAD_OFF=0\n"
         # SCREEN=0 asks for the game alone.  SCREEN=2 (the host's console over the game picture) is the
@@ -442,7 +488,7 @@ def main():
         + f"| `{APP}_0..{SAVE_SLOTS - 1}.sav` | 10-{9 + SAVE_SLOTS} | save slots, created by the game on the first save |\n"
         + f"| `nightlog.sav` | 17 | the host's diagnostic trail, opened through the SDK alias `save:7` |\n"
         + f"| `{APP}.cfg` | 8 | the host's diagnostic trail (phases, clock probe, memstat) -- read it after a run |\n"
-        + "\nSettings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL` 0-255, "
+        + "\nSettings live in this folder's `night.ini` under `[night]`: `MUSIC_VOL`/`SFX_VOL`/`MASTER_VOL` 0-255, `SFX_GAIN`/`CDDA_GAIN` 100-212 percent, "
           "`CDDA=1` mutes the CD music, `PAD=1` ignores the pad (edit the file on the card). On a desktop "
           "build the same knobs are `NIGHT_MUSIC_VOL`, `NIGHT_SFX_VOL`, `NIGHT_CDDA_OFF`, `NIGHT_PAD_OFF`.\n"
         + "\nIn-game save keys (hold L1): `L1+Select` saves the current slot, `L1+Start` loads it, `L1+A` "

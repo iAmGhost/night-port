@@ -41,6 +41,9 @@ int  of_setting_apply_music_vol(int v);   /* returns OF_SET_VOL when it changed 
 int  of_setting_apply_fit(int f);
 int  of_setting_apply_sfx_vol(int v);
 int  of_setting_sfx_vol(void);
+int  of_setting_master_vol(void);      /* the mixer output stage; 255 = no attenuation */
+int  of_setting_sfx_gain(void);        /* percent, 100..212, applied through of_gain16()'s knee */
+int  of_setting_cdda_gain(void);
 int  of_setting_cdda(void);
 int  of_setting_pad(void);
 int  of_setting_tick_hz(void);        /* 0 = the PIT rate the game programs */

@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.39"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.40"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -229,6 +229,25 @@ def main():
     # Flipping this flag back on is the experiment, and it is a one-line experiment: check_interact.py now refuses
     # an app element on 0xF7000000, so re-enabling also means editing the rule that encodes the measurement.
     APP_INTERACT_KNOBS = False
+    # 0.1.40 adds ONE entry whose entire purpose is a question: if this core declares a value of its own, does it
+    # ever land somewhere the app can read?  The three paths that looked plausible are all closed by measurement --
+    # the interact ecall answers a fixed table of junk, an app read of 0xF7000000 hangs the core, and an app element
+    # IN 0xF7000000 stops the core booting.  But 0.1.38 found openfpgaOS publishing Pocket LCD at periph register
+    # 0x40000080 (On/Off/Terminal all observed, bits 16-17 exactly as interact.json declares), which means the OS
+    # mirrors menu state into its own peripheral page -- a page an app may read.
+    # So: declare a value, move it, and watch 96 registers for one that follows it.  If a word steps 1 -> 2 -> 3 -> 4
+    # in step with the menu, NIGHT's own settings can become real menu settings.  If none does, the answer is final
+    # and night.ini plus the pad combo stop being a workaround and become the design.
+    # Address 0xF700000C: a bridge word no openfpgaOS core decodes, which is exactly why it is SAFE to declare --
+    # 0.1.25/26 mounted knobs there and the core booted and ran for hours (it was 0.1.27 and 0.1.34, both INSIDE
+    # 0xF7000000, that never came up).  Mask 0xFFFFFFF0 leaves every bit untouched except 0-3, and the option values
+    # 0x01..0x04 sit inside that field, which is the shape 0.1.27 and 0.1.32 violated.
+    # "writeonly" is the load-bearing guess: Analogue's rule is that the read-modify-write cycle "requires the core
+    # to have both read and write support at each desired address, unless the element is flagged as writeonly", and
+    # an entry the bitstream does not decode has neither.  If writeonly is what makes an undecoded element movable in
+    # the UI, this probe shows it in the menu itself; if the Pocket rejects the flag for a list, the core will not
+    # boot and APP_INTERACT_PROBE goes back to False.
+    APP_INTERACT_PROBE = True
     app_vars = ([] if not APP_INTERACT_KNOBS else [
         # Well formed, and still fatal.  Kept here as the exact shape to retry -- if a future openfpgaOS build
         # makes app fields readable (or documents a page an app may own), these two entries are the candidate.
@@ -247,7 +266,15 @@ def main():
              {"value": "0x18000000", "name": "Scaler 320x200"}]},
         # No tick-rate knob: a developer's instrument, night.ini TICK_HZ only (docs/341).
     ])
-    variables = base + app_vars
+    probe_vars = ([] if not APP_INTERACT_PROBE else [
+        {"name": "Probe Value", "id": 120, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+         "address": "0xF700000C", "mask": "0xFFFFFFF0", "defaultval": "0x01", "options": [
+             {"value": "0x01", "name": "None"},
+             {"value": "0x02", "name": "Low"},
+             {"value": "0x03", "name": "Mid"},
+             {"value": "0x04", "name": "High"}]},
+    ])
+    variables = base + app_vars + probe_vars
     jw(core_dir / "interact.json",
        {"interact": {"magic": "APF_VER_1", "variables": variables, "messages": []}})
 
@@ -259,6 +286,8 @@ def main():
            " * addresses by position and not by id (SDK README:543). */",
            "#ifndef OF_INTERACT_IDX_H", "#define OF_INTERACT_IDX_H"]
     pairs = [("Pocket LCD", "OF_IDX_PLCD")]
+    if APP_INTERACT_PROBE:
+        pairs.append(("Probe Value", "OF_IDX_PROBE"))
     if APP_INTERACT_KNOBS:
         pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
     pairs = tuple(pairs)

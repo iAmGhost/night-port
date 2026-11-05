@@ -880,7 +880,30 @@ static void periph_named(void) {
     g_periph_lcd = lcd; g_periph_fbsize = sz; g_periph_fbw = w; g_periph_scaler = sc;
 }
 
+static void periph_scan(int full);            /* defined just below; probe_watch brackets a change with it */
+
+#ifdef OF_IDX_PROBE
+/* Watch the value this core declared.  Whatever the OS says about it, the point is the pairing: this line carries a
+ * timestamp, and so does every periph dump and every register move, so a word that steps 1 -> 2 -> 3 -> 4 across the
+ * same timestamps is a word that carries a setting the app can read. */
+#define PROBE_SHIFT 0                        /* interact.json: mask 0xFFFFFFF0 writes bits 0-3 only */
+#define PROBE_MASK  0x0Fu                      /* and the four option values are 1..4 inside that field */
+static unsigned g_probe_seen = 0xFFFFFFFFu;
+static void probe_watch(void) {
+    unsigned v = 0;
+    long e = of_interact_probe(OF_IDX_PROBE, &v);
+    unsigned field = (v >> PROBE_SHIFT) & PROBE_MASK;   /* the same field interact.json writes */
+    if (field == g_probe_seen) return;
+    uint64_t t = sys_now_us();
+    NLOG("probe t=%u.%us: interact[%d] err=%ld val=%08x field=%u\n",
+         (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), OF_IDX_PROBE, e, v, field);
+    g_probe_seen = field;
+    if (of_setting_diag() & OF_DIAG_PERIPH) periph_scan(1);   /* bracket the change with a full snapshot */
+}
+#endif
+
 static void periph_scan(int full) {
+    uint64_t tstamp = sys_now_us();
     for (int i = 0; i < OF_PERIPH_WORDS; i++) {
         uint32_t v = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
         if (full && (i % 8) == 0) {
@@ -888,7 +911,8 @@ static void periph_scan(int full) {
             for (int j = i; j < i + 8 && j < OF_PERIPH_WORDS; j++)
                 n += snprintf(acc + n, sizeof acc - (size_t)n, " %08x",
                               (unsigned)*(volatile uint32_t *)(OF_PERIPH_BASE + 4u * j));
-            NLOG("periph %04x:%s\n", 4u * i, acc);
+            NLOG("periph t=%u.%us %04x:%s\n", (unsigned)(tstamp / 1000000ull),
+                 (unsigned)((tstamp / 100000ull) % 10ull), 4u * i, acc);
         }
         if (g_periph_prev[i] != v) {
             /* Stamped with wall time on purpose (docs/350): correlating a menu change with a register needs the
@@ -1244,6 +1268,10 @@ static void tick_pump(void) {
                  * neither behaviour distinguishes those two, but a value that HOLDS and then CHANGES does. */
                 static unsigned probe_tick;
                 static int interact2_done;
+#ifdef OF_IDX_PROBE
+                probe_watch();                      /* not gated on DIAG: it is one ecall a second and it is the
+                                                     * thing the run is for */
+#endif
                 if (of_setting_diag() & OF_DIAG_PERIPH) {
                     periph_named();                 /* four registers, by name: cheap, proven safe, and the only
                                                      * menu state this OS has ever been seen to publish */

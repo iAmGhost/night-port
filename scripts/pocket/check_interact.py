@@ -24,6 +24,7 @@ JSON = REPO / "pocket/dist/night/Cores/iamghost.night/interact.json"
 BASE = REPO / "pocket/dist/sdk/Cores/ThinkElastic.openfpgaOS/interact.json"
 HDR = REPO / "pocket/src/night/of_interact_idx.h"
 SAVE = REPO / "pocket/src/night/of_save.c"
+MAIN = REPO / "pocket/src/night/main_of.c"
 
 fails = 0
 
@@ -37,7 +38,9 @@ def fail(msg):
 def main():
     variables = json.loads(JSON.read_text())["interact"]["variables"]
     hdr = HDR.read_text()
-    src = SAVE.read_text()
+    # The field decoders used to live in of_save.c; since 0.1.38 the host (main_of.c) owns them.  Rule 6 asks
+    # "does the host extract the same field the JSON writes", so search whichever file carries the #define.
+    src = SAVE.read_text() + "\n" + (MAIN.read_text() if MAIN.exists() else "")
 
     def mask_bits(v):
         """The bits a mask ALLOWS the element to write: the complement of its mask.  An element with no mask
@@ -98,7 +101,7 @@ def main():
     #    definition is the one known to work on it; a hand-written approximation is what put our sliders on words
     #    the core does not decode (docs/336) and left "Analogizer 15kHz Timing" out of a menu that describes the
     #    same word the core decodes.
-    APP_NAMES = ("Music Volume", "Screen Fit")
+    APP_NAMES = ("Music Volume", "Screen Fit", "Probe Value")
     app = [v for v in variables if v["name"] in APP_NAMES]
     reserved = [v for v in variables if v["name"] not in APP_NAMES]
     if BASE.exists():
@@ -126,6 +129,9 @@ def main():
     #    0x03FE0000 / 0x03FE0008 (0.1.32).  So the fatal variable is the address, not the bit position: the
     #    firmware rewrites each declared element's field of that word every frame, and openfpgaOS's core_top is the
     #    consumer.  An app element inside it is a periodic write at core-owned state.
+    # The probe entry is an app element, and it must obey the same two rules the dead cores wrote into this file:
+    # never the control word, and never a mask that lets the element write nothing.  Its address (0xF700000C) is a
+    # word no openfpgaOS core decodes, which 0.1.25/26 proved harmless to declare.
     CONTROL_WORDS = {"0xF7000000"}
     for v in app:
         if v["address"] in CONTROL_WORDS:
@@ -164,7 +170,8 @@ def main():
     #    refused to boot.  0 stays reserved for "nobody chose", because an untouched variable reads 0 on the wire
     #    and 0 is a legal volume (docs/341).
     consts = {"Music Volume": ("OF_IDX_MUSIC", "MUSIC_SHIFT", "MUSIC_MASK"),
-              "Screen Fit":   ("OF_IDX_FIT",   "FIT_SHIFT",   "FIT_MASK")}
+              "Screen Fit":   ("OF_IDX_FIT",   "FIT_SHIFT",   "FIT_MASK"),
+              "Probe Value":  ("OF_IDX_PROBE", "PROBE_SHIFT", "PROBE_MASK")}
     for v in app:
         vals = [int(o["value"], 16) if isinstance(o["value"], str) else o["value"] for o in v["options"]]
         field = mask_bits(v)

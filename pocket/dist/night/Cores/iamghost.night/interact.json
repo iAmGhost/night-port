@@ -193,6 +193,35 @@
                     "adjust_small": 1,
                     "adjust_large": 4
                 }
+            },
+            {
+                "name": "Probe Value",
+                "id": 120,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "writeonly": true,
+                "address": "0xF700000C",
+                "mask": "0xFFFFFFF0",
+                "defaultval": "0x01",
+                "options": [
+                    {
+                        "value": "0x01",
+                        "name": "None"
+                    },
+                    {
+                        "value": "0x02",
+                        "name": "Low"
+                    },
+                    {
+                        "value": "0x03",
+                        "name": "Mid"
+                    },
+                    {
+                        "value": "0x04",
+                        "name": "High"
+                    }
+                ]
             }
         ],
         "messages": []

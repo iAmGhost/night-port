@@ -47,10 +47,20 @@
 void rig_screen_init(const char *dir, int witness_every);
 void rig_screen_frame(long t_ms, unsigned long long frame, const void *pixels, int w, int h,
                       int ri, int gi, int bi);
+/* The state half of the same sink: the DS cell map, the record blocks and the entity walk, which is what
+ * scripts/rig/diff_state.py and scripts/rig/ent_list.py read.  Without it a Pocket-host dump only had frames,
+ * so the pocket path could not be compared with the SDL host on state -- only on pictures (docs/333 compared
+ * mean RGB because that was all it had). */
+void rig_init(const char *dir, int hz);
+void rig_poll(long t_ms, unsigned long long frame, unsigned long long audio_bytes);
+void rig_close(void);
 static const char *g_rig_dir;
+static int g_rig_hz = 10;                      /* src/app/main.c's own default, so both hosts stamp the same grid */
+static int g_rig_witness = 8;
 #endif
 
 #include <setjmp.h>
+#include <sys/stat.h>   /* mkdir for the rig's arena witness (the docs/62 comparison basis) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -409,6 +419,30 @@ static void present(void) {
 #endif
 
 #ifdef OF_PC
+    /* docs/62's comparison basis, on the Pocket path: the ARENA bytes behind the picture, not the composed
+     * bitmap.  Index-vs-index against the shipped PCX is byte-exact and says nothing about the palette, which
+     * is the point -- fn_040660 ramps a card in over 0x19 steps, so an RGB sample mid-fade cannot match the
+     * card's trailer palette at all, while the arena is identical from the first frame that holds the card.
+     * Bounded on purpose: every 8th presented frame, at most 120 raws, so a nine-stage sweep is tens of MB. */
+    static int g_vidraw = -1;
+    static int g_raw_count;
+    if (g_vidraw < 0) g_vidraw = getenv("NIGHT_VIDRAW") ? 1 : 0;
+    if (g_vidraw && g_rig_dir && (g_frames % 8u) == 0u && g_raw_count < 120) {
+        char sub[1200], rpath[1400];
+        snprintf(sub, sizeof sub, "%s/arena", g_rig_dir);
+        mkdir(sub, 0777);
+        snprintf(rpath, sizeof rpath, "%s/%06llu_%dx%d.raw", sub, (unsigned long long)g_frames, vw, vh);
+        FILE *rf = fopen(rpath, "wb");
+        if (rf) {
+            fwrite(src, 1, (size_t)vw * vh, rf);
+            ptrdiff_t delta = (ptrdiff_t)((const uint8_t *)(uintptr_t)g_dat_633b0 - (const uint8_t *)g_video_ram);
+            fprintf(rf, "#base_delta=%td#ents=%d#pal", delta, (int)g_dat_53c68);
+            fwrite(g_pal_rgb, 1, 768, rf);
+            fclose(rf);
+            g_raw_count++;
+        }
+    }
+
     if (g_rig_dir) {                 /* the game's own composed picture, at its own resolution */
         static uint32_t *rgba;
         if (!rgba) rgba = (uint32_t *)malloc((size_t)vw * vh * 4);
@@ -1545,6 +1579,12 @@ static void tick_pump(void) {
         if (d > g_present_us_max) g_present_us_max = d;
         g_present_us = d;
         g_frames++;
+#ifdef OF_PC
+        /* The rig's state witness on the same grid as its screen witness.  audio_bytes is the Red Book the host
+         * has actually delivered (2352 bytes a sector), the same quantity src/app/main.c hands the sink. */
+        if (g_rig_dir) rig_poll((long)(now / 1000ull), (unsigned long long)g_frames,
+                                (unsigned long long)of_cdda_pos() * 2352ull);
+#endif
         g_present_next_us = now + PRESENT_PERIOD_US;
         if (g_frames_limit && g_frames >= (uint32_t)g_frames_limit) g_quit = 1;
     }
@@ -1778,6 +1818,10 @@ int main(int argc, char **argv) {
         if (!strcmp(argv[i], "--frames") && i + 1 < argc) g_frames_limit = atol(argv[++i]);
 #ifdef OF_PC
         else if (!strcmp(argv[i], "--rig-dump") && i + 1 < argc) g_rig_dir = argv[++i];
+        else if (!strcmp(argv[i], "--rig-hz") && i + 1 < argc) g_rig_hz = atoi(argv[++i]);
+        /* Full-picture witnesses are 4 bytes a pixel; a nine-stage sweep does not need them when the arena
+         * raws (1 byte a pixel, the docs/62 basis) are what the comparison reads.  0 turns them off. */
+        else if (!strcmp(argv[i], "--rig-witness") && i + 1 < argc) g_rig_witness = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--warp-stage") && i + 1 < argc) g_warp_stage_cli = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--save") && i + 1 < argc) g_save_slot = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--save-at") && i + 1 < argc) g_save_at = atoi(argv[++i]);
@@ -1882,7 +1926,11 @@ int main(int argc, char **argv) {
 
 
 #ifdef OF_PC
-    if (g_rig_dir) rig_screen_init(g_rig_dir, 8);
+    if (g_rig_dir) {
+        rig_screen_init(g_rig_dir, g_rig_witness);
+        rig_init(g_rig_dir, g_rig_hz);
+        NLOG("rig: state cells dumping to %s at %d Hz\n", g_rig_dir, g_rig_hz);
+    }
 #endif
 
 #ifndef OF_PC
@@ -2069,6 +2117,9 @@ int main(int argc, char **argv) {
     g_escape_armed = 0;
     g_quit = 1;
     of_cdda_stop();                 /* closes the witness WAV (and its header fix-up) on the way out */
+#ifdef OF_PC
+    if (g_rig_dir) rig_close();
+#endif
     present();
     printf("frames presented: %u  ticks: %u  cdda tracks: %u  sfx voices: %u\n",
            g_frames, g_timer_calls, of_cdda_tracks(), g_of_sfx_plays);

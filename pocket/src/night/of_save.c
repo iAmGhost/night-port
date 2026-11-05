@@ -448,8 +448,13 @@ void of_settings_load(void) {
         g_lcd_raw = (unsigned)lcd;
         if (mv) g_music_vol = clamp_vol(mv);
         if (fit >= 0) g_fit = fit;
-        /* SCREEN=-1 follows the Pocket LCD field, which is now read off the word the firmware writes. */
-        if (g_screen < 0) g_screen = (lcd == OF_PLCD_TERMINAL) ? 1 : 0;
+        /* SCREEN=-1 is left UNRESOLVED now.  It used to be answered here from the bridge, which is either fatal
+         * to read (0xF7000000) or empty (the ecall), so resolving it at load time silently turned -1 into 0.  The
+         * follow happens per second in main_of.c from periph register 0x40000080, where 0.1.38 saw On/Off/Terminal
+         * actually land; with the periph probe off it behaves as 0. */
+        if (g_screen < 0)
+            SLOG("screen: -1 follows the core's Pocket LCD register 0x40000080 (needs DIAG bit 0); until a"
+                 " reading arrives it behaves as 0\n");
         SLOG("bridge decoded: music=%d fit=%d lcd=%08x\n", mv, fit, (unsigned)lcd);
     }
 #endif

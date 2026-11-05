@@ -47,6 +47,7 @@ int  of_setting_sfx_gain(void);        /* percent, 100..212, applied through of_
 int  of_setting_cdda_gain(void);
 int  of_setting_cdda(void);
 int  of_setting_pad(void);
+int  of_setting_pump_audio_tick(void);  /* 0 (default) = drain per pump entry; 1 = per tick (task-9 A/B) */
 int  of_setting_tick_hz(void);        /* 0 = the PIT rate the game programs */
 int  of_setting_music_bridge(void);   /* the raw interact word behind Music Volume */
 int  of_setting_fit(void);          /* 0 letterbox (default), 1 stretch 320x200 -> 320x240, 2 ask the scaler for 320x200 */

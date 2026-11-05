@@ -40,6 +40,7 @@ Three of them are in **Core Options** on the device -- Music Volume, SFX Volume,
 | `CDDA` `PAD` | 0 | `1` mutes the CD music / ignores the pad |
 | `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |
 | `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |
+| `PUMP_AUDIO_TICK` | 0 | 0 = drain the board's DMA byte ring on every pump entry (the shape every build has used); 1 = drain it once per 490 Hz tick. The hardware A/B lever for the 267 000-pump-entries-a-frame finding (docs/369), off by default because that ring is the one the game is writing into |
 | `LOG` | 0 | 1 writes `Saves/night/common/nightlog.sav`, the diagnostic trail this port was measured with |
 | `DIAG` | 0 | which experimental bus probes a run may perform (1 periph scan, 2 analogizer, 4 interact census) |
 

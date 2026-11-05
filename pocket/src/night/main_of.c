@@ -1524,6 +1524,7 @@ static void input_pump(void) {
  * sys_port_spin, which calls this function), so its stack depth is a game property, not a host one.
  * Watching the depth is what separates "the host over-flew the stack" from "the game wrote out of
  * bounds" -- the cdda path is the one that pushes libc (fopen/fread) on top of that depth. */
+static uint32_t g_audio_gate;                     /* the tick the board drain last ran on (PUMP_AUDIO_TICK) */
 static uint32_t g_warp_gate;                      /* the tick the warp/save pumps last ran on */
 static int g_depth, g_depth_max;
 /* task-9 (docs/369): how many times a frame the pump is actually entered.  g_pump_calls counts only the visits
@@ -1542,7 +1543,15 @@ static void tick_pump(void) {
         if ((g_depth % 64) == 0) printf("pump depth=%u\n", (unsigned)g_depth);
     }
 
-    audio_pump();
+    /* night.ini PUMP_AUDIO_TICK=1 puts the board drain on the tick too (task-9's A/B, docs/369).  The shipping
+     * shape is 0: this drain empties the byte ring the game's DMA transfers write into, and a gated drain can
+     * leave up to ~2 ms of already-requested samples sitting in that ring.  Experiment, not default -- which is
+     * why the boot prints the shape and why a run is judged on the budget line's sfx plays/drops/steals and the
+     * cdda dry/audio_low counters. */
+    if (!of_setting_pump_audio_tick() || g_audio_gate != g_timer_calls) {
+        g_audio_gate = g_timer_calls;
+        audio_pump();
+    }
     cdda_pump();
     /* Gated to the game's own tick, for the same reason the CDDA pump is (docs/364 §3) and for the same reason
      * the pad pump already was (one poll per ~8 ms, docs/333): neither decision has a cadence finer than a frame.
@@ -1979,6 +1988,8 @@ int main(int argc, char **argv) {
     NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d file_log=%d\n",
          of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
          of_setting_tick_hz(), of_setting_screen(), g_log_ok);
+    NLOG("settings: pump_audio_tick=%d (0 = board drain per pump entry, 1 = per tick)\n",
+         of_setting_pump_audio_tick());
     NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
          of_setting_fit());
     NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"

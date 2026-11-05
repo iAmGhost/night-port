@@ -60,3 +60,27 @@ recompile) *then* `make deploy`, and then `strings … | grep ^0.1.` on the card
 deploy that reports success is not evidence; the two strings matching is.
 
 Fixture suite after the change: `== ALL PASS ==`.  `src/f` untouched.
+
+## 5. The A/B lever, shipped off: `night.ini PUMP_AUDIO_TICK`
+
+Since the risky half is `audio_pump()`, it gets a switch rather than a decision: `cfg_int("pump_audio_tick", 0,
+"NIGHT_PUMP_AUDIO_TICK")` in `of_save.c`, gating the drain on `g_timer_calls` the same way the CDDA, warp and save
+pumps are gated.  **Default 0 = the shape every build has always had.**  The boot prints which shape a run is in
+(`settings: pump_audio_tick=0 (0 = board drain per pump entry, 1 = per tick)`), and the README on the card documents
+the key, so a hardware A/B is one line.
+
+Desktop A/B, stage 1, 2 000 frames, seed 1234, same binary and data:
+
+| `PUMP_AUDIO_TICK` | present mean | present worst | SFX plays/drops/steals | cdda sectors | `dry` | `audio_low` | `ahead_min` |
+|---|---|---|---|---|---|---|---|
+| 0 (shipping) | 504 µs | 3 770 µs | 5 / 0 / 0 | 2 061 of 19 639 | 0 | 0 | 70 066 (1.59 s) |
+| 1 (gated) | 496 µs | 1 585 µs | 5 / 0 / 0 | 2 061 of 19 639 | 0 | 0 | 70 085 (1.59 s) |
+
+Nothing about the *game* changed -- the same sectors delivered, five sounds played, none dropped, none stolen, no
+underrun sighting, identical disc reads.  On the desktop the cost difference is inside the noise.  The open question
+is the device, where 267 000 pump entries a frame are real work: whether gating the drain there recovers measurable
+frame time without moving `sfx=…/…/…` or `dry`, which is exactly the two columns a card log already reports.
+
+Card now at **0.1.57** (`night.elf` md5 `29f3b8826e11128a46ca93091e9ccac0` == the build; `core.json` 0.1.57), staged
+`SCREEN=-1 DIAG=1 LOG=1 PUMP_AUDIO_TICK=0`.  Two boots -- one with `PUMP_AUDIO_TICK=0`, one with `1` -- and the
+`budget` lines decide this lever.

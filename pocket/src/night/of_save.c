@@ -190,6 +190,8 @@ static int fit_from_bridge(unsigned word) {
 static int      g_fit_bridge = 0, g_interact_err = 0;
 static int      g_diag = 0;          /* night.ini DIAG=: which experimental probes this run may perform */
 static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the source of every field above */
+static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain the board ring per pump entry
+                                           * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1;   /* 1 = stretch: the shipped default */
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
@@ -455,6 +457,10 @@ void of_settings_load(void) {
      * forward and back.  Now that a 320x200 present costs 1.8 ms median there is nothing left for the skip
      * to buy in the places it was doing the damage; BLIT_SKIP=1 re-arms it for performance experiments. */
     g_fb_mode = cfg_int("fb_mode",       1, "NIGHT_FB_MODE");   /* 1 = ask the OS for a 640x480 source FB */
+    /* task-9 (docs/369): the board drain runs on EVERY pump entry, and the pump is entered ~267 000 times a
+     * frame.  Gating it to the game's tick is the obvious lever and the risky one at once -- it empties the byte
+     * ring the game's own DMA transfers write into -- so it ships off and a hardware run A/Bs it with one line. */
+    g_pump_audio_tick = cfg_int("pump_audio_tick", 0, "NIGHT_PUMP_AUDIO_TICK");
     /* How the 320x200 game picture meets the 320x240 panel.  1 (the default) fills the panel: 40 of the 200
      * rows are shown twice, one every fifth row, which is the evenest row-doubling stretch there is -- and
      * 320x200 on a 4:3 CRT *was* a 1.2x vertical stretch, so this reproduces the proportions the original was
@@ -582,6 +588,7 @@ int of_setting_fit(void)       { return g_fit; }      /* 0 letterbox, 1 stretch,
 int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
+int  of_setting_pump_audio_tick(void) { return g_pump_audio_tick; }
 int  of_setting_fb_mode(void)   { return g_fb_mode; }     /* 1 = use a native 640x480 source framebuffer if the OS offers one */
 int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }
 int  of_setting_bridge_word(void) { return (int)g_bridge_word; }

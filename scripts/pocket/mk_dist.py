@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.18"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.19"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
@@ -148,8 +148,15 @@ def main():
         sys.exit("a data slot id exceeds 31; the plan is renumbered wrong (ids stay in 0..31 here)")
     jw(core_dir / "data.json", {"data": {"magic": "APF_VER_1", "data_slots": data_slots}})
 
+    # The SDK's own core (dist/sdk/Cores/ThinkElastic.openfpgaOS/video.json, and the pocket template) offers
+    # eight scaler modes, 640x480 among them.  Ours declared 320x240 only -- which is why asking the OS for a
+    # 640x480 source framebuffer "succeeded" (rc=0, 41 ms) and showed nothing: the core's display path had no
+    # scaler mode to put it on the LCD with.  A source mode the scaler cannot map is a black screen.
+    modes = [(320, 240, 4, 3), (320, 200, 4, 3), (320, 224, 10, 7), (320, 256, 5, 4),
+             (320, 288, 10, 9), (400, 300, 4, 3), (256, 240, 4, 3), (640, 480, 4, 3)]
     jw(core_dir / "video.json", {"video": {"magic": "APF_VER_1", "scaler_modes": [
-        {"width": 320, "height": 240, "aspect_w": 4, "aspect_h": 3, "rotation": 0, "mirror": 0},
+        {"width": w, "height": h, "aspect_w": aw, "aspect_h": ah, "rotation": 0, "mirror": 0}
+        for (w, h, aw, ah) in modes
     ]}})
     jw(core_dir / "audio.json", {"audio": {"magic": "APF_VER_1"}})
     jw(core_dir / "variants.json", {"variants": {"magic": "APF_VER_1", "variant_list": []}})

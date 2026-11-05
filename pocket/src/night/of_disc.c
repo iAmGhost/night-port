@@ -16,6 +16,7 @@
  * cd_iso.c exists only to convert a *disc* LBA into the single IMG's file sectors.
  */
 #include "of_disc.h"
+#include "of_log.h"
 #include "sys/sys.h"
 
 #include "disc_table.h"
@@ -123,18 +124,41 @@ int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
     uint32_t off_sectors = disc_lba - t->lba;
 
 #ifndef OF_PC
-    /* "slot:N" is the SDK's documented direct slot handle (README "File I/O"): stdio over the data
-     * slot, which is the same read path fopen("NIGHT.RES") uses for the resource container. */
+    /* "slot:N" is the SDK's documented direct slot handle (README "File I/O"): stdio over the data slot, the
+     * same read path fopen("NIGHT.RES") uses.  A 4 s prefill is 300 sector reads, and the old code opened and
+     * closed the slot for every one of them -- 300 SD opens for 705 KB, and a failure anywhere in that run
+     * ended the prefill ("cdda refused: prefill short (111 of 300 sectors)") with nothing said about which
+     * sector, which slot, or how much arrived.  One handle per track, seek only when the read is not the next
+     * sector in order, and a refusal that names the slot, the sector and the byte count. */
+    static FILE *af;
+    static int   a_slot = -1;
+    static long  a_next = -1;
     int slot = of_disc_track_slot(t->track);
     if (slot < 0) return -1;
-    char name[16];
-    snprintf(name, sizeof name, "slot:%d", slot);
-    FILE *f = fopen(name, "rb");
-    if (!f) return -1;
-    if (fseek(f, (long)off_sectors * IMG_SECTOR, SEEK_SET) != 0) { fclose(f); return -1; }
-    size_t got = fread(out2352, 1, IMG_SECTOR, f);
-    fclose(f);
-    return got == IMG_SECTOR ? 0 : -1;
+    if (a_slot != slot) {
+        if (af) { fclose(af); af = 0; }
+        char name[16];
+        snprintf(name, sizeof name, "slot:%d", slot);
+        af = fopen(name, "rb");
+        if (!af) { a_slot = -1; a_next = -1; of_log_line("disc: fopen \"%s\" failed\n", name); return -1; }
+        a_slot = slot; a_next = -1;
+    }
+    long off = (long)off_sectors * IMG_SECTOR;
+    if (a_next != off) {
+        if (fseek(af, off, SEEK_SET) != 0) {
+            of_log_line("disc: seek slot %d to sector %u failed\n", slot, off_sectors);
+            fclose(af); af = 0; a_slot = -1; a_next = -1; return -1;
+        }
+    }
+    size_t got = fread(out2352, 1, IMG_SECTOR, af);
+    if (got != IMG_SECTOR) {
+        of_log_line("disc: slot %d sector %u read %u of %u bytes\n", slot, off_sectors,
+                    (unsigned)got, (unsigned)IMG_SECTOR);
+        fclose(af); af = 0; a_slot = -1; a_next = -1;
+        return -1;
+    }
+    a_next = off + IMG_SECTOR;
+    return 0;
 #else
     /* Desktop build: read the same per-track files from a staging directory.
      *

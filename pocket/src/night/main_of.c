@@ -723,6 +723,7 @@ static void audio_boot(void) {
      * core may not assume the default.  night.ini MASTER_VOL= keeps it open for a measurement. */
     of_mixer_set_master_volume(of_setting_master_vol());
     of_cdda_set_gain(of_setting_cdda_gain());     /* sample gain before the mixer, docs/361 */
+    of_cdda_set_read_batch(of_setting_disc_batch());   /* sectors per CD-DA slot read, docs/375 */
     NLOG("mixer: %d voices, output rate %d Hz (samples keep their own rate, set per voice)\n", 32, OF_MIXER_OUTPUT_RATE);
 #ifndef OF_PC
     /* Keep the mixer fed while a blocking data-slot read waits on its DMA (of_file.h:96-103).  The intro and
@@ -1662,16 +1663,18 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
              * costs, and how close the mixer ever came to running out of audio.  The disc half is the number
              * that decides whether an async read or a deeper ring is worth building. */
             {
-                uint32_t d_r = 0, d_max = 0, d_by = 0, d_sk = 0, d_fl = 0;
+                uint32_t d_r = 0, d_max = 0, d_by = 0, d_sk = 0, d_fl = 0, d_sec = 0;
                 uint32_t c_f = 0, c_max = 0, c_fr = 0, c_low = 0, c_hold = 0, c_behind = 0, c_am = 0, c_pv = 0, c_dry = 0;
                 uint64_t d_us = 0, c_us = 0;
-                of_disc_stats(&d_r, &d_us, &d_max, &d_by, &d_sk, &d_fl);
+                of_disc_stats(&d_r, &d_us, &d_max, &d_by, &d_sk, &d_fl, &d_sec);
                 of_cdda_stats(&c_f, &c_us, &c_max, &c_fr, &c_low, &c_hold, &c_behind, &c_am, &c_pv, &c_dry);
-                NLOG("budget present n=%u mean=%uus max=%uus | disc reads=%u mean=%uus max=%uus seeks=%u fails=%u kb=%u"
+                NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"
+                     " mean_sector=%uus seeks=%u fails=%u kb=%u"
                      " | cdda fills=%u mean=%uus max=%uus frames=%u visits=%u audio_low=%u room_hold=%u"
                      " clock_behind=%u dry=%u ahead_min=%u(%.2fs)\n",
                      g_present_n, g_present_n ? (unsigned)(g_present_us_sum / g_present_n) : 0u, g_present_us_max,
-                     d_r, d_r ? (unsigned)(d_us / d_r) : 0u, d_max, d_sk, d_fl, d_by / 1024u,
+                     d_r, d_sec, d_r ? (unsigned)(d_us / d_r) : 0u, d_max,
+                     d_sec ? (unsigned)(d_us / d_sec) : 0u, d_sk, d_fl, d_by / 1024u,
                      c_f, c_f ? (unsigned)(c_us / c_f) : 0u, c_max, c_fr, c_pv, c_low, c_hold, c_behind, c_dry,
                      c_am, c_am / 44100.0);
                 NLOG("budget pump enters=%llu per-spin (ticked=%u) frames=%u warp/save gated to the tick\n",

@@ -19,10 +19,14 @@ int      of_disc_track_slot(uint32_t track);        /* APF data slot of cd/track
 /* One 2352-byte raw audio sector of a CDDA track (already little-endian s16 stereo, see
  * src/cd/cd_iso.c's comment and docs/06). Returns 0 on success. */
 int  of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352);
+/* `nsectors` consecutive 2352-byte sectors from `disc_lba` upward, in ONE file read.  Sequential CD-DA reads are
+ * the bulk of the port's SD traffic, and one sector per read is one seek decision, one OS call and one buffer
+ * hand-off per 1/75 s of audio (docs/375). */
+int  of_disc_read_audio_run(uint32_t disc_lba, uint8_t *out, uint32_t nsectors);
 
 #endif /* NIGHT_OF_DISC_H */
 
 /* Frame-budget counters (task-9a, docs/364): successful 2352-byte slot reads, their total and worst
  * duration in microseconds, bytes moved, out-of-order seeks, and failures. */
 void of_disc_stats(uint32_t *reads, uint64_t *us, uint32_t *us_max, uint32_t *bytes,
-                   uint32_t *seeks, uint32_t *fails);
+                   uint32_t *seeks, uint32_t *fails, uint32_t *sectors);

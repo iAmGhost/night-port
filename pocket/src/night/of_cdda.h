@@ -42,7 +42,8 @@ int      of_cdda_sounding(void);                 /* 1 when the mixer path is liv
 #define OF_GAIN_SLOPE 4
 
 int16_t of_gain16(int16_t x, int gain_pct);
-void    of_cdda_set_gain(int pct);        /* 100 = unity, the disc exactly as recorded */
+void    of_cdda_set_gain(int pct);
+void    of_cdda_set_read_batch(int n);    /* night.ini DISC_BATCH=: sectors per slot read, 1..12 (docs/375) */        /* 100 = unity, the disc exactly as recorded */
 
 #endif /* NIGHT_OF_CDDA_H */
 int32_t  of_cdda_head(void);      /* write cursor lead over the mixer voice, ring frames */

@@ -133,21 +133,23 @@ int of_disc_open(void) {
  * answer decides whether async prefetch or a deeper ring is worth building.  Counted here, reported by the
  * host's budget line. */
 static uint32_t g_disc_reads, g_disc_seeks, g_disc_fails, g_disc_bytes;
+static uint32_t g_disc_ops, g_disc_sectors;   /* read OPERATIONS vs the sectors they delivered (docs/375) */
 static uint32_t g_disc_us_max;
 static uint64_t g_disc_us;
 
 void of_disc_stats(uint32_t *reads, uint64_t *us, uint32_t *us_max, uint32_t *bytes,
-                   uint32_t *seeks, uint32_t *fails) {
+                   uint32_t *seeks, uint32_t *fails, uint32_t *sectors) {
     if (reads) *reads = g_disc_reads;
     if (us) *us = g_disc_us;
     if (us_max) *us_max = g_disc_us_max;
     if (bytes) *bytes = g_disc_bytes;
     if (seeks) *seeks = g_disc_seeks;
     if (fails) *fails = g_disc_fails;
+    if (sectors) *sectors = g_disc_sectors;
 }
 
-int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
-    if (!out2352) return -1;
+int of_disc_read_audio_run(uint32_t disc_lba, uint8_t *out2352, uint32_t nsectors) {
+    if (!out2352 || !nsectors) return -1;
     const uint64_t t0 = sys_now_us();
     int track = of_disc_track_of_lba(disc_lba);
     const disc_track_t *t = track > 0 ? find_track((uint32_t)track) : (const disc_track_t *)0;
@@ -182,17 +184,19 @@ int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
             fclose(af); af = 0; a_slot = -1; a_next = -1; return -1;
         }
     }
-    size_t got = fread(out2352, 1, IMG_SECTOR, af);
-    if (got != IMG_SECTOR) {
+    const size_t want = (size_t)nsectors * IMG_SECTOR;
+    size_t got = fread(out2352, 1, want, af);
+    if (got != want) {
         of_log_line("disc: slot %d sector %u read %u of %u bytes\n", slot, off_sectors,
-                    (unsigned)got, (unsigned)IMG_SECTOR);
+                    (unsigned)got, (unsigned)want);
         fclose(af); af = 0; a_slot = -1; a_next = -1;
         return -1;
     }
-    a_next = off + IMG_SECTOR;
-    {                                   /* the measured half: a successful 2352-byte read */
+    a_next = off + (long)want;
+    {                                   /* the measured half: one operation, nsectors delivered */
         uint32_t dt = (uint32_t)(sys_now_us() - t0);
-        g_disc_reads++; g_disc_bytes += IMG_SECTOR; g_disc_us += dt;
+        g_disc_reads++; g_disc_ops++; g_disc_sectors += nsectors;
+        g_disc_bytes += (uint32_t)want; g_disc_us += dt;
         if (dt > g_disc_us_max) g_disc_us_max = dt;
     }
     return 0;
@@ -227,14 +231,18 @@ int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
         g_disc_seeks++;
         if (fseek(df, off, SEEK_SET) != 0) { g_disc_fails++; return -1; }
     }
-    size_t got = fread(out2352, 1, IMG_SECTOR, df);
-    if (got != IMG_SECTOR) { g_disc_fails++; return -1; }
-    d_next = off + IMG_SECTOR;
+    const size_t want = (size_t)nsectors * IMG_SECTOR;
+    size_t got = fread(out2352, 1, want, df);
+    if (got != want) { g_disc_fails++; return -1; }
+    d_next = off + (long)want;
     {
         uint32_t dt = (uint32_t)(sys_now_us() - t0);
-        g_disc_reads++; g_disc_bytes += IMG_SECTOR; g_disc_us += dt;
+        g_disc_reads++; g_disc_ops++; g_disc_sectors += nsectors;
+        g_disc_bytes += (uint32_t)want; g_disc_us += dt;
         if (dt > g_disc_us_max) g_disc_us_max = dt;
     }
     return 0;
 #endif
 }
+
+int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) { return of_disc_read_audio_run(disc_lba, out2352, 1); }

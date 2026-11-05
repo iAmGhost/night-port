@@ -59,6 +59,8 @@
 #define CD_RING_SEC       4
 #define CD_RING_FRAMES    (CD_SRC_RATE * CD_RING_SEC)     /* 176 400 frames = 4 s per channel */
 #define CD_FRAMES_SECTOR  588                             /* one 2352-byte CD frame in samples */
+#define CD_BATCH_MAX          12                              /* sectors per slot read; night.ini DISC_BATCH= picks 1..12 (docs/375) */
+static int g_batch = CD_BATCH_MAX;                        /* 1 reproduces the one-sector-at-a-time shape exactly */
 #define CD_CHUNK_SECTORS  12                              /* per pump pass: 7056 samples = 160 ms of big sequential reads */
 #define CD_LOOKAHEAD_SECTORS 120                          /* 1.6 s of audio read past the disc clock: the slack that
                                                            * survives a blocking video present without underrunning the
@@ -341,6 +343,10 @@ int16_t of_gain16(int16_t x, int gain_pct) {
 }
 
 void of_cdda_set_gain(int pct) { g_gain_pct = pct; }
+void of_cdda_set_read_batch(int n) {                          /* docs/375: 1 = the old one-sector reads, 12 = the shipping batch */
+    g_batch = (n < 1) ? 1 : (n > CD_BATCH_MAX) ? CD_BATCH_MAX : n;
+    printf("cdda: disc read batch = %d sectors per slot read\n", g_batch);
+}
 
 /* the sample copy into the 4 s ring, the port's per-fill hot loop */
 static void ring_write(const int16_t *stereo, uint32_t frames) {
@@ -409,10 +415,21 @@ static uint32_t fill_sectors_raw(uint32_t sectors) {
     /* Bounded by what the voice still has to read, not just by what the disc has left. */
     if (sectors && room_before_voice() < CD_FRAMES_SECTOR) return 0;
     static int16_t stereo[CD_FRAMES_SECTOR * 2];
-    static uint8_t raw[2352];
+    /* Batched slot reads (docs/375): the old loop asked for one 2352-byte sector at a time, so a 12-sector chunk
+     * cost 12 read operations and a 300-sector prefill cost 300 -- each one a seek decision and an OS call.  The
+     * batch buffer holds CD_READ_BATCH sectors and is emptied sector by sector, so the byte order, the rig's
+     * per-sector witness and the ring's write pattern are untouched; only the number of reads changes. */
+    static uint8_t batch[CD_BATCH_MAX * 2352];
     uint32_t frames = 0;
     for (uint32_t s = 0; s < sectors; s++) {
-        if (of_disc_read_audio(g_lba + g_pos, raw) != 0) { g_read_failed = 1; return frames; }
+        uint8_t *raw = batch;
+        if ((s % (uint32_t)g_batch) == 0) {
+            uint32_t n = sectors - s;
+            if (n > (uint32_t)g_batch) n = (uint32_t)g_batch;
+            if (of_disc_read_audio_run(g_lba + g_pos, batch, n) != 0) { g_read_failed = 1; return frames; }
+        } else {
+            raw = batch + (s % (uint32_t)g_batch) * 2352;
+        }
         rig_sample(raw);                      /* the same sector bytes the SDL host hands the rig */
         const int16_t *src = (const int16_t *)raw;
         for (int i = 0; i < CD_FRAMES_SECTOR; i++) {

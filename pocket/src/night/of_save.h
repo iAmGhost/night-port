@@ -14,7 +14,8 @@ int  of_save_read(int slot);
 
 /* Apply a loaded blob to the live game state.  Call once the stage is live; it reports whether it did. */
 int  of_save_apply(void);
-int  of_setting_restore(void);     /* night.ini RESTORE=: bits a load applies -- 1 gauges (default), 2 state+selectors, 4 key table */
+int  of_setting_restore(void);
+int  of_setting_disc_batch(void);    /* night.ini DISC_BATCH=: sectors per CD-DA slot read (1..12) */     /* night.ini RESTORE=: bits a load applies -- 1 gauges (default), 2 state+selectors, 4 key table */
 
 int  of_save_slot(void);                 /* the slot the pad combo is currently addressing */
 void of_save_slot_next(void);

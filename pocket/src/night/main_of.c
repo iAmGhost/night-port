@@ -955,8 +955,8 @@ static void periph_scan(int full);
  * declaring the entries out of address order -- Screen Fit, declared LAST at 0xF7000010, was mirrored; SFX Volume,
  * declared SECOND at 0xF7000014, was not.  The mirror follows the ADDRESS.  Two words, no more. */
 #define OF_MENU_SLOT_MUSIC 0x4000006cu           /* carries whatever is mounted at 0xF700000C */
-#define OF_MENU_SLOT_SFX   0x4000006cu           /* the same word: SFX Volume lives in a different field of it */
-#define OF_MENU_SLOT_FIT   0x4000006cu           /* ...and so does Screen Fit */
+#define OF_MENU_SLOT_SFX   0x40000068u           /* carries whatever is mounted at 0xF7000010 */
+#define OF_MENU_SLOT_FIT   0u                     /* no entry declared: L1+B and night.ini FIT only */
 #ifdef OF_IDX_FIT
 #define IDX_FIT     OF_IDX_FIT
 #define FIT_LIVE    1                            /* an interact.json entry exists for it */
@@ -964,29 +964,30 @@ static void periph_scan(int full);
 #define IDX_FIT     (-1)
 #define FIT_LIVE    0                            /* no word is wired to it: L1+B and night.ini FIT only */
 #endif
-/* A mask says which BITS an element may write (docs/345), so several elements may share one bridge ADDRESS as long
- * as their writable bits are disjoint.  That is what saves addresses: docs/356 measured that only two bridge words are
- * mirrored into readable peripheral words, which used to mean "two settings, choose two".  Three entries are now
- * mounted on 0xF700000C in disjoint fields of one 32-bit word, and the port reads them out of one peripheral word:
+/* One setting per bridge ADDRESS.  Packing several entries into disjoint bit fields of one address was tried in 0.1.47
+ * and the hardware said no (docs/358): the OS writes the WHOLE word, so writing one entry erases the others --
  *
- *   bits  0-3   Music Volume    option values 0x01..0x08     mask 0xFFFFFFF0
- *   bits  4-7   SFX Volume      option values 0x10..0x80     mask 0xFFFFF00F
- *   bits  8-9   Screen Fit      option values 0x100..0x300   mask 0xFFFFFCFF
+ *   t=38.4s word=00000008  music=8 sfx=0 fit=0     picked Music = Full
+ *   t=54.2s word=00000200  music=0 sfx=0 fit=2     picked Screen Fit, Music's field gone
+ *   t=81.3s word=00000070  music=0 sfx=7 fit=0     picked SFX Volume, gone again
  *
- * A FIELD of 0 still means "the menu has not spoken for this setting", which is why no option value is 0 and why the
- * silence rule works per field (docs/354).  Whether the OS combines per element or writes the whole word is what this
- * build measures: if it writes the whole word, one field shows a value, the other two stay 0 forever, and the log says
- * so instead of guessing.  0xF7000010 -> 0x40000068 is left free for a fourth setting this way. */
-#define MUSIC_SHIFT 0
-#define MUSIC_MASK  0xFu                         /* bits 0-3 */
-#define SFX_SHIFT   4
-#define SFX_MASK    0xFu                         /* bits 4-7: four bits, values 1..8 shifted up */
-#define FIT_SHIFT   8
-#define FIT_MASK    0x3u                         /* bits 8-9 */
-#define MUSIC_BASE  1u                           /* FIELD values: 1..8 = Off .. Full */
-#define FIT_BASE    1u                           /* 1..3 = letterbox / stretch / scaler */
-#define SFX_BASE    1u                           /* 1..8 = Off .. Full */
-
+ * A mask says which bits the CORE may write to its own registers; it does not make the firmware read-modify-write an
+ * interact value, and `writeonly` -- the flag that makes an undecoded address usable at all -- is precisely what
+ * forbids the firmware from reading the word it is about to write.  So docs/356's map is the whole settings surface:
+ * 0xF700000C -> 0x4000006c and 0xF7000010 -> 0x40000068, one entry each.
+ *
+ * The field machinery stays, because it is what makes a claim testable: every test (option range, cleanliness, "was it
+ * ever silent", "slot lost") runs on the entry's field of the word, and a field is the whole word while masks are
+ * 0xFFFFFF00.  lo/hi are the option VALUES themselves. */
+#define MUSIC_SHIFT 0                            /* interact.json: mask 0xFFFFFF00 writes bits 0-7 of its word */
+#define MUSIC_MASK  0xFFu
+#define SFX_SHIFT   0
+#define SFX_MASK    0xFFu
+#define FIT_SHIFT   0
+#define FIT_MASK    0xFFu
+#define MUSIC_BASE  0x41u                        /* 0x41..0x48 -> eight music levels */
+#define SFX_BASE    0x61u                        /* 0x61..0x68 -> eight sound-effect levels */
+#define FIT_BASE    0x51u                        /* 0x51..0x53 -> letterbox / stretch / scaler */
 enum { MENU_MUSIC, MENU_FIT, MENU_SFX, MENU_N };
 struct menu_var {
     const char *what;
@@ -999,12 +1000,15 @@ struct menu_var {
     unsigned last;               /* last FIELD value read from that slot; 0 = the menu has not spoken */
 };
 static struct menu_var g_menu[MENU_N] = {
-    {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, MUSIC_SHIFT, MUSIC_MASK, 1u, 8u, 4u, OF_MENU_SLOT_MUSIC, 0u, 0u},
-    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   SFX_SHIFT,   SFX_MASK,   1u, 8u, 4u, OF_MENU_SLOT_SFX,   0u, 0u},
-    /* Screen Fit is mounted again -- packing freed the address it needs.  If interact.json ever drops it again the
-     * generated OF_IDX_FIT disappears, IDX_FIT becomes -1 and this row goes inert so it cannot hunt for a word and
-     * mistake a counter for a menu that does not exist. */
-    {"Screen Fit",   IDX_FIT,      MENU_FIT,   FIT_SHIFT,   FIT_MASK,   1u, 3u, 1u, OF_MENU_SLOT_FIT,   0u, 0u},
+    {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, MUSIC_SHIFT, MUSIC_MASK, MUSIC_BASE, 0x48u, 0x44u,
+     OF_MENU_SLOT_MUSIC, 0u, 0u},
+    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   SFX_SHIFT,   SFX_MASK,   SFX_BASE,   0x68u, 0x64u,
+     OF_MENU_SLOT_SFX,   0u, 0u},
+    /* Screen Fit lives outside Core Options now that only two addresses are wired (docs/356): L1+B cycles
+     * letterbox / stretch / scaler during play and night.ini's FIT covers the rest.  If interact.json declares it
+     * again the generated OF_IDX_FIT reappears, FIT_LIVE becomes 1, and this row becomes live. */
+    {"Screen Fit",   IDX_FIT,      MENU_FIT,   FIT_SHIFT,   FIT_MASK,   FIT_BASE,   0x53u, 0x51u,
+     OF_MENU_SLOT_FIT,   0u, 0u},
 };
 
 /* Per-register trust, measured against every entry: a word is clean for an entry if EVERY sample it has ever shown
@@ -1033,15 +1037,16 @@ static int menu_is_option(const struct menu_var *m, uint32_t v) {
 static const char *menu_option_name(const struct menu_var *m, unsigned f) {
     static const char *vol[] = {"Off", "1/8", "1/4", "1/2", "5/8", "3/4", "7/8", "Full"};
     static const char *fit[] = {"letterbox", "stretch", "scaler 320x200"};
-    if (m->kind == MENU_MUSIC || m->kind == MENU_SFX)
-        return (f >= 1u && f <= 8u) ? vol[f - 1u] : "?";
-    return (f >= 1u && f <= 3u) ? fit[f - 1u] : "?";
+    unsigned k = f - m->lo;                                      /* option index inside this entry's own band */
+    if (m->kind == MENU_MUSIC || m->kind == MENU_SFX) return (k <= 7u) ? vol[k] : "?";
+    return (k <= 2u) ? fit[k] : "?";
 }
 
 static int menu_apply(struct menu_var *m, unsigned f) {
-    if (m->kind == MENU_MUSIC) return of_setting_apply_music_vol((int)(f - 1u) * 255 / 7);      /* 1..8 -> 0..255 */
-    if (m->kind == MENU_SFX)   return of_setting_apply_sfx_vol((int)(f - 1u) * 255 / 7);
-    return of_setting_apply_fit((int)(f - 1u));
+    unsigned k = f - m->lo;
+    if (m->kind == MENU_MUSIC) return of_setting_apply_music_vol((int)k * 255 / 7);              /* 0..7 -> 0..255 */
+    if (m->kind == MENU_SFX)   return of_setting_apply_sfx_vol((int)k * 255 / 7);
+    return of_setting_apply_fit((int)k);
 }
 
 static unsigned g_menu_beat;
@@ -1099,9 +1104,16 @@ static int menu_slots_scan(void) {
         }
         if (!m->slot && m->known && menu_is_option(m, periph_word(m->known)))
             menu_claim(m, m->known, periph_word(m->known), "the word hardware carried it in on");
+        if (!m->slot && m->known) continue;     /* docs/358: an entry whose mirror address is known may ONLY be read
+                                                 * there.  0.1.47's fallback hunt claimed 0x400000ec for Music Volume
+                                                 * and 0x400000dc for SFX Volume -- two peripheral counters whose low
+                                                 * nibble wandered through the option band and which had been 0 at
+                                                 * boot, so they passed every test the hunt had.  Music Volume was then
+                                                 * driven from a counter: field 7 -> 218, field 1 -> Off (mute), field 0
+                                                 * -> back to night.ini, i.e. "it got muted whatever I set".  A known
+                                                 * address that never answers is reported, not replaced by a guess. */
         if (!m->slot) {
-            for (int i = 0; i < OF_PERIPH_WORDS; i++) {           /* fall back: the first word that answers the menu
-                                                                  * and has never shown anything else */
+            for (int i = 0; i < OF_PERIPH_WORDS; i++) {           /* only for entries whose address is unknown */
                 uint32_t a = OF_PERIPH_BASE + 4u * i, v = periph_word(a);
                 if (!g_menu_clean[k][i] || !g_menu_zero[k][i] || g_menu_seen[k][i] < MENU_SEEN_MIN
                     || !menu_is_option(m, v)) continue;

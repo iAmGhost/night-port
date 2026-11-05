@@ -301,6 +301,14 @@ static uint32_t fill_sectors(uint32_t sectors) {
 }
 
 void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
+    /* A play request REPLACES whatever is playing -- MSCDEX has one pickup at a time (src/app/main.c:326,
+     * docs/105, which is the same fault found in the SDL host: "every selection overlaps the old track").
+     * The Pocket host had it too, in its worst form: the rings are one shared pair of buffers, so a
+     * replacement allocated a second pair of looping MUSIC voices over the ring the first pair was still
+     * reading.  Two copies of the same audio at once, one of them stopped later by pool pressure -- which is
+     * exactly "the music plays double simultaneously and one stops later" -- and when the pool has no voice
+     * left for the new pair, the new track is clocked but silent, which is part of "music missing". */
+    if (g_running) { voice_stop(); g_running = 0; }
     g_tracks++;
     g_lba = lba; g_sectors = sectors; g_pos = 0; g_budget = 0;
     g_clock_us = sys_now_us();
@@ -342,12 +350,19 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
      * prefilling is also what proves the slot is readable before any sound is expected. */
     uint32_t prefill_sectors = CD_RING_FRAMES / CD_FRAMES_SECTOR;         /* 300 sectors = 4 s */
     if (prefill_sectors > sectors) prefill_sectors = sectors;
-    if (fill_sectors(prefill_sectors) != prefill_sectors * CD_FRAMES_SECTOR) {
-        of_log_line("cdda refused: prefill short (%u of %u sectors) -- slot unreadable, voices stay off\n",
-             g_pos, prefill_sectors);
-        if (g_running) { voice_stop(); g_running = 0; }
+    uint32_t got_frames = fill_sectors(prefill_sectors);
+    if (got_frames == 0) {
+        of_log_line("cdda refused: prefill read nothing (0 of %u sectors) -- slot unreadable, voices stay off\n",
+                    prefill_sectors);
         g_sectors = 0; g_pos = 0; g_done_frames = 0; g_write = 0;
         return;
+    }
+    if (got_frames != prefill_sectors * CD_FRAMES_SECTOR) {
+        /* Refusing the whole track because the read stopped at sector 111 of 300 was the wrong call: 111
+         * sectors is 1.5 s of audio already in the ring, and the pump can top it up from here.  A partial
+         * prefill costs one audible hiccup at the very worst; a refusal costs the whole track. */
+        of_log_line("cdda: partial prefill (%u of %u sectors) -- starting with what arrived, pump will top up\n",
+                    got_frames / CD_FRAMES_SECTOR, prefill_sectors);
     }
 
     g_write = 0;                     /* the voice starts at the first prefilled frame */

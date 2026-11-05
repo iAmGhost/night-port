@@ -917,8 +917,9 @@ static void tick_pump(void) {
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
 #endif
-            NLOG("audio cdda=%u/%u/%u plays=%u drops=%u ring=%u head=%d\n",
-                 of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), g_of_sfx_plays, g_of_sfx_drops,
+            NLOG("audio cdda=%u/%u/%u plays=%u stops=%u sfx=%u/%u ring=%u head=%d\n",
+                 of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), sys_cd_audio_play_calls(),
+                 sys_cd_audio_stop_calls(), g_of_sfx_plays, g_of_sfx_drops,
                  of_cdda_ring_ahead(), (int)of_cdda_head());
 #ifndef OF_PC
             /* The log is the good channel; the console panel is the visible one.  When the log cannot be

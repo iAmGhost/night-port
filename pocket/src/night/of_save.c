@@ -74,7 +74,6 @@ static unsigned g_lcd_raw   = 0xDEADBEEFu;   /* 0xDEADBEEU until the bridge is r
  * volume (mute) and a legal "no cap", so the host only accepts a value it can name.  That is why the two
  * knobs are lists with named options and no 0 in them: an unwired 0 must not silently mute the music. */
 static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, Medium, High, Full */
-static const int TICK_OPTS[]  = {   0,   60,  122,  245,  490 };   /* Game rate, 1/8, 1/4, 1/2, full */
 static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if (t[i] == v) return 1; return 0; }
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
@@ -302,12 +301,12 @@ void of_settings_load(void) {
     /* of_interact_get() indexes by position in interact.json; the reserved SDK entries now occupy the first
      * six, so the indices come from the header mk_dist.py generates alongside the JSON.
      *
-     * A menu value is only applied when it differs from its defaultval.  That distinguishes "the user moved
-     * this slider" from "the bridge carries nothing" -- with no value wired through, of_interact_get() reads
-     * 0, and 0 is a legal volume (mute) that would otherwise silently replace night.ini's MUSIC_VOL. */
+     * A menu value is only accepted when it is one of the values interact.json offers (MUSIC_OPTS).  An
+     * untouched variable reads 0 on the wire, and 0 is a legal volume -- mute -- so "nobody moved it" and
+     * "the user asked for silence" would otherwise be the same number, and the first silently replaced
+     * night.ini's MUSIC_VOL (docs/341, and the card's own interact_persist.json showing Music Volume 0). */
     {
         int mv = (int)of_interact_get(OF_IDX_MUSIC);
-        int tk = (int)of_interact_get(OF_IDX_TICK);
         /* The Pocket LCD list lives in bits 16-17 of 0xF7000000, and four other interact variables share that
          * same word (Analogizer, the two SNAC lists, Analogizer Video Out, Video H/V Offset).  of_interact_get
          * hands back a 32-bit value and the header never promises it is masked to the variable's own field, so
@@ -316,7 +315,7 @@ void of_settings_load(void) {
         int lcd = (int)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
         g_lcd_raw = (unsigned)lcd;          /* the raw bridge word, reported every second */
         if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), mv)) g_music_vol = clamp_vol(mv);
-        if (in_opts(TICK_OPTS,  (int)(sizeof TICK_OPTS  / sizeof *TICK_OPTS),  tk)) g_tick_hz = tk;
+
         /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
          * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
          * stays as the route for a card-only diagnostic run (SCREEN=2 asks for the log overlaid on the game). */
@@ -334,17 +333,14 @@ int of_settings_poll(void) {
 #else
     int changed = 0;
     int mv = (int)of_interact_get(OF_IDX_MUSIC);
-    int tk = (int)of_interact_get(OF_IDX_TICK);
     unsigned lcd = (unsigned)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
 
     if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), mv) && mv != g_music_vol) {
         g_music_vol = clamp_vol(mv);
         changed |= OF_SET_VOL;
     }
-    if (in_opts(TICK_OPTS, (int)(sizeof TICK_OPTS / sizeof *TICK_OPTS), tk) && tk != g_tick_hz) {
-        g_tick_hz = tk;
-        changed |= OF_SET_TICK;
-    }
+    /* No menu knob for the tick cap any more (docs/341): night.ini TICK_HZ is the only route, and it is a
+     * developer's instrument, not a player's setting. */
     if (lcd != g_lcd_raw) {
         g_lcd_raw = lcd;
         changed |= OF_SET_LCD;

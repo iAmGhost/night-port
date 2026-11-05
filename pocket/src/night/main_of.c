@@ -693,8 +693,6 @@ static void settings_beat(uint64_t now) {
         of_mixer_set_group_volume(OF_MIXER_GROUP_SFX, of_setting_sfx_vol() & 0xff);
         NLOG("settings: music_vol=%d applied from the menu\n", of_setting_music_vol());
     }
-    if (ch & OF_SET_TICK)
-        NLOG("settings: tick cap=%d Hz (0 = the rate the game programs)\n", of_setting_tick_hz());
     if (ch & OF_SET_LCD)
         NLOG("settings: pocket lcd raw=%08x scr=%d\n", of_setting_lcd_raw(), of_setting_screen());
 }

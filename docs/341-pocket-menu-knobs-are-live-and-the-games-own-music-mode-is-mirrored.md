@@ -62,7 +62,7 @@ The per-voice call matters: group volume alone did not change what the device pl
 `of_mixer_set_vol_lr_h` is the level API openfpgaOS-Doom actually drives (`i_sdlsound.c:197`).  The two CDDA
 voices also stop being born at a hard-coded 255 (`of_cdda.c` voice_start now uses `g_vol`).
 
-## 4. What Tick Pump Hz is for
+## 4. Tick Pump Hz: explained, then taken out of the menu (0.1.26)
 
 The host feeds the game its ticks at the rate the game itself programs — PIT channel 0, 0x982 → **490 Hz**
 (`fn_03ef29`, see docs/335).  The knob is a **cap** applied in `tick_pump()`:
@@ -72,9 +72,17 @@ int cap = of_setting_tick_hz();
 if (cap > 0 && cap < (int)hz) hz = (uint32_t)cap;
 ```
 
-It can only slow the clock below what the game asked for — a slow-motion / tuning knob for a 100 MHz core and a
-way to see whether a stall is the game or the host.  It is never a speed-up, and `0` ("Game rate") means the
-game runs at its own 490 Hz, which is the shipping default.
+It can only slow the clock below what the game asked for, never speed it up.  Asked whether that is worth a
+place in the player's menu — it is not, and it was removed in 0.1.26, for a reason that is worth writing down:
+this port's waits are **clock deadlines**, not tick counts (docs/335 is exactly about that).  So cutting the
+tick rate to 60 Hz does not give a faithful slow motion, it gives a *different game*: every wait that expires on
+the clock still expires in the same real time, while the animation driving it receives an eighth as many ticks.
+The 0.1.17 logo freeze was that failure mode with the host's own blit as the cause.
+
+It survives where a developer reads it, and only there: `night.ini` `TICK_HZ=…` on the card, or
+`NIGHT_TICK_HZ=…` on the desktop.  `of_setting_tick_hz()` and the cap in `tick_pump()` are unchanged; the menu
+variable, its `TICK_OPTS` whitelist and the poll branch that fed it are gone, and the Core Options menu is now
+Pocket LCD + Music Volume.
 
 ## 5. Music Mode OFF: the game's flag was never mirrored
 

@@ -922,8 +922,20 @@ static void periph_scan(int full);
  * Two entries with disjoint value sets were declared and moved on hardware.  Two adjacent words of openfpgaOS's
  * peripheral page answered, each carrying only its own set, each ending exactly where the player left it:
  *
- *   0x4000006c   boot 0 -> 1 (the entry's own defaultval), then 1 -> 2 -> 3 -> 4; four moves, values 1..4 only.
- *   0x40000068   stayed 0 through every moment A moved; then 0 -> 5 -> 8 -> 5 -> 8; four moves, values 5..8 only.
+ *   0x4000006c   0 until the player moved the entry, then 1 -> 2 -> 3 -> 4; values 1..4 only, ending on 4 (High).
+ *   0x40000068   stayed 0 through every moment A moved; then 0 -> 5 -> 8 -> 5 -> 8; values 5..8 only, ending on 8.
+ *
+ * 0.1.43 ran the same two addresses with a DIFFERENT value band (Music Volume 0x41..0x48, Screen Fit 0x51..0x53) and
+ * the same two words answered again, carrying the new wire values exactly:
+ *
+ *   0x4000006c   0 -> 0x47 (7/8, chosen) -> 0x41 (Off) -> 0x48 (Full) -> 0x41 (Off, the value left on the menu)
+ *   0x40000068   0 -> 0x52 (Stretch) -> 0x53 (Scaler) -> 0x52 -> 0x51 (Letterbox)
+ *
+ * Two corrections came out of that.  (1) The word is ZERO until the player actually changes the entry -- it is not
+ * filled with defaultval at boot, which is what docs/353 believed from 0.1.41's log; 0.1.41's "1 at boot" was the
+ * player having already moved the entry before the first sample at 9.4 s.  (2) A slot may therefore never speak at
+ * all in a run, and the value 0 means "the menu has not been touched", not "the option called 0" -- which is why none
+ * of the option values are 0.
  *
  * Separated in time, separated in range, and independently confirmed by the firmware's own
  * Settings/iamghost.night/Interact/_core/interact_persist.json, which stores the chosen option INDEX (3 = High for
@@ -931,9 +943,15 @@ static void periph_scan(int full);
  * register an app may read -- it just never came through of_interact_get(), and it never came through the control
  * word, which is unreadable (0.1.37) and fatal to mount on (0.1.27/0.1.34).
  *
- * The host therefore does not assume a slot layout -- A landed at 0x6c and B at 0x68, which is not declaration
- * order -- it hunts for its own sentinels.  Each entry's default value sits in a band no captured log ever showed a
- * natural register occupying, so "a word that was 0 and is now 0x44" is this core's Music Volume wherever it lives. */
+ * The layout rule is STILL unknown: 0xF700000C lands at 0x4000006c and 0xF7000010 at 0x40000068, which is neither
+ * declaration order nor id order nor an offset of the declared address.  So the port does two things: it asserts the
+ * two words hardware measured twice, and it verifies them -- a slot is only trusted while every value it ever shows
+ * is 0 or one of that entry's own option values.  A register that shows anything else was never the slot.  0.1.43
+ * showed why the verification is not paranoia: the counters at 0x4000010c and 0x40000150 climb through 0x41, 0x42,
+ * 0x52 and 0x53 on their way up, and a claim rule that only asked "is the value in range?" would have grabbed one of
+ * them and called it Music Volume. */
+#define OF_MENU_SLOT_MUSIC 0x4000006cu           /* the word that carried 0xF700000C's value in both hardware runs */
+#define OF_MENU_SLOT_FIT   0x40000068u           /* the word that carried 0xF7000010's value in both hardware runs */
 #define MUSIC_SHIFT 0                            /* interact.json: mask 0xFFFFFF00 writes bits 0-7 only */
 #define MUSIC_MASK  0xFFu
 #define FIT_SHIFT   0
@@ -941,90 +959,146 @@ static void periph_scan(int full);
 #define MUSIC_BASE  0x41u                        /* 0x41..0x48 -> eight volume levels */
 #define FIT_BASE    0x51u                        /* 0x51..0x53 -> letterbox / stretch / scaler */
 
+#define NMENU 2
 struct menu_var {
     const char *what;
     int idx;                     /* the generated interact index, kept only for the cross-check log */
-    unsigned lo, hi, dflt;       /* the option values this entry can write, and the sentinel its default is */
-    uint32_t slot;               /* the peripheral word that carries it, 0 = not found yet */
-    unsigned last;               /* last value read from that slot */
-    unsigned offrange;           /* consecutive samples outside the range before the slot is distrusted */
+    unsigned lo, hi, dflt;       /* the option values this entry can write, and the default it declares */
+    uint32_t known;              /* the peripheral word hardware was seen to carry it, 0 = unknown */
+    uint32_t slot;               /* the word currently trusted, 0 = nothing claimed yet */
+    unsigned last;               /* last value read from that slot; 0 = the menu has not spoken */
 };
-static struct menu_var g_menu[] = {
-    {"Music Volume", OF_IDX_MUSIC, 0x41u, 0x48u, 0x44u, 0u, 0u, 0},
-    {"Screen Fit",   OF_IDX_FIT,   0x51u, 0x53u, 0x51u, 0u, 0u, 0},
+static struct menu_var g_menu[NMENU] = {
+    {"Music Volume", OF_IDX_MUSIC, 0x41u, 0x48u, 0x44u, OF_MENU_SLOT_MUSIC, 0u, 0u},
+    {"Screen Fit",   OF_IDX_FIT,   0x51u, 0x53u, 0x51u, OF_MENU_SLOT_FIT,   0u, 0u},
 };
-static uint32_t g_menu_prev[OF_PERIPH_WORDS];     /* our own previous-sample array: the periph scan keeps its own */
+
+/* Per-register trust, measured against every entry: a word is clean for an entry if EVERY sample it has ever shown
+ * is either 0 or one of that entry's option values, and it has been seen holding a real option value more than once.
+ * A counter climbing through the range fails the first test; a word that answers the menu passes both. */
+static uint8_t g_menu_clean[NMENU][OF_PERIPH_WORDS];
+static uint16_t g_menu_seen[NMENU][OF_PERIPH_WORDS];
+static uint8_t g_menu_init;
+#define MENU_SEEN_MIN 5u                          /* 5 samples of settings_beat = half a second holding a value */
+
+static int menu_opt(const struct menu_var *m, unsigned v) { return v == 0u || (v >= m->lo && v <= m->hi); }
+static int menu_is_option(const struct menu_var *m, unsigned v) { return v >= m->lo && v <= m->hi; }
+static int menu_is_music(const struct menu_var *m) { return m->lo == MUSIC_BASE; }
+
+static const char *menu_option_name(const struct menu_var *m, unsigned v) {
+    static const char *vol[] = {"Off", "1/8", "1/4", "1/2", "5/8", "3/4", "7/8", "Full"};
+    static const char *fit[] = {"letterbox", "stretch", "scaler 320x200"};
+    if (menu_is_music(m)) return (v >= MUSIC_BASE && v <= MUSIC_BASE + 7u) ? vol[v - MUSIC_BASE] : "?";
+    return (v >= FIT_BASE && v <= FIT_BASE + 2u) ? fit[v - FIT_BASE] : "?";
+}
 
 static int menu_apply(struct menu_var *m, unsigned v) {
-    if (m->lo == MUSIC_BASE) {
+    if (menu_is_music(m)) {
         int level = (int)(v - MUSIC_BASE);                    /* 0..7 -> 0..255 */
         return of_setting_apply_music_vol(level * 255 / 7);
     }
     return of_setting_apply_fit((int)(v - FIT_BASE));
 }
 
-static int menu_decode_name(const struct menu_var *m) { return m->lo == MUSIC_BASE ? 1 : 0; }
+static unsigned g_menu_beat;
+static void menu_sample(void) {
+    if (!g_menu_init) {
+        for (int k = 0; k < NMENU; k++)
+            for (int i = 0; i < OF_PERIPH_WORDS; i++) g_menu_clean[k][i] = 1;
+        g_menu_init = 1;
+    }
+    /* A full 96-word pass costs 96 peripheral reads.  settings_beat runs every 100 ms, and a 640x480 present already
+     * costs 21 ms of the 33 ms frame (docs/352), so the sweep runs at 2 Hz while a slot is still unclaimed and stops
+     * entirely once every slot is claimed -- after that a beat is one read per setting. */
+    int all_claimed = 1;
+    for (int k = 0; k < NMENU; k++) if (!g_menu[k].slot) all_claimed = 0;
+    if (all_claimed || (g_menu_beat++ % 5u)) return;
+    for (int i = 0; i < OF_PERIPH_WORDS; i++) {
+        uint32_t v = periph_word(OF_PERIPH_BASE + 4u * i);
+        for (int k = 0; k < NMENU; k++) {
+            if (!menu_opt(&g_menu[k], v)) { g_menu_clean[k][i] = 0; continue; }
+            if (menu_is_option(&g_menu[k], v) && g_menu_seen[k][i] < 60000u) g_menu_seen[k][i]++;
+        }
+    }
+}
+
+static void menu_claim(struct menu_var *m, uint32_t a, unsigned v, const char *how) {
+    m->slot = a; m->last = v;
+    uint64_t t = sys_now_us();
+    NLOG("menu: %s slot CLAIMED t=%u.%us @0x%08x %s (value %02x = %s, options %02x..%02x)\n",
+         m->what, (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), a, how, v,
+         menu_option_name(m, v), m->lo, m->hi);
+}
 
 static int menu_slots_scan(void) {
     int ch = 0;
-    for (unsigned k = 0; k < sizeof(g_menu) / sizeof(g_menu[0]); k++) {
+    menu_sample();
+    for (int k = 0; k < NMENU; k++) {
         struct menu_var *m = &g_menu[k];
-        if (m->slot) {
-            uint32_t v = periph_word(m->slot);
-            if (v >= m->lo && v <= m->hi) {
-                m->offrange = 0;
-                if (v != m->last) {
-                    m->last = v;
-                    ch |= menu_apply(m, v);
-                    NLOG("menu: %s slot @0x%08x = %02x -> %s\n", m->what, m->slot, (unsigned)v,
-                         menu_decode_name(m) ? "volume" : "fit");
-                }
-            } else if (++m->offrange > 5u) {                  /* a register that leaves the range was never the slot */
-                NLOG("menu: %s slot @0x%08x lost (value %08x outside %02x..%02x five samples running)\n",
-                     m->what, m->slot, (unsigned)v, m->lo, m->hi);
-                m->slot = 0; m->offrange = 0;
+
+        if (m->slot && !menu_opt(m, periph_word(m->slot))) {      /* a register that shows what the menu cannot
+                                                                    * write was never the slot */
+            NLOG("menu: %s slot @0x%08x lost (value %08x is neither 0 nor an option %02x..%02x)\n",
+                 m->what, m->slot, (unsigned)periph_word(m->slot), m->lo, m->hi);
+            m->slot = 0; m->last = 0;
+        }
+        if (!m->slot && m->known && menu_is_option(m, periph_word(m->known)))
+            menu_claim(m, m->known, periph_word(m->known), "the word hardware carried it in on");
+        if (!m->slot) {
+            for (int i = 0; i < OF_PERIPH_WORDS; i++) {           /* fall back: the first word that answers the menu
+                                                                  * and has never shown anything else */
+                uint32_t a = OF_PERIPH_BASE + 4u * i, v = periph_word(a);
+                if (!g_menu_clean[k][i] || g_menu_seen[k][i] < MENU_SEEN_MIN || !menu_is_option(m, v)) continue;
+                int taken = 0;
+                for (int j = 0; j < NMENU; j++) if (j != k && g_menu[j].slot == a) taken = 1;
+                if (taken) continue;
+                menu_claim(m, a, v, "found by range cleanliness");
+                break;
+            }
+        }
+        if (!m->slot) continue;
+
+        unsigned v = periph_word(m->slot);
+        if (v == 0u) {                                            /* the menu has not been touched this run: the
+                                                                  * night.ini value stands, exactly as before */
+            if (m->last != 0u) {
+                m->last = 0;
+                NLOG("menu: %s slot @0x%08x reads 0 again -- the value from night.ini stands\n", m->what, m->slot);
             }
             continue;
         }
-        for (int i = 0; i < OF_PERIPH_WORDS; i++) {           /* hunt: 0 -> our own defaultval, and nobody else's */
-            uint32_t a = OF_PERIPH_BASE + 4u * i, v = periph_word(a);
-            if (v != m->dflt || g_menu_prev[i] != 0u) continue;
-            int taken = 0;
-            for (unsigned j = 0; j < sizeof(g_menu) / sizeof(g_menu[0]); j++)
-                if (j != k && g_menu[j].slot == a) taken = 1;
-            if (taken) continue;
-            m->slot = a; m->last = v; m->offrange = 0;
-            uint64_t t = sys_now_us();
-            NLOG("menu: %s slot FOUND t=%u.%us at @0x%08x (was 0, now its default %02x; range %02x..%02x)\n",
-                 m->what, (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), a, m->dflt, m->lo, m->hi);
+        if (v != m->last) {
+            m->last = v;
+            int music = menu_is_music(m);
             ch |= menu_apply(m, v);
-            break;
+            NLOG("menu: %s = %s (%02x) applied: %s\n", m->what, menu_option_name(m, v), v,
+                 music ? "music volume" : "panel fit");
         }
     }
-    for (int i = 0; i < OF_PERIPH_WORDS; i++) g_menu_prev[i] = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
     return ch;
 }
 
-
 static void periph_scan(int full) {
     uint64_t tstamp = sys_now_us();
-    if (++g_cand_tick % 30u == 0u) {            /* the verdict, written by the core */
+    if (++g_cand_tick % 30u == 0u) {            /* the verdict, written by the core.  0.1.43's version of this line
+                                                 * claimed 45 candidates because the range test compared a signed int
+                                                 * against a free-running counter above 2^31 -- a 32-bit lesson, and
+                                                 * the reason the test is done on the same cleanliness rule the claim
+                                                 * uses instead of on a min/max range. */
         int n = 0;
-        for (int i = 0; i < OF_PERIPH_WORDS; i++) {
-            if (g_cand[i].moves >= 1u) {
-                n++;
-                int lo = (int)g_cand[i].lo, hi = (int)g_cand[i].hi;
-                const char *in = (lo >= 0x41 && hi <= 0x48) ? "[music option range]" :
-                                 (lo >= 0x51 && hi <= 0x53) ? "[fit option range]" : "[no menu range]";
-                if (in[1] != 'n')                             /* a register whose every value is one a menu can write */
-                    NLOG("cand @0x%08x: %u moves, values %d..%d  %s\n", OF_PERIPH_BASE + 4u * i,
-                         g_cand[i].moves, lo, hi, in);
-            }
-        }
-        NLOG("census t=%u.%us: %d candidate(s) of %d registers (Music Volume writes 0x41..0x48, Screen Fit writes "
-             "0x51..0x53; a mirror can only show what the menu can write)\n",
-             (unsigned)(sys_now_us() / 1000000ull),
-             (unsigned)((sys_now_us() / 100000ull) % 10ull), n, OF_PERIPH_WORDS);
+        for (int i = 0; i < OF_PERIPH_WORDS; i++)
+            for (int k = 0; k < NMENU; k++)
+                if (g_menu_clean[k][i] && g_menu_seen[k][i] >= MENU_SEEN_MIN) {
+                    n++;
+                    NLOG("cand @0x%08x: clean for %s, %u samples holding an option value\n",
+                         OF_PERIPH_BASE + 4u * i, g_menu[k].what, (unsigned)g_menu_seen[k][i]);
+                    break;
+                }
+        NLOG("census t=%u.%us: %d candidate(s) of %d registers; claimed: %s%s\n",
+             (unsigned)(sys_now_us() / 1000000ull), (unsigned)((sys_now_us() / 100000ull) % 10ull),
+             n, OF_PERIPH_WORDS,
+             g_menu[0].slot ? "Music Volume" : "Music Volume(none)",
+             g_menu[1].slot ? ", Screen Fit" : ", Screen Fit(none)");
     }
     for (int i = 0; i < OF_PERIPH_WORDS; i++) {
         uint32_t v = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
@@ -1079,7 +1153,7 @@ static void settings_beat(uint64_t now) {
     if (ch & OF_SET_LCD)
         NLOG("settings: pocket lcd raw=%08x scr=%d\n", of_setting_lcd_raw(), of_setting_screen());
     if (ch & OF_SET_FIT) {
-        NLOG("settings: fit raw=%08x -> %d\n", (unsigned)of_setting_fit_bridge(), of_setting_fit());
+        NLOG("settings: fit -> %d (from the peripheral slot, not the bridge)\n", of_setting_fit());
         fit_apply("menu");
     }
 }

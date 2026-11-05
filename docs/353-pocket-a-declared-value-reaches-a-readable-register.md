@@ -70,6 +70,14 @@ surviving one:
 
 The channel is not the ecall and not the control word.  It is openfpgaOS's peripheral page, which any app may read.
 
+> **Corrected by docs/354.** Two readings in this document were wrong, and 0.1.43's run is what caught them.  (1) The
+> mirror word is **zero until the player actually changes the entry** -- it is not filled with `defaultval` at boot.
+> 0.1.41's `0x4000006c = 1` at 9.4 s was the player having already moved that entry, not the firmware writing option
+> 1. (2) A claim rule built on "a word that was 0 and is now the default value" therefore never fires in a run where
+> the player never chooses that default, which is exactly why 0.1.43 booted, showed the values landing, and applied
+> nothing.  The mechanism described in §1-§3 is confirmed and stronger than claimed here; the host's slot-discovery
+> rule in §4 was wrong and is replaced in docs/354.
+
 ## 4. Core 0.1.43: the probes become the settings they were always meant to be
 
 | entry | id | address | mask | wire values | names |

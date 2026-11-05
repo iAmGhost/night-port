@@ -95,3 +95,16 @@ Open, in the order I would take them:
 
 The settings thread that ran 0.1.27 → 0.1.53 is closed: **Core Options work, all three, in one bridge word, with
 persistence.**
+
+## 6. Playability status, from the device (reported by the user, 2026-11-06)
+
+While this goal was paused the port got to the point where **it is very playable on the Pocket** — the game is played
+on hardware, start to the stage modes, with the menu settings behaving.  That is the outcome the objective asks for, and
+it is consistent with everything the card logs measured independently: `view=1 320x200` with the frame signature
+advancing on every sample, `pres=3656us` present cost, `pit=490 Hz` with `ticks=130013`, `sfx=350` blocks delivered and
+`cdda=7797/19639/6` sectors consumed, arena `3968768/16777216`, no crash and no watchdog reset across a 4 096-line run.
+
+What that does *not* yet prove, and what the remaining tasks are for: that **all nine episodes** are reachable on this
+code path (task-8, in progress), the level-up/continue screens on the Pocket path, `FB_MODE=0`'s cost on hardware, and
+the stage palette divergence docs/333 recorded (the port's stage frames read `255/97/97` on both hosts while the DOSBox
+original reads a grey-blue station scene — a shared-`src/f` defect inherited, not introduced).

@@ -116,23 +116,31 @@ def main():
     else:
         print(f"  [SKIP] {BASE} not vendored; reserved-prefix comparison skipped")
 
-    # 4. 0.1.27's rule, restated correctly.  An app knob MAY share openfpgaOS's control word -- Pocket LCD proves
-    #    that word is read and written by the firmware every frame -- but only in bits the shipped core leaves
-    #    untouched AND outside the band 0.1.27 showed is live behind it (bits 20-23: the core stopped booting).
-    #    Bits 0-19 are claimed by the shipped core's own fields; 24-31 are the free band, and this core uses
-    #    24-26 (Music Volume) and 27-28 (Screen Fit), leaving 29-31.
+    # 4. the rule two dead cores wrote into this file.  An app element may NOT be declared at openfpgaOS's control
+    #    word, whatever its mask and whatever its values:
+    #      0.1.27  Music Volume at 0xF7000000 bits 20-23  -> the core would not boot (card kept the old log)
+    #      0.1.34  Music Volume bits 24-26 + Screen Fit bits 27-28, masks and option values well formed (every
+    #              value inside its own field, none zero, no overlap with a reserved field) -> the core would not
+    #              boot again.
+    #    Every build that put an app element at ANOTHER address booted: 0xF700000C / 0xF7000010 (0.1.25/26) and
+    #    0x03FE0000 / 0x03FE0008 (0.1.32).  So the fatal variable is the address, not the bit position: the
+    #    firmware rewrites each declared element's field of that word every frame, and openfpgaOS's core_top is the
+    #    consumer.  An app element inside it is a periodic write at core-owned state.
+    CONTROL_WORDS = {"0xF7000000"}
+    for v in app:
+        if v["address"] in CONTROL_WORDS:
+            fail(f"{v['name']} is declared at {v['address']} -- 0.1.27 (bits 20-23) and 0.1.34 (bits 24-28) both "
+                 f"produced a core that would not boot.  No mask makes this safe")
+    if app and not any(v["address"] in CONTROL_WORDS for v in app):
+        print("  [PASS] app elements are off the control word (they were the fatal variable twice: 0.1.27, 0.1.34)")
+    # An element that writes nothing at all is a failure, not a style choice: mask 1-bits are "leave untouched".
     for v in app:
         bits = mask_bits(v)
-        low = sorted(b for b in bits if b < 24)
-        if low:
-            fail(f"{v['name']} writes bits {low}: below bit 24 belongs to the shipped core's fields, and 20-23 "
-                 f"proved fatal in 0.1.27 (the core stopped booting)")
-        elif not bits:
+        if not bits:
             fail(f"{v['name']} has mask {v.get('mask')} -- an all-ones mask leaves EVERY bit untouched, so the "
                  f"element can write nothing.  Doom's App Option 1/2/3 are inert for exactly this reason")
         else:
-            print(f"  [PASS] {v['name']} writes only bits "
-                  f"{min(bits)}-{max(bits)} of {v['address']}")
+            print(f"  [PASS] {v['name']} writes bits {min(bits)}-{max(bits)} of {v['address']}")
     for a, b in [(x["address"], y["address"]) for x in app for y in app if x is not y]:
         if a == b and all(mask_bits(x) & mask_bits(y) for x in app for y in app if x is not y):
             fail("two app knobs write overlapping bits of one bridge word")

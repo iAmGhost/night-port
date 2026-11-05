@@ -193,62 +193,6 @@
                     "adjust_small": 1,
                     "adjust_large": 4
                 }
-            },
-            {
-                "name": "Music Volume",
-                "id": 100,
-                "type": "list",
-                "enabled": true,
-                "persist": true,
-                "address": "0xF7000000",
-                "mask": "0xF8FFFFFF",
-                "defaultval": "0x05000000",
-                "options": [
-                    {
-                        "value": "0x01000000",
-                        "name": "Off"
-                    },
-                    {
-                        "value": "0x02000000",
-                        "name": "Low"
-                    },
-                    {
-                        "value": "0x03000000",
-                        "name": "Medium"
-                    },
-                    {
-                        "value": "0x04000000",
-                        "name": "High"
-                    },
-                    {
-                        "value": "0x05000000",
-                        "name": "Full"
-                    }
-                ]
-            },
-            {
-                "name": "Screen Fit",
-                "id": 101,
-                "type": "list",
-                "enabled": true,
-                "persist": true,
-                "address": "0xF7000000",
-                "mask": "0xE7FFFFFF",
-                "defaultval": "0x08000000",
-                "options": [
-                    {
-                        "value": "0x08000000",
-                        "name": "Letterbox"
-                    },
-                    {
-                        "value": "0x10000000",
-                        "name": "Stretch"
-                    },
-                    {
-                        "value": "0x18000000",
-                        "name": "Scaler 320x200"
-                    }
-                ]
             }
         ],
         "messages": []

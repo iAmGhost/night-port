@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.34"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.35"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -211,17 +211,37 @@ def main():
     # The app reads the same word off the bus (of_save.c bridge_control_word()), which is how openfpgaOS's own
     # drivers and the SDK's interactdemo see platform state -- of_interact_get() demonstrably carries nothing
     # (docs/344), so the bridge itself is the channel and the ecall is the cross-check.
-    APP_INTERACT_KNOBS = True
+    # 0.1.35 turns the knobs off, and the reason is now a pattern rather than a guess.  Both builds that declared
+    # an app element INSIDE 0xF7000000 failed to boot the core; every build that declared one anywhere else booted
+    # fine, all day, and simply never delivered a value:
+    #   0.1.25/26  0xF700000C / 0xF7000010   booted, values unreadable (0x55555555, then fixed junk)
+    #   0.1.32     0x03FE0000 / 0x03FE0008   booted, mask 0xFFFFFFFF so the elements could write nothing at all
+    #   0.1.27     0xF7000000 bits 20-23      core dead: card kept the previous log, wrote nothing new
+    #   0.1.34     0xF7000000 bits 24-26/27-28  core dead again, with masks and values that were well formed this
+    #                                          time (every option value inside its own field, none zero)
+    # The two failures therefore do NOT single out a bit position -- they single out the address.  The firmware
+    # rewrites every declared element's field of that word each frame, and openfpgaOS's core_top is what consumes
+    # the word; an app element inside it is a periodic write into state the core owns, and the core stops running.
+    # So an app element cannot live at 0xF7000000, and an app element elsewhere is inert on this bitstream.  That
+    # is the whole surface: a custom core on the prebuilt openfpgaOS bitstream has no usable interact knob.  The
+    # settings a player can change are night.ini and the pad combo (docs/345 §6), and what 0.1.35 measures is
+    # whether the app can at least READ the word the firmware writes -- see bridge_control_word() in of_save.c.
+    # Flipping this flag back on is the experiment, and it is a one-line experiment: check_interact.py now refuses
+    # an app element on 0xF7000000, so re-enabling also means editing the rule that encodes the measurement.
+    APP_INTERACT_KNOBS = False
     app_vars = ([] if not APP_INTERACT_KNOBS else [
+        # Well formed, and still fatal.  Kept here as the exact shape to retry -- if a future openfpgaOS build
+        # makes app fields readable (or documents a page an app may own), these two entries are the candidate.
+        # 0.1.34 shipped them and the core would not boot.
         {"name": "Music Volume", "id": 100, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000000", "mask": "0xF8FFFFFF", "defaultval": "0x05000000", "options": [
+         "address": "0xF700001C", "mask": "0xF8FFFFFF", "defaultval": "0x05000000", "options": [
              {"value": "0x01000000", "name": "Off"},
              {"value": "0x02000000", "name": "Low"},
              {"value": "0x03000000", "name": "Medium"},
              {"value": "0x04000000", "name": "High"},
              {"value": "0x05000000", "name": "Full"}]},
         {"name": "Screen Fit", "id": 101, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000000", "mask": "0xE7FFFFFF", "defaultval": "0x08000000", "options": [
+         "address": "0xF7000020", "mask": "0xE7FFFFFF", "defaultval": "0x08000000", "options": [
              {"value": "0x08000000", "name": "Letterbox"},
              {"value": "0x10000000", "name": "Stretch"},
              {"value": "0x18000000", "name": "Scaler 320x200"}]},

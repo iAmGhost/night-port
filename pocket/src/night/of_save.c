@@ -185,6 +185,7 @@ static int fit_from_bridge(unsigned word) {
 #endif  /* HAVE_FIT */
 
 static int      g_fit_bridge = 0, g_interact_err = 0;
+static int      g_diag = 0;          /* night.ini DIAG=: which experimental probes this run may perform */
 static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the source of every field above */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 0;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
@@ -404,6 +405,13 @@ void of_settings_load(void) {
      * owner edited is a deliberate instruction, and the interact bridge has already proved itself ambiguous
      * (five variables share 0xF7000000, and 0 is both "On" and "the bridge carried nothing"). */
     g_screen    = cfg_int("screen",      0, "NIGHT_SCREEN");   /* 0 game, 1 terminal, 2 overlay, -1 follow menu */
+    /* Experimental reads are opt-IN, default off, and editable on the card without a rebuild.  0.1.35 shipped
+     * four unproven probes in the boot path unconditionally (a 96-word MMIO scan of the periph page, an
+     * of_analogizer_state() call, a full interact census with out-of-range probes, and a raw read of
+     * 0xF7000000) and the run died just after the last of them, leaving the panel on openfpgaOS's terminal.  A
+     * diagnostic must never be able to end a game: each one is a bit here, so a suspected probe is bisected by
+     * editing night.ini, and a player's build does no bus reads at all. */
+    g_diag      = cfg_int("diag",        0, "NIGHT_DIAG");
     g_tick_hz   = cfg_int("tick_hz",     0, "NIGHT_TICK_HZ");  /* 0 = whatever rate the game programs */
     /* Two knobs for the two hardware faults under investigation, each off/on from the card so a run changes
      * one thing at a time: BLIT_SKIP=0 stops the host skipping the blit when its sampled bytes say the frame
@@ -432,12 +440,18 @@ void of_settings_load(void) {
      * "the user asked for silence" would otherwise be the same number, and the first silently replaced
      * night.ini's MUSIC_VOL (docs/341, and the card's own interact_persist.json showing Music Volume 0). */
     {
-        unsigned w = bridge_control_word();
+        unsigned w = 0;
         int mv = 0, fit = -1;
-        SLOG("bridge: control word 0x%08x = %08x | fields music=%d fit=%d lcd=%d free 5,8-9,14,20-23,29-31\n",
-             OF_BRIDGE_CTRL, w, (int)((w >> MUSIC_SHIFT) & MUSIC_MASK), (int)((w >> FIT_SHIFT) & FIT_MASK),
-             (int)((w >> PLCD_SHIFT) & PLCD_MASK));
-        g_bridge_word = w;
+        if (g_diag & OF_DIAG_BRIDGE) {          /* the raw read of the control word is one of the probes that
+                                                 * 0.1.35 shipped unconditionally, so it is gated like them */
+            w = bridge_control_word();
+            SLOG("bridge: control word 0x%08x = %08x | fields music=%d fit=%d lcd=%d free 5,8-9,14,20-23,29-31\n",
+                 OF_BRIDGE_CTRL, w, (int)((w >> MUSIC_SHIFT) & MUSIC_MASK), (int)((w >> FIT_SHIFT) & FIT_MASK),
+                 (int)((w >> PLCD_SHIFT) & PLCD_MASK));
+            g_bridge_word = w;
+        } else {
+            SLOG("bridge: control word read disabled (DIAG=0); night.ini DIAG=8 re-enables it\n");
+        }
 #if HAVE_MUSIC
         mv = music_vol_from_bridge(w);
         g_music_bridge = (int)w;
@@ -471,6 +485,7 @@ int of_settings_poll(void) {
     return 0;                       /* the desktop build has no bridge to read */
 #else
     int changed = 0;
+    if (!(g_diag & OF_DIAG_BRIDGE)) return 0;   /* no bus read, no settings from the bridge */
     unsigned w = bridge_control_word();
     int mv = 0, fit = -1;
 #if HAVE_MUSIC
@@ -526,4 +541,5 @@ int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
 int  of_setting_fb_mode(void)   { return g_fb_mode; }     /* 1 = use a native 640x480 source framebuffer if the OS offers one */
 int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }
-int  of_setting_bridge_word(void) { return (int)g_bridge_word; }   /* the Pocket LCD field only, not the shared word */
+int  of_setting_bridge_word(void) { return (int)g_bridge_word; }
+int  of_setting_diag(void)      { return g_diag; }   /* the Pocket LCD field only, not the shared word */

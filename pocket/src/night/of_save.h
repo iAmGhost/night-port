@@ -47,7 +47,17 @@ int  of_setting_fit_cycle(void);    /* 0 -> 1 -> 2 -> 0 from the pad combo; retu
 int  of_setting_interact_err(void); /* the error code the last interact probe reported */
 int  of_setting_screen(void);         /* 0 game, 1 terminal, 2 game + log overlay */
 int  of_setting_lcd_raw(void);
-int  of_setting_bridge_word(void);   /* last raw 0xF7000000 read */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
+int  of_setting_bridge_word(void);   /* last raw 0xF7000000 read, 0 when the probe is disabled */
+int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG_* below */
+
+/* Which experimental reads a run is allowed to perform, all off unless night.ini says otherwise.  Every one of
+ * these is a probe the port has NOT established as safe on this bitstream, and 0.1.35 is the evidence: shipped
+ * with all of them unconditional, the run stopped writing its log after the last probe and the panel stayed on
+ * the openfpgaOS terminal. */
+#define OF_DIAG_PERIPH      1     /* MMIO scan of the openfpgaOS periph page at 0x40000000+ (interactdemo's route) */
+#define OF_DIAG_ANALOGIZER  2     /* of_analogizer_state(), the documented route to the reserved menu values */
+#define OF_DIAG_INTERACT    4     /* the interact census, in range only -- see docs/347 for the edge probes */
+#define OF_DIAG_BRIDGE      8     /* raw read of 0xF7000000, the word the firmware rewrites each frame */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */
 int  of_setting_sync_flip(void);      /* 1 = wait for each flip to be presented before returning */
 int  of_setting_fb_mode(void);        /* 1 = ask the OS for a native 640x480 source framebuffer (FB_MODE=0 forces the software downscale) */

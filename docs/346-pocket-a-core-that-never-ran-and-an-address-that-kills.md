@@ -1,5 +1,12 @@
 # 346 — 0.1.34 never ran: the death is in core bring-up, not in the app
 
+> **Correction, superseded by docs/347.**  The card log quoted below was *not* the 0.1.34 run — it was the 0.1.32
+> run, and the next log I read (70 lines, marker `core 0.1.34`) was really a **0.1.35** run: the ELF's embedded
+> `OF_CORE_VERSION` was stale because `make` did not treat the generated header as a dependency.  "No log means the
+> ELF never executed" was the right rule applied to the wrong artifact.  The address conclusion below survived (it
+> rests on 0.1.27 and 0.1.34, both of which genuinely produced no log); the "the app is exonerated" half did not,
+> and 0.1.36 gates its diagnostics because of what 0.1.35 turned out to be.
+
 Core 0.1.35.  The card answered the question that the screen could not.
 
 ## 1. Log forensics

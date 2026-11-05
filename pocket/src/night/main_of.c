@@ -1200,9 +1200,13 @@ static void tick_pump(void) {
                  * 0.1.28 run read 0x55555555 everywhere and the 0.1.29 run read a different garbage per index --
                  * neither behaviour distinguishes those two, but a value that HOLDS and then CHANGES does. */
                 static unsigned probe_tick;
-                periph_scan(probe_tick && (probe_tick % 10u) == 0u ? 1 : 0);   /* movements every second, a full
-                                                                                 * snapshot every tenth pass */
-                if (++probe_tick == 3u) {
+                static int interact2_done;
+                if (of_setting_diag() & OF_DIAG_PERIPH)
+                    periph_scan(probe_tick && (probe_tick % 10u) == 0u ? 1 : 0);   /* movements every second, a
+                                                                                     * full snapshot every tenth */
+                probe_tick++;
+                if (probe_tick == 3u && !interact2_done && (of_setting_diag() & OF_DIAG_INTERACT)) {
+                    interact2_done = 1;
                     for (int i = 0; i < OF_INTERACT_COUNT; i++) {
                         unsigned v = 0;
                         long e = of_interact_probe(i, &v);
@@ -1405,6 +1409,13 @@ int main(int argc, char **argv) {
 #endif
     of_video_init();
     of_video_set_color_mode(OF_VIDEO_MODE_8BIT);
+#ifndef OF_PC
+    /* Claim the game display at the top of boot.  0.1.35 stalled mid-boot and what the player saw was
+     * openfpgaOS's terminal, "regardless of the Pocket LCD setting" -- the display mode the host asks for is only
+     * asserted from the pump, and a run that never reaches the pump never asks for anything. */
+    NLOG_STEP("display claimed");
+    of_video_set_display_mode(OF_DISPLAY_FRAMEBUFFER);
+#endif
     of_audio_init();
 
     const struct of_capabilities *caps = of_get_caps();
@@ -1413,6 +1424,15 @@ int main(int argc, char **argv) {
            caps->fb_width, caps->fb_height, caps->fb_stride, caps->mixer_voices, caps->core_variant);
     NLOG("caps: version=%u hw=%08x os=%08x (sdk OF_CAPS_VERSION=%d)\n",
          caps->version, caps->hw_features, (caps->version >= 4) ? caps->os_features : 0u, OF_CAPS_VERSION);
+    of_settings_load();                        /* os.ini [night] on the device, env on the desktop */
+    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
+         of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
+         of_setting_tick_hz(), of_setting_screen());
+    NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
+         of_setting_fit());
+    NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"
+         "\n       every probe below is gated on this; night.ini DIAG= is the switch, 0 is the shipping value\n",
+         of_setting_diag());
 #ifndef OF_PC
     /* The control in the interact experiment.  The RESERVED menu values have a documented route that is not
      * interact -- of_analogizer.h hands the app what the firmware wrote for Analogizer / SNAC / video offsets --
@@ -1421,14 +1441,19 @@ int main(int argc, char **argv) {
     {   /* of_analogizer_state() reads the SAME menu values the interact.json reserved entries point at -- video
          * mode, SNAC type, H/V offsets -- through a different ecall (OF_EID_ANALOGIZER).  If it answers coherently
          * while of_interact_get() answers garbage, the gap is the interact ecall specifically. */
-        of_analogizer_state_t az;
-        int arc = of_analogizer_state(&az);
-        NLOG("periph: reading %u words at 0x%08x (the interactdemo approach); if the log stops on this line, the"
-         " read itself is the answer\n", OF_PERIPH_WORDS, OF_PERIPH_BASE);
-    periph_scan(1);
-    NLOG("analogizer: enabled=%d state rc=%d en=%u video=%u snac=%u/%u off=%d,%d\n",
-             of_analogizer_enabled(), arc, az.enabled, az.video_mode, az.snac_type, az.snac_assignment,
-             (int)az.h_offset, (int)az.v_offset);
+        if (of_setting_diag() & OF_DIAG_PERIPH) {
+            /* Logged before the scan on purpose: if a run's log stops on this line, the scan is the answer. */
+            NLOG("periph: reading %u words at 0x%08x (the interactdemo approach); if the log stops on this line,"
+                 " the read itself is the answer\n", OF_PERIPH_WORDS, OF_PERIPH_BASE);
+            periph_scan(1);
+        }
+        if (of_setting_diag() & OF_DIAG_ANALOGIZER) {
+            of_analogizer_state_t az;
+            int arc = of_analogizer_state(&az);
+            NLOG("analogizer: enabled=%d state rc=%d en=%u video=%u snac=%u/%u off=%d,%d\n",
+                 of_analogizer_enabled(), arc, az.enabled, az.video_mode, az.snac_type, az.snac_assignment,
+                 (int)az.h_offset, (int)az.v_offset);
+        }
     }
 #endif
 #ifndef OF_PC
@@ -1449,17 +1474,11 @@ int main(int argc, char **argv) {
     if (g_rig_dir) rig_screen_init(g_rig_dir, 8);
 #endif
 
-    of_settings_load();                        /* os.ini [night] on the device, env on the desktop */
-    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
-         of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
-         of_setting_tick_hz(), of_setting_screen());
-    NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
-         of_setting_fit());
 #ifndef OF_PC
     /* Which index actually carries what.  of_interact_get() addresses variables by position, and the last two
      * times this was guessed wrong (docs/336), so the whole front of the table is printed rather than only the
      * entries the host hopes it needs. */
-    {
+    if (of_setting_diag() & OF_DIAG_INTERACT) {
         char acc[160]; int n = 0;
         for (int i = 0; i < OF_INTERACT_COUNT; i++)
             n += snprintf(acc + n, sizeof acc - (size_t)n, " %d=%08x", i, (unsigned)of_interact_get(i));
@@ -1477,12 +1496,12 @@ int main(int argc, char **argv) {
          * only means something if the handler validates its index.  Probe the boundary: if 999 and 63 read 0
          * while 0..n-1 read the same fixed garbage in every run, then the ecall IS dispatched and its table is
          * simply never filled -- a different statement from "the ecall does not exist", and the accurate one. */
-        for (int i = OF_INTERACT_MAX_VARS - 1; i >= OF_INTERACT_MAX_VARS - 1; i--) {
-            unsigned v = 0; long e = of_interact_probe(i, &v);
-            NLOG("interact[%d] (edge): err=%ld val=%08x\n", i, e, v);
-        }
-        {   unsigned v = 0; long e = of_interact_probe(999, &v);
-            NLOG("interact[999] (out of range): err=%ld val=%08x\n", e, v); }
+        /* No out-of-range probes.  They were a reasonable idea -- the SDK's own test asserts
+         * of_interact_get(999) == 0, which only means something if the handler validates the index -- but the
+         * only way to find out on hardware is to ask the OS to index a table it may not size-check, and a
+         * diagnostic that can fault the kernel is not a diagnostic.  0.1.34/0.1.35 read indices up to
+         * OF_INTERACT_MAX_VARS-1 and 999; 0.1.32 read only the declared range and ran to completion.  The
+         * boundary question is asked from the PC shim, where an OOB read hurts nobody. */
     }
 #endif
 #ifndef OF_PC

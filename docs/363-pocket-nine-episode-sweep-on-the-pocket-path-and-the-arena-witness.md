@@ -101,3 +101,36 @@ approached the 8-slide/scaler limits, and no run dropped a SFX block that it did
 
 Core unchanged at 0.1.53 for the sweep (the rig additions are desktop-only); the fixture suite still passes; `src/f`
 untouched.
+
+## 8. Re-run on the shipping core (0.1.58), same rig, same route
+
+The sweep is the port's regression test for gameplay state, and the core changed three times after §3 was written
+(pump gating, docs/369; `PUMP_AUDIO_TICK`, docs/369 §5; the overlay panel, docs/370).  Re-running it against the
+shipping binary is the cheap way to prove none of that touched the game:
+
+```
+FRAMES=4000 OUT=/tmp/sw58 WITNESS=1 scripts/pocket/sweep_episodes.sh
+== 9/9 episodes entered and ran clean ==
+```
+
+| ep | warp pulses (§3 → now) | ticks | present max | arena high-water | IDENTICAL shipped cards | samples matching |
+|---|---|---|---|---|---|---|
+| 1 | 25 → 25 | +491/s, pit 490 Hz | 5 685 µs | 3 903 168 | 44 samples, incl. `1s1/1s2/…` | 44 |
+| 2 | → 23 | +491/s | 2 995 µs | 4 775 488 | ✓ | 37 |
+| 3 | 31 → 31 | +491/s | 3 387 µs | 4 463 232 | ✓ | 64 |
+| 4 | 18 → 18 | +491/s | 5 251 µs | 3 903 168 | ✓ (`stage4` @208) | 20 |
+| 5 | → 18 | +491/s | 4 939 µs | 3 903 168 | ✓ | 21 |
+| 6 | → 25 | +491/s | 2 923 µs | 4 805 632 | ✓ | 44 |
+| 7 | → 18 | +491/s | 5 931 µs | 5 248 896 | ✓ | 21 |
+| 8 | → 22 | +491/s | 16 667 µs | 3 903 168 | ✓ `8s1` @208, `stage8` @280 both 307200/307200 | 30 |
+| 9 | → 25 | +491/s | 4 236 µs | 4 893 440 | ✓ `9s1/9s2/9s3/stage9` all 307200/307200 | 43 |
+
+`entered=True clean=True card-identical=True` in all nine; **27 `IDENTICAL` card matches**, the same count §3
+reported, 324 individual arena samples byte-identical in total; tick rate +491/s against `pit=490 Hz` again in every
+episode; arena high-water 3.90–5.25 MB of the 16 MiB budget again; worst present 16 667 µs (episode 8) again.
+
+Two numbers that *did* move are not divergences: the sample counts per stage differ because `--frames 4000` is a
+shorter run than §3's, and `na*` partial matches sit at the same 42–62 % as always -- the route gap §4 describes
+(the warp route walks through the CG shows rather than playing them).  What the sweep actually certifies is the
+loader/state half: room chain, boss coordinates, view geometry, entity counts, episode CD selects against
+`g_tab_52da4`, and arena bytes equal to the shipped PCX wherever the route holds a card.

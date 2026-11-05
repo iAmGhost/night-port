@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.60"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.61"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -462,6 +462,7 @@ def main():
         "BLIT_SKIP=0\n"     # 1 = skip the 640x480->320x240 blit while the sampled frame is unchanged (max 8 in a row)
         "FB_MODE=1\n"
         "PUMP_AUDIO_TICK=0\n"
+        "RESTORE=1\n"   # 1 = a loaded save restores the HP bars (docs/374); 0 = nothing, 2 = state bytes + stage selectors, 4 = the key table
                 "PRESENT_SYNC=0\n"    # wait for each flip to be presented before writing the surface again
         "TICK_HZ=490\n"
         # Experimental reads, all off.  0.1.35 shipped them unconditionally and the run died mid-boot (docs/347).
@@ -511,6 +512,7 @@ def main():
           "| `CDDA` `PAD` | 0 | `1` mutes the CD music / ignores the pad |\n"
           "| `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |\n"
           "| `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |\n"
+          "| `RESTORE` | 1 | what a loaded save applies: 1 HP bars, 2 state bytes + stage selectors, 4 key table, 0 nothing (2 and 7 can make the game dereference out of range mid-stage) |\n"
           "| `PUMP_AUDIO_TICK` | 0 | 0 = drain the board's DMA byte ring on every pump entry (the shape every build has used); 1 = drain it once per 490 Hz tick. The hardware A/B lever for the 267 000-pump-entries-a-frame finding (docs/369), off by default because that ring is the one the game is writing into |\n"
           "| `LOG` | 0 | 1 writes `Saves/night/common/nightlog.sav`, the diagnostic trail this port was measured with |\n"
           "| `DIAG` | 0 | which experimental bus probes a run may perform (1 periph scan, 2 analogizer, 4 interact census) |\n"

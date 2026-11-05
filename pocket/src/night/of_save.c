@@ -190,6 +190,7 @@ static int fit_from_bridge(unsigned word) {
 static int      g_fit_bridge = 0, g_interact_err = 0;
 static int      g_diag = 0;          /* night.ini DIAG=: which experimental probes this run may perform */
 static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the source of every field above */
+static int      g_restore = 1;   /* night.ini RESTORE=: which save fields a load applies (docs/374) */
 static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain the board ring per pump entry
                                            * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1;   /* 1 = stretch: the shipped default */
@@ -207,10 +208,15 @@ static int16_t gauge2_of(const save_blob_t *b) { return (int16_t)(b->player[0x29
 #define RS_GAUGE    1
 #define RS_STATE    2
 #define RS_KEYSTATE 4
-static int restore_mask(void) {
-    const char *e = getenv("NIGHT_RESTORE");
-    return e ? (atoi(e) & 7) : 0;                 /* 0 = the stage checkpoint only, the measured-safe default */
-}
+/* task-accuracy (docs/374): the default used to be 0, which meant a loaded save restored NOTHING.  That was
+ * measured (a save whose HP byte was patched to 37 and its CRC recomputed left the live player record at the spawn
+ * value 100/1000 with mask 0, and moved it to 37/1000 with mask 1 -- the apply path works, the default just never
+ * used it).  Gauges are now restored by default: mask 1 completed clean at stage 1 (873 frames, +491 ticks/s, no
+ * terminate request), and masks 2/4/5/7 also completed clean on that route while the older measurement says the
+ * DAT_63374..63384 selectors can be dereferenced out of range when forced mid-stage.  So the risky half stays opt-in
+ * via night.ini RESTORE= and the useful half ships. */
+int of_setting_restore(void);
+static int restore_mask(void) { return of_setting_restore() & 7; }
 
 static uint32_t blob_crc(const save_blob_t *b) {
     const uint8_t *p = (const uint8_t *)b;
@@ -461,6 +467,10 @@ void of_settings_load(void) {
      * frame.  Gating it to the game's tick is the obvious lever and the risky one at once -- it empties the byte
      * ring the game's own DMA transfers write into -- so it ships off and a hardware run A/Bs it with one line. */
     g_pump_audio_tick = cfg_int("pump_audio_tick", 0, "NIGHT_PUMP_AUDIO_TICK");
+    /* RESTORE=0 restores nothing (what every build before 0.1.61 did); 1 restores the HP bars, 2 the state bytes and
+     * DAT_63374..63384, 4 the key table.  The state half is the one docs/334 measured as able to make the game
+     * dereference out of range mid-stage, so it stays a developer's setting. */
+    g_restore = cfg_int("restore", 1, "NIGHT_RESTORE");
     /* How the 320x200 game picture meets the 320x240 panel.  1 (the default) fills the panel: 40 of the 200
      * rows are shown twice, one every fifth row, which is the evenest row-doubling stretch there is -- and
      * 320x200 on a 4:3 CRT *was* a 1.2x vertical stretch, so this reproduces the proportions the original was
@@ -589,6 +599,7 @@ int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
 int  of_setting_pump_audio_tick(void) { return g_pump_audio_tick; }
+int  of_setting_restore(void)   { return g_restore; }        /* save-apply bits: 1 gauges (shipping), 2 state, 4 key table */
 int  of_setting_fb_mode(void)   { return g_fb_mode; }     /* 1 = use a native 640x480 source framebuffer if the OS offers one */
 int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }
 int  of_setting_bridge_word(void) { return (int)g_bridge_word; }

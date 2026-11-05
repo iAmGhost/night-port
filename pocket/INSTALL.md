@@ -55,6 +55,10 @@ with its default.  The ones that matter for a report:
 | `SFX_GAIN` / `CDDA_GAIN` | `200` / `150` | 100-212 %, through a knee that cannot clip and cannot attenuate (docs/361) |
 
 In-game, with L1 held: `L1+Select` saves the current slot, `L1+Start` loads it, `L1+A` cycles slots 0-9.
+A save holds the stage number, the stage's state words, a 64-byte window of the player record and the key table, and
+it is checksum-guarded on load.  A load applies the HP bars by default (`RESTORE=1`, docs/374); the stage-state and
+key-table halves are opt-in because forcing the stage selectors mid-stage can make the game dereference them out of
+range.  The original game has no save system of its own, so this is a facility of the port.
 
 ## 3. Reporting a hardware run
 

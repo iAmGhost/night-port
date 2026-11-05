@@ -22,6 +22,12 @@ const char *of_save_last_error(void);
 
 /* Settings: os.ini ([night] section) on the device, environment on the desktop. */
 void of_settings_load(void);
+/* Re-read the interact menu and apply whatever moved.  Returns a bitmask of what changed; the menu is live
+ * during a run, so a knob has to be readable mid-game, not only at boot (docs/341). */
+#define OF_SET_VOL  1
+#define OF_SET_TICK 2
+#define OF_SET_LCD  4
+int  of_settings_poll(void);
 int  of_setting_music_vol(void);
 int  of_setting_sfx_vol(void);
 int  of_setting_cdda(void);

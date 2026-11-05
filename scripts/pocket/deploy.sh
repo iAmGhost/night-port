@@ -105,6 +105,16 @@ slot_id_of() {
 }
 [ -f "$COMMON/night.elf" ] || fail "$COMMON has no night.elf -- core tree did not land"
 
+# Drop this core's own persisted interact values.  They were written by our earlier builds, whose two sliders
+# behaved badly: the card's Settings/iamghost.night/Interact/_core/interact_persist.json carried Music Volume 0
+# and Tick Pump 60 (a 0 the UI clamps to the slider's minimum), and 60 is a legal tick cap -- 8x slow motion.
+# 0.1.25 ships both knobs as named lists, so they start from the values the core actually agrees to.  The
+# firmware regenerates this file; the owner's input remap (Input/_core/) is left alone.
+if [ -d "$SDCARD/Settings/iamghost.night/Interact" ]; then
+    rm -rf "$SDCARD/Settings/iamghost.night/Interact"
+    ok "cleared this core's stale persisted interact values (they came from the 0.1.24 sliders)"
+fi
+
 # ── 2. the data-slot files ──────────────────────────────────────────────────────────────
 need=0
 [ -f "$DATA/NIGHT.RES" ] || fail "missing $DATA/NIGHT.RES -- the game terminates without it (fn_03690b -> fn_036537)"

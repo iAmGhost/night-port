@@ -158,8 +158,8 @@ static void voice_start(void) {
     of_mixer_set_rate_h(g_voice[1], CD_SRC_RATE);
     of_mixer_set_loop_h(g_voice[0], 0, (int)CD_RING_FRAMES);
     of_mixer_set_loop_h(g_voice[1], 0, (int)CD_RING_FRAMES);
-    of_mixer_set_vol_lr_h(g_voice[0], 255, 0);
-    of_mixer_set_vol_lr_h(g_voice[1], 0, 255);
+    of_mixer_set_vol_lr_h(g_voice[0], g_vol, 0);     /* the level the settings already settled on */
+    of_mixer_set_vol_lr_h(g_voice[1], 0, g_vol);
     of_mixer_set_group_volume(OF_MIXER_GROUP_MUSIC, g_vol);
 #endif
 }
@@ -466,7 +466,17 @@ static void cdda_resume(void) {
     of_log_line("cdda: slot answering again, resuming at sector %u of %u\n", g_pos, g_sectors);
 }
 
-void     of_cdda_set_volume(int v) { g_vol = v; g_vol &= 0x1ff; }
+void     of_cdda_set_volume(int v) {
+    g_vol = v & 0xff;
+#ifndef OF_PC
+    /* A menu knob has to be audible the moment it moves.  Group volume alone was not enough on the device --
+     * the music kept its level when the slider moved -- so the level also goes onto each voice, which is the
+     * API openfpgaOS-Doom drives (i_sdlsound.c:197 of_mixer_set_vol_lr_h). */
+    of_mixer_set_group_volume(OF_MIXER_GROUP_MUSIC, g_vol);
+    if (g_voice[0] != OF_MIXER_HANDLE_INVALID) of_mixer_set_vol_lr_h(g_voice[0], g_vol, 0);
+    if (g_voice[1] != OF_MIXER_HANDLE_INVALID) of_mixer_set_vol_lr_h(g_voice[1], 0, g_vol);
+#endif
+}
 uint32_t of_cdda_ring_ahead(void) { return ring_ahead(); }
 int32_t  of_cdda_head(void);
 uint32_t of_cdda_pos(void)     { return g_pos; }

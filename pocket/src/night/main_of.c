@@ -649,12 +649,55 @@ static void audio_pump(void) {
  * The engine is its own unit (of_cdda.c): two mono rings in the mixer pool, looping MUSIC voices, refilled
  * from the per-track slots, clocked at 75 sectors/s.  The host only owns the play/stop seam the game asks
  * for and the NIGHT_OFF switch that can silence it. */
+/* The game's own MUSIC MODE option (DAT_00051a10 -- the byte fn_10b1d checks before it selects a CD track,
+ * docs/114, and the entry the title/pause menu toggles, docs/22) only stops the game *asking* for CD-DA.  In the
+ * original that is silence, because the music exists only as the reads the game issues.  Here the two MUSIC
+ * voices loop over their rings until something stops them, so turning the mode off in the game's own menu
+ * changed nothing at all -- which is the report.  Mirror the flag, and remember the last request so switching
+ * it back on brings the same track back instead of waiting for the next scene. */
+static uint32_t g_music_mode = 1;
+static uint32_t g_cdda_last_index, g_cdda_last_lba, g_cdda_last_sectors;
+static int cdda_allowed(void) { return !(g_off & OFF_CDDA) && g_music_mode; }
 static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
-    if (g_off & OFF_CDDA) return;
+    if (!cdda_allowed()) return;
+    g_cdda_last_index = index; g_cdda_last_lba = lba; g_cdda_last_sectors = sectors;
     of_cdda_play(index, lba, sectors);
 }
-static void cdda_stop(void) { of_cdda_stop(); }
-static void cdda_pump(void) { if (!(g_off & OFF_CDDA)) of_cdda_pump(); }
+static void cdda_stop(void) { if (cdda_allowed()) of_cdda_stop(); }
+static void cdda_pump(void) { if (cdda_allowed()) of_cdda_pump(); }
+static void music_mode_mirror(void) {
+    uint32_t on = g_dat_51a10 ? 1u : 0u;
+    if (on == g_music_mode) return;
+    g_music_mode = on;
+    if (!on) {
+        of_cdda_stop();
+        NLOG("music mode: off (DAT_00051a10=0) -> CD-DA voices stopped\n");
+    } else if (g_cdda_last_sectors && !(g_off & OFF_CDDA)) {
+        of_cdda_play(g_cdda_last_index, g_cdda_last_lba, g_cdda_last_sectors);
+        NLOG("music mode: on -> track %u lba %u restarted\n",
+             g_cdda_last_index, g_cdda_last_lba);
+    } else {
+        NLOG("music mode: on (nothing armed yet)\n");
+    }
+}
+
+/* The menu is live while the core runs, so the knobs are re-read on a beat instead of once at boot.
+ * 100 ms is well below what a person notices on a volume slider and far above the cost of two bridge reads. */
+static uint64_t g_setting_next_us;
+static void settings_beat(uint64_t now) {
+    if (now < g_setting_next_us) return;
+    g_setting_next_us = now + 100000ull;
+    int ch = of_settings_poll();
+    if (ch & OF_SET_VOL) {
+        of_cdda_set_volume(of_setting_music_vol());
+        of_mixer_set_group_volume(OF_MIXER_GROUP_SFX, of_setting_sfx_vol() & 0xff);
+        NLOG("settings: music_vol=%d applied from the menu\n", of_setting_music_vol());
+    }
+    if (ch & OF_SET_TICK)
+        NLOG("settings: tick cap=%d Hz (0 = the rate the game programs)\n", of_setting_tick_hz());
+    if (ch & OF_SET_LCD)
+        NLOG("settings: pocket lcd raw=%08x scr=%d\n", of_setting_lcd_raw(), of_setting_screen());
+}
 
 /* ---- pad -> the shipped keyboard state (docs/91, docs/92) -------------------------------
  * The game reads its key state from the DAT_00063e88[] held-bytes that night_key_apply() writes, and
@@ -872,6 +915,9 @@ static void tick_pump(void) {
      * timeline flapping). */
     if (now < g_tick_next_us) { g_depth--; return; }
 
+    settings_beat(now);
+    music_mode_mirror();
+
     uint32_t hz = sys_pit_hz(0);                      /* fn_03ef29 programs PIT ch0 (0x982 -> 490 Hz) */
     if (hz == 0 && g_dat_63318) hz = 1193182u / g_dat_63318;
     if (hz == 0) hz = sys_clock_ticks_per_sec();
@@ -973,10 +1019,10 @@ static void tick_pump(void) {
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
 #endif
-            NLOG("audio cdda=%u/%u/%u plays=%u stops=%u sfx=%u/%u/%u ring=%u head=%d\n",
+            NLOG("audio cdda=%u/%u/%u plays=%u stops=%u sfx=%u/%u/%u ring=%u head=%d music_mode=%u\n",
                  of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), sys_cd_audio_play_calls(),
                  sys_cd_audio_stop_calls(), g_of_sfx_plays, g_of_sfx_drops, g_of_sfx_steals,
-                 of_cdda_ring_ahead(), (int)of_cdda_head());
+                 of_cdda_ring_ahead(), (int)of_cdda_head(), (unsigned)g_dat_51a10);
             if (sys_audio_dsp_unknown_total()) {
                 /* Name them.  A total only says something was ignored; which byte it was says whether the
                  * missing sound is an arm the port never acts on. */
@@ -1298,6 +1344,8 @@ int main(int argc, char **argv) {
     g_tick_next_us = sys_now_us();
     g_present_next_us = g_tick_next_us;
     g_diag_next_us = g_tick_next_us + 1000000ull;
+    g_setting_next_us = g_tick_next_us;
+    g_music_mode = g_dat_51a10 ? 1u : 0u;             /* the shipped value is 1 (docs/133) */
 
     g_boot_us = sys_now_us();                       /* the warp-entry pulse timeline (task-7) */
     if (setjmp(g_game_escape) == 0) {

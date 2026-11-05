@@ -213,34 +213,64 @@
             {
                 "name": "Music Volume",
                 "id": 100,
-                "type": "slider_u32",
+                "type": "list",
                 "enabled": true,
                 "persist": true,
                 "address": "0xF700000C",
-                "defaultval": 200,
-                "graphical": {
-                    "signed": false,
-                    "min": 0,
-                    "max": 255,
-                    "adjust_small": 1,
-                    "adjust_large": 16
-                }
+                "defaultval": 192,
+                "options": [
+                    {
+                        "value": "0x00000001",
+                        "name": "Off"
+                    },
+                    {
+                        "value": "0x00000040",
+                        "name": "Low"
+                    },
+                    {
+                        "value": "0x00000080",
+                        "name": "Medium"
+                    },
+                    {
+                        "value": "0x000000C0",
+                        "name": "High"
+                    },
+                    {
+                        "value": "0x000000FF",
+                        "name": "Full"
+                    }
+                ]
             },
             {
                 "name": "Tick Pump Hz",
                 "id": 101,
-                "type": "slider_u32",
+                "type": "list",
                 "enabled": true,
                 "persist": true,
                 "address": "0xF7000010",
-                "defaultval": 490,
-                "graphical": {
-                    "signed": false,
-                    "min": 60,
-                    "max": 490,
-                    "adjust_small": 1,
-                    "adjust_large": 30
-                }
+                "defaultval": 0,
+                "options": [
+                    {
+                        "value": "0x00000000",
+                        "name": "Game rate"
+                    },
+                    {
+                        "value": "0x000001E0",
+                        "name": "490 Hz"
+                    },
+                    {
+                        "value": "0x000000F5",
+                        "name": "245 Hz"
+                    },
+                    {
+                        "value": "0x0000007A",
+                        "name": "122 Hz"
+                    },
+                    {
+                        "value": "0x0000003C",
+                        "name": "60 Hz (slow)"
+                    }
+                ]
             }
         ],
         "messages": []

@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.24"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.25"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -188,12 +188,26 @@ def main():
                       {"value": "0x00010000", "name": "Off"},
                       {"value": "0x00020000", "name": "Terminal"}]}
     app_vars = [
-        {"name": "Music Volume", "id": 100, "type": "slider_u32", "enabled": True, "persist": True,
-         "address": "0xF700000C", "defaultval": 200,
-         "graphical": {"signed": False, "min": 0, "max": 255, "adjust_small": 1, "adjust_large": 16}},
-        {"name": "Tick Pump Hz", "id": 101, "type": "slider_u32", "enabled": True, "persist": True,
-         "address": "0xF7000010", "defaultval": 490,
-         "graphical": {"signed": False, "min": 60, "max": 490, "adjust_small": 1, "adjust_large": 30}},
+        # Both knobs are lists, not sliders, and that is a decision about the bridge rather than the menu.
+        # A variable is a word in the interact bridge, and the card's Settings/…/interact_persist.json showed
+        # what an untouched slider looks like there: Music Volume 0, Tick Pump 0 (which the UI then clamps to
+        # its min and shows as 60).  0 is a legal volume -- mute -- so "the bridge carries nothing" and "the
+        # user asked for silence" were the same number, and the host could not tell them apart.  Named options
+        # with no 0 in them end that: of_save.c accepts only values it can name.
+        {"name": "Music Volume", "id": 100, "type": "list", "enabled": True, "persist": True,
+         "address": "0xF700000C", "defaultval": 192, "options": [
+             {"value": "0x00000001", "name": "Off"},
+             {"value": "0x00000040", "name": "Low"},
+             {"value": "0x00000080", "name": "Medium"},
+             {"value": "0x000000C0", "name": "High"},
+             {"value": "0x000000FF", "name": "Full"}]},
+        {"name": "Tick Pump Hz", "id": 101, "type": "list", "enabled": True, "persist": True,
+         "address": "0xF7000010", "defaultval": 0, "options": [
+             {"value": "0x00000000", "name": "Game rate"},
+             {"value": "0x000001E0", "name": "490 Hz"},
+             {"value": "0x000000F5", "name": "245 Hz"},
+             {"value": "0x0000007A", "name": "122 Hz"},
+             {"value": "0x0000003C", "name": "60 Hz (slow)"}]},
         # What an openfpgaOS app can act on is of_video_set_display_mode() (of_video.h:43-45):
         # OF_DISPLAY_TERMINAL / OF_DISPLAY_FRAMEBUFFER / OF_DISPLAY_OVERLAY.  "Game + log" is the diagnostic
         # view that makes a hardware run readable without a card reader.
@@ -259,7 +273,7 @@ def main():
         "ARGS=\n\n"
         "[night]\n"
         "RES=NIGHT.RES\n"
-        "MUSIC_VOL=200\n"
+        "MUSIC_VOL=192\n"     # matches the menu's High, so the two agree until the menu is moved
         "SFX_VOL=255\n"
         "CDDA_OFF=0\n"      # explicit off-flags: 0 = music and pad are live
         "PAD_OFF=0\n"
@@ -270,7 +284,7 @@ def main():
         # SCREEN: 0 game only, 1 terminal only, 2 console over the game, -1 follow the menu's Pocket LCD value.
         # It is pinned here rather than left to the menu because the interact bridge is ambiguous: five
         # variables share 0xF7000000, and a value of 0 is both "On" and "nothing was carried".
-        "SCREEN=0\n"
+        "SCREEN=-1\n"     # follow the menu's Pocket LCD choice; SCREEN=0/1/2 pins it for a card-only run
         "BLIT_SKIP=0\n"     # 1 = skip the 640x480->320x240 blit while the sampled frame is unchanged (max 8 in a row)
         "FB_MODE=1\n"       # 1 = native 640x480 source framebuffer when the core offers that scaler mode, 0 = software 2x2
         "PRESENT_SYNC=0\n"    # wait for each flip to be presented before writing the surface again

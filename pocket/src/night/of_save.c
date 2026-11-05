@@ -69,6 +69,13 @@ static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
 static int      g_tick_hz   = 0;   /* 0 = whatever PIT rate the game programs; see of_setting_tick_hz */
 static unsigned g_lcd_raw   = 0xDEADBEEFu;   /* 0xDEADBEEU until the bridge is read */
+/* The values interact.json actually offers (mk_dist.py writes the same lists).  A menu variable is a word in
+ * the interact bridge, and at boot the bridge can carry 0 for a variable nobody has touched -- 0 is a legal
+ * volume (mute) and a legal "no cap", so the host only accepts a value it can name.  That is why the two
+ * knobs are lists with named options and no 0 in them: an unwired 0 must not silently mute the music. */
+static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, Medium, High, Full */
+static const int TICK_OPTS[]  = {   0,   60,  122,  245,  490 };   /* Game rate, 1/8, 1/4, 1/2, full */
+static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if (t[i] == v) return 1; return 0; }
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
@@ -308,8 +315,8 @@ void of_settings_load(void) {
          * to sit at zero -- which is how "Terminal" could be selected in the menu and never reach the host. */
         int lcd = (int)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
         g_lcd_raw = (unsigned)lcd;          /* the raw bridge word, reported every second */
-        if (mv != DEFAULT_OF_IDX_MUSIC) g_music_vol = clamp_vol(mv);
-        if (tk != DEFAULT_OF_IDX_TICK && tk >= 60 && tk <= 490) g_tick_hz = tk;
+        if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), mv)) g_music_vol = clamp_vol(mv);
+        if (in_opts(TICK_OPTS,  (int)(sizeof TICK_OPTS  / sizeof *TICK_OPTS),  tk)) g_tick_hz = tk;
         /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
          * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
          * stays as the route for a card-only diagnostic run (SCREEN=2 asks for the log overlaid on the game). */
@@ -319,6 +326,32 @@ void of_settings_load(void) {
 
     printf("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
            g_music_vol, g_sfx_vol, g_cdda_on, g_pad_on, g_tick_hz, g_screen);
+}
+
+int of_settings_poll(void) {
+#ifdef OF_PC
+    return 0;                       /* the desktop build has no interact bridge */
+#else
+    int changed = 0;
+    int mv = (int)of_interact_get(OF_IDX_MUSIC);
+    int tk = (int)of_interact_get(OF_IDX_TICK);
+    unsigned lcd = (unsigned)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
+
+    if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), mv) && mv != g_music_vol) {
+        g_music_vol = clamp_vol(mv);
+        changed |= OF_SET_VOL;
+    }
+    if (in_opts(TICK_OPTS, (int)(sizeof TICK_OPTS / sizeof *TICK_OPTS), tk) && tk != g_tick_hz) {
+        g_tick_hz = tk;
+        changed |= OF_SET_TICK;
+    }
+    if (lcd != g_lcd_raw) {
+        g_lcd_raw = lcd;
+        changed |= OF_SET_LCD;
+        if (g_screen < 0) g_screen = (lcd == OF_PLCD_TERMINAL) ? 1 : 0;
+    }
+    return changed;
+#endif
 }
 
 int of_setting_music_vol(void) { return g_music_vol; }

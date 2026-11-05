@@ -724,6 +724,7 @@ static void audio_boot(void) {
     of_mixer_set_master_volume(of_setting_master_vol());
     of_cdda_set_gain(of_setting_cdda_gain());     /* sample gain before the mixer, docs/361 */
     of_cdda_set_read_batch(of_setting_disc_batch());   /* sectors per CD-DA slot read, docs/375 */
+    of_cdda_set_min_want(of_setting_disc_min_want());        /* how much allowance to wait for, docs/375 */
     NLOG("mixer: %d voices, output rate %d Hz (samples keep their own rate, set per voice)\n", 32, OF_MIXER_OUTPUT_RATE);
 #ifndef OF_PC
     /* Keep the mixer fed while a blocking data-slot read waits on its DMA (of_file.h:96-103).  The intro and

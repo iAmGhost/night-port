@@ -60,7 +60,9 @@
 #define CD_RING_FRAMES    (CD_SRC_RATE * CD_RING_SEC)     /* 176 400 frames = 4 s per channel */
 #define CD_FRAMES_SECTOR  588                             /* one 2352-byte CD frame in samples */
 #define CD_BATCH_MAX          12                              /* sectors per slot read; night.ini DISC_BATCH= picks 1..12 (docs/375) */
-static int g_batch = CD_BATCH_MAX;                        /* 1 reproduces the one-sector-at-a-time shape exactly */
+static int g_batch = CD_BATCH_MAX;
+#define CD_MIN_WANT_MAX   12
+static int g_min_want = CD_MIN_WANT_MAX;                /* sectors of allowance to accumulate before reading (docs/375 3) */                        /* 1 reproduces the one-sector-at-a-time shape exactly */
 #define CD_CHUNK_SECTORS  12                              /* per pump pass: 7056 samples = 160 ms of big sequential reads */
 #define CD_LOOKAHEAD_SECTORS 120                          /* 1.6 s of audio read past the disc clock: the slack that
                                                            * survives a blocking video present without underrunning the
@@ -343,6 +345,11 @@ int16_t of_gain16(int16_t x, int gain_pct) {
 }
 
 void of_cdda_set_gain(int pct) { g_gain_pct = pct; }
+void of_cdda_set_min_want(int n) {                          /* docs/375 3: 1 = read whatever is due (the old shape), 12 = read a chunk when it is due */
+    g_min_want = (n < 1) ? 1 : (n > CD_MIN_WANT_MAX) ? CD_MIN_WANT_MAX : n;
+    printf("cdda: fill policy = read at least %d sectors when they are due\n", g_min_want);
+}
+
 void of_cdda_set_read_batch(int n) {                          /* docs/375: 1 = the old one-sector reads, 12 = the shipping batch */
     g_batch = (n < 1) ? 1 : (n > CD_BATCH_MAX) ? CD_BATCH_MAX : n;
     printf("cdda: disc read batch = %d sectors per slot read\n", g_batch);
@@ -576,7 +583,19 @@ void of_cdda_pump(void) {
 
     uint64_t ceiling = g_budget + CD_LOOKAHEAD_SECTORS;
     if ((uint64_t)g_pos >= ceiling) return;                  /* already prefetching far enough ahead */
-    uint32_t allowed = sys_cd_da_plan(g_pos, g_sectors, (uint32_t)(ceiling - g_pos), CD_CHUNK_SECTORS);
+    /* Wait for a whole chunk to be due (docs/375 §6).  The disc clock advances 75 sectors/s while the pump runs at
+     * the 490 Hz tick, so `ceiling - g_pos` grows by about 0.15 sectors a visit: truncated to an integer it is
+     * almost always 0 or 1, and every steady-state read asked for ONE sector at the disc's own rate -- 7 647 reads
+     * for 8 747 sectors over a nine-episode sweep.  The allowance is the same; only its granularity changes: hold the
+     * read until CD_MIN_WANT sectors of it have accumulated, then take them in one read.  Two cases must not wait:
+     * the track is running out (take what is left), and the ring is close to the guard (take what is due now,
+     * because an underrun is audible and a slightly early read is not). */
+    uint32_t avail = (uint32_t)(ceiling - g_pos);
+    uint32_t want = (avail < (uint32_t)g_min_want) ? avail : (uint32_t)g_min_want;
+    if (want < (uint32_t)g_min_want && ring_ahead() > 2u * CD_GUARD_FRAMES &&
+        (uint64_t)g_pos + (uint64_t)g_min_want <= (uint64_t)g_sectors)
+        return;                                             /* the chunk is not due yet, and there is no reason to hurry */
+    uint32_t allowed = sys_cd_da_plan(g_pos, g_sectors, want, CD_CHUNK_SECTORS);
     if (!allowed) return;
     if (allowed * CD_FRAMES_SECTOR > room) allowed = room / CD_FRAMES_SECTOR;
     if (!allowed) return;

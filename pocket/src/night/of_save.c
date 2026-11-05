@@ -191,6 +191,7 @@ static int      g_fit_bridge = 0, g_interact_err = 0;
 static int      g_diag = 0;          /* night.ini DIAG=: which experimental probes this run may perform */
 static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the source of every field above */
 static int      g_restore = 1;   /* night.ini RESTORE=: which save fields a load applies (docs/374) */
+static int      g_disc_min_want = 12;  /* night.ini DISC_MIN_WANT: sectors of allowance to accumulate before a fill read (docs/375) */
 static int      g_disc_batch = 12;   /* night.ini DISC_BATCH=: sectors per CD-DA slot read (docs/375) */
 static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain the board ring per pump entry
                                            * (every build has always done this), 1 = once per 490 Hz tick */
@@ -473,6 +474,7 @@ void of_settings_load(void) {
      * dereference out of range mid-stage, so it stays a developer's setting. */
     g_restore = cfg_int("restore", 1, "NIGHT_RESTORE");
     g_disc_batch = cfg_int("disc_batch", 12, "NIGHT_DISC_BATCH");
+    g_disc_min_want = cfg_int("disc_min_want", 12, "NIGHT_DISC_MIN_WANT");
     /* How the 320x200 game picture meets the 320x240 panel.  1 (the default) fills the panel: 40 of the 200
      * rows are shown twice, one every fifth row, which is the evenest row-doubling stretch there is -- and
      * 320x200 on a 4:3 CRT *was* a 1.2x vertical stretch, so this reproduces the proportions the original was
@@ -602,7 +604,8 @@ int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
 int  of_setting_pump_audio_tick(void) { return g_pump_audio_tick; }
 int  of_setting_restore(void)   { return g_restore; }
-int  of_setting_disc_batch(void)  { return g_disc_batch; }        /* save-apply bits: 1 gauges (shipping), 2 state, 4 key table */
+int  of_setting_disc_batch(void)  { return g_disc_batch; }
+int  of_setting_disc_min_want(void){ return g_disc_min_want; }        /* save-apply bits: 1 gauges (shipping), 2 state, 4 key table */
 int  of_setting_fb_mode(void)   { return g_fb_mode; }     /* 1 = use a native 640x480 source framebuffer if the OS offers one */
 int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }
 int  of_setting_bridge_word(void) { return (int)g_bridge_word; }

@@ -1538,7 +1538,12 @@ static uint8_t script_sc_for(const char *name) {
  * the SDL host applies by rebasing its slots.  The lookup is heard, not polled: sys_set_res_hook hands each name to
  * the host at the moment of the lookup (src/sys/sys.c:823), because the boot-time lookups are gone before the
  * first pad poll. */
-typedef struct { int kind; long from, to; uint8_t sc; char name[32]; int done; } script_step_t;   /* 0 key, 1 wait */
+typedef struct { int kind; long from, to; uint8_t sc; char name[32]; int done; int hold; int target; int started; }
+                   script_step_t;   /* 0 timed key, 1 timed `wait res`, 2 sequential key, 3 wait_mode height, 4 record dwell */
+static int g_script_seq;            /* the drive files (docs/55, scripts/playtest/drive_orig_episode1.txt) are a
+                                     * different dialect from the route files: no leading time, and they pace themselves
+                                     * on the game's own geometry (`wait_mode <height>`) instead of a clock.  The shim
+                                     * can only be compared with the original's driver if it speaks that dialect. */
 #define SCRIPT_STEPS 96
 static script_step_t g_script_steps[SCRIPT_STEPS];
 static int g_script_steps_n;
@@ -1581,6 +1586,53 @@ static void res_ring_dump(void) {                                /* what the hoo
 
 static long script_vpoll(void) { return (long)g_pad_polls - g_script_held; }
 
+/* Sequential execution: a program counter, and one park rule per step kind.  A key fires the moment the counter
+ * reaches it and holds for its press_ms on the 8 ms pad grid; `wait_mode <height>` parks the whole program until the
+ * view the host is presenting has that height (the game's geometry is the reliable signal: 480 for the VESA cards, 200
+ * for the mode-13h world, exactly as the original's driver reads it); `record <label> <ms>` dwells for that long,
+ * because the driver blocks while it samples.  Pacing both sides on geometry rather than on a clock is what makes a
+ * same-file comparison meaningful at all (docs/384 2: clock-paced runs land tens of seconds apart and the alignment
+ * basis then measures nothing). */
+static void script_run_sequential(void) {
+    static int pc;
+    long v = script_vpoll();
+    while (pc < g_script_steps_n) {
+        script_step_t *st = &g_script_steps[pc];
+        if (st->kind == 2) {
+            if (!st->started) {
+                st->started = 1; st->from = v; st->to = v + (st->hold > 0 ? st->hold : 25);
+                if (g_pad_script_n < 64) {
+                    g_pad_script[g_pad_script_n].from = st->from; g_pad_script[g_pad_script_n].to = st->to;
+                    g_pad_script[g_pad_script_n].btn = pad_btn_for_sc(st->sc);
+                    g_pad_script[g_pad_script_n].sc = st->sc;
+                    g_pad_script_n++;
+                }
+                printf("script: key %s at poll %ld (hold %d polls)\n", st->name[0] ? st->name : "?",
+                       (long)st->from, st->hold);
+            }
+            pc++; continue;
+        }
+        if (st->kind == 3) {
+            if (!st->started) { st->started = 1; st->from = v; }
+            if (g_vh_prev == st->target) { st->done = 1; pc++; continue; }
+            g_script_held++;                                     /* the whole program waits for the game's geometry */
+            if ((g_script_held & 0x1ff) == 1)
+                printf("script: parked waiting for a %d-pixel-tall view (%ld polls held)\n", st->target, g_script_held);
+            if (v - st->from > st->hold) {
+                printf("script: wait_mode %d timed out after %ld polls (continuing)\n", st->target, v - st->from);
+                pc++;
+            }
+            return;
+        }
+        if (st->kind == 4) {
+            if (!st->started) { st->started = 1; st->from = v; }
+            if (v - st->from >= st->hold) { pc++; continue; }
+            return;                                              /* dwelling on a labelled window */
+        }
+        pc++;
+    }
+}
+
 static void script_gate(void) {
     /* The game-side trace is the authoritative one, and it is what the SDL host anchors on too (src/app/main.c:1085):
      * `g_res_trace` holds the last name handed to fn_0367c9 and `g_res_trace_seq` counts those lookups, both exported
@@ -1592,6 +1644,7 @@ static void script_gate(void) {
         last_trace_seq = g_res_trace_seq;
         script_res_hook(g_res_trace);
     }
+    if (g_script_seq) { script_run_sequential(); return; }
     for (int i = 0; i < g_script_steps_n; i++) {
         script_step_t *st = &g_script_steps[i];
         if (st->kind != 1 || st->done) continue;
@@ -1625,6 +1678,32 @@ static void pad_script_file(const char *path) {
          * filled at all. */
         char t[24], verb[16], name[24], dir[64];
         int nf = sscanf(line, "%23s %15s %23s %63s", t, verb, name, dir);
+        if (nf < 2) { if (line[0] > ' ') skipped++; continue; }
+        if (!(t[0] >= '0' && t[0] <= '9')) {                     /* sequential dialect: verb first, no time slot */
+            if (g_script_steps_n >= SCRIPT_STEPS) { skipped++; continue; }
+            script_step_t *st = &g_script_steps[g_script_steps_n++];
+            memset(st, 0, sizeof *st);
+            g_script_seq = 1;
+            /* Fields fall where the driver puts them: `key esc 200` is verb=key name=esc hold=200ms;
+             * `wait_mode 200 120` is target=200 timeout=120s; `record boot 5000` is label=boot dwell=5000ms. */
+            if (!strcmp(t, "key")) {
+                st->kind = 2;
+                st->sc = script_sc_for(verb);
+                if (!st->sc) { g_script_steps_n--; skipped++; continue; }
+                snprintf(st->name, sizeof st->name, "%s", verb);
+                st->hold = (nf >= 3) ? atoi(name) / 8 : 25;                       /* press_ms onto the 8 ms grid */
+                if (st->hold < 1) st->hold = 25;
+            } else if (!strcmp(t, "wait_mode") || !strcmp(t, "wait_mode_soft")) {
+                st->kind = 3; st->target = atoi(verb);          /* 480 = the VESA card world, 200 = mode 13h */
+                st->hold = (nf >= 3) ? atoi(name) * 1000 / 8 : 120 * 1000 / 8;    /* the driver's timeout, in polls */
+            } else if (!strcmp(t, "record")) {
+                st->kind = 4; snprintf(st->name, sizeof st->name, "%s", verb);
+                st->hold = (nf >= 3) ? atoi(name) / 8 : 0;                        /* the driver blocks while it samples */
+            } else {
+                g_script_steps_n--; skipped++;                  /* shot, sleep, type: capture-side verbs */
+            }
+            continue;
+        }
         if (nf < 3) { if (line[0] > ' ') skipped++; continue; }
         if (nf == 4 && !strcmp(verb, "wait") && !strcmp(name, "res") && g_script_steps_n < SCRIPT_STEPS) {
             /* `20000 wait res logo.pcx` -- the anchor form the route files are written in (docs/55).  It used to be
@@ -1676,8 +1755,19 @@ static void pad_script_file(const char *path) {
     sys_set_res_hook(script_res_hook);  /* heard lookups, not polled ones: src/sys/sys.c:823 */
     int waits = 0;
     for (int i = 0; i < g_script_steps_n; i++) if (g_script_steps[i].kind == 1) waits++;
-    printf("script: %s -> %d key spans on the direct key path (%d held to the end), %d `wait res` anchors, "
-           "%d other lines skipped\n", path, honoured, unclosed, waits, skipped);
+    int seq_keys = 0, seq_waits = 0, seq_rec = 0;
+    for (int i = 0; i < g_script_steps_n; i++) {
+        if (g_script_steps[i].kind == 2) seq_keys++;
+        if (g_script_steps[i].kind == 3) seq_waits++;
+        if (g_script_steps[i].kind == 4) seq_rec++;
+    }
+    if (g_script_seq)
+        printf("script: %s -> sequential drive dialect: %d keys, %d `wait_mode` geometry anchors, %d `record` dwells, "
+               "%d lines skipped (the shim paces itself on its own view height, as the original's driver does)\n",
+               path, seq_keys, seq_waits, seq_rec, skipped);
+    else
+        printf("script: %s -> %d key spans on the direct key path (%d held to the end), %d `wait res` anchors, "
+               "%d other lines skipped\n", path, honoured, unclosed, waits, skipped);
 }
 
 /* 1 while the script holds this pad button at the current poll. */

@@ -1412,6 +1412,7 @@ static uint64_t g_boot_us;                     /* the warp-entry pulse timeline 
  * state, because the pad path may only differ from the key path in *which slot it arms*. */
 typedef struct { uint64_t from, to; uint32_t btn; uint8_t sc; } pad_span_t;
 static pad_span_t g_pad_script[64];
+static const char *g_script_path;
 static int g_pad_script_n, g_pad_direct;
 
 static uint32_t pad_btn_for_sc(uint8_t sc) {
@@ -1460,6 +1461,82 @@ static void pad_script_load(void) {
         tok = comma ? comma + 1 : NULL;
     }
     printf("pad script: %d spans, direct=%d\n", g_pad_script_n, g_pad_direct);
+}
+
+/* --script FILE: the rig's route/drive key lines, on the Pocket path (docs/377 4).
+ *
+ * The route files under scripts/playtest/ are lines like `42000 key enter down`.  The SDL host has the full
+ * anchored reader -- `wait res logo.pcx` parks the timeline on a resource lookup and rebases what follows
+ * (docs/55) -- and this shim does NOT reproduce the anchors: it honours `key` lines only, counts and reports the
+ * rest, so a route file drives the Pocket host on a wall clock and the difference is stated rather than hidden.
+ *
+ * Keys go through the DIRECT path (night_key_apply with a DOS make code) rather than the pad buttons, because the
+ * route files name DOS keys: `x` there is the X key (make 0x2d), while the pad's X button is wired to Left Shift
+ * (0x2a, docs/333).  The make codes are the set-1 codes the pad table already uses -- enter 0x1c, esc 0x01,
+ * space 0x39, lctrl 0x1d, lalt 0x38, shift 0x2a -- so a --script run and a pad run land in the same key state.
+ * Times convert on the pad's own grid: one poll is 8 ms. */
+static const struct { const char *name; uint8_t sc; } g_script_keys[] = {
+    { "enter", 0x1c }, { "return", 0x1c }, { "esc", 0x01 }, { "space", 0x39 }, { "tab", 0x0f },
+    { "backspace", 0x0e }, { "up", 0x48 }, { "down", 0x50 }, { "left", 0x4b }, { "right", 0x4d },
+    { "shift", 0x2a }, { "lctrl", 0x1d }, { "rctrl", 0x1d }, { "lalt", 0x38 }, { "ralt", 0x38 },
+    { "a", 0x1e }, { "b", 0x30 }, { "c", 0x2e }, { "d", 0x20 }, { "e", 0x12 }, { "f", 0x21 },
+    { "g", 0x22 }, { "h", 0x23 }, { "i", 0x17 }, { "j", 0x24 }, { "k", 0x25 }, { "l", 0x26 },
+    { "m", 0x32 }, { "n", 0x31 }, { "o", 0x18 }, { "p", 0x19 }, { "q", 0x10 }, { "r", 0x13 },
+    { "s", 0x1f }, { "t", 0x14 }, { "u", 0x16 }, { "v", 0x2f }, { "w", 0x11 }, { "x", 0x2d },
+    { "y", 0x15 }, { "z", 0x2c }, { "0", 0x0b }, { "1", 0x02 }, { "2", 0x03 }, { "3", 0x04 },
+    { "4", 0x05 }, { "5", 0x06 }, { "6", 0x07 }, { "7", 0x08 }, { "8", 0x09 }, { "9", 0x0a },
+};
+
+static uint8_t script_sc_for(const char *name) {
+    for (unsigned i = 0; i < sizeof g_script_keys / sizeof g_script_keys[0]; i++)
+        if (!strcmp(g_script_keys[i].name, name)) return g_script_keys[i].sc;
+    return 0;
+}
+
+static void pad_script_file(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f) { printf("script: cannot open %s\n", path); return; }
+    char line[256];
+    uint64_t pend_sc[64];  uint64_t pend_ms[64];  int pend_n = 0;
+    int honoured = 0, skipped = 0, unclosed = 0;
+    while (fgets(line, sizeof line, f)) {
+        char *hash = strchr(line, '#');
+        if (hash) *hash = 0;
+        char t[24], verb[16], name[24], dir[8];
+        if (sscanf(line, "%23s %15s %23s %7s", t, verb, name, dir) < 4) { if (line[0] > ' ') skipped++; continue; }
+        if (strcmp(verb, "key")) { skipped++; continue; }              /* anchors and shots are the SDL host's */
+        uint8_t sc = script_sc_for(name);
+        if (!sc) { printf("script: unknown key name '%s' (line ignored)\n", name); skipped++; continue; }
+        long ms = strtol(t, NULL, 10);
+        if (ms < 0) ms = 0;
+        int poll = (int)(ms / 8);                                       /* the pad grid: one poll is 8 ms */
+        if (!strcmp(dir, "down")) {
+            if (pend_n >= 64 || g_pad_script_n >= 64) { skipped++; continue; }
+            pend_sc[pend_n] = sc; pend_ms[pend_n] = (uint64_t)poll; pend_n++;
+        } else if (!strcmp(dir, "up")) {
+            int found = -1;
+            for (int i = pend_n - 1; i >= 0; i--) if (pend_sc[i] == sc) { found = i; break; }
+            if (found < 0) continue;                                    /* an up with no down is a no-op */
+            uint64_t from = pend_ms[found], to = (uint64_t)poll;
+            pend_sc[found] = pend_sc[pend_n - 1]; pend_ms[found] = pend_ms[pend_n - 1]; pend_n--;
+            if (to <= from) to = from + 25;                             /* a 200 ms floor: a key wait needs a make and a break */
+            g_pad_script[g_pad_script_n].from = from; g_pad_script[g_pad_script_n].to = to;
+            g_pad_script[g_pad_script_n].btn = pad_btn_for_sc((uint8_t)sc);
+            g_pad_script[g_pad_script_n].sc = (uint8_t)sc;
+            g_pad_script_n++; honoured++;
+        }
+    }
+    for (int i = 0; i < pend_n && g_pad_script_n < 64; i++) {          /* a down never released: press it to the end */
+        g_pad_script[g_pad_script_n].from = pend_ms[i]; g_pad_script[g_pad_script_n].to = 0x7fffffffull;
+        g_pad_script[g_pad_script_n].btn = pad_btn_for_sc((uint8_t)pend_sc[i]);
+        g_pad_script[g_pad_script_n].sc = (uint8_t)pend_sc[i];
+        g_pad_script_n++; honoured++; unclosed++;
+    }
+    fclose(f);
+    g_pad_direct = 1;                   /* the route files name DOS keys; the pad buttons are wired differently */
+    printf("script: %s -> %d key spans applied on the direct key path (%d held to the end), %d non-key or "
+           "unknown lines skipped (anchors like `wait res` are the SDL host's reader, docs/55)\n",
+           path, honoured, unclosed, skipped);
 }
 
 /* 1 while the script holds this pad button at the current poll. */
@@ -2015,6 +2092,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--save") && i + 1 < argc) g_save_slot = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--save-at") && i + 1 < argc) g_save_at = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--load") && i + 1 < argc) g_load_slot = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--script") && i + 1 < argc) g_script_path = argv[++i];
 #endif
     }
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
@@ -2232,6 +2310,7 @@ int main(int argc, char **argv) {
     }
     if (g_warp_stage_cli > 0) g_warp_stage = g_warp_stage_cli;
     pad_script_load();
+    if (g_script_path) pad_script_file(g_script_path);   /* --script FILE: the rig's key lines, docs/377 4 */
     NLOG_STEP("board_boot");
     board_boot();
     NLOG_STEP("audio_boot");

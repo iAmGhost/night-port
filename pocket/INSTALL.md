@@ -107,6 +107,15 @@ the grep to run after each boot.
 
 ## 5. Desktop verification (no hardware needed)
 
+The desktop shim now takes the rig's key lines directly (docs/377 §5):
+
+```sh
+./pocket/src/night/app_pc --frames 3000 --script scripts/playtest/route_show_dense.txt --rig-dump /tmp/run
+```
+
+Only `key` lines are honoured -- the anchored `wait res` lines belong to the SDL host's reader (docs/55) -- and keys
+reach the game on the direct key path, so a route file can drive the Pocket code path without a warp.
+
 ```sh
 make test                                    # the fixture suite against src/f (repo root)
 cd pocket/src/night && make test             # app_pc: the same src/f under the SDK's SDL2 shim

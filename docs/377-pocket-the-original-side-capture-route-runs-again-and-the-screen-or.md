@@ -67,14 +67,41 @@ fidelity result, and it is written down that way.
    not wall time) and speaks `playtest_orig_drive.py`'s vocabulary -- `record boot 5000` is rejected by
    `capture_original.py`'s key-list parser ("unknown drive step").  That driver needs the same transport swap this
    document describes, which is now a ~20-line change against a template that exists.
-2. **The Pocket host has no scripted input.**  `main_of.c` accepts `--frames --rig-dump --rig-hz --rig-witness
-   --warp-stage --save --save-at --load` and nothing else: there is no `--script`, so the Pocket shim cannot replay
-   `scripts/playtest/route_*.txt` the way `build/night` does.  Today the Pocket side reaches gameplay through
-   `--warp-stage`, which is why docs/365's cross-host diff is warp-anchored.  A `--script` reader (the drive format
-   already parsed in `scripts/rig/capture_original.py:drive_events`) is the missing piece for a scripted
-   Pocket-vs-original route.
+2. ~~The Pocket host has no scripted input.~~ **Closed the same day -- see §5.**
 
 Until those exist, the picture-parity evidence for this port remains what docs/91 measured on the shared `src/f`
 layer (348 of 517 original frames with a port counterpart at NCC ≥ 0.90, `.fli` pairs pixel-exact) plus docs/365's
 Pocket-vs-SDL-host overlap (91.7–95.5 % of distinct pictures) and docs/373's card-exactness results -- which are
 comparisons against the shipped assets rather than against live original frames.
+
+## 5. Half of that gap closed the same day: `--script` on the Pocket shim
+
+`app_pc` (and the same host code on the card) now takes `--script FILE` and feeds the rig's key lines into the pad
+span table that `NIGHT_PAD_SCRIPT` already used (`main_of.c`).  The rules it states out loud:
+
+- only `key` lines are honoured.  `wait res logo.pyc`, `shot ...` and `record boot` are counted and reported as
+  skipped: the anchoring machinery that rebases a timeline on a resource lookup is the SDL host's reader (docs/55),
+  and pretending otherwise would make a Pocket run look like an anchored one.
+- keys go through the **direct** path (`night_key_apply` with a DOS make code), because route files name DOS keys:
+  `x` in a route file is the X key (make `0x2d`), while the pad's X button is wired to Left Shift (`0x2a`, docs/333).
+  The table's codes are the same set-1 codes the pad table already uses -- enter `0x1c`, esc `0x01`, space `0x39`,
+  lctrl `0x1d`, lalt `0x38`, shift `0x2a` -- so a scripted run and a pad run land in the same key state.
+- times convert on the pad's own grid, one poll per 8 ms; a press with no matching `up` is held to the end of the
+  run and counted as such; an `up` with no `down` is a no-op.
+
+Measured, 3 000 frames each, no warp, same seed:
+
+| | unscripted | `--script /tmp/keys_test.txt` (7 spans, 1 anchor line skipped) |
+|---|---|---|
+| disc requests | `cdda=906/27697/2` | `cdda=2394/19639/4` |
+| transfers / plays | 62 / 62 | 5 / 5 |
+| ticks | 26 515 (+491/s) | 26 515 (+491/s) |
+| arena | 3 903 168 B | 3 903 168 B |
+
+The scripted run asked for a **different disc track** (19 639 sectors instead of 27 697) and stopped the 62-transfer
+attract loop after five plays: the keys reach the game on the Pocket code path, and the game answers them.  Card
+0.1.66 carries the same host change.
+
+What is still open for a content-based original comparison is the other half: `drive_orig_episode1.txt` speaks
+`playtest_orig_drive.py`'s anchored vocabulary, so that driver needs the transport swap §2 demonstrates before the
+original side can be captured mid-route.

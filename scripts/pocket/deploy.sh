@@ -114,9 +114,18 @@ slot_id_of() {
 # re-plumbing anything else.  Run deploy.sh without the 4th argument to go back to the SDK's pair.
 if [ -n "$RUNTIME" ]; then
     [ -f "$RUNTIME/os.bin" ] || fail "no os.bin in $RUNTIME"
+    # They are not in the same place on the card: os.bin sits in the instance's asset folder with the data
+    # slots, the bitstream sits in the core folder next to core.json, and the chip32 loader travels with the
+    # bitstream it boots.  Overlaying all three into Assets/ would leave the core running the old bitstream
+    # while logging the new one -- exactly the kind of half-swap that makes a hardware result unreadable.
+    COREDIR="$SDCARD/Cores/iamghost.night"
     for f in os.bin os25.rbf_r loader.bin; do
         [ -f "$RUNTIME/$f" ] || continue
-        src_md5="$(md5_of "$RUNTIME/$f")"; dst="$COMMON/$f"
+        case "$f" in
+            *.rbf_r|loader.bin) dst="$COREDIR/$f" ;;
+            *)                  dst="$COMMON/$f" ;;
+        esac
+        src_md5="$(md5_of "$RUNTIME/$f")"
         if [ -f "$dst" ] && [ "$(md5_of "$dst")" = "$src_md5" ]; then
             ok "runtime: $f already $(size_of "$dst") B (unchanged)"; continue
         fi

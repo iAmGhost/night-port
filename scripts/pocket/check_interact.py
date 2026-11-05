@@ -36,8 +36,11 @@ def main():
     src = SAVE.read_text()
 
     def mask_bits(v):
-        """The bits a mask ALLOWS the element to write: the complement of its mask."""
-        m = int(v["mask"], 16) if isinstance(v.get("mask"), str) else (v.get("mask") or 0xFFFFFFFF)
+        """The bits a mask ALLOWS the element to write: the complement of its mask.  An element with no mask
+        owns the whole word -- which is only safe at an address no other element shares."""
+        if v.get("mask") is None:
+            return set(range(32))
+        m = int(v["mask"], 16) if isinstance(v["mask"], str) else v["mask"]
         return {b for b in range(32) if not (m >> b) & 1}
 
     # 1. the host's index constants match the JSON order
@@ -86,8 +89,9 @@ def main():
     shift = int(re.search(r"#define MUSIC_SHIFT\s+(\d+)", src).group(1))
     field = int(re.search(r"#define MUSIC_MASK\s+0x([0-9a-fA-F]+)u", src).group(1), 16)
     want_bits = mask_bits(mv)
-    if {shift + b for b in range(field.bit_length())} != want_bits:
-        fail(f"host decodes bits {shift}..{shift + field.bit_length() - 1}, the JSON mask allows {sorted(want_bits)}")
+    mine = {shift + b for b in range(field.bit_length())}
+    if not mine <= want_bits:
+        fail(f"host decodes bits {sorted(mine)}, but the JSON mask allows {sorted(want_bits)}")
     else:
         print(f"  [PASS] Music Volume field: mask writes bits {sorted(want_bits)}, host reads "
               f"bits {shift}..{shift + field.bit_length() - 1}")

@@ -1200,6 +1200,11 @@ int main(int argc, char **argv) {
     }
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
     g_log_ok = (of_log_open() == 0) ? 1 : 0;
+    /* The first line a running app writes, on purpose.  0.1.27 broke the core and the card kept the PREVIOUS
+     * run's log, which is only interpretable because the old log's settings line said music_vol=192 -- if this
+     * line is missing from a card log, the app never reached the point of writing anything, and the fault is in
+     * what the firmware did before it ran (a core definition file, a slot, a bitstream), not in app code. */
+    NLOG("core %s: boot marker\n", OF_CORE_VERSION);
     if (!g_log_ok) printf("log: the diagnostic slot is not openable; the terminal is the only trail\n");
     else atexit(of_log_close);          /* a fclose is what commits a nonvolatile slot (README:466) */
     NLOG_STEP("boot start");
@@ -1250,11 +1255,11 @@ int main(int argc, char **argv) {
      * entries the host hopes it needs. */
     {
         char acc[160]; int n = 0;
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < OF_INTERACT_COUNT; i++)
             n += snprintf(acc + n, sizeof acc - (size_t)n, " %d=%08x", i, (unsigned)of_interact_get(i));
         NLOG("interact:%s\n", acc);
-        NLOG("music knob: raw=%08x -> vol=%d (field in bits 20-23 of 0xF7000000)\n",
-            (unsigned)of_interact_get(OF_IDX_MUSIC), of_setting_music_vol());
+        NLOG("music knob: raw=%08x -> vol=%d (index %d, whole word)\n",
+            (unsigned)of_interact_get(OF_IDX_MUSIC), of_setting_music_vol(), OF_IDX_MUSIC);
     }
 #endif
 #ifndef OF_PC

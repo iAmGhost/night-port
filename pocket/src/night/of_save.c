@@ -77,14 +77,14 @@ static int      g_music_bridge = -1;         /* the raw interact word behind Mus
 static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if (t[i] == v) return 1; return 0; }
 
 static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, Medium, High, Full */
-#define MUSIC_SHIFT 20                       /* Music Volume lives in bits 20-23 of 0xF7000000 (mk_dist.py) */
-#define MUSIC_MASK  0xFu
+#define MUSIC_SHIFT 0                        /* the whole word at 0xF700000C carries the choice (mk_dist.py) */
+#define MUSIC_MASK  0x1Fu
 
 /* Turn what the bridge carries into a volume, or 0 for "the menu is not carrying this knob".  Two shapes are
- * accepted on purpose: the field value the list writes (0x100000 .. 0x500000 = bits 20-23 holding 1..5), and a
- * bare volume (1, 64, 128, 192, 255) in case the OS publishes the number rather than the field.  0 is never a
- * volume here: 0 means "nothing was written", because a field anchored at 1 cannot spell 0 for a real choice, and
- * the card's own interact_persist.json showed an untouched variable reading 0. */
+ * accepted on purpose: the value the list writes (1..5, one per option, which is what interact.json declares),
+ * and a bare volume (64, 128, 192, 255) in case a future host decides the menu should carry levels directly.
+ * 0 is never a volume here: 0 means "nothing was written" -- the options are anchored at 1 so a real choice can
+ * not spell 0, and the card's own interact_persist.json showed an untouched variable reading 0. */
 static int music_vol_from_bridge(unsigned raw) {
     int sel = (int)((raw >> MUSIC_SHIFT) & MUSIC_MASK);
     switch (sel) {

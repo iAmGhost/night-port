@@ -216,28 +216,27 @@
                 "type": "list",
                 "enabled": true,
                 "persist": true,
-                "address": "0xF7000000",
-                "mask": "0xFF0FFFFF",
-                "defaultval": 3145728,
+                "address": "0xF700000C",
+                "defaultval": 3,
                 "options": [
                     {
-                        "value": "0x00100000",
+                        "value": 1,
                         "name": "Off"
                     },
                     {
-                        "value": "0x00200000",
+                        "value": 2,
                         "name": "Low"
                     },
                     {
-                        "value": "0x00300000",
+                        "value": 3,
                         "name": "Medium"
                     },
                     {
-                        "value": "0x00400000",
+                        "value": 4,
                         "name": "High"
                     },
                     {
-                        "value": "0x00500000",
+                        "value": 5,
                         "name": "Full"
                     }
                 ]

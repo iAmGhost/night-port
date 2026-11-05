@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.27"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.28"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -206,12 +206,20 @@ def main():
         # (its mask 0xFFFFC3FF is zero exactly at 10-13) -- so this knob sits at bits 20-23, which nothing in the
         # SDK core writes.  The mask 0xFF0FFFFF is the sentence "only bits 20-23 are mine".
         {"name": "Music Volume", "id": 100, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000000", "mask": "0xFF0FFFFF", "defaultval": 0x0000300000 & 0xFFFFFFFF, "options": [
-             {"value": "0x00100000", "name": "Off"},
-             {"value": "0x00200000", "name": "Low"},
-             {"value": "0x00300000", "name": "Medium"},
-             {"value": "0x00400000", "name": "High"},
-             {"value": "0x00500000", "name": "Full"}]},
+         # 0.1.27 put this INSIDE 0xF7000000 (bits 20-23, mask 0xFF0FFFFF) and the core stopped booting: the card
+         # kept the 0.1.26 log and wrote nothing new, i.e. the app never got as far as opening the log slot.  That
+         # address is openfpgaOS's own control word -- Analogizer / SNAC / Pocket LCD are decoded from it by the
+         # bitstream -- and Analogue's doc says the firmware rewrites every declared element's field "each frame".
+         # A menu knob that writes a field of the control word every frame is not a knob, it is a periodic poke at
+         # core state.  Back to 0xF700000C: 0.1.26 booted with that address all day, so it is proven harmless even
+         # though nothing decodes it, and the values are small integers so the host can read them if the OS ever
+         # does publish them.
+         "address": "0xF700000C", "defaultval": 3, "options": [
+             {"value": 1, "name": "Off"},
+             {"value": 2, "name": "Low"},
+             {"value": 3, "name": "Medium"},
+             {"value": 4, "name": "High"},
+             {"value": 5, "name": "Full"}]},
         # No tick-rate knob in the menu, on purpose.  It was a measurement aid (docs/335: the port's waits are
         # clock deadlines, so halving the tick rate changes how many ticks a fade or timer gets -- that is not
         # "slow motion", it is a different game), and on the card it was one more number a player had to
@@ -236,6 +244,9 @@ def main():
     for name, const in pairs:
         hdr.append("#define %-12s %d" % (const, idx[name]))
         hdr.append("#define %-12s %s" % ("DEFAULT_" + const, defaults[name]))
+    # ...and how many there are.  of_interact_get() past the declared count is an index the OS has no entry for;
+    # a diagnostic that reads the whole table must stop at the end of it.
+    hdr.append("#define %-12s %d" % ("OF_INTERACT_COUNT", len(variables)))
     # The screen knob IS the firmware's own Pocket LCD variable: bits 16-17 of 0xF7000000, which the openfpgaOS
     # bitstream decodes (openfpgaOS-Quake ships this same entry).  A separate "NIGHT Screen" list was both
     # redundant and inert -- the menu would not move it -- and the host forced OF_DISPLAY_FRAMEBUFFER every

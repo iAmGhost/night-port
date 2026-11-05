@@ -1,0 +1,107 @@
+# Route for a stage whose startup runs the CG picture show (fn_03a70e, docs/52): the show turns the
+# keyboard pump off (DAT_52ff8 = 0) and then waits for a key *press* per picture, so a route that has
+# no keys left at that moment stalls forever with the frame counter frozen. Anchored on the show's own
+# resource names (na<stage>NNNN.pcx), then keys are paced while the show runs.
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+124000 shot pre_show
+130000 wait res na
+131000 key space down
+131150 key space up
+133000 key space down
+133150 key space up
+135000 key space down
+135150 key space up
+137000 key space down
+137150 key space up
+139000 key space down
+139150 key space up
+141000 key space down
+141150 key space up
+143000 key space down
+143150 key space up
+145000 key enter down
+145150 key enter up
+150000 shot mid_show
+152000 key space down
+152150 key space up
+154000 key space down
+154150 key space up
+156000 shot after_show
+158000 key enter down
+158150 key enter up
+160000 shot episode_start
+170000 shot stage_play
+175000 key down down
+175400 key down up
+175500 key right down
+175900 key right up
+180000 shot playing
+# docs/373: dense arena dumps across the whole picture show, so a show card is sampled at every moment it is on screen -- not only at the keyed pre/mid/after moments.
+130000 shot show_scan
+130500 shot show_scan
+131000 shot show_scan
+131500 shot show_scan
+132000 shot show_scan
+132500 shot show_scan
+133000 shot show_scan
+133500 shot show_scan
+134000 shot show_scan
+134500 shot show_scan
+135000 shot show_scan
+135500 shot show_scan
+136000 shot show_scan
+136500 shot show_scan
+137000 shot show_scan
+137500 shot show_scan
+138000 shot show_scan
+138500 shot show_scan
+139000 shot show_scan
+139500 shot show_scan
+140000 shot show_scan
+140500 shot show_scan
+141000 shot show_scan
+141500 shot show_scan
+142000 shot show_scan
+142500 shot show_scan
+143000 shot show_scan
+143500 shot show_scan
+144000 shot show_scan
+144500 shot show_scan
+145000 shot show_scan
+145500 shot show_scan
+146000 shot show_scan
+146500 shot show_scan
+147000 shot show_scan
+147500 shot show_scan
+148000 shot show_scan
+148500 shot show_scan
+149000 shot show_scan
+149500 shot show_scan
+150000 shot show_scan
+150500 shot show_scan
+151000 shot show_scan
+151500 shot show_scan
+152000 shot show_scan
+152500 shot show_scan
+153000 shot show_scan
+153500 shot show_scan
+154000 shot show_scan
+154500 shot show_scan
+155000 shot show_scan
+155500 shot show_scan
+156000 shot show_scan
+156500 shot show_scan
+157000 shot show_scan
+157500 shot show_scan
+158000 shot show_scan
+158500 shot show_scan
+159000 shot show_scan
+159500 shot show_scan
+160000 shot show_scan

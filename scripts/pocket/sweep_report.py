@@ -258,14 +258,19 @@ def main():
         entered = r["entered"].startswith("yes")
         # "game main unwound (quit / fatal)" is how this host ENDS a frame-limited run (the quit flag unwinds
         # fn_03af18 through g_game_escape), so it is not a crash signal; a non-zero exit or the fatal marker is.
-        crash = r["exit"] != "0" or "fatal" in r["unwound"]
+        # docs/373: an absent exit.txt is not a crash.  sweep_episodes.sh writes exit.txt; a hand-run app_pc does
+        # not, and reading the missing file as "not 0" called every such run unclean -- a false alarm from the
+        # harness against a run that reached its frame limit and unwound normally.  Unknown exit is now reported as
+        # unknown; only a recorded non-zero exit counts as a crash.
+        crash = r["exit"] not in ("0", "", None)
+        exit_note = "" if r["exit"] in ("", None) else ""
         # r["cards"] rows are (name, identical_bytes, card_size, best_frame): the card is "shown" when a whole
         # arena sample equals the shipped card byte for byte, which is docs/62's exact criterion.
         card = any(v[1] == v[2] for v in r["cards"])
         r["music_ok"] = music_matches(r["cdda"], n)
         ok += 1 if (entered and not crash and card) else 0
         e = r["ents"] or {}
-        print(f"## stage {n}: exit={r['exit']} entered={r['entered']}  ({r['unwound']})")
+        print(f"## stage {n}: exit={r['exit'] or 'n/a'} entered={r['entered']}  ({r['unwound']})")
         print(f"  loader      : {r['chain']}  boss {r['boss']}")
         print(f"  views       : {r['views']}")
         print(f"  cdda selects: {' '.join(r['cdda']) or 'none'}")
@@ -274,7 +279,8 @@ def main():
         print(f"  final       : {r.get('final', '-')}  present max {r['present_max_us']} us  clock {r.get('clock', '-')}")
         print(f"  entities    : max {e.get('max_ents', 0)} live at tick {e.get('tick', '-')}, "
               f"types {e.get('types', [])}, samples {e.get('samples', 0)} with a player {e.get('with_player', 0)}")
-        print(f"  verdict     : entered={entered} clean={not crash} card-identical={card}")
+        note = "" if r["exit"] in ("0",) else "  [exit status not recorded]"
+        print(f"  verdict     : entered={entered} clean={not crash}{note} card-identical={card}")
         print(f"  cards       : {r['n_frames']} arena raws vs {r['n_cards']} shipped cards; "
               f"{r['exact']} arena sample(s) byte-identical to a shipped card; entity count seen {r['ents_game']}")
         for name, same, need, frame in r["cards"]:

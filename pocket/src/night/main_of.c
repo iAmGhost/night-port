@@ -471,8 +471,20 @@ static void present(void) {
      * Bounded on purpose: every 8th presented frame, at most 120 raws, so a nine-stage sweep is tens of MB. */
     static int g_vidraw = -1;
     static int g_raw_count;
+    /* Bounded, and now SPREAD over the whole run (docs/373).  The old rule -- every 8th frame, at most 120 raws --
+     * samples the first 960 frames and nothing after, so a 12 000-frame run witnesses none of its late-game cards:
+     * a longer run bought time but no coverage, which is how docs/363 §4's na* show gap survived being measured at
+     * all.  The stride is derived from the frame limit instead, so the same 120 raws cover the entire run: 4 000
+     * frames now reach 3 960 of them, 12 000 reach 12 000. */
+    static uint32_t g_raw_stride;
     if (g_vidraw < 0) g_vidraw = getenv("NIGHT_VIDRAW") ? 1 : 0;
-    if (g_vidraw && g_rig_dir && (g_frames % 8u) == 0u && g_raw_count < 120) {
+    if (!g_raw_stride) {
+        uint32_t lim = g_frames_limit > 0 ? (uint32_t)g_frames_limit : 1000u;
+        uint32_t st = lim / 120u;
+        g_raw_stride = st < 8u ? 8u : st;
+        NLOG("witness arena stride=%u frames (cap 120 raws, covers %u frames)\n", g_raw_stride, g_raw_stride * 120u);
+    }
+    if (g_vidraw && g_rig_dir && (g_frames % g_raw_stride) == 0u && g_raw_count < 120) {
         char sub[1200], rpath[1400];
         snprintf(sub, sizeof sub, "%s/arena", g_rig_dir);
         mkdir(sub, 0777);

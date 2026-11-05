@@ -46,3 +46,12 @@ void    of_cdda_set_gain(int pct);        /* 100 = unity, the disc exactly as re
 
 #endif /* NIGHT_OF_CDDA_H */
 int32_t  of_cdda_head(void);      /* write cursor lead over the mixer voice, ring frames */
+
+/* Frame-budget counters (task-9a, docs/364): fills attempted, their total and worst duration, frames they
+ * delivered, `audio_low` = pump visits with under the 0.1 s guard of audio buffered (the mixer about to run
+ * dry), `room_hold` = the disc had sectors and the pump was ready but the ring had no room, `clock_behind` =
+ * pump visits where the 75 sectors/s disc clock had passed the host's own disc position, and `ahead_min` =
+ * the smallest buffered slack the run held, in ring frames (44 100 a second). */
+void of_cdda_stats(uint32_t *fills, uint64_t *fill_us, uint32_t *fill_us_max, uint32_t *fill_frames,
+                   uint32_t *audio_low, uint32_t *room_hold, uint32_t *clock_behind, uint32_t *ahead_min,
+                   uint32_t *pump_visits, uint32_t *dry);

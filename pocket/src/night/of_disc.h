@@ -21,3 +21,8 @@ int      of_disc_track_slot(uint32_t track);        /* APF data slot of cd/track
 int  of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352);
 
 #endif /* NIGHT_OF_DISC_H */
+
+/* Frame-budget counters (task-9a, docs/364): successful 2352-byte slot reads, their total and worst
+ * duration in microseconds, bytes moved, out-of-order seeks, and failures. */
+void of_disc_stats(uint32_t *reads, uint64_t *us, uint32_t *us_max, uint32_t *bytes,
+                   uint32_t *seeks, uint32_t *fails);

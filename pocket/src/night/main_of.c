@@ -360,6 +360,10 @@ static void stage_max(uint32_t *mx, uint64_t d) { if (d > (uint64_t)*mx) *mx = (
 static uint32_t g_sig, g_sig_prev, g_sig_changes;
 static int g_view_prev = -1, g_vw_prev = -1, g_vh_prev = -1;
 static uint32_t g_present_us, g_present_us_max;
+/* The budget line needs a MEAN, and `pres=` only ever carried the last frame and the worst one: a run whose
+ * typical present is 3.6 ms and whose worst is 75 ms looks identical to one that is 3.6/7.5 in that line. */
+static uint64_t g_present_us_sum;
+static uint32_t g_present_n;
 
 static uint32_t fb_signature(int vw, int vh) {
     const uint8_t *p = g_video_ram;
@@ -808,7 +812,21 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     of_cdda_play(index, lba, sectors);
 }
 static void cdda_stop(void) { if (cdda_allowed()) of_cdda_stop(); }
-static void cdda_pump(void) { if (cdda_allowed()) of_cdda_pump(); }
+/* task-9 (docs/364): the CDDA pump used to run on EVERY spin visit.  The instrument counted 295 921 377
+ * of_cdda_pump visits in a 1964-frame desktop run -- about 150 000 per frame, 0.1 % of which had anything to
+ * do -- because the game's own spin loops re-enter the pump (fn_00035ec2 and friends call sys_port_spin).
+ * Everything the pump decides is a function of elapsed time (g_budget += elapsed*75 sectors) and its finest
+ * action is one 12-sector chunk = 160 ms of audio, in a ring that holds 4 s.  Locking it to the game's own
+ * 490 Hz tick is 320x coarser than that cadence and 300 000x cheaper than the spin rate, and it costs no
+ * clock read: g_timer_calls is already in the pump.  The pre-fill, the retry-after-failure and the budget
+ * arithmetic are all time-based, so none of them depends on visit frequency. */
+static uint32_t g_cdda_tick_seen;
+static void cdda_pump(void) {
+    if (!cdda_allowed()) return;
+    if (g_cdda_tick_seen == g_timer_calls) return;      /* once per tick, not once per spin */
+    g_cdda_tick_seen = g_timer_calls;
+    of_cdda_pump();
+}
 static void music_mode_mirror(void) {
     uint32_t on = g_dat_51a10 ? 1u : 0u;
     if (on == g_music_mode) return;
@@ -1578,6 +1596,7 @@ static void tick_pump(void) {
         uint32_t d = (uint32_t)(sys_now_us() - t0);
         if (d > g_present_us_max) g_present_us_max = d;
         g_present_us = d;
+        g_present_us_sum += d; g_present_n++;
         g_frames++;
 #ifdef OF_PC
         /* The rig's state witness on the same grid as its screen witness.  audio_bytes is the Red Book the host
@@ -1653,6 +1672,24 @@ static void tick_pump(void) {
             NLOG("stages last m=%u p=%u c=%u f=%u x=%u | max all=%u copy=%u flip=%u\n",
                  g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip,
                  g_us_flip_max, g_us_copy, g_us_flip);
+
+            /* task-9a: the whole frame budget on one line -- what presenting costs, what streaming the disc
+             * costs, and how close the mixer ever came to running out of audio.  The disc half is the number
+             * that decides whether an async read or a deeper ring is worth building. */
+            {
+                uint32_t d_r = 0, d_max = 0, d_by = 0, d_sk = 0, d_fl = 0;
+                uint32_t c_f = 0, c_max = 0, c_fr = 0, c_low = 0, c_hold = 0, c_behind = 0, c_am = 0, c_pv = 0, c_dry = 0;
+                uint64_t d_us = 0, c_us = 0;
+                of_disc_stats(&d_r, &d_us, &d_max, &d_by, &d_sk, &d_fl);
+                of_cdda_stats(&c_f, &c_us, &c_max, &c_fr, &c_low, &c_hold, &c_behind, &c_am, &c_pv, &c_dry);
+                NLOG("budget present n=%u mean=%uus max=%uus | disc reads=%u mean=%uus max=%uus seeks=%u fails=%u kb=%u"
+                     " | cdda fills=%u mean=%uus max=%uus frames=%u visits=%u audio_low=%u room_hold=%u"
+                     " clock_behind=%u dry=%u ahead_min=%u(%.2fs)\n",
+                     g_present_n, g_present_n ? (unsigned)(g_present_us_sum / g_present_n) : 0u, g_present_us_max,
+                     d_r, d_r ? (unsigned)(d_us / d_r) : 0u, d_max, d_sk, d_fl, d_by / 1024u,
+                     c_f, c_f ? (unsigned)(c_us / c_f) : 0u, c_max, c_fr, c_pv, c_low, c_hold, c_behind, c_dry,
+                     c_am, c_am / 44100.0);
+            }
 #ifndef OF_PC
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);

@@ -126,8 +126,29 @@ int of_disc_open(void) {
     return (int)DISC_TRACK_COUNT;
 }
 
+/* --- frame-budget instrument (task-9a, docs/364) ---------------------------------------------
+ * "How long does streaming the disc cost?" was never measured: the host reported the presentation half
+ * (pres=..us, stages last m=/p=/c=/f=/x=) and the ring's slack, but a sector read was a black box.  On the
+ * device a read is fopen("slot:N") + fseek + 2352-byte fread over SPI SD through the OS file service; the
+ * answer decides whether async prefetch or a deeper ring is worth building.  Counted here, reported by the
+ * host's budget line. */
+static uint32_t g_disc_reads, g_disc_seeks, g_disc_fails, g_disc_bytes;
+static uint32_t g_disc_us_max;
+static uint64_t g_disc_us;
+
+void of_disc_stats(uint32_t *reads, uint64_t *us, uint32_t *us_max, uint32_t *bytes,
+                   uint32_t *seeks, uint32_t *fails) {
+    if (reads) *reads = g_disc_reads;
+    if (us) *us = g_disc_us;
+    if (us_max) *us_max = g_disc_us_max;
+    if (bytes) *bytes = g_disc_bytes;
+    if (seeks) *seeks = g_disc_seeks;
+    if (fails) *fails = g_disc_fails;
+}
+
 int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
     if (!out2352) return -1;
+    const uint64_t t0 = sys_now_us();
     int track = of_disc_track_of_lba(disc_lba);
     const disc_track_t *t = track > 0 ? find_track((uint32_t)track) : (const disc_track_t *)0;
     if (!t || !t->audio) return -1;
@@ -155,6 +176,7 @@ int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
     }
     long off = (long)off_sectors * IMG_SECTOR;
     if (a_next != off) {
+        g_disc_seeks++;
         if (fseek(af, off, SEEK_SET) != 0) {
             of_log_line("disc: seek slot %d to sector %u failed\n", slot, off_sectors);
             fclose(af); af = 0; a_slot = -1; a_next = -1; return -1;
@@ -168,6 +190,11 @@ int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
         return -1;
     }
     a_next = off + IMG_SECTOR;
+    {                                   /* the measured half: a successful 2352-byte read */
+        uint32_t dt = (uint32_t)(sys_now_us() - t0);
+        g_disc_reads++; g_disc_bytes += IMG_SECTOR; g_disc_us += dt;
+        if (dt > g_disc_us_max) g_disc_us_max = dt;
+    }
     return 0;
 #else
     /* Desktop build: read the same per-track files from a staging directory.
@@ -184,13 +211,30 @@ int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) {
         dir_ready = 1;
         printf("of_disc: desktop cd dir = %s\n", dir_buf);
     }
-    char path[768];
-    snprintf(path, sizeof path, "%s/track%02u.bin", dir_buf, t->track);
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    if (fseek(f, (long)off_sectors * IMG_SECTOR, SEEK_SET) != 0) { fclose(f); return -1; }
-    size_t got = fread(out2352, 1, IMG_SECTOR, f);
-    fclose(f);
-    return got == IMG_SECTOR ? 0 : -1;
+    static FILE *df;
+    static int   d_track = -1;
+    static long  d_next = -1;
+    if (d_track != t->track) {
+        if (df) { fclose(df); df = 0; }
+        char path[768];
+        snprintf(path, sizeof path, "%s/track%02u.bin", dir_buf, t->track);
+        df = fopen(path, "rb");
+        if (!df) return -1;
+        d_track = (int)t->track; d_next = -1;
+    }
+    long off = (long)off_sectors * IMG_SECTOR;
+    if (d_next != off) {
+        g_disc_seeks++;
+        if (fseek(df, off, SEEK_SET) != 0) { g_disc_fails++; return -1; }
+    }
+    size_t got = fread(out2352, 1, IMG_SECTOR, df);
+    if (got != IMG_SECTOR) { g_disc_fails++; return -1; }
+    d_next = off + IMG_SECTOR;
+    {
+        uint32_t dt = (uint32_t)(sys_now_us() - t0);
+        g_disc_reads++; g_disc_bytes += IMG_SECTOR; g_disc_us += dt;
+        if (dt > g_disc_us_max) g_disc_us_max = dt;
+    }
+    return 0;
 #endif
 }

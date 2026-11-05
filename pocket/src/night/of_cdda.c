@@ -190,10 +190,45 @@ static int      g_read_failed;          /* the last fill_sectors() ended on a fa
 static uint64_t g_retry_us;             /* 0 while sounding; otherwise when to try the slot again */                /* wall time the voices started */
 static uint64_t g_consumed_frames;        /* frames the voice side has taken out of the ring */
 
+/* --- frame-budget instrument (task-9a, docs/364) ---------------------------------------------
+ * The streaming side of the budget, in four counts:
+ *   fill calls / fill us      -- one fill is read + de-interleave + ring_write + cache flush, i.e. the whole
+ *                                cost of putting a chunk of the disc where the mixer DMA can reach it;
+ *   audio_low                 -- pump visits with under the 0.1 s fill guard of audio buffered: an audible gap
+ *                                waiting to happen (the buzz docs/338 traced was the fill/play race, not a
+ *                                missing read);
+ *   room_hold                 -- the disc had sectors left and the pump was ready, but the ring had no room;
+ *   clock_behind              -- pump visits where the 75 sectors/s disc clock had passed the host's g_pos;
+ *   ring-ahead minimum        -- the tightest slack the run ever held, in ring frames.
+ *
+ * The first version counted "the ring had no room in front of the voice" as if it were an underrun.  It is not:
+ * of_cdda_play() pre-fills the WHOLE ring (176 400 frames, 4 s), so for the first seconds of every track the
+ * write cursor is a full lap ahead and the pump legitimately refuses to read.  That showed up as 305 126
+ * "blocked" visits in a run that never ran out of audio -- a true fact reported under a misleading name.  The
+ * two questions are separate, so they get separate counters:
+ *   audio_low   -- the mixer is close to running dry: less than the 0.1 s fill guard of audio is buffered.
+ *   room_hold   -- the disc still had sectors and the pump was ready, but the ring had no room: the reads are
+ *                  faster than the voice eats them, which is the good direction and the one a deeper ring changes.
+ *   clock_behind-- the 75 sectors/s disc clock passed g_pos, i.e. the host fell behind the disc's own schedule.
+ *   ahead_min   -- the smallest buffered slack the run ever held, in ring frames (44 100 per second). */
+static uint32_t g_fill_calls, g_fill_frames, g_fill_us_max, g_audio_low, g_room_hold, g_clock_behind;
+static uint32_t g_ahead_min = 0xffffffffu;
+static uint32_t g_pump_visits;
+static uint32_t g_dry;                          /* clock_consume had to clamp: the voice ate more than was written */
+static uint64_t g_fill_us;
+
 static void clock_consume(void) {
     uint64_t now = sys_now_us();
     uint64_t want = (now - g_play_us) * (uint64_t)CD_SRC_RATE / 1000000ull;
-    if (want > g_done_frames) want = g_done_frames;         /* never consume audio that is not there */
+    if (want > g_done_frames) {
+        /* The hard one.  The voices keep playing at hardware speed whatever the host did, so when the clock says
+         * more frames have been eaten than were ever written into the ring, the mixer has looped over samples that
+         * are stale or silent -- THAT is the underrun, the event the whole CDDA engine exists to avoid (the buzz
+         * docs/338 traced was the mirror-image failure: the write cursor lapping the voice).  Counted before the
+         * clamp, because the clamp is exactly what hides it. */
+        g_dry++;
+        want = g_done_frames;                                /* never consume audio that is not there */
+    }
     g_consumed_frames = want;
 }
 
@@ -327,7 +362,7 @@ static void ring_silence(void) {
 #endif
 }
 
-static uint32_t fill_sectors(uint32_t sectors) {
+static uint32_t fill_sectors_raw(uint32_t sectors) {
     g_read_failed = 0;
     /* Bounded by what the voice still has to read, not just by what the disc has left. */
     if (sectors && room_before_voice() < CD_FRAMES_SECTOR) return 0;
@@ -346,6 +381,18 @@ static uint32_t fill_sectors(uint32_t sectors) {
         g_done_frames += CD_FRAMES_SECTOR;
         frames += CD_FRAMES_SECTOR;
     }
+    return frames;
+}
+
+/* The timed wrapper.  The blocked case is counted before the clock is read: it is the shape of "the disc had
+ * more to give and the ring could not take it", which is what a deeper ring or an async read would fix. */
+static uint32_t fill_sectors(uint32_t sectors) {
+    if (sectors && room_before_voice() < CD_FRAMES_SECTOR) { g_room_hold++; return 0; }
+    uint64_t t0 = sys_now_us();
+    uint32_t frames = fill_sectors_raw(sectors);
+    uint32_t dt = (uint32_t)(sys_now_us() - t0);
+    g_fill_calls++; g_fill_frames += frames; g_fill_us += dt;
+    if (dt > g_fill_us_max) g_fill_us_max = dt;
     return frames;
 }
 
@@ -431,6 +478,8 @@ void of_cdda_stop(void) {
 
 void of_cdda_pump(void) {
     if (!g_sectors) return;
+    g_pump_visits++;                      /* the denominator for the visit-counters below: of_cdda_pump runs
+                                           * inside sys_port_spin, i.e. hundreds of times a frame */
     if (!g_running && g_retry_us && sys_now_us() >= g_retry_us) { cdda_resume(); return; }
 
     /* The disc's own clock: 75 sectors a second, measured on the host clock.  sys_cd_da_plan caps how far
@@ -442,6 +491,16 @@ void of_cdda_pump(void) {
 
     clock_consume();
 
+    if (g_running) {                                  /* the budget witnesses, once per pump visit */
+        uint32_t a = ring_ahead();
+        if (a < g_ahead_min) g_ahead_min = a;
+        /* Not at the tail: every track the game re-requests ends with the ring draining before fn_010b1d runs
+         * again, and the original's single MSCDEX pickup does the same.  Counting that as a risk buried the ones
+         * that matter. */
+        if (a < CD_GUARD_FRAMES && g_pos + 2u < g_sectors) g_audio_low++;   /* under 100 ms buffered, data left */
+        if ((uint64_t)g_budget > g_pos) g_clock_behind++;   /* the disc clock is ahead of what we have read */
+    }
+
     /* Keep the ring between empty and full: never write more than the ring can hold ahead of the voice,
      * and never read faster than the disc runs.  The 2 s prefill is the slack that absorbs an SD read. */
     uint32_t room = (ring_ahead() < CD_RING_FRAMES) ? (CD_RING_FRAMES - ring_ahead()) : 0;
@@ -452,7 +511,7 @@ void of_cdda_pump(void) {
     uint32_t vroom = room_before_voice();
     if (vroom < room) room = vroom;
 #endif
-    if (room < CD_FRAMES_SECTOR) return;
+    if (room < CD_FRAMES_SECTOR) { if (g_pos < g_sectors) g_room_hold++; return; }
 
     uint64_t ceiling = g_budget + CD_LOOKAHEAD_SECTORS;
     if ((uint64_t)g_pos >= ceiling) return;                  /* already prefetching far enough ahead */
@@ -507,6 +566,21 @@ void     of_cdda_set_volume(int v) {
 #endif
 }
 uint32_t of_cdda_ring_ahead(void) { return ring_ahead(); }
+
+void of_cdda_stats(uint32_t *fills, uint64_t *fill_us, uint32_t *fill_us_max, uint32_t *fill_frames,
+                   uint32_t *audio_low, uint32_t *room_hold, uint32_t *clock_behind, uint32_t *ahead_min,
+                   uint32_t *pump_visits, uint32_t *dry) {
+    if (fills) *fills = g_fill_calls;
+    if (fill_us) *fill_us = g_fill_us;
+    if (fill_us_max) *fill_us_max = g_fill_us_max;
+    if (fill_frames) *fill_frames = g_fill_frames;
+    if (audio_low) *audio_low = g_audio_low;
+    if (room_hold) *room_hold = g_room_hold;
+    if (clock_behind) *clock_behind = g_clock_behind;
+    if (ahead_min) *ahead_min = (g_ahead_min == 0xffffffffu) ? 0u : g_ahead_min;
+    if (pump_visits) *pump_visits = g_pump_visits;
+    if (dry) *dry = g_dry;
+}
 int32_t  of_cdda_head(void);
 uint32_t of_cdda_pos(void)     { return g_pos; }
 uint32_t of_cdda_sectors(void) { return g_sectors; }

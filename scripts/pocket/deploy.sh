@@ -95,6 +95,14 @@ for d in "$OUT"/Assets/*; do [ -d "$d/common" ] && { PLAT="$(basename "$d")"; br
 [ -n "$PLAT" ] || fail "no Assets/<platform>/common in $OUT (image.sh produced an incomplete tree)"
 COMMON="$SDCARD/Assets/$PLAT/common"
 mkdir -p "$COMMON"
+
+# Which APF file id each file is bound to comes from the manifest generator, never from arithmetic here: ids
+# 10-19 are the OS save window, and a data file bound to one of them is served 256 KB only (README:644).
+# A lookup rather than an associative array: /bin/bash on macOS is 3.2 and has no `declare -A`.
+slot_id_of() {
+    [ -f "$OUT/slot_map.tsv" ] || { printf '?'; return 0; }
+    awk -F'\t' -v n="$1" '$2==n {print $1; found=1; exit} END {if (!found) printf "?"}' "$OUT/slot_map.tsv"
+}
 [ -f "$COMMON/night.elf" ] || fail "$COMMON has no night.elf -- core tree did not land"
 
 # ── 2. the data-slot files ──────────────────────────────────────────────────────────────
@@ -108,7 +116,8 @@ done
 free=$(df -k "$SDCARD" | awk 'NR==2 {print $4}')
 [ "$free" -gt $(( need / 1024 + 4096 )) ] || fail "card has ${free} KB free, the slot files need $(( need / 1024 )) KB"
 
-copy_slot "$DATA/NIGHT.RES" "$COMMON/NIGHT.RES" "NIGHT.RES -> $(basename "$COMMON")/ (slot 4)"
+res_slot=$(slot_id_of "NIGHT.RES")
+copy_slot "$DATA/NIGHT.RES" "$COMMON/NIGHT.RES" "NIGHT.RES -> $(basename "$COMMON")/ (slot $res_slot)"
 count=0
 skipped=0
 for f in "$DATA"/cd/track*.bin; do
@@ -117,8 +126,10 @@ for f in "$DATA"/cd/track*.bin; do
     [ ${#name} -le 23 ] || fail "\"$name\" is ${#name} characters; the Pocket allows 23"
     base="${name%.bin}"
     case "$base" in track[0-9][0-9]) : ;; *) fail "\"$name\" is not named trackNN.bin" ;; esac
-    slot=$(( 16 + 10#${base#track} ))          # track02 -> slot 18 ... track15 -> slot 31
-    copy_slot "$f" "$COMMON/$name" "$name -> $(basename "$COMMON")/ (slot $slot)"
+    slot=$(slot_id_of "$name")                # from dist/night/slot_map.tsv: 10-19 are save slots and must
+                                              # not carry audio (README:644)
+    label="$name -> $(basename "$COMMON")/ (slot $slot)"
+    copy_slot "$f" "$COMMON/$name" "$label"
     count=$(( count + 1 ))
 done
 [ "$count" -gt 0 ] || fail "no track*.bin under $DATA/cd (run scripts/pocket/repack.py)"

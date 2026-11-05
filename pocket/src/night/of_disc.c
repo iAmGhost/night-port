@@ -35,8 +35,21 @@
 /* Track -> slot, mirroring scripts/pocket/mk_dist.py: audio tracks in disc order from slot 18.
  * TG_NIGHT has audio tracks 02..15, so slot = track + 16 (02 -> 18 ... 15 -> 31).  The plan keeps every id
  * in 0..31 and the manifest under Analogue's ceiling of 32 data slots per core (docs/334 §7). */
-#define DISC_SLOT_BASE 18
-#define DISC_SLOT_TRACK0 2
+/* README:644 -- "10-19 | Save 0-9 | Nonvolatile CRAM0 save slots (256 KB each)", and README:462 "10 persistent
+ * save slots (256 KB each), mapped to APF file IDs 10-19".  Our 14 audio tracks used to sit on 18..31, which
+ * put track02.bin on Save 8 and track03.bin on Save 9: the OS serves those two ids through the 256 KB save
+ * window, so every read past 262 144 bytes comes back short.  The card log said so exactly -- two failures,
+ * both at the same byte, and only on those two ids:
+ *
+ *   disc: slot 18 sector 111 read 1072 of 2352 bytes      111*2352 + 1072 = 262 144 = 0x40000
+ *   disc: slot 19 sector 111 read 1072 of 2352 bytes      111*2352 + 1072 = 0x40000
+ *   ...while slot 26 (track10) and slot 28 (track12) streamed past 700 KB without complaint.
+ *
+ * Which ids the audio lives on is therefore not cosmetic: 18/19 are the intro theme and the stage theme, and
+ * those are the two the user could not hear.  Audio now sits only on ids the reservation table leaves for app
+ * data: 4-6 (Data 1-3, NIGHT.RES already holds 4) and 20+ (nothing reserved above 19 -- openfpgaOS-Quake puts
+ * "CD Track 03..11" on 23-31 the same way). */
+#define DISC_SLOT_NONE (-1)
 
 static int g_have_table;
 
@@ -62,10 +75,10 @@ int of_disc_track_of_lba(uint32_t disc_lba) {
 int of_disc_track_slot(uint32_t track) {
     const disc_track_t *t = find_track(track);
     if (!t || !t->audio) return -1;
-    if (track < DISC_SLOT_TRACK0) return -1;
-    int slot = DISC_SLOT_BASE + (int)(track - DISC_SLOT_TRACK0);
-    if (slot > 63) return -1;
-    return slot;
+    if (track == 2u) return 5;                      /* Data 2: the intro theme                */
+    if (track == 3u) return 6;                      /* Data 3: the stage theme                */
+    if (track >= 4u && track <= 15u) return 19 + (int)track;   /* track04 -> 20 ... track15 -> 31 */
+    return DISC_SLOT_NONE;                          /* 18/19 are Save 8/Save 9: never data  */
 }
 
 uint32_t of_disc_total_sectors(void) {

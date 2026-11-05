@@ -38,10 +38,13 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.20"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.22"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
-SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
+# Slot ids the reservation table (README:644) leaves for app data.  10-19 is the save range -- "Save 0-9,
+# nonvolatile CRAM0 save slots (256 KB each)" -- so an audio file bound to 18 or 19 is served through the save
+# window and reads stop at 262 144 bytes.  track02/track03 (the intro and stage themes) were exactly that case.
+AUDIO_IDS = [5, 6] + list(range(20, 32))   # Data 2, Data 3, then everything above the reserved range
 
 
 def cue_audio_tracks(path: Path):
@@ -55,7 +58,9 @@ def cue_audio_tracks(path: Path):
 
 
 def slots_for_tracks(tracks):
-    return {SLOT_BASE + i: f"track{t:02d}.bin" for i, t in enumerate(tracks)}
+    if len(tracks) > len(AUDIO_IDS):
+        raise SystemExit(f"{len(tracks)} audio tracks but only {len(AUDIO_IDS)} non-save slot ids")
+    return {AUDIO_IDS[i]: f"track{t:02d}.bin" for i, t in enumerate(tracks)}
 
 
 def jw(path: Path, obj):
@@ -268,10 +273,20 @@ def main():
         # It is pinned here rather than left to the menu because the interact bridge is ambiguous: five
         # variables share 0xF7000000, and a value of 0 is both "On" and "nothing was carried".
         "SCREEN=0\n"
-        "BLIT_SKIP=0\n"
-        "FB_MODE=1\n"      # 1 = native 640x480 source framebuffer when the OS offers one, 0 = software 2x2 downscale       # skip the 640x480->320x240 blit while the source is unchanged (max 8 in a row)
+        "BLIT_SKIP=0\n"     # 1 = skip the 640x480->320x240 blit while the sampled frame is unchanged (max 8 in a row)
+        "FB_MODE=1\n"       # 1 = native 640x480 source framebuffer when the core offers that scaler mode, 0 = software 2x2
         "PRESENT_SYNC=0\n"    # wait for each flip to be presented before writing the surface again
         "TICK_HZ=490\n"
+    )
+
+    # The id map, published once so nothing downstream re-derives it: deploy.sh labels its copies from this
+    # file, and of_disc.c of_disc_track_slot() is the runtime copy of the same rule.  It exists because the ids
+    # are not cosmetic -- 10-19 are save-window slots and a data file bound there cannot be read past 256 KB.
+    (OUT / "slot_map.tsv").write_text(
+        "4\tNIGHT.RES\n"
+        + "".join(f"{10 + i}\t{APP}_{i}.sav\n" for i in range(SAVE_SLOTS))
+        + f"17\tnightlog.sav\n"
+        + "".join(f"{sid}\t{ts[sid]}\n" for sid in sorted(ts))
     )
 
     readme = asset_dir / "common" / "README.md"

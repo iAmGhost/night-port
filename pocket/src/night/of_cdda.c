@@ -68,6 +68,7 @@ static FILE *g_wav;
 
 static void voice_start(void);
 static void voice_stop(void);
+static void cdda_resume(void);
 
 int of_cdda_boot(void) {
 #ifndef OF_PC
@@ -179,7 +180,9 @@ static void voice_stop(void) {
 /* How much of the ring the voice has already spent.  The voice loops forever, so its consumption is a
  * function of the time since playback started -- the mixer's own position is used only as a cross-check
  * on the device. */
-static uint64_t g_play_us;                /* wall time the voices started */
+static uint64_t g_play_us;
+static int      g_read_failed;          /* the last fill_sectors() ended on a failed slot read */
+static uint64_t g_retry_us;             /* 0 while sounding; otherwise when to try the slot again */                /* wall time the voices started */
 static uint64_t g_consumed_frames;        /* frames the voice side has taken out of the ring */
 
 static void clock_consume(void) {
@@ -279,14 +282,31 @@ static void ring_write(const int16_t *stereo, uint32_t frames) {
 }
 
 /* Take `sectors` off the disc and land them in the rings, de-interleaved into the two channels. */
+/* Make the ring honest silence.  A looping voice over a ring that was never written -- or over the half of it
+ * a failed prefill never reached -- plays whatever the allocator left there, and that is the buzz: it is the
+ * same mechanism twice now, once as the zero-length refusal (docs/337) and once as the partial prefill of
+ * 0.1.20, which started 111 sectors of real audio inside a 176 400-frame ring and let the voice loop the
+ * remaining 1.5 s of nothing.  Silence can only sound like a gap. */
+static void ring_silence(void) {
+    if (!g_ring[0] || !g_ring[1]) return;
+    size_t n = (CD_RING_FRAMES + 1) * sizeof(int16_t);
+    memset(g_ring[0], 0, n);
+    memset(g_ring[1], 0, n);
+#ifndef OF_PC
+    of_cache_flush_range(g_ring[0], n);
+    of_cache_flush_range(g_ring[1], n);
+#endif
+}
+
 static uint32_t fill_sectors(uint32_t sectors) {
+    g_read_failed = 0;
     /* Bounded by what the voice still has to read, not just by what the disc has left. */
     if (sectors && room_before_voice() < CD_FRAMES_SECTOR) return 0;
     static int16_t stereo[CD_FRAMES_SECTOR * 2];
     static uint8_t raw[2352];
     uint32_t frames = 0;
     for (uint32_t s = 0; s < sectors; s++) {
-        if (of_disc_read_audio(g_lba + g_pos, raw) != 0) return frames;
+        if (of_disc_read_audio(g_lba + g_pos, raw) != 0) { g_read_failed = 1; return frames; }
         const int16_t *src = (const int16_t *)raw;
         for (int i = 0; i < CD_FRAMES_SECTOR; i++) {
             stereo[i * 2 + 0] = src[i * 2 + 0];
@@ -350,6 +370,7 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
      * prefilling is also what proves the slot is readable before any sound is expected. */
     uint32_t prefill_sectors = CD_RING_FRAMES / CD_FRAMES_SECTOR;         /* 300 sectors = 4 s */
     if (prefill_sectors > sectors) prefill_sectors = sectors;
+    ring_silence();                       /* what the prefill does not reach must be silence, not leftovers */
     uint32_t got_frames = fill_sectors(prefill_sectors);
     if (got_frames == 0) {
         of_log_line("cdda refused: prefill read nothing (0 of %u sectors) -- slot unreadable, voices stay off\n",
@@ -381,6 +402,7 @@ void of_cdda_stop(void) {
 
 void of_cdda_pump(void) {
     if (!g_sectors) return;
+    if (!g_running && g_retry_us && sys_now_us() >= g_retry_us) { cdda_resume(); return; }
 
     /* The disc's own clock: 75 sectors a second, measured on the host clock.  sys_cd_da_plan caps how far
      * ahead the host may run (src/sys/sys.c) -- the same cushion the SDL host uses. */
@@ -410,8 +432,38 @@ void of_cdda_pump(void) {
     if (allowed * CD_FRAMES_SECTOR > room) allowed = room / CD_FRAMES_SECTOR;
     if (!allowed) return;
 
-    if (fill_sectors(allowed) == 0) { of_cdda_stop(); return; }    /* slot exhausted or read failed */
-    if (g_pos >= g_sectors) of_cdda_stop();                          /* the game restarts the track itself */
+    uint32_t got = fill_sectors(allowed);
+    if (g_read_failed) {
+        /* The slot read broke.  Keep playing anyway and the voice wraps into samples that were never
+         * refreshed -- audibly a buzz, and it does not stop until the game replaces the track.  Stop, silence,
+         * and come back when the slot answers again: a gap is a smaller lie than a buzz. */
+        if (g_running) {
+            voice_stop(); g_running = 0;
+            ring_silence();
+            g_write = 0; g_done_frames = 0; g_consumed_frames = 0;
+            of_log_line("cdda: slot read failed at sector %u of %u -- voices stopped; retrying in 1 s\n",
+                        g_pos, g_sectors);
+        }
+        g_retry_us = sys_now_us() + 1000000ull;
+        return;
+    }
+    if (got == 0 && g_pos >= g_sectors) { of_cdda_stop(); return; }  /* the track ran out; the game restarts it */
+}
+
+/* Coming back after a failed read: prefill half the ring from where the disc position stopped, then start the
+ * voices again.  Late by seconds, but continuous and clean. */
+static void cdda_resume(void) {
+    uint32_t want = (CD_RING_FRAMES / 2) / CD_FRAMES_SECTOR;
+    if (want > g_sectors - g_pos) want = g_sectors - g_pos;
+    if (!want) { of_cdda_stop(); return; }
+    ring_silence();
+    g_write = 0; g_done_frames = 0; g_consumed_frames = 0;
+    if (fill_sectors(want) == 0) { g_retry_us = sys_now_us() + 2000000ull; return; }   /* still broken: back off */
+    g_play_us = sys_now_us();
+    voice_start();
+    g_running = 1;
+    g_retry_us = 0;
+    of_log_line("cdda: slot answering again, resuming at sector %u of %u\n", g_pos, g_sectors);
 }
 
 void     of_cdda_set_volume(int v) { g_vol = v; g_vol &= 0x1ff; }

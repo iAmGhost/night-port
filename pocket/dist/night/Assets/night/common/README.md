@@ -9,8 +9,8 @@ make -C pocket/src/night data     # -> scratch/pocket/, then `make deploy`
 | file | slot | what it is |
 |---|---|---|
 | `NIGHT.RES` | 4 | the shipped 51 MB resource container, copied verbatim |
-| `track02.bin` | 18 | CDDA track 2 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
-| `track03.bin` | 19 | CDDA track 3 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
+| `track02.bin` | 5 | CDDA track 2 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
+| `track03.bin` | 6 | CDDA track 3 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
 | `track04.bin` | 20 | CDDA track 4 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
 | `track05.bin` | 21 | CDDA track 5 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
 | `track06.bin` | 22 | CDDA track 6 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |

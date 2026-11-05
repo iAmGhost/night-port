@@ -158,7 +158,7 @@
                 ]
             },
             {
-                "id": 18,
+                "id": 5,
                 "name": "track02.bin",
                 "required": false,
                 "parameters": 0,
@@ -168,7 +168,7 @@
                 "deferload": true
             },
             {
-                "id": 19,
+                "id": 6,
                 "name": "track03.bin",
                 "required": false,
                 "parameters": 0,

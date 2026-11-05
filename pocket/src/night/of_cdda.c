@@ -20,6 +20,25 @@
  *   So the 75 sectors/s arithmetic below runs identically with or without a mixer -- on the desktop the
  *   samples leave through a WAV witness instead of through fabric.
  */
+/* task-9 (docs/371): BRAM hot paths.  The Pocket core has a 14 336-byte zero-wait-state region
+ * (pocket/src/sdk/app.ld:29 `APP_BRAM (rwx) : ORIGIN = 0x00004000, LENGTH = 0x3800`) and this port used none of
+ * it: the device ELF's sections were .text 503 376 B in SDRAM with an 8 KiB instruction cache, and no
+ * .app_fasttext at all.  OF_FASTTEXT (of_fastram.h) places a function there; the header forces 4-byte alignment
+ * because fast RAM is uncached, so 64-byte alignment there is pure padding (Duke3D overflowed the region on
+ * padding alone).
+ *
+ * It is applied to the HOST only, never to src/f: the macro must be absent from a desktop build, where the
+ * section has no meaning and f.c is shared byte-for-byte with the SDL host. */
+#if defined(NIGHT_POCKET) && !defined(OF_PC)
+/* The PC shim is built with NIGHT_POCKET *and* OF_PC (sdk.mk adds -DOF_PC to the same flag set), so the guard has
+ * to exclude the shim explicitly -- otherwise the section attribute reaches Apple Mach-O and every desktop build
+ * dies with "mach-o section specifier requires a segment and section separated by a comma". */
+#include "of_fastram.h"
+#define HOTTEXT OF_FASTTEXT
+#else
+#define HOTTEXT
+#endif
+
 #include "of_cdda.h"
 #include "of_disc.h"
 #include "of_log.h"
@@ -236,6 +255,7 @@ static void rig_sample(const uint8_t *raw) {
 #endif
 static uint64_t g_fill_us;
 
+HOTTEXT /* how much the mixer voice ate, every fill */
 static void clock_consume(void) {
     uint64_t now = sys_now_us();
     uint64_t want = (now - g_play_us) * (uint64_t)CD_SRC_RATE / 1000000ull;
@@ -251,6 +271,7 @@ static void clock_consume(void) {
     g_consumed_frames = want;
 }
 
+HOTTEXT /* the ring headroom read the refill decision is built on */
 static uint32_t ring_ahead(void) {
     return (g_done_frames >= g_consumed_frames) ? (uint32_t)(g_done_frames - g_consumed_frames) : 0u;
 }
@@ -321,6 +342,7 @@ int16_t of_gain16(int16_t x, int gain_pct) {
 
 void of_cdda_set_gain(int pct) { g_gain_pct = pct; }
 
+HOTTEXT /* the sample copy into the 4 s ring, the port's per-fill hot loop */
 static void ring_write(const int16_t *stereo, uint32_t frames) {
     uint32_t done = 0;
     while (done < frames) {
@@ -381,6 +403,7 @@ static void ring_silence(void) {
 #endif
 }
 
+HOTTEXT /* the 2352-byte slot reads that feed the ring: the SD-facing hot path */
 static uint32_t fill_sectors_raw(uint32_t sectors) {
     g_read_failed = 0;
     /* Bounded by what the voice still has to read, not just by what the disc has left. */
@@ -406,6 +429,7 @@ static uint32_t fill_sectors_raw(uint32_t sectors) {
 
 /* The timed wrapper.  The blocked case is counted before the clock is read: it is the shape of "the disc had
  * more to give and the ring could not take it", which is what a deeper ring or an async read would fix. */
+HOTTEXT /* the fill decision wrapper, once per tick (docs/364 3) */
 static uint32_t fill_sectors(uint32_t sectors) {
     if (sectors && room_before_voice() < CD_FRAMES_SECTOR) { g_room_hold++; return 0; }
     uint64_t t0 = sys_now_us();

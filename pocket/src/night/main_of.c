@@ -26,6 +26,25 @@
 
 #include "of_cdda.h"
 #include "of_disc.h"
+/* task-9 (docs/371): BRAM hot paths.  The Pocket core has a 14 336-byte zero-wait-state region
+ * (pocket/src/sdk/app.ld:29 `APP_BRAM (rwx) : ORIGIN = 0x00004000, LENGTH = 0x3800`) and this port used none of
+ * it: the device ELF's sections were .text 503 376 B in SDRAM with an 8 KiB instruction cache, and no
+ * .app_fasttext at all.  OF_FASTTEXT (of_fastram.h) places a function there; the header forces 4-byte alignment
+ * because fast RAM is uncached, so 64-byte alignment there is pure padding (Duke3D overflowed the region on
+ * padding alone).
+ *
+ * It is applied to the HOST only, never to src/f: the macro must be absent from a desktop build, where the
+ * section has no meaning and f.c is shared byte-for-byte with the SDL host. */
+#if defined(NIGHT_POCKET) && !defined(OF_PC)
+/* The PC shim is built with NIGHT_POCKET *and* OF_PC (sdk.mk adds -DOF_PC to the same flag set), so the guard has
+ * to exclude the shim explicitly -- otherwise the section attribute reaches Apple Mach-O and every desktop build
+ * dies with "mach-o section specifier requires a segment and section separated by a comma". */
+#include "of_fastram.h"
+#define HOTTEXT OF_FASTTEXT
+#else
+#define HOTTEXT
+#endif
+
 #include "of_save.h"
 #include "of_log.h"
 
@@ -217,6 +236,7 @@ static uint32_t on_terminate(uint32_t a) {
  * The game programs the VGA DAC itself (outb 0x3C8 index / 0x3C9 value, sys.c mirrors it) and never
  * writes a byte above 63 (docs/77), so a 6-bit table is scaled the way a DAC scales it -- the same
  * arithmetic src/app/main.c:129-135 uses, which is the basis the port-vs-original comparisons stand on. */
+HOTTEXT /* the palette upload the indexed picture depends on, once per present */
 static void palette_push(void) {
     sys_vga_palette(g_pal_rgb);
     if (sys_vga_dac_max() <= 63)
@@ -278,6 +298,7 @@ static inline uint8_t maj4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
 
 static unsigned g_ds_fast, g_ds_slow;        /* which 640x480 path ran: the word loop or the general one */
 
+HOTTEXT /* the device's frame copy, 76 800 output pixels per present (docs/343) */
 static void downscale_2x2_frame(const uint8_t *src, uint8_t *fb) {
     if (((uintptr_t)src & 3u) || ((uintptr_t)fb & 3u)) {      /* misaligned: keep the general path */
         g_ds_slow++;
@@ -386,6 +407,7 @@ static int pal_lit(void) {
     return c;
 }
 
+HOTTEXT /* the frame copy, the palette push and the flip: 59 times a second */
 static void present(void) {
     if (g_off & OFF_PRESENT) return;
     uint64_t t0 = sys_now_us(), t1, t2, t3, t4, t5;
@@ -696,6 +718,7 @@ static void audio_boot(void) {
 }
 
 /* Fill up to one block, stopping when the ring runs dry or the block is full. */
+HOTTEXT /* the board DMA ring drain, walked on every pump entry */
 static uint32_t drain_audio(void) {
     uint32_t got = 0;
     while (got < SFX_CHUNK) {
@@ -827,6 +850,7 @@ static void cdda_stop(void) { if (cdda_allowed()) of_cdda_stop(); }
  * clock read: g_timer_calls is already in the pump.  The pre-fill, the retry-after-failure and the budget
  * arithmetic are all time-based, so none of them depends on visit frequency. */
 static uint32_t g_cdda_tick_seen;
+HOTTEXT /* the CD-DA ring refill decision, once per tick */
 static void cdda_pump(void) {
     if (!cdda_allowed()) return;
     if (g_cdda_tick_seen == g_timer_calls) return;      /* once per tick, not once per spin */
@@ -1534,6 +1558,12 @@ static int g_depth, g_depth_max;
  * per-spin work" from a guess into an arithmetic decision: on a 100 MHz core, a 30-cycle call at 150 000 visits a
  * frame is 4.5 ms a frame, which is a fifth of a 20 ms frame budget spent on bookkeeping. */
 static uint64_t g_pump_enters;
+/* tick_pump is deliberately NOT in BRAM, and the number says why: measured with -O3 and no LTO it is 0x29f0 =
+ * 10 736 bytes -- 3.6x the size of present() -- because audio_pump(), save_pump(), warp_entry_pump() and the whole
+ * 1 Hz diagnostic block get inlined into it.  The APP_BRAM region is 14 336 bytes total (app.ld:29), so marking
+ * this one function spends 75 % of the region on a body whose bulk is the diagnostics, not the scheduling.  It is
+ * also the port's hottest entry point (docs/369: ~267 000 entries a frame), which makes "split the diagnostic
+ * block out so the scheduling core is small enough to sit in BRAM" the next measurable step rather than this one. */
 static void tick_pump(void) {
     uint64_t now = sys_now_us();
     g_pump_enters++;

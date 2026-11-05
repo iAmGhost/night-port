@@ -55,3 +55,19 @@ docs/381-383 (stage play 55/55 at 0.9998, slides 130/133, the pause menu 41/41 a
 accuracy basis in the meantime, and they are unaffected by any of this.
 
 Harness-only: card 0.1.68 unchanged, `src/f` untouched, fixture suite `== ALL PASS ==`.
+
+## 5. The sidecar's first version broke the core build (0.1.69)
+
+`g_rig_dir` lives inside the `OF_PC`-guarded rig block near the top of `main_of.c`, and `res_log_sample()` reached for
+it unguarded.  The desktop shim compiled it and the **RISC-V build failed**:
+
+```
+main_of.c:1601:10: error: 'g_rig_dir' undeclared (first use in this function)
+make: *** [pocket/.obj/night/main_of.o] Error 1
+```
+
+which is the asymmetry docs/371 already warns about -- a passing `app_pc` build is not evidence the core builds.  The
+file write is `OF_PC`-only now (a rig sidecar is a desktop artifact); the lookup ring the anchors search is fed on both
+builds.  `make -C pocket/src/night all` and `make deploy` both succeed, the card is at **0.1.69** with ELF md5
+`817131e7041de58be7f3bf6857a3f016` identical to the build output, and the deployed version string matches `core.json`.
+

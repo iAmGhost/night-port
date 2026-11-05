@@ -1598,7 +1598,12 @@ static void res_log_sample(void) {
     if (g_res_trace_seq == g_res_last_seq) return;
     g_res_last_seq = g_res_trace_seq;
     script_res_hook(g_res_trace);                       /* the ring the anchors search is fed from the same sample */
-    if (!g_rig_dir[0]) return;
+#ifdef OF_PC
+    /* g_rig_dir lives in the OF_PC-guarded rig block above, so the sidecar is a desktop-rig artifact; the ring the
+     * anchors search is fed on both builds.  (The first version of this function reached for g_rig_dir unguarded and
+     * the RISC-V build failed with 'g_rig_dir' undeclared -- the desktop shim compiled it, which is exactly the
+     * asymmetry docs/371 warns about: a desktop build passing is not evidence the core builds.) */
+    if (!g_rig_dir) return;
     if (!g_reslog) {
         char path[1200];
         snprintf(path, sizeof path, "%s/res.jsonl", g_rig_dir);
@@ -1607,6 +1612,7 @@ static void res_log_sample(void) {
     }
     fprintf(g_reslog, "{\"frame\":%llu,\"tick\":%u,\"seq\":%u,\"res\":\"%s\"}\n",
             (unsigned long long)g_frames, g_timer_calls, g_res_trace_seq, g_res_trace);
+#endif
 }
 
 /* Sequential execution: a program counter, and one park rule per step kind.  A key fires the moment the counter

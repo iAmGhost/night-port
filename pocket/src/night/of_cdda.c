@@ -62,7 +62,8 @@
 #define CD_BATCH_MAX          12                              /* sectors per slot read; night.ini DISC_BATCH= picks 1..12 (docs/375) */
 static int g_batch = CD_BATCH_MAX;
 #define CD_MIN_WANT_MAX   12
-static int g_min_want = CD_MIN_WANT_MAX;                /* sectors of allowance to accumulate before reading (docs/375 3) */                        /* 1 reproduces the one-sector-at-a-time shape exactly */
+static int g_min_want = CD_MIN_WANT_MAX;
+static int g_prefill_first = 150;                         /* 2 s read before the voices start; 300/150/90/45 measured, 150 chosen for slack at equal frame cost (docs/376) */                        /* sectors read before the voices start (docs/376); 300 = the old whole-ring prefill */                /* sectors of allowance to accumulate before reading (docs/375 3) */                        /* 1 reproduces the one-sector-at-a-time shape exactly */
 #define CD_CHUNK_SECTORS  12                              /* per pump pass: 7056 samples = 160 ms of big sequential reads */
 #define CD_LOOKAHEAD_SECTORS 120                          /* 1.6 s of audio read past the disc clock: the slack that
                                                            * survives a blocking video present without underrunning the
@@ -345,6 +346,12 @@ int16_t of_gain16(int16_t x, int gain_pct) {
 }
 
 void of_cdda_set_gain(int pct) { g_gain_pct = pct; }
+void of_cdda_set_prefill_first(int n) {                     /* docs/376: the synchronous slice; 300 reproduces the whole-ring prefill */
+    g_prefill_first = (n < CD_MIN_WANT_MAX) ? CD_MIN_WANT_MAX : (n > (int)(CD_RING_FRAMES / CD_FRAMES_SECTOR))
+                                             ? (int)(CD_RING_FRAMES / CD_FRAMES_SECTOR) : n;
+    printf("cdda: prefill slice = %d sectors read before the voices start\n", g_prefill_first);
+}
+
 void of_cdda_set_min_want(int n) {                          /* docs/375 3: 1 = read whatever is due (the old shape), 12 = read a chunk when it is due */
     g_min_want = (n < 1) ? 1 : (n > CD_MIN_WANT_MAX) ? CD_MIN_WANT_MAX : n;
     printf("cdda: fill policy = read at least %d sectors when they are due\n", g_min_want);
@@ -512,8 +519,19 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
 
     /* Pre-fill the whole ring before the voices start: a looping voice needs something to loop over, and
      * prefilling is also what proves the slot is readable before any sound is expected. */
-    uint32_t prefill_sectors = CD_RING_FRAMES / CD_FRAMES_SECTOR;         /* 300 sectors = 4 s */
-    if (prefill_sectors > sectors) prefill_sectors = sectors;
+    /* Read a SLICE before the voices start, not the whole ring (docs/376).  The full 300-sector prefill was the
+     * most expensive thing the audio path did -- 300 sectors (705 KB) read inside the single frame that requested a
+     * track, measured as a 5.7 ms fill on the desktop and unknown on the card, where a sector read goes over SPI.
+     * A slice is enough for the two things the prefill is actually for: the voice needs something real to loop over
+     * the moment it starts, and a readable slot must be proven before sound is expected.  The pump then tops the
+     * ring up in chunks, and it does that comfortably: it keeps g_pos at budget + 120 sectors, while the voice sits
+     * at the budget, so a slice of 45 sectors (0.6 s) is overtaken by the pump within a few ticks.  Everything below
+     * this point keeps its meaning: zero sectors read is still a refusal, and a short read is still logged as
+     * partial with the rest of the ring silenced rather than left as leftovers. */
+    uint32_t prefill_target = CD_RING_FRAMES / CD_FRAMES_SECTOR;          /* 300 sectors = the whole ring */
+    if (prefill_target > sectors) prefill_target = sectors;
+    uint32_t prefill_sectors = (uint32_t)g_prefill_first;
+    if (prefill_sectors > prefill_target) prefill_sectors = prefill_target;
     ring_silence();                       /* what the prefill does not reach must be silence, not leftovers */
     uint32_t got_frames = fill_sectors(prefill_sectors);
     if (got_frames == 0) {
@@ -526,8 +544,8 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
         /* Refusing the whole track because the read stopped at sector 111 of 300 was the wrong call: 111
          * sectors is 1.5 s of audio already in the ring, and the pump can top it up from here.  A partial
          * prefill costs one audible hiccup at the very worst; a refusal costs the whole track. */
-        of_log_line("cdda: partial prefill (%u of %u sectors) -- starting with what arrived, pump will top up\n",
-                    got_frames / CD_FRAMES_SECTOR, prefill_sectors);
+        of_log_line("cdda: prefill reached %u of %u sectors (slice %u, ring target %u) -- pump will top up\n",
+                    got_frames / CD_FRAMES_SECTOR, prefill_sectors, prefill_sectors, prefill_target);
     }
 
     g_write = 0;                     /* the voice starts at the first prefilled frame */

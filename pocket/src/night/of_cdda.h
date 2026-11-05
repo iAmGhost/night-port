@@ -43,6 +43,7 @@ int      of_cdda_sounding(void);                 /* 1 when the mixer path is liv
 
 int16_t of_gain16(int16_t x, int gain_pct);
 void    of_cdda_set_gain(int pct);
+void    of_cdda_set_prefill_first(int n); /* night.ini DISC_PREFILL_FIRST: sectors read before the voices start (12..300) */
 void    of_cdda_set_min_want(int n);     /* night.ini DISC_MIN_WANT: sectors of allowance to accumulate before a read (1..12) */
 void    of_cdda_set_read_batch(int n);    /* night.ini DISC_BATCH=: sectors per slot read, 1..12 (docs/375) */        /* 100 = unity, the disc exactly as recorded */
 

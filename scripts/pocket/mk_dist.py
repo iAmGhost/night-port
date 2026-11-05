@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.63"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.65"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -462,6 +462,7 @@ def main():
         "BLIT_SKIP=0\n"     # 1 = skip the 640x480->320x240 blit while the sampled frame is unchanged (max 8 in a row)
         "FB_MODE=1\n"
         "PUMP_AUDIO_TICK=0\n"
+        "DISC_PREFILL_FIRST=150\n"   # sectors of CD-DA read before the voices start (1.2 s); 300 = the old whole-ring prefill that blocked a frame (docs/376)
         "DISC_MIN_WANT=12\n"   # wait until 12 sectors of read allowance have accumulated, then take them in one read (docs/375 6); 1 = the old read-whatever-is-due shape
         "DISC_BATCH=12\n"   # sectors per CD-DA slot read: 12 in one file read instead of 12 reads (docs/375); 1 = the old shape
         "RESTORE=1\n"   # 1 = a loaded save restores the HP bars (docs/374); 0 = nothing, 2 = state bytes + stage selectors, 4 = the key table
@@ -514,6 +515,7 @@ def main():
           "| `CDDA` `PAD` | 0 | `1` mutes the CD music / ignores the pad |\n"
           "| `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |\n"
           "| `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |\n"
+          "| `DISC_PREFILL_FIRST` | 150 | sectors of CD-DA read before the voices start (2 s); 300 = the old whole-ring prefill; 300 = the old whole-ring prefill |\n"
           "| `DISC_MIN_WANT` | 12 | sectors of read allowance to accumulate before filling; 1 = the old one-sector-at-the-disc-rate shape |\n"
           "| `DISC_BATCH` | 12 | sectors per CD-DA slot read; 1 reproduces the old one-sector-at-a-time reads |\n"
           "| `RESTORE` | 1 | what a loaded save applies: 1 HP bars, 2 state bytes + stage selectors, 4 key table, 0 nothing (2 and 7 can make the game dereference out of range mid-stage) |\n"

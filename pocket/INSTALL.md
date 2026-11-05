@@ -93,6 +93,18 @@ Compare `grep -E '^(stages|perf|budget)' nightlog.sav` between the two.  A third
 gates the board's DMA drain to the 490 Hz tick instead of every pump entry (docs/369 §5) -- judge it on `sfx=…/…/…`
 and `dry` staying flat.  Whichever wins is what stays default.
 
+The three disc levers need no rebuild at all, only an ini line (docs/375, docs/376), and they are read from the same
+`budget` line's `disc ops=/sectors=/max_op=` and `cdda fills=` columns:
+
+| key | default | what it changes |
+|---|---|---|
+| `DISC_BATCH` | 12 | sectors per slot read; 1 = one 2 352-byte read at a time |
+| `DISC_MIN_WANT` | 12 | how long the pump waits for a chunk to be due; 1 = read whatever the disc clock says is due |
+| `DISC_PREFILL_FIRST` | 150 | sectors read before a track's voices start; 300 = the old whole-ring prefill |
+
+`scripts/pocket/ab.sh` sets these variants up for you (`diag`, `bram-pump`, `audio-tick`, `player`, `show`) and prints
+the grep to run after each boot.
+
 ## 5. Desktop verification (no hardware needed)
 
 ```sh

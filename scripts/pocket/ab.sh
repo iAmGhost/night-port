@@ -33,7 +33,7 @@ PY
 }
 report() {
   echo "after the boot: eject, mount, then"
-  echo "  grep -E '^(stages|perf|budget|audio|disc|witness|save|load)' \\"
+  echo "  grep -E '^(sdk|cdda|stages|perf|budget|audio|disc|witness|save|load)' \\"
   echo "    \"$CARD/Saves/night/common/nightlog.sav\" | tail -40"
   echo "and to identify the card you actually ran:"
   echo "  strings \"$ELF\" | grep -E '^0\\.1\\.'; md5 -q \"$ELF\""

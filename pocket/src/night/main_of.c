@@ -728,6 +728,32 @@ static void audio_boot(void) {
     of_cdda_set_prefill_first(of_setting_disc_prefill_first()); /* synchronous prefill slice, docs/376 */
     NLOG("mixer: %d voices, output rate %d Hz (samples keep their own rate, set per voice)\n", 32, OF_MIXER_OUTPUT_RATE);
 #ifndef OF_PC
+    /* One boot's worth of device facts (docs/378).  Every remaining tuning question on this port is gated on a
+     * number only the chip can give -- what a slot read may ask for, how much CRAM0 staging the bridge reserves,
+     * what geometry the panel actually accepted, whether the BRAM placement survived the link -- and none of them
+     * are observable from the desktop shim, where the same calls return 0 or malloc.  They are cheap one-shot
+     * queries and they land in the log, which a player's card does not write (LOG=0), so a developer boot answers
+     * the whole set at once instead of needing a probe build per question. */
+    {
+        of_video_caps_t cap; of_video_mode_t md;
+        of_video_get_caps(&cap);
+        of_video_get_mode(&md);
+        int active = 0;
+        for (int v = 0; v < 32; v++) active += of_mixer_voice_active(v) ? 1 : 0;
+        const unsigned long bram_lo = 0x4000ul, bram_hi = 0x7800ul;      /* app.ld's APP_BRAM */
+        unsigned long present_addr = (unsigned long)(uintptr_t)present;
+        NLOG("sdk video: caps max=%ux%u stride<=%u frame<=%u B modes=%#x physical=%ux%u default=%ux%u | "
+             "applied %ux%u stride=%u color=%u mode_count=%d\n",
+             cap.max_width, cap.max_height, cap.max_stride, cap.max_frame_bytes, cap.color_mode_mask,
+             cap.physical_width, cap.physical_height, cap.default_width, cap.default_height,
+             md.width, md.height, md.stride, md.color_mode, of_video_get_mode_count());
+        NLOG("sdk limits: async_max_read=%u B dma_stage_size=%u B | mixer voices active=%d | "
+             "BRAM present@%#lx in_bram=%d\n",
+             of_file_async_max_read(), of_file_dma_stage_size(), active,
+             present_addr, (present_addr >= bram_lo && present_addr < bram_hi) ? 1 : 0);
+    }
+#endif
+#ifndef OF_PC
     /* Keep the mixer fed while a blocking data-slot read waits on its DMA (of_file.h:96-103).  The intro and
      * stage 1 are the two places the game reads NIGHT.RES hardest, and both are where the buzz appears: the
      * hook is the only thing that runs during that wait.  It must not itself read a file, so it only pumps. */

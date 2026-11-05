@@ -240,31 +240,6 @@
                 ]
             },
             {
-                "name": "Screen Fit",
-                "id": 131,
-                "type": "list",
-                "enabled": true,
-                "persist": true,
-                "writeonly": true,
-                "address": "0xF7000010",
-                "mask": "0xFFFFFF00",
-                "defaultval": "0x51",
-                "options": [
-                    {
-                        "value": "0x51",
-                        "name": "Letterbox"
-                    },
-                    {
-                        "value": "0x52",
-                        "name": "Stretch"
-                    },
-                    {
-                        "value": "0x53",
-                        "name": "Scaler 320"
-                    }
-                ]
-            },
-            {
                 "name": "SFX Volume",
                 "id": 132,
                 "type": "list",
@@ -306,6 +281,31 @@
                     {
                         "value": "0x68",
                         "name": "Full"
+                    }
+                ]
+            },
+            {
+                "name": "Screen Fit",
+                "id": 131,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "writeonly": true,
+                "address": "0xF7000010",
+                "mask": "0xFFFFFF00",
+                "defaultval": "0x51",
+                "options": [
+                    {
+                        "value": "0x51",
+                        "name": "Letterbox"
+                    },
+                    {
+                        "value": "0x52",
+                        "name": "Stretch"
+                    },
+                    {
+                        "value": "0x53",
+                        "name": "Scaler 320"
                     }
                 ]
             }

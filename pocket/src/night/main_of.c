@@ -987,6 +987,8 @@ static struct menu_var g_menu[MENU_N] = {
  * A counter climbing through the range fails the first test; a word that answers the menu passes both. */
 static uint8_t g_menu_clean[MENU_N][OF_PERIPH_WORDS];
 static uint16_t g_menu_seen[MENU_N][OF_PERIPH_WORDS];
+static uint8_t g_menu_zero[MENU_N][OF_PERIPH_WORDS];    /* was this word ever seen silent? */
+static uint8_t g_menu_mute_warn[MENU_N];                /* say "no slot" once, not every census */
 static uint8_t g_menu_init;
 #define MENU_SEEN_MIN 5u                          /* 5 samples of settings_beat = half a second holding a value */
 
@@ -1024,6 +1026,15 @@ static void menu_sample(void) {
         uint32_t v = periph_word(OF_PERIPH_BASE + 4u * i);
         for (int k = 0; k < MENU_N; k++) {
             if (!menu_opt(&g_menu[k], v)) { g_menu_clean[k][i] = 0; continue; }
+            if (v == 0u) g_menu_zero[k][i] = 1;         /* docs/354: a mirror word is silent until the player moves
+                                                         * its entry, so a word that was never silent is not one.
+                                                         * 0.1.44 learned this the hard way: 0x4000003c sits at 0x63
+                                                         * from boot, which is inside SFX Volume's option band, holds
+                                                         * it for the entire run, and is not the SFX mirror -- it is a
+                                                         * peripheral constant that happens to look like "1/4".  Range
+                                                         * cleanliness plus "held an option value" cannot tell a
+                                                         * constant mirror from a constant register; only the silence
+                                                         * before the first word can. */
             if (menu_is_option(&g_menu[k], v) && g_menu_seen[k][i] < 60000u) g_menu_seen[k][i]++;
         }
     }
@@ -1055,7 +1066,8 @@ static int menu_slots_scan(void) {
             for (int i = 0; i < OF_PERIPH_WORDS; i++) {           /* fall back: the first word that answers the menu
                                                                   * and has never shown anything else */
                 uint32_t a = OF_PERIPH_BASE + 4u * i, v = periph_word(a);
-                if (!g_menu_clean[k][i] || g_menu_seen[k][i] < MENU_SEEN_MIN || !menu_is_option(m, v)) continue;
+                if (!g_menu_clean[k][i] || !g_menu_zero[k][i] || g_menu_seen[k][i] < MENU_SEEN_MIN
+                    || !menu_is_option(m, v)) continue;
                 int taken = 0;
                 for (int j = 0; j < MENU_N; j++) if (j != k && g_menu[j].slot == a) taken = 1;
                 if (taken) continue;
@@ -1063,7 +1075,17 @@ static int menu_slots_scan(void) {
                 break;
             }
         }
-        if (!m->slot) continue;
+        if (!m->slot) {
+            if (!g_menu_mute_warn[k] && sys_now_us() > 60000000ull) {   /* this OS mirrors only some of the app's
+                                                                        * entries; the rest stay on night.ini, and the
+                                                                        * port now says so out loud instead of leaving
+                                                                        * a menu control that quietly does nothing */
+                g_menu_mute_warn[k] = 1;
+                NLOG("menu: %s has no peripheral slot after 60 s -- this OS mirrors only some of the app's entries"
+                     " and the value from night.ini stands\n", m->what);
+            }
+            continue;
+        }
 
         unsigned v = periph_word(m->slot);
         if (v == 0u) {                                            /* the menu has not been touched this run: the
@@ -1094,7 +1116,7 @@ static void periph_scan(int full) {
         int n = 0;
         for (int i = 0; i < OF_PERIPH_WORDS; i++)
             for (int k = 0; k < MENU_N; k++)
-                if (g_menu_clean[k][i] && g_menu_seen[k][i] >= MENU_SEEN_MIN) {
+                if (g_menu_clean[k][i] && g_menu_zero[k][i] && g_menu_seen[k][i] >= MENU_SEEN_MIN) {
                     n++;
                     NLOG("cand @0x%08x: clean for %s, %u samples holding an option value\n",
                          OF_PERIPH_BASE + 4u * i, g_menu[k].what, (unsigned)g_menu_seen[k][i]);

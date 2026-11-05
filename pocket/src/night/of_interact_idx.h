@@ -6,13 +6,13 @@
 #define DEFAULT_OF_IDX_PLCD 0
 #define OF_IDX_MUSIC 8
 #define DEFAULT_OF_IDX_MUSIC 0x44
-#define OF_IDX_FIT   9
-#define DEFAULT_OF_IDX_FIT 0x51
-#define OF_IDX_SFX   10
+#define OF_IDX_SFX   9
 #define DEFAULT_OF_IDX_SFX 0x64
+#define OF_IDX_FIT   10
+#define DEFAULT_OF_IDX_FIT 0x51
 #define OF_INTERACT_COUNT 11
 #define OF_PLCD_GAME           0x00000000
 #define OF_PLCD_LCD_OFF        0x00010000
 #define OF_PLCD_TERMINAL       0x00020000
-#define OF_CORE_VERSION        "0.1.44"
+#define OF_CORE_VERSION        "0.1.45"
 #endif

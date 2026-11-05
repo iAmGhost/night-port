@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.44"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.45"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -274,8 +274,14 @@ def main():
     # to a high, deliberately odd band (0x41..0x48 and 0x51..0x53) for two reasons: no natural register chatter in
     # any captured log ever sat in those ranges, and each entry's DEFAULT value is then a sentinel the host can find
     # the slot with -- "a word that was 0 and is now 0x44" is this core's Music Volume, whatever slot the OS chose.
-    # The layout rule is still unknown (A landed at 0x6c, B at 0x68, i.e. NOT in declaration order), so the host does
-    # not assume one: it hunts for its own sentinels and remembers where it found them.
+    # The layout rule is still unknown: 0xF700000C lands at 0x4000006c and 0xF7000010 at 0x40000068, in both runs, and
+    # 0xF7000014 (SFX Volume, 0.1.44) landed nowhere at all -- its value never appeared in any of the 96 words.  Two
+    # hypotheses survive, and the ORDER below is the test that separates them:
+    #   (A) the page mirrors the first TWO app-declared variables, in declaration order.  Then SFX, declared second,
+    #       takes 0x40000068 even though it sits at 0xF7000014 -- and Screen Fit loses its word and answers to L1+B.
+    #   (B) the page mirrors only two fixed bridge words, 0xF700000C and 0xF7000010.  Then SFX stays mute, Fit keeps
+    #       working at 0x40000068, and the port's two menu settings are exactly the two settings that already work.
+    # Music Volume stays first either way, so the setting that matters most is never the one the experiment costs.
     probe_vars = [
         {"name": "Music Volume", "id": 130, "type": "list", "enabled": True, "persist": True, "writeonly": True,
          "address": "0xF700000C", "mask": "0xFFFFFF00", "defaultval": "0x44", "options": [
@@ -287,6 +293,16 @@ def main():
              {"value": "0x46", "name": "3/4"},
              {"value": "0x47", "name": "7/8"},
              {"value": "0x48", "name": "Full"}]},
+        {"name": "SFX Volume", "id": 132, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+         "address": "0xF7000014", "mask": "0xFFFFFF00", "defaultval": "0x64", "options": [
+             {"value": "0x61", "name": "Off"},
+             {"value": "0x62", "name": "1/8"},
+             {"value": "0x63", "name": "1/4"},
+             {"value": "0x64", "name": "1/2"},
+             {"value": "0x65", "name": "5/8"},
+             {"value": "0x66", "name": "3/4"},
+             {"value": "0x67", "name": "7/8"},
+             {"value": "0x68", "name": "Full"}]},
         {"name": "Screen Fit", "id": 131, "type": "list", "enabled": True, "persist": True, "writeonly": True,
          "address": "0xF7000010", "mask": "0xFFFFFF00", "defaultval": "0x51", "options": [
              {"value": "0x51", "name": "Letterbox"},
@@ -298,16 +314,6 @@ def main():
         # adjacent.  If 0xF7000014 lands at 0x40000064 then the page carries the variables in a descending slot
         # table; if it lands at 0x40000070 then ascending; if it lands somewhere else entirely then the OS allocates
         # slots and the port must always hunt, which is what the fallback is for.
-        {"name": "SFX Volume", "id": 132, "type": "list", "enabled": True, "persist": True, "writeonly": True,
-         "address": "0xF7000014", "mask": "0xFFFFFF00", "defaultval": "0x64", "options": [
-             {"value": "0x61", "name": "Off"},
-             {"value": "0x62", "name": "1/8"},
-             {"value": "0x63", "name": "1/4"},
-             {"value": "0x64", "name": "1/2"},
-             {"value": "0x65", "name": "5/8"},
-             {"value": "0x66", "name": "3/4"},
-             {"value": "0x67", "name": "7/8"},
-             {"value": "0x68", "name": "Full"}]},
     ]
     variables = base + app_vars + probe_vars
     jw(core_dir / "interact.json",
@@ -323,8 +329,8 @@ def main():
     pairs = [("Pocket LCD", "OF_IDX_PLCD")]
     if APP_INTERACT_PROBE:
         pairs.append(("Music Volume", "OF_IDX_MUSIC"))
-        pairs.append(("Screen Fit", "OF_IDX_FIT"))
         pairs.append(("SFX Volume", "OF_IDX_SFX"))
+        pairs.append(("Screen Fit", "OF_IDX_FIT"))
     if APP_INTERACT_KNOBS:
         pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
     pairs = tuple(pairs)

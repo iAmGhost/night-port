@@ -1695,7 +1695,46 @@ static void tick_pump(void) {
                      d_r, d_r ? (unsigned)(d_us / d_r) : 0u, d_max, d_sk, d_fl, d_by / 1024u,
                      c_f, c_f ? (unsigned)(c_us / c_f) : 0u, c_max, c_fr, c_pv, c_low, c_hold, c_behind, c_dry,
                      c_am, c_am / 44100.0);
-            }
+
+            /* task-12a: the readout ON THE SCREEN.  OF_DISPLAY_TERMINAL (of_video.h:43 "Terminal only") shows the
+             * 40x30 CP437 console that printf writes to -- and this core had never written a line to it.  Setting
+             * SCREEN=1, or the menu's Pocket LCD -> Terminal, therefore produced an empty console: the mode was
+             * chosen, the game kept running, and nothing was ever drawn there.  The per-second facts already go to
+             * the card log; here they are redrawn as a fixed panel -- clear, home, six lines -- so a run can be
+             * read on the device without a card mount.  Redrawn rather than appended on purpose: a scrolling trail
+             * in a 40x30 console shows the last 30 of 3 000 lines, which is not a readout. */
+            {
+                static uint64_t t_prev;
+                static uint32_t ticks_prev, frames_prev;
+                uint32_t tps = t_prev ? (g_timer_calls - ticks_prev) * 1000000u / (uint32_t)(sys_now_us() - t_prev) : 0u;
+                uint32_t fps = t_prev ? (g_frames - frames_prev) * 1000000u / (uint32_t)(sys_now_us() - t_prev) : 0u;
+                t_prev = sys_now_us(); ticks_prev = g_timer_calls; frames_prev = g_frames;
+#ifdef OF_PC
+                NLOG("term: NIGHT %s frame=%u | view %dx%d sig=%08lx chg=%u | ticks=%u/s frames=%u/s pres=%uus max=%uus"
+                     " | pal=%d arena=%u/%u | cdda=%u/%u trk=%u sfx=%u | disc=%u r %uus ring=%.2fs\n",
+                     OF_CORE_VERSION, g_frames, vw, vh, (unsigned long)g_sig, g_sig_changes, tps, fps,
+                     g_present_n ? (unsigned)(g_present_us_sum / g_present_n) : 0u, g_present_us_max,
+                     pal_lit(), heap_arena_used(), heap_arena_cap(), of_cdda_pos(), of_cdda_sectors(),
+                     of_cdda_tracks(), g_of_sfx_plays, d_r, d_r ? (unsigned)(d_us / d_r) : 0u, c_am / 44100.0);
+#else
+                if (g_display_mode == OF_DISPLAY_TERMINAL) {
+                    printf("\033[2J\033[H");                       /* clear + home: a panel, not a scroll */
+                    printf("NIGHT %s  frame %u\n", OF_CORE_VERSION, g_frames);
+                    printf("view %dx%d  sig %08lx chg %u\n", vw, vh, (unsigned long)g_sig, g_sig_changes);
+                    printf("ticks %u/s  frames %u/s  pit %u Hz\n", tps, fps, sys_pit_hz(0));
+                    printf("present %u us  max %u us\n",
+                           g_present_n ? (unsigned)(g_present_us_sum / g_present_n) : 0u, g_present_us_max);
+                    printf("pal %d lit  arena %u/%u\n", pal_lit(), heap_arena_used(), heap_arena_cap());
+                    printf("cdda %u/%u trk %u  sfx %u\n", of_cdda_pos(), of_cdda_sectors(),
+                           of_cdda_tracks(), g_of_sfx_plays);
+                    printf("disc %u reads %u us avg  fails %u\n", d_r, d_r ? (unsigned)(d_us / d_r) : 0u, d_fl);
+                    printf("ring ahead %.2f s  dry %u  low %u\n", c_am / 44100.0, c_dry, c_low);
+                    printf("clock %llu us/s  pump %u\n", (unsigned long long)g_clock_rate_us, g_pump_reanchor);
+                    fflush(stdout);
+                }
+#endif
+            }                       /* the readout panel */
+            }                       /* the budget block */
 #ifndef OF_PC
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);

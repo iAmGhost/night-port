@@ -477,14 +477,25 @@ static void present(void) {
      * all.  The stride is derived from the frame limit instead, so the same 120 raws cover the entire run: 4 000
      * frames now reach 3 960 of them, 12 000 reach 12 000. */
     static uint32_t g_raw_stride;
+    static uint32_t g_raw_cap = 0;
     if (g_vidraw < 0) g_vidraw = getenv("NIGHT_VIDRAW") ? 1 : 0;
+    /* The cap used to be the literal 120 in three places, which made the coverage limit unraiseable: docs/381 4
+     * found it to be the main limit on the original-frame score (120 witnesses over a 12 000-frame run samples every
+     * hundredth frame, so a scene shorter than the stride is never witnessed).  NIGHT_VIDRAW_MAX raises it for a
+     * comparison run; 120 stays the default because that is what keeps a nine-episode sweep at tens of MB. */
+    if (!g_raw_cap) {
+        const char *e = getenv("NIGHT_VIDRAW_MAX");
+        int cap = e ? atoi(e) : 120;
+        g_raw_cap = (cap < 1) ? 1u : (cap > 1000) ? 1000u : (uint32_t)cap;
+    }
     if (!g_raw_stride) {
         uint32_t lim = g_frames_limit > 0 ? (uint32_t)g_frames_limit : 1000u;
-        uint32_t st = lim / 120u;
+        uint32_t st = lim / g_raw_cap;
         g_raw_stride = st < 8u ? 8u : st;
-        NLOG("witness arena stride=%u frames (cap 120 raws, covers %u frames)\n", g_raw_stride, g_raw_stride * 120u);
+        NLOG("witness arena stride=%u frames (cap %u raws, covers %u frames)\n",
+             g_raw_stride, g_raw_cap, g_raw_stride * g_raw_cap);
     }
-    if (g_vidraw && g_rig_dir && (g_frames % g_raw_stride) == 0u && g_raw_count < 120) {
+    if (g_vidraw && g_rig_dir && (g_frames % g_raw_stride) == 0u && g_raw_count < (int)g_raw_cap) {
         char sub[1200], rpath[1400];
         snprintf(sub, sizeof sub, "%s/arena", g_rig_dir);
         mkdir(sub, 0777);

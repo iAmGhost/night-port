@@ -54,3 +54,26 @@ that basis rather than inheriting the SDL host's.
 
 Harness-only work: card unchanged at 0.1.67, `src/f` untouched, fixture suite `== ALL PASS ==`.  The pieces are now in
 place for a stronger run -- raise the witness cap, anchor both sides, and score the same route on both bases.
+
+## 6. Coverage was not the limit (measured, and it changed almost nothing)
+
+The cap is now a setting (`NIGHT_VIDRAW_MAX`, default 120, ceiling 1000) because it was a literal `120` in three
+places and therefore unraiseable.  Same route, same seed, same original capture, only the witness count changed:
+
+| witnesses | stride | dump | originals matched at NCC ≥ 0.90 |
+|---|---|---|---|
+| 120 | 100 frames | 27 MB | 222 / 434 |
+| **400** | 30 frames | 89 MB | **226 / 434** |
+
+Three more matches out of 434 for 3.3× the witnesses.  So the residual in §3 is **not** a sampling hole -- a scene
+missed for want of a witness would have shown up as a jump when the stride dropped from 100 frames to 30, and it did
+not.  The gap is in what the two sides show at all: the original capture is a live playthrough of
+`drive_orig_episode1.txt` (with the emulator's own waits and its 15 text-mode frames), and the Pocket run is
+`route_pause_menu.txt` on this host, so the 208 unmatched originals are frames from phases that run, or are entered,
+differently between the two -- the same conclusion docs/380 4 reached from the other basis, at the same value.
+
+The honest summary of the picture basis today: the Pocket code path matches the original on **half** the frames of a
+54-second route at NCC ≥ 0.90, its stage cards and intermission cards are byte-exact against the shipped assets
+(docs/363, docs/373), and the reason the original-frame score is not higher is a route/phase difference that has not
+yet been pinned down.  Narrowing it needs the labelled pairing to be filtered window by window (`--window slides`,
+`--window gameplay`) rather than scored as one route, which is the next measurement, not this one.

@@ -101,7 +101,7 @@ def main():
     #    definition is the one known to work on it; a hand-written approximation is what put our sliders on words
     #    the core does not decode (docs/336) and left "Analogizer 15kHz Timing" out of a menu that describes the
     #    same word the core decodes.
-    APP_NAMES = ("Music Volume", "Screen Fit", "Probe Value")
+    APP_NAMES = ("Music Volume", "Screen Fit", "Probe Value", "Probe Value B")
     app = [v for v in variables if v["name"] in APP_NAMES]
     reserved = [v for v in variables if v["name"] not in APP_NAMES]
     if BASE.exists():
@@ -171,7 +171,8 @@ def main():
     #    and 0 is a legal volume (docs/341).
     consts = {"Music Volume": ("OF_IDX_MUSIC", "MUSIC_SHIFT", "MUSIC_MASK"),
               "Screen Fit":   ("OF_IDX_FIT",   "FIT_SHIFT",   "FIT_MASK"),
-              "Probe Value":  ("OF_IDX_PROBE", "PROBE_SHIFT", "PROBE_MASK")}
+              "Probe Value":  ("OF_IDX_PROBE", "PROBE_SHIFT", "PROBE_MASK"),
+              "Probe Value B": ("OF_IDX_PROBE_B", "PROBE_B_SHIFT", "PROBE_B_MASK")}
     for v in app:
         vals = [int(o["value"], 16) if isinstance(o["value"], str) else o["value"] for o in v["options"]]
         field = mask_bits(v)

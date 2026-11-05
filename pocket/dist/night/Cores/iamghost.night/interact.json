@@ -222,6 +222,35 @@
                         "name": "High"
                     }
                 ]
+            },
+            {
+                "name": "Probe Value B",
+                "id": 121,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "writeonly": true,
+                "address": "0xF7000010",
+                "mask": "0xFFFFFFF0",
+                "defaultval": "0x05",
+                "options": [
+                    {
+                        "value": "0x05",
+                        "name": "Five"
+                    },
+                    {
+                        "value": "0x06",
+                        "name": "Six"
+                    },
+                    {
+                        "value": "0x07",
+                        "name": "Seven"
+                    },
+                    {
+                        "value": "0x08",
+                        "name": "Eight"
+                    }
+                ]
             }
         ],
         "messages": []

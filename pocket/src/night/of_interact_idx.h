@@ -6,9 +6,11 @@
 #define DEFAULT_OF_IDX_PLCD 0
 #define OF_IDX_PROBE 8
 #define DEFAULT_OF_IDX_PROBE 0x01
-#define OF_INTERACT_COUNT 9
+#define OF_IDX_PROBE_B 9
+#define DEFAULT_OF_IDX_PROBE_B 0x05
+#define OF_INTERACT_COUNT 10
 #define OF_PLCD_GAME           0x00000000
 #define OF_PLCD_LCD_OFF        0x00010000
 #define OF_PLCD_TERMINAL       0x00020000
-#define OF_CORE_VERSION        "0.1.41"
+#define OF_CORE_VERSION        "0.1.42"
 #endif

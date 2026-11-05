@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.41"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.42"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -273,6 +273,18 @@ def main():
              {"value": "0x02", "name": "Low"},
              {"value": "0x03", "name": "Mid"},
              {"value": "0x04", "name": "High"}]},
+        # Probe B carries a DISJOINT value set -- 5..8, where A carries 1..4.  0.1.41's run left one register
+        # (0x4000006c) as the only word in 96 whose every live change stayed inside 1..4, six steps of it, which is
+        # either "the OS mirrors declared values" or "some unrelated small-value register that happened to wander".
+        # Two disjoint sets cannot both be coincidence: a word that reads 5..8 exactly while B is moved, and 1..4
+        # while A is moved, is a mirror.  A word that follows neither is not.  The option names spell their own
+        # numbers so what the player chose is unambiguous in the report AND in the log.
+        {"name": "Probe Value B", "id": 121, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+         "address": "0xF7000010", "mask": "0xFFFFFFF0", "defaultval": "0x05", "options": [
+             {"value": "0x05", "name": "Five"},
+             {"value": "0x06", "name": "Six"},
+             {"value": "0x07", "name": "Seven"},
+             {"value": "0x08", "name": "Eight"}]},
     ])
     variables = base + app_vars + probe_vars
     jw(core_dir / "interact.json",
@@ -288,6 +300,7 @@ def main():
     pairs = [("Pocket LCD", "OF_IDX_PLCD")]
     if APP_INTERACT_PROBE:
         pairs.append(("Probe Value", "OF_IDX_PROBE"))
+        pairs.append(("Probe Value B", "OF_IDX_PROBE_B"))
     if APP_INTERACT_KNOBS:
         pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
     pairs = tuple(pairs)

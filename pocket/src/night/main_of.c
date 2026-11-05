@@ -863,21 +863,57 @@ static uint32_t g_periph_prev[OF_PERIPH_WORDS];
 #define OF_PERIPH_SCALER   0x400000ecu
 static uint32_t g_periph_lcd = 0, g_periph_fbsize = 0, g_periph_fbw = 0, g_periph_scaler = 0;
 static int g_periph_watch = 1;              /* the per-second full watch, bounded so it cannot eat the log slot */
-#define PERIPH_LOG_LIMIT 90000
+#define PERIPH_LOG_LIMIT 160000             /* 0.1.41 stopped a 90 s run at 90 KB; the slot is 256 KB and the scan
+                                             * is what the run is for, so it gets more room but not all of it */
+
+/* 0.1.41's log narrowed the search to two words out of 96.  Filtering the live moves down to registers whose values
+ * stayed inside the small set a menu can produce left exactly:
+ *   0x4000006c  six changes, every one inside 1..4, monotone with wrap: 2 -> 3 -> 4 -> 1 -> 2 -> 3 -> 4, each held
+ *               9-19 s -- the shape of a list being advanced one option at a time while the player held it.
+ *   0x40000008  two changes, 0 -> 1 -> 2.
+ * Everything else that moved was chatter (0x40000004 is a free-running counter, 0x400000c0/dc wander over hundreds of
+ * values, 0x400000e4/e8/ec are the core's own framebuffer/scaler state).
+ * interactdemo names 0x4000006c MOUSE_SPEED_PCT, which is either a coincidence or an openfpgaOS variable slot the
+ * interact page shares -- the persist file on the card proves the UI held the probe (id 120 val 3), not whether the
+ * register followed it.  So both words are watched by name, next to the three words that would mirror the APF
+ * control page (0x84/0x88/0x8c: 0x8c sat at 1 all run, which is the probe's defaultval). */
+#define OF_PERIPH_CAND_A   0x4000006cu
+#define OF_PERIPH_CAND_B   0x40000008u
+#define OF_PERIPH_MIRROR4  0x40000084u
+#define OF_PERIPH_MIRROR8  0x40000088u
+#define OF_PERIPH_MIRRORC  0x4000008cu
+static uint32_t g_named_prev[9];
+static const struct { uint32_t addr; const char *what; } g_named[9] = {
+    {OF_PERIPH_CAND_A,  "candidate A"}, {OF_PERIPH_CAND_B,  "candidate B"},
+    {OF_PERIPH_LCD,     "Pocket LCD"},  {OF_PERIPH_MIRROR4, "mirror +0x04"},
+    {OF_PERIPH_MIRROR8, "mirror +0x08"}, {OF_PERIPH_MIRRORC, "mirror +0x0c"},
+    {OF_PERIPH_FB_SIZE, "applied FB"},  {OF_PERIPH_FB_WIDTH, "applied stride"},
+    {OF_PERIPH_SCALER,  "scaler slot"},
+};
+
+/* A candidate is a register that moved at least twice AND whose every value stayed inside the range a probe can
+ * write.  Chatter registers cover the whole 32-bit space; a mirror of a menu can only ever show the menu's values.
+ * Two probes with disjoint sets (A = 1..4, B = 5..8) makes the census line a verdict rather than a hint. */
+static struct { unsigned moves, lo, hi; } g_cand[OF_PERIPH_WORDS];
+static unsigned g_cand_tick;
 
 static uint32_t periph_word(uint32_t addr) { return *(volatile uint32_t *)addr; }
 static unsigned periph_lcd_field(void) { return (g_periph_lcd >> 16) & 3u; }   /* 0 On, 1 Off, 2 Terminal */
 
 static void periph_named(void) {
-    uint32_t lcd = periph_word(OF_PERIPH_LCD), sz = periph_word(OF_PERIPH_FB_SIZE);
-    uint32_t w = periph_word(OF_PERIPH_FB_WIDTH), sc = periph_word(OF_PERIPH_SCALER);
-    if (lcd == g_periph_lcd && sz == g_periph_fbsize && w == g_periph_fbw && sc == g_periph_scaler) return;
-    uint64_t t = sys_now_us();
-    NLOG("periph reg t=%u.%us: lcd=%08x(%s) applied=%ux%u scaler=%u\n",
-         (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), (unsigned)lcd,
-         periph_lcd_field() == 2u ? "Terminal" : periph_lcd_field() == 1u ? "Off" : "On",
-         (unsigned)(sz & 0xffffu), (unsigned)(sz >> 16), (unsigned)sc);
-    g_periph_lcd = lcd; g_periph_fbsize = sz; g_periph_fbw = w; g_periph_scaler = sc;
+    for (int i = 0; i < 9; i++) {
+        uint32_t v = periph_word(g_named[i].addr);
+        if (v == g_named_prev[i]) continue;
+        uint64_t t = sys_now_us();
+        NLOG("named t=%u.%us: %s @0x%08x = %08x (was %08x)\n",
+             (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), g_named[i].what,
+             g_named[i].addr, (unsigned)v, (unsigned)g_named_prev[i]);
+        g_named_prev[i] = v;
+        if (g_named[i].addr == OF_PERIPH_LCD) g_periph_lcd = v;          /* SCREEN=-1 follows this one */
+        else if (g_named[i].addr == OF_PERIPH_FB_SIZE) g_periph_fbsize = v;
+        else if (g_named[i].addr == OF_PERIPH_FB_WIDTH) g_periph_fbw = v;
+        else if (g_named[i].addr == OF_PERIPH_SCALER) g_periph_scaler = v;
+    }
 }
 
 static void periph_scan(int full);            /* defined just below; probe_watch brackets a change with it */
@@ -888,39 +924,46 @@ static void periph_scan(int full);            /* defined just below; probe_watch
  * same timestamps is a word that carries a setting the app can read. */
 #define PROBE_SHIFT 0                        /* interact.json: mask 0xFFFFFFF0 writes bits 0-3 only */
 #define PROBE_MASK  0x0Fu                      /* and the four option values are 1..4 inside that field */
-static unsigned g_probe_seen = 0xFFFFFFFFu;
+#define PROBE_B_SHIFT 0
+#define PROBE_B_MASK  0x0Fu                    /* probe B writes 5..8 into the same field width, other word */
+static unsigned g_probe_seen[2] = {0xFFFFFFFFu, 0xFFFFFFFFu};
+static unsigned g_probe_tick;
 static void probe_watch(void) {
-    unsigned v = 0;
-    long e = of_interact_probe(OF_IDX_PROBE, &v);
-    unsigned field = (v >> PROBE_SHIFT) & PROBE_MASK;   /* the same field interact.json writes */
-    if (field == g_probe_seen) return;
+    unsigned v[2] = {0, 0};
+    long e0 = of_interact_probe(OF_IDX_PROBE, &v[0]);
+    long e1 = of_interact_probe(OF_IDX_PROBE_B, &v[1]);
+    unsigned f[2] = {(v[0] >> PROBE_SHIFT) & PROBE_MASK, (v[1] >> PROBE_B_SHIFT) & PROBE_MASK};
     uint64_t t = sys_now_us();
-    NLOG("probe t=%u.%us: interact[%d] err=%ld val=%08x field=%u\n",
-         (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), OF_IDX_PROBE, e, v, field);
-    g_probe_seen = field;
-    /* And the answer, written by the core instead of left for whoever reads the log: any register that now holds
-     * exactly this field's value AND was not holding it at the last sample is a register that followed the menu.
-     * Four values, four steps, 96 registers -- a real channel would show up as one line per step. */
-    if (field >= 1u && field <= 4u) {
-        int hits = 0;
-        for (int i = 0; i < OF_PERIPH_WORDS; i++) {
-            uint32_t v2 = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
-            if (v2 == field && g_periph_prev[i] != v2) {
-                hits++;
-                NLOG("probe match t=%u.%us: field=%u found @0x%08x (was %08x)\n",
-                     (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), field,
-                     OF_PERIPH_BASE + 4u * i, (unsigned)g_periph_prev[i]);
-            }
-        }
-        NLOG("probe t=%u.%us: field=%u scanned 96 registers, %d match(es)\n",
-             (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), field, hits);
-    }
-    if (of_setting_diag() & OF_DIAG_PERIPH) periph_scan(1);   /* bracket the change with a full snapshot */
+    /* Sampled on a timer, not on change.  0.1.41 proved the change-triggered version is dead code: the ecall answers
+     * 5d04d515 whatever the menu says, so its field is never a trigger for anything.  A timer at least records that
+     * the value stayed fixed through a run in which the menu demonstrably moved -- which is a measured negative,
+     * and it is cheap: two ecalls every ten seconds. */
+    if ((g_probe_tick++ % 10u) == 0u || f[0] != g_probe_seen[0] || f[1] != g_probe_seen[1])
+        NLOG("probe t=%u.%us: interact[%d]=%08x(f=%u err=%ld) interact[%d]=%08x(f=%u err=%ld)\n",
+             (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull),
+             OF_IDX_PROBE, v[0], f[0], e0, OF_IDX_PROBE_B, v[1], f[1], e1);
+    g_probe_seen[0] = f[0]; g_probe_seen[1] = f[1];
 }
+
 #endif
 
 static void periph_scan(int full) {
     uint64_t tstamp = sys_now_us();
+    if (++g_cand_tick % 30u == 0u) {            /* the verdict, written by the core */
+        int n = 0;
+        for (int i = 0; i < OF_PERIPH_WORDS; i++) {
+            if (g_cand[i].moves >= 2u && g_cand[i].hi <= 8u && g_cand[i].lo >= 1u) {
+                n++;
+                NLOG("cand @0x%08x: %u moves, values %u..%u  %s\n", OF_PERIPH_BASE + 4u * i,
+                     g_cand[i].moves, g_cand[i].lo, g_cand[i].hi,
+                     (g_cand[i].hi <= 4u) ? "[probe A range only]" :
+                     (g_cand[i].lo >= 5u) ? "[probe B range only]" : "[both ranges]");
+            }
+        }
+        NLOG("census t=%u.%us: %d candidate(s) of %d registers (A writes 1..4, B writes 5..8; a mirror shows only "
+             "what the menu can write)\n", (unsigned)(sys_now_us() / 1000000ull),
+             (unsigned)((sys_now_us() / 100000ull) % 10ull), n, OF_PERIPH_WORDS);
+    }
     for (int i = 0; i < OF_PERIPH_WORDS; i++) {
         uint32_t v = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
         if (full && (i % 8) == 0) {
@@ -935,9 +978,16 @@ static void periph_scan(int full) {
             /* Stamped with wall time on purpose (docs/350): correlating a menu change with a register needs the
              * move pinned in time, so "I moved Video H Offset at about 40 s" becomes a readable log line. */
             uint64_t t = sys_now_us();
-            NLOG("periph move @0x%08x t=%u.%us: %08x -> %08x\n", OF_PERIPH_BASE + 4u * i,
+            NLOG("periph move%s @0x%08x t=%u.%us: %08x -> %08x\n", (v <= 8u) ? " [small]" : "",
+                 OF_PERIPH_BASE + 4u * i,
                  (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull),
                  (unsigned)g_periph_prev[i], (unsigned)v);
+            if (!g_cand[i].moves) g_cand[i].lo = g_cand[i].hi = v;
+            else {
+                if (v < g_cand[i].lo) g_cand[i].lo = v;
+                if (v > g_cand[i].hi) g_cand[i].hi = v;
+            }
+            g_cand[i].moves++;
         }
         g_periph_prev[i] = v;
     }
@@ -1299,7 +1349,7 @@ static void tick_pump(void) {
                             NLOG("periph: the 96-word watch stopped at %ld log bytes (the save slot is 256 KB and"
                                  " the game's own lines outrank a scan).  The named registers keep running\n", lb);
                         } else {
-                            periph_scan(probe_tick && (probe_tick % 10u) == 0u ? 1 : 0);
+                            periph_scan(probe_tick && (probe_tick % 20u) == 0u ? 1 : 0);
                         }
                     }
                 }

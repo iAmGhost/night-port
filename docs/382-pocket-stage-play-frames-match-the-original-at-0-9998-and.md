@@ -73,3 +73,10 @@ phase, answers it: the port's pictures are near-identical where it plays the sam
 name the window and the route together.
 
 Harness-only again: card 0.1.67 unchanged, `src/f` untouched, fixture suite `== ALL PASS ==`.
+
+> **Correction (docs/384).**  The 0.5590 quoted above is `diff_screen.py`'s *floor*, not a fidelity score: its lag
+> window is ±90 port frames (~1.6 s), the two runs reach the same phases tens of seconds apart, and the DP's mean then
+> collapses to a brightness term -- a port stream with every grid zeroed scores 0.559023 against this same 0.559047.
+> With `--win 4000` the same tool reports 0.8056 (warp + ESC), 0.7786 (warp), 0.5590 (attract/title route, i.e. pure
+> floor) against a floor of 0.5590.  Statements here that compare *content* rest on the label/best-match basis
+> (docs/381-383), which is unaffected.

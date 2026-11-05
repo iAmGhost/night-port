@@ -44,6 +44,9 @@ def dist(a, b):
 
 
 def align(A, B, win=90):
+    # win is a frame window, not a time window: at 54.5 presentations/s the default 90 spans about 1.6 s of the port
+    # side.  Two runs that reach the same phase tens of seconds apart therefore have no pair inside the window, and
+    # the mean score collapses to a content-independent floor (see --floor, docs/384).
     """Monotone alignment by dynamic programming inside a lag window: A[i] maps to some B[j] with j
     near i*nb/na, and j never decreases. Frame numbers are not comparable across the two sides
     (docs/56), so this is the alignment."""
@@ -209,13 +212,27 @@ def main():
     ap.add_argument("--port", required=True, help="port frames.bin")
     ap.add_argument("--thresh", type=float, default=0.88)
     ap.add_argument("--max-runs", type=int, default=15)
+    ap.add_argument("--win", type=int, default=90, help="alignment lag window in port-side frames (90 = ~1.6 s at "
+                                                        "54.5/s); widen it when the two runs reach the same phase at "
+                                                        "different times, and read --floor to tell signal from floor")
+    ap.add_argument("--floor", action="store_true", help="also score the port side with every grid zeroed: the value "
+                                                         "this metric falls back to when no aligned pair matches")
     ap.add_argument("--orig-run", help="the replay_original.py run dir (DS snapshots): a divergent "
                                        "window is attributed to the DS cells the game wrote at that moment")
     ap.add_argument("--md")
     a = ap.parse_args()
 
     A, B = read_frames(a.orig), read_frames(a.port)
-    pairs, mean = align(A, B)
+    pairs, mean = align(A, B, a.win)
+    if a.floor:
+        Z = [dict(r) for r in B]
+        for r in Z:
+            r["sig"] = bytes(len(r["sig"]))
+        _, fmean = align(A, Z, a.win)
+        # Reported first, because it is what the score means when it has nothing to match: a zeroed-grid port stream
+        # scored 0.559023 against a real one scoring 0.559047 (docs/384), i.e. the number was the mean-luminance floor.
+        print(f"floor control: the same alignment against grids zeroed scores {fmean:.4f} "
+              f"(the route score is {(mean - fmean) / max(1e-9, 1.0 - fmean) * 100:.1f}% of the way from floor to identical)")
     changed_a = sum(1 for x in A if x["changed"])
     changed_b = sum(1 for x in B if x["changed"])
     fa = (A[-1]["t"] - A[0]["t"]) / 1000.0

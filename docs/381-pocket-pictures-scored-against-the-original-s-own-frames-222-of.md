@@ -77,3 +77,10 @@ The honest summary of the picture basis today: the Pocket code path matches the 
 (docs/363, docs/373), and the reason the original-frame score is not higher is a route/phase difference that has not
 yet been pinned down.  Narrowing it needs the labelled pairing to be filtered window by window (`--window slides`,
 `--window gameplay`) rather than scored as one route, which is the next measurement, not this one.
+
+> **Correction (docs/384).**  The 0.5590 quoted above is `diff_screen.py`'s *floor*, not a fidelity score: its lag
+> window is ±90 port frames (~1.6 s), the two runs reach the same phases tens of seconds apart, and the DP's mean then
+> collapses to a brightness term -- a port stream with every grid zeroed scores 0.559023 against this same 0.559047.
+> With `--win 4000` the same tool reports 0.8056 (warp + ESC), 0.7786 (warp), 0.5590 (attract/title route, i.e. pure
+> floor) against a floor of 0.5590.  Statements here that compare *content* rest on the label/best-match basis
+> (docs/381-383), which is unaffected.

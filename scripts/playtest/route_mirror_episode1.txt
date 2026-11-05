@@ -1,0 +1,22 @@
+# The original's phase sequence, in the shim's anchored dialect (docs/385 4).
+# The slots are nominal ceilings: an anchor parks the timeline until the game performs that lookup, so the real times
+# are whatever the game takes and every later key shifts with it.  The lookup names were read out of the rig's new
+# res.jsonl sidecar (logo.pcx, opening.fli, title1.pcx, 1s1-1s3.pcx, stage1.pcx).
+4000  wait res opening.fli
+45000 wait res title1.pcx
+46000 key enter down
+46300 key enter up
+60000 wait res 1s3.pcx
+62000 key enter down
+62300 key enter up
+66000 key enter down
+66300 key enter up
+70000 wait res stage1.pcx
+78000 key esc down
+78300 key esc up
+82000 key left down
+82300 key left up
+85000 key down down
+85300 key down up
+88000 key esc down
+88300 key esc up

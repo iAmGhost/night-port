@@ -1548,6 +1548,7 @@ static int g_script_seq;            /* the drive files (docs/55, scripts/playtes
 static script_step_t g_script_steps[SCRIPT_STEPS];
 static int g_script_steps_n;
 static long g_script_held;
+static long g_script_park_max;              /* resolved on first use: NIGHT_SCRIPT_PARK_MAX polls, default 60 000 */
 static char g_res_ring[64][32];
 static int g_res_ring_n;
 
@@ -1585,6 +1586,28 @@ static void res_ring_dump(void) {                                /* what the hoo
 }
 
 static long script_vpoll(void) { return (long)g_pad_polls - g_script_held; }
+
+/* The rig's resource sidecar (docs/385 4).  records.jsonl carries tick/player/ents/refused and no resource field, and
+ * docs/288 deliberately keeps that layout frozen for existing readers -- so the lookups the host hears go in their own
+ * file, like player_recs.jsonl does.  One line per change of the game's own lookup trace: a route that anchors on
+ * `wait res <name>` needs the names, and until now they had no dump path out of the host. */
+static FILE *g_reslog;
+static uint32_t g_res_last_seq;
+
+static void res_log_sample(void) {
+    if (g_res_trace_seq == g_res_last_seq) return;
+    g_res_last_seq = g_res_trace_seq;
+    script_res_hook(g_res_trace);                       /* the ring the anchors search is fed from the same sample */
+    if (!g_rig_dir[0]) return;
+    if (!g_reslog) {
+        char path[1200];
+        snprintf(path, sizeof path, "%s/res.jsonl", g_rig_dir);
+        g_reslog = fopen(path, "w");
+        if (!g_reslog) return;
+    }
+    fprintf(g_reslog, "{\"frame\":%llu,\"tick\":%u,\"seq\":%u,\"res\":\"%s\"}\n",
+            (unsigned long long)g_frames, g_timer_calls, g_res_trace_seq, g_res_trace);
+}
 
 /* Sequential execution: a program counter, and one park rule per step kind.  A key fires the moment the counter
  * reaches it and holds for its press_ms on the 8 ms pad grid; `wait_mode <height>` parks the whole program until the
@@ -1639,11 +1662,12 @@ static void script_gate(void) {
      * by f.h.  Sampling it on the poll grid records each change -- the hook alone heard nothing here, which is why
      * every anchor timed out: an announce path the host is not on is invisible to it, while the game's own counter is
      * not.  The hook stays installed; the trace is what the anchors actually read. */
-    static uint32_t last_trace_seq;
-    if (g_res_trace_seq != last_trace_seq) {
-        last_trace_seq = g_res_trace_seq;
-        script_res_hook(g_res_trace);
+    if (!g_script_park_max) {
+        const char *e = getenv("NIGHT_SCRIPT_PARK_MAX");
+        g_script_park_max = e ? strtol(e, NULL, 10) : 60000;
+        if (g_script_park_max < 1) g_script_park_max = 1;
     }
+    res_log_sample();
     if (g_script_seq) { script_run_sequential(); return; }
     for (int i = 0; i < g_script_steps_n; i++) {
         script_step_t *st = &g_script_steps[i];
@@ -1654,7 +1678,11 @@ static void script_gate(void) {
         if ((g_script_held & 0x1ff) == 1)
             printf("script: parked at `wait res %s` (slot %ld polls, %ld polls held)\n",
                    st->name, st->from, g_script_held);
-        if (g_script_held > 8000) {                                /* ~64 s of holding: give up and say so */
+        if (g_script_held > g_script_park_max) {                   /* give up and say so -- but not early.  A park
+                                                                      * costs nothing (the game keeps playing), and on this
+                                                                      * host polls run ~2.1x frames, so the old 8 001-poll
+                                                                      * ceiling expired a few hundred frames before the
+                                                                      * lookup that would have ended the park (docs/386) */
             st->done = 1;
             printf("script: `wait res %s` timed out after %ld held polls (continuing)\n", st->name, g_script_held);
             res_ring_dump();
@@ -1853,6 +1881,7 @@ static void pad_pump(void) {
     g_pad_next_us = now + 8000;
     of_input_poll();
     g_pad_polls++;
+    res_log_sample();                             /* heard lookups, with or without a script (docs/385 4) */
     if (g_script_steps_n) script_gate();          /* anchors first: they decide what the keys below are due to do */
 
     if (g_pad_direct) {                            /* the key path, same poll grid */

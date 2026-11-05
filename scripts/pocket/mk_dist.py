@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.45"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.46"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -274,46 +274,38 @@ def main():
     # to a high, deliberately odd band (0x41..0x48 and 0x51..0x53) for two reasons: no natural register chatter in
     # any captured log ever sat in those ranges, and each entry's DEFAULT value is then a sentinel the host can find
     # the slot with -- "a word that was 0 and is now 0x44" is this core's Music Volume, whatever slot the OS chose.
-    # The layout rule is still unknown: 0xF700000C lands at 0x4000006c and 0xF7000010 at 0x40000068, in both runs, and
-    # 0xF7000014 (SFX Volume, 0.1.44) landed nowhere at all -- its value never appeared in any of the 96 words.  Two
-    # hypotheses survive, and the ORDER below is the test that separates them:
-    #   (A) the page mirrors the first TWO app-declared variables, in declaration order.  Then SFX, declared second,
-    #       takes 0x40000068 even though it sits at 0xF7000014 -- and Screen Fit loses its word and answers to L1+B.
-    #   (B) the page mirrors only two fixed bridge words, 0xF700000C and 0xF7000010.  Then SFX stays mute, Fit keeps
-    #       working at 0x40000068, and the port's two menu settings are exactly the two settings that already work.
-    # Music Volume stays first either way, so the setting that matters most is never the one the experiment costs.
+    # THE MENU CHANNEL MAP, measured on hardware across three runs (docs/352, 354, 355, 356).  An app entry mounted at
+    # one of these two bridge words is mirrored into a peripheral word the app may read; nothing else is:
+    #
+    #   0xF700000C  ->  0x4000006c      in 0.1.42 (1..4), 0.1.43 (0x41..0x48) and 0.1.45 (0x41..0x48)
+    #   0xF7000010  ->  0x40000068      in 0.1.42 (5..8), 0.1.43 (0x51..0x53) and 0.1.45 (0x51..0x53)
+    #   0xF7000014  ->  nothing at all  (0.1.44 and 0.1.45: the value never appeared in any of the 96 words)
+    #
+    # 0.1.45 decided which of the two candidate rules the OS follows, because it declared the entries in a DIFFERENT
+    # order than their addresses: Music Volume (0xF700000C) first, SFX Volume (0xF7000014) second, Screen Fit
+    # (0xF7000010) third.  Screen Fit -- declared LAST -- was mirrored at 0x40000068, and SFX -- declared SECOND -- was
+    # mirrored nowhere.  So the mirror follows the ADDRESS, not declaration order, and exactly two addresses are wired.
+    # It is not "the first two app variables", and it is not a slot table: it is two words.
+    #
+    # Consequence: the port can put TWO settings in Core Options and has to choose which two.  Music Volume takes
+    # 0xF700000C and SFX Volume takes 0xF7000010 -- sound effects have no other route at all, while Screen Fit already
+    # has one the player can reach during play (L1+B cycles letterbox / stretch / scaler, docs/334 §5) and developers
+    # have night.ini's FIT.  Swapping Screen Fit back into the menu is one line below, and it costs SFX.
+    APP_MENU_SETTINGS = [
+        ("Music Volume", 130, "0xF700000C", "0xFFFFFF00", "0x44",
+         [("0x41", "Off"), ("0x42", "1/8"), ("0x43", "1/4"), ("0x44", "1/2"),
+          ("0x45", "5/8"), ("0x46", "3/4"), ("0x47", "7/8"), ("0x48", "Full")]),
+        ("SFX Volume", 131, "0xF7000010", "0xFFFFFF00", "0x64",
+         [("0x61", "Off"), ("0x62", "1/8"), ("0x63", "1/4"), ("0x64", "1/2"),
+          ("0x65", "5/8"), ("0x66", "3/4"), ("0x67", "7/8"), ("0x68", "Full")]),
+        # Screen Fit is NOT declared: 0xF7000010 is taken by SFX Volume, and 0xF7000014 is not mirrored.  To trade two
+        # sound settings for a picture setting, move Screen Fit onto one of the two wired words and drop one of these.
+    ]
     probe_vars = [
-        {"name": "Music Volume", "id": 130, "type": "list", "enabled": True, "persist": True, "writeonly": True,
-         "address": "0xF700000C", "mask": "0xFFFFFF00", "defaultval": "0x44", "options": [
-             {"value": "0x41", "name": "Off"},
-             {"value": "0x42", "name": "1/8"},
-             {"value": "0x43", "name": "1/4"},
-             {"value": "0x44", "name": "1/2"},
-             {"value": "0x45", "name": "5/8"},
-             {"value": "0x46", "name": "3/4"},
-             {"value": "0x47", "name": "7/8"},
-             {"value": "0x48", "name": "Full"}]},
-        {"name": "SFX Volume", "id": 132, "type": "list", "enabled": True, "persist": True, "writeonly": True,
-         "address": "0xF7000014", "mask": "0xFFFFFF00", "defaultval": "0x64", "options": [
-             {"value": "0x61", "name": "Off"},
-             {"value": "0x62", "name": "1/8"},
-             {"value": "0x63", "name": "1/4"},
-             {"value": "0x64", "name": "1/2"},
-             {"value": "0x65", "name": "5/8"},
-             {"value": "0x66", "name": "3/4"},
-             {"value": "0x67", "name": "7/8"},
-             {"value": "0x68", "name": "Full"}]},
-        {"name": "Screen Fit", "id": 131, "type": "list", "enabled": True, "persist": True, "writeonly": True,
-         "address": "0xF7000010", "mask": "0xFFFFFF00", "defaultval": "0x51", "options": [
-             {"value": "0x51", "name": "Letterbox"},
-             {"value": "0x52", "name": "Stretch"},
-             {"value": "0x53", "name": "Scaler 320"}]},
-        # A third entry at the NEXT word of the bridge page, with a third disjoint band.  It is a setting the port
-        # wants (the game's sound effects have no menu control at all today), and it is the cheap answer to the one
-        # structural question left: 0xF700000C landed at 0x4000006c and 0xF7000010 at 0x40000068 -- reversed and
-        # adjacent.  If 0xF7000014 lands at 0x40000064 then the page carries the variables in a descending slot
-        # table; if it lands at 0x40000070 then ascending; if it lands somewhere else entirely then the OS allocates
-        # slots and the port must always hunt, which is what the fallback is for.
+        {"name": n, "id": i, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+         "address": a, "mask": m, "defaultval": d,
+         "options": [{"value": v, "name": w} for v, w in opts]}
+        for (n, i, a, m, d, opts) in APP_MENU_SETTINGS
     ]
     variables = base + app_vars + probe_vars
     jw(core_dir / "interact.json",
@@ -330,7 +322,6 @@ def main():
     if APP_INTERACT_PROBE:
         pairs.append(("Music Volume", "OF_IDX_MUSIC"))
         pairs.append(("SFX Volume", "OF_IDX_SFX"))
-        pairs.append(("Screen Fit", "OF_IDX_FIT"))
     if APP_INTERACT_KNOBS:
         pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
     pairs = tuple(pairs)

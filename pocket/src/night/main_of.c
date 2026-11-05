@@ -950,8 +950,19 @@ static void periph_scan(int full);
  * showed why the verification is not paranoia: the counters at 0x4000010c and 0x40000150 climb through 0x41, 0x42,
  * 0x52 and 0x53 on their way up, and a claim rule that only asked "is the value in range?" would have grabbed one of
  * them and called it Music Volume. */
-#define OF_MENU_SLOT_MUSIC 0x4000006cu           /* the word that carried 0xF700000C's value in both hardware runs */
-#define OF_MENU_SLOT_FIT   0x40000068u           /* the word that carried 0xF7000010's value in both hardware runs */
+/* The channel map, measured three times over (docs/352, 354, 355, 356): 0xF700000C is mirrored into 0x4000006c and
+ * 0xF7000010 into 0x40000068, and 0xF7000014 into nothing at all.  0.1.45 settled which rule the OS follows by
+ * declaring the entries out of address order -- Screen Fit, declared LAST at 0xF7000010, was mirrored; SFX Volume,
+ * declared SECOND at 0xF7000014, was not.  The mirror follows the ADDRESS.  Two words, no more. */
+#define OF_MENU_SLOT_MUSIC 0x4000006cu           /* carries whatever is mounted at 0xF700000C */
+#define OF_MENU_SLOT_SFX   0x40000068u           /* carries whatever is mounted at 0xF7000010 */
+#ifdef OF_IDX_FIT
+#define IDX_FIT     OF_IDX_FIT
+#define FIT_LIVE    1                            /* an interact.json entry exists for it */
+#else
+#define IDX_FIT     (-1)
+#define FIT_LIVE    0                            /* no word is wired to it: L1+B and night.ini FIT only */
+#endif
 #define MUSIC_SHIFT 0                            /* interact.json: mask 0xFFFFFF00 writes bits 0-7 only */
 #define MUSIC_MASK  0xFFu
 #define FIT_SHIFT   0
@@ -974,12 +985,12 @@ struct menu_var {
 };
 static struct menu_var g_menu[MENU_N] = {
     {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, 0x41u, 0x48u, 0x44u, OF_MENU_SLOT_MUSIC, 0u, 0u},
-    {"Screen Fit",   OF_IDX_FIT,   MENU_FIT,   0x51u, 0x53u, 0x51u, OF_MENU_SLOT_FIT,   0u, 0u},
-    /* No known slot, which is the point of adding it: 0xF7000014 has never been seen on hardware.  Where its value
-     * lands answers the one structural question left -- 0xF700000C arrived at 0x4000006c and 0xF7000010 at
-     * 0x40000068, reversed and adjacent, and a third word can only be explained by the rule the OS actually uses.
-     * Until a slot is claimed for it, the night.ini SFX_VOL value stands. */
-    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   0x61u, 0x68u, 0x64u, 0u,                 0u, 0u},
+    /* Screen Fit has no interact.json entry any more: the two words the OS mirrors are both taken by the two volume
+     * settings, and 0xF7000014 is not mirrored at all.  The row stays because the pad combo still drives the same
+     * setting and the swap is one line in mk_dist -- but it is marked not live, so it can never hunt for a word and
+     * mistake some counter for a menu that does not exist. */
+    {"Screen Fit",   IDX_FIT,      MENU_FIT,   0x51u, 0x53u, 0x51u, 0u,                 0u, 0u},
+    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   0x61u, 0x68u, 0x64u, OF_MENU_SLOT_SFX,   0u, 0u},
 };
 
 /* Per-register trust, measured against every entry: a word is clean for an entry if EVERY sample it has ever shown
@@ -1053,6 +1064,7 @@ static int menu_slots_scan(void) {
     menu_sample();
     for (int k = 0; k < MENU_N; k++) {
         struct menu_var *m = &g_menu[k];
+        if (!FIT_LIVE && m->kind == MENU_FIT) continue;      /* no entry declared: nothing to read */
 
         if (m->slot && !menu_opt(m, periph_word(m->slot))) {      /* a register that shows what the menu cannot
                                                                     * write was never the slot */

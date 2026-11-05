@@ -828,6 +828,38 @@ static void geo_witness(const char *why) {
 }
 #endif
 
+#ifndef OF_PC
+/* The other channel the SDK itself uses for live platform values: hardcoded MMIO on the openfpgaOS periph page.
+ * interactdemo does exactly this (src/apps/interactdemo/main.c:396-436) and names what sits there --
+ * INPUT_SLOT_KEY(2) at 0x40000134, HW_FEATURES at 0x40000098, MOUSE_SPEED_PCT (a SETTING) at 0x4000006C,
+ * FB_MODE_SIZE at 0x400000E4, VIDEO_SCALER_MODE at 0x400000EC.  If a menu value can reach an app on this OS at
+ * all, it has to be visible here, because of_interact_get() demonstrably carries nothing.
+ *
+ * The scan is not a hunt for names -- it is a hunt for MOTION.  Pocket LCD is the one entry the player can move
+ * and the core demonstrably acts on, so whatever word changes when they move it is a live settings word, and any
+ * neighbouring word the core decodes is a place a NIGHT setting could live.  Scanning only the range the SDK's
+ * own demo walks keeps us inside registers we know the bitstream decodes. */
+#define OF_PERIPH_BASE  0x40000000u
+#define OF_PERIPH_WORDS 96                    /* 0x40000000 .. 0x4000017C */
+static uint32_t g_periph_prev[OF_PERIPH_WORDS];
+static void periph_scan(int full) {
+    for (int i = 0; i < OF_PERIPH_WORDS; i++) {
+        uint32_t v = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
+        if (full && (i % 8) == 0) {
+            char acc[128]; int n = 0;
+            for (int j = i; j < i + 8 && j < OF_PERIPH_WORDS; j++)
+                n += snprintf(acc + n, sizeof acc - (size_t)n, " %08x",
+                              (unsigned)*(volatile uint32_t *)(OF_PERIPH_BASE + 4u * j));
+            NLOG("periph %04x:%s\n", 4u * i, acc);
+        }
+        if (g_periph_prev[i] != v)
+            NLOG("periph move @0x%08x: %08x -> %08x\n", OF_PERIPH_BASE + 4u * i,
+                 (unsigned)g_periph_prev[i], (unsigned)v);
+        g_periph_prev[i] = v;
+    }
+}
+#endif
+
 /* The menu is live while the core runs, so the knobs are re-read on a beat instead of once at boot.
  * 100 ms is well below what a person notices on a volume slider and far above the cost of two bridge reads. */
 static uint64_t g_setting_next_us;
@@ -1168,6 +1200,8 @@ static void tick_pump(void) {
                  * 0.1.28 run read 0x55555555 everywhere and the 0.1.29 run read a different garbage per index --
                  * neither behaviour distinguishes those two, but a value that HOLDS and then CHANGES does. */
                 static unsigned probe_tick;
+                periph_scan(probe_tick && (probe_tick % 10u) == 0u ? 1 : 0);   /* movements every second, a full
+                                                                                 * snapshot every tenth pass */
                 if (++probe_tick == 3u) {
                     for (int i = 0; i < OF_INTERACT_COUNT; i++) {
                         unsigned v = 0;
@@ -1185,7 +1219,8 @@ static void tick_pump(void) {
 #ifndef OF_PC
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);
-            NLOG("menu lcd=%08x scr=%d blit fast=%u slow=%u skip=%u\n",
+            NLOG("menu word=%08x lcd=%08x scr=%d blit fast=%u slow=%u skip=%u\n",
+                 (unsigned)of_setting_bridge_word(),
                  of_setting_lcd_raw(), of_setting_screen(), g_ds_fast, g_ds_slow, g_present_skips);
             /* Once a second, not once a frame: the mode is asserted at boot, but fn_03f15f (the game's own VESA
              * mode set) runs through the boot sequence and the display path is not obliged to remember what the
@@ -1388,7 +1423,10 @@ int main(int argc, char **argv) {
          * while of_interact_get() answers garbage, the gap is the interact ecall specifically. */
         of_analogizer_state_t az;
         int arc = of_analogizer_state(&az);
-        NLOG("analogizer: enabled=%d state rc=%d en=%u video=%u snac=%u/%u off=%d,%d\n",
+        NLOG("periph: reading %u words at 0x%08x (the interactdemo approach); if the log stops on this line, the"
+         " read itself is the answer\n", OF_PERIPH_WORDS, OF_PERIPH_BASE);
+    periph_scan(1);
+    NLOG("analogizer: enabled=%d state rc=%d en=%u video=%u snac=%u/%u off=%d,%d\n",
              of_analogizer_enabled(), arc, az.enabled, az.video_mode, az.snac_type, az.snac_assignment,
              (int)az.h_offset, (int)az.v_offset);
     }
@@ -1435,6 +1473,16 @@ int main(int argc, char **argv) {
             long e = of_interact_probe(i, &v);
             NLOG("interact[%d]: err=%ld val=%08x\n", i, e, v);
         }
+        /* The SDK's own smoke test asserts of_interact_get(999) == 0 (src/apps/testdemo/test_interact.c), which
+         * only means something if the handler validates its index.  Probe the boundary: if 999 and 63 read 0
+         * while 0..n-1 read the same fixed garbage in every run, then the ecall IS dispatched and its table is
+         * simply never filled -- a different statement from "the ecall does not exist", and the accurate one. */
+        for (int i = OF_INTERACT_MAX_VARS - 1; i >= OF_INTERACT_MAX_VARS - 1; i--) {
+            unsigned v = 0; long e = of_interact_probe(i, &v);
+            NLOG("interact[%d] (edge): err=%ld val=%08x\n", i, e, v);
+        }
+        {   unsigned v = 0; long e = of_interact_probe(999, &v);
+            NLOG("interact[999] (out of range): err=%ld val=%08x\n", e, v); }
     }
 #endif
 #ifndef OF_PC

@@ -11,6 +11,9 @@ option values mean.  Two bugs this catches, both of which happened:
 
 Run:  python3 scripts/pocket/check_interact.py
 """
+# mask semantics, straight from Analogue: "Bits set to '1' will be left untouched in the register.  Bits set to
+# '0' may be modified by the UI element."  So the bits an element owns are the COMPLEMENT of its mask -- and an
+# element with mask 0xFFFFFFFF owns nothing at all.
 import json
 import re
 import sys
@@ -18,6 +21,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 JSON = REPO / "pocket/dist/night/Cores/iamghost.night/interact.json"
+BASE = REPO / "pocket/dist/sdk/Cores/ThinkElastic.openfpgaOS/interact.json"
 HDR = REPO / "pocket/src/night/of_interact_idx.h"
 SAVE = REPO / "pocket/src/night/of_save.c"
 
@@ -90,56 +94,101 @@ def main():
             free = set(range(32)) - set(seen)
             print(f"         still unwritten at {addr}: {runs(free) if free else 'none'}")
 
-    # 3. the rule 0.1.27 broke: an app knob must not be mounted on a word the core's own reserved entries use.
-    #    0xF7000000 is openfpgaOS's control word (Analogizer / SNAC / Pocket LCD are decoded from it), and the
-    #    firmware rewrites every declared element's field each frame.  Putting a knob there pokes core state
-    #    60 times a second -- and the core stopped booting.
+    # 3. the base must BE the shipped core's file.  os25 is the bitstream this port runs, and its interact
+    #    definition is the one known to work on it; a hand-written approximation is what put our sliders on words
+    #    the core does not decode (docs/336) and left "Analogizer 15kHz Timing" out of a menu that describes the
+    #    same word the core decodes.
     APP_NAMES = ("Music Volume", "Screen Fit")
-    # "reserved" means an entry the core or the SDK owns -- everything that is not one of our knobs.  A knob's own
-    # address is never reserved by itself, which is the mistake that would make this rule fire on its own inputs.
-    reserved_addrs = {v["address"] for v in variables if v["name"] not in APP_NAMES}
     app = [v for v in variables if v["name"] in APP_NAMES]
-    for v in app:
-        if v["address"] in reserved_addrs:
-            fail(f"{v['name']} is mounted on {v['address']}, a word the core's reserved entries already write")
-    if len({v["address"] for v in app}) != len(app):
-        fail("two app knobs share one bridge address")
+    reserved = [v for v in variables if v["name"] not in APP_NAMES]
+    if BASE.exists():
+        base = json.loads(BASE.read_text())["interact"]["variables"]
+        if len(reserved) != len(base):
+            fail(f"{len(reserved)} reserved entries, the shipped openfpgaOS core declares {len(base)}")
+        for i, (mine, theirs) in enumerate(zip(reserved, base)):
+            for key in ("name", "id", "type", "address", "mask"):
+                if mine.get(key) != theirs.get(key):
+                    fail(f"entry {i} {mine.get('name')!r}: {key} is {mine.get(key)!r}, the shipped core has "
+                         f"{theirs.get(key)!r}")
+        if not fails:
+            print(f"  [PASS] entries 0-{len(base) - 1} are dist/sdk openfpgaOS interact.json verbatim "
+                  f"(names, ids, types, addresses, masks)")
+    else:
+        print(f"  [SKIP] {BASE} not vendored; reserved-prefix comparison skipped")
 
-    # 4. 0.1.30 declares no app knobs at all: the interact read answers garbage on this OS (docs/342 -- every
-    #    index, error half included).  The menu and the host must agree in BOTH directions: no knob in the JSON
-    #    without an index constant in the header, and no index constant pointing at a variable that is not there.
+    # 4. 0.1.27's rule, restated correctly.  An app knob MAY share openfpgaOS's control word -- Pocket LCD proves
+    #    that word is read and written by the firmware every frame -- but only in bits the shipped core leaves
+    #    untouched AND outside the band 0.1.27 showed is live behind it (bits 20-23: the core stopped booting).
+    #    Bits 0-19 are claimed by the shipped core's own fields; 24-31 are the free band, and this core uses
+    #    24-26 (Music Volume) and 27-28 (Screen Fit), leaving 29-31.
+    for v in app:
+        bits = mask_bits(v)
+        low = sorted(b for b in bits if b < 24)
+        if low:
+            fail(f"{v['name']} writes bits {low}: below bit 24 belongs to the shipped core's fields, and 20-23 "
+                 f"proved fatal in 0.1.27 (the core stopped booting)")
+        elif not bits:
+            fail(f"{v['name']} has mask {v.get('mask')} -- an all-ones mask leaves EVERY bit untouched, so the "
+                 f"element can write nothing.  Doom's App Option 1/2/3 are inert for exactly this reason")
+        else:
+            print(f"  [PASS] {v['name']} writes only bits "
+                  f"{min(bits)}-{max(bits)} of {v['address']}")
+    for a, b in [(x["address"], y["address"]) for x in app for y in app if x is not y]:
+        if a == b and all(mask_bits(x) & mask_bits(y) for x in app for y in app if x is not y):
+            fail("two app knobs write overlapping bits of one bridge word")
+
+    # 6. the menu and the host must agree in BOTH directions: no knob in the JSON without an index constant in
+    #    the header, and no index constant pointing at a variable that is not there.  The host reads the fields
+    #    off the control word (of_save.c bridge_control_word()); the index constants now exist to cross-check the
+    #    documented ecall against the bus, which is the measurement docs/344 could not make.
     if not app:
         stray = [c for c in ("OF_IDX_MUSIC", "OF_IDX_FIT") if re.search(rf"#define {c}\b", hdr)]
         if stray:
             fail(f"interact.json declares no app knobs but the header still defines {', '.join(stray)}")
         else:
-            print("  [PASS] no app knobs declared, and no dangling OF_IDX_* in the generated header "
-                  "(openfpgaOS does not answer the interact read -- docs/342)")
+            print("  [PASS] no app knobs declared, and no dangling OF_IDX_* in the generated header")
     else:
-        print("  [PASS] app knobs on their own addresses: " +
-              ", ".join(f"{v['name']}@{v['address']}" for v in app))
+        print("  [PASS] app knobs declared with index constants for the cross-check: " +
+              ", ".join(f"{v['name']}@{v['address']} idx {idx[v['name']]}" for v in app))
 
-    # 4. each app knob's option values are exactly the 1..N the host maps onto its own enum
+    # 5. every option value a knob offers must fit inside that knob's own field, and none of them may be 0.
+    #    0.1.27 offered 0x00..0x80 for a field at bits 20-23: values outside the field they write, and the core
+    #    refused to boot.  0 stays reserved for "nobody chose", because an untouched variable reads 0 on the wire
+    #    and 0 is a legal volume (docs/341).
     consts = {"Music Volume": ("OF_IDX_MUSIC", "MUSIC_SHIFT", "MUSIC_MASK"),
               "Screen Fit":   ("OF_IDX_FIT",   "FIT_SHIFT",   "FIT_MASK")}
     for v in app:
         vals = [int(o["value"], 16) if isinstance(o["value"], str) else o["value"] for o in v["options"]]
-        if vals != list(range(1, len(vals) + 1)):
-            fail(f"{v['name']} options are {vals}, not the 1..{len(vals)} the host maps")
-        else:
-            print(f"  [PASS] {v['name']}: options {vals} map 1:1 onto the host's choice table "
-                  f"(0 stays 'nothing was written', never a choice)")
+        field = mask_bits(v)
+        stray = sorted({val for val in vals if any((val >> b) & 1 for b in range(32) if b not in field)})
+        if stray:
+            fail(f"{v['name']} offers {stray} outside its own field "
+                 f"(mask {v.get('mask')} writes only {sorted(field)}) -- 0.1.27's shape, and it bricked a boot")
+        if 0 in vals:
+            fail(f"{v['name']} offers 0 as a choice: an untouched variable reads 0, and the host needs 0 to mean "
+                 f"'nobody chose'")
+        fieldvals = sorted({(val >> min(field)) & ((1 << (max(field) - min(field) + 1)) - 1) for val in vals})
+        if not stray and not fails:
+            print(f"  [PASS] {v['name']}: option values {['0x%08X' % x for x in vals]} all inside bits "
+                  f"{min(field)}-{max(field)}, field values {fieldvals}, none of them 0")
         dv = v["defaultval"]
         if isinstance(dv, str): dv = int(dv, 16)
         if dv not in vals:
             fail(f"{v['name']} defaultval {v['defaultval']} is not one of its own options")
-        # Doom's shape is what an app option looks like on openfpgaOS: a list at its OWN address with the mask
-        # spelling the whole word (0xFFFFFFFF).  A partial mask means it shares a word with someone else.
-        mk = v.get("mask")
-        if mk is not None and (int(mk, 16) if isinstance(mk, str) else int(mk)) != 0xFFFFFFFF:
-            fail(f"{v['name']} declares mask {mk}: an app knob owns its whole word (Doom's App Option shape) "
-                 f"or it is sharing a register")
+        # and the host must extract the same field the JSON writes
         const, sh, msk = consts[v["name"]]
+        for name, want in ((sh, min(field)), (msk, (1 << (max(field) - min(field) + 1)) - 1)):
+            m = re.search(rf"#define {name}\s+0x[0-9A-Fa-f]+|(?:#define {name}\s+)(\d+)", src)
+            got = None
+            m2 = re.search(rf"#define {name}\s+(0x[0-9A-Fa-f]+|\d+)", src)
+            if m2:
+                got = int(m2.group(1), 0)
+            if got is None:
+                fail(f"host has no #{name} for {v['name']}")
+            elif got != want:
+                fail(f"{v['name']}: host {name}={got}, interact.json's field says {want}")
+            else:
+                print(f"  [PASS] host {name}={got} matches {v['name']}'s field in {v['address']}")
         if not re.search(rf"#define {const}\s+\d+", hdr):
             fail(f"host has no {const} index constant for {v['name']}")
         want = idx.get(v["name"])

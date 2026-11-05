@@ -79,7 +79,13 @@ static int      g_music_bridge = -1;         /* the raw interact word behind Mus
  * the interact bridge, and at boot the bridge can carry 0 for a variable nobody has touched -- 0 is a legal
  * volume (mute) and a legal "no cap", so the host only accepts a value it can name.  That is why the two
  * knobs are lists with named options and no 0 in them: an unwired 0 must not silently mute the music. */
+/* Dead since 0.1.34, kept as the record of what the decoders used to accept: the interact ecall handed back a
+ * whole word (and the OS filled it with a fixed table of junk), so these two helpers tried to tell "the menu said
+ * nothing" from "the menu said something odd".  Fields inside the control word are bounded by construction, so
+ * nothing here needs to guess. */
+#if 0
 static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if (t[i] == v) return 1; return 0; }
+#endif
 
 /* 0.1.30 declares no app knobs in interact.json (docs/342: the interact read answers garbage on this OS -- every
  * index, error half included).  Their index constants therefore may be absent from the generated header, and the
@@ -97,11 +103,33 @@ static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if 
 
 
 
-#if HAVE_MUSIC
-static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, Medium, High, Full */
+/* Fields inside 0xF7000000.  interact.json declares them with a mask whose 1-bits are "leave untouched", so the
+ * element's own bits are the complement: Music Volume 24-26 (mask 0xF8FFFFFF), Screen Fit 27-28 (mask
+ * 0xE7FFFFFF), Pocket LCD 16-17 (mask 0xFFFCFFFF, the SDK core's own entry).  mk_dist.py and check_interact.py
+ * own the bit map; these constants must agree with it or the menu and the host disagree about the same word. */
+#define MUSIC_SHIFT 24
+#define MUSIC_MASK  0x7u
+#define FIT_SHIFT   27
+#define FIT_MASK    0x3u
+#define PLCD_SHIFT  16
+#define PLCD_MASK   0x3u
+
+/* The control word the firmware rewrites every frame, read straight off the bus -- the technique the SDK's own
+ * interactdemo uses for platform state (RAW32 at 0x400000xx, src/apps/interactdemo/main.c:396-436) and the only
+ * channel that demonstrably carries a menu value on this OS: Pocket LCD moves the panel through this word, while
+ * of_interact_get() answers the same menu with a fixed table of junk (docs/344).
+ * The read is logged once before anything depends on it, so if a boot dies on this line the line says so. */
+#ifndef OF_PC
+#define OF_BRIDGE_CTRL 0xF7000000u
 #endif
-#define MUSIC_SHIFT 0                        /* the whole word at 0xF700000C carries the choice (mk_dist.py) */
-#define MUSIC_MASK  0x1Fu
+static unsigned bridge_control_word(void) {
+#ifdef OF_PC
+    return 0u;                        /* the desktop shim has no bridge; every field then reads "not chosen" */
+#else
+    return *(volatile unsigned *)OF_BRIDGE_CTRL;
+#endif
+}
+
 
 /* Turn what the bridge carries into a volume, or 0 for "the menu is not carrying this knob".  Two shapes are
  * accepted on purpose: the value the list writes (1..5, one per option, which is what interact.json declares),
@@ -124,40 +152,40 @@ long of_interact_probe(int index, unsigned *value) {
 #endif
 }
 
-#if HAVE_MUSIC || HAVE_FIT
+#if 0   /* same reason: no field decoding needs a junk filter any more (docs/344) */
 static int bridge_usable(unsigned raw) { return raw != 0u && raw != BRIDGE_JUNK; }
 #endif
 
 #if HAVE_MUSIC
-static int music_vol_from_bridge(unsigned raw) {
-    int sel = (int)((raw >> MUSIC_SHIFT) & MUSIC_MASK);
-    switch (sel) {
-    case 1: return   1;                       /* Off   -- only reachable as a field value, never as a bare 0 */
+/* Field 1..5 -> a volume.  Field 0 means "nobody chose", which is why interact.json's options are anchored at 1:
+ * 0 is a legal volume (mute), and a menu that has never been touched must not silently mute the disc. */
+static int music_vol_from_bridge(unsigned word) {
+    switch ((word >> MUSIC_SHIFT) & MUSIC_MASK) {
+    case 1: return   1;                       /* Off */
     case 2: return  64;
     case 3: return 128;
     case 4: return 192;
     case 5: return 255;
-    default: break;
+    default: return 0;                        /* 0, 6 or 7: not a value interact.json can produce */
     }
-    if (raw == 1u) return 1;                  /* a bare 1 is the same request as the field's Off */
-    if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), (int)raw)) return (int)raw;
-    return 0;
 }
 #endif  /* HAVE_MUSIC */
 
 #if HAVE_FIT
-/* Screen Fit: the menu offers Letterbox / Stretch / Scaler as 1 / 2 / 3 (interact.json), the host's fit is
- * 0 / 1 / 2.  Anything else -- 0 (never written) or the 0x55555555 the OS returned everywhere -- means "no
- * instruction", and night.ini's FIT keeps its value. */
-static const int FIT_OPTS[] = { 1, 2, 3 };
-static int fit_from_bridge(unsigned raw) {
-    if (!bridge_usable(raw)) return -1;
-    if (in_opts(FIT_OPTS, (int)(sizeof FIT_OPTS / sizeof *FIT_OPTS), (int)raw)) return (int)raw - 1;
-    return -1;
+/* Screen Fit: Letterbox / Stretch / Scaler are field values 1 / 2 / 3; the host's fit is 0 / 1 / 2.  Field 0 (or
+ * 3, which 2 bits cannot hold beyond 1..3) means "no instruction" and night.ini's FIT keeps its value. */
+static int fit_from_bridge(unsigned word) {
+    switch ((word >> FIT_SHIFT) & FIT_MASK) {
+    case 1: return 0;                         /* Letterbox */
+    case 2: return 1;                         /* Stretch   */
+    case 3: return 2;                         /* Scaler    */
+    default: return -1;
+    }
 }
 #endif  /* HAVE_FIT */
 
 static int      g_fit_bridge = 0, g_interact_err = 0;
+static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the source of every field above */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 0;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
@@ -404,40 +432,31 @@ void of_settings_load(void) {
      * "the user asked for silence" would otherwise be the same number, and the first silently replaced
      * night.ini's MUSIC_VOL (docs/341, and the card's own interact_persist.json showing Music Volume 0). */
     {
-        unsigned mvw = 0, fw = 0;
+        unsigned w = bridge_control_word();
         int mv = 0, fit = -1;
+        SLOG("bridge: control word 0x%08x = %08x | fields music=%d fit=%d lcd=%d free 5,8-9,14,20-23,29-31\n",
+             OF_BRIDGE_CTRL, w, (int)((w >> MUSIC_SHIFT) & MUSIC_MASK), (int)((w >> FIT_SHIFT) & FIT_MASK),
+             (int)((w >> PLCD_SHIFT) & PLCD_MASK));
+        g_bridge_word = w;
 #if HAVE_MUSIC
-        long err_m = of_interact_probe(OF_IDX_MUSIC, &mvw);
-        mv = music_vol_from_bridge(mvw);
-        g_music_bridge = (int)mvw;
-        g_interact_err = (int)err_m;
-        SLOG("bridge: music index %d err=%ld val=%08x\n", OF_IDX_MUSIC, err_m, mvw);
+        mv = music_vol_from_bridge(w);
+        g_music_bridge = (int)w;
 #endif
 #if HAVE_FIT
-        long err_f = of_interact_probe(OF_IDX_FIT, &fw);
-        fit = fit_from_bridge(fw);
-        g_fit_bridge = (int)fw;
-        SLOG("bridge: fit index %d err=%ld val=%08x\n", OF_IDX_FIT, err_f, fw);
+        fit = fit_from_bridge(w);
+        g_fit_bridge = (int)w;
 #endif
-        /* The Pocket LCD list lives in bits 16-17 of 0xF7000000, and four other interact variables share that
-         * same word (Analogizer, the two SNAC lists, Analogizer Video Out, Video H/V Offset).  of_interact_get
-         * hands back a 32-bit value and the header never promises it is masked to the variable's own field, so
-         * comparing the whole word against OF_PLCD_TERMINAL only ever matched if every other variable happened
-         * to sit at zero -- which is how "Terminal" could be selected in the menu and never reach the host. */
-        unsigned lcdw = 0;
-        long err_l = of_interact_probe(OF_IDX_PLCD, &lcdw);
-        int lcd = (int)(lcdw & 0x00030000u);
-        g_lcd_raw = (unsigned)lcd;          /* the Pocket LCD field only, reported every second */
-        SLOG("bridge: lcd index %d err=%ld val=%08x field=%08x\n", OF_IDX_PLCD, err_l, lcdw, (unsigned)lcd);
+        int lcd = (int)(w & 0x00030000u);
+        g_lcd_raw = (unsigned)lcd;
+        /* Cross-check the same menu through the ecall.  It is kept because it is the documented API and because
+         * the pair of readings is the experiment: bus word vs interact index, same frame, same menu. */
+        unsigned iv = 0;
+        long e = of_interact_probe(OF_IDX_PLCD, &iv);
+        SLOG("bridge: lcd index %d err=%ld val=%08x field=%08x | interact says %08x\n",
+             OF_IDX_PLCD, e, iv, (unsigned)lcd, iv);
         if (mv) g_music_vol = clamp_vol(mv);
         if (fit >= 0) g_fit = fit;
-
-        /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
-         * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
-         * stays as the route for a card-only diagnostic run (SCREEN=2 asks for the log overlaid on the game). */
-        /* SCREEN=-1 used to follow the Pocket LCD field read out of this same bridge.  The bridge answers
-         * garbage (docs/342), so a junk word with bits 16-17 set could move the app to the console by itself;
-         * night.ini now pins SCREEN=0.  SCREEN=-1 stays available for a run on an OS that answers interact. */
+        /* SCREEN=-1 follows the Pocket LCD field, which is now read off the word the firmware writes. */
         if (g_screen < 0) g_screen = (lcd == OF_PLCD_TERMINAL) ? 1 : 0;
         SLOG("bridge decoded: music=%d fit=%d lcd=%08x\n", mv, fit, (unsigned)lcd);
     }
@@ -449,41 +468,41 @@ void of_settings_load(void) {
 
 int of_settings_poll(void) {
 #ifdef OF_PC
-    return 0;                       /* the desktop build has no interact bridge */
+    return 0;                       /* the desktop build has no bridge to read */
 #else
     int changed = 0;
-    unsigned mvw = 0, fw = 0;
+    unsigned w = bridge_control_word();
     int mv = 0, fit = -1;
 #if HAVE_MUSIC
-    long err_m = of_interact_probe(OF_IDX_MUSIC, &mvw);
-    mv = music_vol_from_bridge(mvw);
-    g_interact_err = (int)err_m;
-    if ((int)mvw != g_music_bridge) {
-        g_music_bridge = (int)mvw;
-        changed |= OF_SET_VOL_SEEN;
-        SLOG("bridge: music raw=%08x err=%ld decoded=%d\n", mvw, err_m, mv);
-    }
+    mv = music_vol_from_bridge(w);
 #endif
 #if HAVE_FIT
-    long err_f = of_interact_probe(OF_IDX_FIT, &fw);
-    fit = fit_from_bridge(fw);
-    if ((int)fw != g_fit_bridge) {
-        g_fit_bridge = (int)fw;
-        changed |= OF_SET_FIT_SEEN;
-        SLOG("bridge: fit raw=%08x err=%ld decoded=%d\n", fw, err_f, fit);
-    }
+    fit = fit_from_bridge(w);
 #endif
-    unsigned lcdw = 0;
-    of_interact_probe(OF_IDX_PLCD, &lcdw);
-    unsigned lcd = (unsigned)(lcdw & 0x00030000u);
+    unsigned lcd = w & 0x00030000u;
+
+    if (w != g_bridge_word) {
+        g_bridge_word = w;
+        SLOG("bridge word=%08x music=%d fit=%d lcd=%02x\n", w, mv, fit, (unsigned)(lcd >> PLCD_SHIFT));
+#if HAVE_MUSIC
+        { unsigned iv = 0; long e = of_interact_probe(OF_IDX_MUSIC, &iv);
+          SLOG("  cross-check interact[%d]: err=%ld val=%08x\n", OF_IDX_MUSIC, e, iv); }
+#endif
+#if HAVE_FIT
+        { unsigned iv = 0; long e = of_interact_probe(OF_IDX_FIT, &iv);
+          SLOG("  cross-check interact[%d]: err=%ld val=%08x\n", OF_IDX_FIT, e, iv); }
+#endif
+        { unsigned iv = 0; long e = of_interact_probe(OF_IDX_PLCD, &iv);
+          SLOG("  cross-check interact[%d]: err=%ld val=%08x\n", OF_IDX_PLCD, e, iv); }
+        changed |= OF_SET_VOL_SEEN | OF_SET_FIT_SEEN;
+    }
 
     if (mv && mv != g_music_vol) {
         g_music_vol = clamp_vol(mv);
         changed |= OF_SET_VOL;
     }
     if (fit >= 0 && fit != g_fit) { g_fit = fit; changed |= OF_SET_FIT; }
-    /* No menu knob for the tick cap any more (docs/341): night.ini TICK_HZ is the only route, and it is a
-     * developer's instrument, not a player's setting. */
+    /* No menu knob for the tick cap (docs/341): night.ini TICK_HZ, a developer's instrument. */
     if (lcd != g_lcd_raw) {
         g_lcd_raw = lcd;
         changed |= OF_SET_LCD;
@@ -506,4 +525,5 @@ int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
 int  of_setting_fb_mode(void)   { return g_fb_mode; }     /* 1 = use a native 640x480 source framebuffer if the OS offers one */
-int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }   /* the Pocket LCD field only, not the shared word */
+int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }
+int  of_setting_bridge_word(void) { return (int)g_bridge_word; }   /* the Pocket LCD field only, not the shared word */

@@ -46,7 +46,8 @@ int  of_setting_fit_bridge(void);   /* the raw interact word behind Screen Fit, 
 int  of_setting_fit_cycle(void);    /* 0 -> 1 -> 2 -> 0 from the pad combo; returns the new fit */
 int  of_setting_interact_err(void); /* the error code the last interact probe reported */
 int  of_setting_screen(void);         /* 0 game, 1 terminal, 2 game + log overlay */
-int  of_setting_lcd_raw(void);        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
+int  of_setting_lcd_raw(void);
+int  of_setting_bridge_word(void);   /* last raw 0xF7000000 read */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */
 int  of_setting_sync_flip(void);      /* 1 = wait for each flip to be presented before returning */
 int  of_setting_fb_mode(void);        /* 1 = ask the OS for a native 640x480 source framebuffer (FB_MODE=0 forces the software downscale) */

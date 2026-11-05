@@ -32,13 +32,15 @@ CUE = REPO / "NIGHT" / "TG_NIGHT.CUE"
 # "The first 4 are reserved by the SDK (Analogizer, SNAC, video offsets).  App-specific options start at
 # index 4" -- so they are copied verbatim rather than skipped.
 SDK_TPL = REPO / "pocket" / "src" / "sdk" / "platforms" / "pocket" / "templates"
+# The SDK core that runs the same bitstream this port runs: its interact.json is the base for ours.
+SDK_OS_CORE = REPO / "pocket" / "dist" / "sdk" / "Cores" / "ThinkElastic.openfpgaOS"
 OUT = REPO / "pocket" / "dist" / "night"
 
 CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.32"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.34"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -175,85 +177,57 @@ def main():
             {"id": 20, "name": "Start", "key": "pad_btn_start"},
             {"id": 21, "name": "Select", "key": "pad_btn_select"},
         ]}]}})
-    # interact.json assembled the way openfpgaOS-Quake's working core has it: the SDK's six reserved
-    # variables in template order, then the firmware's Pocket LCD switch, then this core's own options.
-    # Ours used to be the whole file -- four variables, with the sliders parked on 0xF7000004/0xF7000008,
-    # which are the SDK's reserved Video H/V Offset words.  On hardware every entry was listed in Core
-    # Options and refused to change, while Settings/iamghost.night/Interact/_core/interact_persist.json kept
-    # values the menu never moved (docs/336).
-    reserved = json.loads((SDK_TPL / "interact.json").read_text())["interact"]["variables"]
-    pocket_lcd = {"name": "Pocket LCD", "id": 70, "type": "list", "enabled": True, "persist": True,
-                  "address": "0xF7000000", "defaultval": 0, "mask": "0xFFFCFFFF", "options": [
-                      {"value": "0x00000000", "name": "On"},
-                      {"value": "0x00010000", "name": "Off"},
-                      {"value": "0x00020000", "name": "Terminal"}]}
-    # 0.1.30 ships NO app knobs in Core Options, and that is a measurement, not a preference.  The card log for
-    # 0.1.29 reads the whole interact table with the error half kept (of_interact_probe):
-    #   interact[1]: err=0 val=4f40446d      interact[7]: err=0 val=73e157d5
-    #   interact[0]: err=-419071091 val=0    interact[6]: err=-277204179 val=0
-    # Neither half is meaningful: those "errors" are not of_error.h codes (small negatives) and no value is a
-    # declared option.  openfpgaOS's app-facing interact read does not answer, so a Music Volume or Screen Fit
-    # knob in the menu is a control that cannot be read -- worse than no control.  Flip this flag when a run
-    # shows err=0 with values that move when the menu moves; of_save.c keeps both decoders compiled behind
-    # HAVE_MUSIC/HAVE_FIT so re-enabling is this flag alone.
-    # 0.1.32 puts the knobs back, but mounted the way openfpgaOS's own cores mount an app option.  Doom's
-    # interact.json (dist/doom/Cores/ThinkElastic.doom) declares "App Option 1" at 0x03FE0000 and "App Option 3"
-    # at 0x03FE0008 -- both `list`, both mask "0xFFFFFFFF", both with hex-string option values.  NIGHT's knobs
-    # sat at 0xF700000C / 0xF7000010, i.e. in the same bridge page as openfpgaOS's control word: no shipped
-    # openfpgaOS core uses that page for app options, and 0.1.27 is what happened when one of my knobs was put
-    # IN the control word itself.  Canonical shape, canonical addresses, and not one bit of the control word.
+    # interact.json = the SDK's own openfpgaOS core file verbatim, plus NIGHT's two knobs appended as new
+    # bit-fields of the same control word.  The base is the shipped core's file rather than the template because
+    # dist/sdk/Cores/ThinkElastic.openfpgaOS/interact.json is the interact definition for the exact bitstream
+    # this port runs (os25) and is the only definition known to work on it: eight entries -- Analogizer bit 15,
+    # SNAC Adapter 0-4, SNAC Assignment 6-7, Analogizer Video Out 10-13, Analogizer 15kHz Timing 18-19, Pocket
+    # LCD 16-17, and the two offset sliders at 0xF7000004 / 0xF7000008.  The template we used before is MISSING
+    # "Analogizer 15kHz Timing", so our menu described a different picture of that word than the core does.
+    base = json.loads((SDK_OS_CORE / "interact.json").read_text())["interact"]["variables"]
+    # Two NIGHT knobs, added to that word with masks touching only bits the shipped core leaves free.
+    # Analogue's rules, read properly this time (analogue.co/developer/docs/openfpga/core-definition-files/
+    # interact-json):
+    #   "mask: Bits set to '1' will be left untouched in the register.  Bits set to '0' may be modified by the
+    #    UI element."
+    #   "Each frame, all of the UI elements are read back from the core at a specified 32-bit BRIDGE address,
+    #    updated with new user-adjusted values, and finally written back.  This read-modify-write cycle requires
+    #    the core to have both read and write support at each desired address, unless the element is flagged as
+    #    writeonly."
+    # Three separate mistakes in the earlier attempts, all now traceable to those two sentences:
+    #   * 0.1.32 copied Doom's mask "0xFFFFFFFF".  Under the real rule an all-ones mask leaves EVERY bit
+    #     untouched, so those elements were allowed to write nothing at all -- which is exactly why they drew no
+    #     selected state and could not be moved: an element that may not modify the register has no state to
+    #     read back.  Doom's App Option 1/2/3 are placeholders in the same condition, and its
+    #     interact_persist.json holds ids 20/40/50/60/70 (the reserved entries) and none of theirs.
+    #   * 0.1.27 mounted Music Volume in bits 20-23 with option values 0x00..0x80 -- values lying OUTSIDE the
+    #     field the element writes.  The core stopped booting.  Every option value now sits inside its own field.
+    #   * 0.1.25/0.1.26 mounted the knobs at 0xF700000C / 0xF7000010, words no openfpgaOS core decodes, so the
+    #     read half of the cycle had nothing to read.
+    # Fields are chosen from what the shipped core leaves untouched -- bits 5, 8-9, 14, 20-23, 24-31 -- and
+    # 20-23 is avoided because 0.1.27 showed something lives behind it.  Music Volume takes 24-26, Screen Fit
+    # takes 27-28, leaving 29-31 unused.  Values are 1..5 and 1..3 placed IN the field, never 0: an untouched
+    # variable reads 0 on the wire and 0 has to keep meaning "nobody chose" (docs/341).
+    # The app reads the same word off the bus (of_save.c bridge_control_word()), which is how openfpgaOS's own
+    # drivers and the SDK's interactdemo see platform state -- of_interact_get() demonstrably carries nothing
+    # (docs/344), so the bridge itself is the channel and the ecall is the cross-check.
     APP_INTERACT_KNOBS = True
     app_vars = ([] if not APP_INTERACT_KNOBS else [
-        # Both knobs are lists, not sliders, and that is a decision about the bridge rather than the menu.
-        # A variable is a word in the interact bridge, and the card's Settings/…/interact_persist.json showed
-        # what an untouched slider looks like there: Music Volume 0, Tick Pump 0 (which the UI then clamps to
-        # its min and shows as 60).  0 is a legal volume -- mute -- so "the bridge carries nothing" and "the
-        # user asked for silence" were the same number, and the host could not tell them apart.  Named options
-        # with no 0 in them end that: of_save.c accepts only values it can name.
-        # 0.1.26 put this at 0xF700000C and it reached the host as nothing.  The Pocket's own doc for
-        # interact.json says the firmware "each frame ... read back from the core at a specified 32-bit BRIDGE
-        # address, updated with new user-adjusted values, and finally written back" -- a read-modify-write at an
-        # address the core has to answer.  openfpgaOS declares only 0xF7000000 (six bit-packed lists), 0xF7000004
-        # and 0xF7000008 (the two video offsets): 0xF700000C is a word its bitstream never decodes, so the write
-        # landed nowhere and of_interact_get kept reading 0.  Pocket LCD works because bits 16-17 of 0xF7000000
-        # are real openfpgaOS state.  So the knob moves into that word, in bits 10-13, which the SDK core's own
-        # masks leave free: Analogizer bit 15, SNAC Adapter 0-4, SNAC Assignment 6-7, Video Out 8-9, 15kHz
-        # Timing 18-19, Pocket LCD 16-17.  Bits 10-13 are NOT free -- "Analogizer Video Out" has its field there
-        # (its mask 0xFFFFC3FF is zero exactly at 10-13) -- so this knob sits at bits 20-23, which nothing in the
-        # SDK core writes.  The mask 0xFF0FFFFF is the sentence "only bits 20-23 are mine".
-        # Screen Fit: how 320x200 meets the 320x240 panel.  Letterbox is the default -- the bars are what the
-        # port has always drawn and the safe choice; Stretch duplicates 40 of the 200 rows to fill the panel;
-        # Scaler asks the core for its declared 320x200 framebuffer mode and lets the FPGA do the stretch.
-        {"name": "Screen Fit", "id": 101, "type": "list", "enabled": True, "persist": True,
-         "address": "0x03FE0000", "mask": "0xFFFFFFFF", "defaultval": "0x01", "options": [
-             {"value": "0x01", "name": "Letterbox"},
-             {"value": "0x02", "name": "Stretch"},
-             {"value": "0x03", "name": "Scaler 320x200"}]},
         {"name": "Music Volume", "id": 100, "type": "list", "enabled": True, "persist": True,
-         # 0.1.27 put this INSIDE 0xF7000000 (bits 20-23, mask 0xFF0FFFFF) and the core stopped booting: the card
-         # kept the 0.1.26 log and wrote nothing new, i.e. the app never got as far as opening the log slot.  That
-         # address is openfpgaOS's own control word -- Analogizer / SNAC / Pocket LCD are decoded from it by the
-         # bitstream -- and Analogue's doc says the firmware rewrites every declared element's field "each frame".
-         # A menu knob that writes a field of the control word every frame is not a knob, it is a periodic poke at
-         # core state.  Back to 0xF700000C: 0.1.26 booted with that address all day, so it is proven harmless even
-         # though nothing decodes it, and the values are small integers so the host can read them if the OS ever
-         # does publish them.
-         "address": "0x03FE0008", "mask": "0xFFFFFFFF", "defaultval": "0x03", "options": [
-             {"value": "0x01", "name": "Off"},
-             {"value": "0x02", "name": "Low"},
-             {"value": "0x03", "name": "Medium"},
-             {"value": "0x04", "name": "High"},
-             {"value": "0x05", "name": "Full"}]},
-        # No tick-rate knob in the menu, on purpose.  It was a measurement aid (docs/335: the port's waits are
-        # clock deadlines, so halving the tick rate changes how many ticks a fade or timer gets -- that is not
-        # "slow motion", it is a different game), and on the card it was one more number a player had to
-        # interpret.  It stays available where a developer reads it: night.ini TICK_HZ=... / NIGHT_TICK_HZ.
-        # 0.1.25 shipped it as a list; 0.1.26 ships without it.
-        # What an openfpgaOS app can act on is of_video_set_display_mode() (of_video.h:43-45):
-        # OF_DISPLAY_TERMINAL / OF_DISPLAY_FRAMEBUFFER / OF_DISPLAY_OVERLAY.  "Game + log" is the diagnostic
-        # view that makes a hardware run readable without a card reader.
+         "address": "0xF7000000", "mask": "0xF8FFFFFF", "defaultval": "0x05000000", "options": [
+             {"value": "0x01000000", "name": "Off"},
+             {"value": "0x02000000", "name": "Low"},
+             {"value": "0x03000000", "name": "Medium"},
+             {"value": "0x04000000", "name": "High"},
+             {"value": "0x05000000", "name": "Full"}]},
+        {"name": "Screen Fit", "id": 101, "type": "list", "enabled": True, "persist": True,
+         "address": "0xF7000000", "mask": "0xE7FFFFFF", "defaultval": "0x08000000", "options": [
+             {"value": "0x08000000", "name": "Letterbox"},
+             {"value": "0x10000000", "name": "Stretch"},
+             {"value": "0x18000000", "name": "Scaler 320x200"}]},
+        # No tick-rate knob: a developer's instrument, night.ini TICK_HZ only (docs/341).
     ])
-    variables = reserved + [pocket_lcd] + app_vars
+    variables = base + app_vars
     jw(core_dir / "interact.json",
        {"interact": {"magic": "APF_VER_1", "variables": variables, "messages": []}})
 

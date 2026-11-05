@@ -37,14 +37,6 @@
                         "name": "None"
                     },
                     {
-                        "value": "0x03",
-                        "name": "SNES"
-                    },
-                    {
-                        "value": "0x0B",
-                        "name": "SNES A,B<->X,Y"
-                    },
-                    {
                         "value": "0x10",
                         "name": "PSX"
                     },
@@ -119,38 +111,54 @@
                     {
                         "value": "0x1C00",
                         "name": "SC HQ2x RGBHV"
+                    }
+                ]
+            },
+            {
+                "name": "Analogizer 15kHz Timing",
+                "id": 61,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "address": "0xF7000000",
+                "defaultval": 0,
+                "mask": "0xFFF3FFFF",
+                "options": [
+                    {
+                        "value": "0x00000000",
+                        "name": "240p"
                     },
                     {
-                        "value": "0x2000",
-                        "name": "RGBS,Pocket OFF"
+                        "value": "0x00040000",
+                        "name": "480i NTSC"
                     },
                     {
-                        "value": "0x2400",
-                        "name": "RGsB,Pocket OFF"
+                        "value": "0x00080000",
+                        "name": "576i PAL"
+                    }
+                ]
+            },
+            {
+                "name": "Pocket LCD",
+                "id": 70,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "address": "0xF7000000",
+                "defaultval": 0,
+                "mask": "0xFFFCFFFF",
+                "options": [
+                    {
+                        "value": "0x00000000",
+                        "name": "On"
                     },
                     {
-                        "value": "0x2800",
-                        "name": "YPbPr,Pocket OFF"
+                        "value": "0x00010000",
+                        "name": "Off"
                     },
                     {
-                        "value": "0x2C00",
-                        "name": "Y/C NTSC,Pocket OFF"
-                    },
-                    {
-                        "value": "0x3000",
-                        "name": "Y/C PAL,Pocket OFF"
-                    },
-                    {
-                        "value": "0x3400",
-                        "name": "SC 0% RGBHV,Pocket OFF"
-                    },
-                    {
-                        "value": "0x3800",
-                        "name": "SC 50% RGBHV,Pocket OFF"
-                    },
-                    {
-                        "value": "0x3C00",
-                        "name": "SC HQ2x RGBHV,Pocket OFF"
+                        "value": "0x00020000",
+                        "name": "Terminal"
                     }
                 ]
             },
@@ -187,26 +195,34 @@
                 }
             },
             {
-                "name": "Pocket LCD",
-                "id": 70,
+                "name": "Music Volume",
+                "id": 100,
                 "type": "list",
                 "enabled": true,
                 "persist": true,
                 "address": "0xF7000000",
-                "defaultval": 0,
-                "mask": "0xFFFCFFFF",
+                "mask": "0xF8FFFFFF",
+                "defaultval": "0x05000000",
                 "options": [
                     {
-                        "value": "0x00000000",
-                        "name": "On"
-                    },
-                    {
-                        "value": "0x00010000",
+                        "value": "0x01000000",
                         "name": "Off"
                     },
                     {
-                        "value": "0x00020000",
-                        "name": "Terminal"
+                        "value": "0x02000000",
+                        "name": "Low"
+                    },
+                    {
+                        "value": "0x03000000",
+                        "name": "Medium"
+                    },
+                    {
+                        "value": "0x04000000",
+                        "name": "High"
+                    },
+                    {
+                        "value": "0x05000000",
+                        "name": "Full"
                     }
                 ]
             },
@@ -216,53 +232,21 @@
                 "type": "list",
                 "enabled": true,
                 "persist": true,
-                "address": "0x03FE0000",
-                "mask": "0xFFFFFFFF",
-                "defaultval": "0x01",
+                "address": "0xF7000000",
+                "mask": "0xE7FFFFFF",
+                "defaultval": "0x08000000",
                 "options": [
                     {
-                        "value": "0x01",
+                        "value": "0x08000000",
                         "name": "Letterbox"
                     },
                     {
-                        "value": "0x02",
+                        "value": "0x10000000",
                         "name": "Stretch"
                     },
                     {
-                        "value": "0x03",
+                        "value": "0x18000000",
                         "name": "Scaler 320x200"
-                    }
-                ]
-            },
-            {
-                "name": "Music Volume",
-                "id": 100,
-                "type": "list",
-                "enabled": true,
-                "persist": true,
-                "address": "0x03FE0008",
-                "mask": "0xFFFFFFFF",
-                "defaultval": "0x03",
-                "options": [
-                    {
-                        "value": "0x01",
-                        "name": "Off"
-                    },
-                    {
-                        "value": "0x02",
-                        "name": "Low"
-                    },
-                    {
-                        "value": "0x03",
-                        "name": "Medium"
-                    },
-                    {
-                        "value": "0x04",
-                        "name": "High"
-                    },
-                    {
-                        "value": "0x05",
-                        "name": "Full"
                     }
                 ]
             }

@@ -24,6 +24,7 @@
 #include "sys/sys.h"
 
 #include <stdio.h>
+#include <sys/stat.h>   /* mkdir for the desktop save directory (docs/390) */
 #include <stdlib.h>
 #include <string.h>
 
@@ -306,6 +307,17 @@ int of_save_write(int slot) {
 #endif
     save_blob_t b;
     blob_capture(&b);
+#ifdef OF_PC
+    /* A slot write used to fail outright when the save directory did not exist yet -- "save: open
+     * /tmp/svrt3/night_3.sav failed" (docs/390) -- which is the first wall every desktop save test hits, and it made
+     * four "load" runs earlier today load nothing at all.  The card's Saves/night/common tree is created by the
+     * firmware, so this is the desktop path only. */
+    {
+        char dir[512];
+        snprintf(dir, sizeof dir, "%s", save_dir());
+        mkdir(dir, 0775);
+    }
+#endif
     FILE *f = fopen(path, "wb");
     if (!f) { snprintf(g_err, sizeof g_err, "open %s failed", path); return -1; }
     size_t wrote = fwrite(&b, 1, sizeof b, f);

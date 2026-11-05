@@ -45,6 +45,19 @@
 #define HOTTEXT
 #endif
 
+/* Two candidate BRAM sets, because which one wins is a hardware question and 14 336 bytes holds only one of them
+ * (docs/372).  Set "present" (the default, and the shipping one) buys the per-frame copy path; set "pump" buys the
+ * function the game re-enters ~267 000 times a frame (docs/369) and gives up the copy.  `make BRAM_SET=pump`
+ * builds the alternative, and the card log's `stages`/`perf`/`budget present mean=` lines decide between them --
+ * a placement that cannot be measured on hardware is a preference, not an optimisation. */
+#ifdef NIGHT_BRAM_PUMP
+#  define HOTPRESENT
+#  define HOTPUMP   HOTTEXT
+#else
+#  define HOTPRESENT HOTTEXT
+#  define HOTPUMP
+#endif
+
 #include "of_save.h"
 #include "of_log.h"
 
@@ -236,7 +249,7 @@ static uint32_t on_terminate(uint32_t a) {
  * The game programs the VGA DAC itself (outb 0x3C8 index / 0x3C9 value, sys.c mirrors it) and never
  * writes a byte above 63 (docs/77), so a 6-bit table is scaled the way a DAC scales it -- the same
  * arithmetic src/app/main.c:129-135 uses, which is the basis the port-vs-original comparisons stand on. */
-HOTTEXT /* the palette upload the indexed picture depends on, once per present */
+HOTPRESENT /* the palette upload the indexed picture depends on, once per present */
 static void palette_push(void) {
     sys_vga_palette(g_pal_rgb);
     if (sys_vga_dac_max() <= 63)
@@ -298,7 +311,7 @@ static inline uint8_t maj4(uint8_t a, uint8_t b, uint8_t c, uint8_t d) {
 
 static unsigned g_ds_fast, g_ds_slow;        /* which 640x480 path ran: the word loop or the general one */
 
-HOTTEXT /* the device's frame copy, 76 800 output pixels per present (docs/343) */
+HOTPRESENT /* the device's frame copy, 76 800 output pixels per present (docs/343) */
 static void downscale_2x2_frame(const uint8_t *src, uint8_t *fb) {
     if (((uintptr_t)src & 3u) || ((uintptr_t)fb & 3u)) {      /* misaligned: keep the general path */
         g_ds_slow++;
@@ -407,7 +420,7 @@ static int pal_lit(void) {
     return c;
 }
 
-HOTTEXT /* the frame copy, the palette push and the flip: 59 times a second */
+HOTPRESENT /* the frame copy, the palette push and the flip: 59 times a second */
 static void present(void) {
     if (g_off & OFF_PRESENT) return;
     uint64_t t0 = sys_now_us(), t1, t2, t3, t4, t5;
@@ -729,6 +742,9 @@ static uint32_t drain_audio(void) {
     return got;
 }
 
+HOTTEXT /* task-9 (docs/372): the board drain, run on every pump entry.  Kept OUT of tick_pump -- the noinline that
+ * OF_FASTTEXT carries does that for free -- so the hot drain lives in zero-wait RAM while tick_pump's body shrinks
+ * instead of absorbing it. */
 static void audio_pump(void) {
     if (g_off & OFF_MIXER) return;
     sys_audio_set_source(g_dat_63fb4);             /* the buffer an armed DMA transfer reads */
@@ -850,7 +866,7 @@ static void cdda_stop(void) { if (cdda_allowed()) of_cdda_stop(); }
  * clock read: g_timer_calls is already in the pump.  The pre-fill, the retry-after-failure and the budget
  * arithmetic are all time-based, so none of them depends on visit frequency. */
 static uint32_t g_cdda_tick_seen;
-HOTTEXT /* the CD-DA ring refill decision, once per tick */
+/* the CD-DA ring refill decision, once per tick */
 static void cdda_pump(void) {
     if (!cdda_allowed()) return;
     if (g_cdda_tick_seen == g_timer_calls) return;      /* once per tick, not once per spin */
@@ -1449,7 +1465,7 @@ static int pad_script_held(uint32_t btn) {
  * restore never injects a key into gameplay. */
 static int g_warp_entry_done, g_warp_entry_posts;
 
-static void warp_entry_pump(void) {
+static void __attribute__((noinline)) warp_entry_pump(void) {
     if (g_warp_entry_done || f_rig_warp_stage() <= 0) return;
     if (f_act_resolver_calls() > 0) {                       /* the stage loop is live */
         g_warp_entry_done = 1;
@@ -1472,7 +1488,7 @@ static void warp_entry_pump(void) {
     g_dat_62c58[0x1c] = (uint8_t)(on ? 1 : 0);
 }
 
-static void save_pump(void) {
+static void __attribute__((noinline)) save_pump(void) {
     if (g_load_slot >= 0 && f_act_resolver_calls() > 0) {
         if (of_save_apply()) g_load_slot = -1;
     }
@@ -1558,119 +1574,13 @@ static int g_depth, g_depth_max;
  * per-spin work" from a guess into an arithmetic decision: on a 100 MHz core, a 30-cycle call at 150 000 visits a
  * frame is 4.5 ms a frame, which is a fifth of a 20 ms frame budget spent on bookkeeping. */
 static uint64_t g_pump_enters;
-/* tick_pump is deliberately NOT in BRAM, and the number says why: measured with -O3 and no LTO it is 0x29f0 =
- * 10 736 bytes -- 3.6x the size of present() -- because audio_pump(), save_pump(), warp_entry_pump() and the whole
- * 1 Hz diagnostic block get inlined into it.  The APP_BRAM region is 14 336 bytes total (app.ld:29), so marking
- * this one function spends 75 % of the region on a body whose bulk is the diagnostics, not the scheduling.  It is
- * also the port's hottest entry point (docs/369: ~267 000 entries a frame), which makes "split the diagnostic
- * block out so the scheduling core is small enough to sit in BRAM" the next measurable step rather than this one. */
-static void tick_pump(void) {
-    uint64_t now = sys_now_us();
-    g_pump_enters++;
-    g_depth++;
-    if (g_depth > g_depth_max) {
-        g_depth_max = g_depth;
-        if ((g_depth % 64) == 0) printf("pump depth=%u\n", (unsigned)g_depth);
-    }
-
-    /* night.ini PUMP_AUDIO_TICK=1 puts the board drain on the tick too (task-9's A/B, docs/369).  The shipping
-     * shape is 0: this drain empties the byte ring the game's DMA transfers write into, and a gated drain can
-     * leave up to ~2 ms of already-requested samples sitting in that ring.  Experiment, not default -- which is
-     * why the boot prints the shape and why a run is judged on the budget line's sfx plays/drops/steals and the
-     * cdda dry/audio_low counters. */
-    if (!of_setting_pump_audio_tick() || g_audio_gate != g_timer_calls) {
-        g_audio_gate = g_timer_calls;
-        audio_pump();
-    }
-    cdda_pump();
-    /* Gated to the game's own tick, for the same reason the CDDA pump is (docs/364 §3) and for the same reason
-     * the pad pump already was (one poll per ~8 ms, docs/333): neither decision has a cadence finer than a frame.
-     * warp_entry_pump presses confirm for 250 ms at a time, which is 120 ticks; save_pump fires on a frame match
-     * and a tick runs 8x a frame, so a gated match is still the same frame.  The board drain (audio_pump) is NOT
-     * gated: it services the DMA ring the game is writing into, and "drain whenever the game spins" is the
-     * contract that ring is written against. */
-    if (g_warp_gate != g_timer_calls) {
-        g_warp_gate = g_timer_calls;
-        warp_entry_pump();
-        save_pump();
-    }
-#ifndef OF_PC
-    of_mixer_pump();
-#endif
-
-    /* main.c's pump order, kept: the board drain and the CD track always run, the tick handler only
-     * when a tick is actually due.  Skipping this line makes the pump call itself the clock -- 10.7
-     * million handler invocations per second instead of 490 (measured, and visible as the mode
-     * timeline flapping). */
-    if (now < g_tick_next_us) { g_depth--; return; }
-
-    settings_beat(now);
-    music_mode_mirror();
-
-    uint32_t hz = sys_pit_hz(0);                      /* fn_03ef29 programs PIT ch0 (0x982 -> 490 Hz) */
-    if (hz == 0 && g_dat_63318) hz = 1193182u / g_dat_63318;
-    if (hz == 0) hz = sys_clock_ticks_per_sec();
-    if (hz == 0) hz = 18;
-    /* The menu's "Tick Pump Hz" slider (interact.json index 1) may only slow the clock below the rate the
-     * game programmed -- a deliberate slow-motion/tuning knob for the 100 MHz core, never a speed-up. */
-    {
-        int cap = of_setting_tick_hz();
-        if (cap > 0 && cap < (int)hz) hz = (uint32_t)cap;
-    }
-    uint64_t period = 1000000ull / hz;
-
-    /* Re-anchoring on a lag of eight periods (16 ms) is what put the logo back into slow motion: a present
-     * that costs 81 ms re-anchored every single frame, so the game received one tick per frame -- 13 ticks a
-     * second instead of 490 -- and a fade measured in ticks never reached its end (reanchor=130 with
-     * frames=130).  The lag here is OUR blit, not the game blocking, and the right answer is to hand over the
-     * ticks that actually elapsed: 40 in a 81 ms frame, which is what a 12 fps renderer still owes the clock.
-     * Only a lag beyond half a second is treated as a real stall (a blocking read, a clock discontinuity) and
-     * re-anchored instead, and the burst cap goes to 128 so a 250 ms stall is absorbed. */
-    unsigned calls = 1;
-    if (now - g_tick_next_us > 500000ull) {           /* a genuine stall: re-anchor, don't burst */
-        g_tick_next_us = now;
-        g_pump_reanchor++;                            /* a stall inside game code shows up here */
-    } else {
-        while (now >= g_tick_next_us && calls < 128u) { g_tick_next_us += period; calls++; }
-        calls--;
-    }
-
-#ifdef OF_PC
-    if (g_fixed_step_calls) {
-        /* Same rule as src/app/main.c: the handler count is a function of the PRESENTED frame count. */
-        static unsigned s_step_frames;
-        calls = 0;
-        if (g_frames != s_step_frames) {
-            s_step_frames = g_frames;
-            unsigned want = (unsigned)((unsigned long long)g_frames *
-                                       (unsigned long long)g_fixed_step_calls / (unsigned long long)g_fixed_fps);
-            while (g_timer_calls < want && g_timer_calls < s_step_frames * 64ul + 64ul) {
-                fn_03ee88(); g_timer_calls++;
-            }
-        }
-    } else
-#endif
-    while (calls--) { fn_03ee88(); g_timer_calls++; }
-    g_pump_calls++;
-
-    if (now >= g_present_next_us) {
-        uint64_t t0 = sys_now_us();
-        present();
-        uint32_t d = (uint32_t)(sys_now_us() - t0);
-        if (d > g_present_us_max) g_present_us_max = d;
-        g_present_us = d;
-        g_present_us_sum += d; g_present_n++;
-        g_frames++;
-#ifdef OF_PC
-        /* The rig's state witness on the same grid as its screen witness.  audio_bytes is the Red Book the host
-         * has actually delivered (2352 bytes a sector), the same quantity src/app/main.c hands the sink. */
-        if (g_rig_dir) rig_poll((long)(now / 1000ull), (unsigned long long)g_frames,
-                                (unsigned long long)of_cdda_pos() * 2352ull);
-#endif
-        g_present_next_us = now + PRESENT_PERIOD_US;
-        if (g_frames_limit && g_frames >= (uint32_t)g_frames_limit) g_quit = 1;
-    }
-    if (now >= g_diag_next_us) {
+/* task-9 (docs/372): the once-a-second readout, moved OUT of tick_pump.  It is 174 lines of logging,
+ * statistics, optional bus probes and the terminal panel -- and -O3 inlined all of it into the function the
+ * game re-enters ~267 000 times a frame (docs/369), which is why tick_pump measured 10 736 bytes against
+ * present() at 2 958 (docs/371 2).  noinline is the point: the diagnostics run once a second and belong in
+ * SDRAM with the cold code, while the scheduling core of tick_pump becomes small enough to place in BRAM.
+ * Behaviour unchanged: same statements, same order, same cadence; only the gate stays in the caller. */
+static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
         g_diag_next_us = now + 1000000ull;
         static uint32_t s_last_ticks;
         uint64_t clock_now = sys_now_us();
@@ -1845,7 +1755,122 @@ static void tick_pump(void) {
             g_console_live = g_log_ok ? 0 : 1;
 #endif
         }
+}
+
+/* tick_pump is deliberately NOT in BRAM, and the number says why: measured with -O3 and no LTO it is 0x29f0 =
+ * 10 736 bytes -- 3.6x the size of present() -- because audio_pump(), save_pump(), warp_entry_pump() and the whole
+ * 1 Hz diagnostic block get inlined into it.  The APP_BRAM region is 14 336 bytes total (app.ld:29), so marking
+ * this one function spends 75 % of the region on a body whose bulk is the diagnostics, not the scheduling.  It is
+ * also the port's hottest entry point (docs/369: ~267 000 entries a frame), which makes "split the diagnostic
+ * block out so the scheduling core is small enough to sit in BRAM" the next measurable step rather than this one. */
+HOTPUMP /* task-9 (docs/372): the pump the game re-enters ~267 000 times a frame (docs/369).  It only fits in the region at all because the 174-line 1 Hz readout moved out to diag_report() and audio_pump/save_pump/warp_entry_pump stopped being inlined into it: 10 736 -> 3 896 bytes measured with -O3 and no LTO.  Under BRAM_SET=pump only; the shipping set spends the region on the per-frame copy instead. */
+static void tick_pump(void) {
+    uint64_t now = sys_now_us();
+    g_pump_enters++;
+    g_depth++;
+    if (g_depth > g_depth_max) {
+        g_depth_max = g_depth;
+        if ((g_depth % 64) == 0) printf("pump depth=%u\n", (unsigned)g_depth);
     }
+
+    /* night.ini PUMP_AUDIO_TICK=1 puts the board drain on the tick too (task-9's A/B, docs/369).  The shipping
+     * shape is 0: this drain empties the byte ring the game's DMA transfers write into, and a gated drain can
+     * leave up to ~2 ms of already-requested samples sitting in that ring.  Experiment, not default -- which is
+     * why the boot prints the shape and why a run is judged on the budget line's sfx plays/drops/steals and the
+     * cdda dry/audio_low counters. */
+    if (!of_setting_pump_audio_tick() || g_audio_gate != g_timer_calls) {
+        g_audio_gate = g_timer_calls;
+        audio_pump();
+    }
+    cdda_pump();
+    /* Gated to the game's own tick, for the same reason the CDDA pump is (docs/364 §3) and for the same reason
+     * the pad pump already was (one poll per ~8 ms, docs/333): neither decision has a cadence finer than a frame.
+     * warp_entry_pump presses confirm for 250 ms at a time, which is 120 ticks; save_pump fires on a frame match
+     * and a tick runs 8x a frame, so a gated match is still the same frame.  The board drain (audio_pump) is NOT
+     * gated: it services the DMA ring the game is writing into, and "drain whenever the game spins" is the
+     * contract that ring is written against. */
+    if (g_warp_gate != g_timer_calls) {
+        g_warp_gate = g_timer_calls;
+        warp_entry_pump();
+        save_pump();
+    }
+#ifndef OF_PC
+    of_mixer_pump();
+#endif
+
+    /* main.c's pump order, kept: the board drain and the CD track always run, the tick handler only
+     * when a tick is actually due.  Skipping this line makes the pump call itself the clock -- 10.7
+     * million handler invocations per second instead of 490 (measured, and visible as the mode
+     * timeline flapping). */
+    if (now < g_tick_next_us) { g_depth--; return; }
+
+    settings_beat(now);
+    music_mode_mirror();
+
+    uint32_t hz = sys_pit_hz(0);                      /* fn_03ef29 programs PIT ch0 (0x982 -> 490 Hz) */
+    if (hz == 0 && g_dat_63318) hz = 1193182u / g_dat_63318;
+    if (hz == 0) hz = sys_clock_ticks_per_sec();
+    if (hz == 0) hz = 18;
+    /* The menu's "Tick Pump Hz" slider (interact.json index 1) may only slow the clock below the rate the
+     * game programmed -- a deliberate slow-motion/tuning knob for the 100 MHz core, never a speed-up. */
+    {
+        int cap = of_setting_tick_hz();
+        if (cap > 0 && cap < (int)hz) hz = (uint32_t)cap;
+    }
+    uint64_t period = 1000000ull / hz;
+
+    /* Re-anchoring on a lag of eight periods (16 ms) is what put the logo back into slow motion: a present
+     * that costs 81 ms re-anchored every single frame, so the game received one tick per frame -- 13 ticks a
+     * second instead of 490 -- and a fade measured in ticks never reached its end (reanchor=130 with
+     * frames=130).  The lag here is OUR blit, not the game blocking, and the right answer is to hand over the
+     * ticks that actually elapsed: 40 in a 81 ms frame, which is what a 12 fps renderer still owes the clock.
+     * Only a lag beyond half a second is treated as a real stall (a blocking read, a clock discontinuity) and
+     * re-anchored instead, and the burst cap goes to 128 so a 250 ms stall is absorbed. */
+    unsigned calls = 1;
+    if (now - g_tick_next_us > 500000ull) {           /* a genuine stall: re-anchor, don't burst */
+        g_tick_next_us = now;
+        g_pump_reanchor++;                            /* a stall inside game code shows up here */
+    } else {
+        while (now >= g_tick_next_us && calls < 128u) { g_tick_next_us += period; calls++; }
+        calls--;
+    }
+
+#ifdef OF_PC
+    if (g_fixed_step_calls) {
+        /* Same rule as src/app/main.c: the handler count is a function of the PRESENTED frame count. */
+        static unsigned s_step_frames;
+        calls = 0;
+        if (g_frames != s_step_frames) {
+            s_step_frames = g_frames;
+            unsigned want = (unsigned)((unsigned long long)g_frames *
+                                       (unsigned long long)g_fixed_step_calls / (unsigned long long)g_fixed_fps);
+            while (g_timer_calls < want && g_timer_calls < s_step_frames * 64ul + 64ul) {
+                fn_03ee88(); g_timer_calls++;
+            }
+        }
+    } else
+#endif
+    while (calls--) { fn_03ee88(); g_timer_calls++; }
+    g_pump_calls++;
+
+    if (now >= g_present_next_us) {
+        uint64_t t0 = sys_now_us();
+        present();
+        uint32_t d = (uint32_t)(sys_now_us() - t0);
+        if (d > g_present_us_max) g_present_us_max = d;
+        g_present_us = d;
+        g_present_us_sum += d; g_present_n++;
+        g_frames++;
+#ifdef OF_PC
+        /* The rig's state witness on the same grid as its screen witness.  audio_bytes is the Red Book the host
+         * has actually delivered (2352 bytes a sector), the same quantity src/app/main.c hands the sink. */
+        if (g_rig_dir) rig_poll((long)(now / 1000ull), (unsigned long long)g_frames,
+                                (unsigned long long)of_cdda_pos() * 2352ull);
+#endif
+        g_present_next_us = now + PRESENT_PERIOD_US;
+        if (g_frames_limit && g_frames >= (uint32_t)g_frames_limit) g_quit = 1;
+    }
+    if (now >= g_diag_next_us) diag_report(now, hz);
     g_depth--;
     if (g_quit) longjmp(g_game_escape, 1);
 }

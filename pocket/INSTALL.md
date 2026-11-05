@@ -71,7 +71,25 @@ The `budget` line is what carries the device's own SD-read timings (`disc reads=
 fails=…`) and the mixer's underrun counters; the desktop shim cannot produce the SD half of it (docs/364 §5).  A
 screenshot from `Memories/Screenshots/` helps when the complaint is about the picture.
 
-## 4. Desktop verification (no hardware needed)
+## 4. Measuring performance (two boots, one ini line apart)
+
+The perf questions this port has open can only be answered on the device, because BRAM and SD cost are no-ops on the
+desktop shim.  Set `LOG=1` in `Assets/night/common/night.ini` (the `budget`/`stages`/`perf` lines live in the log),
+then run the same ~60 seconds of play twice:
+
+```sh
+# variant A: the shipping placement -- per-frame copy path in the 14 KB BRAM
+cd pocket/src/night && make deploy
+
+# variant B: tick_pump in BRAM instead, copy path back in SDRAM (docs/372 3)
+cd pocket/src/night && make BRAM_SET=pump && make deploy
+```
+
+Compare `grep -E '^(stages|perf|budget)' nightlog.sav` between the two.  A third axis is `PUMP_AUDIO_TICK=1`, which
+gates the board's DMA drain to the 490 Hz tick instead of every pump entry (docs/369 §5) -- judge it on `sfx=…/…/…`
+and `dry` staying flat.  Whichever wins is what stays default.
+
+## 5. Desktop verification (no hardware needed)
 
 ```sh
 make test                                    # the fixture suite against src/f (repo root)
@@ -81,6 +99,6 @@ FRAMES=4500 scripts/pocket/sweep_episodes.sh && python3 scripts/pocket/sweep_rep
 python3 scripts/pocket/diff_hosts.py /tmp/xpoc/s1 /tmp/xsdl/s1          # Pocket shim vs SDL host, same route
 ```
 
-Analysis and evidence: `docs/330` (budgets and the mapping) through `docs/365` (the two-host diff), `scripts/pocket/`
+Analysis and evidence: `docs/330` (budgets and the mapping) through `docs/372` (the BRAM sets), `scripts/pocket/`
 (repack, mk_dist, deploy, check_slots, check_interact, sim_menu, sweep_*, diff_hosts), `scripts/analysis/gain_scan.py`
 (the audio measurements behind the gain curve).

@@ -36,7 +36,7 @@ Three of them are in **Core Options** on the device -- Music Volume, SFX Volume,
 | `MUSIC_VOL` `SFX_VOL` `MASTER_VOL` | 255 | mixer stages, 0-255 |
 | `SFX_GAIN` `CDDA_GAIN` | 200 / 150 | sample gain in percent, 100-212, through a knee that cannot clip and cannot attenuate |
 | `FIT` | 1 | panel fit: 0 letterbox (20+20 black bars), 1 stretch (fills the panel), 2 the core scaler's 320x200 |
-| `SCREEN` | 2 | 0 game, 1 terminal, 2 console over the game (the diagnostic panel), -1 follow the menu's Pocket LCD |
+| `SCREEN` | 0 | 0 game, 1 terminal, 2 the diagnostic panel over the game, -1 follow the menu's Pocket LCD |
 | `CDDA` `PAD` | 0 | `1` mutes the CD music / ignores the pad |
 | `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |
 | `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |

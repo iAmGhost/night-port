@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.59"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.60"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -453,7 +453,7 @@ def main():
         # It is pinned here rather than left to the menu because the interact bridge is ambiguous: five
         # variables share 0xF7000000, and a value of 0 is both "On" and "nothing was carried".
         # Pinned, on purpose.  SCREEN=-1 used to follow the Pocket LCD field read out of the interact bridge, and that bridge answers garbage on this OS (docs/342) -- a junk word with bits 16-17 set could move the app to the console by itself.  SCREEN=2 overlays the card log on the game for a hardware run; SCREEN=-1 only means something once openfpgaOS answers of_interact_get().
-        "SCREEN=2\n"     # 2 = the game picture with the white terminal panel over it (task-12a readout, docs/370); 0 = game alone, 1 = console alone, -1 = follow the menu's Pocket LCD
+        "SCREEN=0\n"     # 0 = the game alone (the shipping shape). 2 = the diagnostic panel over the picture, 1 = console alone, -1 = follow the menu's Pocket LCD: SCREEN=2 is a developer's instrument, not a player setting (docs/370)
         # How the 320x200 game picture meets the 320x240 panel: 0 = 1:1 with 20+20 black bars, 1 = fill the panel by
         # showing 40 of the 200 rows twice (the default: the panel is filled, which is what the Pocket looks like),
         # 2 = ask the core's scaler for its 320x200 framebuffer mode.  The menu's Screen Fit knob and L1+B do the same
@@ -507,7 +507,7 @@ def main():
           "| `MUSIC_VOL` `SFX_VOL` `MASTER_VOL` | 255 | mixer stages, 0-255 |\n"
           "| `SFX_GAIN` `CDDA_GAIN` | 200 / 150 | sample gain in percent, 100-212, through a knee that cannot clip and cannot attenuate |\n"
           "| `FIT` | 1 | panel fit: 0 letterbox (20+20 black bars), 1 stretch (fills the panel), 2 the core scaler's 320x200 |\n"
-          "| `SCREEN` | 2 | 0 game, 1 terminal, 2 console over the game (the diagnostic panel), -1 follow the menu's Pocket LCD |\n"
+          "| `SCREEN` | 0 | 0 game, 1 terminal, 2 the diagnostic panel over the game, -1 follow the menu's Pocket LCD |\n"
           "| `CDDA` `PAD` | 0 | `1` mutes the CD music / ignores the pad |\n"
           "| `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |\n"
           "| `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |\n"

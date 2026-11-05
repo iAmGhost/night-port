@@ -252,11 +252,27 @@ def run_scenario(title, mk, picks):
             print("   ", line)
 
 
-def replay(path, hunt):
+def scenario_from_json():
+    """Build the entry set from the interact.json that is actually deployed, so a replay models the core on the card."""
+    dist = sorted(pathlib.Path("pocket/dist/night").rglob("interact.json"))
+    if not dist:
+        return scenario_shipped()
+    variables = json.loads(dist[0].read_text())["interact"]["variables"]
+    out = []
+    for v in variables[8:]:
+        name = v["name"]
+        opts = [int(o["value"], 16) for o in v["options"]]
+        kind = "fit" if "Fit" in name else ("music" if "Music" in name else "sfx")
+        known = MIRROR.get(int(v["address"], 16))
+        out.append(entry(name, int(v["address"], 16), int(v["mask"], 16), min(opts), max(opts), kind, known))
+    return out
+
+
+def replay(path, hunt, mk=None):
     """Fold a real card log into a per-word sample timeline and run the port's logic over it."""
     text = pathlib.Path(path).read_text(errors="replace")
     fw = Firmware()
-    entries = scenario_packed()                   # the 0.1.47 run declared exactly these
+    entries = (mk or scenario_from_json)()
     fw.mount(entries)
     port = Port(entries, hunt=hunt)
     port.bind(fw)
@@ -275,6 +291,7 @@ def replay(path, hunt):
         if m:
             grouped.setdefault(float(m.group(2)), {})[(int(m.group(1), 16) - PERIPH_BASE) // 4] = int(m.group(4), 16)
     timeline = sorted(grouped.items())
+    card_claims = re.findall(r"menu: (.+?) slot CLAIMED t=([\d.]+)s @0x([0-9a-f]{8}) ([^()]*)", text)
     claims, applies = [], []
     # The core sweeps all 96 words at 2 Hz (one beat in five, docs/354 §4) whether or not anything changed, so the log
     # records far fewer samples than the port actually saw.  A replay that replays only logged events builds a thinner
@@ -301,8 +318,12 @@ def replay(path, hunt):
             elif "->" in line:
                 applies.append(line)
     print(f"\n=== replay {pathlib.Path(path).name} with hunt={'ON ' if hunt else 'OFF'}")
-    print(f"    {len(timeline)} sample instants, {len(entries)} entries "
-          f"(measured on the card: fit@0x4000006c t=12.9s, music@0x400000ec t=15.8s, sfx@0x400000dc t=15.8s)")
+    print(f"    {len(timeline)} sample instants, {len(entries)} entries")
+    if card_claims:
+        print("    the card actually claimed: " + ", ".join(f"{n}@{a} t={t}s ({how.split(' (')[0].strip()})"
+                                                            for n, t, a, how in card_claims))
+    else:
+        print("    the log records no slot claims")
     for line in claims[:8]:
         print("   ", line)
     if len(claims) > 8:
@@ -330,16 +351,18 @@ def main():
     run_scenario("2. packing three entries into one address (0.1.47), firmware writes the whole word",
                  scenario_packed, PICKS_PACKED)
     run_scenario("3. one entry per wired address (0.1.48)", scenario_shipped, PICKS_SHIPPED)
-    logs = sys.argv[1:] or ["scratch/pocket/log_0147.sav"]
-    for path in logs:
-        replay(path, hunt=True)                    # 0.1.47's rule: hunt allowed anywhere
-        replay(path, hunt=False)                   # 0.1.48's rule: a known address only
+    logs = [a for a in sys.argv[1:] if not a.startswith("--")]
+    packed = "--packed" in sys.argv
+    for path in logs or ["scratch/pocket/log_0147.sav"]:
+        mk = scenario_packed if packed else scenario_from_json      # which declaration the log belongs to
+        replay(path, hunt=True, mk=mk)              # the hunt rule 0.1.47 shipped
+        replay(path, hunt=False, mk=mk)             # the rule 0.1.48 ships
     print("\n=== verdict")
     print("    mask/value layer: consistent (option values inside their fields, indices offset by lo, none zero)")
     print("    firmware layer: whole-word writes -- a shared address cannot hold two settings (docs/358)")
-    print("    port layer: with the hunt allowed, the model claims two peripheral counters out of the real 0.1.47")
-    print("    timeline and drives Music Volume to mute from a counter -- exactly what the card did.  The shipped rule")
-    print("    (an entry with a known mirror reads that mirror and nothing else) claims 0x4000006c/0x40000068 only.")
+    print("    port layer: the model reproduces each run's own claims.  In the 0.1.47 log the hunt reaches garbage")
+    print("    registers before the real mirror answers; in the 0.1.48 log both rules land on 0x4000006c/0x40000068")
+    print("    because the mirrors answer on the first sample -- docs/358 §3's rule is what makes that reliable.")
 
 
 if __name__ == "__main__":

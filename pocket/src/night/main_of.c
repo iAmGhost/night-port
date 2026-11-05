@@ -1173,11 +1173,17 @@ static void periph_scan(int full) {
                          OF_PERIPH_BASE + 4u * i, g_menu[k].what, (unsigned)g_menu_seen[k][i]);
                     break;
                 }
-        NLOG("census t=%u.%us: %d candidate(s) of %d registers; claimed: %s%s\n",
+        /* Named from the table, not hardcoded: 0.1.48 reordered g_menu (Music, SFX, Fit) and this line went on
+         * reporting "Music Volume, Screen Fit" for slots 0 and 1, which is how a log can describe a core that no
+         * longer exists. */
+        char claimed[160];
+        int clen = 0;
+        for (int k = 0; k < MENU_N; k++)
+            clen += snprintf(claimed + clen, sizeof(claimed) - clen, "%s%s%s", k ? ", " : "", g_menu[k].what,
+                             g_menu[k].slot ? "" : "(none)");
+        NLOG("census t=%u.%us: %d candidate(s) of %d registers; claimed: %s\n",
              (unsigned)(sys_now_us() / 1000000ull), (unsigned)((sys_now_us() / 100000ull) % 10ull),
-             n, OF_PERIPH_WORDS,
-             g_menu[0].slot ? "Music Volume" : "Music Volume(none)",
-             g_menu[1].slot ? ", Screen Fit" : ", Screen Fit(none)");
+             n, OF_PERIPH_WORDS, claimed);
     }
     for (int i = 0; i < OF_PERIPH_WORDS; i++) {
         uint32_t v = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);

@@ -51,6 +51,11 @@ Each choice is deliberate, because each of them is a mistake already paid for:
 * Every periph artefact now carries a wall-time stamp, which is what makes a correlation possible at all:
   `periph t=42.5s 0080: 00000000 00000000 …`, `periph move @0x4000000c t=43.0s: 00000000 -> 00000002`,
   `probe t=43.0s: interact[8] err=0 val=00000002 field=2`.
+* **The core writes the verdict, not just the data.**  On every probe change it scans the 96 registers and logs any
+  register that now holds exactly that field's value *and* was not holding it at the previous sample:
+  `probe match t=43.0s: field=2 found @0x4000000c (was 00000000)`, followed by
+  `probe t=43.0s: field=2 scanned 96 registers, 1 match(es)`.  Four steps × 96 registers, and a real channel announces
+  itself as one line per step; `0 match(es)` four times is the negative answer, stated by the port itself.
 * The generated header carries `OF_IDX_PROBE 8`, and `check_interact.py` cross-checks the host's `PROBE_SHIFT` /
   `PROBE_MASK` against the JSON field in both directions (`ALL PASS`), plus the standing rules: app elements never at
   `0xF7000000`, never an all-ones mask, never a value outside its own field, never 0.

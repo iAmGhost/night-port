@@ -898,6 +898,23 @@ static void probe_watch(void) {
     NLOG("probe t=%u.%us: interact[%d] err=%ld val=%08x field=%u\n",
          (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), OF_IDX_PROBE, e, v, field);
     g_probe_seen = field;
+    /* And the answer, written by the core instead of left for whoever reads the log: any register that now holds
+     * exactly this field's value AND was not holding it at the last sample is a register that followed the menu.
+     * Four values, four steps, 96 registers -- a real channel would show up as one line per step. */
+    if (field >= 1u && field <= 4u) {
+        int hits = 0;
+        for (int i = 0; i < OF_PERIPH_WORDS; i++) {
+            uint32_t v2 = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
+            if (v2 == field && g_periph_prev[i] != v2) {
+                hits++;
+                NLOG("probe match t=%u.%us: field=%u found @0x%08x (was %08x)\n",
+                     (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), field,
+                     OF_PERIPH_BASE + 4u * i, (unsigned)g_periph_prev[i]);
+            }
+        }
+        NLOG("probe t=%u.%us: field=%u scanned 96 registers, %d match(es)\n",
+             (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), field, hits);
+    }
     if (of_setting_diag() & OF_DIAG_PERIPH) periph_scan(1);   /* bracket the change with a full snapshot */
 }
 #endif

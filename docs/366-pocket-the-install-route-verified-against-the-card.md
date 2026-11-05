@@ -89,6 +89,7 @@ $ grep -o '"version": *"[^"]*"' /Volumes/Pocket/Cores/iamghost.night/core.json
 install route rather than in a Makefile promise:
 
 ```sh
+make -C pocket/src/night test          # builds the desktop shim AND the RISC-V ELF: the shim alone is not evidence
 make -C pocket/src/night dist && make -C pocket/src/night deploy
 strings /Volumes/Pocket/Assets/night/common/night.elf | grep -E '^0\.1\.'    # must equal core.json's version
 md5 -q /Volumes/Pocket/Assets/night/common/night.elf pocket/build/pocket/night/Assets/night/common/night.elf

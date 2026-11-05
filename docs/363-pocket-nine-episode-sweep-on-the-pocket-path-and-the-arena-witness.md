@@ -134,3 +134,19 @@ shorter run than §3's, and `na*` partial matches sit at the same 42–62 % as a
 (the warp route walks through the CG shows rather than playing them).  What the sweep actually certifies is the
 loader/state half: room chain, boss coordinates, view geometry, entity counts, episode CD selects against
 `g_tab_52da4`, and arena bytes equal to the shipped PCX wherever the route holds a card.
+
+## 9. Re-run on 0.1.69 (`FRAMES=4000 OUT=/tmp/sweep17 scripts/pocket/sweep_episodes.sh`)
+
+Run again after the 0.1.65-0.1.69 host changes (batched disc reads, prefill slice, save-mask default, the
+`res.jsonl` sidecar and the `g_rig_dir` build break docs/386 5):
+
+- **9/9 episodes entered and ran clean**, tick +491/s against the 490 Hz pit in all nine.
+- Stage cards **100.00% byte-identical** to the shipped PCX wherever the run reached them -- stage 9 for instance
+  `9s1/9s2/9s3/stage9.pcx` all `307200/307200 IDENTICAL`.
+- Arena high-water 4.89 MB of 16 MiB on stage 9; `present max 3825 us`; `arena sample(s) byte-identical` seen in every
+  stage that reached a card.
+
+Shorter frames (4000 instead of 9000) is why some intermission/ending cards show as "partial" here -- a 4000-frame run
+reaches fewer of them, and a card only compares where the run actually showed it.  The regression claim is the
+9/9-clean line and the identical stage cards, both unchanged from 0.1.65.
+

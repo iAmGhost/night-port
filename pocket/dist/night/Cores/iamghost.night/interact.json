@@ -202,39 +202,39 @@
                 "persist": true,
                 "writeonly": true,
                 "address": "0xF700000C",
-                "mask": "0xFFFFFF00",
-                "defaultval": "0x44",
+                "mask": "0xFFFFFFF0",
+                "defaultval": "0x04",
                 "options": [
                     {
-                        "value": "0x41",
+                        "value": "0x01",
                         "name": "Off"
                     },
                     {
-                        "value": "0x42",
+                        "value": "0x02",
                         "name": "1/8"
                     },
                     {
-                        "value": "0x43",
+                        "value": "0x03",
                         "name": "1/4"
                     },
                     {
-                        "value": "0x44",
+                        "value": "0x04",
                         "name": "1/2"
                     },
                     {
-                        "value": "0x45",
+                        "value": "0x05",
                         "name": "5/8"
                     },
                     {
-                        "value": "0x46",
+                        "value": "0x06",
                         "name": "3/4"
                     },
                     {
-                        "value": "0x47",
+                        "value": "0x07",
                         "name": "7/8"
                     },
                     {
-                        "value": "0x48",
+                        "value": "0x08",
                         "name": "Full"
                     }
                 ]
@@ -246,41 +246,66 @@
                 "enabled": true,
                 "persist": true,
                 "writeonly": true,
-                "address": "0xF7000010",
-                "mask": "0xFFFFFF00",
-                "defaultval": "0x64",
+                "address": "0xF700000C",
+                "mask": "0xFFFFFF0F",
+                "defaultval": "0x40",
                 "options": [
                     {
-                        "value": "0x61",
+                        "value": "0x10",
                         "name": "Off"
                     },
                     {
-                        "value": "0x62",
+                        "value": "0x20",
                         "name": "1/8"
                     },
                     {
-                        "value": "0x63",
+                        "value": "0x30",
                         "name": "1/4"
                     },
                     {
-                        "value": "0x64",
+                        "value": "0x40",
                         "name": "1/2"
                     },
                     {
-                        "value": "0x65",
+                        "value": "0x50",
                         "name": "5/8"
                     },
                     {
-                        "value": "0x66",
+                        "value": "0x60",
                         "name": "3/4"
                     },
                     {
-                        "value": "0x67",
+                        "value": "0x70",
                         "name": "7/8"
                     },
                     {
-                        "value": "0x68",
+                        "value": "0x80",
                         "name": "Full"
+                    }
+                ]
+            },
+            {
+                "name": "Screen Fit",
+                "id": 132,
+                "type": "list",
+                "enabled": true,
+                "persist": true,
+                "writeonly": true,
+                "address": "0xF700000C",
+                "mask": "0xFFFFFCFF",
+                "defaultval": "0x100",
+                "options": [
+                    {
+                        "value": "0x100",
+                        "name": "letterbox"
+                    },
+                    {
+                        "value": "0x200",
+                        "name": "stretch"
+                    },
+                    {
+                        "value": "0x300",
+                        "name": "scaler 320x200"
                     }
                 ]
             }

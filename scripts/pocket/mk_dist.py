@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.46"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.47"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -292,14 +292,27 @@ def main():
     # has one the player can reach during play (L1+B cycles letterbox / stretch / scaler, docs/334 §5) and developers
     # have night.ini's FIT.  Swapping Screen Fit back into the menu is one line below, and it costs SFX.
     APP_MENU_SETTINGS = [
-        ("Music Volume", 130, "0xF700000C", "0xFFFFFF00", "0x44",
-         [("0x41", "Off"), ("0x42", "1/8"), ("0x43", "1/4"), ("0x44", "1/2"),
-          ("0x45", "5/8"), ("0x46", "3/4"), ("0x47", "7/8"), ("0x48", "Full")]),
-        ("SFX Volume", 131, "0xF7000010", "0xFFFFFF00", "0x64",
-         [("0x61", "Off"), ("0x62", "1/8"), ("0x63", "1/4"), ("0x64", "1/2"),
-          ("0x65", "5/8"), ("0x66", "3/4"), ("0x67", "7/8"), ("0x68", "Full")]),
-        # Screen Fit is NOT declared: 0xF7000010 is taken by SFX Volume, and 0xF7000014 is not mirrored.  To trade two
-        # sound settings for a picture setting, move Screen Fit onto one of the two wired words and drop one of these.
+        # ONE bridge word, THREE settings.  A mask says which BITS an element may write, so elements may share an
+        # address as long as their writable bits are disjoint (docs/356: 0xF700000C is mirrored into the readable word
+        # 0x4000006c, 0xF7000010 into 0x40000068, nothing else is mirrored).  Two addresses used to mean two settings;
+        # a 32-bit word carries ten 3-bit settings if the OS honours a per-element field on a shared address.
+        #
+        #   bits 0-3   Music Volume   0x01 .. 0x08      mask 0xFFFFFFF0 leaves the other bits alone
+        #   bits 4-7   SFX Volume     0x10 .. 0x80      mask 0xFFFFF00F
+        #   bits 8-9   Screen Fit     0x100 .. 0x300    mask 0xFFFFFCFF
+        #
+        # 0 of a field always means "the menu has not spoken for this setting yet", which is why no option value is 0.
+        # If the firmware writes the whole word instead of combining per field, one setting shows up and the other two
+        # fields stay 0 -- the core logs that plainly and this table reverts in one line (docs/356's two-address map
+        # still holds either way: Music at 0xF700000C, SFX at 0xF7000010, Fit off the menu).
+        ("Music Volume", 130, "0xF700000C", "0xFFFFFFF0", "0x04",
+         [("0x01", "Off"), ("0x02", "1/8"), ("0x03", "1/4"), ("0x04", "1/2"),
+          ("0x05", "5/8"), ("0x06", "3/4"), ("0x07", "7/8"), ("0x08", "Full")]),
+        ("SFX Volume", 131, "0xF700000C", "0xFFFFFF0F", "0x40",
+         [("0x10", "Off"), ("0x20", "1/8"), ("0x30", "1/4"), ("0x40", "1/2"),
+          ("0x50", "5/8"), ("0x60", "3/4"), ("0x70", "7/8"), ("0x80", "Full")]),
+        ("Screen Fit", 132, "0xF700000C", "0xFFFFFCFF", "0x100",
+         [("0x100", "letterbox"), ("0x200", "stretch"), ("0x300", "scaler 320x200")]),
     ]
     probe_vars = [
         {"name": n, "id": i, "type": "list", "enabled": True, "persist": True, "writeonly": True,
@@ -322,6 +335,7 @@ def main():
     if APP_INTERACT_PROBE:
         pairs.append(("Music Volume", "OF_IDX_MUSIC"))
         pairs.append(("SFX Volume", "OF_IDX_SFX"))
+        pairs.append(("Screen Fit", "OF_IDX_FIT"))
     if APP_INTERACT_KNOBS:
         pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
     pairs = tuple(pairs)

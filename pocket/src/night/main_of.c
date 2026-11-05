@@ -955,7 +955,8 @@ static void periph_scan(int full);
  * declaring the entries out of address order -- Screen Fit, declared LAST at 0xF7000010, was mirrored; SFX Volume,
  * declared SECOND at 0xF7000014, was not.  The mirror follows the ADDRESS.  Two words, no more. */
 #define OF_MENU_SLOT_MUSIC 0x4000006cu           /* carries whatever is mounted at 0xF700000C */
-#define OF_MENU_SLOT_SFX   0x40000068u           /* carries whatever is mounted at 0xF7000010 */
+#define OF_MENU_SLOT_SFX   0x4000006cu           /* the same word: SFX Volume lives in a different field of it */
+#define OF_MENU_SLOT_FIT   0x4000006cu           /* ...and so does Screen Fit */
 #ifdef OF_IDX_FIT
 #define IDX_FIT     OF_IDX_FIT
 #define FIT_LIVE    1                            /* an interact.json entry exists for it */
@@ -963,34 +964,47 @@ static void periph_scan(int full);
 #define IDX_FIT     (-1)
 #define FIT_LIVE    0                            /* no word is wired to it: L1+B and night.ini FIT only */
 #endif
-#define MUSIC_SHIFT 0                            /* interact.json: mask 0xFFFFFF00 writes bits 0-7 only */
-#define MUSIC_MASK  0xFFu
-#define FIT_SHIFT   0
-#define FIT_MASK    0xFFu
-#define MUSIC_BASE  0x41u                        /* 0x41..0x48 -> eight volume levels */
-#define FIT_BASE    0x51u                        /* 0x51..0x53 -> letterbox / stretch / scaler */
-#define SFX_BASE    0x61u                        /* 0x61..0x68 -> eight sound-effect levels */
-#define SFX_SHIFT   0                            /* same field shape as the other two: bits 0-7 of its word */
-#define SFX_MASK    0xFFu
+/* A mask says which BITS an element may write (docs/345), so several elements may share one bridge ADDRESS as long
+ * as their writable bits are disjoint.  That is what saves addresses: docs/356 measured that only two bridge words are
+ * mirrored into readable peripheral words, which used to mean "two settings, choose two".  Three entries are now
+ * mounted on 0xF700000C in disjoint fields of one 32-bit word, and the port reads them out of one peripheral word:
+ *
+ *   bits  0-3   Music Volume    option values 0x01..0x08     mask 0xFFFFFFF0
+ *   bits  4-7   SFX Volume      option values 0x10..0x80     mask 0xFFFFF00F
+ *   bits  8-9   Screen Fit      option values 0x100..0x300   mask 0xFFFFFCFF
+ *
+ * A FIELD of 0 still means "the menu has not spoken for this setting", which is why no option value is 0 and why the
+ * silence rule works per field (docs/354).  Whether the OS combines per element or writes the whole word is what this
+ * build measures: if it writes the whole word, one field shows a value, the other two stay 0 forever, and the log says
+ * so instead of guessing.  0xF7000010 -> 0x40000068 is left free for a fourth setting this way. */
+#define MUSIC_SHIFT 0
+#define MUSIC_MASK  0xFu                         /* bits 0-3 */
+#define SFX_SHIFT   4
+#define SFX_MASK    0xFu                         /* bits 4-7: four bits, values 1..8 shifted up */
+#define FIT_SHIFT   8
+#define FIT_MASK    0x3u                         /* bits 8-9 */
+#define MUSIC_BASE  1u                           /* FIELD values: 1..8 = Off .. Full */
+#define FIT_BASE    1u                           /* 1..3 = letterbox / stretch / scaler */
+#define SFX_BASE    1u                           /* 1..8 = Off .. Full */
 
 enum { MENU_MUSIC, MENU_FIT, MENU_SFX, MENU_N };
 struct menu_var {
     const char *what;
     int idx;                     /* the generated interact index, kept only for the cross-check log */
     int kind;                    /* which setting this value drives */
-    unsigned lo, hi, dflt;       /* the option values this entry can write, and the default it declares */
+    unsigned shift, mask;        /* this entry's FIELD inside the shared word */
+    unsigned lo, hi, dflt;       /* option values INSIDE that field (never 0: 0 means "not spoken yet") */
     uint32_t known;              /* the peripheral word hardware was seen to carry it, 0 = unknown */
     uint32_t slot;               /* the word currently trusted, 0 = nothing claimed yet */
-    unsigned last;               /* last value read from that slot; 0 = the menu has not spoken */
+    unsigned last;               /* last FIELD value read from that slot; 0 = the menu has not spoken */
 };
 static struct menu_var g_menu[MENU_N] = {
-    {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, 0x41u, 0x48u, 0x44u, OF_MENU_SLOT_MUSIC, 0u, 0u},
-    /* Screen Fit has no interact.json entry any more: the two words the OS mirrors are both taken by the two volume
-     * settings, and 0xF7000014 is not mirrored at all.  The row stays because the pad combo still drives the same
-     * setting and the swap is one line in mk_dist -- but it is marked not live, so it can never hunt for a word and
-     * mistake some counter for a menu that does not exist. */
-    {"Screen Fit",   IDX_FIT,      MENU_FIT,   0x51u, 0x53u, 0x51u, 0u,                 0u, 0u},
-    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   0x61u, 0x68u, 0x64u, OF_MENU_SLOT_SFX,   0u, 0u},
+    {"Music Volume", OF_IDX_MUSIC, MENU_MUSIC, MUSIC_SHIFT, MUSIC_MASK, 1u, 8u, 4u, OF_MENU_SLOT_MUSIC, 0u, 0u},
+    {"SFX Volume",   OF_IDX_SFX,   MENU_SFX,   SFX_SHIFT,   SFX_MASK,   1u, 8u, 4u, OF_MENU_SLOT_SFX,   0u, 0u},
+    /* Screen Fit is mounted again -- packing freed the address it needs.  If interact.json ever drops it again the
+     * generated OF_IDX_FIT disappears, IDX_FIT becomes -1 and this row goes inert so it cannot hunt for a word and
+     * mistake a counter for a menu that does not exist. */
+    {"Screen Fit",   IDX_FIT,      MENU_FIT,   FIT_SHIFT,   FIT_MASK,   1u, 3u, 1u, OF_MENU_SLOT_FIT,   0u, 0u},
 };
 
 /* Per-register trust, measured against every entry: a word is clean for an entry if EVERY sample it has ever shown
@@ -1003,21 +1017,31 @@ static uint8_t g_menu_mute_warn[MENU_N];                /* say "no slot" once, n
 static uint8_t g_menu_init;
 #define MENU_SEEN_MIN 5u                          /* 5 samples of settings_beat = half a second holding a value */
 
-static int menu_opt(const struct menu_var *m, unsigned v) { return v == 0u || (v >= m->lo && v <= m->hi); }
-static int menu_is_option(const struct menu_var *m, unsigned v) { return v >= m->lo && v <= m->hi; }
+static unsigned menu_field(const struct menu_var *m, uint32_t v) { return (v >> m->shift) & m->mask; }
 
-static const char *menu_option_name(const struct menu_var *m, unsigned v) {
+/* Every test below is a test on this entry's FIELD, not on the whole word: three entries read one word, and what one
+ * of them writes says nothing about the others. */
+static int menu_opt(const struct menu_var *m, uint32_t v) {
+    unsigned f = menu_field(m, v);
+    return f == 0u || (f >= m->lo && f <= m->hi);
+}
+static int menu_is_option(const struct menu_var *m, uint32_t v) {
+    unsigned f = menu_field(m, v);
+    return f >= m->lo && f <= m->hi;
+}
+
+static const char *menu_option_name(const struct menu_var *m, unsigned f) {
     static const char *vol[] = {"Off", "1/8", "1/4", "1/2", "5/8", "3/4", "7/8", "Full"};
     static const char *fit[] = {"letterbox", "stretch", "scaler 320x200"};
     if (m->kind == MENU_MUSIC || m->kind == MENU_SFX)
-        return (v >= m->lo && v <= m->lo + 7u) ? vol[v - m->lo] : "?";
-    return (v >= FIT_BASE && v <= FIT_BASE + 2u) ? fit[v - FIT_BASE] : "?";
+        return (f >= 1u && f <= 8u) ? vol[f - 1u] : "?";
+    return (f >= 1u && f <= 3u) ? fit[f - 1u] : "?";
 }
 
-static int menu_apply(struct menu_var *m, unsigned v) {
-    if (m->kind == MENU_MUSIC) return of_setting_apply_music_vol((int)(v - m->lo) * 255 / 7);   /* 0..7 -> 0..255 */
-    if (m->kind == MENU_SFX)   return of_setting_apply_sfx_vol((int)(v - m->lo) * 255 / 7);
-    return of_setting_apply_fit((int)(v - FIT_BASE));
+static int menu_apply(struct menu_var *m, unsigned f) {
+    if (m->kind == MENU_MUSIC) return of_setting_apply_music_vol((int)(f - 1u) * 255 / 7);      /* 1..8 -> 0..255 */
+    if (m->kind == MENU_SFX)   return of_setting_apply_sfx_vol((int)(f - 1u) * 255 / 7);
+    return of_setting_apply_fit((int)(f - 1u));
 }
 
 static unsigned g_menu_beat;
@@ -1037,7 +1061,7 @@ static void menu_sample(void) {
         uint32_t v = periph_word(OF_PERIPH_BASE + 4u * i);
         for (int k = 0; k < MENU_N; k++) {
             if (!menu_opt(&g_menu[k], v)) { g_menu_clean[k][i] = 0; continue; }
-            if (v == 0u) g_menu_zero[k][i] = 1;         /* docs/354: a mirror word is silent until the player moves
+            if (menu_field(&g_menu[k], v) == 0u) g_menu_zero[k][i] = 1;         /* docs/354: a mirror word is silent until the player moves
                                                          * its entry, so a word that was never silent is not one.
                                                          * 0.1.44 learned this the hard way: 0x4000003c sits at 0x63
                                                          * from boot, which is inside SFX Volume's option band, holds
@@ -1051,12 +1075,12 @@ static void menu_sample(void) {
     }
 }
 
-static void menu_claim(struct menu_var *m, uint32_t a, unsigned v, const char *how) {
-    m->slot = a; m->last = v;
+static void menu_claim(struct menu_var *m, uint32_t a, uint32_t v, const char *how) {
+    m->slot = a; m->last = menu_field(m, v);
     uint64_t t = sys_now_us();
-    NLOG("menu: %s slot CLAIMED t=%u.%us @0x%08x %s (value %02x = %s, options %02x..%02x)\n",
-         m->what, (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), a, how, v,
-         menu_option_name(m, v), m->lo, m->hi);
+    NLOG("menu: %s slot CLAIMED t=%u.%us @0x%08x %s (word %08x, field %u = %s at bits %u-%u)\n",
+         m->what, (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), a, how, (unsigned)v, m->last,
+         menu_option_name(m, m->last), m->shift, m->shift + 31u - (unsigned)__builtin_clz(m->mask));
 }
 
 static int menu_slots_scan(void) {
@@ -1066,10 +1090,11 @@ static int menu_slots_scan(void) {
         struct menu_var *m = &g_menu[k];
         if (!FIT_LIVE && m->kind == MENU_FIT) continue;      /* no entry declared: nothing to read */
 
-        if (m->slot && !menu_opt(m, periph_word(m->slot))) {      /* a register that shows what the menu cannot
+        if (m->slot && !menu_opt(m, periph_word(m->slot))) {      /* a word whose FIELD shows what the menu cannot
                                                                     * write was never the slot */
-            NLOG("menu: %s slot @0x%08x lost (value %08x is neither 0 nor an option %02x..%02x)\n",
-                 m->what, m->slot, (unsigned)periph_word(m->slot), m->lo, m->hi);
+            NLOG("menu: %s slot @0x%08x lost (field %u is neither 0 nor an option %u..%u of word %08x)\n",
+                 m->what, m->slot, menu_field(m, periph_word(m->slot)), m->lo, m->hi,
+                 (unsigned)periph_word(m->slot));
             m->slot = 0; m->last = 0;
         }
         if (!m->slot && m->known && menu_is_option(m, periph_word(m->known)))
@@ -1080,10 +1105,9 @@ static int menu_slots_scan(void) {
                 uint32_t a = OF_PERIPH_BASE + 4u * i, v = periph_word(a);
                 if (!g_menu_clean[k][i] || !g_menu_zero[k][i] || g_menu_seen[k][i] < MENU_SEEN_MIN
                     || !menu_is_option(m, v)) continue;
-                int taken = 0;
-                for (int j = 0; j < MENU_N; j++) if (j != k && g_menu[j].slot == a) taken = 1;
-                if (taken) continue;
-                menu_claim(m, a, v, "found by range cleanliness");
+                /* Sharing a word is the point of packing: three entries may claim the SAME word because they read
+                 * disjoint fields of it, so the old "somebody else claimed it" veto is gone. */
+                menu_claim(m, a, v, "found by field cleanliness");
                 break;
             }
         }
@@ -1099,20 +1123,23 @@ static int menu_slots_scan(void) {
             continue;
         }
 
-        unsigned v = periph_word(m->slot);
-        if (v == 0u) {                                            /* the menu has not been touched this run: the
-                                                                  * night.ini value stands, exactly as before */
+        uint32_t w = periph_word(m->slot);
+        unsigned f = menu_field(m, w);
+        if (f == 0u) {                                            /* this FIELD is silent: the night.ini value stands,
+                                                                  * whatever the other entries wrote into the same word */
             if (m->last != 0u) {
                 m->last = 0;
-                NLOG("menu: %s slot @0x%08x reads 0 again -- the value from night.ini stands\n", m->what, m->slot);
+                NLOG("menu: %s field in slot @0x%08x reads 0 again -- the value from night.ini stands\n",
+                     m->what, m->slot);
             }
             continue;
         }
-        if (v != m->last) {
-            m->last = v;
-            ch |= menu_apply(m, v);
-            NLOG("menu: %s = %s (%02x) applied: %s\n", m->what, menu_option_name(m, v), v,
-                 m->kind == MENU_MUSIC ? "music volume" : m->kind == MENU_SFX ? "sound-effect volume" : "panel fit");
+        if (f != m->last) {
+            m->last = f;
+            ch |= menu_apply(m, f);
+            NLOG("menu: %s = %s (field %u of word %08x) applied: %s\n", m->what, menu_option_name(m, f), f,
+                 (unsigned)w, m->kind == MENU_MUSIC ? "music volume" : m->kind == MENU_SFX ? "sound-effect volume"
+                 : "panel fit");
         }
     }
     return ch;

@@ -469,6 +469,7 @@ static int16_t *g_sfx_pool[SFX_BLOCKS];
 static int      g_sfx_voice[SFX_BLOCKS];
 static int      g_sfx_block;
 static int16_t  g_sfx_scratch[SFX_CHUNK];
+static uint64_t g_sfx_free_us[SFX_BLOCKS];   /* when a slot's sample has run out, by our own arithmetic */
 static uint32_t g_of_sfx_plays;
 static uint32_t g_of_sfx_drops;    /* samples discarded because all eight SFX slots were still sounding */   /* (f.h already exports g_sfx_plays for the game's own element-event sounds) */
 
@@ -503,16 +504,27 @@ static void audio_pump(void) {
     uint32_t got;
     while ((got = sys_audio_fill(g_sfx_scratch, SFX_CHUNK)) != 0) {
         if (!g_sfx_pool[0]) continue;              /* no pool: still drain, the board clock must advance */
+        /* A slot is free when its sample has run out -- which is arithmetic, not a question for the mixer.
+         * of_mixer_voice_active() was the question, and the card answered it badly: plays=26 against drops=952
+         * in one run means eight slots all looked busy at once.  A finished voice is released by the mixer only
+         * when it is stopped, so a slot that is merely "done playing" still reads as active, and after eight
+         * sounds every later sound is thrown away -- which is what "SFX are almost missing" was. */
+        uint64_t now = sys_now_us();
         int b = -1;
-        for (int i = 0; i < SFX_BLOCKS; i++) {     /* any free slot, not a fixed round-robin that gives up */
+        for (int i = 0; i < SFX_BLOCKS; i++) {
             int c = (g_sfx_block + i) % SFX_BLOCKS;
-            if (!g_sfx_voice[c] || !of_mixer_voice_active(g_sfx_voice[c])) { b = c; break; }
+            if (!g_sfx_voice[c] || !of_mixer_voice_active(g_sfx_voice[c]) || now >= g_sfx_free_us[c]) {
+                if (g_sfx_voice[c]) of_mixer_stop(g_sfx_voice[c]);   /* really release the mixer's slot */
+                b = c;
+                break;
+            }
         }
-        if (b < 0) { g_of_sfx_drops++; continue; } /* all eight busy: drop rather than tear one in half */
+        if (b < 0) { g_of_sfx_drops++; continue; } /* all eight still sounding: drop rather than tear one in half */
         g_sfx_block = (b + 1) % SFX_BLOCKS;
         memcpy(g_sfx_pool[b], g_sfx_scratch, (size_t)got * sizeof(int16_t));
         of_cache_flush_range(g_sfx_pool[b], (size_t)got * sizeof(int16_t));
         g_sfx_voice[b] = of_mixer_play((const uint8_t *)g_sfx_pool[b], got, rate, 100, 220);
+        g_sfx_free_us[b] = now + (uint64_t)got * 1000000ull / rate + 20000ull;   /* +20 ms of margin */
         if (g_of_sfx_plays <= 8)                       /* rate, length, and the handle the mixer handed back:
                                                         * voice=-1 would mean the mixer refused the sample. */
             NLOG("sfx#%u ch=%d rate=%u frames=%u voice=%d\n",
@@ -1042,6 +1054,17 @@ int main(int argc, char **argv) {
         of_video_set_display_mode(mode);
         NLOG("screen: ini/menu=%d display_mode=%d (0=terminal 1=framebuffer 2=overlay)\n", scr, mode);
         NLOG("log ok=%d bytes=%ld\n", g_log_ok, of_log_bytes());
+        {
+            of_video_caps_t cap; of_video_get_caps(&cap);
+            NLOG("caps max=%ux%u stride=%u phys=%ux%u def=%ux%u bytes=%u modes=%d\n",
+                 cap.max_width, cap.max_height, cap.max_stride, cap.physical_width, cap.physical_height,
+                 cap.default_width, cap.default_height, cap.max_frame_bytes, of_video_get_mode_count());
+            for (int i = 0; i < of_video_get_mode_count() && i < 8; i++) {
+                of_video_mode_t m;
+                if (of_video_get_mode_info(i, &m) == 0)
+                    NLOG("mode %d: %ux%u stride=%u color=%u\n", i, m.width, m.height, m.stride, m.color_mode);
+            }
+        }
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
         mem_bench();

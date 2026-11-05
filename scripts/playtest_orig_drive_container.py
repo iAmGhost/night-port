@@ -49,7 +49,11 @@ def main():
             data = raw_body.encode() if isinstance(raw_body, str) else raw_body
         binary = "format=raw" in path or "format=png" in path
         for attempt in range(retries + 1):
-            cmd = ["docker", "exec", a.name, "curl", "-s", "-m", "20", "-X", method,
+            # `-i` only when there is a body: docker exec does not forward stdin without it, and curl's `@-` then
+            # posts an empty body -- which the emulator answers as "Malformed request body", indistinguishable from a
+            # bad payload if you do not know the flag is missing (measured: 123 boot frames captured, then every key
+            # injection failed with HTTP 400).
+            cmd = ["docker", "exec"] + (["-i"] if data is not None else []) + [a.name, "curl", "-s", "-m", "20", "-X", method,
                    "-H", "Authorization: Bearer " + token,
                    "-w", "\n%{http_code}"]
             if data is not None:
@@ -59,7 +63,13 @@ def main():
             cmd.append("http://127.0.0.1:8386" + path)
             r = subprocess.run(cmd, input=data, capture_output=True)
             if r.returncode:
-                raise RuntimeError("docker exec curl failed: " + r.stderr.decode()[:200])
+                # curl 7/28 are "cannot connect" and "timed out": normal while dosbox-automation is still coming up
+                # (the emulator binds its API a second or two after the process starts), and the driver already
+                # retries 409s -- so a connection failure is retried on the same budget, not raised.
+                if r.returncode in (7, 28) and attempt < retries:
+                    time.sleep(1.0)
+                    continue
+                raise RuntimeError("docker exec curl rc=%d: %s" % (r.returncode, r.stderr.decode()[:200]))
             out = r.stdout
             code = int(out.rsplit(b"\n", 1)[-1].decode().strip() or 0)
             payload = open(os.path.join(MOUNT, "_drv.bin"), "rb").read() if binary else out[:-len(b"\n" + str(code).encode())]

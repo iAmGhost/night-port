@@ -133,6 +133,8 @@ content comparison needs before it can be believed is a *reliable* launch -- an 
 `/api/v1/program/state` answer, or a DS witness) before the drive timeline starts spending its key presses -- and that
 belongs to the driver, not to this wrapper.
 
+Superseded by docs/379: the mode-3 mystery was two stale dosbox-automation instances holding port 8386 (`pkill` is absent from the image, so my restarts accumulated them) plus `docker exec` needing `-i` to forward a body. With both fixed the anchored driver produced 434 labelled content frames and the first Pocket-vs-original score. The paragraph below is kept as the record of what was believed at the time.
+
 Until then the honest state of the original-side basis is: the tool chain is complete and proven end to end
 (capture, oracle, driver, wrapper), one no-key capture produced 245 usable frames of the pre-game phase, and no
 content-based Pocket-vs-original score exists yet.  The content claims this port rests on remain docs/91 (shared

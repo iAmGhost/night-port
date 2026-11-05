@@ -31,5 +31,6 @@ int  of_setting_screen(void);         /* 0 game, 1 terminal, 2 game + log overla
 int  of_setting_lcd_raw(void);        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */
 int  of_setting_sync_flip(void);      /* 1 = wait for each flip to be presented before returning */
+int  of_setting_fb_mode(void);        /* 1 = ask the OS for a native 640x480 source framebuffer (FB_MODE=0 forces the software downscale) */
 
 #endif /* NIGHT_OF_SAVE_H */

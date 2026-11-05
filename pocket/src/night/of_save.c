@@ -69,7 +69,7 @@ static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
 static int      g_tick_hz   = 0;   /* 0 = whatever PIT rate the game programs; see of_setting_tick_hz */
 static unsigned g_lcd_raw   = 0xDEADBEEFu;   /* 0xDEADBEEU until the bridge is read */
-static int      g_blit_skip = 0, g_sync_flip = 1;
+static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
@@ -288,6 +288,7 @@ void of_settings_load(void) {
      * change holds the previous picture for up to eight presents -- which reads as the picture drifting
      * forward and back.  Now that a 320x200 present costs 1.8 ms median there is nothing left for the skip
      * to buy in the places it was doing the damage; BLIT_SKIP=1 re-arms it for performance experiments. */
+    g_fb_mode = cfg_int("fb_mode",       1, "NIGHT_FB_MODE");   /* 1 = ask the OS for a 640x480 source FB */
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
@@ -328,4 +329,5 @@ int of_setting_tick_hz(void)   { return g_tick_hz; }
 int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
+int  of_setting_fb_mode(void)   { return g_fb_mode; }     /* 1 = use a native 640x480 source framebuffer if the OS offers one */
 int  of_setting_lcd_raw(void) { return (int)g_lcd_raw; }   /* the Pocket LCD field only, not the shared word */

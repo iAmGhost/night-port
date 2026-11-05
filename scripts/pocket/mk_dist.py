@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.16"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.17"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 SLOT_BASE = 18              # first audio-track slot: track02 -> 18 ... track15 -> 31 (all ids <= 31)
@@ -261,7 +261,8 @@ def main():
         # It is pinned here rather than left to the menu because the interact bridge is ambiguous: five
         # variables share 0xF7000000, and a value of 0 is both "On" and "nothing was carried".
         "SCREEN=0\n"
-        "BLIT_SKIP=0\n"       # skip the 640x480->320x240 blit while the source is unchanged (max 8 in a row)
+        "BLIT_SKIP=0\n"
+        "FB_MODE=1\n"      # 1 = native 640x480 source framebuffer when the OS offers one, 0 = software 2x2 downscale       # skip the 640x480->320x240 blit while the source is unchanged (max 8 in a row)
         "PRESENT_SYNC=0\n"    # wait for each flip to be presented before writing the surface again
         "TICK_HZ=490\n"
     )

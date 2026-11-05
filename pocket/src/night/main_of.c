@@ -131,6 +131,13 @@ static uint64_t g_tick_next_us;
 static uint64_t g_present_next_us;
 static uint64_t g_diag_next_us;
 static unsigned g_timer_calls, g_pump_calls;
+/* Source-framebuffer mode the OS offers (of_video_get_caps: max 800x600, 1 MB per frame).  The card reported
+ * 13 modes; if a 640x480 8-bit one is among them then a changed 640x480 frame costs a 307 200-byte copy
+ * (9.7 ms in the boot bench) and the core's own scaler, instead of 80 ms of majority-of-four arithmetic. */
+static int  g_fb_native_ok, g_fb_native_applied;
+static of_video_mode_t g_fb_native, g_fb_base;
+static unsigned g_fb_mode_sw;
+
 static unsigned g_pump_reanchor;                     /* times the tick schedule had to be re-anchored after a stall */
 
 static void on_fatal(const char *msg) {
@@ -373,8 +380,34 @@ static void present(void) {
     }
 #endif
 
+    int native = 0;
+#ifndef OF_PC
+    g_fb_mode_sw = (unsigned)of_setting_fb_mode();
+    if (!g_view_320x200 && vw == 2 * PANEL_W && vh == 2 * PANEL_H && g_fb_native_ok && g_fb_mode_sw) {
+        if (!g_fb_native_applied) {
+            uint64_t mt = sys_now_us();
+            int rc = of_video_set_mode(&g_fb_native);
+            NLOG("fb mode -> native 640x480 rc=%d in %uus\n", rc, (uint32_t)(sys_now_us() - mt));
+            if (rc != 0) g_fb_native_ok = 0; else g_fb_native_applied = 1;
+        }
+        native = g_fb_native_applied;
+        if (native) fb = of_video_surface();            /* the bigger surface belongs to the new mode */
+    } else if (g_fb_native_applied) {
+        uint64_t mt = sys_now_us();
+        int rc = of_video_set_mode(&g_fb_base);
+        NLOG("fb mode -> base %ux%u rc=%d in %uus\n", g_fb_base.width, g_fb_base.height,
+             rc, (uint32_t)(sys_now_us() - mt));
+        if (rc == 0) g_fb_native_applied = 0;
+    }
+#endif
+
     if (!skip) {
-    if (vw == GAME_W && vh == GAME_H) {
+    if (native) {
+        of_video_mode_t cur; of_video_get_mode(&cur);
+        uint32_t stride = cur.stride ? cur.stride : (uint32_t)vw;
+        for (int y = 0; y < vh; y++)
+            memcpy(fb + (size_t)y * stride, src + (size_t)y * vw, (size_t)vw);
+    } else if (vw == GAME_W && vh == GAME_H) {
         memset(fb, 0, (size_t)BAR_ROWS * PANEL_W);
         uint8_t *dst = fb + (size_t)BAR_ROWS * PANEL_W;
         memcpy(dst, src, (size_t)GAME_W * GAME_H);
@@ -788,12 +821,19 @@ static void tick_pump(void) {
     }
     uint64_t period = 1000000ull / hz;
 
+    /* Re-anchoring on a lag of eight periods (16 ms) is what put the logo back into slow motion: a present
+     * that costs 81 ms re-anchored every single frame, so the game received one tick per frame -- 13 ticks a
+     * second instead of 490 -- and a fade measured in ticks never reached its end (reanchor=130 with
+     * frames=130).  The lag here is OUR blit, not the game blocking, and the right answer is to hand over the
+     * ticks that actually elapsed: 40 in a 81 ms frame, which is what a 12 fps renderer still owes the clock.
+     * Only a lag beyond half a second is treated as a real stall (a blocking read, a clock discontinuity) and
+     * re-anchored instead, and the burst cap goes to 128 so a 250 ms stall is absorbed. */
     unsigned calls = 1;
-    if (now - g_tick_next_us > period * 8ull) {       /* fell far behind: re-anchor, don't burst */
+    if (now - g_tick_next_us > 500000ull) {           /* a genuine stall: re-anchor, don't burst */
         g_tick_next_us = now;
         g_pump_reanchor++;                            /* a stall inside game code shows up here */
     } else {
-        while (now >= g_tick_next_us && calls < 64u) { g_tick_next_us += period; calls++; }
+        while (now >= g_tick_next_us && calls < 128u) { g_tick_next_us += period; calls++; }
         calls--;
     }
 
@@ -1075,11 +1115,27 @@ int main(int argc, char **argv) {
             NLOG("caps max=%ux%u stride=%u phys=%ux%u def=%ux%u bytes=%u modes=%d\n",
                  cap.max_width, cap.max_height, cap.max_stride, cap.physical_width, cap.physical_height,
                  cap.default_width, cap.default_height, cap.max_frame_bytes, of_video_get_mode_count());
-            for (int i = 0; i < of_video_get_mode_count() && i < 8; i++) {
+            of_video_get_mode(&g_fb_base);
+            int nmode = of_video_get_mode_count();
+            for (int i = 0; i < nmode; i++) {
                 of_video_mode_t m;
-                if (of_video_get_mode_info(i, &m) == 0)
-                    NLOG("mode %d: %ux%u stride=%u color=%u\n", i, m.width, m.height, m.stride, m.color_mode);
+                if (of_video_get_mode_info(i, &m) != 0) continue;
+                NLOG("mode %d: %ux%u stride=%u color=%u\n", i, m.width, m.height, m.stride, m.color_mode);
+                if (m.width == 2 * PANEL_W && m.height == 2 * PANEL_H && m.color_mode == OF_VIDEO_MODE_8BIT) {
+                    g_fb_native = m; g_fb_native.stride = 0; g_fb_native_ok = 1;
+                }
             }
+            if (!g_fb_native_ok && cap.max_width >= 2 * PANEL_W && cap.max_height >= 2 * PANEL_H &&
+                cap.max_frame_bytes >= (uint32_t)(2 * PANEL_W) * (2 * PANEL_H)) {
+                /* Not on the list, but inside everything the core advertises it can hold.  Worth one bounded
+                 * attempt: present() checks the return value and falls back to the software downscale on any
+                 * refusal, so a wrong guess costs one log line and one slow frame, nothing else. */
+                g_fb_native = (of_video_mode_t){ 2 * PANEL_W, 2 * PANEL_H, 0, OF_VIDEO_MODE_8BIT, 0 };
+                g_fb_native_ok = 1;
+                NLOG("fb native 640x480 not listed -- attempting it inside caps\n");
+            }
+            NLOG("fb native 640x480 8-bit %s (base %ux%u stride=%u)\n",
+                 g_fb_native_ok ? "offered/attempted" : "NOT possible", g_fb_base.width, g_fb_base.height, g_fb_base.stride);
         }
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));

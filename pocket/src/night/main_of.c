@@ -71,7 +71,10 @@ static of_video_mode_t g_fb_game;
 static of_video_mode_t g_fb_native_200;
 static int g_fb_200_ok;
 static int g_fb_game_is_200;
-static int g_fit_stretch = 1;
+/* The fit is read from the setting every frame instead of cached in a host variable.  A cached copy was a bug:
+ * the desktop build skips the hardware video probe that used to set it, so night.ini FIT= / NIGHT_FIT= changed
+ * nothing there and a fit comparison looked like "both runs identical".  Read live, both builds honour it. */
+static int fit_wants_stretch(void) { return of_setting_fit() != 0; }
 
 #define PRESENT_HZ   60u
 #define PRESENT_PERIOD_US (1000000u / PRESENT_HZ)
@@ -422,7 +425,7 @@ static void present(void) {
             uint32_t stride = cur.stride ? cur.stride : (uint32_t)GAME_W;
             for (int y = 0; y < GAME_H; y++)
                 memcpy(fb + (size_t)y * stride, src + (size_t)y * GAME_W, (size_t)GAME_W);
-        } else if (g_fit_stretch) {
+        } else if (fit_wants_stretch()) {
             /* 200 rows onto 240 without bars: 40 of the rows are shown twice, one every fifth, which is the
              * evenest distribution a row-doubling stretch can have (200 + 40 = 240 exactly).  320x200 was seen
              * on a 4:3 CRT, i.e. vertically stretched by 1.2 already, so filling the panel is the closer
@@ -708,6 +711,37 @@ static void music_mode_mirror(void) {
     }
 }
 
+/* How the 320x200 game picture meets the 320x240 panel, applied at boot and whenever the menu moves.
+ * fit 0 = 1:1 with 20+20 black bars (the default); 1 = the host duplicates 40 of the 200 rows so the panel is
+ * filled; 2 = ask the core's scaler for its declared 320x200 framebuffer mode and let the FPGA stretch it for
+ * free.  A mode change costs 41-53 ms (docs/338), so one is only issued when the choice actually changes. */
+static void fit_apply(const char *why) {
+    int fit = of_setting_fit();
+    if (fit == 2 && !g_fb_200_ok) {
+        NLOG("fit=2 (%s): the core never offered a 320x200 mode -- using the host stretch instead\n", why);
+        fit = 1;
+    }
+    int want200 = (fit == 2);
+    if (want200 != g_fb_game_is_200) {
+        const of_video_mode_t *m = want200 ? &g_fb_native_200 : &g_fb_base;
+        uint64_t mt = sys_now_us();
+        int rc = of_video_set_mode(m);
+        NLOG("fit=%d (%s): framebuffer %ux%u rc=%d in %uus\n",
+             fit, why, m->width, m->height, rc, (uint32_t)(sys_now_us() - mt));
+        if (want200 && rc != 0) {
+            NLOG("fit=2 refused -- falling back to the host stretch\n");
+            want200 = 0;
+        }
+        g_fb_game = want200 ? g_fb_native_200 : g_fb_base;
+        g_fb_game_is_200 = want200;
+    }
+    NLOG("fit=%d (%s) for the 320x200 game picture on a %dx%d panel\n", of_setting_fit(),
+         g_fb_game_is_200 ? "core scaler stretches 320x200 -> panel"
+                          : (fit_wants_stretch() ? "host row stretch 200 -> 240 rows, no bars"
+                                           : "1:1 with 20+20 black bars"),
+         PANEL_W, PANEL_H);
+}
+
 /* The menu is live while the core runs, so the knobs are re-read on a beat instead of once at boot.
  * 100 ms is well below what a person notices on a volume slider and far above the cost of two bridge reads. */
 static uint64_t g_setting_next_us;
@@ -725,6 +759,10 @@ static void settings_beat(uint64_t now) {
     }
     if (ch & OF_SET_LCD)
         NLOG("settings: pocket lcd raw=%08x scr=%d\n", of_setting_lcd_raw(), of_setting_screen());
+    if (ch & OF_SET_FIT) {
+        NLOG("settings: fit raw=%08x -> %d\n", (unsigned)of_setting_fit_bridge(), of_setting_fit());
+        fit_apply("menu");
+    }
 }
 
 /* ---- pad -> the shipped keyboard state (docs/91, docs/92) -------------------------------
@@ -862,21 +900,29 @@ static void save_pump(void) {
     }
 }
 
-/* L1 held + Select saves the current slot, L1 + Start loads it, L1 + A cycles to the next slot.
+/* L1 held + Select saves the current slot, L1 + Start loads it, L1 + A cycles to the next slot, L1 + B cycles
+ * the panel fit (letterbox -> stretch -> scaler).
  * L1 is F1 to the game and Select/Start are Esc/Enter, so the combo also reaches the shipped key state --
  * that is unavoidable on 11 buttons and is why the game sees a pause-menu key press on a save. */
 static void pad_combo(void) {
     if (!pad_script_held(OF_BTN_L1) && !of_btn(OF_BTN_L1)) return;
-    static uint8_t seen_select, seen_start, seen_a;
+    static uint8_t seen_select, seen_start, seen_a, seen_b;
     int s = pad_script_held(OF_BTN_SELECT) || of_btn(OF_BTN_SELECT);
     int st = pad_script_held(OF_BTN_START) || of_btn(OF_BTN_START);
     int a = pad_script_held(OF_BTN_A) || of_btn(OF_BTN_A);
+    int b = pad_script_held(OF_BTN_B) || of_btn(OF_BTN_B);
     if (s && !seen_select) { seen_select = 1; if (of_save_write(of_save_slot()) != 0 && of_save_last_error()) printf("save: %s\n", of_save_last_error()); }
     if (!s) seen_select = 0;
     if (st && !seen_start) { seen_start = 1; if (of_save_read(of_save_slot()) == 0) g_load_slot = of_save_slot(); else if (of_save_last_error()) printf("load: %s\n", of_save_last_error()); }
     if (!st) seen_start = 0;
     if (a && !seen_a) { seen_a = 1; of_save_slot_next(); }
     if (!a) seen_a = 0;
+    if (b && !seen_b) {
+        seen_b = 1;
+        NLOG("fit: pad cycle -> %d (0 letterbox, 1 stretch, 2 scaler)\n", of_setting_fit_cycle());
+        fit_apply("pad");
+    }
+    if (!b) seen_b = 0;
 }
 
 static void pad_pump(void) {
@@ -1249,6 +1295,8 @@ int main(int argc, char **argv) {
     NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
          of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
          of_setting_tick_hz(), of_setting_screen());
+    NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
+         of_setting_fit());
 #ifndef OF_PC
     /* Which index actually carries what.  of_interact_get() addresses variables by position, and the last two
      * times this was guessed wrong (docs/336), so the whole front of the table is printed rather than only the
@@ -1258,8 +1306,15 @@ int main(int argc, char **argv) {
         for (int i = 0; i < OF_INTERACT_COUNT; i++)
             n += snprintf(acc + n, sizeof acc - (size_t)n, " %d=%08x", i, (unsigned)of_interact_get(i));
         NLOG("interact:%s\n", acc);
-        NLOG("music knob: raw=%08x -> vol=%d (index %d, whole word)\n",
-            (unsigned)of_interact_get(OF_IDX_MUSIC), of_setting_music_vol(), OF_IDX_MUSIC);
+        /* 0.1.28's card log read 0x55555555 at all eight indices.  of_interact_get() discards the ecall's error,
+         * so that number could mean "the OS answered this" or "the OS refused and this is junk" -- which is the
+         * whole difference between a menu that is not wired and a menu the OS does not implement at all.  Both
+         * halves get printed from here on. */
+        for (int i = 0; i < OF_INTERACT_COUNT; i++) {
+            unsigned v = 0;
+            long e = of_interact_probe(i, &v);
+            NLOG("interact[%d]: err=%ld val=%08x\n", i, e, v);
+        }
     }
 #endif
 #ifndef OF_PC
@@ -1310,22 +1365,7 @@ int main(int argc, char **argv) {
             }
             NLOG("fb native 640x480 8-bit %s (base %ux%u stride=%u)\n",
                  g_fb_native_ok ? "offered/attempted" : "NOT possible", g_fb_base.width, g_fb_base.height, g_fb_base.stride);
-            g_fit_stretch = of_setting_fit() != 0;
-            g_fb_game = g_fb_base;
-            if (of_setting_fit() == 2 && g_fb_200_ok) {
-                uint64_t mt = sys_now_us();
-                int rc = of_video_set_mode(&g_fb_native_200);
-                NLOG("fit=2: 320x200 framebuffer requested rc=%d in %uus\n",
-                     rc, (uint32_t)(sys_now_us() - mt));
-                if (rc == 0) { g_fb_game = g_fb_native_200; g_fb_game_is_200 = 1; }
-                else NLOG("fit=2 refused -- falling back to the host stretch\n");
-            }
-            NLOG("fit=%d (%s) for the 320x200 game picture on a %dx%d panel\n",
-                 of_setting_fit(),
-                 g_fb_game_is_200 ? "core scaler stretches 320x200 -> panel"
-                                   : (g_fit_stretch ? "host row stretch 200 -> 240 rows, no bars"
-                                                    : "1:1 with 20+20 black bars"),
-                 PANEL_W, PANEL_H);
+            fit_apply("boot");
         }
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));

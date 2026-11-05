@@ -31,6 +31,11 @@
 #include "of.h"
 #include "of_config.h"
 #include "of_interact_idx.h"        /* generated: which position in interact.json each knob sits at */
+#include "of_log.h"                  /* bridge probes are logged: the Pocket has no console */
+
+/* The host's NLOG writes the card log and the console; of_save.c needs the same, and the console half is what
+ * makes a desktop run readable. */
+#define SLOG(...) do { of_log_line(__VA_ARGS__); printf(__VA_ARGS__); } while (0)
 #include <dirent.h>
 #endif
 
@@ -85,6 +90,24 @@ static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, 
  * and a bare volume (64, 128, 192, 255) in case a future host decides the menu should carry levels directly.
  * 0 is never a volume here: 0 means "nothing was written" -- the options are anchored at 1 so a real choice can
  * not spell 0, and the card's own interact_persist.json showed an untouched variable reading 0. */
+#define BRIDGE_JUNK 0x55555555u        /* what 0.1.28's card log found at EVERY interact index */
+
+/* of_interact_get() is `return of_ecall1(...).value;` -- the error half of the SBI return is thrown away.  The
+ * card's log said 0x55555555 for all eight indices: not a menu value, not a volume, and not one of the codes in
+ * of_error.h (those are small negatives).  Error and value together say whether the OS answered junk or refused
+ * the call; the value alone cannot.  Every interact read in this host goes through here now. */
+long of_interact_probe(int index, unsigned *value) {
+#ifdef OF_PC
+    (void)index; if (value) *value = 0u; return 0;
+#else
+    struct of_sbiret r = of_ecall1(OF_EID_INTERACT, OF_INTERACT_FID_GET, index);
+    if (value) *value = (unsigned)r.value;
+    return (long)r.error;
+#endif
+}
+
+static int bridge_usable(unsigned raw) { return raw != 0u && raw != BRIDGE_JUNK; }
+
 static int music_vol_from_bridge(unsigned raw) {
     int sel = (int)((raw >> MUSIC_SHIFT) & MUSIC_MASK);
     switch (sel) {
@@ -99,7 +122,18 @@ static int music_vol_from_bridge(unsigned raw) {
     if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), (int)raw)) return (int)raw;
     return 0;
 }
-static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1;
+
+/* Screen Fit: the menu offers Letterbox / Stretch / Scaler as 1 / 2 / 3 (interact.json), the host's fit is
+ * 0 / 1 / 2.  Anything else -- 0 (never written) or the 0x55555555 the OS returned everywhere -- means "no
+ * instruction", and night.ini's FIT keeps its value. */
+static const int FIT_OPTS[] = { 1, 2, 3 };
+static int fit_from_bridge(unsigned raw) {
+    if (!bridge_usable(raw)) return -1;
+    if (in_opts(FIT_OPTS, (int)(sizeof FIT_OPTS / sizeof *FIT_OPTS), (int)raw)) return (int)raw - 1;
+    return -1;
+}
+static int      g_fit_bridge = 0, g_interact_err = 0;
+static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 0;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
@@ -272,6 +306,14 @@ int of_save_apply(void) {
 
 int         of_save_slot(void)     { return g_slot; }
 void        of_save_slot_next(void){ g_slot = (g_slot + 1) % OF_SAVE_SLOTS; printf("save slot: %d\n", g_slot); }
+
+/* Cycle the panel fit from the pad (L1 + B, main_of.c pad_combo).  This exists because the Core Options menu
+ * has not been readable on hardware: 0.1.28's card log shows every interact index answering 0x55555555, so a
+ * menu knob for a setting nobody can read is a decoration.  night.ini FIT= is the other route and works today. */
+int of_setting_fit_cycle(void) {
+    g_fit = (g_fit + 1) % 3;
+    return g_fit;
+}
 int         of_save_pending(void)  { return g_pending_valid; }
 const char *of_save_last_error(void){ return g_err[0] ? g_err : (const char *)0; }
 
@@ -325,7 +367,7 @@ void of_settings_load(void) {
      * seen in rather than the 20+20 black rows the port used to add.  0 puts the bars back.  2 is the
      * experiment: ask the core's own scaler for its declared 320x200 framebuffer mode and let the FPGA do the
      * stretch for free -- worth measuring, with docs/338 in mind (a mode the scaler cannot map shows black). */
-    g_fit = cfg_int("fit", 1, "NIGHT_FIT");
+    g_fit = cfg_int("fit", 0, "NIGHT_FIT");
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
@@ -337,22 +379,34 @@ void of_settings_load(void) {
      * "the user asked for silence" would otherwise be the same number, and the first silently replaced
      * night.ini's MUSIC_VOL (docs/341, and the card's own interact_persist.json showing Music Volume 0). */
     {
-        unsigned mvw = of_interact_get(OF_IDX_MUSIC);
+        unsigned mvw = 0, fw = 0;
+        long err_m = of_interact_probe(OF_IDX_MUSIC, &mvw);
+        long err_f = of_interact_probe(OF_IDX_FIT, &fw);
         int mv = music_vol_from_bridge(mvw);
-        g_music_bridge = (int)mvw;            /* the raw word, reported so a card log can read the knob back */
+        int fit = fit_from_bridge(fw);
+        g_music_bridge = (int)mvw;
+        g_fit_bridge = (int)fw;
+        g_interact_err = (int)err_m;
+        SLOG("bridge: music index %d err=%ld val=%08x | fit index %d err=%ld val=%08x\n",
+             OF_IDX_MUSIC, err_m, mvw, OF_IDX_FIT, err_f, fw);            /* the raw word, reported so a card log can read the knob back */
         /* The Pocket LCD list lives in bits 16-17 of 0xF7000000, and four other interact variables share that
          * same word (Analogizer, the two SNAC lists, Analogizer Video Out, Video H/V Offset).  of_interact_get
          * hands back a 32-bit value and the header never promises it is masked to the variable's own field, so
          * comparing the whole word against OF_PLCD_TERMINAL only ever matched if every other variable happened
          * to sit at zero -- which is how "Terminal" could be selected in the menu and never reach the host. */
-        int lcd = (int)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
-        g_lcd_raw = (unsigned)lcd;          /* the raw bridge word, reported every second */
+        unsigned lcdw = 0;
+        long err_l = of_interact_probe(OF_IDX_PLCD, &lcdw);
+        int lcd = (int)(lcdw & 0x00030000u);
+        g_lcd_raw = (unsigned)lcd;          /* the Pocket LCD field only, reported every second */
+        SLOG("bridge: lcd index %d err=%ld val=%08x field=%08x\n", OF_IDX_PLCD, err_l, lcdw, (unsigned)lcd);
         if (mv) g_music_vol = clamp_vol(mv);
+        if (fit >= 0) g_fit = fit;
 
         /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
          * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
          * stays as the route for a card-only diagnostic run (SCREEN=2 asks for the log overlaid on the game). */
         if (g_screen < 0) g_screen = (lcd == OF_PLCD_TERMINAL) ? 1 : 0;
+        SLOG("bridge decoded: music=%d fit=%d lcd=%08x\n", mv, fit, (unsigned)lcd);
     }
 #endif
 
@@ -365,15 +419,31 @@ int of_settings_poll(void) {
     return 0;                       /* the desktop build has no interact bridge */
 #else
     int changed = 0;
-    unsigned mvw = of_interact_get(OF_IDX_MUSIC);
+    unsigned mvw = 0, fw = 0;
+    long err_m = of_interact_probe(OF_IDX_MUSIC, &mvw);
+    long err_f = of_interact_probe(OF_IDX_FIT, &fw);
     int mv = music_vol_from_bridge(mvw);
-    if ((int)mvw != g_music_bridge) { g_music_bridge = (int)mvw; changed |= OF_SET_VOL_SEEN; }
-    unsigned lcd = (unsigned)(of_interact_get(OF_IDX_PLCD) & 0x00030000u);
+    int fit = fit_from_bridge(fw);
+    g_interact_err = (int)err_m;
+    if ((int)mvw != g_music_bridge) {
+        g_music_bridge = (int)mvw;
+        changed |= OF_SET_VOL_SEEN;
+        SLOG("bridge: music raw=%08x err=%ld decoded=%d\n", mvw, err_m, mv);
+    }
+    if ((int)fw != g_fit_bridge) {
+        g_fit_bridge = (int)fw;
+        changed |= OF_SET_FIT_SEEN;
+        SLOG("bridge: fit raw=%08x err=%ld decoded=%d\n", fw, err_f, fit);
+    }
+    unsigned lcdw = 0;
+    of_interact_probe(OF_IDX_PLCD, &lcdw);
+    unsigned lcd = (unsigned)(lcdw & 0x00030000u);
 
     if (mv && mv != g_music_vol) {
         g_music_vol = clamp_vol(mv);
         changed |= OF_SET_VOL;
     }
+    if (fit >= 0 && fit != g_fit) { g_fit = fit; changed |= OF_SET_FIT; }
     /* No menu knob for the tick cap any more (docs/341): night.ini TICK_HZ is the only route, and it is a
      * developer's instrument, not a player's setting. */
     if (lcd != g_lcd_raw) {
@@ -391,6 +461,8 @@ int of_setting_cdda(void)      { return g_cdda_on; }
 int of_setting_pad(void)       { return g_pad_on; }
 int of_setting_tick_hz(void)   { return g_tick_hz; }
 int of_setting_music_bridge(void) { return g_music_bridge; }   /* raw word, for the log */
+int of_setting_fit_bridge(void)   { return g_fit_bridge; }
+int of_setting_interact_err(void) { return g_interact_err; }
 int of_setting_fit(void)       { return g_fit; }      /* 0 letterbox, 1 stretch, 2 scaler 320x200 */
 int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }

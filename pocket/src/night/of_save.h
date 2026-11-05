@@ -27,6 +27,13 @@ void of_settings_load(void);
 #define OF_SET_VOL  1
 #define OF_SET_VOL_SEEN 8     /* the raw word moved, even if it decodes to nothing usable */
 #define OF_SET_LCD  2
+#define OF_SET_FIT  4         /* the Screen Fit knob moved (letterbox <-> stretch <-> scaler) */
+#define OF_SET_FIT_SEEN 16    /* its raw word moved, usable or not */
+
+/* Read one interact variable AND the ecall's error.  of_interact_get() throws the error away and returns only
+ * .value, which is how 0.1.28's card log could show 0x55555555 at every index without saying whether the OS
+ * answered that or refused the call. */
+long of_interact_probe(int index, unsigned *value);
 int  of_settings_poll(void);
 int  of_setting_music_vol(void);
 int  of_setting_sfx_vol(void);
@@ -34,7 +41,10 @@ int  of_setting_cdda(void);
 int  of_setting_pad(void);
 int  of_setting_tick_hz(void);        /* 0 = the PIT rate the game programs */
 int  of_setting_music_bridge(void);   /* the raw interact word behind Music Volume */
-int  of_setting_fit(void);          /* 0 letterbox, 1 stretch 320x200 -> 320x240, 2 ask the scaler for 320x200 */
+int  of_setting_fit(void);          /* 0 letterbox (default), 1 stretch 320x200 -> 320x240, 2 ask the scaler for 320x200 */
+int  of_setting_fit_bridge(void);   /* the raw interact word behind Screen Fit, for the log */
+int  of_setting_fit_cycle(void);    /* 0 -> 1 -> 2 -> 0 from the pad combo; returns the new fit */
+int  of_setting_interact_err(void); /* the error code the last interact probe reported */
 int  of_setting_screen(void);         /* 0 game, 1 terminal, 2 game + log overlay */
 int  of_setting_lcd_raw(void);        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */

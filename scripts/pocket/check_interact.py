@@ -84,34 +84,44 @@ def main():
             free = set(range(32)) - set(seen)
             print(f"         still unwritten at {addr}: {runs(free) if free else 'none'}")
 
-    # 3. the host's field decoding matches the JSON's option values
-    mv = next(v for v in variables if v["name"] == "Music Volume")
-    shift = int(re.search(r"#define MUSIC_SHIFT\s+(\d+)", src).group(1))
-    field = int(re.search(r"#define MUSIC_MASK\s+0x([0-9a-fA-F]+)u", src).group(1), 16)
-    want_bits = mask_bits(mv)
-    mine = {shift + b for b in range(field.bit_length())}
-    if not mine <= want_bits:
-        fail(f"host decodes bits {sorted(mine)}, but the JSON mask allows {sorted(want_bits)}")
+    # 3. the rule 0.1.27 broke: an app knob must not be mounted on a word the core's own reserved entries use.
+    #    0xF7000000 is openfpgaOS's control word (Analogizer / SNAC / Pocket LCD are decoded from it), and the
+    #    firmware rewrites every declared element's field each frame.  Putting a knob there pokes core state
+    #    60 times a second -- and the core stopped booting.
+    reserved_addrs = {v["address"] for v in variables if v.get("mask") is not None or v["address"] == "0xF7000000"}
+    for v in variables:
+        if v["name"] in ("Music Volume", "Screen Fit") and v["address"] in reserved_addrs:
+            fail(f"{v['name']} is mounted on {v['address']}, a word the core's reserved entries already write")
+    app = [v for v in variables if v["name"] in ("Music Volume", "Screen Fit")]
+    if len({v["address"] for v in app}) != len(app):
+        fail("two app knobs share one bridge address")
     else:
-        print(f"  [PASS] Music Volume field: mask writes bits {sorted(want_bits)}, host reads "
-              f"bits {shift}..{shift + field.bit_length() - 1}")
-    fields = []
-    for o in mv["options"]:
-        val = int(o["value"], 16) if isinstance(o["value"], str) else o["value"]
-        f = (val >> shift) & field
-        fields.append(f)
-        if val & ~(((field) << shift)):
-            fail(f"option {o['name']!r} value {val:#x} writes outside the declared field")
-    if fields != list(range(1, len(fields) + 1)):
-        fail(f"option fields {fields} are not the 1..{len(fields)} the host's switch maps to volumes")
-    else:
-        print(f"  [PASS] option fields {fields} map 1:1 onto the host's volume switch "
-              f"(0 is unwired, never a choice)")
-    if int(mv["defaultval"], 16) if isinstance(mv["defaultval"], str) else mv["defaultval"] not in [
-            int(o["value"], 16) if isinstance(o["value"], str) else o["value"] for o in mv["options"]]:
-        fail("Music Volume defaultval is not one of its own option values")
-    else:
-        print("  [PASS] defaultval is one of the options the menu shows")
+        print(f"  [PASS] app knobs on their own addresses: " +
+              ", ".join(f"{v['name']}@{v['address']}" for v in app))
+
+    # 4. each app knob's option values are exactly the 1..N the host maps onto its own enum
+    consts = {"Music Volume": ("OF_IDX_MUSIC", "MUSIC_SHIFT", "MUSIC_MASK"),
+              "Screen Fit":   ("OF_IDX_FIT",   "FIT_SHIFT",   "FIT_MASK")}
+    for v in app:
+        vals = [int(o["value"], 16) if isinstance(o["value"], str) else o["value"] for o in v["options"]]
+        if vals != list(range(1, len(vals) + 1)):
+            fail(f"{v['name']} options are {vals}, not the 1..{len(vals)} the host maps")
+        else:
+            print(f"  [PASS] {v['name']}: options {vals} map 1:1 onto the host's choice table "
+                  f"(0 stays 'nothing was written', never a choice)")
+        if v["defaultval"] not in vals:
+            fail(f"{v['name']} defaultval {v['defaultval']} is not one of its own options")
+        if v.get("mask") is not None:
+            fail(f"{v['name']} declares a mask -- masked fields belong to the reserved word, not an app knob")
+        const, sh, msk = consts[v["name"]]
+        if not re.search(rf"#define {const}\s+\d+", hdr):
+            fail(f"host has no {const} index constant for {v['name']}")
+        want = idx.get(v["name"])
+        got = int(re.search(rf"#define {const}\s+(\d+)", hdr).group(1))
+        if want != got:
+            fail(f"{v['name']}: json position {want} != host index {got}")
+        else:
+            print(f"  [PASS] {v['name']}: host index {got} matches its position in interact.json")
 
     print("== ALL PASS ==" if fails == 0 else f"== {fails} FAIL ==")
     return 0 if fails == 0 else 1

@@ -107,10 +107,14 @@ static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if 
  * element's own bits are the complement: Music Volume 24-26 (mask 0xF8FFFFFF), Screen Fit 27-28 (mask
  * 0xE7FFFFFF), Pocket LCD 16-17 (mask 0xFFFCFFFF, the SDK core's own entry).  mk_dist.py and check_interact.py
  * own the bit map; these constants must agree with it or the menu and the host disagree about the same word. */
-#define MUSIC_SHIFT 24
-#define MUSIC_MASK  0x7u
-#define FIT_SHIFT   27
-#define FIT_MASK    0x3u
+/* The retired control-word shape (the 0.1.34 attempt: Music Volume in bits 24-26, Screen Fit in bits 27-28 of
+ * 0xF7000000).  Those decoders stay in the file because the bridge read they fed is what 0.1.37 proved fatal, and
+ * their field positions are the record of what interact.json declared then.  They are named BRIDGE_* so they cannot
+ * be confused with the live periph-slot decode in main_of.c, which is what check_interact.py cross-checks. */
+#define BRIDGE_MUSIC_SHIFT 24
+#define BRIDGE_MUSIC_MASK  0x7u
+#define BRIDGE_FIT_SHIFT   27
+#define BRIDGE_FIT_MASK    0x3u
 #define PLCD_SHIFT  16
 #define PLCD_MASK   0x3u
 
@@ -157,7 +161,7 @@ static int bridge_usable(unsigned raw) { return raw != 0u && raw != BRIDGE_JUNK;
 /* Field 1..5 -> a volume.  Field 0 means "nobody chose", which is why interact.json's options are anchored at 1:
  * 0 is a legal volume (mute), and a menu that has never been touched must not silently mute the disc. */
 static int music_vol_from_bridge(unsigned word) {
-    switch ((word >> MUSIC_SHIFT) & MUSIC_MASK) {
+    switch ((word >> BRIDGE_MUSIC_SHIFT) & BRIDGE_MUSIC_MASK) {
     case 1: return   1;                       /* Off */
     case 2: return  64;
     case 3: return 128;
@@ -172,7 +176,7 @@ static int music_vol_from_bridge(unsigned word) {
 /* Screen Fit: Letterbox / Stretch / Scaler are field values 1 / 2 / 3; the host's fit is 0 / 1 / 2.  Field 0 (or
  * 3, which 2 bits cannot hold beyond 1..3) means "no instruction" and night.ini's FIT keeps its value. */
 static int fit_from_bridge(unsigned word) {
-    switch ((word >> FIT_SHIFT) & FIT_MASK) {
+    switch ((word >> BRIDGE_FIT_SHIFT) & BRIDGE_FIT_MASK) {
     case 1: return 0;                         /* Letterbox */
     case 2: return 1;                         /* Stretch   */
     case 3: return 2;                         /* Scaler    */
@@ -514,6 +518,17 @@ int of_settings_poll_disabled(void) {
 }
 #endif
 
+int of_setting_apply_music_vol(int v) {   /* a value that arrived from a peripheral slot, not from night.ini */
+    v = clamp_vol(v);
+    if (v == g_music_vol) return 0;
+    g_music_vol = v;
+    return OF_SET_VOL;
+}
+int of_setting_apply_fit(int f) {         /* 0 letterbox, 1 stretch, 2 scaler -- the same three the pad cycles */
+    if (f < 0 || f > 2 || f == g_fit) return 0;
+    g_fit = f;
+    return OF_SET_FIT;
+}
 int of_setting_music_vol(void) { return g_music_vol; }
 int of_setting_sfx_vol(void)   { return g_sfx_vol; }
 int of_setting_cdda(void)      { return g_cdda_on; }

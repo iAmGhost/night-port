@@ -36,6 +36,8 @@ void of_settings_load(void);
 long of_interact_probe(int index, unsigned *value);
 int  of_settings_poll(void);
 int  of_setting_music_vol(void);
+int  of_setting_apply_music_vol(int v);   /* returns OF_SET_VOL when it changed something */
+int  of_setting_apply_fit(int f);
 int  of_setting_sfx_vol(void);
 int  of_setting_cdda(void);
 int  of_setting_pad(void);

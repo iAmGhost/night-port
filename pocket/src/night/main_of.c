@@ -884,7 +884,7 @@ static int g_periph_watch = 1;              /* the per-second full watch, bounde
 #define OF_PERIPH_MIRRORC  0x4000008cu
 static uint32_t g_named_prev[9];
 static const struct { uint32_t addr; const char *what; } g_named[9] = {
-    {OF_PERIPH_CAND_A,  "candidate A"}, {OF_PERIPH_CAND_B,  "candidate B"},
+    {OF_PERIPH_CAND_A,  "menu slot 6c"}, {OF_PERIPH_CAND_B,  "menu slot 68"},
     {OF_PERIPH_LCD,     "Pocket LCD"},  {OF_PERIPH_MIRROR4, "mirror +0x04"},
     {OF_PERIPH_MIRROR8, "mirror +0x08"}, {OF_PERIPH_MIRRORC, "mirror +0x0c"},
     {OF_PERIPH_FB_SIZE, "applied FB"},  {OF_PERIPH_FB_WIDTH, "applied stride"},
@@ -916,52 +916,114 @@ static void periph_named(void) {
     }
 }
 
-static void periph_scan(int full);            /* defined just below; probe_watch brackets a change with it */
+static void periph_scan(int full);
 
-#ifdef OF_IDX_PROBE
-/* Watch the value this core declared.  Whatever the OS says about it, the point is the pairing: this line carries a
- * timestamp, and so does every periph dump and every register move, so a word that steps 1 -> 2 -> 3 -> 4 across the
- * same timestamps is a word that carries a setting the app can read. */
-#define PROBE_SHIFT 0                        /* interact.json: mask 0xFFFFFFF0 writes bits 0-3 only */
-#define PROBE_MASK  0x0Fu                      /* and the four option values are 1..4 inside that field */
-#define PROBE_B_SHIFT 0
-#define PROBE_B_MASK  0x0Fu                    /* probe B writes 5..8 into the same field width, other word */
-static unsigned g_probe_seen[2] = {0xFFFFFFFFu, 0xFFFFFFFFu};
-static unsigned g_probe_tick;
-static void probe_watch(void) {
-    unsigned v[2] = {0, 0};
-    long e0 = of_interact_probe(OF_IDX_PROBE, &v[0]);
-    long e1 = of_interact_probe(OF_IDX_PROBE_B, &v[1]);
-    unsigned f[2] = {(v[0] >> PROBE_SHIFT) & PROBE_MASK, (v[1] >> PROBE_B_SHIFT) & PROBE_MASK};
-    uint64_t t = sys_now_us();
-    /* Sampled on a timer, not on change.  0.1.41 proved the change-triggered version is dead code: the ecall answers
-     * 5d04d515 whatever the menu says, so its field is never a trigger for anything.  A timer at least records that
-     * the value stayed fixed through a run in which the menu demonstrably moved -- which is a measured negative,
-     * and it is cheap: two ecalls every ten seconds. */
-    if ((g_probe_tick++ % 10u) == 0u || f[0] != g_probe_seen[0] || f[1] != g_probe_seen[1])
-        NLOG("probe t=%u.%us: interact[%d]=%08x(f=%u err=%ld) interact[%d]=%08x(f=%u err=%ld)\n",
-             (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull),
-             OF_IDX_PROBE, v[0], f[0], e0, OF_IDX_PROBE_B, v[1], f[1], e1);
-    g_probe_seen[0] = f[0]; g_probe_seen[1] = f[1];
+/* ---- the menu channel 0.1.42 proved exists (docs/352) -----------------------------------
+ * Two entries with disjoint value sets were declared and moved on hardware.  Two adjacent words of openfpgaOS's
+ * peripheral page answered, each carrying only its own set, each ending exactly where the player left it:
+ *
+ *   0x4000006c   boot 0 -> 1 (the entry's own defaultval), then 1 -> 2 -> 3 -> 4; four moves, values 1..4 only.
+ *   0x40000068   stayed 0 through every moment A moved; then 0 -> 5 -> 8 -> 5 -> 8; four moves, values 5..8 only.
+ *
+ * Separated in time, separated in range, and independently confirmed by the firmware's own
+ * Settings/iamghost.night/Interact/_core/interact_persist.json, which stores the chosen option INDEX (3 = High for
+ * id 120, 3 = Eight for id 121).  Nothing else in 96 words did that.  So a declared interact value DOES reach a
+ * register an app may read -- it just never came through of_interact_get(), and it never came through the control
+ * word, which is unreadable (0.1.37) and fatal to mount on (0.1.27/0.1.34).
+ *
+ * The host therefore does not assume a slot layout -- A landed at 0x6c and B at 0x68, which is not declaration
+ * order -- it hunts for its own sentinels.  Each entry's default value sits in a band no captured log ever showed a
+ * natural register occupying, so "a word that was 0 and is now 0x44" is this core's Music Volume wherever it lives. */
+#define MUSIC_SHIFT 0                            /* interact.json: mask 0xFFFFFF00 writes bits 0-7 only */
+#define MUSIC_MASK  0xFFu
+#define FIT_SHIFT   0
+#define FIT_MASK    0xFFu
+#define MUSIC_BASE  0x41u                        /* 0x41..0x48 -> eight volume levels */
+#define FIT_BASE    0x51u                        /* 0x51..0x53 -> letterbox / stretch / scaler */
+
+struct menu_var {
+    const char *what;
+    int idx;                     /* the generated interact index, kept only for the cross-check log */
+    unsigned lo, hi, dflt;       /* the option values this entry can write, and the sentinel its default is */
+    uint32_t slot;               /* the peripheral word that carries it, 0 = not found yet */
+    unsigned last;               /* last value read from that slot */
+    unsigned offrange;           /* consecutive samples outside the range before the slot is distrusted */
+};
+static struct menu_var g_menu[] = {
+    {"Music Volume", OF_IDX_MUSIC, 0x41u, 0x48u, 0x44u, 0u, 0u, 0},
+    {"Screen Fit",   OF_IDX_FIT,   0x51u, 0x53u, 0x51u, 0u, 0u, 0},
+};
+static uint32_t g_menu_prev[OF_PERIPH_WORDS];     /* our own previous-sample array: the periph scan keeps its own */
+
+static int menu_apply(struct menu_var *m, unsigned v) {
+    if (m->lo == MUSIC_BASE) {
+        int level = (int)(v - MUSIC_BASE);                    /* 0..7 -> 0..255 */
+        return of_setting_apply_music_vol(level * 255 / 7);
+    }
+    return of_setting_apply_fit((int)(v - FIT_BASE));
 }
 
-#endif
+static int menu_decode_name(const struct menu_var *m) { return m->lo == MUSIC_BASE ? 1 : 0; }
+
+static int menu_slots_scan(void) {
+    int ch = 0;
+    for (unsigned k = 0; k < sizeof(g_menu) / sizeof(g_menu[0]); k++) {
+        struct menu_var *m = &g_menu[k];
+        if (m->slot) {
+            uint32_t v = periph_word(m->slot);
+            if (v >= m->lo && v <= m->hi) {
+                m->offrange = 0;
+                if (v != m->last) {
+                    m->last = v;
+                    ch |= menu_apply(m, v);
+                    NLOG("menu: %s slot @0x%08x = %02x -> %s\n", m->what, m->slot, (unsigned)v,
+                         menu_decode_name(m) ? "volume" : "fit");
+                }
+            } else if (++m->offrange > 5u) {                  /* a register that leaves the range was never the slot */
+                NLOG("menu: %s slot @0x%08x lost (value %08x outside %02x..%02x five samples running)\n",
+                     m->what, m->slot, (unsigned)v, m->lo, m->hi);
+                m->slot = 0; m->offrange = 0;
+            }
+            continue;
+        }
+        for (int i = 0; i < OF_PERIPH_WORDS; i++) {           /* hunt: 0 -> our own defaultval, and nobody else's */
+            uint32_t a = OF_PERIPH_BASE + 4u * i, v = periph_word(a);
+            if (v != m->dflt || g_menu_prev[i] != 0u) continue;
+            int taken = 0;
+            for (unsigned j = 0; j < sizeof(g_menu) / sizeof(g_menu[0]); j++)
+                if (j != k && g_menu[j].slot == a) taken = 1;
+            if (taken) continue;
+            m->slot = a; m->last = v; m->offrange = 0;
+            uint64_t t = sys_now_us();
+            NLOG("menu: %s slot FOUND t=%u.%us at @0x%08x (was 0, now its default %02x; range %02x..%02x)\n",
+                 m->what, (unsigned)(t / 1000000ull), (unsigned)((t / 100000ull) % 10ull), a, m->dflt, m->lo, m->hi);
+            ch |= menu_apply(m, v);
+            break;
+        }
+    }
+    for (int i = 0; i < OF_PERIPH_WORDS; i++) g_menu_prev[i] = *(volatile uint32_t *)(OF_PERIPH_BASE + 4u * i);
+    return ch;
+}
+
 
 static void periph_scan(int full) {
     uint64_t tstamp = sys_now_us();
     if (++g_cand_tick % 30u == 0u) {            /* the verdict, written by the core */
         int n = 0;
         for (int i = 0; i < OF_PERIPH_WORDS; i++) {
-            if (g_cand[i].moves >= 2u && g_cand[i].hi <= 8u && g_cand[i].lo >= 1u) {
+            if (g_cand[i].moves >= 1u) {
                 n++;
-                NLOG("cand @0x%08x: %u moves, values %u..%u  %s\n", OF_PERIPH_BASE + 4u * i,
-                     g_cand[i].moves, g_cand[i].lo, g_cand[i].hi,
-                     (g_cand[i].hi <= 4u) ? "[probe A range only]" :
-                     (g_cand[i].lo >= 5u) ? "[probe B range only]" : "[both ranges]");
+                int lo = (int)g_cand[i].lo, hi = (int)g_cand[i].hi;
+                const char *in = (lo >= 0x41 && hi <= 0x48) ? "[music option range]" :
+                                 (lo >= 0x51 && hi <= 0x53) ? "[fit option range]" : "[no menu range]";
+                if (in[1] != 'n')                             /* a register whose every value is one a menu can write */
+                    NLOG("cand @0x%08x: %u moves, values %d..%d  %s\n", OF_PERIPH_BASE + 4u * i,
+                         g_cand[i].moves, lo, hi, in);
             }
         }
-        NLOG("census t=%u.%us: %d candidate(s) of %d registers (A writes 1..4, B writes 5..8; a mirror shows only "
-             "what the menu can write)\n", (unsigned)(sys_now_us() / 1000000ull),
+        NLOG("census t=%u.%us: %d candidate(s) of %d registers (Music Volume writes 0x41..0x48, Screen Fit writes "
+             "0x51..0x53; a mirror can only show what the menu can write)\n",
+             (unsigned)(sys_now_us() / 1000000ull),
              (unsigned)((sys_now_us() / 100000ull) % 10ull), n, OF_PERIPH_WORDS);
     }
     for (int i = 0; i < OF_PERIPH_WORDS; i++) {
@@ -1000,7 +1062,12 @@ static uint64_t g_setting_next_us;
 static void settings_beat(uint64_t now) {
     if (now < g_setting_next_us) return;
     g_setting_next_us = now + 100000ull;
+    /* of_settings_poll() is empty because the control word is unreadable (0.1.37) and the interact ecall answers a
+     * fixed table of junk; these registers are the live path 0.1.42 proved exists (docs/352). */
     int ch = of_settings_poll();
+#ifndef OF_PC
+    ch |= menu_slots_scan();        /* the peripheral slots: the only live settings path this OS has (docs/352) */
+#endif
     if (ch & OF_SET_VOL_SEEN)
         NLOG("settings: music raw=%08x vol=%d\n",
              (unsigned)of_setting_music_bridge(), of_setting_music_vol());
@@ -1335,10 +1402,6 @@ static void tick_pump(void) {
                  * neither behaviour distinguishes those two, but a value that HOLDS and then CHANGES does. */
                 static unsigned probe_tick;
                 static int interact2_done;
-#ifdef OF_IDX_PROBE
-                probe_watch();                      /* not gated on DIAG: it is one ecall a second and it is the
-                                                     * thing the run is for */
-#endif
                 if (of_setting_diag() & OF_DIAG_PERIPH) {
                     periph_named();                 /* four registers, by name: cheap, proven safe, and the only
                                                      * menu state this OS has ever been seen to publish */

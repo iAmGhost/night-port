@@ -40,7 +40,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.42"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.43"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -247,45 +247,52 @@ def main():
     # an entry the bitstream does not decode has neither.  If writeonly is what makes an undecoded element movable in
     # the UI, this probe shows it in the menu itself; if the Pocket rejects the flag for a list, the core will not
     # boot and APP_INTERACT_PROBE goes back to False.
-    APP_INTERACT_PROBE = True
+    APP_INTERACT_PROBE = True        # 0.1.42 answered the question this flag was raised to ask: the flag was
+                                     # accepted, the value was held, and a register answers it.  See below.
     app_vars = ([] if not APP_INTERACT_KNOBS else [
-        # Well formed, and still fatal.  Kept here as the exact shape to retry -- if a future openfpgaOS build
-        # makes app fields readable (or documents a page an app may own), these two entries are the candidate.
-        # 0.1.34 shipped them and the core would not boot.
-        {"name": "Music Volume", "id": 100, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF700001C", "mask": "0xF8FFFFFF", "defaultval": "0x05000000", "options": [
-             {"value": "0x01000000", "name": "Off"},
-             {"value": "0x02000000", "name": "Low"},
-             {"value": "0x03000000", "name": "Medium"},
-             {"value": "0x04000000", "name": "High"},
-             {"value": "0x05000000", "name": "Full"}]},
-        {"name": "Screen Fit", "id": 101, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000020", "mask": "0xE7FFFFFF", "defaultval": "0x08000000", "options": [
-             {"value": "0x08000000", "name": "Letterbox"},
-             {"value": "0x10000000", "name": "Stretch"},
-             {"value": "0x18000000", "name": "Scaler 320x200"}]},
-        # No tick-rate knob: a developer's instrument, night.ini TICK_HZ only (docs/341).
+        {"name": "Music Volume", "id": 120, "type": "list", "enabled": True, "persist": True,
+         "address": "0xF700001C", "mask": "0xFFFFFF1F", "defaultval": "0x04", "options": [
+             {"value": "0x01", "name": "Mute"}, {"value": "0x02", "name": "Quiet"},
+             {"value": "0x04", "name": "Half"}, {"value": "0x06", "name": "Louder"},
+             {"value": "0x08", "name": "Full"}]},
+        {"name": "Screen Fit", "id": 121, "type": "list", "enabled": True, "persist": True,
+         "address": "0xF7000020", "mask": "0xFFFFFFFC", "defaultval": "0x01", "options": [
+             {"value": "0x01", "name": "Fit"}, {"value": "0x02", "name": "Fill"},
+             {"value": "0x03", "name": "Stretch"}]},
     ])
-    probe_vars = ([] if not APP_INTERACT_PROBE else [
-        {"name": "Probe Value", "id": 120, "type": "list", "enabled": True, "persist": True, "writeonly": True,
-         "address": "0xF700000C", "mask": "0xFFFFFFF0", "defaultval": "0x01", "options": [
-             {"value": "0x01", "name": "None"},
-             {"value": "0x02", "name": "Low"},
-             {"value": "0x03", "name": "Mid"},
-             {"value": "0x04", "name": "High"}]},
-        # Probe B carries a DISJOINT value set -- 5..8, where A carries 1..4.  0.1.41's run left one register
-        # (0x4000006c) as the only word in 96 whose every live change stayed inside 1..4, six steps of it, which is
-        # either "the OS mirrors declared values" or "some unrelated small-value register that happened to wander".
-        # Two disjoint sets cannot both be coincidence: a word that reads 5..8 exactly while B is moved, and 1..4
-        # while A is moved, is a mirror.  A word that follows neither is not.  The option names spell their own
-        # numbers so what the player chose is unambiguous in the report AND in the log.
-        {"name": "Probe Value B", "id": 121, "type": "list", "enabled": True, "persist": True, "writeonly": True,
-         "address": "0xF7000010", "mask": "0xFFFFFFF0", "defaultval": "0x05", "options": [
-             {"value": "0x05", "name": "Five"},
-             {"value": "0x06", "name": "Six"},
-             {"value": "0x07", "name": "Seven"},
-             {"value": "0x08", "name": "Eight"}]},
-    ])
+    # 0.1.42 settled it (docs/352).  Two entries with DISJOINT value sets were declared, the player moved them, and
+    # two ADJACENT words in openfpgaOS's own peripheral page followed, each one carrying only its own set:
+    #   0x4000006c  0 -> 1 at boot (the entry's defaultval), then 1 -> 2 -> 3 -> 4, ending at 4 = the choice left on
+    #               the menu.  Four moves, values 1..4, probe A's set exactly.
+    #   0x40000068  silent (0) through the whole window in which A moved four times; then 0 -> 5 -> 8 -> 5 -> 8 in
+    #               answer to B's alternation, ending at 8 = the choice left on the menu.  Values 5..8, B's set.
+    # Separated in time, separated in value range, both ending exactly where the player left them, and the firmware's
+    # own Settings/iamghost.night/Interact/_core/interact_persist.json recorded the choices as option INDICES (id 120
+    # val 3 = High, id 121 val 3 = Eight).  That is the settings channel the interact ecall never carried: the OS
+    # mirrors a declared value into a register the app is allowed to read.
+    # So the probes stop being probes and become the settings they were always meant to be.  Their wire values move
+    # to a high, deliberately odd band (0x41..0x48 and 0x51..0x53) for two reasons: no natural register chatter in
+    # any captured log ever sat in those ranges, and each entry's DEFAULT value is then a sentinel the host can find
+    # the slot with -- "a word that was 0 and is now 0x44" is this core's Music Volume, whatever slot the OS chose.
+    # The layout rule is still unknown (A landed at 0x6c, B at 0x68, i.e. NOT in declaration order), so the host does
+    # not assume one: it hunts for its own sentinels and remembers where it found them.
+    probe_vars = [
+        {"name": "Music Volume", "id": 130, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+         "address": "0xF700000C", "mask": "0xFFFFFF00", "defaultval": "0x44", "options": [
+             {"value": "0x41", "name": "Off"},
+             {"value": "0x42", "name": "1/8"},
+             {"value": "0x43", "name": "1/4"},
+             {"value": "0x44", "name": "1/2"},
+             {"value": "0x45", "name": "5/8"},
+             {"value": "0x46", "name": "3/4"},
+             {"value": "0x47", "name": "7/8"},
+             {"value": "0x48", "name": "Full"}]},
+        {"name": "Screen Fit", "id": 131, "type": "list", "enabled": True, "persist": True, "writeonly": True,
+         "address": "0xF7000010", "mask": "0xFFFFFF00", "defaultval": "0x51", "options": [
+             {"value": "0x51", "name": "Letterbox"},
+             {"value": "0x52", "name": "Stretch"},
+             {"value": "0x53", "name": "Scaler 320"}]},
+    ]
     variables = base + app_vars + probe_vars
     jw(core_dir / "interact.json",
        {"interact": {"magic": "APF_VER_1", "variables": variables, "messages": []}})
@@ -299,8 +306,8 @@ def main():
            "#ifndef OF_INTERACT_IDX_H", "#define OF_INTERACT_IDX_H"]
     pairs = [("Pocket LCD", "OF_IDX_PLCD")]
     if APP_INTERACT_PROBE:
-        pairs.append(("Probe Value", "OF_IDX_PROBE"))
-        pairs.append(("Probe Value B", "OF_IDX_PROBE_B"))
+        pairs.append(("Music Volume", "OF_IDX_MUSIC"))
+        pairs.append(("Screen Fit", "OF_IDX_FIT"))
     if APP_INTERACT_KNOBS:
         pairs += [("Music Volume", "OF_IDX_MUSIC"), ("Screen Fit", "OF_IDX_FIT")]
     pairs = tuple(pairs)

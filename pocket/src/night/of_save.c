@@ -284,7 +284,11 @@ void of_settings_load(void) {
      * one thing at a time: BLIT_SKIP=0 stops the host skipping the blit when its sampled bytes say the frame
      * is unchanged (a stale-present theory for the ghosting), PRESENT_SYNC=0 stops waiting for the flip to be
      * presented (a tearing theory).  Both default to the cautious setting. */
-    g_blit_skip = cfg_int("blit_skip",   1, "NIGHT_BLIT_SKIP");
+    /* Off by default.  The sample-based test can miss a change (32 points in 307 200 bytes), and a missed
+     * change holds the previous picture for up to eight presents -- which reads as the picture drifting
+     * forward and back.  Now that a 320x200 present costs 1.8 ms median there is nothing left for the skip
+     * to buy in the places it was doing the damage; BLIT_SKIP=1 re-arms it for performance experiments. */
+    g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
     /* of_interact_get() indexes by position in interact.json; the reserved SDK entries now occupy the first

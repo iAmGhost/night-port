@@ -22,6 +22,7 @@
  */
 #include "of_cdda.h"
 #include "of_disc.h"
+#include "of_log.h"
 
 #include "sys/sys.h"
 
@@ -37,7 +38,7 @@
 
 #define CD_SRC_RATE       44100
 #define CD_RING_SEC       4
-#define CD_RING_FRAMES    (CD_SRC_RATE * CD_RING_SEC)     /* 88200 frames = 2 s per channel */
+#define CD_RING_FRAMES    (CD_SRC_RATE * CD_RING_SEC)     /* 176 400 frames = 4 s per channel */
 #define CD_FRAMES_SECTOR  588                             /* one 2352-byte CD frame in samples */
 #define CD_CHUNK_SECTORS  12                              /* per pump pass: 7056 samples = 160 ms of big sequential reads */
 #define CD_LOOKAHEAD_SECTORS 120                          /* 1.6 s of audio read past the disc clock: the slack that
@@ -143,7 +144,7 @@ static void voice_start(void) {
     g_voice[1] = of_mixer_alloc_for_group_h(OF_MIXER_GROUP_MUSIC, (const uint8_t *)g_ring[1],
                                             CD_RING_FRAMES, CD_SRC_RATE, CD_MIXER_PRIORITY, 0);
     if (g_voice[0] == OF_MIXER_HANDLE_INVALID || g_voice[1] == OF_MIXER_HANDLE_INVALID) {
-        printf("cdda: no two free MUSIC voices; the track is clocked but not sounded\n");
+        of_log_line("cdda: no two free MUSIC voices; the track is clocked but not sounded\n");
         voice_stop();
         return;
     }
@@ -303,8 +304,23 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     if (g_dir) rig_cdda_marker((long)(sys_now_us() / 1000ull), (long)index, lba, sectors);
 #endif
 
-    printf("cdda: index %u lba=%u sectors=%u (%.1f s) track#%u\n",
-           index, lba, sectors, sectors / 75.0, g_tracks);
+    of_log_line("cdda req idx=%u lba=%u sectors=%u (%.1f s) -> disc track %d slot %d\n",
+         index, lba, sectors, sectors / 75.0, of_disc_track_of_lba(lba),
+         of_disc_track_slot((uint32_t)(of_disc_track_of_lba(lba) > 0 ? of_disc_track_of_lba(lba) : 0)));
+
+    /* A zero-length request must not start anything.  fn_010b1d computes the length as
+     * rec[idx+1].lba - rec[idx].lba out of the record array fn_010927 wrote into the game's heap, so a
+     * zero means the two records are the same LBA -- and a looping voice started over a ring that was
+     * never written plays whatever the allocator left there.  That is not silence, it is the buzz: the
+     * card log showed request after request with sectors=0 while the two MUSIC voices kept looping, at
+     * the logo, through the .fli intro and in the stages, with real music only where the length was
+     * non-zero (the title and the PCX slides). */
+    if (!sectors) {
+        of_log_line("cdda refused: zero-length track (stopping the voices rather than looping an empty ring)\n");
+        if (g_running) { voice_stop(); g_running = 0; }
+        g_sectors = 0; g_pos = 0; g_done_frames = 0; g_write = 0;
+        return;
+    }
 
     if (!g_ring[0] || !g_ring[1]) return;
 
@@ -317,10 +333,15 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
 
     /* Pre-fill the whole ring before the voices start: a looping voice needs something to loop over, and
      * prefilling is also what proves the slot is readable before any sound is expected. */
-    uint32_t prefill_sectors = CD_RING_FRAMES / CD_FRAMES_SECTOR;         /* 150 sectors = 2 s */
+    uint32_t prefill_sectors = CD_RING_FRAMES / CD_FRAMES_SECTOR;         /* 300 sectors = 4 s */
     if (prefill_sectors > sectors) prefill_sectors = sectors;
-    if (fill_sectors(prefill_sectors) != prefill_sectors * CD_FRAMES_SECTOR)
-        printf("cdda: ring prefill short (%u of %u sectors)\n", g_pos, prefill_sectors);
+    if (fill_sectors(prefill_sectors) != prefill_sectors * CD_FRAMES_SECTOR) {
+        of_log_line("cdda refused: prefill short (%u of %u sectors) -- slot unreadable, voices stay off\n",
+             g_pos, prefill_sectors);
+        if (g_running) { voice_stop(); g_running = 0; }
+        g_sectors = 0; g_pos = 0; g_done_frames = 0; g_write = 0;
+        return;
+    }
 
     g_write = 0;                     /* the voice starts at the first prefilled frame */
     g_consumed_frames = 0;

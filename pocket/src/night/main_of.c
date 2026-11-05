@@ -460,8 +460,10 @@ static void board_boot(void) {
  * in fabric, so the host hands each drained run to the mixer as its own mono voice -- the same shape
  * the board had on DOS.  Sample memory must live in the mixer's SDRAM pool, and a pool block may not
  * be rewritten while its voice is still playing, hence the ping-pong. */
-#define SFX_CHUNK 1024
-#define SFX_BLOCKS 8      /* eight independent 2 KB SFX buffers: the game overlaps sounds, and two slots with a
+#define SFX_CHUNK 4096    /* frames per block: a sound the game armed as one DMA transfer should reach the
+                           * mixer as one voice.  At 1024 the 11 kHz samples were chopped every 92 ms, which is
+                           * the "SFX cut off before they finish" report. */
+#define SFX_BLOCKS 8      /* eight independent 8 KB SFX buffers: the game overlaps sounds, and two slots with a
                            * drop rule means the second and later voice of a chord is simply thrown away.  The card
                            * log shows the size of the loss: plays=5 on hardware against plays=193 on the desktop
                            * shim over a comparable span. */
@@ -496,13 +498,27 @@ static void audio_boot(void) {
     }
 }
 
+/* Fill up to one block, stopping when the ring runs dry or the block is full. */
+static uint32_t drain_audio(void) {
+    uint32_t got = 0;
+    while (got < SFX_CHUNK) {
+        uint32_t k = sys_audio_fill(g_sfx_scratch + got, SFX_CHUNK - got);
+        if (!k) break;
+        got += k;
+    }
+    return got;
+}
+
 static void audio_pump(void) {
     if (g_off & OFF_MIXER) return;
     sys_audio_set_source(g_dat_63fb4);             /* the buffer an armed DMA transfer reads */
     uint32_t rate = sys_audio_rate();
     if (!rate) rate = 22050;
     uint32_t got;
-    while ((got = sys_audio_fill(g_sfx_scratch, SFX_CHUNK)) != 0) {
+    /* Drain what the transfer has queued right now into one block.  sys_audio_fill() drains a byte ring and
+     * knows nothing about sample boundaries, so filling one 1024-frame piece at a time turned a single sound
+     * into a run of separate voices with a restart every 92 ms -- audible as a sample cut short. */
+    while ((got = drain_audio()) != 0) {
         if (!g_sfx_pool[0]) continue;              /* no pool: still drain, the board clock must advance */
         /* A slot is free when its sample has run out -- which is arithmetic, not a question for the mixer.
          * of_mixer_voice_active() was the question, and the card answered it badly: plays=26 against drops=952

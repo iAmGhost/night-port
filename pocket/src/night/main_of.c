@@ -1524,9 +1524,18 @@ static void input_pump(void) {
  * sys_port_spin, which calls this function), so its stack depth is a game property, not a host one.
  * Watching the depth is what separates "the host over-flew the stack" from "the game wrote out of
  * bounds" -- the cdda path is the one that pushes libc (fopen/fread) on top of that depth. */
+static uint32_t g_warp_gate;                      /* the tick the warp/save pumps last ran on */
 static int g_depth, g_depth_max;
+/* task-9 (docs/369): how many times a frame the pump is actually entered.  g_pump_calls counts only the visits
+ * where a tick was due (and it reads ~22 000 in a 45 s run, i.e. 490 Hz as designed); the pump ITSELF is entered
+ * from the game's spin loops, and the CDDA counter proved that rate is six orders of magnitude higher than the
+ * tick rate -- 295 921 377 visits in a 1964-frame run (docs/364).  Counting the entries is what turns "gate the
+ * per-spin work" from a guess into an arithmetic decision: on a 100 MHz core, a 30-cycle call at 150 000 visits a
+ * frame is 4.5 ms a frame, which is a fifth of a 20 ms frame budget spent on bookkeeping. */
+static uint64_t g_pump_enters;
 static void tick_pump(void) {
     uint64_t now = sys_now_us();
+    g_pump_enters++;
     g_depth++;
     if (g_depth > g_depth_max) {
         g_depth_max = g_depth;
@@ -1535,8 +1544,17 @@ static void tick_pump(void) {
 
     audio_pump();
     cdda_pump();
-    warp_entry_pump();
-    save_pump();
+    /* Gated to the game's own tick, for the same reason the CDDA pump is (docs/364 §3) and for the same reason
+     * the pad pump already was (one poll per ~8 ms, docs/333): neither decision has a cadence finer than a frame.
+     * warp_entry_pump presses confirm for 250 ms at a time, which is 120 ticks; save_pump fires on a frame match
+     * and a tick runs 8x a frame, so a gated match is still the same frame.  The board drain (audio_pump) is NOT
+     * gated: it services the DMA ring the game is writing into, and "drain whenever the game spins" is the
+     * contract that ring is written against. */
+    if (g_warp_gate != g_timer_calls) {
+        g_warp_gate = g_timer_calls;
+        warp_entry_pump();
+        save_pump();
+    }
 #ifndef OF_PC
     of_mixer_pump();
 #endif
@@ -1695,6 +1713,8 @@ static void tick_pump(void) {
                      d_r, d_r ? (unsigned)(d_us / d_r) : 0u, d_max, d_sk, d_fl, d_by / 1024u,
                      c_f, c_f ? (unsigned)(c_us / c_f) : 0u, c_max, c_fr, c_pv, c_low, c_hold, c_behind, c_dry,
                      c_am, c_am / 44100.0);
+                NLOG("budget pump enters=%llu per-spin (ticked=%u) frames=%u warp/save gated to the tick\n",
+                     (unsigned long long)g_pump_enters, g_pump_calls, g_frames);
 
             /* task-12a: the readout ON THE SCREEN.  OF_DISPLAY_TERMINAL (of_video.h:43 "Terminal only") shows the
              * 40x30 CP437 console that printf writes to -- and this core had never written a line to it.  Setting

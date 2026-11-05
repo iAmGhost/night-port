@@ -190,7 +190,7 @@ static int fit_from_bridge(unsigned word) {
 static int      g_fit_bridge = 0, g_interact_err = 0;
 static int      g_diag = 0;          /* night.ini DIAG=: which experimental probes this run may perform */
 static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the source of every field above */
-static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 0;
+static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1;   /* 1 = stretch: the shipped default */
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
@@ -394,6 +394,19 @@ static int cfg_int(const char *key, int dflt, const char *envkey) {
 #endif
 }
 
+/* File logging is opt-in (docs/362).  The card log did its job -- it is how the peripheral mirror was found, how the
+ * claim rule was fixed, and how packing was confirmed -- but it is a quarter-megabyte file in the player's Saves
+ * folder that is written every eight lines, and a player never reads it.  night.ini LOG=1 brings it back, and every
+ * diagnostic this host has is gated behind it (DIAG is a separate switch and ships at 0).  The desktop build keeps
+ * logging on: the rig and the fixture suite read scratch/pocket/night.log as their witness. */
+int of_setting_log_wanted(void) {
+#ifdef OF_PC
+    return cfg_int("log", 1, "NIGHT_LOG");
+#else
+    return cfg_int("log", 0, "NIGHT_LOG");
+#endif
+}
+
 static int clamp_gain(int v) {                  /* 100 = unity; of_gain16's curve is clamping-free to 212 */
     if (v < 100) return 100;
     if (v > 212) return 212;
@@ -448,7 +461,7 @@ void of_settings_load(void) {
      * seen in rather than the 20+20 black rows the port used to add.  0 puts the bars back.  2 is the
      * experiment: ask the core's own scaler for its declared 320x200 framebuffer mode and let the FPGA do the
      * stretch for free -- worth measuring, with docs/338 in mind (a mode the scaler cannot map shows black). */
-    g_fit = cfg_int("fit", 0, "NIGHT_FIT");
+    g_fit = cfg_int("fit", 1, "NIGHT_FIT");
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC

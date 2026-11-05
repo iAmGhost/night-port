@@ -104,3 +104,11 @@ If it does not reappear, persistence needs `defaultval`-shaped workarounds and t
 
 Card holds core 0.1.50, `DIAG=11`.  Build clean, `check_interact.py` ALL PASS, fixture suite ALL PASS, `src/f`
 untouched.
+
+---
+
+**Answered by docs/362.**  0.1.52's card log shows `0x4000006c` carrying `music | sfx | fit` in one word
+(`0x288` = Music Full, SFX Full, fit stretch), each field decoding independently and each changing without erasing the
+others -- and `interact_persist.json` holding the session's picks as option indices, with the previous session's
+composed word already present at `t=9.3 s` before anything was touched.  Packing is alive, `writeonly` was the culprit
+in 0.1.47, persistence works, and `LAYOUT = "packed"` is what ships.

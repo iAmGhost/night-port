@@ -290,7 +290,7 @@
                 "persist": true,
                 "address": "0xF700000C",
                 "mask": "0xFFFFFCFF",
-                "defaultval": "0x100",
+                "defaultval": "0x200",
                 "options": [
                     {
                         "value": "0x100",

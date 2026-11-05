@@ -42,6 +42,7 @@ int  of_setting_apply_fit(int f);
 int  of_setting_apply_sfx_vol(int v);
 int  of_setting_sfx_vol(void);
 int  of_setting_master_vol(void);      /* the mixer output stage; 255 = no attenuation */
+int  of_setting_log_wanted(void);    /* night.ini LOG=: open the card's nightlog.sav at all? */
 int  of_setting_sfx_gain(void);        /* percent, 100..212, applied through of_gain16()'s knee */
 int  of_setting_cdda_gain(void);
 int  of_setting_cdda(void);

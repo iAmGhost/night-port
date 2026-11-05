@@ -1785,7 +1785,14 @@ int main(int argc, char **argv) {
 #endif
     }
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
-    g_log_ok = (of_log_open() == 0) ? 1 : 0;
+    /* night.ini LOG= is the switch (docs/362): 0 writes no file, 1 reopens the trail this port was built with.
+     * The stdout half of NLOG stays live either way, so a desktop run and the rig keep their witness. */
+    if (of_setting_log_wanted()) {
+        g_log_ok = (of_log_open() == 0) ? 1 : 0;
+    } else {
+        g_log_ok = 0;
+        printf("log: file logging off (night.ini LOG=1 writes Saves/night/common/nightlog.sav)\n");
+    }
     /* The first line a running app writes, on purpose.  0.1.27 broke the core and the card kept the PREVIOUS
      * run's log, which is only interpretable because the old log's settings line said music_vol=192 -- if this
      * line is missing from a card log, the app never reached the point of writing anything, and the fault is in
@@ -1823,9 +1830,9 @@ int main(int argc, char **argv) {
     NLOG("caps: version=%u hw=%08x os=%08x (sdk OF_CAPS_VERSION=%d)\n",
          caps->version, caps->hw_features, (caps->version >= 4) ? caps->os_features : 0u, OF_CAPS_VERSION);
     of_settings_load();                        /* os.ini [night] on the device, env on the desktop */
-    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d\n",
+    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d file_log=%d\n",
          of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
-         of_setting_tick_hz(), of_setting_screen());
+         of_setting_tick_hz(), of_setting_screen(), g_log_ok);
     NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
          of_setting_fit());
     NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"

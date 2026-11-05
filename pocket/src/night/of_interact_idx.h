@@ -21,16 +21,16 @@
 #define OF_FIELD_SFX_DFLT      4u
 #define OF_MENU_SLOT_SFX       0x4000006Cu
 #define OF_IDX_FIT   10
-#define DEFAULT_OF_IDX_FIT 0x100
+#define DEFAULT_OF_IDX_FIT 0x200
 #define OF_FIELD_FIT_SHIFT     8u
 #define OF_FIELD_FIT_MASK      0x3u
 #define OF_FIELD_FIT_LO        1u
 #define OF_FIELD_FIT_HI        3u
-#define OF_FIELD_FIT_DFLT      1u
+#define OF_FIELD_FIT_DFLT      2u
 #define OF_MENU_SLOT_FIT       0x4000006Cu
 #define OF_INTERACT_COUNT 11
 #define OF_PLCD_GAME           0x00000000
 #define OF_PLCD_LCD_OFF        0x00010000
 #define OF_PLCD_TERMINAL       0x00020000
-#define OF_CORE_VERSION        "0.1.52"
+#define OF_CORE_VERSION        "0.1.53"
 #endif

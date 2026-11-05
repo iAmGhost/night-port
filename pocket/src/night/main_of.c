@@ -1519,6 +1519,86 @@ static uint8_t script_sc_for(const char *name) {
     return 0;
 }
 
+/* Anchored script steps (docs/379 5).  `wait res <name>` parks the timeline until the game performs a resource
+ * lookup whose name contains <name>, exactly as the SDL host's reader does (docs/55), and everything downstream of
+ * the park follows it.  That is done with one number: the virtual poll `vpoll = polls - held`, and while a wait is
+ * unsatisfied `held` grows every poll, so vpoll stops advancing and every later key step stays not-yet-due.  When
+ * the lookup happens, vpoll resumes and the whole tail of the route has shifted by the slippage -- the same rule
+ * the SDL host applies by rebasing its slots.  The lookup is heard, not polled: sys_set_res_hook hands each name to
+ * the host at the moment of the lookup (src/sys/sys.c:823), because the boot-time lookups are gone before the
+ * first pad poll. */
+typedef struct { int kind; long from, to; uint8_t sc; char name[32]; int done; } script_step_t;   /* 0 key, 1 wait */
+#define SCRIPT_STEPS 96
+static script_step_t g_script_steps[SCRIPT_STEPS];
+static int g_script_steps_n;
+static long g_script_held;
+static char g_res_ring[64][32];
+static int g_res_ring_n;
+
+static void script_res_hook(const char *name) {
+    if (!name) return;
+    snprintf(g_res_ring[g_res_ring_n & 63], 32, "%s", name);
+    g_res_ring_n++;
+}
+
+static int res_seen(const char *want) {
+    /* A substring search, case-insensitively, over every recent lookup -- not a prefix compare: a host that reports
+     * `NIGHT.RES:logo.pcx` or `\RES\logo.pcx` has to anchor on `logo.pcx` the same way the SDL host's reader does
+     * (docs/55).  The prefix-only version made every anchor time out, which looked like a missing hook. */
+    for (int i = 0; i < 64 && i < g_res_ring_n; i++) {
+        const char *have = g_res_ring[(g_res_ring_n - 1 - i) & 63];
+        if (!have[0]) continue;
+        for (const char *start = have; *start; start++) {
+            const char *a = start, *b = want;
+            for (;; a++, b++) {
+                char ca = (*a >= 'A' && *a <= 'Z') ? (char)(*a + 32) : *a;
+                char cb = (*b >= 'A' && *b <= 'Z') ? (char)(*b + 32) : *b;
+                if (!cb) return 1;                   /* the whole wanted string matched here */
+                if (ca != cb) break;
+            }
+        }
+    }
+    return 0;
+}
+
+static void res_ring_dump(void) {                                /* what the hook actually heard, for a mis-anchored route */
+    printf("script: %d lookups heard, most recent:", g_res_ring_n);
+    for (int i = 0; i < 6 && i < g_res_ring_n; i++)
+        printf(" %s", g_res_ring[(g_res_ring_n - 1 - i) & 63]);
+    printf("\n");
+}
+
+static long script_vpoll(void) { return (long)g_pad_polls - g_script_held; }
+
+static void script_gate(void) {
+    /* The game-side trace is the authoritative one, and it is what the SDL host anchors on too (src/app/main.c:1085):
+     * `g_res_trace` holds the last name handed to fn_0367c9 and `g_res_trace_seq` counts those lookups, both exported
+     * by f.h.  Sampling it on the poll grid records each change -- the hook alone heard nothing here, which is why
+     * every anchor timed out: an announce path the host is not on is invisible to it, while the game's own counter is
+     * not.  The hook stays installed; the trace is what the anchors actually read. */
+    static uint32_t last_trace_seq;
+    if (g_res_trace_seq != last_trace_seq) {
+        last_trace_seq = g_res_trace_seq;
+        script_res_hook(g_res_trace);
+    }
+    for (int i = 0; i < g_script_steps_n; i++) {
+        script_step_t *st = &g_script_steps[i];
+        if (st->kind != 1 || st->done) continue;
+        if (script_vpoll() < st->from) break;                      /* not due yet: nothing downstream can be */
+        if (res_seen(st->name)) { st->done = 1; continue; }        /* the lookup happened: the park ends */
+        g_script_held++;                                           /* the whole tail of the route waits with it */
+        if ((g_script_held & 0x1ff) == 1)
+            printf("script: parked at `wait res %s` (slot %ld polls, %ld polls held)\n",
+                   st->name, st->from, g_script_held);
+        if (g_script_held > 8000) {                                /* ~64 s of holding: give up and say so */
+            st->done = 1;
+            printf("script: `wait res %s` timed out after %ld held polls (continuing)\n", st->name, g_script_held);
+            res_ring_dump();
+        }
+        break;                                                     /* only the earliest open anchor may park us */
+    }
+}
+
 static void pad_script_file(const char *path) {
     FILE *f = fopen(path, "r");
     if (!f) { printf("script: cannot open %s\n", path); return; }
@@ -1528,9 +1608,22 @@ static void pad_script_file(const char *path) {
     while (fgets(line, sizeof line, f)) {
         char *hash = strchr(line, '#');
         if (hash) *hash = 0;
-        char t[24], verb[16], name[24], dir[8];
-        if (sscanf(line, "%23s %15s %23s %7s", t, verb, name, dir) < 4) { if (line[0] > ' ') skipped++; continue; }
-        if (strcmp(verb, "key")) { skipped++; continue; }              /* anchors and shots are the SDL host's */
+        /* Four fields on every line the shim understands: `20000 key enter down` and `20000 wait res logo.pcx`.
+         * The fourth buffer has to hold a resource name, not just `down`/`up`: with `char dir[8]` and "%7s" the
+         * name `logo.pcx` was read as `logo.pc`, and a branch that fired on nf == 3 read a field sscanf had never
+         * filled at all. */
+        char t[24], verb[16], name[24], dir[64];
+        int nf = sscanf(line, "%23s %15s %23s %63s", t, verb, name, dir);
+        if (nf < 3) { if (line[0] > ' ') skipped++; continue; }
+        if (nf == 4 && !strcmp(verb, "wait") && !strcmp(name, "res") && g_script_steps_n < SCRIPT_STEPS) {
+            /* `20000 wait res logo.pcx` -- the anchor form the route files are written in (docs/55).  It used to be
+             * counted as a skipped line; now it parks the timeline the way the SDL host's reader does. */
+            script_step_t *st = &g_script_steps[g_script_steps_n++];
+            st->kind = 1; st->from = strtol(t, NULL, 10) / 8; st->to = 0; st->sc = 0; st->done = 0;
+            snprintf(st->name, sizeof st->name, "%s", dir);   /* the resource substring to wait for */
+            continue;
+        }
+        if (nf < 4 || strcmp(verb, "key")) { skipped++; continue; }   /* `shot ...` and the rest stay the host's */
         uint8_t sc = script_sc_for(name);
         if (!sc) { printf("script: unknown key name '%s' (line ignored)\n", name); skipped++; continue; }
         long ms = strtol(t, NULL, 10);
@@ -1546,6 +1639,10 @@ static void pad_script_file(const char *path) {
             uint64_t from = pend_ms[found], to = (uint64_t)poll;
             pend_sc[found] = pend_sc[pend_n - 1]; pend_ms[found] = pend_ms[pend_n - 1]; pend_n--;
             if (to <= from) to = from + 25;                             /* a 200 ms floor: a key wait needs a make and a break */
+            if (g_script_steps_n < SCRIPT_STEPS) {
+                script_step_t *st = &g_script_steps[g_script_steps_n++];
+                st->kind = 0; st->from = from; st->to = to; st->sc = sc; st->name[0] = 0; st->done = 1;
+            }
             g_pad_script[g_pad_script_n].from = from; g_pad_script[g_pad_script_n].to = to;
             g_pad_script[g_pad_script_n].btn = pad_btn_for_sc((uint8_t)sc);
             g_pad_script[g_pad_script_n].sc = (uint8_t)sc;
@@ -1553,6 +1650,11 @@ static void pad_script_file(const char *path) {
         }
     }
     for (int i = 0; i < pend_n && g_pad_script_n < 64; i++) {          /* a down never released: press it to the end */
+        if (g_script_steps_n < SCRIPT_STEPS) {
+            script_step_t *st = &g_script_steps[g_script_steps_n++];
+            st->kind = 0; st->from = pend_ms[i]; st->to = 0x7fffffffull; st->sc = (uint8_t)pend_sc[i];
+            st->name[0] = 0; st->done = 1;
+        }
         g_pad_script[g_pad_script_n].from = pend_ms[i]; g_pad_script[g_pad_script_n].to = 0x7fffffffull;
         g_pad_script[g_pad_script_n].btn = pad_btn_for_sc((uint8_t)pend_sc[i]);
         g_pad_script[g_pad_script_n].sc = (uint8_t)pend_sc[i];
@@ -1560,16 +1662,18 @@ static void pad_script_file(const char *path) {
     }
     fclose(f);
     g_pad_direct = 1;                   /* the route files name DOS keys; the pad buttons are wired differently */
-    printf("script: %s -> %d key spans applied on the direct key path (%d held to the end), %d non-key or "
-           "unknown lines skipped (anchors like `wait res` are the SDL host's reader, docs/55)\n",
-           path, honoured, unclosed, skipped);
+    sys_set_res_hook(script_res_hook);  /* heard lookups, not polled ones: src/sys/sys.c:823 */
+    int waits = 0;
+    for (int i = 0; i < g_script_steps_n; i++) if (g_script_steps[i].kind == 1) waits++;
+    printf("script: %s -> %d key spans on the direct key path (%d held to the end), %d `wait res` anchors, "
+           "%d other lines skipped\n", path, honoured, unclosed, waits, skipped);
 }
 
 /* 1 while the script holds this pad button at the current poll. */
 static int pad_script_held(uint32_t btn) {
+    long v = script_vpoll();
     for (int i = 0; i < g_pad_script_n; i++)
-        if (g_pad_script[i].btn == btn && g_pad_polls >= g_pad_script[i].from &&
-            g_pad_polls < g_pad_script[i].to)
+        if (g_pad_script[i].btn == btn && v >= (long)g_pad_script[i].from && v < (long)g_pad_script[i].to)
             return 1;
     return 0;
 }
@@ -1648,10 +1752,12 @@ static void pad_pump(void) {
     g_pad_next_us = now + 8000;
     of_input_poll();
     g_pad_polls++;
+    if (g_script_steps_n) script_gate();          /* anchors first: they decide what the keys below are due to do */
 
     if (g_pad_direct) {                            /* the key path, same poll grid */
         for (int i = 0; i < g_pad_script_n; i++) {
-            int held = (g_pad_polls >= g_pad_script[i].from && g_pad_polls < g_pad_script[i].to) ? 1 : 0;
+            long v = script_vpoll();
+            int held = (v >= (long)g_pad_script[i].from && v < (long)g_pad_script[i].to) ? 1 : 0;
             static uint8_t prev[64];
             if (held == prev[i]) continue;
             prev[i] = (uint8_t)held;

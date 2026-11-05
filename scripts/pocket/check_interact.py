@@ -45,12 +45,18 @@ def main():
 
     # 1. the host's index constants match the JSON order
     idx = {v["name"]: i for i, v in enumerate(variables)}
-    for name, const in (("Music Volume", "OF_IDX_MUSIC"), ("Pocket LCD", "OF_IDX_PLCD")):
-        want = int(re.search(rf"#define {const}\s+(\d+)", hdr).group(1))
-        if idx.get(name) != want:
-            fail(f"{name}: interact.json position {idx.get(name)} != host index {want}")
+    for const, name in (("OF_IDX_MUSIC", "Music Volume"), ("OF_IDX_FIT", "Screen Fit"),
+                        ("OF_IDX_PLCD", "Pocket LCD")):
+        m = re.search(rf"#define {const}\s+(\d+)", hdr)
+        if not m:
+            continue                      # absent is legal; section 4 checks the reverse direction
+        got, want = int(m.group(1)), idx.get(name)
+        if want is None:
+            fail(f"the header defines {const} = {got} but interact.json declares no {name}")
+        elif want != got:
+            fail(f"{name}: interact.json position {want} != host index {got}")
         else:
-            print(f"  [PASS] {name}: json position {want} == host index")
+            print(f"  [PASS] {name}: json position {got} == host index {const}")
 
     # 2. no two elements write the same bits of the same word
     by_word = {}
@@ -89,14 +95,25 @@ def main():
     #    firmware rewrites every declared element's field each frame.  Putting a knob there pokes core state
     #    60 times a second -- and the core stopped booting.
     reserved_addrs = {v["address"] for v in variables if v.get("mask") is not None or v["address"] == "0xF7000000"}
-    for v in variables:
-        if v["name"] in ("Music Volume", "Screen Fit") and v["address"] in reserved_addrs:
-            fail(f"{v['name']} is mounted on {v['address']}, a word the core's reserved entries already write")
     app = [v for v in variables if v["name"] in ("Music Volume", "Screen Fit")]
+    for v in app:
+        if v["address"] in reserved_addrs:
+            fail(f"{v['name']} is mounted on {v['address']}, a word the core's reserved entries already write")
     if len({v["address"] for v in app}) != len(app):
         fail("two app knobs share one bridge address")
+
+    # 4. 0.1.30 declares no app knobs at all: the interact read answers garbage on this OS (docs/342 -- every
+    #    index, error half included).  The menu and the host must agree in BOTH directions: no knob in the JSON
+    #    without an index constant in the header, and no index constant pointing at a variable that is not there.
+    if not app:
+        stray = [c for c in ("OF_IDX_MUSIC", "OF_IDX_FIT") if re.search(rf"#define {c}\b", hdr)]
+        if stray:
+            fail(f"interact.json declares no app knobs but the header still defines {', '.join(stray)}")
+        else:
+            print("  [PASS] no app knobs declared, and no dangling OF_IDX_* in the generated header "
+                  "(openfpgaOS does not answer the interact read -- docs/342)")
     else:
-        print(f"  [PASS] app knobs on their own addresses: " +
+        print("  [PASS] app knobs on their own addresses: " +
               ", ".join(f"{v['name']}@{v['address']}" for v in app))
 
     # 4. each app knob's option values are exactly the 1..N the host maps onto its own enum

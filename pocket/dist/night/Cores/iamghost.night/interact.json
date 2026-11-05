@@ -209,60 +209,6 @@
                         "name": "Terminal"
                     }
                 ]
-            },
-            {
-                "name": "Screen Fit",
-                "id": 101,
-                "type": "list",
-                "enabled": true,
-                "persist": true,
-                "address": "0xF7000010",
-                "defaultval": 1,
-                "options": [
-                    {
-                        "value": 1,
-                        "name": "Letterbox"
-                    },
-                    {
-                        "value": 2,
-                        "name": "Stretch"
-                    },
-                    {
-                        "value": 3,
-                        "name": "Scaler 320x200"
-                    }
-                ]
-            },
-            {
-                "name": "Music Volume",
-                "id": 100,
-                "type": "list",
-                "enabled": true,
-                "persist": true,
-                "address": "0xF700000C",
-                "defaultval": 3,
-                "options": [
-                    {
-                        "value": 1,
-                        "name": "Off"
-                    },
-                    {
-                        "value": 2,
-                        "name": "Low"
-                    },
-                    {
-                        "value": 3,
-                        "name": "Medium"
-                    },
-                    {
-                        "value": 4,
-                        "name": "High"
-                    },
-                    {
-                        "value": 5,
-                        "name": "Full"
-                    }
-                ]
             }
         ],
         "messages": []

@@ -81,7 +81,25 @@ static int      g_music_bridge = -1;         /* the raw interact word behind Mus
  * knobs are lists with named options and no 0 in them: an unwired 0 must not silently mute the music. */
 static int in_opts(const int *t, int n, int v) { for (int i = 0; i < n; i++) if (t[i] == v) return 1; return 0; }
 
+/* 0.1.30 declares no app knobs in interact.json (docs/342: the interact read answers garbage on this OS -- every
+ * index, error half included).  Their index constants therefore may be absent from the generated header, and the
+ * wiring below keeps them compiled but inert so re-enabling a knob is one flag in mk_dist.py, not an edit here. */
+#ifdef OF_IDX_MUSIC
+#define HAVE_MUSIC 1
+#else
+#define HAVE_MUSIC 0
+#endif
+#ifdef OF_IDX_FIT
+#define HAVE_FIT 1
+#else
+#define HAVE_FIT 0
+#endif
+
+
+
+#if HAVE_MUSIC
 static const int MUSIC_OPTS[] = {   1,   64,  128,  192,  255 };   /* Off, Low, Medium, High, Full */
+#endif
 #define MUSIC_SHIFT 0                        /* the whole word at 0xF700000C carries the choice (mk_dist.py) */
 #define MUSIC_MASK  0x1Fu
 
@@ -106,8 +124,11 @@ long of_interact_probe(int index, unsigned *value) {
 #endif
 }
 
+#if HAVE_MUSIC || HAVE_FIT
 static int bridge_usable(unsigned raw) { return raw != 0u && raw != BRIDGE_JUNK; }
+#endif
 
+#if HAVE_MUSIC
 static int music_vol_from_bridge(unsigned raw) {
     int sel = (int)((raw >> MUSIC_SHIFT) & MUSIC_MASK);
     switch (sel) {
@@ -122,7 +143,9 @@ static int music_vol_from_bridge(unsigned raw) {
     if (in_opts(MUSIC_OPTS, (int)(sizeof MUSIC_OPTS / sizeof *MUSIC_OPTS), (int)raw)) return (int)raw;
     return 0;
 }
+#endif  /* HAVE_MUSIC */
 
+#if HAVE_FIT
 /* Screen Fit: the menu offers Letterbox / Stretch / Scaler as 1 / 2 / 3 (interact.json), the host's fit is
  * 0 / 1 / 2.  Anything else -- 0 (never written) or the 0x55555555 the OS returned everywhere -- means "no
  * instruction", and night.ini's FIT keeps its value. */
@@ -132,6 +155,8 @@ static int fit_from_bridge(unsigned raw) {
     if (in_opts(FIT_OPTS, (int)(sizeof FIT_OPTS / sizeof *FIT_OPTS), (int)raw)) return (int)raw - 1;
     return -1;
 }
+#endif  /* HAVE_FIT */
+
 static int      g_fit_bridge = 0, g_interact_err = 0;
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 0;
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
@@ -380,15 +405,20 @@ void of_settings_load(void) {
      * night.ini's MUSIC_VOL (docs/341, and the card's own interact_persist.json showing Music Volume 0). */
     {
         unsigned mvw = 0, fw = 0;
+        int mv = 0, fit = -1;
+#if HAVE_MUSIC
         long err_m = of_interact_probe(OF_IDX_MUSIC, &mvw);
-        long err_f = of_interact_probe(OF_IDX_FIT, &fw);
-        int mv = music_vol_from_bridge(mvw);
-        int fit = fit_from_bridge(fw);
+        mv = music_vol_from_bridge(mvw);
         g_music_bridge = (int)mvw;
-        g_fit_bridge = (int)fw;
         g_interact_err = (int)err_m;
-        SLOG("bridge: music index %d err=%ld val=%08x | fit index %d err=%ld val=%08x\n",
-             OF_IDX_MUSIC, err_m, mvw, OF_IDX_FIT, err_f, fw);            /* the raw word, reported so a card log can read the knob back */
+        SLOG("bridge: music index %d err=%ld val=%08x\n", OF_IDX_MUSIC, err_m, mvw);
+#endif
+#if HAVE_FIT
+        long err_f = of_interact_probe(OF_IDX_FIT, &fw);
+        fit = fit_from_bridge(fw);
+        g_fit_bridge = (int)fw;
+        SLOG("bridge: fit index %d err=%ld val=%08x\n", OF_IDX_FIT, err_f, fw);
+#endif
         /* The Pocket LCD list lives in bits 16-17 of 0xF7000000, and four other interact variables share that
          * same word (Analogizer, the two SNAC lists, Analogizer Video Out, Video H/V Offset).  of_interact_get
          * hands back a 32-bit value and the header never promises it is masked to the variable's own field, so
@@ -405,6 +435,9 @@ void of_settings_load(void) {
         /* "Pocket LCD" is the firmware's own screen switch (bits 16-17 of 0xF7000000) and the only one the
          * Core Options menu will edit.  It wins over night.ini when it carries a value; night.ini's SCREEN
          * stays as the route for a card-only diagnostic run (SCREEN=2 asks for the log overlaid on the game). */
+        /* SCREEN=-1 used to follow the Pocket LCD field read out of this same bridge.  The bridge answers
+         * garbage (docs/342), so a junk word with bits 16-17 set could move the app to the console by itself;
+         * night.ini now pins SCREEN=0.  SCREEN=-1 stays available for a run on an OS that answers interact. */
         if (g_screen < 0) g_screen = (lcd == OF_PLCD_TERMINAL) ? 1 : 0;
         SLOG("bridge decoded: music=%d fit=%d lcd=%08x\n", mv, fit, (unsigned)lcd);
     }
@@ -420,21 +453,26 @@ int of_settings_poll(void) {
 #else
     int changed = 0;
     unsigned mvw = 0, fw = 0;
+    int mv = 0, fit = -1;
+#if HAVE_MUSIC
     long err_m = of_interact_probe(OF_IDX_MUSIC, &mvw);
-    long err_f = of_interact_probe(OF_IDX_FIT, &fw);
-    int mv = music_vol_from_bridge(mvw);
-    int fit = fit_from_bridge(fw);
+    mv = music_vol_from_bridge(mvw);
     g_interact_err = (int)err_m;
     if ((int)mvw != g_music_bridge) {
         g_music_bridge = (int)mvw;
         changed |= OF_SET_VOL_SEEN;
         SLOG("bridge: music raw=%08x err=%ld decoded=%d\n", mvw, err_m, mv);
     }
+#endif
+#if HAVE_FIT
+    long err_f = of_interact_probe(OF_IDX_FIT, &fw);
+    fit = fit_from_bridge(fw);
     if ((int)fw != g_fit_bridge) {
         g_fit_bridge = (int)fw;
         changed |= OF_SET_FIT_SEEN;
         SLOG("bridge: fit raw=%08x err=%ld decoded=%d\n", fw, err_f, fit);
     }
+#endif
     unsigned lcdw = 0;
     of_interact_probe(OF_IDX_PLCD, &lcdw);
     unsigned lcd = (unsigned)(lcdw & 0x00030000u);

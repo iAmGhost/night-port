@@ -403,11 +403,22 @@ static void present(void) {
         native = g_fb_native_applied;
         if (native) fb = of_video_surface();            /* the bigger surface belongs to the new mode */
     } else if (g_fb_native_applied) {
-        uint64_t mt = sys_now_us();
-        int rc = of_video_set_mode(&g_fb_game);
-        NLOG("fb mode -> game %ux%u rc=%d in %uus\n", g_fb_game.width, g_fb_game.height,
-             rc, (uint32_t)(sys_now_us() - mt));
-        if (rc == 0) g_fb_native_applied = 0;
+        if (!g_fb_game.width || !g_fb_game.height) {
+            /* A mode with no size is refused every time, and asking again 60 times a second is how 0.1.29 filled
+             * a card log with 2 280 identical failures while the picture was wrong.  Say it once, then stop. */
+            static int complained;
+            if (!complained) {
+                complained = 1;
+                NLOG("fb mode -> game refused: the game mode is empty (%ux%u); staying in the current mode\n",
+                     g_fb_game.width, g_fb_game.height);
+            }
+        } else {
+            uint64_t mt = sys_now_us();
+            int rc = of_video_set_mode(&g_fb_game);
+            NLOG("fb mode -> game %ux%u rc=%d in %uus\n", g_fb_game.width, g_fb_game.height,
+                 rc, (uint32_t)(sys_now_us() - mt));
+            if (rc == 0) g_fb_native_applied = 0;
+        }
     }
 #endif
 
@@ -722,6 +733,13 @@ static void fit_apply(const char *why) {
         fit = 1;
     }
     int want200 = (fit == 2);
+    /* Ask for the mode only when the choice actually changes (a mode change costs 41-53 ms, docs/338) -- but
+     * assign g_fb_game EVERY time.  That missing assignment is what 0.1.29 broke the core with: at the default
+     * fit nothing changed, so g_fb_game stayed zero-initialised, and the present path then asked openfpgaOS for
+     * framebuffer mode 0x0 on every 320x200 frame -- 2 280 "fb mode -> game 0x0 rc=-1" lines in one card log, a
+     * 320x200 picture being written into a surface the core was not scanning out, and no audio because the ring
+     * refill was starved behind 78 ms presents. */
+    g_fb_game = g_fb_game_is_200 ? g_fb_native_200 : g_fb_base;
     if (want200 != g_fb_game_is_200) {
         const of_video_mode_t *m = want200 ? &g_fb_native_200 : &g_fb_base;
         uint64_t mt = sys_now_us();
@@ -735,12 +753,30 @@ static void fit_apply(const char *why) {
         g_fb_game = want200 ? g_fb_native_200 : g_fb_base;
         g_fb_game_is_200 = want200;
     }
+    if (!g_fb_game.width || !g_fb_game.height)
+        NLOG("fit: the game framebuffer mode is empty (%ux%u) -- the host would ask the OS for a mode it cannot"
+             " serve\n", g_fb_game.width, g_fb_game.height);
     NLOG("fit=%d (%s) for the 320x200 game picture on a %dx%d panel\n", of_setting_fit(),
          g_fb_game_is_200 ? "core scaler stretches 320x200 -> panel"
                           : (fit_wants_stretch() ? "host row stretch 200 -> 240 rows, no bars"
                                            : "1:1 with 20+20 black bars"),
          PANEL_W, PANEL_H);
 }
+
+#ifndef OF_PC
+/* What geometry is actually being scanned out, from the OS's own answer rather than from what the host asked
+ * for.  The SDK's interactdemo spells out why this matters (src/apps/interactdemo/main.c:420-436): the core's
+ * scanout is a Bresenham stepper, and "a mismatch makes it skip (fb>out) or repeat (fb<out) one source pixel per
+ * line, and because the accumulator carries across lines the skip WALKS down the screen".  A framebuffer whose
+ * size does not match the scaler slot is therefore not a slightly wrong picture, it is a shearing one -- which
+ * is the shape of the glitch 0.1.29 produced.  This reads only the SDK API, never a raw register. */
+static void geo_witness(const char *why) {
+    of_video_mode_t cur;
+    of_video_get_mode(&cur);
+    NLOG("geo %s: applied %ux%u stride=%u | asked %ux%u | panel %dx%d\n",
+         why, cur.width, cur.height, cur.stride, g_fb_game.width, g_fb_game.height, PANEL_W, PANEL_H);
+}
+#endif
 
 /* The menu is live while the core runs, so the knobs are re-read on a beat instead of once at boot.
  * 100 ms is well below what a person notices on a volume slider and far above the cost of two bridge reads. */
@@ -1074,6 +1110,10 @@ static void tick_pump(void) {
                      g_view_320x200, vw, vh, g_view_prev, g_vw_prev, g_vh_prev);
                 g_view_prev = g_view_320x200; g_vw_prev = vw; g_vh_prev = vh;
             }
+#ifndef OF_PC
+            if (g_view_320x200) geo_witness("view");      /* only while the 320x200 picture is up: that is where
+                                                              * 0.1.29 lost the mode, and this line is the witness */
+#endif
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips);
             NLOG("stages last m=%u p=%u c=%u f=%u x=%u | max all=%u copy=%u flip=%u\n",
@@ -1366,6 +1406,7 @@ int main(int argc, char **argv) {
             NLOG("fb native 640x480 8-bit %s (base %ux%u stride=%u)\n",
                  g_fb_native_ok ? "offered/attempted" : "NOT possible", g_fb_base.width, g_fb_base.height, g_fb_base.stride);
             fit_apply("boot");
+            geo_witness("boot");
         }
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));

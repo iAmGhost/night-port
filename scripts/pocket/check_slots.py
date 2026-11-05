@@ -118,6 +118,20 @@ def main():
         print(f"  [PASS] disc_table.h slot ids and NIGHT.json bindings agree for all {len(runtime)} audio tracks "
               f"(ids {min(runtime.values())}..{max(runtime.values())}, none in the save range {SAVE_IDS[0]}-{SAVE_IDS[-1]})")
 
+    # ---- night.ini hygiene (docs/370).  A careless edit to mk_dist.py's ini block put SCREEN twice and FB_MODE
+    # twice into the shipped settings file; a duplicated key is a coin-flip about which value the parser honours, so
+    # the generated file is checked for it rather than eyeballed.
+    ini_path = REPO / "pocket" / "dist" / "night" / "Assets" / "night" / "common" / "night.ini"
+    if ini_path.exists():
+        ini = ini_path.read_text()
+        keys = [l.split("=")[0] for l in ini.splitlines() if _re.match(r"^[A-Z_]+=", l)]
+        dup = sorted({k for k in keys if keys.count(k) > 1})
+        if dup:
+            fail(f"night.ini names a key more than once: {dup} -- the parser cannot honour both")
+        else:
+            print(f"  [PASS] night.ini names each of its {len(keys)} keys exactly once "
+                  f"({', '.join(k for k in keys if k in ('SCREEN', 'FB_MODE', 'LOG', 'DIAG', 'PUMP_AUDIO_TICK'))} tracked)")
+
     print("== ALL PASS ==" if fails == 0 else f"== {fails} FAIL ==")
     return 0 if fails == 0 else 1
 

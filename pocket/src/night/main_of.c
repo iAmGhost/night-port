@@ -1746,7 +1746,13 @@ static void tick_pump(void) {
                      pal_lit(), heap_arena_used(), heap_arena_cap(), of_cdda_pos(), of_cdda_sectors(),
                      of_cdda_tracks(), g_of_sfx_plays, d_r, d_r ? (unsigned)(d_us / d_r) : 0u, c_am / 44100.0);
 #else
-                if (g_display_mode == OF_DISPLAY_TERMINAL) {
+                /* Both text modes, not just the terminal: OF_DISPLAY_OVERLAY (of_video.h:45 "white terminal text
+                 * over framebuffer") is the one that answers task-12a without asking anyone to switch the LCD away
+                 * from the game -- the picture keeps moving and the panel sits on top of it.  This is the shape the
+                 * SDK's own framebuffer demo uses (src/apps/fbdemo/main.c:48 sets the mode, :89-112 clears with
+                 * ESC[2J ESC[H and reprints a short panel every cycle), so the escape codes and the redraw-not-append
+                 * choice are the SDK's own, not an invention.  night.ini SCREEN=2 selects it. */
+                if (g_display_mode == OF_DISPLAY_TERMINAL || g_display_mode == OF_DISPLAY_OVERLAY) {
                     printf("\033[2J\033[H");                       /* clear + home: a panel, not a scroll */
                     printf("NIGHT %s  frame %u\n", OF_CORE_VERSION, g_frames);
                     printf("view %dx%d  sig %08lx chg %u\n", vw, vh, (unsigned long)g_sig, g_sig_changes);

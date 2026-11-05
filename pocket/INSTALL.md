@@ -50,7 +50,7 @@ with its default.  The ones that matter for a report:
 | `DIAG` | `0` (a player's build performs no experimental bus probes) | `1` peripheral scan, `2` analogizer probe, `4` interact census |
 | `FB_MODE` | `1` (native 640x480 source framebuffer) | `0` to make the host downscale 2x2 to the panel instead -- measured 21 344 us vs 3 608 us mean present cost on the desktop shim, still unmeasured on hardware |
 | `FIT` | `1` (stretch) | `0` letterbox, `2` the core scaler's 320x200 mode |
-| `SCREEN` | `0` (game) | `1` terminal text, `2` console over the game, `-1` follow the menu's *Pocket LCD* option |
+| `SCREEN` | `2` | `2` = the game with a nine-line diagnostic panel in white text over it (version, frame, view + picture signature, ticks/s and frames/s, present cost, palette and arena use, CD position, disc reads, ring headroom); `0` game only, `1` terminal text only, `-1` follow the menu's *Pocket LCD* option |
 | `TICK_HZ` | `490` | a cap on the game's fixed step rate, for slow-motion experiments |
 | `SFX_GAIN` / `CDDA_GAIN` | `200` / `150` | 100-212 %, through a knee that cannot clip and cannot attenuate (docs/361) |
 

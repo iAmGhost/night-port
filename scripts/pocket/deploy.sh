@@ -21,6 +21,7 @@ set -euo pipefail
 OUT="${1:?usage: deploy.sh <core-tree> <data-dir> [sd-path]}"
 DATA="${2:?usage: deploy.sh <core-tree> <data-dir> [sd-path]}"
 SDCARD="${3:-${SD_PATH:-}}"
+RUNTIME="${4:-${NIGHT_OS_RUNTIME:-}}"      # optional: overlay a different openfpgaOS os.bin + bitstream pair
 
 GREEN='\033[92m'; RED='\033[91m'; RESET='\033[0m'
 ok()   { echo -e "  ${GREEN}+${RESET} $1"; }
@@ -104,6 +105,24 @@ slot_id_of() {
     awk -F'\t' -v n="$1" '$2==n {print $1; found=1; exit} END {if (!found) printf "?"}' "$OUT/slot_map.tsv"
 }
 [ -f "$COMMON/night.elf" ] || fail "$COMMON has no night.elf -- core tree did not land"
+
+# Optional experiment: overlay a different openfpgaOS runtime pair.  It exists because the card's own
+# ThinkElastic.doom 1.2.0 (2026-09-13) ships a NEWER pair than the vendored SDK snapshot (HEAD 2026-08-18):
+#   sdk   os.bin 134424 B   os25.rbf_r 2135596 B
+#   doom  os.bin 135400 B   os25.rbf_r 2123992 B
+# If the interact read is dead because our OS build predates it, this is how that gets answered without
+# re-plumbing anything else.  Run deploy.sh without the 4th argument to go back to the SDK's pair.
+if [ -n "$RUNTIME" ]; then
+    [ -f "$RUNTIME/os.bin" ] || fail "no os.bin in $RUNTIME"
+    for f in os.bin os25.rbf_r loader.bin; do
+        [ -f "$RUNTIME/$f" ] || continue
+        src_md5="$(md5_of "$RUNTIME/$f")"; dst="$COMMON/$f"
+        if [ -f "$dst" ] && [ "$(md5_of "$dst")" = "$src_md5" ]; then
+            ok "runtime: $f already $(size_of "$dst") B (unchanged)"; continue
+        fi
+        cp "$RUNTIME/$f" "$dst" && ok "runtime: $f <- $RUNTIME ($(size_of "$dst") B, md5 $(md5_of "$dst" | cut -c1-8))"
+    done
+fi
 
 # Drop this core's own persisted interact values.  They were written by our earlier builds, whose two sliders
 # behaved badly: the card's Settings/iamghost.night/Interact/_core/interact_persist.json carried Music Volume 0

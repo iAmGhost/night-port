@@ -1163,6 +1163,19 @@ static void tick_pump(void) {
 #ifndef OF_PC
             if (g_view_320x200) geo_witness("view");      /* only while the 320x200 picture is up: that is where
                                                               * 0.1.29 lost the mode, and this line is the witness */
+            {   /* A second sample of the same interact table, three seconds into the run.  A real menu value is
+                 * stable and moves when the knob moves; an unpopulated table is garbage that does not care.  The
+                 * 0.1.28 run read 0x55555555 everywhere and the 0.1.29 run read a different garbage per index --
+                 * neither behaviour distinguishes those two, but a value that HOLDS and then CHANGES does. */
+                static unsigned probe_tick;
+                if (++probe_tick == 3u) {
+                    for (int i = 0; i < OF_INTERACT_COUNT; i++) {
+                        unsigned v = 0;
+                        long e = of_interact_probe(i, &v);
+                        NLOG("interact2[%d]: err=%ld val=%08x\n", i, e, v);
+                    }
+                }
+            }
 #endif
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips);
@@ -1363,6 +1376,23 @@ int main(int argc, char **argv) {
     NLOG("night pocket: cpu=%u Hz sdram=%u KB heap=%u KB fb=%ux%u stride=%u voices=%u variant=%u\n",
            caps->cpu_freq_hz, caps->sdram_size / 1024, caps->heap_size / 1024,
            caps->fb_width, caps->fb_height, caps->fb_stride, caps->mixer_voices, caps->core_variant);
+    NLOG("caps: version=%u hw=%08x os=%08x (sdk OF_CAPS_VERSION=%d)\n",
+         caps->version, caps->hw_features, (caps->version >= 4) ? caps->os_features : 0u, OF_CAPS_VERSION);
+#ifndef OF_PC
+    /* The control in the interact experiment.  The RESERVED menu values have a documented route that is not
+     * interact -- of_analogizer.h hands the app what the firmware wrote for Analogizer / SNAC / video offsets --
+     * so if this reads coherently while of_interact_get() reads garbage, the gap is the interact ecall and not
+     * the menu plumbing. */
+    {   /* of_analogizer_state() reads the SAME menu values the interact.json reserved entries point at -- video
+         * mode, SNAC type, H/V offsets -- through a different ecall (OF_EID_ANALOGIZER).  If it answers coherently
+         * while of_interact_get() answers garbage, the gap is the interact ecall specifically. */
+        of_analogizer_state_t az;
+        int arc = of_analogizer_state(&az);
+        NLOG("analogizer: enabled=%d state rc=%d en=%u video=%u snac=%u/%u off=%d,%d\n",
+             of_analogizer_enabled(), arc, az.enabled, az.video_mode, az.snac_type, az.snac_assignment,
+             (int)az.h_offset, (int)az.v_offset);
+    }
+#endif
 #ifndef OF_PC
     NLOG_STEP("clock source installed");
     NLOG("clock: openfpgaOS of_time_us installed; probe: ");

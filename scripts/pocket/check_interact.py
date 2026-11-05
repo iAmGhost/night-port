@@ -94,8 +94,11 @@ def main():
     #    0xF7000000 is openfpgaOS's control word (Analogizer / SNAC / Pocket LCD are decoded from it), and the
     #    firmware rewrites every declared element's field each frame.  Putting a knob there pokes core state
     #    60 times a second -- and the core stopped booting.
-    reserved_addrs = {v["address"] for v in variables if v.get("mask") is not None or v["address"] == "0xF7000000"}
-    app = [v for v in variables if v["name"] in ("Music Volume", "Screen Fit")]
+    APP_NAMES = ("Music Volume", "Screen Fit")
+    # "reserved" means an entry the core or the SDK owns -- everything that is not one of our knobs.  A knob's own
+    # address is never reserved by itself, which is the mistake that would make this rule fire on its own inputs.
+    reserved_addrs = {v["address"] for v in variables if v["name"] not in APP_NAMES}
+    app = [v for v in variables if v["name"] in APP_NAMES]
     for v in app:
         if v["address"] in reserved_addrs:
             fail(f"{v['name']} is mounted on {v['address']}, a word the core's reserved entries already write")
@@ -126,10 +129,16 @@ def main():
         else:
             print(f"  [PASS] {v['name']}: options {vals} map 1:1 onto the host's choice table "
                   f"(0 stays 'nothing was written', never a choice)")
-        if v["defaultval"] not in vals:
+        dv = v["defaultval"]
+        if isinstance(dv, str): dv = int(dv, 16)
+        if dv not in vals:
             fail(f"{v['name']} defaultval {v['defaultval']} is not one of its own options")
-        if v.get("mask") is not None:
-            fail(f"{v['name']} declares a mask -- masked fields belong to the reserved word, not an app knob")
+        # Doom's shape is what an app option looks like on openfpgaOS: a list at its OWN address with the mask
+        # spelling the whole word (0xFFFFFFFF).  A partial mask means it shares a word with someone else.
+        mk = v.get("mask")
+        if mk is not None and (int(mk, 16) if isinstance(mk, str) else int(mk)) != 0xFFFFFFFF:
+            fail(f"{v['name']} declares mask {mk}: an app knob owns its whole word (Doom's App Option shape) "
+                 f"or it is sharing a register")
         const, sh, msk = consts[v["name"]]
         if not re.search(rf"#define {const}\s+\d+", hdr):
             fail(f"host has no {const} index constant for {v['name']}")

@@ -38,7 +38,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.31"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.32"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -196,7 +196,13 @@ def main():
     # knob in the menu is a control that cannot be read -- worse than no control.  Flip this flag when a run
     # shows err=0 with values that move when the menu moves; of_save.c keeps both decoders compiled behind
     # HAVE_MUSIC/HAVE_FIT so re-enabling is this flag alone.
-    APP_INTERACT_KNOBS = False
+    # 0.1.32 puts the knobs back, but mounted the way openfpgaOS's own cores mount an app option.  Doom's
+    # interact.json (dist/doom/Cores/ThinkElastic.doom) declares "App Option 1" at 0x03FE0000 and "App Option 3"
+    # at 0x03FE0008 -- both `list`, both mask "0xFFFFFFFF", both with hex-string option values.  NIGHT's knobs
+    # sat at 0xF700000C / 0xF7000010, i.e. in the same bridge page as openfpgaOS's control word: no shipped
+    # openfpgaOS core uses that page for app options, and 0.1.27 is what happened when one of my knobs was put
+    # IN the control word itself.  Canonical shape, canonical addresses, and not one bit of the control word.
+    APP_INTERACT_KNOBS = True
     app_vars = ([] if not APP_INTERACT_KNOBS else [
         # Both knobs are lists, not sliders, and that is a decision about the bridge rather than the menu.
         # A variable is a word in the interact bridge, and the card's Settings/…/interact_persist.json showed
@@ -219,10 +225,10 @@ def main():
         # port has always drawn and the safe choice; Stretch duplicates 40 of the 200 rows to fill the panel;
         # Scaler asks the core for its declared 320x200 framebuffer mode and lets the FPGA do the stretch.
         {"name": "Screen Fit", "id": 101, "type": "list", "enabled": True, "persist": True,
-         "address": "0xF7000010", "defaultval": 1, "options": [
-             {"value": 1, "name": "Letterbox"},
-             {"value": 2, "name": "Stretch"},
-             {"value": 3, "name": "Scaler 320x200"}]},
+         "address": "0x03FE0000", "mask": "0xFFFFFFFF", "defaultval": "0x01", "options": [
+             {"value": "0x01", "name": "Letterbox"},
+             {"value": "0x02", "name": "Stretch"},
+             {"value": "0x03", "name": "Scaler 320x200"}]},
         {"name": "Music Volume", "id": 100, "type": "list", "enabled": True, "persist": True,
          # 0.1.27 put this INSIDE 0xF7000000 (bits 20-23, mask 0xFF0FFFFF) and the core stopped booting: the card
          # kept the 0.1.26 log and wrote nothing new, i.e. the app never got as far as opening the log slot.  That
@@ -232,12 +238,12 @@ def main():
          # core state.  Back to 0xF700000C: 0.1.26 booted with that address all day, so it is proven harmless even
          # though nothing decodes it, and the values are small integers so the host can read them if the OS ever
          # does publish them.
-         "address": "0xF700000C", "defaultval": 3, "options": [
-             {"value": 1, "name": "Off"},
-             {"value": 2, "name": "Low"},
-             {"value": 3, "name": "Medium"},
-             {"value": 4, "name": "High"},
-             {"value": 5, "name": "Full"}]},
+         "address": "0x03FE0008", "mask": "0xFFFFFFFF", "defaultval": "0x03", "options": [
+             {"value": "0x01", "name": "Off"},
+             {"value": "0x02", "name": "Low"},
+             {"value": "0x03", "name": "Medium"},
+             {"value": "0x04", "name": "High"},
+             {"value": "0x05", "name": "Full"}]},
         # No tick-rate knob in the menu, on purpose.  It was a measurement aid (docs/335: the port's waits are
         # clock deadlines, so halving the tick rate changes how many ticks a fade or timer gets -- that is not
         # "slow motion", it is a different game), and on the card it was one more number a player had to

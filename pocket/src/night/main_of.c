@@ -493,20 +493,33 @@ static void board_boot(void) {
  * in fabric, so the host hands each drained run to the mixer as its own mono voice -- the same shape
  * the board had on DOS.  Sample memory must live in the mixer's SDRAM pool, and a pool block may not
  * be rewritten while its voice is still playing, hence the ping-pong. */
-#define SFX_CHUNK 4096    /* frames per block: a sound the game armed as one DMA transfer should reach the
-                           * mixer as one voice.  At 1024 the 11 kHz samples were chopped every 92 ms, which is
-                           * the "SFX cut off before they finish" report. */
-#define SFX_BLOCKS 8      /* eight independent 8 KB SFX buffers: the game overlaps sounds, and two slots with a
-                           * drop rule means the second and later voice of a chord is simply thrown away.  The card
-                           * log shows the size of the loss: plays=5 on hardware against plays=193 on the desktop
-                           * shim over a comparable span. */
+#define SFX_CHUNK 16384   /* frames per block.  A sound the game armed as one DMA transfer has to reach the
+                           * mixer as ONE voice: at 4096 a long sound was drained as two full blocks and both
+                           * were started in the same pump iteration, so the tail voice began 2 ms into the head
+                           * voice and the sample played overlapped -- half its length, which is the "menu confirm
+                           * cuts early" report.  The blocks are sized so no sound the port can be asked for fits
+                           * twice: the largest transfer measured on the canonical route is 5348 bytes = 2674
+                           * frames (docs/166), and 16384 frames is 1.5 s at 11 kHz.  8 x 32 KB of the 8 MB
+                           * mixer pool.  A drain that still fills a block is counted as a split and logged, so
+                           * the card log says whether this ever happens rather than leaving it to theory. */
+#define SFX_PRIORITY 100  /* above the CDDA voices' priority (of_cdda.c CD_MIXER_PRIORITY 0) so a busy music
+                           * track cannot starve a gameplay sound -- the rule openfpgaOS-Doom states at
+                           * i_sdlsound.c:253 and the value it uses. */
+#define SFX_BLOCKS 12     /* independent SFX buffers: the game overlaps sounds, and 12 x 32 KB is a small part
+                           * of the 8 MB mixer pool.  The card log is what moved this from 8: plays=5 on hardware
+                           * against plays=193 on the desktop shim over a comparable span meant the slots, not the
+                           * samples, were the limit.  A 10 000-frame pad-only run into stage 1 arms 124 transfers
+                           * of 10 distinct sizes (3088..14674 frames), so a fight really does stack them. */
 static int16_t *g_sfx_pool[SFX_BLOCKS];
 static int      g_sfx_voice[SFX_BLOCKS];
 static int      g_sfx_block;
 static int16_t  g_sfx_scratch[SFX_CHUNK];
 static uint64_t g_sfx_free_us[SFX_BLOCKS];   /* when a slot's sample has run out, by our own arithmetic */
 static uint32_t g_of_sfx_plays;
-static uint32_t g_of_sfx_drops;    /* samples discarded because all eight SFX slots were still sounding */   /* (f.h already exports g_sfx_plays for the game's own element-event sounds) */
+static uint32_t g_of_sfx_drops;
+static uint32_t g_of_sfx_steals;   /* sounds we tore in half so a later one could start at all */
+static int      g_sfx_volume = 200;   /* per-voice headroom, the value openfpgaOS-Doom uses; the menu's SFX
+                                       * Volume is the group volume, so the two knobs do not fight */    /* samples discarded because all eight SFX slots were still sounding */   /* (f.h already exports g_sfx_plays for the game's own element-event sounds) */
 
 static void cdda_boot(void) {
     if (of_cdda_boot() != 0) return;
@@ -530,6 +543,11 @@ static void audio_boot(void) {
         g_sfx_voice[i] = 0;
         if (!g_sfx_pool[i]) printf("mixer: pool block %d failed\n", i);
     }
+    /* The setting was only ever printed.  The SFX group volume is the mixer's own knob, and the music group
+     * already has one (of_cdda.c:163), so the menu's SFX Volume control has to reach it the same way. */
+    of_mixer_set_group_volume(OF_MIXER_GROUP_SFX, of_setting_sfx_vol() & 0xff);
+    NLOG("mixer: sfx group volume %d, %d blocks x %d frames\n",
+         of_setting_sfx_vol() & 0xff, SFX_BLOCKS, SFX_CHUNK);
 }
 
 /* Fill up to one block, stopping when the ring runs dry or the block is full. */
@@ -569,11 +587,48 @@ static void audio_pump(void) {
                 break;
             }
         }
-        if (b < 0) { g_of_sfx_drops++; continue; } /* all eight still sounding: drop rather than tear one in half */
+        if (b < 0) {
+            /* Nothing had finished.  The old rule was "drop the new sound rather than tear an old one in half",
+             * and that is backwards for the sound the player just caused: a kick hit lands on top of a footstep
+             * or an explosion tail and is the one you never hear.  Take the block that will finish soonest --
+             * the sound least worth keeping -- and say so in the count.  openfpgaOS-Doom steals before it gives
+             * up too (i_sdlsound.c:289). */
+            uint64_t soon = ~0ull;
+            for (int i = 0; i < SFX_BLOCKS; i++) {
+                int c = (g_sfx_block + i) % SFX_BLOCKS;
+                if (g_sfx_voice[c] && g_sfx_free_us[c] < soon) { soon = g_sfx_free_us[c]; b = c; }
+            }
+            if (b < 0) { g_of_sfx_drops++; continue; }
+            of_mixer_stop(g_sfx_voice[b]);
+            g_sfx_voice[b] = 0;
+            g_of_sfx_steals++;
+        }
         g_sfx_block = (b + 1) % SFX_BLOCKS;
         memcpy(g_sfx_pool[b], g_sfx_scratch, (size_t)got * sizeof(int16_t));
         of_cache_flush_range(g_sfx_pool[b], (size_t)got * sizeof(int16_t));
-        g_sfx_voice[b] = of_mixer_play((const uint8_t *)g_sfx_pool[b], got, rate, 100, 220);
+        /* Tagged as an SFX voice rather than untagged: the mixer's steal path "prefers a same-group victim
+         * before crossing groups, so a busy MUSIC track can't silence an in-flight SFX (and vice versa)"
+         * (of_mixer.h:322-329), and it scans the groups from opposite ends of the 32-slot range.  Untagged was
+         * the old call, which put us in "other groups" and gave the mixer licence to evict whatever it liked. */
+        g_sfx_voice[b] = of_mixer_alloc_for_group(OF_MIXER_GROUP_SFX, (const uint8_t *)g_sfx_pool[b],
+                                                  got, rate, SFX_PRIORITY, g_sfx_volume);
+#ifndef OF_PC
+        if (g_sfx_voice[b] < 0) {
+            /* The mixer refuses a voice only when every slot is held by an equal-or-higher priority voice.
+             * Give up our own oldest sound and ask once more -- Doom does the same (i_sdlsound.c:289).  Losing
+             * a sound that already started is better than losing the one the player just caused. */
+            int oldest = -1; uint64_t when = ~0ull;
+            for (int i = 0; i < SFX_BLOCKS; i++)
+                if (g_sfx_voice[i] && g_sfx_free_us[i] < when) { when = g_sfx_free_us[i]; oldest = i; }
+            if (oldest >= 0) {
+                of_mixer_stop(g_sfx_voice[oldest]);
+                g_sfx_voice[oldest] = 0;
+                g_of_sfx_steals++;
+                g_sfx_voice[b] = of_mixer_alloc_for_group(OF_MIXER_GROUP_SFX, (const uint8_t *)g_sfx_pool[b],
+                                                          got, rate, SFX_PRIORITY, g_sfx_volume);
+            }
+        }
+#endif
         /* The sample rate is set explicitly because the hardware mixer is documented (by openfpgaOS-Doom's
          * i_sdlsound.c:295-300) to possibly ignore the rate argument in the play call and use the output rate
          * instead -- 48 000 Hz.  NIGHT's samples are 10 000-11 111 Hz, so that plays every sound 4.3x too
@@ -581,10 +636,11 @@ static void audio_pump(void) {
          * finish".  Same caution as the CDDA voices (of_cdda.c voice_start). */
         if (g_sfx_voice[b] >= 0) of_mixer_set_rate(g_sfx_voice[b], (int)rate);
         g_sfx_free_us[b] = now + (uint64_t)got * 1000000ull / rate + 20000ull;   /* +20 ms of margin */
-        if (g_of_sfx_plays <= 8)                       /* rate, length, and the handle the mixer handed back:
-                                                        * voice=-1 would mean the mixer refused the sample. */
-            NLOG("sfx#%u ch=%d rate=%u frames=%u voice=%d\n",
-                 g_of_sfx_plays, b, rate, got, g_sfx_voice[b]);
+        /* Every play now, not the first eight, and the two things that would explain a sound the player says
+         * is missing or short: voice=-1 (the mixer refused it) and a drain that filled a whole block (the sound
+         * was longer than one voice, so its tail is a second voice started too early). */
+        NLOG("sfx#%u ch=%d rate=%u frames=%u voice=%d%s\n",
+             g_of_sfx_plays, b, rate, got, g_sfx_voice[b], got == SFX_CHUNK ? " SPLIT" : "");
         g_of_sfx_plays++;
     }
 }
@@ -917,10 +973,25 @@ static void tick_pump(void) {
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
 #endif
-            NLOG("audio cdda=%u/%u/%u plays=%u stops=%u sfx=%u/%u ring=%u head=%d\n",
+            NLOG("audio cdda=%u/%u/%u plays=%u stops=%u sfx=%u/%u/%u ring=%u head=%d\n",
                  of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), sys_cd_audio_play_calls(),
-                 sys_cd_audio_stop_calls(), g_of_sfx_plays, g_of_sfx_drops,
+                 sys_cd_audio_stop_calls(), g_of_sfx_plays, g_of_sfx_drops, g_of_sfx_steals,
                  of_cdda_ring_ahead(), (int)of_cdda_head());
+            if (sys_audio_dsp_unknown_total()) {
+                /* Name them.  A total only says something was ignored; which byte it was says whether the
+                 * missing sound is an arm the port never acts on. */
+                char acc[96]; int n = 0;
+                acc[0] = 0;
+                int shown = 0;
+                for (int c = 0; c < 256 && shown < 6; c++) {
+                    uint32_t k = sys_audio_dsp_unknown((uint8_t)c);
+                    if (!k) continue;
+                    n += snprintf(acc + n, sizeof acc - (size_t)n, " 0x%02x=%u", c, k);
+                    shown++;
+                }
+                NLOG("audio: dsp commands with no case in the port = %u:%s\n",
+                     sys_audio_dsp_unknown_total(), acc);
+            }
 #ifndef OF_PC
             /* The log is the good channel; the console panel is the visible one.  When the log cannot be
              * opened at all, put the lines on the console instead of nowhere. */

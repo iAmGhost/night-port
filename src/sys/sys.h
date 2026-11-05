@@ -171,6 +171,8 @@ uint32_t sys_audio_transfers(void);                 /* DMA transfers turned into
 uint32_t sys_audio_stops(void);                     /* DSP 0xd0 / 0xd1 stops */
 uint32_t sys_audio_pending(void);                   /* bytes waiting in the output ring */
 uint32_t sys_audio_pushed(void);                    /* bytes ever accepted into the ring */
+uint32_t sys_audio_dsp_unknown(uint8_t cmd);        /* DSP commands the port has no case for */
+uint32_t sys_audio_dsp_unknown_total(void);
 uint32_t sys_audio_fill(int16_t *dst, uint32_t frames);
 void     sys_audio_reset(void);
 uint32_t sys_dma_addr(uint8_t ch);                  /* the 8237 address the game programmed */

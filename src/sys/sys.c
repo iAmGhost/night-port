@@ -157,6 +157,8 @@ static uint32_t au_width     = 1;       /* sample width in bytes (8- or 16-bit) 
 static uint32_t au_transfers, au_stops;
 static const uint8_t *au_src;
 static uint32_t au_pushed;
+static uint32_t au_dsp_other[256];           /* DSP commands written with no case to act on them */
+static uint32_t au_dsp_other_total;
 
 /* 8237 state the game drives */
 static uint8_t  dma_page[4];
@@ -175,6 +177,8 @@ uint32_t sys_audio_transfers(void){ return au_transfers; }
 uint32_t sys_audio_stops(void)    { return au_stops; }
 uint32_t sys_audio_pending(void)  { return au_w - au_r; }
 uint32_t sys_audio_pushed(void)   { return au_pushed; }
+uint32_t sys_audio_dsp_unknown(uint8_t cmd) { return cmd < 256 ? au_dsp_other[cmd] : 0; }
+uint32_t sys_audio_dsp_unknown_total(void)  { return au_dsp_other_total; }
 uint32_t sys_dma_addr(uint8_t ch)   { return ch < 4 ? dma_addr[ch] : 0; }
 uint32_t sys_dma_count(uint8_t ch)  { return ch < 4 ? dma_count[ch] : 0; }
 int8_t   sys_dma_armed(void)        { return dma_armed; }
@@ -243,13 +247,21 @@ static void dsp_out(uint16_t port, uint8_t v) {
     case 0x14: case 0x17: au_width = 1; dsp_wait = v; dsp_blk_i = 0; au_start(); break;
     case 0x75: case 0x77: au_width = 2; dsp_wait = v; dsp_blk_i = 0; au_start(); break;
     case 0xd0: case 0xd1: au_stops++; dma_armed = -1; break;
-    default: break;
+    default:
+        /* The cases above are every DSP command the canonical route was ever seen to use.  A sound the port
+         * never hears is just as likely to be an arm we ignore as a voice the mixer refused, and until now an
+         * ignored command left no trace: 0x10/0x11 (continue block), 0x1b/0x1c (single-cycle) and 0x74 (16-bit
+         * block) all fall here.  Count them so "a sound is missing" has a number attached to it. */
+        au_dsp_other[v]++;
+        au_dsp_other_total++;
+        break;
     }
 }
 
 void sys_audio_reset(void) {
     au_w = au_r = 0; au_rate_hz = 22050; au_width = 1;
     au_transfers = au_stops = au_pushed = 0; au_src = 0;
+    memset(au_dsp_other, 0, sizeof au_dsp_other); au_dsp_other_total = 0;
     memset(dma_page, 0, sizeof dma_page); memset(dma_addr, 0, sizeof dma_addr);
     memset(dma_count, 0, sizeof dma_count); memset(dma_ff, 0, sizeof dma_ff);
     dma_armed = -1; dsp_wait = 0; dsp_block = 0; dsp_blk_i = 0;

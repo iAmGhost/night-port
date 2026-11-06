@@ -6,6 +6,13 @@
 The game data is yours: nothing in this repo ships NIGHT.RES or the disc audio.  Everything below regenerates it
 from `NIGHT/TG_NIGHT.CUE` + `NIGHT/TG_NIGHT.IMG` and the `NIGHT.RES` you already have in `./NIGHT`.
 
+
+> **Upgrading clears your menu settings (docs/394 3).**  `scripts/pocket/deploy.sh` deletes
+> `Settings/iamghost.night/Interact/` on purpose: a stale `interact_persist.json` once carried "Music Volume 0", which
+> the peripheral mirror read as a real choice and the core played as silence.  After a deploy, the in-menu knobs (Music
+> Volume, Sound Volume, Screen Fit) return to the `night.ini` values shown above.  Your `Input` and `Video` settings and
+> your save slots are left alone.
+
 ## 1. One command, on a mounted SD card
 
 ```sh

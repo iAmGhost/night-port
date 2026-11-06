@@ -2328,21 +2328,11 @@ static void file_probe(void) {
         closedir(d);
         NLOG("probe dir listed %d (cap 12)\n", n);
     }
-    FILE *f = fopen("night_6.sav", "wb");        /* a game save slot, so the probe cannot touch the log */
-    if (!f) { NLOG("probe fopen night_6.sav wb FAILED\n"); }
-    else {
-        static const char mark[] = "NIGHT-PROBE-0001";                 /* 17 bytes, NUL included */
-        size_t w = fwrite(mark, 1, sizeof mark, f);
-        fclose(f);                                                     /* the close a bridge commits on */
-        NLOG("probe wrote %u then closed\n", (unsigned)w);
-        f = fopen("night_6.sav", "rb");
-        if (!f) { NLOG("probe reopen FAILED\n"); }
-        else {
-            char buf[32]; size_t g = fread(buf, 1, 16, f); fclose(f);
-            buf[g < 16 ? g : 15] = 0;
-            NLOG("probe readback %u \"%s\"\n", (unsigned)g, buf);
-        }
-    }
+    /* The write half is GONE.  It opened night_6.sav -- instance slot 16, one of the seven player save slots
+     * (of_save.c: ids 10..16 = night_0..night_6.sav) -- with "wb" and committed 17 probe bytes there on every boot,
+     * under a comment that reasoned backwards: "a game save slot, so the probe cannot touch the log".  Deleting the
+     * file from the card did not stick, because the next boot wrote it again: 14:09 on 2026-11-06, one user playtest
+     * (docs/394).  A probe may not write to a player's data at all, so everything left here is read-only. */
 }
 #endif
 
@@ -2562,7 +2552,7 @@ int main(int argc, char **argv) {
         NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
         mem_bench();
-        file_probe();
+        if (of_setting_diag() & OF_DIAG_FILEPROBE) file_probe();   /* docs/394: a player boot performs no probe */
 #ifndef OF_PC
         {   /* What the file layer thinks of the name we open the log on. */
             uint32_t sid = 0;

@@ -73,7 +73,11 @@ int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG
 /* bit 3 (8) is RETIRED, not merely off: an app read of 0xF7000000 hangs this core.  0.1.37 ran with DIAG=15 and the
  * card log ends at "probe: control-word read begin" -- no "done", no game, a frozen pocket.  The value is accepted
  * in night.ini so an old card does nothing strange, and no code path consumes it. */
-#define OF_DIAG_BRIDGE      8     /* retired: reading the control word is fatal here (docs/349) */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
+#define OF_DIAG_BRIDGE      8     /* retired: reading the control word is fatal here (docs/349) */
+/* The boot-time file probe wrote 17 bytes into night_6.sav -- a *player save slot* -- on every boot, unconditionally.
+ * The card proves it: the file reappeared at 14:09 on 2026-11-06 with "NIGHT-PROBE-0001" after being deleted (docs/394).
+ * It is now opt-in and it no longer writes to any save slot. */
+#define OF_DIAG_FILEPROBE   16    /* the read-only file-layer probe: slot find + readdir, no writes at all */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */
 int  of_setting_sync_flip(void);      /* 1 = wait for each flip to be presented before returning */
 int  of_setting_fb_mode(void);        /* 1 = ask the OS for a native 640x480 source framebuffer (FB_MODE=0 forces the software downscale) */

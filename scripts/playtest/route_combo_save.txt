@@ -1,0 +1,40 @@
+# The original's phase sequence, in the shim's anchored dialect (docs/385 4, docs/386 3).
+# Slots are nominal ceilings: an anchor parks the program until the game performs that lookup, and every later key
+# shifts with it (docs/380 1).  Names come from the rig's res.jsonl sidecar.  Polls, not frames: one poll is 8 ms and
+# this host presents ~54.5 frames/s, so a slot of N ms is poll N/8 while a frame F is poll ~2.1F (docs/386 2).
+#
+# The drive file's warning is about pressing Enter on the *title card* (that skips the whole show).  Once the show has
+# started, each card holds until a key arrives, so the show is walked with one press per card -- the three presses plus
+# soft mode waits in drive_orig_episode1.txt are doing exactly that.  The first attempt here anchored on 1s3.pcx and
+# pressed nothing meanwhile, and the show stalled at 1s1 (docs/387).
+4000   wait res opening.fli
+12000  wait res title1.pcx
+13000  key enter down
+13300  key enter up
+16000  key enter down            # each slide holds until a key arrives, so the show is walked, not awaited
+16300  key enter up
+20000  key enter down
+20300  key enter up
+24000  key enter down            # and one more to leave the last card
+24300  key enter up
+26000  wait res stage1.pcx
+32000  key esc down              # the game's own menu, over live stage
+32300  key esc up
+35000  key left down
+35300  key left up
+37000  key down down
+37300  key down up
+39000  key esc down
+39300  key esc up
+; docs/392: the pad combo a player actually uses on the Pocket -- hold L1 (F1, make 0x3b) and press
+; Select (Esc, make 0x01), which is of_save_write(of_save_slot()).  Overlapping spans, not a sequence:
+; pad_combo() reads pad_script_held(L1) && Select-pressed in the same poll.
+39500  key f1 down
+39650  key esc down
+39850  key esc up
+40100  key f1 up
+; the load combo: hold L1 and press Start (Enter, 0x1c).  Same overlap requirement as the save combo.
+44000  key f1 down
+44150  key enter down
+44350  key enter up
+44600  key f1 up

@@ -1514,6 +1514,10 @@ static void pad_script_load(void) {
  * Times convert on the pad's own grid: one poll is 8 ms. */
 static const struct { const char *name; uint8_t sc; } g_script_keys[] = {
     { "enter", 0x1c }, { "return", 0x1c }, { "esc", 0x01 }, { "space", 0x39 }, { "tab", 0x0f },
+    /* F1 is the pad's L1 (g_pad_keys, main_of.c:1436), and L1 is the *only* way a player on the Pocket reaches
+     * saves, slot cycling and the fit combo (docs/392) -- so a route file that cannot name F1 cannot express any of
+     * them.  These two keys were simply absent from the table. */
+    { "f1", 0x3b }, { "f2", 0x3c },
     { "backspace", 0x0e }, { "up", 0x48 }, { "down", 0x50 }, { "left", 0x4b }, { "right", 0x4d },
     { "shift", 0x2a }, { "lctrl", 0x1d }, { "rctrl", 0x1d }, { "lalt", 0x38 }, { "ralt", 0x38 },
     { "a", 0x1e }, { "b", 0x30 }, { "c", 0x2e }, { "d", 0x20 }, { "e", 0x12 }, { "f", 0x21 },

@@ -30,11 +30,17 @@
 #include <dirent.h>
 #endif
 
+#ifndef SAVE_STAGE_FIRST_MIN
+#define SAVE_STAGE_FIRST_MIN 10       /* of_save.c: instance slot ids 10..16 are night_0.sav .. night_6.sav */
+#endif
 #define LOG_SLOT        17         /* a save slot of our own: 10-16 are the game saves, 17 is the log */
 #define LOG_NAME        "save:7"   /* the SDK save alias for APF slot 17 (save_0/save:0 is id 10) */
 #define LOG_NAME_2      "nightlog.sav"      /* the same slot under the name the instance JSON binds */
-#define LOG_NAME_3      "night_6.sav"       /* a game save slot, if neither of the above opens */
-#define LOG_FALLBACKS   { 16, 15, 14 }       /* game save slots stand in if none of those open */
+#define LOG_NAME_3      "log.sav"           /* a third bare name; never one of the seven game-save names */
+/* The log used to fall back onto game save slots 16/15/14 -- and on hardware it did: the card's night_6.sav still
+ * reads "NIGHT-PROBE-0001" (docs/393), i.e. a diagnostic boot overwrote a player's slot-6 save.  Save slots are the
+ * player's data, so the diagnostic trail now either gets its own name or stays on stdout. */
+#define LOG_FALLBACKS   { -1 }               /* no game save slot is ever a log target */
 
 static FILE *g_log;
 static char g_path[64];            /* the name the log is actually open on, for the reopen below */
@@ -130,6 +136,10 @@ int of_log_open(void) {
         return 0;
     }
     for (unsigned i = 0; i < sizeof want / sizeof want[0]; i++) {
+        if (want[i] < (int)SAVE_STAGE_FIRST_MIN || want[i] > SAVE_STAGE_FIRST_MIN + 6) {
+            printf("log: no writable slot; diagnostics stay on stdout only\\n%s", scan);
+            return -1;                        /* docs/393: a measuring boot may not eat a player's save slot */
+        }
         scan[0] = 0;
         char bare[32];
         snprintf(bare, sizeof bare, "night_%d.sav", want[i] - 10);

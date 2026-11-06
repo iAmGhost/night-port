@@ -50,3 +50,15 @@ screenshots.
 
 Core **0.1.71**: `core.json` version == ELF string, card md5 `878ad3e385f96bfafdd1be9505827e40` == `make dist` output.
 `make -C pocket/src/night test` (both halves) clean, repo `make test` `== ALL PASS ==`, `src/f` untouched.
+
+## 5. Both halves of this verified, and the artifact moved off the card
+
+`ab.sh diag`, `ab.sh show` and `ab.sh player` were each run (they had never been executed since being written -- the
+same class of gap as the docs/388 sweep wiring): `diag` sets `LOG=1 DIAG=1`, `show` prints the card's version/md5/ini,
+`player` restores `SCREEN=0 PUMP_AUDIO_TICK=0 RESTORE=1 DIAG=0 LOG=0`.  `cardlog.sh` reads all of it back.
+
+The stale `NIGHT-PROBE-0001` file is kept as evidence at `analysis/legacy/night_6-slot-clobbered-by-probe-log.txt` and
+removed from the card, so a future `cardlog.sh` run reports only trails the current core actually wrote.  The card ends
+in the player shape: core 0.1.71, `core.json` == ELF string, card md5 `878ad3e385f96bfafdd1be9505827e40` == build, no
+save slots, no log file.
+

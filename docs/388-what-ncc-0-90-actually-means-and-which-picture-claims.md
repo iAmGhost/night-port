@@ -83,3 +83,26 @@ The three windows with a raw match are the ones docs/367 §6 should lean on.  Tw
 The sweep prints this table for all three routes now, so the distinction is part of the default output rather than
 something a claim has to be checked against afterwards.
 
+## 5. The sweep itself, run after the wiring (core 0.1.70, `scripts/pocket/accuracy_sweep.sh`)
+
+The raw-agreement table was wired into `accuracy_sweep.sh` and then run, so the reproduce command is known to work
+(exit 0, 71 lines, three routes x seven windows plus the menu-box section).  Its own numbers, which differ from 4's
+single-route table because the sweep uses its own three route shapes:
+
+| window | warp | esc | scripted (thumbNCC / rawMAE / <=3LSB) |
+|---|---|---|---|
+| gameplay | 0.9623 / **4.71** / **89.0 %** | 0.9630 / **5.03** / **89.0 %** | 0.3939 / 38.76 / 1.2 % |
+| slides | 0.9961 / 13.18 / 16.8 % | 0.9961 / 13.06 / 16.8 % | 0.9961 / 13.88 / 16.8 % |
+| pause menu `esc_win_` | 0.8361 / 13.74 / 79.3 % | 0.8890 / **7.02** / **89.4 %** | 0.3142 / 45.34 / 1.1 % |
+| pause menu `esc_win2_` | 0.9301 / 4.12 / 93.7 % | 0.9332 / **3.86** / **94.1 %** | -- |
+| title melt | 0.9740 / 60.79 / 0.0 % | 0.9741 / 63.68 / 0.0 % | -- |
+| intro `.fli` | 0.3525 / 37.50 (53 of 54 frames at a different geometry) | 0.3526 / 71.27 (53 differ) | -- |
+| DOS text-mode boot | 0.4760 / 23.45 | 0.4757 / 23.45 | -- |
+
+Three things this settles.  (1) The gameplay and pause-menu windows agree on raw pixels on the routes that *enter*
+those phases, at MAE 3.9-5.0 with ~89-94 % of pixels within 3 LSB.  (2) `route_pause_menu.txt` never reaches a stage
+(gameplay 0.3939 / MAE 38.76) and the warp route never reaches the `.fli` window (53 of 54 frames compared at a
+different geometry) -- a route outside a phase produces a floor-level number, exactly the docs/382 4 rule.  (3) The
+title-melt row is 60-64 MAE with **zero** pixels within 3 LSB on every route, which is 4's finding reproduced
+independently of my ad-hoc probe.
+

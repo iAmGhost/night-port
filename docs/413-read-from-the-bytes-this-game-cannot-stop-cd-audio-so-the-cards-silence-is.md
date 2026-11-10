@@ -97,6 +97,36 @@ cdda EVENT play idx=2 lba=40415 sectors=19639 tick=28859         <- 59.2 s; the 
 so the rule is not episode-dependent. `make test` ALL PASS, `pocket/src/night` `make test` exit 0, so the
 shared `src/f` and both hosts still agree.
 
+## Parity: the SDL host had the same divergence, and now shares the same rule
+
+The first cut of this lived in `pocket/src/night/main_of.c`, which left the desktop port doing the old thing
+— a reasonable bet, since the Pocket fix was written against a Pocket observable. It was checked, not
+guessed. `build/night --rig-dump` on the episode-1 route fed CD-DA at ~0.93x real time right across the card
+window (3.15 MB between the two switches, no starvation), and its only stops were each one immediately
+followed by a play: no silence, exactly as on the Pocket.
+
+The rule therefore moved to `src/sys/sys.c`, into `sys_res_notify()` -- the single point where a resource
+name is announced in order on *both* hosts (`src/f/f.c:3058`; the Pocket host registers no
+`sys_set_res_hook` and samples `g_res_trace` instead, docs/380, but the announce itself is shared). The name
+test, the gate and the stop are that one function; each host opts in, and each logs the stop in its own voice
+with the attribution read off `sys_cd_card_stop_calls()`:
+
+| host | lever | measured |
+|---|---|---|
+| SDL (`build/night`) | `NIGHT_CDDA_CARD_STOP` (default 1) | play idx=11 @16.76s -> **stop of a live lba=223146 @32.68s** -> play idx=2 @35.97s = **3.29 s quiet** |
+| SDL, lever 0 | | stop and play both @35.96s = zero silence (the old behaviour) |
+| Pocket shim (`app_pc`, -DOF_PC) | `night.ini CDDA_CARD_STOP` | `stop by=card-rule` @tick 27360 -> play idx=2 @tick 28837 = **3.01 s quiet** |
+
+Two things worth keeping. The desktop's 3.29 s and the Pocket's 3.01 s bracket the hold the clock model
+predicts (0xc00 `delay_units(1)` = 3.07 s), which is a mildly surprising agreement between two hosts that
+drive audio by different mechanisms (SDL audio stream vs a mixer ring). And the `by=card-rule` /
+`by=port-bookkeeping` split is what makes the 7 fictional stops legible instead of invisible.
+
+**This changes the desktop's audio schedule**, so anything whose basis spans the card window needs
+re-running: two-host audio diffs (docs/365) and CD-DA-vs-container comparisons (docs/114, docs/307). The
+fixture suite is unaffected -- the gate defaults to 0 inside `sys.c`, so `test_f1` sees the old behaviour
+until a host turns it on (`make test` ALL PASS).
+
 ## Left open
 
 - **Was the original silent at all, and for how long?** This is the assumption the whole change rests on, and

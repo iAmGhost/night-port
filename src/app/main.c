@@ -362,6 +362,12 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
 }
 
 static void cdda_stop(void) {
+    static uint32_t s_card_seen;                        /* docs/413: whose stop was this */
+    if (sys_cd_card_stop_calls() != s_card_seen) {
+        s_card_seen = sys_cd_card_stop_calls();
+        SDL_Log("cdda card stop: the game has issued no CD call since 0x03b130 -- the original is quiet "
+                "over the hold card (docs/413)");
+    }
     if (g_rig_dir) rig_cdda_marker(pt_now_ms(), -1, g_cdda_lba, g_cdda_sectors);
     cdda_pipe_log("stop", cdda_avail());
     g_cdda_sectors = 0; g_cdda_pos = 0;
@@ -1932,6 +1938,9 @@ int main(int argc, char **argv) {
     }
     if (getenv("NIGHT_SOUND")) g_dat_53338 = 1;  /* the title menu's SOUND toggle (fn_039c03) is off by
                                                   * default in the shipped image; force it on for tests */
+    /* docs/413: silence CD-DA over the stage-card hold, as the original is. NIGHT_CDDA_CARD_STOP=0 restores
+     * the streaming behaviour, which is what every audio comparison recorded before this build produced. */
+    sys_cd_card_stop_enable(getenv("NIGHT_CDDA_CARD_STOP") ? atoi(getenv("NIGHT_CDDA_CARD_STOP")) : 1);
     sys_set_res_hook(reslog_add);
     if (!g_no_audio) audio_boot();
     else SDL_Log("audio: skipped (--no-audio); the board's DMA ring is still drained every frame");

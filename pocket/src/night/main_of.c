@@ -1055,15 +1055,18 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     NLOG("cdda EVENT play idx=%u lba=%u sectors=%u tick=%u\n", index, lba, sectors, g_timer_calls);
     of_cdda_play(index, lba, sectors);
 }
-static int g_stop_by_host;              /* set only by the card rule, cleared after it reports */
+static uint32_t g_card_stops_seen;      /* sys_cd_card_stop_calls() as of the last stop we attributed */
+static uint32_t g_card_rule_logged;     /* ...and as of the last one we reported, so it is reported once */
 static void cdda_stop(void) {
     if (!cdda_allowed()) return;
     /* Whose stop was this? src/f calls sys_cd_audio_stop() from fn_000405a7, whose bytes (0x405bf:
      * mov word [ebp-0x1c],0x13 / mov eax,0x10 / call 0x41e51) are INT 10h AX=0013 -- a video mode set and
      * nothing else (docs/413). So a stop with g_stop_by_host==0 is the port's own bookkeeping, not the
      * game's instruction, and a log that said otherwise made the fiction look like evidence. */
-    NLOG("cdda EVENT stop tick=%u by=%s\n", g_timer_calls, g_stop_by_host ? "host-card-rule" : "port-bookkeeping");
-    g_stop_by_host = 0;
+    uint32_t fired = sys_cd_card_stop_calls();
+    const char *by = (fired != g_card_stops_seen) ? "card-rule" : "port-bookkeeping";
+    g_card_stops_seen = fired;
+    NLOG("cdda EVENT stop tick=%u by=%s\n", g_timer_calls, by);
     of_cdda_stop();
 }
 /* task-9 (docs/364): the CDDA pump used to run on EVERY spin visit.  The instrument counted 295 921 377
@@ -1755,45 +1758,28 @@ static long script_vpoll(void) { return (long)g_pad_polls - g_script_held; }
 static FILE *g_reslog;
 static uint32_t g_res_last_seq;
 
-/* `stage<N>.pcx` and nothing else: the hold card that ends a stage's introduction show. */
-static int res_is_stage_card(const char *name) {
-    unsigned n = 0;
-    if (sscanf(name, "stage%u.pcx", &n) != 1 || n == 0u) return 0;
-    return strcmp(name, "stage.pcx") != 0;   /* sscanf stops before ".pcx"; reject the no-number case */
-}
-
 static void res_log_sample(void) {
     if (g_res_trace_seq == g_res_last_seq) return;
     g_res_last_seq = g_res_trace_seq;
     script_res_hook(g_res_trace);                       /* the ring the anchors search is fed from the same sample */
 
     /* This function is also where the host hears "the game just asked for a resource", which is the only
-     * reliable observation of the game's own resource loads on this host (the sys_set_res_hook path hears
-     * nothing -- docs/380). One of those loads is worth a behaviour decision.
+     * reliable observation of the game's own resource loads on this host (this host registers no
+     * sys_set_res_hook -- docs/380). `stage<N>.pcx` is the card that ends a stage's introduction show, and it
+     * carries a behaviour decision -- but the decision itself lives in src/sys/sys.c (sys_res_notify), so
+     * this host and the SDL host cannot drift apart. All that is left here is to report it, and to report it
+     * once per stop rather than once per sample.
      *
-     * `stage<N>.pcx` is the card that ends a stage's introduction: "%ds%d.pcx" slides play CD track 11 over
-     * them (f.c:28791), ESC unwinds the loop with `goto hold` straight onto this card, and the card then
-     * holds the screen for 0xc00 delay_units(1) reads (~3 s on this host) and then the room loop asks for
-     * the stage's own track. Read from the original's bytes (scripts/analysis/cdaudio_window.py, docs/413),
-     * the hold is a hole in the game's CD traffic, not a command: the last INT 2F AX=1510 media read is at
-     * 0x03b130 and the next one is at 0x03b1ba, the first read of the room loop. In between: a PCX load, two
-     * palette fades, and nothing that touches the disc. fn_000405a7 at LAB_0003b1ad is INT 10h AX=0013, a
-     * video mode set, so it stops nothing in the original. On the original, the introduction music is silent for
-     * that hold -- it stops before the stage music starts -- and here it streamed on to the very sample the
-     * stage track replaced it. src/f is not wrong: the game issues no stop instruction at the card, because
-     * the original's CD-DA feed is refreshed by the game's own reads and drains during a delay_units hold,
-     * while this port's ring is refilled by the host on its own tick. Modelling the feed's lifetime is the
-     * subsystem docs/395-412 was about; this stops the audible symptom at its one site instead.
-     *
-     * The trigger is exact (`stage` + digits + `.pcx`), and that name is loaded at exactly one place in
-     * src/f (f.c:28836), so nothing else in the game can reach this rule. */
-    if (of_setting_cdda_card_stop() && res_is_stage_card(g_res_trace)) {
-        if (of_cdda_running()) {
-            NLOG("cdda card stop: %s on screen and the game has issued no CD call since 0x03b130 -- the "
-                 "original is silent through this hold (docs/413)\n", g_res_trace);
-            g_stop_by_host = 1;
-            cdda_stop();
-        }
+     * Why the silence is the right thing: the original issues no CD call of any kind across the card's
+     * 0xc00 delay_units hold (last INT 2F AX=1510 read 0x03b130, next 0x03b1ba), and its only MSCDEX calls
+     * are 0x1500 and that read -- it has no playhead to stop. See scripts/analysis/cdaudio_window.py and
+     * docs/413 for the bytes; docs/413 also records that the audible premise is the player's ear, not a
+     * capture. */
+    uint32_t card_now = sys_cd_card_stop_calls();
+    if (card_now != g_card_rule_logged) {
+        g_card_rule_logged = card_now;
+        NLOG("cdda card stop: %s on screen, no CD call since 0x03b130 -- quiet over the hold, per docs/413\n",
+             g_res_trace);
     }
 #ifdef OF_PC
     /* g_rig_dir lives in the OF_PC-guarded rig block above, so the sidecar is a desktop-rig artifact; the ring the
@@ -2892,6 +2878,7 @@ int main(int argc, char **argv) {
 
     int tracks = of_disc_open();
     sys_cd_set_audio_backend(cdda_play, cdda_stop);
+    sys_cd_card_stop_enable(of_setting_cdda_card_stop());   /* docs/413; night.ini CDDA_CARD_STOP */
     NLOG("disc: %d tracks, %u sectors\n", tracks, of_disc_total_sectors());
 
     sys_set_input_pump(input_pump);

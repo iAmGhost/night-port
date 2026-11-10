@@ -253,6 +253,17 @@ typedef void (*sys_res_hook_fn)(const char *name);
 void sys_set_res_hook(sys_res_hook_fn fn);
 void sys_res_notify(const char *name);
 
+/* The stage-card silence (docs/413). Read from the original's bytes: this game cannot stop CD audio -- its
+ * whole MSCDEX surface is 0x1500 (installation check) and the 0x1510 media read hard-coded in fn_00010570 --
+ * and between the last introduction-slide read (0x03b130) and the room loop's first (0x03b1ba) it issues no
+ * CD call at all. Across the `stage<N>.pcx` hold card the feed goes idle and the original is quiet. src/f
+ * models those reads as no-ops, so a host pumping its own audio ring on its own clock streams over the card.
+ * The name test and the stop live here so both hosts behave alike; each host opts in, because the desktop
+ * rig is the measurement basis for every audio comparison. */
+void     sys_cd_card_stop_enable(int on);
+int      sys_cd_card_stop_enabled(void);
+uint32_t sys_cd_card_stop_calls(void);   /* stopped a live stream this many times */
+
 /* The shipped's VGA mode set (fn_000405a7 asks for AX = 0x13 = 320x200x256). */
 void sys_vga_set_mode(uint16_t al);
 

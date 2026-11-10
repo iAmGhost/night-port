@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 
 /* ---- virtual port map (low I/O ports 0x0-0x3ff) ----
@@ -852,4 +853,28 @@ int sys_audio_plan(const sys_audio_cand_t *c, int n, int *out_index) {
  * the first poll. So the game tells the host, through this hook, at the moment of each lookup. */
 static sys_res_hook_fn g_res_hook;
 void sys_set_res_hook(sys_res_hook_fn fn) { g_res_hook = fn; }
-void sys_res_notify(const char *name) { if (g_res_hook && name) g_res_hook(name); }
+static int      g_cd_card_stop;         /* opt-in per host: 0 leaves the rig's audio basis untouched */
+static uint32_t g_cd_card_stop_calls;
+
+static int res_is_stage_card(const char *name) {
+    /* "stage1.pcx": the name the game builds at 0x03b13b and loads at 0x03b152. In src/f the string is
+     * assembled at exactly one site (f.c:28836), so digits-after-"stage" plus ".pcx" cannot misfire. */
+    const char *p = name;
+    if (strncasecmp(p, "stage", 5) != 0) return 0;
+    p += 5;
+    if (*p < '0' || *p > '9') return 0;
+    while (*p >= '0' && *p <= '9') p++;
+    return strcasecmp(p, ".pcx") == 0;
+}
+
+void     sys_cd_card_stop_enable(int on)     { g_cd_card_stop = on ? 1 : 0; }
+int      sys_cd_card_stop_enabled(void)      { return g_cd_card_stop; }
+uint32_t sys_cd_card_stop_calls(void)        { return g_cd_card_stop_calls; }
+
+void sys_res_notify(const char *name) {
+    if (!name) return;
+    /* Stop before announcing, so a host logging this lookup can tell by the counter whether the silence is
+     * this rule's doing or its own bookkeeping. */
+    if (g_cd_card_stop && res_is_stage_card(name) && g_cd_stop) { g_cd_card_stop_calls++; g_cd_stop(); }
+    if (g_res_hook) g_res_hook(name);
+}

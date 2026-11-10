@@ -464,7 +464,15 @@ static uint32_t g_clk_last, g_clk_maxvisit;
  * from a witness-frame count or an arithmetic argument. holdms is the longest stretch between two presents
  * that actually put something new on the panel, which is what "long logo hold" means in seconds. */
 static uint32_t g_present_cap_skips, g_hold_max_ms, g_hold_ms;
-static int g_pal_pending;                 /* the held palette != the panel's palette (docs/445) */
+static int g_pal_pending;
+/* docs/448: the thing the player asked for -- the speed of the fades themselves, with the key-gate waiting
+ * excluded. Measured here rather than in fn_040660/fn_0406f5 (shared src/f code; timing it there would put
+ * a witness on the path the SDL host and the fixtures also run) and measured on the palette table the panel
+ * is about to be handed, because that table IS the fade: fn_040660 scales every entry by i/arg2 and blits
+ * it 25 times. A ramp is consecutive luminance deltas above the threshold; the flat stretch after it is the
+ * gate waiting for a key, and that stretch is simply not counted. */
+static uint64_t g_fl_prev, g_fl_t0;
+static uint32_t g_fl_steps, g_fl_dir, g_fl_logged, g_fl_lum0;                 /* the held palette != the panel's palette (docs/445) */
 static uint32_t g_present_noflip;         /* skips that also skipped the flip -- docs/445 */
 static uint32_t g_wrote, g_flipped, g_flip_nowrite;   /* docs/446 invariant counters */
 static uint32_t g_present_visits;                 /* presents that got past the cap -- docs/447 */
@@ -480,6 +488,41 @@ static uint32_t g_pal_ramp_last_n;
 #define FADE_MIN_ENTRIES 8u   /* docs/438: how MANY entries moved, not how many bytes the game wrote */
 #define FADE_MIN_LEVELS 24u   /* ...and how FAR at least one of them moved, of 255 */
 #define FADE_MAX_STEPS 60u    /* bounds a pathological ramp; the visible duration is n PRESENTS, not n ms */
+
+#ifndef OF_PC
+static void fade_log_close(uint64_t now) {
+    if (g_fl_steps >= 2u && g_fl_logged < 24u) {
+        NLOG("fade %s: %6.0f ms over %2u step(s) | lum %6u -> %6u | res=%s seq=%u\n",
+             g_fl_dir == 1u ? "IN " : "OUT", (double)(now - g_fl_t0) / 1000.0, g_fl_steps,
+             g_fl_lum0, (unsigned)g_fl_prev, g_res_trace, g_res_trace_seq);
+        g_fl_logged++;
+    }
+    g_fl_steps = 0;
+}
+
+static void fade_log_tick(void) {
+    if (!of_setting_fade_log()) return;
+    uint64_t lum = 0;
+    for (int i = 0; i < 256; i++) {
+        const uint8_t *c = (const uint8_t *)&g_pal32[i];
+        lum += (uint64_t)c[0] + c[1] + c[2];
+    }
+    uint64_t now = sys_now_us();
+    if (g_fl_prev || lum) {
+        int64_t d = (int64_t)lum - (int64_t)g_fl_prev;
+        uint32_t ad = d < 0 ? (uint32_t)(-d) : (uint32_t)d;
+        if (ad > 300u) {                                          /* a step of the ramp */
+            uint32_t dir = d > 0 ? 1u : 2u;
+            if (g_fl_steps && g_fl_dir != dir) fade_log_close(now);   /* reversal: close the previous ramp */
+            if (!g_fl_steps) { g_fl_t0 = now; g_fl_dir = dir; g_fl_lum0 = (uint32_t)g_fl_prev; }
+            g_fl_steps++;
+        } else if (g_fl_steps) {
+            fade_log_close(now);            /* ramp over; what follows is the gate, not measured */
+        }
+    }
+    g_fl_prev = lum;
+}
+#endif
 
 static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     sys_vga_palette(g_pal_rgb);
@@ -589,6 +632,9 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
      ~3 us at 100 MHz, which is not a thing worth missing a fade over. */
     for (int i = 0; i < 256; i++) { h ^= g_pal32[i]; h *= 16777619u; }
     g_pal_hash_last = h;
+#ifndef OF_PC
+    fade_log_tick();                       /* returns at once unless FADELOG is set */
+#endif
     /* "different from what the panel shows", recorded before the upload erases the difference. The
      * return value cannot carry this: under PALETTE_AFTER_FLIP=1 the upload happens after present()
      * has already decided whether to flip (docs/445). */

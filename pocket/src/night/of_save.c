@@ -202,6 +202,7 @@ static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_bl
 static int      g_present_skip = 1;
 static int      g_row_skip = 0;
 static int      g_stall_ms = 400;
+static int      g_fade_log = 0;
 static int      g_fade_ramp = 0;
 static int      g_fade_ramp_ms = 700;
 static int      g_present_cap_ms = 0;  /* display-path cadence cap; 0 = present every poll (docs/441) */  /* wall time a palette ramp takes, whatever the frame rate (docs/439) */  /* play DAC fades back on the panel over their own step count (docs/436) */  /* log a witness line when no present has happened for this long (docs/433) */   /* 1 = write only the rows this display buffer does not already hold (docs/430) */
@@ -517,6 +518,7 @@ void of_settings_load(void) {
     g_present_skip = cfg_int("present_skip", 1, "NIGHT_PRESENT_SKIP");
     g_row_skip = cfg_int("row_skip", 0, "NIGHT_ROW_SKIP");
     g_stall_ms = cfg_int("stall_ms", 400, "NIGHT_STALL_MS");
+    g_fade_log = cfg_int("fade_log", 0, "NIGHT_FADELOG");
     g_fade_ramp = cfg_int("fade_ramp", 0, "NIGHT_FADE_RAMP");
     g_fade_ramp_ms = cfg_int("fade_ramp_ms", 700, "NIGHT_FADE_RAMP_MS");
     g_present_cap_ms = cfg_int("present_cap_ms", 0, "NIGHT_PRESENT_CAP_MS");
@@ -650,6 +652,7 @@ int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_present_skip(void) { return g_present_skip; }
 int  of_setting_row_skip(void) { return g_row_skip; }
 int  of_setting_stall_ms(void) { return g_stall_ms; }
+int  of_setting_fade_log(void) { return g_fade_log; }
 int  of_setting_fade_ramp(void) { return g_fade_ramp; }
 int  of_setting_fade_ramp_ms(void) { return g_fade_ramp_ms; }
 int  of_setting_present_cap_ms(void) { return g_present_cap_ms; }

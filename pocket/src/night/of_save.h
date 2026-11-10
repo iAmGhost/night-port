@@ -86,6 +86,7 @@ int  of_setting_blit_skip(void);
 int  of_setting_present_skip(void);
 int  of_setting_row_skip(void);
 int  of_setting_stall_ms(void);
+int  of_setting_fade_log(void);
 int  of_setting_fade_ramp(void);
 int  of_setting_fade_ramp_ms(void);
 int  of_setting_present_cap_ms(void);

@@ -48,15 +48,20 @@ and letting the palette stall behind a skipped flip would turn a fixed flicker i
 is recorded *before* `palette_push()` uploads, because under `PALETTE_AFTER_FLIP=1` the upload happens after
 the decision, so the function's return value cannot carry it.
 
-## 4. A caveat on `hold=`, which I have been quoting
+## 4. Retraction: my caveat about `hold=` was the thing that was wrong
 
-In the zero-skip run the hold meter reported `max=2989 ms`, which **its own definition cannot produce**: with
-`PRESENT_SKIP=0` every present is a visual present, so the gap it measures is ~33 ms. The block sits after the
-`PRESENT_CAP_MS` early return (docs/441), so capped visits bypass it and the meter also counts *cap
-starvation*. What that means for the record: my earlier "our holds run ~7 s against the original's 6.0–6.5 s"
-conflates two quantities, and the hold decision should not be made on it. The **fade durations** do not come
-from that meter — they come from the `FDUMP` luminance ramps (612–892 ms against the original's 600–830 ms,
-docs/444's table) — and those stand.
+In §2's zero-skip run the hold meter reported `max=2989 ms`, and I wrote that "its own definition cannot
+produce" it. It can, and it should. The block does sit after the `PRESENT_CAP_MS` early return, but during a
+3-second stage-entry stall the game is **blocked on reads and never calls `present_step()` at all**, so there
+is nothing to bypass: 2 989 ms is a real stretch in which nothing reached the panel — exactly the stall
+docs/434/435 measured and found the original also holds. The meter reads **"time since the last frame that
+actually reached the display"**, which is precisely the quantity a player complains about.
+
+So the original comparison stands, and my caveat was the error: `hold max=7018 ms` (`0.2.16`, skip on) against
+the original's ~6.0–6.5 s card (docs/416) is a **~10 % long hold**, not a phantom. For contrast, this `0.2.18`
+run shows `hold max=92 ms` — because the player was ESC-skipping cards, so the cards never sat. The fade
+durations (612–892 ms against the original's 600–830 ms) are unaffected either way: they come from the `FDUMP`
+luminance ramps, not from that meter.
 
 ## 5. What the next boot has to show
 
@@ -65,3 +70,21 @@ docs/444's table) — and those stand.
 | flicker gone **with `PRESENT_SKIP=1`** | the skip is not the whole story; `smean`/`pmean` say where the black lives |
 | logo hold still ~6 s, not back to 41 s | the hold win came from the flip after all, and the two are not separable |
 | `noflip=` climbing during static holds | the skip path is not running, and the A/B measured nothing |
+
+## 6. `0.2.18` on hardware: closed, and the numbers that say so
+
+> *"stage entering flicker is gone"* — with `PRESENT_SKIP=1`, i.e. with the win still switched on.
+
+| expectation from §5 | what the log shows |
+|---|---|
+| flicker gone with the skip on | gone (the player), and `noflip=` proves the new path is the one running |
+| logo hold still ~6 s, not 41 s | the `640x480` phase runs `wall=2368ms → 7250ms` (`fb mode -> game 320x240` at 7 250 ms) ≈ **4.9 s** |
+| `noflip=` climbing on static holds | `noflip=167` cumulative, non-zero in **17 of 36** seconds, peak 26/s |
+| a fade must not stall behind a skipped flip | 16 consecutive-dump palette steps > 500 in the trace — fades still animate while flips are skipped |
+
+`noflip` is the important column: it is the evidence that the frames in question really did skip **both** the
+write and the flip. `cap=` is far larger (5 267) — that is `PRESENT_CAP_MS` doing most of the "do nothing"
+work, which is fine; they are different mechanisms and only one of them used to present a stale buffer.
+
+The mean across the run is `frames/s mean 21.1`, `hold max=92 ms`, 8 stall witnesses (the stage-entry reads,
+docs/434/435).

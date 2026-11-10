@@ -1343,7 +1343,9 @@ static void present(void) {
         uint64_t sm = 0, pm = 0; uint32_t sn = 0, pn = 0;
         const uint8_t *sp = src;  /* the game's picture, as the blit above read it */
         for (uint32_t i = 0; i + 1 < (uint32_t)(vw * vh) && sn < 1200u; i += 256u) { sm += sp[i]; sn++; }
-        for (uint32_t i = 0; i + 1 < (uint32_t)(PANEL_W * PANEL_H) && pn < 1200u; i += 256u) { pm += fb[i]; pn++; }
+        const uint32_t sur_n = (g_applied_stride && g_applied_h)
+                                 ? g_applied_stride * g_applied_h : (uint32_t)(PANEL_W * PANEL_H);
+        for (uint32_t i = 0; i + 1 < sur_n && pn < 1200u; i += 256u) { pm += fb[i]; pn++; }
         NLOG("fdump f=%u t=%llu %dx%d palh=%08x ndiff=%3d lit=%3d sum=%llu src=%d smean=%.1f pmean=%.1f"
              " pushes=%u skips=%u\n",
              g_frames, (unsigned long long)(t5 / 1000ull), vw, vh,

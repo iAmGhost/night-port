@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–432)
+## The Pocket port (docs/330–433)
 
 ### Port plan and host layer
 
@@ -252,6 +252,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>The accounting line worked. One 168-second run, 4969 frames, `core 0.2.5` stamped in the boot marker, and for</sub>
 - **432** — the row skip cost more than the copy, and a 3-second stall nobody had ever seen
   <sub>Two findings from the `0.2.8` boot, and one of them is a new problem rather than an old one coming back.</sub>
+- **433** — the 32-bit fingerprint also fails, so the row-skip line is closed; the real problem is a 3-second stall
+  <sub>`docs/432` set a rule instead of an opinion: if `0.2.9` (32-bit row fingerprint) does not beat `ROW_SKIP=0`</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

@@ -452,6 +452,7 @@ static uint32_t g_pal_from[256], g_pal_target[256], g_pal_shown[256];
 static uint32_t g_pal_ramp_n, g_pal_ramp_k;     /* n = steps in this ramp, k = steps played so far */
 static uint32_t g_pal_ramp_arms, g_pal_ramp_steps, g_pal_writes_last, g_pal_ramp_dw_max;
 static uint32_t g_pal_ramp_runs, g_pal_w_last, g_pal_dw_last;
+static uint32_t g_clk_last, g_clk_maxvisit;   /* docs/440: guest clock reads -- between visits or within one? */
 static uint64_t g_pal_ramp_t0;
 static uint32_t g_pal_ramp_stalls;   /* runs = times the fade check ran at all (docs/437) */
 static uint32_t g_pal_ramp_last_n;
@@ -2790,11 +2791,12 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                     sys_file_io_stats(&r_calls, &r_bytes, &r_max, 0);
                     uint64_t acc = pres + pump + disc + aud;
                     NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums aud=%ums rest=%ums"
-                         " frames=%u pump_n=%u res_calls=%u res_kb=%u\n",
+                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u\n",
                          (unsigned)(wall / 1000ull), (unsigned)(pump / 1000ull), (unsigned)(pres / 1000ull),
                          (unsigned)(disc / 1000ull), (unsigned)(aud / 1000ull),
                          (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), g_frames, g_pump_calls,
-                         r_calls, r_bytes / 1024u);
+                         r_calls, r_bytes / 1024u,
+                         sys_clock_read_count, g_clk_maxvisit);
                 }
                 NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"
                      " mean_sector=%uus seeks=%u fails=%u kb=%u"
@@ -3077,6 +3079,8 @@ static void tick_pump(void) {
         g_us_pump_sum += sys_now_us() - tp0;
     }
     g_pump_calls++;
+    { uint32_t cr = sys_clock_read_count; uint32_t d = cr - g_clk_last; g_clk_last = cr;
+      if (d > g_clk_maxvisit) g_clk_maxvisit = d; }   /* 0 => the pump IS inside the wait loop */
 
     if (now >= g_present_next_us) present_step(now);
     if (now >= g_diag_next_us) diag_report(now, hz);

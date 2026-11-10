@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–439)
+## The Pocket port (docs/330–440)
 
 ### Port plan and host layer
 
@@ -74,6 +74,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Preventing a boot that could tell me nothing beats waiting for it. Between the `0.2.5` deploy and the user's</sub>
 - **431** — "the logo wait is back and animation feels slower" was my own 0.2.7, and the log showed it in one line
   <sub>The user's report after the `0.2.7` boot: slow wait on the logo is back, animation a bit slower. Their eye was</sub>
+- **440** — the holds are paced by what a poll costs, and during a hold the whole second is the *decision*, not the copy
+  <sub>The player's report on `0.2.14`: no graphical glitch, fade looks right — and "long logo hold and long intro</sub>
 
 ### Video and display
 

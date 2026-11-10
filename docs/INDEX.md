@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–413)
+## The Pocket port (docs/330–414)
 
 ### Port plan and host layer
 
@@ -204,6 +204,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Docs/381-388 compare *pictures*.  This compares *when each side reaches each phase*, which is the axis that answers</sub>
 - **391** — the 720x400 "boot" window in the original capture is the emulator's console, not the game
   <sub>Docs/382 and docs/367 6 carried an unexplained line: the port matches only 8 of 24 frames in the original's `boot_`</sub>
+- **414** — the container route runs at 1.000× real time, so `cycles=max` runs never carried durations at all
+  <sub>docs/413 left the one number that decides its open question unmeasured: how long the original sits on the stage</sub>
 
 ### Packaging and deploy
 

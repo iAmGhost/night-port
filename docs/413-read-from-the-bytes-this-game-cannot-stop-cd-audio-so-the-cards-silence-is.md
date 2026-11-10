@@ -159,7 +159,9 @@ the only evidence for what the right length is.
   it comes from the user's ear, not from a capture: the shipped capture's mix has little audible CD-DA
   (docs/304), and docs/377's original-side frame route has never been run for the audio of this window. If
   the original instead keeps playing, `CDDA_CARD_STOP=0` restores that with no rebuild of the rule.
-- **Is the hold 3 s on the original's clock?** 0xc00 `delay_units(1)` = 3.07 s under the port's clock model.
+- **Is the hold 3 s on the original's clock?** Now measurable, not yet measured: docs/414 shows the container
+  route holds a realtime factor of 1.000 (calibrated against the DOS clock itself), which is what makes this
+  question answerable at all -- and shows the attempt that failed, and why. 0xc00 `delay_units(1)` = 3.07 s under the port's clock model.
   If the original's card is briefer, the lever is the cost of that loop, not this rule.
 - **Does the show's track actually start at 56.1 s on the original's clock?** The port's own clock model says
   yes; nothing here measures the original. The hold is 0xc00 `delay_units(1)` = 3.07 s

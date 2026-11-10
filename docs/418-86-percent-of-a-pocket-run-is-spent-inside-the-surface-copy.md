@@ -49,6 +49,37 @@ move is invisible to it ~36 times in 37, so the column is an **upper bound**, an
   hash `PRESENT_SKIP` actually uses will see changes this sampler cannot. Expect a much lower skip rate there,
   and that is fine: the point of skipping is the phases where nothing moves.
 
+## How skippable is the animated stuff, measured (the caveat above, retired)
+
+The `% skippable` column above came from the card readout's stride-37 sampler and was explicitly an upper bound
+with nothing under it. Measuring the lower bound needs per-frame content on the desktop, and the rig already
+writes it: every frame in `frames.bin` carries a 40x30 luminance thumbnail of the *presented* picture
+(`rig_screen_frame`, RIG_GW/GH=40x30), so consecutive frames can be compared for real.
+
+```
+warp to stage 1, 2000 frames:                     identical-to-previous
+  640x480   553 frames  10.14 s                         42.9%
+  320x200  1448 frames  26.55 s                         24.0%
+from boot, 1800 frames:
+  640x480   137 frames   2.50 s                         41.9%
+  320x200  1664 frames  30.51 s                         69.0%
+```
+
+Read the two measures against each other, because they differ for a specific and useful reason:
+
+- the thumbnail is computed **after the palette**, so a card's fade-in -- the phase docs/417 proved has a
+  `sig` that never changes once -- reads as "changed" on every fade step. That is why the boot's 640x480 phase
+  measures 41.9% here while the card log says its surface changed once in 38 s. **At surface level that phase
+  is ~100% skippable; the thumbnail says 41.9%, and the gap is entirely fades, which the skip handles for free**
+  (the palette still uploads on a skipped frame).
+- gameplay is the honest row: **24.0% of 320x200 gameplay frames are identical to their predecessor** even at
+  this coarse sampling. That is the real ceiling for `PRESENT_SKIP` in motion, and it is nowhere near the 94-95%
+  the stride-37 sampler implied -- exactly the direction the caveat predicted.
+
+So the expected shape after the skip: card/hold/slide phases collapse (docs/417 predicts 38.08 s -> ~2.0 s on
+the logo), and gameplay gets a modest ~1 in 4 presents removed. That is also why the choppiness fix cannot stop
+at the skip: an animated 640x480 phase still pays the copy on 57% of its frames.
+
 ## What a skipped frame still costs (this is what sets the floor)
 
 The log's `stages` line splits `present()` into its stages, and the copy is not just most of it -- it is all of it:

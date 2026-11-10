@@ -272,6 +272,11 @@ HOTPRESENT /* the palette upload the indexed picture depends on, once per presen
  * while the game is mid-draw, and presenting then would show a half-built card. */
 static void present_step(uint64_t now);             /* defined next to present() */
 static void present(void);                        /* defined below; present_step() calls it */
+/* docs/427: the run's own accounting. A 0.2.4 second only added up to ~316 ms of the ~1000 ms the wall
+ * spent, and the frame median fell 47 -> 33, so something outside present() and outside disc time grew.
+ * Naming the remainder is the point: every unresolved stutter claim in this project has been an unmeasured
+ * second suspect (docs/404, docs/408). */
+static uint64_t g_boot_us, g_us_pump_sum;
 static volatile int g_in_present, g_disc_busy, g_hook_busy;
 static unsigned g_hook_presents;
 static void disc_busy_cb(int b) { g_disc_busy = b; }
@@ -2427,6 +2432,15 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 of_cdda_stats(&c_f, &c_us, &c_max, &c_fr, &c_low, &c_hold, &c_behind, &c_am, &c_pv, &c_dry);
                 
                 c_def = of_cdda_deferred();
+                {   /* where the wall actually went, this run, in whole milliseconds */
+                    uint64_t wall = sys_now_us() - g_boot_us;
+                    uint64_t pres = g_present_us_sum, pump = g_us_pump_sum, disc = d_us;
+                    uint64_t acc = pres + pump + disc;
+                    NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums rest=%ums frames=%u pump_n=%u\n",
+                         (unsigned)(wall / 1000ull), (unsigned)(pump / 1000ull), (unsigned)(pres / 1000ull),
+                         (unsigned)(disc / 1000ull),
+                         (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), g_frames, g_pump_calls);
+                }
                 NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"
                      " mean_sector=%uus seeks=%u fails=%u kb=%u"
                      " | cdda fills=%u mean=%uus max=%uus frames=%u visits=%u deferred=%u audio_low=%u room_hold=%u"
@@ -2683,7 +2697,11 @@ static void tick_pump(void) {
         }
     } else
 #endif
-    while (calls--) { fn_03ee88(); g_timer_calls++; }
+    {   /* braces required: this branch follows `} else`, where a declaration is not a statement */
+        uint64_t tp0 = sys_now_us();
+        while (calls--) { fn_03ee88(); g_timer_calls++; }
+        g_us_pump_sum += sys_now_us() - tp0;
+    }
     g_pump_calls++;
 
     if (now >= g_present_next_us) present_step(now);
@@ -2881,7 +2899,8 @@ int main(int argc, char **argv) {
         of_cdda_set_disc_busy_cb(disc_busy_cb);
         of_file_set_idle_hook(disc_idle_hook);
     }
-    NLOG("disc_idle_hook=%d registered=%d\n", of_setting_disc_idle_hook(), of_setting_disc_idle_hook() ? 1 : 0);
+    g_boot_us = sys_now_us();
+        NLOG("disc_idle_hook=%d registered=%d\n", of_setting_disc_idle_hook(), of_setting_disc_idle_hook() ? 1 : 0);
 #endif
         NLOG("palette_after_flip=%d (1 = upload the 256-entry palette just after of_video_flip(); 0 = before the "
          "copy, which shows the old picture in the new palette for up to a copy-time every fade frame)\n",

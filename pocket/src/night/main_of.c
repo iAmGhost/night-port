@@ -187,21 +187,39 @@ static uint32_t g_br_native, g_br_game, g_br_down, g_br_other;   /* which blit b
  * (not the source row) is what lets the same test cover both blit branches -- the game branch writes a
  * source row, a duplicated source row, or a bar of zeros, and the row we must not write again is whichever
  * of those this buffer already holds.  `n` zero bytes are folded without touching memory. */
+/* prime^e mod 2^32 by squaring, so a row's zero padding costs log2(zeros) multiplies instead of zeros
+ * of them -- the game branch pads every row it draws. */
+static uint32_t fnv32_pow(uint32_t e) {
+    uint32_t base = 16777619u, acc = 1u;
+    while (e) { if (e & 1u) acc *= base; base *= base; e >>= 1; }
+    return acc;
+}
+
+/* The row fingerprint. 0.2.8's version was 64-bit FNV-1a over 8-byte reads and it was the whole reason
+ * ROW_SKIP measured as a LOSS on hardware: during the static 640x480 phase the copy stage still cost
+ * 30.1 ms with 85% of the rows skipped, because on rv32imafc a 64-bit load/multiply is ~3x the work of a
+ * 32-bit one, and the pass over 307 200 bytes cost ~27 ms to avoid a 17.5 ms write (docs/432).  32-bit
+ * FNV over word reads is the pass docs/422 measured at 34.8 MB/s (~8.8 ms for a 640x480 surface).
+ *
+ * Is a 32-bit per-row fingerprint strong enough?  It is strictly stronger than the whole-FRAME 32-bit
+ * fingerprint that PRESENT_SKIP has shipped with since 0.2.0 -- the same collision chance there would have
+ * frozen an entire frame on screen instead of leaving one row stale, and only until the next change.  The
+ * self-check below is the real guarantee: every skip is byte-verified against the buffer for its first
+ * 4096 verdicts, and a lie prints ROWSKIP MISMATCH. */
 static uint64_t row_hash(const uint8_t *s, uint32_t n, uint32_t zeros) {
-    uint64_t h = 14695981039346656037ull;
+    uint32_t h = 2166136261u ^ n;
     size_t i = 0;
     if (s) {
-        for (; i + 8u <= (size_t)n; i += 8u) {
-            uint64_t v; __builtin_memcpy(&v, s + i, 8u);
-            h = (h ^ v) * 1099511628211ull;
+        for (; i + 4u <= (size_t)n; i += 4u) {
+            uint32_t w; __builtin_memcpy(&w, s + i, 4u);
+            h = (h ^ w) * 16777619u;
         }
-        for (; i < (size_t)n; i++) h = (h ^ s[i]) * 1099511628211ull;
-    } else i = n;                       /* a bar row: the whole thing is zeros */
-    /* A zero byte contributes (h ^ 0) * prime, i.e. h *= prime -- so the zeros we write as padding are
-     * folded without a memory touch. */
-    for (uint32_t k = 0; k < zeros; k++) h *= 1099511628211ull;
-    (void)i;
-    return h;
+        for (; i < (size_t)n; i++) h = (h ^ s[i]) * 16777619u;
+    }
+    /* A zero contributes (h ^ 0) * prime = h * prime, so padding is folded arithmetically.  `s == NULL`
+     * means the whole row is a bar of zeros. */
+    h *= fnv32_pow((s ? 0u : n) + zeros);
+    return ((uint64_t)h << 32) | (h ^ (n * 2654435761u));
 }
 
 /* Returns 1 when this buffer already holds exactly these bytes, so the caller may skip the write.

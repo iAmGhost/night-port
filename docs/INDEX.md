@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–431)
+## The Pocket port (docs/330–432)
 
 ### Port plan and host layer
 
@@ -250,6 +250,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>User's report on `0.2.4`: "i think stutter is fixed." The card log says something else, and I would rather</sub>
 - **429** — the 0.2.5 boot: the copy is two-thirds of the machine, the hook is dead for real, and the hitches' biggest bucket still has no name
   <sub>The accounting line worked. One 168-second run, 4969 frames, `core 0.2.5` stamped in the boot marker, and for</sub>
+- **432** — the row skip cost more than the copy, and a 3-second stall nobody had ever seen
+  <sub>Two findings from the `0.2.8` boot, and one of them is a new problem rather than an old one coming back.</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

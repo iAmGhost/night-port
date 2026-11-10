@@ -30,7 +30,8 @@ KNOBS=(
   "LOG=1"
   "DIAG=160"
   "DISC_IDLE_HOOK=1"
-  "ROW_SKIP=1"    # skip for real: the dry run on 0.2.7 measured 1002 verdicts with mm=0 (no lies)
+  "ROW_SKIP=0"    # MEASURED A LOSS on 0.2.8 hardware (30.1 ms static frame, 85% rows skipped): keep off
+#                    # unless a fast-hash build (0.2.9+) beats ROW_SKIP=0 on the same route
   "CDDA_STOP_FIX=0"
 )
 

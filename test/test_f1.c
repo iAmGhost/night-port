@@ -17990,6 +17990,37 @@ static void startup_ev_cb(void) { g_startup_ev_calls++; }
 /* The device bring-up chain (fn_040d09) is the audio path's prerequisite: it only advances when the
  * status port answers independently of the command written to the same port. With the sys device model
  * in place the whole chain runs, including the IRQ the probe command is supposed to raise. */
+/* docs/421: `fn_000405a7` is INT 10h AX=0013 (a video mode set), so the sys_cd_audio_stop() the port hangs off
+ * it is a stop the original cannot issue -- it has no playhead to stop (docs/413). The gate below is the
+ * faithful direction, and until this check nothing in the suite asserted it: the old assertion only counted the
+ * CALL, which stays counted either way. What the gate actually controls is whether the audio BACKEND is told
+ * to stop, so that is what is measured here. */
+static int g_stub_cd_stops;
+static void stub_cd_stop(void) { g_stub_cd_stops++; }
+
+static void test_cd_stop_bookkeeping(void) {
+    printf("the fn_000405a7 CD stop is bookkeeping: the counter counts, the backend hears it only while enabled\n");
+    int was = sys_cd_bookkeeping_stop_enabled();
+    g_stub_cd_stops = 0;
+    sys_cd_audio_stop_reset();
+    sys_cd_set_audio_backend(NULL, stub_cd_stop);
+
+    sys_cd_bookkeeping_stop_enable(1);
+    fn_000405a7();
+    check(sys_cd_audio_stop_calls() == 1 && g_stub_cd_stops == 1,
+          "enabled (the shape the tree has always shipped): fn_000405a7 reaches the audio backend");
+
+    sys_cd_bookkeeping_stop_enable(0);
+    fn_000405a7();
+    check(sys_cd_audio_stop_calls() == 2 && g_stub_cd_stops == 1,
+          "disabled (the original's shape, docs/413): the CALL is still counted for host attribution, "
+          "but the backend is not stopped");
+
+    sys_cd_set_audio_backend(NULL, NULL);
+    sys_cd_bookkeeping_stop_enable(was);
+    sys_cd_audio_stop_reset();
+}
+
 static void test_device_bringup(void) {
     printf("fn_040d09 (0x040d09): the device bring-up chain runs against the sys device model\n");
     uint32_t s_base = g_dat_53334, s_84 = g_dat_63f84, s_88 = g_dat_63f88, s_90 = g_dat_63f90;
@@ -19004,6 +19035,7 @@ int main(void) {
     test_slide_name_sequence();
     test_stage_bg_heap_source();
     test_audio_path();
+    test_cd_stop_bookkeeping();
     test_device_bringup();
     test_fn_0420bc();
     test_cd_iso_real();

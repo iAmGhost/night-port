@@ -65,10 +65,12 @@ Practical rule for anyone using the gate: `--diff` is an exact instrument on the
 treat a small tail difference as variance and a *content* difference (same request, different bytes) as real —
 which is exactly what it still checks hardest.
 
-## Owed
+## The fixture debt this exposed, now closed
 
-`test_f1.c:14224` asserts `sys_cd_audio_stop_calls() == 1` with the comment "the gate stops the CD audio
-(fn_000405a7) on the way out". That assertion encodes a **port decision**, not a measurement — nothing in the
-original says it. With the default at 1 the fixture stays green, and today nothing in the suite asserts the
-faithful direction. A check that the gate-off path reaches the backend zero times belongs there; it is not in
-this commit.
+`test_f1.c:14224` asserts `sys_cd_audio_stop_calls() == 1` ("the gate stops the CD audio (fn_000405a7) on the way
+out"). That assertion encodes a **port decision**, not a measurement — nothing in the original says it — and it
+only counts the CALL, which the gate leaves counted either way, so it could not have noticed the gate at all.
+
+`test_cd_stop_bookkeeping()` now installs a counting backend and asserts both directions: enabled → backend
+stopped; disabled → the call is still counted but the backend is **not** stopped. Two more checks, 3091 total,
+`make test` ALL PASS. The old assertion still stands, because it describes the default.

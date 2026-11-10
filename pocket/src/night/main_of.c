@@ -260,7 +260,8 @@ static uint32_t on_terminate(uint32_t a) {
  * The game programs the VGA DAC itself (outb 0x3C8 index / 0x3C9 value, sys.c mirrors it) and never
  * writes a byte above 63 (docs/77), so a 6-bit table is scaled the way a DAC scales it -- the same
  * arithmetic src/app/main.c:129-135 uses, which is the basis the port-vs-original comparisons stand on. */
-static uint32_t g_pal_pushes, g_pal_push_skips;   /* how often the 256-word palette upload actually ran */
+static uint32_t g_pal_pushes, g_pal_push_skips;
+static uint32_t g_pal_hash_last;   /* the full-coverage palette hash as of the last present (docs/424) */   /* how often the 256-word palette upload actually ran */
 HOTPRESENT /* the palette upload the indexed picture depends on, once per present */
 static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     sys_vga_palette(g_pal_rgb);
@@ -289,6 +290,7 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
      * colours until the forced refresh every 4096 frames -- about 78 s at 52 frames/s. The full hash costs
      ~3 us at 100 MHz, which is not a thing worth missing a fade over. */
     for (int i = 0; i < 256; i++) { h ^= g_pal32[i]; h *= 16777619u; }
+    g_pal_hash_last = h;
     if (g_pal_force || h != g_pal_hash || (g_frames & 4095u) == 0u) {
         g_pal_hash = h;
         g_pal_force = 0;
@@ -430,6 +432,18 @@ static uint32_t g_smp_off[8192];
 static uint8_t g_smp_val[8192];
 static size_t g_smp_n, g_smp_geom;
 static unsigned g_skip_streak, g_present_skips;
+
+/* docs/424: the stage-1 fade trace.  L1 + Up arms FDUMP_FRAMES presents, and each one logs what the port
+ * ACTUALLY held when it presented: the palette's full-coverage hash, how many of its 256 entries differed
+ * from the previous presented frame, its total luminance, and whether the surface bytes changed.  Guessing
+ * about the fade had gone in circles -- the shim says the ramp is monotonic, the ordering knob changed
+ * nothing -- so this measures the device frames themselves through the one write path that is proven to
+ * reach the card.  ~90 B a line, 60 frames, well inside the 256 KB log slot. */
+#define FDUMP_FRAMES 60
+static int       g_fdump_left;
+static uint8_t   g_fdump_pal_prev[256 * 4];      /* palette as of the previous armed present */
+static int       g_fdump_have_prev;
+static int       g_src_changed;                  /* 1 = the surface hash moved this present (skip path) */
 static unsigned g_hash_skips, g_smp_skips;    /* which mechanism decided to skip -- docs/422 */
 static void stage_max(uint32_t *mx, uint64_t d) { if (d > (uint64_t)*mx) *mx = (uint32_t)d; }
 
@@ -651,6 +665,7 @@ static void present(void) {
         for (size_t i = n & ~3u; i < n; i++) h = (h ^ q[i]) * 16777619u;
         if (h == g_hash_sig && g_hash_proven) skip = 1;         /* all three buffers already hold this picture */
         else {
+            g_src_changed = (h != g_hash_sig);
             if (h != g_hash_sig) { g_hash_sig = h; g_hash_streak = 1u; g_hash_proven = 0; }
             else g_hash_streak++;
             if (g_hash_streak >= 3u) g_hash_proven = 1;         /* written into three buffers; proof latches */
@@ -867,6 +882,24 @@ static void present(void) {
     if (of_setting_sync_flip()) of_video_wait_flip();
 #endif
     t5 = sys_now_us();
+#ifndef OF_PC
+    if (g_fdump_left > 0) {
+        g_fdump_left--;
+        uint64_t sum = 0; int ndiff = 0, lit = 0;
+        for (int i = 0; i < 256; i++) {
+            const uint8_t *c = (const uint8_t *)&g_pal32[i];
+            sum += (uint64_t)c[0] + c[1] + c[2];
+            if (c[0] || c[1] || c[2]) lit++;
+            if (g_fdump_have_prev && memcmp(c, &g_fdump_pal_prev[i * 4], 4)) ndiff++;
+            memcpy(&g_fdump_pal_prev[i * 4], c, 4);
+        }
+        g_fdump_have_prev = 1;
+        NLOG("fdump f=%u t=%llu %dx%d palh=%08x ndiff=%3d lit=%3d sum=%llu src=%d pushes=%u skips=%u\n",
+             g_frames, (unsigned long long)(t5 / 1000ull), vw, vh,
+             (unsigned)g_pal_hash_last, ndiff, lit, (unsigned long long)sum, g_src_changed,
+             g_pal_pushes, g_present_skips);
+    }
+#endif
     stage_max(&g_us_mode, t1 - t0);
     stage_max(&g_us_pal, t2 - t1);
     stage_max(&g_us_copy, t3 - t2);
@@ -2139,6 +2172,16 @@ static void __attribute__((noinline)) save_pump(void) {
 static void pad_combo(void) {
     if (!pad_script_held(OF_BTN_L1) && !of_btn(OF_BTN_L1)) return;
     static uint8_t seen_select, seen_start, seen_a, seen_b;
+    /* L1 + Up traces the next FDUMP_FRAMES presents into the log (docs/424).  Up is an arrow key to the game,
+     * so pressing it also moves a menu entry -- the same unavoidable class as the save/load combos. */
+    int u = pad_script_held(OF_BTN_UP) || of_btn(OF_BTN_UP);
+    static uint8_t seen_up;
+    if (u && !seen_up) {
+        seen_up = 1; g_fdump_left = FDUMP_FRAMES; g_fdump_have_prev = 0;
+        NLOG("fdump: armed %d presents -- what the port held at each present (palh=%x now)\n",
+             FDUMP_FRAMES, (unsigned)g_pal_hash_last);
+    }
+    if (!u) seen_up = 0;
     int s = pad_script_held(OF_BTN_SELECT) || of_btn(OF_BTN_SELECT);
     int st = pad_script_held(OF_BTN_START) || of_btn(OF_BTN_START);
     int a = pad_script_held(OF_BTN_A) || of_btn(OF_BTN_A);

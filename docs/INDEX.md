@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–423)
+## The Pocket port (docs/330–424)
 
 ### Port plan and host layer
 
@@ -66,6 +66,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>docs/419 built a reproducible gate for the disc read path. This is the deferred item it was waiting for — the</sub>
 - **421** — the invented CD stops measured: they change no disc traffic, and they delete 2.5 s of music the original keeps playing
   <sub>docs/413 proved from the bytes that `fn_000405a7` is `INT 10h AX=0013` — a video mode set — and that this game</sub>
+- **424** — the fade flicker is not the palette ordering; the shared logic fades clean, so the port now traces its own presents
+  <sub>Boot D: `PALETTE_AFTER_FLIP=1` on hardware. **The flicker was unchanged.** So the ordering theory — the new</sub>
 
 ### Video and display
 

@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–441)
+## The Pocket port (docs/330–442)
 
 ### Port plan and host layer
 
@@ -109,6 +109,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>docs/429 said 70% of a run is inside `present()`. This turn chased what that means and ended with a feature</sub>
 - **434** — the stall has a name: the port stops presenting while it loads a stage, and the load is ~6 MB at ~2.5 MB/s
   <sub>`0.2.10`'s witness line fired on real hardware, and it answered the question in six lines:</sub>
+- **442** — a display policy with its own clock: the fade ramp stretched the stage cards and the flicker came back
+  <sub>The pacing fix worked and something else broke. Player on `0.2.16`: **"long logo hold fixed, stage card is</sub>
 
 ### Settings, menu, interact
 

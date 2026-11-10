@@ -15,7 +15,20 @@
 # ejecting.  verify_card.py reports the values so the state is on the record either way.
 set -euo pipefail
 
-SDCARD="${1:-/Volumes/Pocket}"; [ "${1:-}" = "--card" ] && SDCARD="${2:-/Volumes/Pocket}"
+# Trailing KEY=value arguments override the defaults below, so an A/B is one command and never a hand-edited
+# card (docs/428: a manual card edit is a measurement that silently goes wrong). The first NON-key=value
+# argument stays the card mount -- sifted, not consumed: the first cut of this feature made
+# `devini.sh FADE_RAMP=0` go hunting for the ini under "FADE_RAMP=0/Assets/...".
+#   ./devini.sh FADE_RAMP=0 FDUMP=2
+SDCARD=""; OVERRIDES=()
+for _a in "$@"; do
+  case "$_a" in
+    --card) continue ;;
+    *[A-Za-z0-9]*=*) OVERRIDES+=("$_a") ;;
+    *) [ -z "$SDCARD" ] && SDCARD="$_a" ;;
+  esac
+done
+[ -n "$SDCARD" ] || SDCARD=/Volumes/Pocket
 INI="$SDCARD/Assets/night/common/night.ini"
 
 # key=value pairs this diagnosis needs on the device.  Keep the list short and each entry justified:
@@ -40,10 +53,14 @@ KNOBS=(
   "CDDA_STOP_FIX=0"
 )
 
+# Trailing KEY=value arguments override the defaults above, so an A/B is one command and never a hand-edited
+# card (docs/428: a manual card edit is a measurement that silently goes wrong).
+
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; RESET='\033[0m'
 [ -f "$INI" ] || { echo -e "${RED}FAIL${RESET} no night.ini at $INI -- deploy first"; exit 1; }
 
 changed=0
+KNOBS+=("${OVERRIDES[@]}")
 for kv in "${KNOBS[@]}"; do
     k="${kv%%=*}"; v="${kv#*=}"
     cur=$(awk -F= -v k="$k" '$1==k {gsub(/[ \t\r]/,"",$2); print $2; exit}' "$INI")

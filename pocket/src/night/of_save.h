@@ -82,6 +82,7 @@ int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG
 #define OF_DIAG_FILEPROBE   16    /* the read-only file-layer probe: slot find + readdir, no writes at all */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);
 int  of_setting_present_skip(void);   /* 1 = skip the copy when a FULL-surface hash says nothing changed (docs/416); 0 = the sampled test only */
+int  of_setting_delay_us(void);       /* 0 = f.c's own 500 us per delay_units() read; >0 overrides it (docs/417) */
 int  of_setting_blit_dirty(void);
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */
 int  of_setting_blit_dirty(void);     /* 1 = write only the rows that changed into the display surface -- invalid on the triple-buffered path, see docs/400 */

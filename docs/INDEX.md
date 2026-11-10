@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–416)
+## The Pocket port (docs/330–417)
 
 ### Port plan and host layer
 
@@ -79,6 +79,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Core **0.1.86**, card ELF md5 `b5f4bb6a4a3365b3743aca34a2840a11` == build == `core.json` == ELF string,</sub>
 - **416** — the Pocket's holds are long because the delay loop presents a 640×480 surface 57 times a second
   <sub>docs/415 measured the original's stage-card hold at 3.91 s of real time against the Pocket's 7.95 s and called the</sub>
+- **417** — the original holds its logo card 3.88 s; the port holds the same card 38 s with a signature that never moves
+  <sub>docs/416 said the Pocket's long holds are the present, not the clock read, and named the stage card as its one</sub>
 
 ### Settings, menu, interact
 

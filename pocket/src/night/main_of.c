@@ -2720,6 +2720,14 @@ int main(int argc, char **argv) {
     NLOG("present_skip=%d blit_skip=%d (1 = skip the copy when a FULL-surface hash matches the picture three "
          "display buffers already hold; 0 = copy every frame)\n",
          of_setting_present_skip(), of_setting_blit_skip());
+    /* delay_units() paces one busy-wait per clock read at this many microseconds (f.c:11385, 500 by default).
+     * Measured against the original on the container route (docs/417): its card hold is 3.91 s for the 0xc00=3072
+     * reads the loop does, i.e. ~1.27 ms per read, and its logo hold 3.88 s for ~2048 reads, i.e. ~1.89 ms -- both
+     * UPPER bounds, since each window also contains the fades and the mode set. So our 500 us floor is 2.5-3.8x
+     * quicker than the original per read; that only starts to matter once the present stops padding the wait. */
+    if (of_setting_delay_us() > 0) g_delay_unit_us = (uint32_t)of_setting_delay_us();
+    NLOG("delay_unit_us=%u (0 = f.c default 500; the original measures ~1270 us/read on the card hold, ~1890 on the logo hold)\n",
+         g_delay_unit_us);
     NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"
          "\n       (32 = surface-read probe: what a sound change test costs, docs/416)"
          "\n       every probe below is gated on this; night.ini DIAG= is the switch, 0 is the shipping value\n",

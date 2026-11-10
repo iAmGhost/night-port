@@ -1,5 +1,9 @@
 # 416 — the Pocket's holds are long because the delay loop presents a 640×480 surface 57 times a second
 
+> **Confirmed on a second phase, and worse: docs/417.** The boot logo card -- the original holds it 3.88 s, the port holds
+> the same card 38 s while its frame signature never moves once. That is 2097 presents of an unchanging surface,
+> ~36 s of a 38 s window. Same mechanism, ten times the stretch.
+
 docs/415 measured the original's stage-card hold at 3.91 s of real time against the Pocket's 7.95 s and called the
 per-DOS-clock-read cost the lever. It is not the clock read. This closes the gap's arithmetic, and the number that
 comes out of it is the same one the choppy intro has been waiting on.

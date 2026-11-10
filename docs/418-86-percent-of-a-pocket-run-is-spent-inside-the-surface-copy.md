@@ -49,6 +49,29 @@ move is invisible to it ~36 times in 37, so the column is an **upper bound**, an
   hash `PRESENT_SKIP` actually uses will see changes this sampler cannot. Expect a much lower skip rate there,
   and that is fine: the point of skipping is the phases where nothing moves.
 
+## What a skipped frame still costs (this is what sets the floor)
+
+The log's `stages` line splits `present()` into its stages, and the copy is not just most of it -- it is all of it:
+
+```
+mean over 70 samples:  mode=15 us  pal=170 us  copy=16569 us  flush=290 us  flip=209 us
+maxes:                 mode=16      pal=576      copy=64253      flush=693     flip=255
+```
+
+So `PRESENT_SKIP` takes 16.6 ms out of ~17.1 ms per present, and a skipped frame still costs ~0.7 ms. That
+residual is *why* the prediction lands on the shim's 2.00 s rather than on f.c's bare 1.05 s pacing floor: with
+the copy gone each spin pass costs about 0.7-0.9 ms, the loop's own deadline is 0.5 ms per clock read, so
+~2048 reads x ~0.8 ms ~ 1.6 s, plus the fades and the mode set -- i.e. the 2.00 s the shim measures.
+
+Two follow-ups, both measured, neither shipped with the skip (one variable per boot):
+
+- `of_video_flush()` on a frame that wrote nothing is dead work (214-290 us). It is almost certainly safe to
+  skip, and worth ~0.2 ms/present.
+- `of_video_flip()` on an unchanged frame is also dead work *if* the palette bulk write takes effect without a
+  flip. That "if" is the whole reason this is not folded into the skip: docs/399 established that re-programming
+  the display path can drop the palette, so palette latching here is subtle, and a fade that only advances on
+  flip would look like a frozen card -- the exact bug class docs/400 is about. Measure it separately.
+
 ## For the next boot
 
 The same tool on a `PRESENT_SKIP=1` log should show the skip target phases' `copy_us` collapse and the

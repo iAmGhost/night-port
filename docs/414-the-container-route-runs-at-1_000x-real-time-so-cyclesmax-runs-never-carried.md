@@ -59,6 +59,39 @@ against — an apples-to-apples basis instead of index-as-gray.
 Two of these wasted a launched game each: the emulator boots straight into `NIGHT` now (`night.conf` autoexec),
 so a driver that fails on import or on the wrong container name consumes the one clean boot that route had.
 
+## Second attempt: the pre-stage flow, measured, and why the card window is never sampled
+
+A no-press run (`scripts/rig/orig_card_hold2.py`, factor 1.000, `scratch/pocket/orig_hold2`) shows what the game
+does when nobody touches it: it alternates, forever --
+
+```
+320x200  0.0 .. 40.5 s      attract
+640x480  40.5 .. 91.4 s      <- frame 0089 is the title/copyright card ("1997 TG.ENTERTAINMENT /
+                               ORIGINAL COMIC BY MYUNG JIN LEE"); frame 0099 is black (the fade out)
+320x200  91.4 s ..           attract again
+```
+
+and a second run (`orig_hold3`) repeated it exactly: attract 27 s / title 49 s / attract 40 s / title 50 s. So
+the pre-stage loop is 320x200 attract then a ~50 s 640x480 title sequence, with no episode in sight. Pressing
+Enter *once* at the first 320x200 after a title (the obvious moment) did not start an episode: the loop carried
+on unchanged. The pre-stage flow is therefore not one press, and `drive_orig_episode1.txt`'s four Enters are
+doing something real.
+
+That also explains why the card window has no samples in any run so far, which is the actual blocker:
+
+- `playtest_orig_drive.py` samples only inside its `record` windows, so between its last `slides` shot (t=42.9 s,
+  the `1s1` slide, identical for 7.4 s) and its next shot at t=69.1 s -- while sitting in `wait_mode_soft` /
+  `wait_mode` -- it saved nothing. The card, if it appeared anywhere in those 26 s, is unsampled.
+- My own sampler covers every 200 ms but never gets that far, because it cannot get an episode started.
+
+And one observation from that unsampled boundary that is worth its own follow-up, unrelated to timing: frame
+`0252_stage_play.png` at t=69.114 s is **640x480**, and it is not the card -- it shows the station scene with
+both HP bars in the upper corners, very dark (mid-fade), 0.17 s before the mode reads 320x200 (`0253` at
+69.275 s). The port's mode model says the switch to 320x200 is the `INT 10h AX=0013` right after the hold. A
+640x480 picture carrying *gameplay HUD* just before it is not explained by that, and `analysis/refs/
+st1_startup_640_noisy.png` suggests a real 640x480 start rather than a capture artifact. Unproven, but the kind
+of thing that should not sit in a scratch directory.
+
 ## The measurement that is still owed
 
 One route design, one run: `NIGHT` from autoexec → single Enter on the title → no further keys → capture at 6 Hz

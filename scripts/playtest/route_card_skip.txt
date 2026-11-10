@@ -8,7 +8,10 @@
 # geometry changing while the display path rotates buffers -- is exercised, so the hardware run below is a
 # two-minute confirmation and not an exploration.
 #
-#   ./build/app_pc --script scripts/playtest/route_card_skip.txt
+#   cd <repo root> && ./pocket/src/night/app_pc --script scripts/playtest/route_card_skip.txt
+#   (the shim resolves the script path against the CWD, and finds NIGHT/ by probing for NIGHT.RES --
+#    run it from the repo root or it silently runs the unscripted attract loop: the first cut of this line
+#    pointed at a build/app_pc that does not exist and the route never loaded).
 #
 # Card log afterwards must read:  flipnw=0  (docs/446 invariant)  and  noflip > 0  (the skip path is live).
 0 shot boot

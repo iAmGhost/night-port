@@ -92,7 +92,11 @@ both HP bars in the upper corners, very dark (mid-fade), 0.17 s before the mode 
 st1_startup_640_noisy.png` suggests a real 640x480 start rather than a capture artifact. Unproven, but the kind
 of thing that should not sit in a scratch directory.
 
-## The measurement that is still owed
+## Measured afterwards: docs/415
+
+This was finished the same night: the card was reached, identified by picture against the shipped PCXes, and its
+hold measured at **3.91 s** of real time (desktop 3.29 s, Pocket 7.95 s). Docs/415 also records that the hold
+aborts early on any key (`0x3b188`/`0x3b19a`), which is why an earlier press cadence read 1.25 s.
 
 One route design, one run: `NIGHT` from autoexec → single Enter on the title → no further keys → capture at 6 Hz
 → find the frame that correlates with the port's card dump → the hold is that frame's static run, bounded by the

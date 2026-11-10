@@ -76,6 +76,23 @@ def main():
     ap.add_argument("--hz", type=float, default=5.0)
     ap.add_argument("--press-after-title", action="store_true",
                     help="send ONE Enter the first time 320x200 returns after a 640x480 title sequence, then no keys")
+    ap.add_argument("--max-presses", type=int, default=0,
+                    help="with --advance-on-static: send at most this many presses. The show is press-gated but "
+                         "the CARD HOLD IS NOT: 0x3b188 tests DAT_13e89 and 0x3b19a leaves the hold loop early "
+                         "on any key. Press through the slides then stop, or you measure 'hold aborted by a press' "
+                         "(measured: 1.25 s) instead of the hold. 0 = no cap.")
+    ap.add_argument("--esc-once-on-static", type=float, default=0.0,
+                    help="send exactly ONE Escape once a 640x480 picture has sat unchanged this long, then send "
+                         "nothing ever again. I added this believing the card only appears when ESC unwinds the "
+                         "slide show; orig_hold5 disproved that -- Enter presses reached the card normally "
+                         "(docs/415). It also never fires usefully, because with no key the game's 640x480 title "
+                         "card simply waits (44.7 s static) and static-detection lands there. Kept as the null "
+                         "run it is, and as the reminder that 'a 640x480 still' is not 'a slide'.")
+    ap.add_argument("--advance-on-static", type=float, default=0.0,
+                    help="press Enter whenever a 640x480 picture has been unchanged for this many seconds "
+                         "(the original's slides are gated on a press: 1s1 sat unchanged for 7.4 s with no key). "
+                         "The last press before the mode leaves 640x480 is the entry into the card hold, so the "
+                         "press-to-mode-change gap is the hold.""")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     tok = a.token
@@ -93,8 +110,12 @@ def main():
 
     t0 = time.monotonic()
     seq, prev = 0, None
+    static_since = 0.0
     saw480 = False
     pressed = not a.press_after_title            # when the flag is off, nothing is ever sent
+    last_press, press_log = -1e9, []
+    esc_sent = False
+    esc_t, card_t, leave_t = None, None, None
     next_witness = 0.0
     while True:
         now = time.monotonic() - t0
@@ -126,6 +147,24 @@ def main():
             except Exception as e:
                 print("    (witness failed: %s)" % e)
         sig = hashlib.md5(raw).hexdigest()[:12]
+        if a.esc_once_on_static > 0 and hh > 400 and not esc_sent and (now - static_since) > a.esc_once_on_static:
+            api(tok, "/api/v1/input/sequence", "POST",
+                {"events": [{"t": 0, "type": "key", "key": "KBD_escape", "pressed": True},
+                            {"t": 60, "type": "key", "key": "KBD_escape", "pressed": False}]})
+            esc_sent = True
+            esc_t = now
+            print("  t=%6.2fs  ONE Escape (480-static %.1f s); no keys after this" % (now, now - static_since),
+                  flush=True)
+        if a.advance_on_static > 0 and hh > 400 and (now - static_since) > a.advance_on_static \
+                and now - last_press > a.advance_on_static \
+                and (a.max_presses == 0 or len(press_log) < a.max_presses):
+            api(tok, "/api/v1/input/sequence", "POST",
+                {"events": [{"t": 0, "type": "key", "key": "KBD_enter", "pressed": True},
+                            {"t": 60, "type": "key", "key": "KBD_enter", "pressed": False}]})
+            last_press = now
+            press_log.append(now)
+            print("  t=%6.2fs  Enter (480-static %.1f s)  [press #%d]" % (now, now - static_since, len(press_log)),
+                  flush=True)
         if sig != prev:
             # the raw payload is a header + index pixels or BGRX; take the pixel part and view it as gray
             px = np.frombuffer(raw[-ww * hh:], dtype=np.uint8) if len(raw) >= ww * hh else np.frombuffer(raw, dtype=np.uint8)
@@ -153,11 +192,37 @@ def main():
                 print("    (no png: %s)" % e); png = "-"
             w.writerow([seq, int(now * 1000), ww, hh, sig, best, round(bs, 4), os.path.basename(png)])
             print("  t=%6.2fs  %dx%d %s best=%s sim=%.3f" % (now, ww, hh, sig, best, bs), flush=True)
+            if esc_sent and card_t is None:
+                card_t = now                # the card itself, replacing the last slide
             prev = sig
+            static_since = now
             seq += 1
         time.sleep(1.0 / a.hz)
     ev.close()
-    print("done: %d change-frames in %s (no keys were sent)" % (seq, a.out))
+    rows0 = list(csv.DictReader(open(os.path.join(a.out, "events.tsv")), delimiter="\t"))
+    for r in rows0:
+        if esc_sent and card_t and leave_t is None and int(r["h"]) < 400:
+            leave_t = now
+    print("done: %d change-frames in %s; presses sent: %s" % (seq, a.out, ["%.1f" % x for x in press_log]))
+    if esc_sent:
+        lv = None
+        for r in rows0:
+            if int(r["h"]) < 400:
+                lv = int(r["t_ms"]) / 1000.0
+                break
+        print("CARD HOLD: Escape at %.2f s -> card drawn at %.2f s -> mode leaves 640x480 at %s = %s s real"
+              % (esc_t if esc_t else -1, card_t if card_t else -1,
+                 "%.2f" % lv if lv else "never", "%.2f" % (lv - card_t) if (lv and card_t) else "-"))
+    # The hold: last press that left a 640x480 picture -> the frame where the mode leaves 640x480.
+    rows = list(csv.DictReader(open(os.path.join(a.out, "events.tsv")), delimiter="	"))
+    leave = None
+    for r in rows:
+        if int(r["h"]) < 400:
+            leave = int(r["t_ms"]) / 1000.0
+            break
+    if press_log and leave:
+        print("HOLD candidate: last press %.2f s -> mode leaves 640x480 at %.2f s = %.2f s real time"
+              % (press_log[-1], leave, leave - press_log[-1]))
 
 
 main()

@@ -199,6 +199,7 @@ static int      g_disc_lookahead = 240;   /* night.ini DISC_BATCH=: sectors per 
 static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain the board ring per pump entry
                                            * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
+static int      g_present_skip = 0;   /* 1 = a full-surface hash decides whether the copy runs; the sampled 64-byte test below it can miss a small move (docs/416) */
 static int      g_disc_async = 1;   /* 1 = feed the ring with double-buffered async reads (docs/403); 0 = the synchronous read shape */
 static int      g_cdda_card_stop = 1;   /* 1 = the intro track stops when stage<N>.pcx is drawn: the original is silent for the card hold, and the stage track arrives on the game's own request (docs/413) */
 static int      g_disc_ramp = 0;   /* 0 = prime the CD-DA slice in one visit (dry=0, audio_low=0); 1 = spread it over pump visits, which underran (docs/402) */
@@ -503,6 +504,7 @@ void of_settings_load(void) {
      * stretch for free -- worth measuring, with docs/338 in mind (a mode the scaler cannot map shows black). */
     g_fit = cfg_int("fit", 1, "NIGHT_FIT");
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
+    g_present_skip = cfg_int("present_skip", 0, "NIGHT_PRESENT_SKIP");
     g_blit_dirty = cfg_int("blit_dirty",  1, "NIGHT_BLIT_DIRTY");
     g_disc_ramp = cfg_int("disc_ramp",   0, "NIGHT_DISC_RAMP");
     g_cdda_card_stop = cfg_int("cdda_card_stop", 1, "NIGHT_CDDA_CARD_STOP");
@@ -625,6 +627,7 @@ int of_setting_interact_err(void) { return g_interact_err; }
 int of_setting_fit(void)       { return g_fit; }      /* 0 letterbox, 1 stretch, 2 scaler 320x200 */
 int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
+int  of_setting_present_skip(void) { return g_present_skip; }
 int  of_setting_blit_dirty(void) { return g_blit_dirty; }
 int  of_setting_disc_ramp(void)  { return g_disc_ramp; }
 int  of_setting_cdda_card_stop(void) { return g_cdda_card_stop; }

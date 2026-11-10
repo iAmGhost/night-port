@@ -106,6 +106,29 @@ Both stand or fall on one number: **how long does a full 307 KB read pass over `
 There is a DIAG-gated boot probe for exactly that now; the next boot's log should carry `surfhash us=` and the
 choice is then arithmetic instead of argument.
 
+## What shipped with this reading (core 0.1.95)
+
+Two things, both default-off, so the next boot changes one variable at a time:
+
+- **`DIAG=32`** — one timed full pass over the game surface at boot, logged as
+  `surfhash: 307200 B read in N us (Y MB/s)`. This is the number option 1 and option 2 both wait on.
+- **`PRESENT_SKIP=1`** — the lever itself. `present()` hashes *every byte* of what it is about to copy (word
+  reads, geometry mixed into the seed) and skips the copy when the hash matches the content the display
+  buffers are **proven** to hold. The proof is the point: `g_hash_proven` latches only after three frames have
+  written the same content, which is exactly the condition under which the triple-buffered path can show only
+  that content (docs/400), and it clears on any geometry change or on `applied_refresh()`, because
+  re-programming the display path may have swapped buffers underneath us. Skips therefore start three frames
+  after each change or mode set -- checked against a hand-run trace of the state machine, not against hardware
+  yet. The palette still goes up on a skipped frame, which is the whole reason a card *fade* costs nothing this
+  way.
+  The knob sits beside `BLIT_SKIP`, which is the sampled test (every 64th byte, max 8 skips in a row) and stays
+  the default. `perf ... skips=N` and `stages ... copy=Nus` in the log are the A/B readout: if the lever works,
+  `skips` climbs through the card hold and `copy` goes to ~0 while the window's tick span falls from 3987
+  toward the ~1.6-1.7 s floor.
+
+`make test` (3089 differential checks) and `pocket make test` (shim + RISC-V ELF) both exit 0. The lever is
+`#ifndef OF_PC`, so the desktop rig -- the measurement basis -- cannot see it at all (the docs/407 rule).
+
 ## Left open
 
 - Present cost at the 640×480 surface varies in the log (65 ms, 17 ms, and `max=65306us` held as the max for the

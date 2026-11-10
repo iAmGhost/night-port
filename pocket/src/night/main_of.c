@@ -144,6 +144,14 @@ static int g_console_live = 1;
  * slide bytes fill the rest.  Measured on the player's screenshot (docs/343 §5): 20 all-black bar rows, and row
  * 40's left half within 7 of row 41's right half. */
 static uint32_t g_applied_w = PANEL_W, g_applied_h = PANEL_H, g_applied_stride = PANEL_W;
+
+/* docs/416: the full-surface change test. g_hash_streak counts consecutive frames with this hash; once three
+ * frames have written the same content into the three display buffers the picture is proven to be on screen
+ * (g_hash_proven) and every later identical frame may be skipped. A geometry change re-seeds the hash and
+ * clears the proof; so does re-programming the display path (applied_refresh), because the OS may have swapped
+ * buffers underneath us (docs/400). */
+static uint32_t g_hash_sig, g_hash_streak;
+static int g_hash_proven;
 static void applied_refresh(void) {
 #ifndef OF_PC
     of_video_mode_t cur;
@@ -152,6 +160,7 @@ static void applied_refresh(void) {
         g_applied_w = cur.width; g_applied_h = cur.height;
         g_applied_stride = cur.stride ? cur.stride : cur.width;
         g_pal_force = 1;                  /* re-programming the display path can drop the palette (docs/399) */
+        g_hash_proven = 0;                  /* ...and may have swapped the buffers we are about to trust (docs/400) */
     }
 #endif
 }
@@ -596,6 +605,37 @@ static void present(void) {
 
     int skip = 0;
 #ifndef OF_PC
+    /* docs/416: the delay loop inside a stage-card hold presents ~57 times a second for 7.95 s while the card's
+     * fades change only the PALETTE, so ~6.4 s of that window is copying 307 200 bytes nobody looks at. Skipping
+     * it needs a test that cannot miss a change, and the sampled test below it (every 64th byte, plus
+     * fb_signature's stride of 37) misses a small move ~36 times out of 37 -- which is the docs/400 bug class
+     * wearing a different hat. So PRESENT_SKIP=1 hashes EVERY byte of the bytes we are about to copy.
+     *
+     * The streak gate is what keeps it legal on this display: of_video.h:10 makes the path triple-buffered and
+     * of_video_flip() does not wait, so the buffer this frame would write was last written three frames ago
+     * (docs/400). Only after three consecutive frames have written the SAME content into all three buffers can
+     * a frame be skipped without any chance of showing older bytes. The gate counts written frames, not seen
+     * frames: a skipped frame writes nothing, so it cannot advance the proof. */
+    if (of_setting_present_skip()) {
+        size_t n = (size_t)vw * vh;                       /* exactly what the blit below would copy */
+        uint32_t h = 2166136261u ^ (uint32_t)(vw * 73856093 + vh * 19349663);
+        const uint8_t *q = src;
+        for (size_t i = 0; i + 4u <= n; i += 4u) {        /* word reads: every byte, 1/4 the instructions */
+            uint32_t w;
+            __builtin_memcpy(&w, q + i, 4u);
+            h = (h ^ w) * 16777619u;
+        }
+        for (size_t i = n & ~3u; i < n; i++) h = (h ^ q[i]) * 16777619u;
+        if (h == g_hash_sig && g_hash_proven) skip = 1;         /* all three buffers already hold this picture */
+        else {
+            if (h != g_hash_sig) { g_hash_sig = h; g_hash_streak = 1u; g_hash_proven = 0; }
+            else g_hash_streak++;
+            if (g_hash_streak >= 3u) g_hash_proven = 1;         /* written into three buffers; proof latches */
+        }
+    }
+#endif
+
+#ifndef OF_PC
     skip = of_setting_blit_skip() ? 1 : 0;   /* BLIT_SKIP=0 on the card keeps every blit */
     if (skip) {
         for (size_t i = 0; i < g_smp_n; i++)
@@ -776,7 +816,8 @@ static void present(void) {
     }                                        /* end of "if (!skip)" */
 #ifndef OF_PC
     for (size_t i = 0; i < g_smp_n; i++) g_smp_val[i] = src[g_smp_off[i]];
-    if (skip) { g_present_skips++; g_skip_streak++; } else g_skip_streak = 0;
+    if (skip) { g_present_skips++; g_skip_streak++; }
+    else g_skip_streak = 0;
 #endif
 #ifdef OF_PC
     if (getenv("NIGHT_PANEL_SHOT") && (g_frames % (unsigned)(getenv("NIGHT_PANEL_EVERY") ? atoi(getenv("NIGHT_PANEL_EVERY")) : 40)) == 20u)
@@ -2676,6 +2717,9 @@ int main(int argc, char **argv) {
          of_setting_pump_audio_tick());
     NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
          of_setting_fit());
+    NLOG("present_skip=%d blit_skip=%d (1 = skip the copy when a FULL-surface hash matches the picture three "
+         "display buffers already hold; 0 = copy every frame)\n",
+         of_setting_present_skip(), of_setting_blit_skip());
     NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"
          "\n       (32 = surface-read probe: what a sound change test costs, docs/416)"
          "\n       every probe below is gated on this; night.ini DIAG= is the switch, 0 is the shipping value\n",

@@ -87,6 +87,20 @@ cp -r "$OUT"/Cores/*     "$SDCARD/Cores/"     && ok "Cores"
 cp -r "$OUT"/Assets/*    "$SDCARD/Assets/"    && ok "Assets"
 cp -r "$OUT"/Platforms/* "$SDCARD/Platforms/" && ok "Platforms"
 
+# COPYFILE_DISABLE stops cp from MAKING sidecars, but the card is exFAT and any later xattr write to one of our
+# files -- Finder indexing, a settings edit -- still lands a ._night.ini next to it.  Those sidecars carry the
+# extensions the firmware scans for, so remove them from OUR folders after every deploy.  Scoped to this core's
+# paths on purpose: the card also holds other people's cores, and a find that swept the volume would go hunting
+# in someone else's tree.
+# There is no $APP in this script (the core id is spelled out everywhere else), so an ${APP}-built path would
+# have expanded to "$SDCARD/Cores/" and swept every core on the card.  Names spelled out, exactly as elsewhere.
+for d in "$SDCARD/Cores/iamghost.night" "$SDCARD/Assets/night/common" "$SDCARD/Platforms/night"; do
+    if [ -d "$d" ]; then
+        n=$(find "$d" -name '._*' -type f -print -delete | wc -l | tr -d ' ')
+        [ "$n" != "0" ] && echo "  removed $n AppleDouble sidecar(s) from ${d#$SDCARD/}"
+    fi
+done
+
 # The instance's asset folder is where image.sh put night.elf / os.bin / bank.ofsf; the data slots are
 # read from the same folder.  Derive the platform directory from the tree being DEPLOYED -- scanning the
 # card for "any Assets/*/common" lands in whichever core was there first (measured: a first version put

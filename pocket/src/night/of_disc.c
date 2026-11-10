@@ -16,6 +16,7 @@
  * cd_iso.c exists only to convert a *disc* LBA into the single IMG's file sectors.
  */
 #include "of_disc.h"
+#include "cd_audit.h"      /* the byte-exact disc gate (docs/410): records every audio read for scripts/pocket/audit_disc.py */
 #include "of_log.h"
 #include "sys/sys.h"
 
@@ -120,6 +121,8 @@ void of_disc_root_records(uint8_t *recs, uint32_t n) {
 }
 
 int of_disc_open(void) {
+    /* Off unless NIGHT_CD_AUDIT names a file: this is a rig instrument, so the device build never opens it. */
+    cd_audit_open(getenv("NIGHT_CD_AUDIT"));
     g_have_table = (DISC_TRACK_COUNT > 0);
     if (!g_have_table) return 0;
     sys_cd_set_backend(of_disc_root_header, of_disc_root_records);
@@ -193,6 +196,11 @@ int of_disc_read_audio_run(uint32_t disc_lba, uint8_t *out2352, uint32_t nsector
         return -1;
     }
     a_next = off + (long)want;
+    /* kind names the track, offset is byte-relative to the SLOT; audit_disc.py maps it onto TG_NIGHT.IMG with
+     * the repack manifest, so the mapping lives in one place and not in two languages (docs/410). */
+    { char k[16]; snprintf(k, sizeof k, "TRACK%02u", t->track);
+      cd_audit_read(k, (long long)off, (uint32_t)want, out2352); }
+    a_next = off + (long)want;
     {                                   /* the measured half: one operation, nsectors delivered */
         uint32_t dt = (uint32_t)(sys_now_us() - t0);
         g_disc_reads++; g_disc_ops++; g_disc_sectors += nsectors;
@@ -234,6 +242,9 @@ int of_disc_read_audio_run(uint32_t disc_lba, uint8_t *out2352, uint32_t nsector
     const size_t want = (size_t)nsectors * IMG_SECTOR;
     size_t got = fread(out2352, 1, want, df);
     if (got != want) { g_disc_fails++; return -1; }
+    d_next = off + (long)want;
+    { char k[16]; snprintf(k, sizeof k, "TRACK%02u", t->track);
+      cd_audit_read(k, (long long)off, (uint32_t)want, out2352); }
     d_next = off + (long)want;
     {
         uint32_t dt = (uint32_t)(sys_now_us() - t0);

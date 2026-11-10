@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–418)
+## The Pocket port (docs/330–419)
 
 ### Port plan and host layer
 
@@ -60,6 +60,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>The Pocket port's audio problem took nineteen builds and seventeen documents. This is the one file to</sub>
 - **413** — Read from the bytes: this game cannot stop CD audio, so the card's silence is the feed going idle
   <sub>Ask: between the last introduction slide and the stage music starting, **how does the music stop?** I had a</sub>
+- **419** — the disc gate `cdda.raw` could never be: every read the port makes, checked against the shipped disc
+  <sub>docs/410 retired `cdda.raw` as a regression gate — three runs of one binary with one seed gave two different</sub>
 
 ### Video and display
 

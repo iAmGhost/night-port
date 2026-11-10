@@ -32,6 +32,7 @@
  * logical sector read is [16, 16+2048) of the sector.
  */
 #include "cd_iso.h"
+#include "cd_audit.h"
 
 /* ---- unaligned flat-model views (docs/126) ----------------------------------
  * The shipped record layout is packed and deliberately unaligned (dword stores at +0x01/+0x05/+0x17 ...
@@ -210,6 +211,7 @@ int cd_iso_read_audio(uint32_t disc_lba, uint8_t *out2352) {
     if (disc_lba < 150u || disc_lba - 150u >= g_total_sectors) return -1;
     if (fseek(g_img, (long)(disc_lba - 150u) * IMG_SECTOR, SEEK_SET) != 0) return -1;
     if (fread(out2352, 1, IMG_SECTOR, g_img) != IMG_SECTOR) return -1;
+    cd_audit_read("IMG", (long long)(disc_lba - 150u) * IMG_SECTOR, IMG_SECTOR, out2352);
     return 0;
 }
 
@@ -219,10 +221,12 @@ int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048) {
     if (disc_lba >= g_total_sectors) return -1;
     if (fseek(g_img, (long)disc_lba * IMG_SECTOR + IMG_DATA_OFF, SEEK_SET) != 0) return -1;
     if (fread(out2048, 1, IMG_DATA_LEN, g_img) != IMG_DATA_LEN) return -1;
+    cd_audit_read("IMG_USER", (long long)disc_lba * IMG_SECTOR + IMG_DATA_OFF, IMG_DATA_LEN, out2048);
     return 0;
 }
 
 void cd_iso_close(void) {
+    cd_audit_close();
     if (g_img) fclose(g_img);
     g_img = 0; g_opened = 0; g_toc_n = 0;
 }

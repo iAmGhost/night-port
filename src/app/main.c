@@ -19,6 +19,7 @@
  * into -- plus the VGA DAC cache) runs from the tick pump at up to 60 Hz.
  */
 #include "cd/cd_iso.h"
+#include "cd/cd_audit.h"
 #include "f/f.h"
 #include "f/rig_cells.h"
 #include "sys/sys.h"
@@ -1967,6 +1968,9 @@ int main(int argc, char **argv) {
     (void)heap_malloc(0x4000);                        /* one 64 KiB region floor, as the acquirer did */
     for (int t = 0; t < 0x104; t++) { g_dat_639ec[t] = 0; g_dat_53818[t] = 0; }   /* fresh-boot tables */
     sys_file_real_dir(res_dir);
+    /* The byte-exact disc gate (docs/410): off unless NIGHT_CD_AUDIT names a file. Opened before the disc so
+     * the very first read is recorded, and closed by cd_iso_close() on the normal exit path. */
+    cd_audit_open(getenv("NIGHT_CD_AUDIT"));
     if (cd_iso_open(cue) == 0) {
         sys_cd_set_backend(cd_iso_root_header, cd_iso_root_records);
         sys_cd_set_audio_backend(cdda_play, cdda_stop);

@@ -1312,9 +1312,21 @@ static void present(void) {
             memcpy(&g_fdump_pal_prev[i * 4], c, 4);
         }
         g_fdump_have_prev = 1;
-        NLOG("fdump f=%u t=%llu %dx%d palh=%08x ndiff=%3d lit=%3d sum=%llu src=%d pushes=%u skips=%u\n",
+        /* docs/443: palette-only tracing could not see the pixel flicker. `smean` is the mean of the GAME
+         * picture we were asked to show, `pmean` the mean of the panel surface we are about to flush --
+         * both sampled every 256th byte (~1.5 k reads, and FDUMP bounds the dumped frames). Three
+         * explanations of "every other frame black" fall out of these two columns: the game fed us black
+         * (smean falls), we built black (pmean falls while smean holds), or the pixels left us correct and
+         * the black is below us (both hold). Guessing among those cost four builds; sampling costs one. */
+        uint64_t sm = 0, pm = 0; uint32_t sn = 0, pn = 0;
+        const uint8_t *sp = src;  /* the game's picture, as the blit above read it */
+        for (uint32_t i = 0; i + 1 < (uint32_t)(vw * vh) && sn < 1200u; i += 256u) { sm += sp[i]; sn++; }
+        for (uint32_t i = 0; i + 1 < (uint32_t)(PANEL_W * PANEL_H) && pn < 1200u; i += 256u) { pm += fb[i]; pn++; }
+        NLOG("fdump f=%u t=%llu %dx%d palh=%08x ndiff=%3d lit=%3d sum=%llu src=%d smean=%.1f pmean=%.1f"
+             " pushes=%u skips=%u\n",
              g_frames, (unsigned long long)(t5 / 1000ull), vw, vh,
              (unsigned)g_pal_hash_last, ndiff, lit, (unsigned long long)sum, g_src_changed,
+             sn ? (double)sm / sn : -1.0, pn ? (double)pm / pn : -1.0,
              g_pal_pushes, g_present_skips);
     }
 #endif

@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–442)
+## The Pocket port (docs/330–443)
 
 ### Port plan and host layer
 
@@ -111,6 +111,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>`0.2.10`'s witness line fired on real hardware, and it answered the question in six lines:</sub>
 - **442** — a display policy with its own clock: the fade ramp stretched the stage cards and the flicker came back
   <sub>The pacing fix worked and something else broke. Player on `0.2.16`: **"long logo hold fixed, stage card is</sub>
+- **443** — every frame of the stage-entry fade was a *skip*, and `of_video_flip()` runs anyway
+  <sub>`FADE_RAMP=0` removed the card-skipping symptom (docs/442) but **the stage-entry flicker persisted**, and the</sub>
 
 ### Settings, menu, interact
 

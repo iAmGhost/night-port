@@ -262,7 +262,7 @@ static uint32_t on_terminate(uint32_t a) {
  * arithmetic src/app/main.c:129-135 uses, which is the basis the port-vs-original comparisons stand on. */
 static uint32_t g_pal_pushes, g_pal_push_skips;   /* how often the 256-word palette upload actually ran */
 HOTPRESENT /* the palette upload the indexed picture depends on, once per present */
-static void palette_push(void) {
+static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     sys_vga_palette(g_pal_rgb);
     if (sys_vga_dac_max() <= 63)
         for (int i = 0; i < 768; i++)
@@ -284,13 +284,20 @@ static void palette_push(void) {
 #else
     static uint32_t g_pal_hash;
     uint32_t h = 2166136261u;
-    for (int i = 0; i < 256; i += 7) { h ^= g_pal32[i]; h *= 16777619u; }
+    /* All 256 entries. The first cut stepped i += 7, so it hashed 37 of the 256 (docs/422): a fade that ramps
+     * entries the sampler misses leaves the hash unchanged, the upload is skipped, and the panel keeps the old
+     * colours until the forced refresh every 4096 frames -- about 78 s at 52 frames/s. The full hash costs
+     ~3 us at 100 MHz, which is not a thing worth missing a fade over. */
+    for (int i = 0; i < 256; i++) { h ^= g_pal32[i]; h *= 16777619u; }
     if (g_pal_force || h != g_pal_hash || (g_frames & 4095u) == 0u) {
         g_pal_hash = h;
         g_pal_force = 0;
         of_video_palette_bulk(g_pal32, 256);
         g_pal_pushes++;
-    } else g_pal_push_skips++;
+        return 1;
+    }
+    g_pal_push_skips++;
+    return 0;
 #endif
 }
 
@@ -596,7 +603,16 @@ static void present(void) {
     }
 #endif
 
+#ifdef OF_PC
     palette_push();
+#else
+    /* PALETTE_AFTER_FLIP=0 keeps today's ordering. =1 pushes just after of_video_flip() instead, because the
+     * ordering below puts the NEW palette on screen up to a whole copy-time (2-19 ms) before the pixels it
+     * belongs to -- i.e. the old picture is shown in the new colours, every single frame of a fade
+     * (docs/422). The shim always pushes here: moving it there changes what a present costs, and the shim is
+     * the measurement basis for every cross-host diff (docs/365, docs/382). */
+    if (!of_setting_palette_after_flip()) palette_push();
+#endif
     t2 = sys_now_us();
     uint8_t *surface = of_video_surface();
     uint8_t *fb = surface;
@@ -843,6 +859,7 @@ static void present(void) {
     t4 = sys_now_us();
     of_video_flip();
 #ifndef OF_PC
+    if (of_setting_palette_after_flip()) palette_push();   /* land with the pixels, not a copy-time ahead */
     /* The API is triple-buffered (of_video.h:10), and of_video_flip() does not wait: "It does not wait for the
      * vsync swap to complete, so rendering can overlap scanout" (of_video.h:171-172).  Overlapping scanout is
      * exactly a torn/ghosted picture, so the default here waits for the frame to be presented before the next
@@ -2746,6 +2763,9 @@ int main(int argc, char **argv) {
     NLOG("present_skip=%d blit_skip=%d (1 = skip the copy when a FULL-surface hash matches the picture three "
          "display buffers already hold; 0 = copy every frame)\n",
          of_setting_present_skip(), of_setting_blit_skip());
+    NLOG("palette_after_flip=%d (1 = upload the 256-entry palette just after of_video_flip(); 0 = before the "
+         "copy, which shows the old picture in the new palette for up to a copy-time every fade frame)\n",
+         of_setting_palette_after_flip());
     /* delay_units() paces one busy-wait per clock read at this many microseconds (f.c:11385, 500 by default).
      * Measured against the original on the container route (docs/417): its card hold is 3.91 s for the 0xc00=3072
      * reads the loop does, i.e. ~1.27 ms per read, and its logo hold 3.88 s for ~2048 reads, i.e. ~1.89 ms -- both

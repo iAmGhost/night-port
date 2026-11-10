@@ -43,19 +43,51 @@ original's 3.91 s), on a second phase, with the added proof that the surface sig
 Both are the same defect: **a `delay_units` wait during which the host re-copies an unchanging surface as fast
 as it can, and the copy costs more than the wait it is padding.**
 
+## The third host, for free: the desktop shim
+
+The shim runs the same `src/f` with presents that cost nothing (SDL2 dummy driver). Run and capture:
+
+```sh
+export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_SEED=1234 NIGHT_CD_DIR=scratch/pocket/cd NIGHT_FILELOG=0
+./pocket/src/night/app_pc --frames 4000 --rig-witness 0 2>&1 | perl -pe 'BEGIN{$|=1; use Time::HiRes qw(time); $t=time}
+  $_ = sprintf("%.3f ", time-$t).$_'            # wall-stamped log
+```
+
+```
+t= 1.02s  video CHANGED: view=0 640x480 (was -1 -1x-1)
+t= 3.02s  video CHANGED: view=1 320x200 (was 0 640x480)      -> 2.00 s on the logo card
+t= 1.02   view=0 640x480 sig=ecd967f7 chg=1 pal=255          -> the SAME signature as the card
+memstat: 54.5 frames/s throughout
+```
+
+Three things fall out:
+
+- the logo card's signature is **`ecd967f7` on the card and on the shim** -- the same picture, byte for byte in
+  the arena, and static on both;
+- the shim spends **2.00 s** there, the device **38.08 s**: a factor **19**, not 2.4;
+- and the arithmetic closes without a free parameter:
+
+```
+device 38.08 s  ~  shim floor 2.00 s  +  2097 presents x 17 ms (35.7 s)  =  37.7 s   -- 1% off
+```
+
+That is the model, on a second phase, to within one percent: the presents are counted from the log and the 17 ms
+was measured in the same log (docs/416). It is not a fit -- there is nothing left in the window to attribute.
+
 ## What this predicts, and what would falsify it
 
 `PRESENT_SKIP=1` (docs/416) removes exactly the copies that carry these windows, so on the next boot:
 
-- the logo phase should fall from 38.08 s toward the game's own pacing floor — docs/411 calibrated the logo hold
-  at ~2048 clock reads ≈ **1.05 s**, so expect single-digit seconds with the fades and mode sets on top;
-- the stage-card hold should fall from 7.95 s toward ~1.6-1.7 s;
+- the logo phase should fall from **38.08 s to ~2.0 s** -- not toward a theory, but to the 2.00 s the shim
+  already spends on the same card with the same signature. A 19x collapse, or nothing: that is the test;
+- the stage-card hold should fall from 7.95 s toward the shim's 3.01 s (docs/416 measured that window too);
 - in the log, `perf ... skips=` should climb through both windows and `stages ... copy=` should go to ~0.
 
-If the windows do not fall while `skips` climbs, the model is wrong and the copy was never the cost. If they fall
-but land well above the floor, the remaining gap is the pacing constant — note the floor (1.05 s) is *below* the
-original's 3.88 s, so a fully working lever would make these phases **shorter than the original**, and the next
-item after it is `g_delay_unit_us`, not more skipping.
+If the windows do not fall while `skips` climbs, the model is wrong and the copy was never the cost. And note the
+direction of the leftover: the shim's floor (2.00 s) is *below* the original's 3.88 s, so a fully working lever
+makes these phases **shorter than the original**. The knob after this one is `DELAY_US` (night.ini, 0 = leave
+f.c's 500 us alone): scaling the shim's 2.00 s by the original's 3.88 s puts the target near **950-1000 us**, and
+that is a measurement to make in its own boot, *after* the skip is proven -- never in the same boot as the skip.
 
 ## Transport notes for the container route (add to docs/414)
 

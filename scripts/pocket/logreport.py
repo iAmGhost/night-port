@@ -121,7 +121,10 @@ def main():
     inv = [l for l in seg if 'INVARIANT' in l]
     fnw = [int(m.group(1)) for m in (re.search(r'flipnw=(\d+)', l) for l in seg) if m]
     nf = [int(m.group(1)) for m in (re.search(r'noflip=(\d+)', l) for l in seg) if m]
-    if fnw or inv:
+    # TRUTHINESS BUG, caught on the first real log: `if fnw or inv` took the VIOLATED branch for a perfectly
+    # healthy run, because a list of zeros ([0, 0, 0]) is truthy. Third mistake inside this one section and
+    # the seventh report-layer self-hit of the stretch -- which is what it costs to trust a summary.
+    if inv or (fnw and max(fnw) > 0):
         print('\n## docs/446 invariant: VIOLATED -- a buffer was shown that nobody wrote')
         for l in inv[:4]: print('   ' + l[:150])
         print('   flipnw cumulative = %s' % (max(fnw) if fnw else '?'))

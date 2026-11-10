@@ -60,3 +60,41 @@ between *"measured as zero"* and *"this core does not report it"* is now explici
 | `flipnw=0` | nothing was presented that nobody wrote |
 | `noflip > 0` | the skip path is live — without it, `flipnw=0` is vacuous and proves nothing |
 | flicker after ESC-skipping cards | the bug is elsewhere; `smean`/`pmean` (docs/443) are the columns that locate it |
+
+## 6. Hardware: the invariant held, and the report lied about it on the same log
+
+`0.2.20` on the card, 86 s, 2 216 frames, stage cards ESC-skipped (`...010957-0.2.20-invariant-hardware.log`):
+
+```
+INVARIANT lines: 0     flipnw cumulative = 0     noflip reached 229
+640x480   4 s @ 22 fps    320x200   6 s @ 29 fps    640x480  15 s @ 19 fps    320x200  61 s @ 28 fps
+copy median 23.3 ms (640x480) / 2.9 ms (320x200)     gap worst median 63 ms, p90 273, max 2 973
+```
+
+`noflip=229` is what makes `flipnw=0` mean something: 229 frames really did skip both the write and the flip,
+and not one flip preceded its write. The 2 973 ms worst gap is the 3-second stage-entry read stall
+(docs/434/435, where the original holds a static card 20.6 s at the same moment) — not a new wound.
+
+**And then my own report called that healthy run `VIOLATED`.** The clause was:
+
+```python
+    if fnw or inv:      # fnw = the flipnw numbers read from the log -- [0, 0, 0, ...] -- which is TRUTHY
+```
+
+A list of zeros is truthy, so a run with the invariant satisfied took the violation branch. Two lessons, and
+the second is the one that matters: (a) read the printed verdict against its own evidence — `VIOLATED` next to
+`flipnw cumulative = 0` is a contradiction visible without any further measurement; (b) after seven report-layer
+self-hits (docs/433 counted five, this section has produced two more), the fix is not "be careful", it is a
+fixture whose verdict is known.
+
+## 7. `scripts/pocket/test_logreport.py`, wired into `make test`
+
+Three fixtures — healthy (`OK`), a real flip-without-write (`VIOLATED`), and a pre-`0.2.20` core that never
+prints the field (`NOT MEASURED`) — asserted against the section the reporter prints. `3/3`, and it now runs
+with `make -C pocket/src/night test` next to the two build halves.
+
+Building it took three rounds and produced three more lessons about the thing it tests: the fixture needed a
+`core N: boot marker` line, then a `view=` geometry line per sample (the reporter drops seconds it cannot
+phase-attribute, and a fixture that prints nothing "passes" by testing nothing), then two split lines (it
+reports *deltas*). A test that silently tests nothing is the failure mode this file exists to catch, arriving
+one level down.

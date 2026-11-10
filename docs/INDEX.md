@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–434)
+## The Pocket port (docs/330–435)
 
 ### Port plan and host layer
 
@@ -236,6 +236,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>docs/413 left the one number that decides its open question unmeasured: how long the original sits on the stage</sub>
 - **415** — the original's stage-card hold is 3.91 s of real time, so the Pocket's 7.95 s is about double
   <sub>docs/413 left the question open and docs/414 said the container route could finally answer it (realtime factor</sub>
+- **435** — the stage-entry stall is not a fidelity gap: the ORIGINAL holds a static card for ~20 s at that same moment
+  <sub>docs/434 asked a fairness question before spending an optimization turn: when the port spends ~3 s loading</sub>
 
 ### Packaging and deploy
 

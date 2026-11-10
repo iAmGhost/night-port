@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–417)
+## The Pocket port (docs/330–418)
 
 ### Port plan and host layer
 
@@ -81,6 +81,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>docs/415 measured the original's stage-card hold at 3.91 s of real time against the Pocket's 7.95 s and called the</sub>
 - **417** — the original holds its logo card 3.88 s; the port holds the same card 38 s with a signature that never moves
   <sub>docs/416 said the Pocket's long holds are the present, not the clock read, and named the stage card as its one</sub>
+- **418** — 86% of a 66.9 s Pocket run is spent inside the surface copy, and almost all of it copies unchanged bytes
+  <sub>docs/416 measured the mechanism and docs/417 closed its arithmetic on a second phase. This is the census: what</sub>
 
 ### Settings, menu, interact
 

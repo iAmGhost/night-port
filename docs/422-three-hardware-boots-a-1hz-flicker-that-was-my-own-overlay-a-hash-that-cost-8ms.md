@@ -102,7 +102,40 @@ three-display-buffer proof instead.
 
 Root `make test` and `pocket/src/night make test` (both halves) green; `verify_card` OK at 0.1.99.
 
-## 5. What is still open
+## 5. Case B2 — `0.1.99` with the clobber fixed: the hold falls 41.0 s -> 6.0 s, and it is not a timing trick
+
+```
+0.0-   6.0  640x480   6.00 s  sig_chg 1   52.2 pres/s  frames 313   skips=259 (hash 259)
+6.0-   7.9  320x200   1.91 s              47.1 pres/s  frames  90   skips=39  (hash 39)
+7.9-  16.2  640x480   8.25 s  sig_chg 6   35.3 pres/s  frames 291   skips=226 (hash 226)
+16.2- 66.6  320x200  50.47 s  sig_chg 50  45.3 pres/s  frames 2285  skips=42  (hash 42)
+```
+
+- **Logo hold 41.0 s -> 6.00 s** (case A -> B2). The original's is 3.88 s (docs/417), so the port went from
+  10.6x the original to 1.55x.
+- **This is not the game running faster.** Ticks/frame is unchanged (A: 19869 ticks / 2162 frames = 9.2;
+  B2: 2940 / 314 = 9.4), the present rate is unchanged (52.8/s vs 52.2/s), and the timer held ~495/s in both.
+  The game spent the same number of its own steps on the logo; each step cost less.
+- The arithmetic closes: 313 presents, 259 skipped. 54 copies x 18.9 ms = 1.02 s, plus 259 x (8.9 ms hash +
+  ~0.7 ms flush/flip/palette) = 2.5 s, plus the fades and pumps -- against a 6.00 s window.
+- **The slides phase is the second win**: 226 of 291 presents skipped (78%).
+- **Gameplay is inert, as it should be**: 42 of 2285 (1.8%), not the 24% the docs/418 thumbnail measure
+  suggested. The gap is the proof rule: the skip needs three *consecutive* identical frames to latch, and
+  gameplay content alternates. Pairwise-identical is not latchable.
+- No stale, ghosted or stuck picture anywhere: the user's eyes are the only instrument for that, and they are
+  the reason this boot was worth doing.
+
+`PRESENT_SKIP` therefore ships default-on (`0.2.0`): 6.8x on holds, no visual defect, and structurally inert
+where it cannot pay for itself. Two honest reservations: the proof rule is only as good as the assumption that
+`of_video_flip()` does not wait (docs/400), and the residual 2.1 s over the original is now dominated by the
+hash itself -- the next lever, if anyone wants it, is a change signal that costs nothing (there is no
+arena-write counter in shared code), or hashing every third frame instead of every frame.
+
+One tool bug surfaced by this boot: `present_census.py` summed the log's **cumulative** `skips=` counter
+across its perf samples and printed 35111 "skips" for a phase of 2285 frames. It now takes a difference and
+reports the hash/smp split, which is where the numbers above come from.
+
+## 6. What is still open
 
 - Whether B2 (`0.1.99`, `PRESENT_SKIP=1`) lands the predicted logo hold 41.0 s → ~20 s with `hash` skipping,
   and whether any picture is ever stale on hardware. The user's eye is the only instrument for staleness.

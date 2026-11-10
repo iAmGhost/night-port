@@ -199,7 +199,7 @@ static int      g_disc_lookahead = 240;   /* night.ini DISC_BATCH=: sectors per 
 static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain the board ring per pump entry
                                            * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
-static int      g_present_skip = 0;
+static int      g_present_skip = 1;   /* hardware-proven: 41.0 s -> 6.0 s logo hold, no visual defect (docs/422) */
 static int      g_delay_us = 0;
 static int      g_cdda_stop_fix = 1;  /* 1 = keep the invented stop at fn_000405a7 (INT 10h AX=0013, docs/413); 0 = do not stop CD-DA there, which is what the original can do */     /* 0 = leave f.c's g_delay_unit_us (500) alone. The original's own per-clock-read cost measures 1.27 ms on the card hold and 1.89 ms on the logo hold (docs/417), so a device that copies less per frame can also afford to wait longer per read. */   /* 1 = a full-surface hash decides whether the copy runs; the sampled 64-byte test below it can miss a small move (docs/416) */
 static int      g_disc_async = 1;   /* 1 = feed the ring with double-buffered async reads (docs/403); 0 = the synchronous read shape */
@@ -506,7 +506,7 @@ void of_settings_load(void) {
      * stretch for free -- worth measuring, with docs/338 in mind (a mode the scaler cannot map shows black). */
     g_fit = cfg_int("fit", 1, "NIGHT_FIT");
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
-    g_present_skip = cfg_int("present_skip", 0, "NIGHT_PRESENT_SKIP");
+    g_present_skip = cfg_int("present_skip", 1, "NIGHT_PRESENT_SKIP");
     g_delay_us = cfg_int("delay_us", 0, "NIGHT_DELAY_US");
     g_cdda_stop_fix = cfg_int("cdda_stop_fix", 1, "NIGHT_CDDA_STOP_FIX");
     g_blit_dirty = cfg_int("blit_dirty",  1, "NIGHT_BLIT_DIRTY");

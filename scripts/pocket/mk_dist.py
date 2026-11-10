@@ -41,7 +41,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.99"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.2.0"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -463,7 +463,7 @@ def main():
         "BLIT_DIRTY=0\n"
             # 1 = present only the changed rows; DISABLED on the card: the display path is triple-buffered, so a skipped row stays three frames stale (uncleared pictures, flicker) -- docs/400    # 1 = present only the rows that changed into the display aperture (docs/399); 0 = the 0.1.76 shape, every row every frame
         "BLIT_SKIP=0\n"     # 1 = skip the 640x480->320x240 blit while the sampled frame is unchanged (max 8 in a row)
-        "PRESENT_SKIP=0\n"  # 1 = skip the copy AND rely on the proven buffer when a FULL-surface hash (every byte, not the sampled 64th) says the surface is identical to what three display buffers already hold (docs/416); the skip starts 3 frames after each change or mode set
+        "PRESENT_SKIP=1\n"  # 1 = skip the copy AND rely on the proven buffer when a FULL-surface hash (every byte, not the sampled 64th) says the surface is identical to what three display buffers already hold (docs/416); the skip starts 3 frames after each change or mode set
         "DELAY_US=0\n"     # 0 = f.c's own 500 us per delay_units() clock read. The original waits ~1270 us/read on the card hold and ~1890 on the logo hold (docs/417, upper bounds) -- only worth raising once PRESENT_SKIP stops the copy from padding the wait
         "FB_MODE=1\n"    # 1 = native 640x480 surface + row memcpy: 307 200 B / 15 771 us = 19.5 MB/s. 0 = OS 320x240 surface + software 2x2 downscale: 76 800 B / 82 657 us = 0.93 MB/s, ~1 us per output pixel (docs/401). 0.1.84/0.1.85 shipped 0 on a geometry theory and it brought the logo freeze straight back -- the user reported it, exactly as docs/401's title predicts. The corruption that made me doubt 1 was the stale-surface commit (docs/404 5), which is fixed and which lives ONLY in this branch, so 1 is both the fast shape and the one whose defect is now understood\n"
         "PUMP_AUDIO_TICK=0\n"

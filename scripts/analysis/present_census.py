@@ -22,7 +22,8 @@ import re
 import sys
 
 VW = re.compile(r'view=(\d) (\d+)x(\d+) sig=([0-9a-f]{8}) chg=(\d+) pal=(\d+)')
-PERF = re.compile(r'perf pres=(\d+)us max=(\d+)us pump=(\d+) ticks=(\d+) skips=(\d+)')
+PERF = re.compile(r'perf pres=(\d+)us max=(\d+)us pump=(\d+) ticks=(\d+) skips=(\d+)'
+                 r'(?:\(hash (\d+) smp (\d+)\))?')
 STAGES = re.compile(r'stages last m=(\d+) p=(\d+) c=(\d+) f=(\d+) x=(\d+)')
 MODE = re.compile(r'fb mode -> (native|game) (\d+)x(\d+) rc=(-?\d+)')
 MEM = re.compile(r'memstat frames=(\d+) ticks=(\d+)\(\+(\d+)/s\)')
@@ -55,7 +56,8 @@ def phases(text, hz):
             continue
         m = PERF.search(line)
         if m:
-            ev.append((tick, frames, 'perf', (int(m.group(1)), int(m.group(2)), int(m.group(5)))))
+            ev.append((tick, frames, 'perf', (int(m.group(1)), int(m.group(2)), int(m.group(5)),
+                                                  int(m.group(6)) if m.group(6) else -1)))
             continue
         m = STAGES.search(line)
         if m:
@@ -146,7 +148,12 @@ def main():
         nchg = len(p['sigs'])
         pres = p['pres']
         pus = int(sum(x[0] for x in pres) / len(pres)) if pres else 0
-        skp = sum(x[2] for x in pres)
+        # The log's skips= is a CUMULATIVE counter, so a phase's skips are a difference, not a sum -- the
+        # first cut summed it and printed 35111 "skips" for a phase of 2285 frames (docs/422).
+        skc = [x[2] for x in pres]
+        hsh = [x[3] for x in pres if len(x) > 3 and x[3] >= 0]
+        skp = (max(skc) - min(skc)) if skc else 0
+        skh = (max(hsh) - min(hsh)) if hsh else -1
         cus = int(sum(p['copy']) / len(p['copy'])) if p['copy'] else 0
         nf = max(0, (p['end_frames'] or 0) - (p['start_frames'] or 0))
         rate = nf / hold if hold > 0.05 else 0
@@ -169,7 +176,7 @@ def main():
         hi = max(pr) if pr else 0
         print('%3.1f-%6.1f  %-9s %6.2f %7d %8.1f %8d %9d %8d  n=%2d %s%s' %
               (t0, t1, '%s %dx%d' % (p['view'], p['w'], p['h']), hold, nchg, rate, lo, cus, nf, len(pres), shape,
-               ('  skips=%d' % skp) if skp else ''))
+               ('  skips=%d%s' % (skp, (' (hash %d)' % skh) if skh >= 0 else '')) if skp else ''))
         sb = surf_bytes(p)
         if p['mode']:
             line = '%38s surface: %s   bytes/frame=%s' % ('', p['mode'][-1], sb)

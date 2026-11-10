@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–437)
+## The Pocket port (docs/330–438)
 
 ### Port plan and host layer
 
@@ -262,6 +262,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>`docs/432` set a rule instead of an opinion: if `0.2.9` (32-bit row fingerprint) does not beat `ROW_SKIP=0`</sub>
 - **437** — `fade arms=0`: the ramp never ran, and "0" cannot say which premise failed
   <sub>`0.2.11` shipped the panel-side palette ramp (docs/436) with `FADE_RAMP=1`. The boot says it did nothing:</sub>
+- **438** — a byte count cannot name a step count: why the fade ramp armed zero times, and what it now detects
+  <sub>`0.2.12` existed to answer one question — which of three premises was false — and it answered it in one line:</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

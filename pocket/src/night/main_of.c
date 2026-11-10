@@ -384,7 +384,9 @@ static uint32_t on_terminate(uint32_t a) {
  * writes a byte above 63 (docs/77), so a 6-bit table is scaled the way a DAC scales it -- the same
  * arithmetic src/app/main.c:129-135 uses, which is the basis the port-vs-original comparisons stand on. */
 static uint32_t g_pal_pushes, g_pal_push_skips;
-static uint32_t g_pal_ramp_buf[256];  /* the interpolated table, uploaded instead of the target while a ramp runs */
+static uint32_t g_pal_ramp_buf[256];
+static uint32_t g_pal_prev32[256];    /* the game's table as of the previous present: the "before" of the move */
+static uint32_t g_pal_chg_last, g_pal_mx_last, g_pal_chg_max, g_pal_mx_max;  /* the interpolated table, uploaded instead of the target while a ramp runs */
 static uint32_t g_pal_hash_last;   /* the full-coverage palette hash as of the last present (docs/424) */   /* how often the 256-word palette upload actually ran */
 HOTPRESENT /* the palette upload the indexed picture depends on, once per present */
 /* docs/426: the SD idle hook.  of_file.h: "Register a hook invoked while a BLOCKING file read waits on its
@@ -455,8 +457,9 @@ static uint32_t g_pal_ramp_last_n;
 /* A fade is declared, not guessed: the game writes the whole (or a large part of the) table dozens of times
  * between two presents. Gameplay palette tweaks are a handful of entries. >= FADE_MIN_STEPS full-table
  * steps in one present interval is a fade; 4 steps is 3 072 DAC writes, and no gameplay tweak gets there. */
-#define FADE_MIN_STEPS 4u
-#define FADE_MAX_STEPS 60u    /* a 50-step fade is the shipped case; 60 bounds a pathological one */
+#define FADE_MIN_ENTRIES 8u   /* docs/438: how MANY entries moved, not how many bytes the game wrote */
+#define FADE_MIN_LEVELS 24u   /* ...and how FAR at least one of them moved, of 255 */
+#define FADE_MAX_STEPS 60u    /* bounds a pathological ramp; the visible duration is n PRESENTS, not n ms */
 
 static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     sys_vga_palette(g_pal_rgb);
@@ -486,8 +489,41 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     g_pal_ramp_runs++;
     g_pal_w_last = w_now; g_pal_dw_last = dw;
     if (dw > g_pal_ramp_dw_max) g_pal_ramp_dw_max = dw;
-    uint32_t steps = dw / 768u;                       /* 3 writes per entry set -> 768 per full-table step */
-    if (of_setting_fade_ramp() && steps >= FADE_MIN_STEPS) {
+
+    /* How far did the palette actually MOVE since the previous present? That is the only quantity the panel
+     * cares about, and the only one immune to how the game chose to programme it. 0.2.11 counted DAC bytes
+     * and divided by 768 -- one full 256-entry table -- and required 4 such tables; hardware reported a
+     * largest interval of 2 304 writes, which that arithmetic calls "3 tables" and drops below the
+     * threshold, while the same number is exactly ~48 steps of a 16-entry block (48 B x 48). The game
+     * programmes as many entries per step as it likes, so a byte count cannot name a step count (docs/438). */
+    uint32_t chg = 0, mx = 0;
+    for (int i = 0; i < 256; i++) {
+        if (g_pal32[i] != g_pal_prev32[i]) {
+            chg++;
+            for (int c = 0; c < 3; c++) {
+                uint32_t sh = c == 0 ? 16u : (c == 1 ? 8u : 0u);
+                uint32_t a = (g_pal_prev32[i] >> sh) & 0xffu, b = (g_pal32[i] >> sh) & 0xffu;
+                uint32_t d = b > a ? b - a : a - b;
+                if (d > mx) mx = d;
+            }
+        }
+    }
+    g_pal_chg_last = chg; g_pal_mx_last = mx;
+    if (chg > g_pal_chg_max) g_pal_chg_max = chg;
+    if (mx > g_pal_mx_max) g_pal_mx_max = mx;
+    memcpy(g_pal_prev32, g_pal32, sizeof g_pal_prev32);   /* here, not on the upload paths: every return
+                                                           * from this function must leave a "before" behind */
+
+    /* A fade, in the only terms the hardware offers: many entries moved a long way inside one present
+     * interval. Gameplay palette tweaks are a few entries, or a few levels. Neither is this.
+     * Ramp length comes from the size of the move (the game's step count is not observable from the panel
+     * side), clamped to 12..60 presents -- 25 presents is ~0.6 s at gameplay's 41 fps, which is the
+     * original's measured ramp (docs/436). */
+    uint32_t steps = mx / 6u;
+    if (steps < 12u) steps = 12u;
+    if (steps > FADE_MAX_STEPS) steps = FADE_MAX_STEPS;
+
+    if (of_setting_fade_ramp() && chg >= FADE_MIN_ENTRIES && mx >= FADE_MIN_LEVELS) {
         memcpy(g_pal_from, g_pal_shown, sizeof g_pal_from);      /* from = what the panel is showing NOW */
         memcpy(g_pal_target, g_pal32, sizeof g_pal_target);      /* to   = where the game wants it */
         g_pal_ramp_n = steps > FADE_MAX_STEPS ? FADE_MAX_STEPS : steps;
@@ -495,7 +531,8 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
         g_pal_ramp_arms++;
         g_pal_ramp_last_n = g_pal_ramp_n;
         if (g_pal_ramp_arms <= 12u)
-            NLOG("fade ramp: n=%u (dac writes=%u since last present) from black=%s\n", g_pal_ramp_n, dw,
+            NLOG("fade ramp: n=%u (entries moved=%u max level delta=%u dac bytes=%u) from black=%s\n",
+                 g_pal_ramp_n, chg, mx, dw,
                  (g_pal_from[0] | g_pal_from[1] | g_pal_from[2]) == 0u ? "yes" : "no");
     }
     if (g_pal_ramp_n && g_pal_ramp_k < g_pal_ramp_n) {
@@ -2694,12 +2731,13 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
 #endif
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)"
                  " | rows c=%u s=%u fs=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u"
-                 " | fade runs=%u arms=%u steps=%u n=%u dwmax=%u dw=%u w=%u fr=%d\n",
+                 " | fade runs=%u arms=%u steps=%u n=%u chg=%u/%u mx=%u/%u w=%u fr=%d\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
                  g_hash_skips, g_smp_skips, g_row_copied, g_row_same, g_row_frameskip, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
                  g_br_native, g_br_game, g_br_down, g_br_other,
                  g_pal_ramp_runs, g_pal_ramp_arms, g_pal_ramp_steps, g_pal_ramp_last_n,
-                 g_pal_ramp_dw_max, g_pal_dw_last, g_pal_w_last, of_setting_fade_ramp());
+                 g_pal_chg_last, g_pal_chg_max, g_pal_mx_last, g_pal_mx_max,
+                 g_pal_w_last, of_setting_fade_ramp());
 #ifndef OF_PC
             NLOG("idle hook: presents=%u\n", g_hook_presents);
 #endif
@@ -3162,8 +3200,10 @@ int main(int argc, char **argv) {
      * line is missing from a card log, the app never reached the point of writing anything, and the fault is in
      * what the firmware did before it ran (a core definition file, a slot, a bitstream), not in app code. */
     NLOG("core %s: boot marker\n", OF_CORE_VERSION);
-    NLOG("fade ramp: setting=%d (if this is 0, FADE_RAMP never reached the app -- docs/437)\n",
-         of_setting_fade_ramp());
+    /* NOT here: the ini is loaded LATER than the boot marker, so a setting printed at this point is always 0
+     * and reads exactly like "the ini never reached the app" -- the false conclusion the 0.2.12 banner drew
+     * itself while every perf line of the same run said fr=1 (docs/438). The banner stays silent rather than
+     * confidently wrong; the perf line's fr= is the reading to trust. */
     if (!g_log_ok) printf("log: the diagnostic slot is not openable; the terminal is the only trail\n");
     else atexit(of_log_close);          /* a fclose is what commits a nonvolatile slot (README:466) */
     NLOG_STEP("boot start");

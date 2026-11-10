@@ -451,7 +451,9 @@ static void disc_idle_hook(void) {
 static uint32_t g_pal_from[256], g_pal_target[256], g_pal_shown[256];
 static uint32_t g_pal_ramp_n, g_pal_ramp_k;     /* n = steps in this ramp, k = steps played so far */
 static uint32_t g_pal_ramp_arms, g_pal_ramp_steps, g_pal_writes_last, g_pal_ramp_dw_max;
-static uint32_t g_pal_ramp_runs, g_pal_w_last, g_pal_dw_last;   /* runs = times the fade check ran at all (docs/437) */
+static uint32_t g_pal_ramp_runs, g_pal_w_last, g_pal_dw_last;
+static uint64_t g_pal_ramp_t0;
+static uint32_t g_pal_ramp_stalls;   /* runs = times the fade check ran at all (docs/437) */
 static uint32_t g_pal_ramp_last_n;
 
 /* A fade is declared, not guessed: the game writes the whole (or a large part of the) table dozens of times
@@ -527,7 +529,7 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
         memcpy(g_pal_from, g_pal_shown, sizeof g_pal_from);      /* from = what the panel is showing NOW */
         memcpy(g_pal_target, g_pal32, sizeof g_pal_target);      /* to   = where the game wants it */
         g_pal_ramp_n = steps > FADE_MAX_STEPS ? FADE_MAX_STEPS : steps;
-        g_pal_ramp_k = 0;
+        g_pal_ramp_k = 0; g_pal_ramp_stalls = 0; g_pal_ramp_t0 = sys_now_us();
         g_pal_ramp_arms++;
         g_pal_ramp_last_n = g_pal_ramp_n;
         if (g_pal_ramp_arms <= 12u)
@@ -536,13 +538,25 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
                  (g_pal_from[0] | g_pal_from[1] | g_pal_from[2]) == 0u ? "yes" : "no");
     }
     if (g_pal_ramp_n && g_pal_ramp_k < g_pal_ramp_n) {
-        g_pal_ramp_k++; g_pal_ramp_steps++;
+        /* Progress is WALL TIME, not presents. 0.2.13 advanced one step per present, so the same fade lasted
+         * 1.75 s in this boot's 24-f/s phase and would have been 1.0 s in a 41-f/s one -- a ramp whose length
+         * depends on the frame rate is calibrated against nothing, and docs/436 measured the original at
+         * 0.6-0.83 s. k is now where the clock says it should be; a present that lands between steps uploads
+         * nothing new (the panel keeps the previous step), and the last step always lands exactly. */
+        uint32_t rms = of_setting_fade_ramp_ms() ? (uint32_t)of_setting_fade_ramp_ms() : 700u;
+        uint64_t el = sys_now_us() - g_pal_ramp_t0;
+        uint32_t kw = (uint32_t)((el * (uint64_t)g_pal_ramp_n) / ((uint64_t)rms * 1000ull));
+        if (kw <= g_pal_ramp_k) { g_pal_ramp_stalls++; return 0; }   /* panel is already on this step */
+        g_pal_ramp_k = kw > g_pal_ramp_n ? g_pal_ramp_n : kw;
+        g_pal_ramp_steps++;
         pal_ramp_step(g_pal_from, g_pal_target, g_pal_ramp_k, g_pal_ramp_n, g_pal_ramp_buf);
         memcpy(g_pal_shown, g_pal_ramp_buf, sizeof g_pal_shown);
         of_video_palette_bulk(g_pal_ramp_buf, 256);
         g_pal_pushes++;
         if (g_pal_ramp_k >= g_pal_ramp_n) {
-            g_pal_ramp_n = 0;
+            NLOG("fade ramp done: %.2f s over %u steps (target %u ms, %u present(s) carried no step)\n",
+                 (double)(sys_now_us() - g_pal_ramp_t0) / 1000000.0, g_pal_ramp_n, rms, g_pal_ramp_stalls);
+            g_pal_ramp_n = 0; g_pal_ramp_stalls = 0;
             uint32_t hh2 = 2166136261u;               /* land exactly, and re-seed the hash with the truth */
             for (int i = 0; i < 256; i++) { hh2 ^= g_pal32[i]; hh2 *= 16777619u; }
             g_pal_hash = hh2;

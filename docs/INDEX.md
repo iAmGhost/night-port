@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–438)
+## The Pocket port (docs/330–439)
 
 ### Port plan and host layer
 
@@ -240,6 +240,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>docs/434 asked a fairness question before spending an optimization turn: when the port spends ~3 s loading</sub>
 - **436** — the original *does* fade into stage 1; the port cut straight to full, so the panel now replays the DAC steps
   <sub>docs/435 closed the stage-entry *stall* as not-a-gap. The same container captures answered the other half of</sub>
+- **439** — the fade ramp works: 42 steps, armed on the stage-entry fade-in — and its length depended on the frame rate
+  <sub>`0.2.13` swapped the byte-count discriminator for a content one (docs/438). It armed, immediately and twice:</sub>
 
 ### Packaging and deploy
 

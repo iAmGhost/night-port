@@ -1,0 +1,40 @@
+# docs/446: the stage-entry flicker's ONLY known trigger (docs/443/445) is ESC-skipping the episode-1 stage
+# cards on the way into stage1.pcx. Until now that route existed only in the player's hands, which is how a
+# bug this visual survived five builds. This file turns the trigger into something a run can follow.
+#
+# The LOGIC half runs here, on the desktop shim (and against the original in the container). The VISUAL half
+# does not: the shim takes the downscale branch, never the device's native-aperture copy, and its frames.bin
+# is not reproducible (docs/432). What this route guarantees is that the code path -- a card skipped mid-show,
+# geometry changing while the display path rotates buffers -- is exercised, so the hardware run below is a
+# two-minute confirmation and not an exploration.
+#
+#   ./build/app_pc --script scripts/playtest/route_card_skip.txt
+#
+# Card log afterwards must read:  flipnw=0  (docs/446 invariant)  and  noflip > 0  (the skip path is live).
+0 shot boot
+20000 wait res logo.pcx
+30000 wait res opening.fli
+120000 wait res title1.pcx
+120200 key enter down
+120350 key enter up
+122300 key enter down
+122450 key enter up
+# The cards. Presses are paced, not sprayed: the original aborts a card on any key DOWN (docs/415), so a
+# press arriving while a card is up is the skip; a press between cards is a stray key into the game.
+130000 wait res 1s1.pcx
+131000 key esc down
+131150 key esc up
+133000 key esc down
+133150 key esc up
+135000 key esc down
+135150 key esc up
+137000 key esc down
+137150 key esc up
+140000 shot card_skip
+170000 wait res stage1.pcx
+171000 shot stage_entry
+174000 key down down
+174400 key down up
+176000 key right down
+176400 key right up
+180000 shot playing

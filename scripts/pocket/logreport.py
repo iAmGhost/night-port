@@ -115,6 +115,29 @@ def main():
             tail = [l for l in seg if 'fade runs=' in l]
             if tail: print('   last:', tail[-1][-130:])
 
+    # docs/446: the invariant that closed the stage-entry flicker -- a frame may not be presented that nobody
+    # wrote. It fires on hardware and nowhere else (the desktop shim never takes the native-aperture path), so
+    # the report, not the eye, has to carry it.
+    inv = [l for l in seg if 'INVARIANT' in l]
+    fnw = [int(m.group(1)) for m in (re.search(r'flipnw=(\d+)', l) for l in seg) if m]
+    nf = [int(m.group(1)) for m in (re.search(r'noflip=(\d+)', l) for l in seg) if m]
+    if fnw or inv:
+        print('\n## docs/446 invariant: VIOLATED -- a buffer was shown that nobody wrote')
+        for l in inv[:4]: print('   ' + l[:150])
+        print('   flipnw cumulative = %s' % (max(fnw) if fnw else '?'))
+    elif not nf:
+        print('\n## docs/446 invariant: not measured (no split line carries flipnw= -- old core, or DIAG off)')
+    else:
+        if not fnw:
+            # Do NOT claim flipnw=0 for a core that never prints the field: this line ran against a 0.2.18 log
+            # and reported an invariant as satisfied using a number that does not exist in the file -- the same
+            # class of reporting bug as docs/433, caught by reading my own output.
+            print('\n## docs/446 invariant: NOT MEASURED -- no flipnw= in this core (needs 0.2.20); '
+                  'noflip reached %d, so the skip path was at least live' % max(nf))
+        else:
+            print('\n## docs/446 invariant: OK -- flipnw=%d, noflip reached %d (skip path live, every flip '
+                  'written)' % (max(fnw), max(nf)))
+
     st = [l for l in seg if l.startswith('STALL')]
     if st:
         print('\n## stall witnesses (what the port was doing when no present happened)')

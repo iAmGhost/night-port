@@ -466,6 +466,7 @@ static uint32_t g_clk_last, g_clk_maxvisit;
 static uint32_t g_present_cap_skips, g_hold_max_ms, g_hold_ms;
 static int g_pal_pending;                 /* the held palette != the panel's palette (docs/445) */
 static uint32_t g_present_noflip;         /* skips that also skipped the flip -- docs/445 */
+static uint32_t g_wrote, g_flipped, g_flip_nowrite;   /* docs/446 invariant counters */
 static uint64_t g_last_present_done_us, g_last_visual_us;   /* docs/440: guest clock reads -- between visits or within one? */
 static uint64_t g_pal_ramp_t0;
 static uint32_t g_pal_ramp_stalls;   /* runs = times the fade check ran at all (docs/437) */
@@ -1177,6 +1178,9 @@ static void present(void) {
 #endif
 
     g_row_copied_prev = g_row_copied;
+#ifndef OF_PC
+    if (!skip || g_pal_pending) g_wrote++;  /* docs/446: must pair with g_flipped, see the tripwire */
+#endif
     /* docs/445: a skip is a claim about the SOURCE ("these pixels are what I showed last time") and the
      * display path is triple-buffered, so it says nothing about the buffer about to be presented. Until
      * now a skipped frame still flushed and flipped, i.e. presented a buffer we had not written -- on a
@@ -1306,6 +1310,7 @@ static void present(void) {
          * three buffers the OS rotates to next, and that buffer may still hold a card we skipped past. */
         g_present_noflip++;
     } else {
+        g_flipped++;                          /* docs/446: the tripwire below needs to know this ran */
 #endif
     of_video_flush();                               /* the display path reads memory the CPU just wrote */
     t4 = sys_now_us();
@@ -1322,6 +1327,20 @@ static void present(void) {
 #ifndef OF_PC
 #ifndef OF_PC
     }                                       /* the flush/flip block: docs/445 */
+    /* The tripwire, and the point of it. docs/445's bug was not "we skipped a frame" -- skipping is
+     * correct and bought 35 s of logo hold -- it was skipping the WRITE and performing the FLIP, which
+     * presents a buffer nobody wrote. That shape is trivially reintroducible by any refactor that moves
+     * the flip out of this block, and no test on the desktop shim can see it (the shim takes the
+     * downscale branch and its frames.bin is not reproducible). So the invariant is stated where it can
+     * fire on hardware: a flip implies this present wrote the surface (or the palette changed, which
+     * forces a write). Two bools and a compare -- no MMIO, no extra pass over the surface (docs/411). */
+    if (g_flipped > g_wrote) {          /* cumulative: no flip may precede its own write */
+        if (g_flip_nowrite < 4u)
+            NLOG("INVARIANT flip without write: f=%u skip=%u smp=%u pal_pending=%d -- a buffer is being "
+                 "shown that nobody wrote (docs/446)\n",
+                 g_frames, (unsigned)skip, (unsigned)smp, (int)g_pal_pending);
+        g_flip_nowrite++;
+    }
 #endif
     if (g_fdump_left > 0) {
         g_fdump_left--;
@@ -2859,13 +2878,14 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                     sys_file_io_stats(&r_calls, &r_bytes, &r_max, 0);
                     uint64_t acc = pres + pump + disc + aud;
                     NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums aud=%ums rest=%ums"
-                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u cap=%u noflip=%u hold=%ums max=%ums\n",
+                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u cap=%u noflip=%u flipnw=%u hold=%ums max=%ums\n",
                          (unsigned)(wall / 1000ull), (unsigned)(pump / 1000ull), (unsigned)(pres / 1000ull),
                          (unsigned)(disc / 1000ull), (unsigned)(aud / 1000ull),
                          (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), g_frames, g_pump_calls,
                          r_calls, r_bytes / 1024u,
                          sys_clock_read_count, g_clk_maxvisit,
-                         g_present_cap_skips, g_present_noflip, g_hold_ms, g_hold_max_ms);
+                         g_present_cap_skips, g_present_noflip, g_flip_nowrite,
+                         g_hold_ms, g_hold_max_ms);
                 g_hold_ms = 0;   /* per-second: hold durations are localized, not cumulative */
                 }
                 NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"

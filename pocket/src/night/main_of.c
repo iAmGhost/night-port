@@ -464,6 +464,8 @@ static uint32_t g_clk_last, g_clk_maxvisit;
  * from a witness-frame count or an arithmetic argument. holdms is the longest stretch between two presents
  * that actually put something new on the panel, which is what "long logo hold" means in seconds. */
 static uint32_t g_present_cap_skips, g_hold_max_ms, g_hold_ms;
+static int g_pal_pending;                 /* the held palette != the panel's palette (docs/445) */
+static uint32_t g_present_noflip;         /* skips that also skipped the flip -- docs/445 */
 static uint64_t g_last_present_done_us, g_last_visual_us;   /* docs/440: guest clock reads -- between visits or within one? */
 static uint64_t g_pal_ramp_t0;
 static uint32_t g_pal_ramp_stalls;   /* runs = times the fade check ran at all (docs/437) */
@@ -584,7 +586,11 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
      ~3 us at 100 MHz, which is not a thing worth missing a fade over. */
     for (int i = 0; i < 256; i++) { h ^= g_pal32[i]; h *= 16777619u; }
     g_pal_hash_last = h;
-    if (g_pal_force || h != g_pal_hash || (g_frames & 4095u) == 0u) {
+    /* "different from what the panel shows", recorded before the upload erases the difference. The
+     * return value cannot carry this: under PALETTE_AFTER_FLIP=1 the upload happens after present()
+     * has already decided whether to flip (docs/445). */
+    g_pal_pending = (h != g_pal_hash) || g_pal_force || ((g_frames & 4095u) == 0u);
+    if (g_pal_pending) {
         g_pal_hash = h;
         g_pal_force = 0;
         of_video_palette_bulk(g_pal32, 256);
@@ -1171,7 +1177,13 @@ static void present(void) {
 #endif
 
     g_row_copied_prev = g_row_copied;
-    if (!skip) {
+    /* docs/445: a skip is a claim about the SOURCE ("these pixels are what I showed last time") and the
+     * display path is triple-buffered, so it says nothing about the buffer about to be presented. Until
+     * now a skipped frame still flushed and flipped, i.e. presented a buffer we had not written -- on a
+     * static hold every buffer holds that picture, so it was invisible; ESC-skipping a stage card leaves
+     * the buffers disagreeing, and that is the flicker. So: a skip neither writes nor flips, and the only
+     * thing that can still force a present on a skipped frame is a palette the panel has never seen. */
+    if (!skip || g_pal_pending) {
     if (native) {
         of_video_mode_t cur; of_video_get_mode(&cur);
         uint32_t stride = cur.stride ? cur.stride : (uint32_t)vw;
@@ -1288,6 +1300,13 @@ static void present(void) {
         panel_shot();
 #endif
     t3 = sys_now_us();
+#ifndef OF_PC
+    if ((skip || smp) && !g_pal_pending) {
+        /* Nothing new to show: not pixels, not colours. Flipping here would present whichever of the
+         * three buffers the OS rotates to next, and that buffer may still hold a card we skipped past. */
+        g_present_noflip++;
+    } else {
+#endif
     of_video_flush();                               /* the display path reads memory the CPU just wrote */
     t4 = sys_now_us();
     of_video_flip();
@@ -1301,6 +1320,9 @@ static void present(void) {
 #endif
     t5 = sys_now_us();
 #ifndef OF_PC
+#ifndef OF_PC
+    }                                       /* the flush/flip block: docs/445 */
+#endif
     if (g_fdump_left > 0) {
         g_fdump_left--;
         uint64_t sum = 0; int ndiff = 0, lit = 0;
@@ -2835,13 +2857,13 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                     sys_file_io_stats(&r_calls, &r_bytes, &r_max, 0);
                     uint64_t acc = pres + pump + disc + aud;
                     NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums aud=%ums rest=%ums"
-                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u cap=%u hold=%ums max=%ums\n",
+                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u cap=%u noflip=%u hold=%ums max=%ums\n",
                          (unsigned)(wall / 1000ull), (unsigned)(pump / 1000ull), (unsigned)(pres / 1000ull),
                          (unsigned)(disc / 1000ull), (unsigned)(aud / 1000ull),
                          (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), g_frames, g_pump_calls,
                          r_calls, r_bytes / 1024u,
                          sys_clock_read_count, g_clk_maxvisit,
-                         g_present_cap_skips, g_hold_ms, g_hold_max_ms);
+                         g_present_cap_skips, g_present_noflip, g_hold_ms, g_hold_max_ms);
                 g_hold_ms = 0;   /* per-second: hold durations are localized, not cumulative */
                 }
                 NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"

@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–443)
+## The Pocket port (docs/330–445)
 
 ### Port plan and host layer
 
@@ -113,6 +113,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>The pacing fix worked and something else broke. Player on `0.2.16`: **"long logo hold fixed, stage card is</sub>
 - **443** — every frame of the stage-entry fade was a *skip*, and `of_video_flip()` runs anyway
   <sub>`FADE_RAMP=0` removed the card-skipping symptom (docs/442) but **the stage-entry flicker persisted**, and the</sub>
+- **445** — ESC-skipping a stage card is the flicker's trigger, so a skip must not flip
+  <sub>## 1. The player found the trigger I could not</sub>
 
 ### Settings, menu, interact
 

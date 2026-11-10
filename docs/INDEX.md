@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–415)
+## The Pocket port (docs/330–416)
 
 ### Port plan and host layer
 
@@ -77,6 +77,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Core **0.1.84**, card ELF md5 `867489942ae47ef5b5d1c5ab5eb40757` == `core.json` 0.1.84, 29 ini keys,</sub>
 - **405** — the logo freeze came back because I shipped the shape docs/401 had already condemned, and a shipping ini key had quietly vanished
   <sub>Core **0.1.86**, card ELF md5 `b5f4bb6a4a3365b3743aca34a2840a11` == build == `core.json` == ELF string,</sub>
+- **416** — the Pocket's holds are long because the delay loop presents a 640×480 surface 57 times a second
+  <sub>docs/415 measured the original's stage-card hold at 3.91 s of real time against the Pocket's 7.95 s and called the</sub>
 
 ### Settings, menu, interact
 

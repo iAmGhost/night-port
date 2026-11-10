@@ -436,6 +436,24 @@ static uint32_t fb_signature(int vw, int vh) {
     return h;
 }
 
+/* docs/416: the only sound skip predicate for the present path is a FULL-surface test (the readout's
+ * fb_signature strides by 37 and would freeze the picture on a small move), so the whole question is what a
+ * 307 200-byte read pass over g_video_ram costs against the ~17 ms aperture write it would skip. Measured at
+ * boot once, behind a DIAG bit, because that single number decides between "hash the source and skip" and
+ * "go away and build per-buffer shadows". Printed as `surfhash us=` in the boot block. */
+static void surfhash_probe(void) {
+    uint32_t n = (uint32_t)((g_fb_game.width && g_fb_game.height) ? (size_t)g_fb_game.width * g_fb_game.height
+                                                                  : (size_t)PANEL_W * PANEL_H);
+    if (n > (uint32_t)GAME_W * GAME_H * 4) n = (uint32_t)GAME_W * GAME_H * 4;   /* never beyond the video RAM */
+    const uint8_t *p = g_video_ram;
+    uint32_t h = 2166136261u;
+    uint64_t t0 = sys_now_us();
+    for (uint32_t i = 0; i < n; i += 4u) h = (h ^ p[i]) * 16777619u;            /* the stride is the read width */
+    uint64_t us = sys_now_us() - t0;
+    NLOG("surfhash: %u B read in %llu us (%.1f MB/s) hash=%08x  [a 640x480 present costs ~17000 us]\n",
+         n, (unsigned long long)us, us ? (double)n / (double)us : 0.0, h);
+}
+
 static int pal_lit(void) {
     int c = 0;
     for (int i = 0; i < 256; i++)
@@ -2135,6 +2153,10 @@ static uint64_t g_pump_enters;
  * SDRAM with the cold code, while the scheduling core of tick_pump becomes small enough to place in BRAM.
  * Behaviour unchanged: same statements, same order, same cadence; only the gate stays in the caller. */
 static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
+    if (of_setting_diag() & OF_DIAG_SURFHASH) {   /* once, on the first report: the number that picks a design */
+        static int done;
+        if (!done) { done = 1; surfhash_probe(); }
+    }
         g_diag_next_us = now + 1000000ull;
         static uint32_t s_last_ticks;
         uint64_t clock_now = sys_now_us();
@@ -2655,6 +2677,7 @@ int main(int argc, char **argv) {
     NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
          of_setting_fit());
     NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"
+         "\n       (32 = surface-read probe: what a sound change test costs, docs/416)"
          "\n       every probe below is gated on this; night.ini DIAG= is the switch, 0 is the shipping value\n",
          of_setting_diag());
 #ifndef OF_PC

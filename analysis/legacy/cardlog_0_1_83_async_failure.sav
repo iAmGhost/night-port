@@ -1,0 +1,415 @@
+log: opened "save:7" (the SDK save alias)
+root: "os.bin" ino=2 slot=1
+root: "night.ini" ino=3 slot=2
+root: "night.elf" ino=4 slot=3
+root: "NIGHT.RES" ino=5 slot=4
+root: "track02.bin" ino=6 slot=5
+root: "track03.bin" ino=7 slot=6
+root: "night_0.sav" ino=11 slot=10
+root: "night_1.sav" ino=12 slot=11
+root: "night_2.sav" ino=13 slot=12
+root: "night_3.sav" ino=14 slot=13
+root: "night_4.sav" ino=15 slot=14
+root: "night_5.sav" ino=16 slot=15
+root: "night_6.sav" ino=17 slot=16
+root: "nightlog.sav" ino=18 slot=17
+root: 26 entries; slot 17 found
+core 0.1.83: boot marker
+phase: boot start
+phase: display claimed
+night pocket: cpu=100000000 Hz sdram=65536 KB heap=35186 KB fb=320x240 stride=320 voices=32 variant=0
+caps: version=4 hw=01a7e35b os=00000001 (sdk OF_CAPS_VERSION=4)
+bridge: no control-word read (fatal on this core, docs/349).  What the documented ecall says about
+       the one menu entry the core really answers:
+bridge: lcd index 5 err=0 val=5555f557
+bridge decoded: music=0 fit=-1 lcd=00000000
+settings: music_vol=255 sfx_vol=255 cdda=1 pad=1 tick_hz=490 screen=0 file_log=1
+settings: pump_audio_tick=0 (0 = board drain per pump entry, 1 = per tick)
+fit=1 (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)
+diag=0x0 (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)
+       every probe below is gated on this; night.ini DIAG= is the switch, 0 is the shipping value
+phase: clock source installed
+clock: openfpgaOS of_time_us installed; probe: 440530 us over a 2M-iteration spin (advancing)
+screen: ini/menu=0 display_mode=1 (0=terminal 1=framebuffer 2=overlay)
+log ok=1 bytes=1650
+caps max=800x600 stride=2048 phys=320x240 def=320x240 bytes=1048576 modes=13
+mode 0: 256x224 stride=256 color=0
+mode 1: 256x240 stride=256 color=0
+mode 2: 320x200 stride=320 color=0
+mode 3: 320x224 stride=320 color=0
+mode 4: 320x240 stride=320 color=0
+mode 5: 320x256 stride=320 color=0
+mode 6: 320x288 stride=320 color=0
+mode 7: 400x300 stride=400 color=0
+mode 8: 512x384 stride=512 color=0
+mode 9: 640x360 stride=640 color=0
+mode 10: 640x400 stride=640 color=0
+mode 11: 640x480 stride=640 color=0
+mode 12: 800x600 stride=800 color=0
+fb native 640x480 8-bit offered/attempted (base 320x240 stride=320)
+fit=1 (host row stretch 200 -> 240 rows, no bars) for the 320x200 game picture on a 320x240 panel
+geo boot: applied 320x240 stride=320 | asked 320x240 | panel 320x240
+blit src=0x115d1718 fb=0x10000000 al=0/0
+bench read=9133us sink=0
+bench read2=8925us (warm)
+bench copy=9136us
+bench write=4700us
+bench downscale=21035us
+file: slot_find(night.cfg)=-1 id=0
+================================================
+=== NIGHT (openfpgaOS) -- console overlay test ===
+================================================
+phase: board_boot
+phase: audio_boot
+mixer: 32 voices, output rate 48000 Hz (samples keep their own rate, set per voice)
+sdk video: caps max=800x600 stride<=2048 frame<=1048576 B modes=0x3f physical=320x240 default=320x240 | applied 320x240 stride=320 color=0 mode_count=13
+sdk limits: async_max_read=65536 B dma_stage_size=1048576 B | mixer voices active=0 | BRAM present@0x104061c0 in_bram=0
+mixer: sfx group volume 255, 12 blocks x 16384 frames
+phase: cdda_boot
+disc: 15 tracks, 269453 sectors
+phase: game main entered
+menu: Music Volume slot CLAIMED t=12.4s @0x4000006c the word hardware carried it in on (word 00000008, field 8 = Full at bits 0-3)
+fb mode -> native 640x480 rc=0 in 42564us
+memstat frames=1 ticks=1(+1/s) pumps=1 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=0
+view=0 640x480 sig=ecd967f7 chg=1 pal=1
+video CHANGED: view=0 640x480 (was -1 -1x-1)
+perf pres=64940us max=64940us pump=1 ticks=1 skips=0
+stages last m=16 p=495 c=63935 f=213 x=241 | max all=64900 copy=63935 flip=241
+budget present n=1 mean=64940us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=1 per-spin (ticked=1) frames=1 warp/save gated to the tick
+pump reanchor=1 frames=1 hz=490 log=1/4114 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=1x0 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=46 ticks=496(+495/s) pumps=84 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=928928
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=15825us max=64940us pump=84 ticks=496 skips=0
+stages last m=16 p=178 c=15152 f=212 x=233 | max all=64900 copy=63935 flip=248
+budget present n=46 mean=16928us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=1163 per-spin (ticked=84) frames=46 warp/save gated to the tick
+pump reanchor=1 frames=46 hz=490 log=1/5176 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=46x0 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=101 ticks=992(+496/s) pumps=245 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1013275
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=15746us max=64940us pump=245 ticks=992 skips=0
+stages last m=15 p=146 c=15103 f=212 x=236 | max all=64900 copy=63935 flip=248
+budget present n=101 mean=16288us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=3260 per-spin (ticked=245) frames=101 warp/save gated to the tick
+pump reanchor=1 frames=101 hz=490 log=1/6247 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=51x50 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=156 ticks=1488(+496/s) pumps=408 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1011889
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=15755us max=64940us pump=408 ticks=1488 skips=0
+stages last m=15 p=148 c=15113 f=212 x=233 | max all=64900 copy=63935 flip=248
+budget present n=156 mean=16097us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=5367 per-spin (ticked=408) frames=156 warp/save gated to the tick
+pump reanchor=1 frames=156 hz=490 log=1/7322 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=51x105 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=211 ticks=1984(+496/s) pumps=571 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1011862
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=15760us max=64940us pump=571 ticks=1984 skips=0
+stages last m=16 p=145 c=15118 f=214 x=233 | max all=64900 copy=63935 flip=248
+budget present n=211 mean=16006us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=7472 per-spin (ticked=571) frames=211 warp/save gated to the tick
+pump reanchor=1 frames=211 hz=490 log=1/8398 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=51x160 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=266 ticks=2481(+497/s) pumps=727 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1012371
+view=0 640x480 sig=ecd967f7 chg=1 pal=255
+perf pres=15835us max=64940us pump=727 ticks=2481 skips=0
+stages last m=15 p=179 c=15161 f=212 x=232 | max all=64900 copy=63935 flip=248
+budget present n=266 mean=15955us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=9525 per-spin (ticked=727) frames=266 warp/save gated to the tick
+pump reanchor=1 frames=266 hz=490 log=1/9474 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=58x208 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=321 ticks=2977(+496/s) pumps=849 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1013302
+view=0 640x480 sig=ecd967f7 chg=1 pal=0
+perf pres=15749us max=64940us pump=849 ticks=2977 skips=0
+stages last m=16 p=153 c=15103 f=211 x=233 | max all=64900 copy=63935 flip=248
+budget present n=321 mean=15929us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=11326 per-spin (ticked=849) frames=321 warp/save gated to the tick
+pump reanchor=1 frames=321 hz=490 log=1/10549 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=102x219 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=376 ticks=3473(+496/s) pumps=1012 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1011866
+view=0 640x480 sig=ecd967f7 chg=1 pal=0
+perf pres=15750us max=64940us pump=1012 ticks=3473 skips=0
+stages last m=16 p=145 c=15109 f=213 x=233 | max all=64900 copy=63935 flip=248
+budget present n=376 mean=15902us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=13432 per-spin (ticked=1012) frames=376 warp/save gated to the tick
+pump reanchor=1 frames=376 hz=490 log=1/11629 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=102x274 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=431 ticks=3969(+496/s) pumps=1175 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1011840
+view=0 640x480 sig=ecd967f7 chg=1 pal=0
+perf pres=15755us max=64940us pump=1175 ticks=3969 skips=0
+stages last m=15 p=148 c=15114 f=211 x=233 | max all=64900 copy=63935 flip=248
+budget present n=431 mean=15882us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=15536 per-spin (ticked=1175) frames=431 warp/save gated to the tick
+pump reanchor=1 frames=431 hz=490 log=1/12709 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=102x329 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=486 ticks=4465(+496/s) pumps=1338 arena=2366912/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/0 clock=1011812
+view=0 640x480 sig=ecd967f7 chg=1 pal=0
+perf pres=15749us max=64940us pump=1338 ticks=4465 skips=0
+stages last m=16 p=145 c=15110 f=211 x=233 | max all=64900 copy=63935 flip=248
+budget present n=486 mean=15867us max=64940us | disc ops=0 sectors=0 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=0 | cdda fills=0 mean=0us max=0us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=17640 per-spin (ticked=1338) frames=486 warp/save gated to the tick
+pump reanchor=1 frames=486 hz=490 log=1/13789 dm=1
+cdda async issues=0 waits=0 falls=0 staged_sectors=0 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=102x384 | palette pushes=0 skips=0
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/0 plays=0 stops=1 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+cdda req idx=1 lba=37262 sectors=3153 (42.0 s) -> disc track 2 slot 5
+cdda refused: prefill read nothing (0 of 150 sectors) -- slot unreadable, voices stay off
+memstat frames=518 ticks=4747(+282/s) pumps=1431 arena=3903168/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/1 clock=1971046
+view=0 640x480 sig=ecd967f7 chg=1 pal=253
+perf pres=16761us max=64940us pump=1431 ticks=4747 skips=0
+stages last m=16 p=200 c=16055 f=212 x=238 | max all=64900 copy=63935 flip=248
+budget present n=518 mean=15862us max=64940us | disc ops=1 sectors=27 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=62 | cdda fills=1 mean=121us max=121us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=18820 per-spin (ticked=1431) frames=518 warp/save gated to the tick
+pump reanchor=2 frames=518 hz=490 log=1/15037 dm=1
+cdda async issues=1 waits=1 falls=1 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x415 | palette pushes=62 skips=1
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/1 plays=1 stops=2 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=538 ticks=5258(+511/s) pumps=1451 arena=3903168/16777216 pit=490 Hz xfer=0 plays=0 cdda=0/0/1 clock=1040619
+view=0 640x480 sig=222aa637 chg=2 pal=253
+perf pres=16297us max=64940us pump=1451 ticks=5258 skips=0
+stages last m=16 p=164 c=15632 f=212 x=238 | max all=64900 copy=63935 flip=248
+budget present n=538 mean=15878us max=64940us | disc ops=1 sectors=27 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=62 | cdda fills=1 mean=121us max=121us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=18840 per-spin (ticked=1451) frames=538 warp/save gated to the tick
+pump reanchor=2 frames=538 hz=490 log=1/16127 dm=1
+cdda async issues=1 waits=1 falls=1 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x435 | palette pushes=62 skips=1
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/1 plays=1 stops=2 sfx=0/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+cdda req idx=9 lba=185120 sectors=27697 (369.3 s) -> disc track 10 slot 26
+cdda refused: prefill read nothing (0 of 150 sectors) -- slot unreadable, voices stay off
+sfx#0 ch=0 rate=11111 frames=5346 voice=30
+memstat frames=563 ticks=5757(+499/s) pumps=1485 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1018549
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16008us max=64940us pump=1485 ticks=5757 skips=0
+stages last m=16 p=148 c=15363 f=212 x=236 | max all=64900 copy=63935 flip=252
+budget present n=563 mean=15906us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=19067 per-spin (ticked=1485) frames=563 warp/save gated to the tick
+pump reanchor=2 frames=563 hz=490 log=1/17426 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x460 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=602 ticks=6252(+495/s) pumps=1543 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1009971
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16497us max=64940us pump=1543 ticks=6252 skips=0
+stages last m=15 p=181 c=15813 f=211 x=241 | max all=64900 copy=63935 flip=252
+budget present n=602 mean=15924us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=19300 per-spin (ticked=1543) frames=602 warp/save gated to the tick
+pump reanchor=2 frames=602 hz=490 log=1/18518 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x499 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=642 ticks=6755(+503/s) pumps=1602 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1025973
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16333us max=64940us pump=1602 ticks=6755 skips=0
+stages last m=16 p=165 c=15660 f=215 x=242 | max all=64900 copy=63935 flip=260
+budget present n=642 mean=15938us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=19556 per-spin (ticked=1602) frames=642 warp/save gated to the tick
+pump reanchor=2 frames=642 hz=490 log=1/19610 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x539 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=682 ticks=7258(+503/s) pumps=1661 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026131
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16332us max=64940us pump=1661 ticks=7258 skips=0
+stages last m=15 p=165 c=15665 f=212 x=240 | max all=64900 copy=63935 flip=260
+budget present n=682 mean=15951us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=19815 per-spin (ticked=1661) frames=682 warp/save gated to the tick
+pump reanchor=2 frames=682 hz=490 log=1/20702 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x579 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=722 ticks=7761(+503/s) pumps=1721 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026092
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16326us max=64940us pump=1721 ticks=7761 skips=0
+stages last m=16 p=164 c=15659 f=212 x=240 | max all=64900 copy=63935 flip=260
+budget present n=722 mean=15960us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=20095 per-spin (ticked=1721) frames=722 warp/save gated to the tick
+pump reanchor=2 frames=722 hz=490 log=1/21794 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x619 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=762 ticks=8264(+503/s) pumps=1780 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026162
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16327us max=64940us pump=1780 ticks=8264 skips=0
+stages last m=16 p=165 c=15660 f=212 x=240 | max all=64900 copy=63935 flip=261
+budget present n=762 mean=15970us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=20356 per-spin (ticked=1780) frames=762 warp/save gated to the tick
+pump reanchor=2 frames=762 hz=490 log=1/22886 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x659 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=802 ticks=8767(+503/s) pumps=1840 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026108
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16322us max=64940us pump=1840 ticks=8767 skips=0
+stages last m=15 p=165 c=15654 f=212 x=241 | max all=64900 copy=63935 flip=261
+budget present n=802 mean=15978us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=20633 per-spin (ticked=1840) frames=802 warp/save gated to the tick
+pump reanchor=2 frames=802 hz=490 log=1/23978 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x699 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=842 ticks=9270(+503/s) pumps=1899 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026107
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16330us max=64940us pump=1899 ticks=9270 skips=0
+stages last m=15 p=164 c=15660 f=212 x=240 | max all=64900 copy=63935 flip=261
+budget present n=842 mean=15986us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=20889 per-spin (ticked=1899) frames=842 warp/save gated to the tick
+pump reanchor=2 frames=842 hz=490 log=1/25070 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x739 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=882 ticks=9773(+503/s) pumps=1959 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026101
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16321us max=64940us pump=1959 ticks=9773 skips=0
+stages last m=16 p=164 c=15654 f=211 x=241 | max all=64900 copy=63935 flip=261
+budget present n=882 mean=15993us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=21166 per-spin (ticked=1959) frames=882 warp/save gated to the tick
+pump reanchor=2 frames=882 hz=490 log=1/26162 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x779 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=922 ticks=10276(+503/s) pumps=2018 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026118
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16325us max=64940us pump=2018 ticks=10276 skips=0
+stages last m=16 p=164 c=15659 f=212 x=240 | max all=64900 copy=63935 flip=261
+budget present n=922 mean=16000us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=21422 per-spin (ticked=2018) frames=922 warp/save gated to the tick
+pump reanchor=2 frames=922 hz=490 log=1/27256 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x819 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+memstat frames=962 ticks=10779(+503/s) pumps=2078 arena=3903168/16777216 pit=490 Hz xfer=1 plays=1 cdda=0/0/2 clock=1026192
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16437us max=64940us pump=2078 ticks=10779 skips=0
+stages last m=16 p=160 c=15769 f=215 x=242 | max all=64900 copy=63935 flip=261
+budget present n=962 mean=16006us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=21698 per-spin (ticked=2078) frames=962 warp/save gated to the tick
+pump reanchor=2 frames=962 hz=490 log=1/28350 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x859 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=1/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+sfx#1 ch=1 rate=10000 frames=360 voice=30
+memstat frames=1001 ticks=11273(+494/s) pumps=2135 arena=3903168/16777216 pit=490 Hz xfer=2 plays=2 cdda=0/0/2 clock=1007259
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16642us max=64940us pump=2135 ticks=11273 skips=0
+stages last m=16 p=147 c=15993 f=212 x=235 | max all=64900 copy=63935 flip=261
+budget present n=1001 mean=16012us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=21954 per-spin (ticked=2135) frames=1001 warp/save gated to the tick
+pump reanchor=2 frames=1001 hz=490 log=1/29489 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x898 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=2/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+sfx#2 ch=2 rate=10000 frames=360 voice=30
+memstat frames=1040 ticks=11769(+496/s) pumps=2192 arena=3903168/16777216 pit=490 Hz xfer=3 plays=3 cdda=0/0/2 clock=1012300
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16323us max=64940us pump=2192 ticks=11769 skips=0
+stages last m=16 p=164 c=15653 f=215 x=239 | max all=64900 copy=63935 flip=261
+budget present n=1040 mean=16019us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=22209 per-spin (ticked=2192) frames=1040 warp/save gated to the tick
+pump reanchor=2 frames=1040 hz=490 log=1/30629 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x937 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=3/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+sfx#3 ch=3 rate=10000 frames=360 voice=30
+sfx#4 ch=4 rate=10000 frames=360 voice=30
+memstat frames=1080 ticks=12274(+505/s) pumps=2250 arena=3903168/16777216 pit=490 Hz xfer=5 plays=5 cdda=0/0/2 clock=1030168
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16325us max=64940us pump=2250 ticks=12274 skips=0
+stages last m=15 p=164 c=15659 f=212 x=240 | max all=64900 copy=63935 flip=261
+budget present n=1080 mean=16025us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=22482 per-spin (ticked=2250) frames=1080 warp/save gated to the tick
+pump reanchor=2 frames=1080 hz=490 log=1/31811 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x977 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=5/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+sfx#5 ch=5 rate=10000 frames=360 voice=30
+sfx#6 ch=6 rate=10000 frames=360 voice=30
+memstat frames=1120 ticks=12779(+505/s) pumps=2308 arena=3903168/16777216 pit=490 Hz xfer=7 plays=7 cdda=0/0/2 clock=1030254
+view=0 640x480 sig=f41f83c3 chg=3 pal=253
+perf pres=16322us max=64940us pump=2308 ticks=12779 skips=0
+stages last m=16 p=164 c=15654 f=211 x=241 | max all=64900 copy=63935 flip=261
+budget present n=1120 mean=16030us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=22743 per-spin (ticked=2308) frames=1120 warp/save gated to the tick
+pump reanchor=2 frames=1120 hz=490 log=1/32993 dm=1
+cdda async issues=2 waits=2 falls=2 staged_sectors=27 stage=63504 B max=27 sectors
+blit dirty rows_written=0 rows_same=0 staged_frames=1 too_big=0 too_small=0 surface=640x480 stride=640 stage=103x1017 | palette pushes=124 skips=2
+menu scr=0 blit fast=1 slow=0 skip=0
+audio cdda=0/0/2 plays=2 stops=2 sfx=7/0/0 ring=0 head=-1 music_mode=1
+audio: dsp commands with no case in the port = 2: 0xe1=1 0xf2=1
+sfx#7 ch=7 rate=10000 frames=360 voice=30
+memstat frames=1160 ticks=13282(+503/s) pumps=2367 arena=3903168/16777216 pit=490 Hz xfer=8 plays=8 cdda=0/0/2 clock=1026809
+view=0 640x480 sig=d5980a9b chg=4 pal=253
+perf pres=16339us max=64940us pump=2367 ticks=13282 skips=0
+stages last m=16 p=159 c=15677 f=211 x=242 | max all=64900 copy=63935 flip=261
+budget present n=1160 mean=16029us max=64940us | disc ops=2 sectors=54 mean_op=0us max_op=0us mean_sector=0us seeks=0 fails=0 kb=124 | cdda fills=2 mean=127us max=133us frames=0 visits=0 audio_low=0 room_hold=0 clock_behind=0 dry=0 ahead_min=0(0.00s)
+budget pump enters=23155 per-spin (ticked=2367) frames=1160 warp/save gated to the tick

@@ -2432,14 +2432,24 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 of_cdda_stats(&c_f, &c_us, &c_max, &c_fr, &c_low, &c_hold, &c_behind, &c_am, &c_pv, &c_dry);
                 
                 c_def = of_cdda_deferred();
-                {   /* where the wall actually went, this run, in whole milliseconds */
+                {   /* where the wall actually went, this run, in whole milliseconds.
+                     * docs/429: 0.2.5 split it 67% present / 25% rest / 8% disc / 0.1% tick loop, and the
+                     * hitching seconds' largest swing was `rest` -- the bucket with no name.  This adds the
+                     * two parts of `rest` that are already instrumented somewhere else: the audio ring fill
+                     * (c_us) and the resource file traffic (sys_file_io_stats, accessor only, reset=0).
+                     * Whatever is left over is the game's own main-loop compute, and that answer is just as
+                     * useful: it would mean the frame ceiling belongs to the game, not to the host. */
                     uint64_t wall = sys_now_us() - g_boot_us;
-                    uint64_t pres = g_present_us_sum, pump = g_us_pump_sum, disc = d_us;
-                    uint64_t acc = pres + pump + disc;
-                    NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums rest=%ums frames=%u pump_n=%u\n",
+                    uint64_t pres = g_present_us_sum, pump = g_us_pump_sum, disc = d_us, aud = c_us;
+                    uint32_t r_calls = 0, r_bytes = 0, r_max = 0;
+                    sys_file_io_stats(&r_calls, &r_bytes, &r_max, 0);
+                    uint64_t acc = pres + pump + disc + aud;
+                    NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums aud=%ums rest=%ums"
+                         " frames=%u pump_n=%u res_calls=%u res_kb=%u\n",
                          (unsigned)(wall / 1000ull), (unsigned)(pump / 1000ull), (unsigned)(pres / 1000ull),
-                         (unsigned)(disc / 1000ull),
-                         (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), g_frames, g_pump_calls);
+                         (unsigned)(disc / 1000ull), (unsigned)(aud / 1000ull),
+                         (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), g_frames, g_pump_calls,
+                         r_calls, r_bytes / 1024u);
                 }
                 NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"
                      " mean_sector=%uus seeks=%u fails=%u kb=%u"

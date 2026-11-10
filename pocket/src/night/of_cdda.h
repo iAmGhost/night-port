@@ -19,7 +19,8 @@ void of_cdda_pump(void);
 
 void     of_cdda_set_volume(int volume);         /* MUSIC group volume, 0..255 */
 uint32_t of_cdda_pos(void);
-uint32_t of_cdda_ring_ahead(void);   /* ring frames written ahead of what has been consumed */
+uint32_t of_cdda_ring_ahead(void);
+void of_cdda_async_stats(uint32_t *issues, uint32_t *waits, uint32_t *falls, uint32_t *staged_sectors);   /* ring frames written ahead of what has been consumed */
 int32_t  of_cdda_drift(void);          /* mixer position minus the clock estimate */                      /* sectors consumed */
 uint32_t of_cdda_sectors(void);                  /* sectors the track holds */
 uint32_t of_cdda_tracks(void);                   /* tracks started since boot */
@@ -55,6 +56,28 @@ int32_t  of_cdda_head(void);      /* write cursor lead over the mixer voice, rin
  * dry), `room_hold` = the disc had sectors and the pump was ready but the ring had no room, `clock_behind` =
  * pump visits where the 75 sectors/s disc clock had passed the host's own disc position, and `ahead_min` =
  * the smallest buffered slack the run held, in ring frames (44 100 a second). */
+uint32_t of_cdda_deferred(void);
+typedef struct {
+    int32_t live[2];        /* ring index each channel's voice reads now; <0 = no voice */
+    int32_t dpos;           /* frames the cursor moved since the previous sample */
+    uint32_t dt_us;
+    int32_t behind;         /* frames written but not yet played, the mixer's view */
+    uint32_t vroom;         /* free frames in front of the writer, the mixer's view */
+    uint32_t model;         /* the port's model of the same thing */
+    int32_t e_live;         /* max |sample| in a window AT the voice cursor: 0 while sounding = the pause */
+    int32_t e_wtail;        /* max |sample| just behind the write cursor */
+    uint32_t starts, stops; /* our own voice (re)starts */
+    uint64_t silent_us;     /* time the track was live but nothing sounded */
+    uint32_t laps;          /* voice cursor passed the write cursor: ring-loop replay */
+    int32_t ahead;          /* frames from the write frontier FORWARD to the voice: the gap that must not be
+                             * zero.  behind ~ RING means this is near zero: the voice is about to read audio
+                             * nobody has written, which is the pause, seen from the other side. */
+    uint32_t voice_full;    /* fills refused because the voice view had no room */
+    int sounding;
+} of_cdda_voice_t;
+void of_cdda_voice_sample(of_cdda_voice_t *o);   /* docs/408: ask the mixer, not the model */
+void of_cdda_set_lookahead(int n);   /* sectors of read-ahead past the disc clock (docs/407) */
+uint32_t of_cdda_lookahead(void);   /* pump visits held off: ring deep, the read that would fit was tiny (docs/406) */
 void of_cdda_stats(uint32_t *fills, uint64_t *fill_us, uint32_t *fill_us_max, uint32_t *fill_frames,
                    uint32_t *audio_low, uint32_t *room_hold, uint32_t *clock_behind, uint32_t *ahead_min,
                    uint32_t *pump_visits, uint32_t *dry);

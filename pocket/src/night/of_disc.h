@@ -24,6 +24,13 @@ int  of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352);
  * hand-off per 1/75 s of audio (docs/375). */
 int  of_disc_read_audio_run(uint32_t disc_lba, uint8_t *out, uint32_t nsectors);
 
+/* Async prefetch (docs/403): of_file_read_async() over a data slot, so the SD DMA runs while the core does
+ * something else.  dest must stay valid until the read lands; only one read is in flight at a time (a bridge
+ * limitation), which is exactly the shape of a double-buffered prefetch. */
+int      of_disc_read_audio_async(uint32_t disc_lba, void *dest, uint32_t nsectors);   /* token >=0, <0 busy/error */
+int      of_disc_async_busy(void);                                                      /* 1 = a read is still landing */
+uint32_t of_disc_async_max_sectors(void);                                               /* 65 536 B / 2352 = 27 here */
+
 #endif /* NIGHT_OF_DISC_H */
 
 /* Frame-budget counters (task-9a, docs/364): successful 2352-byte slot reads, their total and worst

@@ -35,7 +35,7 @@
  *
  * It is applied to the HOST only, never to src/f: the macro must be absent from a desktop build, where the
  * section has no meaning and f.c is shared byte-for-byte with the SDL host. */
-#if defined(NIGHT_POCKET) && !defined(OF_PC)
+#if defined(NIGHT_POCKET) && !defined(OF_PC) && !defined(NIGHT_BRAM_NONE)
 /* The PC shim is built with NIGHT_POCKET *and* OF_PC (sdk.mk adds -DOF_PC to the same flag set), so the guard has
  * to exclude the shim explicitly -- otherwise the section attribute reaches Apple Mach-O and every desktop build
  * dies with "mach-o section specifier requires a segment and section separated by a comma". */
@@ -115,6 +115,7 @@ static int g_rig_witness = 8;
 #define BAR_ROWS ((PANEL_H - GAME_H) / 2)
 /* The framebuffer mode the game picture is drawn into when it is not a 640x480 slide.  320x240 with the host
  * doing the vertical stretch (the default), or 320x200 with the core's scaler doing it (night.ini FIT=2). */
+static int g_pal_force;                        /* 1 = the palette must go up even if it looks unchanged (docs/399) */
 static of_video_mode_t g_fb_game;
 static of_video_mode_t g_fb_native_200;
 static int g_fb_200_ok;
@@ -150,6 +151,7 @@ static void applied_refresh(void) {
     if (cur.width && cur.height) {
         g_applied_w = cur.width; g_applied_h = cur.height;
         g_applied_stride = cur.stride ? cur.stride : cur.width;
+        g_pal_force = 1;                  /* re-programming the display path can drop the palette (docs/399) */
     }
 #endif
 }
@@ -249,6 +251,7 @@ static uint32_t on_terminate(uint32_t a) {
  * The game programs the VGA DAC itself (outb 0x3C8 index / 0x3C9 value, sys.c mirrors it) and never
  * writes a byte above 63 (docs/77), so a 6-bit table is scaled the way a DAC scales it -- the same
  * arithmetic src/app/main.c:129-135 uses, which is the basis the port-vs-original comparisons stand on. */
+static uint32_t g_pal_pushes, g_pal_push_skips;   /* how often the 256-word palette upload actually ran */
 HOTPRESENT /* the palette upload the indexed picture depends on, once per present */
 static void palette_push(void) {
     sys_vga_palette(g_pal_rgb);
@@ -259,7 +262,27 @@ static void palette_push(void) {
         g_pal32[i] = ((uint32_t)g_pal_rgb[i * 3] << 16) |
                      ((uint32_t)g_pal_rgb[i * 3 + 1] << 8) |
                      (uint32_t)g_pal_rgb[i * 3 + 2];
+    /* 256 words of palette MMIO, 59 times a second, for a table that only moves on a fade step.  The hash is
+     * over the composed table, sampled; a mode change forces it because re-programming the display path can
+     * drop what the indexed picture depends on, and one forced push a minute bounds any such surprise. */
+#ifdef OF_PC
+    /* The desktop shim keeps pushing every frame.  The gate is a device-cost optimization, and letting it run
+     * on the shim changes how long a present costs there -- which is a timing change in the very host the
+     * cross-host diffs and accuracy sweeps measure against (docs/365, docs/382).  Verified the hard way: with
+     * the gate live on the shim, the same 2 400-frame run reached a different track-restart moment and its
+     * recorded audio stream diverged from the previous build's. */
     of_video_palette_bulk(g_pal32, 256);
+#else
+    static uint32_t g_pal_hash;
+    uint32_t h = 2166136261u;
+    for (int i = 0; i < 256; i += 7) { h ^= g_pal32[i]; h *= 16777619u; }
+    if (g_pal_force || h != g_pal_hash || (g_frames & 4095u) == 0u) {
+        g_pal_hash = h;
+        g_pal_force = 0;
+        of_video_palette_bulk(g_pal32, 256);
+        g_pal_pushes++;
+    } else g_pal_push_skips++;
+#endif
 }
 
 /* 640x480 -> 320x240 for the slide/CG path.  Averaging palette INDICES is meaningless, so the rule is
@@ -420,6 +443,98 @@ static int pal_lit(void) {
     return c;
 }
 
+/* A row copied four bytes at a time.  The card measures the row memcpy at 307 200 B / 15 771 us = 19.5 MB/s
+ * (docs/399 5), which is ~5 cycles per byte at 100 MHz -- a byte-at-a-time write into an aperture that is not
+ * cached.  A 32-bit store is one bus transaction instead of four, and both the surface (stride 320 or 640) and the
+ * source rows (320 or 640 wide) are 4-aligned, so this path is the common case, not a corner.  It changes how the
+ * bytes are written and nothing else: still every row, every frame (docs/400). */
+HOTPRESENT static void copy_row(uint8_t *d, const uint8_t *s, uint32_t n) {
+    if ((n & 3u) == 0 && (((uintptr_t)d | (uintptr_t)s) & 3u) == 0) {
+        const uint32_t *sp = (const uint32_t *)s;
+        uint32_t *dp = (uint32_t *)d;
+        for (uint32_t i = 0, c = n >> 2; i < c; i++) dp[i] = sp[i];
+        return;
+    }
+    memcpy(d, s, n);
+}
+
+/* ---- the dirty commit (docs/399) ---------------------------------------------------------
+ * The card log says the copy IS the cost: stages max all=66889 copy=65915 flip=270 (docs/396), and the
+ * 320x200 path pays 4 333 us to write 64 000 bytes -- about 15 MB/s, which is not SDRAM speed but what a
+ * byte-at-a-time write into an aperture the core does not cache well looks like.  Two of the frame's
+ * writes are pure waste: the 320x200 branch memsets the WHOLE panel every frame to paint 40 rows of bars,
+ * and every branch copies every row when a delta-encoded .fli frame changes a band of them.
+ *
+ * So the branches write into a host-side stage (cached, cheap) and only rows that differ from the last presented
+ * frame are copied into the surface.
+ *
+ * WHY IT SHIPS DISABLED (docs/400, core 0.1.80).  of_video.h:10 says the display path is triple-buffered, and
+ * of_video_flip() does not wait.  The buffer this frame writes is therefore the one that was last written three
+ * frames ago -- not the one being displayed now, and not the one written last frame.  A shadow comparison is only
+ * sound when the destination is the buffer you last wrote; here it is not, so skipping "unchanged" rows leaves that
+ * buffer holding a three-frame-old picture in those rows.  On hardware that is exactly what the user reported:
+ * uncleared images and flickering.  The mechanism was predicted by the comment already in front() of the flip wait
+ * (docs/343-era note: "overlapping scanout is exactly a torn/ghosted picture") and the experiment confirmed it.
+ * The code stays, counted and switchable with BLIT_DIRTY, because the copy it measures really is the cost -- but a
+ * correct version has to keep one shadow per display buffer, or write whole frames into a buffer it owns. */
+#ifndef OF_PC
+/* The cap is the largest surface the core can be presenting: the native 640x480 framebuffer FB_MODE=1 asks for.
+ * It is NOT GAME_W*GAME_H: those are 320 and 200 (the game's own mode-0 picture), and writing GAME_W*GAME_H here
+ * made the cap 64 000 while the guard below demands stride*rows >= PANEL_W*PANEL_H = 76 800 -- a condition that
+ * can never be true.  That, not malloc, is why 0.1.77 reported staged_frames=0 with fallback climbing once per
+ * present: stage_begin returned the surface before it ever touched a buffer.  The comment that blamed malloc was
+ * itself wrong, which is why the guard now reports its own reason. */
+#define STAGE_SURFACE_W 640
+#define STAGE_SURFACE_H 480
+#define STAGE_MAX_BYTES ((size_t)STAGE_SURFACE_W * STAGE_SURFACE_H)      /* 307 200 */
+/* Static, not malloc'd.  The card log caught this: 0.1.77 reported staged_frames=0 fallback=1387, which is
+ * every single present falling back -- the two 307 200-byte mallocs failed on the device, and stage_begin
+ * retried them 59 times a second, so the "optimization" added a failing allocation to every frame instead of
+ * removing writes.  614 KB of .bss is affordable (the core already carries 19.3 MB); a heap request is not. */
+static uint8_t g_stage[STAGE_MAX_BYTES], g_shadow[STAGE_MAX_BYTES];
+static uint32_t g_stage_stride, g_stage_rows;
+static uint32_t g_rows_written, g_rows_same, g_stage_frames, g_stage_fallbacks, g_stage_small;
+static int g_stage_engaged;   /* the blit is writing into g_stage THIS frame -- the only reason to commit */
+
+HOTPRESENT static uint8_t *stage_begin(uint8_t *surface, uint32_t stride, uint32_t rows) {
+    size_t bytes = (size_t)stride * rows;
+    /* The 320x200 branch memsets PANEL_W*PANEL_H regardless of the surface, so staging is only honest when
+     * the surface is at least that big; otherwise rows it wrote would fall outside the commit. */
+    g_stage_engaged = 0;
+    if (!stride || !rows || bytes > STAGE_MAX_BYTES) {
+        g_stage_fallbacks++;                 /* a surface bigger than the stage: present straight through */
+        return surface;
+    }
+    if (bytes < (size_t)PANEL_W * PANEL_H) {
+        /* The 320x200 branch memsets PANEL_W*PANEL_H regardless of the surface it is drawing into, so on a surface
+         * smaller than the panel some of what it wrote would fall outside the commit.  The Pocket offers 320x240 or
+         * 640x480, both >= 76 800, so this refuses nothing real -- it exists so the mismatch is a refusal, not a
+         * silently missing band of picture. */
+        g_stage_small++;
+        return surface;
+    }
+    if (stride != g_stage_stride || rows != g_stage_rows) {   /* a new geometry knows nothing about the surface */
+        g_stage_stride = stride; g_stage_rows = rows;
+        memset(g_shadow, 0, bytes);
+    }
+    g_stage_engaged = 1;
+    return g_stage;
+}
+
+HOTPRESENT static void stage_commit(uint8_t *surface) {
+    if (!surface) return;
+    const uint32_t stride = g_stage_stride, rows = g_stage_rows;
+    g_stage_frames++;
+    for (uint32_t y = 0; y < rows; y++) {
+        uint8_t *s = g_stage + (size_t)y * stride, *p = g_shadow + (size_t)y * stride;
+        if (memcmp(s, p, stride) == 0) { g_rows_same++; continue; }
+        copy_row(surface + (size_t)y * stride, s, stride);
+        memcpy(p, s, stride);
+        g_rows_written++;
+    }
+}
+#endif
+
 HOTPRESENT /* the frame copy, the palette push and the flip: 59 times a second */
 static void present(void) {
     if (g_off & OFF_PRESENT) return;
@@ -450,7 +565,15 @@ static void present(void) {
 
     palette_push();
     t2 = sys_now_us();
-    uint8_t *fb = of_video_surface();
+    uint8_t *surface = of_video_surface();
+    uint8_t *fb = surface;
+#ifndef OF_PC
+    /* The one gate.  docs/400 retired partial commit as invalid on a triple-buffered display, so the staging
+     * path must be unreachable unless someone asks for it by name -- and the boot line below says which shape
+     * this run is actually using, so a log can never again leave that ambiguous. */
+    if (of_setting_blit_dirty())
+        fb = stage_begin(surface, g_applied_stride, g_applied_h);
+#endif
     const uint8_t *src = g_video_ram;               /* indexed pixels, linear in the A0000 arena */
 
     int skip = 0;
@@ -539,7 +662,20 @@ static void present(void) {
             if (rc != 0) g_fb_native_ok = 0; else g_fb_native_applied = 1;
         }
         native = g_fb_native_applied;
-        if (native) fb = of_video_surface();            /* the bigger surface belongs to the new mode */
+        if (native) {
+            /* The old `fb = of_video_surface();` re-pointed fb at the new mode's buffer while the local `surface`
+             * still named the OLD one -- and the display is triple-buffered (of_video.h:10), so the old buffer is
+             * still one of three the OS rotates through.  The frame's commit test `fb != surface` then fired on
+             * its own, and committed into that live buffer with the PREVIOUS mode's stride and row count.  That
+             * is a write of a stale picture at the wrong stride into a buffer the core is still presenting --
+             * which is the one thing in this file that produces a picture that is no transform of the card, and
+             * it fires on the boot-time 320x240 -> 640x480 switch: the title card.  Both names now move together,
+             * and staging is dropped for this frame rather than committed with the wrong geometry. */
+            surface = of_video_surface();
+            fb = surface;
+            g_stage_engaged = 0;
+            if (of_setting_blit_dirty()) fb = stage_begin(surface, g_applied_stride, g_applied_h);
+        }
     } else if (g_fb_native_applied) {
         if (!g_fb_game.width || !g_fb_game.height) {
             /* A mode with no size is refused every time, and asking again 60 times a second is how 0.1.29 filled
@@ -566,7 +702,7 @@ static void present(void) {
         of_video_mode_t cur; of_video_get_mode(&cur);
         uint32_t stride = cur.stride ? cur.stride : (uint32_t)vw;
         for (int y = 0; y < vh; y++)
-            memcpy(fb + (size_t)y * stride, src + (size_t)y * vw, (size_t)vw);
+            copy_row(fb + (size_t)y * stride, src + (size_t)y * vw, (uint32_t)vw);
     } else if (vw == GAME_W && vh == GAME_H) {
         /* One loop over the rows the surface actually has, each addressed by the stride the OS actually
          * reported, with the fit deciding which source row a panel row shows.  On the surface it expects this is
@@ -592,7 +728,7 @@ static void present(void) {
             } else
                 sy = ((int)y >= BAR_ROWS && (int)y < BAR_ROWS + GAME_H) ? (int)y - BAR_ROWS : -1;
             if (sy >= 0) {
-                memcpy(d, src + (size_t)sy * GAME_W, cols);
+                copy_row(d, src + (size_t)sy * GAME_W, cols);
                 if (stride > cols) memset(d + cols, 0, stride - cols);
             } else memset(d, 0, stride);
         }
@@ -614,8 +750,11 @@ static void present(void) {
         int h = vh < PANEL_H ? vh : PANEL_H;
         memset(fb, 0, (size_t)PANEL_W * PANEL_H);
         for (int y = 0; y < h; y++)
-            memcpy(fb + (size_t)y * PANEL_W, src + (size_t)y * vw, (size_t)w);
+            copy_row(fb + (size_t)y * PANEL_W, src + (size_t)y * vw, (uint32_t)w);
     }
+#ifndef OF_PC
+        if (g_stage_engaged) stage_commit(surface);   /* only the rows that differ reach the display aperture */
+#endif
     }                                        /* end of "if (!skip)" */
 #ifndef OF_PC
     for (size_t i = 0; i < g_smp_n; i++) g_smp_val[i] = src[g_smp_off[i]];
@@ -737,6 +876,7 @@ static void audio_boot(void) {
     of_cdda_set_read_batch(of_setting_disc_batch());   /* sectors per CD-DA slot read, docs/375 */
     of_cdda_set_min_want(of_setting_disc_min_want());        /* how much allowance to wait for, docs/375 */
     of_cdda_set_prefill_first(of_setting_disc_prefill_first()); /* synchronous prefill slice, docs/376 */
+    of_cdda_set_lookahead(of_setting_disc_lookahead());          /* read-ahead past the disc clock, docs/407 */
     NLOG("mixer: %d voices, output rate %d Hz (samples keep their own rate, set per voice)\n", 32, OF_MIXER_OUTPUT_RATE);
 #ifndef OF_PC
     /* One boot's worth of device facts (docs/378).  Every remaining tuning question on this port is gated on a
@@ -1915,7 +2055,18 @@ static void pad_pump(void) {
     pad_combo();
 }
 
+/* Counted, because sys_key_spin() (src/f/f.c:16410) is the ONLY thing that calls the input pump, so this
+ * counter is a direct read of how many times the game spun inside a keyboard wait (docs/410).  It is the
+ * missing half of "the game is parked for 35 s": with the seam's read counters next to it, a boot can tell
+ * a wait that spins from a wait that reads. */
+static uint32_t g_spin_input;
 static void input_pump(void) {
+#ifndef OF_PC
+    g_spin_input++;   /* device-only: the game spins this ~10M times a second (the desktop measures it), and
+                       * an increment here was enough to shift the shim's wall-clock-driven audio timeline —
+                       * cdda.raw moved off the docs/365/382 basis. The instrument must be inert on the host
+                       * that IS the basis (the same rule that pinned CD_LOOKAHEAD_SECTORS, docs/407). */
+#endif
     pad_pump();
     fn_0347e3();                                   /* the game's own keyboard pump */
 }
@@ -2015,18 +2166,20 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
              * that decides whether an async read or a deeper ring is worth building. */
             {
                 uint32_t d_r = 0, d_max = 0, d_by = 0, d_sk = 0, d_fl = 0, d_sec = 0;
-                uint32_t c_f = 0, c_max = 0, c_fr = 0, c_low = 0, c_hold = 0, c_behind = 0, c_am = 0, c_pv = 0, c_dry = 0;
+                uint32_t c_def = 0, c_f = 0, c_max = 0, c_fr = 0, c_low = 0, c_hold = 0, c_behind = 0, c_am = 0, c_pv = 0, c_dry = 0;
                 uint64_t d_us = 0, c_us = 0;
                 of_disc_stats(&d_r, &d_us, &d_max, &d_by, &d_sk, &d_fl, &d_sec);
                 of_cdda_stats(&c_f, &c_us, &c_max, &c_fr, &c_low, &c_hold, &c_behind, &c_am, &c_pv, &c_dry);
+                
+                c_def = of_cdda_deferred();
                 NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"
                      " mean_sector=%uus seeks=%u fails=%u kb=%u"
-                     " | cdda fills=%u mean=%uus max=%uus frames=%u visits=%u audio_low=%u room_hold=%u"
+                     " | cdda fills=%u mean=%uus max=%uus frames=%u visits=%u deferred=%u audio_low=%u room_hold=%u"
                      " clock_behind=%u dry=%u ahead_min=%u(%.2fs)\n",
                      g_present_n, g_present_n ? (unsigned)(g_present_us_sum / g_present_n) : 0u, g_present_us_max,
                      d_r, d_sec, d_r ? (unsigned)(d_us / d_r) : 0u, d_max,
                      d_sec ? (unsigned)(d_us / d_sec) : 0u, d_sk, d_fl, d_by / 1024u,
-                     c_f, c_f ? (unsigned)(c_us / c_f) : 0u, c_max, c_fr, c_pv, c_low, c_hold, c_behind, c_dry,
+                     c_f, c_f ? (unsigned)(c_us / c_f) : 0u, c_max, c_fr, c_pv, c_def, c_low, c_hold, c_behind, c_dry,
                      c_am, c_am / 44100.0);
                 NLOG("budget pump enters=%llu per-spin (ticked=%u) frames=%u warp/save gated to the tick\n",
                      (unsigned long long)g_pump_enters, g_pump_calls, g_frames);
@@ -2079,6 +2232,19 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
 #ifndef OF_PC
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld dm=%d\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes(), g_display_mode);
+            {
+                uint32_t ai = 0, aw = 0, af = 0, ast = 0;
+                of_cdda_async_stats(&ai, &aw, &af, &ast);
+                NLOG("cdda async issues=%u waits=%u falls=%u staged_sectors=%u stage=%u B max=%u sectors\n",
+                     ai, aw, af, ast, (unsigned)(27u * 2352u), of_disc_async_max_sectors());
+            }
+            /* 10 arguments, 10 fields.  The line shipped for five releases with two phantom fields (a stage=%dx%d
+             * that had no arguments), which silently shifted every value after it -- so "surface=640x480
+             * stride=640" was really the stride and a palette counter, and the staging verdicts read off it in
+             * docs/399/400 are not trustworthy.  The values themselves are unchanged; the reporting was wrong. */
+            NLOG("blit dirty rows_written=%u rows_same=%u staged=%u fallback=%u small=%u | surface=%ux%u stride=%u | palette pushes=%u skips=%u\n",
+                 g_rows_written, g_rows_same, g_stage_frames, g_stage_fallbacks, g_stage_small,
+                 g_applied_w, g_applied_h, g_applied_stride, g_pal_pushes, g_pal_push_skips);
             NLOG("menu scr=%d blit fast=%u slow=%u skip=%u\n",
                  of_setting_screen(), g_ds_fast, g_ds_slow, g_present_skips);
             /* Once a second, not once a frame: the mode is asserted at boot, but fn_03f15f (the game's own VESA
@@ -2096,10 +2262,49 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
             NLOG("pump reanchor=%u frames=%u hz=%u log=%d/%ld\n",
                  g_pump_reanchor, g_frames, hz, g_log_ok, of_log_bytes());
 #endif
+            /* Seam I/O since the last second (docs/410): the game's reads of NIGHT.RES were invisible to
+             * every counter this port has, and the 33 s black hold before the intro is exactly the kind of
+             * stretch that looks idle when the only read counters are the CDDA ones.  opening.fli is 9.59 MB
+             * of the 48.6 MB container, so a hold of that length is one file's worth of SD traffic. */
+#ifndef OF_PC
+            {
+                uint32_t rc, rb, rn;
+                sys_file_io_stats(&rc, &rb, &rn, 1);
+                NLOG("resio reads=%u bytes=%u max=%u B spin=%u\n", rc, rb, rn, g_spin_input);
+                g_spin_input = 0;
+            }
+#endif
             NLOG("audio cdda=%u/%u/%u plays=%u stops=%u sfx=%u/%u/%u ring=%u head=%d music_mode=%u\n",
                  of_cdda_pos(), of_cdda_sectors(), of_cdda_tracks(), sys_cd_audio_play_calls(),
                  sys_cd_audio_stop_calls(), g_of_sfx_plays, g_of_sfx_drops, g_of_sfx_steals,
                  of_cdda_ring_ahead(), (int)of_cdda_head(), (unsigned)g_dat_51a10);
+            /* Ask the mixer what the model cannot answer (docs/408).  The 0.1.88 card run had audio_low=0,
+             * room_hold=0, dry=0 and a 1.9 s ring -- every counter green -- while the player heard the music
+             * stop for seconds and start again.  Those counters all describe the port's own accounting; this
+             * line describes the voice: whether it is running, how fast its cursor moves (rate 1.000 = the
+             * 44 100 frames/s the model assumes; 1.088 would be the 48 kHz default Doom warns of), what
+             * amplitude sits under that cursor (e_live=0 while sounding IS the pause), and whether it has
+             * lapped the write cursor into replayed audio.
+             * Specifier count and argument count are 17 each; docs/404 found a 12/10 line quoting garbage
+             * for five builds, so the pairing was counted, not assumed. */
+            {
+                of_cdda_voice_t v;
+                of_cdda_voice_sample(&v);
+                /* The 0.1.89 card run printed rate=0.000x for a cursor that was moving at exactly the right
+                 * speed: the scale was off by a thousand, so dpos*1e6/(dt*44100) is the FACTOR, not the
+                 * factor in milli-units.  The raw dpos/dt in the same line is what carried the reading
+                 * (44 159 frames over 1 001 342 us = 1.000x), and a diagnostic that lies about the number it
+                 * exists to show is worth fixing before any conclusion is drawn from it (docs/409). */
+                unsigned rate_x1000 = (v.dt_us && v.dpos > 0)
+                    ? (unsigned)(((uint64_t)v.dpos * 1000000000ull) / ((uint64_t)v.dt_us * 44100ull))
+                    : 0u;
+                /* 18 specifiers, 18 arguments -- counted, not trusted (docs/404). */
+                NLOG("audio voice live=%d/%d dpos=%d/%uus rate=%u.%03ux behind=%d ahead=%d vroom=%u model=%u "
+                     "e_live=%d e_wtail=%d starts=%u stops=%u laps=%u vfull=%u sounding=%d silent=%llums\n",
+                     v.live[0], v.live[1], v.dpos, v.dt_us, rate_x1000 / 1000u, rate_x1000 % 1000u,
+                     v.behind, v.ahead, v.vroom, v.model, v.e_live, v.e_wtail, v.starts, v.stops, v.laps,
+                     v.voice_full, v.sounding, (unsigned long long)v.silent_us);
+            }
             if (sys_audio_dsp_unknown_total()) {
                 /* Name them.  A total only says something was ignored; which byte it was says whether the
                  * missing sound is an arm the port never acts on. */
@@ -2549,7 +2754,10 @@ int main(int argc, char **argv) {
             if (!surface_is_base())
                 NLOG("surface: the core did not land on the 320x240 base mode the host assumes\n");
         }
-        NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
+        NLOG("blit shape: staging=%d (blit_dirty) fb_mode=%d present_sync=%d | the staging path writes only rows it thinks changed, which is invalid on a triple-buffered display (docs/400)\n"
+         "fit=%d\n",
+         of_setting_blit_dirty(), of_setting_fb_mode(), of_setting_sync_flip(), of_setting_fit());
+    NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
         mem_bench();
         if (of_setting_diag() & OF_DIAG_FILEPROBE) file_probe();   /* docs/394: a player boot performs no probe */

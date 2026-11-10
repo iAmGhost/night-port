@@ -17,6 +17,7 @@ int  of_save_apply(void);
 int  of_setting_restore(void);
 int  of_setting_disc_prefill_first(void); /* night.ini DISC_PREFILL_FIRST: sectors read before the voices start (12..300) */
 int  of_setting_disc_min_want(void); /* night.ini DISC_MIN_WANT: sectors of allowance to accumulate before a fill read (1..12) */
+int  of_setting_disc_lookahead(void);   /* sectors of CD-DA read-ahead past the disc clock (docs/407) */
 int  of_setting_disc_batch(void);    /* night.ini DISC_BATCH=: sectors per CD-DA slot read (1..12) */     /* night.ini RESTORE=: bits a load applies -- 1 gauges (default), 2 state+selectors, 4 key table */
 
 int  of_save_slot(void);                 /* the slot the pad combo is currently addressing */
@@ -78,7 +79,12 @@ int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG
  * The card proves it: the file reappeared at 14:09 on 2026-11-06 with "NIGHT-PROBE-0001" after being deleted (docs/394).
  * It is now opt-in and it no longer writes to any save slot. */
 #define OF_DIAG_FILEPROBE   16    /* the read-only file-layer probe: slot find + readdir, no writes at all */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
+int  of_setting_blit_skip(void);
+int  of_setting_blit_dirty(void);
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */
+int  of_setting_blit_dirty(void);     /* 1 = write only the rows that changed into the display surface -- invalid on the triple-buffered path, see docs/400 */
+int  of_setting_disc_async(void);     /* 1 = double-buffered async SD reads feed the ring (docs/403); 0 = the synchronous shape */
+int  of_setting_disc_ramp(void);      /* 0 = one-shot CD-DA priming (shipping); 1 = the priming ramp, which underran on hardware (docs/402) */
 int  of_setting_sync_flip(void);      /* 1 = wait for each flip to be presented before returning */
 int  of_setting_fb_mode(void);        /* 1 = ask the OS for a native 640x480 source framebuffer (FB_MODE=0 forces the software downscale) */
 

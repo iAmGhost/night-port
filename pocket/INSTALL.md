@@ -55,7 +55,7 @@ with its default.  The ones that matter for a report:
 |---|---|---|
 | `LOG` | `0` (no log file) | `1` to write `Saves/night/common/nightlog.sav`, the diagnostic trail the port was measured with |
 | `DIAG` | `0` (a player's build performs no experimental bus probes) | `1` peripheral scan, `2` analogizer probe, `4` interact census |
-| `FB_MODE` | `1` (native 640x480 source framebuffer) | `0` to make the host downscale 2x2 to the panel instead -- measured 21 344 us vs 3 608 us mean present cost on the desktop shim, still unmeasured on hardware |
+| `FB_MODE` | `1` (native 640x480 surface, row memcpy) | Hardware-measured, and `0` is a trap: 307 200 B / 15 771 us = 19.5 MB/s against 76 800 B / 82 657 us = 0.93 MB/s for the host 2x2 downscale (~1 us per output pixel). `0` was shipped for two builds and brought the logo freeze back on hardware (docs/401, docs/404 §5) |
 | `FIT` | `1` (stretch) | `0` letterbox, `2` the core scaler's 320x200 mode |
 | `SCREEN` | `2` | `2` = the game with a nine-line diagnostic panel in white text over it (version, frame, view + picture signature, ticks/s and frames/s, present cost, palette and arena use, CD position, disc reads, ring headroom); `0` game only, `1` terminal text only, `-1` follow the menu's *Pocket LCD* option |
 | `TICK_HZ` | `490` | a cap on the game's fixed step rate, for slow-motion experiments |
@@ -81,6 +81,13 @@ md5 -q /Volumes/Pocket/Assets/night/common/night.elf
 The `budget` line is what carries the device's own SD-read timings (`disc reads=… mean=…us max=…us seeks=…
 fails=…`) and the mixer's underrun counters; the desktop shim cannot produce the SD half of it (docs/364 §5).  A
 screenshot from `Memories/Screenshots/` helps when the complaint is about the picture.
+
+**If the complaint is the music, send the whole file rather than the grep.**  The `audio voice live=…` line added
+in 0.1.89 is the only thing in the log that asks the mixer instead of the port's own model, and it has to be read
+against the `audio cdda=` and `perf` lines around it (docs/408).  Note that `nightlog.sav` is a fixed-size slot:
+new data starts at the beginning and the previous boot's tail survives below it, so look for the point where the
+cumulative counters go *down* and cut there (docs/402 §1) — everything below that line is an older run.
+For a music pause, the two fields that decide it are `e_live` (0 while the voice is sounding = the voice is reading silence) and `behind`/`ahead` (both near half the ring = healthy; `behind` near `RING` = the voice is about to run off the written frontier). See docs/409.
 
 ## 4. Measuring performance (two boots, one ini line apart)
 

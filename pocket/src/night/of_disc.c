@@ -246,3 +246,55 @@ int of_disc_read_audio_run(uint32_t disc_lba, uint8_t *out2352, uint32_t nsector
 }
 
 int of_disc_read_audio(uint32_t disc_lba, uint8_t *out2352) { return of_disc_read_audio_run(disc_lba, out2352, 1); }
+
+/* ---- the async path (docs/403) -------------------------------------------------------------
+ * The synchronous read is where the audio stalls live: the cost is per operation (mean_op 3 878 us on the card
+ * whatever the operation delivers), and the read blocks the same core that is trying to feed the mixer.
+ * of_file_read_async() starts the SD DMA and returns; of_file_async_busy() says when the bytes are in the
+ * destination.  With two stage buffers the core consumes one while the other is being filled.
+ *
+ * Accounting matters: an async read's duration is issue-to-completion, not issue-to-return, so the falling edge of
+ * busy() is where the elapsed time is billed.  Bill the issue call instead and the log reports microseconds and
+ * claims a speed-up that never happened. */
+#ifndef OF_PC
+static uint64_t g_async_t0;
+static int      g_async_open;                                   /* an async read is being timed */
+
+int of_disc_read_audio_async(uint32_t disc_lba, void *dest, uint32_t nsectors) {
+    if (!dest || !nsectors) return -1;
+    int track = of_disc_track_of_lba(disc_lba);
+    const disc_track_t *t = track > 0 ? find_track((uint32_t)track) : (const disc_track_t *)0;
+    if (!t || !t->audio) return -1;
+    int slot = of_disc_track_slot(t->track);
+    if (slot < 0) return -1;
+    if (of_file_async_busy()) return -1;                        /* one in flight: the caller keeps its buffer */
+
+    uint32_t off   = (disc_lba - t->lba) * IMG_SECTOR;
+    uint32_t bytes = nsectors * IMG_SECTOR;
+    int tok = of_file_read_async(slot, off, dest, bytes, 0);    /* polled rather than callback: the pump polls anyway */
+    if (tok < 0) { g_disc_fails++; return -1; }
+
+    g_async_t0 = sys_now_us();
+    g_async_open = 1;
+    g_disc_reads++; g_disc_ops++;
+    g_disc_sectors += nsectors; g_disc_bytes += bytes;
+    return tok;
+}
+
+int of_disc_async_busy(void) {
+    int busy = of_file_async_busy();
+    if (!busy && g_async_open) {                                /* landed: bill the wait we actually paid */
+        uint32_t dt = (uint32_t)(sys_now_us() - g_async_t0);
+        g_async_open = 0;
+        g_disc_us += dt;
+        if (dt > g_disc_us_max) g_disc_us_max = dt;
+    }
+    return busy;
+}
+
+uint32_t of_disc_async_max_sectors(void) { return of_file_async_max_read() / IMG_SECTOR; }
+#else
+int of_disc_read_audio_async(uint32_t disc_lba, void *dest, uint32_t nsectors) { (void)disc_lba; (void)dest; (void)nsectors; return -1; }
+int of_disc_async_busy(void) { return 0; }
+uint32_t of_disc_async_max_sectors(void) { return 0; }
+#endif

@@ -29,7 +29,7 @@
  *
  * It is applied to the HOST only, never to src/f: the macro must be absent from a desktop build, where the
  * section has no meaning and f.c is shared byte-for-byte with the SDL host. */
-#if defined(NIGHT_POCKET) && !defined(OF_PC)
+#if defined(NIGHT_POCKET) && !defined(OF_PC) && !defined(NIGHT_BRAM_NONE)
 /* The PC shim is built with NIGHT_POCKET *and* OF_PC (sdk.mk adds -DOF_PC to the same flag set), so the guard has
  * to exclude the shim explicitly -- otherwise the section attribute reaches Apple Mach-O and every desktop build
  * dies with "mach-o section specifier requires a segment and section separated by a comma". */
@@ -59,18 +59,51 @@
 #define CD_RING_SEC       4
 #define CD_RING_FRAMES    (CD_SRC_RATE * CD_RING_SEC)     /* 176 400 frames = 4 s per channel */
 #define CD_FRAMES_SECTOR  588                             /* one 2352-byte CD frame in samples */
-#define CD_BATCH_MAX          12                              /* sectors per slot read; night.ini DISC_BATCH= picks 1..12 (docs/375) */
+#define CD_BATCH_MAX          27                              /* sectors per slot read; night.ini DISC_BATCH= picks 1..27.
+                                                            * 27 * 2352 = 63 504 B is the largest read this OS moves in one op (of_file_async_max_read()
+                                                            * = 65 536 B, docs/403) and the sync fread takes the same: at 12 the card still paid ~50
+                                                            * ops a second for the 75 sectors/s it owes, and the OP costs (docs/406). */
 static int g_batch = CD_BATCH_MAX;
 #define CD_MIN_WANT_MAX   12
 static int g_min_want = CD_MIN_WANT_MAX;
-static int g_prefill_first = 150;                         /* 2 s read before the voices start; 300/150/90/45 measured, 150 chosen for slack at equal frame cost (docs/376) */                        /* sectors read before the voices start (docs/376); 300 = the old whole-ring prefill */                /* sectors of allowance to accumulate before reading (docs/375 3) */                        /* 1 reproduces the one-sector-at-a-time shape exactly */
+static int g_lookahead;   /* seeded in of_cdda_boot to the host value below, then night.ini DISC_LOOKAHEAD= may retarget the device */
+uint32_t of_cdda_lookahead(void) { return (uint32_t)g_lookahead; }
+/* The ramp's slice.  Engaged only when night.ini says DISC_RAMP=1; the shipping shape primes the whole slice in
+ * the requesting visit instead (docs/402). */
+#define CD_PRIME_SLICE 24                                 /* sectors of priming read per pump visit (docs/398): the ring is filled by a RAMP, not by one frame */
+#include "of_save.h"          /* the night.ini knobs -- outside the BRAM guard below, which is false when BRAM is off */
+
+static uint32_t g_prime_left;
+
+/* ---- async prefetch stages (docs/403) -----------------------------------------------------
+ * Two buffers, each one async read wide: 27 sectors = 63 504 B, the largest request this OS accepts
+ * (of_file_async_max_read() = 65 536 B).  The core consumes one buffer while the SD DMA fills the other, so a
+ * 3.9 ms read stops being a stall the mixer has to survive.  Plain .bss, not of_file_dma_stage_alloc(): the SDK
+ * documents that a destination in normal SDRAM is copied from its internal CRAM0 bounce buffer on completion,
+ * and one copy per 27 sectors is a cost I can see and measure, whereas a second allocator to get right is not. */
+#define CD_STAGE_SECTORS 27                                    /* 27 * 2352 = 63 504 B */
+static uint8_t  g_stage_buf[2][CD_STAGE_SECTORS * 2352];
+static uint32_t g_stage_n[2], g_stage_i[2];                    /* sectors landed, next to consume */
+static int      g_stage_inflight[2], g_stage_cur;
+static uint32_t g_stage_max;                                   /* min(CD_STAGE_SECTORS, what the OS allows) */
+static int      g_async;                                       /* 0 = the synchronous shape (unchanged code path) */
+static uint32_t g_async_issues, g_async_waits, g_async_falls;
+static uint32_t g_async_wait_streak;                            /* fills refused because nothing had landed, in a row */                             /* sectors of priming still owed after a track starts */
+
+static int g_prefill_first = 300;                         /* 0.1.74 cut this to 24 and the ring STARVED: audio_low=39, dry=33, ahead_min=0.00 s on hardware (docs/397). 150 (2 s primed) measured zero underruns; its cost is a rare 424 ms fill, and the fix for that is to spread the prefill across frames, not to prime less. */                         /* docs/396: the device measures 3.1 ms per 12-sector batch and 99 ms in its worst read, and a 150-sector prefill is 13 of those batches inside ONE frame -- measured at 423 998 us, which is the audible music pause. 24 sectors = 2 batches (400 ms of audio primed) costs ~6 ms typically and bounds one frame's stall instead of spending 0.42 s in it. */                         /* 2 s read before the voices start; 300/150/90/45 measured, 150 chosen for slack at equal frame cost (docs/376) */                        /* sectors read before the voices start (docs/376); 300 = the old whole-ring prefill */                /* sectors of allowance to accumulate before reading (docs/375 3) */                        /* 1 reproduces the one-sector-at-a-time shape exactly */
 #define CD_CHUNK_SECTORS  12                              /* per pump pass: 7056 samples = 160 ms of big sequential reads */
-#define CD_LOOKAHEAD_SECTORS 120                          /* 1.6 s of audio read past the disc clock: the slack that
-                                                           * survives a blocking video present without underrunning the
-                                                           * voice.  Reading only as far as the clock has run leaves the
-                                                           * ring tens of milliseconds deep, and the log shows it: the
-                                                           * first card run reported ring=2352 frames (53 ms) of slack
-                                                           * while one present cost 88 ms -- that underrun is the buzz. */
+/* The read-ahead past the disc clock.  Chosen BY HOST, deliberately: a runtime setter that runs on both hosts
+ * silently moved the desktop shim's audio bytes (docs/407) -- the shim is the byte-exact basis for docs/365/382
+ * and must not inherit a device tuning decision.  The shim keeps the 120 (1.6 s) every rig run was made with;
+ * the device takes 240 (3.2 s), because 120 was SMALLER than the 4 s (300-sector) ring it feeds: once g_pos
+ * touched that ceiling every pump visit could take only the trickle the disc clock releases
+ * (75 sectors/s over a 490 Hz tick = 0.15 sectors, truncated to 1), which is the whole explanation of the
+ * 1.3-1.7 sectors/op the card measured (docs/406 3).  night.ini DISC_LOOKAHEAD= can still retarget the device. */
+#ifdef OF_PC
+#define CD_LOOKAHEAD_SECTORS 120
+#else
+#define CD_LOOKAHEAD_SECTORS 240
+#endif
 #define CD_MIXER_PRIORITY 0
 
 static uint32_t g_lba, g_sectors, g_pos;                 /* disc coordinates */
@@ -91,11 +124,17 @@ static const char *g_dir;                                /* desktop witness dire
 static FILE *g_wav;
 #endif
 
+static int32_t  g_prev_live = -1;
+static uint32_t g_prev_us;
+static uint32_t g_voice_starts, g_voice_stops, g_voice_laps, g_voice_full;
+static uint64_t g_silent_us;
+
 static void voice_start(void);
 static void voice_stop(void);
 static void cdda_resume(void);
 
 int of_cdda_boot(void) {
+    g_lookahead = CD_LOOKAHEAD_SECTORS;   /* the host default (docs/407): 120 on the shim, 240 on the device */
 #ifndef OF_PC
     /* The rings must live where the mixer's DMA reads them: its SDRAM pool.  The extra frame past the
      * loop end is the seam guard (the mixer may read the loop end one sample in). */
@@ -161,6 +200,7 @@ static void wav_close(void) {
 #endif
 
 static void voice_start(void) {
+    g_voice_starts++;       /* OUR voice, not the game's MSCDEX call -- a resume from cdda_resume() lands here too */
 #ifdef OF_PC
     g_wav_bytes = 0;
     wav_open();
@@ -194,6 +234,7 @@ static void voice_start(void) {
 }
 
 static void voice_stop(void) {
+    g_voice_stops++;
 #ifdef OF_PC
     wav_close();
 #else
@@ -236,6 +277,7 @@ static uint64_t g_consumed_frames;        /* frames the voice side has taken out
  *   clock_behind-- the 75 sectors/s disc clock passed g_pos, i.e. the host fell behind the disc's own schedule.
  *   ahead_min   -- the smallest buffered slack the run ever held, in ring frames (44 100 per second). */
 static uint32_t g_fill_calls, g_fill_frames, g_fill_us_max, g_audio_low, g_room_hold, g_clock_behind;
+static uint32_t g_fill_deferred;   /* visits skipped: ring deep and the read that would fit was tiny */
 static uint32_t g_ahead_min = 0xffffffffu;
 static uint32_t g_pump_visits;
 static uint32_t g_dry;                          /* clock_consume had to clamp: the voice ate more than was written */
@@ -290,6 +332,9 @@ static uint32_t ring_ahead(void) {
  * ordering on hardware -- the estimate and the mixer can drift apart, and the drift grows exactly when the CPU
  * is busy, which is when the buzz appears (intro, stage 1 start).  So the mixer's own position decides. */
 #define CD_GUARD_FRAMES 4410u                     /* 0.1 s of slack between fill and playback */
+#ifndef CD_SAFE_AHEAD_FRAMES
+#define CD_SAFE_AHEAD_FRAMES (CD_SRC_RATE * 2u)   /* 2 s buffered: deeper than this, a small read can wait */
+#endif
 
 #ifndef OF_PC
 static int32_t mixer_live_pos(void) {
@@ -328,6 +373,99 @@ int32_t of_cdda_head(void) {
 #endif
 }
 
+/* ------------------------------------------------------------------ voice truth (docs/408)
+ * Every counter this file had described the PORT'S MODEL of consumption: the disc clock, the frames written, the
+ * frames the wall clock says must have been eaten.  On the 0.1.88 card run every one of them read healthy
+ * (audio_low=0, room_hold=0, dry=0, ring pinned at 1.9 s) while the player heard the music stop for seconds and
+ * start again.  A model that cannot see the mixer cannot diagnose the mixer, so this sampler asks the mixer four
+ * questions once a second, in units the ear agrees with:
+ *
+ *   is the voice running at all?          sounding / silent_ms
+ *   how fast is its cursor moving?        dpos over dt -> a rate factor; 1.088 would be the 48 kHz default Doom
+ *                                         warns of, and the ring would drain 8.8% faster than the model credits
+ *   what is in the samples under it?      e_live -- max |sample| in a window AT the voice cursor.  A voice
+ *                                         advancing through zeros is the audible pause, caught red-handed;
+ *                                         a voice advancing through loud samples means the silence is elsewhere
+ *   has it lapped the write cursor?       laps -- the ring-loop replay, which is a skip rather than a gap
+ *
+ * Device-only reads; on the desktop shim every field is computed from the model it already had, so the rig's
+ * byte-exact basis is untouched.
+ */
+#define CD_PROBE_WINDOW 8192u
+
+static int32_t ring_energy(const int16_t *buf, uint32_t from, uint32_t n) {
+    int32_t peak = 0;
+    if (!buf) return 0;
+    for (uint32_t k = 0; k < n; k++) {
+        int32_t v = buf[(from + k) % CD_RING_FRAMES];
+        if (v < 0) v = -v;
+        if (v > peak) peak = v;
+    }
+    return peak;
+}
+
+void of_cdda_voice_sample(of_cdda_voice_t *o) {
+    memset(o, 0, sizeof(*o));
+    o->model = ring_ahead();
+    uint64_t now = sys_now_us();
+    if (g_prev_us) o->dt_us = (uint32_t)(now - g_prev_us);
+    g_prev_us = (uint32_t)now;
+#ifndef OF_PC
+    o->live[0] = (g_voice[0] == OF_MIXER_HANDLE_INVALID) ? -1 : of_mixer_get_position_h(g_voice[0]);
+    o->live[1] = (g_voice[1] == OF_MIXER_HANDLE_INVALID) ? -1 : of_mixer_get_position_h(g_voice[1]);
+    o->sounding = (o->live[0] >= 0 || o->live[1] >= 0);
+    int32_t live = mixer_live_pos();
+    if (o->sounding && g_sectors) {
+        /* cursor speed, as a factor of real time: 1.000 means the mixer eats 44 100 frames a second */
+        if (g_prev_live >= 0 && live >= 0 && o->dt_us) {
+            int32_t d = live - g_prev_live;
+            if (d < 0) d += (int32_t)CD_RING_FRAMES;      /* it lapped the ring once between samples */
+            if (d > (int32_t)CD_RING_FRAMES / 2) d = (int32_t)CD_RING_FRAMES;   /* nonsense: saturate */
+            o->dpos = d;
+        }
+        o->behind = of_cdda_head();
+        o->vroom = room_before_voice();
+        /* behind and ahead are the same distance read from the two ends.  behind near RING is not "plenty
+         * buffered", it is "the voice is about to run off the written frontier into silence" -- the mistake
+         * this port made for several builds was reading that number as a depth (docs/409). */
+        o->ahead = (o->behind >= 0) ? (int32_t)(CD_RING_FRAMES - (uint32_t)o->behind) : 0;
+        uint32_t w = g_write % CD_RING_FRAMES;
+        if (live >= 0) {
+            /* Did the voice pass the write cursor since the last look?  The ring looping under the writer is a
+             * replay of audio already heard -- audibly a skip, and the one thing the loop design lets happen. */
+            if (g_prev_live >= 0 && live > (int32_t)w && g_prev_live <= (int32_t)w) g_voice_laps++;
+            o->laps = g_voice_laps;
+            o->e_live = ring_energy(g_ring[0], (uint32_t)live, CD_PROBE_WINDOW);
+        }
+        o->e_wtail = ring_energy(g_ring[0], (w + CD_RING_FRAMES - CD_PROBE_WINDOW) % CD_RING_FRAMES,
+                                 CD_PROBE_WINDOW);
+    } else if (g_sectors) {
+        /* The track is live and nothing is sounding: that IS the pause, timed. */
+        if (o->dt_us) g_silent_us += o->dt_us;
+        o->silent_us = g_silent_us;
+        o->laps = g_voice_laps;
+        return;
+    }
+    o->silent_us = g_silent_us;
+    o->laps = g_voice_laps;
+    g_prev_live = live;
+#else
+    o->sounding = g_running;
+    o->behind = (int32_t)ring_ahead();
+    o->vroom = ring_ahead() + 4096u;
+    o->ahead = (int32_t)(CD_RING_FRAMES - (uint32_t)ring_ahead());
+    uint32_t w = g_write % CD_RING_FRAMES;
+    o->e_live = ring_energy(g_ring[0], w, CD_PROBE_WINDOW);
+    o->e_wtail = ring_energy(g_ring[0], (w + CD_RING_FRAMES - CD_PROBE_WINDOW) % CD_RING_FRAMES,
+                             CD_PROBE_WINDOW);
+    (void)now;
+#endif
+    o->starts = g_voice_starts;
+    o->stops = g_voice_stops;
+    o->voice_full = g_voice_full;
+}
+
+
 int16_t of_gain16(int16_t x, int gain_pct) {
     if (gain_pct == 100) return x;
     int      sgn = (x < 0) ? -1 : 1;
@@ -352,9 +490,33 @@ void of_cdda_set_prefill_first(int n) {                     /* docs/376: the syn
     printf("cdda: prefill slice = %d sectors read before the voices start\n", g_prefill_first);
 }
 
+/* The read-ahead ceiling.  A number this load-bearing must not be compiled in for one host and measured on
+ * another: the shim is the byte-exact basis for docs/365/382, so it keeps 120 unless NIGHT_DISC_LOOKAHEAD or the
+ * ini asks otherwise (docs/407). */
+void of_cdda_set_lookahead(int n) {
+#ifdef OF_PC
+    (void)n;                       /* the shim is the byte-exact rig basis: it keeps CD_LOOKAHEAD_SECTORS (120)
+                                    * no matter what the ini says (docs/407) */
+    return;
+#endif
+    g_lookahead = (n < 1) ? 1 : (n > (int)(CD_RING_FRAMES / CD_FRAMES_SECTOR)) ? (int)(CD_RING_FRAMES / CD_FRAMES_SECTOR)
+                                                                               : n;
+    printf("cdda: lookahead = %d sectors (%.2f s)\n", g_lookahead, g_lookahead / 75.0);
+#ifndef OF_PC
+    of_log_line("cdda policy: lookahead=%d sectors\n", g_lookahead);
+#endif
+}
+
 void of_cdda_set_min_want(int n) {                          /* docs/375 3: 1 = read whatever is due (the old shape), 12 = read a chunk when it is due */
     g_min_want = (n < 1) ? 1 : (n > CD_MIN_WANT_MAX) ? CD_MIN_WANT_MAX : n;
     printf("cdda: fill policy = read at least %d sectors when they are due\n", g_min_want);
+#ifndef OF_PC
+    /* The setting that governs the read cadence used to reach printf only -- i.e. the terminal, never the card
+     * log -- so the boot that measured 50 two-sector reads a second could not show which policy produced them
+     * (docs/406 5).  Both dials now speak where the card can be read back. */
+    of_log_line("cdda policy: min_want=%d batch=%d safe_ahead=%u frames\n", g_min_want, g_batch,
+                (unsigned)CD_SAFE_AHEAD_FRAMES);
+#endif
 }
 
 void of_cdda_set_read_batch(int n) {                          /* docs/375: 1 = the old one-sector reads, 12 = the shipping batch */
@@ -423,11 +585,64 @@ static void ring_silence(void) {
 #endif
 }
 
+#ifndef OF_PC
+/* Keep a read in flight in every stage that is empty, bounded by the room the voice can still take.  Staged
+ * sectors count against that room: they are on their way into the ring and must not be double-promised. */
+static void stage_issue(int st) {
+    if (g_stage_inflight[st] || g_stage_i[st] < g_stage_n[st]) return;         /* busy, or still has data */
+    int other = 1 - st;
+    uint32_t staged = (g_stage_i[other] < g_stage_n[other]) ? (g_stage_n[other] - g_stage_i[other]) : 0;
+    uint32_t room = room_before_voice() / CD_FRAMES_SECTOR;
+    if (room <= staged) return;
+    room -= staged;
+    uint32_t left = (g_pos + staged < g_sectors) ? (g_sectors - g_pos - staged) : 0;
+    if (room > left) room = left;
+    if (room > g_stage_max) room = g_stage_max;
+    if (!room) return;
+    if (of_disc_read_audio_async(g_lba + g_pos + staged, g_stage_buf[st], room) < 0) {
+        g_async_falls++;
+        /* A fuse, not a hedge.  If the async path never gets a single read away, this code would stop reading the
+         * disc at all and the music would simply die -- a worse failure than the stall it was meant to remove.
+         * So after eight refusals with nothing issued, the track reverts to the synchronous shape it had before. */
+        if (g_async_falls >= 8u && !g_async_issues) {
+            g_async = 0;
+            for (int i = 0; i < 2; i++) { g_stage_n[i] = 0; g_stage_i[i] = 0; g_stage_inflight[i] = 0; }
+            of_log_line("cdda: async prefetch refused 8 times with nothing issued -- reverting to synchronous reads\n");
+        }
+        return;
+    }
+    g_stage_inflight[st] = 1; g_stage_n[st] = room; g_stage_i[st] = 0; g_async_issues++;
+}
+
+/* The next sector's bytes, from whichever stage has landed data.  A stage still in flight is polled, not waited
+ * for: if nothing has landed the caller stops filling, which is the same refusal shape the sync path has. */
+static uint8_t *stage_take(void) {
+    for (int try2 = 0; try2 < 2; try2++) {
+        int st = g_stage_cur;
+        if (g_stage_inflight[st] && !of_disc_async_busy()) g_stage_inflight[st] = 0;
+        if (!g_stage_inflight[st] && g_stage_i[st] < g_stage_n[st]) return g_stage_buf[st] + g_stage_i[st] * 2352;
+        g_stage_cur = 1 - st;
+    }
+    return 0;
+}
+
+static void stage_reset(void) {
+    for (int i = 0; i < 2; i++) { g_stage_n[i] = 0; g_stage_i[i] = 0; g_stage_inflight[i] = 0; }
+    g_stage_cur = 0;
+}
+#endif
+
 /* the 2352-byte slot reads that feed the ring: the SD-facing hot path */
 static uint32_t fill_sectors_raw(uint32_t sectors) {
     g_read_failed = 0;
     /* Bounded by what the voice still has to read, not just by what the disc has left. */
-    if (sectors && room_before_voice() < CD_FRAMES_SECTOR) return 0;
+    if (sectors && room_before_voice() < CD_FRAMES_SECTOR) {
+#ifndef OF_PC
+        g_voice_full++;     /* the voice view said "no room": counted, because this refusal used to be invisible
+                             * and it is the one the writer lives on (docs/408) */
+#endif
+        return 0;
+    }
     static int16_t stereo[CD_FRAMES_SECTOR * 2];
     /* Batched slot reads (docs/375): the old loop asked for one 2352-byte sector at a time, so a 12-sector chunk
      * cost 12 read operations and a 300-sector prefill cost 300 -- each one a seek decision and an OS call.  The
@@ -436,13 +651,37 @@ static uint32_t fill_sectors_raw(uint32_t sectors) {
     static uint8_t batch[CD_BATCH_MAX * 2352];
     uint32_t frames = 0;
     for (uint32_t s = 0; s < sectors; s++) {
-        uint8_t *raw = batch;
-        if ((s % (uint32_t)g_batch) == 0) {
-            uint32_t n = sectors - s;
-            if (n > (uint32_t)g_batch) n = (uint32_t)g_batch;
-            if (of_disc_read_audio_run(g_lba + g_pos, batch, n) != 0) { g_read_failed = 1; return frames; }
-        } else {
-            raw = batch + (s % (uint32_t)g_batch) * 2352;
+        uint8_t *raw;
+#ifndef OF_PC
+        /* Prefetch was tried on hardware and the card said no (docs/404): the reads were issued but
+         * of_file_async_busy() never fell, so no stage ever held landed bytes, mean_op stayed 0, and the fill
+         * path I wrote returned without reading -- music did not play at all.  The branch is kept so the shape
+         * can be re-tried on a newer OS, but it must always fall through to the synchronous read below, and it
+         * is off by default (night.ini DISC_ASYNC). */
+        raw = 0;
+        if (g_async) {
+            stage_issue(g_stage_cur);
+            stage_issue(1 - g_stage_cur);
+            raw = stage_take();
+            if (raw) { g_stage_i[g_stage_cur]++; g_async_wait_streak = 0; }
+            else {
+                g_async_waits++;
+                if (++g_async_wait_streak >= 8u) g_async = 0;   /* losing: stop pretending, just read */
+            }
+        }
+        if (!raw)
+#else
+        if (1)
+#endif
+        {
+            raw = batch;
+            if ((s % (uint32_t)g_batch) == 0) {
+                uint32_t n = sectors - s;
+                if (n > (uint32_t)g_batch) n = (uint32_t)g_batch;
+                if (of_disc_read_audio_run(g_lba + g_pos, batch, n) != 0) { g_read_failed = 1; return frames; }
+            } else {
+                raw = batch + (s % (uint32_t)g_batch) * 2352;
+            }
         }
         rig_sample(raw);                      /* the same sector bytes the SDL host hands the rig */
         const int16_t *src = (const int16_t *)raw;
@@ -532,6 +771,31 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     if (prefill_target > sectors) prefill_target = sectors;
     uint32_t prefill_sectors = (uint32_t)g_prefill_first;
     if (prefill_sectors > prefill_target) prefill_sectors = prefill_target;
+    /* What is paid HERE is bounded by CD_PRIME_SLICE; the rest is owed to the pump (g_prime_left).  0.1.75 read
+     * all 150 primed sectors inside the single frame that requested the track -- on the card that is 150 sector
+     * reads at ~2.1 ms each, and the log recorded fills up to 418 281 us.  Starting the voices after two batches
+     * (~6 ms typically) instead of after a third of a second is the start delay the player hears as the music
+     * lagging behind the picture (docs/398). */
+    /* REVERTED (docs/402): the card says the ramp is what made the music skip.  With the ramp engaged the fresh
+     * log region reads ahead_min=0.16 s at the first track switch and 0.00 s from then on, dry 5->49 and
+     * audio_low 5->64 climbing monotonically -- the mixer's looping voice ran out of written ring and wrapped
+     * over its own beginning, which is exactly "it plays back or skips the early portion".  Without the ramp
+     * (0.1.75) the same counters measured dry=0, audio_low=0, ahead_min 19 715 frames (0.45 s).  Priming the
+     * slice in one visit costs a big fill (max 418 281 us, still a real problem) but it leaves the ring AHEAD,
+     * and being ahead is what the mixer needs.  DISC_RAMP=1 re-arms the ramp for measurement. */
+    if (of_setting_disc_ramp() && prefill_sectors > CD_PRIME_SLICE) prefill_sectors = CD_PRIME_SLICE;
+    g_prime_left = of_setting_disc_ramp() ? (prefill_target - prefill_sectors) : 0;
+#ifndef OF_PC
+    /* The priming stays synchronous: it is the one thing that can put the ring ahead of real time, and 0.1.75's
+     * one-shot priming is the shape that measured dry=0, audio_low=0 (docs/402).  Async starts after it, for the
+     * steady-state feed -- which is where the 3.9 ms-per-operation reads were stalling the pump 75 times a second. */
+    stage_reset();
+    g_async = 0;
+    if (of_setting_disc_async()) {
+        uint32_t m = of_disc_async_max_sectors();
+        if (m >= 2) { g_stage_max = (m < CD_STAGE_SECTORS) ? m : CD_STAGE_SECTORS; g_async = 1; }
+    }
+#endif
     ring_silence();                       /* what the prefill does not reach must be silence, not leftovers */
     uint32_t got_frames = fill_sectors(prefill_sectors);
     if (got_frames == 0) {
@@ -548,7 +812,18 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
                     got_frames / CD_FRAMES_SECTOR, prefill_sectors, prefill_sectors, prefill_target);
     }
 
-    g_write = 0;                     /* the voice starts at the first prefilled frame */
+    /* g_write stays where the prefill left it -- it is frames WRITTEN, and must equal g_done_frames.
+     *
+     * This line used to read `g_write = 0;` with the comment "the voice starts at the first prefilled
+     * frame". The voice does start at ring index 0, but zeroing g_write did not move the voice: it moved
+     * the WRITER back to index 0, where the voice was already reading, and left frames [88 200, 176 400)
+     * as the zeros ring_silence() put there. So the writer chased the voice from behind at the real-time
+     * rate (75 sectors/s) instead of leading it by the 2 s the prefill had just bought, the voice walked
+     * off the end of the written region into those zeros, and the music stopped for as long as a ring lap
+     * takes -- "plays 1-2 seconds then pause a while and continues", at every track start (docs/409).
+     * g_done_frames was left at 88 200, so the model believed in a ring the hardware had not filled: the
+     * 87 100-frame disagreement between of_cdda_head() and ring_ahead() that docs/408 2 measured and could
+     * not name is this line exactly. */
     g_consumed_frames = 0;
     g_play_us = sys_now_us();
 #ifndef OF_PC
@@ -559,7 +834,10 @@ void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
 
 void of_cdda_stop(void) {
     if (g_running) { rig_stop(); voice_stop(); g_running = 0; }
-    g_sectors = 0; g_pos = 0; g_done_frames = 0;
+    g_sectors = 0; g_pos = 0; g_done_frames = 0; g_prime_left = 0;
+#ifndef OF_PC
+    stage_reset(); g_async = 0;
+#endif
 }
 
 void of_cdda_pump(void) {
@@ -587,6 +865,31 @@ void of_cdda_pump(void) {
         if ((uint64_t)g_budget > g_pos) g_clock_behind++;   /* the disc clock is ahead of what we have read */
     }
 
+    /* Defer a TINY read while the voice is comfortably behind us (docs/406).  This is the whole cost story on
+     * the card: the ring runs to 96.5% full (head=170 086 of 176 400 frames = 3.86 s buffered), so `room` is
+     * about 3 sectors, and the pump dutifully reads 2 sectors about 50 times a second -- at 5-26 ms per
+     * operation that is 60-65% of wall time spent inside fread, for exactly the 75 sectors/s the disc owes us.
+     * The operation costs; the sector does not.  So when the voice is more than CD_SAFE_AHEAD_FRAMES behind,
+     * hold off: the ring is already deep enough to ride out several seconds of disc clock, and when it does
+     * drain the same bytes arrive in a handful of 27-sector operations instead of a hundred 2-sector ones.
+     * The deferral is conditional on being DEEP, so it cannot manufacture an underrun -- when we are low, every
+     * read goes through exactly as before. */
+#ifndef OF_PC                                       /* device-only: the shim has no mixer position to trust,
+                                                     * and it is the byte-exact basis for docs/365/382 */
+    {
+        int32_t vh32 = of_cdda_head();              /* frames the voice has NOT yet consumed */
+        /* 0.1.87 gated this on the MIXER's position alone and the card answered with audio_low 0 -> 7 553,
+         * ahead_min 0.35 s -> 0.00 s, dry 353: the voice cursor kept reporting "deep" while the host's own
+         * accounting of the ring ran down, so the pump held off on a ring the pump itself thought empty
+         * (docs/407).  A deferral is allowed only when BOTH measures agree we are deep -- the host model is
+         * the same one that raises audio_low and gates `room`, so they can no longer disagree about this. */
+        if (vh32 >= (int32_t)CD_SAFE_AHEAD_FRAMES && ring_ahead() >= CD_SAFE_AHEAD_FRAMES) {
+            g_fill_deferred++;
+            return;
+        }
+    }
+#endif
+
     /* Keep the ring between empty and full: never write more than the ring can hold ahead of the voice,
      * and never read faster than the disc runs.  The 2 s prefill is the slack that absorbs an SD read. */
     uint32_t room = (ring_ahead() < CD_RING_FRAMES) ? (CD_RING_FRAMES - ring_ahead()) : 0;
@@ -599,7 +902,25 @@ void of_cdda_pump(void) {
 #endif
     if (room < CD_FRAMES_SECTOR) { if (g_pos < g_sectors) g_room_hold++; return; }
 
-    uint64_t ceiling = g_budget + CD_LOOKAHEAD_SECTORS;
+    /* Priming ramp (docs/398).  Only the prefill can put the ring AHEAD of real time: the steady-state path is
+     * gated by the disc clock (75 sectors/s of allowance) and can never overtake it -- which is exactly why 0.1.74,
+     * which primed 24 sectors and expected the pump to catch up, underran (audio_low=39, dry=33, ahead_min=0.00 s,
+     * docs/397).  So keep the priming deep, the whole 4 s ring the playable build had, and spread it over visits:
+     * 24 sectors a visit primes 300 in 13 visits (~27 ms of pump work) instead of one frame paying ~400 ms. */
+    if (g_prime_left) {
+        uint32_t slice = (g_prime_left < CD_PRIME_SLICE) ? g_prime_left : CD_PRIME_SLICE;
+        if (ring_ahead() + (uint64_t)slice * CD_FRAMES_SECTOR < CD_RING_FRAMES) {
+            uint32_t primed = fill_sectors(slice);
+            if (primed) {
+                g_prime_left -= primed / CD_FRAMES_SECTOR;
+                if (g_read_failed) g_prime_left = 0;
+                return;
+            }
+        }
+        g_prime_left = 0;                       /* nothing left to take: fall through to the budget-limited path */
+    }
+
+    uint64_t ceiling = g_budget + (uint64_t)g_lookahead;
     if ((uint64_t)g_pos >= ceiling) return;                  /* already prefetching far enough ahead */
     /* Wait for a whole chunk to be due (docs/375 §6).  The disc clock advances 75 sectors/s while the pump runs at
      * the 490 Hz tick, so `ceiling - g_pos` grows by about 0.15 sectors a visit: truncated to an integer it is
@@ -639,12 +960,15 @@ void of_cdda_pump(void) {
 /* Coming back after a failed read: prefill half the ring from where the disc position stopped, then start the
  * voices again.  Late by seconds, but continuous and clean. */
 static void cdda_resume(void) {
-    uint32_t want = (CD_RING_FRAMES / 2) / CD_FRAMES_SECTOR;
-    if (want > g_sectors - g_pos) want = g_sectors - g_pos;
-    if (!want) { of_cdda_stop(); return; }
+    uint32_t resume_target = (CD_RING_FRAMES / 2) / CD_FRAMES_SECTOR;
+    if (resume_target > g_sectors - g_pos) resume_target = g_sectors - g_pos;
+    if (!resume_target) { of_cdda_stop(); return; }
+    uint32_t want = (of_setting_disc_ramp() && resume_target > CD_PRIME_SLICE) ? CD_PRIME_SLICE : resume_target;
     ring_silence();
     g_write = 0; g_done_frames = 0; g_consumed_frames = 0;
-    if (fill_sectors(want) == 0) { g_retry_us = sys_now_us() + 2000000ull; return; }   /* still broken: back off */
+    uint32_t got = fill_sectors(want);
+    if (got == 0) { g_retry_us = sys_now_us() + 2000000ull; return; }   /* still broken: back off */
+    g_prime_left = (resume_target > got / CD_FRAMES_SECTOR) ? resume_target - got / CD_FRAMES_SECTOR : 0;
     g_play_us = sys_now_us();
     voice_start();
     g_running = 1;
@@ -664,6 +988,19 @@ void     of_cdda_set_volume(int v) {
 #endif
 }
 uint32_t of_cdda_ring_ahead(void) { return ring_ahead(); }
+
+void of_cdda_async_stats(uint32_t *issues, uint32_t *waits, uint32_t *falls, uint32_t *staged_sectors) {
+    if (issues) *issues = g_async_issues;
+    if (waits)  *waits  = g_async_waits;
+    if (falls)  *falls  = g_async_falls;
+    uint32_t st = 0;
+#ifndef OF_PC
+    for (int i = 0; i < 2; i++) if (g_stage_i[i] < g_stage_n[i]) st += g_stage_n[i] - g_stage_i[i];
+#endif
+    if (staged_sectors) *staged_sectors = st;
+}
+
+uint32_t of_cdda_deferred(void) { return g_fill_deferred; }
 
 void of_cdda_stats(uint32_t *fills, uint64_t *fill_us, uint32_t *fill_us_max, uint32_t *fill_frames,
                    uint32_t *audio_low, uint32_t *room_hold, uint32_t *clock_behind, uint32_t *ahead_min,

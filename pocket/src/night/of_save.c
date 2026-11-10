@@ -194,10 +194,13 @@ static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the 
 static int      g_restore = 1;   /* night.ini RESTORE=: which save fields a load applies (docs/374) */
 static int      g_disc_prefill_first = 150; /* night.ini DISC_PREFILL_FIRST: synchronous prefill slice (docs/376) */
 static int      g_disc_min_want = 12;  /* night.ini DISC_MIN_WANT: sectors of allowance to accumulate before a fill read (docs/375) */
-static int      g_disc_batch = 12;   /* night.ini DISC_BATCH=: sectors per CD-DA slot read (docs/375) */
+static int      g_disc_batch = 12;
+static int      g_disc_lookahead = 240;   /* night.ini DISC_BATCH=: sectors per CD-DA slot read (docs/375) */
 static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain the board ring per pump entry
                                            * (every build has always done this), 1 = once per 490 Hz tick */
-static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1;   /* 1 = stretch: the shipped default */
+static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
+static int      g_disc_async = 1;   /* 1 = feed the ring with double-buffered async reads (docs/403); 0 = the synchronous read shape */
+static int      g_disc_ramp = 0;   /* 0 = prime the CD-DA slice in one visit (dry=0, audio_low=0); 1 = spread it over pump visits, which underran (docs/402) */
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
 /* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
@@ -487,6 +490,8 @@ void of_settings_load(void) {
      * dereference out of range mid-stage, so it stays a developer's setting. */
     g_restore = cfg_int("restore", 1, "NIGHT_RESTORE");
     g_disc_batch = cfg_int("disc_batch", 12, "NIGHT_DISC_BATCH");
+    g_disc_lookahead = cfg_int("disc_lookahead", 120, "NIGHT_DISC_LOOKAHEAD");   /* DEFAULT 120 = the value every desktop rig run was made with, so the shim basis is
+                                                                                   * unchanged when no ini is present; the CARD gets 240 from night.ini (docs/407) */
     g_disc_min_want = cfg_int("disc_min_want", 12, "NIGHT_DISC_MIN_WANT");
     g_disc_prefill_first = cfg_int("disc_prefill_first", 150, "NIGHT_DISC_PREFILL_FIRST");
     /* How the 320x200 game picture meets the 320x240 panel.  1 (the default) fills the panel: 40 of the 200
@@ -497,6 +502,9 @@ void of_settings_load(void) {
      * stretch for free -- worth measuring, with docs/338 in mind (a mode the scaler cannot map shows black). */
     g_fit = cfg_int("fit", 1, "NIGHT_FIT");
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
+    g_blit_dirty = cfg_int("blit_dirty",  1, "NIGHT_BLIT_DIRTY");
+    g_disc_ramp = cfg_int("disc_ramp",   0, "NIGHT_DISC_RAMP");
+    g_disc_async = cfg_int("disc_async",  1, "NIGHT_DISC_ASYNC");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
     /* of_interact_get() indexes by position in interact.json; the reserved SDK entries now occupy the first
@@ -615,10 +623,14 @@ int of_setting_interact_err(void) { return g_interact_err; }
 int of_setting_fit(void)       { return g_fit; }      /* 0 letterbox, 1 stretch, 2 scaler 320x200 */
 int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
+int  of_setting_blit_dirty(void) { return g_blit_dirty; }
+int  of_setting_disc_ramp(void)  { return g_disc_ramp; }
+int  of_setting_disc_async(void) { return g_disc_async; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
 int  of_setting_pump_audio_tick(void) { return g_pump_audio_tick; }
 int  of_setting_restore(void)   { return g_restore; }
 int  of_setting_disc_batch(void)  { return g_disc_batch; }
+int  of_setting_disc_lookahead(void) { return g_disc_lookahead; }
 int  of_setting_disc_min_want(void){ return g_disc_min_want; }
 int  of_setting_disc_prefill_first(void){ return g_disc_prefill_first; }        /* save-apply bits: 1 gauges (shipping), 2 state, 4 key table */
 int  of_setting_fb_mode(void)   { return g_fb_mode; }     /* 1 = use a native 640x480 source framebuffer if the OS offers one */

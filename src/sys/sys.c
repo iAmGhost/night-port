@@ -470,9 +470,35 @@ void sys_file_real_dir(const char *dir) {
 }
 uint32_t sys_file_real_opened(void) { return s_real_opens; }
 
+/* The seam's own bookkeeping (docs/410).  Every read the game does of NIGHT.RES -- a 9.59 MB opening.fli,
+ * 1.5 MB .wal tiles -- goes through this function, and NOTHING counted it: the card log's "disc ops" field is
+ * CDDA audio only, so a 30 s stretch of the game pulling the intro animation off the SD card looked, in the log,
+ * exactly like an idle game.  Counting calls and bytes here (no timing, so no extra clock reads on the hot path)
+ * is what lets a boot distinguish "the game is waiting" from "the game is reading".
+ * Counters only: no behaviour on any path changes, and the shared f.c is untouched. */
+static uint32_t s_rd_calls, s_rd_bytes, s_rd_max, s_rd_calls_since, s_rd_bytes_since, s_rd_max_since;
+void sys_file_io_stats(uint32_t *calls, uint32_t *bytes, uint32_t *maxn, int reset) {
+    if (calls) *calls = reset ? s_rd_calls_since : s_rd_calls;
+    if (bytes) *bytes = reset ? s_rd_bytes_since : s_rd_bytes;
+    if (maxn)  *maxn  = reset ? s_rd_max_since : s_rd_max;
+    if (reset) { s_rd_calls_since = 0; s_rd_bytes_since = 0; s_rd_max_since = 0; }
+}
+static void rd_note(uint32_t got) {
+#ifdef OF_PC
+    (void)got;   /* the desktop rig is the byte-exact cross-host basis; a diagnostic that perturbs its
+                 * audio timeline is worse than no diagnostic (docs/407, docs/410) */
+    return;
+#endif
+    s_rd_calls++; s_rd_bytes += got; s_rd_calls_since++; s_rd_bytes_since += got;
+    if (got > s_rd_max) s_rd_max = got;
+    if (got > s_rd_max_since) s_rd_max_since = got;
+}
 int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
-    if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0)   /* real file */
-        return (int32_t)fread(buf, 1, count, s_files[handle - 1]);
+    if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0) {  /* real file */
+        size_t got = fread(buf, 1, count, s_files[handle - 1]);
+        rd_note((uint32_t)got);
+        return (int32_t)got;
+    }
     (void)handle;
     if (s_img == 0) return 0;                          /* no backend: 0 bytes */
     if (s_img_pos >= s_img_len) return 0;              /* EOF */
@@ -480,6 +506,7 @@ int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
     if (n > count) n = count;
     for (uint32_t i = 0; i < n; i++) ((uint8_t *)buf)[i] = s_img[s_img_pos + i];
     s_img_pos += n;
+    rd_note(n);
     return (int32_t)n;
 }
 int32_t sys_file_lseek_pos = 0;   /* test knob: position a tell (whence==1) reports */

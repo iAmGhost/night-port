@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 """Generate the Pocket core tree (pocket/dist/night) from NIGHT/TG_NIGHT.CUE.
 
 The slot table is derived from the shipped CUE so the audio-track slots can
@@ -40,7 +41,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.72"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.91"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -422,7 +423,7 @@ def main():
     # bitstream and what the app itself reads for its own knobs (Quake does the
     # same with [quake] CONFIG=/PAK_... keys).
     (asset_dir / "common").mkdir(parents=True, exist_ok=True)
-    (asset_dir / "common" / f"{APP}.ini").write_text(
+    ini_text = (
         "[os]\n"
         "GAME=NIGHT\n"
         "INSTANCE=NIGHT\n"
@@ -459,14 +460,19 @@ def main():
         # 2 = ask the core's scaler for its 320x200 framebuffer mode.  The menu's Screen Fit knob and L1+B do the same
         # thing live, and 0.1.52 confirmed all three on hardware through the packed menu word (docs/362).
         "FIT=1\n"
+        "BLIT_DIRTY=0\n"
+            # 1 = present only the changed rows; DISABLED on the card: the display path is triple-buffered, so a skipped row stays three frames stale (uncleared pictures, flicker) -- docs/400    # 1 = present only the rows that changed into the display aperture (docs/399); 0 = the 0.1.76 shape, every row every frame
         "BLIT_SKIP=0\n"     # 1 = skip the 640x480->320x240 blit while the sampled frame is unchanged (max 8 in a row)
-        "FB_MODE=1\n"
+        "FB_MODE=1\n"    # 1 = native 640x480 surface + row memcpy: 307 200 B / 15 771 us = 19.5 MB/s. 0 = OS 320x240 surface + software 2x2 downscale: 76 800 B / 82 657 us = 0.93 MB/s, ~1 us per output pixel (docs/401). 0.1.84/0.1.85 shipped 0 on a geometry theory and it brought the logo freeze straight back -- the user reported it, exactly as docs/401's title predicts. The corruption that made me doubt 1 was the stale-surface commit (docs/404 5), which is fixed and which lives ONLY in this branch, so 1 is both the fast shape and the one whose defect is now understood\n"
         "PUMP_AUDIO_TICK=0\n"
-        "DISC_PREFILL_FIRST=150\n"   # sectors of CD-DA read before the voices start (1.2 s); 300 = the old whole-ring prefill that blocked a frame (docs/376)
-        "DISC_MIN_WANT=12\n"   # wait until 12 sectors of read allowance have accumulated, then take them in one read (docs/375 6); 1 = the old read-whatever-is-due shape
-        "DISC_BATCH=12\n"   # sectors per CD-DA slot read: 12 in one file read instead of 12 reads (docs/375); 1 = the old shape
+        "DISC_ASYNC=0\n"         # 1 = the steady-state CD-DA feed uses double-buffered async SD reads (27 sectors each, of_file_read_async); 0 = the synchronous read shape (docs/403)
+        "DISC_RAMP=0\n"           # 0 = prime the CD-DA slice in the requesting visit; 1 = spread it over pump visits (underran: dry 5->49, audio_low 5->64, ahead_min 0.00 s -- docs/402)
+        "DISC_PREFILL_FIRST=150\n"    # sectors of CD-DA read before the voices start (2 s). One-shot priming is the shape that measured dry=0 audio_low=0 ahead 0.45 s; its cost is a rare 418-424 ms fill (docs/396, docs/402)
+        "DISC_MIN_WANT=27\n"
+        "DISC_LOOKAHEAD=240\n"   # sectors of CD-DA read-ahead past the 75 sectors/s disc clock. 120 (1.6 s) was SMALLER than the 4 s ring and forced the 1.5-sector trickle reads (docs/406/407)   # wait until 12 sectors of read allowance have accumulated, then take them in one read (docs/375 6); 1 = the old read-whatever-is-due shape
+        "DISC_BATCH=27\n"   # sectors per CD-DA slot read: 27 = 63 504 B, the largest single op this OS moves (docs/406)75); 1 = the old shape
         "RESTORE=1\n"   # 1 = a loaded save restores the HP bars (docs/374); 0 = nothing, 2 = state bytes + stage selectors, 4 = the key table
-                "PRESENT_SYNC=0\n"    # wait for each flip to be presented before writing the surface again
+                "PRESENT_SYNC=0\n"    # 0 = do not wait for the flip to complete. 1 cost 18 294 -> 33 436 us on the flip stage (docs/401) and stacked on top of an already 90 ms present    # 1 = wait for each flip to complete before writing the surface again; 0 lets a write overlap scanout of a buffer that is mid-frame (torn/ghosted picture), which is what the 3-buffer display path makes possible    # wait for each flip to be presented before writing the surface again
         "TICK_HZ=490\n"
         # Experimental reads, all off.  0.1.35 shipped them unconditionally and the run died mid-boot (docs/347).
         # One line to opt in, no rebuild; a player's build performs no MMIO scan, no analogizer probe and no
@@ -479,6 +485,22 @@ def main():
         "LOG=0\n"
     )
 
+    (asset_dir / "common" / f"{APP}.ini").write_text(ini_text)
+
+    # A comment this long can swallow the entry after it: my own FB_MODE edit ate "PUMP_AUDIO_TICK=0\n" into its
+    # trailing comment, and that key left the generated night.ini for a whole release -- silently, because the
+    # code default then takes over and nothing downstream notices.  So the generator names the keys a run
+    # depends on and refuses to ship an ini that dropped one (docs/405).
+    REQUIRED = ["RES", "MUSIC_VOL", "SFX_VOL", "MASTER_VOL", "SFX_GAIN", "CDDA_GAIN", "CDDA_OFF", "PAD_OFF",
+                "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
+                "DISC_RAMP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "RESTORE", "PRESENT_SYNC",
+                "TICK_HZ", "DIAG", "LOG", "DISC_LOOKAHEAD"]
+    got = set(re.findall(r"(?m)^([A-Z_]+)=", ini_text))
+    missing = [k for k in REQUIRED if k not in got]
+    if missing:
+        raise SystemExit("mk_dist: night.ini is missing %s -- an entry was lost to a comment or an edit. "
+                         "Repair the ini block above; do not paper over it with a code default."
+                         % ", ".join(missing))
     # The id map, published once so nothing downstream re-derives it: deploy.sh labels its copies from this
     # file, and of_disc.c of_disc_track_slot() is the runtime copy of the same rule.  It exists because the ids
     # are not cosmetic -- 10-19 are save-window slots and a data file bound there cannot be read past 256 KB.
@@ -515,7 +537,8 @@ def main():
           "| `CDDA` `PAD` | 0 | `1` mutes the CD music / ignores the pad |\n"
           "| `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |\n"
           "| `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |\n"
-          "| `DISC_PREFILL_FIRST` | 150 | sectors of CD-DA read before the voices start (2 s); 300 = the old whole-ring prefill; 300 = the old whole-ring prefill |\n"
+          "| `DISC_PREFILL_FIRST` | 150 | sectors of CD-DA read before the voices start (2 s), in one visit; the rare 418-424 ms fill is its price (docs/396, docs/402) |\n"
+          "| `DISC_RAMP` | 0 | 1 = spread that priming over pump visits; it removes the big fill but the ring never got ahead on hardware (dry 5->49, audio_low 5->64, ahead_min 0.00 s, docs/402) |\n"
           "| `DISC_MIN_WANT` | 12 | sectors of read allowance to accumulate before filling; 1 = the old one-sector-at-the-disc-rate shape |\n"
           "| `DISC_BATCH` | 12 | sectors per CD-DA slot read; 1 reproduces the old one-sector-at-a-time reads |\n"
           "| `RESTORE` | 1 | what a loaded save applies: 1 HP bars, 2 state bytes + stage selectors, 4 key table, 0 nothing (2 and 7 can make the game dereference out of range mid-stage) |\n"

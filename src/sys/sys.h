@@ -116,7 +116,9 @@ struct dos_time sys_gettime(void);
 /* DOS INT 21h file operations (handle-based). No CD/file backend is wired yet,
  * so each returns a documented no-op default; the real TG_NIGHT.IMG/.CUE backend
  * will override these in the mid-subsystems task. */
-int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count);      /* AH=3f: bytes read, default 0 */
+int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count);
+/* Seam I/O counters (docs/410): calls/bytes/max-single-read since boot or since the last reset. */
+void sys_file_io_stats(uint32_t *calls, uint32_t *bytes, uint32_t *maxn, int reset);      /* AH=3f: bytes read, default 0 */
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence); /* AH=42: new pos, default 0 */
 int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count); /* AH=40: bytes written; no backend -> success (count) */
 int32_t sys_file_close(uint32_t handle);                                /* AH=3e: 0=success (CF clear), nonzero=error */

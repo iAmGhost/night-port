@@ -200,7 +200,8 @@ static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain
                                            * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
 static int      g_present_skip = 1;
-static int      g_row_skip = 0;   /* 1 = write only the rows this display buffer does not already hold (docs/430) */
+static int      g_row_skip = 0;
+static int      g_stall_ms = 400;  /* log a witness line when no present has happened for this long (docs/433) */   /* 1 = write only the rows this display buffer does not already hold (docs/430) */
 static int      g_palette_after_flip = 0;
 static int      g_disc_idle_hook = 0;   /* 1 = present frames while a CD read waits on its DMA (docs/426) */
 static int      g_fdump = 0;   /* 0 off, 1 L1+Up, 2 auto-arm at stage entry (docs/424) */   /* hardware-proven: 41.0 s -> 6.0 s logo hold, no visual defect (docs/422) */
@@ -512,6 +513,7 @@ void of_settings_load(void) {
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_present_skip = cfg_int("present_skip", 1, "NIGHT_PRESENT_SKIP");
     g_row_skip = cfg_int("row_skip", 0, "NIGHT_ROW_SKIP");
+    g_stall_ms = cfg_int("stall_ms", 400, "NIGHT_STALL_MS");
     g_palette_after_flip = cfg_int("palette_after_flip", 0, "NIGHT_PALETTE_AFTER_FLIP");
     g_fdump = cfg_int("fdump", 0, "NIGHT_FDUMP");
     g_disc_idle_hook = cfg_int("disc_idle_hook", 0, "NIGHT_DISC_IDLE_HOOK");
@@ -641,6 +643,7 @@ int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_present_skip(void) { return g_present_skip; }
 int  of_setting_row_skip(void) { return g_row_skip; }
+int  of_setting_stall_ms(void) { return g_stall_ms; }
 int  of_setting_palette_after_flip(void) { return g_palette_after_flip; }
 int  of_setting_fdump(void) { return g_fdump; }
 int  of_setting_disc_idle_hook(void) { return g_disc_idle_hook; }

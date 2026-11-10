@@ -105,6 +105,14 @@ def main():
         print('   median %s  p90 %d  p99 %d  max %d' %
               (med(gaps), s[int(len(s) * .9)], s[min(len(s) - 1, int(len(s) * .99))], s[-1]))
 
+    st = [l for l in seg if l.startswith('STALL')]
+    if st:
+        print('\n## stall witnesses (what the port was doing when no present happened)')
+        for l in st[:8]:
+            print('   ', l[:150])
+        if len(st) > 8:
+            print('    ... %d more' % (len(st) - 8))
+
     pf = [PERF.search(l) for l in seg if PERF.search(l)]
     if pf:
         v = [int(x) for x in pf[-1].groups()]

@@ -395,6 +395,17 @@ static void present(void);                        /* defined below; present_step
  * second suspect (docs/404, docs/408). */
 static uint64_t g_boot_us, g_us_pump_sum;
 static uint64_t g_last_frame_us, g_gap_max_us;
+/* docs/433: the tail of the gap distribution is the user's complaint (p99 1 380 ms, max 2 998 ms in the
+ * 0.2.9 run), and nothing in the log said what the port was DOING during those seconds. So when the loop
+ * has gone STALL_MS without a present, it testifies once as the stall grows -- naming the resource the game
+ * last asked for (g_res_trace is the last name handed to fn_0367c9; sys_res_notify is the same announce path
+ * the SDL host sees, docs/413), the resource and disc traffic so far, and how far the game's own clock got.
+ * The rising-edge rule (log at 1x, then when it doubles) means a 3 s stall produces about three lines, not
+ * one line per pump visit. */
+static uint64_t g_stall_logged_us;
+static uint32_t g_stalls;
+#define STALL_LOG_MAX 12u
+
 static volatile int g_in_present, g_disc_busy, g_hook_busy;
 static unsigned g_hook_presents;
 static void disc_busy_cb(int b) { g_disc_busy = b; }
@@ -748,6 +759,7 @@ static void present_step(uint64_t now) {
             if (gap > g_gap_max_us) g_gap_max_us = gap;
         }
         g_last_frame_us = t0;
+        g_stall_logged_us = 0;                /* a present ends the current stall's story */
         g_in_present = 1;
         present();
         g_in_present = 0;
@@ -2914,6 +2926,25 @@ static void tick_pump(void) {
         }
     } else
 #endif
+    if (g_last_frame_us) {
+        uint64_t since = sys_now_us() - g_last_frame_us;
+        uint32_t sm = of_setting_stall_ms() ? (uint32_t)of_setting_stall_ms() : 400u;
+        uint64_t trig = (uint64_t)sm * 1000ull;
+        if (since >= trig && (g_stall_logged_us == 0 || since >= 2u * g_stall_logged_us)) {
+            g_stall_logged_us = since;
+            if (g_stalls < STALL_LOG_MAX) {
+                g_stalls++;
+                uint32_t rc = 0, rb = 0, rn = 0, dr = 0, dmx = 0, dby = 0, dsk = 0, dfl = 0, dsec = 0;
+                uint64_t dus = 0;
+                sys_file_io_stats(&rc, &rb, &rn, 0);
+                of_disc_stats(&dr, &dus, &dmx, &dby, &dsk, &dfl, &dsec);
+                NLOG("STALL %.1fs since last present | res=%s seq=%u | res_calls=%u res_kb=%u"
+                     " | disc ops=%u sectors=%u | frames=%u ticks=%u pumps=%u\n",
+                     (double)since / 1000000.0, g_res_trace, g_res_trace_seq,
+                     rc, rb / 1024u, dr, dsec, g_frames, g_timer_calls, g_pump_calls);
+            }
+        }
+    }
     {   /* braces required: this branch follows `} else`, where a declaration is not a statement */
         uint64_t tp0 = sys_now_us();
         while (calls--) { fn_03ee88(); g_timer_calls++; }

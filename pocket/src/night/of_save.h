@@ -85,7 +85,8 @@ int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG
 int  of_setting_blit_skip(void);
 int  of_setting_present_skip(void);
 int  of_setting_palette_after_flip(void);
-int  of_setting_fdump(void);        /* 0 off, 1 L1+Up arms the trace, 2 auto-arm at stage entry (docs/424) */  /* 1 = upload the palette just after flip, not a copy-time before it (docs/422) */   /* 1 = skip the copy when a FULL-surface hash says nothing changed (docs/416); 0 = the sampled test only */
+int  of_setting_fdump(void);
+int  of_setting_disc_idle_hook(void);   /* 1 = present frames while the CD read waits on SD DMA (docs/426) */        /* 0 off, 1 L1+Up arms the trace, 2 auto-arm at stage entry (docs/424) */  /* 1 = upload the palette just after flip, not a copy-time before it (docs/422) */   /* 1 = skip the copy when a FULL-surface hash says nothing changed (docs/416); 0 = the sampled test only */
 int  of_setting_delay_us(void);       /* 0 = f.c's own 500 us per delay_units() read; >0 overrides it (docs/417) */
 int  of_setting_cdda_stop_fix(void);    /* 1 = keep the invented CD stop at fn_000405a7; 0 = the original's shape (docs/413, docs/421) */
 int  of_setting_blit_dirty(void);

@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–425)
+## The Pocket port (docs/330–426)
 
 ### Port plan and host layer
 
@@ -235,6 +235,11 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Hardware round: the core boots and draws the logo, but nothing this core writes ever reaches the card, the</sub>
 - **366** — the install route, verified against the card: what `make copy` fills, what `make deploy` fills, and what a card must match
   <sub>Task-10's packaging half.  `pocket/INSTALL.md` is now the human-facing install README; this is the measurement that</sub>
+
+### Other Pocket-port documents
+
+- **426** — the fade trace's surprise: the port never renders stage 1's fade at all; and the file-service probe hands us the stutter fix
+  <sub>Two things came out of the `0.2.3` boot, and neither was the one I went looking for.</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

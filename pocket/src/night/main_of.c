@@ -263,6 +263,31 @@ static uint32_t on_terminate(uint32_t a) {
 static uint32_t g_pal_pushes, g_pal_push_skips;
 static uint32_t g_pal_hash_last;   /* the full-coverage palette hash as of the last present (docs/424) */   /* how often the 256-word palette upload actually ran */
 HOTPRESENT /* the palette upload the indexed picture depends on, once per present */
+/* docs/426: the SD idle hook.  of_file.h: "Register a hook invoked while a BLOCKING file read waits on its
+ * DMA, so the app can keep the audio ring fed" -- and this firmware has it (`filecaps: ... idle_hook=1`).
+ * The stutter is exactly those waits: seconds that fall below the frame median average 398 ms blocked on the
+ * card, smooth seconds 129 ms (docs/425).  The CPU is free while the DMA runs and a frame does not need the
+ * disc, so we present one.  Three guards: never re-enter the display path, only one hook-present per read
+ * however long it runs, and act only while OUR music read is the one in flight -- a resource load can land
+ * while the game is mid-draw, and presenting then would show a half-built card. */
+static void present_step(uint64_t now);             /* defined next to present() */
+static void present(void);                        /* defined below; present_step() calls it */
+static volatile int g_in_present, g_disc_busy, g_hook_busy;
+static unsigned g_hook_presents;
+static void disc_busy_cb(int b) { g_disc_busy = b; }
+
+#ifndef OF_PC   /* the shim has no idle-hook service to call this from */
+static void disc_idle_hook(void) {
+    if (!g_disc_busy || g_in_present || g_hook_busy) return;
+    uint64_t now = sys_now_us();
+    if (now < g_present_next_us) return;            /* nothing due; let the wait finish */
+    g_hook_busy = 1;
+    g_hook_presents++;
+    present_step(now);
+    g_hook_busy = 0;
+}
+#endif
+
 static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     sys_vga_palette(g_pal_rgb);
     if (sys_vga_dac_max() <= 63)
@@ -590,6 +615,29 @@ HOTPRESENT static void stage_commit(uint8_t *surface) {
 #endif
 
 HOTPRESENT /* the frame copy, the palette push and the flip: 59 times a second */
+/* The present step, shared by the main loop and by the SD idle hook, so a frame presented from the hook is
+ * indistinguishable in the log from one presented by the loop: same timings, same counters, same cadence. */
+static void present_step(uint64_t now) {
+        uint64_t t0 = sys_now_us();
+        g_in_present = 1;
+        present();
+        g_in_present = 0;
+        uint32_t d = (uint32_t)(sys_now_us() - t0);
+        if (d > g_present_us_max) g_present_us_max = d;
+        g_present_us = d;
+        g_present_us_sum += d; g_present_n++;
+        g_frames++;
+#ifdef OF_PC
+        /* The rig's state witness on the same grid as its screen witness.  audio_bytes is the Red Book the host
+         * has actually delivered (2352 bytes a sector), the same quantity src/app/main.c hands the sink. */
+        if (g_rig_dir) rig_poll((long)(now / 1000ull), (unsigned long long)g_frames,
+                                (unsigned long long)of_cdda_pos() * 2352ull);
+#endif
+        g_present_next_us = now + PRESENT_PERIOD_US;
+        if (g_frames_limit && g_frames >= (uint32_t)g_frames_limit) g_quit = 1;
+
+}
+
 static void present(void) {
     if (g_off & OFF_PRESENT) return;
     uint64_t t0 = sys_now_us(), t1, t2, t3, t4, t5;
@@ -2361,6 +2409,9 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
                  g_hash_skips, g_smp_skips);
+#ifndef OF_PC
+            NLOG("idle hook: presents=%u\n", g_hook_presents);
+#endif
             NLOG("stages last m=%u p=%u c=%u f=%u x=%u | max all=%u copy=%u flip=%u\n",
                  g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip,
                  g_us_flip_max, g_us_copy, g_us_flip);
@@ -2635,23 +2686,7 @@ static void tick_pump(void) {
     while (calls--) { fn_03ee88(); g_timer_calls++; }
     g_pump_calls++;
 
-    if (now >= g_present_next_us) {
-        uint64_t t0 = sys_now_us();
-        present();
-        uint32_t d = (uint32_t)(sys_now_us() - t0);
-        if (d > g_present_us_max) g_present_us_max = d;
-        g_present_us = d;
-        g_present_us_sum += d; g_present_n++;
-        g_frames++;
-#ifdef OF_PC
-        /* The rig's state witness on the same grid as its screen witness.  audio_bytes is the Red Book the host
-         * has actually delivered (2352 bytes a sector), the same quantity src/app/main.c hands the sink. */
-        if (g_rig_dir) rig_poll((long)(now / 1000ull), (unsigned long long)g_frames,
-                                (unsigned long long)of_cdda_pos() * 2352ull);
-#endif
-        g_present_next_us = now + PRESENT_PERIOD_US;
-        if (g_frames_limit && g_frames >= (uint32_t)g_frames_limit) g_quit = 1;
-    }
+    if (now >= g_present_next_us) present_step(now);
     if (now >= g_diag_next_us) diag_report(now, hz);
     g_depth--;
     if (g_quit) longjmp(g_game_escape, 1);
@@ -2838,6 +2873,15 @@ int main(int argc, char **argv) {
              of_file_async_max_read(), of_file_dma_stage_size(), stage, of_file_async_busy());
         (void)of_file_dma_stage_reset();
     }
+#endif
+    #ifndef OF_PC
+    /* Fallback is one ini line: DISC_IDLE_HOOK=0 puts the build back on the path every earlier release ran
+     * (docs/404's rule that the safe route stays one keystroke away). */
+    if (of_setting_disc_idle_hook()) {
+        of_cdda_set_disc_busy_cb(disc_busy_cb);
+        of_file_set_idle_hook(disc_idle_hook);
+    }
+    NLOG("disc_idle_hook=%d registered=%d\n", of_setting_disc_idle_hook(), of_setting_disc_idle_hook() ? 1 : 0);
 #endif
         NLOG("palette_after_flip=%d (1 = upload the 256-entry palette just after of_video_flip(); 0 = before the "
          "copy, which shows the old picture in the new palette for up to a copy-time every fade frame)\n",

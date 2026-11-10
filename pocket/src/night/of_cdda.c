@@ -64,6 +64,7 @@
                                                             * = 65 536 B, docs/403) and the sync fread takes the same: at 12 the card still paid ~50
                                                             * ops a second for the 75 sectors/s it owes, and the OP costs (docs/406). */
 static int g_batch = CD_BATCH_MAX;
+static void (*g_busy_cb)(int);   /* 1 = our blocking CD read is in flight (docs/426) */
 #define CD_MIN_WANT_MAX   12
 /* The ceiling is a decision, not a leftover, and docs/420 is the evidence: with the cap lifted to CD_BATCH_MAX
  * (27) and DISC_MIN_WANT=27, the same 2000-frame route read 233 operations covering 2772 sectors where the
@@ -525,6 +526,8 @@ void of_cdda_set_min_want(int n) {                          /* docs/375 3: 1 = r
 #endif
 }
 
+void of_cdda_set_disc_busy_cb(void (*cb)(int)) { g_busy_cb = cb; }
+
 void of_cdda_set_read_batch(int n) {                          /* docs/375: 1 = the old one-sector reads, 12 = the shipping batch */
     g_batch = (n < 1) ? 1 : (n > CD_BATCH_MAX) ? CD_BATCH_MAX : n;
     printf("cdda: disc read batch = %d sectors per slot read\n", g_batch);
@@ -684,7 +687,10 @@ static uint32_t fill_sectors_raw(uint32_t sectors) {
             if ((s % (uint32_t)g_batch) == 0) {
                 uint32_t n = sectors - s;
                 if (n > (uint32_t)g_batch) n = (uint32_t)g_batch;
-                if (of_disc_read_audio_run(g_lba + g_pos, batch, n) != 0) { g_read_failed = 1; return frames; }
+                if (g_busy_cb) g_busy_cb(1);
+                int rd = of_disc_read_audio_run(g_lba + g_pos, batch, n);
+                if (g_busy_cb) g_busy_cb(0);
+                if (rd != 0) { g_read_failed = 1; return frames; }
             } else {
                 raw = batch + (s % (uint32_t)g_batch) * 2352;
             }

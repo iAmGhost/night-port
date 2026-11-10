@@ -49,7 +49,11 @@ int16_t of_gain16(int16_t x, int gain_pct);
 void    of_cdda_set_gain(int pct);
 void    of_cdda_set_prefill_first(int n); /* night.ini DISC_PREFILL_FIRST: sectors read before the voices start (12..300) */
 void    of_cdda_set_min_want(int n);     /* night.ini DISC_MIN_WANT: sectors of allowance to accumulate before a read (1..12) */
-void    of_cdda_set_read_batch(int n);    /* night.ini DISC_BATCH=: sectors per slot read, 1..12 (docs/375) */        /* 100 = unity, the disc exactly as recorded */
+void    of_cdda_set_read_batch(int n);
+
+/* 1 just before the per-frame blocking CD read, 0 just after, so the host knows WHICH blocking read is in
+ * flight: the OS idle hook must not present during a resource load, which can land mid-draw (docs/426). */
+void    of_cdda_set_disc_busy_cb(void (*cb)(int busy));    /* night.ini DISC_BATCH=: sectors per slot read, 1..12 (docs/375) */        /* 100 = unity, the disc exactly as recorded */
 
 #endif /* NIGHT_OF_CDDA_H */
 int32_t  of_cdda_head(void);      /* write cursor lead over the mixer voice, ring frames */

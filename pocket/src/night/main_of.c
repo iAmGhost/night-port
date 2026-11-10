@@ -467,6 +467,8 @@ static uint32_t g_present_cap_skips, g_hold_max_ms, g_hold_ms;
 static int g_pal_pending;                 /* the held palette != the panel's palette (docs/445) */
 static uint32_t g_present_noflip;         /* skips that also skipped the flip -- docs/445 */
 static uint32_t g_wrote, g_flipped, g_flip_nowrite;   /* docs/446 invariant counters */
+static uint32_t g_present_visits;                 /* presents that got past the cap -- docs/447 */
+static uint32_t g_hw_visits, g_hw_noflip, g_hw_rc, g_hw_rb, g_hw_dr, g_hw_logged;
 static uint64_t g_last_present_done_us, g_last_visual_us;   /* docs/440: guest clock reads -- between visits or within one? */
 static uint64_t g_pal_ramp_t0;
 static uint32_t g_pal_ramp_stalls;   /* runs = times the fade check ran at all (docs/437) */
@@ -910,6 +912,7 @@ static void present_step(uint64_t now) {
         g_last_frame_us = t0;
         g_stall_logged_us = 0;                /* a present ends the current stall's story */
         g_in_present = 1;
+        g_present_visits++;                 /* docs/447: did ANYTHING ask to be shown during the hold? */
         uint32_t skips_before = g_present_skips;
         present();
         g_in_present = 0;
@@ -921,8 +924,36 @@ static void present_step(uint64_t now) {
                 uint32_t hm = (uint32_t)((t0 - g_last_visual_us) / 1000ull);
                 if (hm > g_hold_ms) g_hold_ms = hm;
                 if (hm > g_hold_max_ms) g_hold_max_ms = hm;
+                /* docs/447: "the panel showed nothing new for N ms" is the right quantity to care about and
+                 * the wrong one to act on, because two opposite causes reach it -- a card SITTING (the game
+                 * presenting identical frames, which is what the original does for 6.0-6.5 s) and a STALL
+                 * (the game blocked on disc reads, presenting nothing at all). They need opposite fixes: one
+                 * is trimmed with DELAY_US, the other is not a defect (docs/435). So a long hold now names
+                 * its own kind at the moment it ends, with the read counts to prove it. Rare by construction
+                 * (>= 1500 ms) and cheap when it fires. */
+                if (hm >= 1500u) {
+                    uint32_t rc = 0, rb = 0, rn = 0, dr = 0, dmx = 0, dby = 0, dsk = 0, dfl = 0, dsec = 0;
+                    uint64_t dus = 0;
+                    sys_file_io_stats(&rc, &rb, &rn, 0);
+                    of_disc_stats(&dr, &dus, &dmx, &dby, &dsk, &dfl, &dsec);
+                    uint32_t dv = g_present_visits - g_hw_visits;
+                    if (g_hw_logged < 12u) {
+                        g_hw_logged++;
+                        NLOG("HOLD %.2f s %s | presents=%u noflip=%u | res=%s seq=%u"
+                             " | res_calls=+%u res_kb=+%u | disc ops=+%u sectors=+%u\n",
+                             (double)hm / 1000.0,
+                             dv == 0u ? "= STALL (nothing asked to be shown)"
+                                      : "= CARD SITTING (presented, nothing new to show)",
+                             dv, g_present_noflip - g_hw_noflip, g_res_trace, g_res_trace_seq,
+                             rc - g_hw_rc, (rb - g_hw_rb) / 1024u, dr - g_hw_dr, dsec);
+                    }
+                }
             }
             g_last_visual_us = t0;
+            g_hw_visits = g_present_visits; g_hw_noflip = g_present_noflip;
+            { uint32_t a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0, h = 0, i = 0; uint64_t u = 0;
+              sys_file_io_stats(&a, &b, &c, 0); of_disc_stats(&d, &u, &e, &f, &g, &h, &i);
+              g_hw_rc = a; g_hw_rb = b; g_hw_dr = d; }
         }
         g_last_present_done_us = sys_now_us();
         uint32_t d = (uint32_t)(sys_now_us() - t0);

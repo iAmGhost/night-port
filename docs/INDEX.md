@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–440)
+## The Pocket port (docs/330–441)
 
 ### Port plan and host layer
 
@@ -76,6 +76,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>The user's report after the `0.2.7` boot: slow wait on the logo is back, animation a bit slower. Their eye was</sub>
 - **440** — the holds are paced by what a poll costs, and during a hold the whole second is the *decision*, not the copy
   <sub>The player's report on `0.2.14`: no graphical glitch, fade looks right — and "long logo hold and long intro</sub>
+- **441** — `clkmax=1` all run: the pump is inside the wait loop, so I can finally pay the game its real per-read time
+  <sub>`0.2.15` asked one question (docs/440): are the guest's clock reads consumed **between** pump visits or</sub>
 
 ### Video and display
 

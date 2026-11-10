@@ -452,7 +452,19 @@ static uint32_t g_pal_from[256], g_pal_target[256], g_pal_shown[256];
 static uint32_t g_pal_ramp_n, g_pal_ramp_k;     /* n = steps in this ramp, k = steps played so far */
 static uint32_t g_pal_ramp_arms, g_pal_ramp_steps, g_pal_writes_last, g_pal_ramp_dw_max;
 static uint32_t g_pal_ramp_runs, g_pal_w_last, g_pal_dw_last;
-static uint32_t g_clk_last, g_clk_maxvisit;   /* docs/440: guest clock reads -- between visits or within one? */
+static uint32_t g_clk_last, g_clk_maxvisit;
+/* docs/441: two things this measurement forces.
+ *
+ * (1) A DISPLAY CADENCE CAP. clkmax=1 across the whole run says every guest clock read inside delay_units()
+ * comes with a pump visit, so a hold's wall length is (reads) x (what one poll costs) -- and today even a
+ * SKIPPED poll costs ~30.7 ms, because the decision to skip reads the whole 307 KB surface. Capping the
+ * display path means a capped visit does no display work at all: no hash, no copy, no palette. That is the
+ * precondition for paying the game its honest per-read time.
+ * (2) A HOLD METER. The user's complaint is a duration, and until now every hold number I have quoted came
+ * from a witness-frame count or an arithmetic argument. holdms is the longest stretch between two presents
+ * that actually put something new on the panel, which is what "long logo hold" means in seconds. */
+static uint32_t g_present_cap_skips, g_hold_max_ms, g_hold_ms;
+static uint64_t g_last_present_done_us, g_last_visual_us;   /* docs/440: guest clock reads -- between visits or within one? */
 static uint64_t g_pal_ramp_t0;
 static uint32_t g_pal_ramp_stalls;   /* runs = times the fade check ran at all (docs/437) */
 static uint32_t g_pal_ramp_last_n;
@@ -876,6 +888,13 @@ HOTPRESENT /* the frame copy, the palette push and the flip: 59 times a second *
 /* The present step, shared by the main loop and by the SD idle hook, so a frame presented from the hook is
  * indistinguishable in the log from one presented by the loop: same timings, same counters, same cadence. */
 static void present_step(uint64_t now) {
+        /* A capped visit does NO display work -- not "present, but skip the copy". The skip decision itself
+         * is the 30 ms (docs/440), so a cap that still hashes would cap nothing. */
+        if (of_setting_present_cap_ms() && g_last_present_done_us &&
+            now - g_last_present_done_us < (uint64_t)of_setting_present_cap_ms() * 1000ull) {
+            g_present_cap_skips++;
+            return;
+        }
         uint64_t t0 = sys_now_us();
         if (g_last_frame_us) {                       /* the gap the panel actually felt (docs/431) */
             uint64_t gap = t0 - g_last_frame_us;
@@ -884,8 +903,21 @@ static void present_step(uint64_t now) {
         g_last_frame_us = t0;
         g_stall_logged_us = 0;                /* a present ends the current stall's story */
         g_in_present = 1;
+        uint32_t skips_before = g_present_skips;
         present();
         g_in_present = 0;
+        /* A hold, measured: the longest stretch since a present that was NOT a skip -- i.e. since the panel
+         * last received something new. PRESENT_SKIP makes skipped frames invisible, which is exactly what a
+         * held card is; holdms turns that into the duration the player is complaining about. */
+        if (g_present_skips == skips_before) {
+            if (g_last_visual_us) {
+                uint32_t hm = (uint32_t)((t0 - g_last_visual_us) / 1000ull);
+                if (hm > g_hold_ms) g_hold_ms = hm;
+                if (hm > g_hold_max_ms) g_hold_max_ms = hm;
+            }
+            g_last_visual_us = t0;
+        }
+        g_last_present_done_us = sys_now_us();
         uint32_t d = (uint32_t)(sys_now_us() - t0);
         if (d > g_present_us_max) g_present_us_max = d;
         g_present_us = d;
@@ -2791,12 +2823,14 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                     sys_file_io_stats(&r_calls, &r_bytes, &r_max, 0);
                     uint64_t acc = pres + pump + disc + aud;
                     NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums aud=%ums rest=%ums"
-                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u\n",
+                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u cap=%u hold=%ums max=%ums\n",
                          (unsigned)(wall / 1000ull), (unsigned)(pump / 1000ull), (unsigned)(pres / 1000ull),
                          (unsigned)(disc / 1000ull), (unsigned)(aud / 1000ull),
                          (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), g_frames, g_pump_calls,
                          r_calls, r_bytes / 1024u,
-                         sys_clock_read_count, g_clk_maxvisit);
+                         sys_clock_read_count, g_clk_maxvisit,
+                         g_present_cap_skips, g_hold_ms, g_hold_max_ms);
+                g_hold_ms = 0;   /* per-second: hold durations are localized, not cumulative */
                 }
                 NLOG("budget present n=%u mean=%uus max=%uus | disc ops=%u sectors=%u mean_op=%uus max_op=%uus"
                      " mean_sector=%uus seeks=%u fails=%u kb=%u"

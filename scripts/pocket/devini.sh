@@ -34,6 +34,9 @@ KNOBS=(
 #                    # unless a fast-hash build (0.2.9+) beats ROW_SKIP=0 on the same route
   "FADE_RAMP=1"  # docs/436: the original fades INTO stage 1 (26.5->43.8->78.2->95.4 mean lum);
 #                    # the port cut straight to full. Panel-side ramp, armed off the game's own DAC writes.
+  "PRESENT_CAP_MS=25"  # docs/441: hold wall-time = reads x poll cost; cap the DISPLAY path so a poll inside
+#                    # delay_units() is not charged a 30 ms surface scan...
+  "DELAY_US=500"       # ...and then pay the original's measured ~0.50 ms per guest clock read (docs/416/440)
   "CDDA_STOP_FIX=0"
 )
 

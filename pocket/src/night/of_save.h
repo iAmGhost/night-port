@@ -86,6 +86,7 @@ int  of_setting_blit_skip(void);
 int  of_setting_present_skip(void);
 int  of_setting_row_skip(void);
 int  of_setting_stall_ms(void);
+int  of_setting_fade_ramp(void);
 int  of_setting_palette_after_flip(void);
 int  of_setting_fdump(void);
 int  of_setting_disc_idle_hook(void);   /* 1 = present frames while the CD read waits on SD DMA (docs/426) */        /* 0 off, 1 L1+Up arms the trace, 2 auto-arm at stage entry (docs/424) */  /* 1 = upload the palette just after flip, not a copy-time before it (docs/422) */   /* 1 = skip the copy when a FULL-surface hash says nothing changed (docs/416); 0 = the sampled test only */

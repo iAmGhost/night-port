@@ -59,6 +59,7 @@
 #endif
 
 #include "of_save.h"
+#include "of_pal_ramp.h"
 #include "of_log.h"
 
 #include "of.h"
@@ -268,6 +269,10 @@ static int surface_buffer_index(const uint8_t *p) {
     return 0;
 }
 
+/* declared with the rest of the palette state below; applied_refresh() needs to see it to drop a ramp in
+ * flight when the display path is re-programmed (docs/436). */
+static uint32_t g_pal_ramp_n;
+
 static void applied_refresh(void) {
 #ifndef OF_PC
     of_video_mode_t cur;
@@ -275,6 +280,7 @@ static void applied_refresh(void) {
     if (cur.width && cur.height) {
         g_applied_w = cur.width; g_applied_h = cur.height;
         g_applied_stride = cur.stride ? cur.stride : cur.width;
+        g_pal_ramp_n = 0;                 /* ...and a ramp in flight no longer describes the panel (docs/436)
         g_pal_force = 1;                  /* re-programming the display path can drop the palette (docs/399) */
         rowhash_invalidate(NULL);           /* ...same reason the row-hash tables die here (docs/430) */
         g_hash_proven = 0;                  /* ...and may have swapped the buffers we are about to trust (docs/400) */
@@ -378,6 +384,7 @@ static uint32_t on_terminate(uint32_t a) {
  * writes a byte above 63 (docs/77), so a 6-bit table is scaled the way a DAC scales it -- the same
  * arithmetic src/app/main.c:129-135 uses, which is the basis the port-vs-original comparisons stand on. */
 static uint32_t g_pal_pushes, g_pal_push_skips;
+static uint32_t g_pal_ramp_buf[256];  /* the interpolated table, uploaded instead of the target while a ramp runs */
 static uint32_t g_pal_hash_last;   /* the full-coverage palette hash as of the last present (docs/424) */   /* how often the 256-word palette upload actually ran */
 HOTPRESENT /* the palette upload the indexed picture depends on, once per present */
 /* docs/426: the SD idle hook.  of_file.h: "Register a hook invoked while a BLOCKING file read waits on its
@@ -422,6 +429,34 @@ static void disc_idle_hook(void) {
 }
 #endif
 
+/* ---- palette fade ramp (docs/436) --------------------------------------------------------------------
+ * fn_040660 / fn_0406f5 (f.c:348, 376) program the VGA DAC 50 times in a tight loop with no wait and no
+ * yield, so on the Pocket the whole fade lands BETWEEN two presents and only the LAST table is ever
+ * uploaded: the panel goes black -> full in one frame. The original does not do that. Measured off the
+ * container's own captures at the same moment (stage entry, docs/436), its mean luminance runs
+ * 26.5 -> 43.8 -> 78.2 -> 95.4 over about 0.6 s -- a ramp, caught mid-flight by a 4 Hz sampler.
+ *
+ * We cannot yield inside the fade loop: it runs inside one pump visit, and presenting from there re-enters
+ * the display path -- the exact hazard docs/426 established. So the ramp lives on the panel side. When the
+ * DAC write counter jumps by a whole fade's worth between two presents, the palette moved from one table to
+ * another; play that move back over as many retraces as the game itself wrote STEPS. The count is DERIVED
+ * (sys_vga_palette_writes() counts 3 per entry set, so a full-table step is 768), because the step count is
+ * the one quantity the game actually declared: it said 50.
+ *
+ * Device-only, on purpose: this exists to fix a device-visible number, and the desktop shim is the
+ * measurement basis (docs/407). The interpolation is a pure function so the math that cannot be seen from
+ * the shim is at least testable on its own (scripts/pocket/test_pal_ramp.c). */
+static uint32_t g_pal_from[256], g_pal_target[256], g_pal_shown[256];
+static uint32_t g_pal_ramp_n, g_pal_ramp_k;     /* n = steps in this ramp, k = steps played so far */
+static uint32_t g_pal_ramp_arms, g_pal_ramp_steps, g_pal_writes_last, g_pal_ramp_dw_max;
+static uint32_t g_pal_ramp_last_n;
+
+/* A fade is declared, not guessed: the game writes the whole (or a large part of the) table dozens of times
+ * between two presents. Gameplay palette tweaks are a handful of entries. >= FADE_MIN_STEPS full-table
+ * steps in one present interval is a fade; 4 steps is 3 072 DAC writes, and no gameplay tweak gets there. */
+#define FADE_MIN_STEPS 4u
+#define FADE_MAX_STEPS 60u    /* a 50-step fade is the shipped case; 60 bounds a pathological one */
+
 static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     sys_vga_palette(g_pal_rgb);
     if (sys_vga_dac_max() <= 63)
@@ -443,6 +478,38 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     of_video_palette_bulk(g_pal32, 256);
 #else
     static uint32_t g_pal_hash;
+    /* Is this present the tail of a fade? Derive the step count from the game's own DAC traffic. */
+    uint32_t w_now = sys_vga_palette_writes();
+    uint32_t dw = w_now - g_pal_writes_last;
+    g_pal_writes_last = w_now;
+    uint32_t steps = dw / 768u;                       /* 3 writes per entry set -> 768 per full-table step */
+    if (of_setting_fade_ramp() && steps >= FADE_MIN_STEPS) {
+        memcpy(g_pal_from, g_pal_shown, sizeof g_pal_from);      /* from = what the panel is showing NOW */
+        memcpy(g_pal_target, g_pal32, sizeof g_pal_target);      /* to   = where the game wants it */
+        g_pal_ramp_n = steps > FADE_MAX_STEPS ? FADE_MAX_STEPS : steps;
+        g_pal_ramp_k = 0;
+        g_pal_ramp_arms++;
+        g_pal_ramp_last_n = g_pal_ramp_n;
+        if (dw > g_pal_ramp_dw_max) g_pal_ramp_dw_max = dw;
+        if (g_pal_ramp_arms <= 12u)
+            NLOG("fade ramp: n=%u (dac writes=%u since last present) from black=%s\n", g_pal_ramp_n, dw,
+                 (g_pal_from[0] | g_pal_from[1] | g_pal_from[2]) == 0u ? "yes" : "no");
+    }
+    if (g_pal_ramp_n && g_pal_ramp_k < g_pal_ramp_n) {
+        g_pal_ramp_k++; g_pal_ramp_steps++;
+        pal_ramp_step(g_pal_from, g_pal_target, g_pal_ramp_k, g_pal_ramp_n, g_pal_ramp_buf);
+        memcpy(g_pal_shown, g_pal_ramp_buf, sizeof g_pal_shown);
+        of_video_palette_bulk(g_pal_ramp_buf, 256);
+        g_pal_pushes++;
+        if (g_pal_ramp_k >= g_pal_ramp_n) {
+            g_pal_ramp_n = 0;
+            uint32_t hh2 = 2166136261u;               /* land exactly, and re-seed the hash with the truth */
+            for (int i = 0; i < 256; i++) { hh2 ^= g_pal32[i]; hh2 *= 16777619u; }
+            g_pal_hash = hh2;
+            g_pal_hash_last = hh2;
+        }
+        return 1;
+    }
     uint32_t h = 2166136261u;
     /* All 256 entries. The first cut stepped i += 7, so it hashed 37 of the 256 (docs/422): a fade that ramps
      * entries the sampler misses leaves the hash unchanged, the upload is skipped, and the panel keeps the old
@@ -454,6 +521,7 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
         g_pal_hash = h;
         g_pal_force = 0;
         of_video_palette_bulk(g_pal32, 256);
+        memcpy(g_pal_shown, g_pal32, sizeof g_pal_shown);        /* the ramp starts from what is on screen */
         g_pal_pushes++;
         return 1;
     }
@@ -2622,10 +2690,12 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
             }
 #endif
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)"
-                 " | rows c=%u s=%u fs=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u\n",
+                 " | rows c=%u s=%u fs=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u"
+                 " | fade arms=%u steps=%u n=%u\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
                  g_hash_skips, g_smp_skips, g_row_copied, g_row_same, g_row_frameskip, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
-                 g_br_native, g_br_game, g_br_down, g_br_other);
+                 g_br_native, g_br_game, g_br_down, g_br_other,
+                 g_pal_ramp_arms, g_pal_ramp_steps, g_pal_ramp_last_n);
 #ifndef OF_PC
             NLOG("idle hook: presents=%u\n", g_hook_presents);
 #endif

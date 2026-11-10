@@ -32,6 +32,8 @@ KNOBS=(
   "DISC_IDLE_HOOK=1"
   "ROW_SKIP=0"    # MEASURED A LOSS on 0.2.8 hardware (30.1 ms static frame, 85% rows skipped): keep off
 #                    # unless a fast-hash build (0.2.9+) beats ROW_SKIP=0 on the same route
+  "FADE_RAMP=1"  # docs/436: the original fades INTO stage 1 (26.5->43.8->78.2->95.4 mean lum);
+#                    # the port cut straight to full. Panel-side ramp, armed off the game's own DAC writes.
   "CDDA_STOP_FIX=0"
 )
 

@@ -60,3 +60,38 @@ case never appears and the run answers nothing.
 
 The reads in the witness make the third row checkable rather than rhetorical: `res_calls=+N` over the window,
 divided by its length, is directly comparable to the original's per-read pacing on the same card (docs/416).
+
+## 5. Closed by measurement and by the player: `DELAY_US` is not moved
+
+`0.2.21` on the card, long run (`...020111-0.2.21-hold-kinds.log`). Every long hold classified itself, and
+**none of them were stalls**:
+
+```
+HOLD  4.77 s CARD SITTING | presents=91  noflip=40  | res=opening.fli | res_calls=+1   | disc ops=+6
+HOLD  4.55 s CARD SITTING | presents=30  noflip=4   | res=1s1.pcx     | res_calls=+395 res_kb=+2362
+HOLD 22.34 s CARD SITTING | presents=530 noflip=508 | res=1s2.pcx     | res_calls=+85  | disc ops=+138
+HOLD  6.81 s CARD SITTING | presents=145 noflip=121 | res=1s3.pcx     | res_calls=+86  | disc ops=+39
+HOLD  2.44 s CARD SITTING | presents=39  noflip=17  | res=stage1.pcx
+HOLD  5.46 s CARD SITTING | presents=112 noflip=64  | res=stage1.pcx
+docs/446 invariant: OK -- flipnw=0, noflip reached 874
+```
+
+The middle row is the one that settles the comparison: our `1s2.pcx` card sits **22.34 s**, and the original
+holds a static card **20.62 s** at the same place in the route (docs/435) — about 8 % long on a 22-second
+quantity, on a card the original itself parks on. `1s3` is 6.81 s against the original's 6.0–6.5 s (docs/416).
+The `1s1` row shows what the reads look like when they are *not* the problem: 395 calls and 2 362 KB moved
+inside a hold during which the game kept presenting.
+
+> *"i think stage card animation speed is acceptable state."*
+
+That is the player's verdict and the numbers do not argue with it. **`DELAY_US` stays as it ships: 500 on the
+dev card, 0 in the release ini. The hold thread is closed, and the fade thread with it** (docs/444's table:
+612–892 ms against the original's 600–830 ms). No trim, no rebuild, no further boots spent on it.
+
+**The witness's own caveat, since I quoted it.** `presents` runs 20–50 ahead of `noflip` in every long row.
+That is not a flip happening inside a window that is defined as flip-free; `g_present_visits` counts visits
+that returned from `present()` at the `OFF_PRESENT` gate (`main_of.c:976`) or the empty-view gate (`:990`) and
+so never reached the flip decision. The classification rule is unaffected — a true stall has `presents=0`,
+and nothing in this log looked like that — but the `presents` column is "visits that got past the cap", not
+"frames the panel was offered". I have not counted which of the two gates dominates, and this thread does not
+need it.

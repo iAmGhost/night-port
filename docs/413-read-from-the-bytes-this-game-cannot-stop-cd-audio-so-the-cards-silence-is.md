@@ -127,6 +127,32 @@ re-running: two-host audio diffs (docs/365) and CD-DA-vs-container comparisons (
 fixture suite is unaffected -- the gate defaults to 0 inside `sys.c`, so `test_f1` sees the old behaviour
 until a host turns it on (`make test` ALL PASS).
 
+## Confirmed on hardware -- and the hold costs 2.4x more wall time on the Pocket
+
+Player confirmed the behaviour on a 0.1.93 boot. The card log (`Saves/night/common/nightlog.sav`, read forward
+from the boot marker per docs/402) stamps it:
+
+```
+cdda EVENT play  idx=11 lba=223146 tick=21580      <- the introduction track
+cdda EVENT stop  tick=24236 by=card-rule           <- the card is up; the rule fired
+cdda card stop: stage1.pcx on screen, no CD call since 0x03b130 ...
+cdda EVENT stop  tick=28130 by=port-bookkeeping
+cdda EVENT play  idx=2  lba=40415  tick=28130      <- the stage's own track
+```
+
+The attribution works (`by=card-rule` appears exactly once, the 7 video-mode sites report
+`by=port-bookkeeping`), and `pit=490 Hz` on the boot's own `memstat` line makes the tick unit wall time:
+**the quiet stretch is 3894 / 490 = 7.95 s on the device.**
+
+That is 2.4x the desktop's 3.29 s for the same `0xc00 delay_units(1)` hold, which is the same ratio docs/411
+measured independently on a different phase (8.1 s on the device against 2.6 s on the desktop for the
+opening). The two are consistent, and both point at the same thing: the hold is a loop of DOS clock reads, and
+a clock read costs more wall time on the Pocket than here. So the *rule* is right and the *length* is not
+host-independent. If the original's card is around 3 s, the Pocket now sits in silence roughly 8 s per
+episode -- audible, and the lever is the cost of that loop, not this stop. Nobody has measured the
+original's number for this window (docs/377's route has never been run for its audio), so the ear is still
+the only evidence for what the right length is.
+
 ## Left open
 
 - **Was the original silent at all, and for how long?** This is the assumption the whole change rests on, and

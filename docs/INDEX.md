@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–433)
+## The Pocket port (docs/330–434)
 
 ### Port plan and host layer
 
@@ -103,6 +103,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Reported from the hardware: "flicker while starting stage-1 (fade-in)", on `0.2.0` with `CDDA_STOP_FIX=0`.</sub>
 - **430** — the surface costs ~23 cycles per word, so the next thing to ship is fewer words (`ROW_SKIP`)
   <sub>docs/429 said 70% of a run is inside `present()`. This turn chased what that means and ended with a feature</sub>
+- **434** — the stall has a name: the port stops presenting while it loads a stage, and the load is ~6 MB at ~2.5 MB/s
+  <sub>`0.2.10`'s witness line fired on real hardware, and it answered the question in six lines:</sub>
 
 ### Settings, menu, interact
 

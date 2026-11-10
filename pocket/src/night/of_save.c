@@ -200,7 +200,8 @@ static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain
                                            * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
 static int      g_present_skip = 1;
-static int      g_palette_after_flip = 0;   /* hardware-proven: 41.0 s -> 6.0 s logo hold, no visual defect (docs/422) */
+static int      g_palette_after_flip = 0;
+static int      g_fdump = 0;   /* 0 off, 1 L1+Up, 2 auto-arm at stage entry (docs/424) */   /* hardware-proven: 41.0 s -> 6.0 s logo hold, no visual defect (docs/422) */
 static int      g_delay_us = 0;
 static int      g_cdda_stop_fix = 1;  /* 1 = keep the invented stop at fn_000405a7 (INT 10h AX=0013, docs/413); 0 = do not stop CD-DA there, which is what the original can do */     /* 0 = leave f.c's g_delay_unit_us (500) alone. The original's own per-clock-read cost measures 1.27 ms on the card hold and 1.89 ms on the logo hold (docs/417), so a device that copies less per frame can also afford to wait longer per read. */   /* 1 = a full-surface hash decides whether the copy runs; the sampled 64-byte test below it can miss a small move (docs/416) */
 static int      g_disc_async = 1;   /* 1 = feed the ring with double-buffered async reads (docs/403); 0 = the synchronous read shape */
@@ -509,6 +510,7 @@ void of_settings_load(void) {
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_present_skip = cfg_int("present_skip", 1, "NIGHT_PRESENT_SKIP");
     g_palette_after_flip = cfg_int("palette_after_flip", 0, "NIGHT_PALETTE_AFTER_FLIP");
+    g_fdump = cfg_int("fdump", 0, "NIGHT_FDUMP");
     g_delay_us = cfg_int("delay_us", 0, "NIGHT_DELAY_US");
     g_cdda_stop_fix = cfg_int("cdda_stop_fix", 1, "NIGHT_CDDA_STOP_FIX");
     g_blit_dirty = cfg_int("blit_dirty",  1, "NIGHT_BLIT_DIRTY");
@@ -635,6 +637,7 @@ int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_present_skip(void) { return g_present_skip; }
 int  of_setting_palette_after_flip(void) { return g_palette_after_flip; }
+int  of_setting_fdump(void) { return g_fdump; }
 int  of_setting_delay_us(void) { return g_delay_us; }
 int  of_setting_cdda_stop_fix(void) { return g_cdda_stop_fix; }
 int  of_setting_blit_dirty(void) { return g_blit_dirty; }

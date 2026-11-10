@@ -2170,6 +2170,19 @@ static void __attribute__((noinline)) save_pump(void) {
  * L1 is F1 to the game and Select/Start are Esc/Enter, so the combo also reaches the shipped key state --
  * that is unavoidable on 11 buttons and is why the game sees a pause-menu key press on a save. */
 static void pad_combo(void) {
+    /* One-shot, so a missing combo is distinguishable from a missing call.  docs/425: 0.2.2 armed nothing on
+     * hardware and there was no evidence of which half failed -- the buttons never arriving, or the combo
+     * never being reached. */
+    static int combo_seen_logged;
+    if (!combo_seen_logged) {
+        int l1 = pad_script_held(OF_BTN_L1) || of_btn(OF_BTN_L1);
+        int se = pad_script_held(OF_BTN_SELECT) || of_btn(OF_BTN_SELECT);
+        int st = pad_script_held(OF_BTN_START) || of_btn(OF_BTN_START);
+        if (l1 || se || st) {
+            combo_seen_logged = 1;
+            NLOG("combo: first combo-button seen l1=%d select=%d start=%d\n", l1, se, st);
+        }
+    }
     if (!pad_script_held(OF_BTN_L1) && !of_btn(OF_BTN_L1)) return;
     static uint8_t seen_select, seen_start, seen_a, seen_b;
     /* L1 + Up traces the next FDUMP_FRAMES presents into the log (docs/424).  Up is an arrow key to the game,
@@ -2300,6 +2313,16 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 NLOG("video CHANGED: view=%d %dx%d (was %d %dx%d)\n",
                      g_view_320x200, vw, vh, g_view_prev, g_vw_prev, g_vh_prev);
                 g_view_prev = g_view_320x200; g_vw_prev = vw; g_vh_prev = vh;
+#ifndef OF_PC
+                /* FDUMP=2 arms the fade trace at the mode change INTO a stage.  0.2.2's L1+Up trace produced
+                 * ZERO lines on hardware (docs/425): four deliberate operations, at the one moment the eye is
+                 * watching a screen change, on a pad with 11 buttons.  The mode change is the same moment and
+                 * needs nobody. */
+                if (g_view_320x200 && of_setting_fdump() == 2) {
+                    g_fdump_left = FDUMP_FRAMES; g_fdump_have_prev = 0;
+                    NLOG("fdump: auto-armed %d presents at stage entry (fdump=2)\n", FDUMP_FRAMES);
+                }
+#endif
             }
 #ifndef OF_PC
             if (g_view_320x200) geo_witness("view");      /* only while the 320x200 picture is up: that is where
@@ -2806,7 +2829,17 @@ int main(int argc, char **argv) {
     NLOG("present_skip=%d blit_skip=%d (1 = skip the copy when a FULL-surface hash matches the picture three "
          "display buffers already hold; 0 = copy every frame)\n",
          of_setting_present_skip(), of_setting_blit_skip());
-    NLOG("palette_after_flip=%d (1 = upload the 256-entry palette just after of_video_flip(); 0 = before the "
+#ifndef OF_PC
+    if (of_setting_diag() & OF_DIAG_FILECAPS) {
+        void *stage = of_file_dma_stage_alloc(65536u, 64u);
+        NLOG("filecaps: svc_count=%u idle_hook=%d async_max=%u dma_stage_total=%u stage64k=%p busy=%d\n",
+             OF_SVC->count,
+             (OF_SVC->count > OF_FILE_SVC_INDEX(file_set_idle_hook) && OF_SVC->file_set_idle_hook) ? 1 : 0,
+             of_file_async_max_read(), of_file_dma_stage_size(), stage, of_file_async_busy());
+        (void)of_file_dma_stage_reset();
+    }
+#endif
+        NLOG("palette_after_flip=%d (1 = upload the 256-entry palette just after of_video_flip(); 0 = before the "
          "copy, which shows the old picture in the new palette for up to a copy-time every fade frame)\n",
          of_setting_palette_after_flip());
     /* delay_units() paces one busy-wait per clock read at this many microseconds (f.c:11385, 500 by default).

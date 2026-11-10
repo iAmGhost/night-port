@@ -78,12 +78,14 @@ int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG
 /* The boot-time file probe wrote 17 bytes into night_6.sav -- a *player save slot* -- on every boot, unconditionally.
  * The card proves it: the file reappeared at 14:09 on 2026-11-06 with "NIGHT-PROBE-0001" after being deleted (docs/394).
  * It is now opt-in and it no longer writes to any save slot. */
+#define OF_DIAG_FILECAPS  128   /* one boot-time query of the file service: idle hook, async caps (docs/425) */
 #define OF_DIAG_PANEL       64    /* the 1 Hz text panel in OVERLAY mode -- off by default, it flickers the picture (docs/422) */
 #define OF_DIAG_SURFHASH    32    /* one timed full pass over the game surface at boot: the price of a sound change test (docs/416) */
 #define OF_DIAG_FILEPROBE   16    /* the read-only file-layer probe: slot find + readdir, no writes at all */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);
 int  of_setting_present_skip(void);
-int  of_setting_palette_after_flip(void);  /* 1 = upload the palette just after flip, not a copy-time before it (docs/422) */   /* 1 = skip the copy when a FULL-surface hash says nothing changed (docs/416); 0 = the sampled test only */
+int  of_setting_palette_after_flip(void);
+int  of_setting_fdump(void);        /* 0 off, 1 L1+Up arms the trace, 2 auto-arm at stage entry (docs/424) */  /* 1 = upload the palette just after flip, not a copy-time before it (docs/422) */   /* 1 = skip the copy when a FULL-surface hash says nothing changed (docs/416); 0 = the sampled test only */
 int  of_setting_delay_us(void);       /* 0 = f.c's own 500 us per delay_units() read; >0 overrides it (docs/417) */
 int  of_setting_cdda_stop_fix(void);    /* 1 = keep the invented CD stop at fn_000405a7; 0 = the original's shape (docs/413, docs/421) */
 int  of_setting_blit_dirty(void);

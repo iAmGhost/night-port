@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–424)
+## The Pocket port (docs/330–425)
 
 ### Port plan and host layer
 
@@ -68,6 +68,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>docs/413 proved from the bytes that `fn_000405a7` is `INT 10h AX=0013` — a video mode set — and that this game</sub>
 - **424** — the fade flicker is not the palette ordering; the shared logic fades clean, so the port now traces its own presents
   <sub>Boot D: `PALETTE_AFTER_FLIP=1` on hardware. **The flicker was unchanged.** So the ordering theory — the new</sub>
+- **425** — the stutter is blocking SD reads for the music feed (11.7 s of an 81 s run), and the OS turns out to have a hook for exactly that
+  <sub>Asked whether the ~1 s stutter was normal. It is not, and the log says why with its own numbers.</sub>
 
 ### Video and display
 

@@ -1,5 +1,11 @@
 # 415 — the original's stage-card hold is 3.91 s of real time, so the Pocket's 7.95 s is about double
 
+> **The measurement stands; the lever named at the end of this document does not.** 3.91 s for the original's card hold,
+> measured on the now-calibrated container route, is still the number. What it does NOT explain is the Pocket's 7.95 s:
+> `sys_clock_read()` is a counter (`src/sys/sys.c:442`), so a per-DOS-clock-read cost cannot be the gap. That gap is
+> ~6.4 s of 640x480 surface copies inside the hold -- see
+> [**docs/416**](416-the-pockets-holds-are-long-because-the-delay-loop-presents-a-640x480-surface.md).
+
 docs/413 left the question open and docs/414 said the container route could finally answer it (realtime factor
 1.000) but could not reach the card. It reached it on the fourth attempt, and the number is not the one the
 Pocket is using.

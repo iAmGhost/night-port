@@ -95,3 +95,33 @@ so never reached the flip decision. The classification rule is unaffected — a 
 and nothing in this log looked like that — but the `presents` column is "visits that got past the cap", not
 "frames the panel was offered". I have not counted which of the two gates dominates, and this thread does not
 need it.
+
+## 6. Correction: `1sN` card durations measure the PLAYER, not the game
+
+Asked whether the original advances these cards by itself, I went to the loop that shows them. `1s1/1s2/1s3.pcx`
+are the `%de%d.pcx` stage-slide cards of `room_end_slideshow()` (`f.c:28684`), and each iteration is:
+
+```c
+fn_03628e(name, 0);                 /* load and show "%de%d.pcx"            */
+fn_040660(g_dat_636b8, 0x19);       /* fade IN,  0x19 = 25 steps            */
+if (fn_00035dfc() == 1) { fn_0406f5(...); return; }   /* THE GAME-KEY WAIT; ESC aborts the loop */
+fn_0406f5(g_dat_636b8, 0x19);       /* fade OUT, 25 steps                  */
+```
+
+`fn_00035dfc` is the press-and-release gate (docs/231; its four latches are the measured press bytes
+`0x63ea4` enter, `0x63ea5` punch, `0x63ec0` kick, `0x63ec1` space, and the ESC latch returns 1 and unwinds to
+`hold`). So **the original does not auto-advance these cards.** Every one of them blocks until a game key.
+That is why both sides sat ~20 s: the port sat until the player pressed, and docs/435's original sat until
+its drive pressed. **The `22.34 s` vs `20.62 s` comparison above is therefore a measurement of when the human
+pressed, not of the game** — my "~8 % long" in §5 reads a person as a defect. The closing verdict is still
+right (nothing to fix), but for the reason that the quantity was never a fidelity metric.
+
+**The auto-advance you remembered is real, and it was the port being wrong.** From `f.c:1031`, the comment on
+this very function: *"The port stubbed this as a no-op returning 0, which is why every card of the stage
+slide-show auto-advanced (playtest item 3)."* That no-op was fixed in docs/231. Re-enabling auto-advance for a
+"cleaner" measurement would mean re-installing the bug — so I did not.
+
+What *is* per-card and comparable, and already measured: the two 25-step fades (612–892 ms here vs the
+original's 600–830 ms, docs/444) and the ESC-abort path. If a card *pacing* number is ever wanted, the honest
+instrument is a **fixed press cadence on both sides** (the scripted drives already do this: same key timings,
+same `wait res` anchors), not a flag that removes the press.

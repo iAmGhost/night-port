@@ -78,6 +78,7 @@ int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG
 /* The boot-time file probe wrote 17 bytes into night_6.sav -- a *player save slot* -- on every boot, unconditionally.
  * The card proves it: the file reappeared at 14:09 on 2026-11-06 with "NIGHT-PROBE-0001" after being deleted (docs/394).
  * It is now opt-in and it no longer writes to any save slot. */
+#define OF_DIAG_PANEL       64    /* the 1 Hz text panel in OVERLAY mode -- off by default, it flickers the picture (docs/422) */
 #define OF_DIAG_SURFHASH    32    /* one timed full pass over the game surface at boot: the price of a sound change test (docs/416) */
 #define OF_DIAG_FILEPROBE   16    /* the read-only file-layer probe: slot find + readdir, no writes at all */        /* Pocket LCD field only (bits 16-17), 0xDEADBEEU before a read */
 int  of_setting_blit_skip(void);

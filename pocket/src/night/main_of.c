@@ -423,6 +423,7 @@ static uint32_t g_smp_off[8192];
 static uint8_t g_smp_val[8192];
 static size_t g_smp_n, g_smp_geom;
 static unsigned g_skip_streak, g_present_skips;
+static unsigned g_hash_skips, g_smp_skips;    /* which mechanism decided to skip -- docs/422 */
 static void stage_max(uint32_t *mx, uint64_t d) { if (d > (uint64_t)*mx) *mx = (uint32_t)d; }
 
 /* Readout for the 40-column console.  A logo that the game never leaves and a game that moved on but is not
@@ -457,9 +458,14 @@ static void surfhash_probe(void) {
     const uint8_t *p = g_video_ram;
     uint32_t h = 2166136261u;
     uint64_t t0 = sys_now_us();
-    for (uint32_t i = 0; i < n; i += 4u) h = (h ^ p[i]) * 16777619u;            /* the stride is the read width */
+    /* Word reads, because that is the loop PRESENT_SKIP actually runs. The first cut of this probe stepped by 4
+     * and read ONE byte each step -- a quarter of the surface -- and then printed that as ~35 MB/s, which is how
+     * I came to believe a full-surface hash was cheap. The cost here is per iteration (load + mul at 100 MHz),
+     * so quarter coverage looked four times better than the thing being measured (docs/422). */
+    for (uint32_t i = 0; i + 4u <= n; i += 4u) { uint32_t w; __builtin_memcpy(&w, p + i, 4u); h = (h ^ w) * 16777619u; }
+    for (uint32_t i = n & ~3u; i < n; i++) h = (h ^ p[i]) * 16777619u;
     uint64_t us = sys_now_us() - t0;
-    NLOG("surfhash: %u B read in %llu us (%.1f MB/s) hash=%08x  [a 640x480 present costs ~17000 us]\n",
+    NLOG("surfhash: %u B read in %llu us (%.1f MB/s) hash=%08x  [a 640x480 copy costs ~17500 us; a skipped frame still pays this]\n",
          n, (unsigned long long)us, us ? (double)n / (double)us : 0.0, h);
 }
 
@@ -604,6 +610,7 @@ static void present(void) {
     const uint8_t *src = g_video_ram;               /* indexed pixels, linear in the A0000 arena */
 
     int skip = 0;
+    int smp = 0;                                    /* the sampled path's candidate, OR'd in below */
 #ifndef OF_PC
     /* docs/416: the delay loop inside a stage-card hold presents ~57 times a second for 7.95 s while the card's
      * fades change only the PALETTE, so ~6.4 s of that window is copying 307 200 bytes nobody looks at. Skipping
@@ -636,12 +643,18 @@ static void present(void) {
 #endif
 
 #ifndef OF_PC
-    skip = of_setting_blit_skip() ? 1 : 0;   /* BLIT_SKIP=0 on the card keeps every blit */
-    if (skip) {
+    /* The sampled path may ADD a skip candidate; it must not CLOBBER one. This line, since it was written for
+     * BLIT_SKIP alone, assigned unconditionally -- so with the shipping BLIT_SKIP=0 it reset PRESENT_SKIP's
+     * decision to 0 on every frame. The hash ran, cost the measured ~8.3 ms, and was thrown away: skips=0 all
+     * run, and the logo hold got LONGER (41.0 s -> ~60 s, copy 18.4 -> 26.7 ms). Booted on 0.1.98 as the skip
+     * test; the log said skips=0 while the eye saw only "the hold is worse" (docs/422). */
+    if (of_setting_blit_skip()) {
+        smp = 1;
         for (size_t i = 0; i < g_smp_n; i++)
-            if (g_smp_val[i] != src[g_smp_off[i]]) { skip = 0; break; }
-        if (g_skip_streak >= 8u) skip = 0;          /* bounded staleness, never an unbounded freeze */
+            if (g_smp_val[i] != src[g_smp_off[i]]) { smp = 0; break; }
+        if (smp && g_skip_streak >= 8u) smp = 0;    /* bounded staleness, never an unbounded freeze */
     }
+    if (skip && smp) smp = 0;                       /* attribute each skip to one mechanism */
 #endif
 
 #ifdef OF_PC
@@ -816,8 +829,10 @@ static void present(void) {
     }                                        /* end of "if (!skip)" */
 #ifndef OF_PC
     for (size_t i = 0; i < g_smp_n; i++) g_smp_val[i] = src[g_smp_off[i]];
-    if (skip) { g_present_skips++; g_skip_streak++; }
-    else g_skip_streak = 0;
+    if (skip || smp) {
+        g_present_skips++; g_skip_streak++;
+        if (skip) g_hash_skips++; else g_smp_skips++;
+    } else g_skip_streak = 0;
 #endif
 #ifdef OF_PC
     if (getenv("NIGHT_PANEL_SHOT") && (g_frames % (unsigned)(getenv("NIGHT_PANEL_EVERY") ? atoi(getenv("NIGHT_PANEL_EVERY")) : 40)) == 20u)
@@ -2260,8 +2275,9 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 }
             }
 #endif
-            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u\n",
-                 g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips);
+            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)\n",
+                 g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
+                 g_hash_skips, g_smp_skips);
             NLOG("stages last m=%u p=%u c=%u f=%u x=%u | max all=%u copy=%u flip=%u\n",
                  g_lus_mode, g_lus_pal, g_lus_copy, g_lus_flush, g_lus_flip,
                  g_us_flip_max, g_us_copy, g_us_flip);
@@ -2316,7 +2332,14 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                  * SDK's own framebuffer demo uses (src/apps/fbdemo/main.c:48 sets the mode, :89-112 clears with
                  * ESC[2J ESC[H and reprints a short panel every cycle), so the escape codes and the redraw-not-append
                  * choice are the SDK's own, not an invention.  night.ini SCREEN=2 selects it. */
-                if (g_display_mode == OF_DISPLAY_TERMINAL || g_display_mode == OF_DISPLAY_OVERLAY) {
+                /* TERMINAL always prints: the game picture is not on the panel there, and this is the route the
+                 * user confirmed working from Core Options -> Pocket LCD -> Terminal (docs/422, closes task-12a).
+                 * OVERLAY now needs DIAG&64 as well. The panel clears with ESC[2J once a second, and on the card
+                 * that clear of the composited text layer showed up as a flicker over the game every ~1 s -- the
+                 * user saw it on 0.1.97, where SCREEN=2 was set for a test. A diagnostic that is the pathology,
+                 * the docs/411 pattern again, this time at 1 Hz. */
+                if (g_display_mode == OF_DISPLAY_TERMINAL ||
+                    (g_display_mode == OF_DISPLAY_OVERLAY && (of_setting_diag() & OF_DIAG_PANEL))) {
                     printf("\033[2J\033[H");                       /* clear + home: a panel, not a scroll */
                     printf("NIGHT %s  frame %u\n", OF_CORE_VERSION, g_frames);
                     printf("view %dx%d  sig %08lx chg %u\n", vw, vh, (unsigned long)g_sig, g_sig_changes);

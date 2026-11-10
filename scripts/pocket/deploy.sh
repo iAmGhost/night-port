@@ -220,4 +220,9 @@ ok "no ._ sidecars in the deployed tree"
 # Saves and settings are created by the core on the card; a stale manifest copy is not wanted.
 sync 2>/dev/null || true
 echo -e "${GREEN}Deployed:${RESET} core tree + $count slot files ($(wc -l < "$MANIFEST") tracked) to $SDCARD"
+# The card's ini now carries the RELEASE defaults: DIAG=0 LOG=0, i.e. a quiet core and NO log.  Every
+# diagnosis since has re-set those lines by hand, and on 2026-11-11 I forgot, so a build shipped with its
+# own counters pinned at zero.  Saying "I re-set them afterwards" is not a process; devini.sh is.
+echo "Card ini is the QUIET release default (DIAG=0 LOG=0)."
+echo "For a logged/diagnosed run:  ./scripts/pocket/devini.sh   (then eject)"
 echo "Eject the card and boot the Pocket."

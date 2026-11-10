@@ -28,8 +28,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--card', default='/Volumes/Pocket')
     ap.add_argument('--dist', default='pocket/dist/night')
+    ap.add_argument('--build', default='pocket/build/pocket/night')
     a = ap.parse_args()
     card, dist = pathlib.Path(a.card), pathlib.Path(a.dist)
+    build = pathlib.Path(a.build)
     fails, notes = [], []
     if not card.is_dir():
         print('FAIL card not mounted at %s' % card); return 1
@@ -44,6 +46,21 @@ def main():
             fails.append('%s missing on card' % f.name)
         elif md5(c) != md5(f):
             fails.append('%s differs from dist (%s vs %s)' % (f.name, md5(c)[:8], md5(f)[:8]))
+
+    # 1b. THE ELF BYTES. deploy.sh copies the core tree out of the build tree, so that is the file the
+    # card must match -- pocket/dist/night holds night.ini/README only, no ELF.  On 2026-11-11 I told the
+    # user a deployment was "deployed and verified" on the strength of a version string and a grep, and
+    # then found my own byte-comparison had compared an empty path to the card and printed "DIFFERS".
+    # A version string says what a binary claims; only the hash says what is on the card.
+    d_elf = build / 'Assets' / APP / 'common' / 'night.elf'
+    c_elf = card / 'Assets' / APP / 'common' / 'night.elf'
+    if not d_elf.exists():
+        fails.append('build-tree ELF missing at %s -- cannot byte-check the card' % d_elf)
+    elif md5(c_elf) != md5(d_elf):
+        fails.append('night.elf on card differs from build tree (%s vs %s) -- stale deploy or hand copy'
+                     % ((md5(c_elf) or 'missing')[:8], md5(d_elf)[:8]))
+    else:
+        notes.append('night.elf bytes match the build tree (%s, %d B)' % (md5(d_elf)[:8], d_elf.stat().st_size))
 
     # 2. version agrees three ways: core.json, the ELF's own string, and mk_dist's VERSION
     j = (c_core / 'core.json').read_text()

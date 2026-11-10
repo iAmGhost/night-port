@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–427)
+## The Pocket port (docs/330–428)
 
 ### Port plan and host layer
 
@@ -70,6 +70,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Boot D: `PALETTE_AFTER_FLIP=1` on hardware. **The flicker was unchanged.** So the ordering theory — the new</sub>
 - **425** — the stutter is blocking SD reads for the music feed (11.7 s of an 81 s run), and the OS turns out to have a hook for exactly that
   <sub>Asked whether the ~1 s stutter was normal. It is not, and the log says why with its own numbers.</sub>
+- **428** — the deploy had quietly reset four knobs, and my log reader hid the version I said was missing
+  <sub>Preventing a boot that could tell me nothing beats waiting for it. Between the `0.2.5` deploy and the user's</sub>
 
 ### Video and display
 

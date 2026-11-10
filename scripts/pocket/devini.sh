@@ -22,6 +22,7 @@ INI="$SDCARD/Assets/night/common/night.ini"
 #   LOG=1              the run must be readable afterwards; the slot is a fixed 256 KB ring (docs/402)
 #   DIAG=160           32 surfhash (one full-surface pass at boot) + 128 filecaps (one-shot OS caps)
 #   DISC_IDLE_HOOK=1   keep the hook's presents= counter as the evidence that the OS calls it or not
+#   ROW_SKIP=1         per-display-buffer row hashes -- the 640x480 copy is 70% of the machine (docs/429)
 #   CDDA_STOP_FIX=0    docs/421/413: the game has no CD-DA stop, so do not let the port's bookkeeping
 #                      delete 2.5 s of music.  The RELEASE default is still 1; that open choice belongs to
 #                      a documented decision, not to a diagnosis, so it is not flipped in mk_dist.py here.
@@ -29,6 +30,7 @@ KNOBS=(
   "LOG=1"
   "DIAG=160"
   "DISC_IDLE_HOOK=1"
+  "ROW_SKIP=2"    # dry run: measure + self-verify the row skip, write every row anyway (flip to 1 once mm=0)
   "CDDA_STOP_FIX=0"
 )
 

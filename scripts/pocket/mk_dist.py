@@ -41,7 +41,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.2.6"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.2.7"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -466,7 +466,8 @@ def main():
         "DISC_IDLE_HOOK=0\n"  # 1 = present frames while the CD read waits on SD DMA (docs/426)
         "FDUMP=2\n"  # 2 = auto-arm the fade trace at stage entry (docs/424); 1 = L1+Up only, 0 = off
         "PALETTE_AFTER_FLIP=0\n"  # 1 = upload the palette just after flip (docs/422 fade flicker)
-        "PRESENT_SKIP=1\n"  # 1 = skip the copy AND rely on the proven buffer when a FULL-surface hash (every byte, not the sampled 64th) says the surface is identical to what three display buffers already hold (docs/416); the skip starts 3 frames after each change or mode set
+        "PRESENT_SKIP=1\n"
+        "ROW_SKIP=0\n"      # 1 = per-display-buffer row hashes: write only rows that buffer lacks (docs/430)  # 1 = skip the copy AND rely on the proven buffer when a FULL-surface hash (every byte, not the sampled 64th) says the surface is identical to what three display buffers already hold (docs/416); the skip starts 3 frames after each change or mode set
         "DELAY_US=0\n"     # 0 = f.c's own 500 us per delay_units() clock read. The original waits ~1270 us/read on the card hold and ~1890 on the logo hold (docs/417, upper bounds) -- only worth raising once PRESENT_SKIP stops the copy from padding the wait
         "FB_MODE=1\n"    # 1 = native 640x480 surface + row memcpy: 307 200 B / 15 771 us = 19.5 MB/s. 0 = OS 320x240 surface + software 2x2 downscale: 76 800 B / 82 657 us = 0.93 MB/s, ~1 us per output pixel (docs/401). 0.1.84/0.1.85 shipped 0 on a geometry theory and it brought the logo freeze straight back -- the user reported it, exactly as docs/401's title predicts. The corruption that made me doubt 1 was the stale-surface commit (docs/404 5), which is fixed and which lives ONLY in this branch, so 1 is both the fast shape and the one whose defect is now understood\n"
         "PUMP_AUDIO_TICK=0\n"
@@ -500,7 +501,7 @@ def main():
     # code default then takes over and nothing downstream notices.  So the generator names the keys a run
     # depends on and refuses to ship an ini that dropped one (docs/405).
     REQUIRED = ["RES", "MUSIC_VOL", "SFX_VOL", "MASTER_VOL", "SFX_GAIN", "CDDA_GAIN", "CDDA_OFF", "PAD_OFF",
-                "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "DISC_IDLE_HOOK", "FDUMP", "PALETTE_AFTER_FLIP", "PRESENT_SKIP", "DELAY_US", "CDDA_STOP_FIX", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
+                "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "DISC_IDLE_HOOK", "FDUMP", "PALETTE_AFTER_FLIP", "PRESENT_SKIP", "ROW_SKIP", "DELAY_US", "CDDA_STOP_FIX", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
                 "DISC_RAMP", "CDDA_CARD_STOP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "RESTORE", "PRESENT_SYNC",
                 "TICK_HZ", "DIAG", "LOG", "DISC_LOOKAHEAD"]
     got = set(re.findall(r"(?m)^([A-Z_]+)=", ini_text))

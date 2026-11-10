@@ -152,6 +152,102 @@ static uint32_t g_applied_w = PANEL_W, g_applied_h = PANEL_H, g_applied_stride =
  * buffers underneath us (docs/400). */
 static uint32_t g_hash_sig, g_hash_streak;
 static int g_hash_proven;
+
+/* ---- per-display-buffer row hashes (docs/430) ---------------------------------------------------------
+ * docs/429 settled where the machine goes: present() is 70% of a run, and the 640x480 surface copy costs
+ * ~23 cycles PER WORD (307 200 B in ~17.5 ms).  The SDK's own "opaque" helper is row memcpy with the same
+ * shape as ours, and there is no 2D service in the os25 table, so the only lever left is writing fewer
+ * words.  docs/400 retired partial commit -- with three display buffers and a flip that does not wait,
+ * "unchanged since last frame" describes the wrong buffer, and hardware showed ghosted rows.  Keying the
+ * test BY BUFFER answers exactly that objection: buffer b's table describes what buffer b holds, so
+ * skipping a row leaves behind the bytes already in it -- no three-frame proof needed, and no shadow bytes
+ * (a 64-bit hash per row per buffer is 24 KB against 921 KB of shadows).  The buffer index comes from
+ * of_video_buffer_addr() (of_video.h:181), not from any private knowledge of how the OS swaps. */
+#define ROWHASH_MAXROWS 480
+#ifndef OF_PC
+#define ROWHASH_NBUF 4
+#else
+#define ROWHASH_NBUF 1        /* the desktop shim presents into one buffer; the logic still runs so it can be A/B'd */
+#endif
+static uint64_t g_row_buf[ROWHASH_NBUF][ROWHASH_MAXROWS]; /* hashes of what each buffer currently holds */
+static uint8_t g_row_valid[ROWHASH_NBUF];
+static uint32_t g_row_copied, g_row_same, g_row_fallback, g_row_invalidate;
+static uint32_t g_row_dry;                  /* dry-run verdicts that would have skipped a row */
+static uint32_t g_row_checks, g_row_mm;             /* skipped rows byte-compared against the buffer, and the mismatches */
+static uint32_t g_br_native, g_br_game, g_br_down, g_br_other;   /* which blit branch this frame took */
+/* docs/400 is the reason this exists: a skip that is subtly wrong shows up as ghosted rows on a panel, not in
+ * a log.  So every skip is verified against the bytes the buffer ACTUALLY holds -- a read, never a write --
+ * for the first few thousand skips, which costs a row read each and nothing after.  If this counter ever
+ * moves, the skip is wrong and the log says so in the run that proves it. */
+#define ROWHASH_CHECK_MAX 4096u
+
+/* FNV-1a over the bytes we are about to write into one surface row.  Hashing the DESTINATION bytes
+ * (not the source row) is what lets the same test cover both blit branches -- the game branch writes a
+ * source row, a duplicated source row, or a bar of zeros, and the row we must not write again is whichever
+ * of those this buffer already holds.  `n` zero bytes are folded without touching memory. */
+static uint64_t row_hash(const uint8_t *s, uint32_t n, uint32_t zeros) {
+    uint64_t h = 14695981039346656037ull;
+    size_t i = 0;
+    if (s) {
+        for (; i + 8u <= (size_t)n; i += 8u) {
+            uint64_t v; __builtin_memcpy(&v, s + i, 8u);
+            h = (h ^ v) * 1099511628211ull;
+        }
+        for (; i < (size_t)n; i++) h = (h ^ s[i]) * 1099511628211ull;
+    } else i = n;                       /* a bar row: the whole thing is zeros */
+    /* A zero byte contributes (h ^ 0) * prime, i.e. h *= prime -- so the zeros we write as padding are
+     * folded without a memory touch. */
+    for (uint32_t k = 0; k < zeros; k++) h *= 1099511628211ull;
+    (void)i;
+    return h;
+}
+
+/* Returns 1 when this buffer already holds exactly these bytes, so the caller may skip the write.
+ * Updates the table on every non-skipped row, which is what keeps the table honest without a shadow. */
+static int row_unchanged(uint8_t *d, int b, uint32_t y, uint64_t rh,
+                         const uint8_t *s, uint32_t n, uint32_t zeros) {
+    if (b < 0 || y >= ROWHASH_MAXROWS || !g_row_valid[b]) { g_row_copied++; return 0; }
+    if (g_row_buf[b][y] != rh) { g_row_buf[b][y] = rh; g_row_copied++; return 0; }
+    g_row_same++;
+    if (g_row_checks < ROWHASH_CHECK_MAX) {
+        g_row_checks++;
+        int bad = 0;
+        if (s) { for (uint32_t x = 0; x < n; x++) if (d[x] != s[x]) { bad = 1; break; } }
+        else    { for (uint32_t x = 0; x < n; x++) if (d[x] != 0u) { bad = 1; break; } }
+        if (!bad) for (uint32_t x = 0; x < zeros && !bad; x++) if (d[n + x] != 0u) bad = 1;
+        if (bad) {
+            g_row_mm++;
+            if (g_row_mm == 1u)
+                NLOG("ROWSKIP MISMATCH: buf=%d row=%u (hash said same, buffer says otherwise)\n", b, y);
+        }
+    }
+    return 1;
+}
+
+static int rowhash_any_valid(void) {
+    for (int i = 0; i < ROWHASH_NBUF; i++) if (g_row_valid[i]) return 1;
+    return 0;
+}
+
+/* Anything that can change the display buffers behind our back must cost us the tables.  A NULL `why`
+ * keeps a per-frame invalidation out of the log; the counter still moves. */
+static void rowhash_invalidate(const char *why) {
+    for (int i = 0; i < ROWHASH_NBUF; i++) g_row_valid[i] = 0;
+    g_row_invalidate++;
+    if (why) NLOG("rowhash: invalidated all buffers (%s)\n", why);
+}
+
+/* Which display buffer are we about to write?  Unknown means write every row: a wrong guess here is the
+ * docs/400 ghosting bug, so the guess is made only from addresses the OS itself handed us. */
+static int surface_buffer_index(const uint8_t *p) {
+#ifndef OF_PC
+    for (int i = 0; i < ROWHASH_NBUF; i++)
+        if (of_video_buffer_addr(i) == p) return i;
+#endif
+    (void)p;
+    return 0;
+}
+
 static void applied_refresh(void) {
 #ifndef OF_PC
     of_video_mode_t cur;
@@ -160,6 +256,7 @@ static void applied_refresh(void) {
         g_applied_w = cur.width; g_applied_h = cur.height;
         g_applied_stride = cur.stride ? cur.stride : cur.width;
         g_pal_force = 1;                  /* re-programming the display path can drop the palette (docs/399) */
+        rowhash_invalidate(NULL);           /* ...same reason the row-hash tables die here (docs/430) */
         g_hash_proven = 0;                  /* ...and may have swapped the buffers we are about to trust (docs/400) */
     }
 #endif
@@ -615,6 +712,7 @@ HOTPRESENT static void stage_commit(uint8_t *surface) {
         copy_row(surface + (size_t)y * stride, s, stride);
         memcpy(p, s, stride);
         g_rows_written++;
+        rowhash_invalidate("stage_commit wrote the surface itself");   /* docs/430: the tables no longer match */
     }
 }
 #endif
@@ -694,6 +792,27 @@ static void present(void) {
 
     int skip = 0;
     int smp = 0;                                    /* the sampled path's candidate, OR'd in below */
+    /* ROW_SKIP (docs/430): one pass, 64-bit FNV-1a per source row.  Decided from g_fb_native_applied
+     * rather than the local `native`, because the mode switch further down can still change which branch
+     * copies -- and if it does, applied_refresh() has already killed the tables.
+     *
+     * The pass is compiled for BOTH hosts on purpose: the skip's correctness can then be A/B'd on the
+     * desktop against frames.bin, which is the only place a wrong skip can be caught without somebody
+     * holding the device.  The frame-hash DECISION below stays device-only, so the rig's pacing is
+     * untouched and every desktop measurement keeps its basis (docs/407's lesson about knobs that must
+     * be inert on the host that is the measurement basis). */
+    /* ROW_SKIP (docs/430): the test happens per destination row, where the bytes to write are already
+     * known, so no separate pass is paid for.  It is compiled for BOTH hosts: the desktop writes a
+     * 640x480 surface through the game branch too, so the skip can be A/B'd against frames.bin here
+     * -- which is the only place a wrong skip can be caught without somebody holding the device. */
+    /* ROW_SKIP=2 is the same machinery in DRY RUN: the verdict is computed and every skipped-row verdict is
+     * byte-checked against the buffer, but the row is written anyway.  A device-only path that the desktop
+     * shim cannot reach (its runs take the downscale branch -- br n/g/d/o=0/0/382/0 measured) gets to prove
+     * its skip rate and its correctness on hardware before it is allowed to skip anything (docs/400). */
+    int rv = of_setting_row_skip();
+    int use_rows = rv && vh <= ROWHASH_MAXROWS;
+    int do_skip = (rv == 1);
+
 #ifndef OF_PC
     /* docs/416: the delay loop inside a stage-card hold presents ~57 times a second for 7.95 s while the card's
      * fades change only the PALETTE, so ~6.4 s of that window is copying 307 200 bytes nobody looks at. Skipping
@@ -852,12 +971,31 @@ static void present(void) {
     }
 #endif
 
+    /* The other branches write a different shape into (possibly) the same buffer, so any tables we hold
+     * describe bytes that branch never wrote.  Drop them once, quietly, instead of reasoning about it. */
+    if (!native && rowhash_any_valid()) rowhash_invalidate(NULL);
+
     if (!skip) {
     if (native) {
         of_video_mode_t cur; of_video_get_mode(&cur);
         uint32_t stride = cur.stride ? cur.stride : (uint32_t)vw;
-        for (int y = 0; y < vh; y++)
-            copy_row(fb + (size_t)y * stride, src + (size_t)y * vw, (uint32_t)vw);
+        /* Only the vw bytes we actually write take part in the hash: this branch never writes the row
+         * padding, so padding is not this branch's business (a branch that DOES write it invalidates us). */
+        g_br_native++;
+        int rb = use_rows ? surface_buffer_index(fb) : -1;
+        if (use_rows && (rb < 0 || rb >= ROWHASH_NBUF)) { g_row_fallback++; rb = -1; }
+        for (int y = 0; y < vh; y++) {
+            const uint8_t *s = src + (size_t)y * vw;
+            if (rb >= 0 && do_skip &&
+                row_unchanged(fb + (size_t)y * stride, rb, (uint32_t)y,
+                              row_hash(s, (uint32_t)vw, 0), s, (uint32_t)vw, 0)) continue;
+            if (rb >= 0 && !do_skip && rowhash_any_valid()) {          /* dry run: judge, then write anyway */
+                uint64_t rh = row_hash(s, (uint32_t)vw, 0);
+                if (row_unchanged(fb + (size_t)y * stride, rb, (uint32_t)y, rh, s, (uint32_t)vw, 0)) g_row_dry++;
+            }
+            copy_row(fb + (size_t)y * stride, s, (uint32_t)vw);
+        }
+        if (rb >= 0 && vh <= ROWHASH_MAXROWS) g_row_valid[rb] = 1;
     } else if (vw == GAME_W && vh == GAME_H) {
         /* One loop over the rows the surface actually has, each addressed by the stride the OS actually
          * reported, with the fit deciding which source row a panel row shows.  On the surface it expects this is
@@ -869,6 +1007,9 @@ static void present(void) {
         if (g_fb_game_is_200) { if (!surface_is_200()) surface_complain("the 320x200 scaler fit", want_rows); }
         else if (!surface_is_base()) surface_complain("the 320x240 panel fit", want_rows);
         const uint32_t rows = (g_applied_h && g_applied_h < want_rows) ? g_applied_h : want_rows;
+        g_br_game++;
+        int rb = use_rows ? surface_buffer_index(fb) : -1;
+        if (use_rows && (rb < 0 || rb >= ROWHASH_NBUF)) { g_row_fallback++; rb = -1; }
         for (uint32_t y = 0; y < rows; y++) {
             uint8_t *d = fb + (size_t)y * stride;
             int sy;
@@ -882,12 +1023,30 @@ static void present(void) {
                 sy = (int)(5 * grp + (r < 5 ? r : 4));
             } else
                 sy = ((int)y >= BAR_ROWS && (int)y < BAR_ROWS + GAME_H) ? (int)y - BAR_ROWS : -1;
+            if (rb >= 0) {
+                /* The destination row is `cols` bytes of a source row plus zero padding, or a whole row of
+                 * zeros for a bar -- hash those, not the source, because a doubled source row and the bar
+                 * above it can share a source and must not share a verdict. */
+                uint64_t rh = (sy >= 0) ? row_hash(src + (size_t)sy * GAME_W, cols, stride > cols ? stride - cols : 0)
+                                        : row_hash(NULL, stride, 0);
+                int same = row_unchanged(d, rb, y, rh,
+                        (sy >= 0) ? src + (size_t)sy * GAME_W : NULL,
+                        (sy >= 0) ? cols : stride,
+                        (sy >= 0 && stride > cols) ? stride - cols : 0);
+                if (same && do_skip) continue;
+                if (same && !do_skip) g_row_dry++;
+            }
             if (sy >= 0) {
                 copy_row(d, src + (size_t)sy * GAME_W, cols);
                 if (stride > cols) memset(d + cols, 0, stride - cols);
             } else memset(d, 0, stride);
         }
+        if (use_rows) {
+            int rb2 = surface_buffer_index(fb);
+            if (rb2 >= 0 && rb2 < ROWHASH_NBUF && rows <= ROWHASH_MAXROWS) g_row_valid[rb2] = 1;
+        }
     } else if (vw == 2 * PANEL_W && vh == 2 * PANEL_H) {
+        g_br_down++;
         if (surface_is_base()) {
             downscale_2x2_frame(src, fb);      /* the word-at-a-time loop is written for the base surface */
         } else {
@@ -901,6 +1060,7 @@ static void present(void) {
         }
     } else {
         /* An unexpected mode: copy the overlapping region 1:1 rather than guess a scale. */
+        g_br_other++;
         int w = vw < PANEL_W ? vw : PANEL_W;
         int h = vh < PANEL_H ? vh : PANEL_H;
         memset(fb, 0, (size_t)PANEL_W * PANEL_H);
@@ -2411,9 +2571,11 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 }
             }
 #endif
-            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)\n",
+            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)"
+                 " | rows c=%u s=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
-                 g_hash_skips, g_smp_skips);
+                 g_hash_skips, g_smp_skips, g_row_copied, g_row_same, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
+                 g_br_native, g_br_game, g_br_down, g_br_other);
 #ifndef OF_PC
             NLOG("idle hook: presents=%u\n", g_hook_presents);
 #endif

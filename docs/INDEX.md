@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–429)
+## The Pocket port (docs/330–430)
 
 ### Port plan and host layer
 
@@ -99,6 +99,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>User offered hands-on device time, so this doc is measured on hardware rather than argued from the shim.</sub>
 - **423** — fade flicker: the port uploads the new palette up to a whole copy-time before the pixels that need it
   <sub>Reported from the hardware: "flicker while starting stage-1 (fade-in)", on `0.2.0` with `CDDA_STOP_FIX=0`.</sub>
+- **430** — the surface costs ~23 cycles per word, so the next thing to ship is fewer words (`ROW_SKIP`)
+  <sub>docs/429 said 70% of a run is inside `present()`. This turn chased what that means and ended with a feature</sub>
 
 ### Settings, menu, interact
 

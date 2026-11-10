@@ -41,7 +41,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.96"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.97"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -472,6 +472,7 @@ def main():
         "DISC_RAMP=0\n"           # 0 = prime the CD-DA slice in the requesting visit; 1 = spread it over pump visits (underran: dry 5->49, audio_low 5->64, ahead_min 0.00 s -- docs/402)
         "DISC_PREFILL_FIRST=150\n"    # sectors of CD-DA read before the voices start (2 s). One-shot priming is the shape that measured dry=0 audio_low=0 ahead 0.45 s; its cost is a rare 418-424 ms fill (docs/396, docs/402)
         "DISC_MIN_WANT=12\n"    # 12 is the hard ceiling in of_cdda.c (CD_MIN_WANT_MAX). 27 used to be shipped here and silently ran as 12; docs/420 measured that a real 27 DEFERS small reads -- 36 sectors of a track went unread in the same 2000-frame route that the 12 policy read -- so the ceiling is kept and the key no longer claims otherwise
+        "CDDA_STOP_FIX=1\n"     # 1 = keep the CD-DA stop the port puts at fn_000405a7; that function's bytes are INT 10h AX=0013 (a video mode set), so the original cannot issue a stop there (docs/413). 0 = the original's shape: audio keeps playing. Audible either way, so it is a knob and not a default flip (docs/421).
 
         "DISC_LOOKAHEAD=240\n"   # sectors of CD-DA read-ahead past the 75 sectors/s disc clock. 120 (1.6 s) was SMALLER than the 4 s ring and forced the 1.5-sector trickle reads (docs/406/407)   # wait until 12 sectors of read allowance have accumulated, then take them in one read (docs/375 6); 1 = the old read-whatever-is-due shape
         "DISC_BATCH=27\n"   # sectors per CD-DA slot read: 27 = 63 504 B, the largest single op this OS moves (docs/406)75); 1 = the old shape
@@ -496,7 +497,7 @@ def main():
     # code default then takes over and nothing downstream notices.  So the generator names the keys a run
     # depends on and refuses to ship an ini that dropped one (docs/405).
     REQUIRED = ["RES", "MUSIC_VOL", "SFX_VOL", "MASTER_VOL", "SFX_GAIN", "CDDA_GAIN", "CDDA_OFF", "PAD_OFF",
-                "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "PRESENT_SKIP", "DELAY_US", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
+                "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "PRESENT_SKIP", "DELAY_US", "CDDA_STOP_FIX", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
                 "DISC_RAMP", "CDDA_CARD_STOP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "RESTORE", "PRESENT_SYNC",
                 "TICK_HZ", "DIAG", "LOG", "DISC_LOOKAHEAD"]
     got = set(re.findall(r"(?m)^([A-Z_]+)=", ini_text))

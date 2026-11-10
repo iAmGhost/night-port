@@ -200,7 +200,8 @@ static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain
                                            * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
 static int      g_present_skip = 0;
-static int      g_delay_us = 0;     /* 0 = leave f.c's g_delay_unit_us (500) alone. The original's own per-clock-read cost measures 1.27 ms on the card hold and 1.89 ms on the logo hold (docs/417), so a device that copies less per frame can also afford to wait longer per read. */   /* 1 = a full-surface hash decides whether the copy runs; the sampled 64-byte test below it can miss a small move (docs/416) */
+static int      g_delay_us = 0;
+static int      g_cdda_stop_fix = 1;  /* 1 = keep the invented stop at fn_000405a7 (INT 10h AX=0013, docs/413); 0 = do not stop CD-DA there, which is what the original can do */     /* 0 = leave f.c's g_delay_unit_us (500) alone. The original's own per-clock-read cost measures 1.27 ms on the card hold and 1.89 ms on the logo hold (docs/417), so a device that copies less per frame can also afford to wait longer per read. */   /* 1 = a full-surface hash decides whether the copy runs; the sampled 64-byte test below it can miss a small move (docs/416) */
 static int      g_disc_async = 1;   /* 1 = feed the ring with double-buffered async reads (docs/403); 0 = the synchronous read shape */
 static int      g_cdda_card_stop = 1;   /* 1 = the intro track stops when stage<N>.pcx is drawn: the original is silent for the card hold, and the stage track arrives on the game's own request (docs/413) */
 static int      g_disc_ramp = 0;   /* 0 = prime the CD-DA slice in one visit (dry=0, audio_low=0); 1 = spread it over pump visits, which underran (docs/402) */
@@ -507,6 +508,7 @@ void of_settings_load(void) {
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_present_skip = cfg_int("present_skip", 0, "NIGHT_PRESENT_SKIP");
     g_delay_us = cfg_int("delay_us", 0, "NIGHT_DELAY_US");
+    g_cdda_stop_fix = cfg_int("cdda_stop_fix", 1, "NIGHT_CDDA_STOP_FIX");
     g_blit_dirty = cfg_int("blit_dirty",  1, "NIGHT_BLIT_DIRTY");
     g_disc_ramp = cfg_int("disc_ramp",   0, "NIGHT_DISC_RAMP");
     g_cdda_card_stop = cfg_int("cdda_card_stop", 1, "NIGHT_CDDA_CARD_STOP");
@@ -631,6 +633,7 @@ int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_present_skip(void) { return g_present_skip; }
 int  of_setting_delay_us(void) { return g_delay_us; }
+int  of_setting_cdda_stop_fix(void) { return g_cdda_stop_fix; }
 int  of_setting_blit_dirty(void) { return g_blit_dirty; }
 int  of_setting_disc_ramp(void)  { return g_disc_ramp; }
 int  of_setting_cdda_card_stop(void) { return g_cdda_card_stop; }

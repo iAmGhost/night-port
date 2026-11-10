@@ -742,7 +742,21 @@ void sys_cd_set_backend(sys_cd_header_fn header, sys_cd_records_fn records)
 void sys_cd_root_header(uint8_t *hdr7)  { if (g_cd_header)  g_cd_header(hdr7); }
 void sys_cd_root_records(uint8_t *recs, uint32_t n) { if (g_cd_records) g_cd_records(recs, n); }
 
-void     sys_cd_audio_stop(void)       { g_cd_stops++; if (g_cd_stop) g_cd_stop(); }
+/* fn_000405a7's bytes (0x405bf: `mov word [ebp-0x1c],0x13` / `mov eax,0x10` / real-mode call) are INT 10h
+ * AX=0013 -- a video mode set, nothing to do with audio (docs/413). f.c calls sys_cd_audio_stop() there
+ * because it once looked like the game's CD stop, and it is the ONLY f.c caller of it, so this gate suppresses
+ * exactly that bookkeeping: the seven sites where the port invented a stop the original cannot issue (it has
+ * no playhead to stop -- its only MSCDEX calls are 0x1500/0x1510, docs/413). The counter still counts the
+ * CALLS, so attribution in the host logs ("by=port-bookkeeping") keeps working either way, and the card
+ * silence rule (res_is_stage_card, below) is a different path entirely and is not gated here.
+ * Default 1 = the behaviour the tree has always had and that test_f1.c:14224 asserts; docs/421 measures what
+ * turning it off changes. Turning it off is the faithful direction (the original keeps playing), but it is an
+ * audible change and earns a hardware listen before it ships on. */
+static int g_cd_bookkeeping_stop = 1;
+void     sys_cd_bookkeeping_stop_enable(int on) { g_cd_bookkeeping_stop = on ? 1 : 0; }
+int      sys_cd_bookkeeping_stop_enabled(void)  { return g_cd_bookkeeping_stop; }
+
+void     sys_cd_audio_stop(void)       { g_cd_stops++; if (g_cd_stop && g_cd_bookkeeping_stop) g_cd_stop(); }
 uint32_t sys_cd_audio_stop_calls(void) { return g_cd_stops; }
 void     sys_cd_audio_stop_reset(void) { g_cd_stops = 0; }
 

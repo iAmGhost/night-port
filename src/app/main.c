@@ -1942,6 +1942,10 @@ int main(int argc, char **argv) {
     /* docs/413: silence CD-DA over the stage-card hold, as the original is. NIGHT_CDDA_CARD_STOP=0 restores
      * the streaming behaviour, which is what every audio comparison recorded before this build produced. */
     sys_cd_card_stop_enable(getenv("NIGHT_CDDA_CARD_STOP") ? atoi(getenv("NIGHT_CDDA_CARD_STOP")) : 1);
+    /* docs/413/421: fn_000405a7 is INT 10h AX=0013, not a CD stop, so the stop the port puts there is invented.
+     * NIGHT_CDDA_STOP_FIX=0 suppresses it (the faithful direction: the original has no playhead to stop).
+     * Default on so this changes nothing until it is chosen deliberately. */
+    sys_cd_bookkeeping_stop_enable(getenv("NIGHT_CDDA_STOP_FIX") ? atoi(getenv("NIGHT_CDDA_STOP_FIX")) : 1);
     sys_set_res_hook(reslog_add);
     if (!g_no_audio) audio_boot();
     else SDL_Log("audio: skipped (--no-audio); the board's DMA ring is still drained every frame");

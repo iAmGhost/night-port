@@ -73,6 +73,10 @@ Same binary, same seed, same command, two runs. The request sets are **identical
 sectors each), even though the same two runs would have produced two different `cdda.raw` md5s. So the
 non-reproducibility docs/410 measured was entirely in the *sampling log*, not in the read path.
 
+> **Corrected in docs/421:** the sentence below holds for the POCKET path only. Two identical `build/night` runs requested
+> 2361 and 2366 sectors with differing sets, because the SDL host's feed is wall-clock paced while the pocket feed
+> is tick paced. `--diff` is exact on the pocket path; on the SDL host a small tail difference is variance.
+
 That matters for how the A/B is read: `--diff` canonicalises to per-sector requests (so batch sizes -- the
 prefill, `DISC_MIN_WANT`, how far the voice ran ahead -- do not count as a difference), and within that
 canonicalisation **there is no timing noise left to excuse**. A change that removes a read, adds one, shifts a

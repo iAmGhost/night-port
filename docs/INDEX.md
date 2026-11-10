@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–420)
+## The Pocket port (docs/330–421)
 
 ### Port plan and host layer
 
@@ -64,6 +64,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>docs/410 retired `cdda.raw` as a regression gate — three runs of one binary with one seed gave two different</sub>
 - **420** — the first A/B with the disc gate: `DISC_MIN_WANT=27` was shipped, silently ran as 12, and a real 27 reads *less*
   <sub>docs/419 built a reproducible gate for the disc read path. This is the deferred item it was waiting for — the</sub>
+- **421** — the invented CD stops measured: they change no disc traffic, and they delete 2.5 s of music the original keeps playing
+  <sub>docs/413 proved from the bytes that `fn_000405a7` is `INT 10h AX=0013` — a video mode set — and that this game</sub>
 
 ### Video and display
 

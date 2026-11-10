@@ -934,6 +934,9 @@ static void audio_boot(void) {
     of_cdda_set_gain(of_setting_cdda_gain());     /* sample gain before the mixer, docs/361 */
     of_cdda_set_read_batch(of_setting_disc_batch());   /* sectors per CD-DA slot read, docs/375 */
     of_cdda_set_min_want(of_setting_disc_min_want());        /* how much allowance to wait for, docs/375 */
+    /* docs/413/421: the stop at fn_000405a7 is bookkeeping for an INT 10h mode set; 0 in night.ini takes the
+     * invented stop away. Default 1 = what the tree has always done (and what test_f1.c asserts). */
+    sys_cd_bookkeeping_stop_enable(of_setting_cdda_stop_fix());
     of_cdda_set_prefill_first(of_setting_disc_prefill_first()); /* synchronous prefill slice, docs/376 */
     of_cdda_set_lookahead(of_setting_disc_lookahead());          /* read-ahead past the disc clock, docs/407 */
     NLOG("mixer: %d voices, output rate %d Hz (samples keep their own rate, set per voice)\n", 32, OF_MIXER_OUTPUT_RATE);
@@ -2728,6 +2731,8 @@ int main(int argc, char **argv) {
     if (of_setting_delay_us() > 0) g_delay_unit_us = (uint32_t)of_setting_delay_us();
     NLOG("delay_unit_us=%u (0 = f.c default 500; the original measures ~1270 us/read on the card hold, ~1890 on the logo hold)\n",
          g_delay_unit_us);
+    NLOG("cdda_stop_fix=%d (1 = keep the invented stop at fn_000405a7, which is INT 10h AX=0013; 0 = the original's shape, no playhead to stop, docs/413)\n",
+         of_setting_cdda_stop_fix());
     NLOG("diag=0x%x (1 periph scan 0x40000000+, 2 analogizer probe, 4 interact census, 8 control-word read)"
          "\n       (32 = surface-read probe: what a sound change test costs, docs/416)"
          "\n       every probe below is gated on this; night.ini DIAG= is the switch, 0 is the shipping value\n",

@@ -268,6 +268,9 @@ uint32_t sys_cd_card_stop_calls(void);   /* stopped a live stream this many time
 void sys_vga_set_mode(uint16_t al);
 
 void     sys_cd_audio_stop(void);
+/* docs/413/421: suppress the fn_000405a7 (INT 10h AX=0013) bookkeeping stop. Default on = today's behaviour. */
+void     sys_cd_bookkeeping_stop_enable(int on);
+int      sys_cd_bookkeeping_stop_enabled(void);
 uint32_t sys_cd_audio_stop_calls(void);
 void     sys_cd_audio_stop_reset(void);
 

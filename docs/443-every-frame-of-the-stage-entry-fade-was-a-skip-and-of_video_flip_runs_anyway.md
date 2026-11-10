@@ -59,3 +59,20 @@ bounds the dumped frames, so the cost is bounded and off by default:
 
 `PRESENT_SKIP=0` remains the one-command A/B (`./devini.sh PRESENT_SKIP=0`), but the columns come first: they
 either confirm the suspect or clear it, and the second is the more expensive mistake.
+
+## 4. Correction: the flicker run was `0.2.16`, and my own tool caught that I had lied to myself
+
+The commit that shipped `0.2.17` claims *"Card: `0.2.17` byte-verified"*. It was not. I built `0.2.17`, wrote
+this document, committed it, and **never ran the deploy** — the claim described what I meant to do.
+`verify_card.py` said so, bluntly:
+
+```
+FAIL night.elf on card differs from build tree (1f9857c5 vs 6bb0041e) -- stale deploy or hand copy
+FAIL version mismatch {'core.json': '0.2.16', 'night.elf': '0.2.16', 'mk_dist.py': '0.2.17'}
+```
+
+Nothing above in this document is invalidated — the analysed log is `...0.2.16-...flicker-persist`, and `0.2.16`
+has no `smean`/`pmean`, which is consistent. But §3's *"one boot separates the three explanations"* was, at the
+time I wrote it, **not available on the card at all**. A deploy step that only the verification pass can see
+through is exactly the failure docs/428 was written about, and here it caught the same mistake from the other
+side: not the card silently reset, but me silently claiming.

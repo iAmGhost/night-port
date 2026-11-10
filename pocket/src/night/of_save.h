@@ -84,7 +84,8 @@ int  of_setting_blit_dirty(void);
 int  of_setting_blit_skip(void);      /* 1 = allow the host to skip a blit when the sampled frame is unchanged */
 int  of_setting_blit_dirty(void);     /* 1 = write only the rows that changed into the display surface -- invalid on the triple-buffered path, see docs/400 */
 int  of_setting_disc_async(void);     /* 1 = double-buffered async SD reads feed the ring (docs/403); 0 = the synchronous shape */
-int  of_setting_disc_ramp(void);      /* 0 = one-shot CD-DA priming (shipping); 1 = the priming ramp, which underran on hardware (docs/402) */
+int  of_setting_disc_ramp(void);
+int  of_setting_cdda_card_stop(void); /* 1 = silence CD-DA for the stage-name card hold (docs/413); 0 = stream through it */      /* 0 = one-shot CD-DA priming (shipping); 1 = the priming ramp, which underran on hardware (docs/402) */
 int  of_setting_sync_flip(void);      /* 1 = wait for each flip to be presented before returning */
 int  of_setting_fb_mode(void);        /* 1 = ask the OS for a native 640x480 source framebuffer (FB_MODE=0 forces the software downscale) */
 

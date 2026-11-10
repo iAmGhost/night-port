@@ -41,6 +41,7 @@ Three of them are in **Core Options** on the device -- Music Volume, SFX Volume,
 | `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |
 | `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |
 | `DISC_PREFILL_FIRST` | 150 | sectors of CD-DA read before the voices start (2 s), in one visit; the rare 418-424 ms fill is its price (docs/396, docs/402) |
+| `CDDA_CARD_STOP` | 1 | 0 = keep streaming the introduction track over the `stage<N>.pcx` hold card; 1 = silence it, as the original is (docs/413) |
 | `DISC_RAMP` | 0 | 1 = spread that priming over pump visits; it removes the big fill but the ring never got ahead on hardware (dry 5->49, audio_low 5->64, ahead_min 0.00 s, docs/402) |
 | `DISC_MIN_WANT` | 12 | sectors of read allowance to accumulate before filling; 1 = the old one-sector-at-the-disc-rate shape |
 | `DISC_BATCH` | 12 | sectors per CD-DA slot read; 1 reproduces the old one-sector-at-a-time reads |

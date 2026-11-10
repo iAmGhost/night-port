@@ -200,6 +200,7 @@ static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain
                                            * (every build has always done this), 1 = once per 490 Hz tick */
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
 static int      g_disc_async = 1;   /* 1 = feed the ring with double-buffered async reads (docs/403); 0 = the synchronous read shape */
+static int      g_cdda_card_stop = 1;   /* 1 = the intro track stops when stage<N>.pcx is drawn: the original is silent for the card hold, and the stage track arrives on the game's own request (docs/413) */
 static int      g_disc_ramp = 0;   /* 0 = prime the CD-DA slice in one visit (dry=0, audio_low=0); 1 = spread it over pump visits, which underran (docs/402) */
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
@@ -504,6 +505,7 @@ void of_settings_load(void) {
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_blit_dirty = cfg_int("blit_dirty",  1, "NIGHT_BLIT_DIRTY");
     g_disc_ramp = cfg_int("disc_ramp",   0, "NIGHT_DISC_RAMP");
+    g_cdda_card_stop = cfg_int("cdda_card_stop", 1, "NIGHT_CDDA_CARD_STOP");
     g_disc_async = cfg_int("disc_async",  1, "NIGHT_DISC_ASYNC");
     g_sync_flip = cfg_int("present_sync", 1, "NIGHT_PRESENT_SYNC");
 #ifndef OF_PC
@@ -625,6 +627,7 @@ int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_blit_dirty(void) { return g_blit_dirty; }
 int  of_setting_disc_ramp(void)  { return g_disc_ramp; }
+int  of_setting_cdda_card_stop(void) { return g_cdda_card_stop; }
 int  of_setting_disc_async(void) { return g_disc_async; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
 int  of_setting_pump_audio_tick(void) { return g_pump_audio_tick; }

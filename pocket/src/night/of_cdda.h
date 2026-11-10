@@ -13,6 +13,9 @@ void of_cdda_set_dir(const char *dir);
 /* The sys_cd audio backend's play/stop, i.e. what fn_010b1d asked for. */
 void of_cdda_play(uint32_t index, uint32_t lba, uint32_t sectors);
 void of_cdda_stop(void);
+/* 1 while a track is armed and its voices are running. The card-hold rule (docs/413) asks this first so a
+ * stop it did not cause is not logged as one it did. */
+int of_cdda_running(void);
 
 /* Advance the disc clock and refill the rings. Call once per host pump pass. */
 void of_cdda_pump(void);

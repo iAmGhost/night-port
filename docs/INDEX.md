@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–412)
+## The Pocket port (docs/330–413)
 
 ### Port plan and host layer
 
@@ -58,6 +58,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Core **0.1.90**, card md5 `534400b7fec53f03d79dc18f536eb732`.</sub>
 - **412** — The CD-DA thread in one record: 0.1.73 → 0.1.91, what the music pause actually was
   <sub>The Pocket port's audio problem took nineteen builds and seventeen documents. This is the one file to</sub>
+- **413** — Read from the bytes: this game cannot stop CD audio, so the card's silence is the feed going idle
+  <sub>Ask: between the last introduction slide and the stage music starting, **how does the music stop?** I had a</sub>
 
 ### Video and display
 

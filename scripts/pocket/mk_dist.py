@@ -41,7 +41,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.1.91"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.1.92"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -466,6 +466,7 @@ def main():
         "FB_MODE=1\n"    # 1 = native 640x480 surface + row memcpy: 307 200 B / 15 771 us = 19.5 MB/s. 0 = OS 320x240 surface + software 2x2 downscale: 76 800 B / 82 657 us = 0.93 MB/s, ~1 us per output pixel (docs/401). 0.1.84/0.1.85 shipped 0 on a geometry theory and it brought the logo freeze straight back -- the user reported it, exactly as docs/401's title predicts. The corruption that made me doubt 1 was the stale-surface commit (docs/404 5), which is fixed and which lives ONLY in this branch, so 1 is both the fast shape and the one whose defect is now understood\n"
         "PUMP_AUDIO_TICK=0\n"
         "DISC_ASYNC=0\n"         # 1 = the steady-state CD-DA feed uses double-buffered async SD reads (27 sectors each, of_file_read_async); 0 = the synchronous read shape (docs/403)
+        "CDDA_CARD_STOP=1\n"           # 1 = silence CD-DA while the stage<N>.pcx hold card is on screen: the game issues no CD call between 0x03b130 and 0x03b1ba, and the original is silent through that hold (docs/413)
         "DISC_RAMP=0\n"           # 0 = prime the CD-DA slice in the requesting visit; 1 = spread it over pump visits (underran: dry 5->49, audio_low 5->64, ahead_min 0.00 s -- docs/402)
         "DISC_PREFILL_FIRST=150\n"    # sectors of CD-DA read before the voices start (2 s). One-shot priming is the shape that measured dry=0 audio_low=0 ahead 0.45 s; its cost is a rare 418-424 ms fill (docs/396, docs/402)
         "DISC_MIN_WANT=27\n"
@@ -493,7 +494,7 @@ def main():
     # depends on and refuses to ship an ini that dropped one (docs/405).
     REQUIRED = ["RES", "MUSIC_VOL", "SFX_VOL", "MASTER_VOL", "SFX_GAIN", "CDDA_GAIN", "CDDA_OFF", "PAD_OFF",
                 "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
-                "DISC_RAMP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "RESTORE", "PRESENT_SYNC",
+                "DISC_RAMP", "CDDA_CARD_STOP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "RESTORE", "PRESENT_SYNC",
                 "TICK_HZ", "DIAG", "LOG", "DISC_LOOKAHEAD"]
     got = set(re.findall(r"(?m)^([A-Z_]+)=", ini_text))
     missing = [k for k in REQUIRED if k not in got]
@@ -538,6 +539,7 @@ def main():
           "| `TICK_HZ` | 490 | cap the game's fixed step rate, 0 = whatever the game programs |\n"
           "| `FB_MODE` | 1 | 1 = native 640x480 source framebuffer, 0 = the host's own 2x2 downscale |\n"
           "| `DISC_PREFILL_FIRST` | 150 | sectors of CD-DA read before the voices start (2 s), in one visit; the rare 418-424 ms fill is its price (docs/396, docs/402) |\n"
+          "| `CDDA_CARD_STOP` | 1 | 0 = keep streaming the introduction track over the `stage<N>.pcx` hold card; 1 = silence it, as the original is (docs/413) |\n"
           "| `DISC_RAMP` | 0 | 1 = spread that priming over pump visits; it removes the big fill but the ring never got ahead on hardware (dry 5->49, audio_low 5->64, ahead_min 0.00 s, docs/402) |\n"
           "| `DISC_MIN_WANT` | 12 | sectors of read allowance to accumulate before filling; 1 = the old one-sector-at-the-disc-rate shape |\n"
           "| `DISC_BATCH` | 12 | sectors per CD-DA slot read; 1 reproduces the old one-sector-at-a-time reads |\n"

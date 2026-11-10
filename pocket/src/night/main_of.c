@@ -1043,12 +1043,29 @@ static void audio_pump(void) {
 static uint32_t g_music_mode = 1;
 static uint32_t g_cdda_last_index, g_cdda_last_lba, g_cdda_last_sectors;
 static int cdda_allowed(void) { return !(g_off & OFF_CDDA) && g_music_mode; }
+/* Stamped, because the counters in the 1 s audio line cannot answer "did the game ask for silence *at this
+ * card*".  fn_10b1d(11) hands CD track 11 to the "%ds%d.pcx" episode-introduction show once for the whole
+ * show (f.c:28791), the ESC path unwinds it with `goto hold` straight to the stage-name card, and there is a
+ * CD stop (fn_000405a7 -> sys_cd_audio_stop, f.c:804 lists 0x3b1ad among its sites) right at that tail.
+ * Whether that stop lands -- and whether anything restarts the music behind the player's back -- is only
+ * visible per event, not per second. */
 static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     if (!cdda_allowed()) return;
     g_cdda_last_index = index; g_cdda_last_lba = lba; g_cdda_last_sectors = sectors;
+    NLOG("cdda EVENT play idx=%u lba=%u sectors=%u tick=%u\n", index, lba, sectors, g_timer_calls);
     of_cdda_play(index, lba, sectors);
 }
-static void cdda_stop(void) { if (cdda_allowed()) of_cdda_stop(); }
+static int g_stop_by_host;              /* set only by the card rule, cleared after it reports */
+static void cdda_stop(void) {
+    if (!cdda_allowed()) return;
+    /* Whose stop was this? src/f calls sys_cd_audio_stop() from fn_000405a7, whose bytes (0x405bf:
+     * mov word [ebp-0x1c],0x13 / mov eax,0x10 / call 0x41e51) are INT 10h AX=0013 -- a video mode set and
+     * nothing else (docs/413). So a stop with g_stop_by_host==0 is the port's own bookkeeping, not the
+     * game's instruction, and a log that said otherwise made the fiction look like evidence. */
+    NLOG("cdda EVENT stop tick=%u by=%s\n", g_timer_calls, g_stop_by_host ? "host-card-rule" : "port-bookkeeping");
+    g_stop_by_host = 0;
+    of_cdda_stop();
+}
 /* task-9 (docs/364): the CDDA pump used to run on EVERY spin visit.  The instrument counted 295 921 377
  * of_cdda_pump visits in a 1964-frame desktop run -- about 150 000 per frame, 0.1 % of which had anything to
  * do -- because the game's own spin loops re-enter the pump (fn_00035ec2 and friends call sys_port_spin).
@@ -1738,10 +1755,46 @@ static long script_vpoll(void) { return (long)g_pad_polls - g_script_held; }
 static FILE *g_reslog;
 static uint32_t g_res_last_seq;
 
+/* `stage<N>.pcx` and nothing else: the hold card that ends a stage's introduction show. */
+static int res_is_stage_card(const char *name) {
+    unsigned n = 0;
+    if (sscanf(name, "stage%u.pcx", &n) != 1 || n == 0u) return 0;
+    return strcmp(name, "stage.pcx") != 0;   /* sscanf stops before ".pcx"; reject the no-number case */
+}
+
 static void res_log_sample(void) {
     if (g_res_trace_seq == g_res_last_seq) return;
     g_res_last_seq = g_res_trace_seq;
     script_res_hook(g_res_trace);                       /* the ring the anchors search is fed from the same sample */
+
+    /* This function is also where the host hears "the game just asked for a resource", which is the only
+     * reliable observation of the game's own resource loads on this host (the sys_set_res_hook path hears
+     * nothing -- docs/380). One of those loads is worth a behaviour decision.
+     *
+     * `stage<N>.pcx` is the card that ends a stage's introduction: "%ds%d.pcx" slides play CD track 11 over
+     * them (f.c:28791), ESC unwinds the loop with `goto hold` straight onto this card, and the card then
+     * holds the screen for 0xc00 delay_units(1) reads (~3 s on this host) and then the room loop asks for
+     * the stage's own track. Read from the original's bytes (scripts/analysis/cdaudio_window.py, docs/413),
+     * the hold is a hole in the game's CD traffic, not a command: the last INT 2F AX=1510 media read is at
+     * 0x03b130 and the next one is at 0x03b1ba, the first read of the room loop. In between: a PCX load, two
+     * palette fades, and nothing that touches the disc. fn_000405a7 at LAB_0003b1ad is INT 10h AX=0013, a
+     * video mode set, so it stops nothing in the original. On the original, the introduction music is silent for
+     * that hold -- it stops before the stage music starts -- and here it streamed on to the very sample the
+     * stage track replaced it. src/f is not wrong: the game issues no stop instruction at the card, because
+     * the original's CD-DA feed is refreshed by the game's own reads and drains during a delay_units hold,
+     * while this port's ring is refilled by the host on its own tick. Modelling the feed's lifetime is the
+     * subsystem docs/395-412 was about; this stops the audible symptom at its one site instead.
+     *
+     * The trigger is exact (`stage` + digits + `.pcx`), and that name is loaded at exactly one place in
+     * src/f (f.c:28836), so nothing else in the game can reach this rule. */
+    if (of_setting_cdda_card_stop() && res_is_stage_card(g_res_trace)) {
+        if (of_cdda_running()) {
+            NLOG("cdda card stop: %s on screen and the game has issued no CD call since 0x03b130 -- the "
+                 "original is silent through this hold (docs/413)\n", g_res_trace);
+            g_stop_by_host = 1;
+            cdda_stop();
+        }
+    }
 #ifdef OF_PC
     /* g_rig_dir lives in the OF_PC-guarded rig block above, so the sidecar is a desktop-rig artifact; the ring the
      * anchors search is fed on both builds.  (The first version of this function reached for g_rig_dir unguarded and

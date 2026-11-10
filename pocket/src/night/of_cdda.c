@@ -840,6 +840,8 @@ void of_cdda_stop(void) {
 #endif
 }
 
+int of_cdda_running(void) { return g_running; }
+
 void of_cdda_pump(void) {
     if (!g_sectors) return;
     g_pump_visits++;                      /* the denominator for the visit-counters below: of_cdda_pump runs

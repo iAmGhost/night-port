@@ -23,7 +23,6 @@ make -C pocket/src/night data     # -> scratch/pocket/, then `make deploy`
 | `track13.bin` | 29 | CDDA track 13 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
 | `track14.bin` | 30 | CDDA track 14 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
 | `track15.bin` | 31 | CDDA track 15 of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |
-| `night_0..6.sav` | 10-16 | save slots, created by the game on the first save |
 | `nightlog.sav` | 17 | the host's diagnostic trail, opened through the SDK alias `save:7` -- only when `night.ini` says `LOG=1` (it ships off, so a player's card carries no log file) |
 | `night.cfg` | 8 | the host's diagnostic trail (phases, clock probe, memstat) -- read it after a run |
 
@@ -45,7 +44,6 @@ Three of them are in **Core Options** on the device -- Music Volume, SFX Volume,
 | `DISC_RAMP` | 0 | 1 = spread that priming over pump visits; it removes the big fill but the ring never got ahead on hardware (dry 5->49, audio_low 5->64, ahead_min 0.00 s, docs/402) |
 | `DISC_MIN_WANT` | 12 | sectors of read allowance to accumulate before filling; 1 = the old one-sector-at-the-disc-rate shape |
 | `DISC_BATCH` | 12 | sectors per CD-DA slot read; 1 reproduces the old one-sector-at-a-time reads |
-| `RESTORE` | 1 | what a loaded save applies: 1 HP bars, 2 state bytes + stage selectors, 4 key table, 0 nothing (2 and 7 can make the game dereference out of range mid-stage) |
 | `PUMP_AUDIO_TICK` | 0 | 0 = drain the board's DMA byte ring on every pump entry (the shape every build has used); 1 = drain it once per 490 Hz tick. The hardware A/B lever for the 267 000-pump-entries-a-frame finding (docs/369), off by default because that ring is the one the game is writing into |
 | `LOG` | 0 | 1 writes `Saves/night/common/nightlog.sav`, the diagnostic trail this port was measured with |
 | `DIAG` | 0 | which experimental bus probes a run may perform (1 periph scan, 2 analogizer, 4 interact census) |

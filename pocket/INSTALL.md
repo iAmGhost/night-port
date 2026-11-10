@@ -10,8 +10,8 @@ from `NIGHT/TG_NIGHT.CUE` + `NIGHT/TG_NIGHT.IMG` and the `NIGHT.RES` you already
 > **Upgrading clears your menu settings (docs/394 3).**  `scripts/pocket/deploy.sh` deletes
 > `Settings/iamghost.night/Interact/` on purpose: a stale `interact_persist.json` once carried "Music Volume 0", which
 > the peripheral mirror read as a real choice and the core played as silence.  After a deploy, the in-menu knobs (Music
-> Volume, Sound Volume, Screen Fit) return to the `night.ini` values shown above.  Your `Input` and `Video` settings and
-> your save slots are left alone.
+> Volume, Sound Volume, Screen Fit) return to the `night.ini` values shown above.  Your `Input` and `Video`
+> settings are left alone.
 
 ## 1. One command, on a mounted SD card
 
@@ -28,7 +28,7 @@ make -C pocket/src/night deploy   # core tree + slot files -> /Volumes/Pocket
                                          interact.json  data.json  loader.bin  os25.rbf_r
 /Volumes/Pocket/Assets/night/common/    night.elf  os.bin  bank.ofsf  night.ini  README.md
                                          NIGHT.RES  track02.bin .. track15.bin
-/Volumes/Pocket/Saves/night/common/     (created by the game: night_0..6.sav, night.cfg, nightlog.sav)
+/Volumes/Pocket/Saves/night/common/     (created by the core: nightlog.sav, and only while `LOG=1`)
 ```
 
 `make copy` is the SDK's own copy step and carries the **core tree only** -- no slot files.  Run `deploy`, and run it
@@ -61,11 +61,12 @@ with its default.  The ones that matter for a report:
 | `TICK_HZ` | `490` | a cap on the game's fixed step rate, for slow-motion experiments |
 | `SFX_GAIN` / `CDDA_GAIN` | `200` / `150` | 100-212 %, through a knee that cannot clip and cannot attenuate (docs/361) |
 
-In-game, with L1 held: `L1+Select` saves the current slot, `L1+Start` loads it, `L1+A` cycles slots 0-9.
-A save holds the stage number, the stage's state words, a 64-byte window of the player record and the key table, and
-it is checksum-guarded on load.  A load applies the HP bars by default (`RESTORE=1`, docs/374); the stage-state and
-key-table halves are opt-in because forcing the stage selectors mid-stage can make the game dereference them out of
-range.  The original game has no save system of its own, so this is a facility of the port.
+There are **no game saves**, and that is deliberate (docs/449): the shipped game has no save concept at all —
+`src/f` names no save file and `NIGHT/` ships none (docs/374) — so saves were the port inventing a feature, and the
+masked restore that came with them only ever half-worked (HP bars restored, stage position and enemies did not).
+They were removed in `0.2.23`, together with the `L1+Select` / `L1+Start` / `L1+A` combos that carried them; those
+combos also pressed Esc and Enter on the game, so every save was a stray key into the shipped pause menu.
+`L1+Up` (trace window) and `L1+B` (panel fit cycle) remain.
 
 ## 3. Reporting a hardware run
 

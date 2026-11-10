@@ -2296,7 +2296,6 @@ static uint32_t pad_btn_for_sc(uint8_t sc) {
 }
 
 static int g_warp_stage_cli = 0;      /* --warp-stage N: the host warp basis (docs/52) */
-static int g_load_slot = -1, g_save_slot = -1, g_save_at = -1;
 
 static void pad_script_load(void) {
     const char *e = getenv("NIGHT_PAD_SCRIPT");
@@ -2705,20 +2704,12 @@ static void __attribute__((noinline)) warp_entry_pump(void) {
     g_dat_62c58[0x1c] = (uint8_t)(on ? 1 : 0);
 }
 
-static void __attribute__((noinline)) save_pump(void) {
-    if (g_load_slot >= 0 && f_act_resolver_calls() > 0) {
-        if (of_save_apply()) g_load_slot = -1;
-    }
-    if (g_save_slot >= 0 && g_save_at >= 0 && (int)g_frames == g_save_at) {
-        if (of_save_write(g_save_slot) != 0 && of_save_last_error()) printf("save: %s\n", of_save_last_error());
-        g_save_slot = -1;
-    }
-}
-
-/* L1 held + Select saves the current slot, L1 + Start loads it, L1 + A cycles to the next slot, L1 + B cycles
- * the panel fit (letterbox -> stretch -> scaler).
- * L1 is F1 to the game and Select/Start are Esc/Enter, so the combo also reaches the shipped key state --
- * that is unavoidable on 11 buttons and is why the game sees a pause-menu key press on a save. */
+/* L1 held + Up traces the next FDUMP_FRAMES presents into the log; L1 + B cycles the panel fit.
+ * L1+Select / L1+Start / L1+A used to be save / load / cycle-slot and are GONE (docs/449): the shipped
+ * game has no save concept at all -- src/f names no save file and NIGHT/ ships none (docs/374) -- so a
+ * save was the port inventing a feature, and its masked restore only ever half-worked. Dropping the combo
+ * also drops its unavoidable side effect: Select and Start are Esc and Enter to the game, so every save
+ * press reached the shipped pause menu. */
 static void pad_combo(void) {
     /* One-shot, so a missing combo is distinguishable from a missing call.  docs/425: 0.2.2 armed nothing on
      * hardware and there was no evidence of which half failed -- the buttons never arriving, or the combo
@@ -2734,7 +2725,7 @@ static void pad_combo(void) {
         }
     }
     if (!pad_script_held(OF_BTN_L1) && !of_btn(OF_BTN_L1)) return;
-    static uint8_t seen_select, seen_start, seen_a, seen_b;
+    static uint8_t seen_b;
     /* L1 + Up traces the next FDUMP_FRAMES presents into the log (docs/424).  Up is an arrow key to the game,
      * so pressing it also moves a menu entry -- the same unavoidable class as the save/load combos. */
     int u = pad_script_held(OF_BTN_UP) || of_btn(OF_BTN_UP);
@@ -2745,16 +2736,7 @@ static void pad_combo(void) {
              FDUMP_FRAMES, (unsigned)g_pal_hash_last);
     }
     if (!u) seen_up = 0;
-    int s = pad_script_held(OF_BTN_SELECT) || of_btn(OF_BTN_SELECT);
-    int st = pad_script_held(OF_BTN_START) || of_btn(OF_BTN_START);
-    int a = pad_script_held(OF_BTN_A) || of_btn(OF_BTN_A);
     int b = pad_script_held(OF_BTN_B) || of_btn(OF_BTN_B);
-    if (s && !seen_select) { seen_select = 1; if (of_save_write(of_save_slot()) != 0 && of_save_last_error()) printf("save: %s\n", of_save_last_error()); }
-    if (!s) seen_select = 0;
-    if (st && !seen_start) { seen_start = 1; if (of_save_read(of_save_slot()) == 0) g_load_slot = of_save_slot(); else if (of_save_last_error()) printf("load: %s\n", of_save_last_error()); }
-    if (!st) seen_start = 0;
-    if (a && !seen_a) { seen_a = 1; of_save_slot_next(); }
-    if (!a) seen_a = 0;
     if (b && !seen_b) {
         seen_b = 1;
         NLOG("fit: pad cycle -> %d (0 letterbox, 1 stretch, 2 scaler)\n", of_setting_fit_cycle());
@@ -3156,14 +3138,13 @@ static void tick_pump(void) {
     cdda_pump();
     /* Gated to the game's own tick, for the same reason the CDDA pump is (docs/364 §3) and for the same reason
      * the pad pump already was (one poll per ~8 ms, docs/333): neither decision has a cadence finer than a frame.
-     * warp_entry_pump presses confirm for 250 ms at a time, which is 120 ticks; save_pump fires on a frame match
+     * warp_entry_pump presses confirm for 250 ms at a time, which is 120 ticks (save_pump, which fired on a frame match, is gone -- docs/449)
      * and a tick runs 8x a frame, so a gated match is still the same frame.  The board drain (audio_pump) is NOT
      * gated: it services the DMA ring the game is writing into, and "drain whenever the game spins" is the
      * contract that ring is written against. */
     if (g_warp_gate != g_timer_calls) {
         g_warp_gate = g_timer_calls;
         warp_entry_pump();
-        save_pump();
     }
 #ifndef OF_PC
     of_mixer_pump();
@@ -3324,7 +3305,7 @@ static void mem_bench(void) {
 #endif
 
 static void file_probe(void) {
-    static const char *names[] = { "nightlog.sav", "night_0.sav", "night_6.sav", "NIGHT.RES", "track02.bin" };
+    static const char *names[] = { "nightlog.sav", "NIGHT.RES", "track02.bin" };
     for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
         uint32_t sid = 0;
         int r = of_file_slot_find(names[i], &sid);
@@ -3365,9 +3346,6 @@ int main(int argc, char **argv) {
          * raws (1 byte a pixel, the docs/62 basis) are what the comparison reads.  0 turns them off. */
         else if (!strcmp(argv[i], "--rig-witness") && i + 1 < argc) g_rig_witness = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--warp-stage") && i + 1 < argc) g_warp_stage_cli = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "--save") && i + 1 < argc) g_save_slot = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "--save-at") && i + 1 < argc) g_save_at = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "--load") && i + 1 < argc) g_load_slot = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--script") && i + 1 < argc) g_script_path = argv[++i];
 #endif
     }
@@ -3625,9 +3603,6 @@ int main(int argc, char **argv) {
 #endif
     if (!of_setting_cdda()) g_off |= OFF_CDDA;
     if (!of_setting_pad())  g_off |= OFF_PAD;
-    if (g_load_slot >= 0) {                    /* a restore arms the warp basis from the blob */
-        if (of_save_read(g_load_slot) != 0 && of_save_last_error()) printf("load: %s\n", of_save_last_error());
-    }
     if (g_warp_stage_cli > 0) g_warp_stage = g_warp_stage_cli;
     pad_script_load();
     if (g_script_path) pad_script_file(g_script_path);   /* --script FILE: the rig's key lines, docs/377 4 */

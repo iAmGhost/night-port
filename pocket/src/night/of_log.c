@@ -31,7 +31,7 @@
 #endif
 
 #ifndef SAVE_STAGE_FIRST_MIN
-#define SAVE_STAGE_FIRST_MIN 10       /* of_save.c: instance slot ids 10..16 are night_0.sav .. night_6.sav */
+#define SAVE_STAGE_FIRST_MIN 10       /* README:644 reserves ids 10-19 for nonvolatile save .. night_6.sav */
 #endif
 #define LOG_SLOT        17         /* a save slot of our own: 10-16 are the game saves, 17 is the log */
 #define LOG_NAME        "save:7"   /* the SDK save alias for APF slot 17 (save_0/save:0 is id 10) */

@@ -163,7 +163,7 @@ links back and this index says so; the older file stays where its citations poin
 
 - **333** — The pad mapping, measured: which DAT_63e88 slot each Pocket button arms, and what a pad-driven route reaches
   <sub>Task-3 wired the pad pump; this doc is task-6's verification: the mapping must not invent its own input</sub>
-- **334** — Save slots and settings on the Pocket host: what a NIGHT save can honestly contain
+- **334** — pocket-save-slots-settings-and-what-a-save-may-restore
   <sub>NIGHT has no save feature.  Nothing in the shipped code writes progress to disk (docs/06 §4, docs/65), so</sub>
 - **374** — a loaded save used to restore nothing; the apply path was fine, the default was not
   <sub>The objective lists "saves" as part of the port.  docs/334 built the slot mechanism, and a card-side save had been</sub>

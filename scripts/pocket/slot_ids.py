@@ -17,7 +17,7 @@ AUDIO_IDS = [5, 6] + list(range(20, 32))     # Data 2, Data 3, then everything a
 RES_ID = 4                                    # NIGHT.RES, Data 1
 BANK_ID = 7                                   # bank.ofsf, the optional SoundFont bank
 LOG_ID = 17                                   # nightlog.sav, the diagnostic trail
-SAVE_BASE = 10                                # night_0.sav .. night_6.sav on Save 0-6
+# (SAVE_BASE is gone: the port binds no game save slots -- docs/449)
 
 
 def slots_for_tracks(audio_tracks):

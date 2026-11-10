@@ -40,38 +40,6 @@
 #include <dirent.h>
 #endif
 
-#define SAVE_MAGIC   0x5653474eu   /* 'NGSV' */
-#define SAVE_VERSION 1u
-#define SAVE_STAGE_FIRST 10u       /* instance slot ids 10..16 = night_0.sav .. night_6.sav */
-/* The instance filename a save slot is bound to -- the name that has to reach of_file_slot_register() too. */
-static const char *save_fname(int slot, char *out, size_t n) { snprintf(out, n, "night_%d.sav", slot); return out; }
-#define SAVE_FILE(slot)  save_fname((slot), savebuf, sizeof savebuf)
-/* Only the scalar window of the player block is saved.  The block's head holds host pointers (sprite and
- * action-table addresses into the heap arena), and a save file must not carry a pointer from one process's
- * arena into another: the first version copied 64 raw bytes and the restore died in a SIGBUS the moment the
- * game dereferenced one.  The window below is exactly the set of fields f.h documents as scalars -- the two
- * gauge words at +0x23/+0x29 (fn_01348f draws them) and the state bytes +0x25..+0x2b that DAT_63374..63384
- * mirror. */
-#define PLAYER_WIN_OFF 0x20
-#define PLAYER_WIN_LEN 0x10
-#define PLAYER_BYTES   PLAYER_WIN_LEN
-
-typedef struct {
-    uint32_t magic, version;
-    int64_t  created_ms;
-    uint32_t stage;
-    uint32_t dat63370, dat63374, dat63378, dat6337c;
-    uint8_t  dat63380, dat63384;
-    uint8_t  player[PLAYER_BYTES];
-    uint8_t  key_state[0x80];      /* the DAT_00063e88 held-byte table, exactly as the game holds it */
-    uint32_t stage_live_calls;     /* fn_03272f invocations at save time: the proof the stage was live */
-    uint32_t crc;
-} save_blob_t;
-
-static save_blob_t g_pending;
-static int      g_pending_valid;
-static int      g_slot = 1;
-static char     g_err[96];
 static int      g_music_vol = 255, g_sfx_vol = 255, g_cdda_on = 1, g_pad_on = 1;
 static int      g_master_vol = 255;              /* the mixer output stage, never set by this port until 0.1.51 */
 static int      g_sfx_gain = 200, g_cdda_gain = 150;   /* percent, through of_gain16()'s knee (docs/361) */
@@ -191,7 +159,6 @@ static int fit_from_bridge(unsigned word) {
 static int      g_fit_bridge = 0, g_interact_err = 0;
 static int      g_diag = 0;          /* night.ini DIAG=: which experimental probes this run may perform */
 static unsigned g_bridge_word = 0;   /* the raw control word last seen, and the source of every field above */
-static int      g_restore = 1;   /* night.ini RESTORE=: which save fields a load applies (docs/374) */
 static int      g_disc_prefill_first = 150; /* night.ini DISC_PREFILL_FIRST: synchronous prefill slice (docs/376) */
 static int      g_disc_min_want = 12;  /* night.ini DISC_MIN_WANT: sectors of allowance to accumulate before a fill read (docs/375) */
 static int      g_disc_batch = 12;
@@ -216,203 +183,10 @@ static int      g_cdda_card_stop = 1;   /* 1 = the intro track stops when stage<
 static int      g_disc_ramp = 0;   /* 0 = prime the CD-DA slice in one visit (dry=0, audio_low=0); 1 = spread it over pump visits, which underran (docs/402) */
 static int      g_screen    = 0;   /* 0 game only, 1 terminal only, 2 game with the log overlaid */
 
-/* The blob stores the player window (PLAYER_WIN_OFF..+0x10), so its gauge words sit at 3 and 9. */
-static int16_t gauge_of(const save_blob_t *b)  { return (int16_t)(b->player[0x23 - PLAYER_WIN_OFF] | (b->player[0x24 - PLAYER_WIN_OFF] << 8)); }
-static int16_t gauge2_of(const save_blob_t *b) { return (int16_t)(b->player[0x29 - PLAYER_WIN_OFF] | (b->player[0x2a - PLAYER_WIN_OFF] << 8)); }
-
-/* What may be written back into a LIVE stage.  Measured (docs/334): the action-state bytes 0x25..0x28 are
- * the selectors the stage's key/action tables index through (DAT_63378/6337c are picked from them by
- * fn_0376c8), and forcing them mid-stage makes the game dereference out of range -- a bus error, not a
- * graceful mismatch.  The gauges are plain int16 bars that fn_01348f only draws, and those restore fine.
- * NIGHT_RESTORE=<bits> bisects it: 1 = gauges, 2 = state bytes, 4 = the DAT_63e88 key table. */
-#define RS_GAUGE    1
-#define RS_STATE    2
-#define RS_KEYSTATE 4
-/* task-accuracy (docs/374): the default used to be 0, which meant a loaded save restored NOTHING.  That was
- * measured (a save whose HP byte was patched to 37 and its CRC recomputed left the live player record at the spawn
- * value 100/1000 with mask 0, and moved it to 37/1000 with mask 1 -- the apply path works, the default just never
- * used it).  Gauges are now restored by default: mask 1 completed clean at stage 1 (873 frames, +491 ticks/s, no
- * terminate request), and masks 2/4/5/7 also completed clean on that route while the older measurement says the
- * DAT_63374..63384 selectors can be dereferenced out of range when forced mid-stage.  So the risky half stays opt-in
- * via night.ini RESTORE= and the useful half ships. */
-int of_setting_restore(void);
-static int restore_mask(void) { return of_setting_restore() & 7; }
-
-static uint32_t blob_crc(const save_blob_t *b) {
-    const uint8_t *p = (const uint8_t *)b;
-    uint32_t c = 0x811c9dc5u;
-    for (size_t i = 0; i < offsetof(save_blob_t, crc); i++) {
-        c ^= p[i];
-        c = (c * 0x01000193u) & 0xffffffffu;
-    }
-    return c;
-}
-
-/* ---- slot resolution ------------------------------------------------------------------ */
-#ifdef OF_PC
-static const char *save_dir(void) {
-    const char *d = getenv("NIGHT_SAVE_DIR");
-    return (d && *d) ? d : "scratch/pocket/saves";
-}
-static int slot_path(int slot, char *out, size_t n) {
-    if (slot < 0 || slot >= OF_SAVE_SLOTS) { snprintf(g_err, sizeof g_err, "slot %d out of range", slot); return -1; }
-    snprintf(out, n, "%s/night_%d.sav", save_dir(), slot);
-    return 0;
-}
-#else
-/* Bound slots are flat in the virtual root and only identifiable through d_ino. */
-static int slot_path(int slot, char *out, size_t n) {
-    if (slot < 0 || slot >= OF_SAVE_SLOTS) { snprintf(g_err, sizeof g_err, "slot %d out of range", slot); return -1; }
-    uint32_t want = SAVE_STAGE_FIRST + (uint32_t)slot;
-    char want_name[32];
-    snprintf(want_name, sizeof want_name, "night_%d.sav", slot);
-    DIR *d = opendir("/");
-    if (!d) { snprintf(g_err, sizeof g_err, "opendir(/) failed"); return -1; }
-    struct dirent *e;
-    int found = 0;
-    while ((e = readdir(d)) != NULL) {
-        if ((uint32_t)e->d_ino - 1u == want) { snprintf(out, n, "%s", e->d_name); found = 1; break; }
-    }
-    closedir(d);
-    if (!found) {
-        /* A nonvolatile slot whose file does not exist yet is not listed by readdir at all -- the firmware
-         * keeps save data under Saves/<platform>/common/ (measured on this card: quake.cfg lives at
-         * Saves/quake/common/, and Saves/night/common/ was created for us but left empty).  openfpgaOS-Quake
-         * writes its cfg/sav slots with a plain fopen on the BARE name, which the SDK maps to the bound slot,
-         * so that is the fallback rather than declaring the slot unreachable (docs/336). */
-        snprintf(out, n, "%s", want_name);
-        return 0;
-    }
-    return 0;
-}
-#endif
-
-/* ---- capture -------------------------------------------------------------------------- */
-static void blob_capture(save_blob_t *b) {
-    memset(b, 0, sizeof *b);
-    b->magic = SAVE_MAGIC;
-    b->version = SAVE_VERSION;
-    b->created_ms = (int64_t)(sys_now_us() / 1000ull);
-    b->stage = g_dat_63370 ? g_dat_63370 : (uint32_t)(g_warp_stage > 0 ? (uint32_t)g_warp_stage : 1u);
-    b->dat63370 = g_dat_63370;
-    b->dat63374 = g_dat_63374;
-    b->dat63378 = g_dat_63378;
-    b->dat6337c = g_dat_6337c;
-    b->dat63380 = g_dat_63380;
-    b->dat63384 = g_dat_63384;
-    if (g_player_ent) memcpy(b->player, g_player_ent + PLAYER_WIN_OFF, PLAYER_BYTES);
-    memcpy(b->key_state, g_dat_63e88, sizeof b->key_state);
-    b->stage_live_calls = (uint32_t)f_act_resolver_calls();
-    b->crc = blob_crc(b);
-    if (g_player_ent) {                           /* what the record head actually holds, for the record */
-        printf("save: player record 0x00..0x3f:");
-        for (int i = 0; i < 0x40; i++) printf(" %02x", g_player_ent[i]);
-        printf("\n");
-    }
-}
-
-int of_save_write(int slot) {
-    char path[512];
-    if (slot_path(slot, path, sizeof path) != 0) return -1;
-#ifndef OF_PC
-    /* No of_file_slot_register(): openfpgaOS-Quake writes Saves/quake/common/s0.sav with a plain
-     * fopen("s0.sav","wb") and no registration, and of_file.h describes a registered binding as "a read-only
-     * APF data file".  Our registered names wrote nothing across five hardware runs. */
-    char savebuf[32];
-    (void)SAVE_FILE(slot);          /* the bare name is what the kernel's discovery maps to the slot */
-#endif
-    save_blob_t b;
-    blob_capture(&b);
-#ifdef OF_PC
-    /* A slot write used to fail outright when the save directory did not exist yet -- "save: open
-     * /tmp/svrt3/night_3.sav failed" (docs/390) -- which is the first wall every desktop save test hits, and it made
-     * four "load" runs earlier today load nothing at all.  The card's Saves/night/common tree is created by the
-     * firmware, so this is the desktop path only. */
-    {
-        char dir[512];
-        snprintf(dir, sizeof dir, "%s", save_dir());
-        mkdir(dir, 0775);
-    }
-#endif
-    FILE *f = fopen(path, "wb");
-    if (!f) { snprintf(g_err, sizeof g_err, "open %s failed", path); return -1; }
-    size_t wrote = fwrite(&b, 1, sizeof b, f);
-    fclose(f);
-    if (wrote != sizeof b) { snprintf(g_err, sizeof g_err, "wrote %zu of %zu bytes", wrote, sizeof b); return -1; }
-    printf("save: slot %d -> %s (%zu B) stage=%u gauge=%d/%d state=%02x/%02x/%02x resolver_calls=%u\n",
-           slot, path, sizeof b, b.dat63370, gauge_of(&b), gauge2_of(&b),
-           b.player[0x25 - PLAYER_WIN_OFF], b.player[0x26 - PLAYER_WIN_OFF], b.player[0x27 - PLAYER_WIN_OFF],
-           b.stage_live_calls);
-    return 0;
-}
-
-int of_save_read(int slot) {
-    char path[512];
-    if (slot_path(slot, path, sizeof path) != 0) return -1;
-#ifndef OF_PC
-    char savebuf[32];
-    (void)SAVE_FILE(slot);
-#endif
-    FILE *f = fopen(path, "rb");
-    if (!f) { snprintf(g_err, sizeof g_err, "no save in slot %d (%s)", slot, path); return -1; }
-    save_blob_t b;
-    size_t got = fread(&b, 1, sizeof b, f);
-    fclose(f);
-    if (got != sizeof b) { snprintf(g_err, sizeof g_err, "slot %d holds %zu of %zu bytes", slot, got, sizeof b); return -1; }
-    if (b.magic != SAVE_MAGIC || b.version != SAVE_VERSION) { snprintf(g_err, sizeof g_err, "slot %d is not a NIGHT save", slot); return -1; }
-    if (b.crc != blob_crc(&b)) { snprintf(g_err, sizeof g_err, "slot %d checksum mismatch", slot); return -1; }
-    g_pending = b;
-    g_pending_valid = 1;
-    g_warp_stage = (int)b.stage;                    /* the warp basis the restore drives (docs/52) */
-    printf("load: slot %d <- %s stage=%u gauge=%d/%d state=%02x/%02x/%02x saved_at_ms=%lld\n",
-           slot, path, b.dat63370, gauge_of(&b), gauge2_of(&b),
-           b.player[0x25 - PLAYER_WIN_OFF], b.player[0x26 - PLAYER_WIN_OFF], b.player[0x27 - PLAYER_WIN_OFF],
-           (long long)b.created_ms);
-    return 0;
-}
-
-int of_save_apply(void) {
-    if (!g_pending_valid) return 0;
-    if (!g_player_ent) return 0;                    /* wait until the stage has spawned the player */
-    int mask = restore_mask();
-    if (mask & RS_GAUGE) {
-        g_player_ent[0x23] = g_pending.player[0x23 - PLAYER_WIN_OFF];
-        g_player_ent[0x24] = g_pending.player[0x24 - PLAYER_WIN_OFF];
-        g_player_ent[0x29] = g_pending.player[0x29 - PLAYER_WIN_OFF];
-        g_player_ent[0x2a] = g_pending.player[0x2a - PLAYER_WIN_OFF];
-    }
-    if (mask & RS_STATE) {
-        for (int off = 0x25; off <= 0x28; off++) g_player_ent[off] = g_pending.player[off - PLAYER_WIN_OFF];
-        g_dat_63374 = g_pending.dat63374;
-        g_dat_63378 = g_pending.dat63378;
-        g_dat_6337c = g_pending.dat6337c;
-        g_dat_63380 = g_pending.dat63380;
-        g_dat_63384 = g_pending.dat63384;
-    }
-    if (mask & RS_KEYSTATE) memcpy(g_dat_63e88, g_pending.key_state, sizeof g_pending.key_state);
-    printf("load: restore mask=%d\n", mask);
-    g_pending_valid = 0;
-    printf("load: restored player record (stage=%u gauge=%d/%d state=%02x/%02x/%02x)\n",
-           g_dat_63370,
-           (int16_t)(g_player_ent[0x23] | (g_player_ent[0x24] << 8)),
-           (int16_t)(g_player_ent[0x29] | (g_player_ent[0x2a] << 8)),
-           g_player_ent[0x25], g_player_ent[0x26], g_player_ent[0x27]);
-    return 1;
-}
-
-int         of_save_slot(void)     { return g_slot; }
-void        of_save_slot_next(void){ g_slot = (g_slot + 1) % OF_SAVE_SLOTS; printf("save slot: %d\n", g_slot); }
-
-/* Cycle the panel fit from the pad (L1 + B, main_of.c pad_combo).  This exists because the Core Options menu
- * has not been readable on hardware: 0.1.28's card log shows every interact index answering 0x55555555, so a
- * menu knob for a setting nobody can read is a decoration.  night.ini FIT= is the other route and works today. */
 int of_setting_fit_cycle(void) {
     g_fit = (g_fit + 1) % 3;
     return g_fit;
 }
-int         of_save_pending(void)  { return g_pending_valid; }
-const char *of_save_last_error(void){ return g_err[0] ? g_err : (const char *)0; }
-
 /* ---- settings -------------------------------------------------------------------------
  * The instance's slot 2 is night.ini, which the chip32 loader parses as os.ini; of_config_get() reads
  * its sections.  On the desktop build the same keys come from the environment so a rig run can set them. */
@@ -501,7 +275,6 @@ void of_settings_load(void) {
     /* RESTORE=0 restores nothing (what every build before 0.1.61 did); 1 restores the HP bars, 2 the state bytes and
      * DAT_63374..63384, 4 the key table.  The state half is the one docs/334 measured as able to make the game
      * dereference out of range mid-stage, so it stays a developer's setting. */
-    g_restore = cfg_int("restore", 1, "NIGHT_RESTORE");
     g_disc_batch = cfg_int("disc_batch", 12, "NIGHT_DISC_BATCH");
     g_disc_lookahead = cfg_int("disc_lookahead", 120, "NIGHT_DISC_LOOKAHEAD");   /* DEFAULT 120 = the value every desktop rig run was made with, so the shim basis is
                                                                                    * unchanged when no ini is present; the CARD gets 240 from night.ini (docs/407) */
@@ -667,7 +440,6 @@ int  of_setting_cdda_card_stop(void) { return g_cdda_card_stop; }
 int  of_setting_disc_async(void) { return g_disc_async; }
 int  of_setting_sync_flip(void) { return g_sync_flip; }
 int  of_setting_pump_audio_tick(void) { return g_pump_audio_tick; }
-int  of_setting_restore(void)   { return g_restore; }
 int  of_setting_disc_batch(void)  { return g_disc_batch; }
 int  of_setting_disc_lookahead(void) { return g_disc_lookahead; }
 int  of_setting_disc_min_want(void){ return g_disc_min_want; }

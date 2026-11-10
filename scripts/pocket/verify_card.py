@@ -90,10 +90,12 @@ def main():
     missing, sizes = [], []
     for sid, name in ((int(r[0]), r[1].strip()) for r in rows):
         if name.endswith('.sav'):
-            # save slots live in Saves/ and are created by the OS on first write: absent before a run is normal
+            # The only .sav the core binds now is nightlog.sav, the diagnostic trail, which lives in Saves/
+            # and exists only while night.ini says LOG=1 -- a player's card ships without it (docs/449 took
+            # the game save slots away: the original has no save concept).
             tgt = saves / name
             if not tgt.exists():
-                notes.append('%s not yet created (save slot, appears after a run)' % name)
+                notes.append('%s absent (expected unless night.ini LOG=1)' % name)
             continue
         tgt = common / name
         if not tgt.exists():

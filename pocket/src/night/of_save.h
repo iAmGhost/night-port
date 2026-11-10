@@ -1,29 +1,20 @@
-/* of_save.h -- the Pocket host's save slots and settings (task-7). */
+/* of_save.h -- the Pocket host's settings (task-7).
+ *
+ *
+ * The name outlives the feature. There used to be save slots here, and they were removed in 0.2.23
+ * (docs/449): the shipped game has no save concept -- src/f names no save file and NIGHT/ ships none
+ * (docs/374) -- so the port offering saves was the port inventing a feature. What remains, and what the
+ * file's remaining 450 lines are for, is night.ini plus the Core-Options bridge and its peripheral mirror. */
 #ifndef NIGHT_OF_SAVE_H
 #define NIGHT_OF_SAVE_H
 
 #include <stdint.h>
 
-#define OF_SAVE_SLOTS 7          /* data slot ids 10..16; id 17 is the diagnostic log (of_log.c) */
 
-/* Resolve + open one of the instance's save slots (ids 10..19 -> night_N.sav).
- * Returns 0 on success.  On the desktop build the slots are ordinary files under
- * NIGHT_SAVE_DIR (default scratch/pocket/saves). */
-int  of_save_write(int slot);
-int  of_save_read(int slot);
-
-/* Apply a loaded blob to the live game state.  Call once the stage is live; it reports whether it did. */
-int  of_save_apply(void);
-int  of_setting_restore(void);
 int  of_setting_disc_prefill_first(void); /* night.ini DISC_PREFILL_FIRST: sectors read before the voices start (12..300) */
 int  of_setting_disc_min_want(void); /* night.ini DISC_MIN_WANT: sectors of allowance to accumulate before a fill read (1..12) */
 int  of_setting_disc_lookahead(void);   /* sectors of CD-DA read-ahead past the disc clock (docs/407) */
 int  of_setting_disc_batch(void);    /* night.ini DISC_BATCH=: sectors per CD-DA slot read (1..12) */     /* night.ini RESTORE=: bits a load applies -- 1 gauges (default), 2 state+selectors, 4 key table */
-
-int  of_save_slot(void);                 /* the slot the pad combo is currently addressing */
-void of_save_slot_next(void);
-int  of_save_pending(void);              /* a load is armed and not yet applied */
-const char *of_save_last_error(void);
 
 /* Settings: os.ini ([night] section) on the device, environment on the desktop. */
 void of_settings_load(void);

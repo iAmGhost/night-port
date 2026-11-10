@@ -29,7 +29,7 @@ if [ -f "$INI" ]; then
 else echo "  night.ini missing"; fi
 echo; echo "== diagnostic trail =="
 found=0
-for f in "$CARD"/Saves/night/common/nightlog.sav "$CARD"/Saves/night/common/night_6.sav "$CARD"/Saves/night/iamghost.night/nightlog.sav; do
+for f in "$CARD"/Saves/night/common/nightlog.sav "$CARD"/Saves/night/iamghost.night/nightlog.sav; do
   [ -f "$f" ] || continue
   sz=$(wc -c < "$f" | tr -d ' ')
   if head -c 4 "$f" | grep -q NGSV; then echo "  $f ($sz B): a save blob, not a log"; continue; fi

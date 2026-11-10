@@ -42,7 +42,7 @@ report() {
 case "${1:-}" in
   player)
     need_card
-    for kv in SCREEN=0 DIAG=0 LOG=0 PUMP_AUDIO_TICK=0 RESTORE=1; do ini_set "${kv%%=*}" "${kv##*=}"; done
+    for kv in SCREEN=0 DIAG=0 LOG=0 PUMP_AUDIO_TICK=0 ; do ini_set "${kv%%=*}" "${kv##*=}"; done
     echo "player shape written:"; grep -nE '^(SCREEN|DIAG|LOG|PUMP_AUDIO_TICK|RESTORE|FB_MODE|BLIT_DIRTY|DISC_ASYNC)=' "$INI"
     ;;
   diag)

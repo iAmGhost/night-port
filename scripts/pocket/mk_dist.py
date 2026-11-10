@@ -19,7 +19,7 @@ Slot plan (see docs/330 §4-5):
   4 NIGHT.RES (the 51 MB resource container)
   7         bank.ofsf (SDK sound bank, only if MIDI is ever used)
   --        (no spare slots: the firmware allows a maximum of 32 data slots per core)
-  10-17     night_N.sav (nonvolatile saves, 256 KiB each)
+  17          nightlog.sav (the diagnostic trail; no game saves -- docs/449)
   18..31    trackNN.bin, one slot per CDDA audio track of TG_NIGHT.IMG (flat in Assets/<platform>/common/)
 """
 import json
@@ -41,11 +41,11 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.2.22"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.2.23"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
-SAVE_SLOTS = 7              # game saves live in ids 10..16; id 17 is the log (see below)
+# (SAVE_SLOTS removed in 0.2.23, docs/449: the port ships no save feature)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from slot_ids import AUDIO_IDS, SAVE_BASE, LOG_ID, RES_ID, BANK_ID, slots_for_tracks   # docs/339
+from slot_ids import AUDIO_IDS, LOG_ID, RES_ID, BANK_ID, slots_for_tracks   # docs/339
 
 
 def cue_audio_tracks(path: Path):
@@ -126,15 +126,8 @@ def main():
         # which is the plain explanation for fopen("night.log","w") answering yes and the file staying at 0
         # bytes through three hardware runs.
     ]
-    data_slots += [
-        {"id": 10 + i, "name": f"Save {i}", "required": False, "parameters": "0x84", "nonvolatile": True,
-         # The SDK template and openfpgaOS-Quake give every save slot its own address.  address_stride is not
-         # something the Pocket's JSON parser is documented to expand, and eight slots sharing one address is
-         # a plain explanation for no slot ever accepting a write.
-         "address": "0x%08X" % (0x20100000 + 0x40000 * i),
-         "size_maximum": "0x40000", "extensions": ["sav"]}
-        for i in range(SAVE_SLOTS)
-    ]
+    # No save slots (docs/449): the shipped game has no save concept, so the port does not offer one.
+    # Ids 10-19 stay unbound -- README:644 reserves them for nonvolatile save slots whatever we bind.
     data_slots.append(
         {"id": 17, "name": "Log Save", "required": False, "parameters": "0x84", "nonvolatile": True,
          # The trail lives in an app save slot, not in slot 8.  README:462 is explicit -- "Slot 8 is reserved
@@ -403,8 +396,6 @@ def main():
         {"id": 3, "filename": f"{APP}.elf"},
         {"id": 4, "filename": "NIGHT.RES"},
     ]
-    for i in range(SAVE_SLOTS):
-        inst_slots.append({"id": 10 + i, "filename": f"{APP}_{i}.sav"})
     inst_slots.append({"id": 17, "filename": "nightlog.sav"})   # the diagnostic trail, written by of_log.c
     for sid in sorted(ts):
         inst_slots.append({"id": sid, "filename": ts[sid]})
@@ -485,7 +476,6 @@ def main():
 
         "DISC_LOOKAHEAD=240\n"   # sectors of CD-DA read-ahead past the 75 sectors/s disc clock. 120 (1.6 s) was SMALLER than the 4 s ring and forced the 1.5-sector trickle reads (docs/406/407)   # wait until 12 sectors of read allowance have accumulated, then take them in one read (docs/375 6); 1 = the old read-whatever-is-due shape
         "DISC_BATCH=27\n"   # sectors per CD-DA slot read: 27 = 63 504 B, the largest single op this OS moves (docs/406)75); 1 = the old shape
-        "RESTORE=1\n"   # 1 = a loaded save restores the HP bars (docs/374); 0 = nothing, 2 = state bytes + stage selectors, 4 = the key table
                 "PRESENT_SYNC=0\n"    # 0 = do not wait for the flip to complete. 1 cost 18 294 -> 33 436 us on the flip stage (docs/401) and stacked on top of an already 90 ms present    # 1 = wait for each flip to complete before writing the surface again; 0 lets a write overlap scanout of a buffer that is mid-frame (torn/ghosted picture), which is what the 3-buffer display path makes possible    # wait for each flip to be presented before writing the surface again
         "TICK_HZ=490\n"
         # Experimental reads, all off.  0.1.35 shipped them unconditionally and the run died mid-boot (docs/347).
@@ -507,7 +497,7 @@ def main():
     # depends on and refuses to ship an ini that dropped one (docs/405).
     REQUIRED = ["RES", "MUSIC_VOL", "SFX_VOL", "MASTER_VOL", "SFX_GAIN", "CDDA_GAIN", "CDDA_OFF", "PAD_OFF",
                 "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "DISC_IDLE_HOOK", "FDUMP", "PALETTE_AFTER_FLIP", "PRESENT_SKIP", "ROW_SKIP", "STALL_MS", "FADE_RAMP", "FADE_RAMP_MS", "FADELOG", "PRESENT_CAP_MS", "DELAY_US", "CDDA_STOP_FIX", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
-                "DISC_RAMP", "CDDA_CARD_STOP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "RESTORE", "PRESENT_SYNC",
+                "DISC_RAMP", "CDDA_CARD_STOP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "PRESENT_SYNC",
                 "TICK_HZ", "DIAG", "LOG", "DISC_LOOKAHEAD"]
     got = set(re.findall(r"(?m)^([A-Z_]+)=", ini_text))
     missing = [k for k in REQUIRED if k not in got]
@@ -520,7 +510,6 @@ def main():
     # are not cosmetic -- 10-19 are save-window slots and a data file bound there cannot be read past 256 KB.
     (OUT / "slot_map.tsv").write_text(
         "4\tNIGHT.RES\n"
-        + "".join(f"{10 + i}\t{APP}_{i}.sav\n" for i in range(SAVE_SLOTS))
         + f"17\tnightlog.sav\n"
         + "".join(f"{sid}\t{ts[sid]}\n" for sid in sorted(ts))
     )
@@ -535,7 +524,6 @@ def main():
         "| `NIGHT.RES` | 4 | the shipped 51 MB resource container, copied verbatim |\n"
         + "".join(f"| `{fn}` | {sid} | CDDA track {int(fn[-6:-4])} of TG_NIGHT.IMG, raw 44.1 kHz stereo s16 |\n"
                   for sid, fn in sorted(ts.items()))
-        + f"| `{APP}_0..{SAVE_SLOTS - 1}.sav` | 10-{9 + SAVE_SLOTS} | save slots, created by the game on the first save |\n"
         + f"| `nightlog.sav` | 17 | the host's diagnostic trail, opened through the SDK alias `save:7` -- only when "
           "`night.ini` says `LOG=1` (it ships off, so a player's card carries no log file) |\n"
         + f"| `{APP}.cfg` | 8 | the host's diagnostic trail (phases, clock probe, memstat) -- read it after a run |\n"
@@ -556,7 +544,6 @@ def main():
           "| `DISC_RAMP` | 0 | 1 = spread that priming over pump visits; it removes the big fill but the ring never got ahead on hardware (dry 5->49, audio_low 5->64, ahead_min 0.00 s, docs/402) |\n"
           "| `DISC_MIN_WANT` | 12 | sectors of read allowance to accumulate before filling; 1 = the old one-sector-at-the-disc-rate shape |\n"
           "| `DISC_BATCH` | 12 | sectors per CD-DA slot read; 1 reproduces the old one-sector-at-a-time reads |\n"
-          "| `RESTORE` | 1 | what a loaded save applies: 1 HP bars, 2 state bytes + stage selectors, 4 key table, 0 nothing (2 and 7 can make the game dereference out of range mid-stage) |\n"
           "| `PUMP_AUDIO_TICK` | 0 | 0 = drain the board's DMA byte ring on every pump entry (the shape every build has used); 1 = drain it once per 490 Hz tick. The hardware A/B lever for the 267 000-pump-entries-a-frame finding (docs/369), off by default because that ring is the one the game is writing into |\n"
           "| `LOG` | 0 | 1 writes `Saves/night/common/nightlog.sav`, the diagnostic trail this port was measured with |\n"
           "| `DIAG` | 0 | which experimental bus probes a run may perform (1 periph scan, 2 analogizer, 4 interact census) |\n"

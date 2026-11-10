@@ -1,3 +1,7 @@
+> **SUPERSEDED (0.2.23, docs/449).** The save slots described here were removed: the shipped game has no
+> save concept (docs/374), and the port's masked restore only half-worked. The settings half of this
+> document -- night.ini, Core Options, the peripheral mirror -- remains accurate and in force.
+
 # 334 — Save slots and settings on the Pocket host: what a NIGHT save can honestly contain
 
 NIGHT has no save feature.  Nothing in the shipped code writes progress to disk (docs/06 §4, docs/65), so

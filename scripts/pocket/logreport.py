@@ -105,6 +105,16 @@ def main():
         print('   median %s  p90 %d  p99 %d  max %d' %
               (med(gaps), s[int(len(s) * .9)], s[min(len(s) - 1, int(len(s) * .99))], s[-1]))
 
+    fr = [l for l in seg if 'fade ramp:' in l or l.rstrip().endswith(('fr=0', 'fr=1'))]
+    if fr:
+        print('\n## fade ramp (docs/436/437: did the panel-side DAC replay arm at all?)')
+        for l in fr[:4]:
+            print('   ', l[-160:])
+        pf2 = [x for x in (PERF.search(l) for l in seg) if x]
+        if pf2:
+            tail = [l for l in seg if 'fade runs=' in l]
+            if tail: print('   last:', tail[-1][-130:])
+
     st = [l for l in seg if l.startswith('STALL')]
     if st:
         print('\n## stall witnesses (what the port was doing when no present happened)')

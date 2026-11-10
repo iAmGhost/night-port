@@ -449,6 +449,7 @@ static void disc_idle_hook(void) {
 static uint32_t g_pal_from[256], g_pal_target[256], g_pal_shown[256];
 static uint32_t g_pal_ramp_n, g_pal_ramp_k;     /* n = steps in this ramp, k = steps played so far */
 static uint32_t g_pal_ramp_arms, g_pal_ramp_steps, g_pal_writes_last, g_pal_ramp_dw_max;
+static uint32_t g_pal_ramp_runs, g_pal_w_last, g_pal_dw_last;   /* runs = times the fade check ran at all (docs/437) */
 static uint32_t g_pal_ramp_last_n;
 
 /* A fade is declared, not guessed: the game writes the whole (or a large part of the) table dozens of times
@@ -482,6 +483,9 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
     uint32_t w_now = sys_vga_palette_writes();
     uint32_t dw = w_now - g_pal_writes_last;
     g_pal_writes_last = w_now;
+    g_pal_ramp_runs++;
+    g_pal_w_last = w_now; g_pal_dw_last = dw;
+    if (dw > g_pal_ramp_dw_max) g_pal_ramp_dw_max = dw;
     uint32_t steps = dw / 768u;                       /* 3 writes per entry set -> 768 per full-table step */
     if (of_setting_fade_ramp() && steps >= FADE_MIN_STEPS) {
         memcpy(g_pal_from, g_pal_shown, sizeof g_pal_from);      /* from = what the panel is showing NOW */
@@ -490,7 +494,6 @@ static int palette_push(void)   /* 1 = the 256-entry upload actually ran */ {
         g_pal_ramp_k = 0;
         g_pal_ramp_arms++;
         g_pal_ramp_last_n = g_pal_ramp_n;
-        if (dw > g_pal_ramp_dw_max) g_pal_ramp_dw_max = dw;
         if (g_pal_ramp_arms <= 12u)
             NLOG("fade ramp: n=%u (dac writes=%u since last present) from black=%s\n", g_pal_ramp_n, dw,
                  (g_pal_from[0] | g_pal_from[1] | g_pal_from[2]) == 0u ? "yes" : "no");
@@ -2691,11 +2694,12 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
 #endif
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)"
                  " | rows c=%u s=%u fs=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u"
-                 " | fade arms=%u steps=%u n=%u\n",
+                 " | fade runs=%u arms=%u steps=%u n=%u dwmax=%u dw=%u w=%u fr=%d\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
                  g_hash_skips, g_smp_skips, g_row_copied, g_row_same, g_row_frameskip, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
                  g_br_native, g_br_game, g_br_down, g_br_other,
-                 g_pal_ramp_arms, g_pal_ramp_steps, g_pal_ramp_last_n);
+                 g_pal_ramp_runs, g_pal_ramp_arms, g_pal_ramp_steps, g_pal_ramp_last_n,
+                 g_pal_ramp_dw_max, g_pal_dw_last, g_pal_w_last, of_setting_fade_ramp());
 #ifndef OF_PC
             NLOG("idle hook: presents=%u\n", g_hook_presents);
 #endif
@@ -3158,6 +3162,8 @@ int main(int argc, char **argv) {
      * line is missing from a card log, the app never reached the point of writing anything, and the fault is in
      * what the firmware did before it ran (a core definition file, a slot, a bitstream), not in app code. */
     NLOG("core %s: boot marker\n", OF_CORE_VERSION);
+    NLOG("fade ramp: setting=%d (if this is 0, FADE_RAMP never reached the app -- docs/437)\n",
+         of_setting_fade_ramp());
     if (!g_log_ok) printf("log: the diagnostic slot is not openable; the terminal is the only trail\n");
     else atexit(of_log_close);          /* a fclose is what commits a nonvolatile slot (README:466) */
     NLOG_STEP("boot start");

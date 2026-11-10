@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–436)
+## The Pocket port (docs/330–437)
 
 ### Port plan and host layer
 
@@ -260,6 +260,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Two findings from the `0.2.8` boot, and one of them is a new problem rather than an old one coming back.</sub>
 - **433** — the 32-bit fingerprint also fails, so the row-skip line is closed; the real problem is a 3-second stall
   <sub>`docs/432` set a rule instead of an opinion: if `0.2.9` (32-bit row fingerprint) does not beat `ROW_SKIP=0`</sub>
+- **437** — `fade arms=0`: the ramp never ran, and "0" cannot say which premise failed
+  <sub>`0.2.11` shipped the panel-side palette ramp (docs/436) with `FADE_RAMP=1`. The boot says it did nothing:</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

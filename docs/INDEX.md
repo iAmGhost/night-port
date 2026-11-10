@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–430)
+## The Pocket port (docs/330–431)
 
 ### Port plan and host layer
 
@@ -72,6 +72,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Asked whether the ~1 s stutter was normal. It is not, and the log says why with its own numbers.</sub>
 - **428** — the deploy had quietly reset four knobs, and my log reader hid the version I said was missing
   <sub>Preventing a boot that could tell me nothing beats waiting for it. Between the `0.2.5` deploy and the user's</sub>
+- **431** — "the logo wait is back and animation feels slower" was my own 0.2.7, and the log showed it in one line
+  <sub>The user's report after the `0.2.7` boot: slow wait on the logo is back, animation a bit slower. Their eye was</sub>
 
 ### Video and display
 

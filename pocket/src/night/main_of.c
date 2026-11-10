@@ -173,6 +173,8 @@ static uint64_t g_row_buf[ROWHASH_NBUF][ROWHASH_MAXROWS]; /* hashes of what each
 static uint8_t g_row_valid[ROWHASH_NBUF];
 static uint32_t g_row_copied, g_row_same, g_row_fallback, g_row_invalidate;
 static uint32_t g_row_dry;                  /* dry-run verdicts that would have skipped a row */
+static uint32_t g_row_frameskip;            /* frames where every row was already in place */
+static uint32_t g_row_copied_prev;
 static uint32_t g_row_checks, g_row_mm;             /* skipped rows byte-compared against the buffer, and the mismatches */
 static uint32_t g_br_native, g_br_game, g_br_down, g_br_other;   /* which blit branch this frame took */
 /* docs/400 is the reason this exists: a skip that is subtly wrong shows up as ghosted rows on a panel, not in
@@ -374,6 +376,7 @@ static void present(void);                        /* defined below; present_step
  * Naming the remainder is the point: every unresolved stutter claim in this project has been an unmeasured
  * second suspect (docs/404, docs/408). */
 static uint64_t g_boot_us, g_us_pump_sum;
+static uint64_t g_last_frame_us, g_gap_max_us;
 static volatile int g_in_present, g_disc_busy, g_hook_busy;
 static unsigned g_hook_presents;
 static void disc_busy_cb(int b) { g_disc_busy = b; }
@@ -722,6 +725,11 @@ HOTPRESENT /* the frame copy, the palette push and the flip: 59 times a second *
  * indistinguishable in the log from one presented by the loop: same timings, same counters, same cadence. */
 static void present_step(uint64_t now) {
         uint64_t t0 = sys_now_us();
+        if (g_last_frame_us) {                       /* the gap the panel actually felt (docs/431) */
+            uint64_t gap = t0 - g_last_frame_us;
+            if (gap > g_gap_max_us) g_gap_max_us = gap;
+        }
+        g_last_frame_us = t0;
         g_in_present = 1;
         present();
         g_in_present = 0;
@@ -825,7 +833,13 @@ static void present(void) {
      * (docs/400). Only after three consecutive frames have written the SAME content into all three buffers can
      * a frame be skipped without any chance of showing older bytes. The gate counts written frames, not seen
      * frames: a skipped frame writes nothing, so it cannot advance the proof. */
-    if (of_setting_present_skip()) {
+    /* With ROW_SKIP on, the frame hash is dropped rather than doubled.  Measured on hardware: keeping both
+     * read the whole surface twice on every frame the skip could not take (perf `hash 2665` alongside
+     * `rows c=451638`), which is what made 0.2.7 feel slower than 0.2.6 -- the user's words, and the log
+     * agreed (pres mean 23.1 -> 23.5 ms).  The per-row verdicts do the same job more precisely: "every row
+     * matches what this buffer holds" IS "the frame is already on screen", per buffer, with no three-frame
+     * proof needed. */
+    if (of_setting_present_skip() && !use_rows) {
         size_t n = (size_t)vw * vh;                       /* exactly what the blit below would copy */
         uint32_t h = 2166136261u ^ (uint32_t)(vw * 73856093 + vh * 19349663);
         const uint8_t *q = src;
@@ -971,10 +985,7 @@ static void present(void) {
     }
 #endif
 
-    /* The other branches write a different shape into (possibly) the same buffer, so any tables we hold
-     * describe bytes that branch never wrote.  Drop them once, quietly, instead of reasoning about it. */
-    if (!native && rowhash_any_valid()) rowhash_invalidate(NULL);
-
+    g_row_copied_prev = g_row_copied;
     if (!skip) {
     if (native) {
         of_video_mode_t cur; of_video_get_mode(&cur);
@@ -996,6 +1007,7 @@ static void present(void) {
             copy_row(fb + (size_t)y * stride, s, (uint32_t)vw);
         }
         if (rb >= 0 && vh <= ROWHASH_MAXROWS) g_row_valid[rb] = 1;
+        if (use_rows) { g_src_changed = (g_row_copied != g_row_copied_prev); if (g_row_copied == g_row_copied_prev) g_row_frameskip++; }
     } else if (vw == GAME_W && vh == GAME_H) {
         /* One loop over the rows the surface actually has, each addressed by the stride the OS actually
          * reported, with the fit deciding which source row a panel row shows.  On the surface it expects this is
@@ -1044,9 +1056,16 @@ static void present(void) {
         if (use_rows) {
             int rb2 = surface_buffer_index(fb);
             if (rb2 >= 0 && rb2 < ROWHASH_NBUF && rows <= ROWHASH_MAXROWS) g_row_valid[rb2] = 1;
+            if (use_rows) { g_src_changed = (g_row_copied != g_row_copied_prev); if (g_row_copied == g_row_copied_prev) g_row_frameskip++; }
         }
     } else if (vw == 2 * PANEL_W && vh == 2 * PANEL_H) {
         g_br_down++;
+        /* Unmodelled writer: this branch computes destination pixels per pixel, so it neither keeps nor can
+         * cheaply be given a row table, and any table we hold is a lie after it runs.  (The blunt
+         * `if (!native) invalidate` that replaced this note wiped the tables on EVERY game-branch frame --
+         * inv=1800 against br game=1794 on the 0.2.7 boot, which is why 451 638 rows were copied and only
+         * 1002 skipped.) */
+        if (rowhash_any_valid()) rowhash_invalidate(NULL);
         if (surface_is_base()) {
             downscale_2x2_frame(src, fb);      /* the word-at-a-time loop is written for the base surface */
         } else {
@@ -1061,6 +1080,7 @@ static void present(void) {
     } else {
         /* An unexpected mode: copy the overlapping region 1:1 rather than guess a scale. */
         g_br_other++;
+        if (rowhash_any_valid()) rowhash_invalidate(NULL);   /* unmodelled writer (see above) */
         int w = vw < PANEL_W ? vw : PANEL_W;
         int h = vh < PANEL_H ? vh : PANEL_H;
         memset(fb, 0, (size_t)PANEL_W * PANEL_H);
@@ -2572,9 +2592,9 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
             }
 #endif
             NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)"
-                 " | rows c=%u s=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u\n",
+                 " | rows c=%u s=%u fs=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
-                 g_hash_skips, g_smp_skips, g_row_copied, g_row_same, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
+                 g_hash_skips, g_smp_skips, g_row_copied, g_row_same, g_row_frameskip, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
                  g_br_native, g_br_game, g_br_down, g_br_other);
 #ifndef OF_PC
             NLOG("idle hook: presents=%u\n", g_hook_presents);
@@ -2594,6 +2614,13 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 of_cdda_stats(&c_f, &c_us, &c_max, &c_fr, &c_low, &c_hold, &c_behind, &c_am, &c_pv, &c_dry);
                 
                 c_def = of_cdda_deferred();
+                {   /* worst frame gap since the last report: average fps hid the thing the eye actually
+                     * complains about, so choppiness gets its own number (docs/431) */
+                    uint64_t now2 = sys_now_us();
+                    NLOG("gap worst=%ums since report (last frame %ums ago)\n",
+                         (unsigned)(g_gap_max_us / 1000u), (unsigned)((now2 - g_last_frame_us) / 1000u));
+                    g_gap_max_us = 0;
+                }
                 {   /* where the wall actually went, this run, in whole milliseconds.
                      * docs/429: 0.2.5 split it 67% present / 25% rest / 8% disc / 0.1% tick loop, and the
                      * hitching seconds' largest swing was `rest` -- the bucket with no name.  This adds the

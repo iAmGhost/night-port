@@ -30,7 +30,7 @@ KNOBS=(
   "LOG=1"
   "DIAG=160"
   "DISC_IDLE_HOOK=1"
-  "ROW_SKIP=2"    # dry run: measure + self-verify the row skip, write every row anyway (flip to 1 once mm=0)
+  "ROW_SKIP=1"    # skip for real: the dry run on 0.2.7 measured 1002 verdicts with mm=0 (no lies)
   "CDDA_STOP_FIX=0"
 )
 

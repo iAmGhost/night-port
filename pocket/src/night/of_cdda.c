@@ -65,6 +65,12 @@
                                                             * ops a second for the 75 sectors/s it owes, and the OP costs (docs/406). */
 static int g_batch = CD_BATCH_MAX;
 #define CD_MIN_WANT_MAX   12
+/* The ceiling is a decision, not a leftover, and docs/420 is the evidence: with the cap lifted to CD_BATCH_MAX
+ * (27) and DISC_MIN_WANT=27, the same 2000-frame route read 233 operations covering 2772 sectors where the
+ * shipping policy read 2808 -- 36 sectors of TRACK03 the 12-policy read and the 27-policy never did, because
+ * a bigger allowance to wait for means a read is DEFERRED when only a few sectors are due. That is docs/407's
+ * starvation shape seen from the read side, so the ceiling stays at 12 and DISC_MIN_WANT above it is refused
+ * on purpose (the boot prints the effective value, docs/406 5). */
 static int g_min_want = CD_MIN_WANT_MAX;
 static int g_lookahead;   /* seeded in of_cdda_boot to the host value below, then night.ini DISC_LOOKAHEAD= may retarget the device */
 uint32_t of_cdda_lookahead(void) { return (uint32_t)g_lookahead; }

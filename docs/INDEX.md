@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–419)
+## The Pocket port (docs/330–420)
 
 ### Port plan and host layer
 
@@ -62,6 +62,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Ask: between the last introduction slide and the stage music starting, **how does the music stop?** I had a</sub>
 - **419** — the disc gate `cdda.raw` could never be: every read the port makes, checked against the shipped disc
   <sub>docs/410 retired `cdda.raw` as a regression gate — three runs of one binary with one seed gave two different</sub>
+- **420** — the first A/B with the disc gate: `DISC_MIN_WANT=27` was shipped, silently ran as 12, and a real 27 reads *less*
+  <sub>docs/419 built a reproducible gate for the disc read path. This is the deferred item it was waiting for — the</sub>
 
 ### Video and display
 

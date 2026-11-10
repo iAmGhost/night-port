@@ -471,7 +471,8 @@ def main():
         "CDDA_CARD_STOP=1\n"           # 1 = silence CD-DA while the stage<N>.pcx hold card is on screen: the game issues no CD call between 0x03b130 and 0x03b1ba, and the original is silent through that hold (docs/413)
         "DISC_RAMP=0\n"           # 0 = prime the CD-DA slice in the requesting visit; 1 = spread it over pump visits (underran: dry 5->49, audio_low 5->64, ahead_min 0.00 s -- docs/402)
         "DISC_PREFILL_FIRST=150\n"    # sectors of CD-DA read before the voices start (2 s). One-shot priming is the shape that measured dry=0 audio_low=0 ahead 0.45 s; its cost is a rare 418-424 ms fill (docs/396, docs/402)
-        "DISC_MIN_WANT=27\n"
+        "DISC_MIN_WANT=12\n"    # 12 is the hard ceiling in of_cdda.c (CD_MIN_WANT_MAX). 27 used to be shipped here and silently ran as 12; docs/420 measured that a real 27 DEFERS small reads -- 36 sectors of a track went unread in the same 2000-frame route that the 12 policy read -- so the ceiling is kept and the key no longer claims otherwise
+
         "DISC_LOOKAHEAD=240\n"   # sectors of CD-DA read-ahead past the 75 sectors/s disc clock. 120 (1.6 s) was SMALLER than the 4 s ring and forced the 1.5-sector trickle reads (docs/406/407)   # wait until 12 sectors of read allowance have accumulated, then take them in one read (docs/375 6); 1 = the old read-whatever-is-due shape
         "DISC_BATCH=27\n"   # sectors per CD-DA slot read: 27 = 63 504 B, the largest single op this OS moves (docs/406)75); 1 = the old shape
         "RESTORE=1\n"   # 1 = a loaded save restores the HP bars (docs/374); 0 = nothing, 2 = state bytes + stage selectors, 4 = the key table

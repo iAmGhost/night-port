@@ -256,9 +256,9 @@ int selftest(const char *res_path, const char *shot_dir) {
 }
 
 #ifdef RES_SELFTEST_MAIN
-/* Standalone driver: `make selftest [RES=NIGHT/NIGHT.RES SHOTS=scratch/shots]`. */
+/* Standalone driver: `make selftest [RES=extracted/night.res SHOTS=scratch/shots]`. */
 int main(int argc, char **argv) {
-    const char *res   = (argc > 1) ? argv[1] : (getenv("RES")   ? getenv("RES")   : "NIGHT/NIGHT.RES");
+    const char *res   = (argc > 1) ? argv[1] : (getenv("RES")   ? getenv("RES")   : "extracted/night.res");
     const char *shots = (argc > 2) ? argv[2] : (getenv("SHOTS") ? getenv("SHOTS") : "/tmp/night-shots");
     return selftest(res, shots);
 }

@@ -15975,7 +15975,7 @@ static void test_stage_chain_shipped_counts(void) {
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
-/* The port's io layer against the SHIPPED resource container (NIGHT/NIGHT.RES, 51 MB, 444 assets).
+/* The port's io layer against the SHIPPED resource container (extracted/night.res, 51 MB, 444 assets).
  * Everything asserted here is cross-checked with scripts/extract_res.py, which decodes the container
  * independently. Skips cleanly when the container is not next to the tree (NIGHT_RES_DIR overrides). */
 static void test_real_res_container(void) {
@@ -16061,7 +16061,7 @@ static void test_real_res_container(void) {
 
 /* fn_03690b over the SHIPPED container: the master data load reading real key tables, real action
  * containers, real sprite structs, the 100 real .voc slots and the real experience table. Every
- * expected value below is read straight out of NIGHT/NIGHT.RES with scripts/extract_res.py. */
+ * expected value below is read straight out of extracted/night.res with scripts/extract_res.py. */
 static void test_real_master_load(void) {
     printf("real NIGHT.RES: fn_03690b (master data load) over the shipped container\n");
     const char *dir = getenv("NIGHT_RES_DIR");
@@ -17911,8 +17911,11 @@ static uint32_t entry_term_cb(uint32_t a) {
 /* ---- the real disc: TG_NIGHT.CUE/IMG as the MSCDEX backend for the TOC reads ---- */
 static void test_cd_iso_real(void) {
     printf("cd_iso: the shipped TG_NIGHT disc drives fn_010927 / fn_107b9 / the gate fn_010c3e\n");
+    /* The port's own default --res-dir (src/app/main.c): the CUE is 669 B of text and the frames this
+     * test compares come from cd/trackNN.bin, so neither needs the disc image -- only NIGHT/ did, and
+     * NIGHT/ is just one name a rip may go under. */
     const char *dir = getenv("NIGHT_RES_DIR");
-    if (dir == 0 || dir[0] == '\0') dir = "NIGHT";
+    if (dir == 0 || dir[0] == '\0') dir = "extracted";
     char cue[700];
     snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", dir);
     if (cd_iso_open(cue) != 0) { printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", cue); return; }
@@ -17952,19 +17955,36 @@ static void test_cd_iso_real(void) {
      * LBA 37262 must read file sector 37112 -- measured on the IMG: sector 37111 is the last MODE1
      * sync sector (00 FF*6 00), 37112 the first audio sample of track 2. */
     {
-        char imgpath[1024];
-        snprintf(imgpath, sizeof imgpath, "%s", cue);
-        char *dot = strrchr(imgpath, '.');
+        /* The expected bytes come from whichever form of the disc is in the tree: the image's sector
+         * 37112, or -- with no image -- frame 0 of cd/track02.bin, which extract_disc.py cut from that
+         * very sector.  It is the same 2352 bytes either way, and the suite passes without the rip. */
+        uint8_t a[2352], b[2352];
+        char srcpath[1024];
+        const char *what = "IMG sector 37112";
+        snprintf(srcpath, sizeof srcpath, "%s", cue);
+        char *dot = strrchr(srcpath, '.');
         if (dot) strcpy(dot, ".IMG");
-        FILE *img = fopen(imgpath, "rb");
-        if (img) {
-            uint8_t a[2352], b[2352];
-            check(fseek(img, 37112L * 2352L, SEEK_SET) == 0 && fread(b, 1, 2352, img) == 2352 &&
-                  cd_iso_read_audio(37262, a) == 0 && memcmp(a, b, 2352) == 0,
-                  "cd_iso_read_audio(37262) returns IMG sector 37112 = disc LBA - 150 (the track-2 first frame)");
-            check(cd_iso_read_audio(149, a) == -1, "an audio LBA inside the 150-sector lead-in is refused");
-            fclose(img);
+        FILE *src = fopen(srcpath, "rb");
+        if (src == 0) {
+            const char *cd = getenv("NIGHT_CD_DIR");
+            if (cd != 0 && cd[0] != '\0') snprintf(srcpath, sizeof srcpath, "%s/track02.bin", cd);
+            else snprintf(srcpath, sizeof srcpath, "%s/cd/track02.bin", dir);
+            what = "frame 0 of cd/track02.bin";
+            src = fopen(srcpath, "rb");
         }
+        if (src != 0) {
+            int ok = fseek(src, (strcmp(what, "IMG sector 37112") == 0) ? 37112L * 2352L : 0L, SEEK_SET) == 0
+                     && fread(b, 1, 2352, src) == 2352 && cd_iso_read_audio(37262, a) == 0
+                     && memcmp(a, b, 2352) == 0;
+            char m[160];
+            snprintf(m, sizeof m, "cd_iso_read_audio(37262) returns %s = disc LBA - 150 (the track-2 first frame)",
+                     what);
+            check(ok, m);
+            fclose(src);
+        } else {
+            printf("  [note] neither %s nor a track file to compare against: the byte check did not run\n", srcpath);
+        }
+        check(cd_iso_read_audio(149, a) == -1, "an audio LBA inside the 150-sector lead-in is refused");
     }
     check(sys_cd_audio_stop_calls() == 0 && g_video_ram[0] == 0,
           "the shipped disc passes the gate at once: no cdinsert.pcx, no CD stop");
@@ -17975,6 +17995,231 @@ static void test_cd_iso_real(void) {
     memcpy(g_video_ram, vid, 0x10000);
     free(vid);
     heap_region_floor_set(floor_s);
+    cd_iso_close();
+}
+
+/* ---- no disc at all: the compiled-in TOC carries the gate, and the bytes stay missing ----
+ * The port can be run from its resources alone (the install set, with no CUE, no image and no track
+ * file anywhere), and the thing that used to prevent that was start-up itself: fn_010c3e polls the TOC
+ * until it looks like the original pressing -- DAT_00053c60 == 0xf and 0xc51 between records 1 and 2 --
+ * and answering that used to require parsing a CUE.  cd_iso.c now falls back to the geometry in
+ * src/gen/disc_toc.h (generated once from the real disc by scripts/gen/gen_disc_toc.py, checked in, so
+ * building never reads a disc), the gate passes on those numbers, and every byte read is refused.
+ * Borrowing the TOC is the bypass; inventing samples is not what silence is made of.
+ *
+ * Two environment knobs are part of the same contract, because a fallback nobody can turn off is the
+ * silent-fallback class of bug this repo keeps writing documents about: NIGHT_REQUIRE_DISC=1 makes a
+ * missing disc an error again (an audit that means to compare against the shipped image must not be
+ * measuring silence), and NIGHT_NO_DISC=1 asks for the fallback even when a CUE is in reach. */
+static void test_cd_iso_no_disc(void) {
+    printf("cd_iso: with no cue, no image and no track files the game still starts, silent\n");
+    const char *missing = "no-such-disc-dir/TG_NIGHT.CUE";
+
+    setenv("NIGHT_REQUIRE_DISC", "1", 1);
+    check(cd_iso_open(missing) != 0,
+          "NIGHT_REQUIRE_DISC=1 keeps a missing disc an error, so an audit cannot silently measure none");
+    unsetenv("NIGHT_REQUIRE_DISC");
+
+    /* The two switches answer different questions and must compose rather than compete: NIGHT_NO_DISC
+     * says whether there is a disc to look AT (set, the drive is empty even with the files sitting
+     * there), NIGHT_REQUIRE_DISC says whether anything may be SUBSTITUTED for its absence. Set together
+     * they are the run that wants to see the no-disc path with the tree in place -- an empty drive that
+     * is not papered over, so fn_010c3e paints cdinsert.pcx. Both earlier versions got this backwards
+     * (one consulted NO_DISC first and bypassed, the other let REQUIRE outrank the simulation and read
+     * the cue that was supposed to be hidden), and in both the game booted past the screen. */
+    char cue[1280];
+    snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE",
+             (getenv("NIGHT_RES_DIR") && *getenv("NIGHT_RES_DIR")) ? getenv("NIGHT_RES_DIR") : "extracted");
+    setenv("NIGHT_NO_DISC", "1", 1);
+    setenv("NIGHT_REQUIRE_DISC", "1", 1);
+    check(cd_iso_open(cue) != 0,
+          "an empty drive that is not papered over is still no disc -- the cue on disk does not count");
+    check(cd_iso_require_disc() == 1 && cd_iso_no_disc_wanted() == 1 && cd_iso_disc_absent() == 1,
+          "the host is told which combination it is in, so its log can say what is about to happen");
+    unsetenv("NIGHT_REQUIRE_DISC");
+    if (cd_iso_open(cue) != 0) {
+        check(0, "NIGHT_NO_DISC alone opens on the compiled-in TOC even with a real cue next to it");
+    } else {
+        check(cd_iso_no_disc() == 1 && cd_iso_has_audio() == 0,
+              "so the silent-boot path is measurable with the extracted tree still in place: TOC in, bytes out");
+        cd_iso_close();
+    }
+    unsetenv("NIGHT_NO_DISC");
+
+    if (cd_iso_open(missing) != 0) {
+        check(0, "with nothing to parse, cd_iso_open opens on the compiled-in TOC instead of failing");
+        return;
+    }
+    check(cd_iso_no_disc() == 1, "cd_iso_no_disc reports the TOC as compiled in, not parsed");
+    check(strcmp(cd_iso_source(), "none") == 0 && cd_iso_has_audio() == 0,
+          "no byte source: the host is told there is no music instead of hearing a silent stream");
+    check(cd_iso_track_count() == 15 && cd_iso_first_track() == 1 && cd_iso_last_track() == 15,
+          "15 tracks, first 1, last 15 -- the range fn_010927 turns into DAT_00053c60 = 0xf");
+    check(cd_iso_track_lba(2) == 37262 && cd_iso_track_lba(3) == 40415,
+          "the compiled-in LBAs are the real pressing's 37262 / 40415, not placeholders");
+    check(cd_iso_total_sectors() == 269453u, "and so is the total the lead-out MSF is derived from");
+
+    static uint8_t a[2352];
+    check(cd_iso_read_audio(37262, a) == -1,
+          "the first frame of the opening movie is refused: the TOC is borrowed, the samples are not");
+    check(cd_iso_read_audio(269452, a) == -1, "and so is the last frame on the disc");
+    check(cd_iso_read_sector(0, a) == -1, "an ISO logical sector read is refused too -- there is no image");
+    check(cd_iso_tracks_missing() == cd_iso_tracks_total() && cd_iso_tracks_total() == 14,
+          "all 14 audio tracks are reported missing, which is what the boot log says");
+
+    /* The gate itself -- entered only once the geometry above is known to be what it waits for, so a
+     * regression here records a failure rather than hanging the suite in its cdinsert.pcx loop. */
+    if (cd_iso_track_count() != 15 || cd_iso_track_lba(2) != 37262 || cd_iso_track_lba(3) != 40415) {
+        printf("  [note] the TOC is not what fn_010c3e waits for: the gate itself was not entered\n");
+        cd_iso_close();
+        return;
+    }
+    uintptr_t s_c5c = g_dat_53c5c;
+    uint32_t s_c60 = g_dat_53c60, s_c64 = g_dat_53c64;
+    uint8_t *vid = (uint8_t *)calloc(1, 0x10000);
+    memcpy(vid, g_video_ram, 0x10000);
+    memset(g_video_ram, 0, 0x10000);
+    uint32_t floor_s = heap_region_floor();
+    heap_arena_init();
+    heap_region_floor_set(0x10000);
+    g_dat_53c64 = 0;
+    g_dat_53c5c = (uintptr_t)g_far7;
+    sys_cd_audio_stop_reset();
+    sys_cd_set_backend(cd_iso_root_header, cd_iso_root_records);
+
+    fn_010c3e();
+    check(g_dat_53c60 == 0xf, "with no disc in the house, the gate still sees 0xf tracks and lets the game in");
+    {
+        uint8_t *recs = (uint8_t *)g_heap_base + g_dat_53c64;
+        check((int32_t)*(uint32_t *)(recs + 0xb) - (int32_t)*(uint32_t *)(recs + 6) == 0xc51,
+              "and the two records the gate compares still differ by exactly 0xc51");
+    }
+    check(sys_cd_audio_stop_calls() == 0 && g_video_ram[0] == 0,
+          "no cdinsert.pcx, no CD stop: the bypass is invisible to the game's own bookkeeping");
+
+    sys_cd_set_backend(NULL, NULL);
+    sys_cd_audio_stop_reset();
+    g_dat_53c5c = s_c5c; g_dat_53c60 = s_c60; g_dat_53c64 = s_c64;
+    memcpy(g_video_ram, vid, 0x10000);
+    free(vid);
+    heap_region_floor_set(floor_s);
+    cd_iso_close();
+
+    /* NIGHT_NO_DISC: the same shape with the real tree sitting right there -- the way to measure the
+     * no-music path without moving 570 MB of files out of reach. */
+    setenv("NIGHT_NO_DISC", "1", 1);
+    int rc = cd_iso_open("extracted/TG_NIGHT.CUE");
+    check(rc == 0 && cd_iso_no_disc() == 1 && cd_iso_has_audio() == 0,
+          "NIGHT_NO_DISC=1 opens the compiled-in TOC even where a CUE and its tracks could be read");
+    unsetenv("NIGHT_NO_DISC");
+    cd_iso_close();
+}
+
+/* ---- the port's byte source: cd/trackNN.bin, with TG_NIGHT.IMG as an optional second witness ----
+ * src/cd/cd_iso.c answers from either the single image or the per-track files (the layout
+ * scripts/extract_disc.py writes to extracted/ and scripts/pocket/repack.py writes for the Pocket's
+ * data slots).  This suite runs on the per-track tree and NOT on the image: building and testing the
+ * port must not need the 633 MB rip, and that is the layout the app boots from by default now.
+ *
+ * What is asserted is therefore the geometry the CUE and the file lengths agree on -- the total the
+ * gate's lead-out comes from, the frames a real play reads, and the two refusals (a read inside the
+ * MODE1 track, a read past the last file) that keep a missing track from being answered as silence.
+ * Where TG_NIGHT.IMG happens to sit beside the CUE it is then opened as a second witness and the same
+ * probes are compared byte for byte; when it is absent the run says so out loud, because a green suite
+ * that never compared the two sources should not read as if it had.  docs/455 carries the measurement
+ * that made "same format" true in the first place. */
+static void test_cd_iso_tracks(void) {
+    printf("cd_iso: cd/trackNN.bin answers the disc LBAs the CUE describes (the image agrees, when present)\n");
+    /* The port's own default --res-dir and the directory scripts/extract_disc.py prints.  NIGHT_RES_DIR
+     * still selects a rip directory for anyone who wants to compare there. */
+    const char *dir = getenv("NIGHT_RES_DIR");
+    if (dir == 0 || dir[0] == '\0') dir = "extracted";
+    char cue[700];
+    snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", dir);
+    char cd_buf[700];
+    const char *cd = getenv("NIGHT_CD_DIR");
+    if (cd == 0 || cd[0] == '\0') { snprintf(cd_buf, sizeof cd_buf, "%s/cd", dir); cd = cd_buf; }
+    char probe[900];
+    snprintf(probe, sizeof probe, "%s/track02.bin", cd);
+    char img_path[900];
+    snprintf(img_path, sizeof img_path, "%s/TG_NIGHT.IMG", dir);
+    if (fopen(probe, "rb") == 0) {
+        printf("  [skip] %s not present -- run `make extract` (the suite needs nothing else)\n", probe);
+        return;
+    }
+
+    /* NIGHT_CD_DIR is set by the suite rather than inherited: the per-track tree is the basis of every
+     * assertion below, and cd_iso.c refuses to fall back silently when the knob is named. */
+    setenv("NIGHT_CD_DIR", cd, 1);
+    if (cd_iso_open(cue) != 0) {
+        unsetenv("NIGHT_CD_DIR");
+        printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", cue);
+        return;
+    }
+
+    /* The disc coordinates worth pinning: the first and last frame of the track the opening movie
+     * plays, the first frame of the next track (the boundary the gate's 0xc51 sits on), and the last
+     * frame on the disc -- the one only the last track's own file length can bound. */
+    static const uint32_t lba[] = { 37262u, 40414u, 40415u, 268621u, 269452u };
+    static uint8_t a[2352], b[2352];
+    uint8_t trk_frames[sizeof lba / sizeof lba[0]][2352];
+    uint8_t hdr_trk[7], recs_trk[15 * 5];
+    uint32_t total_trk = cd_iso_total_sectors();
+    cd_iso_root_header(hdr_trk);
+    cd_iso_root_records(recs_trk, 15);
+    int n_trk = 0;
+    for (unsigned i = 0; i < sizeof lba / sizeof lba[0]; i++) {
+        if (cd_iso_read_audio(lba[i], trk_frames[i]) == 0) n_trk++;
+    }
+    check(n_trk == (int)(sizeof lba / sizeof lba[0]),
+          "the track files answer every probe LBA, including the last frame of the last track");
+    /* 269 303 image sectors + the 150-sector lead-in the CUE's PREGAP states: the number the lead-out
+     * MSF has to come to, from the CUE alone. */
+    check(total_trk == 269453u, "the lead-out MSF totals 269453 sectors -- the disc's own length");
+    check(cd_iso_read_audio(37111, a) == -1,
+          "a disc LBA inside the MODE1 track is refused (no file owns it) rather than answered with silence");
+    check(cd_iso_read_audio(269453, a) == -1, "the first frame past the last track file is refused");
+    check(cd_iso_read_sector(0, a) == -1,
+          "an ISO logical sector read is refused with no image present -- nothing in the port asks for one");
+    cd_iso_close();
+
+    FILE *img = fopen(img_path, "rb");
+    if (img == 0) {
+        unsetenv("NIGHT_CD_DIR");
+        printf("  [note] no %s: the two-source comparison did not run; everything above is the track files\n",
+               img_path);
+        return;
+    }
+    fclose(img);
+    unsetenv("NIGHT_CD_DIR");                       /* no knob: the image beside the CUE becomes the basis */
+    if (cd_iso_open(cue) != 0 || strcmp(cd_iso_source(), img_path) != 0) {
+        printf("  [note] %s present but did not become the byte source (got %s): comparison not run\n",
+               img_path, cd_iso_source());
+        cd_iso_close();
+        return;
+    }
+    uint8_t hdr_img[7], recs_img[15 * 5];
+    uint32_t total_img = cd_iso_total_sectors();
+    cd_iso_root_header(hdr_img);
+    cd_iso_root_records(recs_img, 15);
+    {
+        char m[160];
+        snprintf(m, sizeof m, "the image gives the same total (%u) as the track files, so the lead-out is "
+                 "one number for both", total_img);
+        check(total_img == total_trk, m);
+    }
+    check(memcmp(hdr_img, hdr_trk, 7) == 0 && memcmp(recs_img, recs_trk, sizeof recs_img) == 0,
+          "the TOC header and the 15 entry records are identical from both sources -- fn_010c3e sees one disc");
+    int same = 0;
+    for (unsigned i = 0; i < sizeof lba / sizeof lba[0]; i++) {
+        if (cd_iso_read_audio(lba[i], b) == 0 && memcmp(trk_frames[i], b, 2352) == 0) same++;
+    }
+    {
+        char m[160];
+        snprintf(m, sizeof m, "the %d probe LBAs come back byte-identical from the image as from cd/trackNN.bin",
+                 same);
+        check(same == n_trk, m);
+    }
     cd_iso_close();
 }
 
@@ -19039,6 +19284,8 @@ int main(void) {
     test_device_bringup();
     test_fn_0420bc();
     test_cd_iso_real();
+    test_cd_iso_tracks();
+    test_cd_iso_no_disc();
     test_skip_intro_shortcut();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */
     /* test_fn_03a829() is #if 0'd out: see the note above its definition */

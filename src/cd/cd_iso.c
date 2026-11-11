@@ -30,9 +30,42 @@
  * MODE1/2352). Its 2352-byte sectors carry the ISO9660 user data at offset 16 (the PVD signature
  * "CD001" sits at 16 + 1, and the ISO root directory record decodes from the PVD at +156), so a
  * logical sector read is [16, 16+2048) of the sector.
+ *
+ * TWO BYTE SOURCES, ONE TOC (the second one is what lets the port run without the 633 MB image):
+ *
+ *   IMG     the single raw MODE1/2352 image the CUE's FILE line names. A disc LBA is (lba - 150) * 2352
+ *           in that file, because the image carries no PREGAP. This is the original behaviour and stays
+ *           the default, so every existing comparison basis (scripts/pocket/audit_disc.py, the fixture
+ *           suite, the docs/419 asset audit) keeps measuring the same thing.
+ *
+ *   TRACKS  one file per CD-DA track -- cd/trackNN.bin, raw 2352-byte frames, no header -- i.e. exactly
+ *           the files scripts/pocket/repack.py cuts for the Pocket's APF data slots and scripts/
+ *           extract_disc.py cuts into extracted/. A file starts at its own track's INDEX 01, so the
+ *           offset inside it is (disc_lba - track_lba) * 2352: no -150, because the -150 exists only to
+ *           convert a *disc* LBA into one big image's file sectors (pocket/src/night/of_disc.c makes the
+ *           same point about its slots). The bytes both sources return for the same LBA are equal by
+ *           construction, and the fixture suite checks that on the real disc.
+ *
+ * Which one answers is decided in cd_iso_open(): an explicit NIGHT_CD_DIR wins (so a rig can A/B them),
+ * otherwise the IMG is used, and only when the IMG cannot be opened does the directory beside the CUE
+ * get looked for. That ordering makes `./build/night --res-dir extracted` work with no image present.
+ *
+ * A THIRD CASE, AND WHY THE GATE IS BYPASSABLE: the game's disc-present gate fn_010c3e polls the TOC
+ * until it sees 15 tracks whose track-3-minus-track-2 gap is 0xc51, so parsing a CUE used to be a START
+ * requirement -- hand the port a tree with nothing but its resources and it loops on cdinsert.pcx
+ * forever. When there is no CUE to parse (or NIGHT_NO_DISC asks for it), the geometry comes from
+ * src/gen/disc_toc.h, the same numbers the CUE states, generated once from the real disc by
+ * scripts/gen/gen_disc_toc.py. The gate then passes, the game runs, and every read_audio is refused --
+ * the TOC is borrowed, the samples are not invented. NIGHT_REQUIRE_DISC=1 makes a missing CUE fatal
+ * again, which is what an audit run that means to compare against the shipped image should set.
+ *
+ * A track file is optional in the TRACKS layout too: a missing one is recorded and refused per read, so
+ * a partial tree plays the music it has instead of losing the disc, and cd_iso_tracks_missing() lets
+ * the host say so at boot.
  */
 #include "cd_iso.h"
 #include "cd_audit.h"
+#include "gen/disc_toc.h"        /* the compiled-in geometry: scripts/gen/gen_disc_toc.py, docs/455 */
 
 /* ---- unaligned flat-model views (docs/126) ----------------------------------
  * The shipped record layout is packed and deliberately unaligned (dword stores at +0x01/+0x05/+0x17 ...
@@ -56,7 +89,7 @@ struct UA_ATTR ua32 { uint32_t v; };
 #define IMG_DATA_OFF 16
 #define IMG_DATA_LEN 2048
 
-typedef struct { uint32_t track; int32_t lba; } cd_toc_entry;  /* lba = disc LBA, pregap-corrected */
+typedef struct { uint32_t track; int32_t lba; uint8_t audio; } cd_toc_entry;  /* lba = disc LBA, pregap-corrected */
 
 static cd_toc_entry g_toc[100];
 static uint32_t     g_toc_n;
@@ -66,6 +99,22 @@ static uint32_t     g_total_sectors;
 static FILE        *g_img;
 static char         g_img_path[1024];
 static int          g_opened;
+
+/* The TRACKS byte source: g_cd_dir is non-empty, g_sectors[i] is the frame count of track g_toc[i] as
+ * its file says, and the read handle is kept for the track most recently asked about (the reader walks
+ * a track forward sector by sector, and re-opening per sector was measured to be the whole cost of a
+ * prefill on the Pocket -- pocket/src/night/of_disc.c). */
+static char         g_cd_dir[1024];
+static uint32_t     g_sectors[100];
+static uint8_t      g_track_absent[100];    /* 1 = no trackNN.bin for this entry: the read is refused */
+static int          g_tracks_missing;       /* ... counted, so the host can report them at boot */
+static int          g_tracks_total;
+static int          g_no_disc;              /* 1 = the TOC is the compiled-in table, nothing was parsed */
+static int          g_require_disc;         /* NIGHT_REQUIRE_DISC: the stricter switch, and it wins */
+static int          g_no_disc_wanted;       /* NIGHT_NO_DISC was set -- reported when it was ignored */
+static FILE        *g_tf;
+static uint32_t     g_tf_track;
+static long         g_tf_next;
 
 /* ---- MSF <-> disc LBA (150-sector lead-in) ---- */
 static uint32_t msf_to_lba(uint32_t m, uint32_t s, uint32_t f) {
@@ -77,11 +126,66 @@ static int cue_time(const char *t, uint32_t *m, uint32_t *s, uint32_t *f) {
     return sscanf(t, "%u:%u:%u", m, s, f) == 3;
 }
 
+/* defined after cd_iso_open, where the TOC they act on has been parsed */
+static int  cd_finish(void);
+static int  cd_open_tracks(void);
+
+/* The compiled-in geometry, for a boot with no CUE to parse: the numbers, and no byte source. */
+static int cd_load_virtual_toc(void) {
+    if (DISC_TOC_TRACKS > 100) return -1;
+    g_toc_n = 0;
+    for (uint32_t i = 0; i < DISC_TOC_TRACKS; i++) {
+        g_toc[i].track = g_disc_toc_track[i];
+        g_toc[i].lba   = (int32_t)g_disc_toc_lba[i];
+        g_toc[i].audio = g_disc_toc_audio[i];
+        g_sectors[i]   = 0;                  /* no file: no claim about the track's length */
+        g_track_absent[i] = 1;
+    }
+    g_toc_n = DISC_TOC_TRACKS;
+    g_first_track = DISC_TOC_FIRST;
+    g_last_track  = DISC_TOC_LAST;
+    g_total_sectors = DISC_TOC_TOTAL_SECTORS;
+    g_cd_dir[0] = '\0';
+    g_tracks_total = 0;
+    for (uint32_t i = 0; i < DISC_TOC_TRACKS; i++) if (g_disc_toc_audio[i]) g_tracks_total++;
+    g_tracks_missing = g_tracks_total;       /* every one of them */
+    g_no_disc = 1;
+    return cd_finish();
+}
+
+static int  cd_owner(uint32_t disc_lba);
+
 int cd_iso_open(const char *cue_path) {
     char dir[1024];
     char cue_img[1024];
+    g_no_disc = 0;
+    g_require_disc = g_no_disc_wanted = 0;
+    g_tracks_missing = g_tracks_total = 0;
+    for (uint32_t i = 0; i < 100; i++) g_track_absent[i] = 0;
+
+    /* The two switches answer different questions, so they compose instead of competing:
+     *
+     *   NIGHT_NO_DISC     -- is there a disc to look at?  Set, the drive is treated as EMPTY: the CUE,
+     *                        the image and the track files are not opened even when they are sitting
+     *                        there. This is how a run measures the no-disc path with the tree in place.
+     *   NIGHT_REQUIRE_DISC -- and may we paper over its absence?  Set, nothing is substituted, so
+     *                        fn_010c3e sees no TOC and shows cdinsert.pcx -- the original's own answer
+     *                        to an empty drive.
+     *
+     * So NO_DISC alone runs the game silent on the compiled-in TOC (the shipped-to-a-SSD case), and
+     * NO_DISC + REQUIRE is the authentic insert-CD screen with the files still on disk. Nothing here
+     * silently ignores the other switch, and the host logs which combination it is in. */
+    const char *need = getenv("NIGHT_REQUIRE_DISC");
+    g_require_disc = (need != 0 && need[0] != '\0' && strcmp(need, "0") != 0);
+    const char *env = getenv("NIGHT_NO_DISC");
+    g_no_disc_wanted = (env != 0 && env[0] != '\0' && strcmp(env, "0") != 0);
+    if (g_no_disc_wanted) return g_require_disc ? -1 : cd_load_virtual_toc();
+
     FILE *fp = fopen(cue_path, "rb");
-    if (!fp) return -1;
+    if (!fp) {
+        if (g_require_disc) return -1;      /* asked for a disc, got none: the gate has to say so */
+        return cd_load_virtual_toc();
+    }
 
     /* directory of the cue, for resolving the FILE name */
     snprintf(dir, sizeof dir, "%s", cue_path);
@@ -93,9 +197,15 @@ int cd_iso_open(const char *cue_path) {
     uint32_t cur_track = 0;
     uint32_t track_first_frame = 0;      /* file position of the current track's first index */
     int      have_first_index = 0;
+    int      cur_audio = 0;
     uint32_t img_sectors = 0;
 
     g_toc_n = 0; cur_track = 0; have_first_index = 0;
+    g_cd_dir[0] = '\0';
+    if (g_img) { fclose(g_img); g_img = 0; }          /* a re-open must not leak the previous source */
+    if (g_tf)  { fclose(g_tf);  g_tf  = 0; }
+    g_tf_track = 0; g_tf_next = -1;
+    for (uint32_t i = 0; i < 100; i++) g_sectors[i] = 0;
 
     while (fgets(line, sizeof line, fp)) {
         char kw[64];
@@ -112,10 +222,12 @@ int cd_iso_open(const char *cue_path) {
                     if (g_toc_n < 100) {
                         g_toc[g_toc_n].track = cur_track;
                         g_toc[g_toc_n].lba = (int32_t)(msf_to_lba(0,0,track_first_frame) + pregap_frames);
+                        g_toc[g_toc_n].audio = cur_audio;
                         g_toc_n++;
                     }
                 }
                 cur_track = tn; have_first_index = 0; track_first_frame = 0;
+                cur_audio = (strncmp(tf, "AUDIO", 5) == 0);   /* the only mode here with a per-track file */
                 if (g_toc_n == 0) g_first_track = tn;
                 g_last_track = tn;
             }
@@ -139,22 +251,52 @@ int cd_iso_open(const char *cue_path) {
     if (cur_track && have_first_index && g_toc_n < 100) {   /* close the last track */
         g_toc[g_toc_n].track = cur_track;
         g_toc[g_toc_n].lba = (int32_t)(track_first_frame + pregap_frames);
+        g_toc[g_toc_n].audio = cur_audio;
         g_toc_n++;
     }
     fclose(fp);
     if (g_toc_n == 0) return -1;
 
+    /* ---- which byte source answers the reads (see the file comment) ----
+     * NIGHT_CD_DIR is the one knob: given, it must work (a silent fallback to the image would let a rig
+     * measure the source it did not ask for). Not given, the image named by the CUE answers if it can be
+     * opened -- today's behaviour, unchanged -- and only a missing image sends us looking for per-track
+     * files beside the CUE, which is what makes `--res-dir extracted` run with nothing but 669 bytes of
+     * text and 570 MB of track files. */
+    env = getenv("NIGHT_CD_DIR");
+    if (env != 0 && env[0] != '\0') {
+        snprintf(g_cd_dir, sizeof g_cd_dir, "%s", env);
+        /* Asked for and not found -- not even one track file -- stays an error: a rig that named
+         * TRACKS must not measure the image, or silence, without saying so. */
+        if (cd_open_tracks() != 0 || g_tracks_missing == g_tracks_total) {
+            g_cd_dir[0] = '\0'; g_tracks_missing = g_tracks_total = 0;
+            return -1;
+        }
+        return cd_finish();
+    }
     g_img = fopen(cue_img, "rb");
-    if (!g_img) return -1;
-    snprintf(g_img_path, sizeof g_img_path, "%s", cue_img);
-    long sz = ftell(g_img);
-    fseek(g_img, 0, SEEK_END);
-    sz = ftell(g_img);
-    img_sectors = (uint32_t)(sz / IMG_SECTOR);
+    if (g_img) {
+        snprintf(g_img_path, sizeof g_img_path, "%s", cue_img);
+        fseek(g_img, 0, SEEK_END);
+        img_sectors = (uint32_t)(ftell(g_img) / IMG_SECTOR);
+    } else {
+        snprintf(g_cd_dir, sizeof g_cd_dir, "%s/cd", dir);      /* extracted/ and scratch/pocket/ layout */
+        if (cd_open_tracks() != 0 || g_tracks_missing == g_tracks_total) {
+            snprintf(g_cd_dir, sizeof g_cd_dir, "%s/cdda", dir);
+            if (cd_open_tracks() != 0 || g_tracks_missing == g_tracks_total) g_cd_dir[0] = '\0';
+        }
+        return cd_finish();       /* with no byte source the reads are refused: the game runs silent */
+    }
 
     /* The image holds the *file* frame count; the disc has pregap_frames of virtual silence inside,
      * so the lead-out (end of the last track) sits at file sectors + pregap. */
     g_total_sectors = img_sectors + pregap_frames;
+    return cd_finish();
+}
+
+/* Lead-out MSF from the total sector count, in the byte order MSCDEX returned. Shared by both sources:
+ * the game's own MSF->LBA conversion (with its 6420-per-minute bug) reads these three bytes. */
+static int cd_finish(void) {
     {
         uint32_t addr = g_total_sectors + 150u;          /* disc MSF address of the lead-out */
         g_leadout_msf[2] = (uint8_t)(addr % 75u);
@@ -166,10 +308,82 @@ int cd_iso_open(const char *cue_path) {
     return 0;
 }
 
+/* Open g_cd_dir as the byte source. A track file may be PRESENT or ABSENT; what it cannot be is
+ * malformed, so a file that is not a whole number of 2352-byte frames still refuses the whole tree --
+ * that is a half-cut extraction, and playing half a track is the bug this used to prevent.
+ *
+ * The frame counts come from the files where they exist, because a file is the only claim about a
+ * track's end this layout carries for the LAST track (the CUE's last INDEX has nothing after it to
+ * bound it); a missing file's track is bounded by the next track's INDEX, which the CUE does state, and
+ * reads inside it are refused (see g_track_absent). So a tree with all 14 files answers the full disc,
+ * a tree with some plays the music it has, and a tree with none is refused as a byte source by the
+ * caller -- which leaves the game running on the TOC alone. On the complete tree the total is the last
+ * track's extent, which equals img sectors + pregap, so the lead-out the game reads is the same number
+ * from either source. */
+static int cd_open_tracks(void) {
+    char path[1200];
+    uint32_t total = 0;
+    int audio_n = 0, missing = 0;
+
+    if (g_cd_dir[0] == '\0') return -1;
+    for (uint32_t i = 0; i < g_toc_n; i++) {
+        g_sectors[i] = 0;
+        g_track_absent[i] = 0;
+        if (!g_toc[i].audio) continue;
+        audio_n++;
+        snprintf(path, sizeof path, "%s/track%02u.bin", g_cd_dir, g_toc[i].track);
+        FILE *f = fopen(path, "rb");
+        uint32_t n = 0;
+        if (f) {
+            fseek(f, 0, SEEK_END);
+            long sz = ftell(f);
+            fclose(f);
+            if (sz < (long)IMG_SECTOR || sz % IMG_SECTOR) return -1;
+            n = (uint32_t)(sz / IMG_SECTOR);
+        } else {
+            missing++;
+            g_track_absent[i] = 1;
+            if (i + 1 < g_toc_n && g_toc[i + 1].lba > g_toc[i].lba)
+                n = (uint32_t)(g_toc[i + 1].lba - g_toc[i].lba);   /* the next INDEX bounds it */
+        }
+        if (i + 1 < g_toc_n) {                       /* fits between its own INDEX and the next one */
+            int32_t span = g_toc[i + 1].lba - g_toc[i].lba;
+            if (span > 0 && n > (uint32_t)span) return -1;
+        }
+        g_sectors[i] = n;
+        if (g_toc[i].lba + (int32_t)n > (int32_t)total) total = (uint32_t)(g_toc[i].lba + (int32_t)n);
+    }
+    if (audio_n == 0) return -1;
+    g_tracks_missing = missing;
+    g_tracks_total = audio_n;
+    g_total_sectors = total;
+    return 0;
+}
+
+/* The AUDIO track that owns a disc LBA: the last one whose INDEX 01 is at or below it. The MODE1 track
+ * owns its LBAs but has no file here, so it is deliberately not a candidate. */
+static int cd_owner(uint32_t disc_lba) {
+    int best = -1;
+    int32_t best_lba = -1;
+    for (uint32_t i = 0; i < g_toc_n; i++) {
+        if (!g_toc[i].audio || g_toc[i].lba < 0) continue;
+        if ((uint32_t)g_toc[i].lba <= disc_lba && g_toc[i].lba >= best_lba) { best = (int)i; best_lba = g_toc[i].lba; }
+    }
+    return best;
+}
+
 uint32_t cd_iso_track_count(void)    { return g_toc_n; }
 uint32_t cd_iso_first_track(void)    { return g_first_track; }
 uint32_t cd_iso_last_track(void)     { return g_last_track; }
 uint32_t cd_iso_total_sectors(void)  { return g_total_sectors; }
+const char *cd_iso_source(void)      { return g_cd_dir[0] ? g_cd_dir : (g_img ? g_img_path : "none"); }
+int cd_iso_no_disc(void)             { return g_no_disc; }
+int cd_iso_require_disc(void)        { return g_require_disc; }
+int cd_iso_disc_absent(void)         { return g_no_disc || g_no_disc_wanted; }
+int cd_iso_no_disc_wanted(void)      { return g_no_disc_wanted; }
+int cd_iso_has_audio(void)           { return g_img != 0 || (g_tracks_total - g_tracks_missing) > 0; }
+int cd_iso_tracks_missing(void)      { return g_tracks_missing; }
+int cd_iso_tracks_total(void)        { return g_tracks_total; }
 int32_t  cd_iso_track_lba(uint32_t track) {
     for (uint32_t i = 0; i < g_toc_n; i++) if (g_toc[i].track == track) return g_toc[i].lba;
     return -1;
@@ -208,16 +422,48 @@ void cd_iso_root_records(uint8_t *recs, uint32_t n) {
  * index played every track 2 s late; that is the "wrong music" the 2026-10-26 playtest heard. */
 int cd_iso_read_audio(uint32_t disc_lba, uint8_t *out2352) {
     if (!g_opened || !out2352) return -1;
-    if (disc_lba < 150u || disc_lba - 150u >= g_total_sectors) return -1;
+    if (disc_lba < 150u) return -1;                      /* inside the 2 s of lead-in the disc never had */
+
+    if (g_cd_dir[0] != '\0') {
+        int i = cd_owner(disc_lba);
+        if (i < 0) return -1;                            /* inside the data track: no file owns it */
+        uint32_t off_sec = disc_lba - (uint32_t)g_toc[i].lba;
+        if (off_sec >= g_sectors[i]) return -1;          /* past this track file's last frame */
+        if (g_track_absent[i]) return -1;                /* no file: refused, not answered with silence */
+        if (g_tf_track != g_toc[i].track) {
+            char path[1200];
+            if (g_tf) { fclose(g_tf); g_tf = 0; }
+            snprintf(path, sizeof path, "%s/track%02u.bin", g_cd_dir, g_toc[i].track);
+            g_tf = fopen(path, "rb");
+            if (!g_tf) { g_tf_track = 0; g_tf_next = -1; return -1; }
+            g_tf_track = g_toc[i].track; g_tf_next = -1;
+        }
+        long off = (long)off_sec * IMG_SECTOR;
+        if (g_tf_next != off && fseek(g_tf, off, SEEK_SET) != 0) { g_tf_next = -1; return -1; }
+        if (fread(out2352, 1, IMG_SECTOR, g_tf) != IMG_SECTOR) { g_tf_next = -1; return -1; }
+        g_tf_next = off + IMG_SECTOR;
+        /* kind names the track and the offset is relative to that track's file -- the same convention
+         * pocket/src/night/of_disc.c records, so scripts/pocket/audit_disc.py maps both hosts onto the
+         * shipped image with the same manifest rule (docs/410). */
+        { char k[16]; snprintf(k, sizeof k, "TRACK%02u", g_toc[i].track);
+          cd_audit_read(k, off, IMG_SECTOR, out2352); }
+        return 0;
+    }
+
+    if (!g_img) return -1;          /* no byte source at all -- the compiled-in TOC has no samples */
+    if (disc_lba - 150u >= g_total_sectors) return -1;
     if (fseek(g_img, (long)(disc_lba - 150u) * IMG_SECTOR, SEEK_SET) != 0) return -1;
     if (fread(out2352, 1, IMG_SECTOR, g_img) != IMG_SECTOR) return -1;
     cd_audit_read("IMG", (long long)(disc_lba - 150u) * IMG_SECTOR, IMG_SECTOR, out2352);
     return 0;
 }
 
-/* ---- logical sector read (MODE1/2352, user data at +16) ---- */
+/* ---- logical sector read (MODE1/2352, user data at +16) ----
+ * Only the single image answers these: the per-track layout carries audio tracks, and nothing in the
+ * port reads ISO user data (the resources come out of NIGHT.RES), so a request in that mode is refused
+ * rather than answered from a source that does not exist. */
 int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048) {
-    if (!g_opened || !out2048) return -1;
+    if (!g_opened || !out2048 || !g_img) return -1;
     if (disc_lba >= g_total_sectors) return -1;
     if (fseek(g_img, (long)disc_lba * IMG_SECTOR + IMG_DATA_OFF, SEEK_SET) != 0) return -1;
     if (fread(out2048, 1, IMG_DATA_LEN, g_img) != IMG_DATA_LEN) return -1;
@@ -228,5 +474,9 @@ int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048) {
 void cd_iso_close(void) {
     cd_audit_close();
     if (g_img) fclose(g_img);
-    g_img = 0; g_opened = 0; g_toc_n = 0;
+    if (g_tf) fclose(g_tf);
+    g_img = 0; g_tf = 0; g_opened = 0; g_toc_n = 0;
+    g_cd_dir[0] = '\0';
+    g_no_disc = 0; g_require_disc = g_no_disc_wanted = 0;
+    g_tracks_missing = g_tracks_total = 0;
 }

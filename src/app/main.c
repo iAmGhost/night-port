@@ -1830,7 +1830,13 @@ int main(int argc, char **argv) {
         snprintf(cp, sizeof cp, "%s/census.txt", rd ? rd : "/tmp");
         rig_census_set_path(cp);
     }
-    const char *res_dir = "NIGHT";
+    /* The run tree scripts/extract_disc.py builds (docs/455): the install set, TG_NIGHT.CUE and
+     * cd/trackNN.bin, so a boot needs no 633 MB disc image.  A --res-dir whose TG_NIGHT.CUE has its
+     * TG_NIGHT.IMG beside it and no cd/ next to it keeps the disc-image basis instead -- worth knowing
+     * which one a run used, because the two sources log differently (cd_iso.c records IMG vs TRACKnn)
+     * and the rigs that compare against the shipped image name that directory explicitly
+     * (scripts/rig/route.sh).  `night` prints it at boot: "audio from ...". */
+    const char *res_dir = "extracted";
     int frames_limit = 0;
     /* NIGHT_DELAY_US re-times the modelled cost of one guest DOS clock read (see delay_units in f.c); 0
      * restores the timing-free behaviour. Default 500 us, measured against the original. */
@@ -1872,7 +1878,12 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--no-res-shots")) g_shot_res = 0;
         else if (!strcmp(argv[i], "--help")) {
             printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR] [--shots DIR]\n"
-                   "              [--script FILE] [--shot-limit N] [--shot-delay MS] [--no-audio] [--no-scene-shots] [--no-res-shots]\n");
+                   "              [--script FILE] [--shot-limit N] [--shot-delay MS] [--no-audio] "
+                   "[--no-scene-shots] [--no-res-shots]\n"
+                   "  DIR holds night.res (default: extracted, what `make extract` builds); the disc is optional:\n"
+                   "  audio comes from DIR/cd/trackNN.bin, else DIR/TG_NIGHT.IMG, else there is no music and\n"
+                   "  the game still runs -- fn_010c3e is satisfied by the compiled-in TOC (docs/455)\n"
+                   "  NIGHT_NO_DISC=1 forces that; NIGHT_REQUIRE_DISC=1 makes a missing disc fatal instead\n");
             return 0;
         }
     }
@@ -1976,11 +1987,32 @@ int main(int argc, char **argv) {
      * the very first read is recorded, and closed by cd_iso_close() on the normal exit path. */
     cd_audit_open(getenv("NIGHT_CD_AUDIT"));
     if (cd_iso_open(cue) == 0) {
+        /* The TOC always comes from somewhere: the CUE if there was one to parse, the compiled-in table
+         * if there was not (docs/455) -- either way fn_010c3e sees 15 tracks and the 0xc51 gap and the
+         * game begins. The BYTES are a separate question, and where there are none the audio backend is
+         * not installed at all: the game's play requests are still counted by sys_cd, they just have
+         * nothing to stream, which is "no music" rather than invented silence. */
         sys_cd_set_backend(cd_iso_root_header, cd_iso_root_records);
-        sys_cd_set_audio_backend(cdda_play, cdda_stop);
-        SDL_Log("disc: %u tracks, %u sectors, lead-out MSF-derived", cd_iso_track_count(), cd_iso_total_sectors());
+        SDL_Log("disc: %u tracks, %u sectors, lead-out MSF-derived, audio from %s",
+                cd_iso_track_count(), cd_iso_total_sectors(), cd_iso_source());
+        if (cd_iso_no_disc())
+            SDL_Log("disc: no disc in the house -- fn_010c3e is satisfied by the compiled-in TOC "
+                    "(src/gen/disc_toc.h); the game runs, there is no music. `make extract` for the tracks, "
+                    "NIGHT_REQUIRE_DISC=1 to stop here instead of running silent.");
+        else if (cd_iso_tracks_missing() && cd_iso_tracks_total())
+            SDL_Log("disc: %d of %d audio track files are not in %s -- those tracks stay silent",
+                    cd_iso_tracks_missing(), cd_iso_tracks_total(), cd_iso_source());
+        if (cd_iso_has_audio()) sys_cd_set_audio_backend(cdda_play, cdda_stop);
     } else {
-        SDL_Log("disc: %s not readable -- the disc-present gate will ask for the CD", cue);
+        /* No byte source and no permission to fake one: fn_010c3e does what the original does with an
+         * empty drive -- paint cdinsert.pcx and wait. That IS the no-disc screen; the bypass is what
+         * would have hidden it. */
+        if (cd_iso_no_disc_wanted())
+            SDL_Log("disc: the drive was treated as EMPTY (NIGHT_NO_DISC) and nothing is substituted for it "
+                    "(NIGHT_REQUIRE_DISC) -- fn_010c3e shows cdinsert.pcx and waits, as the original does");
+        else
+            SDL_Log("disc: %s not readable and NIGHT_REQUIRE_DISC is set -- fn_010c3e will show cdinsert.pcx "
+                    "and wait for a disc, as the original does", cue);
     }
     if (g_resnames) {                        /* the expanded name->value index (fn_0366a4) */
         for (uint32_t i = 0; i < g_dat_633a0 && i < 512; i++) {

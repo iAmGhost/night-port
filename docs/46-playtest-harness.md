@@ -98,11 +98,17 @@ Consequence: the original-side half of every screenshot comparison must be produ
 normal terminal, e.g.
 
 ```
-cp /tmp/snap.com NIGHT/SNAP.COM && mkdir -p NIGHT/CAP && rm -f NIGHT/CAP/*.DMP
-dosbox-staging --conf scripts/rig/conf/dosbox_snap.conf     # snap.com + night, ~60 s
+python3 scripts/rig/gen_dosbox_conf.py                       # scratch/rig/conf/*.conf, paths resolved here
+mkdir -p extracted/CAP && rm -f extracted/CAP/*.DMP          # C: is the install set; the snapper writes C:\CAP
+dosbox-staging --conf scratch/rig/conf/dosbox_snap.conf      # snap.com (from E:) + night, ~60 s
 ```
 
-after which `scripts/snap_decode.py` (queued) turns `NIGHT/CAP/*.DMP` into PNGs next to the port's shots.
+The configs used to be tracked with this machine's absolute paths in `mount c`, `imgmount d` and `capto`,
+which made the harness work in one directory on one laptop; `scripts/rig/gen_dosbox_conf.py` writes them
+from the located install set and disc instead (docs/455), and `snap.com` is mounted read-only as E:
+instead of being copied into the game tree.
+
+after which `scripts/snap_decode.py` turns `extracted/CAP/*.DMP` into PNGs next to the port's shots.
 Until then, port-side evidence uses the extracted assets (logo.pcx, opening.fli via ffmpeg's flic decoder,
 the per-type .spr/.act tables) plus the manual captures already in `scratch/` and
 `docs/manual-playtest/00-screenshots/`.
@@ -117,10 +123,11 @@ driver stubbed out it boots, runs `[autoexec]`, mounts drives and writes files n
 
 with `[sdl] output=tty` and an `[autoexec]` of
 
-    mount c ~/Git/night-port/NIGHT
-    mount d ~/Git/night-port/NIGHT/TG_NIGHT.CUE -t iso
+    mount c <repo>/extracted                       # the install set `make extract` unpacked
+    mount d <repo>/TG_NIGHT.CUE -t iso
+    mount e <repo>/scripts/rig/snapper -ro
     c:
-    snap.com
+    e:\snap.com
     night
 
 (`imgmount` is deprecated in 0.83 -- use `mount d <cue> -t iso`.) Verified: `[autoexec]` probe files land

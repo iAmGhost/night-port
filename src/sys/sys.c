@@ -553,6 +553,37 @@ void sys_file_open_queue(const int32_t *vals, int n) {
     s_open_top = 0;
 }
 void sys_file_open_reset(void) { s_open_top = 0; s_open_n = 0; }
+/* A DOS name is case-insensitive, and the guest asks for whatever its own bytes spell: fn_03690b opens
+ * "night.res" in lower case (src/f/f.c:2907, straight out of the executable) while the disc, the
+ * installer's name table and the game's own "NIGHT.RES File Not Found!!!" banner all spell it upper
+ * case. An exact fopen() is therefore right on a case-insensitive filesystem and wrong on a
+ * case-sensitive one -- so a miss is answered by looking the name up in the real directory instead of
+ * failing the game with its own banner. Exact wins when both spellings exist; this only ever runs on a
+ * miss, so the hot path is unchanged.  The Pocket answers its resource names from APF data slots, so the
+ * scan is compiled only for the hosts that read a real directory -- and the desktop hosts do NOT define
+ * OF_PC (only the Pocket SDK's app_pc build does), which is why this is guarded on NIGHT_POCKET.
+ */
+#ifndef NIGHT_POCKET
+#include <dirent.h>
+#include <strings.h>
+int sys_file_real_lookup(const char *dir, const char *name, char *out, size_t n) {
+    if (dir == 0 || name == 0 || n == 0) return 0;
+    DIR *d = opendir(dir);
+    if (d == 0) return 0;
+    int found = 0;
+    for (struct dirent *e = readdir(d); e != 0; e = readdir(d)) {
+        if (strcasecmp(e->d_name, name) == 0) { snprintf(out, n, "%s", e->d_name); found = 1; break; }
+    }
+    closedir(d);
+    return found;
+}
+#else
+int sys_file_real_lookup(const char *dir, const char *name, char *out, size_t n) {
+    (void)dir; (void)name; (void)out; (void)n;
+    return 0;   /* APF slots, already resolved by name -- no real directory to look in */
+}
+#endif
+
 int32_t sys_file_open(const char *name, uint32_t mode) { (void)mode;
     if (s_open_top < s_open_n) return s_open_seq[s_open_top++];   /* queued (test) */
     if (s_real_dir[0] != '\0' && name != 0) {                     /* real-file backend */
@@ -561,6 +592,13 @@ int32_t sys_file_open(const char *name, uint32_t mode) { (void)mode;
         for (int i = 0; i < SYS_FILE_MAX; i++) {
             if (s_files[i] == 0) {
                 FILE *f = fopen(path, "rb");
+                if (f == 0) {                                     /* DOS not-found -- after one more try */
+                    char here[256];
+                    if (sys_file_real_lookup(s_real_dir, name, here, sizeof here)) {
+                        snprintf(path, sizeof path, "%s/%s", s_real_dir, here);
+                        f = fopen(path, "rb");
+                    }
+                }
                 if (f == 0) return -1;                            /* DOS not-found error */
                 s_files[i] = f; s_real_opens++;
                 return (int32_t)i + 1;                            /* 1-based DOS handle */

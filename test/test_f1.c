@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>          /* the seam is tested against DOS case-insensitivity */
 #include <stdint.h>
 #include <math.h>
 #include <setjmp.h>
@@ -15975,7 +15976,7 @@ static void test_stage_chain_shipped_counts(void) {
     heap_arena_init(); (void)heap_malloc(0x400);
 }
 
-/* The port's io layer against the SHIPPED resource container (extracted/night.res, 51 MB, 444 assets).
+/* The port's io layer against the SHIPPED resource container (extracted/NIGHT.RES, 51 MB, 444 assets).
  * Everything asserted here is cross-checked with scripts/extract_res.py, which decodes the container
  * independently. Skips cleanly when the container is not next to the tree (NIGHT_RES_DIR overrides). */
 static void test_real_res_container(void) {
@@ -16061,7 +16062,7 @@ static void test_real_res_container(void) {
 
 /* fn_03690b over the SHIPPED container: the master data load reading real key tables, real action
  * containers, real sprite structs, the 100 real .voc slots and the real experience table. Every
- * expected value below is read straight out of extracted/night.res with scripts/extract_res.py. */
+ * expected value below is read straight out of extracted/NIGHT.RES with scripts/extract_res.py. */
 static void test_real_master_load(void) {
     printf("real NIGHT.RES: fn_03690b (master data load) over the shipped container\n");
     const char *dir = getenv("NIGHT_RES_DIR");
@@ -18011,6 +18012,37 @@ static void test_cd_iso_real(void) {
  * silent-fallback class of bug this repo keeps writing documents about: NIGHT_REQUIRE_DISC=1 makes a
  * missing disc an error again (an audit that means to compare against the shipped image must not be
  * measuring silence), and NIGHT_NO_DISC=1 asks for the fallback even when a CUE is in reach. */
+/* The seam answers DOS names, not host names.  fn_03690b opens "night.res" in lower case (src/f/f.c:2907,
+ * straight out of the executable) while the disc, the installer's own name table and the game's
+ * "NIGHT.RES File Not Found!!!" banner all spell it upper case -- and `make extract` writes the tree with
+ * the names the CD uses (docs/455).  An exact fopen() agrees with one of those on a case-insensitive
+ * filesystem and with the other on a case-sensitive one, so a miss is answered by looking the name up in
+ * the real directory; that indifference is what SETUP.EXE ran under, and it is the only thing standing
+ * between the port and its own not-found banner on Linux. */
+static void test_sys_file_case_insensitive(void) {
+    char buf[256];
+    printf("sys_file: a resource name resolves whatever case the tree keeps it in\n");
+
+    check(sys_file_real_lookup("extracted", "night.res", buf, sizeof buf) == 1,
+          "the lower-case name the guest asks for resolves in the extracted tree");
+    check(strcasecmp(buf, "night.res") == 0, "and the answer is the spelling the tree actually stores");
+    check(sys_file_real_lookup("extracted", "NIGHT.RES", buf, sizeof buf) == 1 && strcasecmp(buf, "night.res") == 0,
+          "either spelling resolves to that same stored name, so scripts and the guest agree");
+    check(sys_file_real_lookup("extracted", "no-such-name.zzz", buf, sizeof buf) == 0,
+          "a name that is not in the directory is still not in the directory");
+
+    /* And the open the game itself performs goes through: the handle is a real file, not a miss.  The
+     * queued-result backend other tests drive has to be off, or it answers before the seam looks. */
+    sys_file_open_reset();
+    sys_file_real_dir("extracted");
+    int32_t h = sys_file_open("night.res", 0);
+    check(h > 0, "fn_03690b's own open of \"night.res\" succeeds against a tree that ships NIGHT.RES");
+    if (h > 0) check(sys_file_close((uint32_t)h) == 0, "and the handle closes");
+    check(sys_file_open("no-such-name.zzz", 0) < 0, "an absent name still reports the DOS not-found error");
+    sys_file_real_dir(0);
+    sys_file_open_reset();
+}
+
 static void test_cd_iso_no_disc(void) {
     printf("cd_iso: with no cue, no image and no track files the game still starts, silent\n");
     const char *missing = "no-such-disc-dir/TG_NIGHT.CUE";
@@ -19286,6 +19318,7 @@ int main(void) {
     test_cd_iso_real();
     test_cd_iso_tracks();
     test_cd_iso_no_disc();
+    test_sys_file_case_insensitive();
     test_skip_intro_shortcut();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */
     /* test_fn_03a829() is #if 0'd out: see the note above its definition */

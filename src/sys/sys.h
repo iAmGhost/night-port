@@ -4,6 +4,7 @@
 #define NIGHT_SYS_H
 
 #include <stdint.h>
+#include <stddef.h>            /* size_t: the resource-name lookup below takes a buffer length */
 
 /* x86 I/O ports (0x0-0x3ff: 8259 PIC, 8253 PIT, DIP board 0x3C7-0x3C9, CD
  * audio). Routed through a virtual port map so tests can drive them; a real
@@ -123,6 +124,10 @@ int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence); /* AH=4
 int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count); /* AH=40: bytes written; no backend -> success (count) */
 int32_t sys_file_close(uint32_t handle);                                /* AH=3e: 0=success (CF clear), nonzero=error */
 int32_t sys_file_open(const char *name, uint32_t mode);                 /* AH=3d: handle>=0 success, <0 error; no backend -> sys_open_ret */
+/* The real-file backend's DOS case-insensitivity: find `name` in `dir` whatever case `dir` stores
+ * it in, and report the stored spelling. 1 when found. The guest asks for "night.res"; the disc
+ * ships NIGHT.RES, and a case-sensitive filesystem only agrees with one of them. */
+int sys_file_real_lookup(const char *dir, const char *name, char *out, size_t n);
 int32_t sys_file_create(const char *name, uint32_t mode);               /* AH=3c: handle>=0 success, <0 error; no backend -> sys_create_ret */
 int32_t sys_file_delete(const char *name);                             /* AH=41: 0 on success, default 0 */
 extern int32_t sys_open_ret;    /* test knob: sys_file_open return (default 0=success, handle 0) */

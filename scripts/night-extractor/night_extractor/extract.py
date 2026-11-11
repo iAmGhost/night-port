@@ -54,7 +54,7 @@ def write_stream(dst: Path, src, off: int, size: int, force: bool, prev=None):
     Idempotent by size: an existing file of the right length, whose hash the previous manifest knows,
     is neither read nor rewritten unless --force, so a re-run costs one stat per file.  --verify is
     what re-hashes.  Written to .part then renamed, so an interrupted run cannot leave a half-written
-    night.res that the next run would trust.
+    NIGHT.RES that the next run would trust.
     """
     if dst.exists() and dst.stat().st_size == size and not force:
         if prev and dst.name in prev and prev[dst.name][0] == size:
@@ -79,7 +79,15 @@ def write_stream(dst: Path, src, off: int, size: int, force: bool, prev=None):
 
 
 def part_game(img, out: Path, track: DataTrack, args, prev):
-    """The installer's payload: NIGHT.DAT's container entries, verbatim."""
+    """The installer's payload: NIGHT.DAT's container entries, verbatim, under the names the disc uses.
+
+    The container's own index spells its six entries lower case -- `night.res`, `readme.txt` -- and that
+    is what SETUP.EXE would have written on a DOS disk. What the CD calls them is upper case: the ISO9660
+    record (which forces A-Z), the installer's name table at the EOF of NIGHT.TGS (`DOS4GW.EXE NIGHT.BAT
+    NIGHT.EXE NIGHT.ICO NIGHT.RES README.TXT`), and the string NIGHT.EXE prints when the container is
+    missing (`"NIGHT.RES File Not Found!!!"`, src/f/f.c:2915). Bytes come out of a CD image, so the file
+    keeps the disc's spelling; the archive's spelling is recorded in the manifest's note column.
+    """
     hit = track.find("NIGHT/NIGHT.DAT") or track.find("NIGHT.DAT")
     if hit:
         lba, fsize = hit
@@ -104,11 +112,13 @@ def part_game(img, out: Path, track: DataTrack, args, prev):
     print(f"[game] container holds {count} entries (volume LBA {lba}, {count * 20 + 4} B of directory):")
     rows = []
     for name, off, size in ents:
-        got, sha, wrote = write_stream(out / name, dat, off, size, args.force, prev)
-        rows.append(dict(kind="game", file=name, bytes=got, sha256=sha,
+        ship = name.upper()          # the disc's spelling, not the container index's (see the docstring)
+        got, sha, wrote = write_stream(out / ship, dat, off, size, args.force, prev)
+        rows.append(dict(kind="game", file=ship, bytes=got, sha256=sha,
                          source=f"NIGHT.DAT@{lba} +{off}..+{off + got - 1}",
-                         note=f"NIGHT.DAT entry at +{off}, {size} B -- installed by SETUP.EXE"))
-        print(f"       {'wrote' if wrote else 'kept '} {name:12s} {got:>10} B  sha256 {sha[:12]}")
+                         note=f"NIGHT.DAT entry {name!r} at +{off}, {size} B -- installed by SETUP.EXE"))
+        spelled = f"  (the container index spells it {name})" if ship != name else ""
+        print(f"       {'wrote' if wrote else 'kept '} {ship:12s} {got:>10} B  sha256 {sha[:12]}{spelled}")
     return rows
 
 
@@ -209,8 +219,8 @@ def cross_check_installed(out: Path, rows, res_dir: Path):
     """Say plainly whether the extracted install set equals the installed copy the repo already ships.
 
     'Replaces the installer' is a claim about bytes, so it is measured here rather than asserted.  The
-    container's names are lower case and the installed copy's are upper case; matching is case-insensitive:
-    that is exactly the DOS behaviour the installer ran under.
+    the container's index and the disc disagree about case, and the tree now keeps the disc's; matching
+    stays case-insensitive, which is exactly the DOS behaviour the installer ran under.
     """
     if not (res_dir / "NIGHT.RES").exists():
         print(f"\nno installed copy in {res_dir}/ to cross-check against (--res to point at one)")

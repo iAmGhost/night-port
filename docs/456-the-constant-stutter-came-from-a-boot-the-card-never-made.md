@@ -276,3 +276,45 @@ that would have separated these two boots without a player telling me which was 
 rule the numbers force is the negative one: **do not tune against feel across two boots whose per-branch
 medians agree** -- 38/38/39/33 fps on the slide path across four boots says the copy speed is not the knob,
 and 0.3.4 is the proof of that, measured against myself.
+
+## 11. Same bits, one key: the log turned out to be the anesthetic
+
+The reports, in the order they arrived, with the card's own version as the stamp:
+
+| boot | shape | verdict |
+|---|---|---|
+| 0.3.5 | `LOG=0 STALL_MS=400` | "current one doesn't have stutter" |
+| 0.3.5 (same bits, ini flipped by me) | `LOG=0` after a deploy | "now stutter is back" |
+| **0.3.6** | `LOG=1 STALL_MS=120` | **"stutter's gone"** |
+
+Nothing else changed. `diskutil verifyVolume /Volumes/Pocket` came back *appears to be OK*, exit code 0, so
+there is no degraded-filesystem story to reach for either; and the code delta between 0.3.5 and 0.3.6 is four
+compares per present plus a longer log line -- work added, so it cannot be the thing that fixed anything.
+
+**The one variable that has tracked every verdict in this whole thread is whether the app was writing its
+log.** docs/452's line *"play feel measured on this card is not player feel"* was written as a disclaimer and
+turns out to be the clue: `nightlog.sav` is written into an SD slot every 32 lines, and the CD-DA feed reads
+that same card. If *adding* SD traffic makes playback smoother, then what stutters is SD arbitration inside
+the audio feed -- which is exactly where the branch counters had already put the wall time (aud+disc 30-110% of
+the fade windows). The fix that follows from that lives in the feed (read size, lookahead, pump placement),
+and not one further knob on the blit path has any claim on it.
+
+The histogram (0.3.6) works, and its first verdict was falsified by the very boot it was measured on:
+
+```
+gap hist, whole run:  <20ms 597 (55.3%)  20-40 397 (36.8%)  40-80 70 (6.5%)  80-160 8 (0.7%)  160+ 7 (0.6%)
+bimodal windows (>=5 under 40 ms AND >=3 over 40 ms): 10 of 28, 1 of them WITHOUT a hold
+```
+
+Ten windows looked like "the stutter shape" in a run the player called smooth, because the long tail is the
+stage-entry card: a hold legitimately puts 160+ ms between frames. `branchfps.py` now prints both numbers and
+says out loud when every bimodal window is a hold. The lesson is the same one as §9's: a threshold that fires
+on the best boot on the record is the wrong threshold, and it needs a stuttering boot with a histogram in it
+before it means anything -- which is the boot `LOG=0` would give us.
+
+So the decisive boot costs one key and holds the bits still: **0.3.6 with `LOG=0`**
+(`./scripts/pocket/logswitch.sh off --stall 400`). Stutters → the log's SD cadence is the variable, proven
+with the ELF identical. Smooth → the observer theory dies and the hunt goes elsewhere. What is still owed
+either way, if LOG is confirmed: a byte counter for the log's own writes on the `split wall` line
+(`log_kb=`), so the observer has a size and the interaction can be modelled instead of felt. Not shipped yet,
+because every ELF change confounds the A/B in progress -- 0.3.4 and 0.3.6 each taught that the hard way.

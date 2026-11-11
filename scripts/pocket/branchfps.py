@@ -36,7 +36,11 @@ def windows(path):
     out = []
     prev = None
     perf = None
+    hist = None
     for line in open(path, encoding="utf-8", errors="replace"):
+        m = re.search(r"hist <20/(\d+) 20-40/(\d+) 40-80/(\d+) 80-160/(\d+) 160\+/(\d+)", line)
+        if m:                                   # printed just before its split wall, so it belongs to the
+            hist = [int(x) for x in m.groups()]  # window that follows it
         if line.startswith("perf "):
             perf = tuple(first(p, line, -1) for p in (
                 r"hash (\d+) smp", r"br n/g/d/o=(\d+)/", r"br n/g/d/o=\d+/(\d+)/",
@@ -54,7 +58,8 @@ def windows(path):
             continue
         v = [int(x) if x is not None else -1 for x in m.groups()[:8]]
         cur = dict(zip(("wall", "pump", "pres", "disc", "aud", "rest", "acc", "frames"), v),
-                    perf=perf, hold=hold)
+                    perf=perf, hold=hold, hist=hist)
+        hist = None
         if prev:
             dt = cur["wall"] - prev["wall"]
             if dt > 0:
@@ -95,6 +100,7 @@ def report(path):
     tl = sum(d["testless"] for d in w)
     if tl:
         print(f"    PRESENT_TESTLESS fired {tl} frames this run")
+    gap_shape(w)
     slow = [d for d in w if d["fps"] < SLOW_MS]
     print(f"    windows below {SLOW_MS:.0f} fps: {len(slow)}")
     for d in slow:
@@ -107,8 +113,41 @@ def report(path):
         pr = 100.0 * (d["d_pres"] or 0) / d["dt"]
         rs = 100.0 * (d["d_rest"] or 0) / d["dt"]
         br = "/".join(str(x) for x in d["br"])
+        hh = "  hist " + " ".join(f"{lab}/{v}" for lab, v in
+                                  zip(("<20", "20-40", "40-80", "80-160", "160+"), d["hist"])) if d["hist"] else ""
         print(f"       +{d['wall']:>6}ms {d['dt']/1000:4.1f}s {d['fps']:5.1f} fps  br n/g/d/o={br:15}"
-              f"  pres {pr:5.1f}%  aud+disc {au:6.1f}%  rest {rs:5.1f}%   {' '.join(tags)}")
+              f"  pres {pr:5.1f}%  aud+disc {au:6.1f}%  rest {rs:5.1f}%   {' '.join(tags)}{hh}")
+
+
+def gap_shape(w):
+    """The gap histogram's own verdict (docs/456 10): a stutter should be BIMODAL, a slow machine unimodal.
+
+    `gap worst` cannot separate 15 ms and 50 ms frames arriving alternately from a steady 30 ms, so the
+    histogram was built to say which one a second is.  Two cheap readings, both printed rather than
+    judged: the run's aggregate shape, and the longest run of windows sitting on the 12-15 fps band --
+    because the boot the player called stuttering held nine of those in a row (13.3/13.7 alternating)
+    while the smooth one held none, and a periodic bad rate is a different complaint than a slow one.
+    """
+    hs = [d["hist"] for d in w if d["hist"]]
+    if hs:
+        agg = [sum(h[i] for h in hs) for i in range(5)]
+        tot = sum(agg) or 1
+        print("    gap hist, whole run:  " + "  ".join(
+            f"{lab} {v:5} ({100.0 * v / tot:4.1f}%)" for lab, v in
+            zip(("<20ms", "20-40", "40-80", "80-160", "160+"), agg)))
+        bimodal = [d for d in w if d["hist"] and sum(d["hist"][2:]) >= 3 and d["hist"][0] >= 5]
+        quiet = [d for d in bimodal if not d["hold"]]
+        print(f"    bimodal windows (>=5 frames under 40 ms AND >=3 over 40 ms): {len(bimodal)} of {len(hs)},"
+              f" {len(quiet)} of them WITHOUT a hold")
+        if bimodal and not quiet:
+            print("      every bimodal window here is a HOLD: the >40 ms tail is the stage-entry card doing"
+                  " its job, not a hitch. A threshold that fires on the smoothest boot on the record is the"
+                  " wrong threshold (docs/456 11).")
+    best = run = 0
+    for d in w:
+        run = run + 1 if 12.5 <= d["fps"] < 14.5 else 0
+        best = max(best, run)
+    print(f"    longest run of 12-15 fps windows: {best}   (a periodic judder; the stutter boot measured 9)")
 
 
 if __name__ == "__main__":

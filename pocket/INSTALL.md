@@ -88,14 +88,34 @@ before: docs/428). `LOG=1` writes `Saves/night/common/nightlog.sav` every 32 lin
 quarter-megabyte file being committed ~0.6 times a second is not the build a feel judgement is valid on
 (docs/452).
 
+A hitch hunt wants one more line than "log on": `scripts/pocket/logswitch.sh on --stall 120`.
+`STALL_MS` is report-only (`main_of.c:3207` -- a frame gap that passes it testifies once, naming the resource
+in flight), and the shipped `400` sees only the stage-entry stalls docs/433 chased. A hitch you can feel is
+smaller than that, and because the flag is part of the script the shape survives being argued about; a
+hand-edit to the ini does not survive the next deploy (docs/456).
+
 ## 3. Reporting a hardware run
 
-Eject, boot, play, eject, mount, then
+Power the Pocket **fully off** -- not sleep -- before a boot you intend to believe, and eject cleanly
+(`diskutil eject /Volumes/Pocket`) before mounting it to read a log. A warm resume relaunches the cached app,
+and a half-flushed exFAT read hands the device yesterday's bytes; both produce a boot that ran bits the card
+already replaced, which is how a "0.3.3 is stuttering" report turned out to be a 0.3.2 boot (docs/456).
+
+Then archive the log with the tool that checks it, rather than copying it by hand:
+
+```sh
+./scripts/pocket/logsave.sh --note stutter-hunt     # names the file by the version the core stamped in its
+                                                    # own boot marker, and asserts that banner against the
+                                                    # card's core.json -- a mismatch prints VOID BOOT and
+                                                    # refuses the comparison (docs/428, docs/456)
+```
+
+Or read it directly, remembering that `nightlog.sav` is a ring:
 
 ```sh
 cp /Volumes/Pocket/Saves/night/common/nightlog.sav /tmp/nightlog.sav
-grep -E '^(version|clock|memstat|perf|stages|budget|audio|view|video CHANGED)' /tmp/nightlog.sav | tail -40
-strings /Volumes/Pocket/Assets/night/common/night.elf | grep -E '^0\.1\.'   # the version actually on the card
+grep -E '^(settings|clock|memstat|perf|stages|budget|audio|view|video CHANGED|gap worst|STALL)' /tmp/nightlog.sav | tail -40
+strings /Volumes/Pocket/Assets/night/common/night.elf | grep -E '^0\.[0-9]+\.[0-9]+$' | head -1   # the version actually on the card
 md5 -q /Volumes/Pocket/Assets/night/common/night.elf
 ```
 
@@ -133,7 +153,7 @@ The three disc levers need no rebuild at all, only an ini line (docs/375, docs/3
 
 | key | default | what it changes |
 |---|---|---|
-| `DISC_BATCH` | 12 | sectors per slot read; 1 = one 2 352-byte read at a time |
+| `DISC_BATCH` | 27 | sectors per slot read -- `27 x 2352 = 63 504 B`, the largest single op this OS moves (docs/406); 1 = one 2 352-byte read at a time |
 | `DISC_MIN_WANT` | 12 | how long the pump waits for a chunk to be due; 1 = read whatever the disc clock says is due |
 | `DISC_PREFILL_FIRST` | 150 | sectors read before a track's voices start; 300 = the old whole-ring prefill |
 

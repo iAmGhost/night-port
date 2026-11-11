@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–455)
+## The Pocket port (docs/330–456)
 
 ### Port plan and host layer
 
@@ -117,6 +117,10 @@ links back and this index says so; the older file stays where its citations poin
   <sub>`FADE_RAMP=0` removed the card-skipping symptom (docs/442) but **the stage-entry flicker persisted**, and the</sub>
 - **445** — ESC-skipping a stage card is the flicker's trigger, so a skip must not flip
   <sub>## 1. The player found the trigger I could not</sub>
+- **446** — a flip may not happen without a write: the invariant, the route, and the verdict line
+  <sub>The flicker closed in docs/445 had no test, and it survived five builds (docs/423/424/426/443/445) because of</sub>
+- **448** — fade speed, measured on the panel's own palette path, with the key gate excluded
+  <sub>docs/447 §6 established *why* the old hold numbers were worthless for this question: `1sN` cards are gated on</sub>
 
 ### Settings, menu, interact
 
@@ -173,6 +177,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Docs/374 fixed the *restore mask* default.  This closes the rest of the save question -- writing a save, loading it</sub>
 - **392** — the pad combo is the only way a player reaches saves, and route files could not press the key that does it
   <sub>Docs/374 and docs/390 tested saves through command-line `--save/--load`, which is a harness affordance.  A player on the</sub>
+- **449** — the port stops offering saves, because the game never had them
+  <sub>Asked whether a save was worth building out of the half-working slot feature, the answer came back the other</sub>
 
 ### Clock, tick, performance
 
@@ -186,6 +192,14 @@ links back and this index says so; the older file stays where its citations poin
   <sub>task-9's second item ("BRAM hot paths") had never been touched.  `pocket/src/sdk/app.ld:29` reserves</sub>
 - **372** — what it took to make the hottest function small, and the two BRAM sets that fit
   <sub>docs/371 ended with the region full and the wrong thing in it: `tick_pump`, the function the game re-enters ~267 000</sub>
+- **447** — a hold must say whether it is a card sitting or a stall, before I trim anything
+  <sub>## 1. The trim I was about to make had a stale basis</sub>
+- **450** — The original runs the stage at ~50 screen updates/s, not 70 — and that rate does not depend on CPU speed
+  <sub>## The question</sub>
+- **452** — After 0.2.23 the game got worse, and it was the card, not the code
+  <sub>That verdict lands on the same commit whose logging I had just spent four boots mourning (docs/451), and it makes me retract a claim I made an hour ea</sub>
+- **456** — The constant stutter came back, and the card had never booted the build it blamed
+  <sub>A feel report, a regenerated `night.ini`, and two card logs that measure the same machine -- the blame was</sub>
 
 ### Diagnostics and logging
 
@@ -207,6 +221,10 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Core 0.1.91. Two findings, one of which undoes a method I have used for several builds.</sub>
 - **411** — The logo hold was a 0.1.89 pathology, not a defect; and the instrument proved neither branch I predicted
   <sub>Core 0.1.91, user's report: "Logo hold / longer intro loading hold fixed."</sub>
+- **451** — The card log went silent with the save-feature removal; the log's name was an ordinal
+  <sub>## What went missing, and how long it was missing</sub>
+- **454** — The log died because the save *table* lost its first seven rows, not because of its name
+  <sub>## The boots, in order</sub>
 
 ### Verification: rig, accuracy, capture
 
@@ -261,6 +279,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Hardware round: the core boots and draws the logo, but nothing this core writes ever reaches the card, the</sub>
 - **366** — the install route, verified against the card: what `make copy` fills, what `make deploy` fills, and what a card must match
   <sub>Task-10's packaging half.  `pocket/INSTALL.md` is now the human-facing install README; this is the measurement that</sub>
+- **453** — The Pocket's "files" are slots; a name nothing declares fails silently, not loudly
+  <sub>The warning that produced this doc: *be careful with file I/O, openfpgaOS/Analogue Pocket is really picky (reserved file IDs and more); consult the RE</sub>
 
 ### Other Pocket-port documents
 

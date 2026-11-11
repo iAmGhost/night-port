@@ -32,8 +32,8 @@ THEMES = [
                            'terminal', 'logo', 'pcx', 'fli', 'stage-back')),
     ('Settings, menu, interact', ('interact', 'menu', 'settings', 'periph', 'mirror', 'mask',
                                   'volume', 'packing', 'bridge', 'probe value')),
-    ('Input, saves, clock, performance', ('pad', 'input', 'key', 'save', 'slot', 'bram', 'clock',
-                                          'tick', 'pump', 'perf', 'budget', 'spin')),
+    ('Clock, tick, performance', ('bram', 'clock', 'tick', 'pump', 'perf', 'budget', 'spin')),
+    ('Input and saves', ('pad', 'input', 'key', 'save')),
     ('Verification: rig, accuracy, capture', ('rig', 'frame', 'diff', 'accuracy', 'compare',
                                               'capture', 'oracle', 'sweep', 'ncc', 'witness',
                                               'route', 'drive', 'episode', 'timing', 'phase')),
@@ -76,13 +76,21 @@ THEME_MAP = {
     **{n: AUDIO for n in (395, 396, 397, 398, 402, 403, 406, 407, 408, 409, 412)},
     399: VIDEO, 400: VIDEO, 401: VIDEO, 404: VIDEO, 405: VIDEO,
     410: DIAGN, 411: DIAGN,
+    # 0.2.x flicker/rate thread (the underscore filenames were invisible to the index until 456)
+    446: VIDEO, 448: VIDEO, 447: PERF, 450: PERF, 449: INPUT,
+    # feel reports, and the two whose verdict was the card rather than the code
+    452: PERF, 456: PERF,
+    # the log path itself
+    451: DIAGN, 454: DIAGN,
+    # the slot table and what a name means on the card
+    453: PKG,
 }
 
 
 def doc_meta(path):
     """(number, title, first body line) from a document's own text."""
     name = os.path.basename(path)
-    m = re.match(r'(\d+)-', name)
+    m = re.match(r'(\d+)[-_]', name)
     num = int(m.group(1)) if m else 0
     try:
         text = open(path, encoding='utf-8', errors='replace').read(4000)
@@ -156,7 +164,7 @@ def main():
             name = None
             # theme on title + the doc's own filename
             for n in os.listdir(DOCS):
-                if n.startswith('%d-' % num):
+                if n.startswith(('%d-' % num, '%d_' % num)):   # both separators: 452_a and 456-b are the same numbering
                     name = n
                     break
             buckets.setdefault(theme(num, title, name or ''), []).append((num, title, first))

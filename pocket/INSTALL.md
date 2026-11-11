@@ -4,7 +4,12 @@
 (`build/night`), on the Pocket, from the original game's own data repacked into APF data slots.
 
 The game data is yours: nothing in this repo ships NIGHT.RES or the disc audio.  Everything below regenerates it
-from `NIGHT/TG_NIGHT.CUE` + `NIGHT/TG_NIGHT.IMG` and the `NIGHT.RES` you already have in `./NIGHT`.
+from the `TG_NIGHT.CUE` you already have, the image its own `FILE` line names, and the `NIGHT.RES` of your
+install set. `make extract` puts all three in `extracted/` (docs/455); `scripts/pocket/gen_disc.py`,
+`repack.py` and `mk_dist.py` take them by suffix through `scripts/disc_loc.py` -- the repo root, a
+`NIGHT/` under it, or the directory you run them from, and `NIGHT.RES` from `extracted/` first -- so a
+rip kept anywhere works as long as the CUE is on that search path. `NIGHT_EXE` names a particular
+`NIGHT.EXE` when a run has to say which copy it measured.
 
 
 > **Upgrading clears your menu settings (docs/394 3).**  `scripts/pocket/deploy.sh` deletes
@@ -62,7 +67,7 @@ with its default.  The ones that matter for a report:
 | `SFX_GAIN` / `CDDA_GAIN` | `200` / `150` | 100-212 %, through a knee that cannot clip and cannot attenuate (docs/361) |
 
 There are **no game saves**, and that is deliberate (docs/449): the shipped game has no save concept at all —
-`src/f` names no save file and `NIGHT/` ships none (docs/374) — so saves were the port inventing a feature, and the
+`src/f` names no save file and the shipped game ships none (docs/374) — so saves were the port inventing a feature, and the
 masked restore that came with them only ever half-worked (HP bars restored, stage position and enemies did not).
 They were removed in `0.2.23`, together with the `L1+Select` / `L1+Start` / `L1+A` combos that carried them; those
 combos also pressed Esc and Enter on the game, so every save was a stray key into the shipped pause menu.

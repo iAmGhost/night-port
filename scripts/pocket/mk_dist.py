@@ -45,7 +45,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.3.3"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.3.4"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 # (SAVE_SLOTS removed in 0.2.23, docs/449: the port ships no save feature)
 sys.path.insert(0, str(Path(__file__).resolve().parent))          # slot_ids.py sits here
@@ -479,6 +479,7 @@ def main():
         "FDUMP=2\n"  # 2 = auto-arm the fade trace at stage entry (docs/424); 1 = L1+Up only, 0 = off
         "PALETTE_AFTER_FLIP=0\n"  # 1 = upload the palette just after flip (docs/422 fade flicker)
         "PRESENT_SKIP=1\n"
+        "PRESENT_TESTLESS=24\n"  # after 4 consecutive frames have moved, present this many frames WITHOUT the full-surface change test (docs/456: the test reads 307 200 B, ~8.8 ms of a ~24 ms 640x480 present, and during a fade the answer is always "changed"). 0 = the exact pre-0.3.4 shape
         "ROW_SKIP=0\n"
         "STALL_MS=400\n"
         "FADELOG=0\n"
@@ -517,7 +518,7 @@ def main():
     # code default then takes over and nothing downstream notices.  So the generator names the keys a run
     # depends on and refuses to ship an ini that dropped one (docs/405).
     REQUIRED = ["RES", "MUSIC_VOL", "SFX_VOL", "MASTER_VOL", "SFX_GAIN", "CDDA_GAIN", "CDDA_OFF", "PAD_OFF",
-                "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "DISC_IDLE_HOOK", "FDUMP", "PALETTE_AFTER_FLIP", "PRESENT_SKIP", "ROW_SKIP", "STALL_MS", "FADE_RAMP", "FADE_RAMP_MS", "FADELOG", "PRESENT_CAP_MS", "DELAY_US", "CDDA_STOP_FIX", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
+                "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "DISC_IDLE_HOOK", "FDUMP", "PALETTE_AFTER_FLIP", "PRESENT_SKIP", "PRESENT_TESTLESS", "ROW_SKIP", "STALL_MS", "FADE_RAMP", "FADE_RAMP_MS", "FADELOG", "PRESENT_CAP_MS", "DELAY_US", "CDDA_STOP_FIX", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
                 "DISC_RAMP", "CDDA_CARD_STOP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "PRESENT_SYNC",
                 "TICK_HZ", "DIAG", "LOG", "DISC_LOOKAHEAD"]
     got = set(re.findall(r"(?m)^([A-Z_]+)=", ini_text))

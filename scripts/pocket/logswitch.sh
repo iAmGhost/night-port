@@ -53,7 +53,7 @@ fi
 # State is printed as a shape, never inferred (docs/452: a boot whose shape is not stated is a boot whose
 # numbers cannot be read).  Everything the switch touched, plus DIAG, which decides what else is on.
 now=$(grep -E '^LOG=' "$INI" | tr -d ' ')
-echo "shape: $(grep -E '^(LOG|DIAG|STALL_MS|TICK_HZ|DISC_BATCH|DELAY_US|PRESENT_CAP_MS)=' "$INI" | tr '\n' ' ')"
+echo "shape: $(grep -E '^(LOG|DIAG|STALL_MS|TICK_HZ|DISC_BATCH|DISC_LOOKAHEAD|DELAY_US|PRESENT_CAP_MS|PRESENT_TESTLESS|PRESENT_SKIP|FB_MODE)=' "$INI" | tr '\n' ' ')"
 if [ "$now" = "LOG=1" ]; then
     echo "LOG=1  -- DIAGNOSTIC CARD: the app writes Saves/<app>/common/nightlog.sav every 32 lines."
     echo "         Play feel measured on this card is not player feel (docs/452)."

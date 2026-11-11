@@ -154,6 +154,21 @@ static uint32_t g_applied_w = PANEL_W, g_applied_h = PANEL_H, g_applied_stride =
 static uint32_t g_hash_sig, g_hash_streak;
 static int g_hash_proven;
 
+/* docs/456: the test's own cost, and the case where it cannot pay for itself.  Hashing every byte of a
+ * 640x480 slide costs ~8.8 ms on the card (docs/422 measured the pass at ~8.3 ms), which is a third of the
+ * ~24 ms a slide present costs -- and during a fade it buys nothing, because the game is rewriting the whole
+ * surface every step (`fn_040660` scales the palette table and blits; `sig` moves on every frame), so the
+ * answer is always "changed".  The logo/title fade was measured at 13 fps with present at 33% of the wall.
+ *
+ * So: once four consecutive frames have changed, stop asking for `present_testless` frames and copy.  Going
+ * untested is the SAFE direction -- a frame we do not test is a frame we always write, never a stale one --
+ * and the hold win docs/416/422 bought (the logo hold 41 s -> 6 s) survives, because a hold re-starts the
+ * test within four frames and re-proves the three buffers in three more.  `present_testless=0` is the exact
+ * old shape, one ini line. */
+static uint32_t g_hash_passes;        /* frames left to go without the test */
+static uint32_t g_hash_changing;      /* consecutive frames the test said "changed" */
+static uint32_t g_hash_testless;      /* frames presented without asking */
+
 /* ---- per-display-buffer row hashes (docs/430) ---------------------------------------------------------
  * docs/429 settled where the machine goes: present() is 70% of a run, and the 640x480 surface copy costs
  * ~23 cycles PER WORD (307 200 B in ~17.5 ms).  The SDK's own "opaque" helper is row memcpy with the same
@@ -284,6 +299,7 @@ static void applied_refresh(void) {
         g_pal_force = 1;                  /* re-programming the display path can drop the palette (docs/399) */
         rowhash_invalidate(NULL);           /* ...same reason the row-hash tables die here (docs/430) */
         g_hash_proven = 0;                  /* ...and may have swapped the buffers we are about to trust (docs/400) */
+        g_hash_passes = 0; g_hash_changing = 0u;   /* a new mode is a new answer; ask again (docs/456) */
     }
 #endif
 }
@@ -1109,21 +1125,35 @@ static void present(void) {
      * matches what this buffer holds" IS "the frame is already on screen", per buffer, with no three-frame
      * proof needed. */
     if (of_setting_present_skip() && !use_rows) {
-        size_t n = (size_t)vw * vh;                       /* exactly what the blit below would copy */
-        uint32_t h = 2166136261u ^ (uint32_t)(vw * 73856093 + vh * 19349663);
-        const uint8_t *q = src;
-        for (size_t i = 0; i + 4u <= n; i += 4u) {        /* word reads: every byte, 1/4 the instructions */
-            uint32_t w;
-            __builtin_memcpy(&w, q + i, 4u);
-            h = (h ^ w) * 16777619u;
-        }
-        for (size_t i = n & ~3u; i < n; i++) h = (h ^ q[i]) * 16777619u;
-        if (h == g_hash_sig && g_hash_proven) skip = 1;         /* all three buffers already hold this picture */
-        else {
-            g_src_changed = (h != g_hash_sig);
-            if (h != g_hash_sig) { g_hash_sig = h; g_hash_streak = 1u; g_hash_proven = 0; }
-            else g_hash_streak++;
-            if (g_hash_streak >= 3u) g_hash_proven = 1;         /* written into three buffers; proof latches */
+        if (g_hash_passes && of_setting_present_testless() > 0) {
+            /* Animation in progress: the test would read 307 200 bytes to learn what the last four frames
+             * already said.  Present, and let the streak below restart when the window runs out. */
+            g_hash_passes--;
+            g_hash_testless++;
+            g_src_changed = 1;
+            g_hash_streak = 0u; g_hash_proven = 0;
+        } else {
+            size_t n = (size_t)vw * vh;                   /* exactly what the blit below would copy */
+            uint32_t h = 2166136261u ^ (uint32_t)(vw * 73856093 + vh * 19349663);
+            const uint8_t *q = src;
+            for (size_t i = 0; i + 4u <= n; i += 4u) {    /* word reads: every byte, 1/4 the instructions */
+                uint32_t w;
+                __builtin_memcpy(&w, q + i, 4u);
+                h = (h ^ w) * 16777619u;
+            }
+            for (size_t i = n & ~3u; i < n; i++) h = (h ^ q[i]) * 16777619u;
+            if (h == g_hash_sig && g_hash_proven) skip = 1;   /* all three buffers already hold this picture */
+            else {
+                g_src_changed = (h != g_hash_sig);
+                if (h != g_hash_sig) {
+                    g_hash_sig = h; g_hash_streak = 1u; g_hash_proven = 0;
+                    if (++g_hash_changing >= 4u) {   /* four frames in a row moved: stop asking (docs/456) */
+                        g_hash_changing = 0u;
+                        g_hash_passes = (uint32_t)of_setting_present_testless();
+                    }
+                } else g_hash_streak++;
+                if (g_hash_streak >= 3u) g_hash_proven = 1;   /* written into three buffers; proof latches */
+            }
         }
     }
 #endif
@@ -2890,11 +2920,11 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 }
             }
 #endif
-            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u)"
+            NLOG("perf pres=%uus max=%uus pump=%u ticks=%u skips=%u(hash %u smp %u testless=%u)"
                  " | rows c=%u s=%u fs=%u dry=%u f=%u inv=%u mm=%u chk=%u | br n/g/d/o=%u/%u/%u/%u"
                  " | fade runs=%u arms=%u steps=%u n=%u chg=%u/%u mx=%u/%u w=%u fr=%d\n",
                  g_present_us, g_present_us_max, g_pump_calls, g_timer_calls, g_present_skips,
-                 g_hash_skips, g_smp_skips, g_row_copied, g_row_same, g_row_frameskip, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
+                 g_hash_skips, g_smp_skips, g_hash_testless, g_row_copied, g_row_same, g_row_frameskip, g_row_dry, g_row_fallback, g_row_invalidate, g_row_mm, g_row_checks,
                  g_br_native, g_br_game, g_br_down, g_br_other,
                  g_pal_ramp_runs, g_pal_ramp_arms, g_pal_ramp_steps, g_pal_ramp_last_n,
                  g_pal_chg_last, g_pal_chg_max, g_pal_mx_last, g_pal_mx_max,
@@ -3582,9 +3612,9 @@ int main(int argc, char **argv) {
             if (!surface_is_base())
                 NLOG("surface: the core did not land on the 320x240 base mode the host assumes\n");
         }
-        NLOG("blit shape: staging=%d (blit_dirty) fb_mode=%d present_sync=%d | the staging path writes only rows it thinks changed, which is invalid on a triple-buffered display (docs/400)\n"
+        NLOG("blit shape: staging=%d (blit_dirty) fb_mode=%d present_sync=%d present_testless=%d | the staging path writes only rows it thinks changed, which is invalid on a triple-buffered display (docs/400)\n"
          "fit=%d\n",
-         of_setting_blit_dirty(), of_setting_fb_mode(), of_setting_sync_flip(), of_setting_fit());
+         of_setting_blit_dirty(), of_setting_fb_mode(), of_setting_sync_flip(), of_setting_present_testless(), of_setting_fit());
     NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
         mem_bench();

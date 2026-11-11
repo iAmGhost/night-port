@@ -76,6 +76,7 @@ int  of_setting_diag(void);          /* night.ini DIAG= bitmask, see the OF_DIAG
 int  of_setting_blit_skip(void);
 int  of_setting_present_skip(void);
 int  of_setting_row_skip(void);
+int  of_setting_present_testless(void);   /* docs/456 */
 int  of_setting_stall_ms(void);
 int  of_setting_fade_log(void);
 int  of_setting_fade_ramp(void);

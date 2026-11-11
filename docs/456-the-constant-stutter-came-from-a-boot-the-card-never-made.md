@@ -125,3 +125,59 @@ number each. Not built today, because the thing it would have to be A/B'd agains
    get worse" is answered by diffing against that, and only by diffing against that.
 4. **`rest` stays on the list.** It is the largest thing the log does not name and the only place left for a cost
    this big to hide.
+
+## 7. The fade is the stutter, and the change that came out of it
+
+The report sharpened while this doc was being written: not "everywhere", but **"it fades in, and the screen pauses
+almost every second during the fade-in"** -- on the *title* card, the 640x480 one, and with the music never
+hitching. That is the plateau this doc's §3 measured and mislabelled as unremarkable:
+
+```
+fb mode -> native 640x480 rc=0 in 49757us        <- the mode switch alone costs ~50 ms
+stages last m=16 p=211 c=23914 f=215 x=242        <- copy stage 23.9 ms, flip 0.2 ms
+frames 485 -> 607   11.4, 12.2, 13.3, 13.7, 13.3, 13.7, ... fps for eleven seconds
+   of each ~75 ms frame:  present 25 ms  disc 11 ms  audio 14 ms  rest 26 ms
+```
+
+`mk_dist.py` already carries the copy's own number in its `FB_MODE` comment: the native path moves
+307 200 B at 19.5 MB/s, i.e. **15.8 ms**. The card spends **23.9 ms**. The 8 ms in between is the change test:
+`PRESENT_SKIP=1` hashes every byte of the surface before deciding not to copy it, and docs/422 measured that
+pass at ~8.3 ms. So during a fade the port pays 8.8 ms to be told what the previous four frames had already
+said -- the game's `fn_040660` is rewriting all 307 200 bytes every step (`sig` moves every window in the log).
+15.8 + 8.8 = 24.6 ≈ the measured 23.9. That is the whole budget explained.
+
+`0.3.4` therefore adds **`PRESENT_TESTLESS`** (default 24): once four consecutive frames have changed, present the
+next N without asking. Skipping the test is the *safe* direction -- an untested frame is always written, never a
+stale one -- and the hold win docs/416/422 bought (logo hold 41 s -> 6 s) survives, because a hold restarts the
+test within four frames and re-proves the three display buffers in three more. `PRESENT_TESTLESS=0` is the exact
+pre-0.3.4 shape, one ini line; the boot line now prints it (`blit shape: … present_testless=24`) and `perf`
+counts it (`skips=…(hash … testless …)`). Expected on the same instrument: `stages … c=` 23.9 ms -> ~16 ms,
+and the plateau 13 fps -> ~17-18. A third off the worst second, not a cure: the other ~26 ms of that frame is
+`rest`, which is still unnamed (§4.1).
+
+## 8. Why the original's own fade rate was never measured, and what that leaves open
+
+The right question before touching the code was "does the *original* fade this coarsely too?" -- and that
+question is still unanswered, because the container route (docs/46) could not get the game to accept the disc:
+
+| mount | what the original drew |
+|---|---|
+| `imgmount D TG_NIGHT.CUE -t iso`, C: = `extracted/` | DOS4GW **error (2002): transfer stack overflow on interrupt 1Ch** (the `NIGHT.BAT` -> `HCODE /E` TSR hooks the timer IRQ) |
+| same, `NIGHT.EXE` direct, `cycles=auto` | black 640x480 for 20 s at 70 fps sampled: **zero picture changes** |
+| `imgmount D TG_NIGHT.CUE -type cue` | `cdinsert.pcx` -- the girl-and-disc card, "insert the game CD and press any key" |
+| per-track BIN/CUE (see below) | still `cdinsert.pcx` |
+
+Two real things came out of the attempt anyway. `scripts/disc_bin_cue.py` now writes
+`extracted/cd/track01.bin` (the data track's raw 2 352-byte sectors, which the extractor had never needed to
+keep) plus `extracted/cd/disc.cue` naming one BIN per track with the source's PREGAP preserved; every audio BIN's
+size is checked against the CUE's boundaries, so the layout the emulator is being handed is verifiable rather
+than assumed. It did not satisfy the game's disc check, so the check is looking for something a *ripped image*
+does not carry -- and with `NIGHT/` deleted from the repo, the layout that the earlier captures (which did reach
+the game: `scratch/pocket/orig_logo2`, 106 frames) mounted no longer exists on this machine.
+
+So the honest position on the fade: the port's logo/title *durations* match the original (docs/76's basis: ramp
+6 002 vs 6 005 ms, logo 2 603 vs 2 592 ms), the fade is driven by the guest's own step loop
+(`fn_040660(target, 0x19)` = 25 steps; docs/447 measured a 25-step fade at 612-892 ms = 28-41 changes/s), and the
+port was presenting that at 13 fps -- so the port was **below** the rate the guest is asking for, which is the
+one case where speeding the copy is unambiguously the right move. Whether the original's fade *looks* like 13 fps
+on real hardware is a question that needs a disc the emulator will accept, and that stays open.

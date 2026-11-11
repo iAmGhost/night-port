@@ -168,6 +168,7 @@ static int      g_pump_audio_tick = 0;   /* night.ini PUMP_AUDIO_TICK: 0 = drain
 static int      g_blit_skip = 0, g_sync_flip = 1, g_fb_mode = 1, g_fit = 1, g_blit_dirty = 0;
 static int      g_present_skip = 1;
 static int      g_row_skip = 0;
+static int      g_present_testless = 24;   /* docs/456: frames to present without the full-surface change test once four consecutive frames have moved; 0 = the exact old shape */
 static int      g_stall_ms = 400;
 static int      g_fade_log = 0;
 static int      g_fade_ramp = 0;
@@ -290,6 +291,7 @@ void of_settings_load(void) {
     g_blit_skip = cfg_int("blit_skip",   0, "NIGHT_BLIT_SKIP");
     g_present_skip = cfg_int("present_skip", 1, "NIGHT_PRESENT_SKIP");
     g_row_skip = cfg_int("row_skip", 0, "NIGHT_ROW_SKIP");
+    g_present_testless = cfg_int("present_testless", 24, "NIGHT_PRESENT_TESTLESS");
     g_stall_ms = cfg_int("stall_ms", 400, "NIGHT_STALL_MS");
     g_fade_log = cfg_int("fade_log", 0, "NIGHT_FADELOG");
     g_fade_ramp = cfg_int("fade_ramp", 0, "NIGHT_FADE_RAMP");
@@ -424,6 +426,7 @@ int of_setting_screen(void)    { return g_screen; }
 int  of_setting_blit_skip(void) { return g_blit_skip; }
 int  of_setting_present_skip(void) { return g_present_skip; }
 int  of_setting_row_skip(void) { return g_row_skip; }
+int  of_setting_present_testless(void) { return g_present_testless; }
 int  of_setting_stall_ms(void) { return g_stall_ms; }
 int  of_setting_fade_log(void) { return g_fade_log; }
 int  of_setting_fade_ramp(void) { return g_fade_ramp; }

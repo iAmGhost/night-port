@@ -1,7 +1,12 @@
 """Detect STATUS 'pending' entries that are actually data (misidentified by Ghidra):
 prints pending rows whose first bytes are mostly printable ASCII."""
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import re, string
-data = open('NIGHT/NIGHT.EXE','rb').read()
+data = open(NIGHT_EXE,'rb').read()
 D = 0x2600
 st = open('docs/12-functions/STATUS.md').read()
 rows = re.findall(r'^\| \[ \] \| 0x([0-9a-f]{6}) \| (\d+) \| (\S+) \|', st, re.M)

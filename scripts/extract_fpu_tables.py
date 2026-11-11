@@ -9,9 +9,14 @@ arms are the arithmetic cases at 0x46524..0x46c9d.
   table1 @ 0x45e78, index = (b | (b >> 8)) & 0x1f          (byte index, see 0x46225 area)
   table2 @ 0x45f38, index = (b & 0x38) | b  ==  b & 0x3f   (jmp dword cs:[ebx*4 + 0x35f38], 0x4624a)
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__))))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import struct
 
-EXE = "NIGHT/NIGHT.EXE"
+EXE = NIGHT_EXE
 D = 0x2600            # code: file offset = flat - 0x2600
 SEL3_BASE = 0x40000   # selector 3 -> flat
 

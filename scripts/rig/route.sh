@@ -60,7 +60,7 @@ if [ -n "$(find src test/test_f1.c Makefile -newer build/night 2>/dev/null | hea
 fi
 printf 'binary=%s mtime=%s\n' "build/night" "$(stat -f '%Sm' build/night 2>/dev/null || stat -c '%y' build/night)" > "$OUT/build_stamp.txt"
 say "port: night --rig-dump"
-( cd "$ROOT" && env $PORT_ENV timeout $((DUR + 40)) ./build/night --res-dir ./NIGHT \
+( cd "$ROOT" && env $PORT_ENV timeout $((DUR + 40)) ./build/night \   # --res-dir defaults to ./extracted, what `make extract` builds (docs/455)
       --script "$DRIVE" --rig-dump "$OUT/port" --rig-hz 10 --frames $((DUR * 60)) > "$OUT/port.log" 2>&1 )
 say "port: done ($(wc -c < "$OUT/port/cells.bin" 2>/dev/null || echo 0) bytes of cell records)"
 

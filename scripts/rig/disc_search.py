@@ -9,8 +9,13 @@ contains genuine disc audio but no forward template hits, which is indistinguish
 This inverts the search: take an excerpt of the capture and find its best match anywhere in the disc image's
 audio region. The hit position names the LBA convention (or shows there is no disc-derived audio at all).
 
-  python3 scripts/rig/disc_search.py --wav CAPTURE.wav --at 20 --len 6 [--img NIGHT/TG_NIGHT.IMG]
+  python3 scripts/rig/disc_search.py --wav CAPTURE.wav --at 20 --len 6 [--img TG_NIGHT.IMG]
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from disc_loc import find_img        # the disc is located by suffix, not by a rip's directory (docs/455)
+
 import argparse
 import numpy as np
 
@@ -31,11 +36,15 @@ def main():
     ap.add_argument("--wav", required=True)
     ap.add_argument("--at", type=float, default=20.0, help="excerpt start (s)")
     ap.add_argument("--len", dest="length", type=float, default=6.0)
-    ap.add_argument("--img", default="NIGHT/TG_NIGHT.IMG")
+    ap.add_argument("--img", default=None,
+                        help="the raw 2352-byte-frame disc image (default: the one this repo has, docs/455)")
     ap.add_argument("--from-sector", type=int, default=0)
     ap.add_argument("--to-sector", type=int, default=0, help="0 = end of image")
     ap.add_argument("--chunk", type=int, default=1 << 22)
     a = ap.parse_args()
+    if not a.img:                                  # the repo's own disc, found by suffix
+        a.img = str(find_img())
+        print(f"img: {a.img} (located -- pass --img to name another)", file=sys.stderr)
 
     tgt, rate = wav_mono(a.wav)
     tpl = tgt[int(a.at * rate):int((a.at + a.length) * rate)]

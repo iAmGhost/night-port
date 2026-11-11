@@ -1,8 +1,13 @@
 """Skeleton + dependency classification for the big lever functions (0x012efa / 0x012616 / 0x01441e)."""
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import re, collections, subprocess, json
 from capstone import Cs, CS_ARCH_X86, CS_MODE_32
 from capstone.x86_const import X86_OP_MEM, X86_OP_IMM
-EXE='NIGHT/NIGHT.EXE'; D=0x2600
+EXE=NIGHT_EXE; D=0x2600
 status=open('docs/12-functions/STATUS.md').read()
 ported=set(int(x,16) for x in re.findall(r'^\| \[x\] \| 0x([0-9a-f]{6})', status, re.M))
 pending=set(int(x,16) for x in re.findall(r'^\| \[ \] \| 0x([0-9a-f]{6})', status, re.M))

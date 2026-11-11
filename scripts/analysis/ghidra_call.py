@@ -14,7 +14,8 @@ def main():
     mode = sys.argv[1]
     env = dict(os.environ, GHIDRA_MCP_ALLOW_SCRIPTS="1")
     p = subprocess.Popen(
-        ["uv", "run", "--directory", "~/Git/ghidra-mcp", "bridge-mcp-ghidra"],
+        ["uv", "run", "--directory",
+         os.environ.get("GHIDRA_MCP_DIR", os.path.expanduser("~/Git/ghidra-mcp")), "bridge-mcp-ghidra"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env,
         text=True, bufsize=1)
     q = queue.Queue()

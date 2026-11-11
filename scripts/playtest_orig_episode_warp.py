@@ -12,6 +12,11 @@ slides -> gameplay, records the gameplay frames, and scores them against the por
 
     scripts/playtest_orig_episode_warp.py 2 3 4 ...        # episodes to capture (default 2..9)
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__))))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 from __future__ import annotations
 
 import json
@@ -121,7 +126,7 @@ def main() -> int:
         open(df, "w").write(DRIVE.format(stage=stage))
         print(f"== episode {stage}: restarting the emulator", flush=True)
         restart_emulator()
-        env = dict(os.environ, DOSBOX_API_TOKEN=TOKEN, DOSBOX_BASE=BASE, NIGHT_EXE="NIGHT/NIGHT.EXE")
+        env = dict(os.environ, DOSBOX_API_TOKEN=TOKEN, DOSBOX_BASE=BASE, NIGHT_EXE=NIGHT_EXE)
         subprocess.run(["uv", "run", "--quiet", "--with", "numpy", "--with", "pillow", "python3",
                         os.path.join(ROOT, "scripts", "playtest_orig_drive.py"), "--out", out,
                         "--drive", df, "--hz", "3"], env=env, check=False)

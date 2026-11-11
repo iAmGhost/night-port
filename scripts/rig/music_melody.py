@@ -14,8 +14,13 @@ timbre, and fails for unrelated material because peak sets of different music ra
 Usage:
   python3 scripts/rig/music_melody.py --capture CAPTURE.wav --template-wav PORT/cdda.wav --tpl-at 68.9 \
       [--len 24] [--hop 0.2] [--win 1.0] [--peaks 6]
-  python3 scripts/rig/music_melody.py --capture CAPTURE.wav --img NIGHT/TG_NIGHT.IMG --tpl-lba 223146 --tpl-at 20
+  python3 scripts/rig/music_melody.py --capture CAPTURE.wav --img TG_NIGHT.IMG --tpl-lba 223146 --tpl-at 20
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from disc_loc import find_img        # the disc is located by suffix, not by a rip's directory (docs/455)
+
 import argparse
 import numpy as np
 
@@ -68,7 +73,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--capture", required=True)
     ap.add_argument("--template-wav")
-    ap.add_argument("--img", default="NIGHT/TG_NIGHT.IMG")
+    ap.add_argument("--img", default=None,
+                        help="the raw 2352-byte-frame disc image (default: the one this repo has, docs/455)")
     ap.add_argument("--tpl-lba", type=int)
     ap.add_argument("--tpl-at", type=float, default=20.0, help="seconds into the template source")
     ap.add_argument("--len", dest="tlen", type=float, default=24.0)
@@ -76,6 +82,9 @@ def main():
     ap.add_argument("--win", type=float, default=1.0)
     ap.add_argument("--peaks", type=int, default=6)
     a = ap.parse_args()
+    if not a.img:                                  # the repo's own disc, found by suffix
+        a.img = str(find_img())
+        print(f"img: {a.img} (located -- pass --img to name another)", file=sys.stderr)
 
     cap, crate = mono(a.capture)
     A = peak_sets(cap, crate, a.hop, a.win, a.peaks)

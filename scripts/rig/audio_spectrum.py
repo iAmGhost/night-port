@@ -12,6 +12,10 @@ mixer-port writes return nothing), so the original's audible CD level is pure em
 be compared to the port's line-level witness in the time domain. The track *identity timeline*, however, is
 comparable -- and that is the music item's actual question (title stop, slideshow track, stage-start change).
 """
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from disc_loc import find_img        # the disc is located by suffix, not by a rip's directory (docs/455)
+
 import argparse, array, math, struct, sys
 
 N = 512            # window (samples)
@@ -61,11 +65,15 @@ def zscore(mat):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--wav', required=True)
-    ap.add_argument('--img', default='NIGHT/TG_NIGHT.IMG')
+    ap.add_argument("--img", default=None,
+                        help="the raw 2352-byte-frame disc image (default: the one this repo has, docs/455)")
     ap.add_argument('--tracks', required=True, help='index:lba:sectors (DECIMAL lba, as the port logs it)')
     ap.add_argument('--window-s', type=int, default=40)
     ap.add_argument('--top', type=int, default=2)
     a = ap.parse_args()
+    if not a.img:                                  # the repo's own disc, found by suffix
+        a.img = str(find_img())
+        print(f"img: {a.img} (located -- pass --img to name another)", file=sys.stderr)
     mono, rate = load_wav(a.wav)
     tgt = zscore(goertzel_windows(mono, rate))
     print(f'{a.wav}: {len(tgt)} spectral windows ({len(tgt)*N/rate:.0f} s), {rate} Hz, {len(BINS)} bands')

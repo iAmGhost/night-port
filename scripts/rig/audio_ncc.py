@@ -8,6 +8,10 @@ cross-correlation at the SAMPLE level between a disc-track segment and the captu
 mixer is a constant-gain copy of the disc samples, so a real match gives NCC ~1 regardless of gain; SFX on
 top only lowers it slightly. If the capture has no CD-DA, NCC stays at noise level.
 """
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from disc_loc import find_img        # the disc is located by suffix, not by a rip's directory (docs/455)
+
 import argparse, array, struct, sys
 import numpy as np
 
@@ -50,13 +54,17 @@ def ncc_peak(tgt, tpl, lo, hi):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--wav', required=True)
-    ap.add_argument('--img', default='NIGHT/TG_NIGHT.IMG')
+    ap.add_argument("--img", default=None,
+                        help="the raw 2352-byte-frame disc image (default: the one this repo has, docs/455)")
     ap.add_argument('--tracks', required=True, help='index:lba:sectors:disc_offset_s[:expected_capture_s]')
     ap.add_argument('--seg-s', type=float, default=4.0)
     ap.add_argument('--search-s', type=float, default=45.0)
     ap.add_argument('--sector-header', type=int, default=24,
                     help='24 for a MODE1 data sector, 0 for an AUDIO track (docs/130)')
     a = ap.parse_args()
+    if not a.img:                                  # the repo's own disc, found by suffix
+        a.img = str(find_img())
+        print(f"img: {a.img} (located -- pass --img to name another)", file=sys.stderr)
     tgt, rate = load_wav(a.wav)
     print(f'{a.wav}: {len(tgt)/rate:.0f} s @ {rate} Hz')
     for spec in a.tracks.split(','):

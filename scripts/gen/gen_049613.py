@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import json, importlib.util
-spec = importlib.util.spec_from_file_location("ref", "~/Git/night-port/scripts/ref/fp_049613_ref.py")
+import json, importlib.util, os
+# the reference model sits under scripts/ref next to this generator -- resolved, not hard-coded
+_REF = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "ref", "fp_049613_ref.py")
+spec = importlib.util.spec_from_file_location("ref", _REF)
 ref = importlib.util.module_from_spec(spec); spec.loader.exec_module(ref)
 
 # struct dec_datetime list: [sec,min,hour,day,month,year,dow,doy,mode]

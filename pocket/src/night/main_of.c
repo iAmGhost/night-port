@@ -3637,7 +3637,7 @@ int main(int argc, char **argv) {
 
     /* Resource opens (fn_04270d / fn_036853) resolve to "<dir>/<name>".  On the device the kernel
      * resolves names to data slots through the virtual root, so "/" + "NIGHT.RES" is slot 4; on the
-     * desktop build it is the repo's NIGHT/ directory. */
+     * desktop build it is the extracted tree `make extract` builds (docs/455). */
 #ifndef OF_PC
     sys_file_real_dir("/");
 #else

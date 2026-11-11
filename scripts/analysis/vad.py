@@ -6,8 +6,13 @@ Usage:
   vad.py words <va> <count>      -> 16-bit little-endian table
   vad.py dwords <va> <count>     -> 32-bit little-endian table
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import sys
-EXE = 'NIGHT/NIGHT.EXE'
+EXE = NIGHT_EXE
 DELTA = 0x2600
 data = open(EXE, 'rb').read()
 

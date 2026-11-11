@@ -19,7 +19,7 @@ print(",".join(pool[k:k+4] or pool[:4]))
 PY
 )
   timeout 200 env SDL_AUDIODRIVER=dummy ASAN_OPTIONS=detect_leaks=0 NIGHT_WARP_ENTITY="$fam" NIGHT_WARP_ENTITY_AT=3000 \
-    "$BIN" --res-dir ./NIGHT --script "$d/drive.txt" --warp-episode "$st" --rig-dump /tmp/rig/asan_o2_dump --rig-hz 1 --frames 5200 \
+    "$BIN" --script "$d/drive.txt" --warp-episode "$st" --rig-dump /tmp/rig/asan_o2_dump --rig-hz 1 --frames 5200 \
     > "$OUT/$n.log" 2>&1 &
   i=$((i+1))
   if [ $((i % 4)) -eq 0 ]; then wait; fi

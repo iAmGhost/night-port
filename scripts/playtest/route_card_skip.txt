@@ -9,7 +9,7 @@
 # two-minute confirmation and not an exploration.
 #
 #   cd <repo root> && ./pocket/src/night/app_pc --script scripts/playtest/route_card_skip.txt
-#   (the shim resolves the script path against the CWD, and finds NIGHT/ by probing for NIGHT.RES --
+#   (the shim resolves the script path against the CWD and takes the extracted tree by default --
 #    run it from the repo root or it silently runs the unscripted attract loop: the first cut of this line
 #    pointed at a build/app_pc that does not exist and the route never loaded).
 #

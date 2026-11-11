@@ -28,6 +28,11 @@ Drive file syntax (one step per line, '#' comments):
   frame <event>                    save the next frame as event <event>
   stop                             end the drive
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__))))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import argparse, base64, json, os, struct, sys, time, urllib.error, urllib.request
 
 KEY_DEFAULTS = {"enter": "KBD_enter", "esc": "KBD_esc"}   # the emulator spells it KBD_esc; a wrong
@@ -202,7 +207,7 @@ def main():
     mem_state = {"delta": None, "R": None}
 
     def exe_slice(addr: int, n: int) -> bytes:
-        with open(os.environ.get("NIGHT_EXE", "NIGHT/NIGHT.EXE"), "rb") as f:
+        with open(os.environ.get("NIGHT_EXE") or NIGHT_EXE, "rb") as f:
             f.seek(addr - 0x2600)
             return f.read(n)
 

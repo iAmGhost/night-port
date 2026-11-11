@@ -4,10 +4,14 @@
 The IMG is a 2352-byte-sector binary image. Audio track N (CUE track N) starts
 at its INDEX 01 LBA. 2352 -> 2324 usable PCM bytes per sector (16-bit stereo).
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__))))
+from disc_loc import find_cue as _find_cue, find_img as _find_img   # located by suffix (docs/455)
+
 import re, struct, sys, os
 
-CUE = "NIGHT/TG_NIGHT.CUE"
-IMG = "NIGHT/TG_NIGHT.IMG"
+CUE = str(_find_cue())
+IMG = str(_find_img(CUE))
 OUT = "scratch/cdda"
 
 def msf2lba(m, s, f):

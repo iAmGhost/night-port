@@ -10,13 +10,18 @@ built from resolved E8 displacements, not byte patterns.
 Usage:  python3 scripts/audit/call_xrefs.py 0x3feb8 0x3272f ...
         --inside 0x3272f+7014   restrict the sites to one function's body
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import bisect, sys
 from collections import Counter, defaultdict
 
 CODE_BASE = 0x2600
 CODE_LO, CODE_HI = 0x10000, 0x4a000
 
-def load(path="NIGHT/NIGHT.EXE"):
+def load(path=NIGHT_EXE):
     return open(path, "rb").read()
 
 def functions(path="docs/12-functions/ghidra_function_addrs.txt"):

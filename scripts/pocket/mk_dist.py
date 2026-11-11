@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import re
-"""Generate the Pocket core tree (pocket/dist/night) from NIGHT/TG_NIGHT.CUE.
+"""Generate the Pocket core tree (pocket/dist/night) from TG_NIGHT.CUE.
 
 The slot table is derived from the shipped CUE so the audio-track slots can
 never drift from the disc layout; everything else in the tree is static APF
@@ -28,7 +28,10 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-CUE = REPO / "NIGHT" / "TG_NIGHT.CUE"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from disc_loc import find_cue, find_img, find_res   # found by suffix, not by a rip's directory name
+
+CUE = find_cue()
 # The SDK's own core templates.  interact.json's first variables are reserved by the SDK -- README:543,
 # "The first 4 are reserved by the SDK (Analogizer, SNAC, video offsets).  App-specific options start at
 # index 4" -- so they are copied verbatim rather than skipped.

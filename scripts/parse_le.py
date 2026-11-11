@@ -6,9 +6,14 @@ Writes a report; prints only a short summary to stdout.
 LE header field offsets are relative to the 'LE' magic (2 bytes), i.e. the
 standard LE header begins at magic+2.
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__))))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import struct, re, sys
 
-exe = sys.argv[1] if len(sys.argv) > 1 else 'NIGHT/NIGHT.EXE'
+exe = sys.argv[1] if len(sys.argv) > 1 else NIGHT_EXE
 outp = sys.argv[2] if len(sys.argv) > 2 else 'scratch/le_report.txt'
 d = open(exe, 'rb').read()
 L = []

@@ -1,6 +1,11 @@
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import struct
 RVA_BASE = 0x2600  # file offset = RVA - 0x2600
-data = open('NIGHT/NIGHT.EXE','rb').read()
+data = open(NIGHT_EXE,'rb').read()
 def at(rva, n): return data[rva-RVA_BASE : rva-RVA_BASE+n]
 
 def fx128(rva):

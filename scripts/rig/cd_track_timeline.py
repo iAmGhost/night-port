@@ -12,6 +12,10 @@ method (it must reproduce the announced play times).
 Envelopes (RMS per bucket, gain-normalized) are used rather than sample correlation because the mixer capture
 is music+SFX at the game's own volume while the disc is line level.
 """
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from disc_loc import find_img        # the disc is located by suffix, not by a rip's directory (docs/455)
+
 import argparse, array, os, struct, sys
 
 STEP = 250          # ms per envelope bucket
@@ -63,11 +67,15 @@ def corr(a, b, off, n):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--wav', required=True, help='recording to analyse (container mixer capture, or the port stream)')
-    ap.add_argument('--img', default='NIGHT/TG_NIGHT.IMG')
+    ap.add_argument("--img", default=None,
+                        help="the raw 2352-byte-frame disc image (default: the one this repo has, docs/455)")
     ap.add_argument('--tracks', required=True, help='index:lba:sectors, comma separated (LBAs in DECIMAL, as the port logs them)')
     ap.add_argument('--window-s', type=int, default=90, help='seconds of each track to correlate')
     ap.add_argument('--top', type=int, default=3)
     a = ap.parse_args()
+    if not a.img:                                  # the repo's own disc, found by suffix
+        a.img = str(find_img())
+        print(f"img: {a.img} (located -- pass --img to name another)", file=sys.stderr)
 
     pcm, ch, rate = wav_pcm(a.wav)
     fpb = rate * STEP // 1000

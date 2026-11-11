@@ -9,9 +9,14 @@ NIGHT.EXE is a flat DOS32A (Watcom) image whose segments are NOT contiguous in t
 
 Usage: uv run --with nothing python3 scripts/extract_ds.py <va-hex> <len> [name]
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__))))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import sys
 
-EXE = "NIGHT/NIGHT.EXE"
+EXE = NIGHT_EXE
 DS_DELTA = 0x7600
 
 

@@ -17,6 +17,10 @@ then shrink the route length. Finally the bundle is built by re-running the *min
 route.sh with all four oracles, and witness/ is filled with both frames, the state diff, the audio
 window and the port log, plus repro.sh which reproduces the same finding unattended.
 """
+import os as _os, sys as _sys, pathlib as _pathlib     # aliases: this file's imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_res as _find_res
+RES_DIR = str((_find_res() or _pathlib.Path("extracted/night.res")).parent)   # the extracted tree, docs/455
 import argparse
 import json
 import os
@@ -100,18 +104,18 @@ def probe(drive, dur, out, env_extra, baseline=None):
     if baseline is not None:
         clean = f"{out}/clean"
         os.makedirs(clean, exist_ok=True)
-        rc, so, se = run(["./build/night", "--res-dir", "./NIGHT", "--script", drive,
+        rc, so, se = run(["./build/night", "--res-dir", RES_DIR, "--script", drive,
                           "--rig-dump", clean, "--rig-hz", "10", "--frames", str(dur * 60)],
                          timeout=dur + 40, cwd=ROOT)
         if rc not in (0, 124) or not os.path.exists(f"{clean}/cells.bin"):
             return -1, {"stage": "port-clean", "rc": rc, "err": (se or so)[-300:]}
-        rc, so, se = run(["./build/night", "--res-dir", "./NIGHT", "--script", drive,
+        rc, so, se = run(["./build/night", "--res-dir", RES_DIR, "--script", drive,
                           "--rig-dump", f"{out}/port", "--rig-hz", "10",
                           "--frames", str(dur * 60)], timeout=dur + 40, env=env, cwd=ROOT)
         if rc not in (0, 124) or not os.path.exists(f"{out}/port/cells.bin"):
             return -1, {"stage": "port-injected", "rc": rc, "err": (se or so)[-300:]}
         return compare_dumps(clean, f"{out}/port")
-    rc, so, se = run(["./build/night", "--res-dir", "./NIGHT", "--script", drive,
+    rc, so, se = run(["./build/night", "--res-dir", RES_DIR, "--script", drive,
                       "--rig-dump", f"{out}/port", "--rig-hz", "10", "--frames", str(dur * 60)],
                      timeout=dur + 40, env=env)
     if rc not in (0, 124) or not os.path.exists(f"{out}/port/cells.bin"):

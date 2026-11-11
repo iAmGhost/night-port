@@ -13,6 +13,10 @@ the timeout is saved as a minimal-ish repro (the drive plus the flags that repro
 Usage:
   scripts/rig/fuzz.py --episodes 1,2,3 --seeds 8 --workers 3 --cap 100 --out /tmp/rig/fuzz1
 """
+import os as _os, sys as _sys, pathlib as _pathlib     # aliases: this file's imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_res as _find_res
+RES_DIR = str((_find_res() or _pathlib.Path("extracted/night.res")).parent)   # the extracted tree, docs/455
 import argparse
 import os
 import random
@@ -134,7 +138,7 @@ def run(seed_dir, drive, stage, cap, frames):
     w = fam_subset(seed_dir)
     if w:
         env["NIGHT_WARP_ENTITY"] = w
-    cmd = [BIN, "--res-dir", os.path.join(REPO, "NIGHT"), "--script", dpath,
+    cmd = [BIN, "--res-dir", RES_DIR, "--script", dpath,
            "--rig-dump", seed_dir, "--rig-hz", "1", "--frames", str(frames)]
     if stage:
         cmd += ["--warp-episode", str(stage)]
@@ -231,7 +235,7 @@ def main():
                 sd = os.path.join(a.out, name)
                 os.makedirs(sd, exist_ok=True)
                 open(os.path.join(sd, "drive.txt"), "w").write("\n".join(drive) + "\n")
-                cmd = [BIN, "--res-dir", os.path.join(REPO, "NIGHT"), "--script", os.path.join(sd, "drive.txt"),
+                cmd = [BIN, "--res-dir", RES_DIR, "--script", os.path.join(sd, "drive.txt"),
                        "--rig-dump", sd, "--rig-hz", "1", "--frames", str(a.frames)]
                 if stage:
                     cmd += ["--warp-episode", str(stage)]
@@ -263,7 +267,7 @@ def main():
                             l for l in lines if l.split()[1:2] not in (["poke"], ["ent"], ["play"])) + "\n")
                         cfd = os.path.join(sd, "noinj")
                         os.makedirs(cfd, exist_ok=True)
-                        cmd2 = [BIN, "--res-dir", os.path.join(REPO, "NIGHT"), "--script", cf,
+                        cmd2 = [BIN, "--res-dir", RES_DIR, "--script", cf,
                                 "--rig-dump", cfd, "--rig-hz", "1", "--frames", str(a.frames)]
                         if stage:
                             cmd2 += ["--warp-episode", str(stage)]
@@ -282,7 +286,7 @@ def main():
                     shutil.copy(os.path.join(sd, "drive.txt"), os.path.join(a.out, f"crash_{name}.txt"))
                     print(f"  CRASH {name} rc={rc} [{kind}]", flush=True)
                     if kind == "input-only":
-                        print(f"    -> repro: {BIN} --res-dir NIGHT --script {sd}/drive.txt --warp-stage "
+                        print(f"    -> repro: {BIN} --res-dir {RES_DIR} --script {sd}/drive.txt --warp-stage "
                               f"{stage} --rig-dump {sd}", flush=True)
                 results.append((name, stage, rc, new))
                 # Accept coverage-adding seeds, and keep a few non-adding ones for diversity: a plateau at

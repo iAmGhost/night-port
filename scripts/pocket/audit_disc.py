@@ -10,7 +10,7 @@ the bytes. The request is a property of the read path and the disc, so it reprod
     of_disc.c     -> TRACKnn         offset is slot-relative; mapped onto IMG through scratch/pocket/manifest.tsv
                                       (the mapping lives here, in one language, not in C as well)
 
-    python3 scripts/pocket/audit_disc.py AUDIT [--img NIGHT/TG_NIGHT.IMG] [--manifest scratch/pocket/manifest.tsv]
+    python3 scripts/pocket/audit_disc.py AUDIT [--img TG_NIGHT.IMG] [--manifest scratch/pocket/manifest.tsv]
 
 Exit 0 = every recorded request matches the shipped disc byte for byte. Also reports COVERAGE: how much of each
 track the run actually touched, because a gate nobody reaches is not a gate.
@@ -93,15 +93,18 @@ def main():
     ap.add_argument('audit')
     ap.add_argument('audit2', nargs='?')
     ap.add_argument('--diff', action='store_true', help='compare two audits as SETS of requests (batching and order differ run to run; the set is what a change to the read path moves)')
-    ap.add_argument('--img', default='NIGHT/TG_NIGHT.IMG')
+    ap.add_argument('--img', default=None,
+                    help='the raw 2352-byte-frame image (default: the disc this repo has, docs/455)')
     ap.add_argument('--manifest', default='scratch/pocket/manifest.tsv')
     a = ap.parse_args()
 
-    # track -> first sector in the IMG (the CUE's PREGAP is already carried in the manifest)
+    # track -> first sector in the IMG (the CUE's PREGAP is already carried in the manifest).
+    # Comment lines are skipped: scripts/extract_disc.py's manifest carries its own explanation, and
+    # reading its first line as the header turned every request into "track N not in manifest". 
     man = pathlib.Path(a.manifest)
     t2s = {}
     if man.exists():
-        rows = [l.split('\t') for l in man.read_text().splitlines() if l.strip()]
+        rows = [l.split('\t') for l in man.read_text().splitlines() if l.strip() and not l.startswith('#')]
         hdr = rows[0]
         for r in rows[1:]:
             d = dict(zip(hdr, r))

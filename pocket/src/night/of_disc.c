@@ -1,6 +1,6 @@
 /* of_disc.c — the disc seam for the Pocket build.
  *
- * WHAT THIS REPLACES: src/cd/cd_iso.c parses NIGHT/TG_NIGHT.CUE and reads TG_NIGHT.IMG with
+ * WHAT THIS REPLACES: src/cd/cd_iso.c parses TG_NIGHT.CUE and reads TG_NIGHT.IMG with
  * fseek/fread.  On the Pocket neither file exists in that shape: the audio tracks ship as one APF
  * data slot each (cd/trackNN.bin, slots 18..31, see scripts/pocket/mk_dist.py), and the CUE's layout
  * is compiled into disc_table.h by scripts/pocket/gen_disc.py.

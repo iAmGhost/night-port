@@ -5,11 +5,16 @@ Calibration is playtest_orig_drive.py's: locate the loaded image with code ancho
 derive the data base R from the `mov dword [abs],1` at 0x365eb, then DAT_x -> phys (x-0x50000)+R.
 Prints DAT_00053c40/44/48/60/64 and the 16 TOC records fn_107b9 filled.
 """
+import os as _os, sys as _sys     # aliases: this file's own imports come below
+_sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
+from disc_loc import find_cue as _find_cue, find_exe as _find_exe, find_img as _find_img, find_res as _find_res
+NIGHT_EXE = str(_find_exe())      # the shipped binary, wherever this tree keeps it now (docs/455)
+
 import base64, json, os, sys, urllib.request, urllib.error
 
 BASE = os.environ.get("DOSBOX_BASE", "http://localhost:8386")
 TOKEN = open(os.environ.get("DBA_TOKEN_FILE", "/tmp/dbgauto/.token")).read().strip()
-EXE = open(os.environ.get("NIGHT_EXE", "~/Git/night-port/NIGHT/NIGHT.EXE"), "rb").read()
+EXE = open(os.environ.get("NIGHT_EXE") or NIGHT_EXE, "rb").read()
 
 def api(path, method="GET", body=None, accept="application/json"):
     data = json.dumps(body).encode() if body is not None else None

@@ -33,10 +33,12 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-NIGHT_DIR = REPO / "NIGHT"
-CUE = NIGHT_DIR / "TG_NIGHT.CUE"
-IMG = NIGHT_DIR / "TG_NIGHT.IMG"
-RES = NIGHT_DIR / "NIGHT.RES"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from disc_loc import find_cue, find_img, find_res    # found by suffix, not by a rip's directory name
+
+CUE = find_cue()
+IMG = find_img(CUE)
+RES = find_res()
 OUT = REPO / "scratch" / "pocket"
 
 SECTOR = 2352

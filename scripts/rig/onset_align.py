@@ -13,9 +13,14 @@ An onset-energy sequence sampled at `--hop-ms` is invariant to gain, sample-form
 real recording match shows a SHARP peak, while a mixture of unrelated material stays near the noise floor.
 The sharpness statistic (best / mean of the correlation distribution) is what makes the verdict defensible.
 
-  python3 scripts/rig/onset_align.py --wav CAPTURE.wav --img NIGHT/TG_NIGHT.IMG \
+  python3 scripts/rig/onset_align.py --wav CAPTURE.wav --img TG_NIGHT.IMG \
       --tracks 1:37262,9:185120,11:223146,2:40415 [--hop-ms 100] [--seg-s 40] [--doff-s 20]
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+from disc_loc import find_img        # the disc is located by suffix, not by a rip's directory (docs/455)
+
 import argparse
 import numpy as np
 
@@ -46,13 +51,17 @@ def corr_all(target, tpl):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--wav", required=True)
-    ap.add_argument("--img", default="NIGHT/TG_NIGHT.IMG")
+    ap.add_argument("--img", default=None,
+                        help="the raw 2352-byte-frame disc image (default: the one this repo has, docs/455)")
     ap.add_argument("--tracks", required=True, help="index:lba[,index:lba...]")
     ap.add_argument("--hop-ms", type=int, default=100)
     ap.add_argument("--seg-s", type=int, default=40)
     ap.add_argument("--doff-s", type=int, default=20)
     ap.add_argument("--sector-header", type=int, default=0)
     a = ap.parse_args()
+    if not a.img:                                  # the repo's own disc, found by suffix
+        a.img = str(find_img())
+        print(f"img: {a.img} (located -- pass --img to name another)", file=sys.stderr)
 
     b = open(a.wav, "rb").read()
     i = b.find(b"fmt ")

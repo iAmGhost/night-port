@@ -15,7 +15,8 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))          # slot_ids.py sits here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # disc_loc.py is in scripts/ (docs/455)
 from slot_ids import AUDIO_IDS, id_for_track, slots_for_tracks   # the single source for the id map
 
 REPO = Path(__file__).resolve().parents[2]

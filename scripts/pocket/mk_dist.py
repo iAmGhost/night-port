@@ -28,7 +28,8 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))          # slot_ids.py sits here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # disc_loc.py is in scripts/ (docs/455)
 from disc_loc import find_cue, find_img, find_res   # found by suffix, not by a rip's directory name
 
 CUE = find_cue()
@@ -47,7 +48,8 @@ AUTHOR = "iamghost"
 VERSION = "0.3.3"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 # (SAVE_SLOTS removed in 0.2.23, docs/449: the port ships no save feature)
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))          # slot_ids.py sits here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # disc_loc.py is in scripts/ (docs/455)
 from slot_ids import AUDIO_IDS, LOG_ID, RES_ID, BANK_ID, slots_for_tracks   # docs/339
 
 

@@ -33,7 +33,8 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent))          # slot_ids.py sits here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # disc_loc.py is in scripts/ (docs/455)
 from disc_loc import find_cue, find_img, find_res    # found by suffix, not by a rip's directory name
 
 CUE = find_cue()

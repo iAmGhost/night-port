@@ -60,6 +60,7 @@
 
 #include "of_save.h"
 #include "of_pal_ramp.h"
+#include "of_pad_share.h"
 #include "of_log.h"
 
 #include "of.h"
@@ -2271,6 +2272,11 @@ static const pad_key_t g_pad_keys[] = {
     { OF_BTN_START,  0x1c },   /* Enter  (confirm) */
     { OF_BTN_SELECT, 0x01 },   /* Esc    (pause menu, docs/93) */
     { OF_BTN_L1,     0x3b },   /* F1 */
+    { OF_BTN_R1,     0x3b },   /* F1 as well -- R1 is the more reachable shoulder on some grips.
+                                 * L1 keeps it: the host's own combos (L1+Up trace, L1+B fit cycle)
+                                 * key off OF_BTN_L1 alone and are unaffected.  pad_pump() below
+                                 * de-duplicates the shared make code, so holding both shoulders
+                                 * types F1 once, not twice. */
 };
 static uint8_t g_pad_down[sizeof g_pad_keys / sizeof g_pad_keys[0]];
 static uint64_t g_pad_next_us;
@@ -2325,6 +2331,7 @@ static void pad_script_load(void) {
         else if (!strcmp(n, "start"))  { btn = OF_BTN_START;  sc = 0x1c; }
         else if (!strcmp(n, "select")) { btn = OF_BTN_SELECT; sc = 0x01; }
         else if (!strcmp(n, "l1"))     { btn = OF_BTN_L1;     sc = 0x3b; }
+        else if (!strcmp(n, "r1"))     { btn = OF_BTN_R1;     sc = 0x3b; }
         else { sc = (uint8_t)strtoul(n, NULL, 0); btn = pad_btn_for_sc(sc); }
         g_pad_script[g_pad_script_n].from = strtoull(a, NULL, 0);
         g_pad_script[g_pad_script_n].to   = strtoull(b, NULL, 0);
@@ -2745,6 +2752,17 @@ static void pad_combo(void) {
     if (!b) seen_b = 0;
 }
 
+/* Two pad buttons share one guest make code (L1 and R1 are both F1); the rules live in
+ * of_pad_share.h and are exercised by scripts/pocket/test_pad_share.c, because the naive loop here
+ * would type F1 twice per gesture and drop the key while a thumb is still down. */
+static int make_held_elsewhere(unsigned idx) {
+    for (unsigned k = 0; k < sizeof g_pad_keys / sizeof g_pad_keys[0]; k++) {
+        if (k == idx || g_pad_keys[k].make != g_pad_keys[idx].make) continue;
+        if (g_pad_down[k]) return 1;
+    }
+    return 0;
+}
+
 static void pad_pump(void) {
     if (g_off & OFF_PAD) return;
     uint64_t now = sys_now_us();
@@ -2769,9 +2787,10 @@ static void pad_pump(void) {
     for (unsigned i = 0; i < sizeof g_pad_keys / sizeof g_pad_keys[0]; i++) {
         int held = of_btn(g_pad_keys[i].btn) ? 1 : 0;
         if (!g_pad_direct && pad_script_held(g_pad_keys[i].btn)) held = 1;
-        if (held == g_pad_down[i]) continue;
-        g_pad_down[i] = (uint8_t)held;
-        night_key_apply(g_pad_keys[i].make, held);
+        int ev = pad_share_event((int)g_pad_down[i], held, make_held_elsewhere(i));
+        g_pad_down[i] = (uint8_t)held;                      /* state moves even when no code does */
+        if (ev < 0) continue;
+        night_key_apply(g_pad_keys[i].make, ev);
     }
     pad_combo();
 }

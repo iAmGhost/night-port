@@ -18,7 +18,7 @@ import java.util.ArrayList;
 public class DumpAll extends GhidraScript {
     public void run() throws Exception {
         Program prog = currentProgram;
-        String root = "~/Git/night-port/analysis";
+        String root = new File(repo(), "analysis").getPath();
         File pseudoDir = new File(root, "pseudo");
         pseudoDir.mkdirs();
 
@@ -86,4 +86,12 @@ public class DumpAll extends GhidraScript {
         cg.close();
         println("dumped " + n + " functions, decompile ok=" + ok + " fail=" + fail);
     }
+
+    /* The repo root is resolved, never hard-coded: NIGHT_REPO names it, and a headless run started from
+     * the repo root needs nothing. Nothing tracked here gets to know which machine it was written on. */
+    static File repo() {
+        String e = System.getenv("NIGHT_REPO");
+        return new File(e != null && !e.isEmpty() ? e : System.getProperty("user.dir"));
+    }
+
 }

@@ -161,7 +161,7 @@ Headless import (verified working):
 ```bash
 /opt/homebrew/Cellar/ghidra/12.1.3/libexec/Ghidra/support/analyzeHeadless \
   <project_dir> <project_name> \
-  -import ~/Git/night-port/NIGHT/NIGHT.EXE \
+  -import extracted/night.exe \   # the installer payload, as `make extract` unpacks it (docs/455)
   -processor "watcom:LE:32:default:watcom"
 ```
 

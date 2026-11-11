@@ -27,7 +27,7 @@ public class NightExport extends GhidraScript {
 
   public void run() throws Exception {
     Program p = currentProgram;
-    File dir = new File("~/Git/night-port/scripts/audit");
+    File dir = new File(repo(), "scripts/audit");
     dir.mkdirs();
 
     // ---------------- symbols ----------------
@@ -173,4 +173,12 @@ public class NightExport extends GhidraScript {
     info.close();
     println("EXPORT DONE syms=" + nsym + " data=" + ndata + " fns=" + nfn + " mem=" + nm);
   }
+
+    /* The repo root is resolved, never hard-coded: NIGHT_REPO names it, and a headless run started from
+     * the repo root needs nothing. Nothing tracked here gets to know which machine it was written on. */
+    static File repo() {
+        String e = System.getenv("NIGHT_REPO");
+        return new File(e != null && !e.isEmpty() ? e : System.getProperty("user.dir"));
+    }
+
 }

@@ -1,6 +1,7 @@
 // Decompile a list of functions into a single C file for offline analysis.
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;
+import java.io.File;
 import java.io.FileWriter;
 import ghidra.app.script.GhidraScript;
 import ghidra.program.model.listing.Function;
@@ -54,10 +55,19 @@ public class DumpFrameLoop extends GhidraScript {
       }
       sb.append("\n\n");
     }
-    String out = "~/Git/night-port/scratch/ghidra/frame_loop_dump.c";
+    File out = new File(repo(), "scratch/ghidra/frame_loop_dump.c");
+    out.getParentFile().mkdirs();
     FileWriter w = new FileWriter(out);
     w.write(sb.toString());
     w.close();
     monitor.doneMsg("wrote " + sb.length() + " chars to " + out);
   }
+
+    /* The repo root is resolved, never hard-coded: NIGHT_REPO names it, and a headless run started from
+     * the repo root needs nothing. Nothing tracked here gets to know which machine it was written on. */
+    static File repo() {
+        String e = System.getenv("NIGHT_REPO");
+        return new File(e != null && !e.isEmpty() ? e : System.getProperty("user.dir"));
+    }
+
 }

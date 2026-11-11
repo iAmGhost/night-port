@@ -4,6 +4,7 @@ import ghidra.program.model.listing.Function;
 import ghidra.program.model.address.Address;
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileResults;
+import java.io.File;
 import java.io.FileWriter;
 
 public class DumpBatch3 extends GhidraScript {
@@ -12,7 +13,9 @@ public class DumpBatch3 extends GhidraScript {
     public void run() throws Exception {
         DecompInterface dec = new DecompInterface();
         dec.openProgram(currentProgram);
-        FileWriter w = new FileWriter("~/Git/night-port/analysis/disasm/batch3_dump.c");
+        File dump = new File(repo(), "analysis/disasm/batch3_dump.c");
+        dump.getParentFile().mkdirs();
+        FileWriter w = new FileWriter(dump);
         for (int i = 0; i < names.length; i++) {
             Address a = toAddr(addrs[i]);
             Function f = getFunctionAt(a);
@@ -29,4 +32,12 @@ public class DumpBatch3 extends GhidraScript {
         }
         w.close();
     }
+
+    /* The repo root is resolved, never hard-coded: NIGHT_REPO names it, and a headless run started from
+     * the repo root needs nothing. Nothing tracked here gets to know which machine it was written on. */
+    static File repo() {
+        String e = System.getenv("NIGHT_REPO");
+        return new File(e != null && !e.isEmpty() ? e : System.getProperty("user.dir"));
+    }
+
 }

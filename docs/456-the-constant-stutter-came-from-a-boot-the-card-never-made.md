@@ -318,3 +318,26 @@ with the ELF identical. Smooth → the observer theory dies and the hunt goes el
 either way, if LOG is confirmed: a byte counter for the log's own writes on the `split wall` line
 (`log_kb=`), so the observer has a size and the interaction can be modelled instead of felt. Not shipped yet,
 because every ELF change confounds the A/B in progress -- 0.3.4 and 0.3.6 each taught that the hard way.
+
+## 12. Two boots of one shape, and the first time the instrument and the player agree
+
+Both 0.3.6 boots in `LOG=1 STALL_MS=120`, both reported smooth by the player, read by the same reader:
+
+| | br n (slide path) | br g (game view) | gap histogram | bimodal | longest 12-15 fps run |
+|---|---|---|---|---|---|
+| boot A | 31.7 fps [20.0-42.7], 26.4 ms a present | 46.0 fps, 3.3 ms | 55.3 / 36.8 / 6.5 / 0.7 / 0.6 % | 10 of 28, all holds | 1 |
+| boot B | 36.5 fps [21.4-38.5], 26.4 ms a present | 45.9 fps, 3.3 ms | 60.8 / 32.5 / 5.7 / 0.3 / 0.7 % | 13 of 30, all holds | 1 |
+
+The instrument replicates -- the slide present is 26.4 ms in both boots to three significant figures, the
+game view 3.3 ms and 46 fps in both, and the gap distribution differs by single-digit percentages. It also
+finally agrees with the player, in a way no boot in this doc has managed before: **92-93% of all gaps are
+under 40 ms, every gap over 80 ms belongs to a hold, and there is no periodic 12-15 fps stretch anywhere --
+the longest such run is one window, against six in the boot the player called stuttering.**
+
+That is worth stating plainly because it is the shape of an answer: the stutter boot's fingerprint in this
+instrument is not "slow frames" (the smooth boots have longer gaps) but **a second whose frames arrive on a
+fixed two-tick/three-tick alternation**. The 12-15 fps run length is the first candidate measure that
+discriminates without help from a human, and it is a measure of *regularity*, not of speed.
+
+The cell still missing is 0.3.6 with `LOG=0` -- the version and the key have not been varied on the same
+boot, and the 0.3.5 pair (LOG=1 smooth, LOG=0 stutter) has not been repeated on current bits.

@@ -21,6 +21,10 @@
 #include "of_log.h"
 
 #include <stdarg.h>
+#include <stdlib.h>          /* malloc: the LOG=3 ring lives in SDRAM (docs/456 13) */
+
+static int g_ram;                  /* LOG=3 ring on/off -- of_log_close() sits above the ring code */
+static int g_null;                 /* LOG=4: format and discard -- no open, no handle, no bytes (docs/456 13) */
 #include <stdio.h>
 #include <string.h>
 
@@ -97,7 +101,11 @@ static void attempt_add(const char *name, int ok) {
 const char *of_log_attempts(void) { return g_attempts; }
 long of_log_bytes(void) { return g_log ? ftell(g_log) : -1L; }   /* how much the OS has actually taken */
 
+static void ram_flush(void);
+
 void of_log_close(void) {
+    if (g_null) return;                          /* nothing open, nothing to commit */
+    if (g_ram) ram_flush();          /* commits and closes; atexit(of_log_close) is the quit path */
     if (!g_log) return;
     fflush(g_log);
     fclose(g_log);
@@ -133,6 +141,15 @@ static int slot_name(int want, char *out, size_t n, char *scan, size_t scan_n) {
 }
 
 int of_log_open(void) {
+    /* LOG=4: refuse to open anything, and say so. Returning 0 keeps g_log_ok set, because the readout at
+     * main_of.c:3225 uses g_log_ok to decide whether the in-game console takes over -- clearing it here
+     * would add a second variable to the boot this arm exists to isolate. */
+    if (g_null) {
+        snprintf(g_attempts, sizeof g_attempts,
+                 "  NULL SINK: no slot opened, no handle held, nothing written (LOG=4)\n");
+        printf("log: NULL SINK -- every line formatted and discarded; the card sees nothing at all\n");
+        return 0;
+    }
     static const int want[] = LOG_FALLBACKS;
     static char scan[2048];
     char name[64];
@@ -190,12 +207,145 @@ int of_log_open(void) {
 }
 #endif
 
-void of_log_line(const char *fmt, ...) {
+/* LOG=2: the run's shape, not its minutes.
+ *
+ * WHY THIS EXISTS.  docs/456 13 settled it with the bits held still: 0.3.6 booted LOG=1 three times is
+ * called smooth, booted LOG=0 is called stuttering, and the card's exFAT verified clean -- so the log is
+ * not merely an observer here, it is (somehow) the anesthetic.  That leaves the shipped player shape in
+ * the worst of both worlds: the configuration we do NOT want, which also cannot testify to what it did.
+ * Summary mode keeps a player boot evidential at a fraction of the SD traffic -- one compact set per
+ * report (~6 lines: settings/blit shape at boot, then perf, split wall, gap worst, stages last, view=)
+ * instead of every line the app can produce.
+ *
+ * The filter is a prefix table in ONE place.  Classifying ~200 call sites is how a logging change turns
+ * into a half-rewrite, and a line that fails the table is still formatted, so a summary log's lines are
+ * byte-identical to the same lines in a full log -- branchfps.py reads either. */
+static int g_summary;
+
+void of_log_summary(int on) { g_summary = on; }
+
+/* ---- LOG=3: the ring ----
+ *
+ * WHY.  docs/456 13 left two live explanations for the same measurement -- "the report block's write
+ * events change how the next big read behaves" and "the report block's own work re-spaces the loop" --
+ * and neither can be tested with LOG=1/LOG=2, because in both of those the SD events and the CPU work
+ * arrive together.  RAM mode splits them: the report block formats every line into a ring in SDRAM and
+ * the card is touched once per LOG_FLUSH_MS by one stream append.  If the stutter comes back, the events
+ * were the thing; if it stays away, it was never about the card at all -- and we can say which.
+ *
+ * The ring is tail-preserving: when it overflows the OLDEST bytes are lost and `lost` counts them, so a
+ * dump always describes the most recent ~30 s rather than the oldest minute.  Nothing is written per
+ * line: the FILE* is opened once (so path and slot resolution, and the "log: opened" line, still work)
+ * and only of_log_flush() pushes bytes to it, with the periodic commit deliberately NOT run. */
+#define LOG_RAM_BYTES (256u * 1024u)
+
+static int      g_ram_period_ms;
+static char    *g_rb;
+static size_t   g_rb_cap, g_rb_head, g_rb_len, g_rb_since;
+static unsigned g_ram_lost, g_ram_flushes, g_ram_next_ms;
+
+void of_log_ram_enable(int on, unsigned period_ms) {
+    g_ram = on;
+    g_ram_period_ms = period_ms > 1000u ? period_ms : 30000u;
+}
+
+int of_log_ram_enabled(void) { return g_ram; }
+
+void of_log_null(int on) { g_null = on; }
+int  of_log_null_enabled(void) { return g_null; }
+
+void of_log_ram_stats(unsigned *buffered, unsigned *lost, unsigned *flushes) {
+    if (buffered) *buffered = (unsigned)g_rb_len;
+    if (lost) *lost = g_ram_lost;
+    if (flushes) *flushes = g_ram_flushes;
+}
+
+/* Push everything buffered since the last flush, in order, unwrapping the ring -- and CLOSE the file
+ * doing it.  The close is not tidiness: README:466 ("Dirty save files are committed through the bridge
+ * when closed") is the rule that made the first four hardware runs flush every line and land nothing, and
+ * the same rule is why log_commit() exists at 32-line intervals.  An append to a FILE* that is held open
+ * for a whole run is an append that never happened.  The first LOG=3 boot read void for exactly this
+ * reason -- no bytes on the card, the previous LOG=2 boot's log byte-identical under it (docs/456 13).
+ *
+ * So each flush is open("ab") / write / close, which is also what Quake does for its cfg and saves
+ * (sys_of.c:234).  The cost is one open+close pair per LOG_FLUSH_MS, i.e. still ~1 card event every 30 s
+ * instead of ~6 per second, and the gain is that the record exists no matter how the boot ends. */
+static void ram_flush(void) {
+    if (!g_rb || g_rb_since == 0u || !g_path[0]) return;
+    if (g_log) { fclose(g_log); g_log = 0; }
+    g_log = fopen(g_path, "ab");
     if (!g_log) return;
+    setvbuf(g_log, (char *)0, _IONBF, 0);
+    size_t n = g_rb_since > g_rb_len ? g_rb_len : g_rb_since;
+    size_t start = (g_rb_head + g_rb_cap - n) % g_rb_cap;
+    size_t first = g_rb_cap - start;
+    if (first > n) first = n;
+    fwrite(g_rb + start, 1, first, g_log);
+    if (n > first) fwrite(g_rb, 1, n - first, g_log);
+    fflush(g_log);
+    fclose(g_log); g_log = 0;            /* the commit -- do not "leave it open for speed" */
+    g_ram_flushes++;
+    g_rb_since = 0u;
+}
+
+void of_log_tick(uint64_t now_us) {
+    if (!g_ram) return;
+    unsigned now_ms = (unsigned)(now_us / 1000ull);
+    if ((int)(now_ms - g_ram_next_ms) >= 0) {
+        ram_flush();
+        g_ram_next_ms = now_ms + (unsigned)g_ram_period_ms;
+    }
+}
+
+static const char *const SUMMARY[] = {
+    "core ",            /* the boot marker: without it a log cannot be attributed to a build (docs/428) */
+    "log: ",            /* which slot the trail landed in, and the scan that found it */
+    "settings:",        /* the shape this boot ran in -- the whole point of a player-shape log */
+    "blit shape:", "fit=", "fb mode", "view=",
+    "perf ", "split wall", "gap worst", "stages last", "STALL", "video CHANGED",
+    "ramlog",            /* LOG=3: proof the ring is filling and how rarely the card is touched */
+    "ping:",             /* what the read-ping arm is set to -- a shape line, and it has confused a boot */
+    "audio ring", "cdda ", "clock:", "memstat", NULL,
+};
+
+static int summary_worthy(const char *s) {
+    for (int i = 0; SUMMARY[i]; i++)
+        if (strncmp(s, SUMMARY[i], strlen(SUMMARY[i])) == 0) return 1;
+    return 0;
+}
+
+void of_log_line(const char *fmt, ...) {
+    if (!g_log && !g_ram && !g_null) return;   /* RAM mode needs no open FILE: the ring is the sink until it flushes */
+    static char buf[4096];                       /* the longest line today is the slot scan at 2048 */
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(g_log, fmt, ap);
+    int n = vsnprintf(buf, sizeof buf, fmt, ap);
     va_end(ap);
+    if (g_summary && !summary_worthy(buf)) return;
+    if (g_null) return;                          /* LOG=4: the work was done, the result is thrown away */
+    if (g_ram) {                                    /* LOG=3: SDRAM ring, no SD per line (docs/456 13) */
+        if (!g_rb) { g_rb = (char *)malloc(LOG_RAM_BYTES); g_rb_cap = g_rb ? LOG_RAM_BYTES : 0u; }
+        if (g_rb_cap == 0u) return;                 /* no ring: the line is simply gone */
+        size_t ln = (size_t)(n < 0 ? 0 : n);
+        if (ln > sizeof buf - 1u) ln = sizeof buf - 1u;
+        if (ln > g_rb_cap) {                        /* never taken at 4 KB lines into a 256 KB ring, */
+            memmove(buf, buf + (ln - g_rb_cap), g_rb_cap);   /* but keep the TAIL if it ever is */
+            ln = g_rb_cap;
+        }
+        size_t head = ln;                           /* bytes to place */
+        size_t first = g_rb_cap - g_rb_head;
+        if (first > head) first = head;
+        memcpy(g_rb + g_rb_head, buf, first);
+        if (head > first) memcpy(g_rb, buf + first, head - first);
+        g_rb_head = (g_rb_head + head) % g_rb_cap;
+        g_rb_len += head; g_rb_since += head;
+        if (g_rb_len > g_rb_cap) {
+            g_ram_lost += (unsigned)(g_rb_len - g_rb_cap);
+            g_rb_len = g_rb_cap;
+        }
+        return;
+    }
+    fputs(buf, g_log);
     fflush(g_log);
     if (++g_lines % 32u == 0u) log_commit();   /* was 8: ~2.4 SD writes/s on the card whose
                                                  * disc reads measured 23 ms mean /

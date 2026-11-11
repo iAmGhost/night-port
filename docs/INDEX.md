@@ -199,7 +199,7 @@ links back and this index says so; the older file stays where its citations poin
 - **452** — After 0.2.23 the game got worse, and it was the card, not the code
   <sub>That verdict lands on the same commit whose logging I had just spent four boots mourning (docs/451), and it makes me retract a claim I made an hour ea</sub>
 - **456** — The constant stutter came back, and the card had never booted the build it blamed
-  <sub>A feel report, a regenerated `night.ini`, and two card logs that measure the same machine -- the blame was</sub>
+  <sub>constant stutter was `printf`. At `LOG=0` every diagnostic line was printed instead of logged, `printf` on</sub>
 
 ### Diagnostics and logging
 

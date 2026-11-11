@@ -39,6 +39,7 @@ int  of_setting_apply_sfx_vol(int v);
 int  of_setting_sfx_vol(void);
 int  of_setting_master_vol(void);      /* the mixer output stage; 255 = no attenuation */
 int  of_setting_log_wanted(void);    /* night.ini LOG=: open the card's nightlog.sav at all? */
+int  of_setting_log_level(void);     /* 0 off, 1 full trail, 2 summary-only (docs/456 13) */
 int  of_setting_sfx_gain(void);        /* percent, 100..212, applied through of_gain16()'s knee */
 int  of_setting_cdda_gain(void);
 int  of_setting_cdda(void);
@@ -78,6 +79,11 @@ int  of_setting_present_skip(void);
 int  of_setting_row_skip(void);
 int  of_setting_present_testless(void);   /* docs/456 */
 int  of_setting_stall_ms(void);
+int  of_setting_ping(void);        /* 0 off, 1 SD read, 2 pure delay -- the log's cadence with no writes (docs/456 13) */
+int  of_setting_ping_ms(void);
+int  of_setting_log_tick_ms(void);   /* the report block's period; the DOSE of the smoothing write (docs/456 13) */
+int  of_setting_log_flush_ms(void);  /* LOG=3: how often the RAM ring reaches the card (docs/456 13) */
+int  of_setting_console(void);       /* NLOG/printf to the text console: 0 off, 1 on, 2 legacy (docs/456 13) */
 int  of_setting_fade_log(void);
 int  of_setting_fade_ramp(void);
 int  of_setting_fade_ramp_ms(void);

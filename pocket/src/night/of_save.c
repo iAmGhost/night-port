@@ -170,6 +170,11 @@ static int      g_present_skip = 1;
 static int      g_row_skip = 0;
 static int      g_present_testless = 24;   /* docs/456: frames to present without the full-surface change test once four consecutive frames have moved; 0 = the exact old shape */
 static int      g_stall_ms = 400;
+static int      g_ping = 0, g_ping_ms = 1500;   /* docs/456 13: the log's cadence WITHOUT the log */
+static int      g_log_tick_ms = 1000;              /* docs/456 13: how often the report block RUNS -- the dose
+                                                    * of the write that turned out NOT to be the anesthetic */
+static int      g_log_flush_ms = 30000;            /* LOG=3: how often the RAM ring reaches the card */
+static int      g_console = 0;                     /* 0 off (the default), 1 on, 2 legacy "on when no log" */
 static int      g_fade_log = 0;
 static int      g_fade_ramp = 0;
 static int      g_fade_ramp_ms = 700;
@@ -213,12 +218,17 @@ static int cfg_int(const char *key, int dflt, const char *envkey) {
  * folder that is written every eight lines, and a player never reads it.  night.ini LOG=1 brings it back, and every
  * diagnostic this host has is gated behind it (DIAG is a separate switch and ships at 0).  The desktop build keeps
  * logging on: the rig and the fixture suite read scratch/pocket/night.log as their witness. */
-int of_setting_log_wanted(void) {
+int of_setting_log_level(void) {      /* 0 off, 1 full, 2 summary, 3 RAM ring, 4 format-and-discard
+                                     * (docs/456 13, 18, 21 -- the levels are the arms this doc was written with) */
 #ifdef OF_PC
     return cfg_int("log", 1, "NIGHT_LOG");
 #else
     return cfg_int("log", 0, "NIGHT_LOG");
 #endif
+}
+
+int of_setting_log_wanted(void) {
+    return of_setting_log_level() != 0;
 }
 
 static int clamp_gain(int v) {                  /* 100 = unity; of_gain16's curve is clamping-free to 212 */
@@ -293,6 +303,11 @@ void of_settings_load(void) {
     g_row_skip = cfg_int("row_skip", 0, "NIGHT_ROW_SKIP");
     g_present_testless = cfg_int("present_testless", 24, "NIGHT_PRESENT_TESTLESS");
     g_stall_ms = cfg_int("stall_ms", 400, "NIGHT_STALL_MS");
+    g_ping = cfg_int("ping", 0, "NIGHT_PING");
+    g_ping_ms = cfg_int("ping_ms", 1500, "NIGHT_PING_MS");
+    g_log_tick_ms = cfg_int("log_tick_ms", 1000, "NIGHT_LOG_TICK_MS");
+    g_log_flush_ms = cfg_int("log_flush_ms", 30000, "NIGHT_LOG_FLUSH_MS");
+    g_console = cfg_int("console", 0, "NIGHT_CONSOLE");
     g_fade_log = cfg_int("fade_log", 0, "NIGHT_FADELOG");
     g_fade_ramp = cfg_int("fade_ramp", 0, "NIGHT_FADE_RAMP");
     g_fade_ramp_ms = cfg_int("fade_ramp_ms", 700, "NIGHT_FADE_RAMP_MS");
@@ -428,6 +443,11 @@ int  of_setting_present_skip(void) { return g_present_skip; }
 int  of_setting_row_skip(void) { return g_row_skip; }
 int  of_setting_present_testless(void) { return g_present_testless; }
 int  of_setting_stall_ms(void) { return g_stall_ms; }
+int  of_setting_ping(void) { return g_ping; }         /* 0 off, 1 SD read, 2 pure delay (docs/456 13) */
+int  of_setting_ping_ms(void) { return g_ping_ms; }
+int  of_setting_log_tick_ms(void) { return g_log_tick_ms > 0 ? g_log_tick_ms : 1000; }
+int  of_setting_log_flush_ms(void) { return g_log_flush_ms > 1000 ? g_log_flush_ms : 30000; }
+int  of_setting_console(void) { return (g_console >= 0 && g_console <= 2) ? g_console : 2; }
 int  of_setting_fade_log(void) { return g_fade_log; }
 int  of_setting_fade_ramp(void) { return g_fade_ramp; }
 int  of_setting_fade_ramp_ms(void) { return g_fade_ramp_ms; }

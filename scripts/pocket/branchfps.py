@@ -101,6 +101,7 @@ def report(path):
     if tl:
         print(f"    PRESENT_TESTLESS fired {tl} frames this run")
     gap_shape(w)
+    ramlog_note(path)
     slow = [d for d in w if d["fps"] < SLOW_MS]
     print(f"    windows below {SLOW_MS:.0f} fps: {len(slow)}")
     for d in slow:
@@ -117,6 +118,36 @@ def report(path):
                                   zip(("<20", "20-40", "40-80", "80-160", "160+"), d["hist"])) if d["hist"] else ""
         print(f"       +{d['wall']:>6}ms {d['dt']/1000:4.1f}s {d['fps']:5.1f} fps  br n/g/d/o={br:15}"
               f"  pres {pr:5.1f}%  aud+disc {au:6.1f}%  rest {rs:5.1f}%   {' '.join(tags)}{hh}")
+
+
+def ramlog_note(path):
+    """LOG=3 (docs/456 13): state the SD traffic the boot actually caused, from the log's own lines.
+
+    The whole claim of RAM mode is "the report block runs, the card does not".  A log that says
+    `ramlog buffered=… flushes=…` once per report lets the claim be read off the file instead of
+    argued from the source, and it catches the failure that would otherwise look like a result: a LOG=3
+    boot with flushes=0 never touched the card at all, which means NOTHING was archived."""
+    rows = []
+    for line in open(path, encoding="utf-8", errors="replace"):
+        m = re.search(r"ramlog buffered=(\d+) lost=(\d+) flushes=(\d+) flush_ms=(\d+)", line)
+        if m:
+            rows.append((int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))))
+    if not rows:
+        return
+    buf, lost, fl, per = rows[-1]
+    # The lines carry no timestamp (neither do perf lines), but ONE of them is emitted per report block,
+    # and a report block is LOG_TICK_MS -- 1000 ms in the shipped ini.  So the count of lines is the
+    # seconds, and flushes/lines is the card's event rate in the only unit this arm promises.
+    reports = len(rows)
+    rate = fl / reports                     # appends per report block == per second at LOG_TICK_MS=1000
+    print(f"    ramlog: {fl} card appends in {reports} report blocks "
+          f"(flush_ms={per}) -> ring held {buf//1024} KB, lost {lost//1024} KB")
+    if fl == 0:
+        print("      FLUSHES=0 -- this boot wrote NOTHING to the card, so its log is whatever was already "
+              "there; nothing about it is evidence (docs/456 13).")
+    elif rate > per / 1000.0 * 1.5:
+        print(f"      {rate:.2f} appends/s against the {1000.0/per:.3f}/s this arm promises -- "
+              "the flush schedule is not what the ini says.")
 
 
 def gap_shape(w):

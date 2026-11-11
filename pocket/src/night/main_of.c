@@ -131,11 +131,27 @@ static int fit_wants_stretch(void) { return of_setting_fit() != 0; }
 
 /* Every host print is also written to the card's log slot (docs/335 §4): the Pocket has no console, and a
  * run that hangs or dies leaves its whole trail in Assets/night/common/night.log. */
-/* Two channels, and the loud one is a fallback.  When the card log is open the trail belongs in the file and
- * the console gets only the fixed panel below -- because printing six new lines a second into a 40x30 console
- * is what produced the unreadable half-overwritten screen in the screenshots.  When the log is not openable the
- * console takes everything, as before. */
-static int g_console_live = 1;
+/* Two channels for one call, and night.ini's CONSOLE is the switch between them (docs/456 13).
+
+ * NLOG writes the card log AND, when g_console_live, printf's -- and on hardware printf is a write(1)
+ * syscall into the SDK's 40x30 CP437 terminal, which display mode 1 (the shipping SCREEN=0) never
+ * composites.  The loud channel is therefore an expense with no display: at ~44 lines/s it put a gap over
+ * 80 ms into 11 of 12 ordinary seconds and cost seven frames a second (docs/456 13).
+ *
+ *   CONSOLE=0  never printf                                      (shipped)
+ *   CONSOLE=1  always printf -- the only shape that lets a stutter be RECORDED as it happens
+ *   CONSOLE=2  legacy: printf only when the log could not be opened.  Reachable only by naming it, and it
+ *              is the rule that bought three weeks of "logging smooths the stutter": at LOG=0 it made a
+ *              run silent on the card and loud in a surface nobody could see.
+ *
+ * (The other reason the console stays off has nothing to do with pacing: ~6 new lines a second into a 40x30
+ * console is what produced the unreadable half-overwritten screen in the old screenshots, docs/335.) */
+#ifdef OF_PC
+static int g_console_live = 1;      /* on the desktop, stdout IS the trail -- there is nothing else */
+#else
+static int g_console_live = 0;      /* on hardware the text console is invisible and costs frame pacing
+                                     * (docs/456 13); CONSOLE=1 turns it back on, deliberately */
+#endif
 #define NLOG(...)        do { of_log_line(__VA_ARGS__); if (g_console_live) printf(__VA_ARGS__); } while (0)
 
 /* What the OS says it is scanning out, cached rather than asked for on every frame: only this host changes the
@@ -966,9 +982,61 @@ HOTPRESENT static void stage_commit(uint8_t *surface) {
 }
 #endif
 
-HOTPRESENT /* the frame copy, the palette push and the flip: 59 times a second */
 /* The present step, shared by the main loop and by the SD idle hook, so a frame presented from the hook is
  * indistinguishable in the log from one presented by the loop: same timings, same counters, same cadence. */
+/* docs/456 13: the log's CADENCE, without the log.
+ *
+ * 0.3.7 shipped LOG=2 because the measurement was unambiguous -- the same ELF, `LOG=1` called smooth three
+ * boots running, `LOG=0` called stuttering -- and a side effect you cannot refuse to use is not a fix. The
+ * objection to it is fair and specific: the log's file is opened UNBUFFERED (of_log.c: setvbuf _IONBF), so
+ * every line is a write syscall into the slot bridge, every 32 lines does fclose+fopen, and the player's
+ * card takes those writes forever to smooth a fade nobody asked to be smoothed.
+ *
+ * So: reproduce the periodic event without writing, and let the boots say which property mattered.
+ *
+ *   PING=1  read 2 KB of the resource slot on the cadence -- fopen/fseek/fread/fclose, the same OS file
+ *           service and the same SPI SD path the CD-DA feed uses, and it WRITES nothing;
+ *   PING=2  spin ~300 us (the order of one unbuffered log line) with NO I/O at all.
+ *
+ * Readings: PING=1 smooths and PING=2 does not -> it is SD traffic, and a read buys what a write bought, so
+ * the shipped shape becomes a read and nobody's card wears. PING=2 smooths -> there was never an I/O story:
+ * the main loop needed forcing to BREATHE, and the honest fix is to spread the audio pump's work instead of
+ * padding it from outside. Neither -> the effect needs the write's specific shape (the fclose that pushes
+ * the exFAT tree is the candidate), and what is owed is a buffered log, not a side effect.
+ *
+ * The ping is taken BEFORE t0 so its cost lands in `rest` and not in `pres` -- otherwise the instrument
+ * would hide the thing being measured. It is compiled out of the desktop build (docs/407: a knob must be
+ * inert on the host that is the measurement basis). */
+static uint64_t g_ping_next_us;
+static uint32_t g_ping_n, g_ping_bytes;
+
+static void sd_ping(uint64_t now) {
+    int mode = of_setting_ping();
+    if (mode <= 0) return;
+    if (g_ping_next_us && now < g_ping_next_us) return;
+    g_ping_next_us = now + 1000ull * (uint64_t)(of_setting_ping_ms() > 0 ? of_setting_ping_ms() : 1500);
+    g_ping_n++;
+    if (mode == 1) {
+        static uint8_t buf[2048];
+        static uint32_t off;
+        FILE *f = fopen("NIGHT.RES", "rb");
+        if (f) {
+            if (fseek(f, (long)(off += sizeof buf), SEEK_SET) == 0) {
+                size_t got = fread(buf, 1, sizeof buf, f);
+                g_ping_bytes += (uint32_t)got;
+                if (got == 0) { off = 0; }          /* wrap the probe; never read past the file */
+            }
+            fclose(f);
+        }
+    } else {                                        /* mode 2: no I/O at all, only a pause */
+        uint64_t until = sys_now_us() + 300ull;
+        while (sys_now_us() < until) { }
+    }
+}
+
+HOTPRESENT /* the frame copy, the palette push and the flip: 59 times a second.  The attribute goes on the
+            * function itself: placed above the ping block below, it lands on that block's statics and the
+            * linker refuses them in .app_fasttext (docs/456 13) */
 static void present_step(uint64_t now) {
         /* A capped visit does NO display work -- not "present, but skip the copy". The skip decision itself
          * is the 30 ms (docs/440), so a cap that still hashes would cap nothing. */
@@ -977,6 +1045,9 @@ static void present_step(uint64_t now) {
             g_present_cap_skips++;
             return;
         }
+#ifndef OF_PC
+        sd_ping(now);                             /* docs/456 13: BEFORE t0, so its cost shows in `rest` */
+#endif
         uint64_t t0 = sys_now_us();
         if (g_last_frame_us) {                       /* the gap the panel actually felt (docs/431) */
             uint64_t gap = t0 - g_last_frame_us;
@@ -2864,7 +2935,19 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
         static int done;
         if (!done) { done = 1; surfhash_probe(); }
     }
-        g_diag_next_us = now + 1000000ull;
+        /* LOG_TICK_MS (docs/456 13): the report block is the write -- ~6 unbuffered lines and, every 32
+         * lines, an fclose+fopen.  Since 0.3.7 shipped LOG=2 that cadence has been the anesthetic, and
+         * the honest question is how LITTLE of it still works: 1000 is today, 5000 is a fifth, 30000 is
+         * one small line every half minute.  A dose that survives the ladder is the thing we ship; if the
+         * ladder's bottom still smooths, "writing constantly" was never the requirement. */
+        g_diag_next_us = now + 1000ull * (uint64_t)of_setting_log_tick_ms();
+        if (of_log_ram_enabled()) {                 /* LOG=3: the ring's schedule, not a write per line */
+            unsigned rb = 0, lost = 0, fl = 0;
+            of_log_tick(now);
+            of_log_ram_stats(&rb, &lost, &fl);
+            NLOG("ramlog buffered=%u lost=%u flushes=%u flush_ms=%u\n",
+                 rb, lost, fl, (unsigned)of_setting_log_flush_ms());
+        }
         static uint32_t s_last_ticks;
         uint64_t clock_now = sys_now_us();
         g_clock_rate_us = g_clock_diag_last ? clock_now - g_clock_diag_last : 0;
@@ -2987,11 +3070,11 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                     sys_file_io_stats(&r_calls, &r_bytes, &r_max, 0);
                     uint64_t acc = pres + pump + disc + aud;
                     NLOG("split wall=%ums pump=%ums pres=%ums disc=%ums aud=%ums rest=%ums acc=%ums"
-                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | clk=%u clkmax=%u cap=%u noflip=%u flipnw=%u hold=%ums max=%ums\n",
+                         " frames=%u pump_n=%u res_calls=%u res_kb=%u | ping=%u kb=%u | clk=%u clkmax=%u cap=%u noflip=%u flipnw=%u hold=%ums max=%ums\n",
                          (unsigned)(wall / 1000ull), (unsigned)(pump / 1000ull), (unsigned)(pres / 1000ull),
                          (unsigned)(disc / 1000ull), (unsigned)(aud / 1000ull),
                          (unsigned)((wall > acc ? wall - acc : 0) / 1000ull), (unsigned)(acc / 1000ull), g_frames, g_pump_calls,
-                         r_calls, r_bytes / 1024u,
+                         r_calls, r_bytes / 1024u, g_ping_n, g_ping_bytes / 1024u,
                          sys_clock_read_count, g_clk_maxvisit,
                          g_present_cap_skips, g_present_noflip, g_flip_nowrite,
                          g_hold_ms, g_hold_max_ms);
@@ -3155,7 +3238,12 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
 #ifndef OF_PC
             /* The log is the good channel; the console panel is the visible one.  When the log cannot be
              * opened at all, put the lines on the console instead of nowhere. */
-            g_console_live = g_log_ok ? 0 : 1;
+            /* The legacy rule (CONSOLE=2): the log is the good channel, so when it cannot be opened at all,
+             * put the lines on the console instead of nowhere.  It cost a printf on every NLOG -- about 48
+             * lines a second -- and it is the ONLY difference left between LOG=0 and LOG=4, which is the
+             * fact that turned "logging smooths the stutter" inside out (docs/456 13). */
+            int c = of_setting_console();
+            g_console_live = (c == 0) ? 0 : (c == 1) ? 1 : (g_log_ok ? 0 : 1);
 #endif
         }
 }
@@ -3400,10 +3488,28 @@ int main(int argc, char **argv) {
 #endif
     }
     if (getenv("NIGHT_SEED")) g_rng_seed_override = atoi(getenv("NIGHT_SEED"));   /* docs/107 reproducible runs */
-    /* night.ini LOG= is the switch (docs/362): 0 writes no file, 1 reopens the trail this port was built with.
+    /* night.ini LOG= is the switch (docs/362): 0 writes no file, 1 reopens the trail this port was built with,
+     * 2 writes the summary table in of_log.c (~6 lines a report instead of every line).
+     *
+     * 2 ships, because of a result this doc argued about for twelve sections and then measured with the bits
+     * held still (docs/456 13): 0.3.6, LOG=1, three boots called smooth; 0.3.6, LOG=0, called stuttering; card
+     * filesystem verified clean.  So the log is not only an observer of the frame gap -- turning it on removes
+     * the complaint -- and a shipped shape that writes nothing is the configuration we would least like to be
+     * in, and the only one that cannot testify to what it did.
+     *
      * The stdout half of NLOG stays live either way, so a desktop run and the rig keep their witness. */
+    /* Follow the switch from the start, so a boot does not print its first hundred lines under one rule
+     * and quiet down under another (docs/456 13). */
+#ifndef OF_PC
+    g_console_live = of_setting_console() == 1 ? 1 : 0;
+#endif
     if (of_setting_log_wanted()) {
+        /* LOG=3 before the open: the ring replaces the per-line write, but the file is still opened, so the
+         * slot resolution and the "log: opened" line behave exactly as at every other level (docs/456 13). */
+        of_log_ram_enable(of_setting_log_level() == 3, (unsigned)of_setting_log_flush_ms());
+        of_log_null(of_setting_log_level() == 4);   /* the no-handle arm (docs/456 13) */
         g_log_ok = (of_log_open() == 0) ? 1 : 0;
+        of_log_summary(of_setting_log_level() == 2);
     } else {
         g_log_ok = 0;
         printf("log: file logging off (night.ini LOG=1 writes Saves/night/common/nightlog.sav)\n");
@@ -3449,9 +3555,9 @@ int main(int argc, char **argv) {
     NLOG("caps: version=%u hw=%08x os=%08x (sdk OF_CAPS_VERSION=%d)\n",
          caps->version, caps->hw_features, (caps->version >= 4) ? caps->os_features : 0u, OF_CAPS_VERSION);
     of_settings_load();                        /* os.ini [night] on the device, env on the desktop */
-    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d file_log=%d\n",
+    NLOG("settings: music_vol=%d sfx_vol=%d cdda=%d pad=%d tick_hz=%d screen=%d log_level=%d log_ok=%d console=%d\n",
          of_setting_music_vol(), of_setting_sfx_vol(), of_setting_cdda(), of_setting_pad(),
-         of_setting_tick_hz(), of_setting_screen(), g_log_ok);
+         of_setting_tick_hz(), of_setting_screen(), of_setting_log_level(), g_log_ok, of_setting_console());
     NLOG("settings: pump_audio_tick=%d (0 = board drain per pump entry, 1 = per tick)\n",
          of_setting_pump_audio_tick());
     NLOG("fit=%d (0 = 1:1 with 20+20 black bars, 1 = host row stretch, 2 = ask the core scaler for 320x200)\n",
@@ -3635,6 +3741,8 @@ int main(int argc, char **argv) {
         NLOG("blit shape: staging=%d (blit_dirty) fb_mode=%d present_sync=%d present_testless=%d | the staging path writes only rows it thinks changed, which is invalid on a triple-buffered display (docs/400)\n"
          "fit=%d\n",
          of_setting_blit_dirty(), of_setting_fb_mode(), of_setting_sync_flip(), of_setting_present_testless(), of_setting_fit());
+    NLOG("ping: mode=%d every=%ums | 1 = read 2KB of NIGHT.RES (writes nothing), 2 = 300us spin (no I/O),"
+         " 0 = off | docs/456 13\n", of_setting_ping(), of_setting_ping_ms());
     NLOG("blit src=%p fb=%p al=%d/%d\n", (void *)g_video_ram, (void *)of_video_surface(),
              (int)((uintptr_t)g_video_ram & 3u), (int)((uintptr_t)of_video_surface() & 3u));
         mem_bench();

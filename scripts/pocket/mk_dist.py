@@ -45,7 +45,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.3.6"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.4.5"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 # (SAVE_SLOTS removed in 0.2.23, docs/449: the port ships no save feature)
 sys.path.insert(0, str(Path(__file__).resolve().parent))          # slot_ids.py sits here
@@ -505,10 +505,44 @@ def main():
         # interact census.  Bit 3 (8) used to mean "read 0xF7000000" and is retired: with DIAG=15, 0.1.37's log ends
         # at "probe: control-word read begin" -- the read never returned and the core froze (docs/349).
         "DIAG=0\n"
-        # The card log: Saves/night/common/nightlog.sav, rewritten every eight lines.  It is the instrument this whole
-        # port was measured with (docs/337 onwards), and it is off by default because a player has no reason to carry a
-        # quarter-megabyte file they will never read.  Set LOG=1 and the next boot writes the same trail it always did.
+        # The card log: Saves/night/common/nightlog.sav. Off by default -- a player has no reason to carry a
+        # file they will never read, and since 0.4.5 the file is not what kept the game smooth either.
+        #
+        # LOG=0 was taken away in 0.3.7 for what looked like a reason (docs/456 13): same ELF, LOG=1 called
+        # smooth, LOG=0 called stuttering. It was not the log. LOG=0 made every diagnostic line PRINT instead
+        # (main_of.c:3225), and on hardware printf is a write(1) syscall into the SDK's 40x30 text console --
+        # in FRAMEBUFFER display mode, where nobody can see it. Same bits, one key apart: 11 of 12 ordinary
+        # seconds carried a gap over 80 ms with the console on against 1 of 20 with it off, and 39 frames/s
+        # delivered against 32 (docs/456 13). CONSOLE=0 makes the silent shape a different shape than the
+        # stuttering one, so the player default goes back to writing nothing.
+        #
+        # What that costs is stated rather than hidden: a LOG=0 boot cannot describe itself. Any hitch hunt
+        # starts with `scripts/pocket/logswitch.sh ram` -- LOG=3 keeps EVERY line in an SDRAM ring and commits
+        # it to the card about twice a minute, measured smooth in the same section; `summary` is LOG=2, `on`
+        # is LOG=1, `off` returns the card to this shape.
         "LOG=0\n"
+        # PING reproduces the log's PERIODIC EVENT without writing (docs/456 13), for the player who objects
+        # -- rightly -- that 0.3.7 smooths playback by beating on an SD card forever. 1 = read 2 KB of
+        # NIGHT.RES every PING_MS through the same OS file service the CD-DA feed uses (writes nothing);
+        # 2 = a 300 us spin with no I/O at all; 0 = off. Shipped OFF: the knob is the experiment, and the
+        # answer decides what default is honest. Its cost lands in `rest` (taken before t0) and it reports
+        # itself on split wall as `ping=N kb=K`.
+        # LOG_TICK_MS is the DOSE of the smoothing write (docs/456 13): the report block (~6 unbuffered
+        # lines, and an fclose+fopen every 32 lines) IS the thing that turns the stutter off, so the ladder
+        # runs 1000 -> 5000 -> 15000 -> 30000 ms and the slowest cadence that still plays smooth is what
+        # ships. If the bottom of the ladder works, no one is writing "constantly": it is one small line
+        # every half minute, which is a different claim than the one 0.3.7 shipped on.
+        "LOG_TICK_MS=1000\n"
+        # LOG=3 (RAM ring) pushes to the card once every LOG_FLUSH_MS by one stream append instead of a write
+        # per line (docs/456 13). LOG=0/1/2 are unaffected by this key.
+        "LOG_FLUSH_MS=30000\n"
+        # NLOG also printf's, and on hardware that goes to the SDK's 40x30 text console -- which in
+        # FRAMEBUFFER display mode is not even shown, and which we measured costing the frame loop its
+        # pacing: same bits, console on = stutter, console off = smooth (docs/456 13). So the default is
+        # OFF. 0 = never, 1 = always (this is the arm that lets a stutter be RECORDED), 2 = legacy.
+        "CONSOLE=0\n"
+        "PING=0\n"
+        "PING_MS=1500\n"
     )
 
     (asset_dir / "common" / f"{APP}.ini").write_text(ini_text)
@@ -520,7 +554,7 @@ def main():
     REQUIRED = ["RES", "MUSIC_VOL", "SFX_VOL", "MASTER_VOL", "SFX_GAIN", "CDDA_GAIN", "CDDA_OFF", "PAD_OFF",
                 "SCREEN", "FIT", "BLIT_DIRTY", "BLIT_SKIP", "DISC_IDLE_HOOK", "FDUMP", "PALETTE_AFTER_FLIP", "PRESENT_SKIP", "PRESENT_TESTLESS", "ROW_SKIP", "STALL_MS", "FADE_RAMP", "FADE_RAMP_MS", "FADELOG", "PRESENT_CAP_MS", "DELAY_US", "CDDA_STOP_FIX", "FB_MODE", "PUMP_AUDIO_TICK", "DISC_ASYNC",
                 "DISC_RAMP", "CDDA_CARD_STOP", "DISC_PREFILL_FIRST", "DISC_MIN_WANT", "DISC_BATCH", "PRESENT_SYNC",
-                "TICK_HZ", "DIAG", "LOG", "DISC_LOOKAHEAD"]
+                "TICK_HZ", "DIAG", "LOG", "LOG_TICK_MS", "LOG_FLUSH_MS", "DISC_LOOKAHEAD", "PING", "PING_MS", "CONSOLE"]
     got = set(re.findall(r"(?m)^([A-Z_]+)=", ini_text))
     missing = [k for k in REQUIRED if k not in got]
     if missing:

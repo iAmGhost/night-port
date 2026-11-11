@@ -80,15 +80,18 @@ the app's side, and land nowhere, for six boots (docs/454). The cores on the car
 (Quake, Doom) both declare `10`–`19` contiguously, so this is the shape the platform expects. A build
 whose log slot sits below a hole in the table is a build that is blind.
 
-The card ships **`LOG=0`**: no file is written, and a boot leaves nothing on the card behind. That is the
-player shape and the default. Logging is a switch, not a state -- flip it with
-`scripts/pocket/logswitch.sh on` before a diagnostic boot and `off` after (it prints what the card now
-says, because `deploy.sh` regenerates `night.ini` from the dist tree and has quietly reverted hand-edits
-before: docs/428). `LOG=1` writes `Saves/night/common/nightlog.sav` every 32 lines; a build with a
-quarter-megabyte file being committed ~0.6 times a second is not the build a feel judgement is valid on
-(docs/452).
+The card ships **`LOG=0 CONSOLE=0`**: no file is written, nothing is printed, and a boot leaves nothing on
+the card behind. That is the player shape and the default -- and since 0.4.5 it is also not the shape that
+stutters (below). Logging is a switch, not a state: flip it with `scripts/pocket/logswitch.sh ram` before a
+diagnostic boot and `off` after (the script prints what the card now says, because `deploy.sh` regenerates
+`night.ini` from the dist tree and has quietly reverted hand-edits before: docs/428).
 
-A hitch hunt wants one more line than "log on": `scripts/pocket/logswitch.sh on --stall 120`.
+`ram` (`LOG=3`) keeps **every** line in an SDRAM ring and commits it to the card as one append every
+`LOG_FLUSH_MS` (default 30 s, so ~2 writes a minute) -- the most trail per card event available, and
+measured smooth (docs/456 13). `on` (`LOG=1`) writes every line as it happens, a quarter-megabyte file
+committed ~0.6 times a second, which is not the build a feel judgement is valid on (docs/452).
+
+A hitch hunt wants one more line than "log on": `scripts/pocket/logswitch.sh ram --stall 120`.
 `STALL_MS` is report-only (`main_of.c:3207` -- a frame gap that passes it testifies once, naming the resource
 in flight), and the shipped `400` sees only the stage-entry stalls docs/433 chased. A hitch you can feel is
 smaller than that, and because the flag is part of the script the shape survives being argued about; a
@@ -100,6 +103,17 @@ Power the Pocket **fully off** -- not sleep -- before a boot you intend to belie
 (`diskutil eject /Volumes/Pocket`) before mounting it to read a log. A warm resume relaunches the cached app,
 and a half-flushed exFAT read hands the device yesterday's bytes; both produce a boot that ran bits the card
 already replaced, which is how a "0.3.3 is stuttering" report turned out to be a 0.3.2 boot (docs/456).
+
+The shipped ini is `LOG=0 CONSOLE=0`, and getting back here cost twenty-six sections (docs/456). `LOG=0`
+used to *be* the stutter: same ELF, `LOG=1` called smooth in three boots, `LOG=0` called stuttering -- so
+0.3.7 shipped a player shape that wrote a summary log instead of nothing. The confound was a single line:
+when no log can be opened, every diagnostic line `printf`s instead (`main_of.c:3225`), and on hardware
+`printf` is a `write(1)` syscall into the SDK's 40x30 text console -- which in FRAMEBUFFER display mode is
+not displayed at all. Read as a pair on 0.4.4 with one key between them: console on, 11 of 12 ordinary
+seconds carried a gap over 80 ms and the machine delivered 32 frames/s; console off, 1 of 20 and 39
+frames/s. The silent shape is therefore no longer the stuttering shape, and the player default is blind
+again by deliberate choice -- `logswitch.sh ram` gets the full trail back, `logswitch.sh off` returns the
+card to shipped.
 
 Then archive the log with the tool that checks it, rather than copying it by hand:
 

@@ -1,5 +1,11 @@
 # 456 — The constant stutter came back, and the card had never booted the build it blamed
 
+**How this one ends, so a reader does not have to walk through 19 commits of wrong theory to get it:** the
+constant stutter was `printf`. At `LOG=0` every diagnostic line was printed instead of logged, `printf` on
+hardware is a `write(1)` into a text terminal that display mode 1 never composites, and ~44 of those a second
+inside the present path cost a fifth of the frames. The card, the SD driver and the CD-DA feed are innocent.
+The whole story -- the arms, what each ruled out, and the measurement on identical bits -- is §13.
+
 A feel report, a regenerated `night.ini`, and two card logs that measure the same machine -- the blame was
 wrong twice, and the only thing that saw it was the tool that asserts a boot's own banner.
 
@@ -341,3 +347,134 @@ discriminates without help from a human, and it is a measure of *regularity*, no
 
 The cell still missing is 0.3.6 with `LOG=0` -- the version and the key have not been varied on the same
 boot, and the 0.3.5 pair (LOG=1 smooth, LOG=0 stutter) has not been repeated on current bits.
+
+
+## 13. The log was the wrong suspect: the arms, what each ruled out, and the answer
+
+*(This section consolidates what used to be §13-28 -- 16 sections, 19 commits and seven builds of one wrong
+theory. Every number below is still in an archived log under `scratch/pocket/logs/`.)*
+
+**Up front:** the stutter was `printf`. Display mode, the SD card, the exFAT driver, the card controller, the
+CD-DA feed and the OS's file service are all innocent of it.
+
+### 13.1 The observation that started the wrong theory
+
+One build, card filesystem verified clean (`diskutil verifyVolume` exit 0): `LOG=1` called smooth in three
+boots, `LOG=0` called stuttering in three. Same ELF. 0.3.7 shipped `LOG=2` on the argument that the log is
+part of what the machine feels, because its writes interleave with the CD-DA feed's reads. The observation is
+real; the theory under it was wrong, and the theory is what cost the time.
+
+### 13.2 What was built on the wrong theory, and what each arm ruled out
+
+| arm | variable it moved | result |
+|---|---|---|
+| `PING=1/2` -- read 2 KB of `NIGHT.RES` on a cadence (`sd_ping`, timed *before* `t0` so its cost lands in `rest`); `PING=2` = a 300 us spin, no I/O | a periodic **event** without the writes | both stuttered; the read made things worse. Periodicity is not the anesthetic |
+| `LOG_TICK_MS` -- the report block's period, a dose ladder 1000 -> 30 000 ms | the **dose** of the writes | moot once the answer was known; and it could never have separated writes from work, because both fall together |
+| The Quake contrast -- OS-pumped `SDL_AudioCallback`, samples in RAM, never a blocking card read inside the frame path | the architecture we thought we lacked | half true, and it pointed at the wrong clock: our CD-DA already has the RAM-slack shape (two 176 400-frame mono rings = 4 s each, 705 KB in the mixer's SDRAM pool, played by two looping MUSIC voices on the 32-voice **hardware** mixer). That is why the music never drops out while the picture hitches: the music has four seconds of slack and the frame has none. docs/425 is the proof -- the second that spent 581 ms inside `read()` delivered 10 frames and **no audio underrun** |
+
+The door that contrast suggested -- `of_file_read_async` (completions never fired on this firmware) and
+`of_file_set_idle_hook` (registered; fired zero times through stdio) -- is still unbuilt and still worth
+building, but as a **throughput** question about the disc-bound fade seconds, not as the cure for the stutter.
+
+### 13.3 The arms that exonerated the card
+
+| shape of the log's card traffic | write events/s | bytes/s | verdict |
+|---|---|---|---|
+| many small (`LOG=1/2`) | ~6-23 | ~0.6 KB | smooth |
+| two big commits (`LOG=3`: every line into a 256 KB tail-preserving SDRAM ring, appended once per `LOG_FLUSH_MS`) | ~0.035 | ~2.4 KB | smooth |
+| **none at all** (`LOG=4`: format every line and discard it; no `fopen`, no handle, no bytes) | 0 | 0 | smooth |
+
+`LOG=3` on hardware (`135 765 B` archived from a 56 s run, `ramlog … lost=0`): `br n` 35.0 fps / 27.7 ms,
+`br g` 45.0 fps / 3.3 ms, gap histogram 55.9 / 34.1 / 9.2 / 0.5 / 0.3 %, longest run of 12-15 fps windows **0**
+against 6-9 in the stutter boot -- and the ~65 KB committed append landed in seconds that went:
+
+```
+wall 30008ms  frames 829   <20/28 20-40/14 40-80/4  80-160/0 160+/0
+wall 31986ms  frames 919   <20/24 20-40/19 40-80/3  80-160/0 160+/0
+wall 33017ms  frames 966   <20/33 20-40/ 9 40-80/5  80-160/0 160+/0
+```
+
+Sixty-five kilobytes committed inside the frame loop and not one gap over 80 ms around it. **Event rate,
+byte volume and burst size are all ruled out** -- three of the four things "it's the SD card" can mean.
+
+One boot was lost to the SDK's commit rule and belongs in this doc for the pattern, not the anecdote: the
+first `LOG=3` reading came back *void* -- `nightlog.sav` byte-identical to the previous boot's -- because the
+ring flush was `fwrite`+`fflush` on a `FILE*` held open for the whole run. README:466: *"Dirty save files are
+committed through the bridge when closed."* A flush that never closed was a flush that never happened. 0.4.1
+makes a flush `open("ab") / write / close`, which is also what Quake does for every cfg and save write.
+
+### 13.4 The answer, in the two lines that were always there
+
+```c
+#define NLOG(...)  do { of_log_line(__VA_ARGS__); if (g_console_live) printf(__VA_ARGS__); } while (0)  /* main_of.c:139 */
+...
+g_console_live = g_log_ok ? 0 : 1;                                                                       /* main_of.c:3225 */
+```
+
+**When the log could not be opened, every diagnostic line printed instead** -- and on hardware `printf` is a
+`write(1)` syscall into the SDK's 40x30 CP437 terminal (`of_terminal.h`; SDK-README 123, 484-491), while
+`SCREEN=0` pins display mode 1, *framebuffer only*, so that terminal is **never composited**. `LOG=0`, the
+"silent" player shape, was the loudest thing in the build: ~44 `write(1)`s a second into a surface that
+cannot be shown, paid for on the frame loop's clock. `LOG` coupled two variables -- card writes and printing
+-- and the stuttering configuration wrote no log, so every trace in §1-12 came from a machine that was *not*
+stuttering. It broke only when an arm was built the reigning theory could not explain: `LOG=4` formats every
+line and opens nothing, which pulled "the writes" away from "the work" and left the printing.
+
+| | card writes | formats | prints | verdict |
+|---|---|---|---|---|
+| `LOG=0` | none | no | **~44/s** | **stutters** |
+| `LOG=0 CONSOLE=0` | none | no | none | smooth, and blind by choice |
+| `LOG=4 CONSOLE=0` | none | yes | none | smooth -- the work costs nothing we can see |
+| `LOG=3 CONSOLE=0` | ~2 commits/min | yes | none | smooth, full trail |
+| `LOG=3 CONSOLE=1` | ~2 commits/min | yes | **~44/s** | **stutters, and records it** |
+
+### 13.5 The measurement, on identical bits: 0.4.4, `LOG=3`, one key apart
+
+Stage-entry holds are removed from the first table because a hold is the stage card legitimately stalling and
+it does that on both sides:
+
+| ordinary play (windows with no hold) | windows | gaps | 80+ ms | 160+ ms | windows with >=1 long gap |
+|---|---|---|---|---|---|
+| console on | 12 | 380 | 11 | 10 | **11 / 12** |
+| console off | 20 | 787 | 1 | 1 | **1 / 20** |
+
+160+ share 4.6 % against 0.7 %; 80+ gaps per second 1.84 against 0.62; and **39 frames delivered per second
+against 32** -- 22 % of the frames, from turning off text nobody could see.
+
+The instrument lesson, and it outlives the bug: on identical bits the time buckets **do not move** (`pres`
+43.5 % vs 44.1 %, `disc` 11.7 vs 12.6, `aud` 14.1 vs 15.2, `rest` 30.6 vs 27.8) while the gap distribution
+and the frame rate both do. Our counters measure **where the machine is busy, not where it is late** -- the
+same blind spot that made `rest` look clamped in §9. `rest`, 28-31 % of the wall, is still unnamed, and it is
+the next thing worth chasing.
+
+### 13.6 Shipped, and how to arm a diagnostic run
+
+`0.4.5` ships **`LOG=0 CONSOLE=0`**: nothing written, nothing printed. `CONSOLE` is 0 off / 1 always / 2 the
+legacy fallback (named only), and it is inert on the desktop build, where stdout is the trail. `LOG` is 0 off
+/ 1 full / 2 summary / 3 RAM ring / 4 format-and-discard. A hitch hunt starts with
+`scripts/pocket/logswitch.sh ram` (`LOG=3`) and ends with `off`; `docs/456` is why the card should not be
+left in `LOG=1`, and `docs/452` is why a feel judgement made there is not a feel judgement.
+
+Two small things the switch exposed: the console's *per-line* cost is still unmeasured (we have only ever
+measured the cost of a stream of them), and in RAM mode `of_log_bytes()` returns `-1` because `ram_flush()`
+closes the `FILE*` to commit -- so the readout says "open / -1 bytes" for a boot that committed tens of
+kilobytes.
+
+### 13.7 Whose fault, and the four rules
+
+Ours, on two counts, and neither is "printf is heavy".
+
+1. **A fallback that could change the run.** `:3225` decided that a failed log open should print instead --
+   a kindness, firing in the shape every player runs, into a surface display mode 1 never shows. We had fixed
+   this exact habit once before: forcing `OF_DISPLAY_OVERLAY` when the log slot was unopenable put text over
+   the game (docs/336, recorded at `main_of.c:3686-3691`). Same instinct, second bug -- and the second one
+   was invisible, which is why it survived 28 sections.
+2. **A measurement design that could not see the symptom.** The switch coupled two variables, and the failing
+   configuration left no trace. The hypotheses built inside that blind spot -- dose ladder, ping, async door
+   probe -- matched the evidence available. They were about the wrong channel.
+
+- A fallback for a failed diagnostic must not change what the player sees, pays, or waits for.
+- One switch, one variable. Two variables in one key is how a control becomes a confound.
+- **The shape that fails must be able to describe itself.** If only the healthy configuration leaves a trace,
+  every conclusion is about healthy machines.
+- Invisible is not free. This one was expensive *because* it was invisible.

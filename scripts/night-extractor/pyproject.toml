@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "night-extractor"
+version = "0.1.0"
+description = "Unpack a NIGHT CD image into a run tree: the installer's payload plus one raw-frame file per CD-DA track, so the port needs no disc image at run time (docs/455)"
+readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+night-extractor = "night_extractor.cli:main"
+
+[tool.setuptools]
+packages = ["night_extractor"]

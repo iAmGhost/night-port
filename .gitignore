@@ -1,5 +1,6 @@
 /NIGHT
 /scratch
+/extracted
 /.pi
 .DS_Store
 *.pyc
@@ -13,3 +14,9 @@
 pocket/.obj/
 pocket/build/
 pocket/releases/
+
+/*.cue
+/*.img
+# python packaging metadata dropped by an editable install (scripts/night-extractor)
+*.egg-info/
+__pycache__/

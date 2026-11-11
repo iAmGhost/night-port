@@ -8,8 +8,26 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "capstone>=5.0.9",
+    "night-extractor",
 ]
+
+[dependency-groups]
+# Not needed to run the port or the extractor -- needed to work on them: capstone for the disassembly
+# probes under analysis/probes, numpy and PIL for the frame-comparison scripts (playtest_compare.py,
+# scripts/analysis/fli_compare.py, scripts/pocket/*_compare.py).  They live here rather than being
+# installed by hand because `uv run`/`uv sync` PRUNE whatever no group declares: pillow vanished from
+# .venv the first time a sync ran.  `uv sync --no-dev` gives the extract-only environment.
+dev = [
+    "capstone>=5.0.9",
+    "numpy>=2.0",
+    "pillow>=12.3",
+]
+
+[tool.uv.sources]
+# The disc extractor lives in scripts/night-extractor/ (docs/455); an editable path dependency so
+# `uv run night-extractor` is always the code in the working tree, and `python3
+# scripts/extract_disc.py` keeps working without this at all.
+night-extractor = { path = "scripts/night-extractor", editable = true }
 
 [tool.uv]
 package = false

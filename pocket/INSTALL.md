@@ -57,7 +57,7 @@ with its default.  The ones that matter for a report:
 | `DIAG` | `0` (a player's build performs no experimental bus probes) | `1` peripheral scan, `2` analogizer probe, `4` interact census |
 | `FB_MODE` | `1` (native 640x480 surface, row memcpy) | Hardware-measured, and `0` is a trap: 307 200 B / 15 771 us = 19.5 MB/s against 76 800 B / 82 657 us = 0.93 MB/s for the host 2x2 downscale (~1 us per output pixel). `0` was shipped for two builds and brought the logo freeze back on hardware (docs/401, docs/404 §5) |
 | `FIT` | `1` (stretch) | `0` letterbox, `2` the core scaler's 320x200 mode |
-| `SCREEN` | `2` | `2` = the game with a nine-line diagnostic panel in white text over it (version, frame, view + picture signature, ticks/s and frames/s, present cost, palette and arena use, CD position, disc reads, ring headroom); `0` game only, `1` terminal text only, `-1` follow the menu's *Pocket LCD* option |
+| `SCREEN` | `0` | `0` = the game alone, which is what ships; `2` = a nine-line diagnostic panel in white text over it (version, frame, view + picture signature, ticks/s and frames/s, present cost, palette and arena use, CD position, disc reads, ring headroom), and `1` terminal text only. `2` was the default once and cost a 1 Hz flicker over the game (docs/422), so the overlay is a switch, not the product |
 | `TICK_HZ` | `490` | a cap on the game's fixed step rate, for slow-motion experiments |
 | `SFX_GAIN` / `CDDA_GAIN` | `200` / `150` | 100-212 %, through a knee that cannot clip and cannot attenuate (docs/361) |
 
@@ -67,6 +67,13 @@ masked restore that came with them only ever half-worked (HP bars restored, stag
 They were removed in `0.2.23`, together with the `L1+Select` / `L1+Start` / `L1+A` combos that carried them; those
 combos also pressed Esc and Enter on the game, so every save was a stray key into the shipped pause menu.
 `L1+Up` (trace window) and `L1+B` (panel fit cycle) remain.
+
+The data-slot manifest still *declares* save slots `10`–`16` (`night_0.sav … night_6.sav`) next to the
+log slot `17`. **Nothing ever opens them.** They are there because the OS does not appear to attach a
+save slot the save table never reaches: declaring only `17` made every write to the log succeed, from
+the app's side, and land nowhere, for six boots (docs/454). The cores on the card that do write saves
+(Quake, Doom) both declare `10`–`19` contiguously, so this is the shape the platform expects. A build
+whose log slot sits below a hole in the table is a build that is blind.
 
 ## 3. Reporting a hardware run
 

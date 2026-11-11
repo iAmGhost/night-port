@@ -181,3 +181,58 @@ So the honest position on the fade: the port's logo/title *durations* match the 
 port was presenting that at 13 fps -- so the port was **below** the rate the guest is asking for, which is the
 one case where speeding the copy is unambiguously the right move. Whether the original's fade *looks* like 13 fps
 on real hardware is a question that needs a disc the emulator will accept, and that stays open.
+
+## 9. What 0.3.4 actually did, measured -- and §7's mechanism was wrong
+
+The player's report was "it got better", so the boot went through `logsave.sh` and the numbers were read apart
+by display branch (`br n/g/d/o` counts presents per branch, which is the only way to separate the two paths in
+a log whose `frames=` counts flips). Same instrument, same card, four boots:
+
+| boot | native branch (640x480): fps / present per frame | game branch: fps / present per frame | `testless` fired |
+|---|---|---|---|
+| 0.3.1 | 31.5 / 25.2 ms | 46.0 / 4.0 ms | no counter |
+| 0.3.3 (stutter-gone) | 38.2 / 25.2 ms | 45.6 / 4.0 ms | -- |
+| 0.3.3 (fade-pause) | 38.2 / 25.2 ms | 46.0 / 4.0 ms | -- |
+| **0.3.4** | **39.0 / 24.7 ms** | **45.7 / 3.2 ms** | **722, all on the game branch** |
+
+So `PRESENT_TESTLESS` did what it says on one path and nothing on the other. It trimmed the game branch's
+present from 4.0 ms to 3.2 ms per frame (−20%), and it **never armed once** on the native 640x480 path -- the
+slide path, the one §7 was written about. Four consecutive changed frames is the arming rule, and on the slide
+path that rule was never satisfied. The consequence has to be said plainly: **§7's arithmetic (15.8 ms copy +
+8.8 ms hash = 24.6 ≈ 23.9 measured) is retracted as an explanation.** Whatever the extra 8 ms on that copy are,
+they are not a hash pass that the code decided to skip, because the counter that would have followed those
+changed frames stayed at zero.
+
+And the fade itself is not a present-throughput problem. The plateau, read by branch:
+
+```
+0.3.3   11.4 12.2 13.3 13.7 13.3 13.7 13.3 13.7 fps   br n = 11-14 presents/s   pres 28-34% of wall   aud+disc 29-55%
+0.3.4   11.8      12.8            13.8 fps            br n = 11-13 presents/s   pres 21-26% of wall   aud+disc 43-110%
+```
+
+~14 presents a second, each costing 25 ms, is 0.35 s of a 1.0 s window. The window is not full. `PRESENT_SKIP`
+did its part -- the present share fell from ~33% to ~22-26% -- and the frame rate did not move, because the
+frames are not waiting on the copy. They are sitting in **audio and disc**, which occupy 30% to more than 100%
+of the same windows. Over 100% is not magic: the CD-DA feed's SD read happens inside the audio pump's span, so
+the two buckets are not disjoint.
+
+That last fact breaks the very instrument docs/429 was pointing at. `rest` is computed as
+`wall - (pres + pump + disc + aud)` **clamped at zero**, as a cumulative counter -- so in any window where the
+buckets overlap, `rest` freezes at 0 and every later window's delta is a lie. The 35-39% `rest` this doc has
+been calling "unnamed" is partly an arithmetic casualty of music playing. `0.3.5` prints `acc=` (the sum of the
+buckets) on the `split wall` line, so a reader can tell a quiet machine from a clamped one: `rest` stuck at 0
+with `acc >= wall` is the clamp.
+
+Open, in priority order:
+
+1. **Why the arming rule never fires on the native branch.** `ROW_SKIP=0` makes `use_rows` false, so the hash
+   block is reached on both paths; `applied_refresh()` clears `g_hash_passes` and the proof. If the slide era
+   re-programs the display path (or the hashed `src` is not the surface the fade is darkening), arming would
+   be cleared as fast as it is set. Distinguishing those needs one more counter (`changed=`), not a guess.
+2. **The audio feed's share of a slide window.** With music on, `aud` alone reaches 60-100% of wall during the
+   plateau; with the fade steps only 14/s, that is where the wall is. `logswitch.sh --music off` now sets
+   `CDDA_OFF=1` as a flag (not a hand-edit, so a deploy cannot eat it): one boot with the music off separates
+   feed-bound from copy-bound, and it is the cheapest thing left to do.
+3. **`rest` with disjoint buckets.** Reporting the disc wait as nested inside the pump (or not reporting it
+   twice) would let `rest` mean what its name says -- and only then can docs/429's step "attribute rest" be
+   attempted honestly.

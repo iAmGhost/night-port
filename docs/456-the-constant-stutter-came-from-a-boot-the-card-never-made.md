@@ -236,3 +236,43 @@ Open, in priority order:
 3. **`rest` with disjoint buckets.** Reporting the disc wait as nested inside the pump (or not reporting it
    twice) would let `rest` mean what its name says -- and only then can docs/429's step "attribute rest" be
    attempted honestly.
+
+## 10. The smooth 0.3.5 boot, which says the fade's frame rate was never the variable
+
+The player's verdict on 0.3.5: no stutter. `logsave.sh` archived it with its banner asserted against
+`core.json` (0.3.5 == 0.3.5, so the boot is the deployed bits), and `scripts/pocket/branchfps.py` -- the
+reader written to stop re-deriving this by hand -- says:
+
+```
+br n (640x480 slide path):  8 win  fps med 33.1 [6.8-43.3]   pres/frame 25.2 ms
+br g (game view):          19 win  fps med 45.4 [41.9-48.0]  pres/frame  3.3 ms    PRESENT_TESTLESS fired 705
+windows below 25 fps: 7, of them 11.7 fps (br n=11/s) and 6.8 fps (br n=26 in 3.8 s)
+```
+
+Two things follow, and the second is the one that matters for how this problem gets closed.
+
+**The 0.3.4 trim held on the game view** -- 4.0 ms to 3.3 ms a present, 45.6 to 45.4 fps, with the counter
+firing 705 times. That path is the one the change touched, and it stayed touched.
+
+**But the slide path still runs sub-12 fps stretches in a boot the player calls smooth.** The 6.8 fps window
+puts 26 presents across 3.8 s: **146 ms between slides**, present 17% of the window, aud+disc 31%, `rest` 51%.
+A gap far longer than anything in the stutter boot, and it is not felt.
+
+So mean rate does not separate the two reports, and here is what does. The stutter boot's fade was *periodic*:
+
+```
+0.3.3 stutter   11.4 12.2 13.3 13.7 13.3 13.7 13.3 13.7 13.7 fps      eight windows, alternating on 0.4 fps
+0.3.5 smooth     6.8      11.7      17.0      21.6      22.3 fps      irregular, and reported as smooth
+```
+
+Nine consecutive windows landing on 13.3/13.7 -- two ticks, three ticks, two ticks, three ticks -- is a
+judder with a period, and "the screen pauses almost every second" is a fair description of a fixed 74 ms
+cadence that occasionally slips a tick. The smooth boot's windows never line up like that.
+
+That is the argument, at last, for the one instrument this doc has kept proposing and not building: a
+per-window **histogram of inter-frame gaps** (buckets 20/40/80/160 ms) on the `gap worst` line. It measures
+regularity directly, it costs nothing to collect (the gaps are already timed), and it is the only reading
+that would have separated these two boots without a player telling me which was which. Until it exists, the
+rule the numbers force is the negative one: **do not tune against feel across two boots whose per-branch
+medians agree** -- 38/38/39/33 fps on the slide path across four boots says the copy speed is not the knob,
+and 0.3.4 is the proof of that, measured against myself.

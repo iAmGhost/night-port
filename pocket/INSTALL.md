@@ -110,6 +110,18 @@ Then archive the log with the tool that checks it, rather than copying it by han
                                                     # refuses the comparison (docs/428, docs/456)
 ```
 
+Once it is archived, read it apart by display branch instead of as one fps number -- the 640x480 slide path
+and the game view cost 25 ms and 4 ms a present, and a single average hides both:
+
+```sh
+python3 scripts/pocket/branchfps.py scratch/pocket/logs/<file>.log   # per-branch medians, every window under
+                                                                     # 25 fps, and two labels that stop
+                                                                     # misreadings: HOLD (the stage-entry
+                                                                     # card, which is allowed to run 1 fps)
+                                                                     # and CLAMPED, where aud+disc overlap and
+                                                                     # `rest` has frozen at 0 (docs/456 9-10)
+```
+
 Or read it directly, remembering that `nightlog.sav` is a ring:
 
 ```sh

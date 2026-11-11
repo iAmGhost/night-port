@@ -132,9 +132,99 @@ def main():
             print(f"  [PASS] night.ini names each of its {len(keys)} keys exactly once "
                   f"({', '.join(k for k in keys if k in ('SCREEN', 'FB_MODE', 'LOG', 'DIAG', 'PUMP_AUDIO_TICK'))} tracked)")
 
+    check_log_open_name(fail)
     print("== ALL PASS ==" if fails == 0 else f"== {fails} FAIL ==")
     return 0 if fails == 0 else 1
 
 
-if __name__ == "__main__":
+def check_log_open_name(fail):
+    """The C code and data.json must agree on where the diagnostic trail goes -- and every name in the
+    chain must be a name the kernel can actually bind (docs/451, README.md's data-slot contract).
+
+    Two bugs of this shape: 0.2.23 deleted seven save-slot bindings and the log's primary name was the
+    ORDINAL alias `save:7`, so the trail went silent; and a later fix reached for `nightlive.txt`, a name
+    nothing declares, which on a filesystem whose registry is populated by a directory scan is not an
+    error but silence. Both were invisible to every check in this file, because each looked at one side.
+    """
+    import re as _re
+    src = (REPO / "pocket" / "src" / "night" / "of_log.c").read_text()
+    chain = _re.findall(r'static const char \*names\[\] = \{([^}]*)\}', src)
+    if not chain:
+        fail('of_log.c: cannot find the log open chain')
+        return
+    # The chain holds MACROS (LOG_NAME_0, ...), not literals -- resolve them, because the check has to
+    # judge the actual strings the kernel will see.
+    defs = dict(_re.findall(r'#define\s+(\w+)\s+"([^"]+)"', src))
+    names = []
+    for n in chain[0].replace('\n', ' ').split(','):
+        n = _re.sub(r'/\*.*?\*/', '', n).strip()
+        if not n:
+            continue
+        if n.startswith('"'):
+            names.append(n)
+        elif n in defs:
+            names.append('"%s"' % defs[n])
+        else:
+            fail(f'log chain entry "{n}" is neither a literal nor a #define with a string value')
+            return
+    if not names:
+        fail('of_log.c: the log open chain is empty')
+        return
+    m0 = _re.match(r'"slot:(\d+)"', names[0])
+    if not m0:
+        fail(f'of_log.c opens the log by "{names[0]}": the first name must be the explicit "slot:<id>" '
+             f'form -- save:N is an ordinal and breaks when the save layout changes (docs/451)')
+        return
+    want = int(m0.group(1))
+    if not (10 <= want <= 19):
+        fail(f'slot {want} is outside the nonvolatile save range 10-19 (README.md data slot table)')
+        return
+    if want == 8:
+        fail('slot 8 is SDK-owned shared config -- never an app file (README.md)')
+        return
+    dj = REPO / "pocket" / "dist" / "night" / "Cores" / "iamghost.night" / "data.json"
+    slots = json.load(open(dj))["data"]["data_slots"]
+    ids = [e.get("id") for e in slots]
+    if len(ids) != len(set(ids)):
+        fail(f'duplicate data-slot ids: {sorted(i for i in set(ids) if ids.count(i) > 1)}')
+        return
+    if len(ids) > 32:
+        fail(f'{len(ids)} data slots declared; Analogue firmware allows at most 32')
+        return
+    if want not in ids:
+        fail(f'data.json does not declare slot {want}, which of_log.c opens for the log')
+        return
+    e = [x for x in slots if x.get("id") == want][0]
+    if not e.get("nonvolatile"):
+        fail(f'slot {want} is not nonvolatile: the log cannot persist there'); return
+    if e.get("required"):
+        fail(f'slot {want} (the log) is required:true: a missing log file would fail the launch'); return
+    exts = [x.lower() for x in e.get("extensions", [])]
+    for n in names[1:]:
+        bare = n.strip('"')
+        mm = _re.match(r'slot:(\d+)$', bare)
+        if mm and int(mm.group(1)) != want:
+            fail(f'log chain mixes slot ids: {names[0]} and "{n}" name different slots')
+            return
+        if not bare.startswith('slot:') and not bare.startswith('save'):
+            smap = REPO / "pocket" / "dist" / "night" / "slot_map.tsv"
+            bound = {}
+            if smap.exists():
+                for line in smap.read_text().splitlines():
+                    f = line.split('\t')
+                    if len(f) >= 2 and f[0].isdigit():
+                        bound[int(f[0])] = f[1].strip()
+            if bound and bare not in bound.values():
+                fail(f'log chain tries "{n}", which slot_map.tsv binds to nothing: the registry binds '
+                     f'declared names, and a name that does not bind fails silently (docs/451)')
+                return
+            if not bare.lower().endswith('.' + (exts[0] if exts else 'sav')):
+                fail(f'log chain tries undeclared/extension-mismatched name "{n}": the registry binds '
+                     f'declared names, and a name that does not bind fails silently (docs/451)')
+                return
+    print(f'  [PASS] log chain {names} all bind slot {want} '
+          f'(nonvolatile, not required, {e.get("size_maximum")}); {len(ids)} slots, cap 32')
+
+
+if __name__ == '__main__':
     sys.exit(main())

@@ -41,7 +41,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.2.23"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.3.0"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 # (SAVE_SLOTS removed in 0.2.23, docs/449: the port ships no save feature)
 sys.path.insert(0, str(Path(__file__).resolve().parent))

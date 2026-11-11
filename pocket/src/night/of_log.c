@@ -33,13 +33,28 @@
 #ifndef SAVE_STAGE_FIRST_MIN
 #define SAVE_STAGE_FIRST_MIN 10       /* README:644 reserves ids 10-19 for nonvolatile save .. night_6.sav */
 #endif
-#define LOG_SLOT        17         /* a save slot of our own: 10-16 are the game saves, 17 is the log */
-#define LOG_NAME        "save:7"   /* the SDK save alias for APF slot 17 (save_0/save:0 is id 10) */
-#define LOG_NAME_2      "nightlog.sav"      /* the same slot under the name the instance JSON binds */
-#define LOG_NAME_3      "log.sav"           /* a third bare name; never one of the seven game-save names */
-/* The log used to fall back onto game save slots 16/15/14 -- and on hardware it did: the card's night_6.sav still
- * reads "NIGHT-PROBE-0001" (docs/393), i.e. a diagnostic boot overwrote a player's slot-6 save.  Save slots are the
- * player's data, so the diagnostic trail now either gets its own name or stays on stdout. */
+#define LOG_SLOT        17         /* our own nonvolatile save slot.  README.md's data-slot table:
+                                    * 10-19 are "Save 0-9", nonvolatile CRAM0, 256 KB each; slot 8 is
+                                    * SDK-owned shared config.  0.2.23 deleted the seven game-save
+                                    * bindings that used to sit in front of this one, and the card log
+                                    * went silent with them (docs/451). */
+#define LOG_NAME_0      "slot:17"  /* the explicit APF id form -- save_test.h:16: "the registered
+                                    * filename, `save:N`, `save_N`, and `slot:10+N`".  FIRST, because an
+                                    * id names a slot while `save:N` names a POSITION in the save list,
+                                    * and 0.2.23 deleted seven positions.  save_test.h proves the four
+                                    * paths reach the same save slot, and the write denial it tests is
+                                    * for a read-only DATA slot (slot:2) -- not one in 10-19. */
+#define LOG_NAME_2      "nightlog.sav"      /* the declared name.  README.md:468 calls this the PREFERRED
+                                             * route -- "standard C file I/O with the save filename from
+                                             * the instance JSON".  Second, not first: the registry is
+                                             * populated by a directory scan, so a bare name has one more
+                                             * thing to get right than an id does. */
+#define LOG_NAME        "save:7"   /* the compat alias, slot 10+7.  THIRD: it is the name every log that
+                                    * ever landed on hardware was opened on, so this is the fallback with
+                                    * proof behind it. */
+/* "log.sav" is OFF the chain on purpose.  The filename registry is populated by a directory scan
+ * (README.md:654), so a name nothing declares is guesswork -- and guesswork on this filesystem is
+ * silence, not an error.  Only names that bind to slot 17 belong in the chain (docs/451). */
 #define LOG_FALLBACKS   { -1 }               /* no game save slot is ever a log target */
 
 static FILE *g_log;
@@ -69,6 +84,17 @@ static FILE *log_open_write(const char *name) {
     return f;
 }
 
+/* Every name tried and how it ended, whether or not the log ever opened. A whole class of failure used to
+ * be invisible: four archives came back byte-identical (md5 6c1ee2d2..., 87 616 B -- the bytes a 0.2.21
+ * boot wrote), and the only report of a failed open was a printf, which on hardware nobody can read.
+ * "No new log" and "the log could not be opened" must be different observable states (docs/451). */
+static char g_attempts[512];
+static void attempt_add(const char *name, int ok) {
+    if (strlen(g_attempts) + 96u >= sizeof g_attempts) return;
+    snprintf(g_attempts + strlen(g_attempts), sizeof g_attempts - strlen(g_attempts),
+             "  open \"%s\" -> %s\n", name, ok ? "WRITABLE" : "FAILED");
+}
+const char *of_log_attempts(void) { return g_attempts; }
 long of_log_bytes(void) { return g_log ? ftell(g_log) : -1L; }   /* how much the OS has actually taken */
 
 void of_log_close(void) {
@@ -120,10 +146,14 @@ int of_log_open(void) {
      * describes the registered result as "a read-only APF data file" -- which is a plausible reason a name we
      * registered took no writes across five hardware runs while Quake's unregistered name wrote 20 bytes and a
      * 35 KB save. */
-    static const char *names[] = { LOG_NAME, LOG_NAME_2, LOG_NAME_3 };
+    static const char *names[] = { LOG_NAME_0, LOG_NAME_2, LOG_NAME };   /* slot:17 (explicit id, immune to
+                                                                          * ordinals), then the declared filename,
+                                                                          * then the compat alias */
+    g_attempts[0] = 0;
     for (unsigned i = 0; i < sizeof names / sizeof names[0]; i++) {
         if ((g_log = log_open_write(names[i]))) {
-            of_log_line("log: opened \"%s\" (%s)\n", names[i], i == 0 ? "the SDK save alias" : "by name");
+            attempt_add(names[i], 1);
+            of_log_line("log: opened \"%s\" (%s)\n", names[i], i == 0 ? "slot:17, the APF id form" : "by name");
             if (slot_name(LOG_SLOT, name, sizeof name, scan, sizeof scan) == 0) of_log_line("%s", scan);
             else of_log_line("%s", scan);
             return 0;
@@ -137,7 +167,7 @@ int of_log_open(void) {
     }
     for (unsigned i = 0; i < sizeof want / sizeof want[0]; i++) {
         if (want[i] < (int)SAVE_STAGE_FIRST_MIN || want[i] > SAVE_STAGE_FIRST_MIN + 6) {
-            printf("log: no writable slot; diagnostics stay on stdout only\\n%s", scan);
+            printf("log: no writable slot; diagnostics stay on stdout only\n%s\n%s", scan, g_attempts);
             return -1;                        /* docs/393: a measuring boot may not eat a player's save slot */
         }
         scan[0] = 0;
@@ -155,7 +185,7 @@ int of_log_open(void) {
             return 0;
         }
     }
-    printf("log: no writable slot; diagnostics stay on stdout only\n%s", scan);
+    printf("log: no writable slot; diagnostics stay on stdout only\n%s\n%s", scan, g_attempts);
     return -1;
 }
 #endif
@@ -167,5 +197,7 @@ void of_log_line(const char *fmt, ...) {
     vfprintf(g_log, fmt, ap);
     va_end(ap);
     fflush(g_log);
-    if (++g_lines % 8u == 0u) log_commit();
+    if (++g_lines % 32u == 0u) log_commit();   /* was 8: ~2.4 SD writes/s on the card whose
+                                                 * disc reads measured 23 ms mean /
+                                                 * 122 ms max (docs/449 follow-up) */
 }

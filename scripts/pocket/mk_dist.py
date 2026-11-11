@@ -41,7 +41,7 @@ CORE_ID = "iamghost.night"
 PLATFORM = "night"
 APP = "night"
 AUTHOR = "iamghost"
-VERSION = "0.3.0"          # shown in the Pocket core menu: bump it when the ELF on the card changes
+VERSION = "0.3.1"          # shown in the Pocket core menu: bump it when the ELF on the card changes
 BITSTREAM = "os25"          # indexed 2D + hardware mixer (docs/330 §5)
 # (SAVE_SLOTS removed in 0.2.23, docs/449: the port ships no save feature)
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -128,6 +128,20 @@ def main():
     ]
     # No save slots (docs/449): the shipped game has no save concept, so the port does not offer one.
     # Ids 10-19 stay unbound -- README:644 reserves them for nonvolatile save slots whatever we bind.
+    # The save FEATURE is gone (docs/449) -- the shipped game has no save concept, and nothing in the
+    # game or the host ever opens these.  The save TABLE stays: ids 10..16 declared and bound in front
+    # of the log slot, because the evidence says the OS walks that table from 10 upward.  0.2.22
+    # declared 10..17 and landed a card log; 0.2.23 declared only 17 and has landed none in eleven
+    # boots -- with the id-17 entry BYTE-IDENTICAL between them.  And both cores on this card that
+    # write saves (Quake, Doom) declare the save table contiguously, each slot at its own 0x40000
+    # stride.  A slot the table never reaches is a slot no name can open, which is why renaming the
+    # log from save:7 to slot:17 changed nothing (docs/454).
+    data_slots += [
+        {"id": 10 + i, "name": f"Save {i}", "required": False, "parameters": "0x84", "nonvolatile": True,
+         "address": "0x%08X" % (0x20100000 + 0x40000 * i),
+         "size_maximum": "0x40000", "extensions": ["sav"]}
+        for i in range(7)
+    ]
     data_slots.append(
         {"id": 17, "name": "Log Save", "required": False, "parameters": "0x84", "nonvolatile": True,
          # The trail lives in an app save slot, not in slot 8.  README:462 is explicit -- "Slot 8 is reserved
@@ -396,6 +410,8 @@ def main():
         {"id": 3, "filename": f"{APP}.elf"},
         {"id": 4, "filename": "NIGHT.RES"},
     ]
+    for i in range(7):        # bound like every save slot the cores that write saves declare (Quake binds
+        inst_slots.append({"id": 10 + i, "filename": f"night_{i}.sav"})   # all ten; nothing writes these
     inst_slots.append({"id": 17, "filename": "nightlog.sav"})   # the diagnostic trail, written by of_log.c
     for sid in sorted(ts):
         inst_slots.append({"id": sid, "filename": ts[sid]})

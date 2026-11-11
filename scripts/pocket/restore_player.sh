@@ -11,12 +11,14 @@
 #   scripts/pocket/restore_player.sh                 # restore to /Volumes/Pocket
 #   scripts/pocket/restore_player.sh /Volumes/Other  # restore elsewhere
 set -e
-SRC="$(cd "$(dirname "$0")/../.." && pwd)/scratch/pocket/player-0.3.0"
+# The newest archive wins, so this never silently restores a stale build.
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SRC=$(ls -d "$ROOT"/scratch/pocket/player-* 2>/dev/null | sort -V | tail -1)
 DST="${1:-/Volumes/Pocket}"
 CORE="Cores/iamghost.night"
 APP="Assets/night"
 
-[ -d "$SRC/$CORE" ] || { echo "no archived image at $SRC -- re-take it: see the bottom of this script"; exit 1; }
+[ -n "$SRC" ] && [ -d "$SRC/$CORE" ] || { echo "no archived image at $SRC -- re-take it: see the bottom of this script"; exit 1; }
 [ -d "$DST" ]       || { echo "$DST is not mounted"; exit 1; }
 
 echo "restoring $SRC -> $DST"

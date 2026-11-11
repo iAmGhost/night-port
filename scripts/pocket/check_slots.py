@@ -194,6 +194,14 @@ def check_log_open_name(fail):
     if want not in ids:
         fail(f'data.json does not declare slot {want}, which of_log.c opens for the log')
         return
+    # The save TABLE must be contiguous from 10 up to the slot we use.  0.2.23 declared only 17 and
+    # the card log went silent for eleven boots with the log's own slot entry byte-identical to the
+    # build that worked; the cores that write saves (Quake, Doom) all declare 10..19 (docs/454).
+    missing = [i for i in range(10, want + 1) if i not in ids]
+    if missing:
+        fail(f'save table is not contiguous: data.json is missing save ids {missing} in front of '
+             f'the log slot {want} -- the OS appears to walk the table from 10 upward (docs/454)')
+        return
     e = [x for x in slots if x.get("id") == want][0]
     if not e.get("nonvolatile"):
         fail(f'slot {want} is not nonvolatile: the log cannot persist there'); return

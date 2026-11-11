@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–445)
+## The Pocket port (docs/330–455)
 
 ### Port plan and host layer
 
@@ -78,6 +78,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>The player's report on `0.2.14`: no graphical glitch, fade looks right — and "long logo hold and long intro</sub>
 - **441** — `clkmax=1` all run: the pump is inside the wait loop, so I can finally pay the game its real per-read time
   <sub>`0.2.15` asked one question (docs/440): are the guest's clock reads consumed **between** pump visits or</sub>
+- **455** — The disc has three layers, and only one of them is needed to play the game
+  <sub>Both are done: `scripts/extract_disc.py` writes `extracted/` (570 MB, git-ignored, regenerable), and</sub>
 
 ### Video and display
 

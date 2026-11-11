@@ -8,10 +8,18 @@
 
 # Paths
 
-- ./NIGHT: Original game.
-- ./NIGHT/TG_NIGHT.CUE, ./NIGHT/TG_NIGHT.IMG: Original CD Image
+- ./TG_NIGHT.CUE, ./TG_NIGHT.IMG: Original CD Image (git-ignored; the scripts find the disc by suffix --
+  the current directory, then a `NIGHT/` under it -- so a rip under any name works: docs/455)
 - ./scratch: regenerable caches only (extracted assets, decoded frames, captured runs); anything you can rebuild
   with ./scripts. Analysis work and evidence live in ./scripts and ./analysis instead.
+- ./extracted: the original game's files, and what `make extract` builds -- the install set (night.exe,
+  night.res), TG_NIGHT.CUE and one raw-frame file per CD-DA track, so the port runs with no disc image at
+  all (`./build/night` with no arguments; `scripts/extract_disc.py` and `night-extractor` are the same tool).
+  570 MB, git-ignored, regenerable in ~3 min; docs/455 is the write-up and `make extract-verify` re-hashes it.
+  What a boot means changes with: `NIGHT_RES_DIR` (resources), `NIGHT_CD_DIR` (per-track files vs the image),
+  `NIGHT_NO_DISC=1` (drive treated as EMPTY -- run silent on the compiled-in TOC), `NIGHT_REQUIRE_DISC=1`
+  (nothing substituted for an absent disc -- `cdinsert.pcx`; audits set it without `NIGHT_NO_DISC`),
+  `NIGHT_CD_AUDIT` (record every disc read). docs/455 has the four combinations.
 - ./scripts: Store generated scripts here(for extracting graphic, audio, etc...); scripts/ref holds the python
   differential reference models the fixture suite compares against, scripts/gen the C/vector generators,
   scripts/analysis the per-question analysis tools, scripts/rig the differential rig.
@@ -59,7 +67,7 @@ docker commit dbga dbga:ready
 # 2. run NIGHT: the game must be mounted UNDER the conf file's directory, because with the webserver on,
 #    MOUNT only accepts paths inside the config's parent tree (mount_allowed_bases gates the rest)
 docker run -d --platform linux/amd64 --name dbga -v /tmp/dbgauto:/work \
-  -v $HOME/Git/night-port/NIGHT:/work/game:ro -p 8386:8386 \
+  -v $HOME/Git/night-port:/work/repo:ro -p 8386:8386 \
   -e DOSBOX_API_TOKEN=<same-token> dbga:ready sleep 7200
 docker exec -d dbga bash -c 'cd /work/dosbox-automation-* && SDL_AUDIODRIVER=dummy \
   xvfb-run -a -s "-screen 0 1024x768x24" ./dosbox-automation -conf /work/night.conf > /work/run.log 2>&1'
@@ -79,8 +87,8 @@ cycles = max
 machine = svga_s3
 memsize = 16
 [autoexec]
-mount C /work/game
-imgmount D /work/game/TG_NIGHT.CUE -t iso
+mount C /work/repo/extracted
+imgmount D /work/repo/TG_NIGHT.CUE -t iso
 C:
 ```
 
@@ -108,8 +116,8 @@ docs/63 (independently decoded shipped assets) can be checked against real origi
 Run command below on dosbox for running original game
 
 ```bat
-MOUNT C ~/Git/night-port/NIGHT
-MOUNT D ~/Git/night-port/NIGHT/TG_NIGHT.CUE
+MOUNT C ~/Git/night-port/extracted
+MOUNT D ~/Git/night-port/TG_NIGHT.CUE
 C:
 NIGHT
 ```

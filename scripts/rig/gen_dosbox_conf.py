@@ -181,10 +181,10 @@ def conf_text(profile: str, *, root: Path | None = None, game: Path | None = Non
 
 
 def default_game() -> Path:
-    """The install set the game boots from -- the directory holding night.exe (see scripts/disc_loc.py)."""
+    """The install set the game boots from -- the directory holding NIGHT.EXE (see scripts/disc_loc.py)."""
     exe = find_exe()
     if exe is None:
-        raise SystemExit("no night.exe found: run `make extract` (docs/455) or pass --game-dir DIR")
+        raise SystemExit("no NIGHT.EXE found: run `make extract` (docs/455) or pass --game-dir DIR")
     return exe.resolve().parent
 
 
@@ -200,7 +200,7 @@ def main() -> int:
     ap.add_argument("-o", "--out", default=str(REPO / "scratch" / "rig" / "conf"),
                     help="where to write them (default: scratch/rig/conf -- git-ignored)")
     ap.add_argument("--root", default=None, help="repo root (default: derived from this script)")
-    ap.add_argument("--game-dir", default=None, help="the install set to mount as C: (default: night.exe's dir)")
+    ap.add_argument("--game-dir", default=None, help="the install set to mount as C: (default: NIGHT.EXE's dir)")
     ap.add_argument("--cue", default=None, help="the CUE sheet to imgmount as D: (default: located)")
     ap.add_argument("--cap", default=None, help="capture dir (default: <root>/scratch/orig)")
     ap.add_argument("--snapper", default=None, help="dir holding snap.com (default: scripts/rig/snapper)")

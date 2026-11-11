@@ -61,7 +61,7 @@ class IsoStream:
     MODE1/2352 stores 2048 bytes of user data per 2352-byte frame, so a file byte N lives at
     img[(first + lba + N//2048)*2352 + 16 + N%%2048].  Mapping N linearly onto the raw image instead --
     the first version of this script did -- read every blob after the first sector 16 bytes early per
-    sector travelled, which produced the right sizes with the wrong bytes: the extracted night.res came
+    sector travelled, which produced the right sizes with the wrong bytes: the extracted container came
     out 50 964 894 B long and did not match the installed copy.  Crossing the boundary in one place is
     what keeps that class of error out of every caller.
     """

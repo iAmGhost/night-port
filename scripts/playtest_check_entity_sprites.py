@@ -49,7 +49,7 @@ pix_re = re.compile(r"menupix k=(\d+) r=(\d+) ([0-9a-f]+)")
 
 def run_port() -> tuple[str, str]:
     if not (ROOT / "extracted" / "night.res").exists():      # the app's default --res-dir (docs/455)
-        raise SystemExit("no extracted/night.res -- run `make extract` first (docs/455)")
+        raise SystemExit("no extracted/NIGHT.RES -- run `make extract` first (docs/455)")
     out = tempfile.mkdtemp(prefix="entspr_")
     env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy",
                NIGHT_ENTDBG="1", NIGHT_ENTSPR="1", NIGHT_DENSE="0")

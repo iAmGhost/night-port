@@ -59,7 +59,8 @@ def find_img(cue: "Path | str | None" = None, extra: Path | None = None) -> Path
 
 
 def find_res(extra: Path | None = None) -> Path | None:
-    """NIGHT.RES -- the shipped install spells it upper case, scripts/extract_disc.py lower-case it."""
+    """NIGHT.RES, whatever case the tree happens to keep it in -- the container's own index spells the
+    six install entries lower case, `make extract` writes the spelling the disc uses (docs/455)."""
     if extra is not None:
         return Path(extra)
     for d in RES_BASES:
@@ -74,7 +75,7 @@ def find_exe(extra: Path | None = None) -> Path | None:
     """NIGHT.EXE -- the shipped DOS binary, which every disassembly probe in scripts/analysis reads.
 
     The installer's payload and the ISO copy are the same file, and `make extract` writes the former to
-    extracted/night.exe, so the probes keep working from the extracted tree.  NIGHT_EXE still names a
+    extracted/NIGHT.EXE, so the probes keep working from the extracted tree.  NIGHT_EXE still names a
     particular copy for a run that must say which one it measured.
     """
     if extra is not None:

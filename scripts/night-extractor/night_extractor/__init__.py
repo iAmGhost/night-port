@@ -6,10 +6,10 @@ InstallShield v3 SETUP.EXE to unpack TG_NIGHT.DAT into the game directory, and a
 first two and cuts the third down to size, so the port runs from one flat directory with no 633 MB
 image behind it:
 
-    extracted/night.res       the resource container the game opens as "night.res" (fn_03690b)
-    extracted/night.exe       the rest of the install set, byte-for-byte what SETUP.EXE installs
-    extracted/dos4gw.exe      (the port runs none of these; they are the install set, complete)
-    extracted/night.ico / night.bat / readme.txt
+    extracted/NIGHT.RES       the resource container the game opens as "night.res" (fn_03690b)
+    extracted/NIGHT.EXE       the rest of the install set, byte-for-byte what SETUP.EXE installs
+    extracted/DOS4GW.EXE      (the port runs none of these; they are the install set, complete)
+    extracted/NIGHT.ICO / NIGHT.BAT / README.TXT
     extracted/TG_NIGHT.CUE    copied: the TOC the MSCDEX shim answers from (src/cd/cd_iso.c)
     extracted/cd/trackNN.bin  one CD-DA track per file: raw 2352-byte frames, no header -- the SAME
                               byte ranges scripts/pocket/repack.py cuts for the Pocket's APF slots
@@ -26,7 +26,7 @@ THE FORMATS, measured on TG_NIGHT.IMG rather than taken from documentation:
   * TG_NIGHT.DAT is not an installer-only format at all: it is one NIGHT.RES container
     (docs/02-container.md) holding count = 6 -- the reverse-XOR-chain directory (b[i] ^= b[i-1] walking
     backwards, then b[0] ^= 0x20), then the blobs contiguous and uncompressed.  Its six entries are
-    exactly the install set, and night.res as decoded here comes out byte-identical to the installed
+    exactly the install set, and NIGHT.RES as decoded here comes out byte-identical to the installed
     copy the repo already ships in extracted/ -- the run re-measures that, it is not assumed.
   * TG_NIGHT.TGS is the installer's own compressed twin of the same six files (entropy 7.97, a name
     table at EOF listing DOS4GW.EXE, NIGHT.BAT, NIGHT.EXE, NIGHT.ICO, NIGHT.RES, README.TXT).  Nothing

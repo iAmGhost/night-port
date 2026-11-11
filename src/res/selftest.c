@@ -4,6 +4,7 @@
 #include "res.h"
 #include "data.h"
 #include <SDL3/SDL.h>
+#include <sys/stat.h>          /* res_path_or_die: which spelling of the container the tree keeps */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -256,9 +257,27 @@ int selftest(const char *res_path, const char *shot_dir) {
 }
 
 #ifdef RES_SELFTEST_MAIN
-/* Standalone driver: `make selftest [RES=extracted/night.res SHOTS=scratch/shots]`. */
+/* Standalone driver: `make selftest [RES=extracted/NIGHT.RES SHOTS=scratch/shots]`.  RES may name the
+ * container either way the tree spells it -- `make extract` writes the disc's upper case, and plenty of
+ * scripts and notes still say night.res. */
+static const char *res_path_or_die(const char *want) {
+    static char buf[512];
+    struct stat st;
+    if (want && *want) {
+        if (stat(want, &st) == 0) return want;
+        fprintf(stderr, "selftest: no %s -- run `make extract` (docs/455)\n", want);
+        exit(2);
+    }
+    for (int i = 0; i < 2; i++) {
+        snprintf(buf, sizeof buf, "extracted/%s", i ? "night.res" : "NIGHT.RES");
+        if (stat(buf, &st) == 0) return buf;
+    }
+    fprintf(stderr, "selftest: no extracted/NIGHT.RES -- run `make extract` (docs/455)\n");
+    exit(2);
+}
 int main(int argc, char **argv) {
-    const char *res   = (argc > 1) ? argv[1] : (getenv("RES")   ? getenv("RES")   : "extracted/night.res");
+    const char *res0  = (argc > 1) ? argv[1] : getenv("RES");
+    const char *res   = res_path_or_die(res0);
     const char *shots = (argc > 2) ? argv[2] : (getenv("SHOTS") ? getenv("SHOTS") : "/tmp/night-shots");
     return selftest(res, shots);
 }

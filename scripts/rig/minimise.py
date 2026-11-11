@@ -20,7 +20,7 @@ window and the port log, plus repro.sh which reproduces the same finding unatten
 import os as _os, sys as _sys, pathlib as _pathlib     # aliases: this file's imports come below
 _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.realpath(__file__)), ".."))
 from disc_loc import find_res as _find_res
-RES_DIR = str((_find_res() or _pathlib.Path("extracted/night.res")).parent)   # the extracted tree, docs/455
+RES_DIR = str((_find_res() or _pathlib.Path("extracted/NIGHT.RES")).parent)   # the extracted tree, docs/455
 import argparse
 import json
 import os

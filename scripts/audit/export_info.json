@@ -1,1 +1,1 @@
-{"program":"NIGHT.EXE","exe":"night.exe","symbols_exported":1032,"defined_data":30,"defined_data_all":2214,"functions":530,"data_xrefs":0,"mem_access":4499,"ghidra_functions":531,"ghidra_symbols":3042,"ghidra_defined_data":2216,"image_base":"0x0"}
+{"program":"NIGHT.EXE","exe":"NIGHT.EXE","symbols_exported":1032,"defined_data":30,"defined_data_all":2214,"functions":530,"data_xrefs":0,"mem_access":4499,"ghidra_functions":531,"ghidra_symbols":3042,"ghidra_defined_data":2216,"image_base":"0x0"}

@@ -69,7 +69,7 @@ def main():
     ap.add_argument("route")
     ap.add_argument("out", nargs="?", default="scratch/orig")
     ap.add_argument("--game-dir", default=None,
-                    help="the install set to mount as C: (default: the directory holding night.exe)")
+                    help="the install set to mount as C: (default: the directory holding NIGHT.EXE)")
     ap.add_argument("--cue", default=None, help="the CUE sheet to imgmount as D: (default: located)")
     ap.add_argument("--lead", type=float, default=4.0, help="seconds before the first scripted key")
     ap.add_argument("--tail", type=float, default=3.0)

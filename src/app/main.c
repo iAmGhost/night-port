@@ -1880,7 +1880,7 @@ int main(int argc, char **argv) {
             printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR] [--shots DIR]\n"
                    "              [--script FILE] [--shot-limit N] [--shot-delay MS] [--no-audio] "
                    "[--no-scene-shots] [--no-res-shots]\n"
-                   "  DIR holds night.res (default: extracted, what `make extract` builds); the disc is optional:\n"
+                   "  DIR holds NIGHT.RES (default: extracted, what `make extract` builds); the disc is optional:\n"
                    "  audio comes from DIR/cd/trackNN.bin, else DIR/TG_NIGHT.IMG, else there is no music and\n"
                    "  the game still runs -- fn_010c3e is satisfied by the compiled-in TOC (docs/455)\n"
                    "  NIGHT_NO_DISC=1 forces that; NIGHT_REQUIRE_DISC=1 makes a missing disc fatal instead\n");

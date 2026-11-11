@@ -75,6 +75,14 @@ the app's side, and land nowhere, for six boots (docs/454). The cores on the car
 (Quake, Doom) both declare `10`–`19` contiguously, so this is the shape the platform expects. A build
 whose log slot sits below a hole in the table is a build that is blind.
 
+The card ships **`LOG=0`**: no file is written, and a boot leaves nothing on the card behind. That is the
+player shape and the default. Logging is a switch, not a state -- flip it with
+`scripts/pocket/logswitch.sh on` before a diagnostic boot and `off` after (it prints what the card now
+says, because `deploy.sh` regenerates `night.ini` from the dist tree and has quietly reverted hand-edits
+before: docs/428). `LOG=1` writes `Saves/night/common/nightlog.sav` every 32 lines; a build with a
+quarter-megabyte file being committed ~0.6 times a second is not the build a feel judgement is valid on
+(docs/452).
+
 ## 3. Reporting a hardware run
 
 Eject, boot, play, eject, mount, then

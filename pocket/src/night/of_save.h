@@ -2,7 +2,7 @@
  *
  *
  * The name outlives the feature. There used to be save slots here, and they were removed in 0.2.23
- * (docs/449): the shipped game has no save concept -- src/f names no save file and NIGHT/ ships none
+ * (docs/449): the shipped game has no save concept -- src/f names no save file and the shipped game ships none
  * (docs/374) -- so the port offering saves was the port inventing a feature. What remains, and what the
  * file's remaining 450 lines are for, is night.ini plus the Core-Options bridge and its peripheral mirror. */
 #ifndef NIGHT_OF_SAVE_H

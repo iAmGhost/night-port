@@ -77,6 +77,6 @@ the first real exercise of the `.wal` room recursion (`fn_03c853`), the `.stg` r
 kinds other than 1/5 appear in real data) and the `.spr`/`.act` loaders over real bytes.
 
 ```sh
-make test           # runs test_real_res_container against ../NIGHT/NIGHT.RES
+make test           # runs test_real_res_container against extracted/NIGHT.RES (docs/455)
 NIGHT_RES_DIR=/path/to/dir ./build/test_f1
 ```

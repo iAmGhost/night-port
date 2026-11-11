@@ -38,7 +38,7 @@ removed.
 
 ## The disc
 
-`NIGHT/TG_NIGHT.CUE` declares `TRACK 01 MODE1/2352` and **tracks 02..15 as AUDIO** — 15 tracks,
+`TG_NIGHT.CUE` declares `TRACK 01 MODE1/2352` and **tracks 02..15 as AUDIO** — 15 tracks,
 269 453 sectors. Data sectors in this image carry the ISO user data at offset 16 (`CD001` measured at
 byte 17 of the PVD at LBA 16), which `cd_iso.c` already relied on.
 

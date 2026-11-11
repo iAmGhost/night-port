@@ -2706,7 +2706,7 @@ static void __attribute__((noinline)) warp_entry_pump(void) {
 
 /* L1 held + Up traces the next FDUMP_FRAMES presents into the log; L1 + B cycles the panel fit.
  * L1+Select / L1+Start / L1+A used to be save / load / cycle-slot and are GONE (docs/449): the shipped
- * game has no save concept at all -- src/f names no save file and NIGHT/ ships none (docs/374) -- so a
+ * game has no save concept at all -- src/f names no save file and the shipped game ships none (docs/374) -- so a
  * save was the port inventing a feature, and its masked restore only ever half-worked. Dropping the combo
  * also drops its unavoidable side effect: Select and Start are Esc and Enter to the game, so every save
  * press reached the shipped pause menu. */

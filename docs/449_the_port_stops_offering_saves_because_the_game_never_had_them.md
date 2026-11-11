@@ -17,7 +17,7 @@ combos. It did not work as a save:
   class on 11 buttons), so every save press also poked the pause menu — which is the very code path whose
   flicker exposure docs/445 later found.
 - A save of a game with no save concept is a feature the port invents, and this project's standard is that we
-  do not invent: the shipped `src/f` names no save file (only `exptab.dat`), and `NIGHT/` ships none.
+  do not invent: the shipped `src/f` names no save file (only `exptab.dat`), and the shipped game ships none.
 
 ## 2. What went, and what deliberately stayed
 

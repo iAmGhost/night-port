@@ -100,7 +100,7 @@ than top-left sampling, because averaging palette **indices** is meaningless; ne
 
 ## 5. Disc seam
 
-`scripts/pocket/gen_disc.py` compiles `NIGHT/TG_NIGHT.CUE` into `disc_table.h` with the same arithmetic
+`scripts/pocket/gen_disc.py` compiles `TG_NIGHT.CUE` into `disc_table.h` with the same arithmetic
 as `src/cd/cd_iso.c` (LBA = MSF frames + accumulated PREGAP): 15 tracks, first 1 last 15, pregap 150,
 `DISC_TOTAL_SECTORS 269453`, track 2 at 37262, track 3 at 40415 — i.e. the values the shipped disc
 really reports, and the difference 3153 = 0xc51 that `fn_010c3e` compares (docs/67).  `of_disc.c`

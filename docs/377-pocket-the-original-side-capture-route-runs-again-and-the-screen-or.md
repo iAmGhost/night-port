@@ -4,7 +4,7 @@ Two things that were assumed available got re-verified on the machine today, and
 
 ## 1. dosbox-automation in the container still runs the original
 
-`dbga:ready` (the image committed in docs/46's solving) plus the mounted `NIGHT/` tree, `night.conf` with `NIGHT`
+`dbga:ready` (the image committed in docs/46's solving) plus the mounted install set (`extracted/`), `night.conf` with `NIGHT`
 appended to `[autoexec]`:
 
 ```

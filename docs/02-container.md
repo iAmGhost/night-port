@@ -6,7 +6,7 @@ all 444 assets extracted and verified.**
 
 ## TL;DR
 
-- `NIGHT/NIGHT.RES` (50,964,894 B) is a flat archive: **444 entries, stored uncompressed**.
+- `NIGHT.RES` (50,964,894 B; `extracted/NIGHT.RES` once `make extract` has run, docs/455) is a flat archive: **444 entries, stored uncompressed**.
 - The CD's `NIGHT.DAT`/`NIGHT.TGS` are the *installer's* payload archives (they contain the raw
   loose assets + DOS4GW/DOS16M loader files) — **not needed** for the port.
 - Container header/dir is obfuscated with a tiny reverse-XOR chain (decoded below).

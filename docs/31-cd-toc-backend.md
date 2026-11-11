@@ -23,7 +23,7 @@ stride **5** is `{BYTE trackNumber; DWORD startLBA}` per track. That explains th
 
 ## The numbers fall out of the real disc
 
-`NIGHT/TG_NIGHT.CUE` lists **TRACK 01 MODE1/2352 + TRACK 02..15 AUDIO** → 15 tracks, so
+`TG_NIGHT.CUE` lists **TRACK 01 MODE1/2352 + TRACK 02..15 AUDIO** → 15 tracks, so
 `DAT_00053c60 = 15 - 1 + 1 = 0xf` ✓ (the gate's first condition).
 
 `TRACK 02` carries `PREGAP 00:02:00`, i.e. 150 sectors of virtual silence that are *not* in the IMG, so

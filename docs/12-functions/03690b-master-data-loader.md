@@ -95,7 +95,7 @@ is Ghidra's reg-ABI artifact).
 4. **Integration requirement (mid-subsystems task):** `fn_04270d("night.res","rb")` and every
    `fn_0367c9`/`fn_04192e` read eventually reach `sys_file_read` / `sys_file_lseek`, which are stubs
    ("no CD backend"). To run for real, the sys layer needs a resource backend that
-   (a) opens `NIGHT.RES` from `NIGHT/TG_NIGHT.IMG` (or the loose `NIGHT/NIGHT.RES`),
+   (a) opens `NIGHT.RES` from `TG_NIGHT.IMG` (or the loose `NIGHT.RES`),
    (b) tracks a per-handle position so `fn_04247a`'s mode-0 seek sees `cur - remaining == buffered
    start`, and (c) refills the reader node in `fn_041d18`/`fn_041d47`. Until then, tests feed
    synthetic streams (see the `0x0366a4` / `0x03d9cf` tests and the `sys_file_lseek_pos` knob).
@@ -142,7 +142,7 @@ independently:
 **Consequence for the plan:** `0x03690b` is no longer a standalone function port; it is gated on the
 CD/resource backend (mid-subsystems task). Order of work: (1) unify the `DAT_53730` aliases,
 (2) give `sys_file_open/read/lseek` + `fn_04488b` a real handle model (a memory or file-backed
-resource reader over `NIGHT/NIGHT.RES` / `TG_NIGHT.IMG`), (3) re-run `scripts/analysis/ins3690b.py`, add the
+resource reader over `NIGHT.RES` / `TG_NIGHT.IMG`), (3) re-run `scripts/analysis/ins3690b.py`, add the
 structural test (its body is in this file's history and worked up to the open), then mark the row.
 
 ## Attempt log 2 (same day): open chain fixed, new blockers found

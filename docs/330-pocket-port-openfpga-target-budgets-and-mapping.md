@@ -68,12 +68,12 @@ its measurements carry directly to NIGHT:
 Original-side sizes (`stat`):
 
 ```
-NIGHT/NIGHT.EXE   311,831 B
-NIGHT/NIGHT.RES  50,964,894 B   (444 assets, docs/02)
-NIGHT/TG_NIGHT.IMG 633,400,656 B = 269,303 x 2352-byte sectors
+NIGHT.EXE    311,831 B
+NIGHT.RES   50,964,894 B   (444 assets, docs/02)
+TG_NIGHT.IMG 633,400,656 B = 269,303 x 2352-byte sectors
 ```
 
-`NIGHT/TG_NIGHT.CUE` → 15 tracks; the IMG carries **no** PREGAP, so IMG sectors = disc frames − 150
+`TG_NIGHT.CUE` → 15 tracks; the IMG carries **no** PREGAP, so IMG sectors = disc frames − 150
 (the same offset `src/cd/cd_iso.c` uses).  Track layout in sectors/bytes:
 
 | track | start frame | sectors | raw bytes | minutes |
@@ -128,7 +128,7 @@ size build/night → __TEXT 409,600   __DATA 69,730,304
   sample, DMA ch1) and the sys layer turns each transfer into PCM bytes (`src/sys/sys.c:149-290`,
   docs/04, docs/98).  Per-transfer mono 8-bit PCM at a per-sample rate is *exactly* the shape of
   `of_mixer_play(pcm, count, rate, pri, vol)`.
-- The shipped game's own spec is the strongest feasibility argument: `NIGHT/README.TXT:42-43` (CP949)
+- The shipped game's own spec is the strongest feasibility argument: `README.TXT:42-43` of the install set (CP949)
   requires **minimum 486DX2-66, recommended Pentium 75 MHz or better**.  A 100 MHz single-issue cached
   RISC-V sits inside that envelope for scalar code, so the game's own per-frame work is expected to fit —
   the risk is our host overhead, not the game.
@@ -211,8 +211,8 @@ before task-7 closes.
 
 ```sh
 cd ~/Git/night-port && make app
-stat -f "%z %N" NIGHT/TG_NIGHT.IMG NIGHT/NIGHT.RES NIGHT/NIGHT.EXE
-iconv -f CP949 -t UTF-8 NIGHT/README.TXT | sed -n '40,45p'      # CPU requirement
+stat -f "%z %N" TG_NIGHT.IMG extracted/NIGHT.RES extracted/NIGHT.EXE
+iconv -f CP949 -t UTF-8 extracted/README.TXT | sed -n '40,45p'      # CPU requirement
 size build/night                                                 # text 409,600 / data 69,730,304
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_BOARD=1 \
   ./build/night --script scripts/playtest/route_show_keyed.txt --warp-stage 1 --no-audio --frames 3000 2>&1 \
@@ -220,5 +220,5 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy NIGHT_BOARD=1 \
 time ( ... same command ... )                                    # 54.5 fps, 1 core
 ```
 
-Track table: convert `NIGHT/TG_NIGHT.CUE` index times with frames = `(mm*60+ss)*75+ff`, sector = 2352 B,
+Track table: convert `TG_NIGHT.CUE` index times with frames = `(mm*60+ss)*75+ff`, sector = 2352 B,
 and note IMG = disc frames − 150 (the PREGAP is not in the file).

@@ -1,7 +1,7 @@
 # 0x0461cc — analysis spec (NOT yet ported): the software x87 FPU emulator
 
 Ground truth: `scratch/dis_461cc.txt` (capstone listing of the full 2998-byte body, produced with
-`scratch/vad.py`, which maps **Ghidra flat VA = file offset + 0x2600** in `NIGHT/NIGHT.EXE`;
+`scratch/vad.py`, which maps **Ghidra flat VA = file offset + 0x2600** in `NIGHT.EXE`;
 code segment base 0x10000, data segment base 0x50000 — so `cs:[ebx*4+0x35e78]` == VA 0x45e78 and
 `ds:[0x3650]` == VA 0x53650).
 

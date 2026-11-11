@@ -25,24 +25,37 @@ decoder, not a new reverse-engineering job. `SETUP.LST` says `1; Night.tgs` and 
 it *produced* is what `NIGHT.DAT` contains verbatim:
 
 ```
-dos4gw.exe    265 420 B   dd9f4f342533    night.res   50 964 894 B   eef68c5a4624
-night.exe     311 831 B   6cf96173537f    night.bat          40 B   b8eb292cfd91
-night.ico       2 238 B   33d2f2cc4e87    readme.txt    19 283 B   362f3e032505
+DOS4GW.EXE    265 420 B   dd9f4f342533    NIGHT.RES   50 964 894 B   eef68c5a4624
+NIGHT.EXE     311 831 B   6cf96173537f    NIGHT.BAT          40 B   b8eb292cfd91
+NIGHT.ICO       2 238 B   33d2f2cc4e87    README.TXT    19 283 B   362f3e032505
 ```
 
-All six match the copies in `NIGHT/` byte for byte — `extract_disc.py` prints that comparison itself
-instead of asking to be believed. (`readme.txt` is 19 283 B in both, so the shipped `README.TXT` is the
-disc's own, not a later edit.) Names are written lower case because that is how the container's index
-spells them and it is the exact string `fn_03690b` opens: `open("night.res")`. On the case-insensitive
-APFS this runs on that is invisible; on Linux it is the difference between booting and "NIGHT.RES File
-Not Found!!!".
+All six match the installed copies byte for byte — `extract_disc.py` prints that comparison itself
+instead of asking to be believed. (`README.TXT` is 19 283 B in both, so the shipped one is the disc's
+own, not a later edit.)
+
+**The names are the disc's, which means upper case.** NIGHT.DAT's own index spells its six entries lower
+case — `night.res`, `readme.txt` — and that is the spelling SETUP.EXE would have put on a DOS disk. The
+disc spells them upper: ISO9660 forces A-Z, the installer's name table at the EOF of NIGHT.TGS lists
+`DOS4GW.EXE NIGHT.BAT NIGHT.EXE NIGHT.ICO NIGHT.RES README.TXT`, and the string NIGHT.EXE prints when
+the container is missing is `"NIGHT.RES File Not Found!!!"` (`src/f/f.c:2915`). Bytes come out of a CD
+image, so they keep the image's spelling; the container index's spelling is recorded per file in the
+note column of `MANIFEST.tsv`.
+
+What *opens* the file is the game's own lower-case string — `fn_03690b` does `open("night.res")`
+(`src/f/f.c:2907`, straight out of the executable). So the seam answers a DOS name the way DOS did:
+try the name as given, and on a miss look it up in the resource directory (`sys_file_real_lookup()`,
+`src/sys/sys.c:569`, guarded so the Pocket's slot-based host compiles it out). On the case-insensitive
+APFS this runs on the two spellings are the same file; on a case-sensitive host — Linux — the fallback
+is the difference between booting and the game's own not-found banner, and that nothing complained
+earlier is a measurement of how much APFS forgives. `test_sys_file_case_insensitive` is the fixture.
 
 ## Two geometry traps, both caught by bytes rather than by reading
 
 **A file is not its image.** The first version addressed `NIGHT.DAT`'s blobs as `img[lba*2352+16+off]`,
 i.e. treated the ISO9660 file as contiguous bytes in the raw track. That yields the *right sizes with the
 wrong bytes*: every blob past its first sector was 16 bytes short per sector travelled, and
-`night.res` came out 50 964 894 B and did not match. `IsoStream` in the script now maps file byte *N* to
+the container came out 50 964 894 B and did not match. `IsoStream` in the script now maps file byte *N* to
 `img[(first + lba + N/2048)*2352 + 16 + N%2048]` in one place, and the byte-identical line above is what
 made that visible.
 
@@ -59,7 +72,7 @@ halves agree, and a name length that makes the record exactly as long as it clai
 ## `extracted/`, and why the audio is `cd/trackNN.bin`
 
 ```
-extracted/night.res . night.exe . dos4gw.exe . night.ico . night.bat . readme.txt    51 563 706 B
+extracted/NIGHT.RES . NIGHT.EXE . DOS4GW.EXE . NIGHT.ICO . NIGHT.BAT . README.TXT   51 563 706 B
 extracted/TG_NIGHT.CUE                                                                669 B
 extracted/cd/track02.bin .. track15.bin                                            546 113 232 B
 extracted/cd/manifest.tsv, extracted/MANIFEST.tsv   (bytes, sha256, source range per file)
@@ -76,7 +89,7 @@ image's 269 303 sectors + the 150-sector PREGAP: the same lead-out either way.
 Re-runs are idempotent (0.3 s: one stat per file, hashes carried from the previous manifest),
 `--only game|audio|cue` and `--force` exist, and `--verify` re-hashes all 21 files against
 `MANIFEST.tsv`. Files are written to `.part` and renamed, so an interrupted run cannot leave a
-half-cut `night.res` that the next run would trust by size.
+half-cut `NIGHT.RES` that the next run would trust by size.
 
 ## The port: one TOC, two byte sources
 
@@ -101,7 +114,7 @@ disc: 15 tracks, 269453 sectors, lead-out MSF-derived, audio from extracted/cd
 
 Two refusals are part of the design, not accidents: a disc LBA inside the MODE1 track has no owning
 file, so it is refused instead of answered with silence, and `cd_iso_read_sector()` is refused when the
-image is absent — nothing in the port reads ISO user data (the resources come out of `night.res`), so
+image is absent — nothing in the port reads ISO user data (the resources come out of `NIGHT.RES`), so
 there is no second source to fake it from.
 
 The track files' own lengths are what bound the last track, since the CUE's last INDEX has nothing after
@@ -191,7 +204,7 @@ depends on the install. Its output layout is the same either way.
 
 `fn_010c3e` polls the MSCDEX TOC until `DAT_00053c60 == 0xf` and the two records it compares differ by
 `0xc51`. That is a signature check of the original pressing, and answering it meant parsing a CUE — which
-made disc data a **start-up** requirement: a tree with nothing but `night.res` painted `cdinsert.pcx`
+made disc data a **start-up** requirement: a tree with nothing but `NIGHT.RES` painted `cdinsert.pcx`
 forever and never began. The gate is now satisfied without any disc, and the music is simply not there.
 
 `src/gen/disc_toc.h` carries the geometry — 15 tracks, their disc LBAs, the total 269 453 sectors — and
@@ -258,7 +271,7 @@ moved.
 
 `test_cd_iso_no_disc()` is the fixture: the geometry the header must carry, the refusals, `fn_010c3e`
 entering and returning with no `cdinsert.pcx` and no CD stop, and both environment knobs. A 4 000-frame
-boot from a directory holding only `night.res` reaches the same card sequence (`card_168`) as the same
+boot from a directory holding only `NIGHT.RES` reaches the same card sequence (`card_168`) as the same
 run on the complete tree, with `plays` counted and `cdda=0B` streamed.
 
 ## Not claimed
@@ -266,5 +279,5 @@ run on the complete tree, with `plays` counted and `cdda=0B` streamed.
 `NIGHT.TGS` is still undecoded — high entropy, a directory at EOF, described above only as far as the
 evidence goes. The ISO reader is deliberately minimal (depth-limited, one FILE line, no Rock Ridge or
 Joliet), and `cd_iso_read_sector()` cannot serve ISO sectors from the per-track layout or from no layout
-at all. None of it is on the path the game walks: the resources come from `night.res` and the music,
+at all. None of it is on the path the game walks: the resources come from `NIGHT.RES` and the music,
 when there is any, from the track files.

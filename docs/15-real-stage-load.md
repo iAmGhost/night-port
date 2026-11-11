@@ -2,7 +2,7 @@
 
 Added 2026-07-13. With the real-file backend (`docs/14-real-resource-backend.md`) in place, the port now
 runs `fn_03690b` (master data load) → `fn_037b03(0)` (stage load) → `fn_0376c8` (hero spawn) **against the
-shipped `NIGHT/NIGHT.RES`**, inside the test suite (`test_real_master_load`, 29 checks; skips cleanly when
+shipped `NIGHT.RES`**, inside the test suite (`test_real_master_load`, 29 checks; skips cleanly when
 the container is absent, `NIGHT_RES_DIR` overrides the default `../NIGHT`).
 
 ## The blocker: fresh heap regions were 4 bytes too small

@@ -48,7 +48,7 @@ playing -- 3137 evaluations of the camera condition, no state move, `rc=0`.
 ## The shipped counts, measured from the container
 
 `stageN.wal`'s first dword -- the dword the loader stores to DAT_000639d8 -- decoded straight out of
-`NIGHT/NIGHT.RES` (independent XOR-chain decode, same format as `scripts/extract_res.py`):
+`NIGHT.RES` (independent XOR-chain decode, same format as `scripts/extract_res.py`):
 
 | episode | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
 |---|---|---|---|---|---|---|---|---|---|

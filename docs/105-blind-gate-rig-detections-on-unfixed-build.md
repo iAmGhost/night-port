@@ -95,7 +95,7 @@ Entity/resource records: the rig dumps 64 bytes at every pointer cell on both si
 offsets `+0x00 +0x04 +0x05 +0x06` (shipped `0x0a/0x34/0xd8/0x28` vs port `0x80/0x80/0x80/0x80`).
 Those cells are not entity records: the port's own names say they are resource blocks — `dust.spr`
 (0x63dd4), `gage.spr` (0x63e00), `pause.spr` (0x63e0c), `system.spr` (0x639c0), `catch4.key` (0x62ac4),
-allocated by `spr_block()` (f.c:2448) — and there is no such file in `NIGHT/`, so the shipped game builds
+allocated by `spr_block()` (f.c:2448) — and there is no such file in the install set, so the shipped game builds
 them at runtime. The port's copies are still allocator-poison (`0x80`) in every combat window: **the port
 allocates these blocks and never fills them.** The static audit already marks the pair as `PTR` ("host
 slot 8 B vs guest 4 B", the docs/94 offset-vs-pointer family), and this is that family confirmed at

@@ -12,8 +12,8 @@
   the current directory, then a `NIGHT/` under it -- so a rip under any name works: docs/455)
 - ./scratch: regenerable caches only (extracted assets, decoded frames, captured runs); anything you can rebuild
   with ./scripts. Analysis work and evidence live in ./scripts and ./analysis instead.
-- ./extracted: the original game's files, and what `make extract` builds -- the install set (night.exe,
-  night.res), TG_NIGHT.CUE and one raw-frame file per CD-DA track, so the port runs with no disc image at
+- ./extracted: the original game's files, and what `make extract` builds -- the install set (NIGHT.EXE,
+  NIGHT.RES), TG_NIGHT.CUE and one raw-frame file per CD-DA track, so the port runs with no disc image at
   all (`./build/night` with no arguments; `scripts/extract_disc.py` and `night-extractor` are the same tool).
   570 MB, git-ignored, regenerable in ~3 min; docs/455 is the write-up and `make extract-verify` re-hashes it.
   What a boot means changes with: `NIGHT_RES_DIR` (resources), `NIGHT_CD_DIR` (per-track files vs the image),

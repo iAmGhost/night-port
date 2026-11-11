@@ -24,7 +24,7 @@ samples every 100 ms, so the two runs offered 417 and 459 state samples for the 
 on is the game's own state, so every test below compares sets, ordered sequences, or samples keyed by the rig's own
 sample index -- never "frame k against frame k".  (docs/333 hit the same wall and compared mean RGB instead.)
 
-## 3. Result, three routes (`NIGHT_SEED=1234`, `--warp-stage N --frames 2500`, Pocket shim reading `scratch/pocket/cd`, SDL host reading `NIGHT/TG_NIGHT.IMG`)
+## 3. Result, three routes (`NIGHT_SEED=1234`, `--warp-stage N --frames 2500`, Pocket shim reading `scratch/pocket/cd`, SDL host reading `TG_NIGHT.IMG`)
 
 ```
 python3 scripts/pocket/diff_hosts.py /tmp/xpoc/s1 /tmp/xsdl/s1  /tmp/xpoc/s3 /tmp/xsdl/s3  /tmp/xpoc/s8 /tmp/xsdl/s8

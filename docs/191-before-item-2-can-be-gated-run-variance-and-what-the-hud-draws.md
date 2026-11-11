@@ -63,6 +63,6 @@ and the screen side is only the confirmation.  `NIGHT_GLYPHDBG` already exists a
 
 1. Reproduce the census through `route.sh` twice and attribute the variance (drive predicates vs frame-loop timing).
    Without this, item 2b's fix evidence is not admissible.
-2. Byte-compare the port's `exp.spr`/`exptab.dat` load against the shipped files (`NIGHT/exptab.dat` is on disk;
-   `exp.spr` is a disc resource) and re-derive the label/digit index arithmetic from guest `0x000137c1-0x000138ba`.
+2. Byte-compare the port's `exp.spr`/`exptab.dat` load against the shipped files (`exptab.dat` is an entry of
+   `NIGHT.RES`, docs/02; `exp.spr` is a disc resource) and re-derive the label/digit index arithmetic from guest `0x000137c1-0x000138ba`.
 3. Then, and only then, use the HUD crop above as the "before" picture for item 2a.

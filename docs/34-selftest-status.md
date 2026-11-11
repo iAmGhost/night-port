@@ -9,7 +9,7 @@ Found while working toward the "assets byte-exact" requirement. The target had r
 Fixed: the target builds with the same `SDL_CFLAGS`/`SDL_LIBS` the SDL host uses, and `selftest.c` gains a
 `RES_SELFTEST_MAIN` driver (`make selftest`, overridable with `RES=` / `SHOTS=` or argv).
 
-## Result of the first real run (`RES=../NIGHT/NIGHT.RES`)
+## Result of the first real run (`RES=extracted/NIGHT.RES`)
 
 10 checks PASS, 6 FAIL -- all six from one cause: **the screenshot directory was never created**, so every
 PNG write (`pcx_logo.png`, the five sprite sheets `pause`/`number1`/`ena-1`/`boss1`/`gun`) failed. The asset

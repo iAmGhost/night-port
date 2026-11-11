@@ -95,7 +95,7 @@ state.
 
 ## 5. Verification
 
-- Track list & LBAs from `NIGHT/TG_NIGHT.CUE`; WAV extraction
+- Track list & LBAs from `TG_NIGHT.CUE`; WAV extraction
   `scripts/cdda2wav.py` run 2026-10-14: 14/14 tracks, sizes 1.9 MB–64.4 MB.
 - Fingerprint cross-check: 40265 − 37112 = 3153 = 0xC51 = the EXE's check
   value ✓.

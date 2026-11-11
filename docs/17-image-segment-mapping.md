@@ -1,6 +1,6 @@
 # NIGHT.EXE segment mapping (code vs data)
 
-Extracting bytes straight out of `NIGHT/NIGHT.EXE` needs **two different VA -> file offsets**, because
+Extracting bytes straight out of `NIGHT.EXE` needs **two different VA -> file offsets**, because
 the flat DOS32A (Watcom) image is not stored contiguously:
 
 | region | VA range (approx) | file offset |

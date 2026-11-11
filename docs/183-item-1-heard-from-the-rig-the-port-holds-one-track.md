@@ -64,7 +64,7 @@ Three differences, all measurable:
 
 `music_melody.py` (peak-set IoU; positive control 0.966, negative band 0.19-0.43 per docs/131) against the shipped
 mixer capture `/tmp/rig/g36/orig/audio.wav` (28 339 936 B) with templates taken straight from
-`NIGHT/TG_NIGHT.IMG`:
+`TG_NIGHT.IMG`:
 
 | template | LBA | best mean peak-set IoU | where | verdict |
 |---|---|---|---|---|

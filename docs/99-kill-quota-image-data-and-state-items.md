@@ -50,7 +50,7 @@ make -j8 build/night && SDL_VIDEODRIVER=dummy NIGHT_HITTRACE=1 ./build/night \
   --script ../scripts/playtest/route_fight8.txt --no-audio --frames 6000 | grep -E "HIT|stage="
 python3 - <<'EOF'   # file side
 import struct
-exe=open('NIGHT/NIGHT.EXE','rb').read(); off=0x52a1c-0x7600
+exe=open('extracted/NIGHT.EXE','rb').read(); off=0x52a1c-0x7600
 print(struct.unpack('<315I', exe[off:off+0x4ec])[:20])
 EOF
 ```

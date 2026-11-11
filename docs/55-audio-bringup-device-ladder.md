@@ -101,7 +101,7 @@ pump), and the null driver does not consume at the rate the game produces, so on
 220027 B were handed over in this window -- on a real device the stream drains in real time.
 
 A regression check now pins the default (`DAT_53338` starts 1). Worth adding later: a suite check that
-cross-reads `NIGHT/NIGHT.EXE` and compares DS-resident defaults against the image (the class of bug this
+cross-reads `NIGHT.EXE` and compares DS-resident defaults against the image (the class of bug this
 was), skipping cleanly when the image is absent.
 
 Still open for this task: CD-DA. The sys layer models only MSCDEX *stop audio* (`sys_cd_audio_stop`);

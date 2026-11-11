@@ -131,11 +131,12 @@ visible ladder therefore comes from the roll-up on both sides, which the census 
 
 ## 6c. Two side results from re-running the pre-fix build (`d22e4a7` in `/tmp/prefix`)
 
-* **Independent red for the docs/116 SEGV.** Running the pre-fix binary with `--res-dir NIGHT` from the
-  worktree (where `NIGHT/` is not checked out) crashed with `rc=139` right after
-  `disc: NIGHT/TG_NIGHT.CUE not readable`, i.e. the missing-resource path still dereferenced a flat-model
-  offset as a host pointer. Pointing `--res-dir` at the real `NIGHT/` directory, the same pre-fix binary
-  runs to completion (`frames presented: 12106`), and the current build never crashes in that path at all.
+* **Independent red for the docs/116 SEGV.** Running the pre-fix binary with `--res-dir` at a tree that
+  held no disc data crashed with `rc=139` right after `disc: TG_NIGHT.CUE not readable`, i.e. the
+  missing-resource path still dereferenced a flat-model offset as a host pointer. Pointing `--res-dir` at
+  the real install set — `extracted/`, what `make extract` builds today (docs/455) — the same pre-fix
+  binary runs to completion (`frames presented: 12106`), and the current build never crashes in that
+  path at all.
   That is a rig-produced before/after pair for that item, no human inspection involved.
 * **The EXP ladder cannot be shown red at record level on that build.** Its `meta.json` declares 243 cells
   but none of their record regions carries an entity record (`hp@+0x29 == 0x3e8` matches zero blocks), which

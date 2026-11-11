@@ -29,7 +29,7 @@ Inert unless `NIGHT_CD_AUDIT=<file>` is set, in both hosts. Nothing on the devic
 NIGHT_CD_DIR=scratch/pocket/cd NIGHT_CD_AUDIT=/tmp/audrun/pocket.tsv \
   ./pocket/src/night/app_pc --warp-stage 1 --frames 2000 --rig-witness 0
 # the SDL host (direct IMG reads)
-NIGHT_CD_DIR=NIGHT/TG_NIGHT.CUE NIGHT_CD_AUDIT=/tmp/audrun/sdl.tsv ./build/night --warp-stage 1 --frames 2000
+NIGHT_CD_DIR=extracted/cd NIGHT_CD_AUDIT=/tmp/audrun/sdl.tsv ./build/night --warp-stage 1 --frames 2000
 python3 scripts/pocket/audit_disc.py /tmp/audrun/pocket.tsv
 ```
 

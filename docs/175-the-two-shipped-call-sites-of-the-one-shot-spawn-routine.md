@@ -87,7 +87,7 @@ type046_003a26e4.bin                        (8192 B each)
 the code-11 hit on the port's player is now captured as bytes.
 
 One negative result that shapes the comparison: the first 64 bytes of every dumped container are **not found** in
-`NIGHT/NIGHT.RES`.  The assets in `NIGHT.RES` are packed and the loader expands them into the arena, so a raw
+`NIGHT.RES`.  The assets in `NIGHT.RES` are packed and the loader expands them into the arena, so a raw
 byte-for-byte compare against the resource file is the wrong test -- the comparison has to go through the decoder
 (`scripts/extract_res.py` / `scripts/decode_act.py`, which is byte-exact against the C `act_decode` per the
 selftest) rather than against the container file.  Recorded before anyone spends a session proving an equality

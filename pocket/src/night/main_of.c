@@ -420,6 +420,17 @@ static void present(void);                        /* defined below; present_step
  * second suspect (docs/404, docs/408). */
 static uint64_t g_boot_us, g_us_pump_sum;
 static uint64_t g_last_frame_us, g_gap_max_us;
+
+/* docs/456 10: the shape of the gap, not just its worst case.  `gap worst` cannot tell 15 ms and 50 ms
+ * frames arriving ALTERNATELY -- which the eye reads as a hitch -- from a machine delivering a steady 30 ms,
+ * because both report the same maximum.  It cost an argument to learn that: the boot the player called
+ * smooth still held a 146 ms gap on the slide path, while the stuttering boot's windows alternated
+ * 13.3/13.7 fps for nine in a row -- judder WITH A PERIOD.  A histogram of the gaps the panel felt is the
+ * reading that separates those two without somebody telling me which boot is which.  Buckets are powers
+ * of two in ms, reset with the maximum, so the line describes the window it prints in.
+ *
+ * The cost is four compares on a value already computed, once per present. */
+static uint32_t g_gap_hist[5];                      /* <20 / 20-40 / 40-80 / 80-160 / 160+ ms */
 /* docs/433: the tail of the gap distribution is the user's complaint (p99 1 380 ms, max 2 998 ms in the
  * 0.2.9 run), and nothing in the log said what the port was DOING during those seconds. So when the loop
  * has gone STALL_MS without a present, it testifies once as the stall grows -- naming the resource the game
@@ -970,6 +981,8 @@ static void present_step(uint64_t now) {
         if (g_last_frame_us) {                       /* the gap the panel actually felt (docs/431) */
             uint64_t gap = t0 - g_last_frame_us;
             if (gap > g_gap_max_us) g_gap_max_us = gap;
+            g_gap_hist[gap < 20000ull ? 0u : gap < 40000ull ? 1u : gap < 80000ull
+                       ? 2u : gap < 160000ull ? 3u : 4u]++;   /* docs/456 10 */
         }
         g_last_frame_us = t0;
         g_stall_logged_us = 0;                /* a present ends the current stall's story */
@@ -2950,9 +2963,12 @@ static void __attribute__((noinline)) diag_report(uint64_t now, uint32_t hz) {
                 {   /* worst frame gap since the last report: average fps hid the thing the eye actually
                      * complains about, so choppiness gets its own number (docs/431) */
                     uint64_t now2 = sys_now_us();
-                    NLOG("gap worst=%ums since report (last frame %ums ago)\n",
-                         (unsigned)(g_gap_max_us / 1000u), (unsigned)((now2 - g_last_frame_us) / 1000u));
+                    NLOG("gap worst=%ums since report (last frame %ums ago) | hist <20/%u 20-40/%u 40-80/%u"
+                         " 80-160/%u 160+/%u\n",
+                         (unsigned)(g_gap_max_us / 1000u), (unsigned)((now2 - g_last_frame_us) / 1000u),
+                         g_gap_hist[0], g_gap_hist[1], g_gap_hist[2], g_gap_hist[3], g_gap_hist[4]);
                     g_gap_max_us = 0;
+                    for (int gi = 0; gi < 5; gi++) g_gap_hist[gi] = 0u;
                 }
                 {   /* where the wall actually went, this run, in whole milliseconds.
                      * docs/429: 0.2.5 split it 67% present / 25% rest / 8% disc / 0.1% tick loop, and the

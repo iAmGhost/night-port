@@ -35,7 +35,8 @@
   const $ = (id) => document.getElementById(id);
   const canvas = $('screen'), statusEl = $('status'), logEl = $('log'), hudEl = $('hud');
   const holderEl = $('screen-holder'), scaleEl = $('btn-scale'), padEl = $('pad'), padBtnEl = $('btn-pad');
-  const gateEl = $('gate'), gateStart = $('btn-start'), gateStatusEl = $('gate-status');
+  const gateEl = $('gate'), gateStart = $('btn-start'), gateStatusEl = $('gate-status'),
+        gatePadEl = $('gate-pad');
 
   /* `say` writes the HUD line; `gate` writes the gate's line while it is still the thing being looked at.
    * Two lines because the preload runs while the overlay covers the canvas, and a status nobody can see
@@ -267,7 +268,7 @@
     seen.up++; seen.push++;
     keyPush(e.code, false);
   }, { passive: false });
-  window.addEventListener('blur', () => { padReleaseAll(); for (const c in DOS) keyPush(c, false); });
+  window.addEventListener('blur', () => { gpReleaseAll(); padReleaseAll(); for (const c in DOS) keyPush(c, false); });
 
   /* ---- the virtual pad: a touch front end for those same bytes ----
    * There is no new input path here, which is the point: every press and release is one slot in the key
@@ -351,11 +352,16 @@
     const on = padPad.delete(id), held = padPtr.delete(id);
     if (on || held) padApply();
   }
+  /* Release what the THUMB was holding. A controller's share of `padPtr` is deliberately left alone: the
+   * `pad` button hides the touch pad, and the pad you hid is not a pad still holding Right -- but a real
+   * controller you are still leaning on is nobody to release just because you wanted the buttons gone. Hiding
+   * it here instead would have been the quieter bug: the controller's own state says "still held", so nothing
+   * would have been re-sent until the player let go and pressed again. */
   function padReleaseAll() {
     if (!padPtr.size && !padPad.size && !padSent.size) return;
     padPad.clear();
-    padPtr.clear();
-    padApply();                                 // the union is now empty, so this sends the breaks
+    for (const k of [...padPtr.keys()]) if (typeof k === 'number') padPtr.delete(k);
+    padApply();                                 // the union is now only what a controller still holds
   }
   function padGrab(el, id) { try { el.setPointerCapture(id); } catch (e) { /* no capture, no slide */ } }
   function wirePad() {
@@ -387,7 +393,7 @@
       for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'])
         el.addEventListener(ev, (e) => padEnd(e.pointerId));
     document.addEventListener('pointercancel', () => padReleaseAll());
-    document.addEventListener('visibilitychange', () => { if (document.hidden) padReleaseAll(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { gpReleaseAll(); padReleaseAll(); } });
     /* The other thing a held thumb brings up on iOS: after a moment on a button it raises the text
      * magnifier over the label and then the copy callout, which sits on top of the game and swallows the
      * press. -webkit-touch-callout:none and user-select:none keep it from starting; these three are the
@@ -413,6 +419,161 @@
     if (mode === 'off') padReleaseAll();        // the pad you hid is not a pad still holding Right
     showPad();
     fit();                                      /* the band took space the canvas now has less of */
+  }
+
+  /* ---- a real gamepad: pocket's map, into the same queue ----
+   * There is no new input path here either, which is the same rule the touch pad follows: every press and
+   * release is one slot in the key ring with a DOS make code in it, landed in the shared `padPtr` union and
+   * pushed by the same `padApply` the fingers use. So a controller and a thumb cannot disagree about who is
+   * holding Right, and `keymap.c` cannot tell the three apart (docs/91, 92).
+   *
+   * THE MAP IS POCKET'S, VERBATIM (docs/333 §1 -- pocket/src/night/main_of.c's g_pad_keys), because that map
+   * was measured rather than invented: pocket's census ran the same buttons through the pad path and through
+   * `night_key_apply` directly and got the identical 26-write sequence, slot by slot, make/break by
+   * make/break. Two of its choices are worth noticing:
+   *
+   *   - The attacks are the MODIFIER SLOTS themselves (0x1d CTRL = punch, 0x38 ALT = kick, 0x2a SHIFT =
+   *     jump), not the letters the touch pad sends. keymap.c's alias table (the shipped handler's
+   *     0x0003fd9d) is what turns Z/V into 0x1d in the first place (docs/91), so the two are the same byte
+   *     in the guest -- but a controller has no letters printed on it, so there is no reason to go round the
+   *     alias to arrive there.
+   *   - SELECT is Esc and START is Enter, i.e. the pause menu and confirm (docs/93), and one shoulder button
+   *     is F1. LB plays pocket's L1 role, since a standard pad has L1 as its first shoulder.
+   *
+   * THE LEFT THUMBSTICK IS THE D-PAD, to the same two held bytes as the cross: the game's move model is
+   * `0x4b` plus `0x48` for a diagonal, and an axis pair reaches both more comfortably than four buttons do.
+   * It gets a dead zone of its own (GP_STICK_DZ), well above the few-hundredths a resting stick reports, and
+   * the crossing in and out of it is an edge like any other -- so leaning into a diagonal and back off is
+   * what it looks like. The d-pad buttons are read as well, and the two are a union. */
+  const GP_POLL_MS = 16;
+  /* Two thresholds, not one. A single threshold makes a stick parked on it chatter make/break at the poll
+   * rate -- 60 edge pairs a second, straight into the key ring -- and a stick parked near the edge is not a
+   * rare thing, it is where a thumb rests after a dash. So a direction comes IN at 0.30 and goes OUT again at
+   * 0.22, and the dead zone a player feels is neither number but the gap between them. */
+  const GP_STICK_IN = 0.30, GP_STICK_OUT = 0.22;
+  const GP_MAP = [
+    [0,  DOS.ControlLeft, 'A -> CTRL (punch)'],
+    [1,  DOS.AltLeft,     'B -> ALT (kick)'],
+    [2,  DOS.ShiftLeft,   'X -> SHIFT (jump)'],
+    [3,  DOS.Space,       'Y -> SPACE'],
+    [4,  DOS.F1,          'LB -> F1'],
+    [8,  DOS.Escape,      'select -> ESC'],
+    [9,  DOS.Enter,       'start -> ENTER'],
+    [12, DOS.ArrowUp,     'up'], [13, DOS.ArrowDown, 'down'],
+    [14, DOS.ArrowLeft,   'left'], [15, DOS.ArrowRight, 'right'],
+  ];
+  const gpPads = new Map();                     // gamepad index -> { id, mapping, codes: Set of sc } codes it holds
+  const gpSeen = { down: 0, up: 0 };            // edges the CONTROLLER made -- see the note in gpPoll
+  /* Standard ("W3R") indices are assumed, because that is what everything reports; a pad that says otherwise
+   * is logged loudly rather than guessed at, since its buttons mean nothing at these indices. */
+  function gpCodes(gp, st) {
+    const out = [];
+    for (const m of GP_MAP) {
+      const b = gp.buttons[m[0]];
+      if (b && b.pressed) out.push(m[1]);
+    }
+    /* axes 0/1 are the left stick. Each direction is compared against its OWN signed value, so all four
+     * questions are the same question, "is this far that way", with the hysteresis decided per direction --
+     * leaning left then swinging right is one make, not a hold that survives the crossing. */
+    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+    const dirs = [[DIR_SC.left, -ax], [DIR_SC.right, ax], [DIR_SC.up, -ay], [DIR_SC.down, ay]];
+    const stick = new Set();
+    for (const d of dirs)
+      if (d[1] > (st.stick.has(d[0]) ? GP_STICK_OUT : GP_STICK_IN)) stick.add(d[0]);
+    st.stick = stick;
+    for (const c of stick) out.push(c);
+    return out;
+  }
+  function gpSame(a, b) {
+    if (a.size !== b.size) return false;
+    for (const x of a) if (!b.has(x)) return false;
+    return true;
+  }
+  function gpPoll() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const live = new Set();
+    for (const gp of pads) {
+      if (!gp) continue;                                     // the array is sparse
+      live.add(gp.index);
+      let st = gpPads.get(gp.index);
+      if (!st) {
+        st = { id: gp.id, mapping: gp.mapping, codes: new Set(), stick: new Set() };
+        gpPads.set(gp.index, st);
+        logLine('gamepad ' + gp.index + ': ' + gp.id +
+                (gp.mapping === 'standard' ? '' : ' [mapping ' + gp.mapping + '!]'));
+        logLine('gamepad ' + gp.index + ': ' + GP_MAP.map((m) => m[2]).join(' \u00b7 ') +
+                ' \u00b7 left stick = d-pad');
+        /* Two ways to say it, because there are two moments a controller appears: before the press, where a
+         * line under the gate is the only place it can go, and after, where the toast is. */
+        if (gateEl && !gateEl.classList.contains('hidden') && gatePadEl) gatePadEl.classList.remove('hidden');
+        else hint('gamepad ready', 1500);
+      }
+      /* One read of the hardware per pad per tick, and it happens before the started test, because the
+       * started test needs to know what is pressed too. */
+      const now = new Set(gpCodes(gp, st));
+      /* Before the press there is nothing to press -- the same guard the touch pad carries -- with one
+       * exception worth making: a controller is a way of playing with no finger on the glass, and a page
+       * whose first act is "press this button" should not need a button a controller-owner can reach.
+       * So START (or A) starts the game.
+       *
+       * What it cannot do is grant the activation the browser demands before a page may make a sound: the
+       * Gamepad spec does not count a button press as user activation, in any browser, so the AudioContext
+       * still comes up locked and the sound waits for the first touch of the screen -- which the hint says
+       * out loud, because silence from a game that is visibly running is the worst of the three outcomes a
+       * player can be left to guess between. */
+      if (!started) {
+        if ((now.has(DOS.Enter) || now.has(DOS.ControlLeft)) && gateStart && !gateStart.disabled) {
+          logLine('gamepad: start pressed at the gate -- starting (the sound still waits for a touch)');
+          startGame();
+          if (ac && ac.state !== 'running') hint('tap once for sound', 2600);
+        }
+        if (st.codes.size) { st.codes = new Set(); padPtr.delete('gp' + gp.index); padApply(); }
+        continue;
+      }
+      if (gpSame(now, st.codes)) continue;
+      /* These two count the controller's OWN edges. If a thumb is holding the same byte the ring write
+       * belongs to whichever source lost the race, so the count is not a census of the ring -- `pad`'s own
+       * down/up are exactly that, and the game's behaviour is the real assertion. */
+      for (const sc of st.codes) if (!now.has(sc)) gpSeen.up++;
+      for (const sc of now) if (!st.codes.has(sc)) gpSeen.down++;
+      st.codes = now;
+      padPtr.set('gp' + gp.index, [...now]);
+      padApply();
+    }
+    for (const i of [...gpPads.keys()])
+      if (!live.has(i)) {
+        gpPads.delete(i);
+        padPtr.delete('gp' + i);
+        logLine('gamepad ' + i + ' disconnected');
+        padApply();                                          // whatever it held is nobody's to hold now
+      }
+  }
+  function gpReleaseAll() {
+    if (!gpPads.size) return;
+    for (const [i, st] of gpPads) {
+      if (!st.codes.size) continue;
+      gpSeen.up += st.codes.size;
+      st.codes = new Set();
+      padPtr.delete('gp' + i);
+    }
+    padApply();
+  }
+  function wireGamepad() {
+    if (!('getGamepads' in navigator)) { logLine('gamepad: no Gamepad API in this browser'); return; }
+    /* The events are the fast notice and the poll is the reliable one. Chrome will not name a controller to
+     * a page that has never seen it touched, so a pad connected before the page opened stays invisible until
+     * a button is pressed -- and a page that only listened for the event would report no controller to someone
+     * whose press arrived between two of its own ticks. */
+    for (const [ev, down] of [['gamepadconnected', 1], ['gamepaddisconnected', 0]])
+      window.addEventListener(ev, (e) => {
+        const gp = e.gamepad;
+        if (down) { if (!gpPads.has(gp.index)) gpPoll(); }
+        else if (gpPads.has(gp.index)) gpPoll();
+      });
+    setInterval(gpPoll, GP_POLL_MS);
+    /* pocket's pump runs every 8 ms; this runs every frame's worth, which is finer than any human release
+     * and cannot lose an edge, because every edge is a difference between two consecutive reads. */
+    logLine('gamepad: polling every ' + GP_POLL_MS + ' ms; ' + GP_MAP.length + ' buttons + left stick');
   }
 
   /* ---- the bottom bar: away when you are playing ----
@@ -887,6 +1048,7 @@
     if (scaleEl) scaleEl.addEventListener('click', () => setStretch(!stretch));
     showScale();
     wirePad();
+    wireGamepad();
     if (holderEl) holderEl.addEventListener('pointerdown', (e) => {
       /* The refusal is logged and the toggle is not: a control that does nothing where the deck is, is a
        * control whose refusal has to be findable, and a bar that visibly disappeared needs no diary. */
@@ -955,6 +1117,9 @@
                     dev: M ? M.HEAPU32[(blockBase >> 2) + CFG.AUDIO_RATE] : 0,
                     pulled, seen, raf, timer, blit, aud, ac: ac ? ac.state : 'none',
                     pad: { mode: padMode, down: padSeen.down, up: padSeen.up, held: [...padSent] },
+                    gp: { connected: gpPads.size, down: gpSeen.down, up: gpSeen.up,
+                          pads: [...gpPads.entries()].map(([i, s]) =>
+                            ({ index: i, id: s.id, mapping: s.mapping, held: [...s.codes] })) },
                     canvas: [canvas.width, canvas.height, canvas.clientWidth, canvas.clientHeight] };
     },
   };

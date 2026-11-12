@@ -364,6 +364,81 @@ label after a moment's press (`-webkit-touch-callout: none` plus `user-select: n
 `contextmenu`/`selectstart`/`dragstart` cancelled on the pad — not the document, because the log panel is
 supposed to be selectable).
 
+## A real controller: pocket's map, the same queue, and an iOS answer
+
+The Gamepad API is polled, not evented, so `shell.js` reads `navigator.getGamepads()` every 16 ms and turns
+the level state into edges — the same shape pocket's `pad_pump()` runs on, at 8 ms. What it turns a press into
+is the key ring again: the controller's share goes into the same `padPtr` union the thumb feeds and is diffed
+by the same `padApply`, so a thumb and a controller cannot disagree about who is holding Right, and
+`keymap.c` cannot tell a keyboard, a finger or a pad apart.
+
+**THE MAP IS POCKET'S, VERBATIM** — docs/333 §1's `g_pad_keys`, because that map was measured rather than
+invented (its census got the identical 26-write sequence through the pad path and through `night_key_apply`
+directly). A → `0x1d` CTRL = punch, B → `0x38` ALT = kick, X → `0x2a` SHIFT = jump, Y → `0x39` Space, START →
+`0x1c` Enter, SELECT → `0x01` Esc, LB → `0x3b` F1, the d-pad cross → `0x48/4b/4d/50`. Note the attacks are the
+modifier *slots*, not the letters the touch pad sends: `keymap.c`'s alias table (the shipped handler's
+0x0003fd9d, docs/91) is what turns Z/V into `0x1d` in the first place, so both reach the same held byte — but
+a controller has no letters printed on it, so there is no reason to go round the alias to get there. RB and the
+triggers are deliberately unmapped; a run in which an RB press does nothing is a passing run.
+
+**THE LEFT THUMBSTICK IS THE D-PAD**, to the same two held bytes the cross uses, because the move model is
+`0x4b` plus `0x48` and an axis pair reaches a diagonal more comfortably than four buttons do. Two thresholds,
+not one: a direction comes IN at 0.30 and goes OUT at 0.22, because a single threshold makes a stick parked on
+it chatter at the poll rate. Measured, driving a fabricated controller: `0.35` → `right`; falling to `0.26`
+(inside the gap) → still `right`, no edge; `0.21` → released; 25 cycles of 0.35/0.27 → **one** make, not 25.
+`-0.9,-0.9` → `left up` together, and sweeping through the centre breaks one before it makes the other.
+
+**HIDING THE TOUCH PAD DOES NOT RELEASE THE CONTROLLER.** The first version of `padReleaseAll` cleared
+`padPtr` wholesale, which included the controller's share, and the consequence would have been silent in the
+good direction and awful in the bad one: the controller still reports the stick held, so nothing is re-sent,
+and the player is walking nowhere until they let go and press again. The release is now keyed to the kind of
+contributor — `padPtr` is keyed by numeric pointer id, and a controller's entry is `'gp0'`.
+
+**A CONTROLLER CAN START THE GAME**, which it could not before and a controller-owner has no other way to:
+START or A at the gate runs `startGame()`. It cannot grant the activation the browser demands before a page may
+make a sound — the Gamepad spec does not count a button press as user activation in any browser — so the sound
+still waits for the first touch, and the page says so (`tap once for sound`) rather than leaving a running,
+silent game to be guessed about. Measured: `start@4500` against an armed gate, `ready.started` true, `log` line
+`gamepad: start pressed at the gate`, `ac: suspended` exactly as it should be in a headless run.
+
+**The census, in the harness** (Chrome has no gamepad injection over the protocol — its own tests drive a
+`device::GamepadTestHelper` inside the browser process, which nothing on the wire can reach — so
+`NIGHT_GAMEPAD` installs a fabricated standard-mapping controller page-side and moves its buttons; that tests
+everything the page owns and nothing about Chrome): holding A, B, X, Y, start, select, LB, up and RB at once
+leaves the ring holding exactly `01 1c 1d 2a 38 39 3b 48` — pocket's eight, with RB's nothing. Driving the
+keyboard check's route through the controller alone — `y` for SPACE, `start` for ENTER, `right`, `a` for the
+CTRL slot `Z` arms, `y` — gives `CHECK: PASS (1317 frames, 59.9 fps, 10 keys, 3 CD tracks played)` and
+`keysDropped 0`: ten ring writes, three tracks fetched, and the game's own screens advanced on controller
+input. That is the same equivalence docs/333 measured on pocket, on a different host, by a different route.
+
+**WHY A CONTROLLER MAY DO NOTHING IN AN INSTALLED iOS APP, and it is Apple's.** WebKit only turns gamepad
+watching on when the `WKContentView` is the first responder, and until 2024 it did that *once, at page load*
+— so a page whose content view became first responder afterwards never saw a controller at all (WebKit bug
+269292, whose resolution note is Brady Eidson: "To expose Gamepad support, your WKWebView needs to be the
+firstResponder. Safari — correctly for Apple platforms — keeps focused WKWebViews as the firstResponder").
+Darryl Pogue's patch moved the enable/disable into `becomeFirstResponderForWebView`/`resignFirstResponder...`
+(WebKit PR 26444, merged 2024-05-22), and the fix's own author's report is that it works "as of iOS 18". iOS
+Home Screen web apps are WebKit-in-a-container rather than Safari, and the standalone case has its own older
+report, 214336 — controllers in Safari, none in the added-to-home-screen app — which WebKit closed CONFIGURATION
+CHANGED, i.e. "that is the container's business, not the page's".
+
+Which is the shape of what this port has been told: **the same controller drives the game perfectly in a Safari
+tab and does nothing in the installed app**, on an iOS 27 beta — the oldest of the three mechanisms' symptom, in
+the newest of them. Nothing here can distinguish them from the port, so the port makes the distinction
+visible: a controller the page was handed gets its own line in the `log` panel (`gamepad 0: <name>`), and
+`NightWasm.stats().gp` says how many it is holding and what mapping they claim. No line, nothing handed;
+a line and dead buttons, a different bug entirely.
+
+And one that is worth knowing because this app *asks for the state it breaks*: WebKit 311151 (iPadOS, filed
+2026-03-30, still live through Safari 26.5 / iOS 26.5 as of writing) is **"when a web page enters Fullscreen,
+the Gamepad API stops reporting" button indices 4, 5, 6 and 7** — bumpers and triggers — while 0–3 and the
+d-pad keep working. This port's manifest asks for `display_override: fullscreen`, so an installed launch is
+exactly that state, and its LB → F1 is index 4: on such a build a controller can be perfectly alive and F1
+never arrive. The attack keys (0–3), start/select (8–9) and the cross (12–15) are unaffected, so the game
+stays playable; F1 is the map's one casualty, and knowing which button is silent is what tells you this is
+that bug rather than the first-responder one. `?nosw=1` remains the rule-out for the worker, though a service
+worker has no gamepad to withhold.
+
 ## Running it
 
 ```
@@ -375,6 +450,7 @@ make -C wasm resample       # what the converter does to the board's samples (no
 NIGHT_HEADFUL=1 CDP_PORT=9343 node wasm/scripts/headless.js http://127.0.0.1:8091/index.html 20000
 NIGHT_VIEWPORT="390x844x2,mobile" node wasm/scripts/headless.js ... # a phone's viewport, with touch input
 NIGHT_VIEWPORT="390x844x2,mobile" NIGHT_ROTATE_AT="5000:844x390x2,mobile" ... # and turn it at 5 s
+NIGHT_GAMEPAD="start@4500 up@9000:200 a@12000" ... # a controller, fabricated page-side (see below)
 ```
 
 Nothing plays until you press. The page preloads the module and inflates the 20 MB resource pack behind a gate,
@@ -420,7 +496,12 @@ NOT been measured is any of the iOS-specific behaviour: `touch-action: manipulat
 cancellation, `-webkit-touch-callout: none` and `env(safe-area-inset-*)` are all written because they are the
 documented fixes and because Chrome does not implement the properties well enough to test them (it reports no
 `-webkit-touch-callout` at all, and no insets at all), but no iPhone has been seen by this port. An install
-has been verified as far as a headless Chrome will say `installable`, not by installing it.
+has been verified as far as a headful Chrome will say `installable`, not by installing it. Neither has a
+*controller*: every gamepad number in this document came from a controller the harness fabricated inside the
+page, because Chrome's protocol cannot inject one — the mapping, the edges, the stick and the queue are all
+under test there, and none of it is Chrome's Gamepad API or anyone's real hardware. The first real pad on the
+first real phone is still a report waiting to happen, in both directions: the iOS case above, and whether a
+pad that reports a non-`standard` mapping is worth a map of its own.
 
 It has now been listened to — that is how the resampler, the rate marks and the queue depth were found, and
 how docs/458's stop semantics were reported — but there is still no microphone capture and no spectrum of what

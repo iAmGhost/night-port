@@ -134,12 +134,78 @@ chrome.stderr.on('data', () => {});
   }
   await send('Page.navigate', { url });
 
+  /* NIGHT_GAMEPAD="start@3000 lb@5000:400 up@8000 ls:0.9,0@9000:500" -- a controller without a controller.
+   *
+   * Chrome's protocol has no gamepad injection (its Gamepad tests drive a device::GamepadTestHelper inside
+   * the browser process, which nothing on the wire can reach), so this installs a page-side stand-in:
+   * Navigator.prototype.getGamepads is replaced by one that returns a fabricated standard-mapping
+   * controller, and the specs move its buttons and its left stick. That puts under test everything the PAGE
+   * owns -- the map, the edge detection, the stick's dead zone, the union with a thumb, the ring writes --
+   * and nothing about Chrome's own Gamepad API. A real pad has never driven this port (docs/457).
+   *
+   * Names are the standard indices by name (a b x y lb rb lt rt select start lstick rstick up down left
+   * right); `ls:x,y` is the left stick, and the page maps only LB of the three shoulder inputs, so an `rb`
+   * press that changes nothing is a pass, not a failure. */
+  const gpSpecs = (process.env.NIGHT_GAMEPAD || '').split(/\s+/).filter(Boolean);
+  const GPBTN = { a: 0, b: 1, x: 2, y: 3, lb: 4, rb: 5, lt: 6, rt: 7, select: 8, back: 8, start: 9,
+                  lstick: 10, rstick: 11, up: 12, down: 13, left: 14, right: 15 };
+  async function installFakePad() {
+    let ok = 'never ran';
+    for (let i = 0; i < 100; i++) {
+      ok = await evalJson(`(function () {
+        /* Wait for the page under test, not just for a document: navigated to a server that is not running,
+         * the error page still has a navigator with a getGamepads, and the fake would install there and report
+         * a success that measured nothing but Chrome's own error page. */
+        if (!window.NightWasm) return 'no page';
+        if (!window.__gp) {
+          const btn = () => ({ pressed: false, touched: false, value: 0 });
+          window.__gp = { index: 0, connected: true, mapping: 'standard', timestamp: 0, id:
+            'Night Harness Pad (STID: 045e-028e)', buttons: Array.from({ length: 17 }, btn),
+            axes: [0, 0, 0, 0, 0, 0, 0, 0], vibrate: () => false };
+          window.__gpBtn = (i, down) => { const b = window.__gp.buttons[i];
+            b.pressed = !!down; b.touched = !!down; b.value = down ? 1 : 0; };
+          window.__gpStick = (x, y) => { window.__gp.axes[0] = x; window.__gp.axes[1] = y; };
+          const real = Navigator.prototype.getGamepads;
+          Object.defineProperty(Navigator.prototype, 'getGamepads', {
+            configurable: true, writable: true, value: function () { const r = real.call(this); r[0] = window.__gp; return r; } });
+        }
+        return 'fake pad at index 0';
+      })()`);
+      if (ok === 'fake pad at index 0') { console.log('gamepad: ' + ok); return true; }
+      await sleep(100);
+    }
+    console.log('gamepad: the fake never installed (' + ok + ')');
+    return false;
+  }
+  async function gpDrive(spec) {
+    const m = /^(.*?)@(\d+)(?::(\d+))?$/.exec(spec);
+    if (!m) { console.log('gamepad: cannot read spec ' + spec); return; }
+    const at = +m[2], hold = +(m[3] || 150);
+    let act;
+    if (m[1].startsWith('ls:')) {
+      const [x, y] = m[1].slice(3).split(',').map(Number);
+      act = (on) => evalJson(`window.__gpStick(${on ? x : 0}, ${on ? y : 0})`);
+    } else {
+      const i = GPBTN[m[1]];
+      if (i === undefined) { console.log('gamepad: unknown button ' + m[1]); return; }
+      act = (on) => evalJson(`window.__gpBtn(${i}, ${on ? 1 : 0})`);
+    }
+    setTimeout(() => {
+      act(true).then(() => sleep(hold)).then(() => act(false)).catch(() => {});
+    }, Math.max(0, at));
+  }
+  if (gpSpecs.length) {
+    if (await installFakePad()) for (const spec of gpSpecs) await gpDrive(spec);
+  }
+
   /* Press the gate, if the page showed one. It has to be a real mouse event at the button's centre: a
    * scripted element.click() does NOT grant user activation, so it would start the game and still leave the
    * AudioContext suspended -- a run that hears nothing and reports every counter at a healthy zero, which is
    * the failure NIGHT_REQUIRE_AUDIO exists to catch. The gate only arms once the module and the 20 MB resource
    * pack are in, so wait for that instead of guessing at a duration. With ?sink=1 or ?auto=1 the page starts
-   * itself and this returns at once. */
+   * itself and this returns at once. And with a NIGHT_GAMEPAD spec that presses start or a, the CONTROLLER is
+   * the thing meant to start it -- the page starts the game on that press, and a mouse racing it would hide
+   * which of the two did it. */
   async function evalJson(expression) {
     const r = await send('Runtime.evaluate', { expression: '(' + expression + ')', returnByValue: true });
     return r.result && r.result.value;
@@ -175,8 +241,9 @@ chrome.stderr.on('data', () => {});
       await sleep(150);
     }
   }
-  if (!(await pressGate(Math.max(30000, Math.min(90000, ms * 3)))))
-    console.log('WARNING: the game never started -- nothing measured here can have been heard');
+  const gpStartsGame = gpSpecs.some((s) => /^(start|a)@/.test(s));
+  const gateStarted = gpStartsGame ? true : await pressGate(Math.max(30000, Math.min(90000, ms * 3)));
+  if (!gateStarted) console.log('WARNING: the game never started -- nothing measured here can have been heard');
 
   /* The DOS make codes are keyed by the same table shell.js uses, only here for the protocol fields. */
   const VK = { Space: [32, ' '], Enter: [13, 'Enter'], Escape: [27, 'Escape'], F1: [112, 'F1'],

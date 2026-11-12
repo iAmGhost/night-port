@@ -372,14 +372,25 @@ is the key ring again: the controller's share goes into the same `padPtr` union 
 by the same `padApply`, so a thumb and a controller cannot disagree about who is holding Right, and
 `keymap.c` cannot tell a keyboard, a finger or a pad apart.
 
-**THE MAP IS POCKET'S, VERBATIM** — docs/333 §1's `g_pad_keys`, because that map was measured rather than
-invented (its census got the identical 26-write sequence through the pad path and through `night_key_apply`
-directly). A → `0x1d` CTRL = punch, B → `0x38` ALT = kick, X → `0x2a` SHIFT = jump, Y → `0x39` Space, START →
-`0x1c` Enter, SELECT → `0x01` Esc, LB → `0x3b` F1, the d-pad cross → `0x48/4b/4d/50`. Note the attacks are the
-modifier *slots*, not the letters the touch pad sends: `keymap.c`'s alias table (the shipped handler's
-0x0003fd9d, docs/91) is what turns Z/V into `0x1d` in the first place, so both reach the same held byte — but
-a controller has no letters printed on it, so there is no reason to go round the alias to get there. RB and the
-triggers are deliberately unmapped; a run in which an RB press does nothing is a passing run.
+**THE MAP IS POCKET'S** — docs/333 §1, in its Xbox names — **X punch, A kick, B jump, Y *and* RB duck, LB F1,
+START confirm, SELECT pause, the cross moves**, because that map was measured rather than invented (its census
+got the identical 26-write sequence through the pad path and through `night_key_apply` directly). Three ports
+run it and it is *one* table now: `src/app/keymap.c`'s `night_pad_sc[]`, declared against a port-neutral
+`NIGHT_PAD_*` enum so neither `OF_BTN` nor `SDL_GamepadButton` appears in it, asserted by
+`test/test_f1.c::test_gamepad_layout()`, and read by pocket's `g_pad_keys`, this file's `GP_MAP` and the SDL
+host's `g_pad_btns` (which says only which *physical* button stands for which position). Two of its choices
+are worth noticing:
+
+   - The attacks are the MODIFIER SLOTS themselves (`0x1d` CTRL = punch, `0x38` ALT = kick, `0x2a` SHIFT =
+     jump), not the letters the touch deck sends. `keymap.c`'s alias table (the shipped handler's
+     `0x0003fd9d`, docs/91) is what turns Z/V into `0x1d` in the first place, so both reach the same held
+     byte — but a controller has no letters printed on it, so there is no reason to go round the alias to get
+     there. The fixture asserts a position by the SLOT it arms, which is the only statement about a controller
+     that survives contact with a different controller.
+   - Duck has two homes, Y and RB: it is held longer than anything else in the game, and RB is the only other
+     button in comfortable reach of the thumb already doing everything else. That is also the reason the diff
+     below is a diff of a SET of codes and not of buttons — and the reason `test_gamepad_layout()` asserts
+     `Y` and `RB` are the same byte.
 
 **THE LEFT THUMBSTICK IS THE D-PAD**, to the same two held bytes the cross uses, because the move model is
 `0x4b` plus `0x48` and an axis pair reaches a diagonal more comfortably than four buttons do. Two thresholds,
@@ -387,6 +398,17 @@ not one: a direction comes IN at 0.30 and goes OUT at 0.22, because a single thr
 it chatter at the poll rate. Measured, driving a fabricated controller: `0.35` → `right`; falling to `0.26`
 (inside the gap) → still `right`, no edge; `0.21` → released; 25 cycles of 0.35/0.27 → **one** make, not 25.
 `-0.9,-0.9` → `left up` together, and sweeping through the centre breaks one before it makes the other.
+
+**THE DECK'S LAMPS ALIAS, AND THEY SHOULD ONLY.** A controller press lights the on-screen button it is doing —
+which is worth having, because it is the one bit of feedback that says the controller is connected and mapped.
+The first version lit a deck button when the code *it* would have sent was held, and so the two attack lamps
+stayed dark: the deck's Z sends `0x2c`, the controller's punch arms `0x1d`, and those are the same byte only
+after `keymap.c`'s alias. SHIFT, SPACE, F1, ENTER and ESC all lit correctly (the controller sends those exact
+codes) and punch and kick never did — the shape of the bug is exactly the alias table, which is how it was
+read. `padHeld()` now treats a letter as held when the slot it aliases to is held, for the DISPLAY only: the
+codes pushed into the ring are whatever the source sent, and the alias table is read by `padShow` and nothing
+else, so if it ever drifts from `keymap.c` the worst it can do is light the wrong lamp. Measured: controller
+`x a b y` held → ring `1d 38 2a 39`, lamps `Z X SHIFT SPACE` — all four.
 
 **HIDING THE TOUCH PAD DOES NOT RELEASE THE CONTROLLER.** The first version of `padReleaseAll` cleared
 `padPtr` wholesale, which included the controller's share, and the consequence would have been silent in the
@@ -404,11 +426,12 @@ silent game to be guessed about. Measured: `start@4500` against an armed gate, `
 **The census, in the harness** (Chrome has no gamepad injection over the protocol — its own tests drive a
 `device::GamepadTestHelper` inside the browser process, which nothing on the wire can reach — so
 `NIGHT_GAMEPAD` installs a fabricated standard-mapping controller page-side and moves its buttons; that tests
-everything the page owns and nothing about Chrome): holding A, B, X, Y, start, select, LB, up and RB at once
-leaves the ring holding exactly `01 1c 1d 2a 38 39 3b 48` — pocket's eight, with RB's nothing. Driving the
-keyboard check's route through the controller alone — `y` for SPACE, `start` for ENTER, `right`, `a` for the
-CTRL slot `Z` arms, `y` — gives `CHECK: PASS (1317 frames, 59.9 fps, 10 keys, 3 CD tracks played)` and
-`keysDropped 0`: ten ring writes, three tracks fetched, and the game's own screens advanced on controller
+everything the page owns and nothing about Chrome): holding `x a b y` leaves the ring at `1d 38 2a 39` — punch,
+kick, jump, duck, and the lamps say the same — and holding Y and RB together and letting go of Y keeps `39`
+held, which is the two-home duck surviving the set-diff. Driving the keyboard check's route through the
+controller alone — `y` for SPACE, `start` for ENTER, `right`, `x` for the CTRL slot `Z` arms, `y` — gives
+`CHECK: PASS (1301 frames, 59.1 fps, 10 keys, 3 CD tracks played)` and `keysDropped 0`: ten ring writes, three
+tracks fetched, and the game's own screens advanced on controller
 input. That is the same equivalence docs/333 measured on pocket, on a different host, by a different route.
 
 **WHY A CONTROLLER MAY DO NOTHING IN AN INSTALLED iOS APP, and it is Apple's.** WebKit only turns gamepad

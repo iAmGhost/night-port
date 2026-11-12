@@ -318,13 +318,28 @@
     return out;
   }
   /* A cell lights when the directions it stands for are ALL held, which for a corner means the diagonal is
-   * really on -- an arm lighting because its corner shares the byte would be a light that lies. */
+   * really on -- an arm lighting because its corner shares the byte would be a light that lies.
+   *
+   * The buttons light when the byte they stand for is held, and "the byte they stand for" needs one
+   * allowance to be true: a controller arms the modifier SLOTS (X punch -> 0x1d, A kick -> 0x38) where the
+   * deck's own Z and X would send the letters (0x2c, 0x2d), because keymap.c's alias table -- the shipped
+   * handler's 0x0003fd9d, docs/91 -- is what makes those the same byte in the game. So holding the
+   * controller's punch really does turn on the punch, and a Z lamp that stays dark while the punch it labels
+   * is landing is a lamp that lies. The allowance is for the DISPLAY only: the codes pushed into the ring
+   * are whatever the source sent, and this table is read by padShow and by nothing else, so if it ever
+   * drifts from keymap.c the worst it can do is light the wrong lamp. */
+  const KEY_ALIAS = {
+    [DOS.KeyZ]: DOS.ControlLeft, [DOS.KeyV]: DOS.ControlLeft,          /* punch -> the CTRL slot */
+    [DOS.KeyX]: DOS.AltLeft,     [DOS.KeyB]: DOS.AltLeft,              /* kick  -> the ALT slot  */
+    [DOS.KeyC]: DOS.ShiftLeft,   [DOS.KeyF]: DOS.ShiftLeft, [DOS.KeyG]: DOS.ShiftLeft,
+  };
+  function padHeld(sc) { return padSent.has(sc) || (KEY_ALIAS[sc] !== undefined && padSent.has(KEY_ALIAS[sc])); }
   function padShow() {
     for (const c of padCells) {
       const dirs = (c.dataset.d || '').split(/\s+/).filter(Boolean);
       c.classList.toggle('lit', dirs.length > 0 && dirs.every((d) => padSent.has(DIR_SC[d])));
     }
-    for (const b of padBtns) b.classList.toggle('lit', padSent.has(DOS[b.dataset.key]));
+    for (const b of padBtns) b.classList.toggle('lit', padHeld(DOS[b.dataset.key]));
   }
   /* Diff the union of every live pointer against what the game was last told, and send only the edges. A
    * thumb that slides right -> up-right therefore makes `up` without ever breaking `right`. */
@@ -427,9 +442,11 @@
    * pushed by the same `padApply` the fingers use. So a controller and a thumb cannot disagree about who is
    * holding Right, and `keymap.c` cannot tell the three apart (docs/91, 92).
    *
-   * THE MAP IS POCKET'S, VERBATIM (docs/333 §1 -- pocket/src/night/main_of.c's g_pad_keys), because that map
-   * was measured rather than invented: pocket's census ran the same buttons through the pad path and through
-   * `night_key_apply` directly and got the identical 26-write sequence, slot by slot, make/break by
+   * THE MAP IS POCKET'S (docs/333 §1 -- pocket/src/night/main_of.c's g_pad_keys), in its Xbox names -- X
+   * punch, A kick, B jump, Y *and* RB duck, START confirm, SELECT pause, LB F1, the cross moves -- and the
+   * SDL host drives the same layout, so all three ports of this game answer a controller the same way. That
+   * map was measured rather than invented: pocket's census ran the same buttons through the pad path and
+   * through `night_key_apply` directly and got the identical 26-write sequence, slot by slot, make/break by
    * make/break. Two of its choices are worth noticing:
    *
    *   - The attacks are the MODIFIER SLOTS themselves (0x1d CTRL = punch, 0x38 ALT = kick, 0x2a SHIFT =
@@ -437,14 +454,13 @@
    *     0x0003fd9d) is what turns Z/V into 0x1d in the first place (docs/91), so the two are the same byte
    *     in the guest -- but a controller has no letters printed on it, so there is no reason to go round the
    *     alias to arrive there.
-   *   - SELECT is Esc and START is Enter, i.e. the pause menu and confirm (docs/93), and one shoulder button
-   *     is F1. LB plays pocket's L1 role, since a standard pad has L1 as its first shoulder.
+   *   - Duck is held longer than anything else in the game, so it has two homes: Y and RB.
    *
    * THE LEFT THUMBSTICK IS THE D-PAD, to the same two held bytes as the cross: the game's move model is
    * `0x4b` plus `0x48` for a diagonal, and an axis pair reaches both more comfortably than four buttons do.
-   * It gets a dead zone of its own (GP_STICK_DZ), well above the few-hundredths a resting stick reports, and
-   * the crossing in and out of it is an edge like any other -- so leaning into a diagonal and back off is
-   * what it looks like. The d-pad buttons are read as well, and the two are a union. */
+   * It gets a dead zone of its own (two thresholds, just below), well above the few-hundredths a resting
+   * stick reports, and the crossing in and out of it is an edge like any other -- so leaning into a diagonal
+   * and back off is what it looks like. The d-pad buttons are read as well, and the two are a union. */
   const GP_POLL_MS = 16;
   /* Two thresholds, not one. A single threshold makes a stick parked on it chatter make/break at the poll
    * rate -- 60 edge pairs a second, straight into the key ring -- and a stick parked near the edge is not a
@@ -452,10 +468,11 @@
    * 0.22, and the dead zone a player feels is neither number but the gap between them. */
   const GP_STICK_IN = 0.30, GP_STICK_OUT = 0.22;
   const GP_MAP = [
-    [0,  DOS.ControlLeft, 'A -> CTRL (punch)'],
-    [1,  DOS.AltLeft,     'B -> ALT (kick)'],
-    [2,  DOS.ShiftLeft,   'X -> SHIFT (jump)'],
-    [3,  DOS.Space,       'Y -> SPACE'],
+    [2,  DOS.ControlLeft, 'X -> CTRL (punch)'],
+    [0,  DOS.AltLeft,     'A -> ALT (kick)'],
+    [1,  DOS.ShiftLeft,   'B -> SHIFT (jump)'],
+    [3,  DOS.Space,       'Y -> SPACE (duck)'],
+    [5,  DOS.Space,       'RB -> SPACE (duck)'],
     [4,  DOS.F1,          'LB -> F1'],
     [8,  DOS.Escape,      'select -> ESC'],
     [9,  DOS.Enter,       'start -> ENTER'],

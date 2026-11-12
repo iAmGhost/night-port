@@ -1236,6 +1236,25 @@
     padState: () => ({ owner: padOwner, ptrs: [...padPtr.keys()], held: [...padSent],
                        dirs: [...padSent].map((sc) => DIR_NAME_OF[sc]).filter(Boolean),
                        keys: [...padSent].map((sc) => BTN_NAME_OF[sc]).filter(Boolean) }),
+    /* Each ring's READER, as itself sees it: the rate it is converting at, how far it has got, and how much
+     * of the ring the host has produced behind it. This exists because a reader that stopped advancing is
+     * invisible in every other counter here -- pulled.frames keeps counting the frames it invented, underrun
+     * stays 0 because the ring was never empty, and the host sees a full ring and stops feeding. The pair of
+     * (avail, released) is the tell: a stream has both growing; a stuck reader has avail parked and released
+     * parked. baseRate is the rate the reader anchored to, from the host's own mark table. */
+    mix: () => [RING_SFX, RING_CDDA].map((w) => {
+      const st = mixState[w], base = ringBases[w];
+      if (!M || !base || !st || !st.reader) return { ok: false };
+      const I = new Uint32Array(heap(), base, RING.WORDS * 4);
+      const mk = new Uint32Array(heap(), ringMarkBases[w], NK_MARK_WORDS);
+      const ord = Math.max(st.ord, mk[MK.ORD]);
+      return { ok: true, gen: I[RING.MARK_GEN], head: I[RING.HEAD], tail: I[RING.TAIL],
+               avail: (I[RING.HEAD] - st.base) >>> 0, released: (I[RING.TAIL] - st.base) >>> 0,
+               ord: st.ord, mkOrd: mk[MK.ORD], mkN: mk[MK.N], baseRate: mk[mkSlot(st.ord) + 1],
+               rateAtHead: mk[mkSlot(ord) + 1], ratio: +st.reader.getRatio().toFixed(4),
+               rate: Math.round(st.reader.getRate()), pos: Math.round(st.reader.getPos()),
+               produced: st.reader.framesProduced(), fetched: st.reader.framesFetched() };
+    }),
     bar: (on) => { if (on !== undefined) setBar(on); return barOn; },
     pwa: () => ({ standalone: STANDALONE, installed: appInstalled,
                   canPrompt: !!deferredPrompt, canFullscreen: CAN_FULL,

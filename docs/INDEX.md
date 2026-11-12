@@ -299,7 +299,7 @@ links back and this index says so; the older file stays where its citations poin
 - **438** — a byte count cannot name a step count: why the fade ramp armed zero times, and what it now detects
   <sub>`0.2.12` existed to answer one question — which of three premises was false — and it answered it in one line:</sub>
 
-## The browser port (docs/457–461)
+## The browser port (docs/457–462)
 
 - **457** — The browser port runs on one thread, so everything crosses as memory
   <sub>SDL-free host over the same game layer, two PCM rings, CD-DA over HTTP Range reads, Asyncify at rAF.</sub>
@@ -311,6 +311,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Range reads awaited inside the game’s own busy-wait, a `g_range_unsupported` latch a 404 could set, and `NIGHT_NET` to measure both.</sub>
 - **461** — The d-pad kept walking after the finger left, so the page now takes the next press as the release
   <sub>The deck’s only route back from “still held” is an event; the cross is one finger, `NIGHT_TOUCH` asserts it.</sub>
+- **462** — Muting the page killed the music for the rest of the session, because the disc pump’s own safety net armed itself
+  <sub>Re-anchoring the clock behind `now` re-credited the sectors it had just zeroed; `NIGHT_MUTE` and a negative control so it fails the build.</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

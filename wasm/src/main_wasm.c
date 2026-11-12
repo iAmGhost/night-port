@@ -393,6 +393,8 @@ static void audio_pump(void) {
 static uint32_t g_cdda_lba, g_cdda_sectors, g_cdda_pos;
 static uint64_t g_cdda_clock_us;
 static uint64_t g_cdda_budget;              /* sectors of wall time, accumulated since the PLAY */
+static uint64_t g_cdda_feed_us;             /* the last byte pushed to the ring; 0 = nothing pushed yet */
+static uint32_t g_cdda_anchor_n;            /* re-anchors since the last byte pushed (see cdda_stuck) */
 
 static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     ring_flush(NK_RING_CDDA);
@@ -400,6 +402,7 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
     g_cdda_lba = lba; g_cdda_sectors = sectors; g_cdda_pos = 0;
     g_cdda_clock_us = nk_now_us();
     g_cdda_budget = 0;                          /* the cushion is granted once, here, at the PLAY */
+    g_cdda_feed_us = 0; g_cdda_anchor_n = 0;          /* the stuck report waits for a byte that has not happened yet */
     printf("cdda: track index %u lba=%u sectors=%u (%.1f s)\n", index, lba, sectors, sectors / 75.0);
     g_block[NK_ST_TRACKS] = g_cdda_tracks;
 }
@@ -407,6 +410,7 @@ static void cdda_play(uint32_t index, uint32_t lba, uint32_t sectors) {
 static void cdda_stop(void) {
     ring_flush(NK_RING_CDDA);
     g_cdda_sectors = 0; g_cdda_pos = 0;
+    g_cdda_feed_us = 0; g_cdda_anchor_n = 0;
 }
 
 /* BGM MODE -- the third row of the pause menu (fn_039c03, entry m == 2) -------------------------------
@@ -436,6 +440,25 @@ static void cdda_bgm_gate(void) {
     if (g_cdda_sectors) cdda_stop();               /* silence the ring, stop Range-reading the track */
 }
 
+/* Why the disc feed stopped when the page was the one asking for more. A host that stops feeding a ring the
+ * reader has already drained is the bug a player can only describe as "the music stopped", and every early
+ * return in cdda_pump is a candidate -- so a return says which, once per reason. Two guards keep it out of
+ * the ordinary case: the ring has to be quarter-empty (a full ring means the READER is behind, which is
+ * aud.underrun's story and not this one), and nothing may have been pushed for a second and a half (a ring
+ * that is empty for one pump after a PLAY is normal and self-correcting). */
+static uint64_t g_cdda_stuck_us;
+static const char *g_cdda_stuck_why;
+static void cdda_stuck(const char *why, uint32_t used, uint32_t target, uint32_t want, uint64_t allowed) {
+    uint64_t now = nk_now_us();
+    if (!g_cdda_feed_us || used * 4u >= target) return;
+    if (now - g_cdda_feed_us < 1500000ull) return;
+    if (g_cdda_stuck_why && !strcmp(g_cdda_stuck_why, why) && now - g_cdda_stuck_us < 5000000ull) return;
+    g_cdda_stuck_why = why; g_cdda_stuck_us = now;
+    printf("cdda: fed nothing for %llu ms at pos=%u/%u of lba=%u: %s -- ring=%u/%u budget=%llu allowed=%llu want=%u\n",
+           (unsigned long long)((now - g_cdda_feed_us) / 1000ull), g_cdda_pos, g_cdda_sectors, g_cdda_lba, why,
+           used, target, (unsigned long long)g_cdda_budget, (unsigned long long)allowed, want);
+}
+
 static void cdda_pump(void) {
     if (g_bgm_off_us && !g_bgm_off_fired && nk_now_us() >= g_bgm_off_us) {
         g_bgm_off_fired = 1;
@@ -444,25 +467,46 @@ static void cdda_pump(void) {
                (unsigned long long)((nk_now_us() - g_start_us) / 1000ull));
     }
     cdda_bgm_gate();
-    if (!g_cdda_sectors) return;
-    if (!g_ring_words[NK_RING_CDDA][NK_RING_RATE]) return;   /* no AudioContext yet: nothing to feed,
-                                                              * and losing the read position would drop
-                                                              * the first seconds of the track */
+    if (!g_cdda_sectors) return;                    /* nothing playing, or a track that ended: said so at the time */
+    if (!g_ring_words[NK_RING_CDDA][NK_RING_RATE]) {
+        cdda_stuck("no device rate yet", ring_used(NK_RING_CDDA),
+                   ring_target(NK_RING_CDDA, 120u), 0u, 0ull);
+        return;                                     /* no AudioContext yet: nothing to feed,
+                                                     * and losing the read position would drop
+                                                     * the first seconds of the track */
+    }
     uint64_t now = nk_now_us();
     uint64_t el_sec = (now - g_cdda_clock_us) * 75ull / 1000000ull;      /* sectors of wall time */
     g_cdda_clock_us += el_sec * 1000000ull / 75ull;
     g_cdda_budget += el_sec;                      /* src/app/main.c:385 -- the budget accumulates, the
                                                    * clock is what gets consumed */
     uint32_t allowed = (uint32_t)g_cdda_budget + NK_CDDA_CUSHION_SECTORS;
-    if (allowed <= g_cdda_pos) return;
+    if (allowed <= g_cdda_pos) {
+        cdda_stuck("budget behind the read position", ring_used(NK_RING_CDDA),
+                   ring_target(NK_RING_CDDA, 120u), 0u, allowed);
+        return;
+    }
     /* Re-anchor rather than race when the wall clock ran away from the reader -- a backgrounded tab, which
-     * stops requestAnimationFrame and therefore stops the game's tick clock too. The game's own CD
-     * bookkeeping runs off ticks, so it still believes the track is where the reader left it: letting the
-     * reader sprint to catch the wall clock would be the one case where the heard music is wrong, and it
-     * would stream at 10x real time doing it. */
+     * stops requestAnimationFrame and therefore stops the game's tick clock too, or a muted page, which stops
+     * its own reader (docs/462). The game's own CD bookkeeping runs off ticks, so it still believes the track
+     * is where the reader left it: letting the reader sprint to catch the wall clock would be the one case
+     * where the heard music is wrong, and it would stream at 10x real time doing it.
+     *
+     * Drop the surplus and start the clock HERE. The first version of this anchored the clock a cushion-plus-
+     * position behind `now` as well as zeroing the budget, which credited those sectors a second time on the
+     * very next pump -- `allowed` then exceeded `pos + 2*CUSHION` by `pos + elapsed`, which is true forever, so
+     * the branch armed itself and the disc feed never ran again. Measured: a 6 s mute armed it, and CD-DA was
+     * dead for the rest of the session at pos=9, with the ring the reader had already drained. */
     if (allowed > g_cdda_pos + NK_CDDA_CUSHION_SECTORS * 2u) {
-        g_cdda_clock_us = now - (uint64_t)(g_cdda_pos + NK_CDDA_CUSHION_SECTORS) * 1000000ull / 75ull;
-        g_cdda_budget = g_cdda_pos;
+        g_cdda_clock_us = now;
+        g_cdda_budget = g_cdda_pos;                   /* nothing owed beyond what has actually been read */
+        /* Counted rather than reported on sight: ONE re-anchor after a backgrounded tab or a mute is the
+         * safety net doing its job, and the next pump feeds. Reporting that would make a legitimate recovery
+         * look like the bug, and `NIGHT_CHECK` fails on this line. Two in a row means the anchor did not
+         * help -- which is precisely what the old arithmetic did forever. */
+        if (++g_cdda_anchor_n >= 2u)
+            cdda_stuck("re-anchored, and again on the next pump", ring_used(NK_RING_CDDA),
+                       ring_target(NK_RING_CDDA, 120u), 0u, allowed);
         return;
     }
 
@@ -475,6 +519,7 @@ static void cdda_pump(void) {
 
     uint32_t want_sec = room_frames / 588u;
     uint32_t want = sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, want_sec, 16u);
+    if (!want) { cdda_stuck("the game's plan asked for none", ring_used(NK_RING_CDDA), target, 0u, allowed); return; }
     for (uint32_t i = 0; i < want; i++) {
         if (cd_iso_read_audio(g_cdda_lba + g_cdda_pos, g_cdda_sector) != 0) {
             /* The one way CD-DA ends before its sectors do, and after docs/460 it is only ever the real
@@ -490,6 +535,7 @@ static void cdda_pump(void) {
                                ring_room(NK_RING_CDDA));
         g_cdda_bytes += p * 4;
         g_cdda_pos++;
+        if (p) { g_cdda_feed_us = now; g_cdda_anchor_n = 0; }
         if (p < 588u) break;                        /* the ring is full again: stop reading ahead */
     }
 }

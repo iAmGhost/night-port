@@ -96,6 +96,19 @@ chrome.stderr.on('data', () => {});
   };
   await new Promise((r) => { ws.onopen = r; });
   await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable');
+  /* NIGHT_CLICKLOG=1 logs every click the page gets, from before the navigation. It exists because a run
+     whose only press was the gate came back with the page MUTED, and the only thing in this page that
+     mutes is a click on one button -- so either the page is being clicked by something invisible, or the
+     page's own state is not what its counters say. Both are worth knowing. */
+  if (process.env.NIGHT_CLICKLOG) {
+    await send('Page.addScriptToEvaluateOnNewDocument', { source:
+      `window.addEventListener('click', (e) => console.log('DOM click: ' + (e.target.id || e.target.tagName) +
+        ' at ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' trusted=' + e.isTrusted +
+        '\n' + (new Error().stack || '').split('\n').slice(1, 5).join('\n')), true);
+       window.addEventListener('keydown', (e) => console.log('DOM key: ' + e.key + ' on ' +
+        (e.target.id || e.target.tagName) + ' active=' + (document.activeElement && document.activeElement.id)), true);
+       window.addEventListener('focusin', (e) => console.log('focus: ' + (e.target.id || e.target.tagName)), true);` });
+  }
   /* NIGHT_VIEWPORT="390x844x3,mobile" puts the page in a phone's viewport. It exists because the pad's
      layout -- cell sizes from vmax, a three-column deck, a middle column that shrinks first -- is a question
      about a 390 px screen and not about the 960 px window, and because with mobile touch on,
@@ -262,8 +275,16 @@ chrome.stderr.on('data', () => {});
           console.log('wrote ' + (png || '/tmp/gate.png'));
           process.exit(0);
         }
+        /* Ask what is actually under that point before pressing it. `btn-start` in the gate and `btn-mute`
+         * in the bar can occupy the same pixels, and a click whose mousedown and mouseup land on different
+         * elements does not deliver the click where either expects -- which is how a measurement run whose
+         * only press was the gate came back with the page muted and every audio counter at zero. */
+        const hit = await evalJson(`(() => { const e = document.elementFromPoint(${x}, ${y});
+            const b = document.getElementById('btn-mute'), r = b && b.getBoundingClientRect();
+            return { hit: e ? (e.id || e.tagName) : null,
+                     mute: r ? [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)] : null }; })()`);
         await click(x, y);
-        console.log('gate pressed at ' + x + ',' + y);
+        console.log(`gate pressed at ${x},${y} (under it: ${hit.hit}, mute button at ${JSON.stringify(hit.mute)})`);
         const until = Date.now() + 15000;
         while (Date.now() < until && !(await evalJson('window.NightWasm.ready().started'))) await sleep(100);
         return await evalJson('window.NightWasm.ready().started');
@@ -443,13 +464,37 @@ chrome.stderr.on('data', () => {});
   }
   timed.sort((a, b) => a[0] - b[0]);
   const timers = timed.map(([at, spec]) => setTimeout(() => { press(spec).catch(() => {}); }, Math.max(0, at)));
+  /* NIGHT_MUTE="6000,12000" presses the page's own mute button at those milliseconds. "the music does not
+   * resume after mute -> unmute" is a question about what the page does to the rings while nobody is
+   * listening, and the only honest way to answer it is to do it and read the pump line across the gap. */
+  const mutes = (process.env.NIGHT_MUTE || '').split(',').map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  const muteTimers = mutes.map((at) => setTimeout(() => {
+    send('Runtime.evaluate', { expression: `(() => { const b = document.getElementById('btn-mute');
+        if (!b) return 'no button'; b.click(); return b.textContent; })()` })
+      .then((r) => console.log(`mute: pressed at ${at} ms -> ${JSON.stringify(r.result && r.result.value)}`))
+      .catch(() => {});
+  }, Math.max(0, at)));
+  /* NIGHT_PROBE="8000,14000" dumps what the audio path looks like from the page at those milliseconds, which
+   * is how "the music stopped and the counters said nothing" gets answered: the flags word, whether the page
+   * believes it is muted, and -- in `cddaReader` -- what the ring's own reader thinks it is doing, which is
+   * the only counter that can tell a stopped reader from an empty ring. Timed from the start of the run, like
+   * the mute presses, and created before the waits rather than after them. */
+  const probes = (process.env.NIGHT_PROBE || '').split(',').map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  const probeTimers = probes.map((at) => setTimeout(() => {
+    evalJson(`(() => { const s = window.NightWasm ? NightWasm.stats() : null;
+        const b = document.getElementById('btn-mute'), m = NightWasm.mix ? NightWasm.mix() : null;
+        return { t: Math.round(performance.now()), flags: s && s.flags, btn: b && b.textContent,
+                 cdda: s && s.pulled.cdda, dev: s && s.dev, ac: s && s.ac, cddaReader: m && m[1] }; })()`)
+      .then((v) => console.log(`probe: ${JSON.stringify(v)}`))
+      .catch((e) => console.log(`probe: ${e.message}`));
+  }, Math.max(0, at)));
   await sleep(Math.floor(ms / 2));
   let waited = 0;
   for (const [at, x, y] of early) { await sleep(Math.max(0, at - waited)); waited = at; await click(x, y); }
   for (const spec of seq) { await press(spec); }
   if (touchSpec.length) touchBad = await runTouch();
   await sleep(Math.ceil(ms / 2));
-  for (const t of timers) clearTimeout(t);
+  for (const t of timers.concat(muteTimers, probeTimers)) clearTimeout(t);
   let stateValue = null;
   try {
     const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
@@ -474,10 +519,17 @@ chrome.stderr.on('data', () => {});
     try { st = typeof stateValue === 'string' ? JSON.parse(stateValue) : stateValue; } catch (e) { /* keep going */ }
     const bad = [];
     for (const p of touchBad) bad.push(p);        /* a stuck d-pad is a failure of the machine, not a taste */
-    /* NIGHT_NET="offline=A-B" takes the server away on purpose, and during that window the port plays
-     * silence on purpose (docs/460), so the assertion below -- which asks whether the music is audible in
-     * the blocks it shares with effects -- is measuring a hole that was put there deliberately. */
     const netOfflineWindow = /offline=\d+-\d+/.test(process.env.NIGHT_NET || '');
+    /* `cdda: fed nothing ...` is the host saying the disc feed stopped while the page was still asking for
+     * bytes. It is the one line whose appearance means the music went dead for the rest of the session, so
+     * it fails the run instead of being something a human has to notice in a wall of pump lines (docs/462). */
+    const stuck = logs.filter((l) => /cdda: fed nothing/.test(l));
+    if (stuck.length) bad.push('the CD-DA feed stopped: ' + stuck[0]);
+    /* And the other half: if the run muted and unmuted the page, the reader has to have consumed CD-DA
+     * afterwards. Every symptom of the trap in docs/462 looked healthy in every counter except this one. */
+    if (mutes.length >= 2 && st && st.audio && st.audio.pulled && st.audio.pulled.cdda < 10000 && !netOfflineWindow)
+      bad.push('no CD-DA came through after the mute cycle (pulled.cdda ' +
+               (st.audio.pulled && st.audio.pulled.cdda) + ')');
     const errs = logs.filter((l) => /^EXCEPTION|^aborted|Aborted|SegmentationError|out of memory/i.test(l));
     if (errs.length) bad.push('console threw: ' + errs[0]);
     if (!st) bad.push('no state object read from the page');

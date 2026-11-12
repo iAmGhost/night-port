@@ -126,10 +126,17 @@ The rest of the model is the desktop host's, kept on purpose:
   (`g_cdda_budget += el`, `src/app/main.c:385`). A first version computed `allowed = Δt_since_last_pump +
   30` and capped the reader at ~33 sectors — 0.44 s of a 42 s track, the exact mistake docs/302 calls
   "an allowance re-granted per call is not a lead";
-- when the wall clock runs away from the reader (a backgrounded tab) the reader **re-anchors instead of
-  racing**: the game's own CD bookkeeping runs off ticks, which freeze with `requestAnimationFrame`, so
-  sprinting to catch the clock would be the one case where the heard music is wrong — and it would stream
-  at 10× real time doing it;
+- when the wall clock runs away from the reader (a backgrounded tab, or **a muted page**, which stops its own
+  reader) the reader **re-anchors instead of racing**: the game's own CD bookkeeping runs off ticks, which
+  freeze with `requestAnimationFrame`, so sprinting to catch the clock would be the one case where the heard
+  music is wrong — and it would stream at 10× real time doing it. The anchor goes to `clock = now`,
+  `budget = pos` — nothing owed beyond what has been read. Anchoring the clock a cushion-plus-position
+  *behind* `now` instead credited those sectors twice, which made the branch re-arm on every pump after that
+  and left CD-DA dead for the rest of the session (docs/462). The host now says so, loudly and once per
+  reason: `cdda: fed nothing for N ms at pos=... : <why>` — the re-anchor only reporting on its second
+  consecutive appearance, since one is the safety net working — and `NIGHT_CHECK` fails a run on that line.
+  Mute therefore pauses the disc feed and unmute resumes it in step, from where it stopped; the original's
+  mute is analog and the disc would have kept playing.
 - `cdda_play` flushes the ring, because MSCDEX's PLAY replaces what was playing (docs/105 §1, docs/307).
 
 ### The mixer scaled one voice twice, so every effect was silent under the music
@@ -568,7 +575,12 @@ pad shape, `?nosw=1` skips the worker and `?stallms=` moves the frame-stall watc
 `.bar()` and `.pwa()` read back what the page
 thinks it is running — pad shape, whether the bar is showing, and whether it is installed, installable and full
 screen. `NIGHT_TOUCH="c d:left h:left d:right h:right u h:"` presses the deck and asserts what it believes
-(docs/461). `NIGHT_VIEWPORT="WxHxDPR[,mobile]"` puts the page in a phone's viewport, which is the only way to see the
+(docs/461). `NIGHT_MUTE="6000,13000"` presses the page's own mute button at those milliseconds and `NIGHT_PROBE=
+"2000,5000"` dumps what the audio path looks like from the page there — `flags`, the button's own label, the
+frames each ring has handed the mixer, and `NightWasm.mix()`, each ring's READER (`avail` and `released` parked
+together is a reader that stopped; `released` moving with `avail` is a stream) — which is how "the music stopped
+and every counter said nothing" gets answered (docs/462). `NIGHT_CLICKLOG=1` logs the page's clicks with
+`isTrusted` and a stack, installed before the navigation. `NIGHT_VIEWPORT="WxHxDPR[,mobile]"` puts the page in a phone's viewport, which is the only way to see the
 layout a thumb gets (and with mobile touch on, `matchMedia('(pointer: coarse)')` answers the way a phone answers
 it, so the pad defaults itself on and a run sees what a visitor gets); `NIGHT_ROTATE_AT="MS:WxH"` turns it
 mid-run, which is the only way to drive the rotation path at all. A phone in the harness that never turns is a

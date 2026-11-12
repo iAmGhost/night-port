@@ -8325,6 +8325,14 @@ int g_view_320x200;   /* 1 = the framebuffer currently holds a 320x200 room fram
  * write. Without the charge the port ran the entire melt in a few hundred milliseconds. */
 uint32_t g_vga_window_ns = 0;
 uint64_t g_vga_window_bytes;                    /* bytes charged to the window-write model (diagnostics/tests) */
+/* The least debt worth a wait (0 = wait on every charge, which is what the desktop host and the fixture
+ * suite have always had). A per-scanline charge asks for a sys_port_spin() 480 times per pass, and a spin
+ * is not free: in the browser host the tick pump inside it runs the audio pump, a present and (at the frame
+ * boundary) the Asyncify unwind and the wait for requestAnimationFrame. Charged per scanline at 63 ns/byte
+ * the title wipe cost 48 ms/pass instead of the modelled 19.35 ms, and the whole animation ran 11.6 s
+ * instead of the original's 7.19 s (docs/459). Coalescing the waits keeps the byte count and the total
+ * charged time identical -- only fewer, longer waits. */
+uint32_t g_vga_charge_spin_us = 0;
 
 static void vga_charge(uint32_t bytes)
 {
@@ -8335,6 +8343,7 @@ static void vga_charge(uint32_t bytes)
      * intended 30.1 ms). Charging into an accumulator and crediting the overshoot back keeps the total honest. */
     static uint64_t s_debt_us;
     s_debt_us += ((uint64_t)bytes * g_vga_window_ns) / 1000u;
+    if ((uint32_t)s_debt_us < g_vga_charge_spin_us) return;
     uint64_t target = sys_now_us() + s_debt_us;
     while (sys_now_us() < target) { if (!sys_port_spin()) break; }
     uint64_t now = sys_now_us();

@@ -21,7 +21,7 @@ const expr = process.argv[5] || '(function(){var M=window.NightWasm.module();if(
   'var b=M._nk_block_addr()>>2,H=M.HEAPU32;' +
   'return JSON.stringify({frames:H[b+1],w:H[b+2],h:H[b+3],exit:H[b+4],tracks:H[b+5],' +
   'cddaKB:Math.round(H[b+7]*4/1024),keys:H[b+10],disc:H[b+8],keysDropped:H[b+34],' +
-  'audio:window.NightWasm.stats()});})()';
+  'audio:window.NightWasm.stats(),gate:window.NightWasm.ready()});})()';
 const port = parseInt(process.env.CDP_PORT || '9341', 10);
 const sleep = (t) => new Promise((r) => setTimeout(r, t));
 
@@ -98,12 +98,58 @@ chrome.stderr.on('data', () => {});
   await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable');
   await send('Page.navigate', { url });
 
+  /* Press the gate, if the page showed one. It has to be a real mouse event at the button's centre: a
+   * scripted element.click() does NOT grant user activation, so it would start the game and still leave the
+   * AudioContext suspended -- a run that hears nothing and reports every counter at a healthy zero, which is
+   * the failure NIGHT_REQUIRE_AUDIO exists to catch. The gate only arms once the module and the 20 MB resource
+   * pack are in, so wait for that instead of guessing at a duration. With ?sink=1 or ?auto=1 the page starts
+   * itself and this returns at once. */
+  async function evalJson(expression) {
+    const r = await send('Runtime.evaluate', { expression: '(' + expression + ')', returnByValue: true });
+    return r.result && r.result.value;
+  }
+  async function pressGate(timeoutMs) {
+    /* getBoundingClientRect() is a DOMRect, and DOMRect's x/width/... live on its prototype, so a
+     * by-value serialization of it is an empty object -- the first version of this clicked at NaN. */
+    const read = () => evalJson(`(() => { const N = window.NightWasm; if (!N) return {};
+        const rd = N.ready(), b = document.getElementById('btn-start');
+        const r = b ? b.getBoundingClientRect() : null;
+        return { preloaded: rd.preloaded, started: rd.started, gate: rd.gate, armed: b && !b.disabled,
+                 box: r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null }; })()`);
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const r = await read();
+      if (r.started) return true;                              /* auto-start path: nothing to press */
+      if (r.gate && r.armed && r.box && r.box.w > 0) {
+        const x = Math.round(r.box.x + r.box.w / 2), y = Math.round(r.box.y + r.box.h / 2);
+        if (process.env.NIGHT_SHOT_GATE) {          /* look at the gate without pressing it */
+          const s = await send('Page.captureScreenshot', { format: 'png' });
+          fs.writeFileSync(png || '/tmp/gate.png', Buffer.from(s.data, 'base64'));
+          console.log('gate armed: ' + JSON.stringify(r.box));
+          console.log('wrote ' + (png || '/tmp/gate.png'));
+          process.exit(0);
+        }
+        await click(x, y);
+        console.log('gate pressed at ' + x + ',' + y);
+        const until = Date.now() + 15000;
+        while (Date.now() < until && !(await evalJson('window.NightWasm.ready().started'))) await sleep(100);
+        return await evalJson('window.NightWasm.ready().started');
+      }
+      if (Date.now() > deadline) { console.log('the gate never armed: ' + JSON.stringify(r)); return false; }
+      await sleep(150);
+    }
+  }
+  if (!(await pressGate(Math.max(30000, Math.min(90000, ms * 3)))))
+    console.log('WARNING: the game never started -- nothing measured here can have been heard');
+
   /* The DOS make codes are keyed by the same table shell.js uses, only here for the protocol fields. */
   const VK = { Space: [32, ' '], Enter: [13, 'Enter'], Escape: [27, 'Escape'], F1: [112, 'F1'],
                ArrowLeft: [37, 'ArrowLeft'], ArrowUp: [38, 'ArrowUp'], ArrowRight: [39, 'ArrowRight'],
                ArrowDown: [40, 'ArrowDown'], KeyZ: [90, 'z'], KeyX: [88, 'x'], KeyC: [67, 'c'],
                KeyQ: [81, 'q'], KeyE: [69, 'e'], KeyS: [83, 's'] };
   async function press(spec) {
+    if (spec === 'wait') { console.log('   (wait)'); return; }
+    if (spec.startsWith('wait:')) { const ms = parseInt(spec.slice(5), 10); await sleep(ms); return; }
     const [code, hold] = spec.split(':');
     const vk = VK[code] || [0, code];
     const base = { type: 'keyDown', code, key: vk[1], windowsVirtualKeyCode: vk[0], nativeVirtualKeyCode: vk[0] };
@@ -129,11 +175,21 @@ chrome.stderr.on('data', () => {});
     if (!at) { await click(x, y); await sleep(400); } else early.push([Number(at), x, y]);
   }
   early.sort((a, b) => a[0] - b[0]);
+  /* Specs carrying `@ms` fire on their own clock at that absolute millisecond of the run; the rest still run
+   * back to back from the midpoint, which is what `make check` has always done. */
+  const timed = [], seq = [];
+  for (const spec of keys) {
+    const m = /^(.*?)@(\d+)$/.exec(spec);
+    if (m) timed.push([Number(m[2]), m[1]]); else seq.push(spec);
+  }
+  timed.sort((a, b) => a[0] - b[0]);
+  const timers = timed.map(([at, spec]) => setTimeout(() => { press(spec).catch(() => {}); }, Math.max(0, at)));
   await sleep(Math.floor(ms / 2));
   let waited = 0;
   for (const [at, x, y] of early) { await sleep(Math.max(0, at - waited)); waited = at; await click(x, y); }
-  for (const spec of keys) { await press(spec); }
+  for (const spec of seq) { await press(spec); }
   await sleep(Math.ceil(ms / 2));
+  for (const t of timers) clearTimeout(t);
   let stateValue = null;
   try {
     const r = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true });
@@ -152,6 +208,7 @@ chrome.stderr.on('data', () => {});
    * What is being asserted is not "the picture is right" -- that is what docs/63's asset comparison and a
    * screenshot are for -- but that the machine runs: the loop is driven, the clock advances, the disc
    * answers, the rings drain, and a key lands in the game. */
+  let failed = false;                 /* function scope: the exit at the end of main honours it */
   if (process.env.NIGHT_CHECK) {
     let st = null;
     try { st = typeof stateValue === 'string' ? JSON.parse(stateValue) : stateValue; } catch (e) { /* keep going */ }
@@ -163,6 +220,8 @@ chrome.stderr.on('data', () => {});
       const fps = st.frames / (ms / 1000);
       const a = st.audio || {};
       if (st.exit !== 0) bad.push('the game exited with state ' + st.exit);
+      if (st.gate && st.gate.started === false)
+        bad.push('the game never started -- the gate was never pressed (gate ' + JSON.stringify(st.gate) + ')');
       if (st.frames < 120) bad.push('only ' + st.frames + ' frames in ' + ms + ' ms');
       if (fps < 20) bad.push(fps.toFixed(1) + ' frames/s');
       if (!st.disc) bad.push('no disc byte source answered any read');
@@ -177,6 +236,17 @@ chrome.stderr.on('data', () => {});
         bad.push('rate marks missed by the reader: ' + JSON.stringify(a.aud.markMiss));
       if (a.aud && a.pulled && a.pulled.sfx > 1000 && !(a.aud.inPeak && a.aud.inPeak[0] > 1000))
         bad.push('the filter was handed no effect signal (inPeak ' + JSON.stringify(a.aud.inPeak) + ')');
+      /* A voice mixed under another one is invisible to every counter that counts frames: while the mixer was
+       * scaling one ring twice, effects reached the output at 1/32768 of their level and pulled.sfx, inPeak,
+       * drop and underrun all still looked healthy. So measure the OUTPUT of both voices in the blocks where
+       * they are supposed to overlap -- which is the whole point of the game's mixer. */
+      if (a.aud && a.pulled && a.pulled.sfx > 1000 && a.pulled.cdda > 1000) {
+        if (!(a.aud.bothBlocks > 0))
+          bad.push('the two voices never shared an output block (bothBlocks 0) -- one is being swallowed');
+        else if (!(a.aud.ringPeak[0] > 0.02 && a.aud.ringPeak[1] > 0.02))
+          bad.push('a voice is inaudible under the other (output peak ' + JSON.stringify(a.aud.ringPeak) +
+                   ' during ' + a.aud.bothBlocks + ' shared blocks)');
+      }
       /* Ratio between what the board wrote and what the filter emitted. The board runs at 10000..22050 Hz and
        * the device at whatever the AudioContext said, so the frames out must be 2.0x..4.4x the frames in on a
        * 44.1 kHz device. A reader that ignored the rate marks emits one time or four times too few frames, and
@@ -199,13 +269,16 @@ chrome.stderr.on('data', () => {});
        * what `make check` runs; ask for this only when a real AudioContext is the point. */
       if (process.env.NIGHT_REQUIRE_AUDIO && a.ac !== 'running') bad.push('AudioContext is ' + a.ac);
     }
-    if (bad.length) { console.log('CHECK: FAIL\n  ' + bad.join('\n  ')); process.exitCode = 1; }
+    if (bad.length) { console.log('CHECK: FAIL\n  ' + bad.join('\n  ')); failed = true; }
     else console.log('CHECK: PASS (' + st.frames + ' frames, ' + (st.frames / (ms / 1000)).toFixed(1) +
                      ' fps, ' + st.keys + ' keys, ' + st.tracks + ' CD tracks played)');
   }
-  console.log('--- console (last 60 lines) ---');
-  for (const l of logs.slice(-60)) console.log(l);
+  const logLines = process.env.NIGHT_LOG_LINES ? parseInt(process.env.NIGHT_LOG_LINES, 10) : 60;
+  console.log('--- console (last ' + logLines + ' lines) ---');
+  for (const l of logs.slice(logLines > 0 ? -logLines : 0)) console.log(l);
   ws.close();
   chrome.kill('SIGKILL');
-  process.exit(0);
+  /* A failure has to reach the shell: this used to end in process.exit(0) unconditionally, which threw away
+   * the exitCode the branch above had just set -- so a CHECK: FAIL came back green from `make check`. */
+  process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error('FAIL ' + e.message); chrome.kill('SIGKILL'); process.exit(1); });

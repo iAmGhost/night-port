@@ -132,6 +132,52 @@ The rest of the model is the desktop host's, kept on purpose:
   at 10× real time doing it;
 - `cdda_play` flushes the ring, because MSCDEX's PLAY replaces what was playing (docs/105 §1, docs/307).
 
+### The mixer scaled one voice twice, so every effect was silent under the music
+
+Reported as "effects cannot be played at the same time as the CD audio" -- and the report came with the reason
+it had been missed: the listener had been playing scenes with no music.
+
+Both rings converge on one output, and both arrive in int16 units, so the sum has to be divided by 32768. It
+was, once per ring, into the shared destination:
+
+```js
+pulled.sfx  += mixRing(RING_SFX,  L, R, n);      // writes L/R, then scales L/R by 1/32768
+pulled.cdda += mixRing(RING_CDDA, L, R, n);      // adds into L/R, then scales L/R by 1/32768 AGAIN
+```
+
+The converter accumulates (`outL[k] += a`), so the two voices really did add -- but the voice mixed *first*
+was divided twice. Measured: an effect that reaches 0.244 of full scale on its own reached the output at
+**7.45e-6**, i.e. **−103 dBFS**, in any output block that also held CD-DA -- 17 bits below the noise floor of
+the converter it was played through, which is silence by another name. In a block where the disc ring had run
+dry it was at full level. That is the whole of the symptom: perfect effects in a silent scene, gone the moment
+the music starts -- and the silent sink path had the same arithmetic, so a headless run mixed it wrong too.
+
+Why every counter stayed green: `pulled` counts frames, `inPeak` is measured at the **filter's input**, and
+`underrun`/`drop`/`short` are all about *whether frames arrived*, never about what came out. Nothing in the
+port had ever looked at the output. So the mixer moved into `resample.js` as `mix(dstL, dstR, n, a, b)` -- each
+voice in its own buffer, the sum scaled once, hard-clamped (the card's summer has no headroom either, and
+`clip` counts what it eats) -- and three output-side counters came with it:
+
+```
+mixing two voices (float full scale):
+  effect alone: contribution 0.2441  with music: 0.2441  (music alone: 0.6103, with effect: 0.6103)
+  shared block: both=true output peak 0.8515 clipped samples 0
+```
+
+The claim is that a voice's own level does not change because another voice joined it. Under the old
+arithmetic that number was 0.2441 against 0.2441/32768, so `make resample` now fails if this ever comes back.
+In the page, `make check` asserts `bothBlocks > 0` (the two voices shared an output block) and that each
+contributed more than 0.02 of full scale in those blocks. A 45 s opening on a real device:
+
+```
+  bothBlocks 629 · peakIn [30720, 21512] int16 · ringPeak [0.390, 0.439] float · clip 0
+```
+
+`peakIn` is the run-level peak the filter was handed, and it exists because the older `inPeak` restarts at
+every re-anchor -- 62 stops in that opening -- and had already wasted an hour by looking 2.4× low. Comparing
+`ringPeak` against `peakIn` is what proves the converter adds no level of its own: an impulse through it gains
+**1.000×** at every rate the board programs, which `make resample` now checks too.
+
 ## Disc: Range reads, and a refusal that is not an option
 
 `src/cd/cd_iso.{c,h}` grew one seam — `cd_iso_set_remote(size_fn, pread_fn)` — which replaces
@@ -145,6 +191,11 @@ response that is not `206` — a server that ignores `Range` would deliver a who
 instead of a window, and that has to be loud. `scripts/serve.py` exists because `http.server` does ignore
 `Range` (it answers 200 with the whole file), which is exactly the case above. A 22 s run that reached
 gameplay measured **1397 sector reads served from 23 fetches / 3 462 144 B, fails=0**.
+
+The window is clamped to the track's length, and a read that gets no answer at all is the end of *that
+window*, not of CD-DA. Both halves are the same bug (docs/459): asking for the 64 frames past the last byte
+of a track gets the connection closed without a response, the promise rejected, and — before the `try` — the
+rejection unwound through the game's own stack, killing any run at the last sector of its longest song.
 
 The game's own view of the disc stays a *filesystem*: `cd_iso` opens the CUE with `fopen`, so the CUE and
 `NIGHT.RES` are written into the in-memory FS at `/data` before `callMain`, and only the track bytes are
@@ -184,7 +235,10 @@ makes the page pull the rings on a 20 ms timer into a scratch buffer instead: th
 stays under test without a speaker. `NIGHT_HEADFUL=1` opens a real window with a real device and is what
 proved the device path — `ac: running`, 1314 audio callbacks, 1 236 992 CD-DA frames out of the ring.
 
-## Six bugs that were only visible from inside the page
+## Seven bugs that were only visible from inside the page
+
+The mixer bug has its own section above; it is the eighth, and the only one of them that a listener noticed
+first.
 
 **A white canvas with a picture behind it.** The first frame drew nothing, while the game was drawing
 normally: `video 599: 320x200 colours=121 dac lit=255 dacmax=255` — 121 distinct indices on screen and a
@@ -229,6 +283,12 @@ at a quarter of where it belonged, which killed 4.5 kHz rather than filtering im
 off by one input frame, and — in the *test*, not the port — a caller that reused the same output region every
 block made three identical readers look three different ways.
 
+**The harness that reported its own failures as passing.** `NIGHT_CHECK` turned the numbers into assertions and,
+on failure, set `process.exitCode = 1` -- and then reached the end of `main`, whose last statement was
+`process.exit(0)`, which overrode it. So `make check` came back green from a `CHECK: FAIL`, and did so for
+however long the mixer had been eating one of the two voices. `make check` now exits with the verdict. Worth a
+second look at every other script in this repo that sets `exitCode` and then exits.
+
 ## Running it
 
 ```
@@ -240,6 +300,16 @@ make -C wasm resample       # what the converter does to the board's samples (no
 NIGHT_HEADFUL=1 CDP_PORT=9343 node wasm/scripts/headless.js http://127.0.0.1:8091/index.html 20000
 ```
 
+Nothing plays until you press. The page preloads the module and inflates the 20 MB resource pack behind a gate,
+and the single press on its button is both the user activation the browser demands before it will let a page
+make a sound (an `AudioContext` created without one comes up `suspended`) and the start of `callMain` -- so the
+first thing the player hears is the game's own first sound, not one they had to wait for a second press to
+unlock. The press itself is instant, because everything slow has already happened. `?sink=1` and `?auto=1` skip
+the gate (no output device to unlock, and a check that needs a finger would only be testing its own harness),
+and the headful harness presses it for real: a scripted `element.click()` grants no activation, so it reads the
+button's box and sends a mouse event to its centre. `NIGHT_SHOT_GATE=1` photographs the gate without pressing
+it; keys are ignored by the page until the game runs, so a keyboard user's Space reaches the button.
+
 A measurement run that is about audio should say so, or it will measure nothing: half the headful attempts the
 AudioContext came up `suspended` and every counter read a healthy zero. `NIGHT_REQUIRE_AUDIO=1` makes the
 harness fail instead of reporting silence as a result, and `NIGHT_CLICK="x:y,x:y@3000"` can press more than
@@ -249,6 +319,14 @@ starts a device.
 The page prints the host's log to the browser console and to its own `log` panel; the HUD shows frames,
 geometry, CD tracks, device rate and state, and bytes played out of the rings. Keys are the DOS make/break
 codes through `keymap.c` (docs/91), the same map the fixture suite asserts against.
+
+Four URL parameters exist for measurement runs, all printed by the boot banner: `?vgaws=` and `?chargeus=` are
+the A0000 window-write charge in ns/byte and the least write debt worth a wait, which together pace the melting
+title, the logo fade and the room's page flip (docs/459); `?scale=fit` forces the whole-number scale of the
+bitmap's own ratio instead of the default 4:3 stretch; `?skipintro=1` and `?bgmoff=N` are the host's debug flags
+for reaching the title fast and for simulating the pause menu's BGM MODE row. `NIGHT_KEYS` specs can carry an
+absolute time (`Escape:150@118000`) and `NIGHT_LOG_LINES` widens the console excerpt, both so that a menu can be
+driven and a 200 ms sampled calibration window actually be read (docs/459).
 
 ## Not claimed
 
@@ -264,3 +342,13 @@ Not attempted: getting the mixer off the main thread. `AudioWorklet` is the shap
 worklet needs a big enough internal FIFO to ride out a game hold — and until then a ScriptProcessor callback
 serviced by a main thread the game owns for tens of milliseconds can render *less than the wall clock's worth*
 of audio; one 26 s run delivered 14.9 s of it. Queue depth does not fix that, only a thread does.
+
+And one thing the checks do not cover, found while measuring docs/459: a run has to last more than four minutes
+before anything past the episode card is expected to happen, because the card holds while the show's track
+plays and that track is 238 s long. Once it can last that long the room is reached — gameplay at 320x200
+stretched into a 4:3 box, 12 CD tracks streamed, ~30 fps (analysis/refs/wasm-room-320x200-stretch.png) — but
+getting there needs a scripted ~5-minute key route, so `make check`'s "reaches a stage" still means the card,
+and the room loop, the pause menu and the room's page-flip charge stay unexercised by the harness. Two
+measured disagreements sit in that unexercised part: the room flips pages at 4.3/s in the browser against the
+shipped's 15.7 (docs/77), and no scripted room has yet armed the abort flag that `fn_039c03` enters on
+(docs/93), so BGM MODE has been verified by its byte and its feed, not by its row.

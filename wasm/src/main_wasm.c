@@ -113,6 +113,9 @@ static uint64_t g_tick_next_us, g_present_next_us, g_diag_next_us, g_audio_next_
 static uint32_t g_pumps, g_tick_calls, g_frames_win;
 static uint64_t g_gap_us, g_gap_max_us, g_step_us, g_present_us, g_yield_us, g_yield_max_us;
 static uint64_t g_start_us, g_last_log_us;
+/* The diagnostics cadence (`--diagms`, default 5 s). Measuring a ~7 s animation through a 5 s log line is
+ * measuring nothing, so a span run drops it to 1000 ms and reads the wipe's first and last changing frame. */
+static uint64_t g_diag_us = 5000000ull;
 
 /* ---- fatal / terminate ----------------------------------------------------------- */
 static void on_fatal(const char *msg) {
@@ -406,7 +409,41 @@ static void cdda_stop(void) {
     g_cdda_sectors = 0; g_cdda_pos = 0;
 }
 
+/* BGM MODE -- the third row of the pause menu (fn_039c03, entry m == 2) -------------------------------
+ * The row's toggle handler (0x00039e30-e96, the Up/Down keys per docs/60's keymap: 0x48/0x50 ->
+ * DAT_00063ed3/ed5) writes DAT_00051a10 and then either re-selects the room's track (fn_10b1d, 0x00039e8c)
+ * or issues the CD request whose template is DS 0x51b50 (fn_00010dde, 0x00039e69). DAT_00051a10 has exactly
+ * two readers in the whole game -- this row, and fn_10b1d, which returns at 0x010b38 when it is clear -- so
+ * it is the BGM enable, and it gates the *request*, never a playhead. The port streams a whole track the
+ * moment fn_10b1d asks for one, so a byte the game only consults on the next request cannot silence the one
+ * already streaming: with BGM MODE off the music went on playing to its end. The original has no playhead to
+ * stop either (docs/413: the MSCDEX surface is an install check and a media read), which is exactly the
+ * point -- in the original the heard stream IS the game's reads, and with DAT_00051a10 clear there are no
+ * reads. So the enable byte has to gate the FEED as well as the request, and this host is the feed.
+ * Turning BGM back on does not restart anything (0x00039e69's fn_00010dde is a media read, which src/f
+ * models as a no-op), and the stream comes back on the game's next fn_10b1d -- the next card or room. Same
+ * on both sides: the original's feed restarts at its next read too. */
+static int g_bgm_off_logged;
+static uint64_t g_bgm_off_us;               /* 0 = off; else the moment to clear DAT_00051a10 (--bgmoff) */
+static int g_bgm_off_fired;
+
+static void cdda_bgm_gate(void) {
+    if (g_dat_51a10) { g_bgm_off_logged = 0; return; }
+    if (!g_bgm_off_logged) {                       /* one line per press, not one per 20 ms pump */
+        printf("cdda: BGM MODE off -- dropping the %u sectors still queued\n", g_cdda_sectors - g_cdda_pos);
+        g_bgm_off_logged = 1;
+    }
+    if (g_cdda_sectors) cdda_stop();               /* silence the ring, stop Range-reading the track */
+}
+
 static void cdda_pump(void) {
+    if (g_bgm_off_us && !g_bgm_off_fired && nk_now_us() >= g_bgm_off_us) {
+        g_bgm_off_fired = 1;
+        g_dat_51a10 = 0;
+        printf("bgm: cleared DAT_00051a10 at t=%llu ms (simulates the pause menu's BGM MODE row, 0x00039e30)\n",
+               (unsigned long long)((nk_now_us() - g_start_us) / 1000ull));
+    }
+    cdda_bgm_gate();
     if (!g_cdda_sectors) return;
     if (!g_ring_words[NK_RING_CDDA][NK_RING_RATE]) return;   /* no AudioContext yet: nothing to feed,
                                                               * and losing the read position would drop
@@ -511,14 +548,18 @@ static void tick_pump(void) {
     if (now >= g_diag_next_us) {
         uint32_t rd = 0, rb = 0, ft = 0, fb = 0, ff = 0;
         nk_disc_stats(&rd, &rb, &ft, &fb, &ff);
-        printf("pump: frames=%u ticks=%u tick=%u stage=%u audio=%uHz pend=%u xfer=%u stops=%u "
+        printf("pump: t=%llums frames=%u ticks=%u tick=%u stage=%u audio=%uHz pend=%u xfer=%u stops=%u "
                "sfx=%uB/%uB dropped/%uB deferred (%u rate changes marked, %u flushed: %uB) cdda=%uB tracks=%u pos=%u "
+               "bgm=%u snd=%u vgaws=%uns/%uB charged "
                "ring=%u/%u@%u dev=%u at stop n=%u board avg=%u max=%u page avg=%u max=%u "
                "disc reads=%u fetched=%u/%uB fails=%u\n",
+               g_start_us ? (unsigned long long)((now - g_start_us) / 1000ull) : 0ull,
                g_frames, g_timer_calls, g_dat_63e24, g_dat_63370,
                sys_audio_rate(), sys_audio_pending(), sys_audio_transfers(), sys_audio_stops(),
                g_sfx_bytes, g_sfx_dropped, g_sfx_deferred, g_sfx_marks, g_sfx_flushes, g_sfx_chop_bytes,
                g_cdda_bytes, g_cdda_tracks, g_cdda_pos,
+               (unsigned)g_dat_51a10, (unsigned)g_dat_53338, g_vga_window_ns,
+               (unsigned)(g_vga_window_bytes > 0xffffffffull ? 0xffffffffu : (uint32_t)g_vga_window_bytes),
                ring_used(NK_RING_SFX), ring_used(NK_RING_CDDA), g_ring_words[NK_RING_CDDA][NK_RING_RATE],
                g_block[NK_CFG_AUDIO_RATE],
                g_stop_n, g_stop_n ? g_stop_board / g_stop_n : 0, g_stop_max_board,
@@ -537,7 +578,7 @@ static void tick_pump(void) {
         g_pumps = 0; g_gap_us = 0; g_gap_max_us = 0; g_step_us = 0; g_tick_calls = 0;
         g_frames_win = 0;
         g_present_us = 0; g_yield_us = 0; g_yield_max_us = 0;
-        g_diag_next_us = now + 5000000ull;
+        g_diag_next_us = now + g_diag_us;
     }
 
     if (now >= g_tick_next_us) {
@@ -633,16 +674,53 @@ int main(int argc, char **argv) {
     const char *cd_dir  = "/data/cd";      /* the directory cd_iso names as its byte source */
     const char *cd_url  = "data/cd";       /* the same directory as the page sees it, for Range reads */
     int sound_on        = 1;
+    /* The A0000 window-write charge, in ns/byte -- the thing that paces the melting title, the logo fade and
+     * the room's page flip (docs/72, docs/76). This host had never set it, so g_vga_window_ns stayed at its
+     * unit-test default of 0 and every one of those wrote free: fn_03a224's wipe is 240 passes x 307200 window
+     * bytes and ran through in under a second (charged in 0.65 s, measured), where the original's own captured
+     * frames put it at 7.19 s -- the "intro almost skipped" report. Default 98 is the physical figure docs/72
+     * pins (97.5 ns/byte = two 486 cycles per uncacheable VGA write); the browser can afford the physical
+     * number because its waits are coalesced below, so the charge itself is what spends the time. Measured with
+     * `?diagms=200`, from the first charged byte to the 73,728,000th: 6.4-6.8 s at 80 ns/byte (ratio 0.89-0.95)
+     * and 7.5-7.8 s at 98 (1.04-1.08), against the original's 7.19 s. The desktop host stays at its own tuned
+     * 63, which is 63 only because its per-scanline waits overshoot (docs/72). `?vgaws=0` gets the free writes
+     * back for an A/B. */
+    uint32_t vgaws        = 98u;
+    /* How much window-write debt is worth a wait (g_vga_charge_spin_us, f.c). Measured here: with a wait on
+     * every scanline (0, the desktop host's setting) the wipe ran at 48 ms/pass -- 2.5x the 19.35 ms the model
+     * asks for at 63 ns/byte -- because each of the 480 waits per pass runs a pass of the pump as well, and the
+     * pump is the audio pump, a present and (at the frame boundary) the wait for requestAnimationFrame.
+     * Coalescing the waits at 2 ms of debt brought the span onto the charge itself, which is what makes the
+     * physical charge the right default above (docs/459). `?chargeus=0` asks for the per-scanline behaviour. */
+    uint32_t chargeus     = 2000u;
+    /* A test knob, not a feature: clear the BGM enable byte (DAT_00051a10) N ms into the run, which is exactly
+     * what the pause menu's BGM MODE row does (fn_039c03, 0x00039e30-e96) -- see cdda_bgm_gate(). It exists
+     * because a headless run cannot reach that row: a browser run has to get past the episode's stage card and
+     * into the room loop first (docs/459's Not claimed), and it has not managed to. So the gate is exercised
+     * the same way the menu would, one press simulated at a known time. `?bgmoff=15000`. */
+    uint32_t bgmoff_ms    = 0u;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--res-dir") && i + 1 < argc)  res_dir = argv[++i];
         else if (!strcmp(argv[i], "--cue") && i + 1 < argc) cue = argv[++i];
         else if (!strcmp(argv[i], "--cd-dir") && i + 1 < argc) cd_dir = argv[++i];
         else if (!strcmp(argv[i], "--cd-url") && i + 1 < argc) cd_url = argv[++i];
+        else if (!strcmp(argv[i], "--vgaws") && i + 1 < argc) vgaws = (uint32_t)atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--chargeus") && i + 1 < argc) chargeus = (uint32_t)atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--bgmoff") && i + 1 < argc) bgmoff_ms = (uint32_t)atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--diagms") && i + 1 < argc) g_diag_us = (uint64_t)atoi(argv[++i]) * 1000ull;
         else if (!strcmp(argv[i], "--no-sound")) sound_on = 0;
+        /* The desktop host's debug flags, same names: get to the title card (and so to a room) without
+         * sitting through the logo hold and the opening movie. A browser run that has to reach the room loop
+         * before it can open the pause menu wants this. */
+        else if (!strcmp(argv[i], "--skip-intro")) g_skip_intro = 1;
     }
+    g_vga_window_ns = vgaws;
+    g_vga_charge_spin_us = chargeus;
 
     block_init();
     printf("NIGHT (wasm) -- SDL-free browser host. docs/457\n");
+    printf("window charge: %u ns/byte (0 = every A0000 write is free, and the intro paces themselves)\n",
+           g_vga_window_ns);
     block_layout_log();
 
     /* The page's AudioContext rate arrives as data, not as a call: it may only exist by the time the
@@ -693,10 +771,11 @@ int main(int argc, char **argv) {
     sys_set_present_hook(present);        /* docs/325: a pass that writes 0xA0000 and waits asks for one present */
 
     g_start_us = nk_now_us();
+    if (bgmoff_ms) g_bgm_off_us = g_start_us + (uint64_t)bgmoff_ms * 1000ull;
     g_tick_next_us = g_start_us;
     g_present_next_us = g_start_us;
     g_audio_next_us = g_start_us + 20000ull;
-    g_diag_next_us = g_start_us + 5000000ull;
+    g_diag_next_us = g_start_us + g_diag_us;
     g_yield_next_us = g_start_us;
     g_block[NK_ST_BOOTED] = 1;
 

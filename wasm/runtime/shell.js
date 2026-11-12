@@ -34,8 +34,21 @@
 
   const $ = (id) => document.getElementById(id);
   const canvas = $('screen'), statusEl = $('status'), logEl = $('log'), barEl = $('bar');
+  const holderEl = $('screen-holder'), scaleEl = $('btn-scale');
+  const gateEl = $('gate'), gateStart = $('btn-start'), gateStatusEl = $('gate-status');
+
+  /* `say` writes the HUD line; `gate` writes the gate's line while it is still the thing being looked at.
+   * Two lines because the preload runs while the overlay covers the canvas, and a status nobody can see
+   * during the one wait of the session is a status that does not exist. */
+  function gate(msg) {
+    if (gateEl && !gateEl.classList.contains('hidden') && gateStatusEl) gateStatusEl.textContent = msg;
+    say(msg);
+  }
 
   let M = null;                                  // the instantiated module
+  let preloaded = false;                          // module instantiated and NIGHT.RES in the filesystem
+  /* ?sink=1 / ?auto=1 start without a press (see boot); a real visitor gets the gate. */
+  const AUTO_START = /[?&](sink|auto)=1/.test(location.search);
   /* ALLOW_MEMORY_GROWTH replaces the ArrayBuffer, so the heap's buffer is read afresh every time -- and
    * it is reached through HEAPU8, because the module object does not export `buffer` itself. */
   const heap = () => M.HEAPU8.buffer;
@@ -108,12 +121,51 @@
       console.log('  canvas px at centre = ' + [...px].join(','));
     }
   }
+  /* ---- what the screen showed, and how big to make it ----
+   * The bitmap is 320x200 in the room path and 640x480 everywhere else, but the picture the original put on a
+   * CRT was 4:3 in both cases: mode 13h's pixels are square at the DAC and double-square on the screen, which is
+   * why a room frame scaled to 640x480 (the desktop host's view, docs/66) lines up with the slides and the title
+   * melt. Stretching 320x200 to its own 16:10 ratio -- what this page did -- makes the room 24 pixels narrower
+   * than everything around it. STRETCH is now the default and persists; `fit` keeps the bitmap's ratio and
+   * scales it by a whole number, and `?scale=fit` forces that for a run.
+   *
+   * No smoothing anywhere. A fractional scale with nearest-neighbour repeats some source rows and columns
+   * before others -- a slightly uneven line thickness -- and that is the look wanted here; bilinear was the
+   * default for one revision of this function and it made the whole game look out of focus. `fit` is the mode
+   * that is exact in both axes, because its scale is a whole number.
+   */
+  const SCALE_KEY = 'night.scale';
+  const DISPLAY_AR = 4 / 3;
+  const qsScale = new URLSearchParams(location.search).get('scale');
+  let stretch = qsScale ? qsScale !== 'fit'
+                        : (localStorage.getItem(SCALE_KEY) || 'stretch') !== 'fit';
+  function showScale() {
+    if (scaleEl) { scaleEl.textContent = stretch ? 'fit' : 'stretch';
+                   scaleEl.title = stretch ? 'keep the bitmap ratio (integer scale)'
+                                           : 'stretch to 4:3, the ratio the original showed'; }
+    canvas.style.imageRendering = 'pixelated';      /* both modes: no blurring at any scale */
+    if (scaleEl) scaleEl.classList.toggle('off', !stretch);
+  }
   function fit() {
     if (!modeW) return;
-    const cw = window.innerWidth, ch = window.innerHeight;
-    const s = Math.max(1, Math.min(Math.floor(cw / modeW), Math.floor(ch / modeH)) || 1);
-    canvas.style.width = (modeW * s) + 'px';
-    canvas.style.height = (modeH * s) + 'px';
+    const box = holderEl || document.body;
+    let bw = box.clientWidth, bh = box.clientHeight;
+    if (!bw || !bh) { bw = window.innerWidth; bh = window.innerHeight; }
+    if (!bw || !bh) return;
+    const ar = stretch ? DISPLAY_AR : modeW / modeH;
+    let w = bw, h = w / ar;
+    if (h > bh) { h = bh; w = h * ar; }
+    if (!stretch) {                                  /* integer only: no blurry whole-number scale */
+      const s = Math.max(1, Math.min(Math.floor(w / modeW), Math.floor(h / modeH)));
+      w = modeW * s; h = modeH * s;
+    }
+    canvas.style.width = Math.round(w) + 'px';
+    canvas.style.height = Math.round(h) + 'px';
+  }
+  function setStretch(on) {
+    stretch = on;
+    try { localStorage.setItem(SCALE_KEY, on ? 'stretch' : 'fit'); } catch (e) { /* private mode */ }
+    showScale(); fit();
   }
   window.addEventListener('resize', fit);
 
@@ -147,6 +199,10 @@
   }
   window.addEventListener('keydown', (e) => {
     ensureAudioOnce();                            // autoplay policy: a gesture is what opens the AudioContext
+    /* Before the gate's press the game is not running, and swallowing Space/Enter here would swallow a
+     * keyboard user's press of the Start button. `seen` still counts, so the harness can tell that the page
+     * got the key even when nothing was listening for it. */
+    if (!started) { seen.down++; return; }
     if (SWALLOW.has(e.code)) e.preventDefault();
     seen.down++;
     if (e.repeat) return;
@@ -154,6 +210,7 @@
     keyPush(e.code, true);
   }, { passive: false });
   window.addEventListener('keyup', (e) => {
+    if (!started) { seen.up++; return; }
     if (SWALLOW.has(e.code)) e.preventDefault();
     seen.up++; seen.push++;
     keyPush(e.code, false);
@@ -179,11 +236,10 @@
     sp.connect(ac.destination);
     if (ac.state !== 'running') ac.resume();
     writeRate();
-    hideBadge();                            /* only if that gesture actually started the device */
-  }
-  function hideBadge() {
-    const badge = $('tap-audio');
-    if (badge && ac && ac.state === 'running') badge.classList.add('hidden');
+    /* If a gesture still did not open the device, say it where the player can see: a run whose AudioContext
+     * stayed suspended reads every audio counter at a healthy zero, and silence is the one symptom the
+     * counters do not show. Any later press calls this again (the pointerdown listener is not `once`). */
+    if (ac.state !== 'running') say('sound blocked by the browser -- press again');
   }
   function writeRate() {
     if (!M || !ac) return;
@@ -205,7 +261,6 @@
    * The ring is still the carry buffer: the fractional read position lives here, not in wasm. */
   const RESAMPLE = new URLSearchParams(location.search).get('resample') === 'linear' ? 'linear' : 'sinc';
   const mixState = [null, null];
-  const INV = 0.00003051804334649788;                   // 1/32768
   function mixRing(which, L, R, n) {
     if (!ringBases[which]) return 0;
     const I = new Uint32Array(heap(), ringBases[which], RING.WORDS * 4);
@@ -222,8 +277,13 @@
         const p = ((st.base + f) & st.mask) * 2;
         const l = st.pcm[p], r = st.pcm[p + 1];
         hist[off] = l; hist[off + 1] = r;
-        if (Math.abs(l) > st.inPeak) st.inPeak = Math.abs(l);   // real signal reaching the filter, in int16
-        else if (Math.abs(r) > st.inPeak) st.inPeak = Math.abs(r);
+        /* peakIn is the run-level peak into the filter; st.inPeak restarts at every re-anchor (a flush for a
+         * new transfer, a cdda_play, a stop -- 62 of them in one 45 s opening) and is therefore not a number
+         * that can be compared against ringPeak, which accumulates. Comparing the two is what says whether
+         * the converter has gain: output peak over input peak, over the same window, must be ~1. */
+        const mag = Math.max(Math.abs(l), Math.abs(r));
+        if (mag > st.inPeak) st.inPeak = mag;
+        if (mag > aud.peakIn[which]) aud.peakIn[which] = mag;
         return true;
       }, mk[mkSlot(st.ord) + 1], dev, { linear: RESAMPLE === 'linear' });   // the base entry's rate
     }
@@ -252,7 +312,6 @@
       st.reader.setMark((mk[s] - st.base) >>> 0, mk[s + 1]);
     }
     const k = st.reader.pull(n, L, R);
-    for (let i = 0; i < k; i++) { L[i] *= INV; R[i] *= INV; }   // two rings sum, so scale after the filter
     /* Release only the frames the filter's window no longer reaches. Releasing everything produced would tell
      * the host the queue is empty and let it refill to the ring's full 372 ms, which would then be the latency. */
     I[RING.TAIL] = st.base + st.reader.released();
@@ -266,7 +325,52 @@
    * mixing or the browser not getting a chance. underrun = the ring was empty, short = a block served
    * partly full (a hole), lateMs = how far behind the block's deadline the callback actually ran. */
   const aud = { underrun: [0, 0], drop: [0, 0], act: [0, 0], short: [0, 0], markMiss: [0, 0],
-                minFill: [1e9, 1e9], last: 0, lateMs: 0, maxLateMs: 0, lateBlocks: 0, drift: [0, 0] };
+                minFill: [1e9, 1e9], last: 0, lateMs: 0, maxLateMs: 0, lateBlocks: 0, drift: [0, 0],
+                /* bothBlocks = output blocks in which BOTH rings contributed; ringPeak = what each voice
+                 * actually contributed to the output, in float, measured only during those blocks; clip =
+                 * samples clamped by the sum. These three exist because a swallowed voice is invisible to
+                 * every counter that counts frames -- see mixBoth. */
+                bothBlocks: 0, ringPeak: [0, 0], clip: 0, peakIn: [0, 0] };
+  /* One mixing pass, both rings into the output. This used to be two mixRing calls back to back into L/R, and
+   * that is where "an effect cannot be heard while the music is playing" came from: resample.js ACCUMULATES
+   * (`outL[k] += a`), so the two rings do sum -- but each call then scaled the whole buffer by 1/32768, and
+   * the second call therefore scaled the FIRST ring's samples a second time. An effect mixed into a block that
+   * also held CD-DA came out 32768× below the music it was supposed to sit under, i.e. silent; the same effect
+   * in a block where the disc ring had run dry was at the right level. Hence the symptom exactly as reported:
+   * effects fine on their own, gone under the music -- and it was the sink path too, so every counter that
+   * counts frames (pulled, inPeak, drop) stayed green while the output lost one of the two voices. inPeak is
+   * measured at the filter's INPUT; nothing here had ever measured the output. */
+  const scr = [{ l: null, r: null }, { l: null, r: null }];
+  function scratch(i, n) {
+    /* Lower-case l/r/k because that is the shape resample.js's mix() takes -- the first version of this passed
+     * the page's capitalised scratch buffers to it and the audio callback threw on the first sample. */
+    const s = scr[i];
+    if (!s.l || s.l.length < n) { s.l = new Float32Array(n); s.r = new Float32Array(n); }
+    return s;
+  }
+  function mixBoth(L, R, n) {
+    const name = ['sfx', 'cdda'];
+    for (let i = 0; i < 2; i++) {
+      const s = scratch(i, n);
+      s.l.fill(0, 0, n); s.r.fill(0, 0, n);
+      s.k = mixRing(i === 0 ? RING_SFX : RING_CDDA, s.l, s.r, n);
+      pulled[name[i]] += s.k;
+    }
+    /* Each voice goes into its own buffer and the SUM is scaled once, in resample.js -- where `make resample`
+     * can hold the mixer to a level, rather than in a page callback that nothing outside a browser can test.
+     * ringPeak is what each voice actually contributed to the OUTPUT, and only during the blocks where both
+     * were present: the measurement that says "an effect is audible under the music", which no frame counter
+     * can make, because frames flowing is not the same as sound coming out. */
+    const m = NightResample.mix(L, R, n, scr[0], scr[1]);
+    aud.clip += m.clip;
+    if (m.both) {
+      aud.bothBlocks++;
+      if (m.peakA > aud.ringPeak[0]) aud.ringPeak[0] = m.peakA;
+      if (m.peakB > aud.ringPeak[1]) aud.ringPeak[1] = m.peakB;
+    }
+    return scr[0].k + scr[1].k;
+  }
+
   function audioPull(e) {
     if (!M) return;
     const now = performance.now();
@@ -282,8 +386,7 @@
     L.fill(0); R.fill(0);
     pulled.blocks++;
     if (muted) return;
-    pulled.sfx += mixRing(RING_SFX, L, R, n);
-    pulled.cdda += mixRing(RING_CDDA, L, R, n);
+    mixBoth(L, R, n);
   }
   /* ?sink=1: pull the rings into a scratch buffer on a timer, with no output device at all. Headless
    * Chrome has none (its AudioContext errors out), and the ring/budget maths is the part worth testing
@@ -295,8 +398,7 @@
       if (!M || muted) return;
       L.fill(0); R.fill(0);
       pulled.blocks++;
-      pulled.sfx += mixRing(RING_SFX, L, R, 1024);
-      pulled.cdda += mixRing(RING_CDDA, L, R, 1024);
+      mixBoth(L, R, 1024);
     }, 20);
     logLine('audio: silent sink at 20 ms (no output device)');
   }
@@ -323,7 +425,7 @@
     const gz = await fetchBytes('data/NIGHT.RES.gz', (f) => progress(f * 0.8));
     let bytes = gz;
     if (typeof DecompressionStream !== 'undefined') {
-      say('inflating NIGHT.RES');
+      gate('inflating NIGHT.RES');
       const ds = new DecompressionStream('gzip');
       const buf = await new Response(new Blob([gz]).stream().pipeThrough(ds)).arrayBuffer();
       bytes = new Uint8Array(buf);
@@ -346,17 +448,19 @@
     const disc = H[b + ST.DISC] ? 'disc' : 'no disc';
     const kb = (H[b + ST.CDDA] * 4 / 1024) | 0;
     const audio = !ac ? 'no device' : Math.round(ac.sampleRate / 100) / 10 + 'k ' + ac.state;
+    /* The old "click for sound" badge became this clause: while the device is not running the HUD says so
+     * where the player is looking, and it stops saying it by itself the moment the device runs. */
     say('frame ' + frames + ' · ' + (H[b + ST.VID_W] || '?') + 'x' + (H[b + ST.VID_H] || '?') +
         ' · ' + H[b + ST.TRACKS] + ' CD tracks · ' + kb + ' KB streamed · ' + audio +
+        (ac && ac.state !== 'running' ? ' · PRESS FOR SOUND' : '') +
         ' · ' + (((pulled.sfx + pulled.cdda) * 4 / 1024) | 0) + ' KB played · ' + disc +
         (exit === 2 ? ' · the game ended' : ''));
-    hideBadge();
     if (exit === 2) $('end').classList.remove('hidden');
   }
 
   /* ---- boot ---- */
   async function boot(moduleSrc) {
-    say('loading engine');
+    gate('loading engine');
     const script = document.createElement('script');
     script.src = moduleSrc;
     document.head.appendChild(script);
@@ -386,6 +490,23 @@
       M.HEAPU32[(blockBase >> 2) + word] = v > 0 ? Math.min(v, 400) : dflt;
       logLine('queue: ' + name + ' ' + M.HEAPU32[(blockBase >> 2) + word] + ' ms');
     }
+    /* The A0000 window charge, which is what paces the melting title, the logo fade and the room's page flip
+     * (docs/72). `?vgaws=0` is the old free-write build; anything else is ns/byte, 63 being the desktop host's
+     * calibrated default that the host itself uses when the parameter is absent. */
+    const qs = new URLSearchParams(location.search);
+    const argv = ['--res-dir', '/data', '--cue', '/data/TG_NIGHT.CUE',
+                  '--cd-dir', '/data/cd', '--cd-url', 'data/cd'];
+    if (qs.has('vgaws')) argv.push('--vgaws', String(Math.max(0, Number(qs.get('vgaws')) || 0)));
+    if (qs.has('chargeus')) argv.push('--chargeus', String(Math.max(0, Number(qs.get('chargeus')) || 0)));
+    if (qs.has('diagms')) argv.push('--diagms', String(Math.max(100, Number(qs.get('diagms')) || 5000)));
+    /* `?skipintro=1` skips the logo hold and the opening movie, like the desktop host's --skip-intro. The page
+     * still boots through the title card; it exists so a headless run can reach the room loop, and with it the
+     * pause menu, inside a test's window. */
+    if (qs.has('skipintro')) argv.push('--skip-intro');
+    /* `?bgmoff=15000` clears the game's BGM enable byte at that moment, i.e. it simulates the one press of the
+     * pause menu's BGM MODE row that a headless run cannot reach (docs/459). */
+    if (qs.has('bgmoff')) argv.push('--bgmoff', String(Math.max(0, Number(qs.get('bgmoff')) || 0)));
+    gameArgv = argv;
     ringBases = [M._nk_ring_addr(RING_SFX), M._nk_ring_addr(RING_CDDA)];
     ringMarkBases = [M._nk_ring_marks_addr(RING_SFX), M._nk_ring_marks_addr(RING_CDDA)];
     logLine('block ' + blockBase + ' rings ' + ringBases[0] + '/' + ringBases[1] +
@@ -393,19 +514,48 @@
 
     const n = await loadRes();
     logLine('NIGHT.RES: ' + n + ' bytes in the in-memory filesystem');
+    preloaded = true;
 
-    /* Try to open the AudioContext now: with a permissive autoplay policy it starts running at once, and
-     * either way the host learns the device rate (the rings wait for that before feeding anything). */
-    ensureAudio();
+    /* A browser will not let a page make a sound until the user has pressed something -- the AudioContext comes
+     * up `suspended` and every audio counter then reads a healthy zero, which is how two measurement runs
+     * here reported silence as a result. So the game sits behind a gate and this press is the user activation:
+     * it opens the context AND starts the game, so the first thing the player hears is the game's own first
+     * sound, not a sound they had to wait for a second press to get. Everything slow -- the module, the 20 MB
+     * resource pack -- happens behind the gate, so the press itself is instant.
+     *
+     * ?sink=1 (no output device; the ring maths still runs on a timer) and ?auto=1 skip the gate: the headless
+     * harness has no finger, and a check that needs a gesture to start is a check that tests its own harness. */
+    if (gateStart) {
+      gateStart.disabled = false;
+      gateStart.textContent = 'press to play';
+    }
+    if (AUTO_START) { await startGame(); }
+    else { gate('ready'); }
+  }
+
+  /* The press starts the game: the AudioContext is created inside the gesture, so it starts running rather
+   * than suspended, and the host learns the device rate before its first ring write. */
+  /* The press starts the game: the AudioContext is created inside the gesture, so it starts running rather
+   * than suspended, and the host learns the device rate before its first ring write. */
+  let started = false;
+  let gameArgv = null;                      // built in boot(), once the ?vgaws= knob has been read
+  async function startGame() {
+    if (started || !M) return;
+    started = true;
+    if (gateEl) gateEl.classList.add('hidden');
+    ensureAudio();                                // inside the gesture: this is the activation that counts
     if (location.search.indexOf('sink=1') >= 0) startSink();
     say('starting');
-    M.callMain(['--res-dir', '/data', '--cue', '/data/TG_NIGHT.CUE',
-                '--cd-dir', '/data/cd', '--cd-url', 'data/cd']);
+    fit();                                        // the canvas box is final once the gate is gone
+    M.callMain(gameArgv || ['--res-dir', '/data', '--cue', '/data/TG_NIGHT.CUE',
+                            '--cd-dir', '/data/cd', '--cd-url', 'data/cd']);
     setInterval(pollStatus, 250);
   }
 
   /* ---- controls ---- */
   function wire() {
+    if (scaleEl) scaleEl.addEventListener('click', () => setStretch(!stretch));
+    showScale();
     $('btn-full').addEventListener('click', () => {
       const el = document.documentElement;
       if (document.fullscreenElement) document.exitFullscreen();
@@ -423,14 +573,19 @@
       logOn = !logOn;
       logEl.classList.toggle('hidden', !logOn);
       $('btn-log').textContent = logOn ? 'hide log' : 'log';
+      fit();                                      /* the log took space the canvas now has less of (or vice versa) */
     });
-    document.addEventListener('pointerdown', ensureAudioOnce, { once: true });
+    document.addEventListener('pointerdown', ensureAudioOnce);   // any press re-tries a blocked AudioContext
     document.addEventListener('fullscreenchange', fit);
-    $('tap-audio').addEventListener('click', () => { ensureAudioOnce(); $('tap-audio').classList.add('hidden'); });
+    /* The gate's press: user activation for the AudioContext and the game's start, in one press. */
+    if (gateStart) gateStart.addEventListener('click', () => { startGame(); });
   }
 
   window.NightWasm = {
-    boot, present, nextFrame, module: () => M, fit, startSink,
+    boot, present, nextFrame, module: () => M, fit, startSink, startGame,
+    /* The harness needs to know the gate is armed before it presses it, and needs to tell "the game has not
+     * started" from "the game started and heard nothing". */
+    ready: () => ({ preloaded, started, gate: gateEl ? !gateEl.classList.contains('hidden') : false }),
     stats: () => {
       /* inPeak = the loudest frame the filter was actually handed, per ring, in int16. It is the counter that
        * catches "the rings were full and nothing was heard": underrun counts say nothing about a reader that

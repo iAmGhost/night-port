@@ -128,5 +128,45 @@
     };
   }
 
-  return { TAPS, PHASES, HALF, buildTable, reader };
+  /* ---- the mixer: two voices into one output, scaled ONCE ----
+   *
+   * Both voices arrive from the converter in int16 units (the ring stores int16 and the filter is linear), so
+   * each has to be divided by 32768 before the two are added -- and WHERE that scale happens is the whole bug
+   * this function exists to make impossible. Scaling each voice as it is mixed into a shared destination means
+   * the voice mixed first gets scaled a second time by the second voice's pass, so its samples land 32768×
+   * under the music it is mixed with: a sound effect that plays while the CD is playing is silent, while the
+   * same effect in a block where the disc ring had run dry is at full level. That is the whole of a report of
+   * "effects cannot play at the same time as the music", and no frame counter in the port could see it, because
+   * frames flowed, the filter was fed, and nothing had ever measured the output.
+   *
+   * `a` and `b` are { l, r, k }: the voice's float samples in int16 units and how many it wrote. The output is
+   * float full scale, hard-clamped -- the card sums these two analogously and has no headroom either, so a
+   * clipped peak is what the hardware does; `clip` counts it instead of hiding it.
+   *
+   * It reports what the block did, so a test can assert on the thing that broke:
+   *   both     -- both voices contributed samples to this block
+   *   peakA/B  -- what each voice contributed to the OUTPUT, in float, over this block
+   *   clip     -- samples the sum drove past full scale
+   */
+  const INV = 1 / 32768;
+  function mix(dstL, dstR, n, a, b) {
+    let clip = 0, peakA = 0, peakB = 0;
+    const both = a.k > 0 && b.k > 0;
+    for (let i = 0; i < n; i++) {
+      const pa = a.l[i] * INV, pb = b.l[i] * INV;
+      let v = pa + pb;
+      if (v > 1 || v < -1) { v = v > 0 ? 1 : -1; clip++; }
+      dstL[i] = v;
+      const qa = a.r[i] * INV, qb = b.r[i] * INV;
+      let w = qa + qb;
+      if (w > 1 || w < -1) { w = w > 0 ? 1 : -1; clip++; }
+      dstR[i] = w;
+      const ma = Math.max(Math.abs(pa), Math.abs(qa)), mb = Math.max(Math.abs(pb), Math.abs(qb));
+      if (ma > peakA) peakA = ma;
+      if (mb > peakB) peakB = mb;
+    }
+    return { both, peakA, peakB, clip };
+  }
+
+  return { TAPS, PHASES, HALF, INV, buildTable, reader, mix };
 });

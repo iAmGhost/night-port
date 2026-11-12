@@ -11,40 +11,63 @@
   #wrap { display: flex; flex-direction: column; height: 100%; }
   #bar-holder { height: 3px; background: #222; }
   #bar { height: 3px; width: 0; background: #6a9; transition: width .2s; }
-  /* flex: 0 0 auto -- an integer scale is set in fit(); a growing flex item would stretch the bitmap
-     instead, which is exactly the blur image-rendering: pixelated is here to avoid. */
-  #screen { flex: 0 0 auto; display: block; margin: auto; image-rendering: pixelated;
-            image-rendering: crisp-edges; background: #000; }
+  /* The canvas box is the space left over once the bar, the log and the HUD have had theirs; fit() sizes the
+     canvas inside it. It used to be an integer scale of the bitmap's own ratio, which for a 320x200 room frame
+     is 16:10 -- a shape the original never showed anyone (docs/459). */
+  #screen-holder { flex: 1 1 auto; min-height: 0; display: flex; align-items: center;
+                   justify-content: center; overflow: hidden; }
+  #screen { flex: 0 0 auto; display: block; background: #000; image-rendering: crisp-edges;
+            image-rendering: pixelated; }   /* both modes; shell.js re-asserts it */
   #hud { flex: 0 0 auto; display: flex; gap: 10px; align-items: center; padding: 6px 10px;
          border-top: 1px solid #222; }
   #status { flex: 1 1 auto; }
   button { background: #161616; color: #bfbfbf; border: 1px solid #333; border-radius: 3px;
            font: inherit; padding: 2px 8px; cursor: pointer; }
   button:hover { background: #232323; }
+  /* The scale button is a toggle, so the mode you are NOT in is what it says; the dimmed state marks the
+     one you left. */
+  #hud button.off { color: #7d7d7d; border-color: #2a2a2a; }
   #log { flex: 0 0 28vh; overflow: auto; background: #0a0a0a; border-top: 1px solid #222;
          padding: 6px 10px; white-space: pre-wrap; }
   .hidden { display: none !important; }
   #end { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
          background: rgba(0,0,0,.86); font-size: 15px; }
-  #hint { position: fixed; left: 10px; bottom: 44px; opacity: .55; }
-  #tap-audio { position: fixed; right: 10px; bottom: 44px; }
+  /* The gate: the browser will not let this page make a sound until the user has pressed something, so the
+     game is preloaded behind it and only starts on a press -- one press, audio and game together. */
+  #gate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+          background: #060606; z-index: 3; }
+  #gate-box { text-align: center; max-width: 34em; padding: 0 16px; }
+  #gate-title { font-size: 26px; letter-spacing: .4em; color: #d8d8d8; }
+  #gate-sub { margin-top: 6px; color: #7d7d7d; }
+  #gate-status { margin: 22px 0 12px; color: #9fbf9f; min-height: 1.45em; }
+  #gate button { font-size: 15px; padding: 8px 26px; border-radius: 4px; }
+  #gate button:disabled { color: #6a6a6a; border-color: #2a2a2a; cursor: default; }
+  #gate-note { margin-top: 14px; font-size: 11px; color: #6a6a6a; }
 </style>
 </head>
 <body>
 <div id="wrap">
   <div id="bar-holder"><div id="bar"></div></div>
-  <canvas id="screen" width="320" height="200"></canvas>
+  <div id="screen-holder"><canvas id="screen" width="320" height="200"></canvas></div>
   <div id="log" class="hidden"></div>
   <div id="hud">
     <span id="status">loading</span>
+    <button id="btn-scale">fit</button>
     <button id="btn-log">log</button>
     <button id="btn-mute">mute</button>
     <button id="btn-full">fullscreen</button>
     <button id="btn-quit">quit</button>
   </div>
 </div>
-<div id="hint">arrows move · space / enter confirm · F1 help · esc pause · z x c attack and jump</div>
-<button id="tap-audio">click for sound</button>
+<div id="gate">
+  <div id="gate-box">
+    <div id="gate-title">NIGHT</div>
+    <div id="gate-sub">WebAssembly port · CD audio streamed from the server</div>
+    <div id="gate-status">loading engine</div>
+    <button id="btn-start" disabled autofocus>press to play</button>
+    <div id="gate-note">a browser only allows sound after you have pressed something, so this press starts the game and the audio together</div>
+  </div>
+</div>
 <div id="end" class="hidden">the game ended — reload to play again</div>
 <script src="resample.js"></script>
 <script src="shell.js"></script>

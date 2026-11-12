@@ -1440,6 +1440,11 @@ extern uint32_t g_clock_ticks;
 extern uint32_t g_delay_unit_us;
 extern uint32_t g_vga_window_ns;   /* modelled ns cost per byte written through the A0000 window (docs/72) */
 extern uint64_t g_vga_window_bytes;/* bytes charged to that model (diagnostics / tests) */
+extern uint32_t g_vga_charge_spin_us;
+                                  /* the least debt worth a sys_port_spin() wait (0 = wait per charge: the
+                                   * desktop host and the suite). The browser host needs this: its clock is
+                                   * coarse enough that every wait costs a quantum, and a per-scanline
+                                   * charge therefore pays 480 quanta per pass (docs/459). */
 extern uint32_t g_vbe_palette_call_us;   /* modelled cost of one INT 10h AX=0x4F09 (docs/72) */
 extern uint64_t g_vbe_palette_calls;     /* how many such calls were issued */
 /* Measure the clock tick rate into g_clock_ticks (orig counts INT 21h/0x2Ch

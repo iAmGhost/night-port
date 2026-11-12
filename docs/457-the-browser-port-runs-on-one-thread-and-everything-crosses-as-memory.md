@@ -318,6 +318,16 @@ it meant: the page therefore tracks "this pointer is on the cross" separately fr
 direction", because the first version tracked only the second and a centre-then-slide press did nothing at
 all.
 
+**The cross answers to one finger, and a press starts clean.** The union across pointers is what a thumb and a
+finger do together; it is not an invitation to inherit a press whose end never arrived. A direction lives in
+`padSent` — what the game was last told — until an *event* takes it away, and the browser is not obliged to
+send one for a gesture it decided to own, which is how a d-pad keeps walking you left (docs/461). So a
+`pointerdown` on the cross ends every other pointer that went down on the cross before it reads the new press,
+a pointer the browser's own `document.pointerIdList` disowns is swept on any press, and the same verb pressed
+again by another finger ends the first. None of that reaches across to the other hand: a press that pressed
+*everything* would silently drop the punch the other thumb was holding, which is the same bug with the volume
+turned down. `NightWasm.padState()` reads the whole thing back — `held`, `dirs`, `keys`, `owner`, `ptrs` — and
+`NIGHT_TOUCH` asserts it (docs/461).
 **A held virtual key sends one make.** The keyboard path drops `e.repeat`, and the screens that need a
 repeating cursor — `fn_038f3d` repeats a HELD row key every 0x13 screen iterations (docs/65) — get that from
 the held byte inside the guest, not from the host. DOS typematic repeat is a larger and separate question
@@ -557,7 +567,8 @@ driven and a 200 ms sampled calibration window actually be read (docs/459). For 
 pad shape, `?nosw=1` skips the worker and `?stallms=` moves the frame-stall watchdog, while `NightWasm.pad()`,
 `.bar()` and `.pwa()` read back what the page
 thinks it is running — pad shape, whether the bar is showing, and whether it is installed, installable and full
-screen. `NIGHT_VIEWPORT="WxHxDPR[,mobile]"` puts the page in a phone's viewport, which is the only way to see the
+screen. `NIGHT_TOUCH="c d:left h:left d:right h:right u h:"` presses the deck and asserts what it believes
+(docs/461). `NIGHT_VIEWPORT="WxHxDPR[,mobile]"` puts the page in a phone's viewport, which is the only way to see the
 layout a thumb gets (and with mobile touch on, `matchMedia('(pointer: coarse)')` answers the way a phone answers
 it, so the pad defaults itself on and a run sees what a visitor gets); `NIGHT_ROTATE_AT="MS:WxH"` turns it
 mid-run, which is the only way to drive the rotation path at all. A phone in the harness that never turns is a

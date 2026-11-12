@@ -302,6 +302,131 @@ chrome.stderr.on('data', () => {});
       await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1, buttons: type === 'mousePressed' ? 1 : 0 });
     }
   }
+  /* NIGHT_TOUCH drives the on-screen deck without a hand, which is the only way to ask "does the d-pad let
+   * go" at all. A spec is a schedule, in milliseconds from the start of the touch phase:
+   *
+   *   c@11900             claim the driver's fingers are live: replace `document.pointerIdList` with the
+   *                       ids this driver is holding, so the deck can only heal by its own rule and not by
+   *                       asking the browser (which is what the sweep below does on a real phone)
+   *   d:left@12000        put a finger on the cross cell `left` (up/down/left/right/hub) at t=12 s
+   *   d:right@12400       ...and a SECOND one on `right`, with the first still down
+   *   h:right@12500       assert the directions the deck believes are held -- a bare `h:` says none
+   *   u@13000             lift every finger this driver is holding
+   *
+   * The interesting case is the one that was untestable until now: a finger that never sends a release,
+   * which is what iOS losing a `pointerup` looks like to the page. `d:left` followed by `d:right` with no
+   * release in between IS a stuck d-pad by any browser's reckoning, and the `h:` that follows is the fix
+   * (docs/461). A held direction with no finger behind it also shows up in the `h:` line, which prints the
+   * cross's owner and the pointers behind it, so a failure says which rule let it through. */
+  const touchSpec = (process.env.NIGHT_TOUCH || '').split(/\s+/).filter(Boolean);
+  let touchBad = [];                              /* problems the NIGHT_CHECK branch below inherits */
+  const DIR_NAME = { up: 'up', down: 'down', left: 'left', right: 'right' };
+  /* Press and release on the cross by dispatching the very pointer events the deck listens to. Chrome's real
+   * touch pipeline (`Input.dispatchTouchEvent`) was tried first and hung the harness -- it drags in viewport
+   * emulation while the disc is streaming, and it measures nothing the deck itself does -- while the bug
+   * under test here IS the deck's own bookkeeping, which a dispatched `pointerdown` reaches exactly. A
+   * release is sent as `pointerup` AND `lostpointercapture`, because the deck expects both on a device. */
+  const PAD_DRIVER = `(window.__pad = {
+    claim() {
+      const self = this;
+      try {
+        Object.defineProperty(document, 'pointerIdList',
+          { configurable: true, get() { return self.down.slice(); } });
+        return true;
+      } catch (e) { return false; }
+    },
+    down: [],
+    press(d) {
+      const el = document.querySelector('#dpad [data-d="' + d + '"]') || document.getElementById('dpad');
+      return this.__p(el);
+    },
+    key(name) {
+      const el = document.querySelector('#pad-keys [data-key="' + name + '"], #pad-sys [data-key="' + name + '"]');
+      return this.__p(el);
+    },
+    __p(el) {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+      const id = (this.last = (this.last || 10) + 1);
+      this.down.push(id);
+      el.dispatchEvent(new PointerEvent('pointerdown', { pointerId: id, pointerType: 'touch',
+        isPrimary: this.down.length === 1, clientX: x, clientY: y, bubbles: true, cancelable: true, buttons: 1 }));
+      return { x, y, id };
+    },
+    lift() {
+      for (const el of document.querySelectorAll('#dpad, #pad-keys > *, #pad-sys > *')) {
+        for (const id of this.down) {
+          for (const kind of ['pointerup', 'lostpointercapture'])
+            el.dispatchEvent(new PointerEvent(kind, { pointerId: id, pointerType: 'touch',
+              bubbles: true, cancelable: true, buttons: 0 }));
+        }
+      }
+      this.down = [];
+    },
+  }, true)`;
+  async function runTouch() {
+    const bad = [];
+    if (!await evalJson(`!!(window.NightWasm && document.getElementById('dpad'))`)) {
+      return ['NIGHT_TOUCH: no page or no #dpad to press'];
+    }
+    const mode = await evalJson(`window.NightWasm.pad('band')`);
+    if (mode !== 'band') return ['NIGHT_TOUCH: could not put the pad on (' + mode + ')'];
+    if (!await evalJson(PAD_DRIVER)) return ['NIGHT_TOUCH: the pad driver would not install'];
+    const held = () => evalJson(`window.NightWasm.padState()`);
+    let clock = 0;
+    for (const spec of touchSpec) {
+      const at = spec.indexOf('@');
+      const body = at < 0 ? spec : spec.slice(0, at);
+      const m = /^(c|d|h|k|K|u)(?::(.*))?$/.exec(body);
+      if (!m) { bad.push('NIGHT_TOUCH: cannot read ' + spec); continue; }
+      const [, what, arg] = m;
+      const t = at < 0 ? null : Number(spec.slice(at + 1));
+      if (at >= 0 && !Number.isFinite(t)) { bad.push('NIGHT_TOUCH: no time in ' + spec); continue; }
+      const wait = (t === null ? 30 : t - clock);
+      if (wait > 0) await sleep(wait);
+      if (t !== null) clock = t;
+      if (what === 'c') {
+        /* Without this, a synthetic finger is invisible to `document.pointerIdList`, so the sweep would
+         * release it and the test would pass for the wrong reason. With it, the page is told "the browser
+         * says both fingers are still down" -- the stuck case no sweep can reach. */
+        const ok = await evalJson(`window.__pad.claim()`);
+        if (!ok) bad.push('touch: the page would not pretend a finger was still down (pointerIdList is read-only here)');
+        else console.log('touch: the driver now claims its fingers are on the glass');
+      } else if (what === 'k') {
+        const c = await evalJson(`window.__pad.key(${JSON.stringify(arg || '')})`);
+        if (!c) { bad.push('touch: no deck button ' + JSON.stringify(arg)); continue; }
+        console.log(`touch: finger ${c.id} down at ${arg}`);
+      } else if (what === 'd') {
+        const c = await evalJson(`window.__pad.press(${JSON.stringify(arg || '')})`);
+        if (!c) { bad.push('NIGHT_TOUCH: no d-pad cell ' + JSON.stringify(arg)); continue; }
+        console.log(`touch: finger ${c.id} down at ${arg} (${c.x},${c.y})`);
+      } else if (what === 'u') {
+        await evalJson(`window.__pad.lift()`);
+        console.log('touch: every finger lifted');
+      } else if (what === 'K') {
+        await sleep(40);
+        const st = await held();
+        const want = (arg || '').split('+').filter(Boolean).sort();
+        const got = [...(st.keys || [])].sort();
+        const w = want.join('+'), g = got.join('+');
+        const line = `buttons [${g || 'nothing'}], dirs [${(st.dirs || []).join('+') || 'nothing'}]`;
+        if (w !== g) bad.push(`touch: at ${t === null ? clock : t} ms ${line}; expected buttons [${w || 'nothing'}]`);
+        else console.log(`touch: ${line} as expected`);
+      } else {
+        await sleep(40);                          /* the handlers are synchronous; this is for the clock */
+        const st = await held();
+        const want = (arg || '').split('+').filter(Boolean).map((d) => DIR_NAME[d] || d).sort();
+        const got = [...(st.dirs || [])].sort();
+        const w = want.join('+'), g = got.join('+');
+        const line = `held [${g || 'nothing'}], cross owner ${st.owner}, pointers behind it [${(st.ptrs || []).join(',')}]`;
+        if (w !== g) bad.push(`touch: at ${t === null ? clock : t} ms ${line}; expected [${w || 'nothing'}]`);
+        else console.log(`touch: ${line} as expected`);
+      }
+    }
+    return bad;
+  }
+
   const early = [];
   for (const spec of clicks) {
     const [pos, at] = spec.split('@');
@@ -322,6 +447,7 @@ chrome.stderr.on('data', () => {});
   let waited = 0;
   for (const [at, x, y] of early) { await sleep(Math.max(0, at - waited)); waited = at; await click(x, y); }
   for (const spec of seq) { await press(spec); }
+  if (touchSpec.length) touchBad = await runTouch();
   await sleep(Math.ceil(ms / 2));
   for (const t of timers) clearTimeout(t);
   let stateValue = null;
@@ -347,6 +473,7 @@ chrome.stderr.on('data', () => {});
     let st = null;
     try { st = typeof stateValue === 'string' ? JSON.parse(stateValue) : stateValue; } catch (e) { /* keep going */ }
     const bad = [];
+    for (const p of touchBad) bad.push(p);        /* a stuck d-pad is a failure of the machine, not a taste */
     /* NIGHT_NET="offline=A-B" takes the server away on purpose, and during that window the port plays
      * silence on purpose (docs/460), so the assertion below -- which asks whether the music is audible in
      * the blocks it shares with effects -- is measuring a hole that was put there deliberately. */

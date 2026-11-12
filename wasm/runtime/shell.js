@@ -301,9 +301,14 @@
                                                // ... its dead centre: still a finger this page is watching)
   const padPad = new Set();                     // the pointers that went down ON the cross
   const padSent = new Set();                    // the union of them: what the game believes is held
+  let padOwner = null;                          // the one pointer that steers the cross (see padEndOthers)
   const padCells = dpadEl ? Array.from(dpadEl.children) : [];
   const padBtns = Array.from(document.querySelectorAll('#pad-keys [data-key], #pad-sys [data-key]'));
   const DIR_SC = { up: DOS.ArrowUp, down: DOS.ArrowDown, left: DOS.ArrowLeft, right: DOS.ArrowRight };
+  const DIR_NAME_OF = { [DIR_SC.up]: 'up', [DIR_SC.down]: 'down',
+                        [DIR_SC.left]: 'left', [DIR_SC.right]: 'right' };
+  const BTN_NAME_OF = {};                       // scancode -> the label the button carries, for padState
+  for (const b of padBtns) BTN_NAME_OF[DOS[b.dataset.key]] = b.dataset.key;
   /* The dead zone is the centre cell of the grid exactly, so what you see is what you press. */
   const PAD_DZ = 1 / 3;
   function dirsAt(clientX, clientY) {
@@ -357,6 +362,24 @@
    * watched all the way to the arm it slides into -- which is why `padPad` exists and is not simply "the
    * pointer holds a direction". */
   function padSet(id, codes) { padPtr.set(id, codes); padApply(); }
+  /* THE CROSS IS ONE FINGER, and a press starts clean. A direction can outlive its finger: iOS drops the
+   * `pointerup` of a gesture it decided to own, and a second finger landing on the same element makes that
+   * easy -- and `lostpointercapture`, the event that used to be the safety net below, is not guaranteed on a
+   * device either. So a pointerdown on the cross ends every OTHER pointer on the cross before it reads the
+   * new press. That is the player's own fix for a stuck d-pad -- press it again -- done without the player
+   * having to know it is needed. It is scoped to the cross and not to the deck: a thumb that presses a
+   * direction while the other one holds punch must not silently drop the punch.
+   *
+   * `document.pointerIdList` is the browser's own answer to "is this finger still on the glass" (Chrome 123,
+   * Safari 17), so where it exists an id the page still holds is a stuck key by definition and gets swept on
+   * any press. Where it does not, this does nothing and the single-owner rule above still heals the cross. */
+  function padSweep() {
+    const list = document.pointerIdList;
+    if (!Array.isArray(list)) return;
+    for (const id of [...padPtr.keys()])
+      if (typeof id === 'number' && !list.includes(id)) padEnd(id);
+  }
+  function padEndOthers(keep) { for (const id of [...padPad]) if (id !== keep) padEnd(id); }
   /* Both maps have to be cleared, which is why this is two deletes and not an `||`: the short-circuit that
    * made it one expression left the pointer in `padPtr` holding its last direction after the finger was
    * already off the glass -- a d-pad that keeps walking you left after you let go. On a real device the very
@@ -365,6 +388,7 @@
    * capture -- which is what a synthetic press is for. */
   function padEnd(id) {
     const on = padPad.delete(id), held = padPtr.delete(id);
+    if (id === padOwner) padOwner = null;
     if (on || held) padApply();
   }
   /* Release what the THUMB was holding. A controller's share of `padPtr` is deliberately left alone: the
@@ -375,6 +399,7 @@
   function padReleaseAll() {
     if (!padPtr.size && !padPad.size && !padSent.size) return;
     padPad.clear();
+    padOwner = null;
     for (const k of [...padPtr.keys()]) if (typeof k === 'number') padPtr.delete(k);
     padApply();                                 // the union is now only what a controller still holds
   }
@@ -384,6 +409,9 @@
     dpadEl.addEventListener('pointerdown', (e) => {
       e.preventDefault();                       // no scroll, no pinch-zoom, no synthetic click through it
       if (!started) return;                     // before the gate's press there is nothing to press
+      padSweep();                               // a finger the browser has forgotten stops steering here
+      padEndOthers(e.pointerId);                // ...and the cross takes THIS press as its one finger
+      padOwner = e.pointerId;
       padGrab(dpadEl, e.pointerId);
       padPad.add(e.pointerId);
       padSet(e.pointerId, dirsAt(e.clientX, e.clientY));
@@ -397,6 +425,12 @@
       el.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         if (!started || !sc) return;
+        padSweep();
+        /* A verb pressed again was released somewhere the page never heard about: the same code held by a
+         * different finger IS that lost release, and letting both hold it is a punch that will not let go.
+         * Other verbs are left alone -- walking while holding punch is the point of the deck. */
+        for (const [id, codes] of [...padPtr])
+          if (typeof id === 'number' && id !== e.pointerId && codes.includes(sc)) padEnd(id);
         padGrab(el, e.pointerId);
         padSet(e.pointerId, [sc]);
       });
@@ -1196,6 +1230,12 @@
     /* The harness drives the pad through the DOM a finger would not need, but the mode has to be reachable
      * from JS for a headless run to exercise the pad's own code path. */
     pad: (mode) => { if (mode !== undefined) setPadMode(mode); return padMode; },
+    /* What the deck believes right now, for the harness and for a console: `held` is the set the game was
+     * last told, `ptrs` the pointers behind it (a number is a finger, 'gp0' is a controller), `owner` the
+     * one finger the cross answers to. A direction in `held` with no pointer behind it IS a stuck d-pad. */
+    padState: () => ({ owner: padOwner, ptrs: [...padPtr.keys()], held: [...padSent],
+                       dirs: [...padSent].map((sc) => DIR_NAME_OF[sc]).filter(Boolean),
+                       keys: [...padSent].map((sc) => BTN_NAME_OF[sc]).filter(Boolean) }),
     bar: (on) => { if (on !== undefined) setBar(on); return barOn; },
     pwa: () => ({ standalone: STANDALONE, installed: appInstalled,
                   canPrompt: !!deferredPrompt, canFullscreen: CAN_FULL,

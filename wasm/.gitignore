@@ -1,0 +1,5 @@
+# regenerable: the emscripten objects, the linked app, and the staged dist tree (data is symlinked or
+# copied from extracted/, which the repo's own `make extract` rebuilds)
+.obj/
+build/
+dist/

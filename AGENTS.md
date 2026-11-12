@@ -32,6 +32,11 @@
 - ./test: the fixture suite's sources (test/test_f1.c, test/vectors the differential vector headers)
 - ./build: every build output (test_f1, night, night-asan, night-asan-o2, night-census, selftest), git-ignored.
   `make test`, `make app`, `make asanapp`, `make selftest` run from the repo root.
+- ./wasm: the browser port -- SDL-free host (wasm/src/main_wasm.c) over the same game layer compiled in
+  place, a PCM-ring/key-block contract in wasm/src/wasm_block.h, CD-DA over HTTP Range reads. Needs ~/emsdk
+  (`emcc`). `make -C wasm` builds, `make -C wasm serve` serves on 8091, `make -C wasm check` stages data,
+  drives headless Chrome with injected keys and asserts frames/disc/audio/keys, `make -C wasm resample` tests
+  the sample-rate converter without a browser. docs/457 is the write-up.
 
 # Tools
 

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NIGHT — WebAssembly</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #000; color: #bfbfbf;
+               font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; }
+  #wrap { display: flex; flex-direction: column; height: 100%; }
+  #bar-holder { height: 3px; background: #222; }
+  #bar { height: 3px; width: 0; background: #6a9; transition: width .2s; }
+  /* flex: 0 0 auto -- an integer scale is set in fit(); a growing flex item would stretch the bitmap
+     instead, which is exactly the blur image-rendering: pixelated is here to avoid. */
+  #screen { flex: 0 0 auto; display: block; margin: auto; image-rendering: pixelated;
+            image-rendering: crisp-edges; background: #000; }
+  #hud { flex: 0 0 auto; display: flex; gap: 10px; align-items: center; padding: 6px 10px;
+         border-top: 1px solid #222; }
+  #status { flex: 1 1 auto; }
+  button { background: #161616; color: #bfbfbf; border: 1px solid #333; border-radius: 3px;
+           font: inherit; padding: 2px 8px; cursor: pointer; }
+  button:hover { background: #232323; }
+  #log { flex: 0 0 28vh; overflow: auto; background: #0a0a0a; border-top: 1px solid #222;
+         padding: 6px 10px; white-space: pre-wrap; }
+  .hidden { display: none !important; }
+  #end { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+         background: rgba(0,0,0,.86); font-size: 15px; }
+  #hint { position: fixed; left: 10px; bottom: 44px; opacity: .55; }
+  #tap-audio { position: fixed; right: 10px; bottom: 44px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar-holder"><div id="bar"></div></div>
+  <canvas id="screen" width="320" height="200"></canvas>
+  <div id="log" class="hidden"></div>
+  <div id="hud">
+    <span id="status">loading</span>
+    <button id="btn-log">log</button>
+    <button id="btn-mute">mute</button>
+    <button id="btn-full">fullscreen</button>
+    <button id="btn-quit">quit</button>
+  </div>
+</div>
+<div id="hint">arrows move · space / enter confirm · F1 help · esc pause · z x c attack and jump</div>
+<button id="tap-audio">click for sound</button>
+<div id="end" class="hidden">the game ended — reload to play again</div>
+<script src="resample.js"></script>
+<script src="shell.js"></script>
+</body>
+</html>

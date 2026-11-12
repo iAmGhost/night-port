@@ -493,6 +493,14 @@ static void audio_pump(void) {
     }
     if (!g_astream) { audio_pump_drain_only(); return; }
     sys_audio_set_source(g_dat_63fb4);                 /* the buffer an armed DMA transfer reads */
+    /* A DSP halt abandons the stopped sound (src/sys/sys.c:250); the bytes this host already pulled out of the
+     * board's ring go with it, otherwise the stop is inaudible and every new sound queues up behind the one
+     * the game just cut off. CD-DA is a separate stream, so the music is untouched. */
+    static uint32_t g_audio_stops_seen;
+    if (sys_audio_stops() != g_audio_stops_seen) {
+        g_audio_stops_seen = sys_audio_stops();
+        SDL_FlushAudioStream(g_astream);
+    }
     uint32_t rate = sys_audio_rate();
     if (rate != g_astream_rate && rate) {              /* DSP 0x40 changed the board rate */
         SDL_AudioSpec src; SDL_zero(src);

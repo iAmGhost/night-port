@@ -247,7 +247,17 @@ static void dsp_out(uint16_t port, uint8_t v) {
     case 0x40: dsp_wait = 0x40; break;
     case 0x14: case 0x17: au_width = 1; dsp_wait = v; dsp_blk_i = 0; au_start(); break;
     case 0x75: case 0x77: au_width = 2; dsp_wait = v; dsp_blk_i = 0; au_start(); break;
-    case 0xd0: case 0xd1: au_stops++; dma_armed = -1; break;
+    case 0xd0: case 0xd1:
+        /* DSP 0xd0 (halt DMA) / 0xd1 (stop digitized output). The card ABANDONS the transfer: whatever the
+         * DMA has not fetched is gone, and a re-arm replaces it (docs/04-sound.md SS6: single-voice, "stops
+         * previous on new play"). This model used to leave the bytes in au_ring, where the next sound lined
+         * up behind them -- measured over 20 stops in a 30 s run of the intro (music and effects together),
+         * an average of 20265 bytes of the *stopped* sound was still queued, worst 45737, i.e. roughly a
+         * second of audio at the board's 10000-22050 Hz. That is heard as "a new sound waits for the old one
+         * to finish". au_start() copies a whole transfer in on its arm, so "queued" here means unplayed.
+         * The bytes a host has already pulled into its own queue are the host's to discard; it sees the stop
+         * through the counter. */
+        au_stops++; dma_armed = -1; au_r = au_w; break;
     default:
         /* The cases above are every DSP command the canonical route was ever seen to use.  A sound the port
          * never hears is just as likely to be an arm we ignore as a voice the mixer refused, and until now an

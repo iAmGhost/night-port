@@ -1474,11 +1474,182 @@ static void dump_frame(int n) {
     SDL_Log("wrote %s", path);
 }
 
+/* key_apply() is defined below with the keyboard path, and the pad path below that needs it too: one
+ * writer of the game's held bytes, whichever front end reached it first. */
+static void key_apply(uint8_t sc, int make);
+
+/* ---- gamepad -> the same held bytes the keyboard writes (docs/333's layout) ----------------
+ * The layout is the one pocket and the browser port run -- X punch, A kick, B jump, Y *and* RB duck, LB F1,
+ * START confirm, SELECT the pause menu (docs/93), the cross and the left stick move -- so the same hand on
+ * the same controller does the same thing in all three ports of this game. There is no new input path: every
+ * press and release is a make/break through key_apply(), the one writer of the game's held bytes
+ * (docs/91, 92), and the attacks land on the modifier slots the original used rather than on the Z/X/C
+ * aliases, because the slots are the semantics and the letters are one way of reaching them.
+ *
+ * The state is POLLED from the frame pump, not read from button events, for the same reason pocket's
+ * pad_pump() polls at 8 ms: a held byte written only by a button-down event keeps its release if the window
+ * loses focus, the pad is unplugged, or the queue is drained out from under it -- and a held byte the game
+ * never sees released is a character that walks into a wall for the rest of the run. Polling makes every
+ * edge a difference between two consecutive reads, so an edge cannot be lost, only delayed by a frame.
+ *
+ * One controller, and it is whichever one shows up first: this is a single-player game whose move model IS
+ * two held bytes, so a second controller is not a second player, it is a second hand on the same keyboard.
+ * `NIGHT_NO_GAMEPAD=1` opts out -- the rig and the scripted drives assert on game state, and a stray wheel
+ * or hotmic presenting itself as a gamepad should not be able to move a run. */
+static SDL_Gamepad *g_pad;
+static uint32_t g_pad_held;                          /* bit i = gamepad button i held on the last read */
+static uint8_t g_pad_stick;                          /* bit per direction the LEFT STICK contributed */
+static uint8_t g_pad_codes[8];                       /* the sc codes the pad holds: bit (sc&7) of (sc>>3) */
+static int g_pad_env_done, g_pad_off, g_pad_dbg;
+
+/* SDL's standard mapping IS the Xbox shape, so this table only says which physical button stands for which
+ * layout position; the CODE each one arms is night_pad_sc[], in keymap.c, where the fixture suite can assert
+ * it and where the other two ports read the same layout. */
+static const struct { SDL_GamepadButton btn; unsigned pos; } g_pad_btns[] = {
+    { SDL_GAMEPAD_BUTTON_WEST,           NIGHT_PAD_X },      /* X  punch */
+    { SDL_GAMEPAD_BUTTON_SOUTH,          NIGHT_PAD_A },      /* A  kick  */
+    { SDL_GAMEPAD_BUTTON_EAST,           NIGHT_PAD_B },      /* B  jump  */
+    { SDL_GAMEPAD_BUTTON_NORTH,          NIGHT_PAD_Y },      /* Y  duck  */
+    { SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, NIGHT_PAD_RB },     /* RB duck, again */
+    { SDL_GAMEPAD_BUTTON_LEFT_SHOULDER,  NIGHT_PAD_LB },     /* LB F1 */
+    { SDL_GAMEPAD_BUTTON_START,          NIGHT_PAD_START },
+    { SDL_GAMEPAD_BUTTON_BACK,           NIGHT_PAD_SELECT }, /* the pause menu, docs/93 */
+    { SDL_GAMEPAD_BUTTON_DPAD_UP,        NIGHT_PAD_UP },
+    { SDL_GAMEPAD_BUTTON_DPAD_DOWN,      NIGHT_PAD_DOWN },
+    { SDL_GAMEPAD_BUTTON_DPAD_LEFT,      NIGHT_PAD_LEFT },
+    { SDL_GAMEPAD_BUTTON_DPAD_RIGHT,     NIGHT_PAD_RIGHT },
+};
+#define N_PAD_BTNS (sizeof g_pad_btns / sizeof g_pad_btns[0])
+
+enum { STICK_LEFT = 1, STICK_RIGHT = 2, STICK_UP = 4, STICK_DOWN = 8 };
+/* Two thresholds, not one: a stick parked on a single one chatters make/break at the pump rate, and a stick
+ * parked near the edge is where a thumb rests after a dash. Same pair as the browser port. */
+#define PAD_STICK_IN  0.30f
+#define PAD_STICK_OUT 0.22f
+
+static int pad_code_has(const uint8_t *m, uint8_t sc) { return (m[sc >> 3] >> (sc & 7)) & 1; }
+static void pad_code_set(uint8_t *m, uint8_t sc) { m[sc >> 3] |= (uint8_t)(1u << (sc & 7)); }
+
+static uint8_t pad_dir_sc(unsigned bit) {
+    switch (bit) {
+    case STICK_LEFT:  return NIGHT_SC_LEFT;
+    case STICK_RIGHT: return NIGHT_SC_RIGHT;
+    case STICK_UP:    return NIGHT_SC_UP;
+    default:          return NIGHT_SC_DOWN;
+    }
+}
+
+static void pad_env(void) {
+    if (g_pad_env_done) return;
+    g_pad_env_done = 1;
+    g_pad_off = getenv("NIGHT_NO_GAMEPAD") != NULL;
+    g_pad_dbg = getenv("NIGHT_PADDBG") != NULL;
+}
+
+/* Let go of everything, because a controller that is gone is nobody's to hold. */
+static void pad_release(void) {
+    for (int by = 0; by < 8; by++)
+        for (int bit = 0; bit < 8; bit++)
+            if (g_pad_codes[by] & (1u << bit)) {
+                uint8_t sc = (uint8_t)(by * 8 + bit);
+                if (g_pad_dbg) SDL_Log("pad: release sc %02x", sc);
+                key_apply(sc, 0);
+            }
+    for (int i = 0; i < 8; i++) g_pad_codes[i] = 0;
+    g_pad_held = 0;
+    g_pad_stick = 0;
+}
+
+static void pad_open(void) {
+    pad_env();
+    if (g_pad_off || g_pad) return;
+    int n = 0;
+    SDL_JoystickID *ids = SDL_GetGamepads(&n);
+    if (ids && n > 0) {
+        for (int i = 0; i < n; i++) {
+            SDL_Gamepad *gp = SDL_OpenGamepad(ids[i]);
+            if (!gp) continue;
+            g_pad = gp;
+            SDL_Log("gamepad: %s (%s) -- X punch · A kick · B jump · Y/RB duck · LB F1 · "
+                    "start enter · select esc · stick and cross move", SDL_GetGamepadName(gp),
+                    SDL_GetGamepadStringForType(SDL_GetGamepadType(gp)));
+            break;
+        }
+        if (!g_pad) SDL_Log("gamepad: %d pad%s present and none would open: %s",
+                            n, n == 1 ? "" : "s", SDL_GetError());
+    }
+    SDL_free(ids);                       /* nothing to open is not a thing worth saying out loud */
+}
+
+static void pad_close(const char *why) {
+    if (!g_pad) return;
+    SDL_Log("gamepad: %s", why);
+    pad_release();
+    SDL_CloseGamepad(g_pad);
+    g_pad = NULL;
+}
+
+static unsigned pad_stick_want(void) {
+    float ax = SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTX);
+    float ay = SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTY);
+    struct { unsigned bit; float v; } d[] = {
+        { STICK_LEFT, -ax }, { STICK_RIGHT, ax }, { STICK_UP, -ay }, { STICK_DOWN, ay }
+    };
+    unsigned want = 0;
+    for (unsigned i = 0; i < 4; i++) {
+        /* Every question is the same question, "is this far that way", with the sign folded in -- and the
+         * threshold depends on whether that direction is ALREADY held, which is the hysteresis. */
+        float lim = (g_pad_stick & d[i].bit) ? PAD_STICK_OUT : PAD_STICK_IN;
+        if (d[i].v > lim) want |= d[i].bit;
+    }
+    return want;
+}
+
+static void pad_pump(void) {
+    pad_env();
+    if (g_pad_off) return;
+    if (!g_pad) {
+        if (!SDL_HasGamepad()) return;
+        pad_open();
+        if (!g_pad) return;
+    }
+    if (!SDL_GamepadConnected(g_pad)) { pad_close("lost (unplugged or switched off)"); return; }
+    /* The UNION of the codes the buttons and the stick are holding, diffed as a set against the set from the
+     * last read. Diffing per button would be wrong here for the same reason it was wrong for the touch pad:
+     * Y and RB both arm SPACE, so lifting one of two held buttons would send a break for a key the other is
+     * still holding down. */
+    uint8_t now[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    for (unsigned i = 0; i < N_PAD_BTNS; i++)
+        if (SDL_GetGamepadButton(g_pad, g_pad_btns[i].btn))
+            pad_code_set(now, night_pad_sc[g_pad_btns[i].pos]);
+    unsigned want = pad_stick_want();
+    for (unsigned b = 0; b < 4; b++)
+        if (want & (1u << b)) pad_code_set(now, pad_dir_sc(1u << b));
+    g_pad_stick = want;
+    for (int by = 0; by < 8; by++)
+        for (int bit = 0; bit < 8; bit++) {
+            uint8_t sc = (uint8_t)(by * 8 + bit);
+            int was = pad_code_has(g_pad_codes, sc), is = pad_code_has(now, sc);
+            if (was == is) continue;
+            if (g_pad_dbg) SDL_Log("pad: sc %02x %s", sc, is ? "make" : "break");
+            key_apply(sc, is);
+        }
+    for (int i = 0; i < 8; i++) g_pad_codes[i] = now[i];
+}
+
 /* ---- input: SDL events -> the game's key state ----------------------- */
 static void sdl_events(void) {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
         if (ev.type == SDL_EVENT_QUIT || ev.type == SDL_EVENT_TERMINATING) { g_quit = 1; continue; }
+        /* Add and remove are the two things events are the right source for: a pad that went away has to
+         * have its held bytes released, and polling is only reliable about that if it also notices the pad
+         * is gone -- which is exactly the case SDL makes hard to see from the state calls. */
+        if (ev.type == SDL_EVENT_GAMEPAD_REMOVED) {
+            if (g_pad && ev.gdevice.which == SDL_GetGamepadID(g_pad)) pad_close("removed");
+            continue;
+        }
+        if (ev.type == SDL_EVENT_GAMEPAD_ADDED) { pad_open(); continue; }
         if (ev.type != SDL_EVENT_KEY_DOWN && ev.type != SDL_EVENT_KEY_UP) continue;
         uint8_t sc = 0;
         switch (ev.key.scancode) {              /* the DOS scan codes the game's key state consults */
@@ -1545,6 +1716,7 @@ static void input_pump(void) {
      * the manifest is flushed (killing it loses the tail). */
     if (g_pt_done_ms >= 0 && pt_now_ms() - g_pt_done_ms > 2500) g_quit = 1;
     sdl_events();
+    pad_pump();                                                /* the controller, into the same key_apply */
     fn_0347e3();                                           /* the game's keyboard pump */
 }
 
@@ -1928,6 +2100,13 @@ int main(int argc, char **argv) {
         else if (!strcmp(getenv("NIGHT_PAL"), "cacheraw")) g_pal_src = 3;
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) { SDL_Log("SDL_Init: %s", SDL_GetError()); return 1; }
+    /* A controller is optional and its absence is not an error, so this one is not fatal -- and the pad
+     * stays off the crash path: if the gamepad subsystem will not come up, the keyboard still works.
+     * SDL3's init answers true for success (which is the other reason this line is written out: the video
+     * init above reads `if (!SDL_Init(...))`, a leftover of SDL2's 0-for-success, so its failure branch can
+     * never run). */
+    if (SDL_InitSubSystem(SDL_INIT_GAMEPAD)) pad_open();
+    else SDL_Log("gamepad: subsystem unavailable: %s", SDL_GetError());
     { const char *be = getenv("NIGHT_BOARD"); if (!be || strcmp(be, "0") != 0) board_boot(); }   /* the original ships with the board live (DAT_53334=0x220 at the title, docs/98); NIGHT_BOARD=0 opts out */
     {   /* Host debug shortcut (docs/309): `--skip-intro` or NIGHT_SKIP_INTRO=1 replaces fn_03af18's
          * attract chain (company-logo card with its two 0x400-unit holds, then the opening.fli movie,

@@ -40,6 +40,25 @@ enum {
     NIGHT_SC_RIGHT = 0x4d
 };
 
+/* ---- the controller layout, in the shape an Xbox pad reports ----
+ *
+ * X punch, A kick, B jump, Y *and* RB duck, LB F1, START confirm, SELECT the pause menu (docs/93), the cross
+ * and the left stick move. pocket/src/night/main_of.c's g_pad_keys, wasm/runtime/shell.js's GP_MAP and
+ * src/app/main.c's g_pad_btns all run this table (docs/333 is the measurement behind it), and it lives here
+ * -- port-neutral, with no SDL_GamepadButton and no OF_BTN in sight -- because the fixture suite is the only
+ * thing this port has ever that a controller can be checked against: no machine this port is built on has a
+ * pad plugged into it. A position is worth asserting for the SLOT it arms, not for the letter on it, since
+ * the slot is what the game reads.
+ *
+ * Duck has two homes on purpose: it is held longer than anything else in the game, and RB is the only other
+ * button in comfortable reach of the thumb that is already doing everything else. */
+enum {
+    NIGHT_PAD_X, NIGHT_PAD_A, NIGHT_PAD_B, NIGHT_PAD_Y, NIGHT_PAD_RB, NIGHT_PAD_LB,
+    NIGHT_PAD_START, NIGHT_PAD_SELECT, NIGHT_PAD_UP, NIGHT_PAD_DOWN, NIGHT_PAD_LEFT,
+    NIGHT_PAD_RIGHT, NIGHT_PAD_N
+};
+extern const uint8_t night_pad_sc[NIGHT_PAD_N];
+
 void night_key_apply(uint8_t sc, int make);
 
 #endif

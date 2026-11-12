@@ -29,6 +29,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* The controller layout, one table for every port (keymap.h spells the reason it lives here). The codes are
+ * the modifier SLOTS, not the letters: night_key_alias() above is what turns Z/V into 0x1d in the first
+ * place, and a controller has no letters printed on it, so there is no reason to go round the alias to get
+ * to the same byte (docs/91 §the alias table, docs/333). */
+const uint8_t night_pad_sc[NIGHT_PAD_N] = {
+    [NIGHT_PAD_X]      = NIGHT_SC_CTRL,     /* punch -> the CTRL slot  */
+    [NIGHT_PAD_A]      = NIGHT_SC_ALT,      /* kick  -> the ALT  slot  */
+    [NIGHT_PAD_B]      = NIGHT_SC_LSHIFT,   /* jump  -> the SHIFT slot */
+    [NIGHT_PAD_Y]      = NIGHT_SC_SPACE,    /* duck                    */
+    [NIGHT_PAD_RB]     = NIGHT_SC_SPACE,    /* duck, again             */
+    [NIGHT_PAD_LB]     = NIGHT_SC_F1,
+    [NIGHT_PAD_START]  = NIGHT_SC_ENTER,
+    [NIGHT_PAD_SELECT] = NIGHT_SC_ESC,
+    [NIGHT_PAD_UP]     = NIGHT_SC_UP,
+    [NIGHT_PAD_DOWN]   = NIGHT_SC_DOWN,
+    [NIGHT_PAD_LEFT]   = NIGHT_SC_LEFT,
+    [NIGHT_PAD_RIGHT]  = NIGHT_SC_RIGHT,
+};
+
 /* the handler's alias table, 0x0003fd9d-0x0003fdd9 */
 static uint8_t night_key_alias(uint8_t idx) {
     switch (idx) {

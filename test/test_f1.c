@@ -12163,6 +12163,64 @@ static void test_key_map_measured(void) {
     g_dat_52ff8 = ff8; g_dat_62d5c = d5c;
 }
 
+/* The controller layout -- the one table this game's three ports run (keymap.h's night_pad_sc, pocket's
+ * g_pad_keys, wasm/runtime/shell.js's GP_MAP). It is asserted here because no machine this suite is built on
+ * has a pad plugged into it, so the table is the whole of what can be checked without hands; what each
+ * position has to do is arm the slot the game reads, since the letters printed on a pad are a suggestion and
+ * the slots are the game.
+ *
+ * The layout itself is docs/333's, measured against the live game on pocket, and its shape is an Xbox pad
+ * because that is the shape every pad a browser or SDL reports claims: X punch, A kick, B jump, Y *and* RB
+ * duck, LB F1, START confirm, SELECT the pause menu, the cross and the left stick move. */
+static void test_gamepad_layout(void) {
+    printf("gamepad layout: X punch, A kick, B jump, Y and RB duck, LB F1, start enter, select esc\n");
+    uint8_t s89 = g_dat_63e89, s_a4 = g_dat_63ea4, s_c1 = g_dat_63ec1, s_c3 = g_dat_63ec3;
+    uint8_t s_b2 = g_dat_63eb2, s_c0 = g_dat_63ec0, s_a5 = g_dat_63ea5;
+    uint8_t d0 = g_dat_63ed0, d3 = g_dat_63ed3, d5 = g_dat_63ed5, d8 = g_dat_63ed8;
+    uint8_t saved_slots[0x80];
+    memcpy(saved_slots, g_dat_62c58, sizeof saved_slots);
+
+    struct { unsigned pos; uint8_t sc; uint8_t *byte; const char *name; } p[] = {
+        { NIGHT_PAD_X,      0x1d, &g_dat_63ea5, "X  punch  0x1d -> DAT_00063ea5 (the CTRL slot)" },
+        { NIGHT_PAD_A,      0x38, &g_dat_63ec0, "A  kick   0x38 -> DAT_00063ec0 (the ALT slot)" },
+        { NIGHT_PAD_B,      0x2a, &g_dat_63eb2, "B  jump   0x2a -> DAT_00063eb2 (the SHIFT slot)" },
+        { NIGHT_PAD_Y,      0x39, &g_dat_63ec1, "Y  duck   0x39 -> DAT_00063ec1" },
+        { NIGHT_PAD_RB,     0x39, &g_dat_63ec1, "RB duck   0x39 -> DAT_00063ec1 (duck has two homes)" },
+        { NIGHT_PAD_LB,     0x3b, &g_dat_63ec3, "LB F1     0x3b -> DAT_00063ec3" },
+        { NIGHT_PAD_START,  0x1c, &g_dat_63ea4, "start enter 0x1c -> DAT_00063ea4" },
+        { NIGHT_PAD_SELECT, 0x01, &g_dat_63e89, "select esc  0x01 -> DAT_00063e89 (docs/93)" },
+        { NIGHT_PAD_UP,     0x48, &g_dat_63ed0, "cross up    0x48 -> DAT_00063ed0" },
+        { NIGHT_PAD_DOWN,   0x50, &g_dat_63ed8, "cross down  0x50 -> DAT_00063ed8" },
+        { NIGHT_PAD_LEFT,   0x4b, &g_dat_63ed3, "cross left  0x4b -> DAT_00063ed3" },
+        { NIGHT_PAD_RIGHT,  0x4d, &g_dat_63ed5, "cross right 0x4d -> DAT_00063ed5" },
+    };
+    char buf[160];
+    for (unsigned k = 0; k < sizeof p / sizeof p[0]; k++) {
+        snprintf(buf, sizeof buf, "pad %s", p[k].name);
+        check(night_pad_sc[p[k].pos] == p[k].sc, buf);
+        memset(g_dat_62c58, 0, sizeof g_dat_62c58);
+        *p[k].byte = 0;
+        night_key_apply(p[k].sc, 1);
+        check(*p[k].byte == 1, "  ... and the press lands on that held byte");
+        snprintf(buf, sizeof buf, "  ... armed at slot %02x, unaliased: a controller needs no modifier", p[k].sc);
+        check(g_dat_62c58[p[k].sc] == 1, buf);
+        night_key_apply(p[k].sc, 0);
+        check(*p[k].byte == 0, "  and lets go when the button does");
+    }
+
+    /* Y and RB must agree exactly, or lifting one thumb off a held crouch would stop a crouch the other is
+     * still holding -- which is the reason every pad path here diffs a SET of codes and not a list of
+     * buttons (docs/457). */
+    check(night_pad_sc[NIGHT_PAD_Y] == night_pad_sc[NIGHT_PAD_RB],
+          "Y and RB are the same code, so two homes are one byte");
+
+    memset(g_dat_62c58, 0, sizeof g_dat_62c58);
+    memcpy(g_dat_62c58, saved_slots, sizeof g_dat_62c58);
+    g_dat_63e89 = s89; g_dat_63ea4 = s_a4; g_dat_63ec1 = s_c1; g_dat_63ec3 = s_c3;
+    g_dat_63eb2 = s_b2; g_dat_63ec0 = s_c0; g_dat_63ea5 = s_a5;
+    g_dat_63ed0 = d0; g_dat_63ed3 = d3; g_dat_63ed5 = d5; g_dat_63ed8 = d8;
+}
+
 static void test_showscreen_gate(void) {
     printf("host debug-warp gate: fn_038445 needs a current room record (docs/78)\n");
     uint8_t *save = g_dat_63354;
@@ -19224,6 +19282,7 @@ int main(void) {
     test_title_wipe_window_cost();
     test_showscreen_gate();
     test_key_map_measured();
+    test_gamepad_layout();
     test_dat53eb8_alias();
     test_fn_03a5f7();
     test_fn_03c231();

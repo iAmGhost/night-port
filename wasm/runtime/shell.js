@@ -33,14 +33,16 @@
   const RING_SFX = 0, RING_CDDA = 1;
 
   const $ = (id) => document.getElementById(id);
-  const canvas = $('screen'), statusEl = $('status'), logEl = $('log'), barEl = $('bar');
-  const holderEl = $('screen-holder'), scaleEl = $('btn-scale');
+  const canvas = $('screen'), statusEl = $('status'), logEl = $('log'), hudEl = $('hud');
+  const holderEl = $('screen-holder'), scaleEl = $('btn-scale'), padEl = $('pad'), padBtnEl = $('btn-pad');
   const gateEl = $('gate'), gateStart = $('btn-start'), gateStatusEl = $('gate-status');
 
   /* `say` writes the HUD line; `gate` writes the gate's line while it is still the thing being looked at.
    * Two lines because the preload runs while the overlay covers the canvas, and a status nobody can see
    * during the one wait of the session is a status that does not exist. */
+  let gateMsg = '';
   function gate(msg) {
+    gateMsg = msg;
     if (gateEl && !gateEl.classList.contains('hidden') && gateStatusEl) gateStatusEl.textContent = msg;
     say(msg);
   }
@@ -56,7 +58,12 @@
   let logOn = false, muted = false;
 
   function say(msg) { if (statusEl) statusEl.textContent = msg; }
-  function progress(frac) { if (barEl) barEl.style.width = Math.max(0, Math.min(1, frac)) * 100 + '%'; }
+  /* There is no progress bar across the top any more: what it measured now rides on the gate's own line,
+   * which is the line a player waiting on a 20 MB download is actually looking at. */
+  function progress(frac) {
+    if (!gateEl || gateEl.classList.contains('hidden') || !gateStatusEl || !gateMsg) return;
+    gateStatusEl.textContent = gateMsg + '  ' + Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
+  }
   function logLine(s) {
     console.log(s);                                  // the host's log is the port's only diagnostic channel
     if (!logOn || !logEl) return;
@@ -139,6 +146,17 @@
   const qsScale = new URLSearchParams(location.search).get('scale');
   let stretch = qsScale ? qsScale !== 'fit'
                         : (localStorage.getItem(SCALE_KEY) || 'stretch') !== 'fit';
+  /* How tall the bottom bar is, as CSS -- because the only thing that has to know it is float mode, which
+   * parks the deck above it, and it is a number CSS cannot derive: the bar is two rows on a narrow screen
+   * (the status line takes a row of its own there), one row on a wide one, and `display: none` -- zero --
+   * once a touch has put it away. So it is measured, and measured again on every layout change, which is
+   * what makes a rotation, a font change and a hidden bar all need no special case. */
+  function measureBar() {
+    if (!hudEl || !document.documentElement.style.setProperty) return 0;
+    const h = Math.round(hudEl.getBoundingClientRect().height);
+    document.documentElement.style.setProperty('--bar-h', h + 'px');
+    return h;
+  }
   function showScale() {
     if (scaleEl) { scaleEl.textContent = stretch ? 'fit' : 'stretch';
                    scaleEl.title = stretch ? 'keep the bitmap ratio (integer scale)'
@@ -147,6 +165,7 @@
     if (scaleEl) scaleEl.classList.toggle('off', !stretch);
   }
   function fit() {
+    measureBar();                                 /* float mode parks the deck above the bar: it needs the number */
     if (!modeW) return;
     const box = holderEl || document.body;
     let bw = box.clientWidth, bh = box.clientHeight;
@@ -167,7 +186,34 @@
     try { localStorage.setItem(SCALE_KEY, on ? 'stretch' : 'fit'); } catch (e) { /* private mode */ }
     showScale(); fit();
   }
-  window.addEventListener('resize', fit);
+  /* ---- turning the phone ----
+   * A rotation is the one moment the whole canvas box changes at once, and the notice you get about it is
+   * unreliable: iOS sends `orientationchange` before the layout has settled, so a fit() run from it measures
+   * the box the phone just left; Chrome sometimes sends only `resize`; a toolbar collapsing or a soft
+   * keyboard moves the box with no orientation event at all. So every one of them asks for the same thing,
+   * which is one re-fit per frame, and that re-fit measures twice -- the second pass, a frame later, is what
+   * fixes a rotation measured in the middle. The pad's own layout changes with the orientation too (band
+   * stacks, float moves to the corners), and that is a change to the box as much as a rotation is. */
+  let refitQueued = 0;
+  function refit() {
+    if (refitQueued) return;
+    refitQueued = requestAnimationFrame(() => {
+      refitQueued = 0;
+      fit();
+      requestAnimationFrame(fit);
+    });
+  }
+  window.addEventListener('resize', refit);
+  window.addEventListener('orientationchange', refit);
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', refit);
+    visualViewport.addEventListener('scroll', refit);
+  }
+  const orientMQ = window.matchMedia && matchMedia('(orientation: landscape)');
+  if (orientMQ) { if (orientMQ.addEventListener) orientMQ.addEventListener('change', refit);
+                  else orientMQ.addListener(refit); }
+  if (screen && screen.orientation && screen.orientation.addEventListener)
+    screen.orientation.addEventListener('change', refit);
 
   /* ---- keys: KeyboardEvent.code -> the DOS make code, then bytes into the ring ----
    * The scancodes are the ones keymap.c (docs/91) maps onto the game's DS key bytes; the letters follow
@@ -189,6 +235,12 @@
   const SWALLOW = new Set(['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'F1']);
   function keyPush(code, make) {
     const sc = DOS[code];
+    if (!sc) return;
+    keyPushSc(sc, make);
+  }
+  /* The one writer of the key queue, for the keyboard path and the pad alike. A code the DOS table does not
+   * have is not a key the game was ever written to receive, so it is dropped rather than guessed at. */
+  function keyPushSc(sc, make) {
     if (!sc || !M) return;
     const H = M.HEAPU32, b = blockBase >> 2;
     const head = H[b + KEY.HEAD], tail = H[b + KEY.TAIL], size = H[b + KEY.SIZE];
@@ -215,7 +267,197 @@
     seen.up++; seen.push++;
     keyPush(e.code, false);
   }, { passive: false });
-  window.addEventListener('blur', () => { for (const c in DOS) keyPush(c, false); });
+  window.addEventListener('blur', () => { padReleaseAll(); for (const c in DOS) keyPush(c, false); });
+
+  /* ---- the virtual pad: a touch front end for those same bytes ----
+   * There is no new input path here, which is the point: every press and release is one slot in the key
+   * queue, carrying the DOS make code the keyboard would have sent for the same physical key, so the pad
+   * cannot drift from the keyboard as far as keymap.c is concerned (docs/91, 92 -- including the aliases,
+   * since Z/X/C land on the CTRL/ALT/SHIFT slots in the guest, not in this file).
+   *
+   * Directions are read from GEOMETRY rather than from four buttons. The game's move model is two held
+   * bytes (0x4b plus 0x48 is a diagonal), so a pad that only had four arms would be missing half of the
+   * verbs a thumb can reach. One pointer therefore sweeps the 3x3 grid the CSS draws -- slide from an arm
+   * into a corner and you get both bytes -- and a second pointer adds its own directions to the union,
+   * which is how a thumb and a finger walk diagonally while punching.
+   *
+   * A held virtual key sends ONE make, exactly as the keyboard path does (which drops e.repeat): the
+   * screens that need a repeating cursor -- fn_038f3d's row cursor repeats a HELD key every 0x13 frames,
+   * docs/65 -- earn it from the held byte inside the guest, not from the host. DOS typematic repeat is a
+   * different question again (docs/272, 281, 282) and is deliberately not synthesised here. */
+  const dpadEl = $('dpad'), padKeysEl = $('pad-keys'), padSysEl = $('pad-sys');
+  const PAD_KEY = 'night.pad';
+  const PAD_MODES = ['band', 'float', 'off'];
+  const qsPad = new URLSearchParams(location.search).get('pad');
+  const TOUCHY = !!(window.matchMedia && matchMedia('(hover: none) and (pointer: coarse)').matches);
+  /* Touch gets the pad without being asked (a phone has no other keyboard), a mouse does not, and
+   * `?pad=band|float|off` forces one for a run. The choice persists beside the scale mode. */
+  let padMode = PAD_MODES.indexOf(qsPad) >= 0 ? qsPad
+              : ((localStorage.getItem(PAD_KEY) || (TOUCHY ? 'band' : 'off')));
+  if (PAD_MODES.indexOf(padMode) < 0) padMode = 'off';
+  const padSeen = { down: 0, up: 0 };           // presses the pad made, counted for the harness
+  const padPtr = new Map();                     // pointerId -> the codes it holds (empty = on the cross, in
+                                               // ... its dead centre: still a finger this page is watching)
+  const padPad = new Set();                     // the pointers that went down ON the cross
+  const padSent = new Set();                    // the union of them: what the game believes is held
+  const padCells = dpadEl ? Array.from(dpadEl.children) : [];
+  const padBtns = Array.from(document.querySelectorAll('#pad-keys [data-key], #pad-sys [data-key]'));
+  const DIR_SC = { up: DOS.ArrowUp, down: DOS.ArrowDown, left: DOS.ArrowLeft, right: DOS.ArrowRight };
+  /* The dead zone is the centre cell of the grid exactly, so what you see is what you press. */
+  const PAD_DZ = 1 / 3;
+  function dirsAt(clientX, clientY) {
+    const r = dpadEl.getBoundingClientRect();
+    const dx = (clientX - r.left - r.width / 2) / (r.width / 2);
+    const dy = (clientY - r.top - r.height / 2) / (r.height / 2);
+    const out = [];
+    if (dx < -PAD_DZ) out.push(DIR_SC.left);
+    if (dx > PAD_DZ) out.push(DIR_SC.right);
+    if (dy < -PAD_DZ) out.push(DIR_SC.up);
+    if (dy > PAD_DZ) out.push(DIR_SC.down);
+    return out;
+  }
+  /* A cell lights when the directions it stands for are ALL held, which for a corner means the diagonal is
+   * really on -- an arm lighting because its corner shares the byte would be a light that lies. */
+  function padShow() {
+    for (const c of padCells) {
+      const dirs = (c.dataset.d || '').split(/\s+/).filter(Boolean);
+      c.classList.toggle('lit', dirs.length > 0 && dirs.every((d) => padSent.has(DIR_SC[d])));
+    }
+    for (const b of padBtns) b.classList.toggle('lit', padSent.has(DOS[b.dataset.key]));
+  }
+  /* Diff the union of every live pointer against what the game was last told, and send only the edges. A
+   * thumb that slides right -> up-right therefore makes `up` without ever breaking `right`. */
+  function padApply() {
+    const now = new Set();
+    for (const s of padPtr.values()) for (const sc of s) now.add(sc);
+    for (const sc of padSent) if (!now.has(sc)) { keyPushSc(sc, false); padSeen.up++; }
+    for (const sc of now) if (!padSent.has(sc)) { keyPushSc(sc, true); padSeen.down++; }
+    padSent.clear();
+    for (const sc of now) padSent.add(sc);
+    padShow();
+  }
+  /* A press is remembered even where the cross reads as nothing. A thumb does not aim at an arm: it lands in
+   * the middle of the pad and rolls out to the direction it meant, so a pointer that went down on the hub is
+   * watched all the way to the arm it slides into -- which is why `padPad` exists and is not simply "the
+   * pointer holds a direction". */
+  function padSet(id, codes) { padPtr.set(id, codes); padApply(); }
+  /* Both maps have to be cleared, which is why this is two deletes and not an `||`: the short-circuit that
+   * made it one expression left the pointer in `padPtr` holding its last direction after the finger was
+   * already off the glass -- a d-pad that keeps walking you left after you let go. On a real device the very
+   * next event (`lostpointercapture`, which always follows a release when the press captured) called this
+   * again and cleared it, so the bug only showed in the harness, where a synthetic press never gets a
+   * capture -- which is what a synthetic press is for. */
+  function padEnd(id) {
+    const on = padPad.delete(id), held = padPtr.delete(id);
+    if (on || held) padApply();
+  }
+  function padReleaseAll() {
+    if (!padPtr.size && !padPad.size && !padSent.size) return;
+    padPad.clear();
+    padPtr.clear();
+    padApply();                                 // the union is now empty, so this sends the breaks
+  }
+  function padGrab(el, id) { try { el.setPointerCapture(id); } catch (e) { /* no capture, no slide */ } }
+  function wirePad() {
+    if (!padEl) return;
+    dpadEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();                       // no scroll, no pinch-zoom, no synthetic click through it
+      if (!started) return;                     // before the gate's press there is nothing to press
+      padGrab(dpadEl, e.pointerId);
+      padPad.add(e.pointerId);
+      padSet(e.pointerId, dirsAt(e.clientX, e.clientY));
+    });
+    dpadEl.addEventListener('pointermove', (e) => {
+      if (!padPad.has(e.pointerId)) return;     // a finger that did not press here does not steer here
+      padSet(e.pointerId, dirsAt(e.clientX, e.clientY));
+    });
+    for (const el of padBtns) {
+      const sc = DOS[el.dataset.key];
+      el.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        if (!started || !sc) return;
+        padGrab(el, e.pointerId);
+        padSet(e.pointerId, [sc]);
+      });
+    }
+    /* Release comes from three events: a lifted finger, a gesture the browser took away, and a capture that
+     * went away on its own. The document sees the cancelled ones too, because an element handler does not
+     * fire for a pointer it has already lost -- either way, a hand that left must latch nothing. */
+    for (const el of [dpadEl].concat(padBtns))
+      for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture'])
+        el.addEventListener(ev, (e) => padEnd(e.pointerId));
+    document.addEventListener('pointercancel', () => padReleaseAll());
+    document.addEventListener('visibilitychange', () => { if (document.hidden) padReleaseAll(); });
+    /* The other thing a held thumb brings up on iOS: after a moment on a button it raises the text
+     * magnifier over the label and then the copy callout, which sits on top of the game and swallows the
+     * press. -webkit-touch-callout:none and user-select:none keep it from starting; these three are the
+     * events it asks for, cancelled where they happen so the log panel can still be selected normally. */
+    for (const ev of ['contextmenu', 'selectstart', 'dragstart'])
+      padEl.addEventListener(ev, (e) => e.preventDefault());
+  }
+  function showPad() {
+    if (!padEl) return;
+    padEl.classList.toggle('hidden', padMode === 'off');
+    document.body.classList.toggle('pad-float', padMode === 'float');
+    if (padBtnEl) {                             /* says what pressing it will switch TO, like `fit` */
+      const next = PAD_MODES[(PAD_MODES.indexOf(padMode) + 1) % PAD_MODES.length];
+      padBtnEl.textContent = next === 'off' ? 'pad off' : 'pad ' + next;
+      padBtnEl.title = 'virtual d-pad and buttons, labelled with the DOS key each one sends; tap for ' + next;
+      padBtnEl.classList.toggle('off', padMode === 'off');
+    }
+  }
+  function setPadMode(mode) {
+    if (PAD_MODES.indexOf(mode) < 0) return;
+    padMode = mode;
+    try { localStorage.setItem(PAD_KEY, mode); } catch (e) { /* private mode */ }
+    if (mode === 'off') padReleaseAll();        // the pad you hid is not a pad still holding Right
+    showPad();
+    fit();                                      /* the band took space the canvas now has less of */
+  }
+
+  /* ---- the bottom bar: away when you are playing ----
+   * A touch anywhere on the screen box -- the canvas or the letterbox beside it -- puts the row of buttons
+   * and its status line away, and a second touch brings it back. It has to be the screen box and not the
+   * document: the pad floats over the canvas in float mode, and a press meant for the d-pad is not a request
+   * to lose the buttons that switch it off. With the row gone the canvas box is taller, so fit() is the
+   * other half of the toggle. */
+  const hintEl = $('hint');
+  let hintTimer = 0, barOn = true;
+  function hint(msg, ms) {
+    if (!hintEl) return;
+    hintEl.textContent = msg;
+    hintEl.classList.remove('hidden');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => hintEl.classList.add('hidden'), ms || 1800);
+  }
+  function setBar(on) {
+    barOn = !!on;
+    document.body.classList.toggle('no-bar', !barOn);
+    fit();                                  /* the height the bar took belongs to the canvas now */
+    hint(barOn ? 'bar shown' : 'bar hidden — tap the screen to bring it back', barOn ? 1200 : 2600);
+  }
+
+  /* A touch on the screen puts the bar away -- except where the deck is, and where the deck is depends on how
+   * the phone is being held.
+   *
+   * Sideways in float mode the deck is four corners over the screen, so the only place a thumb is NOT is the
+   * strip between the cross and the fight buttons: there, and only there, a tap toggles.
+   *
+   * Upright the deck is a band along the bottom, and the gap in the middle of that band is not free space --
+   * it is where a thumb rests between the two groups -- so upright a tap toggles only if it lands ABOVE the
+   * deck. (In band mode the deck is never inside the screen box at all, so the same test simply never
+   * refuses anything; one rule, both modes.)
+   *
+   * With the deck switched off, every tap on the screen is just a tap on the screen. */
+  function barToggleAt(clientX, clientY) {
+    if (padMode === 'off' || !dpadEl || !padKeysEl || !padSysEl) return true;
+    const l = dpadEl.getBoundingClientRect(), r = padKeysEl.getBoundingClientRect(),
+          s = padSysEl.getBoundingClientRect();
+    if (!l.width || !r.width) return true;         /* nothing on screen: nothing to keep clear of */
+    const sideways = window.matchMedia && matchMedia('(orientation: landscape)').matches;
+    if (padMode === 'float' && sideways) return clientX >= l.right && clientX <= r.left;
+    return clientY < Math.min(l.top, r.top, s.top);
+  }
 
   /* ---- audio: two rings summed by a ScriptProcessorNode, pure JS ---- */
   let ac = null, sp = null, audioAsked = false;
@@ -421,7 +663,7 @@
     return out.subarray(0, got);
   }
   async function loadRes() {
-    say('downloading NIGHT.RES (22 MB gzipped, 51 MB in memory)');
+    gate('downloading NIGHT.RES (22 MB gzipped, 51 MB in memory)');
     const gz = await fetchBytes('data/NIGHT.RES.gz', (f) => progress(f * 0.8));
     let bytes = gz;
     if (typeof DecompressionStream !== 'undefined') {
@@ -552,10 +794,111 @@
     setInterval(pollStatus, 250);
   }
 
+  /* ---- installed: the manifest, the worker, and the full screen that comes with them ----
+   * A browser tab always shows the browser, which for a phone is a bar at the top eating the height the
+   * canvas wants. A page installed from its manifest gets a launch with no chrome at all -- the only full
+   * screen iOS will ever give a web page -- so the port ships a manifest, icons cut from the original's own
+   * 32x32 icon, and a worker small enough that it only ever answers the shell (docs/457).
+   *
+   * Three consequences of "we are the app now", all of them here:
+   *
+   *   The bottom bar starts hidden. Nothing about an app justifies a row of debug buttons under the game; a
+   *   touch on the screen still brings it back.
+   *   The fullscreen button says what it does. It asks for the document's full screen, which Chrome and
+   *   Firefox honour and iOS Safari does not offer at all -- so it also says how to get that screen instead.
+   *   The install button exists only when the browser can actually be asked. Chrome fires
+   *   `beforeinstallprompt`; Safari has no such event and wants a finger on Share -> Add to Home Screen, and
+   *   pretending otherwise would be a button that does nothing.
+   */
+  const installEl = $('btn-install'), fullEl = $('btn-full'), installHintEl = $('gate-install');
+  const STANDALONE = !!(window.matchMedia && (matchMedia('(display-mode: standalone)').matches ||
+                                              matchMedia('(display-mode: fullscreen)').matches)) ||
+                     navigator.standalone === true;      /* the iOS sign, and the only one it gives */
+  const CAN_FULL = !!(document.documentElement.requestFullscreen);
+  let appInstalled = STANDALONE, deferredPrompt = null;
+
+  function showInstall() {
+    if (fullEl) {
+      fullEl.classList.toggle('hidden', STANDALONE);     /* already the whole screen: nothing left to ask */
+      fullEl.textContent = document.fullscreenElement ? 'exit full' : 'fullscreen';
+      fullEl.title = CAN_FULL ? 'fill this window (the browser keeps its own bar)'
+                               : 'this browser will not let a page go full screen -- install it instead';
+    }
+    if (installEl) installEl.classList.toggle('hidden', !deferredPrompt || STANDALONE);
+    if (!installHintEl) return;
+    const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const msg = appInstalled
+      ? 'installed as an app: full screen, and the pad is where your thumbs are'
+      : (deferredPrompt ? '' : (IOS ? 'to install: Share -> Add to Home Screen (that is the full screen)'
+                                    : 'to install: the browser menu -> Add to Home Screen'));
+    installHintEl.textContent = msg;
+    installHintEl.classList.toggle('hidden', msg === '');
+  }
+
+  /* The worker: registered only where it is allowed, and skippable. `?nosw=1` is the opt-out, and a
+   * measurement run is NOT one of them by default: `make check` is a better test for having gone through a
+   * service worker than for having gone around one, and the worker is network-first precisely so that it
+   * cannot serve the previous build. What it does skip is a file:// page, which gets no worker anyway. */
+  function registerWorker() {
+    if (!('serviceWorker' in navigator)) { logLine('pwa: no service worker in this browser'); return; }
+    if (/[?&]nosw=1/.test(location.search)) { logLine('pwa: worker skipped (?nosw=1)'); return; }
+    const host = location.hostname;
+    if (!/^https?:$/.test(location.protocol) ||
+        !(location.protocol === 'https:' || host === 'localhost' || host === '127.0.0.1' || host === '[::1]')) {
+      logLine('pwa: worker needs https or localhost, not ' + location.host); return;
+    }
+    navigator.serviceWorker.register('sw.js').then(
+      (r) => logLine('pwa: worker active, scope ' + r.scope),
+      (e) => logLine('pwa: worker registration failed: ' + e.message));
+  }
+
+  function wirePwa() {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();                        // the browser's own banner competes with a button that logs
+      deferredPrompt = e; showInstall();
+      logLine('pwa: installable (beforeinstallprompt)');
+    });
+    window.addEventListener('appinstalled', () => {
+      appInstalled = true; deferredPrompt = null; showInstall();
+      logLine('pwa: installed -- reload for the chrome-free launch');
+    });
+    if (installEl) installEl.addEventListener('click', () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((c) => {
+        logLine('pwa: install prompt ' + c.outcome);
+        deferredPrompt = null; showInstall();
+      });
+    });
+    if (fullEl) fullEl.addEventListener('click', () => {
+      if (document.fullscreenElement) { document.exitFullscreen(); return; }
+      if (!CAN_FULL) { hint('this browser will not let a page go full screen -- install the app instead', 3200); return; }
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' })
+        .catch((e) => hint('full screen refused: ' + e.message, 3200));
+    });
+    document.addEventListener('fullscreenchange', showInstall);
+    showInstall();
+    registerWorker();
+  }
+
   /* ---- controls ---- */
   function wire() {
     if (scaleEl) scaleEl.addEventListener('click', () => setStretch(!stretch));
     showScale();
+    wirePad();
+    if (holderEl) holderEl.addEventListener('pointerdown', (e) => {
+      /* The refusal is logged and the toggle is not: a control that does nothing where the deck is, is a
+       * control whose refusal has to be findable, and a bar that visibly disappeared needs no diary. */
+      if (!barToggleAt(e.clientX, e.clientY)) {
+        logLine('bar: tap at ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' is the deck, ignored');
+        return;
+      }
+      setBar(!barOn);
+    });
+    if (padBtnEl) padBtnEl.addEventListener('click', () =>
+      setPadMode(PAD_MODES[(PAD_MODES.indexOf(padMode) + 1) % PAD_MODES.length]));
+    showPad();
     $('btn-full').addEventListener('click', () => {
       const el = document.documentElement;
       if (document.fullscreenElement) document.exitFullscreen();
@@ -575,14 +918,29 @@
       $('btn-log').textContent = logOn ? 'hide log' : 'log';
       fit();                                      /* the log took space the canvas now has less of (or vice versa) */
     });
+    /* The other half of "double tapping zooms": iOS Safari's pinch is its own gesturestart/gesturechange
+     * pair, which no touch-action stops -- only cancelling it does -- and a page with no double click in it
+     * has no reason to let a double tap change the zoom. Both are page-wide, not pad-only, because a zoom
+     * you cannot undo in the middle of a fight costs the run either way. */
+    for (const ev of ['gesturestart', 'gesturechange', 'gestureend'])
+      document.addEventListener(ev, (e) => e.preventDefault());
+    document.addEventListener('dblclick', (e) => e.preventDefault());
     document.addEventListener('pointerdown', ensureAudioOnce);   // any press re-tries a blocked AudioContext
-    document.addEventListener('fullscreenchange', fit);
+    document.addEventListener('fullscreenchange', refit);
+    wirePwa();
     /* The gate's press: user activation for the AudioContext and the game's start, in one press. */
     if (gateStart) gateStart.addEventListener('click', () => { startGame(); });
   }
 
   window.NightWasm = {
     boot, present, nextFrame, module: () => M, fit, startSink, startGame,
+    /* The harness drives the pad through the DOM a finger would not need, but the mode has to be reachable
+     * from JS for a headless run to exercise the pad's own code path. */
+    pad: (mode) => { if (mode !== undefined) setPadMode(mode); return padMode; },
+    bar: (on) => { if (on !== undefined) setBar(on); return barOn; },
+    pwa: () => ({ standalone: STANDALONE, installed: appInstalled,
+                  canPrompt: !!deferredPrompt, canFullscreen: CAN_FULL,
+                  fullscreen: !!document.fullscreenElement }),
     /* The harness needs to know the gate is armed before it presses it, and needs to tell "the game has not
      * started" from "the game started and heard nothing". */
     ready: () => ({ preloaded, started, gate: gateEl ? !gateEl.classList.contains('hidden') : false }),
@@ -596,6 +954,7 @@
                     flags: M ? M.HEAPU32[(blockBase >> 2) + ST.FLAGS] : 0,
                     dev: M ? M.HEAPU32[(blockBase >> 2) + CFG.AUDIO_RATE] : 0,
                     pulled, seen, raf, timer, blit, aud, ac: ac ? ac.state : 'none',
+                    pad: { mode: padMode, down: padSeen.down, up: padSeen.up, held: [...padSent] },
                     canvas: [canvas.width, canvas.height, canvas.clientWidth, canvas.clientHeight] };
     },
   };

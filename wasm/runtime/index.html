@@ -3,24 +3,55 @@
 <head>
 <meta charset="utf-8">
 <title>NIGHT — WebAssembly</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- Installable as an app: from a home-screen icon this page starts with no browser chrome at all, which is
+     the only full screen an iPhone offers a page (requestFullscreen is not available to a document there).
+     The icons are the original game's own 32x32 icon, scaled by whole numbers (scripts/gen/gen_app_icons.py).
+     The manifest's display_override asks for fullscreen and falls back to standalone; iOS reads the
+     apple-mobile-web-app-capable meta instead, and wants its own icon link. -->
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NIGHT">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root { color-scheme: dark; }
+  /* `manipulation` is the property that stops iOS Safari's double-tap zoom (the meta's user-scalable=no is
+     ignored there since iOS 10); it keeps pinch, which the pad's own touch-action:none takes away. The pad
+     calls preventDefault on pointerdown as well, and shell.js cancels iOS's gesture* events, because a
+     page that lets a thumb zoom out of the game by tapping twice twice is a page you cannot play.
+     viewport-fit=cover is what makes the safe-area insets below be real insets, and dvh is the height that
+     ignores Safari's collapsing toolbar -- a 100% page under it puts the pad's bottom row out of reach. */
   html, body { margin: 0; height: 100%; background: #000; color: #bfbfbf;
-               font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; }
+               font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden;
+               touch-action: manipulation; overscroll-behavior: none;
+               -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+  @supports (height: 100dvh) { html, body { height: 100dvh } }
   #wrap { display: flex; flex-direction: column; height: 100%; }
-  #bar-holder { height: 3px; background: #222; }
-  #bar { height: 3px; width: 0; background: #6a9; transition: width .2s; }
-  /* The canvas box is the space left over once the bar, the log and the HUD have had theirs; fit() sizes the
-     canvas inside it. It used to be an integer scale of the bitmap's own ratio, which for a 320x200 room frame
-     is 16:10 -- a shape the original never showed anyone (docs/459). */
+  @supports (height: 100dvh) { #wrap { height: 100dvh } }
+  /* The canvas box is the space left over once the log and the HUD have had theirs; fit() sizes the canvas
+     inside it. It used to be an integer scale of the bitmap's own ratio, which for a 320x200 room frame is
+     16:10 -- a shape the original never showed anyone (docs/459). */
   #screen-holder { flex: 1 1 auto; min-height: 0; display: flex; align-items: center;
                    justify-content: center; overflow: hidden; }
   #screen { flex: 0 0 auto; display: block; background: #000; image-rendering: crisp-edges;
             image-rendering: pixelated; }   /* both modes; shell.js re-asserts it */
   #hud { flex: 0 0 auto; display: flex; gap: 10px; align-items: center; padding: 6px 10px;
+         padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));   /* the home indicator is not a place for a button */
          border-top: 1px solid #222; }
-  #status { flex: 1 1 auto; }
+  /* A phone has no height to give away, so a touch on the screen (or on the letterbox beside it) puts this
+     row of buttons away and takes it back -- with the row gone fit() has the whole column for the canvas. */
+  body.no-bar #hud { display: none; }
+  #hint { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 4;
+          padding: 3px 10px; border-radius: 4px; background: rgba(18,18,18,.86); color: #9f9f9f;
+          font-size: 11px; pointer-events: none; }
+  /* One line, or the buttons get pushed off the edge of a phone: the status may not wrap, and on a narrow
+     screen it takes a row to itself under the buttons instead of fighting them for width. */
+  #status { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #hud button { flex: 0 0 auto; }
   button { background: #161616; color: #bfbfbf; border: 1px solid #333; border-radius: 3px;
            font: inherit; padding: 2px 8px; cursor: pointer; }
   button:hover { background: #232323; }
@@ -28,7 +59,113 @@
      one you left. */
   #hud button.off { color: #7d7d7d; border-color: #2a2a2a; }
   #log { flex: 0 0 28vh; overflow: auto; background: #0a0a0a; border-top: 1px solid #222;
-         padding: 6px 10px; white-space: pre-wrap; }
+         padding: 6px 10px; white-space: pre-wrap;
+         touch-action: pan-y; }        /* the one surface on this page that is meant to be dragged */
+  /* ---- the virtual pad ----
+     A touch front end for the bytes the keyboard path already pushes, so the game sees a DOS make code and
+     nothing else (docs/457): `band` is its own strip under the canvas, `float` lays the same controls over
+     the canvas at low alpha, and `off` is a mouse. Nothing here may scroll, zoom or select, and touch-action
+     has to be none on every element and not just the container, because it does not inherit.
+
+     The deck is one grid: cross, menu keys, fight buttons. The middle column is the only `1fr`, so when the
+     screen shrinks it is the menu row that gives way and not a thumb target. */
+  #pad { --cell: clamp(40px, 6.2vmax, 60px); --btn: clamp(54px, 8vmax, 78px); --pa: 1;
+         flex: 0 0 auto; display: grid; grid-template-columns: auto 1fr auto;
+         align-items: end; gap: 8px; padding: 8px 14px; background: #0b0b0b; border-top: 1px solid #222;
+         padding-left: calc(14px + env(safe-area-inset-left, 0px));
+         padding-right: calc(14px + env(safe-area-inset-right, 0px));
+         padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+         touch-action: none; -webkit-user-select: none; user-select: none;
+         -webkit-tap-highlight-color: transparent; }
+  #pad * { touch-action: none; -webkit-user-select: none; user-select: none;
+           -webkit-touch-callout: none; }   /* a held button must not raise the iOS text magnifier */
+  #dpad { grid-column: 1; }
+  #pad-sys { grid-column: 2; }
+  #pad-keys { grid-column: 3; justify-self: end; }
+  /* A portrait phone has height to spare -- the 4:3 canvas is letterboxed there either way -- so its band
+     stacks: the cross and the fight buttons get big, and the menu row goes under them across the band. */
+  @media (max-width: 560px) {
+    #pad { --cell: 46px; --btn: 62px; gap: 4px; padding: 8px;
+           grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+    #dpad { grid-column: 1; grid-row: 1; justify-self: start; }
+    #pad-keys { grid-column: 2; grid-row: 1; justify-self: end; }
+    #pad-sys { grid-column: 1 / -1; grid-row: 2; margin-top: 4px; }
+    #pad-sys > div { padding: 7px 12px; font-size: 12px; }
+    #hud { gap: 6px; flex-wrap: wrap; row-gap: 4px; }
+    #hud button { font-size: 11px; padding: 2px 6px; }
+    #status { order: 2; flex: 1 1 100%; font-size: 11px; }
+  }
+  /* A short screen keeps the one-row deck, because its band has no second row in it. */
+  @media (max-height: 520px) {
+    #pad { --cell: 32px; --btn: 44px; }
+    #pad-sys > div { font-size: 10px; padding: 5px 6px; }
+  }
+  /* Float mode lifts the deck off the page and over the canvas, in either orientation, and it stops ABOVE
+     the bottom bar rather than across it -- the bar carries the buttons that switch the deck off. How tall
+     that bar is, CSS cannot know: two rows on a narrow screen, one on a wide one, and none at all once a
+     touch has put it away. So shell.js measures it and hands it down as --bar-h on every layout change, and
+     a hidden bar measures zero and gives its height back.
+
+     The edge the groups sit off the bezel by is `--edge`, a fixed amount, PLUS the notch inset on top of it:
+     `env(safe-area-inset-left/right)` is what keeps a cross off the cut-out of a phone held sideways, and it
+     reads as zero unless the page has `viewport-fit=cover` (it does) and is actually under the notch, which
+     is why a desktop or a notchless phone shows exactly `--edge` and nothing more. */
+  body.pad-float #pad { --edge: 6px; position: fixed; inset: 0; z-index: 2;
+                        background: none; border-top: none; pointer-events: none; --pa: .45;
+                        /* end, not start: the deck is one row in landscape and two in portrait, and in either
+                           case it belongs at the bottom of the box -- a deck centred in the whole screen is
+                           a deck over the middle of the game. */
+                        align-content: end;
+                        padding-top: calc(var(--edge) + env(safe-area-inset-top, 0px));
+                        padding-left: calc(var(--edge) + env(safe-area-inset-left, 0px));
+                        padding-right: calc(var(--edge) + env(safe-area-inset-right, 0px));
+                        padding-bottom: calc(var(--bar-h, 0px) + var(--edge) + env(safe-area-inset-bottom, 0px)); }
+  body.pad-float #pad > * { pointer-events: auto; }
+  /* Float mode on a wide screen is the case a phone turned sideways is for, and there a bottom row of menu
+     keys sits right under the right thumb. So the deck becomes the four corners of the screen: a bigger
+     cross bottom-left, bigger buttons bottom-right, ESC and F1 in the top-left corner and ENTER in the
+     top-right -- the keys you need between fights, where a thumb is not. Only sizes and placement change
+     here; the insets stay the float rule's, so the bar reservation is the same in both orientations. */
+  @media (orientation: landscape) {
+    body.pad-float #pad { --cell: 56px; --btn: 78px; --pa: .6; gap: 0; grid-template-rows: auto 1fr auto; }
+    body.pad-float #dpad { grid-column: 1; grid-row: 3; align-self: end; justify-self: start; }
+    body.pad-float #pad-keys { grid-column: 3; grid-row: 3; align-self: end; justify-self: end; }
+    body.pad-float #pad-sys { grid-column: 1 / -1; grid-row: 1; align-self: start;
+                              display: flex; flex-direction: row; justify-content: flex-start; }
+    /* Which corner each one belongs to, in landscape only: ESC and F1 are the pair you need together when a
+       menu is open, so they sit side by side; ENTER goes to the far corner, next to the fight buttons, where
+       the thumb already is for everything else the game asks for. */
+    body.pad-float #pad-sys [data-key="Escape"] { order: 1; }
+    body.pad-float #pad-sys [data-key="F1"] { order: 2; }
+    body.pad-float #pad-sys [data-key="Enter"] { order: 3; margin-left: auto; }
+    body.pad-float #pad-sys > div { font-size: 14px; padding: 9px 12px; }
+  }
+  /* The cross is nine cells of one grid, which is also exactly the hit grid shell.js reads: an arm is one
+     byte and a corner is two, because the game's diagonal is `left` plus `up` held together, not a code. */
+  #dpad { display: grid; grid-template-columns: repeat(3, var(--cell));
+          grid-template-rows: repeat(3, var(--cell)); opacity: var(--pa); }
+  #dpad > div { display: flex; align-items: center; justify-content: center; border-radius: 3px;
+                border: 1px solid #2c2c2c; background: #151515; color: #4d4d4d;
+                font-size: calc(var(--cell) * .3); }
+  #dpad > div.cor { border-color: transparent; background: transparent; color: #353535;
+                    font-size: calc(var(--cell) * .24); }
+  #dpad > div.lit { background: #2c3a2c; border-color: #4f6a4f; color: #d6ead6; }
+  #pad-keys { display: grid; grid-template-columns: repeat(2, var(--btn)); gap: 6px;
+              opacity: var(--pa); }
+  #pad-keys > div { display: flex; align-items: center; justify-content: center;
+                    width: var(--btn); height: var(--btn); border-radius: 50%;
+                    border: 1px solid #333; background: #161616; color: #a8a8a8;
+                    font-size: calc(var(--btn) * .22); letter-spacing: .06em; }
+  #pad-keys > div.lit { background: #2c3a2c; border-color: #4f6a4f; color: #e8e8e8; }
+  /* The menu keys are a ROW in the middle of the deck, the way a controller puts start and select between
+     the two thumbs -- the middle column is the one that shrinks, and the corners are where they go in float
+     mode on a wide screen. */
+  #pad-sys { display: grid; grid-auto-flow: column; gap: 4px; justify-content: center; align-items: end;
+             min-width: 0; opacity: var(--pa); }
+  #pad-sys > div { min-width: 0; text-align: center; padding: 8px 9px; border-radius: 4px;
+                   border: 1px solid #303030; background: #131313; color: #8f8f8f;
+                   font-size: 13px; letter-spacing: .06em; }
+  #pad-sys > div.lit { background: #2c3a2c; border-color: #4f6a4f; color: #e8e8e8; }
   .hidden { display: none !important; }
   #end { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
          background: rgba(0,0,0,.86); font-size: 15px; }
@@ -43,16 +180,52 @@
   #gate button { font-size: 15px; padding: 8px 26px; border-radius: 4px; }
   #gate button:disabled { color: #6a6a6a; border-color: #2a2a2a; cursor: default; }
   #gate-note { margin-top: 14px; font-size: 11px; color: #6a6a6a; }
+  /* The one line that says what the pad's key names mean; the buttons are labelled with the DOS keys
+     because those are the names the game's own README uses. */
+  #gate-keys { margin-top: 6px; font-size: 11px; color: #7d8f7d; }
+  /* Shown only when the page really is running installed (see NightWasm.pwa()): a hint to install belongs
+     above the press, not under it, and a hint to install is noise once you have. */
+  #gate-install { margin-top: 10px; font-size: 11px; color: #6a6a6a; }
 </style>
 </head>
 <body>
 <div id="wrap">
-  <div id="bar-holder"><div id="bar"></div></div>
   <div id="screen-holder"><canvas id="screen" width="320" height="200"></canvas></div>
+  <!-- The virtual pad: every press is one slot in the same key queue a keyboard press fills (docs/457). The
+       buttons are labelled with the DOS key they send, because that is the key the README names and the one
+       the keyboard path sends too; the corners of the cross are live so one thumb can hold a diagonal. The
+       menu keys are one row in band mode, and in landscape float mode they split by corner: CSS order puts
+       ESC and F1 together in one corner and ENTER in the other. -->
+  <div id="pad" class="hidden">
+    <div id="dpad" aria-label="move">
+      <div class="cor" data-d="left up">&#8598;</div>
+      <div class="arm" data-d="up">&#9650;</div>
+      <div class="cor" data-d="right up">&#8599;</div>
+      <div class="arm" data-d="left">&#9664;</div>
+      <div class="hub" data-d=""></div>
+      <div class="arm" data-d="right">&#9654;</div>
+      <div class="cor" data-d="left down">&#8601;</div>
+      <div class="arm" data-d="down">&#9660;</div>
+      <div class="cor" data-d="right down">&#8600;</div>
+    </div>
+    <div id="pad-sys">
+      <div data-key="Escape">ESC</div>
+      <div data-key="Enter">ENTER</div>
+      <div data-key="F1">F1</div>
+    </div>
+    <div id="pad-keys">
+      <div data-key="ShiftLeft">SHIFT</div>
+      <div data-key="KeyZ">Z</div>
+      <div data-key="Space">SPACE</div>
+      <div data-key="KeyX">X</div>
+    </div>
+  </div>
   <div id="log" class="hidden"></div>
   <div id="hud">
     <span id="status">loading</span>
     <button id="btn-scale">fit</button>
+    <button id="btn-pad">pad</button>
+    <button id="btn-install" class="hidden">install</button>
     <button id="btn-log">log</button>
     <button id="btn-mute">mute</button>
     <button id="btn-full">fullscreen</button>
@@ -66,9 +239,12 @@
     <div id="gate-status">loading engine</div>
     <button id="btn-start" disabled autofocus>press to play</button>
     <div id="gate-note">a browser only allows sound after you have pressed something, so this press starts the game and the audio together</div>
+    <div id="gate-keys">arrows move &middot; SHIFT jump &middot; Z punch &middot; X kick &middot; SPACE duck &middot; ESC pause</div>
+    <div id="gate-install" class="hidden">installed as an app: full screen, and the pad is where your thumbs are</div>
   </div>
 </div>
 <div id="end" class="hidden">the game ended — reload to play again</div>
+<div id="hint" class="hidden"></div>
 <script src="resample.js"></script>
 <script src="shell.js"></script>
 </body>

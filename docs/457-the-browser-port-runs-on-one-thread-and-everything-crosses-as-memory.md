@@ -289,6 +289,81 @@ on failure, set `process.exitCode = 1` -- and then reached the end of `main`, wh
 however long the mixer had been eating one of the two voices. `make check` now exits with the verdict. Worth a
 second look at every other script in this repo that sets `exitCode` and then exits.
 
+## The front end: a pad, a bar that gets out of the way, and an install
+
+None of this is a new input path, which is the property that matters. Every press and release the touch
+controls make is one slot in the same key queue the keyboard handler fills, carrying the DOS make code the
+keyboard would have sent for the same physical key, so the pad cannot drift from the keyboard as far as
+`keymap.c` is concerned: Z, X and SHIFT land on the CTRL/ALT/SHIFT slots *in the guest*, not in `shell.js`
+(docs/91, 92). The buttons are labelled with those keys rather than with what they do, because those are the
+names the game's own README uses, and the gate's one line says what they mean.
+
+**The cross is geometry, not buttons.** The game's move model is two held bytes — `0x4b` plus `0x48` is a
+diagonal — so a d-pad of four arms would be missing half the verbs a thumb can reach. One pointer therefore
+sweeps the same 3x3 grid the CSS draws, the dead zone being the centre cell exactly, so sliding from an arm
+into a corner makes the second byte without ever breaking the first, and a second pointer adds its own
+directions to the union — which is how a thumb walks diagonally while a finger punches. A press that lands in
+the dead centre is watched as well, because that is where a thumb lands *before* it rolls out to the direction
+it meant: the page therefore tracks "this pointer is on the cross" separately from "this pointer holds a
+direction", because the first version tracked only the second and a centre-then-slide press did nothing at
+all.
+
+**A held virtual key sends one make.** The keyboard path drops `e.repeat`, and the screens that need a
+repeating cursor — `fn_038f3d` repeats a HELD row key every 0x13 screen iterations (docs/65) — get that from
+the held byte inside the guest, not from the host. DOS typematic repeat is a larger and separate question
+(docs/272, 280, 281, 282) and is deliberately not synthesised here, so pad and keyboard cannot disagree.
+
+**Three shapes.** `off` (a mouse), `band` (its own strip under the canvas — the default on a touch device,
+and what a portrait phone has height for: the cross and the fight buttons get big and the menu row goes under
+them), and `float` (over the canvas at low alpha). Float on a wide screen becomes the four corners — cross
+bottom-left, fight buttons bottom-right, ESC and F1 top-left, ENTER top-right — because sideways the keys you
+need between fights should not be under the right thumb. Sizes are a share of the LONG edge of the viewport
+(`vmax`), the one measure that stays about the size of a thumb when the phone turns: measured at 390x844 the
+cross is 138 px in band, and at 844x390 it is 168 px a `--edge` of 6 px off the bezel, with
+`env(safe-area-inset-left)` added on top of that — which reads as nothing at all unless `viewport-fit=cover`
+is set (it is) and the page is actually under a notch. `?pad=band|float|off` forces one for a run, the HUD
+`pad` button cycles them, the choice persists beside the scale mode, and `NightWasm.pad('float')` does it
+from JS — which is how the harness drives it.
+
+**The floating deck stops above the bottom bar, and how far above is measured, not guessed.** The bar is two
+rows on a narrow screen, one on a wide one, and `display:none` — zero — once a touch has hidden it, so
+`shell.js` writes its measured height into `--bar-h` on every layout change (81 px at 390 wide, 36 px at 844,
+0 with the bar gone, and the deck takes that height back). A control that covers the button that switches the
+control off is a control you cannot switch off.
+
+**The bar gets out of the way, because a phone has no height to spare.** A touch on the screen box hides the
+row of buttons and its status line, `fit()` gets a taller box, and a second touch brings them back; measured
+at 844x390 the canvas goes 354 → 390 px tall. Where the deck floats over that screen the two compete, so the
+deck's ground is excluded: sideways only the strip between the cross and the buttons toggles, upright only a
+tap above the band does (a tap at x=100 in a 844-wide landscape run logs `is the deck, ignored`, a tap at
+x=420 hides the bar). The top progress bar is gone — what it measured now rides on the gate's own line, the
+line a player waiting on 20 MB is looking at.
+
+**A rotation re-fits, twice, because the notice you get is unreliable.** iOS sends `orientationchange` before
+the layout has settled, so the fit() run from it measures the box the phone just left; Chrome sometimes sends
+only `resize`; a collapsing toolbar moves the box with no orientation event at all. So `resize`,
+`orientationchange`, `screen.orientation.change`, the `orientation` media query and both `visualViewport`
+events all ask for the same queued re-fit, and that re-fit measures twice, a frame apart.
+
+**Installed is the only full screen iOS will give a page**, so the port is installable: a manifest whose
+`display_override` asks for `fullscreen` and falls back to `standalone`, icons cut from `NIGHT.ICO` — the
+original's own 32x32 — at whole multiples only, so the upscale repeats pixels instead of smearing them
+(`scripts/gen/gen_app_icons.py`), and a service worker that answers the app shell and nothing else. It is
+network-first on purpose: the port's test loop is rebuild-and-reload, and a worker that served the shell from
+cache would make that loop silently measure the previous build (the same reason `serve.py` sends
+`Cache-Control: no-cache`). It hands `/data/cd/` through untouched, because a worker that answered a Range
+window on a track would be handing back audio from the wrong second. `beforeinstallprompt` becomes a button
+where the browser can be asked; where it cannot (iOS), the gate says Share → Add to Home Screen, and the
+`fullscreen` button says what it is refused. `?nosw=1` opts out — and `make check` goes *through* the worker,
+not around it.
+
+**Three things iOS does to a page you play by holding things down, and what stops them:** double-tap zoom
+(`user-scalable=no` in the viewport meta is ignored there since iOS 10; `touch-action: manipulation` is what
+works), pinch (`gesturestart`/`gesturechange` cancelled), and the text magnifier that comes up over a button
+label after a moment's press (`-webkit-touch-callout: none` plus `user-select: none` on every element, with
+`contextmenu`/`selectstart`/`dragstart` cancelled on the pad — not the document, because the log panel is
+supposed to be selectable).
+
 ## Running it
 
 ```
@@ -298,6 +373,8 @@ make -C wasm serve          # Range-capable server on 8091
 make -C wasm check          # stage, serve, drive with keys, assert, stop
 make -C wasm resample       # what the converter does to the board's samples (no browser, no game)
 NIGHT_HEADFUL=1 CDP_PORT=9343 node wasm/scripts/headless.js http://127.0.0.1:8091/index.html 20000
+NIGHT_VIEWPORT="390x844x2,mobile" node wasm/scripts/headless.js ... # a phone's viewport, with touch input
+NIGHT_VIEWPORT="390x844x2,mobile" NIGHT_ROTATE_AT="5000:844x390x2,mobile" ... # and turn it at 5 s
 ```
 
 Nothing plays until you press. The page preloads the module and inflates the 20 MB resource pack behind a gate,
@@ -326,9 +403,24 @@ title, the logo fade and the room's page flip (docs/459); `?scale=fit` forces th
 bitmap's own ratio instead of the default 4:3 stretch; `?skipintro=1` and `?bgmoff=N` are the host's debug flags
 for reaching the title fast and for simulating the pause menu's BGM MODE row. `NIGHT_KEYS` specs can carry an
 absolute time (`Escape:150@118000`) and `NIGHT_LOG_LINES` widens the console excerpt, both so that a menu can be
-driven and a 200 ms sampled calibration window actually be read (docs/459).
+driven and a 200 ms sampled calibration window actually be read (docs/459). For the front end: `?pad=` forces a
+pad shape and `?nosw=1` skips the worker, while `NightWasm.pad()`, `.bar()` and `.pwa()` read back what the page
+thinks it is running — pad shape, whether the bar is showing, and whether it is installed, installable and full
+screen. `NIGHT_VIEWPORT="WxHxDPR[,mobile]"` puts the page in a phone's viewport, which is the only way to see the
+layout a thumb gets (and with mobile touch on, `matchMedia('(pointer: coarse)')` answers the way a phone answers
+it, so the pad defaults itself on and a run sees what a visitor gets); `NIGHT_ROTATE_AT="MS:WxH"` turns it
+mid-run, which is the only way to drive the rotation path at all. A phone in the harness that never turns is a
+phone whose rotation bugs survive into a real hand.
 
 ## Not claimed
+
+The front end has been played with — that is how the centre-slide press and the bar's overlap with the deck
+were found — and its geometry is measured in the harness at 390x844 and 844x390 in both pad shapes. What has
+NOT been measured is any of the iOS-specific behaviour: `touch-action: manipulation`, the `gesture*`
+cancellation, `-webkit-touch-callout: none` and `env(safe-area-inset-*)` are all written because they are the
+documented fixes and because Chrome does not implement the properties well enough to test them (it reports no
+`-webkit-touch-callout` at all, and no insets at all), but no iPhone has been seen by this port. An install
+has been verified as far as a headless Chrome will say `installable`, not by installing it.
 
 It has now been listened to — that is how the resampler, the rate marks and the queue depth were found, and
 how docs/458's stop semantics were reported — but there is still no microphone capture and no spectrum of what

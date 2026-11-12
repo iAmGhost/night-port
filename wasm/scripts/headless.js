@@ -96,6 +96,42 @@ chrome.stderr.on('data', () => {});
   };
   await new Promise((r) => { ws.onopen = r; });
   await send('Page.enable'); await send('Runtime.enable'); await send('Log.enable');
+  /* NIGHT_VIEWPORT="390x844x3,mobile" puts the page in a phone's viewport. It exists because the pad's
+     layout -- cell sizes from vmax, a three-column deck, a middle column that shrinks first -- is a question
+     about a 390 px screen and not about the 960 px window, and because with mobile touch on,
+     matchMedia('(pointer: coarse)') answers the way a phone answers it, so the pad defaults itself on and a
+     run sees what a visitor gets. The scale factor is CSS pixels by DPR, so 3 keeps it honest. */
+  const vp = process.env.NIGHT_VIEWPORT;
+  if (vp) {
+    const m = /(\d+)x(\d+)(?:x([\d.]+))?/.exec(vp);
+    if (!m) { console.log('NIGHT_VIEWPORT wants WxH or WxHxDPR, got ' + vp); }
+    else {
+      const mobile = /mobile/i.test(vp);
+      await send('Emulation.setDeviceMetricsOverride', { width: +m[1], height: +m[2],
+        deviceScaleFactor: m[3] ? +m[3] : 1, mobile });
+      try { await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 }); }
+      catch (e) { console.log('touch emulation unavailable: ' + e.message); }
+      console.log('viewport ' + m[1] + 'x' + m[2] + ' dpr ' + (m[3] || 1) + (mobile ? ' mobile' : ''));
+    }
+  }
+  /* NIGHT_ROTATE_AT="5000:844x390x2,mobile" turns the emulated phone at that millisecond of the run. It
+     exists because the re-fit on rotation is a code path with exactly one trigger -- a real turn -- and a
+     phone in the harness that never turns is a phone whose rotation bugs survive into a real hand. */
+  const rot = process.env.NIGHT_ROTATE_AT;
+  if (rot) {
+    const m = /^(\d+):(\d+)x(\d+)(?:x([\d.]+))?/.exec(rot);
+    if (!m) console.log('NIGHT_ROTATE_AT wants MS:WxH[xDPR], got ' + rot);
+    else setTimeout(() => {
+      const w = +m[2], h = +m[3], land = w > h;
+      send('Emulation.setScreenOrientationOverride',
+           { angle: land ? 90 : 0, type: land ? 'landscapePrimary' : 'portraitPrimary' })
+        .catch((e) => console.log('orientation override: ' + e.message));
+      send('Emulation.setDeviceMetricsOverride', { width: w, height: h,
+        deviceScaleFactor: m[4] ? +m[4] : 1, mobile: /mobile/i.test(rot) })
+        .then(() => console.log('rotated at ' + m[1] + 'ms to ' + w + 'x' + h))
+        .catch((e) => console.log('rotate failed: ' + e.message));
+    }, +m[1]);
+  }
   await send('Page.navigate', { url });
 
   /* Press the gate, if the page showed one. It has to be a real mouse event at the button's centre: a

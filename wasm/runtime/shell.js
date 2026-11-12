@@ -843,6 +843,36 @@
     return bytes.length;
   }
 
+  /* ---- the way out: the game ended, or it stopped drawing ----
+   * Two of these doors are the game's own: the `quit` button asks the main to leave, and the end of the
+   * program writes NK_ST_EXIT=2. The third door is nobody's, and it is the one that matters: an uncaught
+   * exception in the frame pump unwinds straight through the game's own stack (docs/457's CD-DA bug did
+   * exactly that), and what you get is a canvas holding its last picture with nothing wrong on its face --
+   * the page still pumps, the audio callback still fires, the game is simply gone.
+   *
+   * A picture that stopped changing is the only symptom all three have in common, so it is the one thing
+   * watched: NK_ST_FRAMES has not moved for STALL_MS on a game that started and did not exit. Ten seconds
+   * is deliberately long. Every wait this port knows about -- the logo freeze, the 238 s episode card -- is a
+   * clock deadline measured in FRAMES (docs/335, 459), so the game presents right through it and the counter
+   * runs; a counter that has really stopped for ten seconds is a main that is not coming back.
+   *
+   * The button matters more than the sentence. In a browser tab there is a reload control; in an installed
+   * app on a phone there is not, because the app IS the app, and a game that ends with no door is a game you
+   * have to swat away from the multitask screen to play again. */
+  const POLL_MS = 250;
+  const STALL_MS = +(new URLSearchParams(location.search).get('stallms') || 10000);
+  let endWhy = '', lastFrames = -1, stillPolls = 0, lastFault = '';
+  function endGame(why, note) {
+    const endEl = $('end');
+    if (!endEl || endWhy === why) return;
+    endWhy = why;
+    logLine('end: ' + why + (note ? ' -- ' + note : ''));
+    const whyEl = $('end-why'), noteEl = $('end-note');
+    if (whyEl) whyEl.textContent = why;
+    if (noteEl) noteEl.textContent = note || '';
+    endEl.classList.remove('hidden');
+  }
+
   /* ---- the status readout, from memory ---- */
   function pollStatus() {
     if (!M) return;
@@ -857,8 +887,21 @@
         ' · ' + H[b + ST.TRACKS] + ' CD tracks · ' + kb + ' KB streamed · ' + audio +
         (ac && ac.state !== 'running' ? ' · PRESS FOR SOUND' : '') +
         ' · ' + (((pulled.sfx + pulled.cdda) * 4 / 1024) | 0) + ' KB played · ' + disc +
-        (exit === 2 ? ' · the game ended' : ''));
-    if (exit === 2) $('end').classList.remove('hidden');
+        (exit === 1 ? ' · leaving' : exit === 2 ? ' · the game ended' : ''));
+    if (exit === 2) {
+      endGame('the game ended', lastFault ? 'the page also saw: ' + lastFault :
+              'a fresh copy of the page starts the game over; its save files live in memory, so nothing carries over');
+    } else if (started && frames > 0 && frames === lastFrames) {
+      if (++stillPolls * POLL_MS >= STALL_MS) {
+        endGame('the game stopped drawing',
+                (Math.round(STALL_MS / 1000) + ' s with nothing new on the canvas') +
+                (lastFault ? '; the page saw: ' + lastFault : '') +
+                ' -- play again loads a fresh copy');
+      }
+    } else {
+      stillPolls = 0;
+    }
+    lastFrames = frames;
   }
 
   /* ---- boot ---- */
@@ -952,7 +995,7 @@
     fit();                                        // the canvas box is final once the gate is gone
     M.callMain(gameArgv || ['--res-dir', '/data', '--cue', '/data/TG_NIGHT.CUE',
                             '--cd-dir', '/data/cd', '--cd-url', 'data/cd']);
-    setInterval(pollStatus, 250);
+    setInterval(pollStatus, POLL_MS);
   }
 
   /* ---- installed: the manifest, the worker, and the full screen that comes with them ----
@@ -1073,6 +1116,21 @@
     });
     $('btn-quit').addEventListener('click', () => {
       if (M) M.HEAPU32[(blockBase >> 2) + CFG.WANT_QUIT] = 1;
+    });
+    /* The way out of the end-of-game box. `location.reload()` is the whole handler, and it is worth
+     * knowing why a button is needed for something so small: in a tab the browser supplies a reload, and in
+     * an installed app nothing does. */
+    if ($('btn-again')) $('btn-again').addEventListener('click', () => location.reload());
+    /* The third door: an exception that gets away. Logged with the rest of the host's log so the `log` panel
+     * still tells the story, and remembered, because the honest thing the end box can say is "the page saw
+     * this" rather than "the game stopped" on its own. */
+    window.addEventListener('error', (e) => {
+      lastFault = (e && e.message) || 'uncaught error';
+      logLine('fault: ' + lastFault);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      lastFault = (e && e.reason && (e.reason.message || String(e.reason))) || 'unhandled promise rejection';
+      logLine('fault: ' + lastFault);
     });
     $('btn-log').addEventListener('click', () => {
       logOn = !logOn;

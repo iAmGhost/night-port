@@ -168,7 +168,14 @@
   #pad-sys > div.lit { background: #2c3a2c; border-color: #4f6a4f; color: #e8e8e8; }
   .hidden { display: none !important; }
   #end { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-         background: rgba(0,0,0,.86); font-size: 15px; }
+         background: rgba(0,0,0,.86); font-size: 15px; z-index: 5; }
+  #end-box { text-align: center; max-width: 30em; padding: 0 16px; }
+  #end-why { color: #d8d8d8; }
+  /* The way out, and the whole reason this box is not a sentence: a browser tab has a reload control, an
+     installed app on a phone does not -- the app IS the app -- so a game that ends with no door is a game
+     you have to swat away from the multitask screen to play again. */
+  #end button { margin-top: 18px; font-size: 15px; padding: 8px 26px; border-radius: 4px; }
+  #end-note { margin-top: 12px; font-size: 11px; color: #6a6a6a; }
   /* The gate: the browser will not let this page make a sound until the user has pressed something, so the
      game is preloaded behind it and only starts on a press -- one press, audio and game together. */
   #gate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -247,7 +254,13 @@
     <div id="gate-install" class="hidden">installed as an app: full screen, and the pad is where your thumbs are</div>
   </div>
 </div>
-<div id="end" class="hidden">the game ended — reload to play again</div>
+<div id="end" class="hidden">
+  <div id="end-box">
+    <div id="end-why">the game ended</div>
+    <div><button id="btn-again">play again</button></div>
+    <div id="end-note"></div>
+  </div>
+</div>
 <div id="hint" class="hidden"></div>
 <script src="resample.js"></script>
 <script src="shell.js"></script>

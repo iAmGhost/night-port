@@ -439,6 +439,25 @@ stays playable; F1 is the map's one casualty, and knowing which button is silent
 that bug rather than the first-responder one. `?nosw=1` remains the rule-out for the worker, though a service
 worker has no gamepad to withhold.
 
+**THE END OF THE GAME HAS A DOOR, because on a phone it has no other.** `quit` asks the main to leave and it
+returns; the program's end writes `NK_ST_EXIT = 2`; and then there is the third case, which is nobody's — an
+uncaught exception in the frame pump unwinds straight through the game's own stack (the CD-DA bug above did
+exactly that) and leaves a canvas holding its last picture with nothing wrong on its face: the page still
+pumps, the audio callback still fires, the game is simply gone. A picture that stopped changing is the only
+symptom those three share, so it is the one thing watched — `NK_ST_FRAMES` unmoved for 10 s on a game that
+started and did not exit — and the box that comes up has a **play again** button behind it, calling
+`location.reload()`. The button matters more than the sentence: a browser tab has a reload control, an
+installed app on a phone does not, because the app IS the app, so a game that ends with no door is a game you
+have to swat away from the multitask screen to play again. Ten seconds is deliberately long, because every
+wait this port knows about — the logo freeze, the 238 s episode card — is a clock deadline measured in frames
+(docs/335, 459), so the game presents right through it and the counter runs; a counter that has really stopped
+for ten seconds is a main that is not coming back. `?stallms=` moves the window, and it is the knob that makes
+the door testable: with `?stallms=1500` and `nextFrame()` patched to never resolve, the box came up at frame
+900 saying "the game stopped drawing — 2 s with nothing new on the canvas"; the quit path came up saying "the
+game ended" with `exit: 2`; and a normal run shows the box never once, which is the half of a watchdog that
+matters. Whatever the page saw get away with (`error`, `unhandledrejection`) is remembered and quoted in the
+box, so it can say "the page saw: …" instead of asserting what the game did to itself.
+
 ## Running it
 
 ```
@@ -480,7 +499,8 @@ bitmap's own ratio instead of the default 4:3 stretch; `?skipintro=1` and `?bgmo
 for reaching the title fast and for simulating the pause menu's BGM MODE row. `NIGHT_KEYS` specs can carry an
 absolute time (`Escape:150@118000`) and `NIGHT_LOG_LINES` widens the console excerpt, both so that a menu can be
 driven and a 200 ms sampled calibration window actually be read (docs/459). For the front end: `?pad=` forces a
-pad shape and `?nosw=1` skips the worker, while `NightWasm.pad()`, `.bar()` and `.pwa()` read back what the page
+pad shape, `?nosw=1` skips the worker and `?stallms=` moves the frame-stall watchdog, while `NightWasm.pad()`,
+`.bar()` and `.pwa()` read back what the page
 thinks it is running — pad shape, whether the bar is showing, and whether it is installed, installable and full
 screen. `NIGHT_VIEWPORT="WxHxDPR[,mobile]"` puts the page in a phone's viewport, which is the only way to see the
 layout a thumb gets (and with mobile touch on, `matchMedia('(pointer: coarse)')` answers the way a phone answers

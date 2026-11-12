@@ -2371,22 +2371,51 @@ static void settings_beat(uint64_t now) {
  * that writer already aliases Z/V -> the CTRL slot, X/B -> the ALT slot, F/G/C -> the SHIFT slot, so
  * the three attacks need no modifier at all: they land on the three slots the original used.
  * Verified against the live game in task-6. */
+/* THE DEFAULT LAYOUT, in Xbox names: X punch, A kick, B jump, Y *and* RB duck, START confirm, SELECT the
+ * pause menu, L1 F1, the cross moves. It is named as an Xbox pad because that is the shape every pad a
+ * browser reports claims, and the order follows a thumb: the two attacks on the two buttons it alternates
+ * between most comfortably, and duck -- held longer than anything else in the game -- on the button you are
+ * least likely to want elsewhere, with a second home on RB because that is the only other one in reach of the
+ * same thumb.
+ *
+ * The CODES are the shared table in src/app/keymap.c (night_pad_sc, docs/333 §1b), which the fixture suite
+ * asserts (test/test_f1.c's test_gamepad_layout); this array only says which button MASK stands for which
+ * position, because a mask is the one part of a pad map that is not portable between hosts.  Three ports run
+ * one layout this way, so they cannot drift into three games. */
 /* of_btn() takes a BUTTON MASK (of_input_types.h: OF_BTN_A = 1 << 4), not an index. */
-typedef struct { uint32_t btn; uint8_t make; } pad_key_t;
+typedef struct { uint32_t btn; unsigned pos; } pad_key_t;
 static const pad_key_t g_pad_keys[] = {
-    { OF_BTN_UP,     0x48 },   /* arrows, the slots fn_0347e3 reads */
-    { OF_BTN_DOWN,   0x50 },
-    { OF_BTN_LEFT,   0x4b },
-    { OF_BTN_RIGHT,  0x4d },
-    { OF_BTN_A,      0x1d },   /* CTRL slot  = punch */
-    { OF_BTN_B,      0x38 },   /* ALT  slot  = kick  */
-    { OF_BTN_X,      0x2a },   /* SHIFT slot = jump  */
-    { OF_BTN_Y,      0x39 },   /* Space */
-    { OF_BTN_START,  0x1c },   /* Enter  (confirm) */
-    { OF_BTN_SELECT, 0x01 },   /* Esc    (pause menu, docs/93) */
-    { OF_BTN_L1,     0x3b },   /* F1 */
+    { OF_BTN_UP,     NIGHT_PAD_UP },      /* arrows, the slots fn_0347e3 reads */
+    { OF_BTN_DOWN,   NIGHT_PAD_DOWN },
+    { OF_BTN_LEFT,   NIGHT_PAD_LEFT },
+    { OF_BTN_RIGHT,  NIGHT_PAD_RIGHT },
+    { OF_BTN_X,      NIGHT_PAD_X },       /* CTRL  slot  = punch */
+    { OF_BTN_A,      NIGHT_PAD_A },       /* ALT   slot  = kick  */
+    { OF_BTN_B,      NIGHT_PAD_B },       /* SHIFT slot  = jump  */
+    { OF_BTN_Y,      NIGHT_PAD_Y },       /* Space       = duck */
+    { OF_BTN_R1,     NIGHT_PAD_RB },      /* Space again: duck has two homes (pad_btn_for_sc() finds Y first) */
+    { OF_BTN_START,  NIGHT_PAD_START },   /* Enter  (confirm) */
+    { OF_BTN_SELECT, NIGHT_PAD_SELECT },  /* Esc    (pause menu, docs/93) */
+    { OF_BTN_L1,     NIGHT_PAD_LB },      /* F1 */
 };
-static uint8_t g_pad_down[sizeof g_pad_keys / sizeof g_pad_keys[0]];
+static uint8_t g_pad_down[sizeof g_pad_keys / sizeof g_pad_keys[0]];   /* raw button state, for the census */
+static uint8_t g_pad_sent[8];      /* the codes the game was last told it holds */
+
+/* Two buttons arm one byte -- Y and RB both duck -- so the pump must not send an edge per button: lifting the
+ * thumb off Y while RB is still held would break Space and stop a crouch the player is still holding. So the
+ * pump sends the edges of the UNION of the codes held this poll, exactly as the browser port's padApply and
+ * the SDL host's pad_pump do (docs/457).  pocket needed this rule once before, for R1 and L1 both typing F1 --
+ * the removed test_pad_share.c, the 0.3.2/0.3.3 history. */
+static void pad_code_set(uint8_t *codes, unsigned n, uint8_t sc) {
+    for (unsigned i = 0; i < n; i++) if (codes[i] == sc) return;
+    for (unsigned i = 0; i < n; i++) if (!codes[i]) { codes[i] = sc; return; }
+}
+static void pad_set_apply(const uint8_t *last, const uint8_t *now, unsigned n) {
+    for (unsigned i = 0; i < n; i++) {
+        if (now[i] && !memchr(last, now[i], n)) night_key_apply(now[i], 1);
+        if (last[i] && !memchr(now, last[i], n)) night_key_apply(last[i], 0);
+    }
+}
 static uint64_t g_pad_next_us;
 static uint64_t g_pad_polls;
 static uint64_t g_boot_us;                     /* the warp-entry pulse timeline starts here */
@@ -2394,7 +2423,7 @@ static uint64_t g_boot_us;                     /* the warp-entry pulse timeline 
 /* ---- scripted pad (task-6) -----------------------------------------------------------
  * NIGHT_PAD_SCRIPT drives the pad from the command line so the mapping can be tested without a pad:
  * comma-separated <poll>:<poll>:<name> spans, a poll being one 8 ms pad_pump() tick, names being the pad
- * buttons (up/down/left/right/a/b/x/y/start/select/l1) or a DOS scan code (0x1d).  The same spans can be
+ * buttons (up/down/left/right/x punch/a kick/b jump/y or r1 duck/start/select/l1) or a DOS scan code (0x1d).  The same spans can be
  * applied two ways -- through the pad buttons (default) or straight into night_key_apply() with
  * NIGHT_PAD_DIRECT=1 -- which is how the mapping is proven: the two runs must leave the game in the same
  * state, because the pad path may only differ from the key path in *which slot it arms*. */
@@ -2405,7 +2434,7 @@ static int g_pad_script_n, g_pad_direct;
 
 static uint32_t pad_btn_for_sc(uint8_t sc) {
     for (unsigned i = 0; i < sizeof g_pad_keys / sizeof g_pad_keys[0]; i++)
-        if (g_pad_keys[i].make == sc) return g_pad_keys[i].btn;
+        if (night_pad_sc[g_pad_keys[i].pos] == sc) return g_pad_keys[i].btn;
     return 0;                                   /* no pad button reaches this slot */
 }
 
@@ -2432,10 +2461,11 @@ static void pad_script_load(void) {
         else if (!strcmp(n, "down"))   { btn = OF_BTN_DOWN;   sc = 0x50; }
         else if (!strcmp(n, "left"))   { btn = OF_BTN_LEFT;   sc = 0x4b; }
         else if (!strcmp(n, "right"))  { btn = OF_BTN_RIGHT;  sc = 0x4d; }
-        else if (!strcmp(n, "a"))      { btn = OF_BTN_A;      sc = 0x1d; }
-        else if (!strcmp(n, "b"))      { btn = OF_BTN_B;      sc = 0x38; }
-        else if (!strcmp(n, "x"))      { btn = OF_BTN_X;      sc = 0x2a; }
-        else if (!strcmp(n, "y"))      { btn = OF_BTN_Y;      sc = 0x39; }
+        else if (!strcmp(n, "x"))      { btn = OF_BTN_X;      sc = 0x1d; }  /* punch */
+        else if (!strcmp(n, "a"))      { btn = OF_BTN_A;      sc = 0x38; }  /* kick  */
+        else if (!strcmp(n, "b"))      { btn = OF_BTN_B;      sc = 0x2a; }  /* jump  */
+        else if (!strcmp(n, "y"))      { btn = OF_BTN_Y;      sc = 0x39; }  /* duck  */
+        else if (!strcmp(n, "r1"))     { btn = OF_BTN_R1;     sc = 0x39; }  /* duck too */
         else if (!strcmp(n, "start"))  { btn = OF_BTN_START;  sc = 0x1c; }
         else if (!strcmp(n, "select")) { btn = OF_BTN_SELECT; sc = 0x01; }
         else if (!strcmp(n, "l1"))     { btn = OF_BTN_L1;     sc = 0x3b; }
@@ -2880,13 +2910,18 @@ static void pad_pump(void) {
         }
     }
 
+    /* Every real edge lands in night_key_apply (docs/91 §the IRQ 9 handler): the pad does not invent its own
+     * input path, it feeds the same held-bytes the keyboard does -- and the edges are of the UNION of the
+     * codes held, not of the buttons, because duck has two homes (see pad_set_apply). */
+    uint8_t codes[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
     for (unsigned i = 0; i < sizeof g_pad_keys / sizeof g_pad_keys[0]; i++) {
         int held = of_btn(g_pad_keys[i].btn) ? 1 : 0;
         if (!g_pad_direct && pad_script_held(g_pad_keys[i].btn)) held = 1;
-        if (held == g_pad_down[i]) continue;
         g_pad_down[i] = (uint8_t)held;
-        night_key_apply(g_pad_keys[i].make, held);
+        if (held) pad_code_set(codes, sizeof codes / sizeof codes[0], night_pad_sc[g_pad_keys[i].pos]);
     }
+    pad_set_apply(g_pad_sent, codes, sizeof codes / sizeof codes[0]);
+    memcpy(g_pad_sent, codes, sizeof codes);
     pad_combo();
 }
 

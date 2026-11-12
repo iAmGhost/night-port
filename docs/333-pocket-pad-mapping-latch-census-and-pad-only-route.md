@@ -5,16 +5,18 @@ path, it must land in the same held-bytes the shipped IRQ 9 handler wrote (docs/
 
 ## 1. The map, and the slots it lands in
 
-`pocket/src/night/main_of.c`:
+`pocket/src/night/main_of.c`. **The layout below is the one the game runs now**; §1b is what it used to be
+and what did not change when it moved.
 
 ```c
 static const pad_key_t g_pad_keys[] = {
     { OF_BTN_UP,     0x48 },   { OF_BTN_DOWN,   0x50 },
     { OF_BTN_LEFT,   0x4b },   { OF_BTN_RIGHT,  0x4d },
-    { OF_BTN_A,      0x1d },   /* CTRL  slot = punch */
-    { OF_BTN_B,      0x38 },   /* ALT   slot = kick  */
-    { OF_BTN_X,      0x2a },   /* SHIFT slot = jump  */
-    { OF_BTN_Y,      0x39 },   /* Space              */
+    { OF_BTN_X,      0x1d },   /* CTRL  slot = punch */
+    { OF_BTN_A,      0x38 },   /* ALT   slot = kick  */
+    { OF_BTN_B,      0x2a },   /* SHIFT slot = jump  */
+    { OF_BTN_Y,      0x39 },   /* Space            = duck */
+    { OF_BTN_R1,     0x39 },   /* Space again: duck has two homes */
     { OF_BTN_START,  0x1c },   /* Enter  (confirm)   */
     { OF_BTN_SELECT, 0x01 },   /* Esc    (pause menu, docs/93) */
     { OF_BTN_L1,     0x3b },   /* F1 */
@@ -31,10 +33,40 @@ none is drawn.
 `of_btn()` takes a **button mask** (`OF_BTN_A = 1 << 4`), not an enum — the first version of this map passed
 an index and compiled anyway.
 
+## 1b. The layout moved; the measurement did not
+
+The button-to-slot assignment above was changed from `A punch / B kick / X jump / Y duck` to
+**`X punch / A kick / B jump / Y and RB duck`** (Xbox naming: the two attacks on the two buttons a thumb
+alternates between most comfortably, duck — held longer than anything else in the game — on the button least
+likely to be wanted elsewhere, plus RB, the only other button in reach of that thumb). Nothing about §3's
+census or §4's pad-only route changes, because both were measurements of *which path arms which slot*, and
+the paths and the eight slots are untouched: a button is still one `night_key_apply` call.
+
+The map is now also one shared table rather than three copies. `src/app/keymap.c`'s `night_pad_sc[]` (declared
+in `keymap.h` with a port-neutral `NIGHT_PAD_*` enum — no `OF_BTN` and no `SDL_GamepadButton` in sight) is the
+layout, `test/test_f1.c`'s `test_gamepad_layout()` asserts each position arms the slot named above — including
+that `Y` and `RB` are the *same* code, which is the property the pad paths depend on when they diff a SET of
+codes rather than a list of buttons (docs/457: lifting one thumb off a two-home crouch must not stop the
+crouch), and `pocket` (`g_pad_keys`), the browser port (`wasm/runtime/shell.js`'s `GP_MAP`) and the SDL host
+(`src/app/main.c`'s `g_pad_btns`, which maps a physical button to a position and takes the code from the
+shared table) all run it. It lives in a fixture because no machine any of this is built on has a controller
+plugged into it — the table is the whole of what can be tested without hands.
+
+One consequence the shared table makes visible on every host at once: a pump that sends an edge *per button*
+breaks the duck the moment either of its two homes lets go.  pocket had that shape
+(`night_key_apply(g_pad_keys[i].make, held)` per bit) and now runs the same union diff the browser port and the
+SDL host do (`pad_set_apply`) — and it had been here before under a different name, for R1 and L1 both typing
+F1: the removed `test_pad_share.c`, the 0.3.2/0.3.3 history.  Measured on the desktop host through
+`NIGHT_LATCHDBG`: `500:600:y` alone writes the duck byte twice (make, break); `400:900:r1` plus `500:600:y`
+still writes it twice — made when RB arrives, broken when RB leaves, so Y's release breaks nothing.
+`NIGHT_PAD_DIRECT` deliberately keeps its raw per-span edges: it is the control path, and if a script ever
+holds two buttons of one code, the difference between the two paths *is* the rule.
+
 ## 2. The scripted-pad harness (no pad required)
 
 `NIGHT_PAD_SCRIPT=<from>:<to>:<name>[,...]` holds a button for a span of `pad_pump()` polls (one poll = the
-8 ms pad period), names being `up/down/left/right/a/b/x/y/start/select/l1` or a raw scan code.
+8 ms pad period), names being `up/down/left/right/x punch/a kick/b jump/y or r1 duck/start/select/l1` or a
+raw scan code.
 `NIGHT_PAD_DIRECT=1` applies the *same* spans straight into `night_key_apply()` on the same poll grid,
 bypassing the pad buttons.  The two runs may only differ in which path arms the slot — which is exactly the
 claim to be tested.  (Parser note: nesting `strtok(",")` with `strtok(":")` corrupts the parse because

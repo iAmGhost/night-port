@@ -359,10 +359,32 @@ not around it.
 
 **Three things iOS does to a page you play by holding things down, and what stops them:** double-tap zoom
 (`user-scalable=no` in the viewport meta is ignored there since iOS 10; `touch-action: manipulation` is what
-works), pinch (`gesturestart`/`gesturechange` cancelled), and the text magnifier that comes up over a button
-label after a moment's press (`-webkit-touch-callout: none` plus `user-select: none` on every element, with
-`contextmenu`/`selectstart`/`dragstart` cancelled on the pad — not the document, because the log panel is
-supposed to be selectable).
+works), pinch (`gesturestart`/`gesturechange` cancelled), and the text magnifier — iOS's loupe, and the copy
+callout that follows it, painted over the game where a thumb was.
+
+The loupe is the one that was misjudged. It was first reported over a button label after a moment's press,
+which is the textbook case, and the textbook answer was written: `-webkit-touch-callout: none` plus
+`user-select: none` on every element of the pad, with `contextmenu`/`selectstart`/`dragstart` cancelled on
+`#pad` and not on the document, because the log panel is text a player is meant to copy from. That answer was
+wrong in its scope twice, and a phone reported each way: one press HELD on the play area — the canvas or the
+letterbox beside it, where a thumb rests for a whole fight — raises the same loupe with no button under it at
+all, and a DOUBLE TAP on the deck raises it with the pad's own rules still in place. The two mistakes are
+separate, and so are the fixes:
+
+   - **Selection was scoped to the deck.** `-webkit-user-select` never reached the screen box, and iOS needs
+     only to believe a press is a selection gesture to bring the loupe up over it. Selection is now off
+     page-wide (`*, *::before, *::after`) and handed back to exactly one surface, `#log`, where
+     `-webkit-user-select: text` and `-webkit-touch-callout: default` say so. A universal rule rather than a
+     rule on `html, body`, because neither property can be trusted to reach every element — `touch-action`
+     demonstrably does not inherit, which is what `#pad *` has always been for.
+   - **Cancelling `pointerdown` does not cancel a touch.** Every cell and button of the deck already called
+     `preventDefault()` on `pointerdown`, and iOS's long-press and double-tap-to-select recognizers never see
+     it: they run off the touch events. So the deck and the screen box each consume `touchstart` (non-passive,
+     one listener on each container). Nothing in the port's own input path wants the touch event — the pad's
+     whole path is pointer events, and iOS sends `pointerdown` before `touchstart` and is not stopped by
+     this — and neither box scrolls anything (`#screen-holder` now carries `touch-action: none`). The
+     `contextmenu`/`selectstart`/`dragstart` cancels moved to the document with the log as their one
+     exemption, which is the half CSS cannot do.
 
 ## A real controller: pocket's map, the same queue, and an iOS answer
 
@@ -538,8 +560,10 @@ were found — and its geometry is measured in the harness at 390x844 and 844x39
 NOT been measured is any of the iOS-specific behaviour: `touch-action: manipulation`, the `gesture*`
 cancellation, `-webkit-touch-callout: none` and `env(safe-area-inset-*)` are all written because they are the
 documented fixes and because Chrome does not implement the properties well enough to test them (it reports no
-`-webkit-touch-callout` at all, and no insets at all), but no iPhone has been seen by this port. An install
-has been verified as far as a headful Chrome will say `installable`, not by installing it. Neither has a
+`-webkit-touch-callout` at all, and no insets at all), but no iPhone has been seen by this port — only
+reported by one, which is not the same thing: the loupe of the last section arrived as two reports from a
+hand, and what was done about them is the documented answer plus a scope correction, not a measurement. An
+install has been verified as far as a headful Chrome will say `installable`, not by installing it. Neither has a
 *controller*: every gamepad number in this document came from a controller the harness fabricated inside the
 page, because Chrome's protocol cannot inject one — the mapping, the edges, the stick and the queue are all
 under test there, and none of it is Chrome's Gamepad API or anyone's real hardware. The first real pad on the

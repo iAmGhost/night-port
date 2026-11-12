@@ -412,9 +412,25 @@
     /* The other thing a held thumb brings up on iOS: after a moment on a button it raises the text
      * magnifier over the label and then the copy callout, which sits on top of the game and swallows the
      * press. -webkit-touch-callout:none and user-select:none keep it from starting; these three are the
-     * events it asks for, cancelled where they happen so the log panel can still be selected normally. */
+     * events it asks for, cancelled where they happen.
+     *
+     * Cancelled on the DOCUMENT and not only on the pad, because iOS 17's loupe does not confine itself to
+     * controls: the reported press was on the play area -- a finger resting on the canvas or its letterbox
+     * for a whole fight -- and the magnifier came up over the game with no button under it at all. The one
+     * surface exempt is the log, which is text a player is meant to copy from: CSS gives its selection
+     * back, and this asks the target where it landed before refusing. */
+    const inLog = (t) => !!(t && t.closest && t.closest('#log'));
     for (const ev of ['contextmenu', 'selectstart', 'dragstart'])
-      padEl.addEventListener(ev, (e) => e.preventDefault());
+      document.addEventListener(ev, (e) => { if (!inLog(e.target)) e.preventDefault(); });
+    /* The touch half of the same story, which is the half that was missing: iOS runs its long-press and
+     * double-tap-to-select recognizers off TOUCH events, and `preventDefault()` on `pointerdown` -- what
+     * every cell and button here already does -- says nothing to them. A thumb that taps the cross twice in
+     * a row is, to that recognizer, a double click on a word, and it answers with the loupe over the game.
+     * One listener on the deck covers every cell and button by bubbling. Nothing the pad does needs the
+     * touch event: its whole input path is pointer events, and iOS sends `pointerdown` before `touchstart`
+     * and is not stopped by this. The one cost is a fling started on a deck button that happens to float
+     * over the log, which is not a scroll anyone means to do. */
+    padEl.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
   }
   function showPad() {
     if (!padEl) return;
@@ -1118,6 +1134,12 @@
       }
       setBar(!barOn);
     });
+    /* The play area's own half of "no magnifier" (see wirePad): consuming a touch at its start is the one
+     * thing iOS's long-press recognizer has to be told before it begins, and the screen box is where a
+     * thumb rests for a whole fight. Nothing is lost by consuming it -- this box scrolls nothing (CSS
+     * `touch-action: none`), and the holder's only control is the pointerdown above, which iOS sends
+     * before the touch event anyway. The deck has its own line for the same reason (see wirePad). */
+    if (holderEl) holderEl.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
     if (padBtnEl) padBtnEl.addEventListener('click', () =>
       setPadMode(PAD_MODES[(PAD_MODES.indexOf(padMode) + 1) % PAD_MODES.length]));
     showPad();

@@ -30,13 +30,26 @@
                touch-action: manipulation; overscroll-behavior: none;
                -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
   @supports (height: 100dvh) { html, body { height: 100dvh } }
+  /* Nothing on this page is text to select -- and iOS 17 does not wait for selectable text to raise its
+     magnifier. A finger that rests on the canvas for the length of a fight (the play area, the letterbox
+     beside it, the pad over it) gets the loupe and then a copy callout painted on top of the game, exactly
+     where a thumb was. So selection and the callout are off page-wide, and the loupe has no text under the
+     finger to magnify; the one surface that IS a document, the log, takes its selection back below.
+     The rule is universal rather than on html/body because neither property can be trusted to reach every
+     element: `user-select` does not inherit in every engine and `touch-action` does not inherit at all, as
+     the pad's own block below already assumes. shell.js cancels the events that go with the loupe
+     (`contextmenu`/`selectstart`/`dragstart`) on the same terms, which is the half CSS cannot do. */
+  *, *::before, *::after { -webkit-user-select: none; user-select: none;
+                           -webkit-touch-callout: none; -webkit-user-drag: none; }
   #wrap { display: flex; flex-direction: column; height: 100%; }
   @supports (height: 100dvh) { #wrap { height: 100dvh } }
   /* The canvas box is the space left over once the log and the HUD have had theirs; fit() sizes the canvas
      inside it. It used to be an integer scale of the bitmap's own ratio, which for a 320x200 room frame is
      16:10 -- a shape the original never showed anyone (docs/459). */
+  /* `none`, because the play area is not a scroll or zoom surface: a thumb that stays there is holding a
+     direction in the game, not asking the page to pan under it. */
   #screen-holder { flex: 1 1 auto; min-height: 0; display: flex; align-items: center;
-                   justify-content: center; overflow: hidden; }
+                   justify-content: center; overflow: hidden; touch-action: none; }
   #screen { flex: 0 0 auto; display: block; background: #000; image-rendering: crisp-edges;
             image-rendering: pixelated; }   /* both modes; shell.js re-asserts it */
   #hud { flex: 0 0 auto; display: flex; gap: 10px; align-items: center; padding: 6px 10px;
@@ -60,7 +73,12 @@
   #hud button.off { color: #7d7d7d; border-color: #2a2a2a; }
   #log { flex: 0 0 28vh; overflow: auto; background: #0a0a0a; border-top: 1px solid #222;
          padding: 6px 10px; white-space: pre-wrap;
-         touch-action: pan-y; }        /* the one surface on this page that is meant to be dragged */
+         touch-action: pan-y;         /* the one surface on this page that is meant to be dragged */
+         -webkit-user-select: text; user-select: text;
+         -webkit-touch-callout: default; }  /* ...and the one meant to be copied from; the `*` rule above
+                                               sets these directly on an element, so it beats what #log alone
+                                               would hand down to a future line of markup in there. */
+  #log * { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
   /* ---- the virtual pad ----
      A touch front end for the bytes the keyboard path already pushes, so the game sees a DOS make code and
      nothing else (docs/457): `band` is its own strip under the canvas, `float` lays the same controls over
@@ -77,8 +95,11 @@
          padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
          touch-action: none; -webkit-user-select: none; user-select: none;
          -webkit-tap-highlight-color: transparent; }
+  /* touch-action has to be on every element and not just the container, because it does not inherit; the
+     selection and callout properties are already page-wide above and are repeated here only so the pad
+     reads as self-contained. */
   #pad * { touch-action: none; -webkit-user-select: none; user-select: none;
-           -webkit-touch-callout: none; }   /* a held button must not raise the iOS text magnifier */
+           -webkit-touch-callout: none; }
   #dpad { grid-column: 1; }
   #pad-sys { grid-column: 2; }
   #pad-keys { grid-column: 3; justify-self: end; }

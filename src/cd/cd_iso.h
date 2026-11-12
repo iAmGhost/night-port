@@ -54,4 +54,21 @@ int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048);
  * little-endian 16-bit signed PCM, 588 stereo frames per sector (see sys.h). 0 = ok. */
 int cd_iso_read_audio(uint32_t disc_lba, uint8_t *out2352);
 
+/* ---- an optional REMOTE byte source for the per-track (TRACKS) layout ----
+ *
+ * The browser host (wasm/) has no filesystem to hold 600 MB of track files and must not download a
+ * whole disc to hear one song, so it asks the web server for exactly the bytes a read needs (HTTP
+ * Range). The seam is these two callbacks -- "how long is track N", "give me n bytes at an offset" --
+ * installed before cd_iso_open(). With them installed the TRACKS layout keeps every piece of its own
+ * geometry logic (the parsed TOC, the LBA->track owner search, the lead-out, refusing a read of a
+ * track that is not there) and only the fopen/fseek/fread trio is replaced, which is what makes the
+ * audit trail and the "absent track is silent, never invented" rule survive the move.
+ *
+ * Both return 0 on success. A size() that fails means the track is not there at all -- exactly like a
+ * missing trackNN.bin -- so the track is bounded by the next INDEX and its reads are refused. A size()
+ * that succeeds with *out_bytes == 0 means "present, length unknown" and the CUE's own bound is used. */
+typedef int (*cd_iso_size_fn)(uint32_t track, uint64_t *out_bytes);
+typedef int (*cd_iso_pread_fn)(uint32_t track, uint64_t byte_off, void *dst, uint32_t n);
+void cd_iso_set_remote(cd_iso_size_fn size, cd_iso_pread_fn pread);
+
 #endif

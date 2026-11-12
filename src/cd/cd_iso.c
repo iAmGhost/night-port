@@ -116,6 +116,17 @@ static FILE        *g_tf;
 static uint32_t     g_tf_track;
 static long         g_tf_next;
 
+/* The REMOTE byte source (cd_iso.h): when g_remote_pread is installed, the audio frames of a track
+ * come from these callbacks instead of the trackNN.bin FILE*, and g_track_absent says "the remote
+ * could not name the track", not "there was no file". Installed by the browser host only; every other
+ * host leaves both NULL and the code below takes exactly the branch it always took. */
+static cd_iso_size_fn  g_remote_size;
+static cd_iso_pread_fn g_remote_pread;
+
+void cd_iso_set_remote(cd_iso_size_fn size, cd_iso_pread_fn pread) {
+    g_remote_size = size; g_remote_pread = pread;
+}
+
 /* ---- MSF <-> disc LBA (150-sector lead-in) ---- */
 static uint32_t msf_to_lba(uint32_t m, uint32_t s, uint32_t f) {
     return m * 4500u + s * 75u + f;               /* frames from disc start (MSF address) */
@@ -332,19 +343,31 @@ static int cd_open_tracks(void) {
         if (!g_toc[i].audio) continue;
         audio_n++;
         snprintf(path, sizeof path, "%s/track%02u.bin", g_cd_dir, g_toc[i].track);
-        FILE *f = fopen(path, "rb");
         uint32_t n = 0;
-        if (f) {
-            fseek(f, 0, SEEK_END);
-            long sz = ftell(f);
-            fclose(f);
-            if (sz < (long)IMG_SECTOR || sz % IMG_SECTOR) return -1;
-            n = (uint32_t)(sz / IMG_SECTOR);
-        } else {
-            missing++;
-            g_track_absent[i] = 1;
-            if (i + 1 < g_toc_n && g_toc[i + 1].lba > g_toc[i].lba)
+        if (g_remote_size) {
+            /* The remote answers the same question a stat would: "how many bytes is this track".
+             * 0 bytes means "present, length unknown" (a server that refuses HEAD), and the CUE's
+             * next INDEX bounds it below -- but it stays PRESENT, because a read may still succeed. */
+            uint64_t bytes = 0;
+            if (g_remote_size(g_toc[i].track, &bytes) != 0) { missing++; g_track_absent[i] = 1; }
+            else if (bytes && (bytes < IMG_SECTOR || bytes % IMG_SECTOR)) return -1;   /* malformed */
+            else n = (uint32_t)(bytes / IMG_SECTOR);
+            if (n == 0 && i + 1 < g_toc_n && g_toc[i + 1].lba > g_toc[i].lba)
                 n = (uint32_t)(g_toc[i + 1].lba - g_toc[i].lba);   /* the next INDEX bounds it */
+        } else {
+            FILE *f = fopen(path, "rb");
+            if (f) {
+                fseek(f, 0, SEEK_END);
+                long sz = ftell(f);
+                fclose(f);
+                if (sz < (long)IMG_SECTOR || sz % IMG_SECTOR) return -1;
+                n = (uint32_t)(sz / IMG_SECTOR);
+            } else {
+                missing++;
+                g_track_absent[i] = 1;
+                if (i + 1 < g_toc_n && g_toc[i + 1].lba > g_toc[i].lba)
+                    n = (uint32_t)(g_toc[i + 1].lba - g_toc[i].lba);   /* the next INDEX bounds it */
+            }
         }
         if (i + 1 < g_toc_n) {                       /* fits between its own INDEX and the next one */
             int32_t span = g_toc[i + 1].lba - g_toc[i].lba;
@@ -430,6 +453,15 @@ int cd_iso_read_audio(uint32_t disc_lba, uint8_t *out2352) {
         uint32_t off_sec = disc_lba - (uint32_t)g_toc[i].lba;
         if (off_sec >= g_sectors[i]) return -1;          /* past this track file's last frame */
         if (g_track_absent[i]) return -1;                /* no file: refused, not answered with silence */
+        if (g_remote_pread) {
+            /* One sector, exactly as the file path below reads it, and audited the same way: the
+             * point of the audit is the byte range the game asked for, not how it was fetched. */
+            char k[16]; snprintf(k, sizeof k, "TRACK%02u", g_toc[i].track);
+            long long off = (long long)off_sec * IMG_SECTOR;
+            if (g_remote_pread(g_toc[i].track, (uint64_t)off, out2352, IMG_SECTOR) != 0) return -1;
+            cd_audit_read(k, off, IMG_SECTOR, out2352);
+            return 0;
+        }
         if (g_tf_track != g_toc[i].track) {
             char path[1200];
             if (g_tf) { fclose(g_tf); g_tf = 0; }

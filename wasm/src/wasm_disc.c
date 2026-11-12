@@ -50,10 +50,28 @@ static char     g_base[512]; /* ".../data/cd" -- track files are <base>/trackNN.
 static uint32_t g_reads, g_read_bytes, g_fetches, g_fetch_bytes, g_fetch_fail;
 static int      g_range_unsupported;
 
-/* One Range read. Returns the bytes copied, or -1. The await inside EM_ASYNC_JS is what makes this a
- * yield rather than a blocking XHR that would freeze the tab. */
+/* The byte length of each track, remembered from the HEAD cd_iso asks for when it opens the track. It is
+ * here so the read-ahead can be clamped: a window that starts inside the last 64 sectors of a track asks
+ * for bytes the file does not have, and this repo's own server answers that with a closed connection --
+ * see nk_js_fetch_range. Measured: every long run died at the last sector of the show's track. */
+#define NK_DISC_TRACKS 64u
+static uint64_t g_track_bytes[NK_DISC_TRACKS];
+
+/* One Range read. Returns the bytes copied, -1 when the server will not answer Range (or has no such
+ * file), or -2 when the request itself never got an answer -- a network error, or a server that closed
+ * the connection without a response, which is what this repo's own server does to a Range that starts
+ * past the end of the file (net::ERR_EMPTY_RESPONSE). The distinction matters: the first is a server that
+ * cannot serve this build at all, the second is one sector's worth of nothing, and treating the second
+ * like the first would mute the rest of the run. Without the try/catch the rejected promise unwinds
+ * through the game's own stack -- measured: frames stop, the rAF gap reaches 20 s, the run is over.
+ *
+ * The await inside EM_ASYNC_JS is what makes this a yield rather than a blocking XHR that would freeze
+ * the tab. */
 EM_ASYNC_JS(int, nk_js_fetch_range, (const char *url, uint32_t off, uint32_t len, uint8_t *dst), {
-    const r = await fetch(UTF8ToString(url), { headers: { 'Range': 'bytes=' + off + '-' + (off + len - 1) } });
+    let r;
+    try {
+        r = await fetch(UTF8ToString(url), { headers: { 'Range': 'bytes=' + off + '-' + (off + len - 1) } });
+    } catch (e) { return -2; }
     if (r.status !== 206) return -1;               /* no Range support, or no such file */
     const body = new Uint8Array(await r.arrayBuffer());
     const n = Math.min(body.length, len);
@@ -83,6 +101,7 @@ int nk_disc_size(uint32_t track, uint64_t *out_bytes) {
     uint32_t bytes = 0;
     if (nk_js_head_size(url, &bytes) != 0) return -1;
     *out_bytes = (uint64_t)bytes;
+    if (track < NK_DISC_TRACKS) g_track_bytes[track] = *out_bytes;   /* 0 = the HEAD did not carry it */
     return 0;
 }
 
@@ -90,8 +109,18 @@ static int covers(const nk_window *w, uint32_t track, uint64_t off, uint32_t n) 
     return w->track == track && off >= w->off && off + n <= w->off + w->len;
 }
 
-/* Fetch a window for `track` starting at `start`. 0 = the window now holds bytes. */
+/* Fetch a window for `track` starting at `start`. 0 = the window now holds bytes. -1 = the server does not
+ * answer Range (or has no such file), which is fatal for CD-DA as a whole. 1 = nothing came back for this
+ * window: past the end of the track, or a network error -- the window is empty and marked eof, which is
+ * what the caller already treats as "the bytes stop here". */
 static int fetch_window(int slot, uint32_t track, uint64_t start, uint32_t want) {
+    uint64_t limit = (track < NK_DISC_TRACKS) ? g_track_bytes[track] : 0ull;
+    if (limit && start >= limit) {                     /* nothing to ask for */
+        nk_window *w = &g_win[slot];
+        w->track = track; w->off = start; w->len = 0; w->eof = 1;
+        return 1;
+    }
+    if (limit && start + want > limit) want = (uint32_t)(limit - start);
     char url[600];
     track_url(track, url, sizeof url);
     int got = nk_js_fetch_range(url, (uint32_t)start, want, g_win[slot].bytes);
@@ -101,6 +130,12 @@ static int fetch_window(int slot, uint32_t track, uint64_t start, uint32_t want)
     w->eof = (got <= 0) || (w->len < want);
     if (got > 0) { g_fetches++; g_fetch_bytes += w->len; return 0; }
     g_fetch_fail++;
+    if (got == -2) {                                   /* this read got nothing; CD-DA is fine otherwise */
+        printf("disc: a Range read at %llu of track %u got no answer ("   /* docs/459: past EOF, or a stall */
+               "the window is treated as the end of the track)\n",
+               (unsigned long long)start, track);
+        return 1;
+    }
     return -1;
 }
 
@@ -124,8 +159,9 @@ int nk_disc_pread(uint32_t track, uint64_t byte_off, void *dst, uint32_t n) {
         uint64_t want  = NK_DISC_WINDOW_BYTES;
         if (byte_off + n > start + want) want = byte_off + n - start;   /* never under-read the request */
         cur = pick_slot(track, start);
-        if (fetch_window(cur, track, start, (uint32_t)want) != 0) {
-            if (!g_range_unsupported) {
+        int rc = fetch_window(cur, track, start, (uint32_t)want);
+        if (rc != 0) {
+            if (rc < 0 && !g_range_unsupported) {
                 g_range_unsupported = 1;
                 printf("disc: %s did not answer a Range request -- CD-DA stays silent (the browser build "
                        "needs a server that answers HTTP Range)\n", g_base);
@@ -139,7 +175,9 @@ int nk_disc_pread(uint32_t track, uint64_t byte_off, void *dst, uint32_t n) {
     /* Read ahead once fewer than NK_DISC_LEAD_SECTORS stand between the read pointer and the end of the
      * window, so the network is asked while there is still 0.43 s of samples to play. */
     uint64_t next = g_win[cur].off + g_win[cur].len;
-    if (!g_win[cur].eof && byte_off + n > next - (NK_DISC_FRAME * NK_DISC_LEAD_SECTORS)) {
+    uint64_t limit = (track < NK_DISC_TRACKS) ? g_track_bytes[track] : 0ull;
+    if (!g_win[cur].eof && byte_off + n > next - (NK_DISC_FRAME * NK_DISC_LEAD_SECTORS) &&
+        (!limit || next < limit)) {            /* nothing past the last byte of the track to read ahead to */
         int other = 1 - cur;
         if (!(g_win[other].track == track && g_win[other].off == next))
             fetch_window(other, track, next, NK_DISC_WINDOW_BYTES);   /* failure is not fatal here */

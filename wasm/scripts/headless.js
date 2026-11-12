@@ -132,6 +132,37 @@ chrome.stderr.on('data', () => {});
         .catch((e) => console.log('rotate failed: ' + e.message));
     }, +m[1]);
   }
+  /* NIGHT_NET="latency=250 offline=8000-14000" puts a real network in front of the Range reads: a
+     round-trip cost in ms (`latency`), a downlink cap in bytes/s (`throughput`, -1 = unlimited), and a
+     window of milliseconds during which the connection is DEAD (`offline=A-B`, which makes `fetch` reject
+     the way a dropped Wi-Fi does). It exists because the disc's byte source is the one part of this port
+     whose failure mode is not in the port's control, and "the music stopped and never came back" is only
+     reproducible if the network can be told to misbehave on a schedule. Chrome applies this per target,
+     so it goes on before the navigation. */
+  const netSpec = (process.env.NIGHT_NET || '').split(/\s+/).filter(Boolean);
+  let net = { offline: false, latency: 0, download: -1, upload: -1 };
+  const netWin = [];
+  for (const tok of netSpec) {
+    let m = /^latency=(\d+)$/.exec(tok);
+    if (m) { net.latency = +m[1]; continue; }
+    m = /^throughput=(\d+)$/.exec(tok);
+    if (m) { net.download = +m[1]; continue; }
+    m = /^offline=(\d+)-(\d+)$/.exec(tok);
+    if (m) { netWin.push([+m[1], +m[2]]); continue; }
+    console.log('NIGHT_NET: cannot read ' + tok + ' (want latency=N | throughput=N | offline=A-B)');
+  }
+  if (netSpec.length) {
+    await send('Network.enable');
+    const apply = (offline) => send('Network.emulateNetworkConditions',
+        { offline, latency: net.latency, downloadThroughput: net.download, uploadThroughput: net.download });
+    await apply(false);
+    console.log(`net: latency=${net.latency}ms throughput=${net.download}B/s` +
+                (netWin.length ? ' offline at ' + netWin.map((w) => w[0] + '-' + w[1]).join(',') : ''));
+    for (const [a, b] of netWin) {
+      setTimeout(() => apply(true).then(() => console.log(`net: OFFLINE at ${a}ms`)).catch(() => {}), a);
+      setTimeout(() => apply(false).then(() => console.log(`net: back at ${b}ms`)).catch(() => {}), b);
+    }
+  }
   await send('Page.navigate', { url });
 
   /* NIGHT_GAMEPAD="start@3000 lb@5000:400 up@8000 ls:0.9,0@9000:500" -- a controller without a controller.
@@ -316,6 +347,10 @@ chrome.stderr.on('data', () => {});
     let st = null;
     try { st = typeof stateValue === 'string' ? JSON.parse(stateValue) : stateValue; } catch (e) { /* keep going */ }
     const bad = [];
+    /* NIGHT_NET="offline=A-B" takes the server away on purpose, and during that window the port plays
+     * silence on purpose (docs/460), so the assertion below -- which asks whether the music is audible in
+     * the blocks it shares with effects -- is measuring a hole that was put there deliberately. */
+    const netOfflineWindow = /offline=\d+-\d+/.test(process.env.NIGHT_NET || '');
     const errs = logs.filter((l) => /^EXCEPTION|^aborted|Aborted|SegmentationError|out of memory/i.test(l));
     if (errs.length) bad.push('console threw: ' + errs[0]);
     if (!st) bad.push('no state object read from the page');
@@ -343,7 +378,7 @@ chrome.stderr.on('data', () => {});
        * scaling one ring twice, effects reached the output at 1/32768 of their level and pulled.sfx, inPeak,
        * drop and underrun all still looked healthy. So measure the OUTPUT of both voices in the blocks where
        * they are supposed to overlap -- which is the whole point of the game's mixer. */
-      if (a.aud && a.pulled && a.pulled.sfx > 1000 && a.pulled.cdda > 1000) {
+      if (a.aud && a.pulled && a.pulled.sfx > 1000 && a.pulled.cdda > 1000 && !netOfflineWindow) {
         if (!(a.aud.bothBlocks > 0))
           bad.push('the two voices never shared an output block (bothBlocks 0) -- one is being swallowed');
         else if (!(a.aud.ringPeak[0] > 0.02 && a.aud.ringPeak[1] > 0.02))

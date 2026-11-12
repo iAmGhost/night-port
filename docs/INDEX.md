@@ -299,7 +299,7 @@ links back and this index says so; the older file stays where its citations poin
 - **438** — a byte count cannot name a step count: why the fade ramp armed zero times, and what it now detects
   <sub>`0.2.12` existed to answer one question — which of three premises was false — and it answered it in one line:</sub>
 
-## The browser port (docs/457–459)
+## The browser port (docs/457–460)
 
 - **457** — The browser port runs on one thread, so everything crosses as memory
   <sub>SDL-free host over the same game layer, two PCM rings, CD-DA over HTTP Range reads, Asyncify at rAF.</sub>
@@ -307,6 +307,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Reported against the browser port and true of the desktop one too.</sub>
 - **459** — Four things reported from inside the browser tab: the melt that skipped, the music that would not stop, the hint, and the 320x200 frame
   <sub>The window-write charge this host never set, a BGM enable byte that only gates the next request, and the 16:10 shape nobody saw.</sub>
+- **460** — Streaming CD-DA hitched the game once a second, and one lost window ended the music for good
+  <sub>Range reads awaited inside the game’s own busy-wait, a `g_range_unsupported` latch a 404 could set, and `NIGHT_NET` to measure both.</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

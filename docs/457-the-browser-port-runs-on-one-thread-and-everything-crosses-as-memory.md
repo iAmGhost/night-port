@@ -186,16 +186,26 @@ LBA → track owner map, lead-out, and refusing an absent track. All the geometr
 suite can see it.
 
 `wasm/src/wasm_disc.c` answers those two callbacks with HTTP: `HEAD` for the size, `Range: bytes=` for the
-bytes, a 64-frame (150 528 B ≈ 1.71 s) sliding window with two-slot prefetch, and a hard failure on any
-response that is not `206` — a server that ignores `Range` would deliver a whole 62 MB track into the page
-instead of a window, and that has to be loud. `scripts/serve.py` exists because `http.server` does ignore
-`Range` (it answers 200 with the whole file), which is exactly the case above. A 22 s run that reached
-gameplay measured **1397 sector reads served from 23 fetches / 3 462 144 B, fails=0**.
+bytes, a 128-frame (301 056 B ≈ 3.42 s) sliding window with two-slot prefetch, and a hard failure on a
+response that is `200` to a Range request — a server that ignores `Range` would deliver a whole 62 MB track
+into the page instead of a window, and that has to be loud. `scripts/serve.py` exists because `http.server`
+does ignore `Range` (it answers 200 with the whole file), which is exactly the case above.
+
+**The prefetch does not stop the game, and a window that gets no answer is silence and not the end of the
+music.** Both clauses are bug fixes, and docs/460 is the measurement behind them: the first version awaited
+every fetch inside the game's own busy-wait, which at a 250 ms round trip was a 260–300 ms hitch in the
+picture once per 1.71 s of music; and one window that got no answer ended the track for the rest of the
+session, because `cdda_pump` read a refusal as the end of the sectors and nothing re-PLAYs a track but the
+game. The read-ahead is now fire-and-forget against a token its completion has to still own, a request that
+is merely slow is left in flight instead of thrown away, and the sectors with no bytes are answered with
+silence so the reader keeps the clock honest — which is what lets the same track resume in step when the bytes
+come back.
 
 The window is clamped to the track's length, and a read that gets no answer at all is the end of *that
-window*, not of CD-DA. Both halves are the same bug (docs/459): asking for the 64 frames past the last byte
-of a track gets the connection closed without a response, the promise rejected, and — before the `try` — the
-rejection unwound through the game's own stack, killing any run at the last sector of its longest song.
+window*, not of CD-DA. Both halves were the same bug (docs/459): asking for the window's worth of frames past
+the last byte of a track got the connection closed without a response, the promise rejected, and — before the
+`try` — the rejection unwound through the game's own stack, killing any run at the last sector of its longest
+song.
 
 The game's own view of the disc stays a *filesystem*: `cd_iso` opens the CUE with `fopen`, so the CUE and
 `NIGHT.RES` are written into the in-memory FS at `/data` before `callMain`, and only the track bytes are

@@ -476,7 +476,16 @@ static void cdda_pump(void) {
     uint32_t want_sec = room_frames / 588u;
     uint32_t want = sys_cd_da_plan(g_cdda_pos, g_cdda_sectors, want_sec, 16u);
     for (uint32_t i = 0; i < want; i++) {
-        if (cd_iso_read_audio(g_cdda_lba + g_cdda_pos, g_cdda_sector) != 0) { g_cdda_sectors = 0; break; }
+        if (cd_iso_read_audio(g_cdda_lba + g_cdda_pos, g_cdda_sector) != 0) {
+            /* The one way CD-DA ends before its sectors do, and after docs/460 it is only ever the real
+             * end: the byte source answers a missing window with silence, so a read that comes back
+             * refusing means the track has no more bytes, or no file, or a server that does not do Range.
+             * Loud, because to a player this is the music stopping mid-room with nothing to bring it back:
+             * nothing here re-PLAYs a track, only the game's next fn_10b1d does. */
+            printf("cdda: read failed at pos=%u/%u of lba=%u -- the track is abandoned\n",
+                   g_cdda_pos, g_cdda_sectors, g_cdda_lba);
+            g_cdda_sectors = 0; break;
+        }
         uint32_t p = ring_push(NK_RING_CDDA, (const int16_t *)g_cdda_sector, 588u, 2,
                                ring_room(NK_RING_CDDA));
         g_cdda_bytes += p * 4;
@@ -546,13 +555,13 @@ static void tick_pump(void) {
     nk_exit_check();
 
     if (now >= g_diag_next_us) {
-        uint32_t rd = 0, rb = 0, ft = 0, fb = 0, ff = 0;
-        nk_disc_stats(&rd, &rb, &ft, &fb, &ff);
+        uint32_t rd = 0, rb = 0, ft = 0, fb = 0, ff = 0, wt = 0, wm = 0, sil = 0;
+        nk_disc_stats(&rd, &rb, &ft, &fb, &ff, &wt, &wm, &sil);
         printf("pump: t=%llums frames=%u ticks=%u tick=%u stage=%u audio=%uHz pend=%u xfer=%u stops=%u "
                "sfx=%uB/%uB dropped/%uB deferred (%u rate changes marked, %u flushed: %uB) cdda=%uB tracks=%u pos=%u "
                "bgm=%u snd=%u vgaws=%uns/%uB charged "
                "ring=%u/%u@%u dev=%u at stop n=%u board avg=%u max=%u page avg=%u max=%u "
-               "disc reads=%u fetched=%u/%uB fails=%u\n",
+               "disc reads=%u fetched=%u/%uB fails=%u waited=%u(max %ums) silence=%uB\n",
                g_start_us ? (unsigned long long)((now - g_start_us) / 1000ull) : 0ull,
                g_frames, g_timer_calls, g_dat_63e24, g_dat_63370,
                sys_audio_rate(), sys_audio_pending(), sys_audio_transfers(), sys_audio_stops(),
@@ -563,7 +572,7 @@ static void tick_pump(void) {
                ring_used(NK_RING_SFX), ring_used(NK_RING_CDDA), g_ring_words[NK_RING_CDDA][NK_RING_RATE],
                g_block[NK_CFG_AUDIO_RATE],
                g_stop_n, g_stop_n ? g_stop_board / g_stop_n : 0, g_stop_max_board,
-               g_stop_n ? g_stop_page / g_stop_n : 0, g_stop_max_page, rd, ft, fb, ff);
+               g_stop_n ? g_stop_page / g_stop_n : 0, g_stop_max_page, rd, ft, fb, ff, wt, wm / 1000u, sil);
         video_stats(g_frames);
         /* Per-window numbers, each divided by what this window actually did -- frames counted here and not
          * since boot, or the second window's average is a lie. */

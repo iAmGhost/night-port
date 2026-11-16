@@ -18,6 +18,62 @@ rip kept anywhere works as long as the CUE is on that search path. `NIGHT_EXE` n
 > Volume, Sound Volume, Screen Fit) return to the `night.ini` values shown above.  Your `Input` and `Video`
 > settings are left alone.
 
+## 0. 게임 데이터 준비 (한국어)
+
+이 코어 패키지는 게임 데이터를 담지 않습니다.  `NIGHT.RES`와 음악은 직접 갖고 계신 게임 파일에서 만들어야 하고,
+그 작업에 도스용 설치 프로그램(`SETUP.EXE`)이나 윈도우는 필요 없습니다.  저장매체에 있는 파일을 고르는 것만으로
+끝납니다.
+
+저장소 루트에서 실행합니다 (Python이 아니라 `uv` 하나면 됩니다):
+
+```sh
+uv run night-extractor --data TG_NIGHT.CUE TG_NIGHT.IMG -o scratch/nkx/disc
+```
+
+`--data` 뒤에는 어떤 형태를 놓아도 됩니다.  각각 다른 이름을 가진 같은 데이터일 뿐이고, 어떤 것인지 판별하는 일은
+스크립트가 파일 내용을 보고 합니다:
+
+| 놓는 것 | 결과 |
+|---|---|
+| 큐 시트 + 이미지 두 파일 (이름은 아무거나) | `NIGHT.RES`와 14개 트랙을 모두 만듭니다 |
+| 압축 파일 하나 (`.zip`) | 압축을 풀지 않고 그 안에서 읽어냅니다 |
+| 풀어 놓은 파일들 (`NIGHT.RES`, `MUSIC.RES`, `SOUND.RES`) | 팬 재배포판 형태입니다.  음악에 대한 주의는 아래 |
+| 이미지 혼자 (큐 없음) | 이 포트가 가진 트랙 표를 사용합니다 |
+| `NIGHT.RES` 혼자 | 게임은 뜨지만 음악은 없습니다 |
+
+만들리는 것은 이렇습니다:
+
+```
+scratch/nkx/disc/
+  NIGHT.RES            슬롯 4 — 게임이 읽어들이는 컨테이너, 원본 그대로
+  cd/track02.bin …     슬롯 5, 6, 20–31 — 트랙 하나에 파일 하나, 2352바이트 프레임을 그대로 잘라낸 것
+  slot_map.tsv         어느 파일을 어느 슬롯에 넣는지
+  MANIFEST.tsv         각 파일의 바이트 수와 해시 — `--verify`로 다시 검사할 수 있습니다
+```
+
+SD 카드에는 이렇게 놓습니다.  `cd/` 접두사는 **벗깁니다** — 코어가 요구하는 이름은 `track02.bin`입니다:
+
+```sh
+mkdir -p /Volumes/Pocket/Assets/night/common
+cp scratch/nkx/disc/NIGHT.RES /Volumes/Pocket/Assets/night/common/
+cp scratch/nkx/disc/cd/track*.bin /Volumes/Pocket/Assets/night/common/
+```
+
+코어 본체(`Cores/iamghost.night/`)는 아래 1번 절차로 카드에 넣게 되어 있고, 여기 만든 파일들만 같은 자리에 가면 됩니다.
+`slot_map.tsv`의 슬롯 번호는 코어가 `data.json`에 묶어 놓은 번호와 같은 표에서 나왔습니다.
+
+음악이 원본 CD와 **바이트까지 같은지는 보장하지 않습니다.**  팬 재배포판의 음악 파일은 이 디스크의 음악과 같은
+녹음인데도, 트랙 안에서 어떤 구간은 완전히 같고 어떤 구간부터는 다른 데서 읽어옵니다 (그쪽 이미지가 디스크의
+헤더 174개 섹터만 들고 나머지 파일은 담지 않기 때문입니다).  그래서 카드에는 그쪽 이미지를 그대로 잘라 넣게 되고,
+게임이 묻는 위치는 디스크의 위치라 제목 화면의 테마 같은 짧은 재생은 맞지만 긴 트랙은 중간에 어긋날 수 있습니다.
+같은 데이터에서 `--wav`를 붙이면 각 트랙을 44.1 kHz WAV로도 써 주니, 사람이 직접 들어보고 판단할 수 있습니다.
+원본 디스크 이미지(`TG_NIGHT.CUE` + 이미지)를 쓰면 14개 트랙이 전부 원본과 바이트 단위로 같은 것으로 확인되었습니다.
+
+만든 파일이 맞는지는 같은 명령에 `--verify`를 붙이면 다시 검사합니다 (각 파일의 해시를 `MANIFEST.tsv`와 대조).
+개발자가 저장소 안에서 같은 일을 할 때는 `make -C pocket/src/night data`를 쓰면 되는데, 이쪽도 결국 위와 같은
+입력 단계를 지나갑니다.  어느 형태에서 무엇이 나왔고 음악이 어디까지 같은지 측정한 표는 `docs/466`에 있습니다.
+
+
 ## 1. One command, on a mounted SD card
 
 ```sh

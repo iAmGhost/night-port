@@ -30,6 +30,12 @@ int cd_iso_no_disc(void);         /* 1 = the TOC is the compiled-in table, nothi
 int cd_iso_require_disc(void);    /* NIGHT_REQUIRE_DISC was set -- outranks NIGHT_NO_DISC */
 int cd_iso_no_disc_wanted(void);  /* NIGHT_NO_DISC was set: the drive is treated as empty */
 int cd_iso_disc_absent(void);     /* 1 = nothing here can answer a read, substituted TOC or not */
+
+/* Render the compiled-in geometry (src/gen/disc_toc.h) as the cue sheet it was generated from, into dst.
+ * Bytes written, or -1 if dst is too small.  For a host that has bytes to read but no CUE to parse -- see
+ * cd_iso.h's comment above on the disc-absent fallback, which refuses reads and is therefore not what a
+ * host with a byte source wants. */
+int cd_iso_toc_cue(char *dst, uint32_t cap);
 int cd_iso_has_audio(void);       /* 0 = nothing can answer a read: a boot with no music */
 int cd_iso_tracks_missing(void);  /* audio tracks with no trackNN.bin in the per-track tree */
 int cd_iso_tracks_total(void);
@@ -47,6 +53,10 @@ void cd_iso_root_records(uint8_t *recs, uint32_t n);
 
 /* One ISO logical sector (2048 bytes) from a disc LBA. 0 = ok. */
 int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048);
+
+/* Is there a disc image open at all?  The installer-payload reader (cd_res.c, docs/465) asks, because a
+ * port running on per-track files, or on the compiled-in TOC, has no raw frames to look in. */
+int cd_iso_image_present(void);
 
 /* One RAW sector (all 2352 bytes, no user-data slice) from a disc LBA -- the Red Book audio
  * tracks are read this way, because fn_010b1d asks MSCDEX for the track's sectors and the

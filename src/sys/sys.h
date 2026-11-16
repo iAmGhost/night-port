@@ -144,6 +144,10 @@ void sys_file_open_reset(void);                          /* test: clear the queu
  * all existing tests are unaffected. Pass NULL/"" to disable (also closes any open files). */
 void sys_file_real_dir(const char *dir);
 uint32_t sys_file_real_opened(void);                     /* successful real opens since install */
+/* The disc-backed half of the same backend (src/cd/cd_res.c, docs/465): opens that found nothing on disk
+ * and were answered out of the installer's payload.  A host prints cd_res_source() when this is nonzero. */
+void sys_file_disc_reset(void);                          /* also done by sys_file_real_dir */
+uint32_t sys_file_disc_opened(void);
 
 
 /* DPMI DOS-segment stand-in: paragraphs -> a block in the real-mode memory

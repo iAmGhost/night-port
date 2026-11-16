@@ -43,10 +43,12 @@ struct UA_ATTR ua_uint8tp { uint8_t * v; };
 #include <SDL3/SDL.h>
 
 #include <ctype.h>
+#include <dirent.h>
 #include <math.h>
 #include <setjmp.h>
 #include <stdio.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -2001,6 +2003,63 @@ static void tick_pump(void) {
     if (g_quit) longjmp(g_game_escape, 1);
 }
 
+/* The image a cue describes, by the name the cue itself states: `FILE "X" BINARY` is the whole of it, and
+ * cd_iso.c resolves that name against the cue's own directory, so a directory that holds a rip spells its
+ * files however the rip was named. */
+static int disc_cue_image_exists(const char *cue_path) {
+    FILE *f = fopen(cue_path, "rb");
+    if (f == 0) return 0;
+    char line[1024], img[512] = "";
+    while (fgets(line, sizeof line, f) != 0) {
+        char *p = strstr(line, "FILE \"");
+        if (p != 0) {
+            size_t i = 0;
+            p += 6;
+            while (*p != '\"' && *p != '\r' && *p != '\n' && i + 1 < sizeof img) img[i++] = *p++;
+            img[i] = '\0';
+            break;
+        }
+    }
+    fclose(f);
+    if (img[0] == '\0') return 0;
+    char dir[1024];
+    snprintf(dir, sizeof dir, "%s", cue_path);
+    char *slash = strrchr(dir, '/');
+    if (slash != 0) *slash = '\0'; else dir[0] = '\0';
+    char path[1600];
+    snprintf(path, sizeof path, "%s%s%s", dir, dir[0] ? "/" : "", img);
+    struct stat st;
+    return stat(path, &st) == 0;
+}
+
+/* Any CUE sheet in `dir`, case-insensitively.  The rip's own name still wins, and after that a sheet whose
+ * image is actually present beats one whose image is not -- the one failure that used to need an exact
+ * name.  Returns 1 and writes the path, or 0 when the directory holds no cue at all. */
+static int disc_cue_find(const char *dir, char *out, size_t n) {
+    DIR *d = opendir(dir);
+    if (d == 0) return 0;
+    char best[1024] = "", best_img[1024] = "";
+    struct dirent *de;
+    while ((de = readdir(d)) != 0) {
+        size_t l = strlen(de->d_name);
+        if (l < 5 || strcasecmp(de->d_name + l - 4, ".cue") != 0) continue;
+        char path[1400];
+        snprintf(path, sizeof path, "%s/%s", dir, de->d_name);
+        struct stat st;
+        if (stat(path, &st) != 0 || S_ISDIR(st.st_mode)) continue;
+        if (!strcmp(de->d_name, "TG_NIGHT.CUE")) { snprintf(best, sizeof best, "%s", path); break; }
+        int has = disc_cue_image_exists(path);
+        if (best[0] == '\0' || (has && best_img[0] == '\0')) {
+            snprintf(best, sizeof best, "%s", path);
+            snprintf(best_img, sizeof best_img, "%s", has ? "image" : "");
+        }
+    }
+    closedir(d);
+    if (best[0] == '\0') return 0;
+    snprintf(out, n, "%s", best);
+    return 1;
+}
+
 int main(int argc, char **argv) {
     if (getenv("NIGHT_CENSUS")) {
         rig_census_begin();
@@ -2017,6 +2076,7 @@ int main(int argc, char **argv) {
      * and the rigs that compare against the shipped image name that directory explicitly
      * (scripts/rig/route.sh).  `night` prints it at boot: "audio from ...". */
     const char *res_dir = "extracted";
+    const char *disc_cue = NULL;            /* --cue: the image to read, wherever it is named */
     int frames_limit = 0;
     /* NIGHT_DELAY_US re-times the modelled cost of one guest DOS clock read (see delay_units in f.c); 0
      * restores the timing-free behaviour. Default 500 us, measured against the original. */
@@ -2032,6 +2092,7 @@ int main(int argc, char **argv) {
     g_vga_window_ns = e_vgaws ? (uint32_t)atoi(e_vgaws) : 63u;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--res-dir") && i + 1 < argc) res_dir = argv[++i];
+        else if (!strcmp(argv[i], "--cue") && i + 1 < argc) disc_cue = argv[++i];
         else if (!strcmp(argv[i], "--frames") && i + 1 < argc) {
             frames_limit = atoi(argv[++i]);
             g_frame_budget = frames_limit;   /* docs/146 §9 */
@@ -2057,12 +2118,16 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--no-scene-shots")) g_shot_scene = 0;
         else if (!strcmp(argv[i], "--no-res-shots")) g_shot_res = 0;
         else if (!strcmp(argv[i], "--help")) {
-            printf("usage: night [--res-dir DIR] [--frames N] [--dump DIR] [--shots DIR]\n"
+            printf("usage: night [--res-dir DIR] [--cue FILE.CUE] [--frames N] [--dump DIR] [--shots DIR]\n"
                    "              [--script FILE] [--shot-limit N] [--shot-delay MS] [--no-audio] "
                    "[--no-scene-shots] [--no-res-shots]\n"
                    "  DIR holds NIGHT.RES (default: extracted, what `make extract` builds); the disc is optional:\n"
-                   "  audio comes from DIR/cd/trackNN.bin, else DIR/TG_NIGHT.IMG, else there is no music and\n"
-                   "  the game still runs -- fn_010c3e is satisfied by the compiled-in TOC (docs/455)\n"
+                   "  audio comes from DIR/cd/trackNN.bin, else from DIR's CUE sheet and the image it names\n"
+                   "  (TG_NIGHT.CUE by preference, any other \"*.cue\" otherwise, or --cue to name it outright),\n"
+                   "  else there is no music and the game still runs -- fn_010c3e is satisfied by the\n"
+                   "  compiled-in TOC (docs/455)\n"
+                   "  and DIR needs no NIGHT.RES either, when DIR holds a CUE and its image: the game's\n"
+                   "  resources are read out of the disc's installer payload, sector by sector (docs/465)\n"
                    "  NIGHT_NO_DISC=1 forces that; NIGHT_REQUIRE_DISC=1 makes a missing disc fatal instead\n");
             return 0;
         }
@@ -2087,7 +2152,21 @@ int main(int argc, char **argv) {
     if (getenv("NIGHT_FLIDUMP")) { snprintf(g_fli_dump, sizeof g_fli_dump, "%s", getenv("NIGHT_FLIDUMP")); }
     if (getenv("NIGHT_RES_DIR") && *getenv("NIGHT_RES_DIR")) res_dir = getenv("NIGHT_RES_DIR");
     char cue[1024];
+    /* Which disc to read, in the order someone would ask for it: the one named on the command line, then
+     * the rip's own name in the resource directory, then any CUE sheet that directory holds -- because the
+     * directory a visitor points at is not obliged to spell TG_NIGHT.CUE, and a cue names its image inside
+     * itself (docs/465).  A directory with no cue at all is not an error: the game runs on the compiled-in
+     * table of contents and the music is simply absent (docs/455). */
     snprintf(cue, sizeof cue, "%s/TG_NIGHT.CUE", res_dir);
+    if (disc_cue != NULL && *disc_cue != '\0') snprintf(cue, sizeof cue, "%s", disc_cue);
+    else {
+        struct stat st;
+        if (stat(cue, &st) != 0) {
+            char found[1024];
+            if (disc_cue_find(res_dir, found, sizeof found) || disc_cue_find(".", found, sizeof found))
+                snprintf(cue, sizeof cue, "%s", found);
+        }
+    }
 
     if (getenv("NIGHT_RETRACE_HZ")) {          /* the 0x3DA retrace model (docs/47) */
         int hz = atoi(getenv("NIGHT_RETRACE_HZ"));

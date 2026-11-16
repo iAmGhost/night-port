@@ -20,7 +20,8 @@
   'use strict';
 
   /* ---- wasm_block.h mirrored (the host prints the same numbers at boot; keep in sync) ---- */
-  const ST = { BOOTED: 0, FRAMES: 1, VID_W: 2, VID_H: 3, EXIT: 4, TRACKS: 5, SFX: 6, CDDA: 7, DISC: 8, FLAGS: 9, KEYS: 10 };
+  const ST = { BOOTED: 0, FRAMES: 1, VID_W: 2, VID_H: 3, EXIT: 4, TRACKS: 5, SFX: 6, CDDA: 7, DISC: 8, FLAGS: 9, KEYS: 10,
+               NET_BYTES: 11, MUSIC: 12 };
   const CFG = { AUDIO_RATE: 16, MUTED: 17, WANT_QUIT: 18, FLAGS: 19, SFX_MS: 20, CDDA_MS: 21 };
   const KEY = { HEAD: 32, TAIL: 33, OVER: 34, SIZE: 35, SLOT_BYTES: 36 };
   const RING = { HEAD: 0, TAIL: 1, CAP: 2, MASK: 3, RATE: 4, PCM: 5, MARK_GEN: 6, WORDS: 8 };
@@ -65,11 +66,43 @@
     if (!gateEl || gateEl.classList.contains('hidden') || !gateStatusEl || !gateMsg) return;
     gateStatusEl.textContent = gateMsg + '  ' + Math.round(Math.max(0, Math.min(1, frac)) * 100) + '%';
   }
+  /* The log is this port's only diagnostic channel, and a phone made it useless: a scroll box that appends
+   * faster than a thumb can select turns "the log said something about a Range read" into the whole bug
+   * report. So every line is kept here whether the panel is open or not -- gating it on `logOn` was the
+   * second half of the problem, since the lines a player most wants are the ones from before they thought to
+   * open it -- and `copy` puts the lot on the clipboard, or in a file when the browser will not hand one out
+   * (a clipboard needs a secure context, and a LAN address is not one). */
+  const logBuf = [];
+  const LOG_CAP = 4000;
   function logLine(s) {
     console.log(s);                                  // the host's log is the port's only diagnostic channel
+    logBuf.push(s);
+    if (logBuf.length > LOG_CAP) {
+      logBuf.splice(0, logBuf.length - LOG_CAP);
+      logBuf.unshift('... older lines dropped ...');
+    }
     if (!logOn || !logEl) return;
     logEl.textContent += s + '\n';
     logEl.scrollTop = logEl.scrollHeight;
+  }
+  function copyLog() {
+    if (!logBuf.length) { say('the log is empty'); return; }
+    const text = logBuf.join('\n') + '\n';
+    const tell = (how) => { say(how); logLine('log: ' + how + ' -- ' + logBuf.length + ' lines'); };
+    const save = () => {
+      try {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+        a.download = 'night-log.txt';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+        tell('saved night-log.txt');
+      } catch (e) { tell('no clipboard and no download: ' + (e && e.message || e)); }
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => tell('copied the log'),
+                                               () => save());
+    } else save();
   }
 
   /* ---- the frame promise: the one place wasm is entered from JS ---- */
@@ -591,7 +624,7 @@
       if (!started) {
         if ((now.has(DOS.Enter) || now.has(DOS.ControlLeft)) && gateStart && !gateStart.disabled) {
           logLine('gamepad: start pressed at the gate -- starting (the sound still waits for a touch)');
-          startGame();
+          startWithAssets();
           if (ac && ac.state !== 'running') hint('tap once for sound', 2600);
         }
         if (st.codes.size) { st.codes = new Set(); padPtr.delete('gp' + gp.index); padApply(); }
@@ -677,14 +710,19 @@
    * refuses anything; one rule, both modes.)
    *
    * With the deck switched off, every tap on the screen is just a tap on the screen. */
+  let barRefusalLogUs = 0;                     /* the refusal is worth one line a second, not one a miss */
+
+  /* Whether a press may toggle the bottom bar. The rule is now "on the game picture", and it used to be
+   * "anywhere above the deck" -- which on a phone in fit mode is mostly black margin, so a thumb reaching
+   * for the pad and landing a little high hid the bar for no visible reason, and with the deck switched off
+   * a press anywhere at all toggled it. The canvas box IS the picture in both scale modes (fit() sizes the
+   * element to the frame and the letterbox is outside it), so its rect is the honest test, and it needs no
+   * special case for the deck: the pad is not inside the picture. */
   function barToggleAt(clientX, clientY) {
-    if (padMode === 'off' || !dpadEl || !padKeysEl || !padSysEl) return true;
-    const l = dpadEl.getBoundingClientRect(), r = padKeysEl.getBoundingClientRect(),
-          s = padSysEl.getBoundingClientRect();
-    if (!l.width || !r.width) return true;         /* nothing on screen: nothing to keep clear of */
-    const sideways = window.matchMedia && matchMedia('(orientation: landscape)').matches;
-    if (padMode === 'float' && sideways) return clientX >= l.right && clientX <= r.left;
-    return clientY < Math.min(l.top, r.top, s.top);
+    if (!canvas) return true;
+    const p = canvas.getBoundingClientRect();
+    if (!p.width || !p.height) return true;         /* never measured: do not swallow the control */
+    return clientX >= p.left && clientX <= p.right && clientY >= p.top && clientY <= p.bottom;
   }
 
   /* ---- audio: two rings summed by a ScriptProcessorNode, pure JS ---- */
@@ -701,7 +739,12 @@
     /* Ask for 44.1 kHz: that is what a Red Book track is, so CD-DA needs no resampling at all. Browsers
      * that refuse the hint get their own rate and the host resamples instead (writeRate tells it which). */
     try { ac = new Ctor({ sampleRate: 44100 }); } catch (e) { ac = new Ctor(); }
-    sp = ac.createScriptProcessor(1024, 0, 2);
+    /* Block size, because on a phone this is a bet rather than a constant. A ScriptProcessorNode is serviced
+     * by the MAIN THREAD, which on a phone is also where the game's wasm lives, and the context is 48 kHz
+     * there rather than the 44.1 asked for above -- so 1024-frame blocks are called for every 21 ms, on the
+     * same thread as the frame. `?spbuf=2048` (or 4096) trades latency, which no one hears in a music track,
+     * for scheduling headroom. aud's lateBlocks and mixUs say whether the trade paid. */
+    sp = ac.createScriptProcessor(SPBUF, 0, 2);
     sp.onaudioprocess = audioPull;
     sp.connect(ac.destination);
     if (ac.state !== 'running') ac.resume();
@@ -730,6 +773,14 @@
    *
    * The ring is still the carry buffer: the fractional read position lives here, not in wasm. */
   const RESAMPLE = new URLSearchParams(location.search).get('resample') === 'linear' ? 'linear' : 'sinc';
+  /* ?spbuf=N -- the audio callback's block size; see ensureAudioOnce. Clamped to the range Web Audio accepts
+   * (256..16384, powers of two) so a typo degrades to a smaller block instead of a thrown constructor. */
+  const SPBUF = (function () {
+    const v = Math.round(+(new URLSearchParams(location.search).get('spbuf') || 1024) || 1024);
+    let p = 256;
+    while (p * 2 <= Math.min(v, 16384)) p *= 2;
+    return p;
+  })();
   const mixState = [null, null];
   function mixRing(which, L, R, n) {
     if (!ringBases[which]) return 0;
@@ -793,9 +844,16 @@
   /* Audio-callback health. A ScriptProcessorNode is serviced by the MAIN THREAD, and the game holds the
    * main thread between yields -- so this is the instrument that says whether what you hear is the port's
    * mixing or the browser not getting a chance. underrun = the ring was empty, short = a block served
-   * partly full (a hole), lateMs = how far behind the block's deadline the callback actually ran. */
+   * partly full (a hole), lateMs = how far behind the block's deadline the callback actually ran.
+   *
+   * mixUs does not exist to praise the mixer; it exists because lateMs alone cannot tell you which of two
+   * failures you have. A late block whose own mixing took as long as the late margin is a mixer that does
+   * not fit the device; a late block whose mixing took 20 us is a main thread the game (or the browser) had
+   * already sold to someone else -- on a phone, where the AudioContext lands at 48 kHz and the music ring is
+   * at 44.1, that is also the first number to compare against `acRate`. */
   const aud = { underrun: [0, 0], drop: [0, 0], act: [0, 0], short: [0, 0], markMiss: [0, 0],
                 minFill: [1e9, 1e9], last: 0, lateMs: 0, maxLateMs: 0, lateBlocks: 0, drift: [0, 0],
+                mixUs: 0, mixMax: 0, mixN: 0,
                 /* bothBlocks = output blocks in which BOTH rings contributed; ringPeak = what each voice
                  * actually contributed to the output, in float, measured only during those blocks; clip =
                  * samples clamped by the sum. These three exist because a swallowed voice is invisible to
@@ -841,6 +899,17 @@
     return scr[0].k + scr[1].k;
   }
 
+  /* The mixer, timed. Two performance.now() calls per block cost about a microsecond, which is a great deal
+   * less than one misattributed stutter. */
+  function mixTimed(L, R, n) {
+    const t0 = performance.now();
+    const k = mixBoth(L, R, n);
+    const us = (performance.now() - t0) * 1000;
+    aud.mixUs += us; aud.mixN++;
+    if (us > aud.mixMax) aud.mixMax = us;
+    return k;
+  }
+
   function audioPull(e) {
     if (!M) return;
     const now = performance.now();
@@ -856,21 +925,21 @@
     L.fill(0); R.fill(0);
     pulled.blocks++;
     if (muted) return;
-    mixBoth(L, R, n);
+    mixTimed(L, R, n);
   }
   /* ?sink=1: pull the rings into a scratch buffer on a timer, with no output device at all. Headless
    * Chrome has none (its AudioContext errors out), and the ring/budget maths is the part worth testing
    * there -- this keeps it under test without a speaker. It also means a browser whose audio never
    * starts still drains the rings like a device would. */
   function startSink() {
-    const L = new Float32Array(1024), R = new Float32Array(1024);
+    const L = new Float32Array(SPBUF), R = new Float32Array(SPBUF);
     setInterval(() => {
       if (!M || muted) return;
       L.fill(0); R.fill(0);
       pulled.blocks++;
-      mixBoth(L, R, 1024);
+      mixTimed(L, R, SPBUF);   /* the same block size a device would ask for */
     }, 20);
-    logLine('audio: silent sink at 20 ms (no output device)');
+    logLine('audio: silent sink at 20 ms, ' + SPBUF + '-frame blocks (no output device)');
   }
 
   /* ---- the data, into the in-memory filesystem before the game starts ---- */
@@ -890,24 +959,403 @@
     }
     return out.subarray(0, got);
   }
+  /* ---- preload: the whole score up front, and no network while you play -------------------------
+   * Streaming answers the game's music out of Range windows, and that keeps the network inside the game
+   * loop: a dropout longer than the lead (3 s of music) is silence, and a long one is measurably worse than
+   * silence (docs/463 -- a 22-second dropout in the MP3 path takes the tab down with it, while the raw path
+   * rides the same outage out). Pre-download is the more correct option wherever the bytes are cheap: the
+   * whole score comes down before the game starts, and every read after that is answered in memory by
+   * wasm_disc.c's preload seam. Nothing above that seam -- the byte clock, the FIFO, the game's LBA
+   * arithmetic -- knows the network was ever involved. `?preload=1` / `?preload=0` force it from a URL.
+   */
+  const PRE_KEY = 'nk-music-mode';   /* retired: pre-download is the only mode the page offers. The URL
+                                        lever below still exists for the harness and for a device report. */
+  const MUSIC = (globalThis.__nkPre = globalThis.__nkPre || {});   /* wasm_disc.c's preload seam reads this */
+  MUSIC.map = MUSIC.map || new Map();
+
+  const audioDir = () => {
+    const a = new URLSearchParams(location.search).get('audio');
+    return (a === '0' || a === 'off' || a === 'raw') ? null : (a || 'data/audio');
+  };
+  /* `?preload=0` streams the MP3 in Range windows instead of downloading it. No button does this any more:
+   * pre-download is what the page offers, because a dropout in streamed mode is silence and a long one is
+   * measurably worse than silence (docs/463). The lever stays so a device report can still compare them. */
+  const PRELOAD = !['0', 'off', 'stream'].includes(new URLSearchParams(location.search).get('preload'));
+
+  /* The page's one data choice: play the music (47 MB brought down once, up front, and no network after it)
+   * or play silent and never ask for a byte of it. Unchecking is deliberately NOT "stream it instead":
+   * streaming asks the server for 16 KB every second for the whole game, which is the opposite of saving
+   * data. Silence is what "I do not want the music" means, and the game runs fine on it -- the disc still
+   * answers the geometry, each track still takes the time it takes, and every byte of it is zero.
+   * `?music=0` / `?music=1` force it from a URL, for a device report or a headless run. */
+  const MUSIC_KEY = 'nk-download-music';
+  const MUSIC_Q = new URLSearchParams(location.search).get('music');
+  let musicOverride = null;                     /* once the visitor ticks the box, they are right */
+  const musicWanted = () => {
+    if (musicOverride !== null) return musicOverride;
+    if (MUSIC_Q === '0') return false;
+    if (MUSIC_Q === '1') return true;
+    try { return localStorage.getItem(MUSIC_KEY) !== '0'; } catch (e) { return true; }
+  };
+
+  /* The same index the game reads (wasm/src/wasm_mp3.c): `track mp3_bytes ...`. The page needs it for the
+   * label ("how much am I about to download") and for the list of URLs to fetch. */
+  async function musicIndex() {
+    const dir = audioDir();
+    if (!dir) return [];
+    let text = '';
+    /* The status has to be read, not assumed: a server that answers 404 with a page still answers 200-words,
+     * and the line `Error code explanation: 404 - Nothing matches the given URI` parses as a track 404 of a
+     * few bytes -- which is enough to make the page believe the host has music, and therefore data. */
+    try { const r = await fetch(dir + '/tracks.tsv'); if (!r.ok) return []; text = await r.text(); }
+    catch (e) { return []; }
+    const out = [];
+    for (const line of text.split('\n')) {
+      const f = line.trim().split(/\s+/);
+      if (f.length < 2 || !/^[0-9]{1,2}$/.test(f[0])) continue;
+      out.push({ track: f[0], bytes: Number(f[1]) || 0, url: dir + '/track' + f[0].padStart(2, '0') + '.mp3' });
+    }
+    return out;
+  }
+
+  const mb = (n) => (n / 1048576).toFixed(n >= 10485760 ? 0 : 1) + ' MB';
+
+  let preloading = false;
+  async function preloadMusic() {
+    if (preloading) return;
+    preloading = true;
+    const list = await musicIndex();
+    if (!list.length) { logLine('music: nothing to pre-download (no tracks.tsv)'); preloading = false; return; }
+    const total = list.reduce((s, t) => s + t.bytes, 0);
+    let got = 0, have = 0, lost = [];
+    for (const t of list) {
+      const key = t.url.split('/').pop();
+      if (MUSIC.map.get(t.url) || MUSIC.map.get(key)) { got += t.bytes; have++; continue; }   /* already here */
+      gate(`음악 ${have + lost.length + 1}/${list.length}`);
+      try {
+        const r = await asset(t.url);
+        const b = r.bytes;
+        MUSIC.map.set(t.url, b); MUSIC.map.set(key, b);       /* by URL and by name: --audio-dir changes the
+                                                               * former, the game asks by whichever it built */
+        got += b.length; have++;
+        if (r.from === 'network') gate(`음악 ${have + lost.length}/${list.length} · ${mb(got)} / ${mb(total)}`);
+      } catch (e) {
+        lost.push(t.track);
+        logLine(`music: track ${t.track} did not arrive (${e && e.message || e}) -- that track will stream`);
+      }
+    }
+    logLine(`music: pre-downloaded ${have}/${list.length} tracks (${mb(got)}); ` +
+            (lost.length ? 'streaming ' + lost.join(',') : 'no network will be needed for playback'));
+    if (lost.length) logLine('music: a track that streams can still drop out -- reload to try again');
+    preloading = false;
+  }
+
+  /* What the press is about to cost, shown before it is spent. Kept honest two ways: the music total comes
+   * from tracks.tsv (the encoder's own numbers, not a guess), and the resource size comes from a HEAD -- two
+   * small requests, the only ones the page makes before the press. */
+  async function assetSizes() {
+    let res = 0, music = 0;
+    try {
+      /* The status first: a 404 answers with a page whose Content-Length is a real number, and a gate that
+       * reads it as "0.0 MB of resources" is a gate telling a visitor the host has game bytes when it has
+       * none -- which is the difference between the press and the file below it. */
+      const r = await fetch('data/NIGHT.RES.gz', { method: 'HEAD' });
+      if (r.ok) {
+        const cl = r.headers.get('content-length');
+        if (cl) res = Number(cl);
+      }
+    } catch (e) { /* size unknown; the note says so rather than lying */ }
+    music = (await musicIndex()).reduce((s, t) => s + t.bytes, 0);
+    if (!res && !music) return null;
+    return { res, music, total: res + music, unknown: !res || !music };
+  }
+
+  /* The gate, painted from what the server actually holds: the sizes come from a HEAD and from tracks.tsv,
+   * not from a number typed into the page, because a size the page guesses and the encoder measures will not
+   * agree for long. The music box changes the whole note, not just its total: unchecked, the run asks for no
+   * music at all, and that is the point of ticking it. */
+  function paintGate(sizes) {
+    const box = $('chk-music'), note = $('gate-assets'), lab = $('gate-music-label');
+    const row = $('gate-music-row');
+    const file = byod && byod.ins;
+    /* First whether there is a soundtrack at all, then what it costs: music the run cannot find is not a
+     * choice to offer, whether it is absent because the host staged no tracks or because the visitor's file
+     * carried no image.
+     *
+     * The box itself is a choice about *bandwidth*: unchecked, the run asks the server for no music bytes. A
+     * file in play spends none of that, so the box is hidden there and the file answers the only question
+     * that is left -- whether it holds an image. `?music=0` still forces silence for a device report or a
+     * run that wants it. */
+    const canMusic = file ? !!file.hasMusic : (hostHasData && !!(sizes && sizes.music));
+    if (row) row.classList.toggle('hidden', !canMusic || !!file);
+    if (box) box.checked = musicWanted();
+    if (lab) lab.textContent = (sizes && sizes.music) ? `음악 재생 (${mb(sizes.music)})` : '음악 재생';
+    /* What the press will spend.  A code-only host spends nothing, and gate-status has already said so; this
+     * line is then what the visitor's file is supplying, and the file picker's own list says the rest. */
+    if (note) {
+      const res = sizes && sizes.res && !(file && file.hasRes) ? mb(sizes.res) : '';
+      if (!hostHasData) note.textContent = (file && file.hasRes) ? '이 실행에 필요한 모든 것은 사용자 파일에서 나옵니다.' : '';
+      else if (!canMusic) note.textContent = (res ? res + ', ' : '') + '음악 없이 무음으로 실행됩니다.';
+      else note.textContent = (res ? res : '') +
+        (sizes && sizes.music && !(file && file.hasMusic) ? (res ? ' + ' : '') + mb(sizes.music) : '') +
+        ' — 플레이 중에는 네트워크를 쓰지 않습니다.';
+    }
+    const bn = $('gate-byod');
+    if (bn) bn.textContent = byodNote();
+    /* One line about the shapes where a file is the alternative; the whole list where it is the only way
+       in, since there the shapes are the only thing between a visitor and a 404. */
+    const what = $('gate-byod-what'), brief = $('gate-byod-brief');
+    if (what) what.classList.toggle('hidden', hostHasData);
+    if (brief) brief.classList.toggle('hidden', !hostHasData);
+  }
+
+  /* One line, always true, about what the file in play supplies. */
+  function namesOf(ins) { return ins.files.length > 1 ? `${ins.files[0].name} +${ins.files.length - 1}` : ins.file.name; }
+  function byodNote() {
+    if (!byod || !byod.ins) return '';
+    const s = byod.ins, st = byod.staged;
+    const what = [s.hasRes && (s.res ? '자료' : '자료(디스크 이미지 안에서)'),
+                  s.hasMusic && '음악'].filter(Boolean).join(' · ');
+    return s.hasRes || s.hasMusic
+      ? `${namesOf(s)}에서 가져옴: ${what}${st && st.tracks ? ` (${st.tracks}개 트랙)` : ''}` +
+        ` — 그 외에는 내려받지 않습니다`
+      : `${namesOf(s)}에서는 읽을 게임 데이터를 찾지 못했습니다`;
+  }
+
+  function wireGateMusic(sizes) {
+    const box = $('chk-music');
+    if (box && !box.dataset.wired) {
+      box.dataset.wired = '1';
+      box.addEventListener('change', () => {
+        musicOverride = box.checked;
+        try { localStorage.setItem(MUSIC_KEY, box.checked ? '1' : '0'); } catch (e) { /* private mode */ }
+        paintGate(sizes);
+      });
+    }
+    paintGate(sizes);
+  }
+
+  /* The press is what spends the bandwidth, so every megabyte is behind it. The engine still comes down
+   * before the press (it is the app, not an asset, and 0.5 MB), but the 19 MB resource pack and the 47 MB of
+   * music used to arrive while a visitor was still deciding -- and a visitor who closes the tab paid for
+   * them anyway.
+   *
+   * Failures come back here rather than to a dead canvas: the gate says what failed and the press is live
+   * again, because a download that broke halfway should be retryable and not a bricked page. */
+  let assetsBusy = false;
+  async function startWithAssets() {
+    if (assetsBusy || started) return;
+    hostHasData = !!(await sizesReady);
+    /* Nothing to spend and nothing chosen: on a code-only host the press cannot start a game, and the
+     * honest answer is the file picker rather than a 404 that arrives as "download failed". */
+    if (!hostHasData && !(byod && byod.ins && byod.ins.hasRes)) {
+      gate('이 사본에는 게임 자료가 없습니다 — 아래에서 데이터 파일을 골라 주세요');
+      return;
+    }
+    assetsBusy = true;
+    try {
+      if (!preloaded) {
+        if (byod && !byod.staged) await byodStage();
+        const n = await loadRes();
+        byodArgv(byod && byod.staged);
+        logLine('NIGHT.RES: ' + n + ' bytes in the in-memory filesystem' +
+                (byod ? ' (from your file)' : ''));
+        preloaded = true;
+      }
+      /* A file in play decides its own music: the box that remembers "no music, thanks" is a bandwidth
+       * choice about hosted bytes and is hidden while a file is in play, so the only thing that can leave a
+       * BYOD run silent is a file that brought no image -- or `?music=0`. */
+      const noMusic = byod ? !(byod.staged && byod.staged.tracks)
+                           : !musicWanted() || (byod && byod.staged && !byod.staged.tracks);
+      if (noMusic) {
+        if (gameArgv) gameArgv.push('--no-music');
+        logLine('music: off -- the soundtrack plays as silence, and no music byte will be fetched');
+      } else if (PRELOAD) await preloadMusic();
+      assetsBusy = false;
+      await startGame();
+    } catch (e) {
+      assetsBusy = false;
+      const why = (e && e.message) || String(e);
+      logLine('assets: ' + why);
+      if (gateEl) gateEl.classList.remove('hidden');
+      gate('다운로드 실패: ' + why + ' — 다시 눌러서 시도하세요');
+      if (gateStart) gateStart.disabled = false;
+    }
+  }
+
+  /* ---- the disk cache: the page's own copy of the big assets -----------------------------------
+   * runtime/assetcache.js holds NIGHT.RES.gz and the MP3s in IndexedDB, so a reload reads them off flash
+   * instead of walking to the server again (docs/463: preload was 47 MB per visit before this existed).
+   * Every cached byte is validated against the server first -- length, then etag or last-modified -- because
+   * a cached copy of a track the encoder later changed is not a hit, it is the wrong music. `?cache=0` turns
+   * it off, `?cache=clear` empties it first (which is how a test gets a cold run on demand).
+   *
+   * The engine files (night.js, night.wasm, shell.js) are NOT cached here and stay network-first for the
+   * same reason the service worker is: the test loop is rebuild-reload-read-counters, and a stale engine
+   * makes that loop measure the previous build.
+   */
+  const CACHE_Q = new URLSearchParams(location.search).get('cache');
+  const CACHE_ON = CACHE_Q !== '0';
+  const cacheSeen = { cache: 0, stale: 0, net: 0, cacheB: 0, netB: 0 };
+
+  async function asset(url, onProgress) {
+    if (CACHE_ON && globalThis.__nkCache) {
+      const r = await globalThis.__nkCache.fetchAsset(url, { onProgress });
+      if (r.from === 'network') { cacheSeen.net++; cacheSeen.netB += r.bytes.length; }
+      else if (r.from === 'cache-unvalidated') { cacheSeen.stale++; cacheSeen.cacheB += r.bytes.length; }
+      else { cacheSeen.cache++; cacheSeen.cacheB += r.bytes.length; }
+      return r;
+    }
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(url + ': HTTP ' + resp.status);
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    cacheSeen.net++; cacheSeen.netB += bytes.length;
+    return { bytes, from: 'network' };
+  }
+
+  function cacheReport() {
+    if (!CACHE_ON) { logLine('cache: off (?cache=0)'); return; }
+    if (!globalThis.__nkCache) { logLine('cache: unavailable in this browser (no indexedDB)'); return; }
+    const s = globalThis.__nkCache.stats;
+    logLine(`cache: ${cacheSeen.cache} from disk (${mb(cacheSeen.cacheB)}) ` +
+            `${cacheSeen.net} from network (${mb(cacheSeen.netB)})` +
+            (cacheSeen.stale ? ` -- ${cacheSeen.stale} served UNVALIDATED, the server would not answer` : '') +
+            (s.misses > cacheSeen.net ? ' (older misses not counted here)' : '') +
+            (s.errors ? ` -- ${s.errors} indexedDB error(s)` : ''));
+  }
+
   async function loadRes() {
-    gate('downloading NIGHT.RES (22 MB gzipped, 51 MB in memory)');
-    const gz = await fetchBytes('data/NIGHT.RES.gz', (f) => progress(f * 0.8));
-    let bytes = gz;
-    if (typeof DecompressionStream !== 'undefined') {
-      gate('inflating NIGHT.RES');
-      const ds = new DecompressionStream('gzip');
-      const buf = await new Response(new Blob([gz]).stream().pipeThrough(ds)).arrayBuffer();
-      bytes = new Uint8Array(buf);
+    gate('자료 준비 중');
+    const fromFile = byod && byod.staged && byod.staged.resBytes;
+    let bytes;
+    if (fromFile) {
+      bytes = byod.staged.resBytes;
+    } else {
+      const gz = (await asset('data/NIGHT.RES.gz', (f) => progress(f * 0.8))).bytes;
+      bytes = gz;
+      if (typeof DecompressionStream !== 'undefined') {
+        gate('압축 해제 중');
+        const ds = new DecompressionStream('gzip');
+        const buf = await new Response(new Blob([gz]).stream().pipeThrough(ds)).arrayBuffer();
+        bytes = new Uint8Array(buf);
+      }
     }
     /* The DOS loader opens "NIGHT.RES" relative to the directory the host names, so the game's view of
      * the data is this directory -- and it is a filesystem, not URLs: cd_iso reads the CUE with fopen. */
     M.FS.mkdirTree('/data');
     M.FS.writeFile('/data/NIGHT.RES', bytes);
-    const cue = await fetchBytes('data/TG_NIGHT.CUE');
-    M.FS.writeFile('/data/TG_NIGHT.CUE', cue);
+    const st = byod && byod.staged;
+    if (st && st.cue) {
+      M.FS.writeFile('/data/TG_NIGHT.CUE', new TextEncoder().encode(st.cue));
+    } else if (byod && byod.ins) {
+      /* A file is in play, so the sheet is either its own (above) or the port's own geometry -- never a
+       * file fetched from the server, which is the host the visitor chose not to use.  cd_iso_open with no
+       * sheet at all falls back to the same numbers but refuses every read (the silent-disc path of
+       * docs/455), so `--cue-toc` (main_wasm.c) writes the geometry out as the sheet the host would have
+       * parsed, and the reads the visitor's bytes can answer are allowed. */
+      needToc = true;
+    } else {
+      const cue = (await asset('data/TG_NIGHT.CUE')).bytes;
+      M.FS.writeFile('/data/TG_NIGHT.CUE', cue);
+    }
     progress(1);
     return bytes.length;
+  }
+
+  /* ---- bring your own data --------------------------------------------------------------------
+   * The visitor's own game-data file, read by runtime/byod.js: NIGHT.RES out of the zip into the
+   * in-memory filesystem, and the audio tracks registered as `nklocal:` byte sources so the disc layer
+   * reads slices of a local file instead of Range windows off our server.  The host ships code; these
+   * bytes come from the visitor's disk, so they are never ours to serve.
+   *
+   * `byod.staged` is filled in on the press, not on the pick: the 546 MB pass that turns a compressed
+   * MUSIC.RES into something seekable is the run's biggest single cost and the press is where the
+   * visitor decided to spend. */
+  const BYOD_Q = new URLSearchParams(location.search).get('byod');
+  let byod = null;
+  /* Whether this host staged any game data at all.  A host that ships only code (the wasm build without
+   * `make -C wasm data`, which is how a site can carry the port without carrying the game) has no press to
+   * spend: its one way in is the file below, so the gate says so and waits for that file. */
+  let hostHasData = true;
+  /* The probe for whether this host has any game bytes, started when the page's script runs rather than
+   * when the gate is painted: a run that starts (the harness's ?sink=1 does, a visitor's finger can) must be
+   * able to ASK before it decides, and a decision made from a not-yet-answered question is how a
+   * code-only host once went and fetched the resource pack it does not have. */
+  const sizesReady = assetSizes();
+  sizesReady.then((s) => { hostHasData = !!s; });   /* the answer, not a guess about it, is what decides */
+  let needToc = false;   /* ask the engine to write the cue from its own geometry (main_wasm.c --cue-toc) */
+  let byodListening = false;   /* set once #file-byod has its listener -- before that, a file handed to the
+                                  input is a file no one reads, which is all a harness can do too early */
+
+  /* The visitor's game data, from whatever they picked: one zip, or a cue and its image picked together --
+   * `inspect` tells the two apart and finds the members whatever they are called. */
+  async function byodTake(input) {
+    gate('파일 읽는 중');
+    const names = (Array.isArray(input) ? input : [...(input || [])]).map((f) => f.name);
+    try {
+      const ins = await globalThis.__nkByod.inspect(input);
+      byod = { ins, staged: null, file: names[0] };
+      const total = ins.files.reduce((n, f) => n + f.size, 0);
+      logLine(`data file: ${names.join(' + ')} (${mb(total)}, ` +
+              `${ins.cont.members.length} files read) -- ` +
+              (ins.summary.length ? 'read ' + ins.summary.join(', ') : 'nothing the port recognises'));
+      for (const n of ins.notes) logLine('data file: ' + n);
+      if (!ins.summary.length) {
+        byod = null;
+        gate('이 파일에서는 읽을 게임 데이터를 찾지 못했습니다');
+        if (!hostHasData && gateStart) gateStart.disabled = true;
+        return;
+      }
+      paintGate(await sizesReady);
+      /* The press is what starts the game; on a code-only host it is also what has to wait for a file. */
+      if (gateStart && !hostHasData) gateStart.disabled = false;
+      const b = $('btn-byod');
+      if (b) b.textContent = '다른 데이터 파일 선택';
+      gate('준비됨');
+    } catch (e) {
+      byod = null;
+      logLine('data file: ' + ((e && e.message) || e));
+      gate(hostHasData ? '파일을 읽을 수 없습니다 — 서버 자료로 하려면 시작을 누르세요'
+                       : '파일을 읽을 수 없습니다');
+      if (!hostHasData && gateStart) gateStart.disabled = true;
+    }
+  }
+
+  async function byodStage() {
+    const st = await globalThis.__nkByod.stage(byod.ins, {
+      onRes: (f) => progress(f * 0.5),
+      onMusic: (f) => gate(`음악 압축 해제 중 — ${(f * 100).toFixed(0)}%`),
+      log: logLine,
+    });
+    byod.staged = st;
+    logLine(st.res ? `NIGHT.RES: ${st.res} bytes, from your file` : 'NIGHT.RES: not in your file');
+    if (st.tracks) {
+      const how = st.music === 'fan' ? 'a fan rip\'s image: sliced at the offsets measured for it, which make ' +
+                    'it byte-identical to the shipped disc on some tracks and drift inside the others ' +
+                    '(docs/466)'
+                : byod.ins.ownToc ? 'no cue with it, so the slices use this port\'s own table of contents'
+                                  : `sliced as ${byod.ins.cue.base} says`;
+      logLine(`music: ${st.tracks} tracks, ${(st.musicBytes / 1048576).toFixed(0)} MB of sectors read from ` +
+              `your file (${how})`);
+    }
+    else logLine('music: your file has no usable image -- the game plays silent');
+    return st;
+  }
+
+  /* What the press will spend, once a data file is in play: their file supplies what it supplies and the
+   * server is asked for nothing else. */
+  function byodArgv(st) {
+    if (!st) return;                        /* no file in play: the argv the host was built with stands */
+    const i = gameArgv.indexOf('--cd-url');
+    if (st.tracks) {
+      if (i >= 0) gameArgv[i + 1] = 'nklocal:cd'; else gameArgv.push('--cd-url', 'nklocal:cd');
+      gameArgv.push('--no-audio');           /* the MP3 path is a server path; these sectors are local */
+    } else if (i >= 0) {
+      /* No image in the file, so the run has no audio byte source anywhere: `--cd-url ''` says that to the
+       * host instead of sending it to ask the server for sectors the visitor's file replaced. */
+      gameArgv[i + 1] = '';
+    }
+    if ((st.tracks && !st.cue) || needToc) gameArgv.push('--cue-toc');
   }
 
   /* ---- the way out: the game ended, or it stopped drawing ----
@@ -947,11 +1395,17 @@
     const frames = H[b + ST.FRAMES], exit = H[b + ST.EXIT];
     const disc = H[b + ST.DISC] ? 'disc' : 'no disc';
     const kb = (H[b + ST.CDDA] * 4 / 1024) | 0;
+    /* Two numbers, because the old one conflated them: what the game consumed, and what the wire carried.
+     * They are equal only when the music is streamed -- silence, a switched-off soundtrack and pre-download
+     * all deliver the first without the second. */
+    const netKb = (H[b + ST.NET_BYTES] / 1024) | 0;
+    const music = H[b + ST.MUSIC] !== 0;
     const audio = !ac ? 'no device' : Math.round(ac.sampleRate / 100) / 10 + 'k ' + ac.state;
     /* The old "click for sound" badge became this clause: while the device is not running the HUD says so
      * where the player is looking, and it stops saying it by itself the moment the device runs. */
     say('frame ' + frames + ' · ' + (H[b + ST.VID_W] || '?') + 'x' + (H[b + ST.VID_H] || '?') +
-        ' · ' + H[b + ST.TRACKS] + ' CD tracks · ' + kb + ' KB streamed · ' + audio +
+        ' · ' + H[b + ST.TRACKS] + ' CD tracks · ' + (music ? kb + ' KB music' : 'music off') +
+        ' · ' + netKb + ' KB network · ' + audio +
         (ac && ac.state !== 'running' ? ' · PRESS FOR SOUND' : '') +
         ' · ' + (((pulled.sfx + pulled.cdda) * 4 / 1024) | 0) + ' KB played · ' + disc +
         (exit === 1 ? ' · leaving' : exit === 2 ? ' · the game ended' : ''));
@@ -973,7 +1427,7 @@
 
   /* ---- boot ---- */
   async function boot(moduleSrc) {
-    gate('loading engine');
+    gate('엔진 로드 중');
     const script = document.createElement('script');
     script.src = moduleSrc;
     document.head.appendChild(script);
@@ -1019,46 +1473,72 @@
     /* `?bgmoff=15000` clears the game's BGM enable byte at that moment, i.e. it simulates the one press of the
      * pause menu's BGM MODE row that a headless run cannot reach (docs/459). */
     if (qs.has('bgmoff')) argv.push('--bgmoff', String(Math.max(0, Number(qs.get('bgmoff')) || 0)));
+    /* The CD-DA (docs/463). By default the port looks for `data/audio/tracks.tsv` and, if it is there, answers
+     * the game's music out of MP3 instead of Red Book sectors -- 16 KB/s of network instead of 176 KB/s, with
+     * the game's LBA arithmetic unchanged. `?audio=0` refuses it and streams the 604 MB of sectors like this
+     * port did before; `?audio=data/other` names a different directory. Either way the disc geometry the game
+     * sees is the same, and so is what a Range request looks like when the bytes are not there: silence. */
+    const audio = qs.get('audio');
+    if (audio === '0' || audio === 'off' || audio === 'raw') argv.push('--no-audio');
+    else if (audio) argv.push('--audio-dir', String(audio));
     gameArgv = argv;
     ringBases = [M._nk_ring_addr(RING_SFX), M._nk_ring_addr(RING_CDDA)];
     ringMarkBases = [M._nk_ring_marks_addr(RING_SFX), M._nk_ring_marks_addr(RING_CDDA)];
     logLine('block ' + blockBase + ' rings ' + ringBases[0] + '/' + ringBases[1] +
             ' marks ' + ringMarkBases[0] + '/' + ringMarkBases[1] + ' resample ' + RESAMPLE);
 
-    const n = await loadRes();
-    logLine('NIGHT.RES: ' + n + ' bytes in the in-memory filesystem');
-    preloaded = true;
+    /* The disk cache: empty it first when asked (?cache=clear, which is how a test gets a cold run on
+     * demand), and ask the browser to keep it -- 70 MB of music is exactly what a phone with a full disk
+     * throws away first, and a silently emptied cache looks like a cache that does not work. */
+    if (globalThis.__nkCache) {
+      if (CACHE_Q === 'clear') { await globalThis.__nkCache.clear(); logLine('cache: emptied on request (?cache=clear)'); }
+      logLine('cache: indexeddb, persistence ' + ((await globalThis.__nkCache.persist()) ? 'granted' : 'not granted'));
+    }
 
-    /* A browser will not let a page make a sound until the user has pressed something -- the AudioContext comes
-     * up `suspended` and every audio counter then reads a healthy zero, which is how two measurement runs
-     * here reported silence as a result. So the game sits behind a gate and this press is the user activation:
-     * it opens the context AND starts the game, so the first thing the player hears is the game's own first
-     * sound, not a sound they had to wait for a second press to get. Everything slow -- the module, the 20 MB
-     * resource pack -- happens behind the gate, so the press itself is instant.
+    /* Nothing but the engine has come down the wire yet. The page used to fetch the 19 MB resource pack and
+     * -- in preload mode -- 47 MB of music before it offered the button, which made the press instant and
+     * made every visit pay for them, including the one where the visitor closes the tab without pressing.
+     * The press is now the moment of decision: the sizes are shown first, and the megabytes move after.
+     *
+     * A browser will not let a page make a sound until the user has pressed something -- the AudioContext
+     * comes up `suspended` and every audio counter then reads a healthy zero, which is how two measurement
+     * runs here reported silence as a result. The press is still that activation; see the click handler, which
+     * opens the context *synchronously* before any of the download starts, so the press does not have to
+     * trust that sticky activation survives a 66 MB wait.
      *
      * ?sink=1 (no output device; the ring maths still runs on a timer) and ?auto=1 skip the gate: the headless
      * harness has no finger, and a check that needs a gesture to start is a check that tests its own harness. */
+    const sizes = await sizesReady;
+    /* No resource pack and no music index on the server: this is a code-only host, and the file below is
+     * the only thing that can start a game. The press stays where it is -- it is the press either way --
+     * but it waits for a file, and the gate says what it is waiting for. */
+    hostHasData = !!sizes;
+    wireGateMusic(sizes);
     if (gateStart) {
-      gateStart.disabled = false;
-      gateStart.textContent = 'press to play';
+      gateStart.disabled = !hostHasData;
+      gateStart.textContent = '시작';
     }
-    if (AUTO_START) { await startGame(); }
-    else { gate('ready'); }
+    if (AUTO_START) { await startWithAssets(); }
+    else { gate(hostHasData ? '준비됨' : '이 사본에는 게임 자료가 없습니다 — 아래에서 파일을 골라 주세요'); }
   }
 
-  /* The press starts the game: the AudioContext is created inside the gesture, so it starts running rather
-   * than suspended, and the host learns the device rate before its first ring write. */
-  /* The press starts the game: the AudioContext is created inside the gesture, so it starts running rather
-   * than suspended, and the host learns the device rate before its first ring write. */
+  /* The press starts the game: the AudioContext is created inside the gesture (see the click handler, which
+   * does it before the download), so it starts running rather than suspended, and the host learns the device
+   * rate before its first ring write. */
   let started = false;
   let gameArgv = null;                      // built in boot(), once the ?vgaws= knob has been read
   async function startGame() {
     if (started || !M) return;
+    /* There is nothing to run without the resource pack -- the game's first fopen is NIGHT.RES. Anything that
+     * reaches here before the press has spent its download goes back through the press path rather than
+     * starting a game that would die on its first file. */
+    if (!preloaded) { await startWithAssets(); return; }
     started = true;
     if (gateEl) gateEl.classList.add('hidden');
     ensureAudio();                                // inside the gesture: this is the activation that counts
     if (location.search.indexOf('sink=1') >= 0) startSink();
     say('starting');
+    cacheReport();                              /* RES, the CUE and every preloaded track: the run's whole */
     fit();                                        // the canvas box is final once the gate is gone
     M.callMain(gameArgv || ['--res-dir', '/data', '--cue', '/data/TG_NIGHT.CUE',
                             '--cd-dir', '/data/cd', '--cd-url', 'data/cd']);
@@ -1161,9 +1641,15 @@
     wireGamepad();
     if (holderEl) holderEl.addEventListener('pointerdown', (e) => {
       /* The refusal is logged and the toggle is not: a control that does nothing where the deck is, is a
-       * control whose refusal has to be findable, and a bar that visibly disappeared needs no diary. */
+       * control whose refusal has to be findable, and a bar that visibly disappeared needs no diary.
+       * Throttled, because a thumb that misses the pad every other second should not rewrite the log. */
       if (!barToggleAt(e.clientX, e.clientY)) {
-        logLine('bar: tap at ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) + ' is the deck, ignored');
+        const now = performance.now();
+        if (now - barRefusalLogUs > 1000) {
+          barRefusalLogUs = now;
+          logLine('bar: tap at ' + Math.round(e.clientX) + ',' + Math.round(e.clientY) +
+                  ' is outside the picture, ignored');
+        }
         return;
       }
       setBar(!barOn);
@@ -1194,6 +1680,22 @@
      * knowing why a button is needed for something so small: in a tab the browser supplies a reload, and in
      * an installed app nothing does. */
     if ($('btn-again')) $('btn-again').addEventListener('click', () => location.reload());
+    /* Bring your own data. One button, one file, and the run reads its game from the visitor's disk
+     * instead of ours -- see runtime/byod.js and docs/464 for what a file may contain. `?byod=0` hides the
+     * row: the harness runs the same-origin path and should not see a control it cannot drive. */
+    if ($('btn-byod')) {
+      if (BYOD_Q === '0') { $('btn-byod-row').classList.add('hidden');
+                             $('gate-byod-what').classList.add('hidden'); }
+      /* A file input that is in the page rather than made on the click: the page can be driven by a test
+       * that has no finger, and a handle can only be kept for next visit if something held it to begin with. */
+      if ($('file-byod')) $('file-byod').addEventListener('change', async (e) => {
+        const list = e.target.files;
+        if (list && list.length) await byodTake(list);
+        e.target.value = '';            /* so picking the same file again counts as picking it */
+      });
+      byodListening = !!$('file-byod');
+      $('btn-byod').addEventListener('click', () => { const i = $('file-byod'); if (i) i.click(); });
+    }
     /* The third door: an exception that gets away. Logged with the rest of the host's log so the `log` panel
      * still tells the story, and remembered, because the honest thing the end box can say is "the page saw
      * this" rather than "the game stopped" on its own. */
@@ -1209,8 +1711,14 @@
       logOn = !logOn;
       logEl.classList.toggle('hidden', !logOn);
       $('btn-log').textContent = logOn ? 'hide log' : 'log';
+      /* Copy belongs with the log: a stray button in the HUD is one more thing to mis-tap mid-fight, and no
+       * one wants the log when they are not looking at it. Replaying the lines the panel never showed is
+       * why logBuf exists. */
+      $('btn-log-copy').classList.toggle('hidden', !logOn);
+      if (logOn) { logEl.textContent = ''; for (const s of logBuf) logEl.textContent += s + '\n'; }
       fit();                                      /* the log took space the canvas now has less of (or vice versa) */
     });
+    $('btn-log-copy').addEventListener('click', copyLog);
     /* The other half of "double tapping zooms": iOS Safari's pinch is its own gesturestart/gesturechange
      * pair, which no touch-action stops -- only cancelling it does -- and a page with no double click in it
      * has no reason to let a double tap change the zoom. Both are page-wide, not pad-only, because a zoom
@@ -1222,7 +1730,15 @@
     document.addEventListener('fullscreenchange', refit);
     wirePwa();
     /* The gate's press: user activation for the AudioContext and the game's start, in one press. */
-    if (gateStart) gateStart.addEventListener('click', () => { startGame(); });
+    if (gateStart) gateStart.addEventListener('click', () => {
+      /* Open the AudioContext HERE, synchronously, inside the gesture. The press now leads a 66 MB download
+       * before the game exists, and "sticky user activation survives an await" is a claim about browser
+       * policy that this port has no business betting the sound on -- it has already had one bug where the
+       * context came up suspended and every audio counter read a healthy zero. ensureAudio() is idempotent,
+       * so startGame()'s call afterwards is a no-op. */
+      ensureAudioOnce();
+      startWithAssets();
+    });
   }
 
   window.NightWasm = {
@@ -1230,6 +1746,17 @@
     /* The harness drives the pad through the DOM a finger would not need, but the mode has to be reachable
      * from JS for a headless run to exercise the pad's own code path. */
     pad: (mode) => { if (mode !== undefined) setPadMode(mode); return padMode; },
+    /* What the gate believes about where the game's bytes are coming from: the server, a file, or neither.
+     * The harness reads this to drive a run with a file it has no finger for. */
+    byodState: () => ({ hostHasData, listening: byodListening, file: byod && byod.ins ? { name: namesOf(byod.ins), size: byod.ins.file.size,
+                                                                 res: byod.ins.hasRes ? (byod.ins.res ? byod.ins.res.usize : byod.ins.resDisc.size) : 0,
+                                                                 resInImage: !!byod.ins.resDisc, fan: !!byod.ins.fan,
+                                                                 ownToc: !!byod.ins.ownToc,
+                                                                 img: byod.ins.img && byod.ins.img.base,
+                                                                 cue: byod.ins.cue && byod.ins.cue.base,
+                                                                 files: byod.ins.cont.members.length } : null,
+                        staged: byod && byod.staged ? { tracks: byod.staged.tracks, music: byod.staged.music,
+                                                        musicBytes: byod.staged.musicBytes, res: byod.staged.res } : null }),
     /* What the deck believes right now, for the harness and for a console: `held` is the set the game was
      * last told, `ptrs` the pointers behind it (a number is a finger, 'gp0' is a controller), `owner` the
      * one finger the cross answers to. A direction in `held` with no pointer behind it IS a stuck d-pad. */
@@ -1256,22 +1783,31 @@
                produced: st.reader.framesProduced(), fetched: st.reader.framesFetched() };
     }),
     bar: (on) => { if (on !== undefined) setBar(on); return barOn; },
+    logText: () => logBuf.join('\n'),   /* the harness reads the log this way instead of scraping a console */
     pwa: () => ({ standalone: STANDALONE, installed: appInstalled,
                   canPrompt: !!deferredPrompt, canFullscreen: CAN_FULL,
                   fullscreen: !!document.fullscreenElement }),
     /* The harness needs to know the gate is armed before it presses it, and needs to tell "the game has not
      * started" from "the game started and heard nothing". */
-    ready: () => ({ preloaded, started, gate: gateEl ? !gateEl.classList.contains('hidden') : false }),
+    ready: () => ({ preloaded, started, bar: barOn,
+                    gate: gateEl ? !gateEl.classList.contains('hidden') : false }),
     stats: () => {
       /* inPeak = the loudest frame the filter was actually handed, per ring, in int16. It is the counter that
        * catches "the rings were full and nothing was heard": underrun counts say nothing about a reader that
        * consumed the ring four times too fast, which is exactly the bug this file had. */
       aud.inPeak = mixState.map((st) => (st ? st.inPeak : 0));
+      aud.filter = RESAMPLE;   /* sinc or linear: which converter these microseconds belong to */
       return { frames: M ? M.HEAPU32[(blockBase >> 2) + ST.FRAMES] : 0,
                     keys: M ? M.HEAPU32[(blockBase >> 2) + ST.KEYS] : 0,
                     flags: M ? M.HEAPU32[(blockBase >> 2) + ST.FLAGS] : 0,
                     dev: M ? M.HEAPU32[(blockBase >> 2) + CFG.AUDIO_RATE] : 0,
                     pulled, seen, raf, timer, blit, aud, ac: ac ? ac.state : 'none',
+                    /* The device's rate, because the claim "CD-DA needs no resampling at all" is only true
+                     * when the browser accepted the 44.1 kHz hint -- and phones answer 48 kHz. If this is not
+                     * 44100, the music is being sinc-converted in JavaScript on the main thread every block,
+                     * and mixUs is what that costs this device. */
+                    acRate: ac ? Math.round(ac.sampleRate) : 0,
+                    spbuf: SPBUF,
                     pad: { mode: padMode, down: padSeen.down, up: padSeen.up, held: [...padSent] },
                     gp: { connected: gpPads.size, down: gpSeen.down, up: gpSeen.up,
                           pads: [...gpPads.entries()].map(([i, s]) =>

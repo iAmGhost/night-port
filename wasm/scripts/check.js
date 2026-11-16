@@ -37,7 +37,7 @@ async function wait_port() {
     /* ?sink=1: pull the PCM rings on a timer instead of through an output device. Headless Chrome has no
      * audio device (its AudioContext errors), and the ring and budget maths is exactly what a check has to
      * have running. Audio through a real device is what NIGHT_HEADFUL=1 is for. */
-    const url = `http://127.0.0.1:${port}/index.html?sink=1`;
+    const url = `http://127.0.0.1:${port}/index.html?sink=1${process.env.NIGHT_URL_EXTRA || ''}`;
     const child = spawn('node', [path.join(__dirname, 'headless.js'), url, ms,
                                  path.join(__dirname, '..', 'build', 'check.png')],
                         { stdio: 'inherit', env: { ...process.env, NIGHT_CHECK: '1', NIGHT_KEYS: keys } });

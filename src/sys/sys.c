@@ -1,5 +1,6 @@
 /* sys.c — modern backend for DOS services (see sys.h). */
 #include "sys.h"
+#include "../cd/cd_res.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -473,9 +474,23 @@ void sys_file_image_set(const uint8_t *img, uint32_t len) {
 static FILE *s_files[SYS_FILE_MAX];
 static char s_real_dir[512];
 static uint32_t s_real_opens = 0;
+
+/* NIGHT.RES, when it is not on disk: one cursor per handle into the disc's installer payload
+ * (src/cd/cd_res.c, docs/465).  The resource layer opens, seeks and reads NIGHT.RES through these calls
+ * and nothing else, so a position and a length are the whole abstraction -- and the handle the game gets
+ * back is an ordinary one, which is why the loaders do not have to know which of the two they hold. */
+static struct { uint64_t pos, size; int used; } s_disc[SYS_FILE_MAX];
+static uint32_t s_disc_opens = 0;
+void sys_file_disc_reset(void) {
+    for (int i = 0; i < SYS_FILE_MAX; i++) { s_disc[i].pos = 0; s_disc[i].size = 0; s_disc[i].used = 0; }
+    s_disc_opens = 0;
+}
+uint32_t sys_file_disc_opened(void) { return s_disc_opens; }
+
 void sys_file_real_dir(const char *dir) {
     s_real_dir[0] = '\0';
     for (int i = 0; i < SYS_FILE_MAX; i++) { if (s_files[i]) { fclose(s_files[i]); s_files[i] = 0; } }
+    sys_file_disc_reset();
     if (dir != 0) { snprintf(s_real_dir, sizeof s_real_dir, "%s", dir); }
     s_real_opens = 0;
 }
@@ -505,6 +520,13 @@ static void rd_note(uint32_t got) {
     if (got > s_rd_max_since) s_rd_max_since = got;
 }
 int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
+    if (handle >= 1 && handle <= SYS_FILE_MAX && s_disc[handle - 1].used) {   /* off the disc */
+        int32_t got = cd_res_pread(s_disc[handle - 1].pos, buf, count);
+        if (got < 0) got = 0;
+        s_disc[handle - 1].pos += (uint64_t)got;
+        rd_note((uint32_t)got);
+        return got;
+    }
     if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0) {  /* real file */
         size_t got = fread(buf, 1, count, s_files[handle - 1]);
         rd_note((uint32_t)got);
@@ -522,6 +544,13 @@ int32_t sys_file_read(uint32_t handle, void *buf, uint32_t count) {
 }
 int32_t sys_file_lseek_pos = 0;   /* test knob: position a tell (whence==1) reports */
 int32_t sys_file_lseek(uint32_t handle, int32_t offset, int32_t whence) {
+    if (handle >= 1 && handle <= SYS_FILE_MAX && s_disc[handle - 1].used) {   /* off the disc */
+        uint64_t np = (whence == 1) ? s_disc[handle - 1].pos + (int64_t)offset
+                      : (whence == 2) ? s_disc[handle - 1].size + (int64_t)offset
+                                      : (uint64_t)(offset < 0 ? 0 : offset);
+        s_disc[handle - 1].pos = np;
+        return (int32_t)np;
+    }
     if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0) {  /* real file */
         int base = (whence == 1) ? SEEK_CUR : (whence == 2) ? SEEK_END : SEEK_SET;
         if (fseek(s_files[handle - 1], (long)offset, base) != 0) return -1;
@@ -547,6 +576,10 @@ int32_t sys_file_write(uint32_t handle, const void *buf, uint32_t count) {
     (void)handle; (void)buf; return (int32_t)count;        /* no backend: write to the void, report count */
 }
 int32_t sys_file_close(uint32_t handle) {
+    if (handle >= 1 && handle <= SYS_FILE_MAX && s_disc[handle - 1].used) {
+        s_disc[handle - 1].used = 0;
+        return 0;                                      /* AH=3e: success */
+    }
     if (handle >= 1 && handle <= SYS_FILE_MAX && s_files[handle - 1] != 0) {
         fclose(s_files[handle - 1]); s_files[handle - 1] = 0;
         return 0;                                      /* AH=3e: success */
@@ -609,7 +642,21 @@ int32_t sys_file_open(const char *name, uint32_t mode) { (void)mode;
                         f = fopen(path, "rb");
                     }
                 }
-                if (f == 0) return -1;                            /* DOS not-found error */
+                if (f == 0) {                                     /* and then the disc (docs/465)
+                     * Only NIGHT.RES, and only when there is an image open to look in: the disc carries
+                     * the installer's payload and not the installed files, so this is the one name the
+                     * payload can answer.  An extracted install set never reaches here. */
+                    if (strcasecmp(name, "NIGHT.RES") == 0 && cd_res_open() == 0) {
+                        uint64_t sz = 0;
+                        cd_res_size(&sz);
+                        s_disc[i].pos = 0; s_disc[i].size = sz; s_disc[i].used = 1;
+                        s_disc_opens++;
+                        fprintf(stderr, "res: no %s in %s -- reading it off the disc: %s\n",
+                                name, s_real_dir, cd_res_source());
+                        return (int32_t)i + 1;          /* 1-based DOS handle, an ordinary one */
+                    }
+                    return -1;                            /* DOS not-found error */
+                }
                 s_files[i] = f; s_real_opens++;
                 return (int32_t)i + 1;                            /* 1-based DOS handle */
             }

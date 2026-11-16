@@ -7,9 +7,9 @@
             ],
             "shortname": "night",
             "description": "NIGHT (1996, CD-ROM) on openfpgaOS",
-            "author": "iamghost",
+            "author": "TG Entertainment",
             "url": "",
-            "version": "0.4.5",
+            "version": "0.4.6",
             "date_release": "1996-01-01"
         },
         "framework": {

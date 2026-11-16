@@ -33,6 +33,13 @@ enum {
     NK_ST_DISC        = 8,   /* 1 = a byte source answers the reads */
     NK_ST_FLAGS       = 9,   /* bit0 sound on, bit1 audio device live */
     NK_ST_KEYS        = 10,  /* key events applied to the game's key bytes */
+    /* Two honest numbers, because "KB streamed" had been lying by construction the moment bytes could be
+     * made without a network: silence for a dropped read, silence for a soundtrack the visitor turned off,
+     * and -- in pre-download mode -- the whole score from memory. NK_ST_CDDA_BYTES counts bytes handed to
+     * the ring, which is what the game consumed; this counts bytes that came off the wire, which is what
+     * the player's data plan consumed. They are equal only in streamed mode. */
+    NK_ST_NET_BYTES   = 11,  /* bytes fetched over the network (Range windows that landed) */
+    NK_ST_MUSIC       = 12,  /* 1 = the soundtrack is being played, 0 = asked for silence instead */
     NK_ST_WORDS       = 16,
 
     /* JS -> C, words 16..31: what the page asked for */

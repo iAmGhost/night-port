@@ -360,11 +360,17 @@ control off is a control you cannot switch off.
 
 **The bar gets out of the way, because a phone has no height to spare.** A touch on the screen box hides the
 row of buttons and its status line, `fit()` gets a taller box, and a second touch brings them back; measured
-at 844x390 the canvas goes 354 → 390 px tall. Where the deck floats over that screen the two compete, so the
-deck's ground is excluded: sideways only the strip between the cross and the buttons toggles, upright only a
-tap above the band does (a tap at x=100 in a 844-wide landscape run logs `is the deck, ignored`, a tap at
-x=420 hides the bar). The top progress bar is gone — what it measured now rides on the gate's own line, the
-line a player waiting on 20 MB is looking at.
+at 844x390 the canvas goes 354 → 390 px tall. What counted as "the screen box" used to be *anything above the
+floating deck*, and that is mostly black margin on a phone: a thumb aiming at the cross and landing a little
+high hid the HUD for a reason no player could see, and with the deck switched off a press anywhere at all did
+it. The rule is now the picture's own rectangle — `canvas.getBoundingClientRect()` — which is exactly the
+drawn frame in both scale modes, because `fit()` sizes the element to the frame and the letterbox sits outside
+it. The deck needs no special case (it is not inside the picture) and the margin is inert; a stray tap logs
+`is outside the picture, ignored`, at most once a second, because a thumb that misses every other second
+should not rewrite the log. `make check` presses both points and reads `NightWasm.ready().bar` back — margin
+ignored, centre toggled — which is the assertion that stops the old rule from creeping back.
+The top progress bar is gone — what it measured now rides on the gate's own line, the line a player waiting
+on 20 MB is looking at.
 
 **A rotation re-fits, twice, because the notice you get is unreliable.** iOS sends `orientationchange` before
 the layout has settled, so the fit() run from it measures the box the phone just left; Chrome sometimes sends

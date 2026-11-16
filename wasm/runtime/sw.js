@@ -21,11 +21,11 @@
 
 /* One version, one cache. Bump V on any shipped change: it is what retires an old worker's files instead of
  * leaving them installed forever. */
-const V = 'v1';
+const V = 'v26';   /* byod exports the fan offsets so the harness can assert against them */
 const CACHE = 'night-shell-' + V;
 
 /* The app shell: the files that make the page and the engine, and nothing that changes with the data. */
-const SHELL = ['index.html', 'shell.js', 'resample.js', 'night.js', 'night.wasm',
+const SHELL = ['index.html', 'shell.js', 'resample.js', 'assetcache.js', 'byod.js', 'night.js', 'night.wasm',
                'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -50,8 +50,9 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const u = new URL(req.url);
   if (u.origin !== self.location.origin) return;
-  /* Only the shell, by exact path. /data/cd/trackNN.bin (Range), data/NIGHT.RES.gz, data/TG_NIGHT.CUE and
-   * any query the page puts on a URL are the game's own traffic and pass straight through. */
+  /* Only the shell, by exact path. /data/cd/trackNN.bin (Range), /data/audio/trackNN.mp3 and its
+   * tracks.tsv (both Range too), data/NIGHT.RES.gz, data/TG_NIGHT.CUE and any query the page puts on a URL
+   * are the game's own traffic and pass straight through. */
   const path = u.pathname.replace(/^.*\//, '/');
   if (!SHELL.includes(path.slice(1))) return;
   e.respondWith((async () => {

@@ -79,10 +79,14 @@ class RangeHandler(SimpleHTTPRequestHandler):
         return f
 
     def log_message(self, fmt, *args):
+        # One line per request with the Range header on it: a byte-range server whose logs do not show the
+        # ranges is a byte-range server nobody can debug. Only the request-line form has a string first --
+        # send_error() logs through here too, with "code %d", and prefixing the range onto that turns the
+        # code into a str, which raises inside the handler thread and costs the client its 416.
         try:
             rng = self.headers.get('Range')
-            if rng:
-                args = (str(args[0]) + ' ' + rng,) + tuple(args[1:])
+            if rng and args and isinstance(args[0], str):
+                args = (args[0] + ' ' + rng,) + tuple(args[1:])
         except Exception:
             pass
         super().log_message(fmt, *args)

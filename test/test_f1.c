@@ -6,6 +6,7 @@
 #include "../src/app/keymap.h"
 #include "../src/sys/sys.h"
 #include "../src/cd/cd_iso.h"
+#include "../src/cd/cd_res.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18101,6 +18102,48 @@ static void test_sys_file_case_insensitive(void) {
     sys_file_open_reset();
 }
 
+/* The geometry the port carries for a boot with no cue to parse (src/gen/disc_toc.h, docs/455), written
+ * back OUT as the sheet it was generated from.  The browser's bring-your-own-data run needs that round
+ * trip (docs/464): the visitor's file may carry an image plus a fan repack's cue, which numbers the fan
+ * image and not this disc, so the port supplies its own sheet instead.  Asserted against the real
+ * TG_NIGHT.CUE byte for byte, because a rendering of the geometry that drifts from the geometry would be
+ * a music mismatch nobody can see. */
+static void test_cd_iso_toc_cue(void) {
+    printf("cd_iso: the compiled-in geometry renders back the cue it was generated from\n");
+    char cue[8192];
+    int n = cd_iso_toc_cue(cue, sizeof cue);
+    check(n > 0, "cd_iso_toc_cue renders something");
+    if (n <= 0) return;
+
+    char path[1280];
+    snprintf(path, sizeof path, "%s/TG_NIGHT.CUE",
+             (getenv("NIGHT_RES_DIR") && *getenv("NIGHT_RES_DIR")) ? getenv("NIGHT_RES_DIR") : "extracted");
+    FILE *f = fopen(path, "rb");
+    if (!f) { printf("  [skip] %s not present (set NIGHT_RES_DIR)\n", path); return; }
+    char real[8192];
+    size_t rn = fread(real, 1, sizeof real - 1, f);
+    fclose(f);
+    printf("  [note] rendered %d bytes, %s holds %zu\n", n, path, rn);
+    check((int)rn == n && memcmp(real, cue, (size_t)n) == 0, "byte for byte the shipped cue");
+
+    /* And the other half: the sheet it renders has to be openable, and open it must give the compiled-in
+     * LBAs while ALLOWING the reads -- the compiled-in table on its own refuses every read, which is the
+     * silent-disc path and not this one. */
+    const char *tmp = "build/toc_cue_fixture.cue";
+    FILE *w = fopen(tmp, "wb");
+    if (!w) { printf("  [skip] cannot write %s\n", tmp); return; }
+    fwrite(cue, 1, (size_t)n, w);
+    fclose(w);
+    check(cd_iso_open(tmp) == 0, "and the port can open what it rendered");
+    check(cd_iso_no_disc() == 0, "it parses, so the geometry is not the substituted one");
+    check(cd_iso_track_count() == 15 && cd_iso_track_lba(2) == 37262 && cd_iso_track_lba(15) == 268621,
+          "with the disc LBAs the game asks music in");
+    check(cd_iso_tracks_missing() == cd_iso_tracks_total() && cd_iso_tracks_total() == 14,
+          "and 14 audio tracks whose bytes some other source still has to answer");
+    cd_iso_close();
+    remove(tmp);
+}
+
 static void test_cd_iso_no_disc(void) {
     printf("cd_iso: with no cue, no image and no track files the game still starts, silent\n");
     const char *missing = "no-such-disc-dir/TG_NIGHT.CUE";
@@ -18218,6 +18261,96 @@ static void test_cd_iso_no_disc(void) {
  * probes are compared byte for byte; when it is absent the run says so out loud, because a green suite
  * that never compared the two sources should not read as if it had.  docs/455 carries the measurement
  * that made "same format" true in the first place. */
+/* The installer's payload, read off the disc (src/cd/cd_res.c, docs/465).  The disc does not carry
+ * NIGHT.RES: it carries NIGHT/NIGHT.DAT, the payload SETUP.EXE installed from, and this is the port doing
+ * at open() time the step scripts/night-extractor used to do beforehand.  Asserted against the same
+ * CRC-32 every other copy of NIGHT.RES in this repo is checked with, gathered sector by sector -- the
+ * mistake this reader exists to avoid is reading the right size with the wrong bytes.  Skipped without the
+ * rip, which is a git-ignored 633 MB file. */
+static uint32_t crc_table[256];
+static uint32_t crc32_add(uint32_t crc, const uint8_t *p, size_t n) {
+    if (!crc_table[1])
+        for (uint32_t i = 0; i < 256; i++) {
+            uint32_t c = i;
+            for (int k = 0; k < 8; k++) c = (c & 1) ? 0xedb88320u ^ (c >> 1) : c >> 1;
+            crc_table[i] = c;
+        }
+    for (size_t i = 0; i < n; i++) crc = crc_table[(crc ^ p[i]) & 0xff] ^ (crc >> 8);
+    return crc;
+}
+
+static void test_cd_res_disc(void) {
+    printf("cd_res: the installer's payload off the disc, when NIGHT.RES is not on disk\n");
+    const char *cue = "TG_NIGHT.CUE";      /* the rip itself: this cue's FILE line names the IMG beside it */
+    if (cd_iso_open(cue) != 0) { printf("  [skip] %s and its IMG not present (the rip is git-ignored)\n", cue); return; }
+    check(cd_iso_image_present() == 1, "opening the rip's cue opens its image too -- the frames to look in");
+
+    cd_res_reset();
+    check(cd_res_open() == 0, "NIGHT.RES's slot found inside the payload");
+    if (!cd_res_found()) { cd_iso_close(); return; }
+    printf("  [note] %s\n", cd_res_source());
+    uint64_t sz = 0;
+    check(cd_res_size(&sz) == 0 && sz == 50964894ull, "and it is the 50,964,894 bytes this port verifies");
+
+    static uint8_t buf[65536];
+    uint32_t crc = ~0u;                        /* the zip tools' CRC-32: reflected, inverted at both ends */
+    uint64_t off = 0, got_all = 0;
+    int short_read = 0;
+    for (;;) {
+        int got = cd_res_pread(off, buf, sizeof buf);
+        if (got <= 0) { if (got < 0) short_read = 1; break; }
+        crc = crc32_add(crc, buf, (size_t)got);
+        off += (uint64_t)got; got_all += (uint64_t)got;
+        if (off >= sz) break;
+    }
+    crc = ~crc;
+    char why[128];
+    snprintf(why, sizeof why, "%llu bytes read, crc %08x", (unsigned long long)got_all, crc);
+    printf("  [note] %s\n", why);
+    check(!short_read && got_all == sz && crc == 0xf578a854u,
+          "gathered sector by sector it is the NIGHT.RES this port was verified against");
+
+    /* And not merely against a number typed into the test: if the extracted install set is here, the two
+     * byte streams have to be the same bytes, which is the claim the whole feature rests on. */
+    FILE *f = fopen("extracted/NIGHT.RES", "rb");
+    if (f) {
+        uint32_t file_crc = ~0u;
+        size_t got;
+        while ((got = fread(buf, 1, sizeof buf, f)) > 0) file_crc = crc32_add(file_crc, buf, got);
+        fclose(f);
+        snprintf(why, sizeof why, "disc %08x, extracted %08x", crc, ~file_crc);
+        printf("  [note] %s\n", why);
+        check(crc == ~file_crc, "and identical to the copy scripts/night-extractor wrote");
+    } else printf("  [skip] extracted/NIGHT.RES not present to compare against\n");
+    uint8_t a[16], b[16];
+    check(cd_res_pread(0, a, 16) == 16 && cd_res_pread(3776000, b, 16) == 16 && memcmp(a, b, 16) != 0,
+          "and an arbitrary offset reads its own bytes, not the last sector's");
+    check(cd_res_pread(sz, a, 16) == 0, "and the end of the file is an end of file");
+
+    /* And the seam the game actually crosses: a directory with no NIGHT.RES in it, asked for under the
+     * name the guest's own bytes spell (fn_03690b opens "night.res", lower case). */
+    sys_file_real_dir("build");            /* exists while the suite runs, and holds no NIGHT.RES */
+    int32_t h = sys_file_open("night.res", 0);
+    check(h >= 1, "sys_file_open(\"night.res\") answers off the disc when the directory has none");
+    check(sys_file_disc_opened() == 1, "and the host can tell which backend answered");
+    if (h >= 1) {
+        uint8_t head[8];
+        check(sys_file_read((uint32_t)h, head, 8) == 8, "reads come through an ordinary handle");
+        uint32_t entries = (uint32_t)head[0] | ((uint32_t)head[1] << 8) |
+                           ((uint32_t)head[2] << 16) | ((uint32_t)head[3] << 24);
+        check(entries == 444, "and what they give back is NIGHT.RES -- its own container header, 444 resources");
+        check(head[4] == 0x11 && head[5] == 0x3f, "the first bytes the resource loader reads, byte for byte");
+        check(sys_file_lseek((uint32_t)h, 1024, 0) == 1024, "and so does a seek");
+        check(sys_file_read((uint32_t)h, head, 4) == 4, "followed by a read at the new position");
+        check(sys_file_close((uint32_t)h) == 0, "and the handle closes");
+    }
+    check(sys_file_open("readme.txt", 0) == -1, "and only the one name the port needs is answered");
+    sys_file_real_dir(0);
+    cd_iso_close();
+    cd_res_reset();
+    check(cd_res_open() != 0, "with no disc open there is nothing to read it from");
+}
+
 static void test_cd_iso_tracks(void) {
     printf("cd_iso: cd/trackNN.bin answers the disc LBAs the CUE describes (the image agrees, when present)\n");
     /* The port's own default --res-dir and the directory scripts/extract_disc.py prints.  NIGHT_RES_DIR
@@ -19377,6 +19510,8 @@ int main(void) {
     test_cd_iso_real();
     test_cd_iso_tracks();
     test_cd_iso_no_disc();
+    test_cd_iso_toc_cue();
+    test_cd_res_disc();
     test_sys_file_case_insensitive();
     test_skip_intro_shortcut();
     /* last: this one runs the real frame pipeline, so it must not precede the fixture-dependent tests */

@@ -43,12 +43,19 @@ enum {
 /* ---- the controller layout, in the shape an Xbox pad reports ----
  *
  * X punch, A kick, B jump, Y *and* RB duck, LB F1, START confirm, SELECT the pause menu (docs/93), the cross
- * and the left stick move. pocket/src/night/main_of.c's g_pad_keys, wasm/runtime/shell.js's GP_MAP and
+ * and the left stick move -- and read those letters as POSITIONS, not as labels, because they are the Xbox
+ * One diamond: punch WEST, kick SOUTH, jump EAST, duck NORTH. pocket/src/night/main_of.c's g_pad_keys, wasm/runtime/shell.js's GP_MAP and
  * src/app/main.c's g_pad_btns all run this table (docs/333 is the measurement behind it), and it lives here
  * -- port-neutral, with no SDL_GamepadButton and no OF_BTN in sight -- because the fixture suite is the only
  * thing this port has ever that a controller can be checked against: no machine this port is built on has a
  * pad plugged into it. A position is worth asserting for the SLOT it arms, not for the letter on it, since
  * the slot is what the game reads.
+ *
+ * That last sentence is load-bearing for a host that names its buttons by the letter printed on a Nintendo
+ * diamond -- X top, A right, B bottom, Y left, which is what the Analogue Pocket face says and what
+ * openfpgaOS's OF_BTN_* follows.  Its letters sit one pair-swap away from Xbox's: the top button is duck
+ * there, not punch, and the right one is jump, not kick.  Such a host must INVERT the A/B and X/Y pairs when
+ * it turns a name into a position, or it ships a layout mirrored from the one every other host runs; pocket/src/night/main_of.c's g_pad_keys is the one that does.
  *
  * Duck has two homes on purpose: it is held longer than anything else in the game, and RB is the only other
  * button in comfortable reach of the thumb that is already doing everything else. */

@@ -21,6 +21,7 @@ const expr = process.argv[5] || '(function(){var M=window.NightWasm.module();if(
   'var b=M._nk_block_addr()>>2,H=M.HEAPU32;' +
   'return JSON.stringify({frames:H[b+1],w:H[b+2],h:H[b+3],exit:H[b+4],tracks:H[b+5],' +
   'cddaKB:Math.round(H[b+7]*4/1024),keys:H[b+10],disc:H[b+8],keysDropped:H[b+34],' +
+  'netKB:Math.round(H[b+11]/1024),musicOn:H[b+12],' +
   'audio:window.NightWasm.stats(),gate:window.NightWasm.ready()});})()';
 const port = parseInt(process.env.CDP_PORT || '9341', 10);
 const sleep = (t) => new Promise((r) => setTimeout(r, t));
@@ -32,7 +33,7 @@ const sleep = (t) => new Promise((r) => setTimeout(r, t));
 const headful = !!process.env.NIGHT_HEADFUL;
 const flags = ['--no-sandbox', '--autoplay-policy=no-user-gesture-required',
                `--remote-debugging-port=${port}`, '--window-size=960,760',
-               `--user-data-dir=/tmp/night-cdp-${port}`, 'about:blank'];
+               `--user-data-dir=${process.env.NIGHT_PROFILE || `/tmp/night-cdp-${port}`}`, 'about:blank'];
 if (!headful) flags.unshift('--headless=new', '--disable-gpu', '--mute-audio');
 /* Chrome throttles a window it thinks is occluded -- rAF nearly stops and intervals drop to 1 Hz -- and a
  * test window behind the terminal is exactly that. These three turn the throttle off; a visitor who puts
@@ -178,6 +179,51 @@ chrome.stderr.on('data', () => {});
   }
   await send('Page.navigate', { url });
 
+  /* NIGHT_BYOD=<path.zip> -- the visitor's own game-data file, handed over without the finger the harness
+   * has no version of.  Chrome's protocol can put a file into an <input type=file> the same way the OS
+   * picker does, so this drives the page's real path: it opens the zip, unpacks NIGHT.RES, and registers
+   * the audio slices as `nklocal:` byte sources (runtime/byod.js, docs/464).  A host with nothing staged
+   * under data/ has no other way to start a game, which is the point of the feature. */
+  const byodPath = (process.env.NIGHT_BYOD || '').trim();
+  const byodPaths = byodPath.split(/\s+/).filter(Boolean).map((p) => require('path').resolve(p));
+  let byodStaged = null;              /* what the file turned out to supply, for the assertions below */
+  async function chooseByod() {
+    if (!byodPaths.length) return true;
+    for (const f of byodPaths) if (!fs.existsSync(f)) { console.log('byod: no such file ' + f); return false; }
+    await send('DOM.enable');
+    /* The page first, then the file: the input is in the HTML before the page has put its listener on it,
+     * and a change event that no one is listening to is a file that was never chosen. */
+    let oid = '';
+    for (let i = 0; i < 400; i++) {
+      const s = await evalJson('window.NightWasm && window.NightWasm.byodState && window.NightWasm.byodState()');
+      if (s && s.listening) {
+        const ev = await send('Runtime.evaluate', { expression: 'document.getElementById("file-byod")' });
+        oid = (ev.result && ev.result.objectId) || '';
+        if (oid) break;
+      }
+      await sleep(100);
+    }
+    if (!oid) { console.log('byod: the page never started listening for a file'); return false; }
+    try { await send('DOM.setFileInputFiles', { files: byodPaths, objectId: oid }); }
+    catch (e) { console.log('byod: Chrome refused the file (' + JSON.stringify(e) + ')'); return false; }
+    console.log('byod: handed the page ' + byodPaths.map((f) => require('path').basename(f)).join(' + '));
+    /* The page's own verdict on the file is what we wait for: it reads the central directory, then decides
+     * what it can use, and says so in its log. */
+    for (let i = 0; i < 900; i++) {
+      const s = await evalJson('window.NightWasm && window.NightWasm.byodState()');
+      if (s && s.file) {
+        console.log(`byod: ${s.file.name} -- ${s.file.files} files, NIGHT.RES ` +
+                    `${s.file.res || 'absent'}${s.file.resInImage ? ' (inside the disc image)' : ''}, image ` +
+                    `${s.file.img || '-'}, cue ${s.file.cue || (s.file.ownToc ? '(our own table of contents)' : '-')} ` +
+                    `${s.file.fan ? '[fan rip] ' : ''}host data ${s.hostHasData ? 'staged' : 'none'}`);
+        return !!s.file.res;
+      }
+      await sleep(100);
+    }
+    console.log('byod: the page never read the file');
+    return false;
+  }
+
   /* NIGHT_GAMEPAD="start@3000 lb@5000:400 up@8000 ls:0.9,0@9000:500" -- a controller without a controller.
    *
    * Chrome's protocol has no gamepad injection (its Gamepad tests drive a device::GamepadTestHelper inside
@@ -293,6 +339,7 @@ chrome.stderr.on('data', () => {});
       await sleep(150);
     }
   }
+  const byodChosen = await chooseByod();
   const gpStartsGame = gpSpecs.some((s) => /^(start|a)@/.test(s));
   const gateStarted = gpStartsGame ? true : await pressGate(Math.max(30000, Math.min(90000, ms * 3)));
   if (!gateStarted) console.log('WARNING: the game never started -- nothing measured here can have been heard');
@@ -467,7 +514,14 @@ chrome.stderr.on('data', () => {});
   /* NIGHT_MUTE="6000,12000" presses the page's own mute button at those milliseconds. "the music does not
    * resume after mute -> unmute" is a question about what the page does to the rings while nobody is
    * listening, and the only honest way to answer it is to do it and read the pump line across the gap. */
-  const mutes = (process.env.NIGHT_MUTE || '').split(',').map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  /* `atMs` parses a comma list of milliseconds. Do not shortcut it with Number(): Number('') is 0, and
+   * `''.split(',')` is `['']`, so an unset variable used to yield [0] -- which for NIGHT_MUTE meant every
+   * `make check` run clicked the page's mute button at t=0, the sink then refused to pull, the rings filled
+   * to their 120 ms queue and stopped, and the check failed with "nothing drained the PCM rings" while the
+   * port was healthy and mute had never been mentioned by the caller. Empty fields are dropped here. */
+  const atMs = (v) => (v || '').split(',').map((x) => x.trim()).filter((x) => x.length)
+                               .map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  const mutes = atMs(process.env.NIGHT_MUTE);
   const muteTimers = mutes.map((at) => setTimeout(() => {
     send('Runtime.evaluate', { expression: `(() => { const b = document.getElementById('btn-mute');
         if (!b) return 'no button'; b.click(); return b.textContent; })()` })
@@ -479,7 +533,7 @@ chrome.stderr.on('data', () => {});
    * believes it is muted, and -- in `cddaReader` -- what the ring's own reader thinks it is doing, which is
    * the only counter that can tell a stopped reader from an empty ring. Timed from the start of the run, like
    * the mute presses, and created before the waits rather than after them. */
-  const probes = (process.env.NIGHT_PROBE || '').split(',').map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  const probes = atMs(process.env.NIGHT_PROBE);
   const probeTimers = probes.map((at) => setTimeout(() => {
     evalJson(`(() => { const s = window.NightWasm ? NightWasm.stats() : null;
         const b = document.getElementById('btn-mute'), m = NightWasm.mix ? NightWasm.mix() : null;
@@ -518,13 +572,145 @@ chrome.stderr.on('data', () => {});
     let st = null;
     try { st = typeof stateValue === 'string' ? JSON.parse(stateValue) : stateValue; } catch (e) { /* keep going */ }
     const bad = [];
+    /* Bring your own data: what the harness handed the page has to be what the run is reading -- and the
+     * page has to say so in the log a reader sees, not only in a state object only a test reads. */
+    if (byodPath) {
+      const s = await evalJson('window.NightWasm && window.NightWasm.byodState()');
+      if (!s || !s.file) bad.push('the page never took the data file ' + byodPath);
+      else if (!byodChosen) bad.push('the data file had no NIGHT.RES the page can use: ' + s.file.name);
+      else {
+        const st = s.staged;
+        byodStaged = st;
+        console.log('byod: staged ' + (st ? st.res + ' resource bytes, ' + st.tracks + ' tracks (' +
+                    st.music + ', ' + st.musicBytes + ' B of sectors)' : 'nothing -- the press went without staging'));
+        if (!st || !st.res) bad.push("the run did not stage the file's NIGHT.RES");
+        if (st && !st.tracks && !logs.some((l) => /^music: off/.test(l)))
+          bad.push('the file has no image, yet the run did not ask for silence');
+        if (!logs.some((l) => /from your file/.test(l)))
+          bad.push('the host\'s log never said NIGHT.RES came from the visitor\'s file');
+        if (!logs.some((l) => /data file:/.test(l)))
+          bad.push('the page never reported what it found in the file');
+      }
+      /* The music box is a bandwidth choice about *hosted* bytes, so a run whose soundtrack is already on
+       * the visitor's disk has no such choice to make -- and a box nobody can see is worse than none, since
+       * it would still be muting the run from last visit's tick. */
+      const shown = await evalJson(`(() => { const r = document.getElementById('gate-music-row');
+                                             return r ? !r.classList.contains('hidden') : null; })()`);
+      console.log('byod: music box ' + (shown === null ? 'absent from the page' : shown ? 'SHOWN' : 'hidden'));
+      if (shown !== false) bad.push('the music box is still offered with a data file in play');
+    }
+    /* The bottom bar's toggle is a press on the picture, not a press anywhere: a thumb aiming at the virtual
+     * pad and landing in the black margin used to hide the HUD for no visible reason. A dispatched pointer
+     * event reaches the holder's listener exactly as a finger's does -- the same mechanism the deck probe
+     * above rests on -- so pressing two coordinates and reading the bar back is the whole test. */
+    const bar = await evalJson(`(() => {
+      const h = document.getElementById('screen-holder'), c = document.getElementById('screen');
+      if (!h || !c || !window.NightWasm) return { skip: 'no screen holder' };
+      const r = c.getBoundingClientRect();
+      if (!r.width || !r.height) return { skip: 'the canvas has no box' };
+      let ox = r.left - 8, oy = r.top + r.height / 2;
+      if (ox < 2) { ox = r.left + r.width / 2; oy = r.top - 8; }
+      if (oy < 2) return { skip: 'no margin beside the picture to press' };
+      const send = (x, y, id) => h.dispatchEvent(new PointerEvent('pointerdown', { pointerId: id,
+        pointerType: 'touch', clientX: Math.round(x), clientY: Math.round(y), bubbles: true,
+        cancelable: true, buttons: 1 }));
+      const R = () => window.NightWasm.ready().bar;
+      const before = R();
+      send(ox, oy, 71); const outside = R();
+      send(r.left + r.width / 2, r.top + r.height / 2, 72); const inside = R();
+      return { before, outside, inside, at: [Math.round(ox), Math.round(oy)],
+               picture: [Math.round(r.width), Math.round(r.height)] };
+    })()`);
+    if (bar && bar.skip) console.log('bar: probe skipped (' + bar.skip + ')');
+    else if (bar) {
+      console.log('bar: press in the margin ' + (bar.outside !== bar.before ? 'TOGGLED' : 'ignored') +
+                  ', press on the picture ' + (bar.inside !== bar.before ? 'toggled' : 'IGNORED') +
+                  ' (picture ' + bar.picture + ', margin pressed at ' + bar.at + ')');
+      if (bar.outside !== bar.before)
+        bad.push('a press in the black margin toggled the bar (' + bar.before + ' -> ' + bar.outside +
+                 ' at ' + bar.at + ', picture ' + bar.picture + ')');
+      if (bar.inside === bar.before)
+        bad.push('a press on the picture did not toggle the bar -- the control is now unreachable');
+    }
     for (const p of touchBad) bad.push(p);        /* a stuck d-pad is a failure of the machine, not a taste */
     const netOfflineWindow = /offline=\d+-\d+/.test(process.env.NIGHT_NET || '');
     /* `cdda: fed nothing ...` is the host saying the disc feed stopped while the page was still asking for
      * bytes. It is the one line whose appearance means the music went dead for the rest of the session, so
      * it fails the run instead of being something a human has to notice in a wall of pump lines (docs/462). */
-    const stuck = logs.filter((l) => /cdda: fed nothing/.test(l));
+    const stuck = logs.filter((l) => /cdda: fed nothing/.test(l) && !/asked for none/.test(l));
     if (stuck.length) bad.push('the CD-DA feed stopped: ' + stuck[0]);
+    /* Preload mode (docs/463): the whole score is in the page's memory before the game starts, so a run in
+     * it must not need the network at all. `fetched` > 0 means the preload seam missed a read and asked a
+     * socket instead; `holes` > 0 means the game heard silence it had no reason to hear. Both are the whole
+     * point of the mode, so they fail the run -- and this is the run that the 22-second dropout that takes
+     * the streaming tab down does not even notice. */
+    /* Pre-download is the only mode the page offers now, so these assertions are the default rather than a
+     * variant: the music is in the page's memory before the game starts, so the run must not need the
+     * network for it. A URL that opts out of the MP3 path (?audio=0 reads sectors, ?preload=0 streams) is
+     * exempt, and NIGHT_PRELOAD=1 forces them on regardless. */
+    const runUrl = process.argv[2] || '';
+    const musicOff = /music=0/.test(runUrl);
+    /* A run whose music comes from the visitor's file (or from nothing, because the file had no image) is
+     * not a pre-download run whatever the URL says: what its music assertions would measure is the zip. */
+    const preloadRun = !musicOff && !byodPath && (process.env.NIGHT_PRELOAD === '1' ||
+                       (!/audio=(0|off|raw)/.test(runUrl) && !/preload=(0|off|stream)/.test(runUrl)));
+    if (preloadRun) {
+      const last = [...logs].reverse().find((l) => l.indexOf('pump: ') === 0) || '';
+      const num = (re) => { const m = last.match(re); return m ? Number(m[1]) : -1; };
+      const pre = num(/pre=(\d+)\//), fetched = num(/fetched=(\d+)\//),
+            fails = num(/fails=(\d+)/), holes = num(/holes=(\d+)/);
+      if (logs.filter((l) => /^music: pre-downloaded /.test(l)).length === 0)
+        bad.push('preload mode, but the page never said it downloaded the music');
+      /* The other side of the same rule: on the hosted path, where the box is the only thing between a
+       * visitor and 47 MB, it has to be there to be declined. */
+      const shown = await evalJson(`(() => { const r = document.getElementById('gate-music-row');
+                                             return r ? !r.classList.contains('hidden') : null; })()`);
+      console.log('music box: ' + (shown === null ? 'absent from the page' : shown ? 'offered' : 'HIDDEN'));
+      if (shown !== true) bad.push('the music box is not offered on a run that has hosted music to fetch');
+      if (pre <= 0) bad.push('preload answered none of the disc reads (pre=' + pre + ')');
+      if (fetched > 0) bad.push('preload mode still fetched ' + fetched + ' window(s) from the network');
+      if (fails > 0) bad.push('preload mode had ' + fails + ' failed fetch(es)');
+      if (holes > 0) bad.push('preload mode had ' + holes + ' frames of hole');
+      /* The HUD's network number. In pre-download mode the game consumes exactly as many CD-DA bytes as it
+       * would have streamed -- and the wire carries none of them, which is the whole claim. */
+      if (st && st.netKB > 0) bad.push('pre-download mode, yet the HUD counts ' + st.netKB + ' KB from the network');
+    }
+    /* The other side of the same box (?music=0): the game runs, and asks for no music at all. What has to be
+     * true is that the silence came from choosing it -- the host said so -- and not from the disc feed dying
+     * (the failure mode that used to look exactly like this, docs/463). */
+    if (musicOff) {
+      if (!logs.some((l) => /^music: off by request/.test(l)))
+        bad.push('?music=0, but the game never said the music was off -- it may be silent for the wrong reason');
+      const last = [...logs].reverse().find((l) => l.indexOf('pump: ') === 0) || '';
+      const holes = Number((last.match(/holes=(\d+)/) || [])[1]);
+      const cdda = Number((last.match(/cdda=(\d+)B/) || [])[1]);
+      if (holes > 0) bad.push('music off, yet the MP3 reader made ' + holes + ' frames of hole');
+      if (!(cdda > 0)) bad.push('music off, and no CD-DA was played either -- the game is not running normally');
+      if (st && st.musicOn !== 0) bad.push('?music=0, but the status block still says the music is on');
+      if (st && st.netKB > 0) bad.push('music off, yet the HUD counts ' + st.netKB + ' KB from the network');
+      /* Not just "the assertion above does not apply": silence has to be silence, or the box is lying. The
+       * CD-DA voice's own output peak, measured in the blocks it shares with the effects, is the proof. */
+      const peak = st && st.audio && st.audio.aud && st.audio.aud.ringPeak;
+      if (peak && peak[1] > 0.0001)
+        bad.push('music off, yet CD-DA still put ' + peak[1].toFixed(3) + ' of full scale on the output');
+    }
+    /* The disk cache (runtime/assetcache.js). A cache is only tested by being seen twice, so check-cache
+     * runs this twice against one Chrome profile: the cold pass must download, the warm pass must not
+     * fetch a single asset. Note the warm pass still talks to the server -- every cached byte is validated
+     * with a HEAD -- so what has to read zero is the bytes, not the requests. */
+    if (process.env.NIGHT_CACHE_COLD || process.env.NIGHT_CACHE_WARM) {
+      const line = logs.filter((l) => /^cache: /.test(l)).pop() || '';
+      const net = Number((line.match(/(\d+) from network/) || [])[1]);
+      const disk = Number((line.match(/(\d+) from disk/) || [])[1]);
+      if (!line) bad.push('no cache: line -- the page never said where its bytes came from');
+      if (process.env.NIGHT_CACHE_COLD && !(net >= 2))
+        bad.push('cold cache downloaded only ' + net + ' asset(s): ' + line);
+      if (process.env.NIGHT_CACHE_WARM) {
+        if (net !== 0) bad.push('warm cache still fetched ' + net + ' asset(s): ' + line);
+        if (!(disk >= 2)) bad.push('warm cache served only ' + disk + ' asset(s) from disk: ' + line);
+        if (/UNVALIDATED/.test(line)) bad.push('warm cache served bytes it could not validate: ' + line);
+      }
+    }
     /* And the other half: if the run muted and unmuted the page, the reader has to have consumed CD-DA
      * afterwards. Every symptom of the trap in docs/462 looked healthy in every counter except this one. */
     if (mutes.length >= 2 && st && st.audio && st.audio.pulled && st.audio.pulled.cdda < 10000 && !netOfflineWindow)
@@ -542,7 +728,10 @@ chrome.stderr.on('data', () => {});
       if (st.frames < 120) bad.push('only ' + st.frames + ' frames in ' + ms + ' ms');
       if (fps < 20) bad.push(fps.toFixed(1) + ' frames/s');
       if (!st.disc) bad.push('no disc byte source answered any read');
-      if (!st.tracks) bad.push('the game never asked the CD to play a track');
+      /* A visitor's file with resources but no image means a run with no audio byte source at all, which is
+       * the shape the gate promised: the tracks counter staying at zero is the promise kept, not a fault. */
+      if (!st.tracks && !(byodStaged && !byodStaged.tracks))
+        bad.push('the game never asked the CD to play a track');
       if (!a.pulled || a.pulled.blocks <= 0) bad.push('nothing drained the PCM rings');
       if (!st.keys) bad.push('no key event reached the game');
       if (!a.canvas || a.canvas[2] < 320) bad.push('the canvas has no CSS size: ' + JSON.stringify(a.canvas));
@@ -557,7 +746,7 @@ chrome.stderr.on('data', () => {});
        * scaling one ring twice, effects reached the output at 1/32768 of their level and pulled.sfx, inPeak,
        * drop and underrun all still looked healthy. So measure the OUTPUT of both voices in the blocks where
        * they are supposed to overlap -- which is the whole point of the game's mixer. */
-      if (a.aud && a.pulled && a.pulled.sfx > 1000 && a.pulled.cdda > 1000 && !netOfflineWindow) {
+      if (a.aud && a.pulled && a.pulled.sfx > 1000 && a.pulled.cdda > 1000 && !netOfflineWindow && !musicOff) {
         if (!(a.aud.bothBlocks > 0))
           bad.push('the two voices never shared an output block (bothBlocks 0) -- one is being swallowed');
         else if (!(a.aud.ringPeak[0] > 0.02 && a.aud.ringPeak[1] > 0.02))
@@ -589,6 +778,19 @@ chrome.stderr.on('data', () => {});
     if (bad.length) { console.log('CHECK: FAIL\n  ' + bad.join('\n  ')); failed = true; }
     else console.log('CHECK: PASS (' + st.frames + ' frames, ' + (st.frames / (ms / 1000)).toFixed(1) +
                      ' fps, ' + st.keys + ' keys, ' + st.tracks + ' CD tracks played)');
+    /* What the page's own audio path cost, on whatever device this is. The mixer runs on the main thread
+     * (ScriptProcessorNode), so its wall time competes with the game's frame -- and on a phone the
+     * AudioContext answers 48 kHz while the music ring is at 44.1, so the music is sinc-converted here too.
+     * Printed even though it asserts nothing, because the phone question can only be answered by a number
+     * read off a phone: mix avg/max per block against late blocks tells you whether the stutter is the
+     * mixer's own cost or a main thread the browser had already sold to something else. */
+    if (st.audio && st.audio.aud && st.audio.aud.mixN) {
+      const a = st.audio.aud;
+      console.log('page audio: dev=' + st.audio.acRate + 'Hz block=' + st.audio.spbuf + ' filter=' + (a.filter || '?') +
+                  ' mix=' + (a.mixUs / a.mixN).toFixed(0) + '/' + a.mixMax.toFixed(0) + 'us per second of audio(avg/max of ' + a.mixN +
+                  ') late=' + a.lateBlocks + '/' + st.audio.pulled.blocks + ' blocks(max ' +
+                  a.maxLateMs.toFixed(1) + 'ms) underrun=' + JSON.stringify(a.underrun));
+    }
   }
   const logLines = process.env.NIGHT_LOG_LINES ? parseInt(process.env.NIGHT_LOG_LINES, 10) : 60;
   console.log('--- console (last ' + logLines + ' lines) ---');

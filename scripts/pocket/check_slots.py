@@ -12,17 +12,27 @@ Mappings checked, for every audio track:
     IMG       = disc_lba - 150        (cd_iso.c: the IMG carries no PREGAP)
 
 Run:  python3 scripts/pocket/check_slots.py
+      python3 scripts/pocket/check_slots.py --dir scratch/pocket_fan   (what repack.py wrote there)
 """
 import json
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO / "scripts" / "night-extractor"))
 sys.path.insert(0, str(REPO / "scripts" / "pocket"))
-import repack  # noqa: E402  (reuse its CUE parser and constants -- one source of truth)
+from night_extractor.disc import PREGAP, SECTOR          # one set of numbers for every port
+from night_extractor.source import cue_tracks            # the parser repack.py cuts with
 
-SECTOR, PREGAP = repack.SECTOR, repack.PREGAP
-CD = REPO / "scratch" / "pocket" / "cd"
+POCKET = REPO / "scratch" / "pocket"          # where repack.py writes, unless --dir says otherwise
+for _a in sys.argv:
+    if _a.startswith("--dir="):
+        POCKET = Path(_a.split("=", 1)[1])
+for _i, _a in enumerate(sys.argv):
+    if _a == "--dir" and _i + 1 < len(sys.argv):
+        POCKET = Path(sys.argv[_i + 1])
+CD = POCKET / "cd"
+DISC_JSON = POCKET / "disc.json"
 
 fails = 0
 
@@ -34,10 +44,35 @@ def fail(msg):
 
 
 def main():
-    tracks, pregap = repack.parse_cue(repack.CUE)
-    audio = [(t, lba) for t, _m, lba in tracks if t != tracks[0][0]]
-    img = repack.IMG.open("rb")
-    img_sectors = repack.IMG.stat().st_size // SECTOR
+    # The numbers come from what repack.py decided and wrote down, not from re-finding the disc here: its
+    # cue is the one the card was cut with, and for a fan rip that is this port's own table of contents
+    # rather than the rip's coordinates (docs/465).  The geometry comes along so the two cannot drift.
+    if not DISC_JSON.is_file():
+        fail(f"{DISC_JSON} missing -- run scripts/pocket/repack.py")
+        return 1
+    d = json.loads(DISC_JSON.read_text())
+    rows = cue_tracks(d["cue"])
+    pregap = sum(t["pregap"] for t in rows)
+    # A track's disc LBA is its position in the file plus every PREGAP up to and including its own -- the
+    # same split cd_iso.c makes, and the one place a -150 applied twice would hide.
+    tracks = [(t["track"], t["mode"], t["index"] + sum(x["pregap"] for x in rows[:i + 1]))
+              for i, t in enumerate(rows)]
+    audio = [(t, lb) for t, _m, lb in tracks if t != tracks[0][0]]
+    img_sectors = int(d["img_sectors"])
+    img_path = Path(d.get("img_path") or "")
+
+    if d.get("fan"):
+        # Measured, not assumed (docs/466): a fan rip's audio is this disc's music sliced at offsets that
+        # hold on some tracks and drift inside others.  So byte identity against somebody's rip is not the
+        # claim to test here; the track *geometry* is, and it is checked below against the disc's numbers.
+        print("  [SKIP] byte-for-byte comparison against the image: the data is a fan rip's image "
+              f"({d.get('img')}), whose audio drifts inside the disc's track boundaries")
+        img = None
+    elif img_path.is_file():
+        img = img_path.open("rb")
+    else:
+        fail(f"image {img_path or '(none named in disc.json)'} missing -- the byte comparison needs it")
+        img = None
 
     if pregap != PREGAP:
         fail(f"PREGAP {pregap} != the {PREGAP} the scripts assume")
@@ -74,6 +109,8 @@ def main():
                 fail(f"of_disc would send LBA {disc_lba} to track {own and own[0]}, not {track}")
                 continue
             img_sector = disc_lba - PREGAP
+            if img is None:
+                continue
             if not (0 <= img_sector < img_sectors):
                 fail(f"LBA {disc_lba} maps outside the IMG ({img_sector})")
                 continue
@@ -84,7 +121,8 @@ def main():
             if got != want:
                 fail(f"track{track:02d}+{off} (LBA {disc_lba}, IMG sector {img_sector}) differs")
         tf.close()
-        print(f"  [PASS] track{track:02d}: {n} sectors, LBA {lba}..{lba + n - 1} byte-identical to IMG "
+        how = ("byte-identical to IMG" if img is not None else "at the disc's geometry")
+        print(f"  [PASS] track{track:02d}: {n} sectors, LBA {lba}..{lba + n - 1} {how} "
               f"at {len(probes)} sampled boundaries")
 
     # the lead-in must stay unreadable through a track file (the same refusal cd_iso has)

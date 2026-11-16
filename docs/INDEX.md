@@ -15,7 +15,7 @@ links back and this index says so; the older file stays where its citations poin
 - `pocket/INSTALL.md` — installing the core on a card
 - `AGENTS.md` — repo layout, tools, how to analyse
 
-## The Pocket port (docs/330–456)
+## The Pocket port (docs/330–466)
 
 ### Port plan and host layer
 
@@ -80,6 +80,20 @@ links back and this index says so; the older file stays where its citations poin
   <sub>`0.2.15` asked one question (docs/440): are the guest's clock reads consumed **between** pump visits or</sub>
 - **455** — The disc has three layers, and only one of them is needed to play the game
   <sub>Both are done: `scripts/extract_disc.py` writes `extracted/` (570 MB, git-ignored, regenerable), and</sub>
+- **457** — The browser port runs on one thread, so everything crosses as memory
+  <sub>Chrome, reaches the title, accepts `START GAME`, loads a stage, streams three CD-DA tracks over HTTP Range</sub>
+- **458** — The card drops the sound it stopped; the port had queued it, so every effect waited behind the one the game had already cut off
+  <sub>Reported against the browser port, and true of the desktop one too: *"when sound plays simultaneously it feels</sub>
+- **459** — Four things reported from inside the browser tab: the melt that skipped, the music that would not stop, the hint, and the 320x200 frame
+  <sub>Four reports against `wasm/`, all of them from someone actually playing it in a tab:</sub>
+- **460** — Streaming CD-DA hitched the game once a second, and one lost window ended the music for good
+  <sub>Two reports against `wasm/`, from a phone:</sub>
+- **462** — Muting the page killed the music for the rest of the session, because the disc pump's own safety net armed itself
+  <sub>Reported against the browser port: **"music does not resume after mute -> unmute"**.</sub>
+- **465** — Neither host needs the extracted directory anymore: the disc itself carries the game, and a cue sheet can be named anything
+  <sub>`docs/455` built `extracted/` and made both hosts read from it: the install set — `NIGHT.RES`,</sub>
+- **466** — A fan repack's music is this disc's music but not this disc's bytes, and now every route says which it got
+  <sub>The Pocket core reads no cue sheet and no image: the disc arrives as `NIGHT.RES` plus one file per audio</sub>
 
 ### Video and display
 
@@ -179,6 +193,8 @@ links back and this index says so; the older file stays where its citations poin
   <sub>Docs/374 and docs/390 tested saves through command-line `--save/--load`, which is a harness affordance.  A player on the</sub>
 - **449** — the port stops offering saves, because the game never had them
   <sub>Asked whether a save was worth building out of the half-working slot feature, the answer came back the other</sub>
+- **461** — The d-pad kept walking after the finger left, so the page now takes the next press as the release
+  <sub>A report from the phone build: **"sometimes dpad got stuck. please make it unstuck when pressing again</sub>
 
 ### Clock, tick, performance
 
@@ -298,21 +314,10 @@ links back and this index says so; the older file stays where its citations poin
   <sub>`0.2.11` shipped the panel-side palette ramp (docs/436) with `FADE_RAMP=1`. The boot says it did nothing:</sub>
 - **438** — a byte count cannot name a step count: why the fade ramp armed zero times, and what it now detects
   <sub>`0.2.12` existed to answer one question — which of three premises was false — and it answered it in one line:</sub>
-
-## The browser port (docs/457–462)
-
-- **457** — The browser port runs on one thread, so everything crosses as memory
-  <sub>SDL-free host over the same game layer, two PCM rings, CD-DA over HTTP Range reads, Asyncify at rAF.</sub>
-- **458** — The card drops the sound it stopped; the port had queued it, so every effect waited behind the one the game had already cut off
-  <sub>Reported against the browser port and true of the desktop one too.</sub>
-- **459** — Four things reported from inside the browser tab: the melt that skipped, the music that would not stop, the hint, and the 320x200 frame
-  <sub>The window-write charge this host never set, a BGM enable byte that only gates the next request, and the 16:10 shape nobody saw.</sub>
-- **460** — Streaming CD-DA hitched the game once a second, and one lost window ended the music for good
-  <sub>Range reads awaited inside the game’s own busy-wait, a `g_range_unsupported` latch a 404 could set, and `NIGHT_NET` to measure both.</sub>
-- **461** — The d-pad kept walking after the finger left, so the page now takes the next press as the release
-  <sub>The deck’s only route back from “still held” is an event; the cross is one finger, `NIGHT_TOUCH` asserts it.</sub>
-- **462** — Muting the page killed the music for the rest of the session, because the disc pump’s own safety net armed itself
-  <sub>Re-anchoring the clock behind `now` re-credited the sectors it had just zeroed; `NIGHT_MUTE` and a negative control so it fails the build.</sub>
+- **463** — The browser port carried 546 MB of CD-DA; it now carries 50 MB of MP3, and one FIFO index was doing the work of two
+  <sub>Asked of the browser port: **put the music in a lossy format.** The format was left open, which is the right</sub>
+- **464** — The browser port runs with the visitor's own game file, and the host serves no game bytes at all
+  <sub>Asked of the browser port: **let people play it from a game-data file they downloaded themselves**, so the</sub>
 
 ## The DOS port and original-game analysis (docs/1–329)
 

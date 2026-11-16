@@ -2371,17 +2371,28 @@ static void settings_beat(uint64_t now) {
  * that writer already aliases Z/V -> the CTRL slot, X/B -> the ALT slot, F/G/C -> the SHIFT slot, so
  * the three attacks need no modifier at all: they land on the three slots the original used.
  * Verified against the live game in task-6. */
-/* THE DEFAULT LAYOUT, in Xbox names: X punch, A kick, B jump, Y *and* RB duck, START confirm, SELECT the
- * pause menu, L1 F1, the cross moves. It is named as an Xbox pad because that is the shape every pad a
- * browser reports claims, and the order follows a thumb: the two attacks on the two buttons it alternates
- * between most comfortably, and duck -- held longer than anything else in the game -- on the button you are
- * least likely to want elsewhere, with a second home on RB because that is the only other one in reach of the
- * same thumb.
+/* THE DEFAULT LAYOUT, in the PHYSICAL shape src/app/keymap.c names: punch on the button an Xbox One pad
+ * calls X, kick on its A, jump on its B, duck on its Y *and* on RB, START confirm, SELECT the pause menu,
+ * L1 F1, the cross moves.
+ *
+ * The Pocket's face is a Nintendo diamond, not an Xbox diamond, and the OS names buttons by the letter
+ * printed on the face: Analogue's own manual (Pocket User Manual v1.1, "Face Buttons") puts X top, A right,
+ * B bottom, Y left, where an Xbox One pad puts Y top, B right, A bottom, X left.  Every one of the four
+ * therefore names the OTHER member of a pair in Xbox terms -- top is duck not punch, right is jump not kick
+ * -- and A/B and X/Y have to be swapped in the pairing to land the player on the layout the shared table
+ * intends.  So this array reads inverted against the table's lettering and identical to it in the hand:
+ * punch west, kick south, jump east, duck north on every host, which is the sense in which the three ports
+ * still run ONE layout.  Getting this backwards is the difference between the layout a player asks for and
+ * a layout nobody asked for, so the geometry is quoted above rather than assumed.
+ *
+ * The inversion is a PERMUTATION, not a rewrite: the shared position table is untouched, so the slot each
+ * action arms is still exactly what test/test_f1.c's test_gamepad_layout asserts.
  *
  * The CODES are the shared table in src/app/keymap.c (night_pad_sc, docs/333 §1b), which the fixture suite
  * asserts (test/test_f1.c's test_gamepad_layout); this array only says which button MASK stands for which
- * position, because a mask is the one part of a pad map that is not portable between hosts.  Three ports run
- * one layout this way, so they cannot drift into three games. */
+ * position, because a mask -- and the letter the host prints on it -- is the one part of a pad map that is
+ * not portable between hosts.  It is the only place a Pocket layout lives, so the scripted pad below reads
+ * it instead of restating it. */
 /* of_btn() takes a BUTTON MASK (of_input_types.h: OF_BTN_A = 1 << 4), not an index. */
 typedef struct { uint32_t btn; unsigned pos; } pad_key_t;
 static const pad_key_t g_pad_keys[] = {
@@ -2389,11 +2400,11 @@ static const pad_key_t g_pad_keys[] = {
     { OF_BTN_DOWN,   NIGHT_PAD_DOWN },
     { OF_BTN_LEFT,   NIGHT_PAD_LEFT },
     { OF_BTN_RIGHT,  NIGHT_PAD_RIGHT },
-    { OF_BTN_X,      NIGHT_PAD_X },       /* CTRL  slot  = punch */
-    { OF_BTN_A,      NIGHT_PAD_A },       /* ALT   slot  = kick  */
-    { OF_BTN_B,      NIGHT_PAD_B },       /* SHIFT slot  = jump  */
-    { OF_BTN_Y,      NIGHT_PAD_Y },       /* Space       = duck */
-    { OF_BTN_R1,     NIGHT_PAD_RB },      /* Space again: duck has two homes (pad_btn_for_sc() finds Y first) */
+    { OF_BTN_X,      NIGHT_PAD_Y },       /* Pocket TOP    = Xbox NORTH = duck  */
+    { OF_BTN_Y,      NIGHT_PAD_X },       /* Pocket LEFT   = Xbox WEST  = punch */
+    { OF_BTN_A,      NIGHT_PAD_B },       /* Pocket RIGHT  = Xbox EAST  = jump  */
+    { OF_BTN_B,      NIGHT_PAD_A },       /* Pocket BOTTOM = Xbox SOUTH = kick  */
+    { OF_BTN_R1,     NIGHT_PAD_RB },      /* Space again: duck has two homes (pad_btn_for_sc() finds X first) */
     { OF_BTN_START,  NIGHT_PAD_START },   /* Enter  (confirm) */
     { OF_BTN_SELECT, NIGHT_PAD_SELECT },  /* Esc    (pause menu, docs/93) */
     { OF_BTN_L1,     NIGHT_PAD_LB },      /* F1 */
@@ -2401,8 +2412,8 @@ static const pad_key_t g_pad_keys[] = {
 static uint8_t g_pad_down[sizeof g_pad_keys / sizeof g_pad_keys[0]];   /* raw button state, for the census */
 static uint8_t g_pad_sent[8];      /* the codes the game was last told it holds */
 
-/* Two buttons arm one byte -- Y and RB both duck -- so the pump must not send an edge per button: lifting the
- * thumb off Y while RB is still held would break Space and stop a crouch the player is still holding. So the
+/* Two buttons arm one byte -- X and RB both duck -- so the pump must not send an edge per button: lifting the
+ * thumb off X while RB is still held would break Space and stop a crouch the player is still holding. So the
  * pump sends the edges of the UNION of the codes held this poll, exactly as the browser port's padApply and
  * the SDL host's pad_pump do (docs/457).  pocket needed this rule once before, for R1 and L1 both typing F1 --
  * the removed test_pad_share.c, the 0.3.2/0.3.3 history. */
@@ -2423,7 +2434,10 @@ static uint64_t g_boot_us;                     /* the warp-entry pulse timeline 
 /* ---- scripted pad (task-6) -----------------------------------------------------------
  * NIGHT_PAD_SCRIPT drives the pad from the command line so the mapping can be tested without a pad:
  * comma-separated <poll>:<poll>:<name> spans, a poll being one 8 ms pad_pump() tick, names being the pad
- * buttons (up/down/left/right/x punch/a kick/b jump/y or r1 duck/start/select/l1) or a DOS scan code (0x1d).  The same spans can be
+ * buttons (up/down/left/right/x/y/a/b/r1/l1/start/select) or a DOS scan code (0x1d).  A name names a BUTTON,
+ * not an action: the slot it arms comes from g_pad_keys, because the names used to carry the slot too
+ * ("x punch", "y duck") and a layout change would then have silently re-mapped every saved script.
+ * The same spans can be
  * applied two ways -- through the pad buttons (default) or straight into night_key_apply() with
  * NIGHT_PAD_DIRECT=1 -- which is how the mapping is proven: the two runs must leave the game in the same
  * state, because the pad path may only differ from the key path in *which slot it arms*. */
@@ -2436,6 +2450,15 @@ static uint32_t pad_btn_for_sc(uint8_t sc) {
     for (unsigned i = 0; i < sizeof g_pad_keys / sizeof g_pad_keys[0]; i++)
         if (night_pad_sc[g_pad_keys[i].pos] == sc) return g_pad_keys[i].btn;
     return 0;                                   /* no pad button reaches this slot */
+}
+
+/* pad_btn_for_sc() read backwards: which slot does PRESSING this button arm, under the current pairing?  The
+ * scripted pad used to hardcode one scan code per button name, which is a second copy of the layout -- and a
+ * copy that would go on proving the OLD map the day the pairing moved. */
+static uint8_t pad_sc_for_btn(uint32_t btn) {
+    for (unsigned i = 0; i < sizeof g_pad_keys / sizeof g_pad_keys[0]; i++)
+        if (g_pad_keys[i].btn == btn) return night_pad_sc[g_pad_keys[i].pos];
+    return 0;                                   /* not a pad button at all */
 }
 
 static int g_warp_stage_cli = 0;      /* --warp-stage N: the host warp basis (docs/52) */
@@ -2456,20 +2479,18 @@ static void pad_script_load(void) {
         if (c1) *c1 = 0;
         if (c2) *c2 = 0;
         if (!a || !b || !n) { printf("pad script: bad span '%s'\n", tok); break; }
-        uint32_t btn; uint8_t sc;
-        if (!strcmp(n, "up"))     { btn = OF_BTN_UP;     sc = 0x48; }
-        else if (!strcmp(n, "down"))   { btn = OF_BTN_DOWN;   sc = 0x50; }
-        else if (!strcmp(n, "left"))   { btn = OF_BTN_LEFT;   sc = 0x4b; }
-        else if (!strcmp(n, "right"))  { btn = OF_BTN_RIGHT;  sc = 0x4d; }
-        else if (!strcmp(n, "x"))      { btn = OF_BTN_X;      sc = 0x1d; }  /* punch */
-        else if (!strcmp(n, "a"))      { btn = OF_BTN_A;      sc = 0x38; }  /* kick  */
-        else if (!strcmp(n, "b"))      { btn = OF_BTN_B;      sc = 0x2a; }  /* jump  */
-        else if (!strcmp(n, "y"))      { btn = OF_BTN_Y;      sc = 0x39; }  /* duck  */
-        else if (!strcmp(n, "r1"))     { btn = OF_BTN_R1;     sc = 0x39; }  /* duck too */
-        else if (!strcmp(n, "start"))  { btn = OF_BTN_START;  sc = 0x1c; }
-        else if (!strcmp(n, "select")) { btn = OF_BTN_SELECT; sc = 0x01; }
-        else if (!strcmp(n, "l1"))     { btn = OF_BTN_L1;     sc = 0x3b; }
-        else { sc = (uint8_t)strtoul(n, NULL, 0); btn = pad_btn_for_sc(sc); }
+        static const struct { const char *n; uint32_t btn; } g_pad_names[] = {
+            { "up", OF_BTN_UP },       { "down", OF_BTN_DOWN },
+            { "left", OF_BTN_LEFT },   { "right", OF_BTN_RIGHT },
+            { "x", OF_BTN_X },         { "y", OF_BTN_Y },
+            { "a", OF_BTN_A },         { "b", OF_BTN_B },
+            { "r1", OF_BTN_R1 },       { "l1", OF_BTN_L1 },
+            { "start", OF_BTN_START }, { "select", OF_BTN_SELECT },
+        };
+        uint32_t btn = 0; uint8_t sc = 0;
+        for (unsigned i = 0; i < sizeof g_pad_names / sizeof g_pad_names[0]; i++)
+            if (!strcmp(n, g_pad_names[i].n)) { btn = g_pad_names[i].btn; sc = pad_sc_for_btn(btn); break; }
+        if (!sc) { sc = (uint8_t)strtoul(n, NULL, 0); btn = pad_btn_for_sc(sc); }
         g_pad_script[g_pad_script_n].from = strtoull(a, NULL, 0);
         g_pad_script[g_pad_script_n].to   = strtoull(b, NULL, 0);
         g_pad_script[g_pad_script_n].btn  = btn;
@@ -2488,8 +2509,8 @@ static void pad_script_load(void) {
  * rest, so a route file drives the Pocket host on a wall clock and the difference is stated rather than hidden.
  *
  * Keys go through the DIRECT path (night_key_apply with a DOS make code) rather than the pad buttons, because the
- * route files name DOS keys: `x` there is the X key (make 0x2d), while the pad's X button is wired to Left Shift
- * (0x2a, docs/333).  The make codes are the set-1 codes the pad table already uses -- enter 0x1c, esc 0x01,
+ * route files name DOS keys: `x` there is the X key (make 0x2d), while a pad button reaches the game only
+ * through g_pad_keys and the slot it names (docs/333).  The make codes are the set-1 codes the pad table already uses -- enter 0x1c, esc 0x01,
  * space 0x39, lctrl 0x1d, lalt 0x38, shift 0x2a -- so a --script run and a pad run land in the same key state.
  * Times convert on the pad's own grid: one poll is 8 ms. */
 static const struct { const char *name; uint8_t sc; } g_script_keys[] = {

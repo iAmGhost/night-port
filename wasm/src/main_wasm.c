@@ -39,6 +39,7 @@
 
 #include "wasm_block.h"
 #include "wasm_disc.h"
+#include "wasm_mp3.h"
 
 #include <emscripten.h>
 #include <stdint.h>
@@ -61,6 +62,8 @@ static uint32_t g_block[NK_KEY_WORDS + NK_KEYQ_SLOTS];
  * reads to its AudioContext rate. */
 #define NK_DEFAULT_RATE 44100u
 #define NK_CDDA_RATE    44100u
+#define NK_BOARD_RING_BYTES (1u << 17)       /* AUDIO_RING, src/sys/sys.c:153 */
+
 /* Half sys.c's board ring (AUDIO_RING, src/sys/sys.c:153): the point past which leaving the sound board's
  * bytes in place would cost bytes the board has nowhere to put them, so the host drops them instead. */
 #define NK_BOARD_BACKLOG_BYTES 65536u
@@ -307,7 +310,12 @@ static void ring_rate_sync(void) {
         g_sfx_marks++;
         ring_mark(NK_RING_SFX, I[NK_RING_HEAD], rate);      /* the new rate's bytes begin at HEAD */
     }
-    g_ring_words[NK_RING_CDDA][NK_RING_RATE] = NK_CDDA_RATE;
+    /* CD-DA's rate never changes -- but which rate that is now depends on what the audio under the
+     * sectors is. A Red Book track is 44.1 kHz by definition, and an encode that kept that rate says so
+     * itself; a track encoded at 48 kHz played at 44.1 is a quarter-tone flat and 9% long, which is not a
+     * bug anyone would think to look for in the audio plumbing. */
+    uint32_t ar = nk_mp3_rate();
+    g_ring_words[NK_RING_CDDA][NK_RING_RATE] = ar ? ar : NK_CDDA_RATE;
 }
 
 /* `nframes` frames of `schans` channels into ring `w` -- a copy with mono expanded to stereo, since the
@@ -331,6 +339,9 @@ static uint32_t ring_push(int w, const int16_t *src, uint32_t nframes, int schan
 }
 
 static uint32_t g_sfx_bytes, g_sfx_dropped, g_sfx_deferred, g_cdda_bytes, g_cdda_tracks;
+/* Whether the visitor asked for a soundtrack. A global because the status block reports it on a 20 ms
+ * cadence from the pump, long after main() finished parsing the argument it came from. */
+static int g_music_on = 1;
 
 static void audio_pump(void) {
     ring_rate_sync();
@@ -343,8 +354,14 @@ static void audio_pump(void) {
     uint32_t stops = sys_audio_stops();
     if (stops > last_stops) {
         uint32_t b = sys_audio_pending(), p = ring_used(NK_RING_SFX);
-        g_stop_board += b; g_stop_page += p; g_stop_n++;
-        if (b > g_stop_max_board) g_stop_max_board = b;
+        /* The board's head and tail are free-running, and a DMA reprogram can leave the subtraction wrapped
+         * -- measured 4294841311, i.e. -125969, on a phone log. The board ring is 128 KB (src/sys/sys.c:153),
+         * so anything bigger than that is not bytes queued on it and this sample is not a measurement. */
+        if (b < NK_BOARD_RING_BYTES) {
+            g_stop_board += b; g_stop_n++;
+            if (b > g_stop_max_board) g_stop_max_board = b;
+        }
+        g_stop_page += p;
         if (p > g_stop_max_page) g_stop_max_page = p;
         last_stops = stops;
         /* The card dropped the stopped sound's bytes; the page has to drop the ones it already took, or the
@@ -591,6 +608,13 @@ static void tick_pump(void) {
         cdda_pump();
         g_block[NK_ST_SFX_BYTES] = g_sfx_bytes;
         g_block[NK_ST_CDDA_BYTES] = g_cdda_bytes;
+        /* "What did this cost the player's data plan", which is not "what did the game consume": a dropped
+         * read answered with silence, a soundtrack switched off, and -- in pre-download mode -- the whole
+         * score read out of memory all deliver bytes without streaming any of them. */
+        uint32_t n_r = 0, n_rb = 0, n_ft = 0, n_fb = 0, n_ff = 0, n_wt = 0, n_wm = 0, n_sil = 0;
+        nk_disc_stats(&n_r, &n_rb, &n_ft, &n_fb, &n_ff, &n_wt, &n_wm, &n_sil);
+        g_block[NK_ST_NET_BYTES] = n_fb;
+        g_block[NK_ST_MUSIC] = g_music_on ? 1u : 0u;
     }
 
     if (g_block[NK_CFG_WANT_QUIT] && !g_quit) {
@@ -602,12 +626,26 @@ static void tick_pump(void) {
 
     if (now >= g_diag_next_us) {
         uint32_t rd = 0, rb = 0, ft = 0, fb = 0, ff = 0, wt = 0, wm = 0, sil = 0;
+        uint32_t pr = 0, pb = 0;
         nk_disc_stats(&rd, &rb, &ft, &fb, &ff, &wt, &wm, &sil);
+        nk_disc_pre_stats(&pr, &pb);
+        /* What the compressed audio is costing, next to what it saved. `decode` is the fill; `pread` is the
+         * whole sector read as MSCDEX blocks on it -- decode, seek and any window it had to wait for -- and
+         * `max` is the number a stutter is made of: a frame rate is decided by the worst read that lands in
+         * a frame, not by the mean. */
+        uint64_t af = 0, ab = 0, asks = 0, holes = 0, clock_err = 0, dec_us = 0;
+        nk_mp3_stats(&af, &ab, &asks, &holes, &clock_err, &dec_us);
+        uint32_t pc = 0, ptot = 0, pmax = 0, sc = 0, stot = 0, smax = 0, s2 = 0, s8 = 0;
+        nk_mp3_pread_stats(&pc, &ptot, &pmax, &sc, &stot, &smax, &s2, &s8);
+        uint32_t slow_start = 0, slow_hot = 0;
+        nk_mp3_slow_split(&slow_start, &slow_hot);
         printf("pump: t=%llums frames=%u ticks=%u tick=%u stage=%u audio=%uHz pend=%u xfer=%u stops=%u "
                "sfx=%uB/%uB dropped/%uB deferred (%u rate changes marked, %u flushed: %uB) cdda=%uB tracks=%u pos=%u "
                "bgm=%u snd=%u vgaws=%uns/%uB charged "
                "ring=%u/%u@%u dev=%u at stop n=%u board avg=%u max=%u page avg=%u max=%u "
-               "disc reads=%u fetched=%u/%uB fails=%u waited=%u(max %ums) silence=%uB\n",
+               "disc reads=%u fetched=%u/%uB fails=%u waited=%u(max %ums) silence=%uB pre=%u/%uKB "
+               "mp3 frames=%u/%uB seeks=%u holes=%u clock_err=%uB decode=%ums "
+               "pread=%u/%ums max=%ums >2ms=%u(track %u, steady %u) >8ms=%u seek=%u/%ums max=%ums\n",
                g_start_us ? (unsigned long long)((now - g_start_us) / 1000ull) : 0ull,
                g_frames, g_timer_calls, g_dat_63e24, g_dat_63370,
                sys_audio_rate(), sys_audio_pending(), sys_audio_transfers(), sys_audio_stops(),
@@ -618,7 +656,10 @@ static void tick_pump(void) {
                ring_used(NK_RING_SFX), ring_used(NK_RING_CDDA), g_ring_words[NK_RING_CDDA][NK_RING_RATE],
                g_block[NK_CFG_AUDIO_RATE],
                g_stop_n, g_stop_n ? g_stop_board / g_stop_n : 0, g_stop_max_board,
-               g_stop_n ? g_stop_page / g_stop_n : 0, g_stop_max_page, rd, ft, fb, ff, wt, wm / 1000u, sil);
+               g_stop_n ? g_stop_page / g_stop_n : 0, g_stop_max_page, rd, ft, fb, ff, wt, wm / 1000u, sil,
+               pr, pb / 1024u,
+               (unsigned)af, (unsigned)ab, (unsigned)asks, (unsigned)holes, (unsigned)clock_err,
+               (unsigned)(dec_us / 1000ull), pc, ptot / 1000u, pmax / 1000u, s2, slow_start, slow_hot, s8, sc, stot / 1000u, smax / 1000u);
         video_stats(g_frames);
         /* Per-window numbers, each divided by what this window actually did -- frames counted here and not
          * since boot, or the second window's average is a lie. */
@@ -728,6 +769,13 @@ int main(int argc, char **argv) {
     const char *cue     = "/data/TG_NIGHT.CUE";
     const char *cd_dir  = "/data/cd";      /* the directory cd_iso names as its byte source */
     const char *cd_url  = "data/cd";       /* the same directory as the page sees it, for Range reads */
+    /* Write the compiled-in geometry out as the cue sheet it was generated from, to --cue's path, before
+     * opening it.  For a host with bytes to read and no CUE on disk: cd_iso's own fallback is the same
+     * numbers, but behind a table with no byte source it also refuses every read (the silent-disc path of
+     * docs/455), which is not what a host that has the sectors wants.  The page's bring-your-own-data run
+     * reaches this when the visitor's file carries only a fan repack's cue, which numbers the fan image
+     * and not this disc (docs/464). */
+    int cue_toc       = 0;
     int sound_on        = 1;
     /* The A0000 window-write charge, in ns/byte -- the thing that paces the melting title, the logo fade and
      * the room's page flip (docs/72, docs/76). This host had never set it, so g_vga_window_ns stayed at its
@@ -754,16 +802,28 @@ int main(int argc, char **argv) {
      * into the room loop first (docs/459's Not claimed), and it has not managed to. So the gate is exercised
      * the same way the menu would, one press simulated at a known time. `?bgmoff=15000`. */
     uint32_t bgmoff_ms    = 0u;
+    /* The compressed alternative to the CD-DA sectors (docs/463): a directory of MP3s plus the index the
+     * encoder wrote next to them. Empty string = do not look for one; `--no-audio` says so explicitly, and
+     * a directory with no tracks.tsv in it comes to the same place by itself. */
+    const char *audio_dir = "data/audio";
+    /* The page's "download the music" box, unchecked. The game then runs and plays with the soundtrack as
+     * silence and not one byte of it asked for -- which is what a person who is saving data asked for. Not
+     * `--no-audio`, which streams raw sectors instead: 176 KB/s for the same music, i.e. more data, not less. */
+    int music_on = 1;
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--res-dir") && i + 1 < argc)  res_dir = argv[++i];
         else if (!strcmp(argv[i], "--cue") && i + 1 < argc) cue = argv[++i];
         else if (!strcmp(argv[i], "--cd-dir") && i + 1 < argc) cd_dir = argv[++i];
         else if (!strcmp(argv[i], "--cd-url") && i + 1 < argc) cd_url = argv[++i];
+        else if (!strcmp(argv[i], "--audio-dir") && i + 1 < argc) audio_dir = argv[++i];
         else if (!strcmp(argv[i], "--vgaws") && i + 1 < argc) vgaws = (uint32_t)atoi(argv[++i]);
         else if (!strcmp(argv[i], "--chargeus") && i + 1 < argc) chargeus = (uint32_t)atoi(argv[++i]);
         else if (!strcmp(argv[i], "--bgmoff") && i + 1 < argc) bgmoff_ms = (uint32_t)atoi(argv[++i]);
         else if (!strcmp(argv[i], "--diagms") && i + 1 < argc) g_diag_us = (uint64_t)atoi(argv[++i]) * 1000ull;
         else if (!strcmp(argv[i], "--no-sound")) sound_on = 0;
+        else if (!strcmp(argv[i], "--cue-toc")) cue_toc = 1;
+        else if (!strcmp(argv[i], "--no-audio")) audio_dir = "";
+        else if (!strcmp(argv[i], "--no-music")) { music_on = 0; g_music_on = 0; }
         /* The desktop host's debug flags, same names: get to the title card (and so to a room) without
          * sitting through the logo hold and the opening movie. A browser run that has to reach the room loop
          * before it can open the pause menu wants this. */
@@ -804,14 +864,59 @@ int main(int argc, char **argv) {
 
     /* The disc: the CUE's TOC parses from a 669-byte file, its IMG does not exist (there is no image in
      * the browser), so cd_iso falls back to the per-track directory -- whose bytes are answered by HTTP
-     * Range reads. NIGHT_CD_DIR is the documented knob that names that directory. */
-    setenv("NIGHT_CD_DIR", cd_dir, 1);
-    nk_disc_install(cd_url);
+     * Range reads. NIGHT_CD_DIR is the documented knob that names that directory.
+     *
+     * An empty --cd-url is the other answer: there is no byte source for the audio anywhere (the page's
+     * visitor brought a file with resources but no image, docs/464).  Naming a track directory that cannot
+     * answer is an error cd_iso reports on purpose -- NIGHT_CD_DIR is a rig's knob and a rig wants to be
+     * told -- so here nothing is named, and cd_iso opens the TOC with no source and refuses the reads: the
+     * game runs silent on the geometry alone, which is the boot the page promised. */
+    if (cd_url && *cd_url) {
+        setenv("NIGHT_CD_DIR", cd_dir, 1);
+        nk_disc_install(cd_url);
+    } else {
+        unsetenv("NIGHT_CD_DIR");
+        printf("disc: no audio byte source (--cd-url empty) -- the TOC answers, every read is refused\n");
+    }
+    /* Before cd_iso_open: the index is where the Red Book length of a lossy track lives, and cd_iso wants
+     * that length while it is still reading the TOC. With nothing there, every track keeps being answered
+     * out of its sectors and this whole feature is invisible. */
+    nk_mp3_install(audio_dir, audio_dir && *audio_dir);
+    /* After the install and before the first read: the disc still answers the geometry exactly as it would
+     * with music -- the TOC, the track lengths, the game's own LBA arithmetic -- and every byte of it is
+     * silence. A track the game plays for 42 s gets 42 s of nothing, and 0 B came over the wire for it. */
+    if (!music_on) { nk_disc_silent_audio(1); printf("music: off -- the soundtrack plays as silence and no music bytes will be fetched\n"); }
+    if (cue_toc) {
+        char toc[8192];
+        int  n = cd_iso_toc_cue(toc, sizeof toc);
+        FILE *f = (n > 0) ? fopen(cue, "wb") : NULL;
+        if (!f || fwrite(toc, 1, (size_t)n, f) != (size_t)n)
+            printf("disc: --cue-toc could not write %s -- fn_010c3e will show cdinsert.pcx\n", cue);
+        else printf("disc: %s written from the compiled-in geometry (--cue-toc)\n", cue);
+        if (f) fclose(f);
+        /* Read it back: this sheet is the only thing standing between the visitor's bytes and the gate at
+         * fn_010c3e, and "the write returned the right count" is not the same statement as "the file is
+         * there and parses", which is what the next line depends on. */
+        f = (n > 0) ? fopen(cue, "rb") : NULL;
+        if (f) {
+            char back[64];
+            size_t got = fread(back, 1, sizeof back - 1, f);
+            back[got] = '\0';
+            long sz;
+            fseek(f, 0, SEEK_END);
+            sz = ftell(f);
+            fclose(f);
+            printf("disc: %s wrote %d, reads back %ld byte(s) [%s]\n", cue, n, sz, back);
+        } else printf("disc: %s does not read back at all\n", cue);
+    }
     if (cd_iso_open(cue) == 0) {
         sys_cd_set_backend(cd_iso_root_header, cd_iso_root_records);
         printf("disc: %u tracks, %u sectors, audio from %s (%d of %d audio tracks have no bytes)\n",
                cd_iso_track_count(), cd_iso_total_sectors(), cd_iso_source(),
                cd_iso_tracks_missing(), cd_iso_tracks_total());
+        if (nk_mp3_ready())
+            printf("disc: %u of them will be answered out of %s instead of sectors\n",
+                   cd_iso_tracks_total() - cd_iso_tracks_missing(), nk_mp3_source());
         g_block[NK_ST_DISC] = 1;
         if (cd_iso_has_audio()) sys_cd_set_audio_backend(cdda_play, cdda_stop);
         else printf("disc: no track bytes are answerable -- the game runs silent\n");

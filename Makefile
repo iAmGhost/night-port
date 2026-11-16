@@ -11,7 +11,7 @@ CC      ?= cc
 CFLAGS  ?= -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter
 SRC_F   = src/f/f.c src/f/fx_04794a.c
 SRC_SYS = src/sys/sys.c
-SRC_CD  = src/cd/cd_iso.c src/cd/cd_audit.c
+SRC_CD  = src/cd/cd_iso.c src/cd/cd_audit.c src/cd/cd_res.c
 SRC_KEY = src/app/keymap.c
 SRC_RIG = src/app/rig_sink.c src/app/rig_census.c src/gen/fn_table.c
 # T is the test SOURCE dir (test_f1.c, vectors/); B is where every build output goes.

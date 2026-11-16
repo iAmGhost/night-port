@@ -20,3 +20,6 @@ pocket/releases/
 # python packaging metadata dropped by an editable install (scripts/night-extractor)
 *.egg-info/
 __pycache__/
+
+# where a compressed image is unpacked once for random access (night_extractor --cache default)
+/.night-cache/

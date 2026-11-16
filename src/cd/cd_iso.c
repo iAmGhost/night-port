@@ -166,6 +166,37 @@ static int cd_load_virtual_toc(void) {
 
 static int  cd_owner(uint32_t disc_lba);
 
+/* The compiled-in geometry, as the cue sheet it was generated from.  scripts/gen/gen_disc_toc.py reads a
+ * CUE and keeps the disc LBAs; a host that has a byte source but no CUE on disk -- the browser's
+ * bring-your-own-data run (docs/464), where the visitor's file may carry only a fan repack's cue, which
+ * describes the fan image and not this disc -- needs the sheet back, and this is the only place that
+ * knows both forms.  Asserted against extracted/TG_NIGHT.CUE by a fixture, because a rendering of the
+ * geometry that drifts from the geometry would be a silent music mismatch. */
+int cd_iso_toc_cue(char *dst, uint32_t cap)
+{
+    uint32_t n = 0, first_audio = DISC_TOC_TRACKS, pregap = DISC_TOC_PREGAP;
+    int rc;
+    for (uint32_t i = 0; i < DISC_TOC_TRACKS; i++)
+        if (g_disc_toc_audio[i]) { first_audio = i; break; }
+#define CUE(...) do { rc = snprintf(dst + n, (size_t)(cap - n), __VA_ARGS__);                     \
+                      if (rc < 0 || (uint32_t)rc >= cap - n) return -1; n += (uint32_t)rc; } while (0)
+    CUE("FILE \"TG_NIGHT.IMG\" BINARY\r\n");
+    for (uint32_t i = 0; i < DISC_TOC_TRACKS; i++) {
+        /* One gap on this disc, the PREGAP before the first audio track: the image is everything after
+         * it, so every track from there on sits DISC_TOC_PREGAP sectors earlier in the image than the
+         * disc counts it (which is exactly what scripts/gen/gen_disc_toc.py did going the other way). */
+        uint32_t img = (i >= first_audio) ? g_disc_toc_lba[i] - DISC_TOC_PREGAP : g_disc_toc_lba[i];
+        CUE("  TRACK %02u %s\r\n", g_disc_toc_track[i],
+            g_disc_toc_audio[i] ? "AUDIO" : "MODE1/2352");
+        if (i == first_audio && pregap)
+            CUE("    PREGAP %02u:%02u:%02u\r\n", pregap / 4500,
+                (pregap / 75) % 60, pregap % 75);
+        CUE("    INDEX 01 %02u:%02u:%02u\r\n", img / 4500, (img / 75) % 60, img % 75);
+    }
+#undef CUE
+    return (int)n;
+}
+
 int cd_iso_open(const char *cue_path) {
     char dir[1024];
     char cue_img[1024];
@@ -502,6 +533,8 @@ int cd_iso_read_sector(uint32_t disc_lba, uint8_t *out2048) {
     cd_audit_read("IMG_USER", (long long)disc_lba * IMG_SECTOR + IMG_DATA_OFF, IMG_DATA_LEN, out2048);
     return 0;
 }
+
+int cd_iso_image_present(void) { return g_img != 0; }
 
 void cd_iso_close(void) {
     cd_audit_close();

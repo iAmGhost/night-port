@@ -174,7 +174,9 @@ tracks and drifts inside others, and that `--wav` writes the cuts so the person 
 **The Pocket route** is where this mattered most, because that route has no cue sheet at run time to be
 wrong in a self-describing way.  `scripts/pocket/repack.py` now asks the extractor's input layer
 (`night_extractor.source`) instead of re-finding `TG_NIGHT.CUE` and `TG_NIGHT.IMG` itself, and it hands the
-table generator a `disc.json` — the cue the card was cut with, and the geometry that goes with it.  Making
+table generator a `disc.json` — the cue the card was cut with, and the geometry that goes with it.  It then runs `mk_dist.py` with the track numbers from that plan (`--tracks`), so a fan card
+build leaves a core tree whose `data.json` and `slot_map.tsv` bind the same files — no cue sheet the core build
+could read is needed anywhere in the run.  Making
 that seam explicit caught a real mistake in the first draft: for a fan image `src.cue_text` is still the
 **fan's** cue, whose track 02 sits at sector 174 of the rip, while the game asks for disc LBA 37262.
 Handing that text to `gen_disc.py` baked the rip's coordinates into `disc_table.h` and would have played

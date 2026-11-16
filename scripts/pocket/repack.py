@@ -224,6 +224,11 @@ def main() -> int:
     if not args.no_gen:
         subprocess.run([sys.executable, str(REPO / "scripts" / "pocket" / "gen_disc.py"),
                         "--json", str(disc_json)], check=True)
+        # The core tree's slot bindings are generated too, so `make -C pocket/src/night data` leaves a
+        # card-buildable tree rather than a directory of files and a stale data.json.  The track numbers
+        # come from the plan, not from re-finding a cue that a fan rip does not have.
+        subprocess.run([sys.executable, str(REPO / "scripts" / "pocket" / "mk_dist.py"),
+                        "--tracks", ",".join(str(t["track"]) for t in src.plan)], check=True)
     return 0
 
 

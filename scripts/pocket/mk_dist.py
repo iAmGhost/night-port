@@ -74,8 +74,11 @@ def jw(path: Path, obj):
     path.write_text(json.dumps(obj, indent=4) + "\n")
 
 
-def main():
-    tracks = cue_audio_tracks(CUE)
+def main(tracks=None):
+    # A card cut from a fan rip or a bare image has no cue sheet the core build could read (the rip's
+    # numbers describe the rip, and a bare image brings none), so scripts/pocket/repack.py -- which has
+    # already settled what the tracks are -- can name them instead.  Nothing else about the table changes.
+    tracks = list(tracks) if tracks else cue_audio_tracks(CUE)
     if not tracks:
         sys.exit(f"no AUDIO tracks found in {CUE}")
     ts = slots_for_tracks(tracks)
@@ -615,4 +618,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    ap = argparse.ArgumentParser(description="generate the Pocket core tree (pocket/dist/night)")
+    ap.add_argument("--tracks", metavar="LIST",
+                    help="the audio track numbers, comma separated, when there is no cue sheet to read")
+    a = ap.parse_args()
+    main([int(x) for x in a.tracks.split(",")] if a.tracks else None)

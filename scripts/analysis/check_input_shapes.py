@@ -26,6 +26,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO / "scripts" / "night-extractor"))
 
+from night_extractor import slots as nkslots                       # one slot table for every port  # noqa: E402
 from night_extractor.source import (DISC_SECTORS, MUSIC_CRC, RES_CRC, open_source)  # noqa: E402
 
 REF = REPO / "extracted"
@@ -155,6 +156,15 @@ def expected(name, s, want):
     if s.img is not None and not want.get("fan"):
         check(f"{name}: a disc image is sized like this disc",
               abs(s.img.size // 2352 - DISC_SECTORS) < 4096, f"{s.img.size // 2352} sectors")
+    if s.plan:                                     # the card binds files to slots; one table decides which
+        tracks = [t["track"] for t in s.plan]
+        ids = {t: nkslots.id_for_track(tracks, t) for t in tracks}
+        vals = sorted(ids.values())
+        check(f"{name}: every track is bound to a distinct audio slot",
+              all(v in nkslots.AUDIO_IDS for v in vals) and len(set(vals)) == len(vals),
+              ",".join(str(v) for v in vals))
+        check(f"{name}: the resource slot is not an audio slot", nkslots.RES_ID not in vals,
+              f"slot {nkslots.RES_ID}")
     return got
 
 
@@ -169,6 +179,16 @@ def bytes_against_reference(name, s, out_dir):
     if r.returncode != 0:
         check(f"{name}: the run succeeds", False, r.stderr.strip()[-300:])
         return
+    sm = out_dir / "slot_map.tsv"          # the file a person copies from, so it has to name the container
+    if sm.exists():
+        rows = [l.split("\t") for l in sm.read_text().splitlines() if l and not l.startswith("#")][1:]
+        want = sorted([nkslots.RES_ID] + [nkslots.id_for_track([t["track"] for t in s.plan], t["track"])
+                                          for t in s.plan])
+        got = sorted(int(r[0]) for r in rows)
+        check(f"{name}: slot_map.tsv binds the container and every track", got == want,
+              f"{got[:3]}... want {want[:3]}...")
+    else:
+        check(f"{name}: slot_map.tsv written", False, "missing")
     for f in SAMPLE:
         p, q = out_dir / f, REF / f
         if not p.exists():

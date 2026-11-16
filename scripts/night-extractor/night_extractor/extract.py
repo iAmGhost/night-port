@@ -107,7 +107,8 @@ def part_game(out: Path, src, args, prev):
             note += f" -- CRC-32 {m.crc:08x}, not the {RES_CRC:08x} this port was verified against"
         print(f"       {'wrote' if wrote else 'kept '} NIGHT.RES {got:>12,} B  sha256 {sha[:12]}"
               f"   ({m.label()})")
-        rows.append(dict(kind="game", file="NIGHT.RES", bytes=got, sha256=sha, source=m.name, note=note))
+        rows.append(dict(kind="game", file="NIGHT.RES", bytes=got, sha256=sha, source=m.name,
+                         slot=slots.RES_ID, note=note))
         if src.res_in_image is not None:
             print(f"       (the image carries one too, inside {src.res_in_image['name']}: the file you "
                   f"pointed at wins)")
@@ -125,6 +126,7 @@ def part_game(out: Path, src, args, prev):
 
             got, sha, wrote = write_stream(out / ship, stream, e["off"], e["size"], args.force, prev)
             rows.append(dict(kind="game", file=ship, bytes=got, sha256=sha,
+                             slot=slots.RES_ID if ship.upper() == "NIGHT.RES" else "",
                              source=f"NIGHT.DAT@{found['lba']} +{e['off']}..+{e['off'] + got - 1}",
                              note=f"NIGHT.DAT entry {e['name']!r} at +{e['off']}, {e['size']} B -- "
                                   f"installed by SETUP.EXE"))

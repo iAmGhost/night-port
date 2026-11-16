@@ -50,6 +50,14 @@ second one is a question a listener can settle alone.
 reports the identical fraction, the first second that differs, and each side's RMS and peak (a level change
 means different material; equal levels with different bytes means alignment):
 
+A card copy list that leaves the container out is a card that does not boot, which is the bug this route
+had for a while: `night-extractor` wrote its `slot_map.tsv` from the rows that carried a slot, and only the
+audio rows did — the container row was written by the game part and carried none.  `NIGHT.RES` now carries
+`slot 4` in its manifest row wherever it came from (handed over, or read out of the installer payload), so
+the extractor's `slot_map.tsv` and the Pocket prep's agree line for line, and
+`check_input_shapes.py` asserts it twice: that every track gets a distinct id from `AUDIO_IDS`, and that the
+written `slot_map.tsv` binds the container plus every track.
+
 ```sh
 python3 scripts/pocket/repack.py --data /tmp/nkzip/NIGHT.RES /tmp/nkzip/SOUND.RES /tmp/nkzip/MUSIC.RES \
        -o scratch/pocket_fan          # or night-extractor --wav for the listening copies

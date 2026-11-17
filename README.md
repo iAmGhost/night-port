@@ -23,18 +23,16 @@ MSCDEX 기반 CD-DA 14트랙.
 444개 자산), `DOS4GW.EXE`, `TG_NIGHT.CUE`/`TG_NIGHT.IMG`(633 MB CD 이미지)
 
 > 원본 게임 데이터(`TG_NIGHT.IMG`, `NIGHT.RES`)은 저작권자의 것이며 이 저장소에
-> 포함되지 않습니다. 자체 확보한 디스크 이미지로 `make extract`해 실행해야 합니다.
+> 포함되지 않습니다. 자체적으로 확보한 디스크 이미지를 `make extract`하여 실행해야 합니다.
 
 ## 2. 프로젝트 소개
 
 - Analogue Pocket(+openfpgaOS)에서의 실행을 주 목적으로 한 SDL 포트입니다.
 
-- 원본에 가까운 포팅을 목표로 하였습니다. 100% 테스트되지는 않아 부정확한 구현/버그가 존재할 수 있습니다.
-- 접근법은 **function-to-function**: `NIGHT.EXE`의 모든 함수를 Ghidra로 해석하고,
-1:1 대응하는 C 함수로 포팅하며, 각각을 개별 검증합니다.
+- 원본에 가까운 포팅을 목표로 합니다. 100% 테스트가 완료되지 않았으므로 부정확한 구현이나 버그가 존재할 수 있습니다.
+- 접근법은 **function-to-function**입니다: `NIGHT.EXE`의 모든 함수를 Ghidra로 해석하여 1:1 대응하는 C 함수로 포팅하고, 각각을 개별 검증합니다.
 - 418개 함수(코드 215,518바이트, 호출 간선 3,478개) 전체 역컴파일 → 작업 순위
-(`analysis/rank.tsv`, L0\~L23) → 현재 **526개 항목 포팅 완료 / 2개 비게임 항목
-기록, 잔여 0**, 픽스처 스위트 **약 3,080 PASS / 0 FAIL**.
+(`analysis/rank.tsv`, L0\~L23) → 현재 **526개 항목 포팅 완료 (비게임 항목 2개 기록, 남은 항목 없음), 픽스처 스위트 약 3,080 PASS / 0 FAIL**.
 - 디버깅은 "추측"이 아니라 **차등 검증**으로: 포트와 원본을 같은 입력으로 달리고
 스크린/오디오/상태를 비교하는 리그(`scripts/rig/`)가 모든 결정의 근거가 됩니다.
 ASan/UBSan 스윕, 커버리지 기반 퍼징까지 수행합니다.
@@ -54,13 +52,13 @@ ASan/UBSan 스윕, 커버리지 기반 퍼징까지 수행합니다.
 | **dosbox-automation + REST API (Linux 컨테이너 + Xvfb)**             | 원본의 프레임을 GUI 없이 headless로 캡처 — `/api/v1/video/frame?format=raw`는 포트 아레나 바이트와 직접 비교 가능 (`docs/46`)                       |
 | **uv + Python**                                                  | 자산 디코더·추출기·차등 리그 (`scripts/`, `scripts/ref/`의 차등 레퍼런스 모델)                                                               |
 | **SDL3**                                                         | 네이티브 호스트                                                                                                                |
-| **Emscripten (emsdk)**                                           | WASM 포트                                                                                                                 |
-| **openfpgaOS SDK (ThinkElastic)**                                | Analogue Pocket 코어 (RISC-V 32비트 ELF)                                                                                    |
+| **Emscripten (emsdk)**                                           | WASM 포트                                                                                                                                |
+| **openfpgaOS SDK (ThinkElastic)**                                | Analogue Pocket 코어 (RISC-V 32비트 ELF)                                                                                                   |
 
 
 ## 4. 아키텍처
 
-핵심 원칙: **게임 레이어는 하나, 호스트만 셋.** `src/f`는 픽스처로 검증된 유일한
+핵심 원칙: **게임 레이어는 하나, 세 가지 호스트 환경 지원.** `src/f`는 픽스처로 검증된 유일한
 본체이며, 세 포트 모두 이를 제자리에서 그대로 컴파일합니다(포크 없음).
 
 ```
@@ -83,7 +81,7 @@ ASan/UBSan 스윕, 커버리지 기반 퍼징까지 수행합니다.
 
 - `make test` — 픽스처 스위트(`test/test_f1.c` + `test/vectors`).
 Python 레퍼런스 모델(`scripts/ref/`)과 C 포트를 같은 벡터로 대조하는 차등 테스트.
-`make test`는 앱 바이너리까지 함께 빌드해 스테일한 바이너리로 GREEN이 나오는 것을 차단합니다.
+`make test`는 앱 바이너리까지 함께 빌드하여 오래된(stale) 바이너리로 GREEN이 나오는 것을 차단합니다.
 - `scripts/rig/` — 원본(dosbox-automation)과 포트를 같은 드라이브로 구동하고
 스크린 점수·오디오·상태 셀·엔티티 목록을 비교하는 차등 리그.
 `NIGHT_CD_AUDIT`, `NIGHT_NO_DISC`, `NIGHT_REQUIRE_DISC` 등의 환경 변수로
@@ -103,13 +101,13 @@ SDL3 호스트(`src/app/main.c`). **디스크 이미지 없이** 실행됩니다
 
 ### WASM 포트 (`make -C wasm`)
 
-브라우저용 완전 단일 스레드 포트(`wasm/src/main_wasm.c`). SDL이 전혀 없고
-모든 경계가 메모리로 지나갑니다 — PCM 링(windowed-sinc 리샘플러 포함), 키 입력
-블록, HUD. 특징:
+브라우저용 완전 단일 스레드 포트(`wasm/src/main_wasm.c`). SDL 의존성이 없으며
+모든 경계(boundary)가 메모리를 통해 통신합니다 — PCM 링(windowed-sinc 리샘플러 포함), 키 입력
+블록, HUD 등을 포함합니다. 특징:
 
 - **CD-DA는 MP3 사전 다운로드**: 546 MB CD-DA를 50 MB MP3로 인코딩해
 HTTP Range가 아닌 게이트 후 선다운로드로 공급(`make -C wasm audio`).
-음악 끔(`play the music` 체크박스 미체크) 시 음악 바이트를 0으로 요구.
+- 음악을 꺼둘 경우(`play the music` 체크 해제) 음악 데이터를 요구하지 않습니다.
 - `cd_iso.c`의 리모트 바이트 소스 추상화로 디스크 읽기는 HTTP Range(스트림 모드).
 - headless Chrome 하네스(`make -C wasm check`)가 프레임/디스크/오디오/키를 단언.
 - 산출물 약 513 KB `.wasm` + 68 KB `.js`. URL 레버(`?music=`, `?cache=`, `?audio=` 등).
@@ -118,8 +116,8 @@ HTTP Range가 아닌 게이트 후 선다운로드로 공급(`make -C wasm audio
 ### Pocket 포트 (`make -C pocket/src/night`)
 
 Analogue Pocket용 openFPGA 코어 **`iamghost.night`** (openfpgaOS SDK, RISC-V
-32비트 ELF). `src/f`를 그대로 컴파일한 앱(`main_of.c` ~2,100줄)과 FPGA 코어로
-구성되며, 게임 자산을 APF 데이터 슬롯 28개로 재패킹합니다(`NIGHT.RES` + 트랙별
+32비트 ELF). `src/f`를 그대로 컴파일한 앱(`main_of.c` 약 2,100줄)과 FPGA 코어로
+구성되며, 게임 자산을 APF 데이터 슬롯 28개로 재패킹합니다 (`NIGHT.RES` + 트랙별
 `.bin`, 약 600 MB).
 
 - 게임 내부 PIT 분주비가 낳는 490 Hz 틱 펌프, 하드웨어 믹서(`VARIANT=os25`)
@@ -141,7 +139,7 @@ Analogue Pocket용 openFPGA 코어 **`iamghost.night`** (openfpgaOS SDK, RISC-V
 | `analysis/`  | 문서가 인용하는 근거 — 역어셈블, 의사코드, 노트, 프로브                                                                      |
 | `docs/`      | 460여 편의 분석·포팅 기록 (불변 번호, `INDEX.md`가 색인)                                                               |
 | `extracted/` | `make extract` 산출물 (git-ignored, 재생성 가능)                                                               |
-| `build/`     | 모든 빌드 산출물 (git-ignored)                                                                                |
+| `build/`     | 모든 빌드 산출물 (git-ignored)                                                                                                               |
 
 
 ## 7. 빠른 시작
@@ -167,7 +165,7 @@ make -C pocket/src/night deploy            # 코어 트리 + 슬롯 파일 → /
 
 ## 8. 라이선스 / 면책
 
-- 이 저장소의 포팅 코드와 분석 문서는 프로젝트 라이선스를 따릅니다
+- 이 저장소의 포팅 코드와 분석 문서는 프로젝트 라이선스를 따릅습니다
 (Pocket 트리는 Apache-2.0, `pocket/LICENSE` 참조).
 - 원본 게임의 실행 파일·자산·음악은 각각 저작권자의 소유이며 이 저장소에
 포함되지 않습니다. 원본 디스크를 직접 소유하고 있는 경우에만 추출·실행이

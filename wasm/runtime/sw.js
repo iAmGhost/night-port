@@ -21,7 +21,7 @@
 
 /* One version, one cache. Bump V on any shipped change: it is what retires an old worker's files instead of
  * leaving them installed forever. */
-const V = 'v26';   /* byod exports the fan offsets so the harness can assert against them */
+const V = 'v27';   /* a container's CRC is a note, not a condition: no member is refused for its CRC */
 const CACHE = 'night-shell-' + V;
 
 /* The app shell: the files that make the page and the engine, and nothing that changes with the data. */

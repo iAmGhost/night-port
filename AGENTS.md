@@ -75,7 +75,10 @@
   volume alone: the Internet Archive repack's MUSIC.RES carries the disc's 174 header sectors and none of its
   files, and treating it as a disc slices every track 560 bytes late (docs/466). A picked image declares no
   CRC, so `measureCrc` reads it once, or the fan corrections stay off; a zip member's CRC is the declared one
-  and must never be re-measured (hashing a deflated member hashes its compressed bytes). A bare image of the disc's size falls back to
+  and must never be re-measured (hashing a deflated member hashes its compressed bytes).
+  No CRC is a condition of loading anything -- neither a container's declared one nor the reference
+  `0xf578a854`: a mismatch is a log line that says so and the port loads the file anyway (only a
+  member shorter than its declared length fails, in both the browser and the extractor). A bare image of the disc's size falls back to
   `discCue()`, the JS twin of `--cue-toc`. The disc answers reads from `--cd-url nklocal:cd`; `--cd-url ''`
   means no audio byte source at all, and `--cue-toc` writes the compiled-in geometry out as the sheet
   `cd_iso` would have parsed (`cd_iso_toc_cue()`, asserted byte-for-byte against the shipped cue). With no

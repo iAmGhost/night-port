@@ -195,6 +195,53 @@ class FileMember(Member):
         return self.path
 
 
+class DeflateStream:
+    """A deflate member's bytes, decoded forward from the archive: raw off the file, inflated as it is read.
+
+    Deliberately not `zipfile`.  `zipfile` validates the CRC-32 the container declares and raises mid-read
+    when the bytes disagree with it, which would stop a game over a number the game never asks about -- and
+    declared CRCs are exactly what a repacking tool gets wrong often enough to matter.  Reading the member
+    from the offset the central directory leads to, with zlib, gives the same bytes with no veto.
+    """
+
+    def __init__(self, path: Path, data_off: int, csize: int):
+        self._fh = path.open("rb")
+        self._fh.seek(data_off)
+        self._d = zlib.decompressobj(-15)             # -15: the raw deflate stream a zip member holds
+        self._left, self._buf = csize, b""
+
+    def readable(self):
+        return True
+
+    def seekable(self):
+        return False
+
+    def read(self, n=None):
+        want = -1 if n is None else n
+        while not (self._buf and (want < 0 or len(self._buf) >= want)):
+            if self._left <= 0 or self._d.eof:
+                break
+            chunk = self._fh.read(min(1 << 20, self._left))
+            if not chunk:
+                break
+            self._left -= len(chunk)
+            self._buf += self._d.decompress(chunk)
+        if want < 0 or want >= len(self._buf):
+            out, self._buf = self._buf, b""
+        else:
+            out, self._buf = self._buf[:want], self._buf[want:]
+        return out
+
+    def close(self):
+        self._fh.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
 class ZipMember(Member):
     """One member of a zip, indexed by hand.
 
@@ -205,15 +252,13 @@ class ZipMember(Member):
 
     def __init__(self, path: Path, e: dict):
         super().__init__(e["name"], e["size"], crc=e["crc"], method=e["method"], seekable=e["method"] == 0)
-        self.path, self.data_off = path, e["data_off"]
+        self.path, self.data_off, self.csize = path, e["data_off"], e["csize"]
 
     def stream(self):
         if self.seekable:
             fh = self.path.open("rb")
             return Slice(fh, self.data_off, self.size, close=fh.close)
-        import zipfile                                # forward-only, and it checks the CRC as it goes
-        self._zf = getattr(self, "_zf", None) or zipfile.ZipFile(self.path)
-        return self._zf.open(self.name, "r")
+        return DeflateStream(self.path, self.data_off, self.csize)
 
     def stage(self, cache_dir: Path) -> Path:
         if self.seekable:
@@ -225,15 +270,12 @@ class ZipMember(Member):
         dst = Path(cache_dir) / ("night-%s-%s.img" % (self.base.lower(), format(self.crc or 0, "x")))
         dst.parent.mkdir(parents=True, exist_ok=True)
         tmp = dst.with_suffix(dst.suffix + ".part")
-        crc = 0
         with self.stream() as src, tmp.open("wb") as g:
             for block in iter(lambda: src.read(1 << 20), b""):
                 g.write(block)
-                crc = zlib.crc32(block, crc)
-        if self.crc is not None and crc != (self.crc & 0xFFFFFFFF):
-            tmp.unlink(missing_ok=True)
-            raise SystemExit(f"{self.base}: staged as {crc & 0xFFFFFFFF:08x}, the container said "
-                             f"{self.crc:08x} -- the zip is damaged")
+        # The container's CRC is not a condition of writing this file.  A repack whose archive disagrees with
+        # its own bytes is still somebody's game data, and the length is what actually gets enforced: a
+        # reader that comes up short raises `short read`, which is a failure with a place in it.
         tmp.replace(dst)
         self.staged = dst
         return dst
@@ -297,7 +339,7 @@ def zip_entries(path: Path):
             fh.close()
             raise SystemExit(f"{path.name}: {name}'s local header is not one")
         ln, le = struct.unpack_from("<HH", loc, 26)
-        out.append(dict(name=name, size=usize or csize, crc=crc, method=method,
+        out.append(dict(name=name, size=usize or csize, crc=crc, method=method, csize=csize,
                         data_off=hoff + 30 + ln + le))
     fh.close()
     return out

@@ -15,13 +15,12 @@
  * inside are the visitor's own: a cue states which image it describes, and that name is what is looked for.
  * The shapes, in any combination:
  *
- *   NIGHT.RES            the resource pack.  Read out of the file into the in-memory filesystem, CRC-32
- *                        checked against the zip's own central directory before a byte of it is trusted,
- *                        and reported against 0xf578a854 -- the NIGHT.RES this port was verified against.
- *                        That matters: one known repack of this game ships a NIGHT.RES that differs from
- *                        ours by 162 bytes from offset 1657 onward, which would move every resource offset
- *                        the port's analysis rests on.  A picked file states no CRC, so there the header is
- *                        checked against the container this port was built for instead.
+ *   NIGHT.RES            the resource pack.  Read out of the file into the in-memory filesystem and
+ *                        reported against 0xf578a854 -- the NIGHT.RES this port was verified against -- as
+ *                        a log line, never a condition: one known repack of this game ships a NIGHT.RES
+ *                        that differs from ours by 162 bytes from offset 1657 onward, which moves every
+ *                        resource offset the port's analysis rests on, and the port loads it and says so.
+ *                        What is checked is that a member is as long as the container says it is.
  *   any .CUE +           a raw 2352-byte-frame disc image: sliced into per-track byte ranges, no copy, and
  *   its .IMG/.BIN/.ISO   the cue used verbatim, so the game sees the disc the file describes.  The rip's
  *                        TG_NIGHT.CUE/TG_NIGHT.IMG pair is one such pair, and it carries no NIGHT.RES: the
@@ -40,7 +39,7 @@
 (() => {
 'use strict';
 
-/* ---- crc32: the zip's own check, so a half-downloaded or re-packed file is caught before the game ---- */
+/* ---- crc32: the value a staged file is named by, and the one the fan slice offsets are guarded on ---- */
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
@@ -120,8 +119,11 @@ async function memberDataStart(m) {
 
 const INFLATE_OK = typeof DecompressionStream !== 'undefined';
 
-/* A member read whole, deflating it if it is a deflate stream.  Checked against the zip's CRC-32 before it
- * is returned: NIGHT.RES with one wrong byte is 51 MB of wrong resource offsets. */
+/* A member read whole, deflating it if it is a deflate stream.  The only condition is length: a member that
+ * is shorter than its container says is a truncated read, and there is no way to serve that well.  The zip's
+ * own CRC-32 is *not* a condition of reading.  A repacker's archive that declares CRCs its bytes disagree
+ * with is still somebody's game data, and a check here would make the port refuse to start over a number
+ * that has nothing to do with what the game reads. */
 async function memberBytes(m, onProgress) {
   const from = await memberDataStart(m);
   const raw = await bytesOf(m.src, from, from + m.csize);
@@ -134,10 +136,6 @@ async function memberBytes(m, onProgress) {
   } else throw new Error(m.name + ': zip compression method ' + m.method + ' is not read here');
   if (out.length !== m.usize)
     throw new Error(m.name + ': read ' + out.length + ' bytes, the container says ' + m.usize);
-  if (!m.crcKnown) { if (onProgress) onProgress(1); return out; }   /* a picked file states no CRC */
-  const c = crc32(out);
-  if (c !== m.crc)
-    throw new Error(m.name + ': CRC-32 ' + c.toString(16) + ', the zip says ' + m.crc.toString(16));
   if (onProgress) onProgress(1);
   return out;
 }
@@ -153,12 +151,11 @@ async function memberToOpfs(m, name, onProgress) {
   const src = m.src.slice(from, from + m.csize).stream();
   const chain = m.method === 0 ? src : src.pipeThrough(new DecompressionStream('deflate-raw'));
   const reader = chain.getReader();
-  let crc = 0, got = 0;
+  let got = 0;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     const chunk = value instanceof Uint8Array ? value : new Uint8Array(value);
-    crc = crc32(chunk, crc);
     got += chunk.length;
     await writable.write(chunk);
     if (onProgress) onProgress(Math.min(1, got / m.usize));
@@ -166,8 +163,6 @@ async function memberToOpfs(m, name, onProgress) {
   await writable.close();
   if (got !== m.usize)
     throw new Error(m.name + ': wrote ' + got + ' bytes, the container says ' + m.usize);
-  if (m.crcKnown && crc !== m.crc)
-    throw new Error(m.name + ': CRC-32 ' + crc.toString(16) + ', the zip says ' + m.crc.toString(16));
   return await fh.getFile();
 }
 

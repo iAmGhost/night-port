@@ -125,8 +125,8 @@ archive; and the names inside are nobody's but the repacker's.
 **A container is a zip or a set of files.** The `<input type=file>` takes `multiple`, so `TG_NIGHT.CUE` and
 `TG_NIGHT.IMG` can be picked together, and a member and a picked file are now the same shape: each carries
 the byte source to slice and the offset where its bytes begin (`0` for a picked file, past the local header
-for a zip member). A picked file states no CRC, so the zip's CRC-32 check is skipped there and the container
-header is checked instead.
+for a zip member). A picked file states no CRC at all, and neither does anything else get checked for one: a container's
+CRC-32 is reported, never demanded (see below), and what a member must satisfy is its declared length.
 
 **The cue names its image, and that is the authority.** `.cue`, `.img`, `.bin`, `.iso` are the patterns;
 `SOUND.RES` and `MUSIC.RES` are aliases in the rule rather than the rule; `TG_NIGHT.CUE`/`TG_NIGHT.IMG` are

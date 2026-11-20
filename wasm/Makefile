@@ -59,7 +59,7 @@ CPPFLAGS += -Isrc -I$(REPO)/src -Ithird_party/minimp3
 LDFLAGS  += -sENVIRONMENT=web
 # The whole game main is one long-lived call that suspends ~60 times a second. ASYNCIFY_STACK_SIZE has to
 # hold the C stack an unwind copies, so it travels with STACK_SIZE.
-LDFLAGS  += -sASYNCIFY -sSTACK_SIZE=2MB -sASYNCIFY_STACK_SIZE=4MB
+LDFLAGS  += -sASYNCIFY -sSTACK_SIZE=2097152 -sASYNCIFY_STACK_SIZE=4194304
 # 68 MB of the port's data is static (the flat model's arenas); the game's own heap arena is capped at
 # 48 MB by the boot recipe, and the NIGHT.RES bytes live in the JS-side filesystem, not in wasm memory.
 LDFLAGS  += -sALLOW_MEMORY_GROWTH=1 -sINITIAL_HEAP=48MB -sMAXIMUM_MEMORY=768MB

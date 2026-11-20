@@ -233,3 +233,17 @@ size: build
 
 clean:
 	rm -rf $(OBJ_DIR) $(BUILD_DIR) $(DIST)
+
+# --- release zip (code-only, no game data) ----------------------------------
+# Creates night-wasm-port.zip in the repo root: the dist-codeonly/ tree
+# bundled so it can be handed to someone who wants to host it themselves or
+# play byod (bring-your-own-data).
+release: build
+	rm -f $(REPO)/night-wasm-port.zip
+	@rm -rf $(BYOD_DIST) && mkdir -p $(BYOD_DIST)
+	cp $(runtime) $(BUILD_DIR)/$(APP).js $(BUILD_DIR)/$(APP).wasm $(BYOD_DIST)/
+	@if [ ! -f $(BYOD_DIST)/README.md ]; then \
+		printf '# NIGHT — WebAssembly port\n\nA SDL-free WebAssembly port of the 1994 DOS fighting game NIGHT by TG Entertainment.\n\n## How to play\n\n### Host it yourself\n\nServe this directory with any HTTP server:\n\n    python3 -m http.server 8000 --directory dist-codeonly\n\nThen open http://localhost:8000/ in a browser.\n\n### Bring your own game data\n\nThe port ships without game data. Pick NIGHT.RES, or a CUE + IMG pair, or a zip containing them.\nThe page reads the file locally — nothing is uploaded.\n\n## Controls\n\n- Arrow keys — movement\n- Z — punch\n- X — kick\n- Space — block\n- Enter — start / menu\n\nTouch controls are available on mobile.\n' > $(BYOD_DIST)/README.md; \
+	fi
+	cd $(REPO) && zip -r night-wasm-port.zip wasm/dist-codeonly/
+	@du -sh $(REPO)/night-wasm-port.zip

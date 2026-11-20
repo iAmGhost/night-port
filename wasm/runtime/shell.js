@@ -1149,7 +1149,7 @@
     /* Nothing to spend and nothing chosen: on a code-only host the press cannot start a game, and the
      * honest answer is the file picker rather than a 404 that arrives as "download failed". */
     if (!hostHasData && !(byod && byod.ins && byod.ins.hasRes)) {
-      gate('이 사본에는 게임 자료가 없습니다 — 아래에서 데이터 파일을 골라 주세요');
+      gate('이 사본에는 게임 데이터가 없습니다 — 아래에서 파일을 선택해 주세요');
       return;
     }
     assetsBusy = true;
@@ -1178,7 +1178,7 @@
       const why = (e && e.message) || String(e);
       logLine('assets: ' + why);
       if (gateEl) gateEl.classList.remove('hidden');
-      gate('다운로드 실패: ' + why + ' — 다시 눌러서 시도하세요');
+      gate('다운로드 실패: ' + why + ' — 다시 눌러 시도해 주세요');
       if (gateStart) gateStart.disabled = false;
     }
   }
@@ -1225,7 +1225,7 @@
   }
 
   async function loadRes() {
-    gate('자료 준비 중');
+    gate('데이터 준비 중');
     const fromFile = byod && byod.staged && byod.staged.resBytes;
     let bytes;
     if (fromFile) {
@@ -1234,7 +1234,7 @@
       const gz = (await asset('data/NIGHT.RES.gz', (f) => progress(f * 0.8))).bytes;
       bytes = gz;
       if (typeof DecompressionStream !== 'undefined') {
-        gate('압축 해제 중');
+        gate('압축 해제 중...');
         const ds = new DecompressionStream('gzip');
         const buf = await new Response(new Blob([gz]).stream().pipeThrough(ds)).arrayBuffer();
         bytes = new Uint8Array(buf);
@@ -1290,7 +1290,7 @@
   /* The visitor's game data, from whatever they picked: one zip, or a cue and its image picked together --
    * `inspect` tells the two apart and finds the members whatever they are called. */
   async function byodTake(input) {
-    gate('파일 읽는 중');
+    gate('파일 읽는 중...');
     const names = (Array.isArray(input) ? input : [...(input || [])]).map((f) => f.name);
     try {
       const ins = await globalThis.__nkByod.inspect(input);
@@ -1302,7 +1302,7 @@
       for (const n of ins.notes) logLine('data file: ' + n);
       if (!ins.summary.length) {
         byod = null;
-        gate('이 파일에서는 읽을 게임 데이터를 찾지 못했습니다');
+        gate('이 파일에서 게임 데이터를 찾지 못했습니다');
         if (!hostHasData && gateStart) gateStart.disabled = true;
         return;
       }
@@ -1311,11 +1311,11 @@
       if (gateStart && !hostHasData) gateStart.disabled = false;
       const b = $('btn-byod');
       if (b) b.textContent = '다른 데이터 파일 선택';
-      gate('준비됨');
+      gate('준비 완료');
     } catch (e) {
       byod = null;
       logLine('data file: ' + ((e && e.message) || e));
-      gate(hostHasData ? '파일을 읽을 수 없습니다 — 서버 자료로 하려면 시작을 누르세요'
+      gate(hostHasData ? '파일을 읽을 수 없습니다 — 서버 데이터를 사용하려면 시작을 눌러주세요'
                        : '파일을 읽을 수 없습니다');
       if (!hostHasData && gateStart) gateStart.disabled = true;
     }
@@ -1427,7 +1427,7 @@
 
   /* ---- boot ---- */
   async function boot(moduleSrc) {
-    gate('엔진 로드 중');
+    gate('엔진 로딩 중...');
     const script = document.createElement('script');
     script.src = moduleSrc;
     document.head.appendChild(script);
@@ -1519,7 +1519,7 @@
       gateStart.textContent = '시작';
     }
     if (AUTO_START) { await startWithAssets(); }
-    else { gate(hostHasData ? '준비됨' : '이 사본에는 게임 자료가 없습니다 — 아래에서 파일을 골라 주세요'); }
+    else { gate(hostHasData ? '준비 완료' : '이 사본에는 게임 데이터가 없습니다 — 아래에서 파일을 선택해 주세요'); }
   }
 
   /* The press starts the game: the AudioContext is created inside the gesture (see the click handler, which

@@ -306,36 +306,36 @@
   <div id="gate-box">
     <div id="gate-title">어쩐지 좋은 일이 생길 것 같은 저녁</div>
     <div id="gate-sub">NIGHT · 1997 · TG 엔터테인먼트 · 브라우저 포팅</div>
-    <div id="gate-intro">1997년에 나온 국산 횡스크롤 액션 게임을 웹어셈블리로 옮겼습니다.</div>
+    <div id="gate-intro">1997년작 국산 횡스크롤 액션 게임을 웹어셈블리로 포팅했습니다.</div>
     <div id="gate-links">
       <a href="https://github.com/iAmGhost/night-port" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/iAmGhost/night-port/releases/tag/v0.4.6" target="_blank" rel="noopener">Analogue Pocket 빌드</a>
     </div>
-    <div id="gate-status">엔진 로드 중</div>
+    <div id="gate-status">엔진 로딩 중</div>
     <div id="gate-assets"><!-- what the press will download, measured from the server --></div>
-    <label id="gate-music-row" for="chk-music"><input type="checkbox" id="chk-music" checked><span id="gate-music-label">음악 재생</span></label>
-    <button id="btn-start" disabled autofocus>시작</button>
+    <label id="gate-music-row" for="chk-music"><input type="checkbox" id="chk-music" checked><span id="gate-music-label">음악 듣기</span></label>
+    <button id="btn-start" disabled autofocus>게임 시작</button>
     <div id="gate-byod-row">
-      <button id="btn-byod" type="button">데이터 파일 선택</button>
+      <button id="btn-byod" type="button">게임 데이터 파일 선택</button>
       <a id="btn-byod-dl" href="https://archive.org/details/eojjeonji-definitive-for-dosbox"
-         target="_blank" rel="noopener">데이터 내려받기</a>
+         target="_blank" rel="noopener">게임 데이터 내려받기</a>
     </div>
     <!-- One line where the server has the data and a file is the alternative; the full list where a file is
          the only way in and its shapes are the thing a visitor has to know. -->
-    <div id="gate-byod-brief">지원 &mdash; <code>NIGHT.RES</code> · 원본 <code>.CUE</code>/<code>.IMG</code> ·
-      비공식 zip</div>
+    <div id="gate-byod-brief">지원 형식 &mdash; <code>NIGHT.RES</code> · 원본 <code>.CUE</code>/<code>.IMG</code> ·
+      팬 리팩 zip</div>
     <div id="gate-byod-what" class="hidden">
-      <div><code>NIGHT.RES</code>(또는 묶은 zip) &mdash; 음악 없이 플레이</div>
-      <div>원본 디스크 이미지 &mdash; <code>.CUE</code> + <code>.IMG</code>/<code>.BIN</code> (이름은 자유)</div>
-      <div>비공식 배포판 zip &mdash; <code>NIGHT.RES</code> + <code>SOUND.RES</code> + <code>MUSIC.RES</code></div>
-      <div>zip 하나, 또는 여러 파일을 골라도 됩니다.</div>
+      <div><code>NIGHT.RES</code>(또는 zip 파일) &mdash; 음악 없이 재생</div>
+      <div>원본 디스크 이미지 &mdash; <code>.CUE</code> + <code>.IMG</code>/<code>.BIN</code> (파일명 자유롭게)</div>
+      <div>팬 리팩 zip &mdash; <code>NIGHT.RES</code> + <code>SOUND.RES</code> + <code>MUSIC.RES</code></div>
+      <div>zip 하나만, 또는 여러 파일을 함께 선택해도 됩니다.</div>
     </div>
     <div id="gate-byod"></div>
     <input type="file" id="file-byod" multiple
            accept=".zip,.cue,.img,.bin,.iso,.res,application/zip,application/x-zip-compressed" class="hidden">
-    <div id="gate-keys">방향키 이동·Z 펀치·X 발차기·SHIFT 점프·SPACE 웅크리기·ESC 일시정지</div>
-    <div id="gate-pad" class="hidden">게임패드: 스틱 이동 · X 펀치 · A 발차기 · B 점프 · Y/RB 웅크리기 · START · SELECT · LB = F1</div>
-    <div id="gate-install" class="hidden">앱으로 설치됨: 전체 화면</div>
+    <div id="gate-keys">이동: 방향키 · 펀치: Z · 발차기: X · 점프: SHIFT · 웅크리기: SPACE · 일시정지: ESC</div>
+    <div id="gate-pad" class="hidden">게임패드: 스틱 이동 · X: 펀치 · A: 발차기 · B: 점프 · Y/RB: 웅크리기 · START · SELECT · LB = F1</div>
+    <div id="gate-install" class="hidden">앱으로 설치됨: 브라우저 없이 전체 화면으로 재생</div>
   </div>
 </div>
 <div id="end" class="hidden">

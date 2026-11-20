@@ -27,7 +27,10 @@ jobs:
           version: 7.0.0
 
       - name: Build wasm
-        run: make -C wasm build
+        run: |
+          make -C wasm build
+          rm -rf wasm/dist-codeonly && mkdir -p wasm/dist-codeonly
+          cp wasm/runtime/* wasm/build/night.js wasm/build/night.wasm wasm/dist-codeonly/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

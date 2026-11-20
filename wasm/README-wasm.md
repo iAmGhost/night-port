@@ -1,28 +1,28 @@
-# NIGHT — WebAssembly port
+# NIGHT — WebAssembly 포트
 
-A SDL-free WebAssembly port of the 1994 DOS fighting game NIGHT by TG Entertainment.
+TG Entertainment의 1994년 DOS 격투 게임 NIGHT를 SDL 없이 WebAssembly로 포팅한 버전입니다.
 
-## How to play
+## 재생 방법
 
-### Host it yourself
+### 직접 호스팅하기
 
-Serve this directory with any HTTP server:
+아래 명령어로 أي HTTP 서버로 실행:
 
     python3 -m http.server 8000 --directory dist-codeonly
 
-Then open http://localhost:8000/ in a browser.
+그런 다음 브라우저에서 http://localhost:8000/ 열기
 
-### Bring your own game data
+###自带 게임 데이터 사용하기
 
-The port ships without game data. Pick NIGHT.RES, or a CUE + IMG pair, or a zip containing them.
-The page reads the file locally — nothing is uploaded.
+이 포트에는 게임 데이터가 포함되지 않습니다. `NIGHT.RES` alone, `CUE` + `IMG` 쌍, 또는 이들을 포함한 zip 파일을 선택하면 됩니다.
+페이지가 로컬에서 파일을 읽습니다 — 아무것도 업로드되지 않습니다.
 
-## Controls
+## 조작법
 
-- Arrow keys — movement
-- Z — punch
-- X — kick
-- Space — block
-- Enter — start / menu
+- 방향키 — 이동
+- Z — 펀치
+- X — 발차기
+- Space — 웅크리기
+- Enter — 시작 / 메뉴
 
-Touch controls are available on mobile.
+모바일에서 터치 컨트롤 사용 가능.

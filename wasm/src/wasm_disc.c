@@ -89,6 +89,7 @@ typedef struct {
     uint32_t tok;            /* the JS request this window is waiting on */
     int      eof_short;      /* the fetch that filled it came back short: the track ends here */
     int      st;
+    int      local;          /* answered from a local file (nklocal:), not the network */
 } nk_window;
 
 static nk_window g_win[2];
@@ -386,6 +387,7 @@ static int start_window(int slot, const char *url, uint64_t start, uint32_t want
     }
     if (limit && start + want > limit) want = (uint32_t)(limit - start);
     snprintf(w->url, sizeof w->url, "%s", url);
+    w->local = (strncmp(url, "nklocal:", 8) == 0);
     w->tok   = (uint32_t)nkjs_start(url, (uint32_t)start, want, g_win_bytes[slot], (uint32_t)slot);
     w->off = start; w->want = want; w->len = 0; w->eof_short = 0; w->st = NK_WIN_FILLING;
     return 0;
@@ -406,7 +408,7 @@ static int poll_window(int slot) {
     }
     w->len = (uint32_t)r;
     w->st  = NK_WIN_READY;
-    if (w->len) { g_fetches++; g_fetch_bytes += w->len; }
+    if (w->len && !w->local) { g_fetches++; g_fetch_bytes += w->len; }
     if (w->len < w->want) w->eof_short = 1;            /* the file ended inside the window */
     return NK_WIN_READY;
 }

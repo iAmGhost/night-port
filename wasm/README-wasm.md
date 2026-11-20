@@ -12,7 +12,7 @@ TG Entertainment의 1994년 DOS 격투 게임 NIGHT를 SDL 없이 WebAssembly로
 
 그런 다음 브라우저에서 http://localhost:8000/ 열기
 
-###自带 게임 데이터 사용하기
+### 직접 게임 데이터 사용하기
 
 이 포트에는 게임 데이터가 포함되지 않습니다. `NIGHT.RES` alone, `CUE` + `IMG` 쌍, 또는 이들을 포함한 zip 파일을 선택하면 됩니다.
 페이지가 로컬에서 파일을 읽습니다 — 아무것도 업로드되지 않습니다.

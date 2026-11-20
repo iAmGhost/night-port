@@ -27,12 +27,12 @@ jobs:
           version: 3.1.64
 
       - name: Build wasm
-        run: make -C wasm lite
+        run: make -C wasm build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: wasm/dist
+          path: wasm/dist-codeonly
 
   deploy:
     needs: build
